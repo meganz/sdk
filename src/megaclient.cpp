@@ -59,6 +59,9 @@ const int MegaClient::MAXQUEUEDFA = 30;
 // maximum number of concurrent putfa
 const int MegaClient::MAXPUTFA = 10;
 
+// hearbeat frequency
+static constexpr int FREQUENCY_HEARTBEAT_DS = 300;
+
 #ifdef ENABLE_SYNC
 // //bin/SyncDebris/yyyy-mm-dd base folder name
 const char* const MegaClient::SYNCDEBRISFOLDERNAME = "SyncDebris";
@@ -2946,12 +2949,10 @@ void MegaClient::exec()
 
         if (btheartbeat.armed())
         {
-            // heartbeat
             LOG_debug << "HeartBeat: ";
             app->heartbeat();
-            btheartbeat.backoff(300); //TODO: use variable for time
+            btheartbeat.backoff(FREQUENCY_HEARTBEAT_DS);
         }
-
 
         for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
         {

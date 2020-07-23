@@ -44,12 +44,12 @@ double HeartBeatSyncInfo::progress() const
     return std::max(0.,std::min(1., mTransferredBytes * 1. /mTotalBytes));
 }
 
-long long HeartBeatSyncInfo::pendingUps() const
+uint8_t HeartBeatSyncInfo::pendingUps() const
 {
     return mPendingUps;
 }
 
-long long HeartBeatSyncInfo::pendingDowns() const
+uint8_t HeartBeatSyncInfo::pendingDowns() const
 {
     return mPendingDowns;
 }
@@ -100,49 +100,97 @@ void HeartBeatSyncInfo::removePendingTransfer(MegaTransfer *transfer)
         return;
     }
 
-    const auto &pending = mPendingTransfers[transfer->getTag()];
+    auto &pending = mPendingTransfers[transfer->getTag()];
 
-    // reduce globals by the last known data
-    mTotalBytes -= pending->totalBytes;
-    mTransferredBytes -= pending->transferredBytes;
+    // add the transfer data to a list of finished. To reduce the totals with its values
+    // when we consider progress is complete
+    mFinishedTransfers.push_back(std::move(pending));
 
     mPendingTransfers.erase(transfer->getTag());
 
+    if (mPendingTransfers.empty())
+    {
+        clearFinshedTransfers(); // asume the sync is up-to-date: clear totals
+        assert(!mPendingUps && !mPendingDowns);
+        mTotalBytes = 0;
+        mTransferredBytes = 0;
+    }
+}
+
+void HeartBeatSyncInfo::clearFinshedTransfers()
+{
+    for (const auto &pending : mFinishedTransfers)
+    {
+        // reduce globals by the last known data
+        mTotalBytes -= pending->totalBytes;
+        mTransferredBytes -= pending->transferredBytes;
+    }
+
+    mFinishedTransfers.clear();
+}
+
+void HeartBeatSyncInfo::setHeartBeatId(const handle &heartBeatId)
+{
+    mHeartBeatId = heartBeatId;
+}
+
+int HeartBeatSyncInfo::syncTag() const
+{
+    return mSyncTag;
 }
 
 void HeartBeatSyncInfo::setTransferredBytes(long long value)
 {
-    mTransferredBytes = value;
-    updateLastActionTime();
+    if (mTransferredBytes != value)
+    {
+        mTransferredBytes = value;
+        updateLastActionTime();
+    }
 }
 
 void HeartBeatSyncInfo::setTotalBytes(long long value)
 {
-    mTotalBytes = value;
-    updateLastActionTime();
+    if (mTotalBytes != value)
+    {
+        mTotalBytes = value;
+        updateLastActionTime();
+    }
 }
 
 void HeartBeatSyncInfo::setLastSyncedItem(const mega::MegaHandle &lastSyncedItem)
 {
-    mLastSyncedItem = lastSyncedItem;
+    if (mLastSyncedItem != lastSyncedItem)
+    {
+        mLastSyncedItem = lastSyncedItem;
+        updateLastActionTime();
+    }
 }
 
-void HeartBeatSyncInfo::setPendingDowns(long long pendingDowns)
+void HeartBeatSyncInfo::setPendingDowns(uint8_t pendingDowns)
 {
-    mPendingDowns = pendingDowns;
-    updateLastActionTime();
+    if (mPendingDowns != pendingDowns)
+    {
+        mPendingDowns = pendingDowns;
+        updateLastActionTime();
+    }
 }
 
-void HeartBeatSyncInfo::setPendingUps(long long pendingUps)
+void HeartBeatSyncInfo::setPendingUps(uint8_t pendingUps)
 {
-    mPendingUps = pendingUps;
-    updateLastActionTime();
+    if (mPendingUps != pendingUps)
+    {
+        mPendingUps = pendingUps;
+        updateLastActionTime();
+    }
 }
 
 void HeartBeatSyncInfo::setStatus(const Status &status)
 {
-    mStatus = status;
-    updateLastActionTime();
+    if (mStatus != status)
+    {
+        mStatus = status;
+        updateLastActionTime();
+    }
 }
 
 void HeartBeatSyncInfo::setLastAction(const m_time_t &lastAction)
@@ -201,29 +249,54 @@ void MegaHeartBeatMonitor::setRegisteredId(handle id)
     }
 
     assert(mPendingBackupPuts.size());
-    auto tag = mPendingBackupPuts.front();
+    auto syncTag = mPendingBackupPuts.front();
 
-    for (const auto &hBPair : mHeartBeatedSyncs)
+    if (mHeartBeatedSyncs.find(syncTag) != mHeartBeatedSyncs.end())
     {
-        if (hBPair.second->heartBeatId() == id)
-        {
-            needsAdding = false;
-            break;
-        }
+        mHeartBeatedSyncs[syncTag]->setHeartBeatId(id);
+        needsAdding = false;
     }
 
     if (needsAdding)
     {
-        //create new HeartBeatSyncInfo
-        mHeartBeatedSyncs[tag] = ::mega::make_unique<HeartBeatSyncInfo>(tag, id);
+        for (const auto &hBPair : mHeartBeatedSyncs)
+        {
+            if (hBPair.second->heartBeatId() == id)
+            {
+                needsAdding = false;
+                break;
+            }
+        }
+
+        if (needsAdding)
+        {
+            //create new HeartBeatSyncInfo
+            mHeartBeatedSyncs[syncTag] = std::make_shared<HeartBeatSyncInfo>(syncTag, id);
+        }
     }
 
     mPendingBackupPuts.pop_front();
 }
 
-int MegaHeartBeatMonitor::getHBStatus(MegaSync *sync)
+int MegaHeartBeatMonitor::getHBState(MegaSync *sync) //TODO: doc this
 {
-    return sync->getState(); // TODO: do the actual conversion
+    if (sync->isTemporaryDisabled())
+    {
+        return MegaHeartBeatMonitor::State::TEMPORARY_DISABLED;
+    }
+    else if (sync->isActive())
+    {
+        //TODO: consider use case: paused, if transfers are paused!?
+        return MegaHeartBeatMonitor::State::ACTIVE;
+    }
+    else if (!sync->isEnabled())
+    {
+        return MegaHeartBeatMonitor::State::DISABLED;
+    }
+    else
+    {
+        return MegaHeartBeatMonitor::State::FAILED;
+    }
 }
 
 int MegaHeartBeatMonitor::getHBSubstatus(MegaSync *sync)
@@ -244,9 +317,9 @@ BackupType MegaHeartBeatMonitor::getHBType(MegaSync *sync)
 void MegaHeartBeatMonitor::updateOrRegisterSync(MegaSync *sync)
 {
     string extraData;
-    mClient->reqs.add(new CommandBackupPut(mClient, BackupType::TWO_WAY, sync->getMegaHandle(), sync->getLocalFolder(),
-                                           mClient->getDeviceid().c_str(), sync->getLocalFolder(),  /*TODO: start holding name, gotten from MEGAsync*/
-                                           getHBStatus(sync), getHBSubstatus(sync), getHBExtraData(sync)
+    mClient->reqs.add(new CommandBackupPut(mClient, BackupType::TWO_WAY, sync->getMegaHandle(), sync->getLocalFolder()/*TODO: encrypt this*/,
+                                           mClient->getDeviceid().c_str()/*TODO: encrypt this*/, sync->getName() /*TODO: specs dont say, but it makes sense to encryp this*/,
+                                           getHBState(sync), getHBSubstatus(sync), getHBExtraData(sync)
                                            ));
 
     mPendingBackupPuts.push_back(sync->getTag());
@@ -262,25 +335,51 @@ void MegaHeartBeatMonitor::onSyncStateChanged(MegaApi *api, MegaSync *sync)
     updateOrRegisterSync(sync);
 }
 
-std::shared_ptr<HeartBeatSyncInfo> MegaHeartBeatMonitor::getSyncTagByTransfer(MegaTransfer *transfer)
+std::shared_ptr<HeartBeatSyncInfo> MegaHeartBeatMonitor::getSyncHeartBeatInfoByTransfer(MegaTransfer *transfer)
 {
     if (!transfer->isSyncTransfer())
     {
         return nullptr;
     }
 
-    int tag = 0;
+    int syncTag = 0;
 
-    Node *n = mClient->nodebyhandle(transfer->getType() == MegaTransfer::TYPE_UPLOAD ? transfer->getParentHandle() : transfer->getNodeHandle());
-    if (n && n->localnode && n->localnode->sync)
+    // use map to get the syncTag directly if there was one
+    auto mTSPair = mTransferToSyncMap.find(transfer->getTag());
+    if (mTSPair != mTransferToSyncMap.end())
     {
-         tag = n->localnode->sync->tag;
+        syncTag = mTSPair->second;
     }
 
-    if (tag)
+    if (!syncTag) //first time
     {
-        auto hBPair = mHeartBeatedSyncs.find(tag);
-        return hBPair->second;
+        Node *n = mClient->nodebyhandle(transfer->getType() == MegaTransfer::TYPE_UPLOAD ? transfer->getParentHandle() : transfer->getNodeHandle());
+        while (n)
+        {
+            if (n && n->localnode && n->localnode->sync)
+            {
+                syncTag = n->localnode->sync->tag;
+                mTransferToSyncMap[transfer->getTag()] = syncTag;
+                break;
+            }
+            LOG_warn << "Heartbeat could not get sync tag direclty from transfer handle. Going up";
+            n = n->parent;
+        }
+    }
+
+    if (syncTag)
+    {
+        auto hBPair = mHeartBeatedSyncs.find(syncTag);
+        if (hBPair->second)
+        {
+            return hBPair->second;
+        }
+        else
+        {
+            //create new HeartBeatSyncInfo
+            auto newHB = mHeartBeatedSyncs[syncTag] = std::make_shared<HeartBeatSyncInfo>(syncTag, UNDEF);
+            return newHB;
+        }
     }
 
     return nullptr;
@@ -288,7 +387,7 @@ std::shared_ptr<HeartBeatSyncInfo> MegaHeartBeatMonitor::getSyncTagByTransfer(Me
 
 void MegaHeartBeatMonitor::onTransferStart(MegaApi *api, MegaTransfer *transfer)
 {
-    auto hbs = getSyncTagByTransfer(transfer);
+    auto hbs = getSyncHeartBeatInfoByTransfer(transfer);
     if (hbs)
     {
         if (transfer->getType() == MegaTransfer::TYPE_UPLOAD)
@@ -297,7 +396,7 @@ void MegaHeartBeatMonitor::onTransferStart(MegaApi *api, MegaTransfer *transfer)
         }
         else
         {
-            hbs->setPendingUps(hbs->pendingDowns() + 1);
+            hbs->setPendingDowns(hbs->pendingDowns() + 1);
         }
         hbs->updateTransferInfo(transfer);
     }
@@ -305,7 +404,7 @@ void MegaHeartBeatMonitor::onTransferStart(MegaApi *api, MegaTransfer *transfer)
 
 void MegaHeartBeatMonitor::onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
 {
-    auto hbs = getSyncTagByTransfer(transfer);
+    auto hbs = getSyncHeartBeatInfoByTransfer(transfer);
     if (hbs)
     {
         hbs->updateTransferInfo(transfer);
@@ -314,7 +413,7 @@ void MegaHeartBeatMonitor::onTransferUpdate(MegaApi *api, MegaTransfer *transfer
 
 void MegaHeartBeatMonitor::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error)
 {
-    auto hbs = getSyncTagByTransfer(transfer);
+    auto hbs = getSyncHeartBeatInfoByTransfer(transfer);
     if (hbs)
     {
         if (transfer->getType() == MegaTransfer::TYPE_UPLOAD)
@@ -323,9 +422,17 @@ void MegaHeartBeatMonitor::onTransferFinish(MegaApi *api, MegaTransfer *transfer
         }
         else
         {
-            hbs->setPendingUps(hbs->pendingDowns() - 1);
+            hbs->setPendingDowns(hbs->pendingDowns() - 1);
         }
+        hbs->updateTransferInfo(transfer);
+
         hbs->removePendingTransfer(transfer);
+        mTransferToSyncMap.erase(transfer->getTag());
+
+        if (error->getErrorCode() == API_OK)
+        {
+            hbs->setLastSyncedItem(transfer->getNodeHandle());
+        }
     }
 }
 
@@ -336,9 +443,41 @@ void MegaHeartBeatMonitor::onSyncDeleted(MegaApi *api, MegaSync *sync)
     {
         mClient->reqs.add(new CommandBackupRemove(mClient, hBPair->second->heartBeatId()));
 
-        mHeartBeatedSyncs.erase(hBPair); //TODO: this is speculative: we might want to do it upon backupremove_result
-        // and consider retries (perhaps that's already considered)
+        mHeartBeatedSyncs.erase(hBPair); //This is speculative: could be moved to backupremove_result
+        // in case we wanted to handle possible faling cases.
     }
+}
+
+void MegaHeartBeatMonitor::calculateStatus(HeartBeatSyncInfo *hbs)
+{
+    HeartBeatSyncInfo::Status status = HeartBeatSyncInfo::Status::INACTIVE;
+
+    int tag = hbs->syncTag();
+
+    for (sync_list::iterator it = mClient->syncs.begin(); it != mClient->syncs.end(); it++)
+    {
+        Sync *sync = (*it);
+        if (sync->tag == tag)
+        {
+            switch(sync->localroot->ts)
+            {
+            case TREESTATE_SYNCED:
+                status = HeartBeatSyncInfo::Status::UPTODATE;
+                break;
+            case TREESTATE_PENDING:
+                status = HeartBeatSyncInfo::Status::PENDING;
+                break;
+            case TREESTATE_SYNCING:
+                status = HeartBeatSyncInfo::Status::SYNCING;
+                break;
+            default:
+                status = HeartBeatSyncInfo::Status::UNKNOWN;
+                break;
+            }
+        }
+    }
+
+    hbs->setStatus(status);
 }
 
 void MegaHeartBeatMonitor::beat()
@@ -347,12 +486,17 @@ void MegaHeartBeatMonitor::beat()
     {
         HeartBeatSyncInfo *hbs  = hBPair.second.get();
         auto now = m_time(nullptr);
-        if ( hbs->lastAction() > hbs->lastBeat() //something happened since last reported!
-             || now > hbs->lastBeat() + 30*60) //30 minutes without beating // TODO: use variables
+        auto lapsed = now - hbs->lastBeat();
+        if ( (hbs->lastAction() > hbs->lastBeat()) //something happened since last reported!
+             || lapsed > MAX_HEARBEAT_SECS_DELAY) // max delay happened. Beating: Sicherheitsfahrschaltung!
         {
-            hbs->setLastBeat(now);
+            calculateStatus(hbs);
+
+            hbs->setLastBeat(m_time(nullptr));
+
             auto newCommand = new CommandBackupPutHeartBeat(mClient, hbs->heartBeatId(), hbs->status(),
-                                                            hbs->progress(), hbs->pendingUps(), hbs->pendingDowns(), hbs->lastAction(), hbs->lastSyncedItem());
+                              static_cast<uint8_t>(std::lround(hbs->progress()*100.0)), hbs->pendingUps(), hbs->pendingDowns(),
+                              hbs->lastAction(), hbs->lastSyncedItem());
 
             auto runningCommand = hbs->runningCommand();
 
