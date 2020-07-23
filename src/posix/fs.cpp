@@ -933,15 +933,18 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
                 for (it = client->syncs.begin(); it != client->syncs.end(); it++)
                 {
-                    int rsize = (*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.size() : (*it)->localroot->localname.size();
-                    int isize = (*it)->dirnotify->ignore.size();
+                    std::string* ignore = (*it)->dirnotify->ignore.editStringDirect();
+                    std::string* localname = (*it)->localroot->localname.editStringDirect();
+
+                    int rsize = (*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.size() : localname->size();
+                    int isize = ignore->size();
 
                     if (psize >= rsize
-                      && !memcmp((*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.c_str() : (*it)->localroot->localname.c_str(), path, rsize)    // prefix match
+                      && !memcmp((*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.c_str() : localname->c_str(), path, rsize)    // prefix match
                       && (!path[rsize] || path[rsize] == '/')               // at end: end of path or path separator
                       && (psize <= (rsize + isize)                          // not ignored
                           || (path[rsize + isize + 1] && path[rsize + isize + 1] != '/')
-                          || memcmp(path + rsize + 1, (*it)->dirnotify->ignore.c_str(), isize))
+                          || memcmp(path + rsize + 1, ignore->c_str(), isize))
                       && (psize < rsrcsize                                  // it isn't a resource fork
                           || memcmp(path + psize - rsrcsize, rsrc, rsrcsize)))
                         {
@@ -978,7 +981,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                     LOG_debug << "Filesystem notification. Root: " << pathsync[i]->localroot->name << "   Path: " << paths[i];
                     pathsync[i]->dirnotify->notify(DirNotify::DIREVENTS,
                                                    pathsync[i]->localroot.get(),
-                                                   paths[i],
+                                                   LocalPath::fromLocalname(paths[i]),
                                                    strlen(paths[i]));
 
                     r |= Waiter::NEEDEXEC;
