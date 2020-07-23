@@ -3037,7 +3037,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_handles, sequence(text("handles"), opt(either(text("on"), text("off")))));
     p->Add(exec_httpsonly, sequence(text("httpsonly"), opt(either(text("on"), text("off")))));
 
-    p->Add(exec_mfac, sequence(text("mfac")));
+    p->Add(exec_mfac, sequence(text("mfac"), param("email")));
     p->Add(exec_mfae, sequence(text("mfae")));
     p->Add(exec_mfad, sequence(text("mfad"), param("pin")));
 
@@ -4406,7 +4406,17 @@ void exec_mfad(autocomplete::ACState& s)
 
 void exec_mfac(autocomplete::ACState& s)
 {
-    client->multifactorauthcheck(login.email.c_str());
+    string email;
+    if (s.words.size() == 2)
+    {
+        email = s.words[1].s;
+    }
+    else
+    {
+        email = login.email;
+    }
+
+    client->multifactorauthcheck(email.c_str());
 }
 
 void exec_mfae(autocomplete::ACState& s)
