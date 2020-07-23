@@ -45,10 +45,8 @@ public:
         {
             os << message;
         }
-        else
-        {
-            for (unsigned i = 0; i < numberMessages; ++i) os.write(directMessages[i], directMessagesSizes[i]);
-        }
+        // we can have the message AND the direct messages
+        for (unsigned i = 0; i < numberMessages; ++i) os.write(directMessages[i], directMessagesSizes[i]);
 #else
         os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": " << message;
 #endif

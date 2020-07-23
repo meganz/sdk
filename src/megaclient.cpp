@@ -6763,7 +6763,13 @@ void MegaClient::notifypurge(void)
 #endif
             || cachedscsn != tscsn)
     {
-        updatesc();
+
+        if (scsn.ready())
+        {
+            // in case of CS operations inbetween login and fetchnodes, don't 
+            // write these to the database yet, as we don't have the scsn
+            updatesc();
+        }
 
 #ifdef ENABLE_SYNC
         // update LocalNode <-> Node associations

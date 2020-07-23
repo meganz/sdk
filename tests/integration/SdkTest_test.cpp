@@ -898,6 +898,13 @@ void SdkTest::removeContact(string email, int timeout)
     }
 
     auto result = synchronousRemoveContact(apiIndex, u);
+
+    if (result == API_EEXIST)
+    {
+        LOG_warn << "Contact " << email << " was already removed in api " << apiIndex;
+        result = API_OK;
+    }
+
     ASSERT_EQ(MegaError::API_OK, result) << "Contact deletion of " << email << " failed on api " << apiIndex;
 
     delete u;
@@ -4196,7 +4203,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
     compareDecryptedFile.read((char*)compareDecryptedData.data(), filesize);
 
     m_time_t starttime = m_time();
-    int seconds_to_test_for = gRunningInCI ? 60 : 60 * 10;
+    int seconds_to_test_for = 60; //gRunningInCI ? 60 : 60 * 10;
 
     // ok loop for 10 minutes  (one munite under jenkins)
     srand(unsigned(starttime));
@@ -4235,7 +4242,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
         }
         else // decent piece of the file
         {
-            int pieceSize = gRunningInCI ? 50000 : 5000000;
+            int pieceSize = 50000; //gRunningInCI ? 50000 : 5000000;
             start = rand() % pieceSize;
             int n = pieceSize / (smallpieces ? 100 : 1);
             end = start + n + rand() % n;
@@ -4280,7 +4287,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 
     }
 
-    ASSERT_GT(randomRunsDone, (gRunningInCI ? 10 : 100));
+    ASSERT_GT(randomRunsDone, 10 /*(gRunningInCI ? 10 : 100)*/ );
 
     ostringstream msg;
     msg << "Streaming test downloaded " << randomRunsDone << " samples of the file from random places and sizes, " << randomRunsBytes << " bytes total" << endl;
@@ -4623,6 +4630,7 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
     WaitMillisec(500);
 
     // logout while the upload (which consists of many transfers) is ongoing
+    gSessionIDs[0].clear();
     ASSERT_EQ(API_OK, doRequestLogout(0));
     int result = uploadListener.waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
