@@ -23922,11 +23922,11 @@ void MegaFolderUploadController::cancel()
 #ifdef _WIN32
         if (transfer->type == GET)
         {
-            transfer->localfilename.append("", 1);
+            transfer->localfilename.editStringDirect()->append("", 1);
             WIN32_FILE_ATTRIBUTE_DATA fad;
-            if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.data(), GetFileExInfoStandard, &fad))
-                SetFileAttributesW((LPCWSTR)transfer->localfilename.data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
-            transfer->localfilename.resize(transfer->localfilename.size()-1);
+            if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), GetFileExInfoStandard, &fad))
+                SetFileAttributesW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
+            transfer->localfilename.editStringDirect()->resize(transfer->localfilename.editStringDirect()->size()-1);
         }
 #endif
 
@@ -25321,11 +25321,11 @@ void MegaFolderDownloadController::cancel()
 #ifdef _WIN32
         if (transfer->type == GET)
         {
-            transfer->localfilename.append("", 1);
+            transfer->localfilename.editStringDirect()->append("", 1);
             WIN32_FILE_ATTRIBUTE_DATA fad;
-            if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.data(), GetFileExInfoStandard, &fad))
-                SetFileAttributesW((LPCWSTR)transfer->localfilename.data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
-            transfer->localfilename.resize(transfer->localfilename.size()-1);
+            if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), GetFileExInfoStandard, &fad))
+                SetFileAttributesW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
+            transfer->localfilename.editStringDirect()->resize(transfer->localfilename.editStringDirect()->size()-1);
         }
 #endif
 
