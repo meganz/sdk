@@ -762,6 +762,7 @@ Sync::~Sync()
 {
     // must be set to prevent remote mass deletion while rootlocal destructor runs
     assert(state == SYNC_CANCELED || state == SYNC_FAILED);
+    destructorRunning = true;
 
     if (!statecachetable && client->syncConfigs)
     {

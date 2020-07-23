@@ -1211,7 +1211,7 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
         }
     }
 
-    if (parent && parent != newparent && !sync->client->destructorRunning)
+    if (parent && parent != newparent && !sync->destructorRunning)
     {
         treestate(TREESTATE_NONE);
     }
