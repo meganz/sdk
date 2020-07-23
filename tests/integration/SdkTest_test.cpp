@@ -263,7 +263,10 @@ void SdkTest::TearDown()
 
     if (gResumeSessions && gSessionIDs[0].empty())
     {
-        gSessionIDs[0] = unique_ptr<char[]>(megaApi[0]->dumpSession()).get();
+        if (auto p = unique_ptr<char[]>(megaApi[0]->dumpSession()))
+        {
+            gSessionIDs[0] = p.get();
+        }
     }
 
     gTestingInvalidArgs = false;
@@ -722,7 +725,15 @@ void SdkTest::purgeTree(MegaNode *p, bool depthfirst)
         if (depthfirst && n->isFolder())
             purgeTree(n);
 
-        ASSERT_EQ(MegaError::API_OK, synchronousRemove(apiIndex, n)) << "Remove node operation failed (error: " << mApi[apiIndex].lastError << ")";
+        string nodepath = n->getName() ? n->getName() : "<no name>";
+        auto result = synchronousRemove(apiIndex, n);
+        if (result == API_EEXIST)
+        {
+            LOG_warn << "node " << nodepath << " was already removed in api " << apiIndex;
+            result = API_OK;
+        }
+
+        ASSERT_EQ(MegaError::API_OK, result) << "Remove node operation failed (error: " << mApi[apiIndex].lastError << ")";
     }
 }
 
