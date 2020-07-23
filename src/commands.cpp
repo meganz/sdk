@@ -7772,15 +7772,19 @@ CommandMultiFactorAuthCheck::CommandMultiFactorAuthCheck(MegaClient *client, con
 void CommandMultiFactorAuthCheck::procresult()
 {
     Error e;
-    if (checkError(e, client->json))
+    if (!checkError(e, client->json))
     {
-        client->app->multifactorauthcheck_result(e);
+        if (client->json.isnumeric())
+        {
+            e = static_cast<error>(client->json.getint());
+        }
+        else
+        {
+            client->json.storeobject();
+            e = API_EINTERNAL;
+        }
     }
-    else    // error
-    {
-        client->json.storeobject();
-        client->app->multifactorauthcheck_result(API_EINTERNAL);
-    }
+    client->app->multifactorauthcheck_result(e);
 }
 
 CommandMultiFactorAuthDisable::CommandMultiFactorAuthDisable(MegaClient *client, const char *pin)
