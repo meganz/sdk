@@ -5,6 +5,7 @@
 #include <fstream>
 
 bool gRunningInCI = false;
+bool gResumeSessions = false;
 bool gTestingInvalidArgs = false;
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
@@ -115,6 +116,11 @@ int main (int argc, char *argv[])
         else if (std::string(*it).substr(0, 9) == "--APIURL:")
         {
             mega::MegaClient::APIURL = std::string(*it).substr(9);
+            argc -= 1;
+        }
+        else if (std::string(*it) == "--RESUMESESSIONS")
+        {
+            gResumeSessions = true;
             argc -= 1;
         }
         else

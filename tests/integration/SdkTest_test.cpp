@@ -57,7 +57,11 @@ pthread_t ThreadId()
 }
 #endif
 
-
+#ifndef WIN32
+#define DOTSLASH "./"
+#else
+#define DOTSLASH ".\\"
+#endif
 
 const char* cwd()
 {
@@ -205,6 +209,7 @@ namespace
     }
 }
 
+std::map<int, std::string> gSessionIDs;
 
 void SdkTest::SetUp()
 {
@@ -236,33 +241,57 @@ void SdkTest::SetUp()
 
         LOG_info << "___ Initializing test (SetUp()) ___";
 
-        ASSERT_NO_FATAL_FAILURE( login(0) );
+        if (!gResumeSessions || gSessionIDs[0].empty())
+        {
+            ASSERT_NO_FATAL_FAILURE( login(0) );
+        }
+        else
+        {
+            ASSERT_NO_FATAL_FAILURE( loginBySessionId(0, gSessionIDs[0].c_str()) );
+        }
+
         ASSERT_NO_FATAL_FAILURE( fetchnodes(0) );
     }
+
+    // In case the last test exited without cleaning up (eg, debugging etc)
+    Cleanup();
 }
 
 void SdkTest::TearDown()
 {
     // do some cleanup
 
+    if (gResumeSessions && gSessionIDs[0].empty())
+    {
+        gSessionIDs[0] = unique_ptr<char[]>(megaApi[0]->dumpSession()).get();
+    }
+
     gTestingInvalidArgs = false;
 
+    LOG_info << "___ Cleaning up test (TearDown()) ___";
+    Cleanup();
+
+    releaseMegaApi(1);
+    releaseMegaApi(2);
+    if (megaApi[0])
+    {        
+        releaseMegaApi(0);
+    }
+}
+
+void SdkTest::Cleanup()
+{
     deleteFile(UPFILE);
     deleteFile(DOWNFILE);
     deleteFile(PUBLICFILE);
     deleteFile(AVATARDST);
 
-    releaseMegaApi(1);
-    releaseMegaApi(2);
-
     if (megaApi[0])
     {        
-        LOG_info << "___ Cleaning up test (TearDown()) ___";
-
         // Remove nodes in Cloud & Rubbish
         purgeTree(std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), false);
         purgeTree(std::unique_ptr<MegaNode>{megaApi[0]->getRubbishNode()}.get(), false);
-//        megaApi[0]->cleanRubbishBin();
+        //        megaApi[0]->cleanRubbishBin();
 
         // Remove auxiliar contact
         std::unique_ptr<MegaUserList> ul{megaApi[0]->getContacts()};
@@ -278,9 +307,8 @@ void SdkTest::TearDown()
             MegaContactRequest *cr = crl->get(i);
             megaApi[0]->inviteContact(cr->getTargetEmail(), "Removing you", MegaContactRequest::INVITE_ACTION_DELETE);
         }
-
-        releaseMegaApi(0);
     }
+
 }
 
 int SdkTest::getApiIndex(MegaApi* api)
@@ -833,7 +861,7 @@ void SdkTest::releaseMegaApi(unsigned int apiIndex)
     assert(megaApi[apiIndex].get() == mApi[apiIndex].megaApi);
     if (mApi[apiIndex].megaApi)
     {
-        if (mApi[apiIndex].megaApi->isLoggedIn())
+        if (mApi[apiIndex].megaApi->isLoggedIn() && !gResumeSessions)
         {
             ASSERT_NO_FATAL_FAILURE( logout(apiIndex) );
         }
@@ -869,7 +897,8 @@ void SdkTest::removeContact(string email, int timeout)
         return;
     }
 
-    ASSERT_EQ(MegaError::API_OK, synchronousRemoveContact(apiIndex, u)) << "Contact deletion failed";
+    auto result = synchronousRemoveContact(apiIndex, u);
+    ASSERT_EQ(MegaError::API_OK, result) << "Contact deletion of " << email << " failed on api " << apiIndex;
 
     delete u;
 }
@@ -1532,7 +1561,7 @@ TEST_F(SdkTest, SdkTestTransfers)
 
     // --- Download a file ---
 
-    string filename2 = "./" + DOWNFILE;
+    string filename2 = ".\\" + DOWNFILE;
 
     mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
     megaApi[0]->startDownload(n2, filename2.c_str());
@@ -1564,7 +1593,7 @@ TEST_F(SdkTest, SdkTestTransfers)
 
     // --- Download a 0-byte file ---
 
-    filename3 = "./" + EMPTYFILE;
+    filename3 = ".\\" + EMPTYFILE;
     mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
     megaApi[0]->startDownload(n4, filename3.c_str());
     ASSERT_TRUE( waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD], 600) )
@@ -3648,7 +3677,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     MegaNode *nimported = megaApi[0]->getNodeByHandle(imported_file_handle);
 
 
-    string filename = "./cloudraid_downloaded_file.sdktest";
+    string filename = DOTSLASH "cloudraid_downloaded_file.sdktest";
     deleteFile(filename.c_str());
 
     // plain cloudraid download
@@ -3785,7 +3814,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(imported_file_handle)};
 
 
-    string filename = "./cloudraid_downloaded_file.sdktest";
+    string filename = DOTSLASH "cloudraid_downloaded_file.sdktest";
     deleteFile(filename.c_str());
 
     // set up for 404 and 403 errors
@@ -3839,7 +3868,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
     std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(imported_file_handle)};
 
 
-    string filename = "./cloudraid_downloaded_file.sdktest";
+    string filename = DOTSLASH "cloudraid_downloaded_file.sdktest";
     deleteFile(filename.c_str());
 
     // set up for 404 and 403 errors
@@ -3904,7 +3933,7 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
     #endif
 
     // download - we should see a 30 second pause for 509 processing in the middle
-    string filename2 = "./" + DOWNFILE;
+    string filename2 = DOTSLASH + DOWNFILE;
     deleteFile(filename2);
     mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
     megaApi[0]->startDownload(n1.get(), filename2.c_str());
@@ -3969,7 +3998,7 @@ TEST_F(SdkTest, SdkTestOverquotaCloudraid)
     #endif
 
     // download - we should see a 30 second pause for 509 processing in the middle
-    string filename2 = "./" + DOWNFILE;
+    string filename2 = DOTSLASH + DOWNFILE;
     deleteFile(filename2);
     mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
     megaApi[0]->startDownload(nimported, filename2.c_str());
@@ -4128,7 +4157,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
     MegaNode *rootnode = megaApi[0]->getRootNode();
 
     // get the file, and upload as non-raid
-    string filename2 = "./" + DOWNFILE;
+    string filename2 = DOTSLASH + DOWNFILE;
     deleteFile(filename2);
 
     mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
