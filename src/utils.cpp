@@ -2195,6 +2195,7 @@ void CacheableStatus::setValue(const int64_t value)
 
 SyncConfig::SyncConfig(int tag,
                        std::string localPath,
+                       std::string name,
                        const handle remoteNode,
                        const std::string &remotePath,
                        const fsfp_t localFingerprint,
@@ -2207,6 +2208,7 @@ SyncConfig::SyncConfig(int tag,
     : mTag{tag}
     , mEnabled{enabled}
     , mLocalPath{std::move(localPath)}
+    , mName{std::move(name)}
     , mRemoteNode{remoteNode}
     , mRemotePath{remotePath}
     , mLocalFingerprint{localFingerprint}
@@ -2259,6 +2261,12 @@ const std::string& SyncConfig::getLocalPath() const
 {
     return mLocalPath;
 }
+
+const std::string& SyncConfig::getName() const
+{
+    return mName;
+}
+
 
 handle SyncConfig::getRemoteNode() const
 {
@@ -2356,6 +2364,7 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     int64_t tag;
     bool enabled;
     std::string localPath;
+    std::string name;
     handle remoteNode;
     std::string remotePath;
     fsfp_t fingerprint;
@@ -2376,6 +2385,10 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
         return {};
     }
     if (!reader.unserializestring(localPath))
+    {
+        return {};
+    }
+    if (!reader.unserializestring(name))
     {
         return {};
     }
@@ -2420,8 +2433,8 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     {
         return {};
     }
-    auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{static_cast<int>(tag), std::move(localPath),
-                    remoteNode, remotePath, fingerprint, std::move(regExps), enabled,
+    auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{static_cast<int>(tag), std::move(localPath), std::move(name),
+                    remoteNode, std::move(remotePath), fingerprint, std::move(regExps), enabled,
                     static_cast<Type>(syncType), syncDeletions,
                     forceOverwrite, static_cast<SyncError>(error)}};
     return syncConfig;
@@ -2433,6 +2446,7 @@ bool SyncConfig::serialize(std::string& data) const
     writer.serializei64(mTag);
     writer.serializebool(mEnabled);
     writer.serializestring(mLocalPath);
+    writer.serializestring(mName);
     writer.serializehandle(mRemoteNode);
     writer.serializestring(mRemotePath);
     writer.serializefsfp(mLocalFingerprint);

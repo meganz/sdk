@@ -2975,6 +2975,8 @@ class MegaRequest
          * - MegaApi::createAccount - Returns the name or the firstname of the user
          * - MegaApi::createFolder - Returns the name of the new folder
          * - MegaApi::renameNode - Returns the new name for the node
+         * - MegaApi::syncFolder - Returns the name for the sync
+         * - MegaApi::copySyncDataToCache - Returns the name for the sync
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -5084,6 +5086,16 @@ public:
      * @return Local folder that is being synced
      */
     virtual const char* getLocalFolder() const;
+
+    /**
+     * @brief Get the name of the sync. If none give: it will be the localpath
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaSync object is deleted.
+     *
+     * @return Name given to the sync
+     */
+    virtual const char* getName() const;
 
     /**
      * @brief Get the path of the remote folder that is being synced
@@ -12894,6 +12906,7 @@ class MegaApi
          */
         MegaNode *getSyncedNode(std::string *path);
 
+
         /**
          * @brief Synchronize a local folder and a folder in MEGA
          *
@@ -12904,6 +12917,35 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
          * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getName - Returns the name of the sync
+         * - MegaRequest::getNumDetails - Returns the sync error (MegaSync::Error) in case of failure
+         *  or any other particular condition in case of API_OK
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
+         * if the sync was added with no errors
+         * - MegaRequest::getTransferTag - Returns the sync tag
+         *
+         * @param localFolder Local folder
+         * @param name Name given to the sync
+         * @param megaFolder MEGA folder
+         * @param listener MegaRequestListener to track this request
+         *
+         */
+        void syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Synchronize a local folder and a folder in MEGA
+         *
+         * This function should be used to add a new synchronized folders. To resume a previously
+         * added synchronized folder, use MegaApi::enableSync
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getName - Returns the name of the sync
          * - MegaRequest::getNumDetails - Returns the sync error (MegaSync::Error) in case of failure
          *  or any other particular condition in case of API_OK
          *
@@ -12930,6 +12972,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
          * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getName - Returns the name of the sync
          * - MegaRequest::getNumDetails - Returns the sync error (MegaSync::Error) in case of failure
          *  or any other particular condition in case of API_OK
          *
@@ -12946,6 +12989,33 @@ class MegaApi
          */
         void syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Synchronize a local folder and a folder in MEGA
+         *
+         * This function should be used to add a new synchronized folders. To resume a previously
+         * added synchronized folder, use MegaApi::resumeSync
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getName - Returns the name of the sync
+         * - MegaRequest::getNumDetails - Returns the sync error (MegaSync::Error) in case of failure
+         *  or any other particular condition in case of API_OK
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
+         * if the sync was added with no errors
+         * - MegaRequest::getTransferTag - Returns the sync tag
+         *
+         * @param localFolder Local folder
+         * @param name Name given to the sync
+         * @param megaHandle Handle of MEGA folder
+         * @param listener MegaRequestListener to track this request
+         *
+         */
+        void syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Copy sync data to SDK cache.
@@ -12958,6 +13028,39 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
          * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getName - Returns the name of the sync
+         * - MegaRequest::getLink - Returns the path of the remote folder
+         * - MegaRequest::getNumber - Returns the local filesystem fingreprint
+         * - MegaRequest::setNumDetails - Returns if sync is temporarily disabled
+         * - MegaRequest::getFlag - if sync is enabled
+
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getTransferTag - tag assigned to the sync (MegaApi::copySyncDataToCache)
+         *
+         * @param localFolder Local folder
+         * @param name Name given to the sync
+         * @param megaHandle MEGA folder
+         * @param remotePath MEGA folder path
+         * @param localfp Filesystem fingerprint
+         * @param enabled If the sync is enabled by the user
+         * @param temporaryDisabled If the sync is temporarily disabled
+         * @param listener MegaRequestListener to track this request
+         */
+        void copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
+                                 long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener = NULL);
+        /**
+         * @brief Copy sync data to SDK cache.
+         *
+         * This function is destined to allow transition from Sync management based on Apps cache into SDK
+         * based cache. You will need to call copyCachedStatus prior to this one, so that disable sync reasons are properly
+         * adjusted.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_COPY_SYNC_CONFIG
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
+         * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getName - Returns the name of the sync
          * - MegaRequest::getLink - Returns the path of the remote folder
          * - MegaRequest::getNumber - Returns the local filesystem fingreprint
          * - MegaRequest::setNumDetails - Returns if sync is temporarily disabled
