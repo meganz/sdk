@@ -19811,30 +19811,70 @@ void MegaApiImpl::sendPendingRequests()
                         e = API_EARGS;
                         break;
                     }
+
+                    Node *current = node;
                     nameid nid = AttrMap::string2nameid("lbl");
-                    attr_map::iterator it = node->attrs.map.find(nid);
-                    if (it != node->attrs.map.end() && !it->second.empty()
-                            && label == std::atoi(it->second.c_str()))
+                    attr_map::iterator it = current->attrs.map.find(nid);
+                    bool remove = (it != current->attrs.map.end() && !it->second.empty()
+                            && label == std::atoi(it->second.c_str()));
+                    do
                     {
-                        // if current value is the same as the value we want to set, remove the attribute
-                        node->attrs.map.erase(nid);
+                        if (remove)
+                        {
+                            // if current value is the same as the value we want to set, remove the attribute
+                            current->attrs.map.erase(nid);
+                        }
+                        else
+                        {
+                           current->attrs.map[nid] = std::to_string(label);
+                        }
+
+                        e = client->setattr(current);
+
+                        if (current->type != FILENODE || !current->children.size())
+                        {
+                            // If node is a folder or doesn't have any versions
+                            break;
+                        }
+
+                        // Retrieve next node version (all versions must have the same lbl value)
+                        assert(current->children.back()->parent == current);
+                        current = current->children.back();
                     }
-                    else
-                    {
-                        node->attrs.map[nid] = std::to_string(label);
-                    }
+                    while (current);
+                    break;
                 }
                 else if (type == MegaApi::NODE_ATTR_FAV)
                 {
                     nameid nid = AttrMap::string2nameid("fav");
-                    if (!request->getNumDetails())
+                    bool remove = !request->getNumDetails();
+                    Node *current = node;
+                    do
                     {
-                        node->attrs.map.erase(nid);
+                        if (remove)
+                        {
+                            // if current value is the same as the value we want to set, remove the attribute
+                            current->attrs.map.erase(nid);
+                        }
+                        else
+                        {
+                            current->attrs.map[nid] = std::to_string(1);
+                        }
+
+                        e = client->setattr(current);
+
+                        if (current->type != FILENODE || !current->children.size())
+                        {
+                            // If node is a folder or doesn't have versions
+                            break;
+                        }
+
+                        // Retrieve next node version (all versions must have the same fav value)
+                        assert(current->children.back()->parent == current);
+                        current = current->children.back();
                     }
-                    else
-                    {
-                        node->attrs.map[nid] = std::to_string(1);
-                    }
+                    while (current);
+                    break;
                 }
                 else
                 {
