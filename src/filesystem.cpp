@@ -344,13 +344,13 @@ void FileSystemAccess::unescapefsincompatible(string *name, FileSystemType fileS
 const char *FileSystemAccess::getPathSeparator()
 {
 #if defined (__linux__) || defined (__ANDROID__) || defined  (__APPLE__) || defined (USE_IOS)
-return "/";
+    return "/";
 #elif defined(_WIN32) || defined(WINDOWS_PHONE)
-return "\\";
-#elif
-// Default case
-LOG_warn << "No path separator found";
-return "\\/";
+    return "\\";
+#else
+    // Default case
+    LOG_warn << "No path separator found";
+    return "\\/";
 #endif
 }
 
