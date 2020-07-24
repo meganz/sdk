@@ -1433,7 +1433,7 @@ treestate_t LocalNode::checkstate()
             break;
         }
 
-        if (it->second->ts == TREESTATE_PENDING && ts == TREESTATE_SYNCED)
+        if (it->second->ts == TREESTATE_PENDING && state == TREESTATE_SYNCED)
         {
             state = TREESTATE_PENDING;
         }
