@@ -4307,7 +4307,7 @@ void exec_sync(autocomplete::ACState& s)
             else
             {
                 static int syncTag = 2027;
-                SyncConfig syncConfig{syncTag++, s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.type,
+                SyncConfig syncConfig{syncTag++, s.words[1].s, s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.type,
                             newSyncConfig.syncDeletions, newSyncConfig.forceOverwrite};
                 SyncError syncError;
                 error e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError);

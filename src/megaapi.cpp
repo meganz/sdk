@@ -3159,20 +3159,36 @@ MegaNode *MegaApi::getSyncedNode(string *path)
     return pImpl->getSyncedNode(LocalPath::fromLocalname(*path));
 }
 
+void MegaApi::syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRequestListener *listener)
+{
+    pImpl->syncFolder(localFolder, name, megaFolder, NULL, listener);
+}
+
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, megaFolder, NULL, listener);
+    pImpl->syncFolder(localFolder, nullptr, megaFolder, NULL, listener);
+}
+
+void MegaApi::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, MegaRequestListener *listener)
+{
+    pImpl->syncFolder(localFolder, name, megaHandle, NULL, listener);
 }
 
 void MegaApi::syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, megaHandle, NULL, listener);
+    pImpl->syncFolder(localFolder, nullptr, megaHandle, NULL, listener);
+}
+
+void MegaApi::copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
+                                  long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener)
+{
+    pImpl->copySyncDataToCache(localFolder, name, megaHandle, remotePath, localfp, enabled, temporaryDisabled, listener);
 }
 
 void MegaApi::copySyncDataToCache(const char *localFolder, MegaHandle megaHandle, const char *remotePath,
                                   long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener)
 {
-    pImpl->copySyncDataToCache(localFolder, megaHandle, remotePath, localfp, enabled, temporaryDisabled, listener);
+    pImpl->copySyncDataToCache(localFolder, nullptr, megaHandle, remotePath, localfp, enabled, temporaryDisabled, listener);
 }
 
 void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener)
@@ -3182,7 +3198,7 @@ void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessS
 #ifdef USE_PCRE
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, megaFolder, regExp, listener);
+    pImpl->syncFolder(localFolder, nullptr, megaFolder, regExp, listener);
 }
 #endif
 
@@ -3193,7 +3209,7 @@ void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
 
 void MegaApi::removeSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->removeSync(sync ? sync->getMegaHandle() : UNDEF, listener);
+    pImpl->removeSync(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
 }
 
 void MegaApi::removeSync(int tag, MegaRequestListener *listener)
@@ -3208,7 +3224,7 @@ void MegaApi::disableSync(MegaNode *megaFolder, MegaRequestListener *listener)
 
 void MegaApi::disableSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->disableSync(sync ? sync->getMegaHandle() : UNDEF, listener);
+    pImpl->disableSync(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
 }
 
 void MegaApi::enableSync(MegaSync *sync, MegaRequestListener *listener)
@@ -5527,6 +5543,11 @@ const char *MegaSync::getLocalFolder() const
     return NULL;
 }
 
+const char *MegaSync::getName() const
+{
+    return NULL;
+}
+
 const char *MegaSync::getMegaFolder() const
 {
     return NULL;
@@ -5630,6 +5651,8 @@ const char* MegaSync::getMegaSyncErrorCode(int errorCode)
         return "Your account is blocked";
     case MegaSync::Error::UNKNOWN_TEMPORARY_ERROR:
         return "Unknown temporary error";
+    case MegaSync::Error::TOO_MANY_ACTION_PACKETS:
+        return "Too many changes in account, local state invalid";
     default:
         return "Undefined error";
     }

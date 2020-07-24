@@ -8438,7 +8438,7 @@ MegaNode *MegaApiImpl::getSyncedNode(const LocalPath& path)
     return node;
 }
 
-void MegaApiImpl::syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRegExp *regExp, MegaRequestListener *listener)
+void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, MegaRegExp *regExp, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
     request->setNodeHandle(megaHandle);
@@ -8452,18 +8452,27 @@ void MegaApiImpl::syncFolder(const char *localFolder, MegaHandle megaHandle, Meg
         request->setFile(path.data());
     }
 
+    if(name)
+    {
+        request->setName(name);
+    }
+    else if (localFolder)
+    {
+        request->setName(request->getFile());
+    }
+
     request->setListener(listener);
     request->setRegExp(regExp);
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
+void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    syncFolder(localFolder, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, regExp, listener);
+    syncFolder(localFolder, name, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, regExp, listener);
 }
 
-void MegaApiImpl::copySyncDataToCache(const char *localFolder, MegaHandle megaHandle, const char *remotePath,
+void MegaApiImpl::copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
                                       long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY_SYNC_CONFIG, listener);
@@ -8477,6 +8486,15 @@ void MegaApiImpl::copySyncDataToCache(const char *localFolder, MegaHandle megaHa
             path.insert(0, "\\\\?\\");
 #endif
         request->setFile(path.data());
+    }
+
+    if(name)
+    {
+        request->setName(name);
+    }
+    else if (localFolder)
+    {
+        request->setName(request->getFile());
     }
 
     request->setLink(remotePath);
@@ -13081,7 +13099,7 @@ void MegaApiImpl::sync_removed(int tag)
 
 void MegaApiImpl::sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const SyncError &syncError)
 {
-    MegaSyncPrivate *sync = new MegaSyncPrivate(config.getLocalPath().c_str(), config.getRemoteNode(), config.getTag());
+    MegaSyncPrivate *sync = new MegaSyncPrivate(config.getLocalPath().c_str(), config.getName().c_str(), config.getRemoteNode(), config.getTag());
 
     sync->setLocalFingerprint(static_cast<long long>(config.getLocalFingerprint()));
     sync->setMegaFolder(config.getRemotePath().c_str());
@@ -21067,8 +21085,10 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            const char *name = request->getName();
+
             auto nextSyncTag = client->nextSyncTag();
-            MegaSyncPrivate *sync = new MegaSyncPrivate(localPath, node->nodehandle, nextSyncTag);
+            MegaSyncPrivate *sync = new MegaSyncPrivate(localPath, name, node->nodehandle, nextSyncTag);
             sync->setListener(request->getSyncListener());
             sync->setRegExp(request->getRegExp());
 
@@ -21083,7 +21103,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            SyncConfig syncConfig{nextSyncTag, localPath, request->getNodeHandle(), remotePath.get(),
+            SyncConfig syncConfig{nextSyncTag, localPath, name, request->getNodeHandle(), remotePath.get(),
                                   0, regExpToVector(request->getRegExp())};
 
             e = client->addsync(syncConfig, DEBRISFOLDER, NULL, syncError, true, sync);
@@ -21163,6 +21183,8 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            const char *name = request->getName();
+
             const char *remotePath = request->getLink();
 
             auto nextSyncTag = client->nextSyncTag(10000);//We artificially start giving syncs number from 10k, to avoid clashing
@@ -21200,7 +21222,7 @@ void MegaApiImpl::sendPendingRequests()
                 enabled = true; //we consider enabled when it is temporary disabled
             }
 
-            SyncConfig syncConfig{nextSyncTag, localPath, request->getNodeHandle(), remotePath ? remotePath : "",
+            SyncConfig syncConfig{nextSyncTag, localPath, name, request->getNodeHandle(), remotePath ? remotePath : "",
                                   static_cast<fsfp_t>(request->getNumber()),
                                   regExpToVector(request->getRegExp()), enabled};
 
@@ -23588,12 +23610,22 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
 }
 
 #ifdef ENABLE_SYNC
-MegaSyncPrivate::MegaSyncPrivate(const char *path, handle nodehandle, int tag)
+MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle nodehandle, int tag)
 {
     this->tag = tag;
     this->megaHandle = nodehandle;
     this->localFolder = NULL;
     setLocalFolder(path);
+    this->mName= NULL;
+    if (name && strlen(name))
+    {
+        setName(name);
+    }
+    else
+    {
+        //using localpath as name:
+        setName(path);
+    }
     this->megaFolder = NULL;
     this->state = SYNC_INITIALSCAN;
     this->fingerprint = 0;
@@ -23607,7 +23639,9 @@ MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
     this->regExp = NULL;
     this->setTag(sync->getTag());
     this->localFolder = NULL;
+    this->mName = NULL;
     this->setLocalFolder(sync->getLocalFolder());
+    this->setName(sync->getName());
     this->megaFolder = NULL;
     this->setMegaFolder(sync->getMegaFolder());
     this->setMegaHandle(sync->getMegaHandle());
@@ -23621,6 +23655,7 @@ MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
 MegaSyncPrivate::~MegaSyncPrivate()
 {
     delete [] localFolder;
+    delete [] mName;
     delete [] megaFolder;
     delete regExp;
 }
@@ -23652,6 +23687,20 @@ void MegaSyncPrivate::setLocalFolder(const char *path)
         delete [] localFolder;
     }
     localFolder =  MegaApi::strdup(path);
+}
+
+const char *MegaSyncPrivate::getName() const
+{
+    return mName;
+}
+
+void MegaSyncPrivate::setName(const char *name)
+{
+    if (mName)
+    {
+        delete [] mName;
+    }
+    mName =  MegaApi::strdup(name);
 }
 
 const char *MegaSyncPrivate::getMegaFolder() const

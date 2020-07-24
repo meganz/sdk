@@ -1040,7 +1040,7 @@ private:
 class MegaSyncPrivate : public MegaSync
 {  
 public:
-    MegaSyncPrivate(const char *path, handle nodehandle, int tag);
+    MegaSyncPrivate(const char *path, const char *name, handle nodehandle, int tag);
     MegaSyncPrivate(MegaSyncPrivate *sync);
 
     virtual ~MegaSyncPrivate();
@@ -1051,6 +1051,8 @@ public:
     void setMegaHandle(MegaHandle handle);
     virtual const char* getLocalFolder() const;
     void setLocalFolder(const char*path);
+    virtual const char* getName() const;
+    void setName(const char*name);
     virtual const char* getMegaFolder() const;
     void setMegaFolder(const char *path);
     void setMegaFolderYielding(char *path); //MEGAsync acquires the ownership of path
@@ -1078,6 +1080,7 @@ public:
 protected:
     MegaHandle megaHandle;
     char *localFolder;
+    char *mName;
     char *megaFolder;
     MegaRegExp *regExp;
     int tag;
@@ -2316,9 +2319,9 @@ class MegaApiImpl : public MegaApp
         //Sync
         int syncPathState(string *path);
         MegaNode *getSyncedNode(const LocalPath& path);
-        void syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRegExp *regExp = NULL, MegaRequestListener* listener = NULL);
-        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp = NULL, MegaRequestListener* listener = NULL);
-        void copySyncDataToCache(const char *localFolder, MegaHandle megaHandle, const char *remotePath,
+        void syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, MegaRegExp *regExp = NULL, MegaRequestListener* listener = NULL);
+        void syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRegExp *regExp = NULL, MegaRequestListener* listener = NULL);
+        void copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
                                           long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener = NULL);
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);

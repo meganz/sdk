@@ -354,6 +354,7 @@ enum SyncError {
     LOCAL_IS_HGFS= 24,                      // Found HGFS (not a failure per se)
     ACCOUNT_BLOCKED= 25,                    // Account blocked
     UNKNOWN_TEMPORARY_ERROR = 26,           // Unknown temporary error
+    TOO_MANY_ACTION_PACKETS = 27,           // Too many changes in account, local state discarded
 };
 
 static bool isSyncErrorPermanent(SyncError e)
@@ -856,6 +857,7 @@ public:
 
     SyncConfig(int tag,
                std::string localPath,
+               std::string syncName,
                const handle remoteNode,
                const std::string &remotePath,
                const fsfp_t localFingerprint,
@@ -882,6 +884,9 @@ public:
 
     // returns the local path of the sync
     const std::string& getLocalPath() const;
+
+    // returns the name of the sync
+    const std::string& getName() const;
 
     // returns the remote path of the sync
     handle getRemoteNode() const;
@@ -954,6 +959,9 @@ private:
     // the local path of the sync
     std::string mLocalPath;
 
+    // name of the sync (if localpath is not adecuate)
+    std::string mName;
+
     // the remote handle of the sync
     handle mRemoteNode;
 
@@ -988,6 +996,7 @@ private:
     std::tuple<const int&,
                const bool&,
                const std::string&,
+               const std::string&,
                const handle&,
                const std::string&,
                const fsfp_t&,
@@ -1001,6 +1010,7 @@ private:
         return std::tie(mTag,
                         mEnabled,
                         mLocalPath,
+                        mName,
                         mRemoteNode,
                         mRemotePath,
                         mLocalFingerprint,
