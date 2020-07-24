@@ -272,6 +272,30 @@ bool SqliteDbTable::getNodes(std::vector<std::string>& nodes)
     return result == SQLITE_DONE ? true : false;
 }
 
+bool SqliteDbTable::isNodesOnDemandDb()
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    checkTransaction();
+    int numRows = -1;
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare(db, "SELECT count(*) FROM nodes", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        int result;
+        if ((result = sqlite3_step(stmt) == SQLITE_ROW))
+        {
+           numRows = sqlite3_column_int(stmt, 0);
+
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return numRows > 0 ? true : false;
+}
+
 // add/update record by index
 bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
 {

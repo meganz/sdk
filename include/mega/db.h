@@ -53,6 +53,7 @@ public:
     virtual bool get(uint32_t, string*) = 0;
 
     virtual bool getNodes(std::vector<std::string>& nodes) = 0;
+    virtual bool isNodesOnDemandDb() = 0;
 
     // update or add specific record
     virtual bool put(uint32_t, char*, unsigned) = 0;

@@ -49,6 +49,7 @@ public:
     bool next(uint32_t*, string*);
     bool get(uint32_t, string*);
     bool getNodes(std::vector<std::string>& nodes) override;
+    bool isNodesOnDemandDb() override;
     bool put(uint32_t, char*, unsigned);
     bool put(Node* node) override;
     bool del(uint32_t);

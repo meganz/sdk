@@ -10928,16 +10928,21 @@ bool MegaClient::fetchsc(DbTable* sctable)
     User* u;
     PendingContactRequest* pcr;
     node_vector dp;
-    std::vector<std::string> nodes;
 
     LOG_info << "Loading session from local cache";
 
     sctable->rewind();
 
-    sctable->getNodes(nodes);
-    for (const std::string& node : nodes)
+    bool isNodeOnDemandDb = sctable->isNodesOnDemandDb();
+
+    if (isNodeOnDemandDb)
     {
-        n = Node::unserialize(this, &node, &dp);
+        std::vector<std::string> nodes;
+        sctable->getNodes(nodes);
+        for (const std::string& node : nodes)
+        {
+            n = Node::unserialize(this, &node, &dp);
+        }
     }
 
     bool hasNext = sctable->next(&id, &data, &key);
@@ -10951,6 +10956,21 @@ bool MegaClient::fetchsc(DbTable* sctable)
             case CACHEDSCSN:
                 if (data.size() != sizeof cachedscsn)
                 {
+                    return false;
+                }
+                break;
+
+            case CACHEDNODE:
+                LOG_info << "Loading nodes from old cache";
+                assert(!isNodeOnDemandDb);
+                if ((n = Node::unserialize(this, &data, &dp)))
+                {
+                   sctable->put(n);
+                   sctable->del(id);
+                }
+                else
+                {
+                    LOG_err << "Failed - node record read error";
                     return false;
                 }
                 break;

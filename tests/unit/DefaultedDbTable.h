@@ -44,6 +44,10 @@ public:
     {
         throw NotImplemented{__func__};
     }
+    virtual bool isNodesOnDemandDb() override
+    {
+        throw NotImplemented{__func__};
+    }
     bool put(uint32_t, char*, unsigned) override
     {
         throw NotImplemented{__func__};
