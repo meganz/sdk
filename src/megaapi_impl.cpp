@@ -19803,20 +19803,32 @@ void MegaApiImpl::sendPendingRequests()
                         node->attrs.map[nid] = request->getText();
                     }
                 }
-                else if (type == MegaApi::NODE_ATTR_LABEL)
+                else if (type == MegaApi::NODE_ATTR_LABEL || type == MegaApi::NODE_ATTR_FAV)
                 {
-                    int label = request->getNumDetails();
-                    if (label < LBL_RED || label > LBL_GREY)
+                    Node *current = node;
+                    bool remove = false;
+                    nameid nid = 0;
+                    int value = 0;
+                    if (type == MegaApi::NODE_ATTR_LABEL)
                     {
-                        e = API_EARGS;
-                        break;
+                        value = request->getNumDetails();
+                        if (value < LBL_RED || value > LBL_GREY)
+                        {
+                            e = API_EARGS;
+                            break;
+                        }
+                        nid = AttrMap::string2nameid("lbl");
+                        attr_map::iterator it = current->attrs.map.find(nid);
+                        remove = (it != current->attrs.map.end() && !it->second.empty()
+                                && value == std::atoi(it->second.c_str()));
+                    }
+                    else
+                    {
+                        nid = AttrMap::string2nameid("fav");
+                        remove = !request->getNumDetails();
+                        value = 1;
                     }
 
-                    Node *current = node;
-                    nameid nid = AttrMap::string2nameid("lbl");
-                    attr_map::iterator it = current->attrs.map.find(nid);
-                    bool remove = (it != current->attrs.map.end() && !it->second.empty()
-                            && label == std::atoi(it->second.c_str()));
                     do
                     {
                         if (remove)
@@ -19826,7 +19838,7 @@ void MegaApiImpl::sendPendingRequests()
                         }
                         else
                         {
-                           current->attrs.map[nid] = std::to_string(label);
+                           current->attrs.map[nid] = std::to_string(value);
                         }
 
                         e = client->setattr(current);
@@ -19838,38 +19850,6 @@ void MegaApiImpl::sendPendingRequests()
                         }
 
                         // Retrieve next node version (all versions must have the same lbl value)
-                        assert(current->children.back()->parent == current);
-                        current = current->children.back();
-                    }
-                    while (current);
-                    break;
-                }
-                else if (type == MegaApi::NODE_ATTR_FAV)
-                {
-                    nameid nid = AttrMap::string2nameid("fav");
-                    bool remove = !request->getNumDetails();
-                    Node *current = node;
-                    do
-                    {
-                        if (remove)
-                        {
-                            // if current value is the same as the value we want to set, remove the attribute
-                            current->attrs.map.erase(nid);
-                        }
-                        else
-                        {
-                            current->attrs.map[nid] = std::to_string(1);
-                        }
-
-                        e = client->setattr(current);
-
-                        if (current->type != FILENODE || !current->children.size())
-                        {
-                            // If node is a folder or doesn't have versions
-                            break;
-                        }
-
-                        // Retrieve next node version (all versions must have the same fav value)
                         assert(current->children.back()->parent == current);
                         current = current->children.back();
                     }
