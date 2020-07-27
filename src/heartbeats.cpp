@@ -1,6 +1,18 @@
 /**
  * @file heartbeats.cpp
- * @brief TODO: complete this
+ * @brief Classes for heartbeating Sync configuration and status
+ *
+ * (c) 2013 by Mega Limited, Auckland, New Zealand
+ *
+ * This file is part of the MEGA SDK - Client Access Engine.
+ *
+ * Applications using the MEGA API must present a valid application key
+ * and comply with the the rules set forth in the Terms of Service.
+ *
+ * The MEGA SDK is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ *
  * @copyright Simplified (2-clause) BSD License.
  *
  * You should have received a copy of the license along with this
@@ -280,7 +292,7 @@ void MegaHeartBeatMonitor::setRegisteredId(handle id)
     mPendingBackupPuts.pop_front();
 }
 
-int MegaHeartBeatMonitor::getHBState(MegaSync *sync) //TODO: doc this
+int MegaHeartBeatMonitor::getHBState(MegaSync *sync)
 {
     if (sync->isTemporaryDisabled())
     {
@@ -303,12 +315,12 @@ int MegaHeartBeatMonitor::getHBState(MegaSync *sync) //TODO: doc this
 
 int MegaHeartBeatMonitor::getHBSubstatus(MegaSync *sync)
 {
-    return sync->getError(); // TODO: define this & document
+    return sync->getError();
 }
 
 string MegaHeartBeatMonitor::getHBExtraData(MegaSync *sync)
 {
-    return ""; // TODO: define this & document
+    return "";
 }
 
 BackupType MegaHeartBeatMonitor::getHBType(MegaSync *sync)
@@ -330,7 +342,6 @@ void MegaHeartBeatMonitor::updateOrRegisterSync(MegaSync *sync)
         syncID = config->getHeartBeatID();
     }
 
-    //TODO: doc this names (lf, de, na)
     std::unique_ptr<string> localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", sync->getLocalFolder()) );
     std::unique_ptr<string> deviceIDEncrypted(mClient->cypherTLVTextWithMasterKey("de", mClient->getDeviceid()) );
     std::unique_ptr<string> nameEncrypted(mClient->cypherTLVTextWithMasterKey("na", sync->getName()) );

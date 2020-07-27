@@ -13230,14 +13230,9 @@ void MegaApiImpl::backupputheartbeat_result(const Error&)
 
 void MegaApiImpl::backupremove_result(const Error& e, handle backupId)
 {
-    if (e && backupId != UNDEF)
+    if (e || backupId != UNDEF)
     {
-//        mHeartBeatMonitor->unregisterId(backupId); //TODO: this might not be required: we might want to do it right away
-        // TODO: note: we probably wan to add retrying logic to this!
-    }
-    else
-    {
-        LOG_warn << "backupremove_result failed: " << MegaError::getErrorString(e);
+        LOG_err << "backupremove_result failed: " << MegaError::getErrorString(e);
     }
 }
 

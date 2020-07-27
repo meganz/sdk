@@ -1,7 +1,18 @@
 /**
  * @file heartbeats.h
- * @brief
- * TODO: complete this
+ * @brief Classes for heartbeating Sync configuration and status
+ *
+ * (c) 2013 by Mega Limited, Auckland, New Zealand
+ *
+ * This file is part of the MEGA SDK - Client Access Engine.
+ *
+ * Applications using the MEGA API must present a valid application key
+ * and comply with the the rules set forth in the Terms of Service.
+ *
+ * The MEGA SDK is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ *
  * @copyright Simplified (2-clause) BSD License.
  *
  * You should have received a copy of the license along with this
@@ -35,11 +46,11 @@ public:
 
     enum Status
     {
-        UPTODATE = 1,
-        SYNCING = 2,
-        PENDING = 3, //e.g. scanning, no actual transfers being made
-        INACTIVE = 4, //sync is not active: a !Active status should have been sent through 'sp'
-        UNKNOWN = 5,
+        UPTODATE = 1, // Up to date: local and remote paths are in sync
+        SYNCING = 2, // The sync engine is working, transfers are in progress
+        PENDING = 3, // The sync engine is working, e.g: scanning local folders
+        INACTIVE = 4, // Sync is not active. A state != ACTIVE should have been sent through '''sp'''
+        UNKNOWN = 5, // Unknown status
     };
 
     HeartBeatSyncInfo(int tag, handle id);
@@ -109,14 +120,13 @@ public:
 
 class MegaHeartBeatMonitor : public MegaListener
 {
-
     enum State
     {
-        ACTIVE = 2, // working fine (enabled)
-        FAILED = 3, // being deleted
-        TEMPORARY_DISABLED = 4, // temporary disabled
-        DISABLED = 5, //user disabled
-        UNKNOWN = 6,
+        ACTIVE = 1, // Working fine (enabled)
+        FAILED = 2, // Failed (permanently disabled)
+        TEMPORARY_DISABLED = 3, // Temporarily disabled due to a transient situation (e.g: account blocked). Will be resumed when the condition passes
+        DISABLED = 4, // Disabled by the user
+        UNKNOWN = 5, // Unknown state
     };
 
     static constexpr int MAX_HEARBEAT_SECS_DELAY = 60*30; //max time to wait to update unchanged sync
