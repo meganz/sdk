@@ -7934,16 +7934,6 @@ class MegaApi
         /**
          * @brief Trigger special account state changes for own accounts, for testing
          *
-         * Because the dev API command allows a wide variety of state changes including suspension and unsuspension,
-         * it has restrictions on which accounts you can target, and where it can be called from.
-         *
-         * Your client must be on a company VPN IP address.
-         *
-         * The target account must be an @mega email address. The target account must either be the calling account,
-         * OR a related account via a prefix and + character. For example if the calling account is name1+test@mega.co.nz
-         * then it can perform a dev command on itself or on name1@mega.co.nz, name1+bob@mega.co.nz etc, but NOT on
-         * name2@mega.co.nz or name2+test@meg.co.nz.
-         *
          * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getName - Returns the first parameter
@@ -7983,16 +7973,6 @@ class MegaApi
          * This subcommand will return the 'step' of the warning flow you have advanced to - 1, 2, 3 or 4
          * (the paywall is turned on at step 4)
          *
-         * Because the dev API command allows a wide variety of state changes including suspension and unsuspension,
-         * it has restrictions on which accounts you can target, and where it can be called from.
-         *
-         * Your client must be on a company VPN IP address.
-         *
-         * The target account must be an @mega email address. The target account must either be the calling account,
-         * OR a related account via a prefix and + character. For example if the calling account is name1+test@mega.co.nz
-         * then it can perform a dev command on itself or on name1@mega.co.nz, name1+bob@mega.co.nz etc, but NOT on
-         * name2@mega.co.nz or name2+test@meg.co.nz.
-         *
          * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getName - Returns the API dev command ("aodq")
@@ -8017,16 +7997,6 @@ class MegaApi
          *
          * Sets the amount of transfer quota the target user has used from their PRO allocation.
          * This subcommand can only be run with PRO users.
-         *
-         * Because the dev API command allows a wide variety of state changes including suspension and unsuspension,
-         * it has restrictions on which accounts you can target, and where it can be called from.
-         *
-         * Your client must be on a company VPN IP address.
-         *
-         * The target account must be an @mega email address. The target account must either be the calling account,
-         * OR a related account via a prefix and + character. For example if the calling account is name1+test@mega.co.nz
-         * then it can perform a dev command on itself or on name1@mega.co.nz, name1+bob@mega.co.nz etc, but NOT on
-         * name2@mega.co.nz or name2+test@meg.co.nz.
          *
          * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
          * Valid data in the MegaRequest object received on callbacks:
@@ -8058,16 +8028,6 @@ class MegaApi
          *  - clear the status override and set the business back to status of their payments = 0
          *  - set the business active = 1
          *  - set the business in grace period = 2
-         *
-         * Because the dev API command allows a wide variety of state changes including suspension and unsuspension,
-         * it has restrictions on which accounts you can target, and where it can be called from.
-         *
-         * Your client must be on a company VPN IP address.
-         *
-         * The target account must be an @mega email address. The target account must either be the calling account,
-         * OR a related account via a prefix and + character. For example if the calling account is name1+test@mega.co.nz
-         * then it can perform a dev command on itself or on name1@mega.co.nz, name1+bob@mega.co.nz etc, but NOT on
-         * name2@mega.co.nz or name2+test@meg.co.nz.
          *
          * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
          * Valid data in the MegaRequest object received on callbacks:
@@ -8103,16 +8063,6 @@ class MegaApi
          * - Suspended until Email verified = 9
          *
          * Note that Action packets are not sent for a suspended user, but next command or action packet request will give a EBLOCKED error.
-         *
-         * Because the dev API command allows a wide variety of state changes including suspension and unsuspension,
-         * it has restrictions on which accounts you can target, and where it can be called from.
-         *
-         * Your client must be on a company VPN IP address.
-         *
-         * The target account must be an @mega email address. The target account must either be the calling account,
-         * OR a related account via a prefix and + character. For example if the calling account is name1+test@mega.co.nz
-         * then it can perform a dev command on itself or on name1@mega.co.nz, name1+bob@mega.co.nz etc, but NOT on
-         * name2@mega.co.nz or name2+test@meg.co.nz.
          *
          * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
          * Valid data in the MegaRequest object received on callbacks:
