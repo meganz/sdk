@@ -4391,9 +4391,11 @@ TEST_F(SdkTest, invalidFileNames)
 {
     LOG_info << "___TEST invalidFileNames___";
 
+    FSACCESS_CLASS fsa;
+    auto aux = LocalPath::fromPath(fs::current_path().u8string(), fsa);
+
 #if defined (__linux__) || defined (__ANDROID__)
-    std::string aux = fs::current_path().string();
-    if (fileSystemAccess.getlocalfstype(&aux) == FS_EXT)
+    if (fileSystemAccess.getlocalfstype(aux) == FS_EXT)
     {
         // Escape set of characters and check if it's the expected one
         const char *name = megaApi[0]->escapeFsIncompatible("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", fs::current_path().c_str());
@@ -4413,9 +4415,8 @@ TEST_F(SdkTest, invalidFileNames)
         delete [] name;
     }
 #elif defined  (__APPLE__) || defined (USE_IOS)
-    std::string aux = fs::current_path().string();
-    if (fileSystemAccess.getlocalfstype(&aux) == FS_APFS
-            || fileSystemAccess.getlocalfstype(&aux) == FS_HFS)
+    if (fileSystemAccess.getlocalfstype(aux) == FS_APFS
+            || fileSystemAccess.getlocalfstype(aux) == FS_HFS)
     {
         // Escape set of characters and check if it's the expected one
         const char *name = megaApi[0]->escapeFsIncompatible("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", fs::current_path().c_str());
@@ -4435,8 +4436,6 @@ TEST_F(SdkTest, invalidFileNames)
         delete [] name;
     }
 #elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
-    FSACCESS_CLASS fsa;
-    auto aux = LocalPath::fromPath(fs::current_path().u8string(), fsa);
     if (fileSystemAccess.getlocalfstype(aux) == FS_NTFS)
     {
         // Escape set of characters and check if it's the expected one
