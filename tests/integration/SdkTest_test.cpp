@@ -4435,8 +4435,9 @@ TEST_F(SdkTest, invalidFileNames)
         delete [] name;
     }
 #elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
-    std::string aux = fs::current_path().string();
-    if (fileSystemAccess.getlocalfstype(&aux) == FS_NTFS)
+    FSACCESS_CLASS fsa;
+    auto aux = LocalPath::fromPath(fs::current_path().u8string(), fsa);
+    if (fileSystemAccess.getlocalfstype(aux) == FS_NTFS)
     {
         // Escape set of characters and check if it's the expected one
         const char *name = megaApi[0]->escapeFsIncompatible("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", fs::current_path().u8string().c_str());
@@ -4564,11 +4565,11 @@ TEST_F(SdkTest, invalidFileNames)
 
 #ifdef WIN32
     // double check a few well known paths
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(::mega::make_unique<string>("c:").get()), FS_NTFS);
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(::mega::make_unique<string>("c:\\").get()), FS_NTFS);
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(::mega::make_unique<string>("C:\\").get()), FS_NTFS);
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(::mega::make_unique<string>("C:\\Program Files").get()), FS_NTFS);
-    ASSERT_EQ(fileSystemAccess.getlocalfstype(::mega::make_unique<string>("c:\\Program Files\\Windows NT").get()), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromPath("c:", fsa)), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromPath("c:\\", fsa)), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromPath("C:\\", fsa)), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromPath("C:\\Program Files", fsa)), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromPath("c:\\Program Files\\Windows NT", fsa)), FS_NTFS);
 #endif
 
 }
