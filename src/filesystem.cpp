@@ -246,8 +246,11 @@ FileSystemType FileSystemAccess::getFilesystemType(const LocalPath& dstPath) con
     // first get "valid" path (no last leaf name, in case it is not in the FS?)
     LocalPath validPath = dstPath;
 
-    size_t leafIndex = validPath.getLeafnameByteIndex(*this);
-    if (leafIndex > 0) validPath.truncate(leafIndex);
+    if (!validPath.endsInSeparator(*this))
+    {
+        size_t leafIndex = validPath.getLeafnameByteIndex(*this);
+        if (leafIndex > 0) validPath.truncate(leafIndex);
+    }
 
     return getlocalfstype(validPath);
 }
