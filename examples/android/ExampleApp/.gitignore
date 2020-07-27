@@ -9,11 +9,16 @@
 
 ### Android Studio files ###
 *.iml
+.idea/modules.xml
+.idea/jarRepositories.xml
+.idea/vcs.xml
 
 # User-specific stuff:
 .idea/workspace.xml
 .idea/tasks.xml
 .idea/dictionaries
+.idea/caches/build_file_checksums.ser
+.idea/codeStyles/Project.xml
 
 # Sensitive or high-churn files:
 .idea/dataSources.ids

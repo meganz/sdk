@@ -151,27 +151,40 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
             return FS_FAT32;
         }
     }
-#elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
+#elif defined(_WIN32) || defined(WINDOWS_PHONE)
     // Filesystem detection for Windows
-    CHAR volumeName[MAX_PATH + 1] = { 0 };
-    CHAR fileSystemName[MAX_PATH + 1] = { 0 };
+
+    string utf8path = *dstPath;
+    string localpath;
+    path2local(&utf8path, &localpath);
+    std::wstring volMountPoint;
+    volMountPoint.resize(MAX_PATH);
+    DWORD mountLen = static_cast<DWORD>(volMountPoint.size());
+    if (!(GetVolumePathNameW((LPCWSTR)localpath.data(), &volMountPoint[0], mountLen)))
+    {
+        return FS_UNKNOWN;
+    }
+
+    LPCWSTR auxMountPoint = volMountPoint.c_str();
+    WCHAR volumeName[MAX_PATH + 1] = { 0 };
+    WCHAR fileSystemName[MAX_PATH + 1] = { 0 };
     DWORD serialNumber = 0;
     DWORD maxComponentLen = 0;
     DWORD fileSystemFlags = 0;
 
-    if (GetVolumeInformationA(dstPath->c_str(), volumeName, sizeof(volumeName),
+    if (GetVolumeInformationW(auxMountPoint, volumeName, sizeof(volumeName),
                              &serialNumber, &maxComponentLen, &fileSystemFlags,
                              fileSystemName, sizeof(fileSystemName)))
     {
-        if (!strcmp(fileSystemName, "NTFS"))
+        if (!wcscmp(fileSystemName, L"NTFS"))
         {
             return FS_NTFS;
         }
-        if (!strcmp(fileSystemName, "exFAT"))
+        if (!wcscmp(fileSystemName, L"exFAT"))
         {
             return FS_EXFAT;
         }
-        if (!strcmp(fileSystemName, "FAT32"))
+        if (!wcscmp(fileSystemName, L"FAT32"))
         {
             return FS_FAT32;
         }
@@ -213,15 +226,18 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c, bool isEscape, FileS
                         : !strchr("\\/:?\"<>|*", c);
         case FS_FUSE:
         case FS_SDCARDFS:
-        case FS_UNKNOWN:
-        default:
             // FUSE and SDCARDFS are Android filesystem wrappers used to mount traditional filesystems
             // as ext4, Fat32, extFAT...
             // So we will consider that restricted characters for these wrappers are the same
             // as for Android => " * / : < > ? \ |
-
-            // If filesystem couldn't be detected we'll use a restrictive charset to avoid issues.
             return !strchr("\\/:?\"<>|*", c);
+
+        case FS_UNKNOWN:
+        default:
+            // If filesystem couldn't be detected we'll use the most restrictive charset to avoid issues.
+            return (isControlChar(c) && isEscape)
+                    ? false
+                    : !strchr("\\/:?\"<>|*+,;=[]", c);
     }
 }
 
@@ -328,13 +344,13 @@ void FileSystemAccess::unescapefsincompatible(string *name, FileSystemType fileS
 const char *FileSystemAccess::getPathSeparator()
 {
 #if defined (__linux__) || defined (__ANDROID__) || defined  (__APPLE__) || defined (USE_IOS)
-return "/";
-#elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
-return "\\";
-#elif
-// Default case
-LOG_warn << "No path separator found";
-return "\\/";
+    return "/";
+#elif defined(_WIN32) || defined(WINDOWS_PHONE)
+    return "\\";
+#else
+    // Default case
+    LOG_warn << "No path separator found";
+    return "\\/";
 #endif
 }
 
