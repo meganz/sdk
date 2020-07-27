@@ -21177,7 +21177,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             else if (!strcmp(command, "us"))
             {
-                if (us == 1 || (us < 0 || us > 9))
+                if (us == 1 || us < 0 || us > 9)
                 {
                     e = API_EARGS;
                     break;
