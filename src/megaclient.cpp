@@ -14532,6 +14532,15 @@ handle MegaClient::getovhandle(Node *parent, string *name)
     return ovhandle;
 }
 
+Node* MegaClient::getovnode(Node *parent, string *name)
+{
+    if (parent && name)
+    {
+        return childnodebyname(parent, name->c_str(), true);
+    }
+    return nullptr;
+}
+
 void MegaClient::userfeedbackstore(const char *message)
 {
     string type = "feedback.";

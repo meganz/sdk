@@ -737,6 +737,9 @@ public:
     // get the handle of the older version for a NewNode
     handle getovhandle(Node *parent, string *name);
 
+    // get the older version node for a NewNode
+    Node *getovnode(Node *parent, string *name);
+
     // use HTTPS for all communications
     bool usehttps;
     
