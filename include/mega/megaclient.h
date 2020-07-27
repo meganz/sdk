@@ -966,6 +966,9 @@ private:
     // add child for consideration in syncup()/syncdown()
     void addchild(remotenode_map*, string*, Node*, list<string>*, FileSystemType fsType) const;
 
+    // Load from db node childrens
+    void loadChildrens(Node*);
+
     // crypto request response
     void cr_response(node_vector*, node_vector*, JSON*);
 

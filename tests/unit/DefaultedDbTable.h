@@ -44,6 +44,14 @@ public:
     {
         throw NotImplemented{__func__};
     }
+    bool getNodesWithoutParent(std::vector<std::string>&) override
+    {
+        throw NotImplemented(__func__);
+    }
+    bool getChildrenFromNode(mega::handle, std::vector<std::string>& ) override
+    {
+        throw NotImplemented(__func__);
+    }
     virtual bool isNodesOnDemandDb() override
     {
         throw NotImplemented{__func__};

@@ -12531,6 +12531,19 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
     }
 }
 
+void MegaClient::loadChildrens(Node* node)
+{
+    std::vector<std::string> nodes;
+    sctable->getChildrenFromNode(node->nodehandle, nodes);
+    node_vector dp;
+    for (const std::string& nodeSerialized : nodes)
+    {
+        Node *n;
+        n = Node::unserialize(this, &nodeSerialized, &dp);
+        n->setparent(node);
+    }
+}
+
 // downward sync - recursively scan for tree differences and execute them locally
 // this is first called after the local node tree is complete
 // actions taken:
