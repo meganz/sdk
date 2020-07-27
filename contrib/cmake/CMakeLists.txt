@@ -132,7 +132,7 @@ IF(WIN32)
 ELSE(WIN32)
     set(MegaDir "${CMAKE_CURRENT_LIST_DIR}/../..")
     if ("${Mega3rdPartyDir}" STREQUAL "")
-        set (Mega3rdPartyDir "${MegaDir}/../3rdParty/")
+        set (Mega3rdPartyDir "${MegaDir}/../3rdParty/" CACHE STRING "")
     endif()
 ENDIF(WIN32)
 

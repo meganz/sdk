@@ -5363,7 +5363,7 @@ void CommandFetchNodes::procresult()
 
             case MAKENAMEID2('s', 'n'):
                 // sequence number
-                if (!client->setscsn(&client->json))
+                if (!client->scsn.setScsn(&client->json))
                 {
                     client->fetchingnodes = false;
                     return client->app->fetchnodes_result(API_EINTERNAL);
@@ -5399,7 +5399,7 @@ void CommandFetchNodes::procresult()
 #endif
             case EOO:
             {
-                if (!*client->scsn)
+                if (!client->scsn.ready())
                 {
                     client->fetchingnodes = false;
                     return client->app->fetchnodes_result(API_EINTERNAL);
@@ -7763,12 +7763,21 @@ void CommandMultiFactorAuthCheck::procresult()
     if (checkError(e, client->json))
     {
         client->app->multifactorauthcheck_result(e);
+        return;
     }
-    else    // error
+
+    int enabled;
+    if (client->json.isnumeric())
+    {
+        enabled = static_cast<int>(client->json.getint());
+    }
+    else
     {
         client->json.storeobject();
-        client->app->multifactorauthcheck_result(API_EINTERNAL);
+        enabled = API_EINTERNAL;
     }
+
+    client->app->multifactorauthcheck_result(enabled);
 }
 
 CommandMultiFactorAuthDisable::CommandMultiFactorAuthDisable(MegaClient *client, const char *pin)

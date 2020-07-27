@@ -4555,6 +4555,16 @@ TEST_F(SdkTest, invalidFileNames)
         // download filename must be found in fileNamesStringMap (original filename found)
         ASSERT_TRUE(fileNamesStringMap->get(downloadedName.c_str()));
     }
+
+#ifdef WIN32
+    // double check a few well known paths
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(::mega::make_unique<string>("c:").get()), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(::mega::make_unique<string>("c:\\").get()), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(::mega::make_unique<string>("C:\\").get()), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(::mega::make_unique<string>("C:\\Program Files").get()), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(::mega::make_unique<string>("c:\\Program Files\\Windows NT").get()), FS_NTFS);
+#endif
+
 }
 
 TEST_F(SdkTest, RecursiveUploadWithLogout)

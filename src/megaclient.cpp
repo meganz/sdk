@@ -576,8 +576,19 @@ bool MegaClient::isForeignNode(handle h)
     return (rootnode != rootnodes[0] && rootnode != rootnodes[1] && rootnode != rootnodes[2]);
 }
 
+SCSN::SCSN()
+{
+    clear();
+}
+
+void SCSN::clear() 
+{
+    memset(scsn, 0, sizeof(scsn));
+    stopsc = false;
+}
+
 // set server-client sequence number
-bool MegaClient::setscsn(JSON* j)
+bool SCSN::setScsn(JSON* j)
 {
     handle t;
 
@@ -586,10 +597,53 @@ bool MegaClient::setscsn(JSON* j)
         return false;
     }
 
-    Base64::btoa((byte*)&t, sizeof t, scsn);
+    setScsn(t);
 
     return true;
 }
+
+void SCSN::setScsn(handle h)
+{
+    Base64::btoa((byte*)&h, sizeof h, scsn);
+}
+
+void SCSN::stopScsn()
+{
+    memset(scsn, 0, sizeof(scsn));
+    stopsc = true;
+}
+
+bool SCSN::ready() const
+{
+    return !stopsc && *scsn;
+}
+
+bool SCSN::stopped() const
+{
+    return stopsc;
+}
+
+const char* SCSN::text() const
+{
+    assert(ready());
+    return scsn;
+}
+
+handle SCSN::getHandle() const
+{
+    assert(ready());
+    handle t;
+    Base64::atob(scsn, (byte*)&t, sizeof t);
+
+    return t;
+}
+
+std::ostream& operator<<(std::ostream &os, const SCSN &scsn)
+{
+    os << scsn.text();
+    return os;
+}
+
 
 int MegaClient::nextreqtag()
 {
@@ -1082,7 +1136,6 @@ void MegaClient::init()
 
     pendingsc.reset();
     pendingscUserAlerts.reset();
-    stopsc = false;
     mBlocked = false;
     mBlockedSet = false;
 
@@ -1099,7 +1152,7 @@ void MegaClient::init()
     insca = false;
     insca_notlast = false;
     scnotifyurl.clear();
-    *scsn = 0;
+    scsn.clear();
 
     notifyStorageChangeOnStateCurrent = false;
     mNotifiedSumSize = 0;
@@ -1236,7 +1289,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
     badhostcs = NULL;
 
-    scsn[sizeof scsn - 1] = 0;
+    scsn.clear();
     cachedscsn = UNDEF;
 
     snprintf(appkey, sizeof appkey, "&ak=%s", k);
@@ -2049,7 +2102,7 @@ void MegaClient::exec()
                     if (e == API_ESID)
                     {
                         app->request_error(API_ESID);
-                        *scsn = 0;
+                        scsn.stopScsn();
                     }
                     else if (e == API_ETOOMANY)
                     {
@@ -2079,7 +2132,7 @@ void MegaClient::exec()
                     else
                     {
                         LOG_err << "Unexpected sc response: " << pendingsc->in;
-                        stopsc = true;
+                        scsn.stopScsn();
                     }
                 }
 
@@ -2109,14 +2162,14 @@ void MegaClient::exec()
 
                         if (!retryessl)
                         {
-                            *scsn = 0;
+                            scsn.stopScsn();
                         }
                     }
 
                     pendingsc.reset();
                 }
 
-                if (stopsc)
+                if (scsn.stopped())
                 {
                     btsc.backoff(NEVER);
                 }
@@ -2149,11 +2202,11 @@ void MegaClient::exec()
         }
         syncactivity = false;
 
-        if (stopsc || mBlocked || scpaused || !statecurrent || !syncsup)
+        if (scsn.stopped() || mBlocked || scpaused || !statecurrent || !syncsup)
         {
             LOG_verbose << " Megaclient exec is pending resolutions."
                         << " scpaused=" << scpaused
-                        << " stopsc=" << stopsc
+                        << " stopsc=" << scsn.stopped()
                         << " mBlocked=" << mBlocked
                         << " jsonsc.pos=" << jsonsc.pos
                         << " syncsup=" << syncsup
@@ -2190,7 +2243,7 @@ void MegaClient::exec()
 #endif
         }
 
-        if (!pendingsc && !pendingscUserAlerts && *scsn && btsc.armed() && !stopsc && !mBlocked)
+        if (!pendingsc && !pendingscUserAlerts && scsn.ready() && btsc.armed() && !mBlocked)
         {
             if (useralerts.begincatchup)
             {
@@ -2221,7 +2274,7 @@ void MegaClient::exec()
 
                 pendingsc->protect = true;
                 pendingsc->posturl.append("?sn=");
-                pendingsc->posturl.append(scsn);
+                pendingsc->posturl.append(scsn.text());
 
                 pendingsc->posturl.append(auth);
 
@@ -3073,7 +3126,7 @@ int MegaClient::preparewait()
         }
 
         // retry failed server-client requests
-        if (!pendingsc && !pendingscUserAlerts && *scsn && !stopsc && !mBlocked)
+        if (!pendingsc && !pendingscUserAlerts && scsn.ready() && !mBlocked)
         {
             btsc.update(&nds);
         }
@@ -3875,6 +3928,7 @@ void MegaClient::freeq(direction_t d)
     for (auto transferPtr : transfers[d])
     {
         transferPtr.second->mOptimizedDelete = true;  // so it doesn't remove itself from this list while deleting
+        app->transfer_removed(transferPtr.second);
         delete transferPtr.second;
     }
     transfers[d].clear();
@@ -4114,7 +4168,7 @@ void MegaClient::locallogout(bool removecaches)
 
     delete pendingcs;
     pendingcs = NULL;
-    stopsc = false;
+    scsn.clear();
     mBlocked = false;
     mBlockedSet = false;
 
@@ -4382,7 +4436,7 @@ bool MegaClient::procsc()
 
                 case MAKENAMEID2('s', 'n'):
                     // the sn element is guaranteed to be the last in sequence (except for notification requests (c=50))
-                    setscsn(&jsonsc);
+                    scsn.setScsn(&jsonsc);
                     notifypurge();
                     if (sctable)
                     {
@@ -4779,7 +4833,7 @@ bool MegaClient::procsc()
     }
 }
 
-// update the user's local state cache
+// update the user's local state cache, on completion of the fetchnodes command
 // (note that if immediate-completion commands have been issued in the
 // meantime, the state of the affected nodes
 // may be ahead of the recorded scsn - their consistency will be checked by
@@ -4796,8 +4850,7 @@ void MegaClient::initsc()
         sctable->truncate();
 
         // 1. write current scsn
-        handle tscsn;
-        Base64::atob(scsn, (byte*)&tscsn, sizeof tscsn);
+        handle tscsn = scsn.getHandle();
         complete = sctable->put(CACHEDSCSN, (char*)&tscsn, sizeof tscsn);
 
         if (complete)
@@ -4848,10 +4901,10 @@ void MegaClient::initsc()
                 }
             }
         }
-        LOG_debug << "Saving SCSN " << scsn << " with " << nodes.size() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs and " << chats.size() << " chats to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " with " << nodes.size() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs and " << chats.size() << " chats to local cache (" << complete << ")";
 #else
 
-        LOG_debug << "Saving SCSN " << scsn << " with " << nodes.size() << " nodes and " << users.size() << " users and " << pcrindex.size() << " pcrs to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " with " << nodes.size() << " nodes and " << users.size() << " users and " << pcrindex.size() << " pcrs to local cache (" << complete << ")";
  #endif
         finalizesc(complete);
     }
@@ -4875,11 +4928,16 @@ void MegaClient::updatesc()
             return;
         }
 
+        if (!scsn.ready())
+        {
+            LOG_err << "scsn not known, not updating database";
+            return;
+        }
+
         bool complete;
 
         // 1. update associated scsn
-        handle tscsn;
-        Base64::atob(scsn, (byte*)&tscsn, sizeof tscsn);
+        handle tscsn = scsn.getHandle();
         complete = sctable->put(CACHEDSCSN, (char*)&tscsn, sizeof tscsn);
 
         if (complete)
@@ -4980,9 +5038,9 @@ void MegaClient::updatesc()
                 }
             }
         }
-        LOG_debug << "Saving SCSN " << scsn << " with " << nodenotify.size() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs and " << chatnotify.size() << " chats to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " with " << nodenotify.size() << " modified nodes, " << usernotify.size() << " users, " << pcrnotify.size() << " pcrs and " << chatnotify.size() << " chats to local cache (" << complete << ")";
 #else
-        LOG_debug << "Saving SCSN " << scsn << " with " << nodenotify.size() << " modified nodes, " << usernotify.size() << " users and " << pcrnotify.size() << " pcrs to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " with " << nodenotify.size() << " modified nodes, " << usernotify.size() << " users and " << pcrnotify.size() << " pcrs to local cache (" << complete << ")";
 #endif
         finalizesc(complete);
     }
@@ -4993,7 +5051,7 @@ void MegaClient::finalizesc(bool complete)
 {
     if (complete)
     {
-        Base64::atob(scsn, (byte*)&cachedscsn, sizeof cachedscsn);
+        cachedscsn = scsn.getHandle();
     }
     else
     {
@@ -6919,7 +6977,7 @@ void MegaClient::notifypurge(void)
 
     handle tscsn = cachedscsn;
 
-    if (*scsn) Base64::atob(scsn, (byte*)&tscsn, sizeof tscsn);
+    if (scsn.ready()) tscsn = scsn.getHandle();
 
     if (nodenotify.size() || usernotify.size() || pcrnotify.size()
 #ifdef ENABLE_CHAT
@@ -11321,6 +11379,7 @@ void MegaClient::purgeOrphanTransfers(bool remove)
                 transfer->finished = true;
             }
 
+            app->transfer_removed(transfer);
             delete transfer;
             cachedtransfers[d].erase(it);
         }
@@ -11519,8 +11578,9 @@ void MegaClient::fetchnodes(bool nocache)
         sctable->begin();
         pendingsccommit = false;
 
-        Base64::btoa((byte*)&cachedscsn, sizeof cachedscsn, scsn);
-        LOG_info << "Session loaded from local cache. SCSN: " << scsn;
+        // allow sc requests to start 
+        scsn.setScsn(cachedscsn);
+        LOG_info << "Session loaded from local cache. SCSN: " << scsn.text();
 
 #ifdef ENABLE_SYNC
 #ifndef __ANDROID__
@@ -11553,7 +11613,7 @@ void MegaClient::fetchnodes(bool nocache)
         btsc.reset();
 
         // don't allow to start new sc requests yet
-        *scsn = 0;
+        scsn.clear();
 
 #ifdef ENABLE_SYNC
         // lets remove the active syncs. There could be some when enforcing fetchnodes(true)
@@ -12370,7 +12430,7 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
 
     pcrindex.clear();
 
-    *scsn = 0;
+    scsn.clear();
 
     if (pendingsc)
     {

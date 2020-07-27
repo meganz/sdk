@@ -22,11 +22,6 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-import mega.privacy.android.app.MegaApplication;
-import mega.privacy.android.app.R;
-
-import static nz.mega.sdk.MegaError.*;
-
 /**
  * Java Application Programming Interface (API) to access MEGA SDK services on a MEGA account or shared public folder.
  * <p>
