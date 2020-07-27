@@ -21145,16 +21145,19 @@ void MegaApiImpl::sendPendingRequests()
             int bs = request->getAccess();
             int us = request->getNumDetails();
 #ifdef DEBUG
-            if (strcmp(command, "aodq")
-                  && strcmp(command, "tq")
-                  && strcmp(command, "bs")
-                  && strcmp(command, "us"))
+
+            bool isOdqSubcmd = !strcmp(command, "aodq");
+            bool isTqSubcmd = !strcmp(command, "tq");
+            bool isBsSubcmd = !strcmp(command, "bs");
+            bool isUsSubcmd = !strcmp(command, "us");
+
+            if (!isOdqSubcmd && !isTqSubcmd && !isBsSubcmd && !isUsSubcmd)
             {
                 e = API_EARGS;
                 break;
             }
 
-            if (!strcmp(command, "tq"))
+            if (isTqSubcmd)
             {
                 if (q < 0)
                 {
@@ -21162,20 +21165,15 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
             }
-            else if (!strcmp(command, "bs"))
+            else if (isBsSubcmd)
             {
                 if (bs < -1 || bs > 2)
                 {
                     e = API_EARGS;
                     break;
                 }
-                if (!isBusinessAccount())
-                {
-                    e = API_EARGS;
-                    break;
-                }
             }
-            else if (!strcmp(command, "us"))
+            else if (isUsSubcmd)
             {
                 if (us == 1 || us < 0 || us > 9)
                 {
