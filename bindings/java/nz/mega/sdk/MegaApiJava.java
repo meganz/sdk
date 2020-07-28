@@ -9552,6 +9552,16 @@ public class MegaApiJava {
     }
 
     /**
+     * Returns whether notifications about a chat have to be generated.
+     *
+     * @param chatid MegaHandle that identifies the chat room.
+     * @return true if notification has to be created.
+     */
+    public boolean isChatNotifiable(long chatid) {
+        return megaApi.isChatNotifiable(chatid);
+    }
+
+    /**
      * Provide a phone number to get verification code.
      *
      * @param phoneNumber the phone number to receive the txt with verification code.
