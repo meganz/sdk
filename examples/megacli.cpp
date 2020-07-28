@@ -373,8 +373,7 @@ AppFilePut::~AppFilePut()
 
 void AppFilePut::displayname(string* dname)
 {
-    *dname = localname;
-    transfer->client->fsaccess->local2name(dname, client->fsaccess->getFilesystemType(dname));
+    *dname = localname.toName(*transfer->client->fsaccess, client->fsaccess->getFilesystemType(localname));
 }
 
 // transfer progress callback
@@ -457,9 +456,9 @@ void DemoApp::transfer_prepare(Transfer* t)
     if (t->type == GET)
     {
         // only set localfilename if the engine has not already done so
-        if (!t->localfilename.size())
+        if (t->localfilename.empty())
         {
-            client->fsaccess->tmpnamelocal(&t->localfilename);
+            client->fsaccess->tmpnamelocal(t->localfilename);
         }
     }
 }
@@ -623,13 +622,13 @@ static bool is_syncable(const char* name)
 }
 
 // determines whether remote node should be synced
-bool DemoApp::sync_syncable(Sync *, const char *, string *, Node *n)
+bool DemoApp::sync_syncable(Sync *, const char *, LocalPath&, Node *n)
 {
     return is_syncable(n->displayname());
 }
 
 // determines whether local file should be synced
-bool DemoApp::sync_syncable(Sync *, const char *name, string *)
+bool DemoApp::sync_syncable(Sync *, const char *name, LocalPath&)
 {
     return is_syncable(name);
 }
@@ -663,23 +662,18 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time
         name = *cfilename;
     }
 
-    localname = name;
-    client->fsaccess->name2local(&localname, client->fsaccess->getFilesystemType(&localname));
+    localname = LocalPath::fromName(name, *client->fsaccess, client->fsaccess->getFilesystemType(LocalPath::fromPath(name, *client->fsaccess)));
     if (!targetfolder.empty())
     {
-        string ltf, tf = targetfolder;
-        client->fsaccess->path2local(&tf, &ltf);
-        localname = ltf + client->fsaccess->localseparator + localname;
+        string s = targetfolder;
+        localname.prependWithSeparator(LocalPath::fromPath(s, *client->fsaccess), client->fsaccess->localseparator);
     }
 }
 
-AppFilePut::AppFilePut(string* clocalname, handle ch, const char* ctargetuser)
+AppFilePut::AppFilePut(const LocalPath& clocalname, handle ch, const char* ctargetuser)
 {
-    // this assumes that the local OS uses an ASCII path separator, which should be true for most
-    string separator = client->fsaccess->localseparator;
-
     // full local path
-    localname = *clocalname;
+    localname = clocalname;
 
     // target parent node
     h = ch;
@@ -688,12 +682,11 @@ AppFilePut::AppFilePut(string* clocalname, handle ch, const char* ctargetuser)
     targetuser = ctargetuser;
 
     // erase path component
-    name = *clocalname;
-    FileSystemType fileSystemType = client->fsaccess->getFilesystemType(clocalname);
-    client->fsaccess->local2name(&name, fileSystemType);
-    client->fsaccess->local2name(&separator,fileSystemType);
+    auto fileSystemType = client->fsaccess->getFilesystemType(clocalname);
 
-    name.erase(0, name.find_last_of(*separator.c_str()) + 1);
+    LocalPath p = clocalname;
+    p.erase(0, p.lastpartlocal(*client->fsaccess));
+    name = p.toName(*client->fsaccess, fileSystemType);
 }
 
 // user addition/update (users never get deleted)
@@ -2122,11 +2115,11 @@ public:
     }
 };
 
-int loadfile(string* name, string* data)
+int loadfile(LocalPath& localPath, string* data)
 {
     auto fa = client->fsaccess->newfileaccess();
 
-    if (fa->fopen(name, 1, 0))
+    if (fa->fopen(localPath, 1, 0))
     {
         data->resize(size_t(fa->size));
         fa->fread(data, unsigned(data->size()), 0, 0);
@@ -2563,7 +2556,7 @@ bool recursiveCompare(Node* mn, fs::path p)
     }
 
     std::string path = p.u8string();
-    FileSystemType fileSystemType = client->fsaccess->getFilesystemType(&path);
+    auto fileSystemType = client->fsaccess->getFilesystemType(LocalPath::fromPath(path, *client->fsaccess));
     multimap<string, Node*> ms;
     multimap<string, fs::path> ps;
     for (auto& m : mn->children)
@@ -2904,10 +2897,10 @@ public:
 
 void exec_fingerprint(autocomplete::ACState& s)
 {
-    string localfilepath, filepath = s.words[1].s;
-    client->fsaccess->path2local(&filepath, &localfilepath);
+    auto localfilepath = LocalPath::fromPath(s.words[1].s, *client->fsaccess);
     auto fa = client->fsaccess->newfileaccess();
-    if (fa->fopen(&localfilepath, true, false, nullptr))
+
+    if (fa->fopen(localfilepath, true, false, nullptr))
     {
         FileFingerprint fp;
         fp.genfingerprint(fa.get());
@@ -2917,7 +2910,7 @@ void exec_fingerprint(autocomplete::ACState& s)
     }
     else
     {
-        cout << "Failed to open: " << filepath << endl;
+        cout << "Failed to open: " << s.words[1].s << endl;
     }
 }
 
@@ -3043,7 +3036,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_handles, sequence(text("handles"), opt(either(text("on"), text("off")))));
     p->Add(exec_httpsonly, sequence(text("httpsonly"), opt(either(text("on"), text("off")))));
 
-    p->Add(exec_mfac, sequence(text("mfac")));
+    p->Add(exec_mfac, sequence(text("mfac"), param("email")));
     p->Add(exec_mfae, sequence(text("mfae")));
     p->Add(exec_mfad, sequence(text("mfad"), param("pin")));
 
@@ -3142,7 +3135,7 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
                 {
                     if (regex_search(string((*it)->displayname()), re))
                     {
-                        auto f = new AppFileGet(n);
+                        auto f = new AppFileGet(*it);
                         f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
                         client->startxfer(GET, f, committer);
                         queued += 1;
@@ -3922,9 +3915,9 @@ void exec_get(autocomplete::ACState& s)
     }
 }
 
-void uploadLocalFolderContent(std::string localname, Node* cloudFolder);
+void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder);
 
-void uploadLocalPath(nodetype_t type, std::string name, std::string localname, Node* parent, const std::string targetuser, DBTableTransactionCommitter& committer, int& total, bool recursive)
+void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, Node* parent, const std::string targetuser, DBTableTransactionCommitter& committer, int& total, bool recursive)
 {
 
     Node *previousNode = client->childnodebyname(parent, name.c_str(), false);
@@ -3932,7 +3925,7 @@ void uploadLocalPath(nodetype_t type, std::string name, std::string localname, N
     if (type == FILENODE)
     {
         auto fa = client->fsaccess->newfileaccess();
-        if (fa->fopen(&localname, true, false))
+        if (fa->fopen(localname, true, false))
         {
             FileFingerprint fp;
             fp.genfingerprint(fa.get());
@@ -3955,7 +3948,7 @@ void uploadLocalPath(nodetype_t type, std::string name, std::string localname, N
             }
             fa.reset();
 
-            AppFile* f = new AppFilePut(&localname, parent ? parent->nodehandle : UNDEF, targetuser.c_str());
+            AppFile* f = new AppFilePut(localname, parent ? parent->nodehandle : UNDEF, targetuser.c_str());
             *static_cast<FileFingerprint*>(f) = fp;
             f->appxfer_it = appxferq[PUT].insert(appxferq[PUT].end(), f);
             client->startxfer(PUT, f, committer);
@@ -3988,7 +3981,8 @@ void uploadLocalPath(nodetype_t type, std::string name, std::string localname, N
             client->putnodes_prepareOneFolder(nn, name);
 
             gOnPutNodeTag[gNextClientTag] = [localname](Node* parent) {
-                uploadLocalFolderContent(localname, parent);
+                auto tmp = localname;
+                uploadLocalFolderContent(tmp, parent);
             };
 
             client->reqtag = gNextClientTag++;
@@ -3999,21 +3993,15 @@ void uploadLocalPath(nodetype_t type, std::string name, std::string localname, N
 }
 
 
-string localpathToUtf8Leaf(const string& itemlocalname)
+string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 {
-    string::size_type pos = 0, testpos = 0;
-    while (string::npos != (testpos = itemlocalname.find(client->fsaccess->localseparator, pos)))
-    {
-        pos = testpos + client->fsaccess->localseparator.size();
-    }
 
-    string leafNameLocal = itemlocalname.substr(pos);
-    string leafNameUtf8;
-    client->fsaccess->local2path(&leafNameLocal, &leafNameUtf8);
-    return leafNameUtf8;
+    size_t n = itemlocalname.lastpartlocal(*client->fsaccess);
+    LocalPath leaf = itemlocalname.subpathFrom(n);
+    return leaf.toPath(*client->fsaccess);
 }
 
-void uploadLocalFolderContent(std::string localname, Node* cloudFolder)
+void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder)
 {
     DirAccess* da = client->fsaccess->newdiraccess();
 
@@ -4023,8 +4011,8 @@ void uploadLocalFolderContent(std::string localname, Node* cloudFolder)
 
         int total = 0;
         nodetype_t type;
-        string itemlocalleafname;
-        while (da->dnext(&localname, &itemlocalleafname, true, &type))
+        LocalPath itemlocalleafname;
+        while (da->dnext(localname, itemlocalleafname, true, &type))
         {
             string leafNameUtf8 = localpathToUtf8Leaf(itemlocalleafname);
 
@@ -4032,7 +4020,9 @@ void uploadLocalFolderContent(std::string localname, Node* cloudFolder)
             {
                 cout << "Queueing " << leafNameUtf8 << "..." << endl;
             }
-            uploadLocalPath(type, leafNameUtf8, localname + client->fsaccess->localseparator + itemlocalleafname, cloudFolder, "", committer, total, true);
+            auto newpath = localname;
+            newpath.appendWithSeparator(itemlocalleafname, true, client->fsaccess->localseparator);
+            uploadLocalPath(type, leafNameUtf8, newpath, cloudFolder, "", committer, total, true);
         }
         if (gVerboseMode)
         {
@@ -4075,8 +4065,7 @@ void exec_put(autocomplete::ACState& s)
         cout << "Sorry, can't send recursively to a user" << endl;
     }
 
-    string localname;
-    client->fsaccess->path2local(&s.words[1].s, &localname);
+    auto localname = LocalPath::fromPath(s.words[1].s, *client->fsaccess);
 
     DirAccess* da = client->fsaccess->newdiraccess();
 
@@ -4085,8 +4074,8 @@ void exec_put(autocomplete::ACState& s)
         DBTableTransactionCommitter committer(client->tctable);
 
         nodetype_t type;
-        string itemlocalname;
-        while (da->dnext(NULL, &itemlocalname, true, &type))
+        LocalPath itemlocalname;
+        while (da->dnext(localname, itemlocalname, true, &type))
         {
             string leafNameUtf8 = localpathToUtf8Leaf(itemlocalname);
 
@@ -4115,11 +4104,9 @@ void exec_pwd(autocomplete::ACState& s)
 
 void exec_lcd(autocomplete::ACState& s)
 {
-    string localpath;
+    LocalPath localpath = LocalPath::fromPath(s.words[1].s, *client->fsaccess);
 
-    client->fsaccess->path2local(&s.words[1].s, &localpath);
-
-    if (!client->fsaccess->chdirlocal(&localpath))
+    if (!client->fsaccess->chdirlocal(localpath))
     {
         cout << s.words[1].s << ": Failed" << endl;
     }
@@ -4347,7 +4334,7 @@ void exec_sync(autocomplete::ACState& s)
                     if ((*it)->localroot->node)
                     {
                         nodepath((*it)->localroot->node->nodehandle, &remotepath);
-                        client->fsaccess->local2path(&(*it)->localroot->localname, &localpath);
+                        localpath = (*it)->localroot->localname.toPath(*client->fsaccess);
 
                         cout << i++ << " (" << syncConfigToString(NewSyncConfig::from((*it)->getConfig())) << "): " << localpath << " to " << remotepath << " - "
                                 << syncstatenames[(*it)->state] << ", " << (*it)->localbytes
@@ -4418,7 +4405,17 @@ void exec_mfad(autocomplete::ACState& s)
 
 void exec_mfac(autocomplete::ACState& s)
 {
-    client->multifactorauthcheck(login.email.c_str());
+    string email;
+    if (s.words.size() == 2)
+    {
+        email = s.words[1].s;
+    }
+    else
+    {
+        email = login.email;
+    }
+
+    client->multifactorauthcheck(email.c_str());
 }
 
 void exec_mfae(autocomplete::ACState& s)
@@ -4878,11 +4875,10 @@ void exec_putua(autocomplete::ACState& s)
         }
         else if (s.words[2].s == "load")
         {
-            string data, localpath;
+            string data;
+            auto localpath = LocalPath::fromPath(s.words[3].s, *client->fsaccess);
 
-            client->fsaccess->path2local(&s.words[3].s, &localpath);
-
-            if (loadfile(&localpath, &data))
+            if (loadfile(localpath, &data))
             {
                 client->putua(attrtype, (const byte*) data.data(), unsigned(data.size()));
             }
@@ -6341,11 +6337,10 @@ void exec_mediainfo(autocomplete::ACState& s)
     if (s.words.size() == 3 && s.words[1].s == "calc")
     {
         MediaProperties mp;
-        string localFilename;
-        client->fsaccess->path2local(&s.words[2].s, &localFilename);
+        auto localFilename = LocalPath::fromPath(s.words[2].s, *client->fsaccess);
 
         char ext[8];
-        if (client->fsaccess->getextension(&localFilename, ext, sizeof(ext)) && MediaProperties::isMediaFilenameExt(ext))
+        if (client->fsaccess->getextension(localFilename, ext, sizeof(ext)) && MediaProperties::isMediaFilenameExt(ext))
         {
             mp.extractMediaPropertyFileAttributes(localFilename, client->fsaccess);
                                 uint32_t dummykey[4] = { 1, 2, 3, 4 };  // check encode/decode
@@ -8094,10 +8089,8 @@ void exec_metamac(autocomplete::ACState& s)
 
     auto ifAccess = client->fsaccess->newfileaccess();
     {
-        std::string localPath;
-        client->fsaccess->path2local(&s.words[1].s, &localPath);
-
-        if (!ifAccess->fopen(&localPath, 1, 0))
+        auto localPath = LocalPath::fromName(s.words[1].s, *client->fsaccess, client->fsaccess->getFilesystemType(LocalPath::fromPath(s.words[1].s, *client->fsaccess)));
+        if (!ifAccess->fopen(localPath, 1, 0))
         {
             cerr << "Failed to open: " << s.words[1].s << endl;
             return;

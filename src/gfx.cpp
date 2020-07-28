@@ -42,7 +42,7 @@ bool GfxProc::isgfx(string* localfilename)
         return true;
     }
 
-    if (client->fsaccess->getextension(localfilename, ext, sizeof ext))
+    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localfilename), ext, sizeof ext))
     {
         const char* ptr;
 
@@ -66,7 +66,7 @@ bool GfxProc::isvideo(string *localfilename)
         return false;
     }
 
-    if (client->fsaccess->getextension(localfilename, ext, sizeof ext))
+    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localfilename), ext, sizeof ext))
     {
         const char* ptr;
 
@@ -350,8 +350,9 @@ bool GfxProc::savefa(string *localfilepath, int width, int height, string *local
     }
 
     auto f = client->fsaccess->newfileaccess();
-    client->fsaccess->unlinklocal(localdstpath);
-    if (!f->fopen(localdstpath, false, true))
+    auto localpath = LocalPath::fromLocalname(*localdstpath);
+    client->fsaccess->unlinklocal(localpath);
+    if (!f->fopen(localpath, false, true))
     {
         return false;
     }
