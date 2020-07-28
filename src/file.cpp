@@ -311,28 +311,6 @@ void File::completed(Transfer* t, LocalNode* l)
         }
 #endif
         AttrMap attrs;
-        if (!t->client->versions_disabled)
-        {
-            Node *ovn = t->client->getovnode(t->client->nodebyhandle(h), &name);
-            if (ovn)
-            {
-               nameid favnid = AttrMap::string2nameid("fav");
-               auto it = ovn->attrs.map.find(favnid);
-               if (it != ovn->attrs.map.end())
-               {
-                   // store fav attr
-                   attrs.map[favnid] = it->second;
-               }
-
-               nameid lblnid = AttrMap::string2nameid("lbl");
-               it = ovn->attrs.map.find(lblnid);
-               if (it != ovn->attrs.map.end())
-               {
-                   // store lbl attr
-                   attrs.map[lblnid] = it->second;
-               }
-            }
-        }
 
         // store filename
         attrs.map['n'] = name;
