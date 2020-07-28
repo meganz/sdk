@@ -312,6 +312,23 @@ void File::completed(Transfer* t, LocalNode* l)
 #endif
         AttrMap attrs;
 
+        if (!t->client->versions_disabled && previousNode)
+        {
+           nameid favnid = AttrMap::string2nameid("fav");
+           auto it = previousNode->attrs.map.find(favnid);
+           if (it != previousNode->attrs.map.end())
+           {
+               attrs.map[favnid] = it->second;
+           }
+
+           nameid lblnid = AttrMap::string2nameid("lbl");
+           it = previousNode->attrs.map.find(lblnid);
+           if (it != previousNode->attrs.map.end())
+           {
+               attrs.map[lblnid] = it->second;
+           }
+        }
+
         // store filename
         attrs.map['n'] = name;
 
