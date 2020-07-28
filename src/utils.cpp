@@ -2217,7 +2217,7 @@ SyncConfig::SyncConfig(int tag,
     , mSyncDeletions{syncDeletions}
     , mForceOverwrite{forceOverwrite}
     , mError{error}
-    , mHeartBeatID(hearBeatID)
+    , mBackupId(hearBeatID)
 {}
 
 
@@ -2353,14 +2353,14 @@ void SyncConfig::setError(SyncError value)
     mError = value;
 }
 
-handle SyncConfig::getHeartBeatID() const
+handle SyncConfig::getBackupId() const
 {
-    return mHeartBeatID;
+    return mBackupId;
 }
 
-void SyncConfig::setHeartBeatID(const handle &heartBeatID)
+void SyncConfig::setBackupId(const handle &backupId)
 {
-    mHeartBeatID = heartBeatID;
+    mBackupId = backupId;
 }
 
 // This should be a const-method but can't be due to the broken Cacheable interface.
@@ -2475,7 +2475,7 @@ bool SyncConfig::serialize(std::string& data) const
     writer.serializebool(mSyncDeletions);
     writer.serializebool(mForceOverwrite);
     writer.serializeu32(static_cast<int>(mError));
-    writer.serializehandle(mHeartBeatID);
+    writer.serializehandle(mBackupId);
     writer.serializeexpansionflags();
     return true;
 }

@@ -5157,7 +5157,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     httpio->unlock();
 #endif
 
-    mHeartBeatMonitor = ::mega::make_unique<MegaHeartBeatMonitor>(client);
+    mHeartBeatMonitor = ::mega::make_unique<MegaBackupMonitor>(client);
     listeners.insert(mHeartBeatMonitor.get());
 
     //Start blocking thread

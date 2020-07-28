@@ -943,8 +943,8 @@ public:
     // check if a sync would be enabled according to the sync state and error
     static bool isEnabled(syncstate_t state, SyncError syncError);
 
-    handle getHeartBeatID() const;
-    void setHeartBeatID(const handle &heartBeatID);
+    handle getBackupId() const;
+    void setBackupId(const handle &backupId);
 
 private:
     friend bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
@@ -987,7 +987,7 @@ private:
     SyncError mError;
 
     // id for heartbeating
-    handle mHeartBeatID;
+    handle mBackupId;
 
     // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
     bool serialize(std::string& data) const;
@@ -1019,7 +1019,7 @@ private:
                         mSyncDeletions,
                         mForceOverwrite,
                         mError,
-                        mHeartBeatID);
+                        mBackupId);
     }
 };
 

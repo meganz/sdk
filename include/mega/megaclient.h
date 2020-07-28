@@ -617,7 +617,7 @@ public:
     // updates in remote path/node & calls app's syncupdate_remote_root_changed. passing n=null will remove remote handle and keep last known path
     bool updateSyncRemoteLocation(const SyncConfig *config, Node *n, bool forceCallback = false); //returns if changed
     // updates heartbeatID
-    error updateSyncHearBeatID(int tag, handle newHearBeatID);
+    error updateSyncBackupId(int tag, handle newHearBeatID);
 
     // transition the cache to failed
     void failSync(Sync* sync, SyncError syncerror);

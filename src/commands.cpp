@@ -8331,6 +8331,7 @@ void CommandFolderLinkInfo::procresult()
     }
 }
 
+// to register a new backup
 CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle nodeHandle, const string& localFolder, const std::string &deviceId, const string& backupName, int state, int subState, const string& extraData)
 {
     assert(type != BackupType::INVALID);
@@ -8350,6 +8351,7 @@ CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle n
     mUpdate = false;
 }
 
+// to update an already registered backup
 CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, const char* backupName, int state, int subState, const char* extraData)
 {
     cmd("sp");

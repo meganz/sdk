@@ -2812,7 +2812,7 @@ protected:
         map<int, MegaSyncPrivate *>::iterator eraseSyncByIterator(map<int, MegaSyncPrivate *>::iterator it);
 
 #endif
-        std::unique_ptr<MegaHeartBeatMonitor> mHeartBeatMonitor;
+        std::unique_ptr<MegaBackupMonitor> mHeartBeatMonitor;
 
         int pendingUploads;
         int pendingDownloads;

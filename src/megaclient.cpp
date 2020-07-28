@@ -14387,7 +14387,7 @@ error MegaClient::saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t 
 }
 
 
-error MegaClient::updateSyncHearBeatID(int tag, handle newHearBeatID)
+error MegaClient::updateSyncBackupId(int tag, handle newHearBeatID)
 {
     if (syncConfigs)
     {
@@ -14398,7 +14398,7 @@ error MegaClient::updateSyncHearBeatID(int tag, handle newHearBeatID)
         }
         auto newConfig = *syncconfig;
 
-        newConfig.setHeartBeatID(newHearBeatID);
+        newConfig.setBackupId(newHearBeatID);
         syncConfigs->insert(newConfig);
         return API_OK;
     }
