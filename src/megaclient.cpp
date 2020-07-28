@@ -3005,7 +3005,6 @@ void MegaClient::exec()
 
         if (btheartbeat.armed())
         {
-            LOG_debug << "HeartBeat: ";
             app->heartbeat();
             btheartbeat.backoff(FREQUENCY_HEARTBEAT_DS);
         }
@@ -14512,11 +14511,18 @@ error MegaClient::changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate
     return e;
 }
 
-string *MegaClient::cypherTLVTextWithMasterKey(const char *name, const string &text)
+string MegaClient::cypherTLVTextWithMasterKey(const char *name, const string &text)
 {
     TLVstore tlv;
     tlv.set(name, text);
-    return tlv.tlvRecordsToContainer(rng, &key);
+    std::unique_ptr<string> tlvstring{tlv.tlvRecordsToContainer(rng, &key)};
+
+
+    string base64tlv;
+    base64tlv.resize(tlvstring->size() * 4 / 3 + 4);
+    Base64::btoa((byte *)tlvstring->data(), int(tlvstring->size()), (char *)base64tlv.data());
+
+    return base64tlv;
 }
 
 void MegaClient::failSync(Sync* sync, SyncError syncerror)

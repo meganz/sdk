@@ -140,9 +140,12 @@ private:
     mega::MegaClient *mClient = nullptr;
     std::map<int, int> mTransferToSyncMap; //Map matching transfer tag and sync tag
 
-    std::deque<int> mPendingBackupPuts;
+    std::deque<int> mPendingBackupPuts; //to store tags of syncs pending response of CommandBackupPut
+    std::map<int, std::unique_ptr<MegaSync>> mPendingSyncUpdates; // to store updates that were received while CommandBackupPut was being resolved
 
     void updateOrRegisterSync(MegaSync *sync);
+    void updateSyncInfo(handle syncID, MegaSync *sync);
+
     int getHBState (MegaSync *sync);
     int getHBSubstatus (MegaSync *sync);
     string getHBExtraData(MegaSync *sync);
@@ -155,7 +158,7 @@ private:
 public:
     void reset();
 
-    void setRegisteredId(handle id);
+    void digestPutResult(handle id);
 
     void onSyncAdded(MegaApi *api, MegaSync *sync, int additionState) override;
     void onSyncDeleted(MegaApi *api, MegaSync *sync) override;

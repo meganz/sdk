@@ -13243,7 +13243,7 @@ void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
 
 void MegaApiImpl::backupput_result(const Error&, handle backupId)
 {
-    mHeartBeatMonitor->setRegisteredId(backupId);
+    mHeartBeatMonitor->digestPutResult(backupId);
 }
 
 void MegaApiImpl::backupupdate_result(const Error&, handle /*backupId*/)

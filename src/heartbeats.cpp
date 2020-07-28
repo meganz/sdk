@@ -246,24 +246,28 @@ void MegaHeartBeatMonitor::reset()
 {
     mPendingBackupPuts.clear();
     mHeartBeatedSyncs.clear();
+    mPendingSyncUpdates.clear();
     mLastBeat = 0;
 }
 
-void MegaHeartBeatMonitor::setRegisteredId(handle id)
+void MegaHeartBeatMonitor::digestPutResult(handle id)
 {
     bool needsAdding = true;
 
-    if (id == UNDEF)
-    {
-        LOG_warn << " setting invalid id";
-        needsAdding = false;
-        return;
-    }
-
+    // get the tag from queue of pending puts
     assert(mPendingBackupPuts.size());
     auto syncTag = mPendingBackupPuts.front();
+    mPendingBackupPuts.pop_front();
 
-    if (mHeartBeatedSyncs.find(syncTag) != mHeartBeatedSyncs.end())
+    if (id == UNDEF)
+    {
+        LOG_warn << "Received invalid id for sync with tag: " << syncTag;
+        needsAdding = false;
+    }
+
+    // set heartBeat ID
+
+    if (id != UNDEF && mHeartBeatedSyncs.find(syncTag) != mHeartBeatedSyncs.end())
     {
         mHeartBeatedSyncs[syncTag]->setHeartBeatId(id);
         needsAdding = false;
@@ -287,9 +291,27 @@ void MegaHeartBeatMonitor::setRegisteredId(handle id)
         }
     }
 
-    mClient->updateSyncHearBeatID(syncTag, id);
+    // store the id in the sync configuration
+    if (id != UNDEF)
+    {
+        mClient->updateSyncHearBeatID(syncTag, id);
+    }
 
-    mPendingBackupPuts.pop_front();
+    // handle pending updates
+    const auto &pendingSyncPair = mPendingSyncUpdates.find(syncTag);
+    if (pendingSyncPair != mPendingSyncUpdates.end())
+    {
+        if (id != UNDEF)
+        {
+            updateSyncInfo(id, pendingSyncPair->second.get());
+        }
+        else
+        {
+            LOG_warn << "discarding heartbeat update for pending sync: no valid id received for sync: " << pendingSyncPair->second->getLocalFolder();
+
+        }
+        mPendingSyncUpdates.erase(pendingSyncPair);
+    }
 }
 
 int MegaHeartBeatMonitor::getHBState(MegaSync *sync)
@@ -328,6 +350,20 @@ BackupType MegaHeartBeatMonitor::getHBType(MegaSync *sync)
     return BackupType::TWO_WAY; // TODO: get that from sync whenever others are supported
 }
 
+void MegaHeartBeatMonitor::updateSyncInfo(handle syncID, MegaSync *sync)
+{
+
+    string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", sync->getLocalFolder()) );
+    string deviceIDEncrypted(mClient->cypherTLVTextWithMasterKey("de", mClient->getDeviceid()) );
+    string nameEncrypted(mClient->cypherTLVTextWithMasterKey("na", sync->getName()) );
+
+
+    mClient->reqs.add(new CommandBackupPut(mClient, syncID, BackupType::TWO_WAY, sync->getMegaHandle(), localFolderEncrypted.c_str(),
+                                           deviceIDEncrypted.c_str(), nameEncrypted.c_str(),
+                                           getHBState(sync), getHBSubstatus(sync), getHBExtraData(sync).c_str()
+                                           ));
+}
+
 void MegaHeartBeatMonitor::updateOrRegisterSync(MegaSync *sync)
 {
     if (!sync)
@@ -342,27 +378,41 @@ void MegaHeartBeatMonitor::updateOrRegisterSync(MegaSync *sync)
         syncID = config->getHeartBeatID();
     }
 
-    std::unique_ptr<string> localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", sync->getLocalFolder()) );
-    std::unique_ptr<string> deviceIDEncrypted(mClient->cypherTLVTextWithMasterKey("de", mClient->getDeviceid()) );
-    std::unique_ptr<string> nameEncrypted(mClient->cypherTLVTextWithMasterKey("na", sync->getName()) );
+    bool pushInPending = false;
 
     string extraData;
     if (syncID == UNDEF) //register
     {
-        mClient->reqs.add(new CommandBackupPut(mClient, BackupType::TWO_WAY, sync->getMegaHandle(), localFolderEncrypted->c_str(),
-                                           deviceIDEncrypted->c_str(), nameEncrypted->c_str(),
+
+        string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", sync->getLocalFolder()) );
+        string deviceIDEncrypted(mClient->cypherTLVTextWithMasterKey("de", mClient->getDeviceid()) );
+        string nameEncrypted(mClient->cypherTLVTextWithMasterKey("na", sync->getName()) );
+
+
+        if (std::find(mPendingBackupPuts.begin(), mPendingBackupPuts.end(), sync->getTag()) == mPendingBackupPuts.end())
+        {
+            pushInPending = true;
+            mClient->reqs.add(new CommandBackupPut(mClient, BackupType::TWO_WAY, sync->getMegaHandle(), localFolderEncrypted.c_str(),
+                                           deviceIDEncrypted.c_str(), nameEncrypted.c_str(),
                                            getHBState(sync), getHBSubstatus(sync), getHBExtraData(sync)
                                            ));
+        }
+        else // ID not received yet, let's queue the update (copying sync data)
+        {
+            LOG_debug << " Queuing sync update, register is on progress for sync: " << sync->getLocalFolder();
+            mPendingSyncUpdates[sync->getTag()].reset(sync->copy()); // we replace any previous pending updates
+        }
     }
     else //update
     {
-        mClient->reqs.add(new CommandBackupPut(mClient, syncID, BackupType::TWO_WAY, sync->getMegaHandle(), localFolderEncrypted->c_str(),
-                                               deviceIDEncrypted->c_str(), nameEncrypted->c_str(),
-                                               getHBState(sync), getHBSubstatus(sync), getHBExtraData(sync).c_str()
-                                               ));
+        pushInPending = true;
+        updateSyncInfo(syncID, sync);
     }
 
-    mPendingBackupPuts.push_back(sync->getTag());
+    if (pushInPending)
+    {
+        mPendingBackupPuts.push_back(sync->getTag());
+    }
 }
 
 void MegaHeartBeatMonitor::onSyncAdded(MegaApi *api, MegaSync *sync, int additionState)
@@ -484,7 +534,7 @@ void MegaHeartBeatMonitor::onSyncDeleted(MegaApi *api, MegaSync *sync)
         mClient->reqs.add(new CommandBackupRemove(mClient, hBPair->second->heartBeatId()));
 
         mHeartBeatedSyncs.erase(hBPair); //This is speculative: could be moved to backupremove_result
-        // in case we wanted to handle possible faling cases.
+        // in case we wanted to handle possible failing cases.
     }
 }
 
@@ -542,6 +592,7 @@ void MegaHeartBeatMonitor::beat()
 
             if (runningCommand && !runningCommand->getRead()) //replace existing command
             {
+                LOG_warn << "Detected a yet unprocessed beat: replacing data with current";
                 // instead of appending a new command, and potentially hammering, we just update the existing command with the updated input
                 runningCommand->replaceWith(*newCommand);
             }
