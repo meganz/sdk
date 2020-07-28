@@ -13392,9 +13392,14 @@ void MegaClient::syncupdate()
             n = NULL;
             l = synccreate[i];
 
-            if (l->type == FILENODE && l->parent->node)
+            if (l->type == FILENODE)
             {
-                l->h = l->parent->node->nodehandle;
+                if (l->parent->node)
+                {
+                    l->h = l->parent->node->nodehandle;
+                }
+
+                l->previousNode = l->node;
             }
 
             if (l->type == FOLDERNODE || (n = nodebyfingerprint(l)))
