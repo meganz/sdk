@@ -4952,7 +4952,7 @@ void MegaFileGet::terminated()
     delete this;
 }
 
-MegaFilePut::MegaFilePut(MegaClient *, string* clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime, bool isSourceTemporary) : MegaFile()
+MegaFilePut::MegaFilePut(MegaClient *, string* clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime, bool isSourceTemporary, Node *pvNode) : MegaFile()
 {
     // full local path
     localname = *clocalname;
@@ -4969,6 +4969,8 @@ MegaFilePut::MegaFilePut(MegaClient *, string* clocalname, string *filename, han
     customMtime = mtime;
 
     temporaryfile = isSourceTemporary;
+
+    previousNode = pvNode;
 }
 
 bool MegaFilePut::serialize(string *d)
@@ -12029,6 +12031,8 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
         const char *name = transfer->getFileName();
         if (parent && nodes && name)
         {
+            // Get previous node if any
+            file->previousNode = client->childnodebyname(parent, name, true);
             for (unsigned int i = 0; i < nodes->size(); i++)
             {
                 Node* node = nodes->at(i);
@@ -17990,7 +17994,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
 
                     currentTransfer = transfer;                    
                     string wFileName = fileName;
-                    MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary);
+                    MegaFilePut *f = new MegaFilePut(client, &wLocalPath, &wFileName, transfer->getParentHandle(), uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary, previousNode);
                     *static_cast<FileFingerprint*>(f) = fp;  // deliberate slicing - startxfer would re-fingerprint if we don't supply this info
                     f->setTransfer(transfer);
                     bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer());
