@@ -1843,7 +1843,7 @@ struct MegaFileGet : public MegaFile
     void progress() override;
     void completed(Transfer*, LocalNode*) override;
     void terminated() override;
-	MegaFileGet(MegaClient *client, Node* n, const LocalPath& dstPath, FileSystemType fsType);
+    MegaFileGet(MegaClient *client, Node* n, const LocalPath& dstPath, FileSystemType fsType);
     MegaFileGet(MegaClient *client, MegaNode* n, const LocalPath& dstPath);
     ~MegaFileGet() {}
 

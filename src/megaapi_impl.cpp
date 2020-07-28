@@ -4751,7 +4751,8 @@ MegaFileGet::MegaFileGet(MegaClient *client, Node *n, const LocalPath& dstPath, 
         }
         else finalPath = dstPath;
     }
-    else finalPath = lpName;
+    else
+        finalPath = lpName;
 
     size = n->size;
     mtime = n->mtime;
