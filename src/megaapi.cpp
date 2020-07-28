@@ -972,7 +972,7 @@ MegaTimeZoneDetails *MegaRequest::getMegaTimeZoneDetails() const
     return NULL;
 }
 
-int MegaRequest::getTransferTag() const
+long long MegaRequest::getTransferTag() const
 {
 	return 0;
 }
