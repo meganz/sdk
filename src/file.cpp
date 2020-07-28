@@ -311,9 +311,10 @@ void File::completed(Transfer* t, LocalNode* l)
         }
 #endif
         AttrMap attrs;
-
         if (!t->client->versions_disabled && previousNode)
         {
+           // previousNode only should be valid for a FILENODE
+           assert(newnode->type == FILENODE);
            nameid favnid = AttrMap::string2nameid("fav");
            auto it = previousNode->attrs.map.find(favnid);
            if (it != previousNode->attrs.map.end())
