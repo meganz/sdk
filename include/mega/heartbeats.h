@@ -35,15 +35,7 @@ namespace mega
  */
 class HeartBeatSyncInfo : public CommandListener
 {
-    class PendingTransferInfo
-    {
-    public:
-        long long totalBytes = 0.;
-        long long transferredBytes = 0.;
-    };
-
 public:
-
     enum Status
     {
         UPTODATE = 1, // Up to date: local and remote paths are in sync
@@ -66,9 +58,9 @@ public:
 
     double progress() const;
 
-    uint8_t pendingUps() const;
+    uint32_t pendingUps() const;
 
-    uint8_t pendingDowns() const;
+    uint32_t pendingDowns() const;
 
     m_time_t lastAction() const;
 
@@ -78,7 +70,28 @@ public:
     void removePendingTransfer(MegaTransfer *transfer);
     void clearFinshedTransfers();
 
+    void onCommandToBeDeleted(Command *command) override;
+    m_time_t lastBeat() const;
+    void setLastBeat(const m_time_t &lastBeat);
+    void setLastAction(const m_time_t &lastAction);
+    void setStatus(const Status &status);
+    void setPendingUps(uint32_t pendingUps);
+    void setPendingDowns(uint32_t pendingDowns);
+    void setLastSyncedItem(const mega::MegaHandle &lastSyncedItem);
+    void setTotalBytes(long long value);
+    void setTransferredBytes(long long value);
+    int syncTag() const;
+    void setHeartBeatId(const handle &heartBeatId);
+
 private:
+
+    class PendingTransferInfo
+    {
+    public:
+        long long totalBytes = 0;
+        long long transferredBytes = 0;
+    };
+
     handle mHeartBeatId = UNDEF; //sync ID, from registration
     int mSyncTag = 0; //sync tag
 
@@ -87,8 +100,8 @@ private:
     long long mTotalBytes = 0;
     long long mTransferredBytes = 0;
 
-    uint8_t mPendingUps = 0;
-    uint8_t mPendingDowns = 0;
+    uint32_t mPendingUps = 0;
+    uint32_t mPendingDowns = 0;
 
     std::map<int, std::unique_ptr<PendingTransferInfo>> mPendingTransfers;
     std::vector<std::unique_ptr<PendingTransferInfo>> mFinishedTransfers;
@@ -102,19 +115,6 @@ private:
 
     void updateLastActionTime();
 
-public:
-    void onCommandToBeDeleted(Command *command) override;
-    m_time_t lastBeat() const;
-    void setLastBeat(const m_time_t &lastBeat);
-    void setLastAction(const m_time_t &lastAction);
-    void setStatus(const Status &status);
-    void setPendingUps(uint8_t pendingUps);
-    void setPendingDowns(uint8_t pendingDowns);
-    void setLastSyncedItem(const mega::MegaHandle &lastSyncedItem);
-    void setTotalBytes(long long value);
-    void setTransferredBytes(long long value);
-    int syncTag() const;
-    void setHeartBeatId(const handle &heartBeatId);
 };
 
 

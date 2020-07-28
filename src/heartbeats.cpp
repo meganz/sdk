@@ -53,15 +53,15 @@ HeartBeatSyncInfo::Status HeartBeatSyncInfo::status() const
 
 double HeartBeatSyncInfo::progress() const
 {
-    return std::max(0.,std::min(1., mTransferredBytes * 1. /mTotalBytes));
+    return std::max(0., std::min(1., static_cast<double>(mTransferredBytes) / static_cast<double>(mTotalBytes)));
 }
 
-uint8_t HeartBeatSyncInfo::pendingUps() const
+uint32_t HeartBeatSyncInfo::pendingUps() const
 {
     return mPendingUps;
 }
 
-uint8_t HeartBeatSyncInfo::pendingDowns() const
+uint32_t HeartBeatSyncInfo::pendingDowns() const
 {
     return mPendingDowns;
 }
@@ -178,7 +178,7 @@ void HeartBeatSyncInfo::setLastSyncedItem(const mega::MegaHandle &lastSyncedItem
     }
 }
 
-void HeartBeatSyncInfo::setPendingDowns(uint8_t pendingDowns)
+void HeartBeatSyncInfo::setPendingDowns(uint32_t pendingDowns)
 {
     if (mPendingDowns != pendingDowns)
     {
@@ -187,7 +187,7 @@ void HeartBeatSyncInfo::setPendingDowns(uint8_t pendingDowns)
     }
 }
 
-void HeartBeatSyncInfo::setPendingUps(uint8_t pendingUps)
+void HeartBeatSyncInfo::setPendingUps(uint32_t pendingUps)
 {
     if (mPendingUps != pendingUps)
     {
