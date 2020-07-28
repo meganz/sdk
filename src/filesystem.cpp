@@ -77,9 +77,9 @@ const char *FileSystemAccess::fstypetostring(FileSystemType type) const
     return "UNKNOWN FS";
 }
 
-FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
+FileSystemType FileSystemAccess::getlocalfstype(const LocalPath& dstPath) const
 {
-    if (!dstPath || dstPath->empty())
+    if (dstPath.empty())
     {
         return FS_UNKNOWN;
     }
@@ -87,7 +87,7 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
 #if defined (__linux__) && !defined (__ANDROID__)
     // Filesystem detection for Linux
     struct statfs fileStat;
-    if (!statfs(dstPath->c_str(), &fileStat))
+    if (!statfs(dstPath.editStringDirect()->c_str(), &fileStat))
     {
         switch (fileStat.f_type)
         {
@@ -106,7 +106,7 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
 #elif defined (__ANDROID__)
     // Filesystem detection for Android
     struct statfs fileStat;
-    if (!statfs(dstPath->c_str(), &fileStat))
+    if (!statfs(dstPath.editStringDirect()->c_str(), &fileStat))
     {
         switch (fileStat.f_type)
         {
@@ -132,7 +132,7 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
 #elif defined  (__APPLE__) || defined (USE_IOS)
     // Filesystem detection for Apple and iOS
     struct statfs fileStat;
-    if (!statfs(dstPath->c_str(), &fileStat))
+    if (!statfs(dstPath.editStringDirect()->c_str(), &fileStat))
     {
         if (!strcmp(fileStat.f_fstypename, "apfs"))
         {
@@ -154,13 +154,13 @@ FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
 #elif defined(_WIN32) || defined(WINDOWS_PHONE)
     // Filesystem detection for Windows
 
-    string utf8path = *dstPath;
-    string localpath;
-    path2local(&utf8path, &localpath);
+    auto tmpPath = dstPath;
+    tmpPath.editStringDirect()->append("", 1); // make sure of 2 byte terminator as LPCTWSTR (later we'll make it wstring for windows)
+
     std::wstring volMountPoint;
     volMountPoint.resize(MAX_PATH);
     DWORD mountLen = static_cast<DWORD>(volMountPoint.size());
-    if (!(GetVolumePathNameW((LPCWSTR)localpath.data(), &volMountPoint[0], mountLen)))
+    if (!(GetVolumePathNameW((LPCWSTR)tmpPath.editStringDirect()->data(), &volMountPoint[0], mountLen)))
     {
         return FS_UNKNOWN;
     }
@@ -241,35 +241,18 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c, bool isEscape, FileS
     }
 }
 
-bool FileSystemAccess::getValidPath(const string *originalPath, string &tempPath) const
+FileSystemType FileSystemAccess::getFilesystemType(const LocalPath& dstPath) const
 {
-    if (!originalPath || originalPath->empty())
+    // first get "valid" path (no last leaf name, in case it is not in the FS?)
+    LocalPath validPath = dstPath;
+
+    if (!validPath.endsInSeparator(*this))
     {
-        return false;
+        size_t leafIndex = validPath.getLeafnameByteIndex(*this);
+        if (leafIndex > 0)
+            validPath.truncate(leafIndex);
     }
 
-    string separator = getPathSeparator();
-    for (size_t i = 0; i < separator.size(); i++)
-    {
-        size_t pos = originalPath->rfind(separator[i]);
-        if (pos != std::string::npos && pos != originalPath->size() - 1)
-        {
-            tempPath = originalPath->substr(0, pos + 1);
-            return true;
-        }
-    }
-    return false;
-}
-
-FileSystemType FileSystemAccess::getFilesystemType(const string* dstPath) const
-{
-    string tempPath;
-    const string *validPath = &tempPath;
-    if (!getValidPath(dstPath, tempPath) && dstPath)
-    {
-        // if getValidPath returns false and dstPath is not null, dstPath is valid
-        validPath = dstPath;
-    }
     return getlocalfstype(validPath);
 }
 
@@ -932,10 +915,7 @@ void LocalPath::prependWithSeparator(const LocalPath& additionalPath, const stri
 
 void LocalPath::trimNonDriveTrailingSeparator(const FileSystemAccess& fsaccess)
 {
-    if (localpath.size() >= fsaccess.localseparator.size()
-        && !memcmp(localpath.data() + (int(localpath.size()) & -int(fsaccess.localseparator.size())) - fsaccess.localseparator.size(),
-            fsaccess.localseparator.data(),
-            fsaccess.localseparator.size()))
+    if (endsInSeparator(fsaccess))
     {
         // ok so the last character is a directory separator.  But don't remove it for eg. F:\ on windows
         #ifdef WIN32
@@ -971,6 +951,14 @@ bool LocalPath::findPrevSeparator(size_t& separatorBytePos, const FileSystemAcce
     } 
 }
 
+bool LocalPath::endsInSeparator(const FileSystemAccess& fsaccess) const
+{
+    return localpath.size() >= fsaccess.localseparator.size()
+        && !memcmp(localpath.data() + (int(localpath.size()) & -int(fsaccess.localseparator.size())) - fsaccess.localseparator.size(),
+            fsaccess.localseparator.data(),
+            fsaccess.localseparator.size());
+}
+
 size_t LocalPath::getLeafnameByteIndex(const FileSystemAccess& fsaccess) const
 {
     // todo: take utf8 two byte characters into account
@@ -996,6 +984,17 @@ bool LocalPath::backEqual(size_t bytePos, const LocalPath& compareTo) const
 LocalPath LocalPath::subpathFrom(size_t bytePos) const
 {
     return LocalPath::fromLocalname(localpath.substr(bytePos));
+}
+
+
+void LocalPath::ensureWinExtendedPathLenPrefix()
+{
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+    localpath.append("", 1);
+    if (!PathIsRelativeW((LPWSTR)localpath.c_str()) && ((localpath.size() < 4) || memcmp(localpath.data(), L"\\\\", 4)))
+        localpath.insert(0, (const char*)(const wchar_t*)L"\\\\?\\", 8);
+    localpath.resize(localpath.size() - 1);
+#endif
 }
 
 string LocalPath::substrTo(size_t bytePos) const
