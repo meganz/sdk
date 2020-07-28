@@ -1314,7 +1314,6 @@ bool User::setChanged(attr_t at)
             changed.devicenames = true;
             break;
 
-
         default:
             return false;
     }

@@ -1064,5 +1064,4 @@ ScopedLengthRestore::~ScopedLengthRestore()
     path.setLength(length);
 };
 
-
 } // namespace
