@@ -588,7 +588,14 @@ class MegaNode
         /**
          * @brief Get the attribute of the node representing its label.
          *
-         * @return The label of the node, valid values are defined in nodelabel_t.
+         * @return The label of the node, valid values are defined in nodelabel_t:
+         *  - LBL_RED = 1
+         *  - LBL_ORANGE = 2
+         *  - LBL_YELLOW = 3
+         *  - LBL_GREEN = 4
+         *  - LBL_BLUE = 5
+         *  - LBL_PURPLE = 6
+         *  - LBL_GREY = 7
          */
         virtual int getLabel();
 

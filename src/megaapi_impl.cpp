@@ -400,7 +400,15 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
             }
             else if (it->first == AttrMap::string2nameid("fav"))
             {
-                favourite = std::atoi(it->second.c_str());
+                int fav = std::atoi(it->second.c_str());
+                if (fav != 1)
+                {
+                    LOG_err << "Invalid value for node attr fav: " << fav;
+                }
+                else
+                {
+                    favourite = std::atoi(it->second.c_str());
+                }
             }
             else if (it->first == AttrMap::string2nameid("lbl"))
             {
@@ -19821,6 +19829,8 @@ void MegaApiImpl::sendPendingRequests()
                             e = API_EARGS;
                             break;
                         }
+
+                        // if current value is the same as the value we want to set, remove the attribute
                         nid = AttrMap::string2nameid("lbl");
                         attr_map::iterator it = current->attrs.map.find(nid);
                         remove = (it != current->attrs.map.end() && !it->second.empty()
@@ -19837,7 +19847,6 @@ void MegaApiImpl::sendPendingRequests()
                     {
                         if (remove)
                         {
-                            // if current value is the same as the value we want to set, remove the attribute
                             current->attrs.map.erase(nid);
                         }
                         else
@@ -19853,7 +19862,7 @@ void MegaApiImpl::sendPendingRequests()
                             break;
                         }
 
-                        // Retrieve next node version (all versions must have the same lbl value)
+                        // Retrieve next node version (all versions must have the same lbl/fav value)
                         assert(current->children.back()->parent == current);
                         current = current->children.back();
                     }
