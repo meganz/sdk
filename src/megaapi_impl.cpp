@@ -22277,7 +22277,7 @@ std::vector<MegaTransferPrivate *> TransferQueue::popUpTo(int lastQueuedTransfer
 {
     std::lock_guard<std::mutex> g(mutex);
     std::vector<MegaTransferPrivate*> toret;
-    for (auto it = transfers.cbegin(); it != transfers.cend();)
+    for (auto it = transfers.begin(); it != transfers.end();)
     {
         MegaTransferPrivate *transfer = *it;
         if (transfer->getPlaceInQueue() > lastQueuedTransfer)
