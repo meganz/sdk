@@ -249,7 +249,8 @@ FileSystemType FileSystemAccess::getFilesystemType(const LocalPath& dstPath) con
     if (!validPath.endsInSeparator(*this))
     {
         size_t leafIndex = validPath.getLeafnameByteIndex(*this);
-        if (leafIndex > 0) validPath.truncate(leafIndex);
+        if (leafIndex > 0)
+            validPath.truncate(leafIndex);
     }
 
     return getlocalfstype(validPath);
