@@ -11261,7 +11261,7 @@ void MegaClient::fetchnodes(bool nocache)
 
         // allow sc requests to start 
         scsn.setScsn(cachedscsn);
-        LOG_info << "Session loaded from local cache. SCSN: " << scsn.text();
+        LOG_info << "Session loaded from local cache. SCSN: " << scsn;
 
 #ifdef ENABLE_SYNC
         resumeResumableSyncs();
