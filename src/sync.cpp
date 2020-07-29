@@ -1810,7 +1810,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             dirnotify->notify(DirNotify::RETRY, ll, LocalPath(*localpathNew));
             client->syncfslockretry = true;
             client->syncfslockretrybt.backoff(SCANNING_DELAY_DS);
-            client->blockedfile = *localpathNew;
+            client->blockedFile(*this, *localpathNew);
         }
         else if (l)
         {

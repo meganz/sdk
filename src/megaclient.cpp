@@ -2611,7 +2611,7 @@ void MegaClient::exec()
                         else if (!syncfslockretry && sync->dirnotify->notifyq[DirNotify::RETRY].peekFront(notification))
                         {
                             syncfslockretrybt.backoff(Sync::SCANNING_DELAY_DS);
-                            blockedfile = notification.path;
+                            blockedFile(*sync, notification.path);
                             syncfslockretry = true;
                         }
                     }
@@ -12791,8 +12791,8 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                 }
                 else
                 {
-                    blockedfile = localpath;
-                    LOG_warn << "Transient error deleting " << blockedfile.toPath(*fsaccess);
+                    blockedFile(*l->sync, localpath);
+                    LOG_warn << "Transient error deleting " << localpath.toPath(*fsaccess);
                     success = false;
                 }
 
@@ -12862,8 +12862,8 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                 else if (success && fsaccess->transient_error)
                 {
                     // schedule retry
-                    blockedfile = curpath;
-                    LOG_debug << "Transient error moving localnode " << blockedfile.toPath(*fsaccess);
+                    blockedFile(*rit.second->localnode->sync, curpath);
+                    LOG_debug << "Transient error moving localnode " << curpath.toPath(*fsaccess);
                     success = false;
                 }
 
@@ -12961,8 +12961,8 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                 }
                 else if (success && fsaccess->transient_error)
                 {
-                    blockedfile = localpath;
-                    LOG_debug << "Transient error creating folder " << blockedfile.toPath(*fsaccess);
+                    blockedFile(*l->sync, localpath);
+                    LOG_debug << "Transient error creating folder " << localpath.toPath(*fsaccess);
                     success = false;
                 }
                 else if (!fsaccess->transient_error)
@@ -14709,6 +14709,23 @@ handle MegaClient::getovhandle(Node *parent, string *name)
         }
     }
     return ovhandle;
+}
+
+void MegaClient::blockedFile(Sync& sync, const LocalPath& path)
+{
+    // Notify the application on the transition to a blocked file.
+    if (blockedfile.empty() && !path.empty())
+    {
+        app->syncupdate_blocked_file(sync, path);
+    }
+
+    // Remember which file was blocked.
+    blockedfile = path;
+}
+
+const LocalPath& MegaClient::blockedFile() const
+{
+    return blockedfile;
 }
 
 void MegaClient::userfeedbackstore(const char *message)

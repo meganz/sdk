@@ -1412,10 +1412,10 @@ char *MegaApiImpl::getBlockedPath()
         return MegaApi::strdup(path.c_str());
     }
 
-    if (!client->blockedfile.empty())
+    if (!client->blockedFile().empty())
     {
         const string path =
-          client->blockedfile.toPath(*fsAccess);
+          client->blockedFile().toPath(*fsAccess);
 
         return MegaApi::strdup(path.c_str());
     }
@@ -12781,6 +12781,22 @@ void MegaApiImpl::syncupdate_scanning(bool scanning)
     fireOnGlobalSyncStateChanged();
 }
 
+void MegaApiImpl::syncupdate_blocked_file(Sync& sync, const LocalPath& localPath)
+{
+    auto path = localPath.toPath(*fsAccess);
+
+    LOG_debug << "Sync - blocked file detected: " << path;
+
+    auto syncIt = syncMap.find(sync.tag);
+    if (syncIt != syncMap.end())
+    {
+        auto event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_BLOCKED_FILE);
+        event->setPath(path.c_str());
+
+        fireOnSyncEvent(syncIt->second, event);
+    }
+}
+
 void MegaApiImpl::syncupdate_filter_error(Sync* sync, LocalNode* node)
 {
     string path = node->ignoreFilePath().toPath(*fsAccess);
@@ -22164,7 +22180,9 @@ int MegaApiImpl::isWaiting()
 
     if (client->syncfslockretry || client->syncfsopsfailed)
     {
-        LOG_debug << "SDK waiting for a blocked file: " << client->blockedfile.toPath(*fsAccess);
+        LOG_debug << "SDK waiting for a blocked file: "
+                  << client->blockedFile().toPath(*fsAccess);
+
         return RETRY_LOCAL_LOCK;
     }
 #endif
