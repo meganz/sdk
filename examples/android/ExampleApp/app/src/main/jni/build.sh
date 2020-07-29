@@ -4,11 +4,8 @@ set -e
 ##################################################
 ### SET THE PATH TO YOUR ANDROID NDK DIRECTORY ###
 ##################################################
-if [ -z "$NDK_ROOT32" ]; then
-    NDK_ROOT32=${HOME}/android-ndk32
-fi
-if [ -z "$NDK_ROOT64" ]; then
-    NDK_ROOT64=${HOME}/android-ndk64
+if [ -z "$NDK_ROOT" ]; then
+    NDK_ROOT=${HOME}/android-ndk
 fi
 ##################################################
 # PATH OF THE MEGA SDK RELATIVE TO jni/mega/sdk OR ABSOLUTE
@@ -22,16 +19,18 @@ if [ -z "${BUILD_ARCHS}" ]; then
 fi
 ##################################################
 
-NDK_BUILD32=${NDK_ROOT32}/ndk-build
-NDK_BUILD64=${NDK_ROOT64}/ndk-build
+if [ ! -d "${NDK_ROOT}" ]; then
+    echo "* NDK_ROOT not set. Please download ndk r16b and export NDK_ROOT variable or create a link at ${HOME}/android-ndk and try again."
+    exit 1
+fi
+
+NDK_BUILD=${NDK_ROOT}/ndk-build
 JNI_PATH=`pwd`
-CC32=`${NDK_ROOT32}/ndk-which gcc`
-CC64=`${NDK_ROOT64}/ndk-which gcc`
+CC=`${NDK_ROOT}/ndk-which gcc`
 LIBDIR=${JNI_PATH}/../obj/local/armeabi
 JAVA_OUTPUT_PATH=${JNI_PATH}/../java
-#APP_PLATFORM=`grep APP_PLATFORM Application.mk | cut -d '=' -f 2`
-APP_PLATFORM_32=16
-APP_PLATFORM_64=21
+APP_PLATFORM=`grep APP_PLATFORM Application.mk | cut -d '=' -f 2`
+ANDROID_API=21
 LOG_FILE=/dev/null
 
 CRYPTOPP=cryptopp
@@ -47,7 +46,7 @@ SQLITE_YEAR=2019
 SQLITE_BASE_NAME=sqlite-amalgamation-${SQLITE_VERSION}
 SQLITE_SOURCE_FILE=${SQLITE_BASE_NAME}.zip
 SQLITE_SOURCE_FOLDER=${SQLITE}/${SQLITE}
-SQLITE_DOWNLOAD_URL=http://www.sqlite.org/${SQLITE_YEAR}/${SQLITE_SOURCE_FILE}
+SQLITE_DOWNLOAD_URL=https://www.sqlite.org/${SQLITE_YEAR}/${SQLITE_SOURCE_FILE}
 SQLITE_SHA1="ff9b4e140fe0764bc7bc802facf5ac164443f517"
 
 CURL=curl
@@ -158,16 +157,6 @@ function createMEGABindings
 }
 
 
-if [ ! -d "${NDK_ROOT32}" ]; then
-    echo "* NDK_ROOT for 32 bits not set. Please download ndk 14 and create a link at ${HOME}/android-ndk32 and try again."
-    exit 1
-fi
-
-if [ ! -d "${NDK_ROOT64}" ]; then
-    echo "* NDK_ROOT for 64 bits not set. Please download ndk 16 and create a link at ${HOME}/android-ndk64 and try again."
-    exit 1
-fi
-
 if (( $# != 1 )); then
     echo "Usage: $0 <all | bindings | clean | clean_mega>";
     exit 0 
@@ -270,7 +259,8 @@ if [ ! -f ${SODIUM}/${SODIUM_SOURCE_FILE}.ready ]; then
     downloadCheckAndUnpack ${SODIUM_DOWNLOAD_URL} ${SODIUM}/${SODIUM_SOURCE_FILE} ${SODIUM_SHA1} ${SODIUM}
     ln -sf ${SODIUM_SOURCE_FOLDER} ${SODIUM}/${SODIUM}
     pushd ${SODIUM}/${SODIUM} &>> ${LOG_FILE}
-    export ANDROID_NDK_HOME=${NDK_ROOT64}
+    export ANDROID_NDK_HOME=${NDK_ROOT}
+    export NDK_PLATFORM=${APP_PLATFORM}
     ./autogen.sh &>> ${LOG_FILE}
     echo "#include <limits.h>" >>  src/libsodium/include/sodium/export.h
     sed -i 's/enable-minimal/enable-minimal --disable-pie/g' dist-build/android-build.sh
@@ -308,7 +298,7 @@ echo "* Setting up Crypto++"
 if [ ! -f ${CRYPTOPP}/${CRYPTOPP_SOURCE_FILE}.ready ]; then
     mkdir -p ${CRYPTOPP}/${CRYPTOPP}
     downloadCheckAndUnpack ${CRYPTOPP_DOWNLOAD_URL} ${CRYPTOPP}/${CRYPTOPP_SOURCE_FILE} ${CRYPTOPP_SHA1} ${CRYPTOPP}/${CRYPTOPP}
-    cp ${NDK_ROOT64}/sources/android/cpufeatures/cpu-features.h ${CRYPTOPP}/${CRYPTOPP}/
+    cp ${NDK_ROOT}/sources/android/cpufeatures/cpu-features.h ${CRYPTOPP}/${CRYPTOPP}/
     touch ${CRYPTOPP}/${CRYPTOPP_SOURCE_FILE}.ready
 fi
 echo "* Crypto++ is ready"
@@ -355,10 +345,10 @@ if [ ! -f ${OPENSSL}/${OPENSSL_SOURCE_FILE}.ready ]; then
 
     if [ -n "`echo ${BUILD_ARCHS} | grep -w x86`" ]; then
         echo "* Prebuilding OpenSSL for x86"
-        export ANDROID_NDK_HOME=${NDK_ROOT64}
+        export ANDROID_NDK_HOME=${NDK_ROOT}
         PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/:$ORIG_PATH
         mkdir openssl-android-x86/
-        ./Configure android-x86 -D__ANDROID_API__=${APP_PLATFORM_32} --openssldir=${PWD}/openssl-android-x86/ --prefix=${PWD}/openssl-android-x86/ &>> ${LOG_FILE}
+        ./Configure android-x86 -D__ANDROID_API__=${ANDROID_API} --openssldir=${PWD}/openssl-android-x86/ --prefix=${PWD}/openssl-android-x86/ &>> ${LOG_FILE}
         make -j8 &>> ${LOG_FILE}
         make install &>> ${LOG_FILE}
         make clean &>> ${LOG_FILE}
@@ -366,10 +356,10 @@ if [ ! -f ${OPENSSL}/${OPENSSL_SOURCE_FILE}.ready ]; then
 
     if [ -n "`echo ${BUILD_ARCHS} | grep -w armeabi-v7a`" ]; then
         echo "* Prebuilding OpenSSL for ARMv7"
-        export ANDROID_NDK_HOME=${NDK_ROOT64}
-        PATH=$ANDROID_NDK_HOME/toolchains/arm-linux-androideabi-4.9/prebuilt/linux-x86_64/bin:$ORIG_PATH
+        export ANDROID_NDK_HOME=${NDK_ROOT}
+        PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/:$ORIG_PATH
         mkdir openssl-android-armeabi-v7a
-        ./Configure android-arm -D__ANDROID_API__=${APP_PLATFORM_32} --openssldir=${PWD}/openssl-android-armeabi-v7a/ --prefix=${PWD}/openssl-android-armeabi-v7a/ &>> ${LOG_FILE}
+        ./Configure android-arm -latomic -D__ANDROID_API__=${ANDROID_API} --openssldir=${PWD}/openssl-android-armeabi-v7a/ --prefix=${PWD}/openssl-android-armeabi-v7a/ &>> ${LOG_FILE}
         make -j8 &>> ${LOG_FILE}
         make install &>> ${LOG_FILE}
         make clean &>> ${LOG_FILE}
@@ -377,10 +367,10 @@ if [ ! -f ${OPENSSL}/${OPENSSL_SOURCE_FILE}.ready ]; then
 
     if [ -n "`echo ${BUILD_ARCHS} | grep -w x86_64`" ]; then
         echo "* Prebuilding OpenSSL for x86_64"
-        export ANDROID_NDK_HOME=${NDK_ROOT64}
+        export ANDROID_NDK_HOME=${NDK_ROOT}
         PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/:$ORIG_PATH
         mkdir openssl-android-x86_64/
-        ./Configure android-x86_64 -D__ANDROID_API__=${APP_PLATFORM_64} --openssldir=${PWD}/openssl-android-x86_64/ --prefix=${PWD}/openssl-android-x86_64/ &>> ${LOG_FILE}
+        ./Configure android-x86_64 -D__ANDROID_API__=${ANDROID_API} --openssldir=${PWD}/openssl-android-x86_64/ --prefix=${PWD}/openssl-android-x86_64/ &>> ${LOG_FILE}
         make -j8 &>> ${LOG_FILE}
         make install &>> ${LOG_FILE}
         make clean &>> ${LOG_FILE}
@@ -388,10 +378,10 @@ if [ ! -f ${OPENSSL}/${OPENSSL_SOURCE_FILE}.ready ]; then
 
     if [ -n "`echo ${BUILD_ARCHS} | grep -w arm64-v8a`" ]; then
         echo "* Prebuilding OpenSSL for ARMv8"
-        export ANDROID_NDK_HOME=${NDK_ROOT64}
-        PATH=$ANDROID_NDK_HOME/toolchains/aarch64-linux-android-4.9/prebuilt/linux-x86_64/bin/:$ORIG_PATH
+        export ANDROID_NDK_HOME=${NDK_ROOT}
+        PATH=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/:$ORIG_PATH
         mkdir -p openssl-android-arm64-v8a
-        ./Configure android-arm64 -D__ANDROID_API__=${APP_PLATFORM_64} --openssldir=${PWD}/openssl-android-arm64-v8a/ --prefix=${PWD}/openssl-android-arm64-v8a/ &>> ${LOG_FILE}
+        ./Configure android-arm64 -latomic -D__ANDROID_API__=${ANDROID_API} --openssldir=${PWD}/openssl-android-arm64-v8a/ --prefix=${PWD}/openssl-android-arm64-v8a/ &>> ${LOG_FILE}
         make -j8 &>> ${LOG_FILE}
         make install &>> ${LOG_FILE}
         make clean &>> ${LOG_FILE}
@@ -426,28 +416,28 @@ rm -rf ../tmpLibs
 mkdir ../tmpLibs
 if [ -n "`echo ${BUILD_ARCHS} | grep -w x86`" ]; then
     echo "* Running ndk-build x86"
-    ${NDK_BUILD32} V=1 -j8 APP_ABI=x86 &>> ${LOG_FILE}
+    ${NDK_BUILD} V=1 -j8 APP_ABI=x86 &>> ${LOG_FILE}
     mv ../libs/x86 ../tmpLibs/
     echo "* ndk-build finished for x86"
 fi
 
 if [ -n "`echo ${BUILD_ARCHS} | grep -w armeabi-v7a`" ]; then
     echo "* Running ndk-build arm 32bits (armeabi-v7a)"
-    ${NDK_BUILD32} V=1 -j8 APP_ABI=armeabi-v7a &>> ${LOG_FILE}
+    ${NDK_BUILD} V=1 -j8 APP_ABI=armeabi-v7a &>> ${LOG_FILE}
     mv ../libs/armeabi-v7a ../tmpLibs/
     echo "* ndk-build finished for arm 32bits (armeabi-v7a)"
 fi
 
 if [ -n "`echo ${BUILD_ARCHS} | grep -w x86_64`" ]; then
     echo "* Running ndk-build x86_64"
-    ${NDK_BUILD64} V=1 -j8 APP_ABI=x86_64 &>> ${LOG_FILE}
+    ${NDK_BUILD} V=1 -j8 APP_ABI=x86_64 &>> ${LOG_FILE}
     mv ../libs/x86_64 ../tmpLibs/
     echo "* ndk-build finished for x86_64"
 fi
 
 if [ -n "`echo ${BUILD_ARCHS} | grep -w arm64-v8a`" ]; then
     echo "* Running ndk-build arm 64bits (arm64-v8a)"
-    ${NDK_BUILD64} V=1 -j8 APP_ABI=arm64-v8a &>> ${LOG_FILE}
+    ${NDK_BUILD} V=1 -j8 APP_ABI=arm64-v8a &>> ${LOG_FILE}
     mv ../libs/arm64-v8a ../tmpLibs/
     echo "* ndk-build finished for arm 64bits (arm64-v8a)"
 fi

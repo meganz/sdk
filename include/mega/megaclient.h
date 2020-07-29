@@ -366,6 +366,9 @@ public:
     // resend the verification email to the same email address as it was previously sent to
     void resendverificationemail();
 
+    // reset the verified phone number
+    void resetSmsVerifiedPhoneNumber();
+
     // get the data for a session transfer
     // the caller takes the ownership of the returned value
     // if the second parameter isn't NULL, it's used as session id instead of the current one
@@ -542,6 +545,9 @@ public:
 #ifdef DEBUG
     // queue a user attribute removal
     void delua(const char* an);
+
+    // send dev command for testing
+    void senddevcommand(const char *command, const char *email);
 #endif
 
     // delete or block an existing contact
@@ -724,6 +730,9 @@ public:
 
     // auto-join publicchat
     void chatlinkjoin(handle publichandle, const char *unifiedkey);
+
+    // set retention time for a chatroom in seconds, after which older messages in the chat are automatically deleted
+    void setchatretentiontime(handle chatid, int period);
 #endif
 
     // get mega achievements
@@ -789,14 +798,14 @@ public:
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 
-    // timestamp when a business account will enter into Grace Period
-    m_time_t mBizGracePeriodTs;
-
-    // timestamp when a business account will finally expire
-    m_time_t mBizExpirationTs;
-
     // storage status
     storagestatus_t ststatus;
+
+    // warning timestamps related to storage overquota in paywall mode
+    vector<m_time_t> mOverquotaWarningTs;
+
+    // deadline timestamp related to storage overquota in paywall mode
+    m_time_t mOverquotaDeadlineTs;
 
     // minimum bytes per second for streaming (0 == no limit, -1 == use default)
     int minstreamingrate;
@@ -814,10 +823,10 @@ public:
     string accountauth;
 
     // file that is blocking the sync engine
-    string blockedfile;
+    LocalPath blockedfile;
 
     // stats id
-    static char* statsid;
+    static std::string statsid;
 
     // number of ongoing asynchronous fopen
     int asyncfopens;
@@ -955,7 +964,7 @@ private:
     unsigned addnode(node_vector*, Node*) const;
 
     // add child for consideration in syncup()/syncdown()
-    void addchild(remotenode_map*, string*, Node*, list<string>*, const string *localPath, FileSystemType fsType) const;
+    void addchild(remotenode_map*, string*, Node*, list<string>*, FileSystemType fsType) const;
 
     // crypto request response
     void cr_response(node_vector*, node_vector*, JSON*);
@@ -1328,7 +1337,7 @@ public:
     void putnodes_sync_result(error, NewNode*, int);
 
     // start downloading/copy missing files, create missing directories
-    bool syncdown(LocalNode*, string*, bool);
+    bool syncdown(LocalNode*, LocalPath&, bool);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
     void movetosyncdebris(Node*, bool);
@@ -1349,7 +1358,7 @@ public:
 
     // unlink the LocalNode from the corresponding node
     // if the associated local file or folder still exists
-    void unlinkifexists(LocalNode*, FileAccess*, string*);
+    void unlinkifexists(LocalNode*, FileAccess*, LocalPath& reuseBuffer);
 #endif
 
     // recursively cancel transfers in a subtree
@@ -1611,7 +1620,7 @@ public:
     void acknowledgeuseralerts();
 
     // manage overquota errors
-    void activateoverquota(dstime timeleft);
+    void activateoverquota(dstime timeleft, bool isPaywall);
 
     // achievements enabled for the account
     bool achievements_enabled;
@@ -1640,6 +1649,12 @@ public:
     // list of handles of the Master business account/s
     std::set<handle> mBizMasters;
 
+    // timestamp when a business account will enter into Grace Period
+    m_time_t mBizGracePeriodTs;
+
+    // timestamp when a business account will finally expire
+    m_time_t mBizExpirationTs;
+
     // whether the destructor has started running yet
     bool destructorRunning = false;
   
@@ -1666,6 +1681,8 @@ public:
         CodeCounter::DurationSum transfersActiveTime;
         std::string report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs);
     } performanceStats;
+
+    std::string getDeviceid() const;
 
 #ifdef ENABLE_SYNC
     void resetSyncConfigs();

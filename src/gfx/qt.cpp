@@ -808,9 +808,11 @@ QImageReader *GfxProcQT::readbitmapLibraw(int &w, int &h, int &orientation, QStr
               << " " << imgdata.sizes.height
               << " " << imgdata.thumbnail.twidth
               << " " << imgdata.thumbnail.theight
+              << " " << imgdata.thumbnail.tlength
               << " " << imgdata.sizes.flip;
 
-    if (imgdata.thumbnail.twidth > 0 && imgdata.thumbnail.theight > 0)
+    if (imgdata.thumbnail.twidth > 0 && imgdata.thumbnail.theight > 0
+            && imgdata.thumbnail.tlength > 0)
     {
         ret = libRaw.unpack_thumb();
         if (ret == 0)

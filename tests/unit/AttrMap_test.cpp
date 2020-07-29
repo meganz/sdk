@@ -37,6 +37,7 @@ TEST(AttrMap, serialize_unserialize)
     ASSERT_EQ(map.map, newMap.map);
 }
 
+#ifndef WIN32   // data was recorded with "mock" utf-8 not the actual utf-16
 TEST(AttrMap, unserialize_32bit)
 {
     // This is the result of serialization on 32bit Windows
@@ -57,3 +58,4 @@ TEST(AttrMap, unserialize_32bit)
 
     ASSERT_EQ(expMap.map, newMap.map);
 }
+#endif

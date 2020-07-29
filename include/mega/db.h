@@ -82,6 +82,7 @@ public:
 
     DbTable(PrnGen &rng, bool alwaysTransacted);
     virtual ~DbTable() { }
+    DBTableTransactionCommitter *getTransactionCommitter() const;
 };
 
 class MEGA_API DBTableTransactionCommitter

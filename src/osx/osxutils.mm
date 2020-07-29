@@ -13,43 +13,49 @@ using namespace std;
 
 enum { HTTP_PROXY = 0, HTTPS_PROXY };
 
-void path2localMac(string* path, string* local)
+void path2localMac(const string* path, string* local)
 {
     if (!path->size())
     {
         *local = "";
         return;
     }
-    // Compatibility with new APFS filesystem
-    // Use the fileSystemRepresentation property of NSString objects when creating and opening
-    // files with lower-level filesystem APIs such as POSIX open(2), or when storing filenames externally from the filesystem`
-    NSString *tempPath = [[NSString alloc] initWithUTF8String:path->c_str()];
-    const char *pathRepresentation = NULL;
-    @try
-    {
-        pathRepresentation = [tempPath fileSystemRepresentation];
-    }
-    @catch (NSException *e)
-    {
-         LOG_err << "Failed getting file system representation (APFS filesystem)";
-         local->clear();
-#if !__has_feature(objc_arc)
-         [tempPath release];
-#endif
-         return;
-    }
+    // Multiple calls to path2localMac cause a high memory usage on macOS. To avoid it, use autorelease pool to release any temp object at the end of the pool.
+    // At the end of the block, the temporary objects are released, which typically results in their deallocation thereby reducing the program’s memory footprint.
+    @autoreleasepool {
 
-    if (pathRepresentation)
-    {
-       *local = pathRepresentation;
+        // Compatibility with new APFS filesystem
+        // Use the fileSystemRepresentation property of NSString objects when creating and opening
+        // files with lower-level filesystem APIs such as POSIX open(2), or when storing filenames externally from the filesystem`
+        NSString *tempPath = [[NSString alloc] initWithUTF8String:path->c_str()];
+        const char *pathRepresentation = NULL;
+        @try
+        {
+            pathRepresentation = [tempPath fileSystemRepresentation];
+        }
+        @catch (NSException *e)
+        {
+             LOG_err << "Failed getting file system representation (APFS filesystem)";
+             local->clear();
+    #if !__has_feature(objc_arc)
+             [tempPath release];
+    #endif
+             return;
+        }
+
+        if (pathRepresentation)
+        {
+           *local = pathRepresentation;
+        }
+        else
+        {
+            local->clear();
+        }
+    #if !__has_feature(objc_arc)
+        [tempPath release];
+    #endif
+
     }
-    else
-    {
-        local->clear();
-    }
-#if !__has_feature(objc_arc)
-    [tempPath release];
-#endif
 }
 
 #if defined(__APPLE__) && !(TARGET_OS_IPHONE)
