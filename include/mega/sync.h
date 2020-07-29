@@ -89,6 +89,8 @@ public:
     // root of local filesystem tree, holding the sync's root folder.  Never null except briefly in the destructor (to ensure efficient db usage)
     unique_ptr<LocalNode> localroot;
 
+    FileSystemType mFilesystemType = FS_UNKNOWN;
+
     // Path used to normalize sync locaroot name when using prefix /System/Volumes/Data needed by fsevents, due to notification paths
     // are served with such prefix from macOS catalina +
 #ifdef __APPLE__
@@ -123,6 +125,9 @@ public:
 
     // change state, signal to application
     void changestate(syncstate_t);
+
+    // skip duplicates and self-caused
+    bool checkValidNotification(int q, Notification& notification);
 
     // process and remove one directory notification queue item from *notify
     dstime procscanq(int);

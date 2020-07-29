@@ -1597,15 +1597,14 @@ class MegaChildrenListsPrivate : public MegaChildrenLists
     public:
         MegaChildrenListsPrivate();
         MegaChildrenListsPrivate(MegaChildrenLists*);
-        MegaChildrenListsPrivate(MegaNodeListPrivate *folderList, MegaNodeListPrivate *fileList);
-        virtual ~MegaChildrenListsPrivate();
+        MegaChildrenListsPrivate(unique_ptr<MegaNodeListPrivate> folderList, unique_ptr<MegaNodeListPrivate> fileList);
         virtual MegaChildrenLists *copy();
         virtual MegaNodeList* getFolderList();
         virtual MegaNodeList* getFileList();
 
     protected:
-        MegaNodeList *folders;
-        MegaNodeList *files;
+        unique_ptr<MegaNodeList> folders;
+        unique_ptr<MegaNodeList> files;
 };
 
 class MegaUserListPrivate : public MegaUserList
@@ -1874,18 +1873,6 @@ class PendingOutShareProcessor : public TreeProcessor
         vector<handle> handles;
 };
 
-class PublicLinkProcessor : public TreeProcessor
-{
-    public:
-        PublicLinkProcessor();
-        virtual bool processNode(Node* node);
-        virtual ~PublicLinkProcessor();
-        vector<Node *> &getNodes();
-
-    protected:
-        vector<Node *> nodes;
-};
-
 class SizeProcessor : public TreeProcessor
 {
     protected:
@@ -1958,6 +1945,8 @@ class MegaApiImpl : public MegaApp
         virtual ~MegaApiImpl();
 
         static MegaApiImpl* ImplOf(MegaApi*);
+
+        enum { TARGET_INSHARE = 0, TARGET_OUTSHARE, TARGET_PUBLICLINK, };
 
         //Multiple listener management.
         void addListener(MegaListener* listener);
@@ -2286,14 +2275,13 @@ class MegaApiImpl : public MegaApp
 		int getNumChildren(MegaNode* parent);
 		int getNumChildFiles(MegaNode* parent);
 		int getNumChildFolders(MegaNode* parent);
-        MegaNodeList* getChildren(MegaNode *parent, int order=1);
+        MegaNodeList* getChildren(MegaNode *parent, int order);
         MegaNodeList* getVersions(MegaNode *node);
         int getNumVersions(MegaNode *node);
         bool hasVersions(MegaNode *node);
         void getFolderInfo(MegaNode *node, MegaRequestListener *listener);
         MegaChildrenLists* getFileFolderChildren(MegaNode *parent, int order=1);
         bool hasChildren(MegaNode *parent);
-        int getIndex(MegaNode* node, int order=1);
         MegaNode *getChildNode(MegaNode *parent, const char* name);
         MegaNode *getParentNode(MegaNode *node);
         char *getNodePath(MegaNode *node);
@@ -2361,6 +2349,8 @@ class MegaApiImpl : public MegaApp
         MegaNodeList* search(MegaNode* node, const char* searchString, MegaCancelToken *cancelToken, bool recursive = 1, int order = MegaApi::ORDER_NONE);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
         MegaNodeList* search(const char* searchString, MegaCancelToken *cancelToken, int order = MegaApi::ORDER_NONE);
+
+        MegaNodeList* searchInAllShares(const char *searchString, MegaCancelToken *cancelToken, int order, int target);
 
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
                                        MegaHandle parentHandle, const char *privateauth, const char *publicauth, const char *chatauth);
@@ -2433,8 +2423,8 @@ class MegaApiImpl : public MegaApp
         static int typeComparator(Node *i, Node *j);
         static bool userComparatorDefaultASC (User *i, User *j);
 
-        char* escapeFsIncompatible(const char *filename);
-        char* unescapeFsIncompatible(const char* name);
+        char* escapeFsIncompatible(const char *filename, const char *dstPath);
+        char* unescapeFsIncompatible(const char* name, const char *path);
 
         bool createThumbnail(const char* imagePath, const char *dstPath);
         bool createPreview(const char* imagePath, const char *dstPath);
@@ -2554,6 +2544,7 @@ class MegaApiImpl : public MegaApp
         void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
         void getMyChatFilesFolder(MegaRequestListener *listener = NULL);
         void setCameraUploadsFolder(MegaHandle nodehandle, bool secondary, MegaRequestListener *listener = NULL);
+        void setCameraUploadsFolders(MegaHandle primaryFolder, MegaHandle secondaryFolder, MegaRequestListener *listener);
         void getCameraUploadsFolder(bool secondary, MegaRequestListener *listener = NULL);
         void getUserAlias(MegaHandle uh, MegaRequestListener *listener = NULL);
         void setUserAlias(MegaHandle uh, const char *alias, MegaRequestListener *listener = NULL);

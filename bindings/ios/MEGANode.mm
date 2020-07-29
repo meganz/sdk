@@ -129,6 +129,10 @@ using namespace mega;
     return self.megaNode ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaNode->getModificationTime()] : nil;
 }
 
+- (NSDate *)publicLinkCreationTime {
+    return self.megaNode ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaNode->getPublicLinkCreationTime()] : nil;
+}
+
 - (uint64_t)handle {
     return self.megaNode ? self.megaNode->getHandle() : ::mega::INVALID_HANDLE;
 }

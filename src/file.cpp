@@ -472,7 +472,7 @@ void SyncFileGet::prepare()
         string tmpname, lockname;
 
         tmpname = "tmp";
-        sync->client->fsaccess->name2local(&tmpname);
+        sync->client->fsaccess->name2local(&tmpname, sync->mFilesystemType);
 
         if (!sync->tmpfa)
         {
@@ -491,7 +491,7 @@ void SyncFileGet::prepare()
                 // lock it
                 transfer->localfilename.append(sync->client->fsaccess->localseparator);
                 lockname = "lock";
-                sync->client->fsaccess->name2local(&lockname);
+                sync->client->fsaccess->name2local(&lockname, sync->mFilesystemType);
                 transfer->localfilename.append(lockname);
 
                 if (sync->tmpfa->fopen(&transfer->localfilename, false, true))
@@ -574,7 +574,7 @@ void SyncFileGet::updatelocalname()
         {
             string tmpname = ait->second;
 
-            sync->client->fsaccess->name2local(&tmpname);
+            sync->client->fsaccess->name2local(&tmpname, sync->mFilesystemType);
             n->parent->localnode->getlocalpath(&localname);
 
             localname.append(sync->client->fsaccess->localseparator);

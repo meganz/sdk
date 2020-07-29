@@ -161,6 +161,26 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // examine a file on disk for video/audio attributes to attach to the file, on upload/download
     void addAnyMissingMediaFileAttributes(Node* node, std::string& localpath);
+
+    // whether the Transfer needs to remove itself from the list it's in (for quick shutdown we can skip)
+    bool mOptimizedDelete = false;
+};
+
+
+struct LazyEraseTransferPtr
+{
+    // This class enables us to relatively quickly and efficiently delete many items from the middle of std::deque
+    // By being the class actualy stored in a mega::deque_with_lazy_bulk_erase.
+    // Such builk deletion is done by marking the ones to delete, and finally performing those as a single remove_if.
+    Transfer* transfer;
+    uint64_t preErasurePriority = 0;
+    bool erased = false;
+
+    explicit LazyEraseTransferPtr(Transfer* t) : transfer(t) {}
+    operator Transfer*&() { return transfer; }
+    void erase() { preErasurePriority = transfer->priority; transfer = nullptr; erased = true; }
+    bool isErased() const { return erased; }
+    bool operator==(const LazyEraseTransferPtr& e) { return transfer && transfer == e.transfer; }
 };
 
 class MEGA_API TransferList
@@ -168,6 +188,8 @@ class MEGA_API TransferList
 public:
     static const uint64_t PRIORITY_START = 0x0000800000000000ull;
     static const uint64_t PRIORITY_STEP  = 0x0000000000010000ull;
+
+    typedef deque_with_lazy_bulk_erase<Transfer*, LazyEraseTransferPtr> transfer_list;
 
     TransferList();
     void addtransfer(Transfer* transfer, DBTableTransactionCommitter&, bool startFirst = false);
@@ -187,11 +209,11 @@ public:
     error pause(Transfer *transfer, bool enable, DBTableTransactionCommitter& committer);
     transfer_list::iterator begin(direction_t direction);
     transfer_list::iterator end(direction_t direction);
-    transfer_list::iterator iterator(Transfer *transfer);
+    bool getIterator(Transfer *transfer, transfer_list::iterator&, bool canHandleErasedElements = false);
     std::array<vector<Transfer*>, 6> nexttransfers(std::function<bool(Transfer*)>& continuefunction);
     Transfer *transferat(direction_t direction, unsigned int position);
 
-    transfer_list transfers[2];
+    std::array<transfer_list, 2> transfers;
     MegaClient *client;
     uint64_t currentpriority;
 
