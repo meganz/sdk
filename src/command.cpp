@@ -38,7 +38,7 @@ Command::Command()
 
 Command::~Command()
 {
-    for(const auto& listenerWeak: mListeners)
+    for (const auto& listenerWeak: mListeners)
     {
         if (auto listener = listenerWeak.lock())
         {

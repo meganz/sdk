@@ -244,14 +244,6 @@ MegaBackupMonitor::~MegaBackupMonitor()
 {
 }
 
-void MegaBackupMonitor::reset()
-{
-    mPendingBackupPuts.clear();
-    mHeartBeatedSyncs.clear();
-    mPendingSyncUpdates.clear();
-    mLastBeat = 0;
-}
-
 void MegaBackupMonitor::digestPutResult(handle backupId)
 {
     bool needsAdding = true;

@@ -125,8 +125,6 @@ public:
     virtual ~MegaBackupMonitor();
     void beat(); //produce heartbeats!
 
-    void reset();
-
     void digestPutResult(handle backupId);
 
     void onSyncAdded(MegaApi *api, MegaSync *sync, int additionState) override;
