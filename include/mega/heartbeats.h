@@ -25,6 +25,7 @@
 #include "types.h"
 #include "mega.h"
 #include <memory>
+#include <functional>
 
 namespace mega
 {
@@ -154,11 +155,12 @@ private:
     static constexpr int MAX_HEARBEAT_SECS_DELAY = 60*30; // max time to wait before a heartbeat for unchanged backup
 
     mega::MegaClient *mClient = nullptr;
-    std::deque<int> mPendingBackupPuts; // tags of hearbeats in-flight (waiting for CommandBackupPut's response)
+    std::deque<std::function<void(handle)>> mPendingBackupPutCallbacks; // Callbacks to be executed when backupId received after a registering "sp"
 
-    // --- Members and methods for backups of type: TWO_WAY, UP_SYNC, DOWN_SYNC
+    // --- Members and methods for syncs. i.e: backups of type: TWO_WAY, UP_SYNC, DOWN_SYNC
     std::map<int, std::shared_ptr<HeartBeatBackupInfo>> mHeartBeatedSyncs; // Map matching sync tag and HeartBeatBackupInfo
-    std::map<int, int> mTransferToSyncMap; // maps transfer-tag and sync-tag
+    std::map<int, int> mTransferToSyncMap; // maps transfer-tag and sync-tag to avoid costly search every update
+    std::set<int> mPendingSyncPuts; // tags of registrations in-flight (waiting for CommandBackupPut's response)
     std::map<int, std::unique_ptr<MegaSync>> mPendingSyncUpdates; // updates that were received while CommandBackupPut was being resolved
 
     void updateOrRegisterSync(MegaSync *sync);
@@ -173,6 +175,7 @@ private:
     void calculateStatus(HeartBeatBackupInfo *hbs);
 
     static BackupType convertSyncType(SyncConfig::Type type);
+    void onSyncBackupRegistered(int syncTag, handle backupId);
 };
 }
 

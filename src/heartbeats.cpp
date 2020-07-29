@@ -244,22 +244,18 @@ MegaBackupMonitor::~MegaBackupMonitor()
 {
 }
 
-void MegaBackupMonitor::digestPutResult(handle backupId)
+void MegaBackupMonitor::onSyncBackupRegistered(int syncTag, handle backupId)
 {
     bool needsAdding = true;
 
-    // get the tag from queue of pending puts
-    assert(mPendingBackupPuts.size());
-    auto syncTag = mPendingBackupPuts.front();
-    mPendingBackupPuts.pop_front();
+    // remove the tag from the set of in-flight sync registrations
+    mPendingSyncPuts.erase(syncTag);
 
     if (ISUNDEF(backupId))
     {
         LOG_warn << "Received invalid id for sync with tag: " << syncTag;
         needsAdding = false;
     }
-
-    // set heartBeat ID
 
     if (!ISUNDEF(backupId) && mHeartBeatedSyncs.find(syncTag) != mHeartBeatedSyncs.end())
     {
@@ -306,6 +302,18 @@ void MegaBackupMonitor::digestPutResult(handle backupId)
         }
         mPendingSyncUpdates.erase(pendingSyncPair);
     }
+}
+
+void MegaBackupMonitor::digestPutResult(handle backupId)
+{
+    // get the tag from queue of pending puts
+    assert(mPendingBackupPutCallbacks.size());
+    auto putResultCallback = mPendingBackupPutCallbacks.front();
+    mPendingBackupPutCallbacks.pop_front();
+
+
+    //call corresponding callback
+    putResultCallback(backupId);
 }
 
 int MegaBackupMonitor::getSyncState(MegaSync *sync)
@@ -386,22 +394,26 @@ void MegaBackupMonitor::updateOrRegisterSync(MegaSync *sync)
     auto config = mClient->syncConfigs->get(syncTag);
     handle backupId = config ? config->getBackupId() : UNDEF;
 
-    bool pushInPending = false;
     if (backupId == UNDEF) // new backup, register in API
     {
         string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", sync->getLocalFolder()));
         string deviceIDEncrypted(mClient->cypherTLVTextWithMasterKey("de", mClient->getDeviceid()));
         string nameEncrypted(mClient->cypherTLVTextWithMasterKey("na", sync->getName()));
 
-        if (std::find(mPendingBackupPuts.begin(), mPendingBackupPuts.end(), syncTag) == mPendingBackupPuts.end())
+        if (mPendingSyncPuts.find(syncTag) == mPendingSyncPuts.end())
         {
             BackupType type = MegaBackupMonitor::convertSyncType(config->getType());
             assert(type != INVALID);
 
-            pushInPending = true;
             mClient->reqs.add(new CommandBackupPut(mClient, type, sync->getMegaHandle(),
                                            localFolderEncrypted, deviceIDEncrypted, nameEncrypted,
                                            getSyncState(sync), getSyncSubstatus(sync), getHBExtraData(sync)));
+            // queue callback to process the backupId when received
+            mPendingSyncPuts.insert(syncTag);
+            mPendingBackupPutCallbacks.push_back([this, syncTag](handle backupId)
+            {
+                onSyncBackupRegistered(syncTag, backupId);
+            });
         }
         else // backupId not received yet, let's queue the update (copying sync data)
         {
@@ -411,13 +423,7 @@ void MegaBackupMonitor::updateOrRegisterSync(MegaSync *sync)
     }
     else //update
     {
-        pushInPending = true;
         updateSyncInfo(backupId, sync);
-    }
-
-    if (pushInPending)
-    {
-        mPendingBackupPuts.push_back(syncTag);
     }
 }
 
