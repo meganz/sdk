@@ -14515,14 +14515,9 @@ string MegaClient::cypherTLVTextWithMasterKey(const char *name, const string &te
 {
     TLVstore tlv;
     tlv.set(name, text);
-    std::unique_ptr<string> tlvstring{tlv.tlvRecordsToContainer(rng, &key)};
+    std::unique_ptr<string> tlvStr{tlv.tlvRecordsToContainer(rng, &key)};
 
-
-    string base64tlv;
-    base64tlv.resize(tlvstring->size() * 4 / 3 + 4);
-    Base64::btoa((byte *)tlvstring->data(), int(tlvstring->size()), (char *)base64tlv.data());
-
-    return base64tlv;
+    return Base64::btoa(*tlvStr);
 }
 
 void MegaClient::failSync(Sync* sync, SyncError syncerror)

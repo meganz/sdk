@@ -123,9 +123,9 @@ class MegaBackupMonitor : public MegaListener
 public:
     explicit MegaBackupMonitor(MegaClient * client);
     virtual ~MegaBackupMonitor();
-    void beat(); //produce heartbeats!
+    void beat(); // produce heartbeats!
 
-    void digestPutResult(handle backupId);
+    void digestPutResult(handle backupId);  // called at MegaApiImpl::backupput_result() <-- new backup registered
 
     void onSyncAdded(MegaApi *api, MegaSync *sync, int additionState) override;
     void onSyncDeleted(MegaApi *api, MegaSync *sync) override;
@@ -163,14 +163,16 @@ private:
 
     void updateOrRegisterSync(MegaSync *sync);
     void updateSyncInfo(handle backupId, MegaSync *sync);
-    int getHBState (MegaSync *sync);
-    int getHBSubstatus (MegaSync *sync);
+    int getSyncState (MegaSync *sync);
+    int getSyncSubstatus (MegaSync *sync);
     string getHBExtraData(MegaSync *sync);
     BackupType getHBType(MegaSync *sync);
 
     m_time_t mLastBeat = 0;
     std::shared_ptr<HeartBeatBackupInfo> getHeartBeatBackupInfoByTransfer(MegaTransfer *transfer);
     void calculateStatus(HeartBeatBackupInfo *hbs);
+
+    static BackupType convertSyncType(SyncConfig::Type type);
 };
 }
 

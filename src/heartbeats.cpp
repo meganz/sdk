@@ -308,7 +308,7 @@ void MegaBackupMonitor::digestPutResult(handle backupId)
     }
 }
 
-int MegaBackupMonitor::getHBState(MegaSync *sync)
+int MegaBackupMonitor::getSyncState(MegaSync *sync)
 {
     if (sync->isTemporaryDisabled())
     {
@@ -329,7 +329,7 @@ int MegaBackupMonitor::getHBState(MegaSync *sync)
     }
 }
 
-int MegaBackupMonitor::getHBSubstatus(MegaSync *sync)
+int MegaBackupMonitor::getSyncSubstatus(MegaSync *sync)
 {
     return sync->getError();
 }
@@ -351,11 +351,29 @@ void MegaBackupMonitor::updateSyncInfo(handle backupId, MegaSync *sync)
     string deviceIDEncrypted(mClient->cypherTLVTextWithMasterKey("de", mClient->getDeviceid()) );
     string nameEncrypted(mClient->cypherTLVTextWithMasterKey("na", sync->getName()) );
 
+    auto config = mClient->syncConfigs->get(sync->getTag());
+    BackupType type = MegaBackupMonitor::convertSyncType(config->getType());
+    assert(type != INVALID);
 
-    mClient->reqs.add(new CommandBackupPut(mClient, backupId, BackupType::TWO_WAY, sync->getMegaHandle(), localFolderEncrypted.c_str(),
+    mClient->reqs.add(new CommandBackupPut(mClient, backupId, type, sync->getMegaHandle(), localFolderEncrypted.c_str(),
                                            deviceIDEncrypted.c_str(), nameEncrypted.c_str(),
-                                           getHBState(sync), getHBSubstatus(sync), getHBExtraData(sync).c_str()
+                                           getSyncState(sync), getSyncSubstatus(sync), getHBExtraData(sync).c_str()
                                            ));
+}
+
+BackupType MegaBackupMonitor::convertSyncType(SyncConfig::Type type)
+{
+    switch (type)
+    {
+    case SyncConfig::Type::TYPE_UP:
+            return BackupType::UP_SYNC;
+    case SyncConfig::Type::TYPE_DOWN:
+            return BackupType::DOWN_SYNC;
+    case SyncConfig::Type::TYPE_TWOWAY:
+            return BackupType::TWO_WAY;
+    default:
+            return BackupType::INVALID;
+    }
 }
 
 void MegaBackupMonitor::updateOrRegisterSync(MegaSync *sync)
@@ -364,57 +382,51 @@ void MegaBackupMonitor::updateOrRegisterSync(MegaSync *sync)
     {
         return;
     }
-    auto config = mClient->syncConfigs->get(sync->getTag());
-
-    handle syncID = UNDEF;
-    if (config)
-    {
-        syncID = config->getBackupId();
-    }
+    int syncTag = sync->getTag();
+    auto config = mClient->syncConfigs->get(syncTag);
+    handle backupId = config ? config->getBackupId() : UNDEF;
 
     bool pushInPending = false;
-
-    string extraData;
-    if (syncID == UNDEF) //register
+    if (backupId == UNDEF) // new backup, register in API
     {
+        string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", sync->getLocalFolder()));
+        string deviceIDEncrypted(mClient->cypherTLVTextWithMasterKey("de", mClient->getDeviceid()));
+        string nameEncrypted(mClient->cypherTLVTextWithMasterKey("na", sync->getName()));
 
-        string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", sync->getLocalFolder()) );
-        string deviceIDEncrypted(mClient->cypherTLVTextWithMasterKey("de", mClient->getDeviceid()) );
-        string nameEncrypted(mClient->cypherTLVTextWithMasterKey("na", sync->getName()) );
-
-
-        if (std::find(mPendingBackupPuts.begin(), mPendingBackupPuts.end(), sync->getTag()) == mPendingBackupPuts.end())
+        if (std::find(mPendingBackupPuts.begin(), mPendingBackupPuts.end(), syncTag) == mPendingBackupPuts.end())
         {
+            BackupType type = MegaBackupMonitor::convertSyncType(config->getType());
+            assert(type != INVALID);
+
             pushInPending = true;
-            mClient->reqs.add(new CommandBackupPut(mClient, BackupType::TWO_WAY, sync->getMegaHandle(), localFolderEncrypted.c_str(),
-                                           deviceIDEncrypted.c_str(), nameEncrypted.c_str(),
-                                           getHBState(sync), getHBSubstatus(sync), getHBExtraData(sync)
-                                           ));
+            mClient->reqs.add(new CommandBackupPut(mClient, type, sync->getMegaHandle(),
+                                           localFolderEncrypted, deviceIDEncrypted, nameEncrypted,
+                                           getSyncState(sync), getSyncSubstatus(sync), getHBExtraData(sync)));
         }
-        else // ID not received yet, let's queue the update (copying sync data)
+        else // backupId not received yet, let's queue the update (copying sync data)
         {
             LOG_debug << " Queuing sync update, register is on progress for sync: " << sync->getLocalFolder();
-            mPendingSyncUpdates[sync->getTag()].reset(sync->copy()); // we replace any previous pending updates
+            mPendingSyncUpdates[syncTag].reset(sync->copy()); // we replace any previous pending updates
         }
     }
     else //update
     {
         pushInPending = true;
-        updateSyncInfo(syncID, sync);
+        updateSyncInfo(backupId, sync);
     }
 
     if (pushInPending)
     {
-        mPendingBackupPuts.push_back(sync->getTag());
+        mPendingBackupPuts.push_back(syncTag);
     }
 }
 
-void MegaBackupMonitor::onSyncAdded(MegaApi *api, MegaSync *sync, int additionState)
+void MegaBackupMonitor::onSyncAdded(MegaApi* /*api*/, MegaSync *sync, int /*additionState*/)
 {
     updateOrRegisterSync(sync);
 }
 
-void MegaBackupMonitor::onSyncStateChanged(MegaApi *api, MegaSync *sync)
+void MegaBackupMonitor::onSyncStateChanged(MegaApi* /*api*/, MegaSync *sync)
 {
     updateOrRegisterSync(sync);
 }
