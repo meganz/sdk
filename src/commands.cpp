@@ -8345,7 +8345,9 @@ CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle n
     arg("n", backupName.c_str());
     arg("s", state);
     arg("ss", subState);
-    arg("e", extraData.c_str());
+
+    if (!extraData.empty())
+        arg("e", extraData.c_str());
 
     tag = client->reqtag;
     mUpdate = false;
