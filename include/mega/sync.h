@@ -193,7 +193,7 @@ public:
     m_time_t updatedfileinitialts = 0;
 
     // flag to optimize destruction by skipping calls to treestate()
-    bool destructorRunning = false;
+    bool mDestructorRunning = false;
 
     Sync(MegaClient*, SyncConfig, const char*, string*, Node*, bool, int, void*);
     ~Sync();
