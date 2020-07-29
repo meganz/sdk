@@ -78,12 +78,13 @@ mega::MegaHandle HeartBeatBackupInfo::lastItemUpdated() const
 
 void HeartBeatBackupInfo::updateTransferInfo(MegaTransfer *transfer)
 {
-    if (mPendingTransfers.find(transfer->getTag()) == mPendingTransfers.end())
+    auto it = mPendingTransfers.find(transfer->getTag());
+    if (it == mPendingTransfers.end())
     {
-        mPendingTransfers.insert(std::make_pair(transfer->getTag(), ::mega::make_unique<PendingTransferInfo>()));
+        it = mPendingTransfers.insert(std::make_pair(transfer->getTag(), ::mega::make_unique<PendingTransferInfo>())).first;
     }
 
-    const auto &pending = mPendingTransfers[transfer->getTag()];
+    const unique_ptr<PendingTransferInfo> &pending = it->second;
 
     auto total = mTotalBytes;
     auto transferred = mTransferredBytes;
@@ -106,13 +107,14 @@ void HeartBeatBackupInfo::updateTransferInfo(MegaTransfer *transfer)
 
 void HeartBeatBackupInfo::removePendingTransfer(MegaTransfer *transfer)
 {
-    if (mPendingTransfers.find(transfer->getTag()) == mPendingTransfers.end())
+    const auto it = mPendingTransfers.find(transfer->getTag());
+    if (it == mPendingTransfers.end())
     {
         assert(false && "removing a non included transfer");
         return;
     }
 
-    auto &pending = mPendingTransfers[transfer->getTag()];
+    unique_ptr<PendingTransferInfo> &pending = it->second;
 
     // add the transfer data to a list of finished. To reduce the totals with its values
     // when we consider progress is complete
