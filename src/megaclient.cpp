@@ -14316,6 +14316,16 @@ namespace action_bucket_compare
         return action_bucket_compare::webclient_mime_video_extensions.find(ext) != string::npos;
     }
 
+    bool nodeIsAudio(const Node* n, char ext[12])
+    {
+         return action_bucket_compare::webclient_mime_audio_extensions.find(ext) != string::npos;
+    }
+
+    bool nodeIsDocument(const Node* n, char ext[12])
+    {
+         return action_bucket_compare::webclient_mime_document_extensions.find(ext) != string::npos;
+    }
+
     bool nodeIsPhoto(const Node* n, char ext[12])
     {
         // evaluate according to the webclient rules, so that we get exactly the same bucketing.
@@ -14379,6 +14389,46 @@ bool MegaClient::nodeIsMedia(const Node* n, bool* isphoto, bool* isvideo) const
             *isvideo = b;
         }
         return a || b;
+    }
+    return false;
+}
+
+bool MegaClient::nodeIsVideo(const Node* n) const
+{
+    char ext[12];
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    {
+        return action_bucket_compare::nodeIsVideo(n, ext, *this);
+    }
+    return false;
+}
+
+bool MegaClient::nodeIsPhoto(const Node* n) const
+{
+    char ext[12];
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    {
+        return action_bucket_compare::nodeIsPhoto(n, ext);
+    }
+    return false;
+}
+
+bool MegaClient::nodeIsAudio(const Node* n) const
+{
+    char ext[12];
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    {
+        return action_bucket_compare::nodeIsAudio(n, ext);
+    }
+    return false;
+}
+
+bool MegaClient::nodeIsDocument(const Node* n) const
+{
+    char ext[12];
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    {
+        return action_bucket_compare::nodeIsDocument(n, ext);
     }
     return false;
 }

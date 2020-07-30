@@ -1250,6 +1250,18 @@ public:
     // determine if the file is a video, photo, or media (video or photo).  If the extension (with trailing .) is not precalculated, pass null
     bool nodeIsMedia(const Node*, bool* isphoto, bool* isvideo) const;
 
+    // determine if the file is a photo.
+    bool nodeIsPhoto(const Node* n) const;
+
+    // determine if the file is a video.
+    bool nodeIsVideo(const Node* n) const;
+
+    // determine if the file is an audio.
+    bool nodeIsAudio(const Node* n) const;
+
+    // determine if the file is a document.
+    bool nodeIsDocument(const Node* n) const;
+
     // generate & return upload handle
     handle getuploadhandle();
 
