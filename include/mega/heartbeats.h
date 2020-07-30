@@ -124,7 +124,7 @@ private:
     std::vector<std::unique_ptr<PendingTransferInfo>> mFinishedTransfers;
 };
 
-
+#ifdef ENABLE_SYNC
 class HeartBeatSyncInfo : public HeartBeatTransferProgressedInfo
 {
 public:
@@ -146,7 +146,7 @@ private:
     int mSyncTag = 0;           // assigned by client (locally) for synced folders
 
 };
-
+#endif
 
 /**
  * @brief Information for registration/update of a backup
@@ -185,6 +185,7 @@ private:
     string mExtra;
 };
 
+#ifdef ENABLE_SYNC
 class MegaBackupInfoSync : public MegaBackupInfo
 {
 public:
@@ -202,8 +203,8 @@ public:
     static int getSyncState (const MegaSync &sync);
     static int getSyncSubstatus (const MegaSync &sync);
     string getSyncExtraData(const MegaSync &sync);
-
 };
+#endif
 
 class MegaBackupMonitor : public MegaListener
 {
@@ -213,11 +214,11 @@ public:
     void beat(); // produce heartbeats!
 
     void digestPutResult(handle backupId);  // called at MegaApiImpl::backupput_result() <-- new backup registered
-
+#ifdef ENABLE_SYNC
     void onSyncAdded(MegaApi *api, MegaSync *sync, int additionState) override;
     void onSyncDeleted(MegaApi *api, MegaSync *sync) override;
     void onSyncStateChanged(MegaApi *api, MegaSync *sync) override;
-
+#endif
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error) override;
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
@@ -237,6 +238,9 @@ private:
     void beatBackupInfo(const std::shared_ptr<HeartBeatBackupInfo> &hbs);
     void calculateStatus(HeartBeatBackupInfo *hbs);
 
+    std::shared_ptr<HeartBeatTransferProgressedInfo> getHeartBeatBackupInfoByTransfer(MegaTransfer *transfer);
+
+#ifdef ENABLE_SYNC
     // --- Members and methods for syncs. i.e: backups of type: TWO_WAY, UP_SYNC, DOWN_SYNC
     std::map<int, std::shared_ptr<HeartBeatSyncInfo>> mHeartBeatedSyncs; // Map matching sync tag and HeartBeatBackupInfo
     std::map<int, int> mTransferToSyncMap; // maps transfer-tag and sync-tag to avoid costly search every update
@@ -245,9 +249,10 @@ private:
 
     void updateOrRegisterSync(MegaSync *sync);
 
-    std::shared_ptr<HeartBeatSyncInfo> getHeartBeatBackupInfoByTransfer(MegaTransfer *transfer);
 
     void onSyncBackupRegistered(int syncTag, handle backupId);
+#endif
+
 };
 }
 

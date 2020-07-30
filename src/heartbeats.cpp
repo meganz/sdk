@@ -243,6 +243,7 @@ double HeartBeatTransferProgressedInfo::progress() const
     return std::max(0., std::min(1., static_cast<double>(mTransferredBytes) / static_cast<double>(mTotalBytes)));
 }
 
+#ifdef ENABLE_SYNC
 ////////////// HeartBeatSyncInfo ////////////////
 HeartBeatSyncInfo::HeartBeatSyncInfo(int tag, handle backupId)
     : HeartBeatTransferProgressedInfo(backupId), mSyncTag(tag)
@@ -287,7 +288,7 @@ void HeartBeatSyncInfo::updateStatus(MegaClient *client)
     setStatus(status);
 }
 
-
+#endif
 
 ////////////// BackupInfo ////////////////
 
@@ -343,6 +344,7 @@ void MegaBackupInfo::setBackupId(const handle &backupId)
     mBackupId = backupId;
 }
 
+#ifdef ENABLE_SYNC
 MegaBackupInfoSync::MegaBackupInfoSync(MegaClient *client, const MegaSync &sync, handle backupid)
     : MegaBackupInfo(getSyncType(client, sync), sync.getLocalFolder(), sync.getName(), sync.getMegaHandle()
                  , getSyncState(sync), getSyncSubstatus(sync), getSyncExtraData(sync), backupid)
@@ -406,13 +408,14 @@ string MegaBackupInfoSync::getSyncExtraData(const MegaSync &sync)
 {
     return string();
 }
+#endif
 
 ////////////// MegaBackupMonitor ////////////////
 MegaBackupMonitor::MegaBackupMonitor(MegaClient *client)
     : mClient(client)
 {
 }
-
+#ifdef ENABLE_SYNC
 void MegaBackupMonitor::onSyncBackupRegistered(int syncTag, handle backupId)
 {
     bool needsAdding = true;
@@ -474,6 +477,7 @@ void MegaBackupMonitor::onSyncBackupRegistered(int syncTag, handle backupId)
         mPendingSyncUpdates.erase(pendingSyncPair);
     }
 }
+#endif
 
 void MegaBackupMonitor::digestPutResult(handle backupId)
 {
@@ -514,7 +518,7 @@ void MegaBackupMonitor::registerBackupInfo(const MegaBackupInfo &info)
                                            ));
 }
 
-
+#ifdef ENABLE_SYNC
 
 void MegaBackupMonitor::updateOrRegisterSync(MegaSync *sync)
 {
@@ -570,52 +574,65 @@ void MegaBackupMonitor::onSyncStateChanged(MegaApi* /*api*/, MegaSync *sync)
     updateOrRegisterSync(sync);
 }
 
-std::shared_ptr<HeartBeatSyncInfo> MegaBackupMonitor::getHeartBeatBackupInfoByTransfer(MegaTransfer *transfer)
+void MegaBackupMonitor::onSyncDeleted(MegaApi *api, MegaSync *sync)
 {
-    if (!transfer->isSyncTransfer())
+    auto hBPair = mHeartBeatedSyncs.find(sync->getTag());
+    if (hBPair != mHeartBeatedSyncs.end())
     {
-        return nullptr;
+        mClient->reqs.add(new CommandBackupRemove(mClient, hBPair->second->backupId()));
+
+        mHeartBeatedSyncs.erase(hBPair); //This is speculative: could be moved to backupremove_result
+        // in case we wanted to handle possible failing cases.
+        mPendingSyncUpdates.erase(sync->getTag()); // remove any pending update: also speculative.
     }
+}
+#endif
 
-    int syncTag = 0;
-
-    // use map to get the syncTag directly if there was one
-    auto mTSPair = mTransferToSyncMap.find(transfer->getTag());
-    if (mTSPair != mTransferToSyncMap.end())
+std::shared_ptr<HeartBeatTransferProgressedInfo> MegaBackupMonitor::getHeartBeatBackupInfoByTransfer(MegaTransfer *transfer)
+{
+#ifdef ENABLE_SYNC
+    if (transfer->isSyncTransfer())
     {
-        syncTag = mTSPair->second;
-    }
+        int syncTag = 0;
 
-    if (!syncTag) //first time
-    {
-        Node *n = mClient->nodebyhandle(transfer->getType() == MegaTransfer::TYPE_UPLOAD ? transfer->getParentHandle() : transfer->getNodeHandle());
-        while (n)
+        // use map to get the syncTag directly if there was one
+        auto mTSPair = mTransferToSyncMap.find(transfer->getTag());
+        if (mTSPair != mTransferToSyncMap.end())
         {
-            if (n && n->localnode && n->localnode->sync)
+            syncTag = mTSPair->second;
+        }
+
+        if (!syncTag) //first time
+        {
+            Node *n = mClient->nodebyhandle(transfer->getType() == MegaTransfer::TYPE_UPLOAD ? transfer->getParentHandle() : transfer->getNodeHandle());
+            while (n)
             {
-                syncTag = n->localnode->sync->tag;
-                mTransferToSyncMap[transfer->getTag()] = syncTag;
-                break;
+                if (n && n->localnode && n->localnode->sync)
+                {
+                    syncTag = n->localnode->sync->tag;
+                    mTransferToSyncMap[transfer->getTag()] = syncTag;
+                    break;
+                }
+                LOG_warn << "Heartbeat could not get sync tag direclty from transfer handle. Going up";
+                n = n->parent;
             }
-            LOG_warn << "Heartbeat could not get sync tag direclty from transfer handle. Going up";
-            n = n->parent;
+        }
+
+        if (syncTag)
+        {
+            auto hBPair = mHeartBeatedSyncs.find(syncTag);
+            if (hBPair != mHeartBeatedSyncs.end()) //transfer info arrived before having created the HeartBeatSyncInfo object
+            {
+                return hBPair->second;
+            }
+            else
+            {
+                //create new HeartBeatSyncInfo
+                return mHeartBeatedSyncs.insert(std::make_pair(syncTag, std::make_shared<HeartBeatSyncInfo>(syncTag, UNDEF))).first->second;
+            }
         }
     }
-
-    if (syncTag)
-    {
-        auto hBPair = mHeartBeatedSyncs.find(syncTag);
-        if (hBPair != mHeartBeatedSyncs.end()) //transfer info arrived before having created the HeartBeatSyncInfo object
-        {
-            return hBPair->second;
-        }
-        else
-        {
-            //create new HeartBeatSyncInfo
-            return mHeartBeatedSyncs.insert(std::make_pair(syncTag, std::make_shared<HeartBeatSyncInfo>(syncTag, UNDEF))).first->second;
-        }
-    }
-
+#endif
     return nullptr;
 }
 
@@ -661,25 +678,14 @@ void MegaBackupMonitor::onTransferFinish(MegaApi *api, MegaTransfer *transfer, M
         hbs->updateTransferInfo(transfer);
 
         hbs->removePendingTransfer(transfer);
+#ifdef ENABLE_SYNC
         mTransferToSyncMap.erase(transfer->getTag());
+#endif
 
         if (error->getErrorCode() == API_OK)
         {
             hbs->setLastSyncedItem(transfer->getNodeHandle());
         }
-    }
-}
-
-void MegaBackupMonitor::onSyncDeleted(MegaApi *api, MegaSync *sync)
-{
-    auto hBPair = mHeartBeatedSyncs.find(sync->getTag());
-    if (hBPair != mHeartBeatedSyncs.end())
-    {
-        mClient->reqs.add(new CommandBackupRemove(mClient, hBPair->second->backupId()));
-
-        mHeartBeatedSyncs.erase(hBPair); //This is speculative: could be moved to backupremove_result
-        // in case we wanted to handle possible failing cases.
-        mPendingSyncUpdates.erase(sync->getTag()); // remove any pending update: also speculative.
     }
 }
 
@@ -719,13 +725,14 @@ void MegaBackupMonitor::beatBackupInfo(const std::shared_ptr<HeartBeatBackupInfo
         }
     }
 }
-
 void MegaBackupMonitor::beat()
 {
+#ifdef ENABLE_SYNC
     for (const auto &hBPair : mHeartBeatedSyncs)
     {
         beatBackupInfo(hBPair.second);
     }
+#endif
 }
 
 }
