@@ -11728,7 +11728,12 @@ MegaNode *MegaApiImpl::getNodeByCRC(const char *crc, MegaNode *parent)
     return NULL;
 }
 
-SearchTreeProcessor::SearchTreeProcessor(const char *search) { this->search = search; }
+SearchTreeProcessor::SearchTreeProcessor(MegaClient *client, const char *search, MegaApi::nodefiletype_t type)
+{
+    this->search = search;
+    this->type = type;
+    this->client = client;
+}
 
 #if defined(_WIN32) || defined(__APPLE__)
 
@@ -11763,17 +11768,45 @@ bool SearchTreeProcessor::processNode(Node* node)
         return true;
     }
 
-    if (!search)
+    if (!search && (!client || (type < MegaApi::NODE_UNKNOWN || type > MegaApi::NODE_DOCUMENT)))
     {
+        // If no search string provided, client and type must be valid, otherwise return false
         return false;
     }
 
-    if (node->type <= FOLDERNODE && strcasestr(node->displayname(), search) != NULL)
+    if (node->type <= FOLDERNODE && (!search || strcasestr(node->displayname(), search) != NULL))
     {
-        results.push_back(node);
+        if (isValidTypeNode(node))
+        {
+            results.push_back(node);
+        }
     }
 
     return true;
+}
+
+bool SearchTreeProcessor::isValidTypeNode(Node *node)
+{
+    assert(node);
+    if (!client)
+    {
+        return true;
+    }
+
+    switch (type)
+    {
+        case MegaApi::NODE_PHOTO:
+            return client->nodeIsPhoto(node);
+        case MegaApi::NODE_AUDIO:
+            return client->nodeIsAudio(node);
+        case MegaApi::NODE_VIDEO:
+            return client->nodeIsVideo(node);
+        case MegaApi::NODE_DOCUMENT:
+            return client->nodeIsDocument(node);
+        case MegaApi::NODE_UNKNOWN:
+        default:
+            return true;
+    }
 }
 
 vector<Node *> &SearchTreeProcessor::getResults()

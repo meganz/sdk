@@ -13095,6 +13095,9 @@ class MegaApi
             ORDER_VIDEO_ASC, ORDER_VIDEO_DESC,
             ORDER_LINK_CREATION_ASC, ORDER_LINK_CREATION_DESC,};
 
+        typedef enum { NODE_UNKNOWN = 0, NODE_PHOTO, NODE_AUDIO,
+               NODE_VIDEO, NODE_DOCUMENT,} nodefiletype_t;
+
         /**
          * @brief Get the number of child nodes
          *
