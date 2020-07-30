@@ -14547,6 +14547,421 @@ class MegaApi
         MegaNodeList* searchOnPublicLinks(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
 
         /**
+         * @brief Search nodes containing a search string in their name and allow to filter by the type of the node
+         *
+         * The search is case-insensitive. If the search string is not provided but type has any value
+         * defined at MegaApi::nodefiletype_t (except MegaApi::NODE_UNKNOWN),
+         * this method will return a list that contains nodes of the same type as provided.
+         *
+         * You take the ownership of the returned value.
+         *
+         * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+         * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+         * this method returns.
+         *
+         * Note that if parameter type is different of MegaApi::NODE_UNKNOWN, the following values for parameter order are invalid:
+         * - MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC, MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
+         *
+         * @param node The parent node of the tree to explore
+         * @param searchString Search string. The search is case-insensitive
+         * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+         * @param recursive True if you want to seach recursively in the node tree.
+         * False if you want to seach in the children of the node only
+         * @param order Order for the returned list
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Folders first in alphabetical order, then files in the same order
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Files first in reverse alphabetical order, then folders in the same order
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, ascending
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, descending
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, ascending
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, descending
+         *
+         * - MegaApi::ORDER_MODIFICATION_ASC = 7
+         * Sort by modification time of the original file, ascending
+         *
+         * - MegaApi::ORDER_MODIFICATION_DESC = 8
+         * Sort by modification time of the original file, descending
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
+         *
+         * @param type Type of nodes requested in the search
+         * Valid values for this parameter are:
+         * - MegaApi::NODE_UNKNOWN = 0
+         * - MegaApi::NODE_PHOTO = 1
+         * - MegaApi::NODE_AUDIO = 2
+         * - MegaApi::NODE_VIDEO = 3
+         * - MegaApi::NODE_DOCUMENT = 4
+         *
+         * @return List of nodes that match with the search parameters
+         */
+        MegaNodeList* searchByType(MegaNode* node, const char* searchString, MegaCancelToken *cancelToken, bool recursive = 1, int order = ORDER_NONE, int type = NODE_UNKNOWN);
+
+        /**
+         * @brief Search nodes containing a search string in their name
+         *
+         * The search is case-insensitive. If the search string is not provided but type has any value
+         * defined at MegaApi::nodefiletype_t (except MegaApi::NODE_UNKNOWN),
+         * this method will return a list that contains nodes of the same type as provided.
+         *
+         * The search will consider every accessible node for the account:
+         *  - Cloud drive
+         *  - Inbox
+         *  - Rubbish bin
+         *  - Incoming shares from other users
+         *
+         * You take the ownership of the returned value.
+         *
+         * Note that if parameter type is different of MegaApi::NODE_UNKNOWN, the following values for parameter order are invalid:
+         * - MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC, MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
+         *
+         * @param searchString Search string. The search is case-insensitive
+         * @param order Order for the returned list
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Folders first in alphabetical order, then files in the same order
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Files first in reverse alphabetical order, then folders in the same order
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, ascending
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, descending
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, ascending
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, descending
+         *
+         * - MegaApi::ORDER_MODIFICATION_ASC = 7
+         * Sort by modification time of the original file, ascending
+         *
+         * - MegaApi::ORDER_MODIFICATION_DESC = 8
+         * Sort by modification time of the original file, descending
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
+         *
+         * @param type Type of nodes requested in the search
+         * Valid values for this parameter are:
+         * - MegaApi::NODE_UNKNOWN = 0
+         * - MegaApi::NODE_PHOTO = 1
+         * - MegaApi::NODE_AUDIO = 2
+         * - MegaApi::NODE_VIDEO = 3
+         * - MegaApi::NODE_DOCUMENT = 4
+         *
+         * @return List of nodes that match with the search parameters
+         */
+        MegaNodeList* searchByType(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE, int type = NODE_UNKNOWN);
+
+        /**
+         * @brief Search nodes on incoming shares containing a search string in their name
+         *
+         * The search is case-insensitive. If the search string is not provided but type has any value
+         * defined at MegaApi::nodefiletype_t (except MegaApi::NODE_UNKNOWN),
+         * this method will return a list that contains nodes of the same type as provided.
+         *
+         * The method will search exclusively on incoming shares
+         *
+         * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+         * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+         * this method returns.
+         *
+         * You take the ownership of the returned value.
+         *
+         * Note that if parameter type is different of MegaApi::NODE_UNKNOWN, the following values for parameter order are invalid:
+         * - MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC, MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
+         *
+         * @param searchString Search string. The search is case-insensitive
+         * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+         * @param order Order for the returned list
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Folders first in alphabetical order, then files in the same order
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Files first in reverse alphabetical order, then folders in the same order
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, ascending
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, descending
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, ascending
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, descending
+         *
+         * - MegaApi::ORDER_MODIFICATION_ASC = 7
+         * Sort by modification time of the original file, ascending
+         *
+         * - MegaApi::ORDER_MODIFICATION_DESC = 8
+         * Sort by modification time of the original file, descending
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
+         *
+         * @param type Type of nodes requested in the search
+         * Valid values for this parameter are:
+         * - MegaApi::NODE_UNKNOWN = 0
+         * - MegaApi::NODE_PHOTO = 1
+         * - MegaApi::NODE_AUDIO = 2
+         * - MegaApi::NODE_VIDEO = 3
+         * - MegaApi::NODE_DOCUMENT = 4
+         *
+         * @return List of nodes that match with the search parameters
+         */
+        MegaNodeList* searchOnInSharesBytype(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE, int type = NODE_UNKNOWN);
+
+        /**
+         * @brief Search nodes on outbound shares containing a search string in their name
+         *
+         * The search is case-insensitive. If the search string is not provided but type has any value
+         * defined at MegaApi::nodefiletype_t (except MegaApi::NODE_UNKNOWN),
+         * this method will return a list that contains nodes of the same type as provided.
+         *
+         * The method will search exclusively on outbound shares
+         *
+         * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+         * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+         * this method returns.
+         *
+         * You take the ownership of the returned value.
+         *
+         * Note that if parameter type is different of MegaApi::NODE_UNKNOWN, the following values for parameter order are invalid:
+         * - MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC, MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
+         *
+         * @param searchString Search string. The search is case-insensitive
+         * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+         * @param order Order for the returned list
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Folders first in alphabetical order, then files in the same order
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Files first in reverse alphabetical order, then folders in the same order
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, ascending
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, descending
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, ascending
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, descending
+         *
+         * - MegaApi::ORDER_MODIFICATION_ASC = 7
+         * Sort by modification time of the original file, ascending
+         *
+         * - MegaApi::ORDER_MODIFICATION_DESC = 8
+         * Sort by modification time of the original file, descending
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
+         *
+         * @param type Type of nodes requested in the search
+         * Valid values for this parameter are:
+         * - MegaApi::NODE_UNKNOWN = 0
+         * - MegaApi::NODE_PHOTO = 1
+         * - MegaApi::NODE_AUDIO = 2
+         * - MegaApi::NODE_VIDEO = 3
+         * - MegaApi::NODE_DOCUMENT = 4
+         *
+         * @return List of nodes that match with the search parameters
+         */
+        MegaNodeList* searchOnOutSharesBytype(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE, int type = NODE_UNKNOWN);
+
+        /**
+         * @brief Search nodes on public links shares containing a search string in their name
+         *
+         * The search is case-insensitive. If the search string is not provided but type has any value
+         * defined at MegaApi::nodefiletype_t (except MegaApi::NODE_UNKNOWN),
+         * this method will return a list that contains nodes of the same type as provided.
+         *
+         * The method will search exclusively on public links shares
+         *
+         * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+         * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+         * this method returns.
+         *
+         * You take the ownership of the returned value.
+         *
+         * Note that if parameter type is different of MegaApi::NODE_UNKNOWN, the following values for parameter order are invalid:
+         * - MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC, MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
+         *
+         * @param searchString Search string. The search is case-insensitive
+         * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+         * @param order Order for the returned list
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Folders first in alphabetical order, then files in the same order
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Files first in reverse alphabetical order, then folders in the same order
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, ascending
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, descending
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, ascending
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, descending
+         *
+         * - MegaApi::ORDER_MODIFICATION_ASC = 7
+         * Sort by modification time of the original file, ascending
+         *
+         * - MegaApi::ORDER_MODIFICATION_DESC = 8
+         * Sort by modification time of the original file, descending
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
+         *
+         * @param type Type of nodes requested in the search
+         * Valid values for this parameter are:
+         * - MegaApi::NODE_UNKNOWN = 0
+         * - MegaApi::NODE_PHOTO = 1
+         * - MegaApi::NODE_AUDIO = 2
+         * - MegaApi::NODE_VIDEO = 3
+         * - MegaApi::NODE_DOCUMENT = 4
+         *
+         * @return List of nodes that match with the search parameters
+         */
+        MegaNodeList* searchOnPublicLinksBytype(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE, int type = NODE_UNKNOWN);
+
+        /**
          * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
          *
          * Each bucket contains files that were added/modified in a set, by a single user.
