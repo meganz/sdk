@@ -10780,6 +10780,12 @@ MegaNodeList* MegaApiImpl::searchInAllShares(const char *searchString, MegaCance
         return new MegaNodeListPrivate();
     }
 
+    if (type != MegaApi::NODE_UNKNOWN
+            && (order < MegaApi::ORDER_NONE || order > MegaApi::ORDER_ALPHABETICAL_DESC))
+    {
+        return new MegaNodeListPrivate();
+    }
+
     if (cancelToken && cancelToken->isCancelled())
     {
         return new MegaNodeListPrivate();
@@ -10839,6 +10845,12 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *can
     if (!searchString && (type < MegaApi::NODE_PHOTO || type > MegaApi::NODE_DOCUMENT))
     {
         // If no search string and type is not valid
+        return new MegaNodeListPrivate();
+    }
+
+    if (type != MegaApi::NODE_UNKNOWN
+            && (order < MegaApi::ORDER_NONE || order > MegaApi::ORDER_ALPHABETICAL_DESC))
+    {
         return new MegaNodeListPrivate();
     }
 
@@ -11381,6 +11393,12 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCan
     if (!n || (!searchString && (type < MegaApi::NODE_PHOTO || type > MegaApi::NODE_DOCUMENT)))
     {
         // If node is not valid or no search string and type is not valid
+        return new MegaNodeListPrivate();
+    }
+
+    if (type != MegaApi::NODE_UNKNOWN
+            && (order < MegaApi::ORDER_NONE || order > MegaApi::ORDER_ALPHABETICAL_DESC))
+    {
         return new MegaNodeListPrivate();
     }
 
