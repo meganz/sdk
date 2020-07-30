@@ -148,6 +148,63 @@ private:
 };
 
 
+/**
+ * @brief Information for registration/update of a backup
+ */
+class MegaBackupInfo
+{
+public:
+    MegaBackupInfo(BackupType type, string localFolder, string mName, handle megaHandle, int state, int substate, string extra, handle backupId = UNDEF);
+
+    BackupType type() const;
+
+    handle backupId() const;
+
+    string localFolder() const;
+
+    string name() const;
+
+    handle megaHandle() const;
+
+    int state() const;
+
+    int subState() const;
+
+    string extra() const;
+
+    void setBackupId(const handle &backupId);
+
+private:
+    BackupType mType;
+    handle mBackupId;
+    string mLocalFolder;
+    string mName;
+    handle mMegaHandle;
+    int mState;
+    int mSubState;
+    string mExtra;
+};
+
+class MegaBackupInfoSync : public MegaBackupInfo
+{
+public:
+    enum State
+    {
+        ACTIVE = 1,             // Working fine (enabled)
+        FAILED = 2,             // Failed (permanently disabled)
+        TEMPORARY_DISABLED = 3, // Temporarily disabled due to a transient situation (e.g: account blocked). Will be resumed when the condition passes
+        DISABLED = 4,           // Disabled by the user
+        UNKNOWN = 5,            // Unknown state
+    };
+    MegaBackupInfoSync(mega::MegaClient *client, const MegaSync &sync, handle backupid = UNDEF);
+
+    static BackupType getSyncType(MegaClient *client, const MegaSync &sync);
+    static int getSyncState (const MegaSync &sync);
+    static int getSyncSubstatus (const MegaSync &sync);
+    string getSyncExtraData(const MegaSync &sync);
+
+};
+
 class MegaBackupMonitor : public MegaListener
 {
 public:
@@ -166,14 +223,6 @@ public:
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
 
 private:
-    enum State
-    {
-        ACTIVE = 1,             // Working fine (enabled)
-        FAILED = 2,             // Failed (permanently disabled)
-        TEMPORARY_DISABLED = 3, // Temporarily disabled due to a transient situation (e.g: account blocked). Will be resumed when the condition passes
-        DISABLED = 4,           // Disabled by the user
-        UNKNOWN = 5,            // Unknown state
-    };
 
     static constexpr int MAX_HEARBEAT_SECS_DELAY = 60*30; // max time to wait before a heartbeat for unchanged backup
 
@@ -182,25 +231,22 @@ private:
 
     m_time_t mLastBeat = 0;
 
+    void updateBackupInfo(const MegaBackupInfo &info);
+    void registerBackupInfo(const MegaBackupInfo &info);
+
     void beatBackupInfo(const std::shared_ptr<HeartBeatBackupInfo> &hbs);
+    void calculateStatus(HeartBeatBackupInfo *hbs);
 
     // --- Members and methods for syncs. i.e: backups of type: TWO_WAY, UP_SYNC, DOWN_SYNC
     std::map<int, std::shared_ptr<HeartBeatSyncInfo>> mHeartBeatedSyncs; // Map matching sync tag and HeartBeatBackupInfo
     std::map<int, int> mTransferToSyncMap; // maps transfer-tag and sync-tag to avoid costly search every update
     std::set<int> mPendingSyncPuts; // tags of registrations in-flight (waiting for CommandBackupPut's response)
-    std::map<int, std::unique_ptr<MegaSync>> mPendingSyncUpdates; // updates that were received while CommandBackupPut was being resolved
+    std::map<int, std::unique_ptr<MegaBackupInfo>> mPendingSyncUpdates; // updates that were received while CommandBackupPut was being resolved
 
     void updateOrRegisterSync(MegaSync *sync);
-    void updateSyncInfo(handle backupId, MegaSync *sync);
-    int getSyncState (MegaSync *sync);
-    int getSyncSubstatus (MegaSync *sync);
-    string getHBExtraData(MegaSync *sync);
-    BackupType getHBType(MegaSync *sync);
 
     std::shared_ptr<HeartBeatSyncInfo> getHeartBeatBackupInfoByTransfer(MegaTransfer *transfer);
-    void calculateStatus(HeartBeatBackupInfo *hbs);
 
-    static BackupType convertSyncType(SyncConfig::Type type);
     void onSyncBackupRegistered(int syncTag, handle backupId);
 };
 }

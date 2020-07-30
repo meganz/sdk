@@ -288,6 +288,125 @@ void HeartBeatSyncInfo::updateStatus(MegaClient *client)
 }
 
 
+
+////////////// BackupInfo ////////////////
+
+MegaBackupInfo::MegaBackupInfo(BackupType type, string localFolder, string name, handle megaHandle, int state, int substate, std::string extra, handle backupId)
+    : mType(type), mLocalFolder(localFolder), mName(name), mMegaHandle(megaHandle),
+      mState(state), mSubState(substate), mExtra(extra), mBackupId(backupId)
+{
+
+}
+
+BackupType MegaBackupInfo::type() const
+{
+    return mType;
+}
+
+handle MegaBackupInfo::backupId() const
+{
+    return mBackupId;
+}
+
+string MegaBackupInfo::localFolder() const
+{
+    return mLocalFolder;
+}
+
+string MegaBackupInfo::name() const
+{
+    return mName;
+}
+
+handle MegaBackupInfo::megaHandle() const
+{
+    return mMegaHandle;
+}
+
+int MegaBackupInfo::state() const
+{
+    return mState;
+}
+
+int MegaBackupInfo::subState() const
+{
+    return mSubState;
+}
+
+string MegaBackupInfo::extra() const
+{
+    return mExtra;
+}
+
+void MegaBackupInfo::setBackupId(const handle &backupId)
+{
+    mBackupId = backupId;
+}
+
+MegaBackupInfoSync::MegaBackupInfoSync(MegaClient *client, const MegaSync &sync, handle backupid)
+    : MegaBackupInfo(getSyncType(client, sync), sync.getLocalFolder(), sync.getName(), sync.getMegaHandle()
+                 , getSyncState(sync), getSyncSubstatus(sync), getSyncExtraData(sync), backupid)
+{
+
+
+}
+int MegaBackupInfoSync::getSyncState(const MegaSync &sync)
+{
+    if (sync.isTemporaryDisabled())
+    {
+        return State::TEMPORARY_DISABLED;
+    }
+    else if (sync.isActive())
+    {
+        //TODO: consider use case: paused, if transfers are paused!?
+        return State::ACTIVE;
+    }
+    else if (!sync.isEnabled())
+    {
+        return State::DISABLED;
+    }
+    else
+    {
+        return State::FAILED;
+    }
+}
+
+BackupType MegaBackupInfoSync::getSyncType(MegaClient *client, const MegaSync &sync)
+{
+
+    int syncTag = sync.getTag();
+    auto config = client->syncConfigs->get(syncTag);
+    assert(config);
+
+    if (config)
+    {
+
+        switch (config->getType())
+        {
+        case SyncConfig::Type::TYPE_UP:
+                return BackupType::UP_SYNC;
+        case SyncConfig::Type::TYPE_DOWN:
+                return BackupType::DOWN_SYNC;
+        case SyncConfig::Type::TYPE_TWOWAY:
+                return BackupType::TWO_WAY;
+        default:
+                return BackupType::INVALID;
+        }
+    }
+    return BackupType::INVALID;
+
+}
+
+int MegaBackupInfoSync::getSyncSubstatus(const MegaSync &sync)
+{
+    return sync.getError();
+}
+
+string MegaBackupInfoSync::getSyncExtraData(const MegaSync &sync)
+{
+    return string();
+}
+
 ////////////// MegaBackupMonitor ////////////////
 MegaBackupMonitor::MegaBackupMonitor(MegaClient *client)
     : mClient(client)
@@ -343,11 +462,13 @@ void MegaBackupMonitor::onSyncBackupRegistered(int syncTag, handle backupId)
     {
         if (!ISUNDEF(backupId))
         {
-            updateSyncInfo(backupId, pendingSyncPair->second.get());
+            MegaBackupInfo &info = *pendingSyncPair->second.get();
+            info.setBackupId(backupId);
+            updateBackupInfo(info);
         }
         else
         {
-            LOG_warn << "discarding heartbeat update for pending sync: no valid id received for sync: " << pendingSyncPair->second->getLocalFolder();
+            LOG_warn << "discarding heartbeat update for pending sync: no valid id received for sync: " << pendingSyncPair->second->localFolder();
 
         }
         mPendingSyncUpdates.erase(pendingSyncPair);
@@ -366,73 +487,34 @@ void MegaBackupMonitor::digestPutResult(handle backupId)
     putResultCallback(backupId);
 }
 
-int MegaBackupMonitor::getSyncState(MegaSync *sync)
+void MegaBackupMonitor::updateBackupInfo(const MegaBackupInfo &info)
 {
-    if (sync->isTemporaryDisabled())
-    {
-        return MegaBackupMonitor::State::TEMPORARY_DISABLED;
-    }
-    else if (sync->isActive())
-    {
-        //TODO: consider use case: paused, if transfers are paused!?
-        return MegaBackupMonitor::State::ACTIVE;
-    }
-    else if (!sync->isEnabled())
-    {
-        return MegaBackupMonitor::State::DISABLED;
-    }
-    else
-    {
-        return MegaBackupMonitor::State::FAILED;
-    }
-}
-
-int MegaBackupMonitor::getSyncSubstatus(MegaSync *sync)
-{
-    return sync->getError();
-}
-
-string MegaBackupMonitor::getHBExtraData(MegaSync *sync)
-{
-    return "";
-}
-
-void MegaBackupMonitor::updateSyncInfo(handle backupId, MegaSync *sync)
-{
-    auto config = mClient->syncConfigs->get(sync->getTag());
-    if (!config) //could potentially happend for queued updates
-    {
-        LOG_warn << "Trying to update sync info of removed sync: " << sync->getLocalFolder();
-        return;
-    }
-
-    BackupType type = MegaBackupMonitor::convertSyncType(config->getType());
-    assert(type != INVALID);
-
-    string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", sync->getLocalFolder()) );
+    string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", info.localFolder()) );
     string deviceIDEncrypted(mClient->cypherTLVTextWithMasterKey("de", mClient->getDeviceid()) );
-    string nameEncrypted(mClient->cypherTLVTextWithMasterKey("na", sync->getName()) );
+    string nameEncrypted(mClient->cypherTLVTextWithMasterKey("na", info.name()) );
 
-    mClient->reqs.add(new CommandBackupPut(mClient, backupId, type, sync->getMegaHandle(), localFolderEncrypted.c_str(),
+    mClient->reqs.add(new CommandBackupPut(mClient, info.backupId(), info.type(), info.megaHandle(),
+                                           localFolderEncrypted.c_str(),
                                            deviceIDEncrypted.c_str(), nameEncrypted.c_str(),
-                                           getSyncState(sync), getSyncSubstatus(sync), getHBExtraData(sync).c_str()
+                                           info.state(), info.subState(), info.extra().c_str()
                                            ));
 }
 
-BackupType MegaBackupMonitor::convertSyncType(SyncConfig::Type type)
+
+void MegaBackupMonitor::registerBackupInfo(const MegaBackupInfo &info)
 {
-    switch (type)
-    {
-    case SyncConfig::Type::TYPE_UP:
-            return BackupType::UP_SYNC;
-    case SyncConfig::Type::TYPE_DOWN:
-            return BackupType::DOWN_SYNC;
-    case SyncConfig::Type::TYPE_TWOWAY:
-            return BackupType::TWO_WAY;
-    default:
-            return BackupType::INVALID;
-    }
+    string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", info.localFolder()) );
+    string deviceIDEncrypted(mClient->cypherTLVTextWithMasterKey("de", mClient->getDeviceid()) );
+    string nameEncrypted(mClient->cypherTLVTextWithMasterKey("na", info.name()) );
+
+    mClient->reqs.add(new CommandBackupPut(mClient, info.type(), info.megaHandle(),
+                                           localFolderEncrypted.c_str(),
+                                           deviceIDEncrypted.c_str(), nameEncrypted.c_str(),
+                                           info.state(), info.subState(), info.extra().c_str()
+                                           ));
 }
+
+
 
 void MegaBackupMonitor::updateOrRegisterSync(MegaSync *sync)
 {
@@ -444,20 +526,14 @@ void MegaBackupMonitor::updateOrRegisterSync(MegaSync *sync)
     auto config = mClient->syncConfigs->get(syncTag);
     handle backupId = config ? config->getBackupId() : UNDEF;
 
-    if (backupId == UNDEF) // new backup, register in API
+    std::unique_ptr<MegaBackupInfo> info = ::mega::make_unique<MegaBackupInfoSync>(mClient, *sync, backupId);
+
+    if (info->backupId() == UNDEF) // not registered (or pending registration)
     {
-        string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", sync->getLocalFolder()));
-        string deviceIDEncrypted(mClient->cypherTLVTextWithMasterKey("de", mClient->getDeviceid()));
-        string nameEncrypted(mClient->cypherTLVTextWithMasterKey("na", sync->getName()));
-
-        if (mPendingSyncPuts.find(syncTag) == mPendingSyncPuts.end())
+        if (mPendingSyncPuts.find(syncTag) == mPendingSyncPuts.end()) //new backup, register required
         {
-            BackupType type = MegaBackupMonitor::convertSyncType(config->getType());
-            assert(type != INVALID);
+            registerBackupInfo(*info.get());
 
-            mClient->reqs.add(new CommandBackupPut(mClient, type, sync->getMegaHandle(),
-                                           localFolderEncrypted, deviceIDEncrypted, nameEncrypted,
-                                           getSyncState(sync), getSyncSubstatus(sync), getHBExtraData(sync)));
             // queue callback to process the backupId when received
             mPendingSyncPuts.insert(syncTag);
             mPendingBackupPutCallbacks.push_back([this, syncTag](handle backupId)
@@ -465,15 +541,15 @@ void MegaBackupMonitor::updateOrRegisterSync(MegaSync *sync)
                 onSyncBackupRegistered(syncTag, backupId);
             });
         }
-        else // backupId not received yet, let's queue the update (copying sync data)
+        else // registration in-flight: backupId not received yet, let's queue the update
         {
-            LOG_debug << " Queuing sync update, register is on progress for sync: " << sync->getLocalFolder();
-            mPendingSyncUpdates[syncTag].reset(sync->copy()); // we replace any previous pending updates
+            LOG_debug << " Queuing sync update, register is on progress for sync: " << info->localFolder();
+            mPendingSyncUpdates[syncTag].reset(info.release()); // we replace any previous pending updates
         }
     }
     else //update
     {
-        updateSyncInfo(backupId, sync); //queue update comand
+        updateBackupInfo(*info); //queue update comand
 
         auto hBPair = mHeartBeatedSyncs.find(syncTag);
         if (hBPair == mHeartBeatedSyncs.end()) //not in our map: backupId read from cache
@@ -603,6 +679,7 @@ void MegaBackupMonitor::onSyncDeleted(MegaApi *api, MegaSync *sync)
 
         mHeartBeatedSyncs.erase(hBPair); //This is speculative: could be moved to backupremove_result
         // in case we wanted to handle possible failing cases.
+        mPendingSyncUpdates.erase(sync->getTag()); // remove any pending update: also speculative.
     }
 }
 
