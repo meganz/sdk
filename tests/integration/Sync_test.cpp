@@ -883,7 +883,7 @@ struct StandardClient : public MegaApp
         multimap<string, Model::ModelNode*> ms;
         multimap<string, Node*> ns;
         for (auto& m : mn->kids) ms.emplace(m->name, m.get());
-        for (auto& n2 : n->children) ns.emplace(n2->displayname(), n2);
+        for (auto& n2 : client.getChildrens(n)) ns.emplace(n2->displayname(), n2);
 
         int matched = 0;
         vector<string> matchedlist;

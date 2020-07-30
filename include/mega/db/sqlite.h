@@ -50,7 +50,10 @@ public:
     bool get(uint32_t, string*);
     bool getNodes(std::vector<std::string>& nodes) override;
     bool getNodesWithoutParent(std::vector<std::string>& nodes) override;
-    bool getChildrenFromNode(handle node, std::vector<std::string>& nodes) override;
+    bool getChildrenFromNode(handle node, std::map<handle, std::string>& nodes) override;
+    bool getChildrenHandlesFromNode(mega::handle, std::vector<handle>&) override;
+    uint32_t getNumberOfChildrenFromNode(handle node) override;
+    NodeCounter getNodeCounter(handle node) override;
     bool isNodesOnDemandDb() override;
     bool put(uint32_t, char*, unsigned);
     bool put(Node* node) override;

@@ -156,12 +156,6 @@ Node::~Node()
 
     if (!client->mOptimizePurgeNodes)
     {
-        // remove from parent's children
-        if (parent)
-        {
-            parent->children.erase(child_it);
-        }
-
         Node* fa = firstancestor();
         handle ancestor = fa->nodehandle;
         if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
@@ -176,7 +170,8 @@ Node::~Node()
 
         // delete child-parent associations (normally not used, as nodes are
         // deleted bottom-up)
-        for (node_list::iterator it = children.begin(); it != children.end(); it++)
+        node_list nodeList = client->getChildrens(this);
+        for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
         {
             (*it)->parent = NULL;
         }
@@ -966,26 +961,7 @@ bool Node::applykey()
 
 NodeCounter Node::subnodeCounts() const
 {
-    NodeCounter nc;
-    for (Node *child : children)
-    {
-        nc += child->subnodeCounts();
-    }
-    if (type == FILENODE)
-    {
-        nc.files += 1;
-        nc.storage += size;
-        if (parent && parent->type == FILENODE)
-        {
-            nc.versions += 1;
-            nc.versionStorage += size;
-        }
-    }
-    else if (type == FOLDERNODE)
-    {
-        nc.folders += 1;
-    }
-    return nc;
+    return client->getTreeInfoFromNode(nodehandle);
 }
 
 // returns whether node was moved
@@ -1010,21 +986,11 @@ bool Node::setparent(Node* p)
         client->mNodeCounters[oah] -= nc;
     }
 
-    if (parent)
-    {
-        parent->children.erase(child_it);
-    }
-
 #ifdef ENABLE_SYNC
     Node *oldparent = parent;
 #endif
 
     parent = p;
-
-    if (parent)
-    {
-        child_it = parent->children.insert(parent->children.end(), this);
-    }
 
     Node* newancestor = firstancestor();
     handle nah = newancestor->nodehandle;

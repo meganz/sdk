@@ -48,7 +48,19 @@ public:
     {
         throw NotImplemented(__func__);
     }
-    bool getChildrenFromNode(mega::handle, std::vector<std::string>& ) override
+    bool getChildrenFromNode(mega::handle, std::map<mega::handle, std::string>&) override
+    {
+        throw NotImplemented(__func__);
+    }
+    bool getChildrenHandlesFromNode(mega::handle, std::vector<mega::handle>&) override
+    {
+        throw NotImplemented(__func__);
+    }
+    mega::NodeCounter getNodeCounter(mega::handle) override
+    {
+        throw NotImplemented(__func__);
+    }
+    uint32_t getNumberOfChildrenFromNode(mega::handle) override
     {
         throw NotImplemented(__func__);
     }

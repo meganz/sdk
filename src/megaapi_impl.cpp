@@ -10730,7 +10730,8 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
 
     if (node->type != FILENODE)
     {
-        for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
+        node_list nodeList = client->getChildrens(node);
+        for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); )
         {
             MegaNode *megaNode = MegaNodePrivate::fromNode(*it++);
             if (recursive)
@@ -11350,7 +11351,8 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
 
     if (recursive && node->type != FILENODE)
     {
-        for (node_list::iterator it = node->children.begin(); it != node->children.end(); )
+        node_list nodeList = client->getChildrens(node);
+        for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); )
         {
             if (!processTree(*it++, processor, recursive, cancelToken))
             {
@@ -11389,7 +11391,8 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCan
     }
 
     SearchTreeProcessor searchProcessor(searchString);
-    for (node_list::iterator it = node->children.begin(); it != node->children.end()
+    node_list list = client->getChildrens(node);
+    for (node_list::iterator it = list.begin(); it != list.end()
          && !(cancelToken && cancelToken->isCancelled()); )
     {
         processTree(*it++, &searchProcessor, recursive, cancelToken);
@@ -11700,7 +11703,8 @@ MegaNode *MegaApiImpl::getNodeByCRC(const char *crc, MegaNode *parent)
     byte binarycrc[sizeof(node->crc)];
     Base64::atob(crc, binarycrc, sizeof(binarycrc));
 
-    for (node_list::iterator it = node->children.begin(); it != node->children.end(); it++)
+    node_list nodeList = client->getChildrens(node);
+    for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
     {
         Node *child = (*it);
         if(!memcmp(child->crc.data(), binarycrc, sizeof(node->crc)))
@@ -17114,7 +17118,7 @@ int MegaApiImpl::getNumChildren(MegaNode* p)
         return 0;
     }
 
-    int numChildren = int(parent->children.size());
+    int numChildren = client->getNumberOfChildren(parent->nodehandle);
     sdkMutex.unlock();
 
     return numChildren;
@@ -17136,7 +17140,8 @@ int MegaApiImpl::getNumChildFiles(MegaNode* p)
     }
 
     int numFiles = 0;
-    for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); it++)
+    node_list nodeList = client->getChildrens(parent);
+    for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
     {
         if ((*it)->type == FILENODE)
             numFiles++;
@@ -17162,7 +17167,8 @@ int MegaApiImpl::getNumChildFolders(MegaNode* p)
     }
 
     int numFolders = 0;
-    for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); it++)
+    node_list nodeList = client->getChildrens(parent);
+    for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
     {
         if ((*it)->type != FILENODE)
             numFolders++;
@@ -17187,8 +17193,9 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
     Node *parent = client->nodebyhandle(p->getHandle());
     if (parent && parent->type != FILENODE)
     {
-        childrenNodes.reserve(parent->children.size());
-        for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
+        node_list nodeList = client->getChildrens(parent);
+        childrenNodes.reserve(nodeList.size());
+        for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); )
         {
             childrenNodes.push_back(*it++);
         }
@@ -17217,12 +17224,21 @@ MegaNodeList *MegaApiImpl::getVersions(MegaNode *node)
 
     vector<Node*> versions;
     versions.push_back(current);
-    while (current->children.size())
+    bool lookingFor = true;
+    while (lookingFor)
     {
-        assert(current->children.back()->parent == current);
-        current = current->children.back();
-        assert(current->type == FILENODE);
-        versions.push_back(current);
+        node_list nodeList = client->getChildrens(current);
+        if (nodeList.empty())
+        {
+            lookingFor = false;
+        }
+        else
+        {
+            assert(nodeList.back()->parent == current);
+            current = nodeList.back();
+            assert(current->type == FILENODE);
+            versions.push_back(current);
+        }
     }
 
     MegaNodeListPrivate *result = new MegaNodeListPrivate(versions.data(), int(versions.size()));
@@ -17246,13 +17262,22 @@ int MegaApiImpl::getNumVersions(MegaNode *node)
     }
 
     int numVersions = 1;
-    while (current->children.size())
+    bool looking = true;
+    while (looking)
     {
-        assert(current->children.back()->parent == current);
-        current = current->children.back();
+        node_list nodeList = client->getChildrens(current);
+        if (nodeList.empty())
+        {
+            looking = false;
+            break;
+        }
+
+        assert(nodeList.back()->parent == current);
+        current = nodeList.back();
         assert(current->type == FILENODE);
         numVersions++;
     }
+
     sdkMutex.unlock();
     return numVersions;
 }
@@ -17272,11 +17297,12 @@ bool MegaApiImpl::hasVersions(MegaNode *node)
         return false;
     }
 
-    assert(!current->children.size()
-           || (current->children.back()->parent == current
-               && current->children.back()->type == FILENODE));
+    node_list nodeList = client->getChildrens(current);
+    assert(!nodeList.size()
+           || (nodeList.back()->parent == current
+               && nodeList.back()->type == FILENODE));
 
-    bool result = current->children.size() != 0;
+    bool result = nodeList.size() != 0;
     sdkMutex.unlock();
     return result;
 }
@@ -17310,7 +17336,8 @@ MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
     node_vector files;
     node_vector folders;
 
-    for (node_list::iterator it = parent->children.begin(); it != parent->children.end(); )
+    node_list nodeList = client->getChildrens(parent);
+    for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); )
     {
         Node *n = *it++;
         if (n->type == FILENODE)
@@ -17348,10 +17375,10 @@ bool MegaApiImpl::hasChildren(MegaNode *parent)
         return false;
     }
 
-    bool ret = p->children.size();
+    size_t numChilds = client->getNumberOfChildren(p->nodehandle);
     sdkMutex.unlock();
 
-    return ret;
+    return static_cast<bool>(numChilds);
 }
 
 MegaNode *MegaApiImpl::getChildNode(MegaNode *parent, const char* name)

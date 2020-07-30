@@ -768,6 +768,15 @@ public:
     // get the handle of the older version for a NewNode
     handle getovhandle(Node *parent, string *name);
 
+    // Load from db node childrens
+    node_list getChildrens(Node*);
+
+    // Get number of children from a node
+    size_t getNumberOfChildren(handle);
+
+    // Get sub tree info (files, folders, size, version)
+    NodeCounter getTreeInfoFromNode(handle node);
+
     // use HTTPS for all communications
     bool usehttps;
     
@@ -965,9 +974,6 @@ private:
 
     // add child for consideration in syncup()/syncdown()
     void addchild(remotenode_map*, string*, Node*, list<string>*, FileSystemType fsType) const;
-
-    // Load from db node childrens
-    void loadChildrens(Node*);
 
     // crypto request response
     void cr_response(node_vector*, node_vector*, JSON*);

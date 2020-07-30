@@ -784,7 +784,7 @@ bool MegaFS::addCompletions(ACState& s)
                 else
                 {
                     Node* nodematch = NULL;
-                    for (Node* subnode : n->children)
+                    for (Node* subnode : client->getChildrens(n))
                     {
                         if (subnode->type == FOLDERNODE && subnode->displayname() == folderName)
                         {
@@ -806,7 +806,7 @@ bool MegaFS::addCompletions(ACState& s)
                 // iterate specified folder
                 if (n)
                 {
-                    for (Node* subnode : n->children)
+                    for (Node* subnode : client->getChildrens(n))
                     {
                         if ((reportFolders && subnode->type == FOLDERNODE) ||
                             (reportFiles && subnode->type == FILENODE))

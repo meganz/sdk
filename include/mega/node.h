@@ -218,12 +218,6 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // parent
     Node* parent = nullptr;
 
-    // children
-    node_list children;
-
-    // own position in parent's children
-    node_list::iterator child_it;
-
     // own position in fingerprint set (only valid for file nodes)
     Fingerprints::iterator fingerprint_it;
 

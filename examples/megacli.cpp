@@ -1948,9 +1948,9 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
 
     if (n->type != FILENODE)
     {
-        for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
+        for (Node* node : client->getChildrens(n))
         {
-            dumptree(*it, recurse, depth + 1, NULL, toFile);
+            dumptree(node, recurse, depth + 1, NULL, toFile);
         }
     }
 }
@@ -2432,14 +2432,14 @@ private:
 
 void getDepthFirstFileHandles(Node* n, deque<handle>& q)
 {
-    for (auto c : n->children)
+    for (auto c : client->getChildrens(n))
     {
         if (c->type == FILENODE)
         {
             q.push_back(c->nodehandle);
         }
     }
-    for (auto& c : n->children)
+    for (auto& c : client->getChildrens(n))
     {
         if (c->type > FILENODE)
         {
@@ -2483,7 +2483,7 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
     std::vector<Node*> emptyFolders;
     bool empty = true;
     Node* trash = client->nodebyhandle(client->rootnodes[2]);
-    for (auto c : n->children)
+    for (auto c : client->getChildrens(n))
     {
         bool subfolderEmpty = recurse_findemptysubfoldertrees(c, moveToTrash);
         if (subfolderEmpty)
@@ -2560,7 +2560,7 @@ bool recursiveCompare(Node* mn, fs::path p)
     auto fileSystemType = client->fsaccess->getFilesystemType(&path);
     multimap<string, Node*> ms;
     multimap<string, fs::path> ps;
-    for (auto& m : mn->children)
+    for (auto& m : client->getChildrens(mn))
     {
         string leafname = m->displayname();
         client->fsaccess->escapefsincompatible(&leafname, fileSystemType);
@@ -3109,9 +3109,9 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
                 return false;
             }
         }
-        for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
+        for (Node* node : client->getChildrens(n))
         {
-            if (!recursiveget(std::move(newpath), *it, folders, queued))
+            if (!recursiveget(std::move(newpath), node, folders, queued))
             {
                 return false;
             }
@@ -3130,13 +3130,13 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
         if (n->type == FOLDERNODE || n->type == ROOTNODE)
         {
             DBTableTransactionCommitter committer(client->tctable);
-            for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
+            for (Node* node : client->getChildrens(n))
             {
-                if ((*it)->type == FILENODE)
+                if (node->type == FILENODE)
                 {
-                    if (regex_search(string((*it)->displayname()), re))
+                    if (regex_search(string(node->displayname()), re))
                     {
-                        auto f = new AppFileGet(*it);
+                        auto f = new AppFileGet(node);
                         f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
                         client->startxfer(GET, f, committer);
                         queued += 1;
@@ -3427,7 +3427,7 @@ void exec_rm(autocomplete::ACState& s)
         if (useregex)
         {
             std::regex re(childregexstring);
-            for (Node* c : n->children)
+            for (Node* c : client->getChildrens(n))
             {
                 if (std::regex_match(c->displayname(), re))
                 {
@@ -3897,11 +3897,11 @@ void exec_get(autocomplete::ACState& s)
                 else
                 {
                     // ...or all files in the specified folder (non-recursive)
-                    for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
+                    for (Node* node : client->getChildrens(n))
                     {
-                        if ((*it)->type == FILENODE)
+                        if (node->type == FILENODE)
                         {
-                            auto f = new AppFileGet(*it);
+                            auto f = new AppFileGet(node);
                             f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
                             client->startxfer(GET, f, committer);
                         }
@@ -4779,11 +4779,11 @@ void exec_getfa(autocomplete::ACState& s)
         }
         else
         {
-            for (node_list::iterator it = n->children.begin(); it != n->children.end(); it++)
+            for (Node* node : client->getChildrens(n))
             {
-                if ((*it)->type == FILENODE && (*it)->hasfileattribute(type))
+                if (node->type == FILENODE && node->hasfileattribute(type))
                 {
-                    client->getfa((*it)->nodehandle, &(*it)->fileattrstring, (*it)->nodekey(), type, cancel);
+                    client->getfa(node->nodehandle, &node->fileattrstring, node->nodekey(), type, cancel);
                     c++;
                 }
             }
@@ -6368,14 +6368,16 @@ void exec_mediainfo(autocomplete::ACState& s)
             case ROOTNODE:
             case INCOMINGNODE:
             case RUBBISHNODE:
-                for (node_list::iterator m = n->children.begin(); m != n->children.end(); ++m)
+            {
+                for (Node* m : client->getChildrens(n))
                 {
-                    if ((*m)->type == FILENODE && (*m)->hasfileattribute(fa_media))
+                    if (m->type == FILENODE && m->hasfileattribute(fa_media))
                     {
-                        cout << (*m)->displayname() << "   " << showMediaInfo(*m, client->mediaFileInfo, true) << endl;
+                        cout << m->displayname() << "   " << showMediaInfo(m, client->mediaFileInfo, true) << endl;
                     }
                 }
                 break;
+            }
             case TYPE_UNKNOWN: break;
             }
         }
