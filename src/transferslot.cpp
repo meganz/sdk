@@ -422,7 +422,7 @@ bool TransferSlot::testForSlowRaidConnection(unsigned connectionNum, bool& incre
                 thisRate < 1024 * 1024)
             {
                 LOG_warn << "Raid connection " << connectionNum 
-                         << " is much slower than its peers, with speed " << reqSpeeds[connectionNum].lastRequestSpeed() 
+                         << " is much slower than its peers, with speed " << thisRate 
                          << " while they are managing " << averageOtherRate;
 
                 raidChannelSwapsForSlowness += 1;
