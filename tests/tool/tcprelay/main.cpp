@@ -215,26 +215,12 @@ void exec_addrelay(ac::ACState& ac)
 
 void exec_adddefaultrelays(ac::ACState& ac)
 {
-    addRelay("gfs262n300.userstorage.mega.co.nz", g_nextPort++);
-    addRelay("gfs204n118.userstorage.mega.co.nz", g_nextPort++);
-    addRelay("gfs208n108.userstorage.mega.co.nz", g_nextPort++);
-    addRelay("gfs214n108.userstorage.mega.co.nz", g_nextPort++);
-    addRelay("gfs270n221.userstorage.mega.co.nz", g_nextPort++);
-    addRelay("gfs302n108.userstorage.mega.co.nz", g_nextPort++);
-
-    addRelay("gfs270n212.userstorage.mega.co.nz", g_nextPort++);
-    addRelay("gfs270n211.userstorage.mega.co.nz", g_nextPort++);
-    addRelay("gfs270n210.userstorage.mega.co.nz", g_nextPort++);
-    addRelay("gfs270n209.userstorage.mega.co.nz", g_nextPort++);
-    addRelay("gfs270n208.userstorage.mega.co.nz", g_nextPort++);
-    addRelay("gfs270n207.userstorage.mega.co.nz", g_nextPort++);
-
-    addRelay("gfs302n117.userstorage.mega.co.nz", g_nextPort++);
-    addRelay("gfs208n117.userstorage.mega.co.nz", g_nextPort++);
-    addRelay("gfs204n127.userstorage.mega.co.nz", g_nextPort++);
-    addRelay("gfs214n117.userstorage.mega.co.nz", g_nextPort++);
-    addRelay("gfs262n309.userstorage.mega.co.nz", g_nextPort++);
-    addRelay("gfs270n128.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs262n323.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs214n128.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs270n225.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs204n139.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs208n129.userstorage.mega.co.nz", g_nextPort++);
+    addRelay("gfs206n105.userstorage.mega.co.nz", g_nextPort++);
 
 }
 
@@ -417,6 +403,7 @@ void exec_getcpp(ac::ACState& ac)
         cout << "if (string::npos != (pos = posturl.find(\"" << ra->reporting_name << "\"))) posturl.replace(pos, " << ra->reporting_name.size() << ", \"localhost:" << ra->listen_port << "\");" << endl;
     }
     cout << "if (string::npos != (pos = posturl.find(\"https://\"))) posturl.replace(pos, 8, \"http://\");" << endl; 
+    cout << "if (string::npos != (pos = posturl.find(\":8080\"))) posturl.replace(pos, 5, \"\");" << endl; 
 }
 
 void exec_closeacceptor(ac::ACState& ac)
@@ -622,7 +609,11 @@ ac::ACN autocompleteSyntax()
 
 class MegaCLILogger : public ::mega::Logger {
 public:
-    virtual void log(const char * /*time*/, int loglevel, const char * /*source*/, const char *message)
+    virtual void log(const char * /*time*/, int loglevel, const char * /*source*/, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+        , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, unsigned numberMessages = 0
+#endif
+    )
     {
 #ifdef _WIN32
         OutputDebugStringA(message);

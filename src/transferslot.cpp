@@ -151,6 +151,7 @@ bool TransferSlot::createconnectionsonce()
         connections = transferbuf.isRaid() ? RAIDPARTS : (transfer->size > 131072 ? transfer->client->connections[transfer->type] : 1);
         LOG_debug << "Populating transfer slot with " << connections << " connections, max request size of " << maxRequestSize << " bytes";
         reqs.resize(connections);
+        reqSpeeds.resize(connections);
         asyncIO = new AsyncIOContext*[connections]();
     }
     return true;
@@ -377,6 +378,62 @@ bool TransferSlot::checkTransferFinished(DBTableTransactionCommitter& committer,
     return false;
 }
 
+bool TransferSlot::testForSlowRaidConnection(unsigned connectionNum, bool& incrementErrors)
+{
+    if (transfer->type == GET && transferbuf.isRaid())
+    {
+        // quick early check - if we were getting data but haven't for a while
+        // then switch channels before we time out entirely (at the halfway-to-timeout mark)
+        if ((Waiter::ds - reqs[connectionNum]->lastdata) > (XFERTIMEOUT / 2))
+        {
+            LOG_warn << "Raid connection " << connectionNum << " has not received data for " << (XFERTIMEOUT / 2) << " deciseconds";
+            incrementErrors = true;
+            return true;
+        }
+
+        if (!transferbuf.isUnusedRaidConection(connectionNum) && 
+            reqSpeeds[connectionNum].requestElapsedDs() > 50 &&
+            raidChannelSwapsForSlowness < 2)
+        {
+            m_off_t averageOtherRate = 0;
+            unsigned othercount = 0;
+            for (unsigned j = RAIDPARTS; j--; )
+            {
+                if (j != connectionNum && !transferbuf.isUnusedRaidConection(j))
+                {
+                    if (transferbuf.isRaidConnectionProgressBlocked(j) // this one can't continue because it would get too far ahead
+                        || (reqs[j] && reqs[j]->status == REQ_DONE)) // this one reached end of file
+                    {
+                        ++othercount;
+                        averageOtherRate += reqSpeeds[j].lastRequestSpeed();
+                    }
+                    else
+                    {
+                        return false;
+                    }
+                }
+            }
+        
+            averageOtherRate /=  othercount ? othercount : 1;
+            m_off_t thisRate = reqSpeeds[connectionNum].lastRequestSpeed();
+
+            if (thisRate < averageOtherRate / 2 &&
+                averageOtherRate > 50 * 1024 &&
+                thisRate < 1024 * 1024)
+            {
+                LOG_warn << "Raid connection " << connectionNum 
+                         << " is much slower than its peers, with speed " << reqSpeeds[connectionNum].lastRequestSpeed() 
+                         << " while they are managing " << averageOtherRate;
+
+                raidChannelSwapsForSlowness += 1;
+                incrementErrors = false;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 // file transfer state machine
 void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committer)
 {
@@ -439,16 +496,17 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
         return transfer->failed(lasterror, committer);
     }
 
+    // main loop over connections
     for (int i = connections; i--; )
     {
         if (reqs[i])
         {
-            unsigned slowestConnection;
-            if (transfer->type == GET && reqs[i]->contentlength == reqs[i]->size && transferbuf.detectSlowestRaidConnection(i, slowestConnection))
+            unsigned slowestStartConnection;
+            if (transfer->type == GET && reqs[i]->contentlength == reqs[i]->size && transferbuf.detectSlowestRaidConnection(i, slowestStartConnection))
             {
-                LOG_debug << "Connection " << slowestConnection << " is the slowest to reply, using the other 5.";
-                reqs[slowestConnection].reset();
-                transferbuf.resetPart(slowestConnection);
+                LOG_debug << "Connection " << slowestStartConnection << " is the slowest to reply, using the other 5.";
+                reqs[slowestStartConnection].reset();
+                transferbuf.resetPart(slowestStartConnection);
                 i = connections; 
                 continue;
             }
@@ -470,15 +528,19 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
             switch (static_cast<reqstatus_t>(reqs[i]->status))
             {
                 case REQ_INFLIGHT:
+                {
+                    m_off_t delta = reqSpeeds[i].requestProgressed(reqs[i]->transferred(client));
+                    transferSpeed.calculateSpeed(delta);
+
                     p += reqs[i]->transferred(client);
 
                     assert(reqs[i]->lastdata != NEVER);
+                    bool incrementErrors = false;
                     if (transfer->type == GET && transferbuf.isRaid() && 
-                        (Waiter::ds - reqs[i]->lastdata) > (XFERTIMEOUT / 2) &&
-                        transferbuf.connectionRaidPeersAreAllPaused(i))
+                        testForSlowRaidConnection(i, incrementErrors))
                     {
                         // switch to 5 channel raid to avoid the slow/delayed connection. (or if already switched, try a different 5).  If we already tried too many times then let the usual timeout occur
-                        if (tryRaidRecoveryFromHttpGetError(i))
+                        if (tryRaidRecoveryFromHttpGetError(i, incrementErrors))
                         {
                             LOG_warn << "Connection " << i << " is slow or stalled, trying the other 5 cloudraid connections";
                             reqs[i]->disconnect();
@@ -486,15 +548,19 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         }
                     }
 
-                    if (reqs[i]->lastdata > lastdata)
+                    if (EVER(reqs[i]->lastdata) && reqs[i]->lastdata > lastdata)
                     {
                         // prevent overall timeout if all channels are busy with big chunks for a while
                         lastdata = reqs[i]->lastdata;
                     }
-
                     break;
+                }
 
                 case REQ_SUCCESS:
+                {
+                    m_off_t delta = reqSpeeds[i].requestProgressed(reqs[i]->size);
+                    transferSpeed.calculateSpeed(delta);
+
                     if (client->orderdownloadedchunks && transfer->type == GET && !transferbuf.isRaid() && transfer->progresscompleted != static_cast<HttpReqDL*>(reqs[i].get())->dlpos)
                     {
                         // postponing unsorted chunk
@@ -508,12 +574,12 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     if (!transferbuf.isRaid())
                     {
                         LOG_debug << "Transfer request finished (" << transfer->type << ") Position: " << transferbuf.transferPos(i) << " (" << transfer->pos << ") Size: " << reqs[i]->size
-                            << " Completed: " << (transfer->progresscompleted + reqs[i]->size) << " of " << transfer->size;
+                            << " Completed: " << (transfer->progresscompleted + reqs[i]->size) << " of " << transfer->size << " speed " << reqSpeeds[i].lastRequestSpeed();
                     }
                     else
                     {
                         LOG_debug << "Transfer request finished (" << transfer->type << ") " << " on connection " << i << " part pos: " << transferbuf.transferPos(i) << " of part size " << transferbuf.raidPartSize(i, transfer->size)
-                            << " Overall Completed: " << (transfer->progresscompleted) << " of " << transfer->size;
+                            << " Overall Completed: " << (transfer->progresscompleted) << " of " << transfer->size << " speed " << reqSpeeds[i].lastRequestSpeed();
                     }
 
                     if (transfer->type == PUT)
@@ -645,6 +711,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                             if (outputPiece)
                             {
+                                raidChannelSwapsForSlowness = 0;
                                 bool parallelNeeded = outputPiece->finalize(false, transfer->size, transfer->ctriv, transfer->transfercipher(), &transfer->chunkmacs);
 
                                 if (parallelNeeded)
@@ -701,7 +768,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         }
                     }
                     break;
-
+                }
                 case REQ_DECRYPTED:
                     {
                         // this must return the same piece we just decrypted, since we have not asked the transferbuf to discard it yet.
@@ -901,12 +968,12 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         // - 404 means "malformed or expired URL" - can be immediately fixed by getting a fresh one from the API
                         // - 503 means "the API gave you good information, but I don't have the file" - cannot be fixed (at least not immediately) by getting a fresh URL
                         // for raid parts and 503, it's appropriate to try another raid source
-                        if (!tryRaidRecoveryFromHttpGetError(i))
+                        if (!tryRaidRecoveryFromHttpGetError(i, true))
                         {
                             return transfer->failed(API_EAGAIN, committer);
                         }
                     }
-                    else if (reqs[i]->httpstatus == 0 && tryRaidRecoveryFromHttpGetError(i))
+                    else if (reqs[i]->httpstatus == 0 && tryRaidRecoveryFromHttpGetError(i, true))
                     {
                         // status 0 indicates network error or timeout; no headers recevied.
                         // tryRaidRecoveryFromHttpGetError has switched to loading a different part instead of this one.
@@ -1081,6 +1148,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
             if (reqs[i] && (reqs[i]->status == REQ_PREPARED) && !backoff)
             {
+                reqSpeeds[i].requestStarted();
                 reqs[i]->minspeed = true;
                 reqs[i]->post(client);
             }
@@ -1118,6 +1186,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
         progress();
     }
 
+    assert(lastdata != NEVER);
     if (Waiter::ds - lastdata >= XFERTIMEOUT && !failure)
     {
         LOG_warn << "Failed chunk(s) due to a timeout: no data moved for " << (XFERTIMEOUT/10) << " seconds" ;
@@ -1176,12 +1245,12 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 }
 
 
-bool TransferSlot::tryRaidRecoveryFromHttpGetError(unsigned connectionNum)
+bool TransferSlot::tryRaidRecoveryFromHttpGetError(unsigned connectionNum, bool incrementErrors)
 {
     // If we are downloding a cloudraid file then we may be able to ignore one connection and download from the other 5.
     if (transferbuf.isRaid())
     {
-        if (transferbuf.tryRaidHttpGetErrorRecovery(connectionNum))
+        if (transferbuf.tryRaidHttpGetErrorRecovery(connectionNum, incrementErrors))
         {
             // transferbuf is now set up to try a new connection
             reqs[connectionNum]->status = REQ_READY;

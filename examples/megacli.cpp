@@ -7799,9 +7799,11 @@ void megacli()
                     if ((*it)->fa)
                     {
                         xferrate[(*it)->transfer->type]
-                            += unsigned( (*it)->progressreported * 10 / (1024 * (Waiter::ds - (*it)->starttime + 1)) );
+                            += (*it)->transferSpeed.calculateSpeed();
                     }
                 }
+                xferrate[GET] /= 1024;
+                xferrate[PUT] /= 1024;
 
                 strcpy(dynamicprompt, "MEGA");
 
