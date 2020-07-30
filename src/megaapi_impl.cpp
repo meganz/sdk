@@ -10772,10 +10772,11 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
     return result;
 }
 
-MegaNodeList* MegaApiImpl::searchInAllShares(const char *searchString, MegaCancelToken *cancelToken, int order, int target)
+MegaNodeList* MegaApiImpl::searchInAllShares(const char *searchString, MegaCancelToken *cancelToken, int order, int target, int type)
 {
-    if (!searchString)
+    if (!searchString && (type < MegaApi::NODE_PHOTO || type > MegaApi::NODE_DOCUMENT))
     {
+        // If no search string and type is not valid
         return new MegaNodeListPrivate();
     }
 
@@ -10808,7 +10809,7 @@ MegaNodeList* MegaApiImpl::searchInAllShares(const char *searchString, MegaCance
         for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
         {
            node = client->nodebyhandle(shares->get(i)->getNodeHandle());
-           SearchTreeProcessor searchProcessor(searchString);
+           SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
            processTree(node, &searchProcessor, true, cancelToken);
            vector<Node *>& vNodes  = searchProcessor.getResults();
            result.insert(result.end(), vNodes.begin(), vNodes.end());
@@ -10821,7 +10822,7 @@ MegaNodeList* MegaApiImpl::searchInAllShares(const char *searchString, MegaCance
              && !(cancelToken && cancelToken->isCancelled()); it++)
         {
             node = client->nodebyhandle(it->first);
-            SearchTreeProcessor searchProcessor(searchString);
+            SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
             processTree(node, &searchProcessor, true, cancelToken);
             vector<Node *>& vNodes  = searchProcessor.getResults();
             result.insert(result.end(), vNodes.begin(), vNodes.end());
@@ -10833,10 +10834,11 @@ MegaNodeList* MegaApiImpl::searchInAllShares(const char *searchString, MegaCance
     return nodeList;
 }
 
-MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *cancelToken, int order)
+MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *cancelToken, int order, int type)
 {
-    if(!searchString)
+    if (!searchString && (type < MegaApi::NODE_PHOTO || type > MegaApi::NODE_DOCUMENT))
     {
+        // If no search string and type is not valid
         return new MegaNodeListPrivate();
     }
 
@@ -10860,11 +10862,9 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *can
           && !(cancelToken && cancelToken->isCancelled()); i++)
     {
         node = client->nodebyhandle(client->rootnodes[i]);
-
-        SearchTreeProcessor searchProcessor(searchString);
+        SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
         processTree(node, &searchProcessor, true, cancelToken);
         node_vector& vNodes = searchProcessor.getResults();
-
         result.insert(result.end(), vNodes.begin(), vNodes.end());
     }
 
@@ -10874,7 +10874,7 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *can
     {
         node = client->nodebyhandle(shares->get(i)->getNodeHandle());
 
-        SearchTreeProcessor searchProcessor(searchString);
+        SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
         processTree(node, &searchProcessor, true, cancelToken);
         vector<Node *>& vNodes  = searchProcessor.getResults();
 
@@ -11376,10 +11376,11 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
     return result;
 }
 
-MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCancelToken *cancelToken, bool recursive, int order)
+MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCancelToken *cancelToken, bool recursive, int order, int type)
 {
-    if (!n || !searchString)
+    if (!n || (!searchString && (type < MegaApi::NODE_PHOTO || type > MegaApi::NODE_DOCUMENT)))
     {
+        // If node is not valid or no search string and type is not valid
         return new MegaNodeListPrivate();
     }
 
@@ -11401,7 +11402,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCan
         return new MegaNodeListPrivate();
     }
 
-    SearchTreeProcessor searchProcessor(searchString);
+    SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
     for (node_list::iterator it = node->children.begin(); it != node->children.end()
          && !(cancelToken && cancelToken->isCancelled()); )
     {
