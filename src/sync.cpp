@@ -1140,7 +1140,7 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa, LocalNode* localnode)
         {
             // prioritize handling of ignore files as they dictate how we
             // should handle this directory's contents.
-            do
+            if (initializing)
             {
                 ScopedLengthRestore restoreLen(*localpath);
 
@@ -1150,25 +1150,15 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa, LocalNode* localnode)
                   client->fsaccess->localseparator);
 
                 auto fileaccess = client->fsaccess->newfileaccess(client->followsymlinks);
-                if (!fileaccess->fopen(*localpath))
+                if (fileaccess->fopen(*localpath))
                 {
-                    break;
-                }
-
-                LocalNode* node = nullptr;
-
-                if (initializing)
-                {
-                    node = checkpath(NULL, localpath, NULL, NULL, false, NULL);
-                }
-
-                if (!node || node == (LocalNode*)~0)
-                {
-                    dirnotify->notify(DirNotify::DIREVENTS, NULL, LocalPath(*localpath));
+                    LocalNode* node = checkpath(NULL, localpath, NULL, NULL, false, NULL);
+                    if (!node || node == (LocalNode*)~0)
+                    {
+                        dirnotify->notify(DirNotify::DIREVENTS, NULL, LocalPath(*localpath));
+                    }
                 }
             }
-            while (false);
-
             nodetype_t type;
 
             while (da->dnext(*localpath, localname, client->followsymlinks, &type))

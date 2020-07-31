@@ -27,6 +27,7 @@
 #include "mega/filesystem.h"
 
 #include <iomanip>
+#include <cctype>
 
 #if defined(_WIN32) && defined(_MSC_VER)
 #include <sys/timeb.h>
@@ -2333,23 +2334,23 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
 
     std::unique_ptr<byte[]> buffer(new byte[SZ_1024K + SymmCipher::BLOCKSIZE]);
     chunkmac_map chunkMacs;
-    m_off_t chunkLength = 0;
+    unsigned int chunkLength = 0;
     m_off_t current = 0;
     m_off_t remaining = isAccess.size();
 
     while (remaining > 0)
     {
         chunkLength =
-          std::min(chunkLength + SZ_128K,
-                   std::min(remaining, SZ_1024K));
+          std::min<unsigned>(chunkLength + SZ_128K,
+                   static_cast<unsigned>(std::min<m_off_t>(remaining, SZ_1024K)));
 
-        if (!isAccess.read(&buffer[0], (unsigned int)chunkLength))
+        if (!isAccess.read(&buffer[0], chunkLength))
             return std::make_pair(false, 0l);
 
         memset(&buffer[chunkLength], 0, SymmCipher::BLOCKSIZE);
 
         cipher.ctr_crypt(&buffer[0],
-                         (unsigned int)chunkLength,
+                         chunkLength,
                          current,
                          iv,
                          chunkMacs[current].mac,
@@ -2449,9 +2450,10 @@ bool readLines(FileAccess& ifAccess, string_vector& destination)
 
 bool readLines(InputStreamAccess& isAccess, string_vector& destination)
 {
-    std::string input(isAccess.size(), '\0');
+    size_t size = static_cast<size_t>(isAccess.size());
+    std::string input(size, '\0');
 
-    return isAccess.read((byte*)input.data(), isAccess.size())
+    return isAccess.read((byte*)input.data(), size)
            && readLines(input, destination);
 }
 
