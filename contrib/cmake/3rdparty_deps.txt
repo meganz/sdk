@@ -32,7 +32,7 @@ libwebsockets
 # ------ building pdifum - this one needs some manual steps - these can be done before calling the script ---------------
 # - Set up your Depot Tools (this can be one time, reuse it for other builds etc)
 #      Follow these instructions to get the depot_tools: https://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html#_setting_up
-# - Then in your 3rdParty/vcpkg folder, and run these commands in it to get the pdfium source:
+# - Then in your go to 3rdParty/vcpkg folder, and run these commands in it to get the pdfium source:
 #      export DEPOT_TOOLS=<<<<your depot_tools path>>>>
 #      export PATH=$DEPOT_TOOLS;$PATH
 #      mkdir pdfium
@@ -51,7 +51,7 @@ libwebsockets
 # ------ building pdifum - this one needs some manual steps - these can be done before calling the script ---------------
 # - Set up your Depot Tools (this can be one time, reuse it for other builds etc)
 #      Follow these instructions to get the depot_tools (download .zip, extract all, set variable, run gclient): https://chromium.googlesource.com/chromium/src/+/master/docs/windows_build_instructions.md#install
-# - Then in your 3rdParty/vcpkg folder (make sure it is not a long path, or subst V: to it), and run these commands in it to get the pdfium source:
+# - Then change directory to your 3rdParty/vcpkg folder (make sure it is not a long path, or subst V: to it), and run these commands in it to get the pdfium source:
 #      set DEPOT_TOOLS=<<<<your depot_tools path>>>>
 #      set PATH=%DEPOT_TOOLS%;%PATH%
 #      set DEPOT_TOOLS_WIN_TOOLCHAIN=0
@@ -67,6 +67,7 @@ libwebsockets
 # - If using VS2015 compiler, find span.h and #ove 'constexpr' from all the forwarding constructors.
 # - If using the latest Pdfium, use at least VS2017 and skip the branch checkout above, and substitute the pdfium-masterbranch-CMakeLists.txt in vcpkg/ports/pdfium and make this one small patch (other changes may be needed if the master branch has changed):
 #      in pdfium\core\fxcrt\fx_memory_wrappers.h(26)   comment out the static_assert (uint8_t counts as an arithmentic type)
+# change directory to 3rdparty\vcpkg folder and run build3rdparty.cmd with the desired triplet
 
 pdfium
 pdfium-freetype
