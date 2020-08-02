@@ -872,9 +872,12 @@ void SdkTest::releaseMegaApi(unsigned int apiIndex)
     assert(megaApi[apiIndex].get() == mApi[apiIndex].megaApi);
     if (mApi[apiIndex].megaApi)
     {
-        if (mApi[apiIndex].megaApi->isLoggedIn() && !gResumeSessions)
+        if (mApi[apiIndex].megaApi->isLoggedIn())
         {
-            ASSERT_NO_FATAL_FAILURE( logout(apiIndex) );
+            if (!gResumeSessions)
+                ASSERT_NO_FATAL_FAILURE( logout(apiIndex) );
+            else
+                ASSERT_NO_FATAL_FAILURE( locallogout(apiIndex) );
         }
 
         megaApi[apiIndex].reset();
