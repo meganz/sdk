@@ -227,50 +227,7 @@ std::map<int, std::string> gSessionIDs;
 
 void SdkTest::SetUp()
 {
-    cout << logTime() << "Test setting up" << endl;
-    // do some initialization
-    if (megaApi.size() < 2)
-    {
-        megaApi.resize(2);
-        mApi.resize(2);
-    }
-    char *buf = getenv("MEGA_EMAIL");
-    if (buf)
-        mApi[0].email.assign(buf);
-    ASSERT_LT((size_t)0, mApi[0].email.length()) << "Set your username at the environment variable $MEGA_EMAIL";
-
-    buf = getenv("MEGA_PWD");
-    if (buf)
-        mApi[0].pwd.assign(buf);
-    ASSERT_LT((size_t)0, mApi[0].pwd.length()) << "Set your password at the environment variable $MEGA_PWD";
-
     gTestingInvalidArgs = false;
-
-    if (megaApi[0].get() == NULL)
-    {
-        megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), THREADS_PER_MEGACLIENT));
-        mApi[0].megaApi = megaApi[0].get();
-
-        megaApi[0]->setLoggingName("0");
-        megaApi[0]->addListener(this);
-
-        LOG_info << "___ Initializing test (SetUp()) ___";
-
-        if (!gResumeSessions || gSessionIDs[0].empty())
-        {
-            ASSERT_NO_FATAL_FAILURE( login(0) );
-        }
-        else
-        {
-            ASSERT_NO_FATAL_FAILURE( loginBySessionId(0, gSessionIDs[0].c_str()) );
-        }
-        cout << logTime() << "Test logged in, fetching nodes" << endl;
-        ASSERT_NO_FATAL_FAILURE( fetchnodes(0) );
-        cout << logTime() << "Test setup done, test starts" << endl;
-    }
-
-    // In case the last test exited without cleaning up (eg, debugging etc)
-    Cleanup();
 }
 
 void SdkTest::TearDown()
@@ -278,17 +235,22 @@ void SdkTest::TearDown()
     cout << logTime() << "Test done, teardown starts" << endl;
     // do some cleanup
 
-    if (gResumeSessions && gSessionIDs[0].empty())
+    for (int i = 0; i < gSessionIDs.size(); ++i)
     {
-        if (auto p = unique_ptr<char[]>(megaApi[0]->dumpSession()))
+        if (gResumeSessions && megaApi[i] && gSessionIDs[i].empty())
         {
-            gSessionIDs[0] = p.get();
+            if (auto p = unique_ptr<char[]>(megaApi[i]->dumpSession()))
+            {
+                gSessionIDs[i] = p.get();
+            }
         }
     }
 
     gTestingInvalidArgs = false;
 
     LOG_info << "___ Cleaning up test (TearDown()) ___";
+
+    cout << logTime() << "Cleaning up account" << endl;
     Cleanup();
 
     releaseMegaApi(1);
@@ -297,6 +259,7 @@ void SdkTest::TearDown()
     {        
         releaseMegaApi(0);
     }
+    cout << logTime() << "Teardown done, test exiting" << endl;
 }
 
 void SdkTest::Cleanup()
@@ -328,7 +291,6 @@ void SdkTest::Cleanup()
             megaApi[0]->inviteContact(cr->getTargetEmail(), "Removing you", MegaContactRequest::INVITE_ACTION_DELETE);
         }
     }
-    cout << logTime() << "Teardown done, test exiting" << endl;
 }
 
 int SdkTest::getApiIndex(MegaApi* api)
@@ -661,27 +623,27 @@ void SdkTest::onEvent(MegaApi*, MegaEvent *event)
     lastEvent.reset(event->copy());
 }
 
-void SdkTest::login(unsigned int apiIndex, int timeout)
-{
-    mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGIN] = false;
-    mApi[apiIndex].megaApi->login(mApi[apiIndex].email.data(), mApi[apiIndex].pwd.data());
-
-    ASSERT_TRUE(waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGIN], timeout))
-        << "Login failed after " << timeout << " seconds";
-    ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Login failed (error: " << mApi[apiIndex].lastError << ")";
-    ASSERT_TRUE(mApi[apiIndex].megaApi->isLoggedIn());
-}
-
-void SdkTest::loginBySessionId(unsigned int apiIndex, const std::string& sessionId, int timeout)
-{
-    mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGIN] = false;
-    mApi[apiIndex].megaApi->fastLogin(sessionId.c_str());
-
-    ASSERT_TRUE(waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGIN], timeout))
-        << "Login failed after " << timeout << " seconds";
-    ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Login failed (error: " << mApi[apiIndex].lastError << ")";
-    ASSERT_TRUE(mApi[apiIndex].megaApi->isLoggedIn());
-}
+//void SdkTest::login(unsigned int apiIndex, int timeout)
+//{
+//    mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGIN] = false;
+//    mApi[apiIndex].megaApi->login(mApi[apiIndex].email.data(), mApi[apiIndex].pwd.data());
+//
+//    ASSERT_TRUE(waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGIN], timeout))
+//        << "Login failed after " << timeout << " seconds";
+//    ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Login failed (error: " << mApi[apiIndex].lastError << ")";
+//    ASSERT_TRUE(mApi[apiIndex].megaApi->isLoggedIn());
+//}
+//
+//void SdkTest::loginBySessionId(unsigned int apiIndex, const std::string& sessionId, int timeout)
+//{
+//    mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGIN] = false;
+//    mApi[apiIndex].megaApi->fastLogin(sessionId.c_str());
+//
+//    ASSERT_TRUE(waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGIN], timeout))
+//        << "Login failed after " << timeout << " seconds";
+//    ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Login failed (error: " << mApi[apiIndex].lastError << ")";
+//    ASSERT_TRUE(mApi[apiIndex].megaApi->isLoggedIn());
+//}
 
 void SdkTest::fetchnodes(unsigned int apiIndex, int timeout, bool resumeSyncs)
 {
@@ -851,28 +813,34 @@ void SdkTest::deleteFile(string filename)
     remove(filename.c_str());
 }
 
+const char* envVarAccount[] = {"MEGA_EMAIL", "MEGA_EMAIL_AUX", "MEGA_EMAIL_AUX2"};
+const char* envVarPass[] = {"MEGA_PWD", "MEGA_PWD_AUX", "MEGA_PWD_AUX2"};
 
-void SdkTest::getMegaApiAux(unsigned index)
+
+void SdkTest::getAccountsForTest(unsigned howMany)
 {
-    if (index >= megaApi.size())
+    assert(howMany > 0 && howMany <= 3);
+    cout << logTime() << "Test setting up for " << howMany << " accounts " << endl;
+
+    megaApi.resize(howMany);
+    mApi.resize(howMany);
+
+    std::vector<std::unique_ptr<RequestTracker>> trackers;
+    trackers.resize(howMany);
+
+    for (unsigned index = 0; index < howMany; ++index)
     {
-        megaApi.resize(index + 1);
-        mApi.resize(index + 1);
-    }
-    if (megaApi[index].get() == NULL)
-    {
-        string strIndex = index > 1 ? to_string(index) : "";
-        if (const char *buf = getenv(("MEGA_EMAIL_AUX" + strIndex).c_str()))
+        if (const char *buf = getenv(envVarAccount[index]))
         {
             mApi[index].email.assign(buf);
         }
-        ASSERT_LT((size_t) 0, mApi[index].email.length()) << "Set auxiliar username at the environment variable $MEGA_EMAIL_AUX" << strIndex;
+        ASSERT_LT((size_t) 0, mApi[index].email.length()) << "Set test account " << index << " username at the environment variable $" << envVarAccount[index];
 
-        if (const char* buf = getenv(("MEGA_PWD_AUX" + strIndex).c_str()))
+        if (const char* buf = getenv(envVarPass[index]))
         {
             mApi[index].pwd.assign(buf);
         }
-        ASSERT_LT((size_t) 0, mApi[index].pwd.length()) << "Set the auxiliar password at the environment variable $MEGA_PWD_AUX" << strIndex;
+        ASSERT_LT((size_t) 0, mApi[index].pwd.length()) << "Set test account " << index << " password at the environment variable $" << envVarPass[index];
 
         megaApi[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), THREADS_PER_MEGACLIENT));
         mApi[index].megaApi = megaApi[index].get();
@@ -881,9 +849,41 @@ void SdkTest::getMegaApiAux(unsigned index)
         megaApi[index]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
         megaApi[index]->addListener(this);    // TODO: really should be per api
 
-        ASSERT_NO_FATAL_FAILURE( login(index) );
-        ASSERT_NO_FATAL_FAILURE( fetchnodes(index) );
+        if (!gResumeSessions || gSessionIDs[index].empty())
+        {
+            cout << logTime() << "Logging into account " << index << endl;
+            trackers[index] = asyncRequestLogin(index, mApi[index].email.c_str(), mApi[index].pwd.c_str());
+        }
+        else
+        {
+            cout << logTime() << "Resuming session for account " << index << endl;
+            trackers[index] = asyncRequestFastLogin(index, gSessionIDs[index].c_str());
+        }
     }
+
+    // wait for logins to complete:
+    for (unsigned index = 0; index < howMany; ++index)
+    {
+        ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to establish a login/session for accout " << index;
+    }
+
+    // perform parallel fetchnodes for each
+    for (unsigned index = 0; index < howMany; ++index)
+    {
+        cout << logTime() << "Fetching nodes for account " << index << endl;
+        trackers[index] = asyncRequestFetchnodes(index);
+    }
+
+    // wait for fetchnodes to complete:
+    for (unsigned index = 0; index < howMany; ++index)
+    {
+        ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to fetchnodes for accout " << index;
+    }
+
+    // In case the last test exited without cleaning up (eg, debugging etc)
+    cout << logTime() << "Cleaning up account 0" << endl;
+    Cleanup();
+    cout << logTime() << "Test setup done, test starts" << endl;
 }
 
 void SdkTest::releaseMegaApi(unsigned int apiIndex)
@@ -1100,6 +1100,8 @@ void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout, int apiIndex)
  */
 TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
 {
+    getAccountsForTest(2);
+
     string email1 = "user@domain.com";
     string pwd = "pwd";
     string email2 = "other-user@domain.com";
@@ -1150,6 +1152,7 @@ bool veryclose(double a, double b)
 TEST_F(SdkTest, SdkTestNodeAttributes)
 {
     LOG_info << "___TEST Node attributes___";
+    getAccountsForTest(2);
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
@@ -1315,9 +1318,6 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     // The created link is stored in this->link at onRequestFinish()
     string nodelink = this->link;
 
-    // ___ log in to the other account
-    ASSERT_NO_FATAL_FAILURE(getMegaApiAux());    // login + fetchnodes
-
     // ___ import the link
     ASSERT_NO_FATAL_FAILURE(importPublicLink(1, nodelink, std::unique_ptr<MegaNode>{megaApi[1]->getRootNode()}.get()));
     std::unique_ptr<MegaNode> nimported{megaApi[1]->getNodeByHandle(mApi[1].h)};
@@ -1379,8 +1379,9 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 TEST_F(SdkTest, SdkTestResumeSession)
 {
     LOG_info << "___TEST Resume session___";
+    getAccountsForTest(2);
 
-    unique_ptr<char[]> session(dumpSession());
+     unique_ptr<char[]> session(dumpSession());
 
     ASSERT_NO_FATAL_FAILURE( locallogout() );
     ASSERT_NO_FATAL_FAILURE( resumeSession(session.get()) );
@@ -1407,6 +1408,7 @@ TEST_F(SdkTest, SdkTestResumeSession)
 TEST_F(SdkTest, SdkTestNodeOperations)
 {
     LOG_info <<  "___TEST Node operations___";
+    getAccountsForTest(2);
 
     // --- Create a new folder ---
 
@@ -1540,7 +1542,7 @@ TEST_F(SdkTest, SdkTestNodeOperations)
 TEST_F(SdkTest, SdkTestTransfers)
 {
     LOG_info << "___TEST Transfers___";
-
+    getAccountsForTest(2);
     
     LOG_info << cwd();
 
@@ -1618,11 +1620,7 @@ TEST_F(SdkTest, SdkTestTransfers)
 
     // --- Download a file ---
 
-#ifdef WIN32
-    string filename2 = ".\\" + DOWNFILE;
-#else
-    string filename2 = "./" + DOWNFILE;
-#endif
+    string filename2 = DOTSLASH + DOWNFILE;
 
     mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
     megaApi[0]->startDownload(n2, filename2.c_str());
@@ -1654,11 +1652,7 @@ TEST_F(SdkTest, SdkTestTransfers)
 
     // --- Download a 0-byte file ---
 
-#ifdef WIN32
-    filename3 = ".\\" + EMPTYFILE;
-#else
-    filename3 = "./" + EMPTYFILE;
-#endif
+    filename3 = DOTSLASH +  EMPTYFILE;
 
     mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
     megaApi[0]->startDownload(n4, filename3.c_str());
@@ -1714,8 +1708,7 @@ TEST_F(SdkTest, SdkTestTransfers)
 TEST_F(SdkTest, SdkTestContacts)
 {
     LOG_info << "___TEST Contacts___";
-
-    ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes
+    getAccountsForTest(2);
 
 
     // --- Check my email and the email of the contact ---
@@ -2072,15 +2065,13 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int n)
 TEST_F(SdkTest, SdkTestShares)
 {
     LOG_info << "___TEST Shares___";
+    getAccountsForTest(2);
 
     MegaShareList *sl;
     MegaShare *s;
     MegaNodeList *nl;
     MegaNode *n;
     MegaNode *n1;
-
-    ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes
-
 
     // Initialize a test scenario : create some folders/files to share
 
@@ -2378,14 +2369,12 @@ TEST_F(SdkTest, SdkTestShares)
 TEST_F(SdkTest, SdkTestShareKeys)
 {
     LOG_info << "___TEST ShareKeys___";
+    getAccountsForTest(3);
 
     // Three user scenario, with nested shares and new nodes created that need keys to be shared to the other users.
     // User A creates folder and shares it with user B
     // User A creates folders / subfolder and shares it with user C
     // When user C adds files to subfolder, does B receive the keys ?
-
-    ASSERT_NO_FATAL_FAILURE(getMegaApiAux());    // login + fetchnodes
-    ASSERT_NO_FATAL_FAILURE(getMegaApiAux(2));    // login + fetchnodes
 
     unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
     unique_ptr<MegaNode> rootnodeB(megaApi[1]->getRootNode());
@@ -2474,6 +2463,7 @@ LocalPath fspathToLocal(const fs::path& p, FSACCESS_CLASS& fsa)
 
 TEST_F(SdkTest, SdkTestFolderIteration)
 {
+    getAccountsForTest(2);
 
     for (int testcombination = 0; testcombination < 2; testcombination++)
     {
@@ -2755,6 +2745,7 @@ bool cmp(const autocomplete::CompletionState& c, std::vector<std::string>& s)
 
 TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 {
+    getAccountsForTest(2);
     using namespace autocomplete;
 
     {
@@ -3384,8 +3375,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 TEST_F(SdkTest, SdkTestChat)
 {
     LOG_info << "___TEST Chat___";
-
-    ASSERT_NO_FATAL_FAILURE( getMegaApiAux() );    // login + fetchnodes    
+    getAccountsForTest(2);
 
     // --- Send a new contact request ---
 
@@ -3529,6 +3519,7 @@ public:
 TEST_F(SdkTest, SdkTestFingerprint)
 {
     LOG_info << "___TEST fingerprint stream/file___";
+    getAccountsForTest(2);
 
     int filesizes[] = { 10, 100, 1000, 10000, 100000, 10000000 };
     string expected[] = {
@@ -3737,6 +3728,7 @@ namespace mega
 TEST_F(SdkTest, SdkTestCloudraidTransfers)
 {
     LOG_info << "___TEST Cloudraid transfers___";
+    getAccountsForTest(2);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -3875,6 +3867,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 {
     LOG_info << "___TEST Cloudraid transfers___";
+    getAccountsForTest(2);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -3929,6 +3922,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 {
     LOG_info << "___TEST Cloudraid transfers___";
+    getAccountsForTest(2);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -3980,6 +3974,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 {
     LOG_info << "___TEST SdkTestOverquotaNonCloudraid";
+    getAccountsForTest(2);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -4052,6 +4047,7 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 TEST_F(SdkTest, SdkTestOverquotaCloudraid)
 {
     LOG_info << "___TEST SdkTestOverquotaCloudraid";
+    getAccountsForTest(2);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -4215,6 +4211,7 @@ CheckStreamedFile_MegaTransferListener* StreamRaidFilePart(MegaApi* megaApi, m_o
 TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 {
     LOG_info << "___TEST SdkCloudraidStreamingSoakTest";
+    getAccountsForTest(2);
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -4369,6 +4366,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 TEST_F(SdkTest, SdkRecentsTest)
 {
     LOG_info << "___TEST SdkRecentsTest___";
+    getAccountsForTest(2);
 
     MegaNode *rootnode = megaApi[0]->getRootNode();
 
@@ -4431,6 +4429,7 @@ TEST_F(SdkTest, SdkRecentsTest)
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
 {
     LOG_info << "___TEST SdkGetCountryCallingCodes___";
+    getAccountsForTest(2);
 
     getCountryCallingCodes();
     ASSERT_NE(nullptr, stringListMap);
@@ -4449,6 +4448,7 @@ TEST_F(SdkTest, SdkGetCountryCallingCodes)
 TEST_F(SdkTest, SdkGetRegisteredContacts)
 {
     LOG_info << "___TEST SdkGetRegisteredContacts___";
+    getAccountsForTest(2);
 
     const std::string js1 = "+0000000010";
     const std::string js2 = "+0000000011";
@@ -4490,6 +4490,7 @@ TEST_F(SdkTest, SdkGetRegisteredContacts)
 TEST_F(SdkTest, invalidFileNames)
 {
     LOG_info << "___TEST invalidFileNames___";
+    getAccountsForTest(2);
 
     FSACCESS_CLASS fsa;
     auto aux = LocalPath::fromPath(fs::current_path().u8string(), fsa);
@@ -4676,6 +4677,7 @@ TEST_F(SdkTest, invalidFileNames)
 TEST_F(SdkTest, RecursiveUploadWithLogout)
 {
     LOG_info << "___TEST RecursiveUploadWithLogout___";
+    getAccountsForTest(2);
 
     // this one used to cause a double-delete
 
@@ -4706,6 +4708,7 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
 TEST_F(SdkTest, DISABLED_RecursiveDownloadWithLogout)
 {
     LOG_info << "___TEST RecursiveDownloadWithLogout";
+    getAccountsForTest(2);
 
     // this one used to cause a double-delete
 
@@ -4749,6 +4752,7 @@ TEST_F(SdkTest, DISABLED_RecursiveDownloadWithLogout)
 TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 {
     LOG_info << "___TEST SyncResumptionAfterFetchNodes___";
+    getAccountsForTest(2);
 
     // This test has several issues:
     // 1. Remote nodes may not be committed to the sctable database in time for fetchnodes which
@@ -4866,7 +4870,10 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     auto reloginViaSession = [this, &session]()
     {
         locallogout();
-        loginBySessionId(0, session);
+
+        //loginBySessionId(0, session);
+        auto tracker = asyncRequestFastLogin(0, session.c_str());
+        ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for accout " << 0;
     };
 
     syncFolder(sync1Path);

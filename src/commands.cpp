@@ -2744,8 +2744,7 @@ bool CommandRemoveContact::procresult(Result r)
 
     if (r.hasJsonObject())
     {
-        // throw away object (userhandle + email string) result, but we know the operation was successful
-        client->json.storeobject();
+        // the object contains (userhandle + email string) - caller will leaveobject() automatically
 
         if (User *u = client->finduser(email.c_str()))
         {

@@ -224,8 +224,8 @@ protected:
     void onEvent(MegaApi* api, MegaEvent *event) override;
 
 public:
-    void login(unsigned int apiIndex, int timeout = maxTimeout);
-    void loginBySessionId(unsigned int apiIndex, const std::string& sessionId, int timeout = maxTimeout);
+    //void login(unsigned int apiIndex, int timeout = maxTimeout);
+    //void loginBySessionId(unsigned int apiIndex, const std::string& sessionId, int timeout = maxTimeout);
     void fetchnodes(unsigned int apiIndex, int timeout = maxTimeout, bool resumeSyncs = false);
     void logout(unsigned int apiIndex, int timeout = maxTimeout);
     char* dumpSession();
@@ -262,6 +262,9 @@ public:
 
 
     // convenience functions - make a request and wait for the result via listener, return the result code.  To add new functions to call, just copy the line
+    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestLogin(unsigned apiIndex, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->login(args..., rt.get()); return rt; }
+    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFastLogin(unsigned apiIndex, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->fastLogin(args..., rt.get()); return rt; }
+    template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFetchnodes(unsigned apiIndex, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->fetchNodes(args..., rt.get()); return rt; }
     template<typename ... requestArgs> int doRequestLogout(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->logout(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doSetNodeDuration(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setNodeDuration(args..., &rt); return rt.waitForResult(); }
 
@@ -269,7 +272,7 @@ public:
     int64_t getFilesize(string filename);
     void deleteFile(string filename);
 
-    void getMegaApiAux(unsigned index = 1);
+    void getAccountsForTest(unsigned howMany = 1);
     void releaseMegaApi(unsigned int apiIndex);
 
     void inviteContact(unsigned apiIndex, string email, string message, int action);
