@@ -2740,16 +2740,15 @@ CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, vi
 
 bool CommandRemoveContact::procresult(Result r)
 {
-    assert(r.hasJsonItem() || r.wasStrictlyError());
+    assert(r.hasJsonObject() || r.wasStrictlyError());
 
-    if (r.hasJsonItem())
+    if (r.hasJsonObject())
     {
-        // throw away string result, but we know the operation was successful
+        // throw away object (userhandle + email string) result, but we know the operation was successful
         client->json.storeobject();
 
         if (User *u = client->finduser(email.c_str()))
         {
-            //assert(!u || !u->show);
             if (u->show != HIDDEN)
             {
                 u->show = HIDDEN;
