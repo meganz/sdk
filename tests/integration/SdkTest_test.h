@@ -192,6 +192,8 @@ protected:
     void SetUp() override;
     void TearDown() override;
 
+    void Cleanup();
+
     int getApiIndex(MegaApi* api);
 
     bool checkAlert(int apiIndex, const string& title, const string& path);

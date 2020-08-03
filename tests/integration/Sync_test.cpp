@@ -2179,7 +2179,28 @@ GTEST_TEST(Sync, BasicSync_MassNotifyFromLocalFolderTree)
     ASSERT_TRUE(buildLocalFolders(clientA1.syncSet[1].localpath, "initial", 0, 0, 16000));
 
     //waitonsyncs(std::chrono::seconds(10), &clientA1 /*, &clientA2*/);
-    std::this_thread::sleep_for(std::chrono::seconds(20));
+    std::this_thread::sleep_for(std::chrono::seconds(5));
+
+    // wait until the notify queues subside, it shouldn't take too long.  Limit of 5 minutes
+    auto startTime = std::chrono::steady_clock::now();
+    while (std::chrono::steady_clock::now() - startTime < std::chrono::seconds(5 * 60))
+    {
+        int remaining = 0;
+        auto result0 = clientA1.thread_do([&](StandardClient &sc, std::promise<bool> &p)
+        {
+            for (auto& s : sc.client.syncs)
+            {
+                for (int q = DirNotify::NUMQUEUES; q--; )
+                {
+                    remaining += s->dirnotify->notifyq[q].size();
+                }
+            }
+            p.set_value(true);
+        });
+        result0.get();
+        if (!remaining) break;
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
 
     Model model;
     model.root->addkid(model.buildModelSubdirs("initial", 0, 0, 16000));
