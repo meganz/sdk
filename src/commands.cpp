@@ -1688,7 +1688,7 @@ bool CommandPrelogin::procresult(Result r)
         client->app->prelogin_result(0, NULL, NULL, r.errorGeneral());
     }
 
-    assert(r.hasResultJSON());
+    assert(r.hasJsonObject());
     int v = 0;
     string salt;
     for (;;)
@@ -1796,7 +1796,7 @@ bool CommandLogin::procresult(Result r)
         return true;
     }
 
-    assert(r.hasResultJSON());
+    assert(r.hasJsonObject());
     byte hash[SymmCipher::KEYLENGTH];
     byte sidbuf[AsymmCipher::MAXKEYLENGTH];
     byte privkbuf[AsymmCipher::MAXKEYLENGTH * 2];
@@ -2740,25 +2740,29 @@ CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, vi
 
 bool CommandRemoveContact::procresult(Result r)
 {
-    error e = r.errorGeneral();
+    assert(r.hasJsonItem() || r.wasStrictlyError());
 
-    if (r.hasResultJSON())
+    if (r.hasJsonItem())
     {
+        // throw away string result, but we know the operation was successful
         client->json.storeobject();
-    }
 
-    if (User *u = client->finduser(email.c_str()))
-    {
-        //assert(!u || !u->show);
-        if (u->show != HIDDEN)
+        if (User *u = client->finduser(email.c_str()))
         {
-            u->show = HIDDEN;
-            LOG_warn << "Show flag was not HIDDEN yet";
-        }
-    }   
+            //assert(!u || !u->show);
+            if (u->show != HIDDEN)
+            {
+                u->show = HIDDEN;
+                LOG_warn << "Show flag was not HIDDEN yet";      // todo: caution: user related commands still use speculative instant completion
+            }
+        }   
 
-    client->app->removecontact_result(e);
-    return true;
+        client->app->removecontact_result(API_OK);
+        return true;
+    }
+    
+    client->app->removecontact_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag)
@@ -5299,8 +5303,6 @@ bool CommandQuerySignupLink::procresult(Result r)
             && (Base64::atob(pwcheck, pwcheckbuf, sizeof pwcheckbuf) == sizeof pwcheckbuf)
             && (Base64::atob(kc, kcbuf, sizeof kcbuf) == sizeof kcbuf))
         {
-            client->json.leavearray();
-
             client->app->querysignuplink_result(uh, name.c_str(),
                                                        email.c_str(),
                                                        pwcheckbuf, kcbuf,
@@ -5374,15 +5376,18 @@ CommandConfirmSignupLink::CommandConfirmSignupLink(MegaClient* client,
 
 bool CommandConfirmSignupLink::procresult(Result r)
 {
-    error e = r.errorGeneral();
+    assert(r.hasJsonItem() || r.wasStrictlyError());
 
-    if (!e)
+    if (r.hasJsonItem())
     {
+        client->json.storeobject();
         client->ephemeralSession = false;
+        client->app->confirmsignuplink_result(API_OK);
+        return true;
     }
 
-    client->app->confirmsignuplink_result(e);
-    return !r.hasResultJSON();
+    client->app->confirmsignuplink_result(r.errorOrOK());
+    return r.wasStrictlyError();
 }
 
 CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,
@@ -6262,9 +6267,8 @@ CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, 
 
 bool CommandGetEmailLink::procresult(Result r)
 {
-    assert(!r.hasResultJSON());
-    client->app->getemaillink_result(r.errorGeneral());
-    return !r.hasResultJSON();
+    client->app->getemaillink_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char *code, const char *email, const byte *newLoginHash, bool replace)
@@ -8579,8 +8583,9 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupTy
 
 bool CommandBackupPut::procresult(Result r)
 {
+    assert(r.wasStrictlyError() || r.hasJsonItem());
     handle backupId = UNDEF;
-    if (r.hasResultJSON())
+    if (r.hasJsonItem())
     {
         backupId = client->json.gethandle(MegaClient::USERHANDLE);
     }
@@ -8592,7 +8597,7 @@ bool CommandBackupPut::procresult(Result r)
     {
         client->app->backupput_result(r.errorGeneral(), backupId);
     }
-    return true;
+    return r.wasStrictlyError() || r.hasJsonItem();
 }
 
 CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, uint32_t ts, handle lastNode)

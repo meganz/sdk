@@ -112,10 +112,22 @@ public:
             return mOutcome == CmdError ? mError : API_OK;
         }
 
-        bool hasResultJSON()
+        bool hasJsonArray()
         {
-            // true if there is JSON to process (ie, not an error or actionpacket (except for a few commands that respond with cmdseq plus JSON))
-            return mOutcome == CmdArray || mOutcome == CmdObject || mOutcome == CmdItem;
+            // true if there is JSON Array to process (and we have already entered it) (note some commands that respond with cmdseq plus JSON, so this can happen for actionpacket results)
+            return mOutcome == CmdArray;
+        }
+
+        bool hasJsonObject()
+        {
+            // true if there is JSON Object to process (and we have already entered it) (note some commands that respond with cmdseq plus JSON, so this can happen for actionpacket results)
+            return mOutcome == CmdObject;
+        }
+
+        bool hasJsonItem()
+        {
+            // true if there is JSON to process but it's not an object or array (note some commands that respond with cmdseq plus JSON, so this can happen for actionpacket results)
+            return mOutcome == CmdItem;
         }
 
         // convenience function for commands that should only return numeric or actionpacket, consider anything else EINTERNAL
@@ -143,6 +155,11 @@ public:
         bool wasError(error e)
         {
             return mOutcome == CmdError && error(mError) == e;
+        }
+
+        bool wasStrictlyError()
+        {
+            return mOutcome == CmdError && error(mError) != API_OK;
         }
 
     };
