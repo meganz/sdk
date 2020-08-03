@@ -1,6 +1,6 @@
 
 set(VCPKG_VISUAL_STUDIO_PATH "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Professional")
-set(VCPKG_PLATFORM_TOOLSET v140)
+set(VCPKG_PLATFORM_TOOLSET v141)
 
 set(VCPKG_TARGET_ARCHITECTURE x86)
 
