@@ -22,11 +22,6 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-import mega.privacy.android.app.MegaApplication;
-import mega.privacy.android.app.R;
-
-import static nz.mega.sdk.MegaError.*;
-
 /**
  * Java Application Programming Interface (API) to access MEGA SDK services on a MEGA account or shared public folder.
  * <p>
@@ -121,6 +116,7 @@ public class MegaApiJava {
     public final static int PAYMENT_METHOD_PAYPAL = MegaApi.PAYMENT_METHOD_PAYPAL;
     public final static int PAYMENT_METHOD_ITUNES = MegaApi.PAYMENT_METHOD_ITUNES;
     public final static int PAYMENT_METHOD_GOOGLE_WALLET = MegaApi.PAYMENT_METHOD_GOOGLE_WALLET;
+    public final static int PAYMENT_METHOD_HUAWEI_WALLET = MegaApi.PAYMENT_METHOD_HUAWEI_WALLET;
     public final static int PAYMENT_METHOD_BITCOIN = MegaApi.PAYMENT_METHOD_BITCOIN;
     public final static int PAYMENT_METHOD_UNIONPAY = MegaApi.PAYMENT_METHOD_UNIONPAY;
     public final static int PAYMENT_METHOD_FORTUMO = MegaApi.PAYMENT_METHOD_FORTUMO;
@@ -9554,6 +9550,16 @@ public class MegaApiJava {
         }
 
         return result;
+    }
+
+    /**
+     * Returns whether notifications about a chat have to be generated.
+     *
+     * @param chatid MegaHandle that identifies the chat room.
+     * @return true if notification has to be created.
+     */
+    public boolean isChatNotifiable(long chatid) {
+        return megaApi.isChatNotifiable(chatid);
     }
 
     /**

@@ -45,8 +45,32 @@ using namespace std;
 bool PosixFileAccess::mFoundASymlink = false;
 
 #ifdef USE_IOS
-    char* PosixFileSystemAccess::appbasepath = NULL;
-#endif
+
+static string adjustBasePath(const LocalPath& name)
+{
+    // return a temporary variable that the caller can optionally use c_str on (in that expression)
+    if (PosixFileSystemAccess::appbasepath)
+    {
+        if (!name.empty() && name.editStringDirect()->at(0) != '/')
+        {
+            string absolutename = PosixFileSystemAccess::appbasepath;
+            absolutename.append(*name.editStringDirect());
+            return absolutename;
+        }
+    }
+    return *name.editStringDirect();
+}
+
+char* PosixFileSystemAccess::appbasepath = nullptr;
+
+#else /* USE_IOS */
+
+static const string& adjustBasePath(const LocalPath& name)
+{
+    return *name.editStringDirect();
+}
+
+#endif /* ! USE_IOS */
 
 #ifdef HAVE_AIO_RT
 PosixAsyncIOContext::PosixAsyncIOContext() : AsyncIOContext()
@@ -106,22 +130,18 @@ PosixFileAccess::~PosixFileAccess()
 
 bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 {
+#ifdef USE_IOS
+    const string nameStr = adjustBasePath(nonblocking_localname);
+#else
+    // use the existing string if it's not iOS, no need for a copy
+    const string& nameStr = adjustBasePath(nonblocking_localname);
+#endif
+
     struct stat statbuf;
     retry = false;
 
-#ifdef USE_IOS
-    string nonblocking_localname = this->nonblocking_localname;
-    if (PosixFileSystemAccess::appbasepath)
-    {
-        if (nonblocking_localname.size() && nonblocking_localname.at(0) != '/')
-        {
-            nonblocking_localname.insert(0, PosixFileSystemAccess::appbasepath);
-        }
-    }
-#endif
-
     type = TYPE_UNKNOWN;
-    mIsSymLink = lstat(nonblocking_localname.editStringDirect()->c_str(), &statbuf) == 0
+    mIsSymLink = lstat(nameStr.c_str(), &statbuf) == 0
                  && S_ISLNK(statbuf.st_mode);
     if (mIsSymLink && !PosixFileAccess::mFoundASymlink)
     {
@@ -129,8 +149,8 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
         PosixFileAccess::mFoundASymlink = true;
     }
 
-    if (!(mFollowSymLinks ? stat(nonblocking_localname.editStringDirect()->c_str(), &statbuf)
-                         : lstat(nonblocking_localname.editStringDirect()->c_str(), &statbuf)))
+    if (!(mFollowSymLinks ? stat(nameStr.c_str(), &statbuf)
+                         : lstat(nameStr.c_str(), &statbuf)))
     {
         errorcode = 0;
         if (S_ISDIR(statbuf.st_mode))
@@ -154,17 +174,6 @@ bool PosixFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
 
 bool PosixFileAccess::sysopen(bool)
 {
-#ifdef USE_IOS
-    string nonblocking_localname = this->nonblocking_localname;
-    if (PosixFileSystemAccess::appbasepath)
-    {
-        if (nonblocking_localname.size() && nonblocking_localname.at(0) != '/')
-        {
-            nonblocking_localname.insert(0, PosixFileSystemAccess::appbasepath);
-        }
-    }
-#endif
-
     assert(fd < 0 && "There should be no opened file descriptor at this point");
     if (fd >= 0)
     {
@@ -175,7 +184,7 @@ bool PosixFileAccess::sysopen(bool)
     // this is ok: this is not called with mFollowSymLinks = false, but from transfers doio.
     // When fully supporting symlinks, this might need to be reassessed
 
-    return (fd = open(nonblocking_localname.editStringDirect()->c_str(), O_RDONLY)) >= 0;
+    return (fd = open(adjustBasePath(nonblocking_localname).c_str(), O_RDONLY)) >= 0;
 }
 
 void PosixFileAccess::sysclose()
@@ -398,19 +407,6 @@ int PosixFileAccess::stealFileDescriptor()
 
 bool PosixFileAccess::fopen(LocalPath& f, bool read, bool write, DirAccess* iteratingDir)
 {
-#ifdef USE_IOS
-    string absolutef;
-    if (PosixFileSystemAccess::appbasepath)
-    {
-        if (f->size() && f->at(0) != '/')
-        {
-            absolutef = PosixFileSystemAccess::appbasepath;
-            absolutef.append(*f);
-            f = &absolutef;
-        }
-    }
-#endif
-
     struct stat statbuf;
 
     retry = false;
@@ -422,26 +418,34 @@ bool PosixFileAccess::fopen(LocalPath& f, bool read, bool write, DirAccess* iter
         statok = true;
     }
 
+#ifdef USE_IOS
+    const string fstr = adjustBasePath(f);
+#else
+    // use the existing string if it's not iOS, no need for a copy
+    const string& fstr = adjustBasePath(f);
+#endif
+
+
 #ifdef __MACH__
     if (!write)
     {
         char resolved_path[PATH_MAX];
-        if (memcmp(f->c_str(), ".", 2) && memcmp(f->c_str(), "..", 3)
-                && (statok || !lstat(f->c_str(), &statbuf) )
+        if (memcmp(fstr.c_str(), ".", 2) && memcmp(fstr.c_str(), "..", 3)
+                && (statok || !lstat(fstr.c_str(), &statbuf) )
                 && !S_ISLNK(statbuf.st_mode)
-                && realpath(f->c_str(), resolved_path) == resolved_path)
+                && realpath(fstr.c_str(), resolved_path) == resolved_path)
         {
             const char *fname;
             size_t fnamesize;
-            if ((fname = strrchr(f->c_str(), '/')))
+            if ((fname = strrchr(fstr.c_str(), '/')))
             {
                 fname++;
-                fnamesize = f->size() - (fname - f->c_str());
+                fnamesize = fstr.size() - (fname - fstr.c_str());
             }
             else
             {
-                fname =  f->c_str();
-                fnamesize = f->size();
+                fname =  fstr.c_str();
+                fnamesize = fstr.size();
             }
             fnamesize++;
 
@@ -459,7 +463,7 @@ bool PosixFileAccess::fopen(LocalPath& f, bool read, bool write, DirAccess* iter
 
             if (rnamesize == fnamesize && memcmp(fname, rname, fnamesize))
             {
-                LOG_warn << "fopen failed due to invalid case: " << f->c_str();
+                LOG_warn << "fopen failed due to invalid case: " << fstr;
                 return false;
             }
         }
@@ -471,10 +475,10 @@ bool PosixFileAccess::fopen(LocalPath& f, bool read, bool write, DirAccess* iter
     {
         // workaround for the very unfortunate platforms that do not implement fdopendir() (MacOS...)
         // (FIXME: can this be done without intruducing a race condition?)
-        if ((dp = opendir(f.editStringDirect()->c_str())))
+        if ((dp = opendir(fstr.c_str())))
         {
             // stat & check if the directory is still a directory...
-            if (stat(f.editStringDirect()->c_str(), &statbuf)
+            if (stat(fstr.c_str(), &statbuf)
                 || !S_ISDIR(statbuf.st_mode))
             {
                 return false;
@@ -497,7 +501,7 @@ bool PosixFileAccess::fopen(LocalPath& f, bool read, bool write, DirAccess* iter
 
     if (!statok)
     {
-         mIsSymLink = lstat(f.editStringDirect()->c_str(), &statbuf) == 0
+         mIsSymLink = lstat(fstr.c_str(), &statbuf) == 0
                       && S_ISLNK(statbuf.st_mode);
         if (mIsSymLink && !PosixFileAccess::mFoundASymlink)
         {
@@ -526,7 +530,7 @@ bool PosixFileAccess::fopen(LocalPath& f, bool read, bool write, DirAccess* iter
     sysclose();
     // if mFollowSymLinks is true (open normally: it will open the targeted file/folder),
     // otherwise, get the file descriptor for symlinks in case it is a sync link (notice O_PATH invalidates read/only flags)
-    if ((fd = open(f.editStringDirect()->c_str(), (!mFollowSymLinks && mIsSymLink) ? (O_PATH | O_NOFOLLOW) : (write ? (read ? O_RDWR : O_WRONLY | O_CREAT) : O_RDONLY) , defaultfilepermissions)) >= 0 || statok)
+    if ((fd = open(fstr.c_str(), (!mFollowSymLinks && mIsSymLink) ? (O_PATH | O_NOFOLLOW) : (write ? (read ? O_RDWR : O_WRONLY | O_CREAT) : O_RDONLY) , defaultfilepermissions)) >= 0 || statok)
     {
         if (write)
         {
@@ -544,7 +548,7 @@ bool PosixFileAccess::fopen(LocalPath& f, bool read, bool write, DirAccess* iter
                 //If creation time equal to kMagicBusyCreationDate
                 if(statbuf.st_birthtimespec.tv_sec == -2082844800)
                 {
-                    LOG_debug << "File is busy: " << f->c_str();
+                    LOG_debug << "File is busy: " << fstr;
                     retry = true;
                     return false;
                 }
@@ -929,15 +933,18 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
                 for (it = client->syncs.begin(); it != client->syncs.end(); it++)
                 {
-                    int rsize = (*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.size() : (*it)->localroot->localname.size();
-                    int isize = (*it)->dirnotify->ignore.size();
+                    std::string* ignore = (*it)->dirnotify->ignore.editStringDirect();
+                    std::string* localname = (*it)->localroot->localname.editStringDirect();
+
+                    int rsize = (*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.size() : localname->size();
+                    int isize = ignore->size();
 
                     if (psize >= rsize
-                      && !memcmp((*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.c_str() : (*it)->localroot->localname.c_str(), path, rsize)    // prefix match
+                      && !memcmp((*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.c_str() : localname->c_str(), path, rsize)    // prefix match
                       && (!path[rsize] || path[rsize] == '/')               // at end: end of path or path separator
                       && (psize <= (rsize + isize)                          // not ignored
                           || (path[rsize + isize + 1] && path[rsize + isize + 1] != '/')
-                          || memcmp(path + rsize + 1, (*it)->dirnotify->ignore.c_str(), isize))
+                          || memcmp(path + rsize + 1, ignore->c_str(), isize))
                       && (psize < rsrcsize                                  // it isn't a resource fork
                           || memcmp(path + psize - rsrcsize, rsrc, rsrcsize)))
                         {
@@ -974,7 +981,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                     LOG_debug << "Filesystem notification. Root: " << pathsync[i]->localroot->name << "   Path: " << paths[i];
                     pathsync[i]->dirnotify->notify(DirNotify::DIREVENTS,
                                                    pathsync[i]->localroot.get(),
-                                                   paths[i],
+                                                   LocalPath::fromLocalname(paths[i]),
                                                    strlen(paths[i]));
 
                     r |= Waiter::NEEDEXEC;
@@ -1022,32 +1029,18 @@ bool PosixFileSystemAccess::getsname(LocalPath&, LocalPath&) const
 bool PosixFileSystemAccess::renamelocal(LocalPath& oldname, LocalPath& newname, bool override)
 {
 #ifdef USE_IOS
-    string absoluteoldname;
-    string absolutenewname;
-    if (appbasepath)
-    {
-        if (oldname->size() && oldname->at(0) != '/')
-        {
-            absoluteoldname = appbasepath;
-            absoluteoldname.append(*oldname);
-            oldname = &absoluteoldname;
-        }
-
-        if (newname->size() && newname->at(0) != '/')
-        {
-            absolutenewname = appbasepath;
-            absolutenewname.append(*newname);
-            newname = &absolutenewname;
-        }
-    }
+    const string oldnamestr = adjustBasePath(oldname);
+    const string newnamestr = adjustBasePath(newname);
+#else
+    // use the existing string if it's not iOS, no need for a copy
+    const string& oldnamestr = adjustBasePath(oldname);
+    const string& newnamestr = adjustBasePath(newname);
 #endif
-    const char *oldname_str = oldname.editStringDirect()->c_str();
-    const char *newname_str = newname.editStringDirect()->c_str();
 
-    bool existingandcare = !override && (0 == access(newname_str, F_OK));
-    if (!existingandcare && !rename(oldname_str, newname_str))
+    bool existingandcare = !override && (0 == access(newnamestr.c_str(), F_OK));
+    if (!existingandcare && !rename(oldnamestr.c_str(), newnamestr.c_str()))
     {
-        LOG_verbose << "Successfully moved file: " << oldname_str << " to " << newname_str;
+        LOG_verbose << "Successfully moved file: " << oldnamestr << " to " << newnamestr;
         return true;
     }
 
@@ -1057,7 +1050,7 @@ bool PosixFileSystemAccess::renamelocal(LocalPath& oldname, LocalPath& newname, 
     int e = errno;
     if (!skip_errorreport)
     {
-        LOG_warn << "Unable to move file: " << oldname_str << " to " << newname_str << ". Error code: " << e;
+        LOG_warn << "Unable to move file: " << oldnamestr << " to " << newnamestr << ". Error code: " << e;
     }
     return false;
 }
@@ -1065,24 +1058,12 @@ bool PosixFileSystemAccess::renamelocal(LocalPath& oldname, LocalPath& newname, 
 bool PosixFileSystemAccess::copylocal(LocalPath& oldname, LocalPath& newname, m_time_t mtime)
 {
 #ifdef USE_IOS
-    string absoluteoldname;
-    string absolutenewname;
-    if (appbasepath)
-    {
-        if (oldname->size() && oldname->at(0) != '/')
-        {
-            absoluteoldname = appbasepath;
-            absoluteoldname.append(*oldname);
-            oldname = &absoluteoldname;
-        }
-
-        if (newname->size() && newname->at(0) != '/')
-        {
-            absolutenewname = appbasepath;
-            absolutenewname.append(*newname);
-            newname = &absolutenewname;
-        }
-    }
+    const string oldnamestr = adjustBasePath(oldname);
+    const string newnamestr = adjustBasePath(newname);
+#else
+    // use the existing string if it's not iOS, no need for a copy
+    const string& oldnamestr = adjustBasePath(oldname);
+    const string& newnamestr = adjustBasePath(newname);
 #endif
 
     int sfd, tfd;
@@ -1090,22 +1071,22 @@ bool PosixFileSystemAccess::copylocal(LocalPath& oldname, LocalPath& newname, m_
 
 #ifdef HAVE_SENDFILE
     // Linux-specific - kernel 2.6.33+ required
-    if ((sfd = open(oldname.editStringDirect->c_str(), O_RDONLY | O_DIRECT)) >= 0)
+    if ((sfd = open(oldnamestr.c_str(), O_RDONLY | O_DIRECT)) >= 0)
     {
         LOG_verbose << "Copying via sendfile";
         mode_t mode = umask(0);
-        if ((tfd = open(newname.editStringDirect()->c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_DIRECT, defaultfilepermissions)) >= 0)
+        if ((tfd = open(newnamestr.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_DIRECT, defaultfilepermissions)) >= 0)
         {
             umask(mode);
             while ((t = sendfile(tfd, sfd, NULL, 1024 * 1024 * 1024)) > 0);
 #else
     char buf[16384];
 
-    if ((sfd = open(oldname.editStringDirect()->c_str(), O_RDONLY)) >= 0)
+    if ((sfd = open(oldnamestr.c_str(), O_RDONLY)) >= 0)
     {
         LOG_verbose << "Copying via read/write";
         mode_t mode = umask(0);
-        if ((tfd = open(newname.editStringDirect()->c_str(), O_WRONLY | O_CREAT | O_TRUNC, defaultfilepermissions)) >= 0)
+        if ((tfd = open(newnamestr.c_str(), O_WRONLY | O_CREAT | O_TRUNC, defaultfilepermissions)) >= 0)
         {
             umask(mode);
             while (((t = read(sfd, buf, sizeof buf)) > 0) && write(tfd, buf, t) == t);
@@ -1137,7 +1118,7 @@ bool PosixFileSystemAccess::copylocal(LocalPath& oldname, LocalPath& newname, m_
     else
     {
         int e = errno;
-        LOG_debug << "Unable to copy file: " << oldname.editStringDirect()->c_str() << " to " << newname.editStringDirect()->c_str() << ". Error code: " << e;
+        LOG_debug << "Unable to copy file: " << oldnamestr << " to " << newnamestr << ". Error code: " << e;
     }
 
     return !t;
@@ -1145,22 +1126,9 @@ bool PosixFileSystemAccess::copylocal(LocalPath& oldname, LocalPath& newname, m_
 
 bool PosixFileSystemAccess::unlinklocal(LocalPath& name)
 {
-#ifdef USE_IOS
-    string absolutename;
-    if (appbasepath)
+    if (!unlink(adjustBasePath(name).c_str()))
     {
-        if (name->size() && name->at(0) != '/')
-        {
-            absolutename = appbasepath;
-            absolutename.append(*name);
-            name = &absolutename;
-        }
-    }
-#endif
-
-    if (!unlink(name.editStringDirect()->c_str()))
-    {
-            return true;
+        return true;
     }
 
     transient_error = errno == ETXTBSY || errno == EBUSY;
@@ -1172,29 +1140,20 @@ bool PosixFileSystemAccess::unlinklocal(LocalPath& name)
 // (does not recurse into mounted devices)
 void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
 {
-#ifdef USE_IOS
-    string absolutename;
-    if (appbasepath)
-    {
-        if (name->size() && name->at(0) != '/')
-        {
-            absolutename = appbasepath;
-            absolutename.append(*name);
-            name = &absolutename;
-        }
-    }
-#endif
-
     DIR* dp;
     dirent* d;
     int removed;
     struct stat statbuf;
-    size_t t;
     PosixFileSystemAccess pfsa;
+#ifdef USE_IOS
+    const string namestr = adjustBasePath(name);
+#else
+    const string& namestr = adjustBasePath(name);
+#endif
 
     if (!basedev)
     {
-        if (lstat(name.editStringDirect()->c_str(), &statbuf)
+        if (lstat(namestr.c_str(), &statbuf)
             || !S_ISDIR(statbuf.st_mode)
             || S_ISLNK(statbuf.st_mode))
         {
@@ -1204,7 +1163,7 @@ void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
         basedev = statbuf.st_dev;
     }
 
-    if ((dp = opendir(name.editStringDirect()->c_str())))
+    if ((dp = opendir(namestr.c_str())))
     {
         for (;;)
         {
@@ -1220,16 +1179,22 @@ void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
 
                     name.appendWithSeparator(LocalPath::fromLocalname(d->d_name), true, pfsa.localseparator);
 
-                    if (!lstat(name.editStringDirect()->c_str(), &statbuf))
+#ifdef USE_IOS
+                    const string nameStr = adjustBasePath(name);
+#else
+                    // use the existing string if it's not iOS, no need for a copy
+                    const string& nameStr = adjustBasePath(name);
+#endif
+                    if (!lstat(nameStr.c_str(), &statbuf))
                     {
                         if (!S_ISLNK(statbuf.st_mode) && S_ISDIR(statbuf.st_mode) && statbuf.st_dev == basedev)
                         {
                             emptydirlocal(name, basedev);
-                            removed |= !rmdir(name.editStringDirect()->c_str());
+                            removed |= !rmdir(nameStr.c_str());
                         }
                         else
                         {
-                            removed |= !unlink(name.editStringDirect()->c_str());
+                            removed |= !unlink(nameStr.c_str());
                         }
                     }
                 }
@@ -1269,22 +1234,9 @@ void PosixFileSystemAccess::setdefaultfolderpermissions(int permissions)
 
 bool PosixFileSystemAccess::rmdirlocal(LocalPath& name)
 {
-#ifdef USE_IOS
-    string absolutename;
-    if (appbasepath)
-    {
-        if (name->size() && name->at(0) != '/')
-        {
-            absolutename = appbasepath;
-            absolutename.append(*name);
-            name = &absolutename;
-        }
-    }
-#endif
-
     emptydirlocal(name);
 
-    if (!rmdir(name.editStringDirect()->c_str()))
+    if (!rmdir(adjustBasePath(name).c_str()))
     {
         return true;
     }
@@ -1297,20 +1249,14 @@ bool PosixFileSystemAccess::rmdirlocal(LocalPath& name)
 bool PosixFileSystemAccess::mkdirlocal(LocalPath& name, bool)
 {
 #ifdef USE_IOS
-    string absolutename;
-    if (appbasepath)
-    {
-        if (name->size() && name->at(0) != '/')
-        {
-            absolutename = appbasepath;
-            absolutename.append(*name);
-            name = &absolutename;
-        }
-    }
+    const string nameStr = adjustBasePath(name);
+#else
+    // use the existing string if it's not iOS, no need for a copy
+    const string& nameStr = adjustBasePath(name);
 #endif
 
     mode_t mode = umask(0);
-    bool r = !mkdir(name.editStringDirect()->c_str(), defaultfolderpermissions);
+    bool r = !mkdir(nameStr.c_str(), defaultfolderpermissions);
     umask(mode);
 
     if (!r)
@@ -1318,11 +1264,11 @@ bool PosixFileSystemAccess::mkdirlocal(LocalPath& name, bool)
         target_exists = errno == EEXIST;
         if (target_exists)
         {
-            LOG_debug << "Error creating local directory: " << name.editStringDirect()->c_str() << " errno: " << errno;
+            LOG_debug << "Error creating local directory: " << nameStr << " errno: " << errno;
         }
         else
         {
-            LOG_err << "Error creating local directory: " << name.editStringDirect()->c_str() << " errno: " << errno;
+            LOG_err << "Error creating local directory: " << nameStr << " errno: " << errno;
         }
         transient_error = errno == ETXTBSY || errno == EBUSY;
     }
@@ -1333,24 +1279,18 @@ bool PosixFileSystemAccess::mkdirlocal(LocalPath& name, bool)
 bool PosixFileSystemAccess::setmtimelocal(LocalPath& name, m_time_t mtime)
 {
 #ifdef USE_IOS
-    string absolutename;
-    if (appbasepath)
-    {
-        if (name->size() && name->at(0) != '/')
-        {
-            absolutename = appbasepath;
-            absolutename.append(*name);
-            name = &absolutename;
-        }
-    }
+    const string nameStr = adjustBasePath(name);
+#else
+    // use the existing string if it's not iOS, no need for a copy
+    const string& nameStr = adjustBasePath(name);
 #endif
 
     struct utimbuf times = { (time_t)mtime, (time_t)mtime };
 
-    bool success = !utime(name.editStringDirect()->c_str(), &times);
+    bool success = !utime(nameStr.c_str(), &times);
     if (!success)
     {
-        LOG_err << "Error setting mtime: " << *name.editStringDirect() <<" mtime: "<< mtime << " errno: " << errno;
+        LOG_err << "Error setting mtime: " << nameStr <<" mtime: "<< mtime << " errno: " << errno;
         transient_error = errno == ETXTBSY || errno == EBUSY;
     }
 
@@ -1359,20 +1299,7 @@ bool PosixFileSystemAccess::setmtimelocal(LocalPath& name, m_time_t mtime)
 
 bool PosixFileSystemAccess::chdirlocal(LocalPath& name) const
 {
-#ifdef USE_IOS
-    string absolutename;
-    if (appbasepath)
-    {
-        if (name->size() && name->at(0) != '/')
-        {
-            absolutename = appbasepath;
-            absolutename.append(*name);
-            name = &absolutename;
-        }
-    }
-#endif
-
-    return !chdir(name.editStringDirect()->c_str());
+    return !chdir(adjustBasePath(name).c_str());
 }
 
 size_t PosixFileSystemAccess::lastpartlocal(const string* localname) const
@@ -1873,22 +1800,9 @@ DirNotify* PosixFileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& 
 
 bool PosixDirAccess::dopen(LocalPath* path, FileAccess* f, bool doglob)
 {
-#ifdef USE_IOS
-    string absolutepath;
-    if (PosixFileSystemAccess::appbasepath)
-    {
-        if (path->size() && path->at(0) != '/')
-        {
-            absolutepath = PosixFileSystemAccess::appbasepath;
-            absolutepath.append(*path);
-            path = &absolutepath;
-        }
-    }
-#endif
-
     if (doglob)
     {
-        if (glob(path->editStringDirect()->c_str(), GLOB_NOSORT, NULL, &globbuf))
+        if (glob(adjustBasePath(*path).c_str(), GLOB_NOSORT, NULL, &globbuf))
         {
             return false;
         }
@@ -1910,7 +1824,7 @@ bool PosixDirAccess::dopen(LocalPath* path, FileAccess* f, bool doglob)
     }
     else
     {
-        dp = opendir(path->editStringDirect()->c_str());
+        dp = opendir(adjustBasePath(*path).c_str());
     }
 
     return dp != NULL;
@@ -1918,19 +1832,6 @@ bool PosixDirAccess::dopen(LocalPath* path, FileAccess* f, bool doglob)
 
 bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks, nodetype_t* type)
 {
-#ifdef USE_IOS
-    string absolutepath;
-    if (PosixFileSystemAccess::appbasepath)
-    {
-        if (path->size() && path->at(0) != '/')
-        {
-            absolutepath = PosixFileSystemAccess::appbasepath;
-            absolutepath.append(*path);
-            path = &absolutepath;
-        }
-    }
-#endif
-
     if (globbing)
     {
         struct stat &statbuf = currentItemStat;
@@ -1967,11 +1868,18 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
         {
             path.appendWithSeparator(LocalPath::fromLocalname(d->d_name), true, pfsa.localseparator);
 
-            bool statOk = !lstat(path.editStringDirect()->c_str(), &statbuf);
+#ifdef USE_IOS
+            const string pathStr = adjustBasePath(path);
+#else
+            // use the existing string if it's not iOS, no need for a copy
+            const string& pathStr = adjustBasePath(path);
+#endif
+
+            bool statOk = !lstat(pathStr.c_str(), &statbuf);
             if (followsymlinks && statOk && S_ISLNK(statbuf.st_mode))
             {
                 currentItemFollowedSymlink = true;
-                statOk = !stat(path.editStringDirect()->c_str(), &statbuf);
+                statOk = !stat(pathStr.c_str(), &statbuf);
             }
             else
             {

@@ -5509,7 +5509,7 @@ bool CommandFetchNodes::procresult(Result r)
 
             case MAKENAMEID2('s', 'n'):
                 // sequence number
-                if (!client->setscsn(&client->json))
+                if (!client->scsn.setScsn(&client->json))
                 {
                     client->fetchingnodes = false;
                     client->app->fetchnodes_result(API_EINTERNAL);
@@ -5546,7 +5546,7 @@ bool CommandFetchNodes::procresult(Result r)
 #endif
             case EOO:
             {
-                if (!*client->scsn)
+                if (!client->scsn.ready())
                 {
                     client->fetchingnodes = false;
                     client->app->fetchnodes_result(API_EINTERNAL);
@@ -7936,9 +7936,14 @@ bool CommandMultiFactorAuthCheck::procresult(Result r)
         client->app->multifactorauthcheck_result(r.errorOrOK());
         return true;
     }
-    else    // error
+
+    if (client->json.isnumeric())
     {
-        client->json.storeobject();
+        client->app->multifactorauthcheck_result(static_cast<int>(client->json.getint()));
+        return true;
+    }
+    else
+    {
         client->app->multifactorauthcheck_result(API_EINTERNAL);
         return false;
     }

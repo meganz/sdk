@@ -373,7 +373,7 @@ AppFilePut::~AppFilePut()
 
 void AppFilePut::displayname(string* dname)
 {
-    *dname = localname.toName(*transfer->client->fsaccess, client->fsaccess->getFilesystemType(dname));
+    *dname = localname.toName(*transfer->client->fsaccess, client->fsaccess->getFilesystemType(localname));
 }
 
 // transfer progress callback
@@ -662,7 +662,7 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time
         name = *cfilename;
     }
 
-    localname = LocalPath::fromName(name, *client->fsaccess, client->fsaccess->getFilesystemType(&name));
+    localname = LocalPath::fromName(name, *client->fsaccess, client->fsaccess->getFilesystemType(LocalPath::fromPath(name, *client->fsaccess)));
     if (!targetfolder.empty())
     {
         string s = targetfolder;
@@ -682,8 +682,7 @@ AppFilePut::AppFilePut(const LocalPath& clocalname, handle ch, const char* ctarg
     targetuser = ctargetuser;
 
     // erase path component
-    auto dummyName = clocalname.toPath(*client->fsaccess);
-    auto fileSystemType = client->fsaccess->getFilesystemType(&dummyName);
+    auto fileSystemType = client->fsaccess->getFilesystemType(clocalname);
 
     LocalPath p = clocalname;
     p.erase(0, p.lastpartlocal(*client->fsaccess));
@@ -2342,7 +2341,7 @@ public:
     // process file credentials
     bool procresult(Result r) override
     {
-        if (!r.wasError())
+        if (!r.wasErrorOrOK())
         {
             std::vector<string> tempurls;
             bool done = false;
@@ -2539,7 +2538,7 @@ bool recursiveCompare(Node* mn, fs::path p)
     }
 
     std::string path = p.u8string();
-    auto fileSystemType = client->fsaccess->getFilesystemType(&path);
+    auto fileSystemType = client->fsaccess->getFilesystemType(LocalPath::fromPath(path, *client->fsaccess));
     multimap<string, Node*> ms;
     multimap<string, fs::path> ps;
     for (auto& m : mn->children)
@@ -3019,7 +3018,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_handles, sequence(text("handles"), opt(either(text("on"), text("off")))));
     p->Add(exec_httpsonly, sequence(text("httpsonly"), opt(either(text("on"), text("off")))));
 
-    p->Add(exec_mfac, sequence(text("mfac")));
+    p->Add(exec_mfac, sequence(text("mfac"), param("email")));
     p->Add(exec_mfae, sequence(text("mfae")));
     p->Add(exec_mfad, sequence(text("mfad"), param("pin")));
 
@@ -4382,7 +4381,17 @@ void exec_mfad(autocomplete::ACState& s)
 
 void exec_mfac(autocomplete::ACState& s)
 {
-    client->multifactorauthcheck(login.email.c_str());
+    string email;
+    if (s.words.size() == 2)
+    {
+        email = s.words[1].s;
+    }
+    else
+    {
+        email = login.email;
+    }
+
+    client->multifactorauthcheck(email.c_str());
 }
 
 void exec_mfae(autocomplete::ACState& s)
@@ -8057,7 +8066,7 @@ void exec_metamac(autocomplete::ACState& s)
 
     auto ifAccess = client->fsaccess->newfileaccess();
     {
-        auto localPath = LocalPath::fromName(s.words[1].s, *client->fsaccess, client->fsaccess->getFilesystemType(&s.words[1].s));
+        auto localPath = LocalPath::fromName(s.words[1].s, *client->fsaccess, client->fsaccess->getFilesystemType(LocalPath::fromPath(s.words[1].s, *client->fsaccess)));
         if (!ifAccess->fopen(localPath, 1, 0))
         {
             cerr << "Failed to open: " << s.words[1].s << endl;

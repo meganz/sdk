@@ -692,7 +692,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
     fsstableids = dirnotify->fsstableids();
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
 
-    mFilesystemType = client->fsaccess->getFilesystemType(&mLocalPath);
+    mFilesystemType = client->fsaccess->getFilesystemType(crootpath);
 
     localroot->init(this, FOLDERNODE, NULL, crootpath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
     localroot->setnode(remotenode);
@@ -701,13 +701,13 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
     if (macOSmajorVersion() >= 19) //macOS catalina+
     {
         LOG_debug << "macOS 10.15+ filesystem detected. Checking fseventspath.";
-        string supercrootpath = "/System/Volumes/Data" + crootpath;
+        string supercrootpath = "/System/Volumes/Data" + *crootpath.editStringDirect();
 
         int fd = open(supercrootpath.c_str(), O_RDONLY);
         if (fd == -1)
         {
             LOG_debug << "Unable to open path using fseventspath.";
-            mFsEventsPath = crootpath;
+            mFsEventsPath = *crootpath.editStringDirect();
         }
         else
         {
@@ -715,7 +715,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
             if (fcntl(fd, F_GETPATH, buf) < 0)
             {
                 LOG_debug << "Using standard paths to detect filesystem notifications.";
-                mFsEventsPath = crootpath;
+                mFsEventsPath = *crootpath.editStringDirect();
             }
             else
             {

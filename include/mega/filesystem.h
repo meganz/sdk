@@ -31,7 +31,7 @@
 #elif defined  (__APPLE__) || defined (USE_IOS)
 #include <sys/mount.h>
 #include <sys/param.h>
-#elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
+#elif defined(_WIN32) || defined(WINDOWS_PHONE)
 #include <winsock2.h>
 #include <Windows.h>
 #endif
@@ -160,11 +160,15 @@ public:
     void trimNonDriveTrailingSeparator(const FileSystemAccess& fsaccess);
     bool findNextSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
     bool findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
+    bool endsInSeparator(const FileSystemAccess& fsaccess) const;
+
+    // get the index of the leaf name.  A trailing separator is considered part of the leaf.
     size_t getLeafnameByteIndex(const FileSystemAccess& fsaccess) const;
-    bool backEqual(size_t bytePos, const std::string& compareTo) const;
     bool backEqual(size_t bytePos, const LocalPath& compareTo) const;
     LocalPath subpathFrom(size_t bytePos) const;
     std::string substrTo(size_t bytePos) const;
+
+    void ensureWinExtendedPathLenPrefix();
 
     bool isContainingPathOf(const LocalPath& path, const FileSystemAccess& fsaccess);
 
@@ -441,12 +445,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     bool islocalfscompatible(unsigned char, bool isEscape, FileSystemType = FS_UNKNOWN) const;
     void escapefsincompatible(string*, FileSystemType fileSystemType) const;
 
-    // Obtain a valid path by removing filename or debris directory from originalPath
-    // returns true if tempPath is modified, otherwise returns false
-    bool getValidPath(const string *originalPath, std::string &tempPath) const;
-    FileSystemType getFilesystemType(const string* dstPath) const;
+    FileSystemType getFilesystemType(const LocalPath& dstPath) const;
     const char *fstypetostring(FileSystemType type) const;
-    FileSystemType getlocalfstype(const std::string *dstPath) const;
+    FileSystemType getlocalfstype(const LocalPath& dstPath) const;
     void unescapefsincompatible(string*,FileSystemType) const;
 
     // convert MEGA path (UTF-8) to local format
