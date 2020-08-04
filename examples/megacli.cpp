@@ -4210,6 +4210,10 @@ void exec_open(autocomplete::ACState& s)
         if (!clientFolder)
         {
             using namespace mega;
+#ifdef GFX_CLASS
+            auto gfx = new GFX_CLASS;
+            gfx->startProcessingThread();
+#endif
             // create a new MegaClient with a different MegaApp to process callbacks
             // from the client logged into a folder. Reuse the waiter and httpio
             clientFolder = new MegaClient(new DemoAppFolder, client->waiter,
@@ -4220,7 +4224,7 @@ void exec_open(autocomplete::ACState& s)
                                             NULL,
                 #endif
                 #ifdef GFX_CLASS
-                                            new GFX_CLASS,
+                                            gfx,
                 #else
                                             NULL,
                 #endif
@@ -7932,6 +7936,11 @@ int main()
 
     console = new CONSOLE_CLASS;
 
+#ifdef GFX_CLASS
+    auto gfx = new GFX_CLASS;
+    gfx->startProcessingThread();
+#endif
+
     // instantiate app components: the callback processor (DemoApp),
     // the HTTP I/O engine (WinHttpIO) and the MegaClient itself
     client = new MegaClient(new DemoApp, 
@@ -7947,7 +7956,7 @@ int main()
                             NULL,
 #endif
 #ifdef GFX_CLASS
-                            new GFX_CLASS,
+                            gfx,
 #else
                             NULL,
 #endif

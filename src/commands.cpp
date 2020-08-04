@@ -1199,7 +1199,7 @@ bool CommandPutNodes::procresult(Result r)
 {
     removePendingDBRecordsAndTempFiles();
 
-    if (r.mOutcome == CmdArray || r.mOutcome == CmdObject)
+    if (r.hasJsonArray() || r.hasJsonObject())
     {
         client->sendkeyrewrites();
 
@@ -1210,7 +1210,7 @@ bool CommandPutNodes::procresult(Result r)
         unsigned arrayIndex = 0;
         for (;;)
         {
-            if (r.mOutcome == CmdArray)
+            if (r.hasJsonArray())
             {
                 if (!client->json.isnumeric()) 
                 {
@@ -2764,7 +2764,6 @@ bool CommandRemoveContact::procresult(Result r)
 }
 
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag)
-    : Command(true)
 {
     this->attrs = *attrs;
 
@@ -2905,7 +2904,6 @@ bool CommandPutMultipleUAVer::procresult(Result r)
 
 
 CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag)
-    : Command(true)
 {
     this->at = at;
     this->av.assign((const char*)av, avl);
@@ -3001,7 +2999,6 @@ bool CommandPutUAVer::procresult(Result r)
 
 
 CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, unsigned avl, int ctag, handle lph, int phtype, int64_t ts)
-    : Command(true, true)
 {
     this->at = at;
     this->av.assign((const char*)av, avl);
@@ -3081,7 +3078,6 @@ bool CommandPutUA::procresult(Result r)
 }
 
 CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, const char* ph, int ctag)
-    : Command(true)
 {
     this->uid = uid;
     this->at = at;
@@ -3439,7 +3435,7 @@ CommandSendDevCommand::CommandSendDevCommand(MegaClient *client, const char *com
 bool CommandSendDevCommand::procresult(Result r)
 {
     client->app->senddevcommand_result(r.errorResultOrActionpacket());
-    return true;
+    return r.wasErrorOrActionpacket();
 }
 
 #endif  // #ifdef DEBUG
@@ -3475,6 +3471,7 @@ bool CommandGetUserEmail::procresult(Result r)
 
 // set node keys (e.g. to convert asymmetric keys to symmetric ones)
 CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
+    : Command(true)
 {
     byte nodekey[FILENODEKEYLENGTH];
 
@@ -3500,6 +3497,7 @@ CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
 }
 
 CommandSingleKeyCR::CommandSingleKeyCR(handle sh, handle nh, const byte* key, size_t keylen)
+    : Command(true)
 {
     cmd("k");
     beginarray("cr");
@@ -3522,6 +3520,7 @@ CommandSingleKeyCR::CommandSingleKeyCR(handle sh, handle nh, const byte* key, si
 }
 
 CommandKeyCR::CommandKeyCR(MegaClient* /*client*/, node_vector* rshares, node_vector* rnodes, const char* keys)
+    : Command(true)
 {
     cmd("k");
     beginarray("cr");
@@ -5009,6 +5008,7 @@ bool CommandGetPH::procresult(Result r)
 }
 
 CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, const byte *hash, int hashsize, const byte *clientrandomvalue, const char *pin, string *salt)
+    : Command(true, true)
 {
     memcpy(this->newkey, newkey, SymmCipher::KEYLENGTH);
 
@@ -5054,6 +5054,7 @@ CommandCreateEphemeralSession::CommandCreateEphemeralSession(MegaClient* client,
                                                              const byte* key,
                                                              const byte* cpw,
                                                              const byte* ssc)
+    : Command(true, true)
 {
     memcpy(pw, cpw, sizeof pw);
 
@@ -5361,7 +5362,7 @@ CommandConfirmSignupLink::CommandConfirmSignupLink(MegaClient* client,
                                                    const byte* code,
                                                    unsigned len,
                                                    uint64_t emailhash)
-    : Command(true)
+    : Command(true, true)
 {
     cmd("up");
     arg("c", code, len);
@@ -5391,6 +5392,7 @@ bool CommandConfirmSignupLink::procresult(Result r)
 CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,
                                      unsigned privklen, const byte* pubk,
                                      unsigned pubklen)
+    : Command(true, true)
 {
     cmd("up");
     arg("privk", privk, privklen);
@@ -5892,6 +5894,7 @@ bool CommandUserFeedbackStore::procresult(Result r)
 }
 
 CommandSendEvent::CommandSendEvent(MegaClient *client, int type, const char *desc)
+    : Command(true)
 {
     cmd("log");
     arg("e", type);
@@ -5902,20 +5905,12 @@ CommandSendEvent::CommandSendEvent(MegaClient *client, int type, const char *des
 
 bool CommandSendEvent::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {
-        client->app->sendevent_result(r.errorOrOK());
-        return true;
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->sendevent_result(API_EINTERNAL);
-        return false;
-    }
+    client->app->sendevent_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandSupportTicket::CommandSupportTicket(MegaClient *client, const char *message, int type)
+    : Command(true)
 {
     cmd("sse");
     arg("t", type);
@@ -5927,20 +5922,12 @@ CommandSupportTicket::CommandSupportTicket(MegaClient *client, const char *messa
 
 bool CommandSupportTicket::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {
-        client->app->supportticket_result(r.errorOrOK());
-        return true;
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->supportticket_result(API_EINTERNAL);
-        return false;
-    }
+    client->app->supportticket_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandCleanRubbishBin::CommandCleanRubbishBin(MegaClient *client)
+    : Command(true)
 {
     cmd("dr");
 
@@ -5949,20 +5936,12 @@ CommandCleanRubbishBin::CommandCleanRubbishBin(MegaClient *client)
 
 bool CommandCleanRubbishBin::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {
-        client->app->cleanrubbishbin_result(r.errorOrOK());
-        return true;
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->cleanrubbishbin_result(API_EINTERNAL);
-        return false;
-    }
+    client->app->cleanrubbishbin_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandGetRecoveryLink::CommandGetRecoveryLink(MegaClient *client, const char *email, int type, const char *pin)
+    : Command(true)
 {
     cmd("erm");
     arg("m", email);
@@ -5978,20 +5957,12 @@ CommandGetRecoveryLink::CommandGetRecoveryLink(MegaClient *client, const char *e
 
 bool CommandGetRecoveryLink::procresult(Result r)
 {    
-    if (r.wasErrorOrOK())
-    {
-        client->app->getrecoverylink_result(r.errorOrOK());
-        return true;
-    }
-    else    // error
-    {
-        client->json.storeobject();
-        client->app->getrecoverylink_result(API_EINTERNAL);
-        return false;
-    }
+    client->app->getrecoverylink_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandQueryRecoveryLink::CommandQueryRecoveryLink(MegaClient *client, const char *linkcode)
+    : Command(true)
 {
     cmd("erv");
     arg("c", linkcode);
@@ -6067,6 +6038,7 @@ bool CommandQueryRecoveryLink::procresult(Result r)
 }
 
 CommandGetPrivateKey::CommandGetPrivateKey(MegaClient *client, const char *code)
+    : Command(true)
 {
     cmd("erx");
     arg("r", "gk");
@@ -6102,6 +6074,7 @@ bool CommandGetPrivateKey::procresult(Result r)
 }
 
 CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const char *code, const byte *hash, int hashsize, const byte *clientrandomvalue, const byte *encMasterKey, const byte *initialSession)
+    : Command(true)
 {
     cmd("erx");
 
@@ -6135,20 +6108,12 @@ CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const
 
 bool CommandConfirmRecoveryLink::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {
-        client->app->confirmrecoverylink_result(r.errorOrOK());
-        return true;
-    }
-    else   // error
-    {
-        client->json.storeobject();
-        client->app->confirmrecoverylink_result((error)API_EINTERNAL);
-        return false;
-    }
+    client->app->confirmrecoverylink_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandConfirmCancelLink::CommandConfirmCancelLink(MegaClient *client, const char *code)
+    : Command(true)
 {
     cmd("erx");
     arg("c", code);
@@ -6158,25 +6123,17 @@ CommandConfirmCancelLink::CommandConfirmCancelLink(MegaClient *client, const cha
 
 bool CommandConfirmCancelLink::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    MegaApp *app = client->app;
+    app->confirmcancellink_result(r.errorOrOK());
+    if (r.wasError(API_OK))
     {
-        MegaApp *app = client->app;
-        app->confirmcancellink_result(r.errorOrOK());
-        if (r.wasError(API_OK))
-        {
-            app->request_error(API_ESID);
-        }
-        return true;
+        app->request_error(API_ESID);
     }
-    else   // error
-    {
-        client->json.storeobject();
-        client->app->confirmcancellink_result((error)API_EINTERNAL);
-        return false;
-    }
+    return r.wasErrorOrOK();
 }
 
 CommandResendVerificationEmail::CommandResendVerificationEmail(MegaClient *client)
+    : Command(true)
 {
     cmd("era");
     batchSeparately = true;  // don't let any other commands that might get batched with it cause the whole batch to fail
@@ -6186,20 +6143,12 @@ CommandResendVerificationEmail::CommandResendVerificationEmail(MegaClient *clien
 
 bool CommandResendVerificationEmail::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {
-        client->app->resendverificationemail_result(r.errorOrOK());
-        return true;
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->resendverificationemail_result((error)API_EINTERNAL);
-        return false;
-    }
+    client->app->resendverificationemail_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandResetSmsVerifiedPhoneNumber::CommandResetSmsVerifiedPhoneNumber(MegaClient *client)
+    : Command(true)
 {
     cmd("smsr");
     tag = client->reqtag;
@@ -6207,15 +6156,16 @@ CommandResetSmsVerifiedPhoneNumber::CommandResetSmsVerifiedPhoneNumber(MegaClien
 
 bool CommandResetSmsVerifiedPhoneNumber::procresult(Result r)
 {
-    if (r.succeeded())
+    if (r.wasError(API_OK))
     {
         client->mSmsVerifiedPhone.clear();
     }
-    client->app->resetSmsVerifiedPhoneNumber_result(r.errorResultOrActionpacket());
-    return true;
+    client->app->resetSmsVerifiedPhoneNumber_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandValidatePassword::CommandValidatePassword(MegaClient *client, const char *email, uint64_t emailhash)
+    : Command(true)
 {
     cmd("us");
     arg("user", email);
@@ -6226,17 +6176,8 @@ CommandValidatePassword::CommandValidatePassword(MegaClient *client, const char 
 
 bool CommandValidatePassword::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {
-        client->app->validatepassword_result(r.errorOrOK());
-        return true;
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->validatepassword_result((error)API_OK);
-        return true;
-    }
+    client->app->validatepassword_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, int add, const char *pin)
@@ -6294,35 +6235,27 @@ CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char 
 
 bool CommandConfirmEmailLink::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasError(API_OK))
     {
-        if (r.wasError(API_OK))
+        User *u = client->finduser(client->me);
+
+        if (replace)
         {
-            User *u = client->finduser(client->me);
+            LOG_debug << "Email changed from `" << u->email << "` to `" << email << "`";
 
-            if (replace)
-            {
-                LOG_debug << "Email changed from `" << u->email << "` to `" << email << "`";
-
-                client->mapuser(u->userhandle, email.c_str()); // update email used as index for user's map
-                u->changed.email = true;
-                client->notifyuser(u);
-            }
-            // TODO: once we manage multiple emails, add the new email to the list of emails
+            client->mapuser(u->userhandle, email.c_str()); // update email used as index for user's map
+            u->changed.email = true;
+            client->notifyuser(u);
         }
+        // TODO: once we manage multiple emails, add the new email to the list of emails
+    }
 
-        client->app->confirmemaillink_result(r.errorOrOK());
-        return true;
-    }
-    else   // error
-    {
-        client->json.storeobject();
-        client->app->confirmemaillink_result((error)API_EINTERNAL);
-        return false;
-    }
+    client->app->confirmemaillink_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandGetVersion::CommandGetVersion(MegaClient *client, const char *appKey)
+    : Command(true)
 {
     this->client = client;
     cmd("lv");
@@ -6338,9 +6271,10 @@ bool CommandGetVersion::procresult(Result r)
     if (r.wasErrorOrOK())
     {
         client->app->getversion_result(0, NULL, r.errorOrOK());
-        return true;
+        return r.wasErrorOrOK();
     }
 
+    assert(r.hasJsonObject());
     for (;;)
     {
         switch (client->json.getnameid())
@@ -6368,6 +6302,7 @@ bool CommandGetVersion::procresult(Result r)
 }
 
 CommandGetLocalSSLCertificate::CommandGetLocalSSLCertificate(MegaClient *client)
+    : Command(true)
 {
     this->client = client;
     cmd("lc");
@@ -6384,6 +6319,7 @@ bool CommandGetLocalSSLCertificate::procresult(Result r)
         return true;
     }
 
+    assert(r.hasJsonObject());
     string certdata;
     m_time_t ts = 0;
     int numelements = 0;
@@ -7458,6 +7394,7 @@ bool CommandChatLinkJoin::procresult(Result r)
 #endif
 
 CommandGetMegaAchievements::CommandGetMegaAchievements(MegaClient *client, AchievementsDetails *details, bool registered_user)
+    : Command(true)
 {
     this->details = details;
 
@@ -7672,6 +7609,7 @@ bool CommandGetMegaAchievements::procresult(Result r)
 }
 
 CommandGetWelcomePDF::CommandGetWelcomePDF(MegaClient *client)
+    : Command(true)
 {
     cmd("wpdf");
 
@@ -7727,6 +7665,7 @@ bool CommandGetWelcomePDF::procresult(Result r)
 
 
 CommandMediaCodecs::CommandMediaCodecs(MegaClient* c, Callback cb)
+    : Command(true)
 {
     cmd("mc");
 
@@ -7755,6 +7694,7 @@ bool CommandMediaCodecs::procresult(Result r)
 }
 
 CommandContactLinkCreate::CommandContactLinkCreate(MegaClient *client, bool renew)
+    : Command(true, true)
 {
     if (renew)
     {
@@ -7783,6 +7723,7 @@ bool CommandContactLinkCreate::procresult(Result r)
 }
 
 CommandContactLinkQuery::CommandContactLinkQuery(MegaClient *client, handle h)
+    : Command(true)
 {
     cmd("clg");
     arg("cl", (byte*)&h, MegaClient::CONTACTLINKHANDLE);
@@ -7841,6 +7782,7 @@ bool CommandContactLinkQuery::procresult(Result r)
 }
 
 CommandContactLinkDelete::CommandContactLinkDelete(MegaClient *client, handle h)
+    : Command(true)
 {
     cmd("cld");
     if (!ISUNDEF(h))
@@ -7852,20 +7794,12 @@ CommandContactLinkDelete::CommandContactLinkDelete(MegaClient *client, handle h)
 
 bool CommandContactLinkDelete::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {
-        client->app->contactlinkdelete_result(r.errorOrOK());
-        return true;
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->contactlinkdelete_result(API_EINTERNAL);
-        return false;
-    }
+    client->app->contactlinkdelete_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandKeepMeAlive::CommandKeepMeAlive(MegaClient *client, int type, bool enable)
+    : Command(true)
 {
     if (enable)
     {
@@ -7882,20 +7816,12 @@ CommandKeepMeAlive::CommandKeepMeAlive(MegaClient *client, int type, bool enable
 
 bool CommandKeepMeAlive::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {
-        client->app->keepmealive_result(r.errorOrOK());
-        return true;
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->keepmealive_result(API_EINTERNAL);
-        return false;
-    }
+    client->app->keepmealive_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandMultiFactorAuthSetup::CommandMultiFactorAuthSetup(MegaClient *client, const char *pin)
+    : Command(true, true)
 {
     cmd("mfas");
     if (pin)
@@ -7924,6 +7850,7 @@ bool CommandMultiFactorAuthSetup::procresult(Result r)
 }
 
 CommandMultiFactorAuthCheck::CommandMultiFactorAuthCheck(MegaClient *client, const char *email)
+    : Command(true)
 {
     cmd("mfag");
     arg("e", email);
@@ -7952,6 +7879,7 @@ bool CommandMultiFactorAuthCheck::procresult(Result r)
 }
 
 CommandMultiFactorAuthDisable::CommandMultiFactorAuthDisable(MegaClient *client, const char *pin)
+    : Command(true)
 {
     cmd("mfad");
     arg("mfa", pin);
@@ -7961,20 +7889,12 @@ CommandMultiFactorAuthDisable::CommandMultiFactorAuthDisable(MegaClient *client,
 
 bool CommandMultiFactorAuthDisable::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {
-        client->app->multifactorauthdisable_result(r.errorOrOK());
-        return true;
-    }
-    else    // error
-    {
-        client->json.storeobject();
-        client->app->multifactorauthdisable_result(API_EINTERNAL);
-        return false;
-    }
+    client->app->multifactorauthdisable_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandGetPSA::CommandGetPSA(MegaClient *client)
+    : Command(true)
 {
     cmd("gpsa");
 
@@ -8040,6 +7960,7 @@ bool CommandGetPSA::procresult(Result r)
 }
 
 CommandFetchTimeZone::CommandFetchTimeZone(MegaClient *client, const char *timezone, const char* timeoffset)
+    : Command(true)
 {
     cmd("ftz");
     arg("utz", timezone);
@@ -8134,20 +8055,12 @@ CommandSetLastAcknowledged::CommandSetLastAcknowledged(MegaClient* client)
 
 bool CommandSetLastAcknowledged::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {
-        client->app->acknowledgeuseralerts_result(r.errorOrOK());
-        return true;
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->acknowledgeuseralerts_result(API_EINTERNAL);
-        return false;
-    }
+    client->app->acknowledgeuseralerts_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandSMSVerificationSend::CommandSMSVerificationSend(MegaClient* client, const string& phoneNumber, bool reVerifyingWhitelisted)
+    : Command(true)
 {
     cmd("smss");
     batchSeparately = true;  // don't let any other commands that might get batched with it cause the whole batch to fail
@@ -8177,20 +8090,12 @@ bool CommandSMSVerificationSend::isPhoneNumber(const string& s)
 
 bool CommandSMSVerificationSend::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {
-        client->app->smsverificationsend_result(r.errorOrOK());
-        return true;
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->smsverificationsend_result(API_EINTERNAL);
-        return false;
-    }
+    client->app->smsverificationsend_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandSMSVerificationCheck::CommandSMSVerificationCheck(MegaClient* client, const string& verificationcode)
+    : Command(true, true)
 {
     cmd("smsv");
     batchSeparately = true;  // don't let any other commands that might get batched with it cause the whole batch to fail
@@ -8237,6 +8142,7 @@ bool CommandSMSVerificationCheck::procresult(Result r)
 }
 
 CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client, const map<const char*, const char*>& contacts)
+    : Command(true)
 {
     cmd("usabd");
 
@@ -8332,6 +8238,7 @@ bool CommandGetRegisteredContacts::procresult(Result r)
 }
 
 CommandGetCountryCallingCodes::CommandGetCountryCallingCodes(MegaClient* client)
+    : Command(true)
 {
     cmd("smslc");
 
@@ -8417,6 +8324,7 @@ bool CommandGetCountryCallingCodes::procresult(Result r)
 }
 
 CommandFolderLinkInfo::CommandFolderLinkInfo(MegaClient* client, handle publichandle)
+    : Command(true)
 {
     ph = publichandle;
 
@@ -8511,6 +8419,7 @@ bool CommandFolderLinkInfo::procresult(Result r)
 }
 
 CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle nodeHandle, const string& localFolder, const std::string &deviceId, const string& backupName, int state, int subState, const string& extraData)
+    : Command(true)
 {
     assert(type != BackupType::INVALID);
 
@@ -8530,6 +8439,7 @@ CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle n
 }
 
 CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, const char* backupName, int state, int subState, const char* extraData)
+    : Command(true, true)
 {
     cmd("sp");
 
@@ -8599,6 +8509,7 @@ bool CommandBackupPut::procresult(Result r)
 }
 
 CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, uint32_t ts, handle lastNode)
+    : Command(true)
 {
     cmd("sphb");
 
@@ -8616,11 +8527,11 @@ CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle 
 bool CommandBackupPutHeartBeat::procresult(Result r)
 {
     client->app->backupputheartbeat_result(r.errorOrOK());
-    return true;
+    return r.wasErrorOrOK();
 }
 
 CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId)
-    : id(backupId)
+    : Command(true), id(backupId)
 {
     cmd("sr");
     arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
@@ -8631,7 +8542,7 @@ CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId)
 bool CommandBackupRemove::procresult(Result r)
 {
     client->app->backupremove_result(r.errorOrOK(), id);
-    return true;
+    return r.wasErrorOrOK();
 }
 
 } // namespace
