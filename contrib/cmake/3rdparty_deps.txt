@@ -1,3 +1,4 @@
+asio
 zlib
 cryptopp
 cryptopp-staticcrt
