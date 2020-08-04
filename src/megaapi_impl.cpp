@@ -5903,11 +5903,14 @@ void MegaApiImpl::getMiscFlags(MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::sendDevCommand(const char *command, const char *email, MegaRequestListener *listener)
+void MegaApiImpl::sendDevCommand(const char *command, const char *email, long long quota, int businessStatus, int userStatus, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEND_DEV_COMMAND, listener);
     request->setName(command);
     request->setEmail(email);
+    request->setTotalBytes(quota);
+    request->setAccess(businessStatus);
+    request->setNumDetails(userStatus);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -15030,10 +15033,15 @@ void MegaApiImpl::senddevcommand_result(int value)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_SEND_DEV_COMMAND)) return;
 
-    if (value > 0)
+    error e = static_cast<error>(value);
+    std::string command = request->getName() ? request->getName() :"";
+    if (!command.compare("aodq") && value > 0)
+    {
+        e = API_OK;
         request->setNumber(value);
+    }
 
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>((value <= 0) ? value : API_OK));
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 #endif
 
@@ -21154,8 +21162,48 @@ void MegaApiImpl::sendPendingRequests()
                 e = API_EARGS;
                 break;
             }
+
+            long long q = request->getTotalBytes();
+            int bs = request->getAccess();
+            int us = request->getNumDetails();
 #ifdef DEBUG
-            client->senddevcommand(command, email);
+
+            bool isOdqSubcmd = !strcmp(command, "aodq");
+            bool isTqSubcmd = !strcmp(command, "tq");
+            bool isBsSubcmd = !strcmp(command, "bs");
+            bool isUsSubcmd = !strcmp(command, "us");
+
+            if (!isOdqSubcmd && !isTqSubcmd && !isBsSubcmd && !isUsSubcmd)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            if (isTqSubcmd)
+            {
+                if (q < 0)
+                {
+                    e = API_EARGS;
+                    break;
+                }
+            }
+            else if (isBsSubcmd)
+            {
+                if (bs < -1 || bs > 2)
+                {
+                    e = API_EARGS;
+                    break;
+                }
+            }
+            else if (isUsSubcmd)
+            {
+                if (us == 1 || us < 0 || us > 9)
+                {
+                    e = API_EARGS;
+                    break;
+                }
+            }
+            client->senddevcommand(command, email, q, bs, us);
 #else
             e = API_EACCESS;
 #endif
