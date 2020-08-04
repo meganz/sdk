@@ -404,6 +404,17 @@ class MegaNode
             TYPE_RUBBISH
 		};
 
+        enum {
+            NODE_LBL_UNKOWN = 0,
+            NODE_LBL_RED,
+            NODE_LBL_ORANGE,
+            NODE_LBL_YELLOW,
+            NODE_LBL_GREEN,
+            NODE_LBL_BLUE,
+            NODE_LBL_PURPLE,
+            NODE_LBL_GREY,
+        };
+
         enum
         {
             CHANGE_TYPE_REMOVED         = 0x01,
@@ -588,14 +599,14 @@ class MegaNode
         /**
          * @brief Get the attribute of the node representing its label.
          *
-         * @return The label of the node, valid values are defined in nodelabel_t:
-         *  - LBL_RED = 1
-         *  - LBL_ORANGE = 2
-         *  - LBL_YELLOW = 3
-         *  - LBL_GREEN = 4
-         *  - LBL_BLUE = 5
-         *  - LBL_PURPLE = 6
-         *  - LBL_GREY = 7
+         * @return The label of the node, valid values are:
+         *  - MegaNode::NODE_LBL_RED = 1
+         *  - MegaNode::NODE_LBL_ORANGE = 2
+         *  - MegaNode::NODE_LBL_YELLOW = 3
+         *  - MegaNode::NODE_LBL_GREEN = 4
+         *  - MegaNode::NODE_LBL_BLUE = 5
+         *  - MegaNode::NODE_LBL_PURPLE = 6
+         *  - MegaNode::NODE_LBL_GREY = 7
          */
         virtual int getLabel();
 
@@ -10129,14 +10140,14 @@ class MegaApi
 
         /**
          * @brief Set node label as a node attribute.
-         * Valid values for label attribute are defined in nodelabel_t:
-         *  - LBL_RED = 1
-         *  - LBL_ORANGE = 2
-         *  - LBL_YELLOW = 3
-         *  - LBL_GREEN = 4
-         *  - LBL_BLUE = 5
-         *  - LBL_PURPLE = 6
-         *  - LBL_GREY = 7
+         * Valid values for label attribute are:
+         *  - MegaNode::NODE_LBL_RED = 1
+         *  - MegaNode::NODE_LBL_ORANGE = 2
+         *  - MegaNode::NODE_LBL_YELLOW = 3
+         *  - MegaNode::NODE_LBL_GREEN = 4
+         *  - MegaNode::NODE_LBL_BLUE = 5
+         *  - MegaNode::NODE_LBL_PURPLE = 6
+         *  - MegaNode::NODE_LBL_GREY = 7
          *
          * To remove this attribute, this method must be called with label set to the
          * current value of the attribute for the node.

@@ -6755,7 +6755,7 @@ void MegaApiImpl::setCustomNodeAttribute(MegaNode *node, const char *attrName, c
     if(node) request->setNodeHandle(node->getHandle());
     request->setName(attrName);
     request->setText(value);
-    request->setFlag(false);     // is official attribute?
+    request->setFlag(false);     // is official attribute or not
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6766,7 +6766,7 @@ void MegaApiImpl::setNodeDuration(MegaNode *node, int secs, MegaRequestListener 
     if(node) request->setNodeHandle(node->getHandle());
     request->setParamType(MegaApi::NODE_ATTR_DURATION);
     request->setNumber(secs);
-    request->setFlag(true);     // is official attribute?
+    request->setFlag(true);     // is official attribute or not
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6777,7 +6777,7 @@ void MegaApiImpl::setNodeLabel(MegaNode *node, int label, MegaRequestListener *l
     if(node) request->setNodeHandle(node->getHandle());
     request->setParamType(MegaApi::NODE_ATTR_LABEL);
     request->setNumDetails(label);
-    request->setFlag(true);     // is official attribute?
+    request->setFlag(true);     // is official attribute or not
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6788,7 +6788,7 @@ void MegaApiImpl::setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener
     if(node) request->setNodeHandle(node->getHandle());
     request->setParamType(MegaApi::NODE_ATTR_FAV);
     request->setNumDetails(fav);
-    request->setFlag(true);     // is official attribute?
+    request->setFlag(true);     // is official attribute or not
     requestQueue.push(request);
     waiter->notify();
 }
