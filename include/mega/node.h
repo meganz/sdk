@@ -94,6 +94,7 @@ struct MEGA_API PublicLink
 // Container storing FileFingerprint* (Node* in practice) ordered by fingerprint.
 struct Fingerprints
 {
+    Fingerprints(MegaClient& client);
     // maps FileFingerprints to node
     using fingerprint_set = std::multiset<FileFingerprint*, FileFingerprintCmp>;
     using iterator = fingerprint_set::iterator;
@@ -110,6 +111,8 @@ struct Fingerprints
 private:
     fingerprint_set mFingerprints;
     m_off_t mSumSizes = 0;
+
+    MegaClient& mClient;
 };
 
 

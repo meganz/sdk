@@ -48,6 +48,14 @@ public:
     {
         throw NotImplemented{__func__};
     }
+    bool getNodesByFingerprint(const mega::FileFingerprint&, std::map<mega::handle, std::string>&) override
+    {
+        throw NotImplemented{__func__};
+    }
+    bool getNodeByFingerprint(const mega::FileFingerprint&, std::string&) override
+    {
+        throw NotImplemented{__func__};
+    }
     bool getNodesWithoutParent(std::vector<std::string>&) override
     {
         throw NotImplemented(__func__);

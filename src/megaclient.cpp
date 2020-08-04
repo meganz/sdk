@@ -1157,7 +1157,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 #ifdef ENABLE_SYNC
     ,syncfslockretrybt(rng), syncdownbt(rng), syncnaglebt(rng), syncextrabt(rng), syncscanbt(rng)
 #endif
-    , mAsyncQueue(*w, workerThreadCount)
+    , mAsyncQueue(*w, workerThreadCount), mFingerprints(*this)
 {
     sctable = NULL;
     pendingsccommit = false;

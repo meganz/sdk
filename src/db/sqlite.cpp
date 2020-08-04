@@ -304,6 +304,76 @@ bool SqliteDbTable::getNodes(std::vector<std::string>& nodes)
     return result == SQLITE_DONE ? true : false;
 }
 
+bool SqliteDbTable::getNodesByFingerprint(const FileFingerprint &fingerprint, std::map<handle, std::string> &nodes)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    checkTransaction();
+
+    sqlite3_stmt *stmt;
+    int result = SQLITE_ERROR;
+    if (sqlite3_prepare(db, "SELECT nodehandle, node FROM nodes WHERE fingerprint = ?", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        string fp;
+        fingerprint.serializefingerprint(&fp);
+        if (sqlite3_bind_blob(stmt, 1, fp.data(), fp.size(), SQLITE_STATIC) == SQLITE_OK)
+        {
+            while ((result = sqlite3_step(stmt) == SQLITE_ROW))
+            {
+                handle nodeHandle = sqlite3_column_int64(stmt, 0);
+                const void* data = sqlite3_column_blob(stmt, 1);
+                int size = sqlite3_column_bytes(stmt, 1);
+                if (data && size)
+                {
+                    std::string node(static_cast<const char*>(data), size);
+                    nodes[nodeHandle] = node;
+                }
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return result == SQLITE_DONE ? true : false;
+}
+
+bool SqliteDbTable::getNodeByFingerprint(const FileFingerprint &fingerprint, std::string &node)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    checkTransaction();
+
+    sqlite3_stmt *stmt;
+    int result = SQLITE_ERROR;
+    if (sqlite3_prepare(db, "SELECT node FROM nodes WHERE fingerprint = ?", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        string fp;
+        fingerprint.serializefingerprint(&fp);
+        if (sqlite3_bind_blob(stmt, 1, fp.data(), fp.size(), SQLITE_STATIC) == SQLITE_OK)
+        {
+            if ((result = sqlite3_step(stmt) == SQLITE_ROW))
+            {
+                const void* data = sqlite3_column_blob(stmt, 0);
+                int size = sqlite3_column_bytes(stmt, 0);
+                if (data && size)
+                {
+                    std::string nodeSerialized(static_cast<const char*>(data), size);
+                    node = nodeSerialized;
+                    result = SQLITE_DONE;
+                }
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return result == SQLITE_DONE ? true : false;
+}
+
 bool SqliteDbTable::getNodesWithoutParent(std::vector<std::string> &nodes)
 {
     if (!db)

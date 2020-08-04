@@ -1777,6 +1777,12 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
 
 #endif
 
+Fingerprints::Fingerprints(MegaClient &client)
+    : mClient(client)
+{
+
+}
+
 void Fingerprints::newnode(Node* n)
 {
     if (n->type == FILENODE)
@@ -1818,7 +1824,20 @@ m_off_t Fingerprints::getSumSizes()
 Node* Fingerprints::nodebyfingerprint(FileFingerprint* fingerprint)
 {
     fingerprint_set::iterator it = mFingerprints.find(fingerprint);
-    return it == mFingerprints.end() ? nullptr : static_cast<Node*>(*it);
+    if (it != mFingerprints.end())
+    {
+        return static_cast<Node*>(*it);
+    }
+
+    std::string nodeSerialized;
+    if (mClient.sctable->getNodeByFingerprint(*fingerprint, nodeSerialized))
+    {
+        node_vector nodeVector;
+        Node* node = Node::unserialize(&mClient, &nodeSerialized, &nodeVector);
+        return node;
+    }
+
+    return nullptr;
 }
 
 node_vector *Fingerprints::nodesbyfingerprint(FileFingerprint* fingerprint)
@@ -1829,6 +1848,31 @@ node_vector *Fingerprints::nodesbyfingerprint(FileFingerprint* fingerprint)
     {
         nodes->push_back(static_cast<Node*>(*it));
     }
+
+    std::map<handle, std::string> nodeMap;
+    if (mClient.sctable->getNodesByFingerprint(*fingerprint, nodeMap))
+    {
+        for (auto nodeIt : nodeMap)
+        {
+            bool found = false;
+            for (int i = 0; i < nodes->size(); i++)
+            {
+                if (nodes->at(i)->nodehandle == nodeIt.first)
+                {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                node_vector nodeVector;
+                Node* node = Node::unserialize(&mClient, &nodeIt.second, &nodeVector);
+                nodes->push_back(node);
+            }
+        }
+    }
+
     return nodes;
 }
 

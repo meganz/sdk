@@ -50,6 +50,8 @@ public:
     bool get(uint32_t, string*);
     bool getNode(handle nodehandle, std::string& nodeSerialized) override;
     bool getNodes(std::vector<std::string>& nodes) override;
+    bool getNodesByFingerprint(const FileFingerprint& fingerprint, std::map<mega::handle, std::string> &nodes) override;
+    bool getNodeByFingerprint(const FileFingerprint& fingerprint, std::string &node) override;
     bool getNodesWithoutParent(std::vector<std::string>& nodes) override;
     bool getChildrenFromNode(handle node, std::map<handle, std::string>& nodes) override;
     bool getChildrenHandlesFromNode(mega::handle, std::vector<handle>&) override;
