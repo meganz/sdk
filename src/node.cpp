@@ -74,7 +74,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     Node* p;
 
-    client->nodes[h] = this;
+    client->mNodes[h] = this;
 
     // folder link access: first returned record defines root node and
     // identity

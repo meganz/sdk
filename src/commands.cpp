@@ -2234,7 +2234,7 @@ void CommandSetPendingContact::procresult()
 
                 // remove pending shares related to the deleted PCR
                 Node *n;
-                for (node_map::iterator it = client->nodes.begin(); it != client->nodes.end(); it++)
+                for (node_map::iterator it = client->mNodes.begin(); it != client->mNodes.end(); it++)
                 {
                     n = it->second;
                     if (n->pendingshares && n->pendingshares->find(pcr->id) != n->pendingshares->end())
@@ -5425,7 +5425,7 @@ void CommandFetchNodes::procresult()
 
                 WAIT_CLASS::bumpds();
                 client->fnstats.timeToCached = Waiter::ds - client->fnstats.startTime;
-                client->fnstats.nodesCached = client->nodes.size();
+                client->fnstats.nodesCached = client->mNodes.size();
                 return;
             }
             default:

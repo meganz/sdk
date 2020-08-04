@@ -7357,7 +7357,7 @@ void DemoApp::nodes_updated(Node** n, int count)
     }
     else
     {
-        for (node_map::iterator it = client->nodes.begin(); it != client->nodes.end(); it++)
+        for (node_map::iterator it = client->mNodes.begin(); it != client->mNodes.end(); it++)
         {
             if (it->second->type < 6)
             {
@@ -8065,7 +8065,7 @@ void DemoAppFolder::nodes_updated(Node **n, int count)
     }
     else
     {
-        for (node_map::iterator it = clientFolder->nodes.begin(); it != clientFolder->nodes.end(); it++)
+        for (node_map::iterator it = clientFolder->mNodes.begin(); it != clientFolder->mNodes.end(); it++)
         {
             if (it->second->type < 6)
             {

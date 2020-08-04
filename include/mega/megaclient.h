@@ -222,8 +222,8 @@ public:
     // root nodes (files, incoming, rubbish)
     handle rootnodes[3];
 
-    // all nodes
-    node_map nodes;
+    // Not all nodes are loaded
+    node_map mNodes;
 
     // keep track of user storage, inshare storage, file/folder counts per root node.
     NodeCounterMap mNodeCounters;

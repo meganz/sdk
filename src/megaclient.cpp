@@ -4398,7 +4398,7 @@ bool MegaClient::procsc()
                             WAIT_CLASS::bumpds();
                             fnstats.timeToCurrent = Waiter::ds - fnstats.startTime;
                         }
-                        fnstats.nodesCurrent = nodes.size();
+                        fnstats.nodesCurrent = mNodes.size();
 
                         statecurrent = true;
                         app->nodes_current();
@@ -4443,13 +4443,13 @@ bool MegaClient::procsc()
                         sendevent(99426, report.c_str(), 0);    // Treeproc performance log
 
                         // NULL vector: "notify all elements"
-                        app->nodes_updated(NULL, int(nodes.size()));
+                        app->nodes_updated(NULL, int(mNodes.size()));
                         app->users_updated(NULL, int(users.size()));
                         app->pcrs_updated(NULL, int(pcrindex.size()));
 #ifdef ENABLE_CHAT
                         app->chats_updated(NULL, int(chats.size()));
 #endif
-                        for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
+                        for (node_map::iterator it = mNodes.begin(); it != mNodes.end(); it++)
                         {
                             memset(&(it->second->changed), 0, sizeof it->second->changed);
                         }
@@ -4758,7 +4758,7 @@ void MegaClient::initsc()
         if (complete)
         {
             // 3. write new or modified nodes, purge deleted nodes
-            for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
+            for (node_map::iterator it = mNodes.begin(); it != mNodes.end(); it++)
             {
                 if (!(complete = sctable->put(it->second)))
                 {
@@ -4791,7 +4791,7 @@ void MegaClient::initsc()
                 }
             }
         }
-        LOG_debug << "Saving SCSN " << scsn.text() << " with " << nodes.size() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs and " << chats.size() << " chats to local cache (" << complete << ")";
+        LOG_debug << "Saving SCSN " << scsn.text() << " with " << mNodes.size() << " nodes, " << users.size() << " users, " << pcrindex.size() << " pcrs and " << chats.size() << " chats to local cache (" << complete << ")";
 #else
 
         LOG_debug << "Saving SCSN " << scsn.text() << " with " << nodes.size() << " nodes and " << users.size() << " users and " << pcrindex.size() << " pcrs to local cache (" << complete << ")";
@@ -6820,7 +6820,7 @@ void MegaClient::notifypurge(void)
                     notifyuser(n->inshare->user);
                 }
 
-                nodes.erase(n->nodehandle);
+                mNodes.erase(n->nodehandle);
                 delete n;
             }
             else
@@ -6932,7 +6932,7 @@ void MegaClient::notifypurge(void)
     }
 #endif
 
-    totalNodes = nodes.size();
+    totalNodes = mNodes.size();
 }
 
 // return node pointer derived from node handle
@@ -6940,7 +6940,7 @@ Node* MegaClient::nodebyhandle(handle h)
 {
     node_map::iterator it;
 
-    if ((it = nodes.find(h)) != nodes.end())
+    if ((it = mNodes.find(h)) != mNodes.end())
     {
         return it->second;
     }
@@ -8284,9 +8284,9 @@ void MegaClient::applykeys()
 
     int noKeyExpected = (rootnodes[0] != UNDEF) + (rootnodes[1] != UNDEF) + (rootnodes[2] != UNDEF);
 
-    if (nodes.size() > size_t(mAppliedKeyNodeCount + noKeyExpected))
+    if (mNodes.size() > size_t(mAppliedKeyNodeCount + noKeyExpected))
     {
-        for (auto& it : nodes)
+        for (auto& it : mNodes)
         {
             it.second->applykey();
         }
@@ -11275,12 +11275,12 @@ void MegaClient::fetchnodes(bool nocache)
     }
 
     // only initial load from local cache
-    if (loggedin() == FULLACCOUNT && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable))
+    if (loggedin() == FULLACCOUNT && !mNodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable))
     {
         WAIT_CLASS::bumpds();
         fnstats.mode = FetchNodesStats::MODE_DB;
         fnstats.cache = FetchNodesStats::API_NO_CACHE;
-        fnstats.nodesCached = nodes.size();
+        fnstats.nodesCached = mNodes.size();
         fnstats.timeToCached = Waiter::ds - fnstats.startTime;
         fnstats.timeToResult = fnstats.timeToCached;
 
@@ -12058,11 +12058,11 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
     mOptimizePurgeNodes = true;
     mFingerprints.clear();
     mNodeCounters.clear();
-    for (node_map::iterator it = nodes.begin(); it != nodes.end(); it++)
+    for (node_map::iterator it = mNodes.begin(); it != mNodes.end(); it++)
     {
         delete it->second;
     }
-    nodes.clear();
+    mNodes.clear();
     mOptimizePurgeNodes = false;
 
 #ifdef ENABLE_SYNC
@@ -14281,8 +14281,8 @@ node_vector MegaClient::getRecentNodes(unsigned maxcount, m_time_t since, bool i
 {
     // 1. Get nodes added/modified not older than `since`
     node_vector v;
-    v.reserve(nodes.size());
-    for (node_map::iterator i = nodes.begin(); i != nodes.end(); ++i)
+    v.reserve(mNodes.size());
+    for (node_map::iterator i = mNodes.begin(); i != mNodes.end(); ++i)
     {
         if (i->second->type == FILENODE && i->second->ctime >= since &&  // recent files only 
             (!i->second->parent || i->second->parent->type != FILENODE)) // excluding versions
@@ -14491,7 +14491,7 @@ void MegaClient::nodesbyoriginalfingerprint(const char* originalfingerprint, Nod
     }
     else
     {
-        for (node_map::const_iterator i = nodes.begin(); i != nodes.end(); ++i)
+        for (node_map::const_iterator i = mNodes.begin(); i != mNodes.end(); ++i)
         {
             if (i->second->type == FILENODE)
             {
@@ -14607,8 +14607,8 @@ node_list MegaClient::getChildrens(Node* node)
     for (const auto nodeMapIt : nodeMap)
     {
         Node* n;
-        auto nodeIt = nodes.find(nodeMapIt.first);
-        if (nodeIt == nodes.end())
+        auto nodeIt = mNodes.find(nodeMapIt.first);
+        if (nodeIt == mNodes.end())
         {
             n = Node::unserialize(this, &nodeMapIt.second, &dp);
             n->setparent(node);
