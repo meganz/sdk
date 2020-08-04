@@ -21,8 +21,8 @@
 
 #pragma once
 
-#include "megaapi.h"
 #include "types.h"
+#include "megaapi.h"
 #include "mega.h"
 #include <memory>
 #include <functional>
