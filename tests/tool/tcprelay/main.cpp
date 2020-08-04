@@ -40,6 +40,7 @@
 #endif
 
 #ifdef _WIN32
+#include <winsock2.h>
 #include <ws2tcpip.h>
 #else /* _WIN32 */
 #include <sys/types.h>
@@ -213,7 +214,7 @@ void addRelay(const string& server, uint16_t port)
 
     const auto address =
       make_address_v6(v4_mapped,
-                      make_address_v4(ai_addr->sin_addr.s_addr));
+                      make_address_v4(ntohl(ai_addr->sin_addr.s_addr)));
 
     // Give the system back its memory.
     freeaddrinfo(result);
