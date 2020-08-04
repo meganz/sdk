@@ -6945,7 +6945,15 @@ Node* MegaClient::nodebyhandle(handle h)
         return it->second;
     }
 
-    return NULL;
+    Node* node = nullptr;
+    std::string nodeSerialized;
+    node_vector nodeVector;
+    if (sctable->getNode(h, nodeSerialized))
+    {
+        node = Node::unserialize(this, &nodeSerialized, &nodeVector);
+    }
+
+    return nullptr;
 }
 
 // server-client deletion

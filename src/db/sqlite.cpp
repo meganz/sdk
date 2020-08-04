@@ -243,6 +243,38 @@ bool SqliteDbTable::get(uint32_t index, string* data)
     return result;
 }
 
+bool SqliteDbTable::getNode(handle nodehandle, std::string &nodeSerialized)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    checkTransaction();
+
+    nodeSerialized.clear();
+
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare(db, "SELECT node FROM nodes  WHERE parenthandle = ?", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_bind_int64(stmt, 1, nodehandle) == SQLITE_OK)
+        {
+            if((sqlite3_step(stmt) == SQLITE_ROW))
+            {
+                const void* data = sqlite3_column_blob(stmt, 0);
+                int size = sqlite3_column_bytes(stmt, 0);
+                if (data && size)
+                {
+                    nodeSerialized.assign(static_cast<const char*>(data), size);
+                }
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return nodeSerialized.size() ? true : false;
+}
+
 bool SqliteDbTable::getNodes(std::vector<std::string>& nodes)
 {
     if (!db)

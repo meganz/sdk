@@ -40,6 +40,10 @@ public:
     {
         throw NotImplemented{__func__};
     }
+    bool getNode(mega::handle, std::string&) override
+    {
+        throw NotImplemented{__func__};
+    }
     bool getNodes(std::vector<std::string>&) override
     {
         throw NotImplemented{__func__};

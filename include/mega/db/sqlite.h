@@ -48,6 +48,7 @@ public:
     void rewind();
     bool next(uint32_t*, string*);
     bool get(uint32_t, string*);
+    bool getNode(handle nodehandle, std::string& nodeSerialized) override;
     bool getNodes(std::vector<std::string>& nodes) override;
     bool getNodesWithoutParent(std::vector<std::string>& nodes) override;
     bool getChildrenFromNode(handle node, std::map<handle, std::string>& nodes) override;

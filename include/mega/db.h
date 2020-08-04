@@ -52,6 +52,7 @@ public:
     // get specific record by key
     virtual bool get(uint32_t, string*) = 0;
 
+    virtual bool getNode(handle nodehandle, std::string& nodeSerialized) = 0;
     virtual bool getNodes(std::vector<std::string>& nodes) = 0;
     virtual bool getNodesWithoutParent(std::vector<std::string>& nodes) = 0;
     virtual bool getChildrenFromNode(handle node, std::map<handle, std::string>& nodes) = 0;
