@@ -57,7 +57,7 @@ public:
     bool batchSeparately;
 
     // true if the command processing has been updated to use the URI v3 system, where successful state updates arrive via actionpackets.
-    bool mV3 = false;
+    bool mV3 = true;
     bool mStringIsNotSeqtag = false;
     bool mSeqtagArray = false;
 
@@ -169,7 +169,7 @@ public:
     // json for the command is usually pre-generated but can be calculated just before sending, by overriding this function
     virtual const char* getJSON(MegaClient* client);
 
-    Command(bool isV3 = false, bool stringIsNotSeqtag = false);
+    Command();
     virtual ~Command() = default;
 
     bool checkError(Error &errorDetails, JSON &json);

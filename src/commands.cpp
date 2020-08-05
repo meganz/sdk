@@ -33,7 +33,7 @@
 
 namespace mega {
 HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, std::unique_ptr<string> cdata, bool checkAccess)
-    : Command(true), data(move(cdata))
+    : data(move(cdata))
 {
     cmd("ufa");
     arg("s", data->size());
@@ -148,7 +148,6 @@ m_off_t HttpReqCommandPutFA::transferred(MegaClient *client)
 }
 
 CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref)
-    : Command(true)
 {
     part = p;
 
@@ -243,10 +242,8 @@ bool CommandGetFA::procresult(Result r)
 }
 
 CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, handle ah, int ctag)
-    : Command(true)
 {
     cmd("pfa");
-    //notself(client);
 
     arg("n", (byte*)&nh, MegaClient::NODEHANDLE);
 
@@ -262,10 +259,8 @@ CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, handle
 }
 
 CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, const std::string& encryptedAttributes, int ctag)
-    : Command(true)
 {
     cmd("pfa");
-    //notself(client);
 
     arg("n", (byte*)&nh, MegaClient::NODEHANDLE);
 
@@ -285,7 +280,6 @@ bool CommandAttachFA::procresult(Result r)
 
 // request upload target URL
 CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot, int ms)
-    : Command(true)
 {
     tslot = ctslot;
 
@@ -416,7 +410,6 @@ bool CommandPutFile::procresult(Result r)
 
 // request upload target URL for application to upload photo to using eg. iOS background upload feature
 CommandPutFileBackgroundURL::CommandPutFileBackgroundURL(m_off_t size, int putmbpscap, int ctag)
-    : Command(true)
 {
     cmd("u");
     arg("ssl", 2);   // always SSL for background uploads
@@ -470,7 +463,6 @@ bool CommandPutFileBackgroundURL::procresult(Result r)
 
 // request temporary source URL for DirectRead
 CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
-    : Command(true)
 {
     drn = cdrn;
 
@@ -614,7 +606,6 @@ bool CommandDirectRead::procresult(Result r)
 
 // request temporary source URL for full-file access (p == private node)
 CommandGetFile::CommandGetFile(MegaClient *client, TransferSlot* ctslot, const byte* key, handle h, bool p, const char *privateauth, const char *publicauth, const char *chatauth)
-    : Command(true)
 {
     cmd("g");
     arg(p ? "n" : "p", (byte*)&h, MegaClient::NODEHANDLE);
@@ -954,7 +945,7 @@ bool CommandGetFile::procresult(Result r)
 }
 
 CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, attr_map&& attrMapUpdates)
-    : Command(true), mAttrMapUpdates(attrMapUpdates)
+    : mAttrMapUpdates(attrMapUpdates)
 {
     tag = client->reqtag;
     h = n->nodehandle;
@@ -1028,7 +1019,6 @@ bool CommandSetAttr::procresult(Result r)
 // response)
 CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                                  const char* userhandle, vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth)
-    : Command(true)
 {
     byte key[FILENODEKEYLENGTH];
     int i;
@@ -1040,7 +1030,6 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
 
     mSeqtagArray = true;
     cmd("p");
-    //notself(client);
 
     if (userhandle)
     {
@@ -1329,7 +1318,6 @@ bool CommandPutNodes::procresult(Result r)
 
 
 CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t csyncdel, handle prevparent)
-    : Command(true)
 {
     h = n->nodehandle;
     syncdel = csyncdel;
@@ -1524,11 +1512,9 @@ bool CommandMoveNode::procresult(Result r)
 }
 
 CommandDelNode::CommandDelNode(MegaClient* client, handle th, bool keepversions, int cmdtag, std::function<void(handle, error)> f)
-    : Command(true)
-    , mResultFunction(f)
+    : mResultFunction(f)
 {
     cmd("d");
-    //notself(client);
 
     arg("n", (byte*)&th, MegaClient::NODEHANDLE);
 
@@ -1588,7 +1574,6 @@ bool CommandDelNode::procresult(Result r)
 
 
 CommandDelVersions::CommandDelVersions(MegaClient* client)
-    : Command(true)
 {
     cmd("dv");
     tag = client->reqtag;
@@ -1601,7 +1586,6 @@ bool CommandDelVersions::procresult(Result r)
 }
 
 CommandKillSessions::CommandKillSessions(MegaClient* client)
-    : Command(true)
 {
     cmd("usr");
     arg("ko", 1); // Request to kill all sessions except the current one
@@ -1628,7 +1612,6 @@ bool CommandKillSessions::procresult(Result r)
 }
 
 CommandLogout::CommandLogout(MegaClient *client)
-    : Command(true)
 {
     cmd("sml");
 
@@ -1671,7 +1654,6 @@ bool CommandLogout::procresult(Result r)
 }
 
 CommandPrelogin::CommandPrelogin(MegaClient* client, const char* email)
-    : Command(true)
 {
     cmd("us0");
     arg("user", email);
@@ -1736,7 +1718,6 @@ bool CommandPrelogin::procresult(Result r)
 
 // login request with user e-mail address and user hash
 CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *emailhash, int emailhashsize, const byte *sessionkey, int csessionversion, const char *pin)
-    : Command(true)
 {
     cmd("us");
     batchSeparately = true;  // in case the account is blocked (we need to get a sid so we can issue whyamiblocked)
@@ -1998,7 +1979,6 @@ bool CommandLogin::procresult(Result r)
 }
 
 CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient*, handle sh, const char* uid, const byte* key, int len)
-    : Command(true)
 {
     cmd("k");
     beginarray("sr");
@@ -2011,7 +1991,6 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient*, handle sh, const char*
 }
 
 CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* v)
-    : Command(true)
 {
     Node* n;
     byte sharekey[SymmCipher::KEYLENGTH];
@@ -2038,7 +2017,6 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* 
 
 // add/remove share; include node share keys if new share
 CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslevel_t a, int newshare, const char* msg, const char* personal_representation)
-    : Command(true)
 {
     byte auth[SymmCipher::BLOCKSIZE];
     byte key[SymmCipher::KEYLENGTH];
@@ -2244,8 +2222,8 @@ bool CommandSetShare::procresult(Result r)
 }
 
 CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const char* temail, opcactions_t action, const char* msg, const char* oemail, handle contactLink)
-    //TODO: Command(true)
 {
+    mV3 = false;
     cmd("upc");
 
     if (oemail != NULL)
@@ -2400,7 +2378,6 @@ bool CommandSetPendingContact::procresult(Result r)
 }
 
 CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, handle p, ipcactions_t action)
-    : Command(true)
 {
     cmd("upca");   
 
@@ -2430,7 +2407,6 @@ bool CommandUpdatePendingContact::procresult(Result r)
 }
 
 CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(MegaClient* client)
-    : Command(true)
 {
     cmd("utqa");
     arg("nf", 1);
@@ -2579,7 +2555,6 @@ CommandPurchaseAddItem::CommandPurchaseAddItem(MegaClient* client, int itemclass
                                                const char* currency, unsigned /*tax*/,
                                                const char* /*country*/, handle lph,
                                                int phtype, int64_t ts)
-    : Command(true)
 {
     string sprice;
     sprice.resize(128);
@@ -2635,7 +2610,6 @@ bool CommandPurchaseAddItem::procresult(Result r)
 }
 
 CommandPurchaseCheckout::CommandPurchaseCheckout(MegaClient* client, int gateway)
-    : Command(true)
 {
     cmd("utc");
 
@@ -2726,8 +2700,9 @@ bool CommandPurchaseCheckout::procresult(Result r)
 }
 
 CommandRemoveContact::CommandRemoveContact(MegaClient* client, const char* m, visibility_t show)
-    : Command(true)
 {
+    mV3 = false;
+
     this->email = m ? m : "";
     this->v = show;
 
@@ -2748,11 +2723,7 @@ bool CommandRemoveContact::procresult(Result r)
 
         if (User *u = client->finduser(email.c_str()))
         {
-            if (u->show != HIDDEN)
-            {
-                u->show = HIDDEN;
-                LOG_warn << "Show flag was not HIDDEN yet";      // todo: caution: user related commands still use speculative instant completion
-            }
+            u->show = HIDDEN;
         }   
 
         client->app->removecontact_result(API_OK);
@@ -2765,6 +2736,8 @@ bool CommandRemoveContact::procresult(Result r)
 
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag)
 {
+    mV3 = false;
+
     this->attrs = *attrs;
 
     cmd("upv");
@@ -2860,18 +2833,11 @@ bool CommandPutMultipleUAVer::procresult(Result r)
                             !client->signkey || !client->signkey->initializationOK)
                     {
                         client->resetKeyring();
-
-                        int creqtag = client->reqtag;
-                        client->reqtag = 0;
-                        client->sendevent(99418, "Failed to load attached keys");
-                        client->reqtag = creqtag;
+                        client->sendevent(99418, "Failed to load attached keys", 0);
                     }
                     else
                     {
-                        int creqtag = client->reqtag;
-                        client->reqtag = 0;
-                        client->sendevent(99420, "Signing and chat keys attached OK");
-                        client->reqtag = creqtag;
+                        client->sendevent(99420, "Signing and chat keys attached OK", 0);
                     }
 
                     delete tlvRecords;
@@ -2905,6 +2871,8 @@ bool CommandPutMultipleUAVer::procresult(Result r)
 
 CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag)
 {
+    mV3 = false;
+
     this->at = at;
     this->av.assign((const char*)av, avl);
 
@@ -3000,6 +2968,8 @@ bool CommandPutUAVer::procresult(Result r)
 
 CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, unsigned avl, int ctag, handle lph, int phtype, int64_t ts)
 {
+    mV3 = false;
+
     this->at = at;
     this->av.assign((const char*)av, avl);
 
@@ -3079,6 +3049,8 @@ bool CommandPutUA::procresult(Result r)
 
 CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, const char* ph, int ctag)
 {
+    mV3 = false;
+
     this->uid = uid;
     this->at = at;
     this->ph = ph ? string(ph) : "";
@@ -3371,6 +3343,8 @@ bool CommandGetUA::procresult(Result r)
 #ifdef DEBUG
 CommandDelUA::CommandDelUA(MegaClient *client, const char *an)
 {
+    mV3 = false;
+
     this->an = an;
 
     cmd("upr");
@@ -3442,6 +3416,8 @@ bool CommandSendDevCommand::procresult(Result r)
 
 CommandGetUserEmail::CommandGetUserEmail(MegaClient *client, const char *uid)
 {
+    mStringIsNotSeqtag = true;
+
     cmd("uge");
     arg("u", uid);
 
@@ -3471,7 +3447,6 @@ bool CommandGetUserEmail::procresult(Result r)
 
 // set node keys (e.g. to convert asymmetric keys to symmetric ones)
 CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
-    : Command(true)
 {
     byte nodekey[FILENODEKEYLENGTH];
 
@@ -3497,7 +3472,6 @@ CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
 }
 
 CommandSingleKeyCR::CommandSingleKeyCR(handle sh, handle nh, const byte* key, size_t keylen)
-    : Command(true)
 {
     cmd("k");
     beginarray("cr");
@@ -3520,7 +3494,6 @@ CommandSingleKeyCR::CommandSingleKeyCR(handle sh, handle nh, const byte* key, si
 }
 
 CommandKeyCR::CommandKeyCR(MegaClient* /*client*/, node_vector* rshares, node_vector* rnodes, const char* keys)
-    : Command(true)
 {
     cmd("k");
     beginarray("cr");
@@ -3554,6 +3527,8 @@ CommandKeyCR::CommandKeyCR(MegaClient* /*client*/, node_vector* rshares, node_ve
 // for node sn to user u with access a
 CommandPubKeyRequest::CommandPubKeyRequest(MegaClient* client, User* user)
 {
+    mV3 = false;
+
     cmd("uk");
     arg("u", user->uid.c_str());
 
@@ -3569,7 +3544,7 @@ bool CommandPubKeyRequest::procresult(Result r)
 
     if (r.wasErrorOrOK())
     {
-        if(!r.wasError(API_ENOENT)) //API_ENOENT = unregistered users or accounts without a public key yet
+        if (!r.wasError(API_ENOENT)) //API_ENOENT = unregistered users or accounts without a public key yet
         {
             LOG_err << "Unexpected error in CommandPubKeyRequest: " << error(r.errorOrOK());
         }
@@ -3665,6 +3640,8 @@ void CommandPubKeyRequest::invalidateUser()
 
 CommandGetUserData::CommandGetUserData(MegaClient *client)
 {
+    mV3 = false;
+
     cmd("ug");
     arg("v", 1);
 
@@ -4389,6 +4366,8 @@ void CommandGetUserData::parseUserAttribute(std::string &value, std::string &ver
 
 CommandGetMiscFlags::CommandGetMiscFlags(MegaClient *client)
 {
+    mV3 = false;
+
     cmd("gmf");
 
     // this one can get the smsve flag when the account is blocked (if it's in a batch by itself)
@@ -4422,6 +4401,8 @@ bool CommandGetMiscFlags::procresult(Result r)
 
 CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro, int source)
 {
+    mV3 = false;
+
     details = ad;
     mStorage = storage;
     mTransfer = transfer;
@@ -4885,9 +4866,10 @@ bool CommandGetUserSessions::procresult(Result r)
 }
 
 CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t ets)
-    : Command(true, true)
 {
+    mStringIsNotSeqtag = true;
     mSeqtagArray = true;
+
     cmd("l");
     arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);
 
@@ -5008,8 +4990,9 @@ bool CommandGetPH::procresult(Result r)
 }
 
 CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, const byte *hash, int hashsize, const byte *clientrandomvalue, const char *pin, string *salt)
-    : Command(true, true)
 {
+    mStringIsNotSeqtag = true;
+
     memcpy(this->newkey, newkey, SymmCipher::KEYLENGTH);
 
     cmd("up");
@@ -5054,8 +5037,9 @@ CommandCreateEphemeralSession::CommandCreateEphemeralSession(MegaClient* client,
                                                              const byte* key,
                                                              const byte* cpw,
                                                              const byte* ssc)
-    : Command(true, true)
 {
+    mStringIsNotSeqtag = true;
+
     memcpy(pw, cpw, sizeof pw);
 
     cmd("up");
@@ -5162,18 +5146,9 @@ CommandCancelSignup::CommandCancelSignup(MegaClient *client)
 
 bool CommandCancelSignup::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {
-        client->app->cancelsignup_result(r.errorOrOK());
-        return true;
-    }
-
-    client->json.storeobject();
-
-    client->app->cancelsignup_result(API_EINTERNAL);
-    return false;
+    client->app->cancelsignup_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
-
 
 CommandWhyAmIblocked::CommandWhyAmIblocked(MegaClient *client)
 {
@@ -5219,16 +5194,8 @@ CommandSendSignupLink::CommandSendSignupLink(MegaClient* client, const char* ema
 
 bool CommandSendSignupLink::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {
-        client->app->sendsignuplink_result(r.errorOrOK());
-        return true;
-    }
-
-    client->json.storeobject();
-
-    client->app->sendsignuplink_result(API_EINTERNAL);
-    return false;
+    client->app->sendsignuplink_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* email, const char* name)
@@ -5255,16 +5222,8 @@ CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* e
 
 bool CommandSendSignupLink2::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {
-        client->app->sendsignuplink_result(r.errorOrOK());
-        return true;
-    }
-
-    client->json.storeobject();
-
-    client->app->sendsignuplink_result(API_EINTERNAL);
-    return false;
+    client->app->sendsignuplink_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandQuerySignupLink::CommandQuerySignupLink(MegaClient* client, const byte* code, unsigned len)
@@ -5294,6 +5253,7 @@ bool CommandQuerySignupLink::procresult(Result r)
         return true;
     }
 
+    assert(r.hasJsonArray());
     if (client->json.storebinary(&name) && client->json.storebinary(&email)
         && (uh = client->json.gethandle(MegaClient::USERHANDLE))
         && (kc = client->json.getvalue()) && (pwcheck = client->json.getvalue()))
@@ -5338,6 +5298,7 @@ bool CommandConfirmSignupLink2::procresult(Result r)
         return true;
     }
 
+    assert(r.hasJsonArray());
     if (client->json.storebinary(&email) && client->json.storebinary(&name))
     {
         uh = client->json.gethandle(MegaClient::USERHANDLE);
@@ -5362,13 +5323,12 @@ CommandConfirmSignupLink::CommandConfirmSignupLink(MegaClient* client,
                                                    const byte* code,
                                                    unsigned len,
                                                    uint64_t emailhash)
-    : Command(true, true)
 {
+    mStringIsNotSeqtag = true;
+
     cmd("up");
     arg("c", code, len);
     arg("uh", (byte*)&emailhash, sizeof emailhash);
-
-    //notself(client);
 
     tag = client->reqtag;
 }
@@ -5392,8 +5352,9 @@ bool CommandConfirmSignupLink::procresult(Result r)
 CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,
                                      unsigned privklen, const byte* pubk,
                                      unsigned pubklen)
-    : Command(true, true)
 {
+    mStringIsNotSeqtag = true;
+
     cmd("up");
     arg("privk", privk, privklen);
     arg("pubk", pubk, pubklen);
@@ -5596,17 +5557,8 @@ CommandReportEvent::CommandReportEvent(MegaClient *client, const char *event, co
 
 bool CommandReportEvent::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {
-        client->app->reportevent_result(r.errorOrOK());
-        return true;
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->reportevent_result(API_EINTERNAL);
-        return false;
-    }
+    client->app->reportevent_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, int type, const char *receipt, handle lph, int phtype, int64_t ts)
@@ -5645,17 +5597,8 @@ CommandSubmitPurchaseReceipt::CommandSubmitPurchaseReceipt(MegaClient *client, i
 
 bool CommandSubmitPurchaseReceipt::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {
-        client->app->submitpurchasereceipt_result(r.errorOrOK());
-        return true;
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->submitpurchasereceipt_result(API_EINTERNAL);
-        return false;
-    }
+    client->app->submitpurchasereceipt_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 // Credit Card Store
@@ -5673,17 +5616,8 @@ CommandCreditCardStore::CommandCreditCardStore(MegaClient* client, const char *c
 
 bool CommandCreditCardStore::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {
-        client->app->creditcardstore_result(r.errorOrOK());
-        return true;
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->creditcardstore_result(API_EINTERNAL);
-        return false;
-    }
+    client->app->creditcardstore_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandCreditCardQuerySubscriptions::CommandCreditCardQuerySubscriptions(MegaClient* client)
@@ -5728,17 +5662,8 @@ CommandCreditCardCancelSubscriptions::CommandCreditCardCancelSubscriptions(MegaC
 
 bool CommandCreditCardCancelSubscriptions::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {
-        client->app->creditcardcancelsubscriptions_result(r.errorOrOK());
-        return true;
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->creditcardcancelsubscriptions_result(API_EINTERNAL);
-        return false;
-    }
+    client->app->creditcardcancelsubscriptions_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandCopySession::CommandCopySession(MegaClient *client)
@@ -5880,21 +5805,11 @@ CommandUserFeedbackStore::CommandUserFeedbackStore(MegaClient *client, const cha
 
 bool CommandUserFeedbackStore::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {
-        client->app->userfeedbackstore_result(r.errorOrOK());
-        return true;
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->userfeedbackstore_result(API_EINTERNAL);
-        return false;
-    }
+    client->app->userfeedbackstore_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandSendEvent::CommandSendEvent(MegaClient *client, int type, const char *desc)
-    : Command(true)
 {
     cmd("log");
     arg("e", type);
@@ -5910,7 +5825,6 @@ bool CommandSendEvent::procresult(Result r)
 }
 
 CommandSupportTicket::CommandSupportTicket(MegaClient *client, const char *message, int type)
-    : Command(true)
 {
     cmd("sse");
     arg("t", type);
@@ -5927,7 +5841,6 @@ bool CommandSupportTicket::procresult(Result r)
 }
 
 CommandCleanRubbishBin::CommandCleanRubbishBin(MegaClient *client)
-    : Command(true)
 {
     cmd("dr");
 
@@ -5941,7 +5854,6 @@ bool CommandCleanRubbishBin::procresult(Result r)
 }
 
 CommandGetRecoveryLink::CommandGetRecoveryLink(MegaClient *client, const char *email, int type, const char *pin)
-    : Command(true)
 {
     cmd("erm");
     arg("m", email);
@@ -5962,7 +5874,6 @@ bool CommandGetRecoveryLink::procresult(Result r)
 }
 
 CommandQueryRecoveryLink::CommandQueryRecoveryLink(MegaClient *client, const char *linkcode)
-    : Command(true)
 {
     cmd("erv");
     arg("c", linkcode);
@@ -5974,6 +5885,7 @@ bool CommandQueryRecoveryLink::procresult(Result r)
 {
     // [<code>,"<email>","<ip_address>",<timestamp>,"<user_handle>",["<email>"]]
 
+    //todo: haven't we already entered the array
     client->json.enterarray();
 
     string email;
@@ -6038,7 +5950,6 @@ bool CommandQueryRecoveryLink::procresult(Result r)
 }
 
 CommandGetPrivateKey::CommandGetPrivateKey(MegaClient *client, const char *code)
-    : Command(true)
 {
     cmd("erx");
     arg("r", "gk");
@@ -6074,7 +5985,6 @@ bool CommandGetPrivateKey::procresult(Result r)
 }
 
 CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const char *code, const byte *hash, int hashsize, const byte *clientrandomvalue, const byte *encMasterKey, const byte *initialSession)
-    : Command(true)
 {
     cmd("erx");
 
@@ -6113,7 +6023,6 @@ bool CommandConfirmRecoveryLink::procresult(Result r)
 }
 
 CommandConfirmCancelLink::CommandConfirmCancelLink(MegaClient *client, const char *code)
-    : Command(true)
 {
     cmd("erx");
     arg("c", code);
@@ -6133,7 +6042,6 @@ bool CommandConfirmCancelLink::procresult(Result r)
 }
 
 CommandResendVerificationEmail::CommandResendVerificationEmail(MegaClient *client)
-    : Command(true)
 {
     cmd("era");
     batchSeparately = true;  // don't let any other commands that might get batched with it cause the whole batch to fail
@@ -6148,7 +6056,6 @@ bool CommandResendVerificationEmail::procresult(Result r)
 }
 
 CommandResetSmsVerifiedPhoneNumber::CommandResetSmsVerifiedPhoneNumber(MegaClient *client)
-    : Command(true)
 {
     cmd("smsr");
     tag = client->reqtag;
@@ -6165,7 +6072,6 @@ bool CommandResetSmsVerifiedPhoneNumber::procresult(Result r)
 }
 
 CommandValidatePassword::CommandValidatePassword(MegaClient *client, const char *email, uint64_t emailhash)
-    : Command(true)
 {
     cmd("us");
     arg("user", email);
@@ -6181,7 +6087,6 @@ bool CommandValidatePassword::procresult(Result r)
 }
 
 CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, int add, const char *pin)
-    : Command(true)
 {
     cmd("se");
 
@@ -6199,8 +6104,6 @@ CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, 
         arg("mfa", pin);
     }
 
-    //notself(client);
-
     tag = client->reqtag;
 }
 
@@ -6211,8 +6114,8 @@ bool CommandGetEmailLink::procresult(Result r)
 }
 
 CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char *code, const char *email, const byte *newLoginHash, bool replace)
-    : Command(true)
 {
+    mV3 = false;
     this->email = email;
     this->replace = replace;
 
@@ -6228,7 +6131,7 @@ CommandConfirmEmailLink::CommandConfirmEmailLink(MegaClient *client, const char 
     {
         arg("r", 1);    // replace the current email address by this one
     }
-    //notself(client);
+    notself(client);
 
     tag = client->reqtag;
 }
@@ -6255,7 +6158,6 @@ bool CommandConfirmEmailLink::procresult(Result r)
 }
 
 CommandGetVersion::CommandGetVersion(MegaClient *client, const char *appKey)
-    : Command(true)
 {
     this->client = client;
     cmd("lv");
@@ -6302,7 +6204,6 @@ bool CommandGetVersion::procresult(Result r)
 }
 
 CommandGetLocalSSLCertificate::CommandGetLocalSSLCertificate(MegaClient *client)
-    : Command(true)
 {
     this->client = client;
     cmd("lc");
@@ -6373,6 +6274,8 @@ bool CommandGetLocalSSLCertificate::procresult(Result r)
 #ifdef ENABLE_CHAT
 CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool publicchat, const userpriv_vector *upl, const string_map *ukm, const char *title)
 {
+    mV3 = false;
+
     this->client = client;
     this->chatPeers = new userpriv_vector(*upl);
     this->mPublicChat = publicchat;
@@ -6525,6 +6428,8 @@ bool CommandChatCreate::procresult(Result r)
 
 CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle uh, privilege_t priv, const char *unifiedkey, const char* title)
 {
+    mV3 = false;
+
     this->client = client;
     this->chatid = chatid;
     this->uh = uh;
@@ -6555,47 +6460,40 @@ CommandChatInvite::CommandChatInvite(MegaClient *client, handle chatid, handle u
 
 bool CommandChatInvite::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasError(API_OK))
     {
-        if (r.wasError(API_OK))
+        if (client->chats.find(chatid) == client->chats.end())
         {
-            if (client->chats.find(chatid) == client->chats.end())
-            {
-                // the invitation succeed for a non-existing chatroom
-                client->app->chatinvite_result(API_EINTERNAL);
-                return true;
-            }
-
-            TextChat *chat = client->chats[chatid];
-            if (!chat->userpriv)
-            {
-                chat->userpriv = new userpriv_vector();
-            }
-
-            chat->userpriv->push_back(userpriv_pair(uh, priv));
-
-            if (!title.empty())  // only if title was set for this chatroom, update it
-            {
-                chat->title = title;
-            }
-
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
+            // the invitation succeed for a non-existing chatroom
+            client->app->chatinvite_result(API_EINTERNAL);
+            return true;
         }
 
-        client->app->chatinvite_result(r.errorOrOK());
-        return true;
+        TextChat *chat = client->chats[chatid];
+        if (!chat->userpriv)
+        {
+            chat->userpriv = new userpriv_vector();
+        }
+
+        chat->userpriv->push_back(userpriv_pair(uh, priv));
+
+        if (!title.empty())  // only if title was set for this chatroom, update it
+        {
+            chat->title = title;
+        }
+
+        chat->setTag(tag ? tag : -1);
+        client->notifychat(chat);
     }
-    else
-    {
-        client->json.storeobject();
-        client->app->chatinvite_result(API_EINTERNAL);
-        return false;
-    }
+
+    client->app->chatinvite_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, handle uh)
 {
+    mV3 = false;
+
     this->client = client;
     this->chatid = chatid;
     this->uh = uh;
@@ -6616,78 +6514,70 @@ CommandChatRemove::CommandChatRemove(MegaClient *client, handle chatid, handle u
 
 bool CommandChatRemove::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasError(API_OK))
     {
-        if (r.wasError(API_OK))
+        if (client->chats.find(chatid) == client->chats.end())
         {
-            if (client->chats.find(chatid) == client->chats.end())
+            // the invitation succeed for a non-existing chatroom
+            client->app->chatremove_result(API_EINTERNAL);
+            return true;
+        }
+
+        TextChat *chat = client->chats[chatid];
+        if (chat->userpriv)
+        {
+            userpriv_vector::iterator upvit;
+            for (upvit = chat->userpriv->begin(); upvit != chat->userpriv->end(); upvit++)
             {
-                // the invitation succeed for a non-existing chatroom
+                if (upvit->first == uh)
+                {
+                    chat->userpriv->erase(upvit);
+                    if (chat->userpriv->empty())
+                    {
+                        delete chat->userpriv;
+                        chat->userpriv = NULL;
+                    }
+                    break;
+                }
+            }
+        }
+        else
+        {
+            if (uh != client->me)
+            {
+                // the removal succeed, but the list of peers is empty
                 client->app->chatremove_result(API_EINTERNAL);
                 return true;
             }
-
-            TextChat *chat = client->chats[chatid];
-            if (chat->userpriv)
-            {
-                userpriv_vector::iterator upvit;
-                for (upvit = chat->userpriv->begin(); upvit != chat->userpriv->end(); upvit++)
-                {
-                    if (upvit->first == uh)
-                    {
-                        chat->userpriv->erase(upvit);
-                        if (chat->userpriv->empty())
-                        {
-                            delete chat->userpriv;
-                            chat->userpriv = NULL;
-                        }
-                        break;
-                    }
-                }
-            }
-            else
-            {
-                if (uh != client->me)
-                {
-                    // the removal succeed, but the list of peers is empty
-                    client->app->chatremove_result(API_EINTERNAL);
-                    return true;
-                }
-            }
-
-            if (uh == client->me)
-            {
-                chat->priv = PRIV_RM;
-
-                // clear the list of peers (if re-invited, peers will be re-added)
-                delete chat->userpriv;
-                chat->userpriv = NULL;
-            }
-
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
         }
 
-        client->app->chatremove_result(r.errorOrOK());
-        return true;
+        if (uh == client->me)
+        {
+            chat->priv = PRIV_RM;
+
+            // clear the list of peers (if re-invited, peers will be re-added)
+            delete chat->userpriv;
+            chat->userpriv = NULL;
+        }
+
+        chat->setTag(tag ? tag : -1);
+        client->notifychat(chat);
     }
-    else
-    {
-        client->json.storeobject();
-        client->app->chatremove_result(API_EINTERNAL);
-        return false;
-    }
+
+    client->app->chatremove_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandChatURL::CommandChatURL(MegaClient *client, handle chatid)
 {
+    mStringIsNotSeqtag = true;
+
     this->client = client;
 
     cmd("mcurl");
 
     arg("id", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("v", 1);
-    notself(client);
 
     tag = client->reqtag;
 }
@@ -6717,6 +6607,8 @@ bool CommandChatURL::procresult(Result r)
 
 CommandChatGrantAccess::CommandChatGrantAccess(MegaClient *client, handle chatid, handle h, const char *uid)
 {
+    mV3 = false;
+
     this->client = client;
     this->chatid = chatid;
     this->h = h;
@@ -6735,37 +6627,30 @@ CommandChatGrantAccess::CommandChatGrantAccess(MegaClient *client, handle chatid
 
 bool CommandChatGrantAccess::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasError(API_OK))
     {
-        if (r.wasError(API_OK))
+        if (client->chats.find(chatid) == client->chats.end())
         {
-            if (client->chats.find(chatid) == client->chats.end())
-            {
-                // the action succeed for a non-existing chatroom??
-                client->app->chatgrantaccess_result(API_EINTERNAL);
-                return true;
-            }
-
-            TextChat *chat = client->chats[chatid];
-            chat->setNodeUserAccess(h, uh);
-
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
+            // the action succeed for a non-existing chatroom??
+            client->app->chatgrantaccess_result(API_EINTERNAL);
+            return true;
         }
 
-        client->app->chatgrantaccess_result(r.errorOrOK());
-        return true;
+        TextChat *chat = client->chats[chatid];
+        chat->setNodeUserAccess(h, uh);
+
+        chat->setTag(tag ? tag : -1);
+        client->notifychat(chat);
     }
-    else
-    {
-        client->json.storeobject();
-        client->app->chatgrantaccess_result(API_EINTERNAL);
-        return false;
-    }
+
+    client->app->chatgrantaccess_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandChatRemoveAccess::CommandChatRemoveAccess(MegaClient *client, handle chatid, handle h, const char *uid)
 {
+    mV3 = false;
+
     this->client = client;
     this->chatid = chatid;
     this->h = h;
@@ -6784,37 +6669,30 @@ CommandChatRemoveAccess::CommandChatRemoveAccess(MegaClient *client, handle chat
 
 bool CommandChatRemoveAccess::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasError(API_OK))
     {
-        if (r.wasError(API_OK))
+        if (client->chats.find(chatid) == client->chats.end())
         {
-            if (client->chats.find(chatid) == client->chats.end())
-            {
-                // the action succeed for a non-existing chatroom??
-                client->app->chatremoveaccess_result(API_EINTERNAL);
-                return true;
-            }
-
-            TextChat *chat = client->chats[chatid];
-            chat->setNodeUserAccess(h, uh, true);
-
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
+            // the action succeed for a non-existing chatroom??
+            client->app->chatremoveaccess_result(API_EINTERNAL);
+            return true;
         }
 
-        client->app->chatremoveaccess_result(r.errorOrOK());
-        return true;
+        TextChat *chat = client->chats[chatid];
+        chat->setNodeUserAccess(h, uh, true);
+
+        chat->setTag(tag ? tag : -1);
+        client->notifychat(chat);
     }
-    else
-    {
-        client->json.storeobject();
-        client->app->chatremoveaccess_result(API_EINTERNAL);
-        return false;
-    }
+
+    client->app->chatremoveaccess_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, handle chatid, handle uh, privilege_t priv)
 {
+    mV3 = false;
+
     this->client = client;
     this->chatid = chatid;
     this->uh = uh;
@@ -6833,70 +6711,63 @@ CommandChatUpdatePermissions::CommandChatUpdatePermissions(MegaClient *client, h
 
 bool CommandChatUpdatePermissions::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {       
-        if (r.wasError(API_OK))
+    if (r.wasError(API_OK))
+    {
+        if (client->chats.find(chatid) == client->chats.end())
         {
-            if (client->chats.find(chatid) == client->chats.end())
+            // the invitation succeed for a non-existing chatroom
+            client->app->chatupdatepermissions_result(API_EINTERNAL);
+            return true;
+        }
+
+        TextChat *chat = client->chats[chatid];
+        if (uh != client->me)
+        {
+            if (!chat->userpriv)
             {
-                // the invitation succeed for a non-existing chatroom
+                // the update succeed, but that peer is not included in the chatroom
                 client->app->chatupdatepermissions_result(API_EINTERNAL);
                 return true;
             }
 
-            TextChat *chat = client->chats[chatid];
-            if (uh != client->me)
+            bool found = false;
+            userpriv_vector::iterator upvit;
+            for (upvit = chat->userpriv->begin(); upvit != chat->userpriv->end(); upvit++)
             {
-                if (!chat->userpriv)
+                if (upvit->first == uh)
                 {
-                    // the update succeed, but that peer is not included in the chatroom
-                    client->app->chatupdatepermissions_result(API_EINTERNAL);
-                    return true;
-                }
-
-                bool found = false;
-                userpriv_vector::iterator upvit;
-                for (upvit = chat->userpriv->begin(); upvit != chat->userpriv->end(); upvit++)
-                {
-                    if (upvit->first == uh)
-                    {
-                        chat->userpriv->erase(upvit);
-                        chat->userpriv->push_back(userpriv_pair(uh, priv));
-                        found = true;
-                        break;
-                    }
-                }
-
-                if (!found)
-                {
-                    // the update succeed, but that peer is not included in the chatroom
-                    client->app->chatupdatepermissions_result(API_EINTERNAL);
-                    return true;
+                    chat->userpriv->erase(upvit);
+                    chat->userpriv->push_back(userpriv_pair(uh, priv));
+                    found = true;
+                    break;
                 }
             }
-            else
-            {
-                chat->priv = priv;
-            }
 
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
+            if (!found)
+            {
+                // the update succeed, but that peer is not included in the chatroom
+                client->app->chatupdatepermissions_result(API_EINTERNAL);
+                return true;
+            }
+        }
+        else
+        {
+            chat->priv = priv;
         }
 
-        client->app->chatupdatepermissions_result(r.errorOrOK());
-        return true;
+        chat->setTag(tag ? tag : -1);
+        client->notifychat(chat);
     }
-    else
-    {
-        client->json.storeobject();
-        client->app->chatupdatepermissions_result(API_EINTERNAL);
-        return false;
-    }
+
+    client->app->chatupdatepermissions_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 
 CommandChatTruncate::CommandChatTruncate(MegaClient *client, handle chatid, handle messageid)
 {
+    mV3 = false;
+
     this->client = client;
     this->chatid = chatid;
 
@@ -6912,35 +6783,28 @@ CommandChatTruncate::CommandChatTruncate(MegaClient *client, handle chatid, hand
 
 bool CommandChatTruncate::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasError(API_OK))
     {
-        if (r.wasError(API_OK))
+        if (client->chats.find(chatid) == client->chats.end())
         {
-            if (client->chats.find(chatid) == client->chats.end())
-            {
-                // the truncation succeed for a non-existing chatroom
-                client->app->chattruncate_result(API_EINTERNAL);
-                return true;
-            }
-
-            TextChat *chat = client->chats[chatid];
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
+            // the truncation succeed for a non-existing chatroom
+            client->app->chattruncate_result(API_EINTERNAL);
+            return true;
         }
 
-        client->app->chattruncate_result(r.errorOrOK());
-        return true;
+        TextChat *chat = client->chats[chatid];
+        chat->setTag(tag ? tag : -1);
+        client->notifychat(chat);
     }
-    else
-    {
-        client->json.storeobject();
-        client->app->chattruncate_result(API_EINTERNAL);
-        return false;
-    }
+
+    client->app->chattruncate_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, const char *title)
 {
+    mV3 = false;
+
     this->client = client;
     this->chatid = chatid;
     this->title = title ? string(title) : "";
@@ -6957,40 +6821,30 @@ CommandChatSetTitle::CommandChatSetTitle(MegaClient *client, handle chatid, cons
 
 bool CommandChatSetTitle::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasError(API_OK))
     {
-        if (r.wasError(API_OK))
+        if (client->chats.find(chatid) == client->chats.end())
         {
-            if (client->chats.find(chatid) == client->chats.end())
-            {
-                // the invitation succeed for a non-existing chatroom
-                client->app->chatsettitle_result(API_EINTERNAL);
-                return true;
-            }
-
-            TextChat *chat = client->chats[chatid];
-            chat->title = title;
-
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
+            // the invitation succeed for a non-existing chatroom
+            client->app->chatsettitle_result(API_EINTERNAL);
+            return true;
         }
 
-        client->app->chatsettitle_result(r.errorOrOK());
-        return true;
+        TextChat *chat = client->chats[chatid];
+        chat->title = title;
+
+        chat->setTag(tag ? tag : -1);
+        client->notifychat(chat);
     }
-    else
-    {
-        client->json.storeobject();
-        client->app->chatsettitle_result(API_EINTERNAL);
-        return false;
-    }
+
+    client->app->chatsettitle_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandChatPresenceURL::CommandChatPresenceURL(MegaClient *client)
 {
     this->client = client;
     cmd("pu");
-    notself(client);
     tag = client->reqtag;
 }
 
@@ -7018,7 +6872,6 @@ bool CommandChatPresenceURL::procresult(Result r)
 }
 
 CommandRegisterPushNotification::CommandRegisterPushNotification(MegaClient *client, int deviceType, const char *token)
-    : Command(true)
 {
     this->client = client;
     cmd("spt");
@@ -7030,21 +6883,14 @@ CommandRegisterPushNotification::CommandRegisterPushNotification(MegaClient *cli
 
 bool CommandRegisterPushNotification::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {
-        client->app->registerpushnotification_result(r.errorOrOK());
-        return true;
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->registerpushnotification_result(API_EINTERNAL);
-        return false;
-    }
+    client->app->registerpushnotification_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandArchiveChat::CommandArchiveChat(MegaClient *client, handle chatid, bool archive)
 {
+    mV3 = false;
+
     this->mChatid = chatid;
     this->mArchive = archive;
 
@@ -7061,34 +6907,25 @@ CommandArchiveChat::CommandArchiveChat(MegaClient *client, handle chatid, bool a
 
 bool CommandArchiveChat::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasError(API_OK))
     {
-        if (r.wasError(API_OK))
+        textchat_map::iterator it = client->chats.find(mChatid);
+        if (it == client->chats.end())
         {
-            textchat_map::iterator it = client->chats.find(mChatid);
-            if (it == client->chats.end())
-            {
-                LOG_err << "Archive chat succeeded for a non-existing chatroom";
-                client->app->archivechat_result(API_ENOENT);
-                return true;
-            }
-
-            TextChat *chat = it->second;
-            chat->setFlag(mArchive, TextChat::FLAG_OFFSET_ARCHIVE);
-
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
+            LOG_err << "Archive chat succeeded for a non-existing chatroom";
+            client->app->archivechat_result(API_ENOENT);
+            return true;
         }
 
-        client->app->archivechat_result(r.errorOrOK());
-        return true;
+        TextChat *chat = it->second;
+        chat->setFlag(mArchive, TextChat::FLAG_OFFSET_ARCHIVE);
+
+        chat->setTag(tag ? tag : -1);
+        client->notifychat(chat);
     }
-    else
-    {
-        client->json.storeobject();
-        client->app->archivechat_result(API_EINTERNAL);
-        return false;
-    }
+
+    client->app->archivechat_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandSetChatRetentionTime::CommandSetChatRetentionTime(MegaClient *client, handle chatid, int period)
@@ -7191,6 +7028,8 @@ bool CommandRichLink::procresult(Result r)
 
 CommandChatLink::CommandChatLink(MegaClient *client, handle chatid, bool del, bool createifmissing)
 {
+    mStringIsNotSeqtag = true;
+
     mDelete = del;
 
     cmd("mcph");
@@ -7206,7 +7045,6 @@ CommandChatLink::CommandChatLink(MegaClient *client, handle chatid, bool del, bo
         arg("cim", (m_off_t)0);
     }
 
-    notself(client);
     tag = client->reqtag;
 }
 
@@ -7242,10 +7080,11 @@ bool CommandChatLink::procresult(Result r)
 
 CommandChatLinkURL::CommandChatLinkURL(MegaClient *client, handle publichandle)
 {
+    mStringIsNotSeqtag = true;
+
     cmd("mcphurl");
     arg("ph", (byte*)&publichandle, MegaClient::CHATLINKHANDLE);
 
-    notself(client);
     tag = client->reqtag;
 }
 
@@ -7317,6 +7156,8 @@ bool CommandChatLinkURL::procresult(Result r)
 
 CommandChatLinkClose::CommandChatLinkClose(MegaClient *client, handle chatid, const char *title)
 {
+    mV3 = false;
+
     mChatid = chatid;
     mTitle = title ? string(title) : "";
 
@@ -7334,38 +7175,29 @@ CommandChatLinkClose::CommandChatLinkClose(MegaClient *client, handle chatid, co
 
 bool CommandChatLinkClose::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
+    if (r.wasError(API_OK))
     {
-        if (r.wasError(API_OK))
+        textchat_map::iterator it = client->chats.find(mChatid);
+        if (it == client->chats.end())
         {
-            textchat_map::iterator it = client->chats.find(mChatid);
-            if (it == client->chats.end())
-            {
-                LOG_err << "Chat link close succeeded for a non-existing chatroom";
-                client->app->chatlinkclose_result(API_ENOENT);
-                return true;
-            }
-
-            TextChat *chat = it->second;
-            chat->setMode(false);
-            if (!mTitle.empty())
-            {
-                chat->title = mTitle;
-            }
-
-            chat->setTag(tag ? tag : -1);
-            client->notifychat(chat);
+            LOG_err << "Chat link close succeeded for a non-existing chatroom";
+            client->app->chatlinkclose_result(API_ENOENT);
+            return true;
         }
 
-        client->app->chatlinkclose_result(r.errorOrOK());
-        return true;
+        TextChat *chat = it->second;
+        chat->setMode(false);
+        if (!mTitle.empty())
+        {
+            chat->title = mTitle;
+        }
+
+        chat->setTag(tag ? tag : -1);
+        client->notifychat(chat);
     }
-    else
-    {
-        client->json.storeobject();
-        client->app->chatlinkclose_result(API_EINTERNAL);
-        return false;
-    }
+
+    client->app->chatlinkclose_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 CommandChatLinkJoin::CommandChatLinkJoin(MegaClient *client, handle publichandle, const char *unifiedkey)
@@ -7378,23 +7210,13 @@ CommandChatLinkJoin::CommandChatLinkJoin(MegaClient *client, handle publichandle
 
 bool CommandChatLinkJoin::procresult(Result r)
 {
-    if (r.wasErrorOrOK())
-    {
-        client->app->chatlinkjoin_result(r.errorOrOK());
-        return true;
-    }
-    else
-    {
-        client->json.storeobject();
-        client->app->chatlinkjoin_result(API_EINTERNAL);
-        return false;
-    }
+    client->app->chatlinkjoin_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 #endif
 
 CommandGetMegaAchievements::CommandGetMegaAchievements(MegaClient *client, AchievementsDetails *details, bool registered_user)
-    : Command(true)
 {
     this->details = details;
 
@@ -7609,7 +7431,6 @@ bool CommandGetMegaAchievements::procresult(Result r)
 }
 
 CommandGetWelcomePDF::CommandGetWelcomePDF(MegaClient *client)
-    : Command(true)
 {
     cmd("wpdf");
 
@@ -7665,7 +7486,6 @@ bool CommandGetWelcomePDF::procresult(Result r)
 
 
 CommandMediaCodecs::CommandMediaCodecs(MegaClient* c, Callback cb)
-    : Command(true)
 {
     cmd("mc");
 
@@ -7694,8 +7514,9 @@ bool CommandMediaCodecs::procresult(Result r)
 }
 
 CommandContactLinkCreate::CommandContactLinkCreate(MegaClient *client, bool renew)
-    : Command(true, true)
 {
+    mStringIsNotSeqtag = true;
+
     if (renew)
     {
         cmd("clr");
@@ -7723,7 +7544,6 @@ bool CommandContactLinkCreate::procresult(Result r)
 }
 
 CommandContactLinkQuery::CommandContactLinkQuery(MegaClient *client, handle h)
-    : Command(true)
 {
     cmd("clg");
     arg("cl", (byte*)&h, MegaClient::CONTACTLINKHANDLE);
@@ -7782,7 +7602,6 @@ bool CommandContactLinkQuery::procresult(Result r)
 }
 
 CommandContactLinkDelete::CommandContactLinkDelete(MegaClient *client, handle h)
-    : Command(true)
 {
     cmd("cld");
     if (!ISUNDEF(h))
@@ -7799,7 +7618,6 @@ bool CommandContactLinkDelete::procresult(Result r)
 }
 
 CommandKeepMeAlive::CommandKeepMeAlive(MegaClient *client, int type, bool enable)
-    : Command(true)
 {
     if (enable)
     {
@@ -7821,8 +7639,9 @@ bool CommandKeepMeAlive::procresult(Result r)
 }
 
 CommandMultiFactorAuthSetup::CommandMultiFactorAuthSetup(MegaClient *client, const char *pin)
-    : Command(true, true)
 {
+    mStringIsNotSeqtag = true;
+
     cmd("mfas");
     if (pin)
     {
@@ -7850,7 +7669,6 @@ bool CommandMultiFactorAuthSetup::procresult(Result r)
 }
 
 CommandMultiFactorAuthCheck::CommandMultiFactorAuthCheck(MegaClient *client, const char *email)
-    : Command(true)
 {
     cmd("mfag");
     arg("e", email);
@@ -7879,7 +7697,6 @@ bool CommandMultiFactorAuthCheck::procresult(Result r)
 }
 
 CommandMultiFactorAuthDisable::CommandMultiFactorAuthDisable(MegaClient *client, const char *pin)
-    : Command(true)
 {
     cmd("mfad");
     arg("mfa", pin);
@@ -7894,7 +7711,6 @@ bool CommandMultiFactorAuthDisable::procresult(Result r)
 }
 
 CommandGetPSA::CommandGetPSA(MegaClient *client)
-    : Command(true)
 {
     cmd("gpsa");
 
@@ -7960,7 +7776,6 @@ bool CommandGetPSA::procresult(Result r)
 }
 
 CommandFetchTimeZone::CommandFetchTimeZone(MegaClient *client, const char *timezone, const char* timeoffset)
-    : Command(true)
 {
     cmd("ftz");
     arg("utz", timezone);
@@ -8046,10 +7861,8 @@ bool CommandFetchTimeZone::procresult(Result r)
 }
 
 CommandSetLastAcknowledged::CommandSetLastAcknowledged(MegaClient* client)
-    : Command(true)
 {
     cmd("sla");
-    //notself(client);
     tag = client->reqtag;
 }
 
@@ -8060,7 +7873,6 @@ bool CommandSetLastAcknowledged::procresult(Result r)
 }
 
 CommandSMSVerificationSend::CommandSMSVerificationSend(MegaClient* client, const string& phoneNumber, bool reVerifyingWhitelisted)
-    : Command(true)
 {
     cmd("smss");
     batchSeparately = true;  // don't let any other commands that might get batched with it cause the whole batch to fail
@@ -8095,8 +7907,9 @@ bool CommandSMSVerificationSend::procresult(Result r)
 }
 
 CommandSMSVerificationCheck::CommandSMSVerificationCheck(MegaClient* client, const string& verificationcode)
-    : Command(true, true)
 {
+    mStringIsNotSeqtag = true;
+
     cmd("smsv");
     batchSeparately = true;  // don't let any other commands that might get batched with it cause the whole batch to fail
 
@@ -8142,7 +7955,6 @@ bool CommandSMSVerificationCheck::procresult(Result r)
 }
 
 CommandGetRegisteredContacts::CommandGetRegisteredContacts(MegaClient* client, const map<const char*, const char*>& contacts)
-    : Command(true)
 {
     cmd("usabd");
 
@@ -8238,7 +8050,6 @@ bool CommandGetRegisteredContacts::procresult(Result r)
 }
 
 CommandGetCountryCallingCodes::CommandGetCountryCallingCodes(MegaClient* client)
-    : Command(true)
 {
     cmd("smslc");
 
@@ -8324,7 +8135,6 @@ bool CommandGetCountryCallingCodes::procresult(Result r)
 }
 
 CommandFolderLinkInfo::CommandFolderLinkInfo(MegaClient* client, handle publichandle)
-    : Command(true)
 {
     ph = publichandle;
 
@@ -8419,7 +8229,6 @@ bool CommandFolderLinkInfo::procresult(Result r)
 }
 
 CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle nodeHandle, const string& localFolder, const std::string &deviceId, const string& backupName, int state, int subState, const string& extraData)
-    : Command(true)
 {
     assert(type != BackupType::INVALID);
 
@@ -8439,8 +8248,9 @@ CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle n
 }
 
 CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, const char* backupName, int state, int subState, const char* extraData)
-    : Command(true, true)
 {
+    mStringIsNotSeqtag = true;
+
     cmd("sp");
 
     arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
@@ -8509,7 +8319,6 @@ bool CommandBackupPut::procresult(Result r)
 }
 
 CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, uint32_t ts, handle lastNode)
-    : Command(true)
 {
     cmd("sphb");
 
@@ -8531,7 +8340,7 @@ bool CommandBackupPutHeartBeat::procresult(Result r)
 }
 
 CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId)
-    : Command(true), id(backupId)
+    : id(backupId)
 {
     cmd("sr");
     arg("id", (byte*)&backupId, MegaClient::USERHANDLE);

@@ -24,9 +24,7 @@
 #include "mega/megaclient.h"
 
 namespace mega {
-Command::Command(bool isV3, bool stringIsNotSeqtag)
-    : mV3(isV3)
-    , mStringIsNotSeqtag(stringIsNotSeqtag)
+Command::Command()
 {
     persistent = false;
     level = -1;
