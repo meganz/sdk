@@ -145,7 +145,7 @@ This should build 3rdParty dependencies.
 Once the 3rdParty dependencies are built, you can start building your SDK as follows:
 * cd contrib\cmake
 * mkdir cmake-build-x64 (folder names matching pattern cmake-build-* in contrib/cmake are ignored by git)
-* Download and install CMake from https://cmake.org/download/. Mininimum required version is 3.7.2
+* Download and install CMake from https://cmake.org/download/. Mininimum required version is 3.15
 * cd cmake-build-x64
 * Run CMake-gui from this folder
 	* Set your options. Choose the same compiler and confugurations used to generate 3rdParty.
