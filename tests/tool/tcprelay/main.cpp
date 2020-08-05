@@ -650,7 +650,12 @@ ac::ACN autocompleteSyntax()
 
 class MegaCLILogger : public ::mega::Logger {
 public:
-    virtual void log(const char * /*time*/, int loglevel, const char * /*source*/, const char *message)
+#ifdef ENABLE_LOG_PERFORMANCE
+    virtual void log(const char*, int loglevel, const char*, const char* message,
+                     const char**, size_t*, unsigned)
+#else /* ENABLE_LOG_PERFORMANCE */
+    virtual void log(const char *, int loglevel, const char *, const char *message)
+#endif /* ! ENABLE_LOG_PERFORMANCE */
     {
 #ifdef _WIN32
         OutputDebugStringA(message);
@@ -761,10 +766,8 @@ int main()
 
 #ifdef _WIN32
     SimpleLogger::setLogLevel(logMax);  // warning and stronger to console; info and weaker to VS output window
-    SimpleLogger::setOutputClass(&logger);
-#else
-    SimpleLogger::setAllOutputs(&std::cout);
 #endif
+    SimpleLogger::setOutputClass(&logger);
 
     console = new CONSOLE_CLASS;
 
