@@ -691,7 +691,7 @@ char* longestCommonPrefix(ac::CompletionState& acs)
     return strdup(s.c_str());
 }
 
-char** my_rl_completion(const char */*text*/, int /*start*/, int end)
+char** my_rl_completion(const char*, int, int end)
 {
     rl_attempted_completion_over = 1;
 
