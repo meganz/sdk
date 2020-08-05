@@ -130,7 +130,7 @@ bool Command::checkError(Error& errorDetails, JSON& json)
 // add opcode
 bool Command::getRead() const
 {
-    return read;
+    return mRead;
 }
 
 void Command::addListener(const std::shared_ptr<CommandListener> &listener)
