@@ -19,7 +19,7 @@
  * program.
  */
 
-#include "TcpRelay.h"
+#include "tcprelay.h"
 #include <functional>
 #include <regex>
 #include <iostream>
@@ -33,7 +33,7 @@ bool g_showreplyheaders = false;
 bool g_showrequest = true;
 uint64_t g_overallspeed = 1000000000;
 
-atomic<unsigned> TcpRelay::Side::s_activesenders = 0;
+atomic<unsigned> TcpRelay::Side::s_activesenders(0);
 BucketCountArray<30> TcpRelay::s_send_rate_all_buckets;
 
 void DelayAndDo(std::chrono::steady_clock::duration delayTime, std::function<void()>&& action, asio::io_service& as)
@@ -58,16 +58,21 @@ void DelayAndDoHandler(const asio::error_code& ec, std::shared_ptr<DelayAndDoRec
 
 
 TcpRelay::TcpRelay(asio::io_service& as, const std::string& name, asio::ip::tcp::endpoint connect_endpoint)
-    : asio_service(as)
-    , acceptor_side(as)
-    , connect_side(as)
+    : reporting_name(name)
+    , stopped(false)
+    , paused(false)
+    , restInProgress(false)
+    , expected_incoming(0)
+    , original_expected_incoming(0)
+    , asio_service(as)
+    , connect_address(connect_endpoint)
+    , send_rate_timer(as)
     , accept_to_connect_circular_buf(new CircularBuffer<BufSize>)
     , connect_to_accept_circular_buf(new CircularBuffer<BufSize>)
+    , acceptor_side(as)
+    , connect_side(as)
     , forwardingDirection("forwarding", acceptor_side, connect_side, *accept_to_connect_circular_buf)
     , replyDirection("replying", connect_side, acceptor_side, *connect_to_accept_circular_buf)
-    , connect_address(connect_endpoint)
-    , reporting_name(name)
-    , send_rate_timer(as)
 {
     acceptor_side.asio_socket = asio::ip::tcp::socket(asio_service);//.open(asio::ip::tcp::v6());
     connect_side.asio_socket = asio::ip::tcp::socket(asio_service);// .open(asio::ip::tcp::v6());
@@ -237,7 +242,7 @@ void TcpRelay::ReceiveHandler(Direction& d, const asio::error_code& ec, std::siz
 
             if (expected_incoming > 0)
             {
-                expected_incoming -= bytes_received;
+                expected_incoming -= (int)bytes_received;
                 if (expected_incoming <= 0)
                 {
                     cout << reporting_name << " " << d.directionName << " all data received: " << expected_incoming << endl;
@@ -291,7 +296,7 @@ void TcpRelay::StartSending(Direction& d, bool restarted)
         return;   // rate is too high, give up sending for a little.  The timer will restart us when the rate falls enough.
     }
 
-    unsigned sendrate = d.outgoing.target_bytes_per_second;
+    unsigned sendrate = (unsigned)d.outgoing.target_bytes_per_second;
 
     if (Side::s_activesenders)
     {
@@ -309,8 +314,13 @@ void TcpRelay::StartSending(Direction& d, bool restarted)
         d.outgoing.asio_socket.async_write_some(asio::buffer(range.start_pos, range.len), [this, &d, id](const asio::error_code& ec, std::size_t n) { SendHandler(d, ec, n, id); });
         if (logstream)
         {
+        #if _WIN32
             struct _timeb timebuffer;
             _ftime(&timebuffer); 
+        #else /* _WIN32 */
+            struct timeb timebuffer;
+            ftime(&timebuffer);
+        #endif /* ! _WIN32 */
             struct tm * timeinfo = localtime(&timebuffer.time);
             char stringtime[100];
             strftime(stringtime, 80, "%T.", timeinfo);
@@ -357,11 +367,15 @@ void TcpRelay::Pause(bool b)
 
 TcpRelayAcceptor::TcpRelayAcceptor(asio::io_service& as, const std::string& name, uint16_t port, asio::ip::tcp::endpoint connect_endpoint, onAcceptedFn f)
     : reporting_name(name)
+    , listen_port(port)
     , asio_service(as)
     , connect_address(connect_endpoint)
-    , listen_port(port)
     , asio_acceptor(as, asio::ip::tcp::endpoint(asio::ip::tcp::v6(), port))
+    , nextRelay()
+    , relayCount(0)
+    , stopped(false)
     , onAccepted(f)
+    , bytespersec(0)
 {
     nextRelay.reset(new TcpRelay(asio_service, reporting_name + "-" + to_string(++relayCount), connect_address));
 }
@@ -381,10 +395,15 @@ void TcpRelayAcceptor::Stop()
 
 void TcpRelayAcceptor::Start()
 {
+    using asio::ip::tcp;
+
+    if (stopped)
+    {
+        asio_acceptor =
+          tcp::acceptor(asio_service, tcp::endpoint(tcp::v6(), listen_port));
+    }
+
     stopped = false;
-    asio_acceptor = asio::ip::tcp::acceptor(asio_service, asio::ip::tcp::endpoint(asio::ip::tcp::v6(), listen_port));
-    //asio::socket_base::reuse_address option(true);
-    //asio_acceptor.set_option(option);
     StartAccepting();
 }
 
