@@ -4643,6 +4643,14 @@ void cleanUp(mega::MegaApi* megaApi, const fs::path &basePath)
     std::error_code ignoredEc;
     fs::remove_all(basePath, ignoredEc);
 
+    std::unique_ptr<MegaSyncList> syncs{megaApi->getSyncs()};
+    for (int i = 0; i < syncs->size(); i++)
+    {
+        RequestTracker removeTracker(megaApi);
+        megaApi->removeSync(syncs->get(i),&removeTracker);
+        removeTracker.waitForResult();
+    }
+
     std::unique_ptr<MegaNode> baseNode{megaApi->getNodeByPath(("/" + basePath.u8string()).c_str())};
     if (baseNode)
     {
@@ -4659,15 +4667,15 @@ std::unique_ptr<mega::MegaSync> waitForSyncState(mega::MegaApi* megaApi, mega::M
     {
         sync.reset(megaApi->getSyncByNode(remoteNode));
         return (sync && sync->getState() == expectedState);
-    }, 20*1000);
+    }, 30*1000);
     return sync;
 }
 
 TEST_F(SdkTest, SyncBasicOperations)
 {
     // What we are going to test here:
-    // - add a sync
-    // - add a sync that fails
+    // - add syncs
+    // - add sync that fails
     // - disable a sync
     // - disable a sync that fails
     // - disable a disabled sync
@@ -4699,48 +4707,80 @@ TEST_F(SdkTest, SyncBasicOperations)
     fs::create_directories(localPath3);
 
     LOG_verbose << "SyncBasicOperations :  Creating the remote folders to be synced to.";
-    // Sync 1
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
     ASSERT_NE(remoteRootNode.get(), nullptr);
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, syncFolder1.c_str(), remoteRootNode.get())) << "Error creating remote basePath";
-    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(mApi[0].h));
-    ASSERT_NE(remoteBaseNode.get(), nullptr);
+    // Sync 1
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, syncFolder1.c_str(), remoteRootNode.get())) << "Error creating remote folders";
+    std::unique_ptr<MegaNode> remoteBaseNode1(megaApi[0]->getNodeByHandle(mApi[0].h));
+    ASSERT_NE(remoteBaseNode1.get(), nullptr);
     // Sync 2
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, syncFolder2.c_str(), remoteRootNode.get())) << "Error creating remote basePath";
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, syncFolder2.c_str(), remoteRootNode.get())) << "Error creating remote folders";
     std::unique_ptr<MegaNode> remoteBaseNode2(megaApi[0]->getNodeByHandle(mApi[0].h));
     ASSERT_NE(remoteBaseNode2.get(), nullptr);
     // Sync 3
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, syncFolder3.c_str(), remoteRootNode.get())) << "Error creating remote basePath";
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, syncFolder3.c_str(), remoteRootNode.get())) << "Error creating remote folders";
     std::unique_ptr<MegaNode> remoteBaseNode3(megaApi[0]->getNodeByHandle(mApi[0].h));
     ASSERT_NE(remoteBaseNode3.get(), nullptr);
 
     LOG_verbose << "SyncRemoveRemoteNode :  Add syncs";
     // Sync 1
-    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, localPath1.u8string().c_str(), remoteBaseNode.get())) << "API Error adding a new sync";
-    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(),remoteBaseNode.get(),mega::syncstate_t::SYNC_ACTIVE);
+    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, localPath1.u8string().c_str(), remoteBaseNode1.get())) << "API Error adding a new sync";
+    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode1.get(), mega::syncstate_t::SYNC_ACTIVE);
     ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_ACTIVE);
     // Sync2
     ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, localPath2.u8string().c_str(), remoteBaseNode2.get())) << "API Error adding a new sync";
-    std::unique_ptr<MegaSync> sync2 = waitForSyncState(megaApi[0].get(),remoteBaseNode2.get(),mega::syncstate_t::SYNC_ACTIVE);
+    std::unique_ptr<MegaSync> sync2 = waitForSyncState(megaApi[0].get(), remoteBaseNode2.get(), mega::syncstate_t::SYNC_ACTIVE);
     ASSERT_TRUE(sync2 && sync2->getState() == mega::syncstate_t::SYNC_ACTIVE);
 
     LOG_verbose << "SyncRemoveRemoteNode :  Add syncs that fails";
-    ASSERT_EQ(MegaError::API_EEXIST, synchronousSyncFolder(0, localPath3.u8string().c_str(), remoteBaseNode.get())); // Remote node is currently synced.
-    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, (localPath2 / fs::path("xxxyyyzzz")).u8string().c_str(), remoteBaseNode2.get())); // Local resource doesn't exists and Remote node is currently synced.
-    std::unique_ptr<MegaSync> sync3 = waitForSyncState(megaApi[0].get(),remoteBaseNode2.get(),mega::syncstate_t::SYNC_ACTIVE);
-    ASSERT_TRUE(sync3 && sync3->getState() == mega::syncstate_t::SYNC_ACTIVE);
+    ASSERT_EQ(MegaError::API_EEXIST, synchronousSyncFolder(0, localPath3.u8string().c_str(), remoteBaseNode1.get())); // Remote node is currently synced.
+    ASSERT_EQ(MegaError::API_EEXIST, synchronousSyncFolder(0, localPath3.u8string().c_str(), remoteBaseNode2.get())); // Remote node is currently synced.
+    ASSERT_EQ(MegaError::API_ENOENT, synchronousSyncFolder(0, (localPath3 / fs::path("xxxyyyzzz")).u8string().c_str(), remoteBaseNode3.get())); // Local resource doesn't exists.
 
-    //LOG_verbose << "SyncRemoveRemoteNode :  Disable a sync";
-    //ASSERT_EQ(MegaError::API_OK, synchronousDisableSync(0, localPath.u8string().c_str(), remoteBaseNode.get())) << "API Error adding a new sync";
-
+    LOG_verbose << "SyncRemoveRemoteNode :  Disable a sync";
     // Sync 1
-    ASSERT_EQ(MegaError::API_OK, synchronousRemoveSync(0, sync.get())) << "API Error removing the sync";
-    sync.reset(megaApi[0]->getSyncByNode(remoteBaseNode.get()));
+    int syncTag = sync->getTag();
+    ASSERT_EQ(MegaError::API_OK, synchronousDisableSync(0, syncTag));
+    sync = waitForSyncState(megaApi[0].get(), remoteBaseNode1.get(), mega::syncstate_t::SYNC_DISABLED);
+    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_DISABLED);
+    //  Sync 2
+    ASSERT_EQ(MegaError::API_OK, synchronousDisableSync(0, sync2.get()));
+    sync2 = waitForSyncState(megaApi[0].get(), remoteBaseNode2.get(), mega::syncstate_t::SYNC_DISABLED);
+    ASSERT_TRUE(sync2 && sync2->getState() == mega::syncstate_t::SYNC_DISABLED);
+
+    LOG_verbose << "SyncRemoveRemoteNode :  Disable disabled syncs";
+    ASSERT_EQ(MegaError::API_OK, synchronousDisableSync(0, sync.get())); // Currently disabled.
+    ASSERT_EQ(MegaError::API_OK, synchronousDisableSync(0, syncTag)); // Currently disabled.
+    ASSERT_EQ(MegaError::API_OK, synchronousDisableSync(0, remoteBaseNode1.get())); // Currently disabled.
+
+    LOG_verbose << "SyncRemoveRemoteNode :  Enable Syncs";
+    // Sync 1
+    ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0,syncTag));
+    sync = waitForSyncState(megaApi[0].get(), remoteBaseNode1.get(), mega::syncstate_t::SYNC_ACTIVE);
+    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_ACTIVE);
+    // Sync 2
+    ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0,sync2.get()));
+    sync2 = waitForSyncState(megaApi[0].get(), remoteBaseNode2.get(), mega::syncstate_t::SYNC_ACTIVE);
+    ASSERT_TRUE(sync2 && sync2->getState() == mega::syncstate_t::SYNC_ACTIVE);
+
+    LOG_verbose << "SyncRemoveRemoteNode :  Enable syncs that fails";
+    ASSERT_EQ(MegaError::API_ENOENT, synchronousEnableSync(0,999999)); // Hope it doesn't exist.
+    ASSERT_EQ(MegaError::API_EEXIST, synchronousEnableSync(0,sync2.get())); // Currently enabled.
+
+    LOG_verbose << "SyncRemoveRemoteNode :  Remove Syncs";
+    // Sync 1
+    ASSERT_EQ(MegaError::API_OK, synchronousRemoveSync(0, syncTag)) << "API Error removing the sync";
+    sync.reset(megaApi[0]->getSyncByNode(remoteBaseNode1.get()));
     ASSERT_EQ(nullptr, sync.get());
     // Sync 2
     ASSERT_EQ(MegaError::API_OK, synchronousRemoveSync(0, sync2.get())) << "API Error removing the sync";
-    sync2.reset(megaApi[0]->getSyncByNode(remoteBaseNode2.get()));
-    ASSERT_EQ(nullptr, sync2.get());
+    // Keep a not updated MegaSync object
+
+    LOG_verbose << "SyncRemoveRemoteNode :  Remove Syncs that fails";
+    ASSERT_EQ(MegaError::API_ENOENT, synchronousRemoveSync(0, 9999999)); // Hope id doesn't exist
+    ASSERT_EQ(MegaError::API_ENOENT, synchronousRemoveSync(0, syncTag)); // currently removed.
+    ASSERT_EQ(MegaError::API_EARGS, synchronousRemoveSync(0, sync.get())); // currently removed.
+    ASSERT_EQ(MegaError::API_ENOENT, synchronousRemoveSync(0, sync2.get())); // currently removed.
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
 }
