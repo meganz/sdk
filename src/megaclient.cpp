@@ -9783,9 +9783,9 @@ void MegaClient::delua(const char *an)
     }
 }
 
-void MegaClient::senddevcommand(const char *command, const char *email)
+void MegaClient::senddevcommand(const char *command, const char *email, long long q, int bs, int us)
 {
-    reqs.add(new CommandSendDevCommand(this, command, email));
+    reqs.add(new CommandSendDevCommand(this, command, email, q, bs, us));
 }
 #endif
 
