@@ -12402,7 +12402,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
     }
 
     auto fa = fsaccess->newfileaccess();
-    if (fa->fopen(rootpath, true, false))
+    if (fa->fopen(rootpath, true, false, nullptr, true))
     {
         if (fa->type == FOLDERNODE)
         {
