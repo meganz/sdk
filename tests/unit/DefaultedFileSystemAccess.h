@@ -27,6 +27,8 @@ namespace mt {
 class DefaultedFileSystemAccess : public mega::FileSystemAccess
 {
 public:
+    using FileSystemAccess::getlocalfstype;
+
     DefaultedFileSystemAccess(const std::string &separator = "/")
     {
         notifyerr = false;
@@ -40,6 +42,10 @@ public:
     mega::DirAccess* newdiraccess() override
     {
         throw NotImplemented{__func__};
+    }
+    bool getlocalfstype(const mega::LocalPath&, mega::FileSystemType& type) const override
+    {
+        return type = mega::FS_UNKNOWN, false;
     }
     void path2local(const std::string*, std::string*) const override
     {
