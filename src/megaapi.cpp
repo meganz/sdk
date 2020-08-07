@@ -1358,7 +1358,7 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
         case API_EBUSINESSPASTDUE:
             return "Business account has expired";
         case API_EPAYWALL:
-            return "Over Disk Quota Paywall";
+            return "Storage Quota Exceeded. Upgrade now";
         case PAYMENT_ECARD:
             return "Credit card rejected";
         case PAYMENT_EBILLING:
