@@ -22,58 +22,26 @@
 #ifndef MEGA_FILESYSTEM_H
 #define MEGA_FILESYSTEM_H 1
 
-#if defined (__linux__) && !defined (__ANDROID__)
-#include <linux/magic.h>
-#endif
-
-#if defined (__linux__) || defined (__ANDROID__) // __ANDROID__ is always included in __linux__
-#include <sys/vfs.h>
-#elif defined  (__APPLE__) || defined (USE_IOS)
-#include <sys/mount.h>
-#include <sys/param.h>
-#elif defined(_WIN32) || defined(WINDOWS_PHONE)
-#include <winsock2.h>
-#include <Windows.h>
-#endif
-
 #include "types.h"
 #include "utils.h"
 #include "waiter.h"
 
-#if defined (__linux__) && !defined (__ANDROID__)
-// Define magic constants (for linux), in case they are not defined in headers
-#ifndef HFS_SUPER_MAGIC
-#define HFS_SUPER_MAGIC 0x4244
-#endif
-
-#ifndef NTFS_SB_MAGIC
-#define NTFS_SB_MAGIC   0x5346544e
-#endif
-
-#elif defined (__ANDROID__)
-// Define magic constants (for Android), in case they are not defined in headers
-#ifndef SDCARDFS_SUPER_MAGIC
-#define SDCARDFS_SUPER_MAGIC 0x5DCA2DF5
-#endif
-
-#ifndef FUSEBLK_SUPER_MAGIC
-#define FUSEBLK_SUPER_MAGIC  0x65735546
-#endif
-
-#ifndef FUSECTL_SUPER_MAGIC
-#define FUSECTL_SUPER_MAGIC  0x65735543
-#endif
-
-#ifndef F2FS_SUPER_MAGIC
-#define F2FS_SUPER_MAGIC 0xF2F52010
-#endif
-#endif
-
 namespace mega {
 
 // Enumeration for filesystem families
-enum FileSystemType {FS_UNKNOWN = -1, FS_APFS = 0, FS_HFS = 1, FS_EXT = 2, FS_FAT32 = 3,
-                     FS_EXFAT = 4, FS_NTFS = 5, FS_FUSE = 6, FS_SDCARDFS = 7, FS_F2FS = 8};
+enum FileSystemType
+{
+    FS_UNKNOWN = -1,
+    FS_APFS = 0,
+    FS_HFS = 1,
+    FS_EXT = 2,
+    FS_FAT32 = 3,
+    FS_EXFAT = 4,
+    FS_NTFS = 5,
+    FS_FUSE = 6,
+    FS_SDCARDFS = 7,
+    FS_F2FS = 8
+};
 
 // generic host filesystem node ID interface
 struct MEGA_API FsNodeId
@@ -445,9 +413,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     bool islocalfscompatible(unsigned char, bool isEscape, FileSystemType = FS_UNKNOWN) const;
     void escapefsincompatible(string*, FileSystemType fileSystemType) const;
 
-    FileSystemType getFilesystemType(const LocalPath& dstPath) const;
     const char *fstypetostring(FileSystemType type) const;
-    FileSystemType getlocalfstype(const LocalPath& dstPath) const;
+    virtual bool getlocalfstype(const LocalPath& path, FileSystemType& type) const = 0;
+    FileSystemType getlocalfstype(const LocalPath& path) const;
     void unescapefsincompatible(string*,FileSystemType) const;
 
     // convert MEGA path (UTF-8) to local format

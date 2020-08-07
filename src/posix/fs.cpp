@@ -39,6 +39,45 @@ extern JavaVM *MEGAjvm;
 #include <uuid/uuid.h>
 #endif
 
+#ifdef __linux__
+
+#ifndef __ANDROID__
+#include <linux/magic.h>
+#endif /* ! __ANDROID__ */
+
+#include <sys/vfs.h>
+
+#ifndef FUSEBLK_SUPER_MAGIC
+#define FUSEBLK_SUPER_MAGIC 0x65735546
+#endif /* ! FUSEBLK_SUPER_MAGIC */
+
+#ifndef FUSECTL_SUPER_MAGIC
+#define FUSECTL_SUPER_MAGIC 0x65735543
+#endif /* ! FUSECTL_SUPER_MAGIC */
+
+#ifndef HFS_SUPER_MAGIC
+#define HFS_SUPER_MAGIC 0x4244
+#endif /* ! HFS_SUPER_MAGIC */
+
+#ifndef NTFS_SB_MAGIC
+#define NTFS_SB_MAGIC 0x5346544E
+#endif /* ! NTFS_SB_MAGIC */
+
+#ifndef SDCARDFS_SUPER_MAGIC
+#define SDCARDFS_SUPER_MAGIC 0x5DCA2DF5
+#endif /* ! SDCARDFS_SUPER_MAGIC */
+
+#ifndef F2FS_SUPER_MAGIC
+#define F2FS_SUPER_MAGIC 0xF2F52010
+#endif /* ! F2FS_SUPER_MAGIC */
+
+#endif /* __linux__ */
+
+#if defined(__APPLE__) || defined(USE_IOS)
+#include <sys/mount.h>
+#include <sys/param.h>
+#endif /* __APPLE__ || USE_IOS */
+
 namespace mega {
 using namespace std;
 
@@ -1796,6 +1835,74 @@ DirNotify* PosixFileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& 
     dirnotify->fsaccess = this;
 
     return dirnotify;
+}
+
+bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType& type) const
+{
+#if defined(__linux__) || defined(__ANDROID__)
+    struct statfs statbuf;
+
+    if (!statfs(path.editStringDirect()->c_str(), &statbuf))
+    {
+        switch (statbuf.f_type)
+        {
+        case EXT2_SUPER_MAGIC:
+            type = FS_EXT;
+            break;
+        case MSDOS_SUPER_MAGIC:
+            type = FS_FAT32;
+            break;
+        case HFS_SUPER_MAGIC:
+            type = FS_HFS;
+            break;
+        case NTFS_SB_MAGIC:
+            type = FS_NTFS;
+            break;
+#if defined(__ANDROID__)
+        case F2FS_SUPER_MAGIC:
+            type = FS_F2FS;
+            break;
+        case FUSEBLK_SUPER_MAGIC:
+        case FUSECTL_SUPER_MAGIC:
+            type = FS_FUSE;
+            break;
+        case SDCARDFS_SUPER_MAGIC:
+            type = FS_SDCARDFS;
+            break;
+#endif /* __ANDROID__ */
+        default:
+            type = FS_UNKNOWN;
+            break;
+        }
+
+        return true;
+    }
+#endif /* __linux__ || __ANDROID__ */
+
+#if defined(__APPLE__) || defined(USE_IOS)
+    static const map<string, FileSystemType> filesystemTypes = {
+        {"apfs",  FS_APFS},
+        {"hfs",   FS_HFS},
+        {"msdos", FS_FAT32},
+        {"ntfs",  FS_NTFS}
+    }; /* filesystemTypes */
+
+    struct statfs statbuf;
+
+    if (!statfs(path.editStringDirect()->c_str(), &statbuf))
+    {
+        auto it = filesystemTypes.find(statbuf.f_fstypename);
+
+        if (it != filesystemTypes.end())
+        {
+            return type = it->second, true;
+        }
+
+        return type = FS_UNKNOWN, true;
+    }
+#endif /* __APPLE__ || USE_IOS */
+
+    return type = FS_UNKNOWN, false;
 }
 
 bool PosixDirAccess::dopen(LocalPath* path, FileAccess* f, bool doglob)

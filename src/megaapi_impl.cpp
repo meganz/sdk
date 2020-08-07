@@ -2821,7 +2821,7 @@ void MegaTransferPrivate::setPath(const char* path)
 
     for (int i = int(strlen(path) - 1); i >= 0; i--)
     {
-        if (strchr(::mega::FileSystemAccess::getPathSeparator(), path[i]))
+        if (strchr(FileSystemAccess::getPathSeparator(), path[i]))
         {
             setFileName(&(path[i+1]));
             char *parentPath = MegaApi::strdup(path);
@@ -4771,7 +4771,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, const LocalPath& dstPa
 {
     h = n->getHandle();
 
-    FileSystemType fsType = client->fsaccess->getFilesystemType(dstPath);
+    FileSystemType fsType = client->fsaccess->getlocalfstype(dstPath);
 
     LocalPath lpName = LocalPath::fromName(n->getName(), *client->fsaccess, fsType);
     name = lpName.toPath(*client->fsaccess);
@@ -8099,7 +8099,7 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
 {
     if (fsType == FS_UNKNOWN && localPath)
     {
-        fsType = fsAccess->getFilesystemType(LocalPath::fromPath(localPath, *fsAccess));
+        fsType = fsAccess->getlocalfstype(LocalPath::fromPath(localPath, *fsAccess));
     }
 
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
@@ -8188,7 +8188,7 @@ void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* loc
 #endif
 
         int c = localPath[strlen(localPath)-1];
-        if (strchr(::mega::FileSystemAccess::getPathSeparator(), c))
+        if (strchr(FileSystemAccess::getPathSeparator(), c))
         {
             transfer->setParentPath(localPath);
         }
@@ -8302,7 +8302,7 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
         MegaNode *parent = getNodeByHandle(t->getParentHandle());
         startUpload(t->shouldStartFirst(), t->getPath(), parent, t->getFileName(), t->getTime(), 0,
                           t->isBackupTransfer(), t->getAppData(), t->isSourceFileTemporary(), t->isStreamingTransfer(),
-                          client->fsaccess->getFilesystemType(LocalPath::fromPath(t->getPath(), *fsAccess)), listener);
+                          client->fsaccess->getlocalfstype(LocalPath::fromPath(t->getPath(), *fsAccess)), listener);
         delete parent;
     }
 }
@@ -8960,7 +8960,7 @@ char *MegaApiImpl::escapeFsIncompatible(const char *filename, const char *dstPat
     }
     string name = filename;
     string path = dstPath ? dstPath : "";
-    client->fsaccess->escapefsincompatible(&name, client->fsaccess->getFilesystemType(LocalPath::fromPath(path, *client->fsaccess)));
+    client->fsaccess->escapefsincompatible(&name, client->fsaccess->getlocalfstype(LocalPath::fromPath(path, *client->fsaccess)));
     return MegaApi::strdup(name.c_str());
 }
 
@@ -8972,7 +8972,7 @@ char *MegaApiImpl::unescapeFsIncompatible(const char *name, const char *path)
     }
     string filename = name;
     string localpath = path ? path : "";
-    client->fsaccess->unescapefsincompatible(&filename, client->fsaccess->getFilesystemType(LocalPath::fromPath(localpath, *client->fsaccess)));
+    client->fsaccess->unescapefsincompatible(&filename, client->fsaccess->getlocalfstype(LocalPath::fromPath(localpath, *client->fsaccess)));
     return MegaApi::strdup(filename.c_str());
 }
 
@@ -18350,7 +18350,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
                         wLocalPath.appendWithSeparator(LocalPath::fromPath("", *fsAccess), true, fsAccess->localseparator);
                     }
 
-                    FileSystemType fsType = fsAccess->getFilesystemType(wLocalPath);
+                    FileSystemType fsType = fsAccess->getlocalfstype(wLocalPath);
 
                     MegaFileGet *f;
                     if (node)
@@ -24704,7 +24704,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
     da = client->fsaccess->newdiraccess();
     if (da->dopen(&localPath, NULL, false))
     {
-        FileSystemType fsType = client->fsaccess->getFilesystemType(localPath);
+        FileSystemType fsType = client->fsaccess->getlocalfstype(localPath);
 
         nodetype_t dirEntryType;
         while (da->dnext(localPath, localname, client->followsymlinks, &dirEntryType))
@@ -25496,7 +25496,7 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
         da = client->fsaccess->newdiraccess();
         if (da->dopen(&localPath, NULL, false))
         {
-            FileSystemType fsType = client->fsaccess->getFilesystemType(localPath);
+            FileSystemType fsType = client->fsaccess->getlocalfstype(localPath);
 
             while (da->dnext(localPath, localname, client->followsymlinks))
             {
@@ -25979,7 +25979,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
         path.appendWithSeparator(LocalPath::fromPath("", *client->fsaccess), true, client->fsaccess->localseparator);
     }
 
-    FileSystemType fsType = client->fsaccess->getFilesystemType(path);
+    FileSystemType fsType = client->fsaccess->getlocalfstype(path);
 
     if (!fileName)
     {
@@ -28792,7 +28792,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 }
             }
 
-            FileSystemType fsType = httpctx->server->fsAccess->getFilesystemType(LocalPath::fromPath(httpctx->tmpFileName, *httpctx->server->fsAccess));
+            FileSystemType fsType = httpctx->server->fsAccess->getlocalfstype(LocalPath::fromPath(httpctx->tmpFileName, *httpctx->server->fsAccess));
 
             httpctx->megaApi->startUpload(httpctx->tmpFileName.c_str(), newParentNode, newname.c_str(), fsType, httpctx);
 
@@ -31530,7 +31530,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
                 LOG_debug << "Starting upload of file " << fds->newNameToUpload;
                 fds->controlftpctx->tmpFileName = ftpdatactx->tmpFileName;
 
-                FileSystemType fsType = fds->fsAccess->getFilesystemType(LocalPath::fromPath(ftpdatactx->tmpFileName, *fds->fsAccess));
+                FileSystemType fsType = fds->fsAccess->getlocalfstype(LocalPath::fromPath(ftpdatactx->tmpFileName, *fds->fsAccess));
 
                 ftpdatactx->megaApi->startUpload(ftpdatactx->tmpFileName.c_str(), newParentNode, fds->newNameToUpload.c_str(), fsType, fds->controlftpctx);
                 ftpdatactx->controlRespondedElsewhere = true;

@@ -705,7 +705,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
     fsstableids = dirnotify->fsstableids();
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
 
-    mFilesystemType = client->fsaccess->getFilesystemType(crootpath);
+    mFilesystemType = client->fsaccess->getlocalfstype(crootpath);
 
     localroot->init(this, FOLDERNODE, NULL, crootpath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
     localroot->setnode(remotenode);
