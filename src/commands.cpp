@@ -1245,19 +1245,19 @@ bool CommandPutNodes::procresult(Result r)
 #endif
         if (source == PUTNODES_APP)
         {
-#ifdef ENABLE_SYNC
-            if (!ISUNDEF(targethandle))
-            {
-                Node *parent = client->nodebyhandle(targethandle);
-                if (parent && parent->localnode)
-                {
-                    // A node has been added by a regular (non sync) putnodes
-                    // inside a synced folder, so force a syncdown to detect
-                    // and sync the changes.
-                    client->syncdownrequired = true;
-                }
-            }
-#endif
+//#ifdef ENABLE_SYNC        // should be done by actionpacket code
+//            if (!ISUNDEF(targethandle))
+//            {
+//                Node *parent = client->nodebyhandle(targethandle);
+//                if (parent && parent->localnode)
+//                {
+//                    // A node has been added by a regular (non sync) putnodes
+//                    // inside a synced folder, so force a syncdown to detect
+//                    // and sync the changes.
+//                    client->syncdownrequired = true;
+//                }
+//            }
+//#endif
             assert(!emptyResponse);  // todo: can this emptyResponse case occur now that we use actionpackets?
             client->app->putnodes_result(emptyResponse ? API_ENOENT : API_OK, type, nn);  
         }

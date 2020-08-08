@@ -1339,13 +1339,13 @@ public:
     void syncupdate();
 
     // create missing folders, copy/start uploading missing files
-    bool syncup(LocalNode*, dstime*);
+    bool syncup(LocalNode*, dstime*, bool partialOnly);
 
     // sync putnodes() completion
     void putnodes_sync_result(error, vector<NewNode>&);
 
     // start downloading/copy missing files, create missing directories
-    bool syncdown(LocalNode*, LocalPath&);
+    bool syncdown(LocalNode * const, LocalPath&, bool partialOnly);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
     void movetosyncdebris(Node*, bool);

@@ -671,9 +671,6 @@ class MEGA_API CommandSetPendingContact : public Command
     string temail;  // target email
 
 public:
-    handle mActionpacketPcrHandle = UNDEF;
-    string messageForActionpacket;
-
     bool procresult(Result) override;
 
     CommandSetPendingContact(MegaClient*, const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);

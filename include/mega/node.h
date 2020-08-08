@@ -375,6 +375,10 @@ struct MEGA_API LocalNode : public File
     // global sync reference
     handle syncid = mega::UNDEF;
 
+    enum { synctree_resolved = 0, 
+           synctree_descendantflagged = 1, 
+           synctree_scanhere = 2 };  // scan here also implies checking immdiate children for synctree_descendantflagged
+
     struct
     {
         // was actively deleted
@@ -388,7 +392,20 @@ struct MEGA_API LocalNode : public File
 
         // checked for missing attributes
         bool checked : 1;
+
+        // needs another syncdown after pending changes
+        unsigned syncdownPartialAction: 2;
+
+        // at least one child has needsAnotherSyncdown set
+        unsigned syncupPartialAction: 2;
+
     };
+
+    // set the syncupPartialAction for this, and parents
+    void needsFutureSyncup();
+
+    // set the syncupPartialAction for this, and parents
+    void needsFutureSyncdown();
 
     // current subtree sync state: current and displayed
     treestate_t ts = TREESTATE_NONE;
