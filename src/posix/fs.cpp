@@ -71,6 +71,10 @@ extern JavaVM *MEGAjvm;
 #define F2FS_SUPER_MAGIC 0xF2F52010
 #endif /* ! F2FS_SUPER_MAGIC */
 
+#ifndef XFS_SUPER_MAGIC
+#define XFS_SUPER_MAGIC 0x58465342
+#endif /* ! XFS_SUPER_MAGIC */
+
 #endif /* __linux__ */
 
 #if defined(__APPLE__) || defined(USE_IOS)
@@ -1870,6 +1874,9 @@ bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType
             type = FS_SDCARDFS;
             break;
 #endif /* __ANDROID__ */
+        case XFS_SUPER_MAGIC:
+            type = FS_XFS;
+            break;
         default:
             type = FS_UNKNOWN;
             break;

@@ -40,7 +40,8 @@ enum FileSystemType
     FS_NTFS = 5,
     FS_FUSE = 6,
     FS_SDCARDFS = 7,
-    FS_F2FS = 8
+    FS_F2FS = 8,
+    FS_XFS = 9
 };
 
 // generic host filesystem node ID interface

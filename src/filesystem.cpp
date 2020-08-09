@@ -70,6 +70,8 @@ const char *FileSystemAccess::fstypetostring(FileSystemType type) const
             return "SDCARDFS";
         case FS_F2FS:
             return "F2FS";
+        case FS_XFS:
+            return "XFS";
         case FS_UNKNOWN:    // fall through
             return "UNKNOWN FS";
     }
@@ -137,6 +139,7 @@ bool FileSystemAccess::islocalfscompatible(unsigned char c, bool isEscape, FileS
             return c != '\x3A' && c != '\x2F';
         case FS_F2FS:
         case FS_EXT:
+        case FS_XFS:
             // f2fs and ext2/ext3/ext4 restricted characters =>  / NULL
             return c != '\x00' && c != '\x2F';
         case FS_FAT32:
