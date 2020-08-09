@@ -70,6 +70,8 @@ const char *FileSystemAccess::fstypetostring(FileSystemType type) const
             return "SDCARDFS";
         case FS_F2FS:
             return "F2FS";
+        case FS_XFS:
+            return "XFS";
         case FS_UNKNOWN:    // fall through
             return "UNKNOWN FS";
     }
