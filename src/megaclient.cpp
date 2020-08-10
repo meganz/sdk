@@ -1390,7 +1390,7 @@ void MegaClient::exec()
     else if (pendingcs && EVER(pendingcs->lastdata) && !requestLock && !fetchingnodes
             &&  Waiter::ds >= pendingcs->lastdata + HttpIO::REQUESTTIMEOUT)
     {
-        LOG_debug << "Request timeout. Triggering a lock request";
+        LOG_debug << clientname << "Request timeout. Triggering a lock request";
         requestLock = true;
     }
 
@@ -2940,14 +2940,22 @@ void MegaClient::exec()
 
         if (!workinglockcs && requestLock && btworkinglock.armed())
         {
-            LOG_debug << "Sending lock request";
-            workinglockcs = new HttpReq();
-            workinglockcs->posturl = APIURL;
-            workinglockcs->posturl.append("cs?");
-            workinglockcs->posturl.append(auth);
-            workinglockcs->posturl.append("&wlt=1");
-            workinglockcs->type = REQ_JSON;
-            workinglockcs->post(this);
+            if (!auth.empty())
+            {
+                LOG_debug << "Sending lock request";
+                workinglockcs = new HttpReq();
+                workinglockcs->posturl = APIURL;
+                workinglockcs->posturl.append("cs?");
+                workinglockcs->posturl.append(auth);
+                workinglockcs->posturl.append("&wlt=1");
+                workinglockcs->type = REQ_JSON;
+                workinglockcs->post(this);
+            }
+            else if (!EVER(disconnecttimestamp))
+            {
+                LOG_warn << "Possible server timeout, but we don't have auth yet, disconnect and retry";
+                disconnecttimestamp = Waiter::ds + HttpIO::CONNECTTIMEOUT;
+            }
         }
 
 

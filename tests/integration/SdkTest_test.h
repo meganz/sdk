@@ -266,6 +266,7 @@ public:
     template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFastLogin(unsigned apiIndex, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->fastLogin(args..., rt.get()); return rt; }
     template<typename ... requestArgs> std::unique_ptr<RequestTracker> asyncRequestFetchnodes(unsigned apiIndex, requestArgs... args) { auto rt = ::mega::make_unique<RequestTracker>(megaApi[apiIndex].get()); megaApi[apiIndex]->fetchNodes(args..., rt.get()); return rt; }
     template<typename ... requestArgs> int doRequestLogout(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->logout(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int doRequestLocalLogout(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->localLogout(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doSetNodeDuration(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setNodeDuration(args..., &rt); return rt.waitForResult(); }
 
     void createFile(string filename, bool largeFile = true);

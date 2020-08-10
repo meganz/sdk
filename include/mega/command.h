@@ -109,7 +109,7 @@ public:
         Error errorGeneral()
         {
             // for the general case- command could result in an error, actionpacket, or JSON to process
-            return mOutcome == CmdError ? mError : API_OK;
+            return mOutcome == CmdError ? error(mError) : API_OK;
         }
 
         bool hasJsonArray()
@@ -133,13 +133,13 @@ public:
         // convenience function for commands that should only return numeric or actionpacket, consider anything else EINTERNAL
         Error errorResultOrActionpacket()
         {
-            return mOutcome == CmdError ? mError : (mOutcome == CmdActionpacket ? API_OK : API_EINTERNAL);
+            return mOutcome == CmdError ? error(mError) : (mOutcome == CmdActionpacket ? API_OK : API_EINTERNAL);
         }
 
         Error errorOrOK()
         {
             assert(mOutcome == CmdError);
-            return mOutcome == CmdError ? mError : API_EINTERNAL;
+            return mOutcome == CmdError ? error(mError) : API_EINTERNAL;
         }
 
         bool wasErrorOrActionpacket()

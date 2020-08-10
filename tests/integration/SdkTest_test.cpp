@@ -683,13 +683,13 @@ char* SdkTest::dumpSession()
 
 void SdkTest::locallogout(int timeout)
 {
-    int apiIndex = 0;
-    mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGOUT] = false;
-    megaApi[apiIndex]->localLogout(this);
-
-    EXPECT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGOUT], timeout) )
-            << "Local logout failed after " << timeout  << " seconds";
-    ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Local logout failed (error: " << mApi[apiIndex].lastError << ")";
+    //int apiIndex = 0;
+    //mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGOUT] = false;
+    //megaApi[apiIndex]->localLogout(this);
+    //EXPECT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGOUT], timeout) )
+    //        << "Local logout failed after " << timeout  << " seconds";
+    auto logoutErr = doRequestLocalLogout(0);
+    ASSERT_EQ(MegaError::API_OK, logoutErr) << "Local logout failed (error: " << logoutErr << ")";
 }
 
 void SdkTest::resumeSession(const char *session, int timeout)
