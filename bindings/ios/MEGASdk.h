@@ -314,6 +314,18 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  */
 @property (readonly, nonatomic) Retry waiting;
 
+/*
+ * @brief Get the total bytes of started downloads
+ * @return Total bytes of started downloads
+ *
+ * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalDownloads
+ * or just before a log in or a log out.
+ *
+ * Function related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ */
+@property (readonly, nonatomic) NSNumber *totalsDownloadBytes __attribute__((deprecated("They could change or be removed in the current form.")));
+
 /**
  * @brief Total downloaded bytes since the creation of the MEGASdk object.
  *
@@ -321,6 +333,19 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * provide more data and avoid race conditions. They could change or be removed in the current form.
  */
 @property (readonly, nonatomic) NSNumber *totalsDownloadedBytes __attribute__((deprecated("They could change or be removed in the current form.")));
+
+/**
+ * Get the total bytes of started uploads
+ * @return Total bytes of started uploads
+ *
+ * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalUploads
+ * or just before a log in or a log out.
+ *
+ * Function related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ *
+ */
+@property (readonly, nonatomic) NSNumber *totalsUploadBytes __attribute__((deprecated("They could change or be removed in the current form.")));
 
 /**
  * @brief Total uploaded bytes since the creation of the MEGASdk object.
@@ -5845,6 +5870,25 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * @param size Size of the data to download
  */
 - (void)startStreamingNode:(MEGANode *)node startPos:(NSNumber *)startPos size:(NSNumber *)size;
+
+/**
+ * @brief Reset the number of total downloads
+ * This function resets the number returned by MegaApi::getTotalDownloads
+ *
+ * @deprecated Function related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ *
+ */
+- (void)resetTotalDownloads;
+
+/**
+ * @brief Reset the number of total uploads
+ * This function resets the number returned by MegaApi::getTotalUploads
+ *
+ * @deprecated Function related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ */
+- (void)resetTotalUploads;
 
 /**
  * @brief Cancel a transfer.

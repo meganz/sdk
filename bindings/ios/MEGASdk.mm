@@ -116,6 +116,14 @@ using namespace mega;
     return (Retry) self.megaApi->isWaiting();
 }
 
+- (NSNumber *)totalsDownloadBytes {
+    return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalDownloadBytes()];
+}
+
+- (NSNumber *)totalsUploadBytes {
+    return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalUploadBytes()];
+}
+
 - (NSNumber *)totalsDownloadedBytes {
     return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalDownloadedBytes()];
 }
@@ -1627,6 +1635,14 @@ using namespace mega;
 
 - (void)startStreamingNode:(MEGANode *)node startPos:(NSNumber *)startPos size:(NSNumber *)size {
     self.megaApi->startStreaming((node != nil) ? [node getCPtr] : NULL, (startPos != nil) ? [startPos longLongValue] : 0, (size != nil) ? [size longLongValue] : 0, NULL);
+}
+
+- (void)resetTotalDownloads {
+    self.megaApi->resetTotalDownloads();
+}
+
+- (void)resetTotalUploads {
+    self.megaApi->resetTotalUploads();
 }
 
 - (void)cancelTransfer:(MEGATransfer *)transfer delegate:(id<MEGARequestDelegate>)delegate {
