@@ -3721,7 +3721,7 @@ bool CommandGetUserData::procresult(Result r)
 
     if (r.wasErrorOrOK())
     {
-        client->app->userdata_result(NULL, NULL, NULL, r.wasError(API_OK) ? API_ENOENT : r.errorOrOK());
+        client->app->userdata_result(NULL, NULL, NULL, r.wasError(API_OK) ? Error(API_ENOENT) : r.errorOrOK());
         return true;
     }
 
