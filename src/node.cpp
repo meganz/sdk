@@ -33,7 +33,7 @@
 namespace mega {
 
 Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
-           nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts)
+           nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts, bool addToMemory)
 {
     client = cclient;
     outshares = NULL;
@@ -74,7 +74,10 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     Node* p;
 
-    client->mNodes[h] = this;
+    if (addToMemory)
+    {
+        client->mNodes[h] = this;
+    }
 
     // folder link access: first returned record defines root node and
     // identity
