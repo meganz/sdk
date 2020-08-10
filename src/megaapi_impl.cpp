@@ -14226,7 +14226,7 @@ void MegaApiImpl::logout_result(error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::userdata_result(string *name, string* pubk, string* privk, error result)
+void MegaApiImpl::userdata_result(string *name, string* pubk, string* privk, Error result)
 {
     // notify apps about the availability/update of user-flags, such as `aplvp`
     // (note that usually the API command is triggered internally, so no request is associated)

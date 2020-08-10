@@ -2805,7 +2805,7 @@ protected:
         void prelogin_result(int, string*, string*, error) override;
         void login_result(error) override;
         void logout_result(error) override;
-        void userdata_result(string*, string*, string*, error) override;
+        void userdata_result(string*, string*, string*, Error) override;
         void pubkey_result(User *) override;
 
         // ephemeral session creation/resumption result
