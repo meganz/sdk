@@ -154,7 +154,7 @@ struct DemoApp : public MegaApp
     void richlinkrequest_result(string*, error) override;
 #endif
 
-    void setattr_result(handle, error) override;
+    void setattr_result(handle, Error) override;
     void rename_result(handle, error) override;
     void unlink_result(handle, error) override;
 

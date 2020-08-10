@@ -78,7 +78,7 @@ struct MEGA_API MegaApp
     virtual void sessions_killed(handle /*sessionid*/, error) { }
 
     // node attribute update failed (not invoked unless error != API_OK)
-    virtual void setattr_result(handle, error) { }
+    virtual void setattr_result(handle, Error) { }
 
     // move node failed (not invoked unless error != API_OK)
     virtual void rename_result(handle, error) { }

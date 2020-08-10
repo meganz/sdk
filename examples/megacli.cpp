@@ -1097,7 +1097,7 @@ void DemoApp::pcrs_updated(PendingContactRequest** list, int count)
     }
 }
 
-void DemoApp::setattr_result(handle, error e)
+void DemoApp::setattr_result(handle, Error e)
 {
     if (e)
     {

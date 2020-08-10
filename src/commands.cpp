@@ -1011,7 +1011,7 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
 bool CommandSetAttr::procresult(Result r)
 {
     removeFromNodePendingCommands(h, client);
-    client->app->setattr_result(h, generationError ? generationError : r.errorResultOrActionpacket());
+    client->app->setattr_result(h, generationError ? Error(generationError) : r.errorResultOrActionpacket());
     return r.wasErrorOrActionpacket();
 }
 
