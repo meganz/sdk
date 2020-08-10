@@ -22283,9 +22283,9 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
     else nc++;
 }
 
-long long TransferQueue::getLastPushedTag() const
+int TransferQueue::getLastPushedTag() const
 {
-    return lastPushedTransfer;
+    return lastPushedTransferTag;
 }
 
 TransferQueue::TransferQueue()
@@ -22296,7 +22296,7 @@ void TransferQueue::push(MegaTransferPrivate *transfer)
 {
     mutex.lock();
     transfers.push_back(transfer);
-    transfer->setPlaceInQueue(++lastPushedTransfer);
+    transfer->setPlaceInQueue(++lastPushedTransferTag);
     mutex.unlock();
 }
 
