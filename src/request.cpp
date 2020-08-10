@@ -46,6 +46,8 @@ void Request::get(string* req, bool& suppressSID, MegaClient* client) const
     // concatenate all command objects, resulting in an API request
     *req = "[";
 
+    suppressSID = true; // only if all commands in batch are suppressSID
+
     for (int i = 0; i < (int)cmds.size(); i++)
     {
         req->append(i ? ",{" : "{");

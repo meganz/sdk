@@ -39,6 +39,7 @@ namespace mega {
 bool MegaClient::disablepkp = false;
 
 // root URL for API access
+// TODO: restore this before merging - needed for now for jenkins runs
 string MegaClient::APIURL = "https://lu1.api.mega.co.nz:444/";
 
 // root URL for GeLB requests
@@ -1977,8 +1978,7 @@ void MegaClient::exec()
                     pendingcs->protect = true;
                     pendingcs->logname = clientname + "cs ";
 
-                    bool suppressSID = true;
-                    bool v3 = false;
+                    bool suppressSID, v3;
                     reqs.serverrequest(pendingcs->out, suppressSID, pendingcs->includesFetchingNodes, v3, this);
 
                     pendingcs->posturl = APIURL;

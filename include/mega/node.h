@@ -116,9 +116,6 @@ private:
 
 struct CommandChain
 {   
-    // most nodes don't have commands in progress so keep representation super small
-    std::unique_ptr<std::list<Command*>> chain;
-
     // convenience functions, hides the unique_ptr aspect, removes it when empty
     bool empty() 
     {
@@ -149,6 +146,12 @@ struct CommandChain
             }
         }
     }
+
+private:
+    friend class CommandSetAttr;
+
+    // most nodes don't have commands in progress so keep representation super small
+    std::unique_ptr<std::list<Command*>> chain;
 };
 
 

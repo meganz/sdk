@@ -55,7 +55,7 @@ public:
     void swap(Request&);
     bool stopProcessing = false;
 
-    bool mV3 = false;
+    bool mV3 = true;
 	
     // if contains only one command and that command is FetchNodes
     bool isFetchNodes() const;
