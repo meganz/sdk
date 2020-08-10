@@ -4757,18 +4757,6 @@ void MegaClient::initsc()
 
         if (complete)
         {
-            // 3. write new or modified nodes, purge deleted nodes
-            for (node_map::iterator it = mNodes.begin(); it != mNodes.end(); it++)
-            {
-                if (!(complete = sctable->put(it->second)))
-                {
-                    break;
-                }
-            }
-        }
-
-        if (complete)
-        {
             // 4. write new or modified pcrs, purge deleted pcrs
             for (handlepcr_map::iterator it = pcrindex.begin(); it != pcrindex.end(); it++)
             {
@@ -4873,14 +4861,6 @@ void MegaClient::updatesc()
                         {
                             break;
                         }
-                    }
-                }
-                else
-                {
-                    LOG_verbose << "Adding node to database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
-                    if (!(complete = sctable->put(*it)))
-                    {
-                        break;
                     }
                 }
             }
@@ -7529,6 +7509,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
 
     node_vector dp;
     Node* n;
+    bool addToMemory = false;
 
     while (j->enterobject())
     {
@@ -7754,7 +7735,12 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     sts = ts;
                 }
 
-                n = new Node(this, &dp, h, ph, t, s, u, fas.c_str(), ts);
+                if (t == ROOTNODE || t == RUBBISHNODE || t == INCOMINGNODE)
+                {
+                    addToMemory = true;
+                }
+
+                n = new Node(this, &dp, h, ph, t, s, u, fas.c_str(), ts, addToMemory);
                 n->changed.newnode = true;
 
                 n->tag = tag;
@@ -7809,6 +7795,8 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                         uhnh.insert(pair<handle, handle>(uh, h));
                     }
                 }
+
+                sctable->put(n);
             }
 
             if (notify)
@@ -7820,6 +7808,15 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
             {
                 n->applykey();
             }
+
+
+            if (!addToMemory)
+            {
+                delete n;
+            }
+
+            n = nullptr;
+            addToMemory = false;
         }
     }
 
