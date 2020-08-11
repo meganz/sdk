@@ -26,11 +26,20 @@ dstime Waiter::ds;
 
 PosixWaiter::PosixWaiter()
 {
-    // pipe to be able to leave the select() call
-    if (pipe(m_pipe) < 0)
+    for (;;)
     {
-        LOG_fatal << "Error creating pipe";
-        throw std::runtime_error("Error creating pipe");
+        // pipe to be able to leave the select() call
+        if (pipe(m_pipe) < 0)
+        {
+            LOG_fatal << "Error creating pipe";
+            throw std::runtime_error("Error creating pipe");
+        }
+
+        // On MacOS, pipe() keeps giving us 3 as the first fd.  Possibly on the first pipe() call per thread?
+        if (m_pipe[0] > 3 && m_pipe[1] > 3) break;
+
+        if (m_pipe[0] > 3) close(m_pipe[0]);
+        if (m_pipe[1] > 3) close(m_pipe[1]);
     }
 
     if (fcntl(m_pipe[0], F_SETFL, O_NONBLOCK) < 0)
@@ -116,13 +125,16 @@ int PosixWaiter::wait()
     uint8_t buf;
     bool external = false;
 
+    while (mAtomicBytesSent > 0)
     {
-        std::lock_guard<std::mutex> g(mMutex);
-        while (read(m_pipe[0], &buf, sizeof buf) > 0)
+        auto ret = read(m_pipe[0], &buf, 1);
+        if (ret == 1)
         {
+            --mAtomicBytesSent;
             external = true;
+            continue;
         }
-        alreadyNotified = false;
+        break;
     }
 
     // timeout or error
@@ -139,11 +151,10 @@ int PosixWaiter::wait()
 
 void PosixWaiter::notify()
 {
-    std::lock_guard<std::mutex> g(mMutex);
-    if (!alreadyNotified)
+    if (mAtomicBytesSent == 0)
     {
+        ++mAtomicBytesSent;
         write(m_pipe[1], "0", 1);
-        alreadyNotified = true;
     }
 }
 } // namespace

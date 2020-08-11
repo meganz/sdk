@@ -193,7 +193,7 @@ struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
     bool procresult(Result) override;
 
     // progress information
-    virtual m_off_t transferred(MegaClient*);
+    virtual m_off_t transferred(MegaClient*) override;
 
     HttpReqCommandPutFA(MegaClient*, handle, fatype, std::unique_ptr<string> faData, bool);
 
