@@ -146,7 +146,6 @@ struct Model
         return makeModelSubfile(u8name, u8name.data(), u8name.size());
     }
 
-
     unique_ptr<ModelNode> buildModelSubdirs(const string& prefix, int n, int recurselevel, int filesperdir)
     {
         if (suppressfiles) filesperdir = 0;
