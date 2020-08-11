@@ -1706,8 +1706,8 @@ public:
     {
         const fs::path root = makeNewTestRoot(LOCAL_TEST_FOLDER);
 
-        client0 = std::make_unique<StandardClient>(root, "c0");
-        client1 = std::make_unique<StandardClient>(root, "c1");
+        client0 = ::mega::make_unique<StandardClient>(root, "c0");
+        client1 = ::mega::make_unique<StandardClient>(root, "c1");
 
         client0->logcb = true;
         client1->logcb = true;
