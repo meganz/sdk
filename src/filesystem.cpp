@@ -125,40 +125,9 @@ FileSystemType FileSystemAccess::getlocalfstype(const LocalPath& path) const
     return FS_UNKNOWN;
 }
 
-// Group different filesystems types in families, according to its restricted charsets
-bool FileSystemAccess::islocalfscompatible(unsigned char c, FileSystemType fileSystemType) const
+bool FileSystemAccess::islocalfscompatible(unsigned char c, FileSystemType) const
 {
-    switch (fileSystemType)
-    {
-        case FS_APFS:
-        case FS_HFS:
-            // APFS, HFS, HFS+ restricted characters => : /
-            return c != ':' && c != '/';
-        case FS_F2FS:
-        case FS_EXT:
-        case FS_XFS:
-            // f2fs and ext2/ext3/ext4 restricted characters =>  / NULL
-            return c != '/' && c != '\0';
-        case FS_FAT32:
-            // Control characters will be escaped.
-            // FAT32 restricted characters => " * / : < > ? \ | + , ; = [ ]
-            return !(std::iscntrl(c) || strchr("\\/:?\"<>|*+,;=[]", c));
-        case FS_EXFAT:
-        case FS_NTFS:
-            // Control characters will be escaped.
-            // ExFAT, NTFS restricted characters => " * / : < > ? \ |
-            return !(std::iscntrl(c) || strchr("\\/:?\"<>|*", c));
-        case FS_FUSE:
-        case FS_SDCARDFS:
-            // FUSE and SDCARDFS are Android filesystem wrappers used to mount traditional filesystems
-            // as ext4, Fat32, extFAT...
-            // So we will consider that restricted characters for these wrappers are the same
-            // as for Android => " * / : < > ? \ |
-            return !strchr("\\/:?\"<>|*", c);
-        default:
-            // If filesystem couldn't be detected we'll use the most restrictive charset to avoid issues.
-            return !(std::iscntrl(c) || strchr("\\/:?\"<>|*+,;=[]", c));
-    }
+    return c >= ' ' && !strchr("\\/:?\"<>|*", c);
 }
 
 FileSystemType FileSystemAccess::getFilesystemType(const LocalPath& dstPath) const
@@ -222,11 +191,15 @@ void FileSystemAccess::unescapefsincompatible(string *name) const
 
     for (int i = int(name->size()) - 2; i-- > 0; )
     {
-        // conditions for unescaping: %xx must be well-formed
+        // conditions for unescaping: %xx must be well-formed and encode an incompatible character
         if ((*name)[i] == '%' && islchex((*name)[i + 1]) && islchex((*name)[i + 2]))
         {
             const char c = static_cast<char>((MegaClient::hexval((*name)[i + 1]) << 4) + MegaClient::hexval((*name)[i + 2]));
-            name->replace(i, 3, 1, c);
+
+            if (!islocalfscompatible(c))
+            {
+                name->replace(i, 3, 1, c);
+            }
         }
     }
 }

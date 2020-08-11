@@ -42,7 +42,7 @@ TEST(Filesystem, EscapesIncompatibleCharacters)
     using namespace mega;
 
     // Most restrictive set of characters.
-    string name = "\\/:?\"<>|*+,;=[]";
+    string name = "\\/:?\"<>|*";
 
     // Build expected result string.
     ostringstream osstream;
@@ -63,11 +63,11 @@ TEST(Filesystem, EscapesIncompatibleCharacters)
     ASSERT_EQ(name, osstream.str());
 }
 
-TEST(Filesystem, UnescapesAllEscapedCharacters)
+TEST(Filesystem, UnescapesEscapedCharacters)
 {
     using namespace mega;
 
-    const string expected = "\\/:?\"<>|*+,;=[]";
+    const string expected = "\\/:?\"<>|*%21";
     string name = expected;
 
     FSACCESS_CLASS fsAccess;
