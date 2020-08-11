@@ -116,9 +116,10 @@ void Request::serverresponse(std::string&& movestring, MegaClient* client)
     }
 }
 
-void Request::servererror(error e, MegaClient* client)
+void Request::servererror(const std::string& e, MegaClient* client)
 {
     ostringstream s;
+
     s << "[";
     for (size_t i = cmds.size(); i--; )
     {
@@ -256,7 +257,7 @@ void RequestDispatcher::serverresponse(std::string&& movestring, MegaClient *cli
     }
 }
 
-void RequestDispatcher::servererror(error e, MegaClient *client)
+void RequestDispatcher::servererror(const std::string& e, MegaClient *client)
 {
     // notify all the commands in the batch of the failure
     // so that they can deallocate memory, take corrective action etc.

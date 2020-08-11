@@ -141,23 +141,6 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_invalidResponse)
     ASSERT_EQ(ptrdiff_t(jsonLength), std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
 }
 
-TEST(Commands, CommandGetRegisteredContacts_processResult_errorCodeReceived)
-{
-    MockApp_CommandGetRegisteredContacts app;
-
-    JSON json;
-    json.pos = "-8";
-    const auto jsonBegin = json.pos;
-    const auto jsonLength = strlen(json.pos);
-
-    CommandGetRegisteredContacts::processResult(app, json);
-
-    ASSERT_EQ(1, app.mCallCount);
-    ASSERT_EQ(API_EEXPIRED, app.mLastError);
-    ASSERT_EQ(nullptr, app.mRegisteredContacts);
-    ASSERT_EQ(ptrdiff_t(jsonLength), std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
-}
-
 namespace {
 
 class MockApp_CommandGetCountryCallingCodes : public MegaApp
@@ -267,23 +250,6 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_invalidResponse)
 
     ASSERT_EQ(1, app.mCallCount);
     ASSERT_EQ(API_EINTERNAL, app.mLastError);
-    ASSERT_EQ(nullptr, app.mCountryCallingCodes);
-    ASSERT_EQ(ptrdiff_t(jsonLength), std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
-}
-
-TEST(Commands, CommandGetCountryCallingCodes_processResult_errorCodeReceived)
-{
-    MockApp_CommandGetCountryCallingCodes app;
-
-    JSON json;
-    json.pos = "-8";
-    const auto jsonBegin = json.pos;
-    const auto jsonLength = strlen(json.pos);
-
-    CommandGetCountryCallingCodes::processResult(app, json);
-
-    ASSERT_EQ(1, app.mCallCount);
-    ASSERT_EQ(API_EEXPIRED, app.mLastError);
     ASSERT_EQ(nullptr, app.mCountryCallingCodes);
     ASSERT_EQ(ptrdiff_t(jsonLength), std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
 }

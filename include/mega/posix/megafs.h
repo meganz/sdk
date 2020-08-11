@@ -53,8 +53,8 @@ struct MEGA_API PosixDirAccess : public DirAccess
     struct stat currentItemStat;
     bool currentItemFollowedSymlink;
 
-    bool dopen(string*, FileAccess*, bool);
-    bool dnext(string*, string*, bool, nodetype_t*);
+    bool dopen(LocalPath*, FileAccess*, bool) override;
+    bool dnext(LocalPath&, LocalPath&, bool, nodetype_t*) override;
 
     PosixDirAccess();
     virtual ~PosixDirAccess();
@@ -85,26 +85,26 @@ public:
 
     std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
     DirAccess* newdiraccess() override;
-    DirNotify* newdirnotify(string*, string*, Waiter*) override;
+    DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*) override;
 
-    void tmpnamelocal(string*) const override;
+    void tmpnamelocal(LocalPath&) const override;
 
-    void local2path(string*, string*) const override;
-    void path2local(string*, string*) const override;
+    void local2path(const string*, string*) const override;
+    void path2local(const string*, string*) const override;
 
-    bool getsname(string*, string*) const override;
+    bool getsname(LocalPath&, LocalPath&) const override;
 
-    bool renamelocal(string*, string*, bool) override;
-    bool copylocal(string*, string*, m_time_t) override;
+    bool renamelocal(LocalPath&, LocalPath&, bool) override;
+    bool copylocal(LocalPath&, LocalPath&, m_time_t) override;
     bool rubbishlocal(string*);
-    bool unlinklocal(string*) override;
-    bool rmdirlocal(string*) override;
-    bool mkdirlocal(string*, bool) override;
-    bool setmtimelocal(string *, m_time_t) override;
-    bool chdirlocal(string*) const override;
-    size_t lastpartlocal(string*) const override;
-    bool getextension(string*, char*, size_t) const override;
-    bool expanselocalpath(string *path, string *absolutepath) override;
+    bool unlinklocal(LocalPath&) override;
+    bool rmdirlocal(LocalPath&) override;
+    bool mkdirlocal(LocalPath&, bool) override;
+    bool setmtimelocal(LocalPath&, m_time_t) override;
+    bool chdirlocal(LocalPath&) const override;
+    size_t lastpartlocal(const string*) const override;
+    bool getextension(const LocalPath&, char*, size_t) const override;
+    bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) override;
 
     void addevents(Waiter*, int) override;
     int checkevents(Waiter*) override;
@@ -112,7 +112,7 @@ public:
     void osversion(string*, bool includeArchitecture) const override;
     void statsid(string*) const override;
 
-    static void emptydirlocal(string*, dev_t = 0);
+    static void emptydirlocal(LocalPath&, dev_t = 0);
 
     int getdefaultfilepermissions();
     void setdefaultfilepermissions(int);
@@ -148,9 +148,9 @@ public:
     DIR* dp;
 #endif
 
-    bool fopen(string*, bool read, bool write, DirAccess* iteratingDir = nullptr) override;
+    bool fopen(LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false) override;
 
-    void updatelocalname(string*) override;
+    void updatelocalname(LocalPath&) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
     bool fwrite(const byte *, unsigned, m_off_t) override;
 
@@ -191,8 +191,9 @@ public:
     fsfp_t fsfingerprint() const override;
     bool fsstableids() const override;
 
-    PosixDirNotify(string*, string*);
+    PosixDirNotify(LocalPath&, const LocalPath&);
 };
+
 } // namespace
 
 #endif

@@ -177,6 +177,11 @@ public interface MegaGlobalListenerInterface {
      *     After calling it, this callback will be called again with the corresponding
      *     state if there is really a change.
      *
+     *     - MegaApi::STORAGE_STATE_PAYWALL = 4
+     *     The account has been full for a long time. Now most of actions are disallowed.
+     *     It's needed to call MegaApi::getUserData in order to retrieve the deadline/warnings
+     *     timestamps. @see MegaApi::getOverquotaDeadlineTs and MegaApi::getOverquotaWarningsTs.
+     *
      * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
      *
      * - MegaEvent::EVENT_MEDIA_INFO_READY: when codec-mappings have been received

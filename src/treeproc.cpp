@@ -134,7 +134,7 @@ void LocalTreeProcMove::proc(MegaClient*, LocalNode* localnode)
 
 void LocalTreeProcUpdateTransfers::proc(MegaClient *, LocalNode *localnode)
 {
-    if (localnode->transfer && localnode->transfer->localfilename.size())
+    if (localnode->transfer && !localnode->transfer->localfilename.empty())
     {
         LOG_debug << "Updating transfer path";
         localnode->prepare();

@@ -252,7 +252,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
 
     char ext[8];
 
-    if (client->fsaccess->getextension(imagePath,ext,8)
+    if (client->fsaccess->getextension(LocalPath::fromLocalname(*imagePath),ext,8)
             && strcmp(ext,".mp3") && seek_target > 0
             && av_seek_frame(formatContext, videoStreamIdx, seek_target, AVSEEK_FLAG_BACKWARD) < 0)
     {
@@ -407,7 +407,7 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
 #ifdef HAVE_FFMPEG
     char ext[8];
     bool isvideo = false;
-    if (client->fsaccess->getextension(localname, ext, sizeof ext))
+    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localname), ext, sizeof ext))
     {
         const char* ptr;
         if ((ptr = strstr(supportedformatsFfmpeg(), ext)) && ptr[strlen(ext)] == '.')

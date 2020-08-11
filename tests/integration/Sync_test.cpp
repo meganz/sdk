@@ -136,6 +136,11 @@ struct Model
         return makeModelSubfile(u8name, data.data(), data.size());
     }
 
+    unique_ptr<ModelNode> makeModelSubfile(const string& u8name, const string& data)
+    {
+        return makeModelSubfile(u8name, data.data(), data.size());
+    }
+
     unique_ptr<ModelNode> makeModelSubfile(const string& u8name)
     {
         return makeModelSubfile(u8name, u8name.data(), u8name.size());
@@ -412,7 +417,7 @@ struct StandardClient : public MegaApp
     static mutex om;
     bool logcb = false;
     chrono::steady_clock::time_point lastcb = std::chrono::steady_clock::now();
-    string lp(LocalNode* ln) { string lp;  ln->getlocalpath(&lp); client.fsaccess->local2name(&lp, client.fsaccess->getFilesystemType(&lp)); return lp; }
+    string lp(LocalNode* ln) { return ln->getLocalPath().toName(*client.fsaccess, FS_UNKNOWN); }
     void syncupdate_state(Sync*, syncstate_t state) override { if (logcb) { lock_guard<mutex> g(om);  cout << clientname << " syncupdate_state() " << state << endl; } }
     void syncupdate_scanning(bool b) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_scanning()" << b << endl; } }
     //void syncupdate_local_folder_addition(Sync* s, LocalNode* ln, const char* cp) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_folder_addition() " << lp(ln) << " " << cp << endl; }}
@@ -443,7 +448,7 @@ struct StandardClient : public MegaApp
     void transfer_added(Transfer*) override { ++transfersAdded; }
     void transfer_removed(Transfer*) override { ++transfersRemoved; }
     void transfer_prepare(Transfer*) override { ++transfersPrepared; }
-    void transfer_failed(Transfer*, error, dstime = 0) override { ++transfersFailed; }
+    void transfer_failed(Transfer*,  const Error&, dstime = 0) override { ++transfersFailed; }
     void transfer_update(Transfer*) override { ++transfersUpdated; }
     void transfer_complete(Transfer*) override { ++transfersComplete; }
 
@@ -950,12 +955,8 @@ struct StandardClient : public MegaApp
             return false;
         }
 
-        string localpath;
-        n->getlocalpath(&localpath, false);
-        ::mega::FileSystemType fileSystemType = client.fsaccess->getFilesystemType(&localpath);
-        client.fsaccess->local2name(&localpath, fileSystemType);
-        string n_localname = n->localname;
-        client.fsaccess->local2name(&n_localname, fileSystemType);
+        auto localpath = n->getLocalPath(false).toName(*client.fsaccess, FS_UNKNOWN);
+        string n_localname = n->localname.toName(*client.fsaccess, FS_UNKNOWN);
         if (n_localname.size())
         {
             EXPECT_EQ(n->name, n_localname);
@@ -973,9 +974,7 @@ struct StandardClient : public MegaApp
             EXPECT_EQ(mn->parent->type, Model::ModelNode::folder);
             EXPECT_EQ(n->parent->type, FOLDERNODE);
 
-            string parentpath;
-            n->parent->getlocalpath(&parentpath, false);
-            client.fsaccess->local2name(&parentpath, client.fsaccess->getFilesystemType(&parentpath));
+            string parentpath = n->parent->getLocalPath(false).toName(*client.fsaccess, FS_UNKNOWN);
             EXPECT_EQ(localpath.substr(0, parentpath.size()), parentpath);
         }
         if (n->node && n->parent && n->parent->node)
@@ -1223,7 +1222,7 @@ struct StandardClient : public MegaApp
         resultproc.processresult(LOGIN, e);
     }
 
-    void fetchnodes_result(error e) override
+    void fetchnodes_result(const Error& e) override
     {
         cout << clientname << " Fetchnodes: " << e << endl;
         resultproc.processresult(FETCHNODES, e);
@@ -2046,7 +2045,61 @@ GTEST_TEST(Sync, BasicSync_MoveLocalFolderBetweenSyncs)
     ASSERT_TRUE(clientA3.confirmModel_mainthread(model.findnode("f"), 31));
 }
 
+GTEST_TEST(Sync, BasicSync_RenameLocalFile)
+{
+    static auto TIMEOUT = std::chrono::seconds(4);
 
+    const fs::path root = makeNewTestRoot(LOCAL_TEST_FOLDER);
+
+    // Primary client.
+    StandardClient client0(root, "c0");
+    // Observer.
+    StandardClient client1(root, "c1");
+
+    // Log callbacks.
+    client0.logcb = true;
+    client1.logcb = true;
+
+    // Log clients in.
+    ASSERT_TRUE(client0.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
+    ASSERT_TRUE(client1.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(client0.basefolderhandle, client1.basefolderhandle);
+
+    // Set up syncs.
+    ASSERT_TRUE(client0.setupSync_mainthread("s0", "x", 0));
+    ASSERT_TRUE(client1.setupSync_mainthread("s1", "x", 1));
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, &client0, &client1);
+
+    // Add x/f.
+    ASSERT_TRUE(createFile(client0.syncSet[0].localpath, "f"));
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &client0, &client1);
+
+    // Confirm model.
+    Model model;
+
+    model.root->addkid(model.makeModelSubfolder("x"));
+    model.findnode("x")->addkid(model.makeModelSubfile("f"));
+
+    ASSERT_TRUE(client0.confirmModel_mainthread(model.findnode("x"), 0));
+    ASSERT_TRUE(client1.confirmModel_mainthread(model.findnode("x"), 1, true));
+
+    // Rename x/f to x/g.
+    fs::rename(client0.syncSet[0].localpath / "f",
+               client0.syncSet[0].localpath / "g");
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &client0, &client1);
+
+    // Update and confirm model.
+    model.findnode("x/f")->name = "g";
+
+    ASSERT_TRUE(client0.confirmModel_mainthread(model.findnode("x"), 0));
+    ASSERT_TRUE(client1.confirmModel_mainthread(model.findnode("x"), 1, true));
+}
 
 GTEST_TEST(Sync, BasicSync_AddLocalFolder)
 {
