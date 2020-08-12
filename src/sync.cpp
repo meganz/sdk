@@ -117,7 +117,8 @@ set<LocalPath> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAcces
         localpath.appendWithSeparator(localname, false, fsaccess.localseparator);
 
         // check if this record is to be ignored
-        if (app.sync_syncable(&sync, localname.toName(fsaccess).c_str(), localpath))
+        const auto name = localname.toName(fsaccess, sync.mFilesystemType);
+        if (app.sync_syncable(&sync, name.c_str(), localpath))
         {
             // skip the sync's debris folder
             if (!localdebris.isContainingPathOf(localpath, fsaccess))
@@ -1126,7 +1127,7 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
         {
             while (da->dnext(*localpath, localname, client->followsymlinks))
             {
-                name = localname.toName(*client->fsaccess);
+                name = localname.toName(*client->fsaccess, mFilesystemType);
 
                 ScopedLengthRestore restoreLen(*localpath);
                 localpath->appendWithSeparator(localname, false, client->fsaccess->localseparator);
