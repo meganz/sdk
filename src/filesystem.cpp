@@ -388,7 +388,7 @@ void FileSystemAccess::normalize(string* filename) const
 }
 
 // convert from local encoding, then unescape escaped forbidden characters
-void FileSystemAccess::local2name(string *filename, FileSystemType fsType) const
+void FileSystemAccess::local2name(string *filename) const
 {
     assert(filename);
 
@@ -1008,10 +1008,10 @@ string LocalPath::toPath(const FileSystemAccess& fsaccess) const
     return path;
 }
 
-string LocalPath::toName(const FileSystemAccess& fsaccess, FileSystemType fsType) const
+string LocalPath::toName(const FileSystemAccess& fsaccess) const
 {
     string name = localpath;
-    fsaccess.local2name(&name, fsType);
+    fsaccess.local2name(&name);
     return name;
 }
 

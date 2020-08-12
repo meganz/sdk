@@ -148,7 +148,7 @@ public:
     // Return a utf8 representation of the LocalPath, taking into account that the LocalPath
     // may contain escaped characters that are disallowed for the filesystem.
     // Those characters are converted back (unescaped).  fsaccess is used to do the conversion.
-    std::string toName(const FileSystemAccess& fsaccess, FileSystemType fsType) const;
+    std::string toName(const FileSystemAccess& fsaccess) const;
 
     // Create a Localpath from a utf8 string where no character conversions or escaping is necessary.
     static LocalPath fromPath(const std::string& path, const FileSystemAccess& fsaccess);
@@ -436,7 +436,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // convert MEGA-formatted filename (UTF-8) to local filesystem name; escape
     // forbidden characters using urlencode
-    void local2name(string*, FileSystemType) const;
+    void local2name(string*) const;
 
     // convert local path to MEGA format (UTF-8) with unescaping
     void name2local(string*, FileSystemType) const;

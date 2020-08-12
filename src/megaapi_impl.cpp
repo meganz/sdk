@@ -8412,7 +8412,7 @@ int MegaApiImpl::syncPathState(string* path)
             {
                 size_t index = fsAccess->lastpartlocal(path);
                 string name = path->substr(index);
-                fsAccess->local2name(&name, sync->mFilesystemType);
+                fsAccess->local2name(&name);
                 if (is_syncable(sync, name.c_str(), localpath))
                 {
                     auto fa = fsAccess->newfileaccess();
@@ -8786,7 +8786,7 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
             }
 
             size_t lastpart = localpath.lastpartlocal(*fsAccess);
-            name = localpath.subpathFrom(lastpart).toName(*fsAccess, sync->mFilesystemType);
+            name = localpath.subpathFrom(lastpart).toName(*fsAccess);
             result = is_syncable(sync, name.c_str(), localpath);
             break;
         }
@@ -24705,7 +24705,7 @@ void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
             ScopedLengthRestore restoreLen(localPath);
             localPath.appendWithSeparator(localname, false, client->fsaccess->localseparator);
 
-            string name = localname.toName(*client->fsaccess, fsType);
+            string name = localname.toName(*client->fsaccess);
             if (dirEntryType == FILENODE)
             {
                 pendingTransfers++;
@@ -25501,7 +25501,7 @@ void MegaBackupController::onFolderAvailable(MegaHandle handle)
                 auto fa = client->fsaccess->newfileaccess();
                 if(fa->fopen(localPath, true, false))
                 {
-                    string name = localname.toName(*client->fsaccess, fsType);
+                    string name = localname.toName(*client->fsaccess);
                     if(fa->type == FILENODE)
                     {
                         pendingTransfers++;
