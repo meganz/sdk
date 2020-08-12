@@ -847,15 +847,12 @@ void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separa
     if (separatorAlways || localpath.size())
     {
         // still have to be careful about appending a \ to F:\ for example, on windows, which produces an invalid path
-        #ifdef WIN32
-            if (localpath.size() < localseparator.size() || 
-                memcmp(localpath.data() + localpath.size() - localseparator.size(), localseparator.data(), localseparator.size()))
-            {
-                localpath.append(localseparator);
-            }
-        #else
+        if ( localpath.size() < localseparator.size() ||
+             memcmp(localpath.data() + localpath.size() - localseparator.size(),
+                    localseparator.data(), localseparator.size()) )
+        {
             localpath.append(localseparator);
-        #endif
+        }
     }
 
     localpath.append(additionalPath.localpath);
