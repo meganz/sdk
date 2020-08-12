@@ -3312,7 +3312,7 @@ void CommandDelUA::procresult()
     }
 }
 
-CommandSendDevCommand::CommandSendDevCommand(MegaClient *client, const char *command, const char *email)
+CommandSendDevCommand::CommandSendDevCommand(MegaClient *client, const char *command, const char *email, long long q, int bs, int us)
 {
     cmd("dev");
 
@@ -3322,6 +3322,18 @@ CommandSendDevCommand::CommandSendDevCommand(MegaClient *client, const char *com
         arg("t", email);
     }
 
+    if ((strcmp(command, "tq") == 0))
+    {
+        arg("q", q);
+    }
+    else if ((strcmp(command, "bs") == 0))
+    {
+        arg("s", bs);
+    }
+    else if ((strcmp(command, "us") == 0))
+    {
+        arg("s", us);
+    }
     tag = client->reqtag;
 }
 
@@ -3741,7 +3753,6 @@ void CommandGetUserData::procresult()
         case MAKENAMEID4('*', '!', 'd', 'n'):
             parseUserAttribute(deviceNames, versionDeviceNames);
             break;
-
 
         case 'b':   // business account's info
             assert(!b);
