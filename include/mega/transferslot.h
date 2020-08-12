@@ -99,11 +99,11 @@ struct MEGA_API TransferSlot
     vector<std::shared_ptr<HttpReqXfer>> reqs;
 
     // Keep track of transfer network speed per channel, and overall
-    vector<SpeedController> reqSpeeds;
-    SpeedController transferSpeed;
+    vector<SpeedController> mReqSpeeds;
+    SpeedController mTransferSpeed;
 
     // only swap channels twice for speed issues, to prevent endless non-progress (counter is reset if we make overall progress, ie data reassembled)
-    unsigned raidChannelSwapsForSlowness = 0;
+    unsigned mRaidChannelSwapsForSlowness = 0;
 
     // Manage download input buffers and file output buffers for file download.  Raid-aware, and automatically performs decryption and mac.
     TransferBufferManager transferbuf;
@@ -146,6 +146,8 @@ private:
     void toggleport(HttpReqXfer* req);
     bool tryRaidRecoveryFromHttpGetError(unsigned i, bool incrementErrors);
     bool checkTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client);
+
+    // returns true if connection haven't received data recently (set incrementErrors) or if slower than other connections (reset incrementErrors)
     bool testForSlowRaidConnection(unsigned connectionNum, bool& incrementErrors);
 };
 } // namespace

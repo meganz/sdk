@@ -113,19 +113,19 @@ public:
 
 protected:
     // a circular buffer of bytes received/transmitted per decisecond
-    std::array<m_off_t, SPEED_MEAN_MAX_INTERVAL_DS> circularBuf;
-    unsigned circularCurrentIndex = 0;
-    unsigned circularCurrentTime = 0;
-    m_off_t circularCurrentSum = 0;
+    std::array<m_off_t, SPEED_MEAN_MAX_INTERVAL_DS> mCircularBuf;
+    unsigned mCircularCurrentIndex = 0;
+    unsigned mCircularCurrentTime = 0;
+    m_off_t mCircularCurrentSum = 0;
 
-    m_off_t meanSpeed = 0;
-    m_off_t meanSpeedSum = 0;
-    dstime meanSpeedStart = 0;
-    dstime lastCalcTime = 0;
+    m_off_t mMeanSpeed = 0;
+    m_off_t mMeanSpeedSum = 0;
+    dstime mMeanSpeedStart = 0;
+    dstime mLastCalcTime = 0;
 
-    m_off_t requestPos = 0;
-    dstime requestStart = 0;
-    dstime lastRequestUpdate = 0;
+    m_off_t mRequestPos = 0;
+    dstime mRequestStart = 0;
+    dstime mLastRequestUpdate = 0;
 };
 
 // generic host HTTP I/O interface

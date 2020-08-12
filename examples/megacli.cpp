@@ -7799,7 +7799,7 @@ void megacli()
                     if ((*it)->fa)
                     {
                         xferrate[(*it)->transfer->type]
-                            += (*it)->transferSpeed.calculateSpeed();
+                            += (*it)->mTransferSpeed.calculateSpeed();
                     }
                 }
                 xferrate[GET] /= 1024;
