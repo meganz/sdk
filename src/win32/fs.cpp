@@ -293,7 +293,7 @@ void WinFileAccess::asyncsysopen(AsyncIOContext *context)
     bool read = context->access & AsyncIOContext::ACCESS_READ;
     bool write = context->access & AsyncIOContext::ACCESS_WRITE;
 
-    context->failed = !fopen_impl(path, read, write, true, nullptr);
+    context->failed = !fopen_impl(path, read, write, true, nullptr, false);
     context->retry = retry;
     context->finished = true;
     if (context->userCallback)
@@ -424,12 +424,12 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 // CreateFile() operation without first looking at the attributes?
 // FIXME #2: How to convert a CreateFile()-opened directory directly to a hFind
 // without doing a FindFirstFile()?
-bool WinFileAccess::fopen(LocalPath& name, bool read, bool write, DirAccess* iteratingDir)
+bool WinFileAccess::fopen(LocalPath& name, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes)
 {
-    return fopen_impl(name, read, write, false, iteratingDir);
+    return fopen_impl(name, read, write, false, iteratingDir, ignoreAttributes);
 }
 
-bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool async, DirAccess* iteratingDir)
+bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes)
 {
     WIN32_FIND_DATA fad = { 0 };
     assert(hFile == INVALID_HANDLE_VALUE);
@@ -533,7 +533,7 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
 
         // ignore symlinks - they would otherwise be treated as moves
         // also, ignore some other obscure filesystem object categories
-        if (!added && skipattributes(fad.dwFileAttributes))
+        if (!ignoreAttributes && skipattributes(fad.dwFileAttributes))
         {            
             name->resize(name->size() - 1);
             if (SimpleLogger::logCurrentLevel >= logDebug)

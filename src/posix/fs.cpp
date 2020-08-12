@@ -405,7 +405,7 @@ int PosixFileAccess::stealFileDescriptor()
     return toret;
 }
 
-bool PosixFileAccess::fopen(LocalPath& f, bool read, bool write, DirAccess* iteratingDir)
+bool PosixFileAccess::fopen(LocalPath& f, bool read, bool write, DirAccess* iteratingDir, bool)
 {
     struct stat statbuf;
 

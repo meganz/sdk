@@ -373,7 +373,7 @@ AppFilePut::~AppFilePut()
 
 void AppFilePut::displayname(string* dname)
 {
-    *dname = localname.toName(*transfer->client->fsaccess, client->fsaccess->getFilesystemType(dname));
+    *dname = localname.toName(*transfer->client->fsaccess, client->fsaccess->getFilesystemType(localname));
 }
 
 // transfer progress callback
@@ -662,7 +662,7 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time
         name = *cfilename;
     }
 
-    localname = LocalPath::fromName(name, *client->fsaccess, client->fsaccess->getFilesystemType(&name));
+    localname = LocalPath::fromName(name, *client->fsaccess, client->fsaccess->getFilesystemType(LocalPath::fromPath(name, *client->fsaccess)));
     if (!targetfolder.empty())
     {
         string s = targetfolder;
@@ -682,8 +682,7 @@ AppFilePut::AppFilePut(const LocalPath& clocalname, handle ch, const char* ctarg
     targetuser = ctargetuser;
 
     // erase path component
-    auto dummyName = clocalname.toPath(*client->fsaccess);
-    auto fileSystemType = client->fsaccess->getFilesystemType(&dummyName);
+    auto fileSystemType = client->fsaccess->getFilesystemType(clocalname);
 
     LocalPath p = clocalname;
     p.erase(0, p.lastpartlocal(*client->fsaccess));
@@ -2557,7 +2556,7 @@ bool recursiveCompare(Node* mn, fs::path p)
     }
 
     std::string path = p.u8string();
-    auto fileSystemType = client->fsaccess->getFilesystemType(&path);
+    auto fileSystemType = client->fsaccess->getFilesystemType(LocalPath::fromPath(path, *client->fsaccess));
     multimap<string, Node*> ms;
     multimap<string, fs::path> ps;
     for (auto& m : mn->children)
@@ -7903,6 +7902,10 @@ void megacli()
             {
                 process_line(line);
             }
+            else if (prompt != COMMAND)
+            {
+                setprompt(prompt);
+            }
             free(line);
             line = NULL;
 
@@ -8092,7 +8095,7 @@ void exec_metamac(autocomplete::ACState& s)
 
     auto ifAccess = client->fsaccess->newfileaccess();
     {
-        auto localPath = LocalPath::fromName(s.words[1].s, *client->fsaccess, client->fsaccess->getFilesystemType(&s.words[1].s));
+        auto localPath = LocalPath::fromName(s.words[1].s, *client->fsaccess, client->fsaccess->getFilesystemType(LocalPath::fromPath(s.words[1].s, *client->fsaccess)));
         if (!ifAccess->fopen(localPath, 1, 0))
         {
             cerr << "Failed to open: " << s.words[1].s << endl;

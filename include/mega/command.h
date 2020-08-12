@@ -326,7 +326,7 @@ class MEGA_API CommandSendDevCommand : public Command
 public:
     void procresult();
 
-    CommandSendDevCommand(MegaClient*, const char* command, const char* email = NULL);
+    CommandSendDevCommand(MegaClient*, const char* command, const char* email = NULL, long long = 0, int = 0, int = 0);
 };
 #endif
 

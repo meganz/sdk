@@ -146,6 +146,7 @@ struct Model
         return makeModelSubfile(u8name, u8name.data(), u8name.size());
     }
 
+
     unique_ptr<ModelNode> buildModelSubdirs(const string& prefix, int n, int recurselevel, int filesperdir)
     {
         if (suppressfiles) filesperdir = 0;
@@ -1069,11 +1070,11 @@ struct StandardClient : public MegaApp
             std::vector<uint8_t> buffer;
             std::ifstream istream(p, ios::binary);
 
-            buffer.reserve(mn->data.size());
+            buffer.resize(mn->data.size());
 
             istream.read(reinterpret_cast<char *>(buffer.data()), buffer.capacity());
 
-            if (static_cast<size_t>(istream.gcount()) != buffer.capacity()
+            if (static_cast<size_t>(istream.gcount()) != buffer.size()
                 || !std::equal(mn->data.begin(), mn->data.end(), buffer.begin()))
             {
                 return false;
