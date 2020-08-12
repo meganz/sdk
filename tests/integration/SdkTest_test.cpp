@@ -4387,7 +4387,7 @@ TEST_F(SdkTest, SdkGetRegisteredContacts)
     ASSERT_EQ(js2, std::get<2>(table[1])); // ud
 }
 
-TEST_F(SdkTest, invalidFileNames)
+TEST_F(SdkTest, DISABLED_invalidFileNames)
 {
     LOG_info << "___TEST invalidFileNames___";
 
