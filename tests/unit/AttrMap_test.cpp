@@ -50,7 +50,7 @@ TEST(AttrMap, unserialize_32bit)
     const std::string d(rawData.data(), rawData.size());
 
     mega::AttrMap expMap;
-    expMap.map = std::map<nameid, std::string>{
+    expMap.map = std::map<mega::nameid, std::string>{
         {13, "foo"},
         {42, "blah"},
     };
