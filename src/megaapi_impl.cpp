@@ -8370,8 +8370,8 @@ int MegaApiImpl::syncPathState(string* path)
     // Avoid blocking on the mutex for a long time, as we may be blocking windows explorer (or another platform's equivalent) from opening or displaying a window, unrelated to sync folders
     // We try to lock the SDK mutex.  If we can't get it in 10ms then we return a simple default, and subsequent requests try to lock the mutex but don't wait.
     SdkMutexGuard g(sdkMutex, std::defer_lock);
-    if (!syncPathStateLockTimeout && !g.try_lock_for(std::chrono::milliseconds(10)) ||
-        syncPathStateLockTimeout && !g.try_lock())
+    if ((!syncPathStateLockTimeout && !g.try_lock_for(std::chrono::milliseconds(10))) ||
+        (syncPathStateLockTimeout && !g.try_lock()))
     {
         syncPathStateLockTimeout = true;
         return MegaApi::STATE_IGNORED;
@@ -31751,8 +31751,8 @@ int MegaIntegerListPrivate::size() const
 }
 
 MegaChildrenListsPrivate::MegaChildrenListsPrivate(MegaChildrenLists *list)
-    : files(list->getFileList()->copy())
-    , folders(list->getFolderList()->copy())
+    : folders(list->getFolderList()->copy())
+    , files(list->getFileList()->copy())
 {
 }
 

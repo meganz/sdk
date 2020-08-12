@@ -2126,7 +2126,7 @@ void xferq(direction_t d, int cancel, bool showActive, bool showAll, bool showCo
             bool active = (*it)->transfer && (*it)->transfer->slot;
             (*it)->displayname(&name);
 
-            if (active && showActive || showAll)
+            if ((active && showActive) || showAll)
             {
                 cout << (*it)->seqno << ": " << name;
 
@@ -3625,7 +3625,6 @@ void exec_cp(autocomplete::ACState& s)
             }
 
             TreeProcCopy_mcli tc;
-            unsigned nc;
             handle ovhandle = UNDEF;
 
             if (!n->keyApplied())
@@ -3679,7 +3678,6 @@ void exec_cp(autocomplete::ACState& s)
             client->proctree(n, &tc, false, ovhandle != UNDEF);
 
             tc.allocnodes();
-            nc = tc.nc;
 
             // build new nodes array
             client->proctree(n, &tc, false, ovhandle != UNDEF);
