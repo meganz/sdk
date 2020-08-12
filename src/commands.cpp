@@ -1021,7 +1021,6 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                                  const char* userhandle, vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth)
 {
     byte key[FILENODEKEYLENGTH];
-    int i;
 
     assert(newnodes.size() > 0);
     nn = std::move(newnodes);
@@ -1051,7 +1050,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
 
     beginarray("n");
 
-    for (i = 0; i < nn.size(); i++)
+    for (unsigned i = 0; i < nn.size(); i++)
     {
         beginobject();
 
@@ -1130,7 +1129,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
         {
             ShareNodeKeys snk;
 
-            for (i = 0; i < nn.size(); i++)
+            for (unsigned i = 0; i < nn.size(); i++)
             {
                 switch (nn[i].source)
                 {
@@ -1291,7 +1290,7 @@ bool CommandPutNodes::procresult(Result r)
 
             client->app->putnodes_result(e, type, nn);
 
-            for (int i=0; i < nn.size(); i++)
+            for (unsigned i = 0; i < nn.size(); i++)
             {
                 nn[i].localnode.reset();
             }
@@ -7024,7 +7023,7 @@ bool CommandRichLink::procresult(Result r)
                     }
                 }
 
-                client->app->richlinkrequest_result(NULL, r.errorOrOK());
+                client->app->richlinkrequest_result(NULL, e);
                 return true;
             }
 
