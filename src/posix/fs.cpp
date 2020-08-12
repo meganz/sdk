@@ -1327,7 +1327,8 @@ bool PosixFileSystemAccess::getextension(const LocalPath& filename, char* extens
     {
         if (*--ptr == '.')
         {
-            for (unsigned j = 0; j <= i; j++)
+            unsigned j = 0;
+            for (; j <= i; j++)
             {
                 if (*ptr < '.' || *ptr > 'z') return false;
 

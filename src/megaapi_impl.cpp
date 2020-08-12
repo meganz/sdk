@@ -31778,8 +31778,8 @@ MegaNodeList *MegaChildrenListsPrivate::getFolderList()
 }
 
 MegaChildrenListsPrivate::MegaChildrenListsPrivate()
-    :  files(new MegaNodeListPrivate())
-    , folders(new MegaNodeListPrivate())
+    : folders(new MegaNodeListPrivate())
+    , files(new MegaNodeListPrivate())
 {
 }
 

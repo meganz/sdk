@@ -7941,7 +7941,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                     useralerts.noteSharedNode(u, t, ts, n);
                 }
 
-                if (nn && nni >= 0 && nni < nn->size())
+                if (nn && nni >= 0 && nni < int(nn->size()))
                 {
                     auto& nn_nni = (*nn)[nni];
                     nn_nni.added = true;
