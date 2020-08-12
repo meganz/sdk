@@ -4649,7 +4649,7 @@ TEST_F(SdkTest, SdkGetRegisteredContacts)
     ASSERT_EQ(js2, std::get<2>(table[1])); // ud
 }
 
-TEST_F(SdkTest, DISABLED_invalidFileNames)
+TEST_F(SdkTest, invalidFileNames)
 {
     LOG_info << "___TEST invalidFileNames___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
