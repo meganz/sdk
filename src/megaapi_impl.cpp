@@ -129,7 +129,7 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->children = NULL;
     this->owner = owner;
     this->favourite = false;
-    this->label = LBL_UNKOWN;
+    this->label = LBL_UNKNOWN;
 
     if (privateauth)
     {
@@ -288,7 +288,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->customAttrs = NULL;
     this->restorehandle = UNDEF;
     this->favourite = false;
-    this->label = LBL_UNKOWN;
+    this->label = LBL_UNKNOWN;
 
     char buf[10];
     for (attr_map::iterator it = node->attrs.map.begin(); it != node->attrs.map.end(); it++)

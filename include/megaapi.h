@@ -405,7 +405,7 @@ class MegaNode
 		};
 
         enum {
-            NODE_LBL_UNKOWN = 0,
+            NODE_LBL_UNKNOWN = 0,
             NODE_LBL_RED,
             NODE_LBL_ORANGE,
             NODE_LBL_YELLOW,
