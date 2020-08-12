@@ -133,9 +133,46 @@ bool FileSystemAccess::isControlChar(unsigned char c) const
 }
 
 // Group different filesystems types in families, according to its restricted charsets
-bool FileSystemAccess::islocalfscompatible(unsigned char c, bool, FileSystemType) const
+bool FileSystemAccess::islocalfscompatible(unsigned char c, bool isEscape, FileSystemType fileSystemType) const
 {
-    return c >= ' ' && !strchr("\\/:?\"<>|*", c);
+    switch (fileSystemType)
+    {
+        case FS_APFS:
+        case FS_HFS:
+            // APFS, HFS, HFS+ restricted characters => : /
+            return c != '\x3A' && c != '\x2F';
+        case FS_F2FS:
+        case FS_EXT:
+            // f2fs and ext2/ext3/ext4 restricted characters =>  / NULL
+            return c != '\x00' && c != '\x2F';
+        case FS_FAT32:
+            // Control characters will be escaped but not unescaped
+            // FAT32 restricted characters => " * / : < > ? \ | + , ; = [ ]
+            return (isControlChar(c) && isEscape)
+                        ? false
+                        : !strchr("\\/:?\"<>|*+,;=[]", c);
+        case FS_EXFAT:
+        case FS_NTFS:
+            // Control characters will be escaped but not unescaped
+            // ExFAT, NTFS restricted characters => " * / : < > ? \ |
+            return (isControlChar(c) && isEscape)
+                        ? false
+                        : !strchr("\\/:?\"<>|*", c);
+        case FS_FUSE:
+        case FS_SDCARDFS:
+            // FUSE and SDCARDFS are Android filesystem wrappers used to mount traditional filesystems
+            // as ext4, Fat32, extFAT...
+            // So we will consider that restricted characters for these wrappers are the same
+            // as for Android => " * / : < > ? \ |
+            return !strchr("\\/:?\"<>|*", c);
+
+        case FS_UNKNOWN:
+        default:
+            // If filesystem couldn't be detected we'll use the most restrictive charset to avoid issues.
+            return (isControlChar(c) && isEscape)
+                    ? false
+                    : !strchr("\\/:?\"<>|*+,;=[]", c);
+    }
 }
 
 // replace characters that are not allowed in local fs names with a %xx escape sequence
