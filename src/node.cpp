@@ -501,9 +501,9 @@ bool Node::serialize(string* d)
 
     d->append((char*)&nodehandle, MegaClient::NODEHANDLE);
 
-    if (parent)
+    if (parenthandle != UNDEF)
     {
-        d->append((char*)&parent->nodehandle, MegaClient::NODEHANDLE);
+        d->append((char*)&parenthandle, MegaClient::NODEHANDLE);
     }
     else
     {
