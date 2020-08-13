@@ -5,6 +5,7 @@
 #include <fstream>
 
 bool gRunningInCI = false;
+bool gResumeSessions = false;
 bool gTestingInvalidArgs = false;
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
@@ -44,10 +45,8 @@ public:
         {
             os << message;
         }
-        else
-        {
-            for (unsigned i = 0; i < numberMessages; ++i) os.write(directMessages[i], directMessagesSizes[i]);
-        }
+        // we can have the message AND the direct messages
+        for (unsigned i = 0; i < numberMessages; ++i) os.write(directMessages[i], directMessagesSizes[i]);
 #else
         os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": " << message;
 #endif
@@ -115,6 +114,11 @@ int main (int argc, char *argv[])
         else if (std::string(*it).substr(0, 9) == "--APIURL:")
         {
             mega::MegaClient::APIURL = std::string(*it).substr(9);
+            argc -= 1;
+        }
+        else if (std::string(*it) == "--RESUMESESSIONS")
+        {
+            gResumeSessions = true;
             argc -= 1;
         }
         else

@@ -51,7 +51,8 @@ typedef NS_ENUM(NSInteger, MEGAErrorType) {
     MEGAErrorTypeApiEgoingOverquota = -24,         // Not enough quota
     MEGAErrorTypeApiEMFARequired = -26,            // Multi-factor authentication required
     MEGAErrorTypeApiEMasterOnly = -27,             ///< Access denied for sub-users (only for business accounts)
-    MEGAErrorTypeApiEBusinessPastDue = -28         ///< Business account expired
+    MEGAErrorTypeApiEBusinessPastDue = -28,        ///< Business account expired
+    MEGAErrorTypeApiEPaywall = -29                 ///< Over Disk Quota Paywall
 };
 
 

@@ -197,17 +197,55 @@ typedef enum ErrorCodes
     API_EOVERQUOTA = -17,           ///< Quota exceeded.
     API_ETEMPUNAVAIL = -18,         ///< Resource temporarily not available.
     API_ETOOMANYCONNECTIONS = -19,  ///< Too many connections on this resource.
-    API_EWRITE = -20,               /**< File could not be written to (or failed
-                                         post-write integrity check). */
-    API_EREAD = -21,                /**< File could not be read from (or changed
-                                         unexpectedly during reading). */
+    API_EWRITE = -20,               ///< File could not be written to (or failed post-write integrity check)
+    API_EREAD = -21,                ///< File could not be read from (or changed unexpectedly during reading)
     API_EAPPKEY = -22,              ///< Invalid or missing application key.
     API_ESSL = -23,                 ///< SSL verification failed
     API_EGOINGOVERQUOTA = -24,      ///< Not enough quota
     API_EMFAREQUIRED = -26,         ///< Multi-factor authentication required
     API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
-    API_EBUSINESSPASTDUE = -28      ///< Business account expired
+    API_EBUSINESSPASTDUE = -28,     ///< Business account expired
+    API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
 } error;
+
+class Error
+{
+public:
+    typedef enum
+    {
+        USER_ETD_UNKNOWN = -1,
+        USER_ETD_SUSPENSION = 7, // represents an ETD/ToS 'severe' suspension level
+    } UserErrorCode;
+
+    typedef enum
+    {
+        LINK_UNKNOWN = -1,
+        LINK_UNDELETED = 0,  // Link is undeleted
+        LINK_DELETED_DOWN = 1, // Link is deleted or down
+        LINK_DOWN_ETD = 2,  // Link is down due to an ETD specifically
+    } LinkErrorCode;
+
+    Error(error err = API_EINTERNAL)
+        : mError(err)
+    { }
+
+    void setErrorCode(error err)
+    {
+        mError = err;
+    }
+
+    void setUserStatus(int64_t u) { mUserStatus = u; }
+    void setLinkStatus(int64_t l) { mLinkStatus = l; }
+    bool hasExtraInfo() const { return mUserStatus != USER_ETD_UNKNOWN || mLinkStatus != LINK_UNKNOWN; }
+    int64_t getUserStatus() const { return mUserStatus; }
+    int64_t getLinkStatus() const { return mLinkStatus; }
+    operator error() const { return mError; }
+
+private:
+    error mError = API_EINTERNAL;
+    int64_t mUserStatus = USER_ETD_UNKNOWN;
+    int64_t mLinkStatus = LINK_UNKNOWN;
+};
 
 // returned by loggedin()
 typedef enum { NOTLOGGEDIN, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT } sessiontype_t;
@@ -344,7 +382,8 @@ public:
     }
 
     size_t size()                                        { applyErase(); return mDeque.size(); }
-    size_t empty()                                        { applyErase(); return mDeque.empty(); }
+    size_t empty()                                       { applyErase(); return mDeque.empty(); }
+    void clear()                                         { mDeque.clear(); }
     iterator begin(bool canHandleErasedElements = false) { if (!canHandleErasedElements) applyErase(); return mDeque.begin(); }
     iterator end(bool canHandleErasedElements = false)   { if (!canHandleErasedElements) applyErase(); return mDeque.end(); }
     void push_front(T t)                                 { applyErase(); mDeque.push_front(E(t)); }
@@ -359,9 +398,6 @@ typedef map<int, vector<uint32_t> > pendingdbid_map;
 
 // map a request tag with a pending dns request
 typedef map<int, GenericHttpReq*> pendinghttp_map;
-
-// map a request tag with pending paths of temporary files
-typedef map<int, vector<string> > pendingfiles_map;
 
 // map an upload handle to the corresponding transer
 typedef map<handle, Transfer*> handletransfer_map;
@@ -431,23 +467,12 @@ typedef multimap<dstime, DirectReadNode*> dsdrn_map;
 typedef list<DirectRead*> dr_list;
 typedef list<DirectReadSlot*> drs_list;
 
-typedef map<const string*, LocalNode*, StringCmp> localnode_map;
-typedef map<const string*, Node*, StringCmp> remotenode_map;
-
 typedef enum { TREESTATE_NONE = 0, TREESTATE_SYNCED, TREESTATE_PENDING, TREESTATE_SYNCING } treestate_t;
 
 typedef enum { TRANSFERSTATE_NONE = 0, TRANSFERSTATE_QUEUED, TRANSFERSTATE_ACTIVE, TRANSFERSTATE_PAUSED,
                TRANSFERSTATE_RETRYING, TRANSFERSTATE_COMPLETING, TRANSFERSTATE_COMPLETED,
                TRANSFERSTATE_CANCELLED, TRANSFERSTATE_FAILED } transferstate_t;
 
-struct Notification
-{
-    dstime timestamp;
-    string path;
-    LocalNode* localnode;
-};
-
-typedef deque<Notification> notify_deque;
 
 // FIXME: use forward_list instad (C++11)
 typedef list<HttpReqCommandPutFA*> putfa_list;
@@ -493,6 +518,7 @@ typedef enum {
     ATTR_ALIAS = 27,                        // private - byte array - versioned
     ATTR_AUTHRSA = 28,                      // private - byte array
     ATTR_AUTHCU255 = 29,                    // private - byte array
+    ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -575,7 +601,14 @@ typedef enum { EMAIL_REMOVED = 0, EMAIL_PENDING_REMOVED = 1, EMAIL_PENDING_ADDED
 
 typedef enum { RETRY_NONE = 0, RETRY_CONNECTIVITY = 1, RETRY_SERVERS_BUSY = 2, RETRY_API_LOCK = 3, RETRY_RATE_LIMIT = 4, RETRY_LOCAL_LOCK = 5, RETRY_UNKNOWN = 6} retryreason_t;
 
-typedef enum { STORAGE_UNKNOWN = -9, STORAGE_GREEN = 0, STORAGE_ORANGE = 1, STORAGE_RED = 2, STORAGE_CHANGE = 3 } storagestatus_t;
+typedef enum {
+    STORAGE_UNKNOWN = -9,
+    STORAGE_GREEN = 0,      // there is storage is available
+    STORAGE_ORANGE = 1,     // storage is almost full
+    STORAGE_RED = 2,        // storage is full
+    STORAGE_CHANGE = 3,     // the status of the storage might have changed
+    STORAGE_PAYWALL = 4,    // storage is full and user didn't remedy despite of warnings
+} storagestatus_t;
 
 
 enum SmsVerificationState {
@@ -703,6 +736,8 @@ namespace CodeCounter
 #endif
     };
 }
+
+typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3 } BackupType;
 
 // Holds the config of a sync. Can be extended with future config options
 class SyncConfig : public Cacheable

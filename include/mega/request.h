@@ -46,7 +46,7 @@ public:
     void get(string*, bool& suppressSID) const;
 
     void serverresponse(string&& movestring, MegaClient*);
-    void servererror(error e, MegaClient* client);
+    void servererror(const std::string &e, MegaClient* client);
 
     void process(MegaClient* client);
 
@@ -93,7 +93,7 @@ public:
     // once the server response is determined, call one of these to specify the results
     void requeuerequest();
     void serverresponse(string&& movestring, MegaClient*);
-    void servererror(error, MegaClient*);
+    void servererror(const std::string &e, MegaClient*);
 
     void clear();
 
