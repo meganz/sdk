@@ -153,14 +153,11 @@ FileSystemType FileSystemAccess::getlocalfstype(const LocalPath& dstPath) const
     }
 #elif defined(_WIN32) || defined(WINDOWS_PHONE)
     // Filesystem detection for Windows
-
     auto tmpPath = dstPath;
-    tmpPath.editStringDirect()->append("", 1); // make sure of 2 byte terminator as LPCTWSTR (later we'll make it wstring for windows)
-
     std::wstring volMountPoint;
     volMountPoint.resize(MAX_PATH);
     DWORD mountLen = static_cast<DWORD>(volMountPoint.size());
-    if (!(GetVolumePathNameW((LPCWSTR)tmpPath.editStringDirect()->data(), &volMountPoint[0], mountLen)))
+    if (!(GetVolumePathNameW((LPCWSTR)tmpPath.getLocalpath().c_str(), &volMountPoint[0], mountLen)))
     {
         return FS_UNKNOWN;
     }
@@ -490,7 +487,9 @@ FileAccess::~FileAccess()
 // open file for reading
 bool FileAccess::fopen(LocalPath& name)
 {
+#ifndef _WIN32
     nonblocking_localname.editStringDirect()->resize(1);
+#endif
     updatelocalname(name);
 
     return sysstat(&mtime, &size);
@@ -551,7 +550,9 @@ void FileAccess::asyncopfinished(void *param)
 
 AsyncIOContext *FileAccess::asyncfopen(LocalPath& f)
 {
+#ifndef _WIN32
     nonblocking_localname.editStringDirect()->resize(1);
+#endif
     updatelocalname(f);
 
     LOG_verbose << "Async open start";
@@ -559,8 +560,13 @@ AsyncIOContext *FileAccess::asyncfopen(LocalPath& f)
     context->op = AsyncIOContext::OPEN;
     context->access = AsyncIOContext::ACCESS_READ;
 
-    context->buffer = (byte *)f.editStringDirect()->data();
+#if defined(_WIN32)
+    context->buffer = (byte*)f.getLocalpath().c_str();
+    context->len = static_cast<unsigned>(f.getLocalpath().size());
+#else
+    context->buffer = (byte*)f.editStringDirect()->data();
     context->len = static_cast<unsigned>(f.editStringDirect()->size());
+#endif
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
     context->userData = waiter;
@@ -638,8 +644,13 @@ AsyncIOContext *FileAccess::asyncfopen(LocalPath& f, bool read, bool write, m_of
             | (read ? AsyncIOContext::ACCESS_READ : 0)
             | (write ? AsyncIOContext::ACCESS_WRITE : 0);
 
-    context->buffer = (byte *)f.editStringDirect()->data();
+#if defined(_WIN32)
+    context->buffer = (byte*)f.getLocalpath().c_str();
+    context->len = static_cast<unsigned>(f.getLocalpath().size());
+#else
+    context->buffer = (byte*)f.editStringDirect()->data();
     context->len = static_cast<unsigned>(f.editStringDirect()->size());
+#endif
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
     context->userData = waiter;
@@ -852,6 +863,7 @@ bool FileInputStream::read(byte *buffer, unsigned size)
     return false;
 }
 
+#ifndef _WIN32
 const std::string* LocalPath::editStringDirect() const
 {
     // this function for compatibiltiy while converting to use LocalPath class.  TODO: phase out this function
@@ -863,6 +875,20 @@ std::string* LocalPath::editStringDirect()
     // this function for compatibiltiy while converting to use LocalPath class.  TODO: phase out this function
     return const_cast<std::string*>(&localpath);
 }
+#else
+const std::wstring* LocalPath::editStringDirect() const
+{
+    // this function for compatibiltiy while converting to use LocalPath class.  TODO: phase out this function
+    return const_cast<std::wstring*>(&localpath);
+}
+
+std::wstring* LocalPath::editStringDirect()
+{
+    // this function for compatibiltiy while converting to use LocalPath class.  TODO: phase out this function
+    return const_cast<std::wstring*>(&localpath);
+}
+
+#endif
 
 bool LocalPath::empty() const
 {
@@ -871,7 +897,8 @@ bool LocalPath::empty() const
 
 size_t LocalPath::lastpartlocal(const FileSystemAccess& fsaccess) const
 {
-    return fsaccess.lastpartlocal(&localpath);
+    auto str = wstringToString(localpath);
+    return fsaccess.lastpartlocal(&str);
 }
 
 void LocalPath::append(const LocalPath& additionalPath)
@@ -888,7 +915,7 @@ void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separa
             if (localpath.size() < localseparator.size() || 
                 memcmp(localpath.data() + localpath.size() - localseparator.size(), localseparator.data(), localseparator.size()))
             {
-                localpath.append(localseparator);
+                localpath.append(stringToWString(localseparator));
             }
         #else
             localpath.append(localseparator);
@@ -904,10 +931,15 @@ void LocalPath::prependWithSeparator(const LocalPath& additionalPath, const stri
     if (localpath.size() >= localseparator.size() && memcmp(localpath.data(), localseparator.data(), localseparator.size()))
     {
         // no additional separator if there is already one before
-        if (additionalPath.editStringDirect()->size() < localseparator.size() || 
-            memcmp(additionalPath.editStringDirect()->data() + additionalPath.editStringDirect()->size() - localseparator.size(), localseparator.data(), localseparator.size()))
+
+        if (additionalPath.localpath.size() < localseparator.size() ||
+            memcmp(additionalPath.localpath.data() + additionalPath.localpath.size() - localseparator.size(), localseparator.data(), localseparator.size()))
         {
+        #ifdef WIN32
+            localpath.insert(0, stringToWString(localseparator));
+        #else
             localpath.insert(0, localseparator);
+        #endif
         }
     }
     localpath.insert(0, additionalPath.localpath);
@@ -933,7 +965,11 @@ bool LocalPath::findNextSeparator(size_t& separatorBytePos, const FileSystemAcce
 {
     for (;;)
     {
+#ifdef WIN32
+        separatorBytePos = localpath.find(stringToWString(fsaccess.localseparator), separatorBytePos);
+#else
         separatorBytePos = localpath.find(fsaccess.localseparator, separatorBytePos);
+#endif
         if (separatorBytePos == string::npos) return false;
         if (separatorBytePos % fsaccess.localseparator.size() == 0) return true;
         separatorBytePos++;
@@ -944,7 +980,11 @@ bool LocalPath::findPrevSeparator(size_t& separatorBytePos, const FileSystemAcce
 {
     for (;;)
     {
+#ifdef WIN32
+        separatorBytePos = localpath.rfind(stringToWString(fsaccess.localseparator), separatorBytePos);
+#else
         separatorBytePos = localpath.rfind(fsaccess.localseparator, separatorBytePos);
+#endif
         if (separatorBytePos == string::npos) return false;
         if (separatorBytePos % fsaccess.localseparator.size() == 0) return true;
         separatorBytePos--;
@@ -983,35 +1023,44 @@ bool LocalPath::backEqual(size_t bytePos, const LocalPath& compareTo) const
 
 LocalPath LocalPath::subpathFrom(size_t bytePos) const
 {
+#ifdef WIN32
+    return LocalPath::fromLocalname(wstringToString(localpath.substr(bytePos)));
+#else
     return LocalPath::fromLocalname(localpath.substr(bytePos));
+#endif
 }
-
 
 void LocalPath::ensureWinExtendedPathLenPrefix()
 {
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-    localpath.append("", 1);
     if (!PathIsRelativeW((LPWSTR)localpath.c_str()) && ((localpath.size() < 4) || memcmp(localpath.data(), L"\\\\", 4)))
-        localpath.insert(0, (const char*)(const wchar_t*)L"\\\\?\\", 8);
-    localpath.resize(localpath.size() - 1);
+        localpath.insert(0, (const wchar_t*)L"\\\\?\\", 8);
 #endif
 }
 
 string LocalPath::substrTo(size_t bytePos) const
 {
-    return localpath.substr(0, bytePos);
+    return wstringToString(localpath.substr(0, bytePos));
 }
 
 string LocalPath::toPath(const FileSystemAccess& fsaccess) const
 {
     string path;
+#ifdef WIN32
+    fsaccess.local2path(const_cast<string*>(&wstringToString(localpath)), &path); // todo: const correctness for local2path etc
+#else
     fsaccess.local2path(const_cast<string*>(&localpath), &path); // todo: const correctness for local2path etc
+#endif   
     return path;
 }
 
 string LocalPath::toName(const FileSystemAccess& fsaccess, FileSystemType fsType) const
 {
+#ifdef WIN32
+    string name = wstringToString(localpath);
+#else
     string name = localpath;
+#endif
     fsaccess.local2name(&name, fsType);
     return name;
 }
@@ -1019,8 +1068,14 @@ string LocalPath::toName(const FileSystemAccess& fsaccess, FileSystemType fsType
 
 LocalPath LocalPath::fromPath(const string& path, const FileSystemAccess& fsaccess)
 {
+    std::string s;
+    fsaccess.path2local(&path, &s);
     LocalPath p;
-    fsaccess.path2local(&path, &p.localpath);
+#ifdef WIN32
+    p.localpath = stringToWString(s);
+#else
+    p.localpath = s;
+#endif
     return p;
 }
 
@@ -1033,7 +1088,12 @@ LocalPath LocalPath::fromName(string path, const FileSystemAccess& fsaccess, Fil
 LocalPath LocalPath::fromLocalname(string path)
 {
     LocalPath p;
+#ifdef WIN32
+    std::wstring wpath = stringToWString(path);
+    p.localpath = std::move(wpath);
+#else
     p.localpath = std::move(path);
+#endif    
     return p;
 }
 

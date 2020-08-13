@@ -27,6 +27,9 @@
 #include "mega/filesystem.h"
 
 #include <iomanip>
+#include <locale>
+#include <codecvt>
+#include <string>
 
 #if defined(_WIN32) && defined(_MSC_VER)
 #include <sys/timeb.h>
@@ -50,6 +53,18 @@ string toHandle(handle h)
     char base64Handle[14];
     Base64::btoa((byte*)&(h), sizeof h, base64Handle);
     return string(base64Handle);
+}
+
+std::string wstringToString(std::wstring wide_utf16_src)
+{
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+    return converter.to_bytes(wide_utf16_src);
+}
+
+std::wstring stringToWString(std::string narrow_utf8_src)
+{
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+    return converter.from_bytes(narrow_utf8_src);
 }
 
 CacheableWriter::CacheableWriter(string& d)
@@ -2439,6 +2454,5 @@ void MegaClientAsyncQueue::asyncThreadLoop()
         mWaiter.notify();
     }
 }
-
 } // namespace
 

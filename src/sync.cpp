@@ -396,8 +396,15 @@ size_t assignFilesystemIdsImpl(const FingerprintCache& fingerprints, Fingerprint
 
 int computeReversePathMatchScore(string& accumulated, const LocalPath& path1Arg, const LocalPath& path2Arg, const FileSystemAccess& fsaccess)
 {
+#if defined(_WIN32)
+    const std::wstring& path1 = path1Arg.getLocalpath();
+    const std::wstring& path2 = path2Arg.getLocalpath();
+    const int sizeofnullterminator = 2;
+#else 
     const string& path1 = *path1Arg.editStringDirect();
     const string& path2 = *path2Arg.editStringDirect();
+    const int sizeofnullterminator = 1;
+#endif
 
     if (path1.empty() || path2.empty())
     {
@@ -406,8 +413,8 @@ int computeReversePathMatchScore(string& accumulated, const LocalPath& path1Arg,
 
     accumulated.clear();
 
-    const auto path1End = path1.size() - 1;
-    const auto path2End = path2.size() - 1;
+    const auto path1End = path1.size() - sizeofnullterminator;
+    const auto path2End = path2.size() - sizeofnullterminator;
 
     size_t index = 0;
     size_t separatorBias = 0;
@@ -419,8 +426,8 @@ int computeReversePathMatchScore(string& accumulated, const LocalPath& path1Arg,
         {
             break;
         }
-
-        accumulated.push_back(value1);
+        accumulated.push_back(static_cast<char>(value1));
+      
         ++index;
 
         if (accumulated.size() >= fsaccess.localseparator.size())
@@ -1012,8 +1019,13 @@ void Sync::changestate(syncstate_t newstate)
 // NULL: no match, optionally returns residual path
 LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, LocalNode** parent, string* rpath)
 {
-    const char* ptr = localpath.editStringDirect()->data();
-    const char* end = ptr + localpath.editStringDirect()->size();
+#ifdef _WIN32
+    const wchar_t* ptr = localpath.getLocalpath().c_str();
+    const wchar_t* end = ptr + localpath.getLocalpath().size();
+#else
+    const char* ptr = localpath.editStringDirect->data();
+    const wchar* end = ptr + localpath.editStringDirect()->size();
+#endif
     size_t separatorlen = client->fsaccess->localseparator.size();
 
     if (rpath)
@@ -1043,7 +1055,12 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
         }
     }
 
-    const char* nptr = ptr;
+#ifdef _WIN32
+    const wchar_t* nptr = ptr; 
+#else
+    const char* nptr = ptr; 
+#endif
+
     localnode_map::iterator it;
     string t;
 
@@ -1068,7 +1085,12 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
                 *parent = l;
             }
 
+#ifdef _WIN32
+            LocalPath t = LocalPath::fromLocalname(wstringToString(std::wstring(ptr, nptr - ptr)));
+#else
             LocalPath t = LocalPath::fromLocalname(std::string(ptr, nptr - ptr));
+#endif
+
             if ((it = l->children.find(&t)) == l->children.end()
              && (it = l->schildren.find(&t)) == l->schildren.end())
             {
@@ -1076,7 +1098,12 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
                 // matching component LocalNode in parent
                 if (rpath)
                 {
+#ifdef _WIN32
+                    rpath = &(wstringToString(localpath.getLocalpath().c_str()));
+#else
                     rpath->assign(ptr, localpath.editStringDirect()->data() - ptr + localpath.editStringDirect()->size());
+                 
+#endif
                 }
 
                 return NULL;

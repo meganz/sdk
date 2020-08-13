@@ -136,19 +136,39 @@ public:
 
 class MEGA_API LocalPath
 {
+#if defined(_WIN32)
+    std::wstring localpath;
+#else 
     std::string localpath;
+#endif
 
     friend class ScopedLengthRestore;
+    friend class WinFileSystemAccess;
+    friend class WinDirAccess;
     size_t getLength() { return localpath.size(); }
     void setLength(size_t length) { localpath.resize(length); }
 
 public:
 
     LocalPath() {}
-    explicit LocalPath(std::string&& s) : localpath(std::move(s)) {}
 
+#if defined(_WIN32)
+    explicit LocalPath::LocalPath(std::string&& s)
+    {
+        std::wstring ws = stringToWString(s);
+        localpath = std::move(ws);
+    }
+    const std::wstring& getLocalpath() const { return localpath; }
+    
+    //TODO: will remove these two once all calls are replaced with c_str() or something. Here just for successful compilation
+    std::wstring* editStringDirect();
+    const std::wstring* editStringDirect() const;
+#else 
+    explicit LocalPath(std::string&& s) : localpath(std::move(s)) {}
     std::string* editStringDirect();
     const std::string* editStringDirect() const;
+#endif
+
     bool empty() const;
     void clear() { localpath.clear(); }
     void erase(size_t pos = 0, size_t count = std::string::npos) { localpath.erase(pos, count); }
