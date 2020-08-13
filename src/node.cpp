@@ -36,6 +36,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts, bool addToMemory)
 {
     mInMemory = addToMemory;
+    fingerprint_it = cclient->mFingerprints.end();
     client = cclient;
     outshares = NULL;
     pendingshares = NULL;
@@ -1887,6 +1888,11 @@ node_vector *Fingerprints::nodesbyfingerprint(FileFingerprint* fingerprint)
     }
 
     return nodes;
+}
+
+Fingerprints::iterator Fingerprints::end()
+{
+    return mFingerprints.end();
 }
 
 } // namespace

@@ -107,6 +107,7 @@ struct Fingerprints
 
     Node* nodebyfingerprint(FileFingerprint* fingerprint);
     node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
+    iterator end();
 
 private:
     fingerprint_set mFingerprints;
