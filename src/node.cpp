@@ -1040,12 +1040,15 @@ bool Node::setparent(Node* p)
 
 Node* Node::firstancestor()
 {
-    Node* n = this;
-    while (n->parent != NULL)
+    if (parenthandle == UNDEF)
     {
-        n = n->parent;
+        return this;
     }
-    return n;
+
+    handle ancestorhandle = client->sctable->getFirstAncestor(parenthandle);
+
+
+    return client->nodebyhandle(ancestorhandle);
 }
 
 // returns 1 if n is under p, 0 otherwise

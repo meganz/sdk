@@ -506,7 +506,7 @@ NodeCounter SqliteDbTable::getNodeCounter(handle node)
     int type = TYPE_UNKNOWN;
     handle parentHandle = UNDEF;
     int result = SQLITE_ERROR;
-    if (sqlite3_prepare(db, "SELECT size, type, parentHandle, FROM nodes WHERE nodeHandle = ?", -1, &stmt, NULL) == SQLITE_OK)
+    if (sqlite3_prepare(db, "SELECT size, type, parentHandle FROM nodes WHERE nodeHandle = ?", -1, &stmt, NULL) == SQLITE_OK)
     {
         if (sqlite3_bind_int64(stmt, 1, node) == SQLITE_OK)
         {
@@ -576,6 +576,33 @@ bool SqliteDbTable::isNodesOnDemandDb()
     return numRows > 0 ? true : false;
 }
 
+handle SqliteDbTable::getFirstAncestor(handle node)
+{
+    if (!db)
+    {
+        return UNDEF;
+    }
+
+    checkTransaction();
+    handle ancestor = UNDEF;
+    sqlite3_stmt *stmt;
+    std::string sqlQuery = "WITH nodesCTE(nodehandle, parenthandle) AS (SELECT nodehandle, parenthandle FROM nodes WHERE nodehandle = ? UNION ALL SELECT A.nodehandle, A.parenthandle FROM nodes AS A INNER JOIN nodesCTE AS E ON (A.nodehandle = E.parenthandle)) SELECT * FROM nodesCTE WHERE parenthandle = -1";
+    if (sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_bind_int64(stmt, 1, node) == SQLITE_OK)
+        {
+            if (sqlite3_step(stmt) == SQLITE_ROW)
+            {
+                ancestor = sqlite3_column_int64(stmt, 0);
+            }
+        }
+    }
+
+
+    sqlite3_finalize(stmt);
+    return ancestor;
+}
+
 // add/update record by index
 bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
 {
@@ -622,6 +649,8 @@ bool SqliteDbTable::put(Node *node)
     int sqlResult = sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, name, fingerprint, type, size, node) VALUES (?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
+        string nodeSerialized;
+        node->serialize(&nodeSerialized);
         sqlite3_bind_int64(stmt, 1, node->nodehandle);
         sqlite3_bind_int64(stmt, 2, node->parenthandle);
         sqlite3_bind_text(stmt, 3, node->displayname(), strlen(node->displayname()), SQLITE_STATIC);
@@ -630,8 +659,6 @@ bool SqliteDbTable::put(Node *node)
         sqlite3_bind_blob(stmt, 4, fp.data(), fp.size(), SQLITE_STATIC);
         sqlite3_bind_int(stmt, 5, node->type);
         sqlite3_bind_int64(stmt, 6, node->size);
-        string nodeSerialized;
-        node->serialize(&nodeSerialized);
         sqlite3_bind_blob(stmt, 7, nodeSerialized.data(), nodeSerialized.size(), SQLITE_STATIC);
 
         if (sqlite3_step(stmt) == SQLITE_DONE)

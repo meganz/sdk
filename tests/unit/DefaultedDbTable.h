@@ -76,7 +76,11 @@ public:
     {
         throw NotImplemented(__func__);
     }
-    virtual bool isNodesOnDemandDb() override
+    bool isNodesOnDemandDb() override
+    {
+        throw NotImplemented{__func__};
+    }
+    mega::handle getFirstAncestor(mega::handle) override
     {
         throw NotImplemented{__func__};
     }

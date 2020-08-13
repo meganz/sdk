@@ -39,7 +39,7 @@ public:
 
 class MEGA_API SqliteDbTable : public DbTable
 {
-    sqlite3* db;
+    sqlite3* db = nullptr;
     sqlite3_stmt* pStmt;
     string dbfile;
     FileSystemAccess *fsaccess;
@@ -58,6 +58,7 @@ public:
     uint32_t getNumberOfChildrenFromNode(handle node) override;
     NodeCounter getNodeCounter(handle node) override;
     bool isNodesOnDemandDb() override;
+    handle getFirstAncestor(handle node) override;
     bool put(uint32_t, char*, unsigned);
     bool put(Node* node) override;
     bool del(uint32_t);
