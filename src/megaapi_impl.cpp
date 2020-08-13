@@ -128,8 +128,8 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->foreign = isForeign;
     this->children = NULL;
     this->owner = owner;
-    this->favourite = false;
-    this->label = LBL_UNKNOWN;
+    this->mFavourite = false;
+    this->mLabel = LBL_UNKNOWN;
 
     if (privateauth)
     {
@@ -164,8 +164,8 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
         this->height = np->height;
         this->shortformat = np->shortformat;
         this->videocodecid = np->videocodecid;
-        this->favourite = np->favourite;
-        this->label = np->label;
+        this->mFavourite = np->mFavourite;
+        this->mLabel = np->mLabel;
     }
     else
     {
@@ -174,8 +174,8 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
         this->height = node->getHeight();
         this->shortformat = node->getShortformat();
         this->videocodecid = node->getVideocodecid();
-        this->favourite = node->isFavourite();
-        this->label = static_cast<nodelabel_t>(node->getLabel());
+        this->mFavourite = node->isFavourite();
+        this->mLabel = static_cast<nodelabel_t>(node->getLabel());
     }
 
     this->latitude = node->getLatitude();
@@ -287,8 +287,8 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->longitude = INVALID_COORDINATE;
     this->customAttrs = NULL;
     this->restorehandle = UNDEF;
-    this->favourite = false;
-    this->label = LBL_UNKNOWN;
+    this->mFavourite = false;
+    this->mLabel = LBL_UNKNOWN;
 
     char buf[10];
     for (attr_map::iterator it = node->attrs.map.begin(); it != node->attrs.map.end(); it++)
@@ -407,7 +407,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                 }
                 else
                 {
-                    favourite = std::atoi(it->second.c_str());
+                    mFavourite = fav;
                 }
             }
             else if (it->first == AttrMap::string2nameid("lbl"))
@@ -419,7 +419,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                 }
                 else
                 {
-                    label = static_cast<nodelabel_t>(lbl);
+                    mLabel = static_cast<nodelabel_t>(lbl);
                 }
             }
         }
@@ -732,12 +732,12 @@ int MegaNodePrivate::getDuration()
 
 bool MegaNodePrivate::isFavourite()
 {
-    return favourite;
+    return mFavourite;
 }
 
 int MegaNodePrivate::getLabel()
 {
-    return label;
+    return mLabel;
 }
 
 int MegaNodePrivate::getWidth()
