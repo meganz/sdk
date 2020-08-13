@@ -313,6 +313,9 @@ void File::completed(Transfer* t, LocalNode* l)
         AttrMap attrs;
         t->client->honorPreviousVersionAttrs(previousNode, attrs);
 
+        // store filename
+        attrs.map['n'] = name;
+
         // store fingerprint
         t->serializefingerprint(&attrs.map['c']);
 
