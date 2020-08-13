@@ -31,7 +31,6 @@ namespace mega {
 
 struct JSON;
 struct MegaApp;
-
 // request command component
 class MEGA_API Command
 {
@@ -92,6 +91,8 @@ public:
     Command();
     virtual ~Command() = default;
 
+    bool checkError(Error &errorDetails, JSON &json);
+
     MEGA_DEFAULT_COPY_MOVE(Command)
 };
 
@@ -101,7 +102,6 @@ struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
 {
     handle th;    // if th is UNDEF, just report the handle back to the client app rather than attaching to a node
     fatype type;
-    string* data;
     m_off_t progressreported;
 
     void procresult();
@@ -109,8 +109,10 @@ struct MEGA_API HttpReqCommandPutFA : public HttpReq, public Command
     // progress information
     virtual m_off_t transferred(MegaClient*);
 
-    HttpReqCommandPutFA(MegaClient*, handle, fatype, string*, bool);
-    ~HttpReqCommandPutFA();
+    HttpReqCommandPutFA(MegaClient*, handle, fatype, std::unique_ptr<string> faData, bool);
+
+private:
+    std::unique_ptr<string> data;
 };
 
 class MEGA_API CommandGetFA : public Command
@@ -241,6 +243,10 @@ public:
     void procresult();
 
     CommandSetKeyPair(MegaClient*, const byte*, unsigned, const byte*, unsigned);
+
+private:
+    std::unique_ptr<byte> privkBuffer;
+    unsigned len;
 };
 
 // set visibility
@@ -285,7 +291,7 @@ class MEGA_API CommandPutUA : public Command
     string av;  // attribute value
 
 public:
-    CommandPutUA(MegaClient*, attr_t at, const byte*, unsigned, int);
+    CommandPutUA(MegaClient*, attr_t at, const byte*, unsigned, int, handle = UNDEF, int = 0, int64_t = 0);
 
     void procresult();
 };
@@ -314,19 +320,15 @@ public:
 
     void procresult();
 };
-#endif
 
-// Tries to fetch the unshareable-attribute key, creates it if necessary
-class MEGA_API CommandUnshareableUA : public Command
+class MEGA_API CommandSendDevCommand : public Command
 {
-    bool fetching;
-    int maxtries;
 public:
-    CommandUnshareableUA(MegaClient*, bool fetch, int triesleft);
-
     void procresult();
-};
 
+    CommandSendDevCommand(MegaClient*, const char* command, const char* email = NULL, long long = 0, int = 0, int = 0);
+};
+#endif
 
 class MEGA_API CommandGetUserEmail : public Command
 {
@@ -455,7 +457,7 @@ public:
     void cancel();
     void procresult();
 
-    CommandGetFile(MegaClient *client, TransferSlot*, byte*, handle, bool, const char* = NULL, const char* = NULL, const char *chatauth = NULL);
+    CommandGetFile(MegaClient *client, TransferSlot*, const byte*, handle, bool, const char* = NULL, const char* = NULL, const char *chatauth = NULL);
 };
 
 class MEGA_API CommandPutFile : public Command
@@ -546,6 +548,9 @@ public:
     void procresult();
 
     CommandGetUserData(MegaClient*);
+
+protected:
+    void parseUserAttribute(std::string& value, std::string &version, bool asciiToBinary = true);
 };
 
 class MEGA_API CommandGetMiscFlags : public Command
@@ -657,7 +662,7 @@ class MEGA_API CommandPurchaseAddItem : public Command
 public:
     void procresult();
 
-    CommandPurchaseAddItem(MegaClient*, int, handle, unsigned, const char*, unsigned, const char*, handle = UNDEF);
+    CommandPurchaseAddItem(MegaClient*, int, handle, unsigned, const char*, unsigned, const char*, handle = UNDEF, int = 0, int64_t = 0);
 };
 
 class MEGA_API CommandPurchaseCheckout : public Command
@@ -689,7 +694,7 @@ class MEGA_API CommandSubmitPurchaseReceipt : public Command
 public:
     void procresult();
 
-    CommandSubmitPurchaseReceipt(MegaClient*, int, const char*, handle = UNDEF);
+    CommandSubmitPurchaseReceipt(MegaClient*, int, const char*, handle = UNDEF, int = 0, int64_t = 0);
 };
 
 class MEGA_API CommandCreditCardStore : public Command
@@ -758,6 +763,14 @@ public:
     CommandSendEvent(MegaClient*, int, const char *);
 };
 
+class MEGA_API CommandSupportTicket : public Command
+{
+public:
+    void procresult();
+
+    CommandSupportTicket(MegaClient*, const char *message, int type = 1);   // by default, 1:technical_issue
+};
+
 class MEGA_API CommandCleanRubbishBin : public Command
 {
 public:
@@ -804,6 +817,22 @@ public:
     void procresult();
 
     CommandConfirmCancelLink(MegaClient *, const char *);
+};
+
+class MEGA_API CommandResendVerificationEmail : public Command
+{
+public:
+    void procresult();
+
+    CommandResendVerificationEmail(MegaClient *);
+};
+
+class MEGA_API CommandResetSmsVerifiedPhoneNumber : public Command
+{
+public:
+    void procresult();
+
+    CommandResetSmsVerifiedPhoneNumber(MegaClient *);
 };
 
 class MEGA_API CommandValidatePassword : public Command
@@ -977,6 +1006,17 @@ public:
 protected:
     handle mChatid;
     bool mArchive;
+};
+
+class MEGA_API CommandSetChatRetentionTime : public Command
+{
+public:
+    void procresult();
+
+    CommandSetChatRetentionTime(MegaClient*, handle , int);
+
+protected:
+    handle mChatid;
 };
 
 class MEGA_API CommandRichLink : public Command
@@ -1190,6 +1230,47 @@ public:
     void procresult();
 
     CommandFolderLinkInfo(MegaClient*, handle);
+};
+
+class MEGA_API CommandBackupPut : public Command
+{
+public:
+    void procresult();
+
+    // Register a new Sync
+    CommandBackupPut(MegaClient* client, BackupType type, handle nodeHandle, const std::string& localFolder, const std::string& deviceId, const std::string& backupName, int state, int subState, const std::string& extraData);
+
+    // Update a Backup
+    // Params that keep the same value are passed with invalid value to avoid to send to the server
+    // Invalid values:
+    // - type: BackupType::INVALID
+    // - nodeHandle: UNDEF
+    // - localFolder: nullptr
+    // - deviceId: nullptr
+    // - backupName: nullptr
+    // - state: -1
+    // - subState: -1
+    // - extraData: nullptr
+    CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char* deviceId, const char* backupName, int state, int subState, const char* extraData);
+
+private:
+    bool mUpdate = false;
+};
+
+class MEGA_API CommandBackupRemove : public Command
+{
+public:
+    void procresult();
+
+    CommandBackupRemove(MegaClient* client, handle backupId);
+};
+
+class MEGA_API CommandBackupPutHeartBeat : public Command
+{
+public:
+    void procresult();
+
+    CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, uint32_t ts, handle lastNode);
 };
 
 } // namespace

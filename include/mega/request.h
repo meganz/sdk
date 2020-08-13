@@ -37,6 +37,7 @@ private:
     JSON json;
     size_t processindex = 0;
 
+
 public:
     void add(Command*);
 
@@ -45,7 +46,7 @@ public:
     void get(string*, bool& suppressSID) const;
 
     void serverresponse(string&& movestring, MegaClient*);
-    void servererror(error e, MegaClient* client);
+    void servererror(const std::string &e, MegaClient* client);
 
     void process(MegaClient* client);
 
@@ -54,6 +55,9 @@ public:
     void swap(Request&);
 
     bool stopProcessing = false;
+
+    // if contains only one command and that command is FetchNodes
+    bool isFetchNodes() const;
 };
 
 
@@ -79,13 +83,17 @@ public:
 
     bool cmdspending() const;
 
-    // get the set of commands to be sent to the server (could be a retry)
-    void serverrequest(string*, bool& suppressSID);
+    /**
+     * @brief get the set of commands to be sent to the server (could be a retry)
+     * @param suppressSID
+     * @param includesFetchingNodes set to whether the commands include fetch nodes
+     */
+    void serverrequest(string*, bool& suppressSID, bool &includesFetchingNodes);
 
     // once the server response is determined, call one of these to specify the results
     void requeuerequest();
     void serverresponse(string&& movestring, MegaClient*);
-    void servererror(error, MegaClient*);
+    void servererror(const std::string &e, MegaClient*);
 
     void clear();
 

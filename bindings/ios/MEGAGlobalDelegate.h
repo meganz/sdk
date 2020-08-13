@@ -63,7 +63,7 @@ NS_ASSUME_NONNULL_BEGIN
  * @param api MEGASdk object connected to the account.
  * @param nodeList List that contains the new or updated nodes.
  */
-- (void)onNodesUpdate:(MEGASdk *)api nodeList:(MEGANodeList *)nodeList;
+- (void)onNodesUpdate:(MEGASdk *)api nodeList:(nullable MEGANodeList *)nodeList;
 
 /**
  * @brief This function is called when the account has been updated (confirmed/upgraded/downgraded)
@@ -142,12 +142,14 @@ NS_ASSUME_NONNULL_BEGIN
  *          300: suspension only for multiple copyright violations.
  *          400: the subuser account has been disabled.
  *          401: the subuser account has been removed.
+ *          500: The account needs to be verified by an SMS code.
+ *          700: the account is supended for Weak Account Protection.
  *
  * - EventStorage: when the status of the storage changes.
  *
  * For this event type, MegaEvent::getNumber provides the current status of the storage
  *
- * There are three possible storage states:
+ * There are four possible storage states:
  *     - StorageStateGreen = 0
  *     There are no storage problems
  *
@@ -162,6 +164,11 @@ NS_ASSUME_NONNULL_BEGIN
  *     It's needed to call [MEGASdk getAccountDetails] to check the storage status.
  *     After calling it, this callback will be called again with the corresponding
  *     state if there is really a change.
+ *
+ *     - StorageStatePaywall = 4
+ *     The account has been full for a long time. Now most of actions are disallowed.
+ *     You will need to call [MEGASdk getUserData] before retrieving the overquota deadline/warnings
+ *     timestamps.
  *
  * - EventNodesCurrent: when all external changes have been received
  *

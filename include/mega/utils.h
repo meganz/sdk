@@ -23,6 +23,9 @@
 #define MEGA_UTILS_H 1
 
 #include <type_traits>
+#include <condition_variable>
+#include <thread>
+#include <mutex>
 
 #include "types.h"
 #include "mega/logging.h"
@@ -352,6 +355,13 @@ public:
     static bool utf8toUnicode(const uint8_t *src, unsigned srclen, string *result);
 
     /**
+     * @brief Determines size in bytes of a valid UTF-8 sequence.
+     * @param c first character of UTF-8 sequence
+     * @return the size of UTF-8 sequence if its valid, otherwise returns 0
+     */
+    static size_t utf8SequenceSize(unsigned char c);
+
+    /**
      * @brief This function is analogous to a32_to_str in js version.
      * Converts a vector of <T> elements into a std::string
      *
@@ -418,17 +428,34 @@ void tolower_string(std::string& str);
 int macOSmajorVersion();
 #endif
 
+// file chunk macs
+class chunkmac_map : public map<m_off_t, ChunkMAC>
+{
+public:
+    int64_t macsmac(SymmCipher *cipher);
+    void serialize(string& d) const;
+    bool unserialize(const char*& ptr, const char* end);
+    void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* lastblockprogress = nullptr);
+    m_off_t nextUnprocessedPosFrom(m_off_t pos);
+    m_off_t expandUnprocessedPiece(m_off_t pos, m_off_t npos, m_off_t fileSize, m_off_t maxReqSize);
+    void finishedUploadChunks(chunkmac_map& macs);
+};
+
 struct CacheableWriter
 {
     CacheableWriter(string& d);
     string& dest;
 
     void serializebinary(byte* data, size_t len);
-    void serializecstr(const char* field, bool storeNull);  // may store the '\0' also for backward compatibility
+    void serializecstr(const char* field, bool storeNull);  // may store the '\0' also for backward compatibility. Only use for utf8!  (std::string storing double byte chars will only store 1 byte)
+    void serializepstr(const string* field);  // uses string size() not strlen
     void serializestring(const string& field);
+    void serializecompressed64(int64_t field);
     void serializei64(int64_t field);
     void serializeu32(uint32_t field);
     void serializehandle(handle field);
+    void serializenodehandle(handle field);
+    void serializefsfp(fsfp_t field);
     void serializebool(bool field);
     void serializebyte(byte field);
     void serializedouble(double field);
@@ -450,17 +477,21 @@ struct CacheableReader
     bool unserializebinary(byte* data, size_t len);
     bool unserializecstr(string& s, bool removeNull); // set removeNull if this field stores the terminating '\0' at the end
     bool unserializestring(string& s);
+    bool unserializecompressed64(uint64_t& field);
     bool unserializei64(int64_t& s);
     bool unserializeu32(uint32_t& s);
     bool unserializebyte(byte& s);
     bool unserializedouble(double& s);
     bool unserializehandle(handle& s);
+    bool unserializenodehandle(handle& s);
+    bool unserializefsfp(fsfp_t& s);
     bool unserializebool(bool& s);
     bool unserializechunkmacs(chunkmac_map& m);
 
     bool unserializeexpansionflags(unsigned char field[8], unsigned usedFlagCount);
 
     void eraseused(string& d); // must be the same string, unchanged
+    bool hasdataleft() { return end > ptr; }
 };
 
 template<typename T, typename U>
@@ -470,6 +501,109 @@ void hashCombine(T& seed, const U& v)
     // the magic number is the twos complement version of the golden ratio
     seed ^= std::hash<U>{}(v) + 0x9e3779b9 + (seed<<6) + (seed>>2);
 }
+
+struct FileAccess;
+struct InputStreamAccess;
+class SymmCipher;
+
+std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv);
+
+std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv);
+
+// Helper class for MegaClient.  Suitable for expansion/templatizing for other use caes.
+// Maintains a small thread pool for executing independent operations such as encrypt/decrypt a block of data
+// The number of threads can be 0 (eg. for helper MegaApi that deals with public folder links) in which case something queued is 
+// immediately executed synchronously on the caller's thread
+struct MegaClientAsyncQueue
+{
+    void push(std::function<void(SymmCipher&)> f, bool discardable);
+    void clearDiscardable();
+
+    MegaClientAsyncQueue(Waiter& w, unsigned threadCount);
+    ~MegaClientAsyncQueue();
+
+private:
+    Waiter& mWaiter;
+    std::mutex mMutex;
+    std::condition_variable mConditionVariable;
+    
+    struct Entry
+    {
+        bool discardable = false;
+        std::function<void(SymmCipher&)> f;
+        Entry(bool disc, std::function<void(SymmCipher&)>&& func)
+             : discardable(disc), f(func)
+        {}
+    };
+
+    std::deque<Entry> mQueue;
+    std::vector<std::thread> mThreads;
+    SymmCipher mZeroThreadsCipher;
+
+    void asyncThreadLoop();
+};
+
+template<class T>
+struct ThreadSafeDeque
+{
+    // Just like a deque, but thread safe so that a separate thread can receive filesystem notifications as soon as they are available.
+    // When we try to do that on the same thread, the processing of queued notifications is too slow so more notifications bulid up than
+    // have been processed, so each time we get the outstanding ones from the buffer we gave to the OS, we need to give it an even 
+    // larger buffer to write into, otherwise it runs out of space before this thread is idle and can get the next batch from the buffer.
+protected:
+    std::deque<T> mNotifications;
+    std::mutex m;
+
+public:
+
+    bool peekFront(T& t) 
+    { 
+        std::lock_guard<std::mutex> g(m);
+        if (!mNotifications.empty())
+        {
+            t = mNotifications.front();
+            return true; 
+        }
+        return false;
+    }
+
+    bool popFront(T& t) 
+    { 
+        std::lock_guard<std::mutex> g(m);
+        if (!mNotifications.empty())
+        {
+            t = std::move(mNotifications.front());
+            mNotifications.pop_front(); 
+            return true; 
+        }
+        return false;
+    }
+
+    void unpopFront(const T& t) 
+    { 
+        std::lock_guard<std::mutex> g(m);
+        mNotifications.push_front(t); 
+    }
+
+    void pushBack(T&& t) 
+    { 
+        std::lock_guard<std::mutex> g(m);
+        mNotifications.push_back(t); 
+    }
+
+    bool empty() 
+    { 
+        std::lock_guard<std::mutex> g(m);
+        return mNotifications.empty(); 
+    }
+
+    bool size() 
+    { 
+        std::lock_guard<std::mutex> g(m);
+        return mNotifications.size(); 
+    }
+
+};
 
 } // namespace
 

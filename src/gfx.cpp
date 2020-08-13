@@ -42,7 +42,7 @@ bool GfxProc::isgfx(string* localfilename)
         return true;
     }
 
-    if (client->fsaccess->getextension(localfilename, ext, sizeof ext))
+    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localfilename), ext, sizeof ext))
     {
         const char* ptr;
 
@@ -66,7 +66,7 @@ bool GfxProc::isvideo(string *localfilename)
         return false;
     }
 
-    if (client->fsaccess->getextension(localfilename, ext, sizeof ext))
+    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localfilename), ext, sizeof ext))
     {
         const char* ptr;
 
@@ -125,9 +125,9 @@ void GfxProc::loop()
                     int w = dimensions[job->imagetypes[i]][0];
                     int h = dimensions[job->imagetypes[i]][1];
 
-                    if (job->imagetypes[i] == PREVIEW && this->w < w && this->h < h )
+                    if (this->w < w && this->h < h)
                     {
-                        LOG_debug << "Skipping upsizing of preview";
+                        LOG_debug << "Skipping upsizing of preview or thumbnail";
                         w = this->w;
                         h = this->h;
                     }
@@ -193,7 +193,7 @@ int GfxProc::checkevents(Waiter *)
                 mCheckEventsKey.setkey(job->key);
                 int creqtag = client->reqtag;
                 client->reqtag = 0;
-                client->putfa(job->h, job->imagetypes[i], &mCheckEventsKey, job->images[i], job->flag);
+                client->putfa(job->h, job->imagetypes[i], &mCheckEventsKey, std::unique_ptr<string>(job->images[i]), job->flag);
                 client->reqtag = creqtag;
             }
             else
@@ -350,8 +350,9 @@ bool GfxProc::savefa(string *localfilepath, int width, int height, string *local
     }
 
     auto f = client->fsaccess->newfileaccess();
-    client->fsaccess->unlinklocal(localdstpath);
-    if (!f->fopen(localdstpath, false, true))
+    auto localpath = LocalPath::fromLocalname(*localdstpath);
+    client->fsaccess->unlinklocal(localpath);
+    if (!f->fopen(localpath, false, true))
     {
         return false;
     }
@@ -368,14 +369,23 @@ GfxProc::GfxProc()
 {
     client = NULL;
     finished = false;
+}
+
+void GfxProc::startProcessingThread()
+{
     thread.start(threadEntryPoint, this);
+    threadstarted = true;
 }
 
 GfxProc::~GfxProc()
 {
     finished = true;
     waiter.notify();
-    thread.join();
+    assert(threadstarted);
+    if (threadstarted)
+    {
+        thread.join();
+    }
 }
 
 GfxJobQueue::GfxJobQueue()

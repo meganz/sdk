@@ -89,8 +89,11 @@ protected:
     static QImageReader *readbitmapPdf(int &w, int &h, int &orientation, QString imagePath);
 #endif
 
-#ifdef HAVE_FFMPEG
+#if defined(HAVE_FFMPEG) || defined(HAVE_PDFIUM)
     static std::mutex gfxMutex;
+#endif
+
+#ifdef HAVE_FFMPEG
     static const char* supportedformatsFfmpeg();
     static QImageReader *readbitmapFfmpeg(int &w, int &h, int &orientation, QString imagePath);
 #endif

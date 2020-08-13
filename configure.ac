@@ -192,16 +192,17 @@ AC_MSG_CHECKING([platform options])
 case $host in
   *-*-cygwin*)
     LIBS_EXTRA="-luser32 -lkernel32"
+    CXXFLAGS="$CXXFLAGS -DNOMINMAX"
     WIN32=yes
     ;;
   *-*-mingw*)
     LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi -lshell32"
-    CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501 -DHAVE_STRUCT_TIMESPEC"
+    CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501 -DHAVE_STRUCT_TIMESPEC -DNOMINMAX"
     WIN32=yes
     ;;
    *-*-msys*)
     LIBS_EXTRA="-lws2_32 -lcrypt32 -lole32 -lwinmm -lshlwapi -lshell32"
-    CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501 -DHAVE_STRUCT_TIMESPEC -Wl,-no-undefined"
+    CXXFLAGS="$CXXFLAGS -DUNICODE -DWINVER=0x0501 -DHAVE_STRUCT_TIMESPEC -DNOMINMAX -Wl,-no-undefined"
 	LIBMEGA_EXTRALDFLAGS="-no-undefined"
 	AC_SUBST(LIBMEGA_EXTRALDFLAGS)
     WIN32=yes
@@ -1354,18 +1355,15 @@ AM_CONDITIONAL([USE_LIBMEDIAINFO], [test "x$libmediainfo" = "xtrue"])
 openssl=false
 cares=false
 if test "x$WIN32" = "xno" ; then
+    if test "$HAVE_PTHREAD" = "yes"; then
+        SAVE_LDFLAGS="-pthread $SAVE_LDFLAGS"
+        LDFLAGS="-pthread $LDFLAGS"
+    fi
 
     # librt #TODO: allow --with-rt=...
     AC_CHECK_LIB([rt], [aio_write], [
     SAVE_LDFLAGS="-lrt $SAVE_LDFLAGS"
     LDFLAGS="-lrt $LDFLAGS"
-    if test "$HAVE_PTHREAD" = "yes"; then
-        SAVE_LDFLAGS="-pthread $SAVE_LDFLAGS"
-        LDFLAGS="-pthread $LDFLAGS"
-    fi    
-#    LIBRT_CXXFLAGS="-lrt "
-#    LIBRT_CPPFLAGS="-lrt "
-#    LIBRT_LDFLAGS="-lrt "
     AC_DEFINE(HAVE_AIO_RT, [1], [Define to indicate AIO presence in librt])
     ],
     )

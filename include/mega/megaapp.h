@@ -111,7 +111,7 @@ struct MEGA_API MegaApp
     virtual void userattr_update(User*, int, const char*) { }
 
     // node fetch result
-    virtual void fetchnodes_result(error) { }
+    virtual void fetchnodes_result(const Error&) { }
 
     // nodes now (nearly) current
     virtual void nodes_current() { }
@@ -156,8 +156,11 @@ struct MEGA_API MegaApp
     virtual void creditcardcancelsubscriptions_result(error) {}
     virtual void getpaymentmethods_result(int, error) {}
     virtual void copysession_result(string*, error) { }
+
+    // feedback from user/client
     virtual void userfeedbackstore_result(error) { }
     virtual void sendevent_result(error) { }
+    virtual void supportticket_result(error) { }
 
     // user invites/attributes
     virtual void removecontact_result(error) { }
@@ -167,6 +170,9 @@ struct MEGA_API MegaApp
     virtual void getua_result(TLVstore *, attr_t) { }
 #ifdef DEBUG
     virtual void delua_result(error) { }
+
+    // result of send dev subcommand's command
+    virtual void senddevcommand_result(int) { }
 #endif
 
     virtual void getuseremail_result(string *, error) { }
@@ -176,18 +182,18 @@ struct MEGA_API MegaApp
     virtual void exportnode_result(handle, handle) { }
 
     // exported link access result
-    virtual void openfilelink_result(error) { }
+    virtual void openfilelink_result(const Error&) { }
     virtual void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int) { }
 
     // node opening result
-    virtual void checkfile_result(handle, error) { }
+    virtual void checkfile_result(handle, const Error&) { }
     virtual void checkfile_result(handle, error, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*) { }
 
     // URL suitable for iOS (or other system) background upload feature
     virtual void backgrounduploadurl_result(error, string*) { }
 
     // pread result
-    virtual dstime pread_failure(error, int, void*, dstime) { return ~(dstime)0; }
+    virtual dstime pread_failure(const Error&, int, void*, dstime) { return ~(dstime)0; }
     virtual bool pread_data(byte*, m_off_t, m_off_t, m_off_t, m_off_t, void*) { return false; }
 
     // event reporting result
@@ -218,6 +224,12 @@ struct MEGA_API MegaApp
     // get change email link result
     virtual void getemaillink_result(error) {}
 
+    // resend verification email
+    virtual void resendverificationemail_result(error) {};
+
+    // reset the verified phone number
+    virtual void resetSmsVerifiedPhoneNumber_result(error) {};
+
     // confirm change email link result
     virtual void confirmemaillink_result(error) {}
 
@@ -241,6 +253,7 @@ struct MEGA_API MegaApp
     virtual void chatpresenceurl_result(string*, error) { }
     virtual void registerpushnotification_result(error) { }
     virtual void archivechat_result(error) { }
+    virtual void setchatretentiontime_result(error){ }
 
     virtual void chats_updated(textchat_map *, int) { }
     virtual void richlinkrequest_result(string*, error) { }
@@ -264,14 +277,14 @@ struct MEGA_API MegaApp
 
     // global transfer queue updates
     virtual void file_added(File*) { }
-    virtual void file_removed(File*, error) { }
+    virtual void file_removed(File*, const Error&) { }
     virtual void file_complete(File*) { }
     virtual File* file_resume(string*, direction_t*) { return NULL; }
 
     virtual void transfer_added(Transfer*) { }
     virtual void transfer_removed(Transfer*) { }
     virtual void transfer_prepare(Transfer*) { }
-    virtual void transfer_failed(Transfer*, error, dstime = 0) { }
+    virtual void transfer_failed(Transfer*, const Error&, dstime = 0) { }
     virtual void transfer_update(Transfer*) { }
     virtual void transfer_complete(Transfer*) { }
 
@@ -297,15 +310,17 @@ struct MEGA_API MegaApp
     virtual void syncupdate_treestate(LocalNode*) { }
 
     // sync filename filter
-    virtual bool sync_syncable(Sync*, const char*, string*, Node*)
+    virtual bool sync_syncable(Sync*, const char*, LocalPath&, Node*)
     {
         return true;
     }
 
-    virtual bool sync_syncable(Sync*, const char*, string*)
+    virtual bool sync_syncable(Sync*, const char*, LocalPath&)
     {
         return true;
     }
+
+    virtual void sync_auto_resumed(const string&, handle, long long, const vector<string>&) { }
 
     // suggest reload due to possible race condition with other clients
     virtual void reload(const char*) { }
@@ -380,6 +395,11 @@ struct MEGA_API MegaApp
     virtual void getcountrycallingcodes_result(error, map<string, vector<string>>*) { }
 
     virtual void getmiscflags_result(error) { }
+
+    virtual void backupput_result(const Error&, handle /*backup id*/) { }
+    virtual void backupupdate_result(const Error&, handle /*backup id*/) { }
+    virtual void backupputheartbeat_result(const Error&) { }
+    virtual void backupremove_result(const Error&, handle /*backup id*/) { }
 
     virtual ~MegaApp() { }
 };

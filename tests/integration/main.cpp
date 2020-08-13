@@ -5,17 +5,20 @@
 #include <fstream>
 
 bool gRunningInCI = false;
+bool gResumeSessions = false;
 bool gTestingInvalidArgs = false;
-
-using namespace mega;
-using namespace std;
+std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
 namespace {
 
-class MegaLogger : public ::mega::Logger
+class MegaLogger : public mega::Logger
 {
 public:
-    void log(const char* time, int loglevel, const char* source, const char* message)
+    void log(const char* time, int loglevel, const char* source, const char* message
+#ifdef ENABLE_LOG_PERFORMANCE
+          , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, unsigned numberMessages = 0
+#endif
+    ) override
     {
         std::ostringstream os;
 
@@ -28,21 +31,32 @@ public:
         {
             auto t = std::time(NULL);
             char ts[50];
-            if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", std::gmtime(&t)))
+            struct tm dt;
+            mega::m_gmtime(t, &dt);
+            if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", &dt))
             {
                 ts[0] = '\0';
             }
             os << ts;
         }
-        os << "] " << SimpleLogger::toStr(static_cast<LogLevel>(loglevel)) << ": " << message;
-
+#ifdef ENABLE_LOG_PERFORMANCE
+        os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": ";
+        if (message)
+        {
+            os << message;
+        }
+        // we can have the message AND the direct messages
+        for (unsigned i = 0; i < numberMessages; ++i) os.write(directMessages[i], directMessagesSizes[i]);
+#else
+        os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": " << message;
+#endif
         if (source)
         {
             os << " (" << source << ")";
         }
         os << std::endl;
 
-        if (loglevel <= SimpleLogger::logCurrentLevel)
+        if (loglevel <= mega::SimpleLogger::logCurrentLevel)
         {
             if (gRunningInCI)
             {
@@ -50,20 +64,21 @@ public:
                 {
                     mLogFile.open("test_integration.log");
                 }
-                mLogFile << os.str();
+                mLogFile << os.str() << std::flush;
             }
             else
             {
-#ifdef _WIN32
-                OutputDebugStringA(os.str().c_str());
-#else
-                std::cout << os.str();
+#ifndef _WIN32
+                std::cout << os.str() << std::flush;
 #endif
                 if (!gTestingInvalidArgs)
                 {
-                    ASSERT_NE(loglevel, logError) << os.str();
+                    ASSERT_NE(loglevel, mega::logError) << os.str();
                 }
             }
+#ifdef _WIN32
+            OutputDebugStringA(os.str().c_str());
+#endif
         }
     }
 
@@ -77,33 +92,52 @@ int main (int argc, char *argv[])
 {
     if (!getenv("MEGA_EMAIL") || !getenv("MEGA_PWD") || !getenv("MEGA_EMAIL_AUX") || !getenv("MEGA_PWD_AUX"))
     {
-        cout << "please set username and password env variables for test" << endl;
+        std::cout << "please set username and password env variables for test" << std::endl;
         return 1;
     }
 
-    vector<char*> myargv(argv, argv + argc);
+    std::vector<char*> myargv1(argv, argv + argc);
+    std::vector<char*> myargv2;
 
-    for (auto it = myargv.begin(); it != myargv.end(); ++it)
+    for (auto it = myargv1.begin(); it != myargv1.end(); ++it)
     {
-        if (string(*it) == "--CI")
+        if (std::string(*it) == "--CI")
         {
             gRunningInCI = true;
-            myargv.erase(it);
             argc -= 1;
-            break;
+        }
+        else if (std::string(*it).substr(0, 12) == "--USERAGENT:")
+        {
+            USER_AGENT = std::string(*it).substr(12);
+            argc -= 1;
+        }
+        else if (std::string(*it).substr(0, 9) == "--APIURL:")
+        {
+            mega::MegaClient::APIURL = std::string(*it).substr(9);
+            argc -= 1;
+        }
+        else if (std::string(*it) == "--RESUMESESSIONS")
+        {
+            gResumeSessions = true;
+            argc -= 1;
+        }
+        else
+        {
+            myargv2.push_back(*it);
         }
     }
 
     MegaLogger megaLogger;
 
-    SimpleLogger::setLogLevel(logDebug);
-    SimpleLogger::setOutputClass(&megaLogger);
+    mega::SimpleLogger::setLogLevel(mega::logMax);
+    mega::SimpleLogger::setOutputClass(&megaLogger);
 
 #if defined(_WIN32) && defined(NO_READLINE)
+    using namespace mega;
     WinConsole* wc = new CONSOLE_CLASS;
     wc->setShellConsole();
 #endif
 
-    ::testing::InitGoogleTest(&argc, myargv.data());
+    ::testing::InitGoogleTest(&argc, myargv2.data());
     return RUN_ALL_TESTS();
 }

@@ -1,7 +1,4 @@
 /**
- * @file tests/commands_test.cpp
- * @brief Mega SDK unit tests for megaapi
- *
  * (c) 2019 by Mega Limited, Wellsford, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
@@ -18,8 +15,6 @@
  * You should have received a copy of the license along with this
  * program.
  */
-
-// Note: The tests in this module are meant to be pure unit tests: Fast tests without I/O.
 
 #include <atomic>
 #include <memory>
@@ -206,12 +201,12 @@ TEST(MegaApi, getMimeType)
     {
         threads.emplace_back([&successCount]
         {
-            if (::mega::MegaApi::getMimeType("nosuch") == nullptr) ++successCount;
-            if (::mega::MegaApi::getMimeType(nullptr) == nullptr) ++successCount;
-            if (::mega::MegaApi::getMimeType("323") == string("text/h323")) ++successCount;
-            if (::mega::MegaApi::getMimeType(".323") == string("text/h323")) ++successCount;
-            if (::mega::MegaApi::getMimeType("zip") == string("application/x-zip-compressed")) ++successCount;
-            if (::mega::MegaApi::getMimeType(".zip") == string("application/x-zip-compressed")) ++successCount;
+            if (std::unique_ptr<char[]>{::mega::MegaApi::getMimeType("nosuch")} == nullptr) ++successCount;
+            if (std::unique_ptr<char[]>{::mega::MegaApi::getMimeType(nullptr)} == nullptr) ++successCount;
+            if (std::unique_ptr<char[]>{::mega::MegaApi::getMimeType("323")}.get() == string("text/h323")) ++successCount;
+            if (std::unique_ptr<char[]>{::mega::MegaApi::getMimeType(".323")}.get() == string("text/h323")) ++successCount;
+            if (std::unique_ptr<char[]>{::mega::MegaApi::getMimeType("zip")}.get() == string("application/x-zip-compressed")) ++successCount;
+            if (std::unique_ptr<char[]>{::mega::MegaApi::getMimeType(".zip")}.get() == string("application/x-zip-compressed")) ++successCount;
         });
     }
 

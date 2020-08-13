@@ -89,6 +89,7 @@
 		A8827A5C1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.mm in Sources */ = {isa = PBXBuildFile; fileRef = A8827A5B1F178A0D0097B5DE /* DelegateMEGATreeProcessorListener.mm */; };
 		A88722DC1FFE6A8B00E3F443 /* mediafileattribute.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A88722DB1FFE6A8A00E3F443 /* mediafileattribute.cpp */; };
 		A8A86BD51F559EDA00C214DA /* mega_zxcvbn.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A8A86BD41F559EDA00C214DA /* mega_zxcvbn.cpp */; };
+		A8C45FD7237AB61A00342F36 /* testhooks.cpp in Sources */ = {isa = PBXBuildFile; fileRef = A8C45FD6237AB61A00342F36 /* testhooks.cpp */; };
 		A8FD7334230ABA400070A5E8 /* MEGACancelToken.mm in Sources */ = {isa = PBXBuildFile; fileRef = A8FD7333230ABA400070A5E8 /* MEGACancelToken.mm */; };
 		A8FD7B641E93B40E0031FC50 /* osxutils.mm in Sources */ = {isa = PBXBuildFile; fileRef = A8FD7B631E93B40E0031FC50 /* osxutils.mm */; };
 		B6657E9C225C2B6200EF8D91 /* raid.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B6657E9B225C2B6200EF8D91 /* raid.cpp */; };
@@ -307,6 +308,8 @@
 		A8A86BD21F559C0100C214DA /* mega_utf8proc.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mega_utf8proc.h; sourceTree = "<group>"; };
 		A8A86BD31F559C0100C214DA /* mega_zxcvbn.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = mega_zxcvbn.h; sourceTree = "<group>"; };
 		A8A86BD41F559EDA00C214DA /* mega_zxcvbn.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = mega_zxcvbn.cpp; path = ../../src/mega_zxcvbn.cpp; sourceTree = "<group>"; };
+		A8C45FD5237AB5FE00342F36 /* testhooks.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = testhooks.h; sourceTree = "<group>"; };
+		A8C45FD6237AB61A00342F36 /* testhooks.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = testhooks.cpp; path = ../../src/testhooks.cpp; sourceTree = "<group>"; };
 		A8EBFDD21EFAE14C00DF89DA /* MEGAEvent+init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = "MEGAEvent+init.h"; sourceTree = "<group>"; };
 		A8FD7332230ABA400070A5E8 /* MEGACancelToken.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGACancelToken.h; sourceTree = "<group>"; };
 		A8FD7333230ABA400070A5E8 /* MEGACancelToken.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGACancelToken.mm; sourceTree = "<group>"; };
@@ -380,6 +383,7 @@
 				940BEFAE19ED92C2007E7FA2 /* share.cpp */,
 				940BEFAF19ED92C2007E7FA2 /* sharenodekeys.cpp */,
 				940BEFB019ED92C2007E7FA2 /* sync.cpp */,
+				A8C45FD6237AB61A00342F36 /* testhooks.cpp */,
 				940BEFB119ED92C2007E7FA2 /* transfer.cpp */,
 				940BEFB219ED92C2007E7FA2 /* transferslot.cpp */,
 				940BEFB319ED92C2007E7FA2 /* treeproc.cpp */,
@@ -562,6 +566,7 @@
 				940BF06619EDBCAD007E7FA2 /* share.h */,
 				940BF06719EDBCAD007E7FA2 /* sharenodekeys.h */,
 				940BF06819EDBCAD007E7FA2 /* sync.h */,
+				A8C45FD5237AB5FE00342F36 /* testhooks.h */,
 				940BF06919EDBCAD007E7FA2 /* thread */,
 				940BF06D19EDBCAD007E7FA2 /* thread.h */,
 				940BF06E19EDBCAD007E7FA2 /* transfer.h */,
@@ -778,6 +783,7 @@
 				A8A86BD51F559EDA00C214DA /* mega_zxcvbn.cpp in Sources */,
 				A8FD7B641E93B40E0031FC50 /* osxutils.mm in Sources */,
 				940BEFB819ED92C2007E7FA2 /* backofftimer.cpp in Sources */,
+				A8C45FD7237AB61A00342F36 /* testhooks.cpp in Sources */,
 				BFD7F5172341B3A60039A6EE /* MEGAPushNotificationSettings.mm in Sources */,
 				940BEFF419ED9351007E7FA2 /* net.cpp in Sources */,
 				940BF01119ED97B9007E7FA2 /* MEGANode.mm in Sources */,
@@ -909,7 +915,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 10.0;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = iphoneos;
@@ -955,7 +961,7 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 9.0;
+				IPHONEOS_DEPLOYMENT_TARGET = 10.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				SDKROOT = iphoneos;
 				VALIDATE_PRODUCT = YES;
@@ -979,10 +985,7 @@
 					../../third_party/utf8proc,
 					3rdparty/webrtc/third_party/boringssl/src/include,
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/3rdparty/lib",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = MEGASDK;
 				SKIP_INSTALL = YES;
@@ -1006,10 +1009,7 @@
 					../../third_party/utf8proc,
 					3rdparty/webrtc/third_party/boringssl/src/include,
 				);
-				LIBRARY_SEARCH_PATHS = (
-					"$(inherited)",
-					"$(PROJECT_DIR)/3rdparty/lib",
-				);
+				LIBRARY_SEARCH_PATHS = "$(inherited)";
 				OTHER_CFLAGS = "-DNDEBUG";
 				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_NAME = MEGASDK;

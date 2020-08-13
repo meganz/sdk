@@ -148,7 +148,7 @@ typedef uint32_t dstime;
 #define TOSTRING(x) STRINGIFY(x)
 
 // HttpReq states
-typedef enum { REQ_READY, REQ_PREPARED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO } reqstatus_t;
+typedef enum { REQ_READY, REQ_PREPARED, REQ_ENCRYPTING, REQ_DECRYPTING, REQ_DECRYPTED, REQ_INFLIGHT, REQ_SUCCESS, REQ_FAILURE, REQ_DONE, REQ_ASYNCIO } reqstatus_t;
 
 typedef enum { USER_HANDLE, NODE_HANDLE } targettype_t;
 
@@ -169,15 +169,7 @@ struct ChunkMAC
     bool finished;
 };
 
-// file chunk macs
-class chunkmac_map : public map<m_off_t, ChunkMAC>
-{
-public:
-    int64_t macsmac(SymmCipher *cipher);
-    void serialize(string& d) const;
-    bool unserialize(const char*& ptr, const char* end);
-    void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* lastblockprogress = nullptr);
-};
+class chunkmac_map;
 
 /**
  * @brief Declaration of API error codes.
@@ -188,10 +180,11 @@ typedef enum ErrorCodes
     API_EINTERNAL = -1,             ///< Internal error.
     API_EARGS = -2,                 ///< Bad arguments.
     API_EAGAIN = -3,                ///< Request failed, retry with exponential backoff.
-    API_ERATELIMIT = -4,            ///< Too many requests, slow down.
-    API_EFAILED = -5,               ///< Request failed permanently.
+    DAEMON_EFAILED = -4,            ///< If returned from the daemon: EFAILED
+    API_ERATELIMIT = -4,            ///< If returned from the API: Too many requests, slow down.
+    API_EFAILED = -5,               ///< Request failed permanently.  This one is only produced by the API, only per command (not batch level)
     API_ETOOMANY = -6,              ///< Too many requests for this resource.
-    API_ERANGE = -7,                ///< Resource access out of rage.
+    API_ERANGE = -7,                ///< Resource access out of range.
     API_EEXPIRED = -8,              ///< Resource expired.
     API_ENOENT = -9,                ///< Resource does not exist.
     API_ECIRCULAR = -10,            ///< Circular linkage.
@@ -204,17 +197,55 @@ typedef enum ErrorCodes
     API_EOVERQUOTA = -17,           ///< Quota exceeded.
     API_ETEMPUNAVAIL = -18,         ///< Resource temporarily not available.
     API_ETOOMANYCONNECTIONS = -19,  ///< Too many connections on this resource.
-    API_EWRITE = -20,               /**< File could not be written to (or failed
-                                         post-write integrity check). */
-    API_EREAD = -21,                /**< File could not be read from (or changed
-                                         unexpectedly during reading). */
+    API_EWRITE = -20,               ///< File could not be written to (or failed post-write integrity check)
+    API_EREAD = -21,                ///< File could not be read from (or changed unexpectedly during reading)
     API_EAPPKEY = -22,              ///< Invalid or missing application key.
     API_ESSL = -23,                 ///< SSL verification failed
     API_EGOINGOVERQUOTA = -24,      ///< Not enough quota
     API_EMFAREQUIRED = -26,         ///< Multi-factor authentication required
     API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
-    API_EBUSINESSPASTDUE = -28      ///< Business account expired
+    API_EBUSINESSPASTDUE = -28,     ///< Business account expired
+    API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
 } error;
+
+class Error
+{
+public:
+    typedef enum
+    {
+        USER_ETD_UNKNOWN = -1,
+        USER_ETD_SUSPENSION = 7, // represents an ETD/ToS 'severe' suspension level
+    } UserErrorCode;
+
+    typedef enum
+    {
+        LINK_UNKNOWN = -1,
+        LINK_UNDELETED = 0,  // Link is undeleted
+        LINK_DELETED_DOWN = 1, // Link is deleted or down
+        LINK_DOWN_ETD = 2,  // Link is down due to an ETD specifically
+    } LinkErrorCode;
+
+    Error(error err = API_EINTERNAL)
+        : mError(err)
+    { }
+
+    void setErrorCode(error err)
+    {
+        mError = err;
+    }
+
+    void setUserStatus(int64_t u) { mUserStatus = u; }
+    void setLinkStatus(int64_t l) { mLinkStatus = l; }
+    bool hasExtraInfo() const { return mUserStatus != USER_ETD_UNKNOWN || mLinkStatus != LINK_UNKNOWN; }
+    int64_t getUserStatus() const { return mUserStatus; }
+    int64_t getLinkStatus() const { return mLinkStatus; }
+    operator error() const { return mError; }
+
+private:
+    error mError = API_EINTERNAL;
+    int64_t mUserStatus = USER_ETD_UNKNOWN;
+    int64_t mLinkStatus = LINK_UNKNOWN;
+};
 
 // returned by loggedin()
 typedef enum { NOTLOGGEDIN, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT } sessiontype_t;
@@ -247,16 +278,15 @@ const int FOLDERNODEKEYLENGTH = 16;
 typedef list<class Sync*> sync_list;
 
 // persistent resource cache storage
-struct Cachable
+class Cacheable
 {
+public:
+    virtual ~Cacheable() = default;
+
     virtual bool serialize(string*) = 0;
 
-    int32_t dbid;
-
-    bool notified;
-
-    Cachable();
-    virtual ~Cachable() { }
+    uint32_t dbid = 0;
+    bool notified = false;
 };
 
 // numeric representation of string (up to 8 chars)
@@ -319,16 +349,55 @@ typedef list<HttpReqCommandPutFA*> putfa_list;
 // map a FileFingerprint to the transfer for that FileFingerprint
 typedef map<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
 
-typedef deque<Transfer*> transfer_list;
+template <class T, class E>
+class deque_with_lazy_bulk_erase
+{
+    // This is a wrapper class for deque.  Erasing an element from the middle of a deque is not cheap since all the subsequent elements need to be shuffled back.
+    // This wrapper intercepts the erase() calls for single items, and instead marks each one as 'erased'.  
+    // The supplied template class E contains the normal deque entry T, plus a flag or similar to mark an entry erased.
+    // Any other operation on the deque performs all the gathered erases in a single std::remove_if for efficiency.
+    // This makes an enormous difference when cancelling 100k transfers in MEGAsync's transfers window for example.
+    deque<E> mDeque;
+    bool mErasing = false;
+
+public:
+
+    typedef typename deque<E>::iterator iterator;
+
+    void erase(iterator i)
+    {
+        assert(i != mDeque.end());
+        i->erase();
+        mErasing = true;
+    }
+
+    void applyErase()
+    {
+        if (mErasing)
+        {
+            auto newEnd = std::remove_if(mDeque.begin(), mDeque.end(), [](const E& e) { return e.isErased(); } );
+            mDeque.erase(newEnd, mDeque.end());
+            mErasing = false;
+        }
+    }
+
+    size_t size()                                        { applyErase(); return mDeque.size(); }
+    size_t empty()                                       { applyErase(); return mDeque.empty(); }
+    void clear()                                         { mDeque.clear(); }
+    iterator begin(bool canHandleErasedElements = false) { if (!canHandleErasedElements) applyErase(); return mDeque.begin(); }
+    iterator end(bool canHandleErasedElements = false)   { if (!canHandleErasedElements) applyErase(); return mDeque.end(); }
+    void push_front(T t)                                 { applyErase(); mDeque.push_front(E(t)); }
+    void push_back(T t)                                  { applyErase(); mDeque.push_back(E(t)); }
+    void insert(iterator i, T t)                         { applyErase(); mDeque.insert(i, E(t)); }
+    T& operator[](size_t n)                              { applyErase(); return mDeque[n]; }
+
+};
 
 // map a request tag with pending dbids of transfers and files
 typedef map<int, vector<uint32_t> > pendingdbid_map;
 
 // map a request tag with a pending dns request
 typedef map<int, GenericHttpReq*> pendinghttp_map;
-
-// map a request tag with pending paths of temporary files
-typedef map<int, vector<string> > pendingfiles_map;
 
 // map an upload handle to the corresponding transer
 typedef map<handle, Transfer*> handletransfer_map;
@@ -383,6 +452,7 @@ typedef map<int, FileAttributeFetchChannel*> fafc_map;
 
 // transfer type
 typedef enum { GET = 0, PUT, API, NONE } direction_t;
+typedef enum { LARGEFILE = 0, SMALLFILE } filesizetype_t;
 
 struct StringCmp
 {
@@ -397,23 +467,12 @@ typedef multimap<dstime, DirectReadNode*> dsdrn_map;
 typedef list<DirectRead*> dr_list;
 typedef list<DirectReadSlot*> drs_list;
 
-typedef map<const string*, LocalNode*, StringCmp> localnode_map;
-typedef map<const string*, Node*, StringCmp> remotenode_map;
-
 typedef enum { TREESTATE_NONE = 0, TREESTATE_SYNCED, TREESTATE_PENDING, TREESTATE_SYNCING } treestate_t;
 
 typedef enum { TRANSFERSTATE_NONE = 0, TRANSFERSTATE_QUEUED, TRANSFERSTATE_ACTIVE, TRANSFERSTATE_PAUSED,
                TRANSFERSTATE_RETRYING, TRANSFERSTATE_COMPLETING, TRANSFERSTATE_COMPLETED,
                TRANSFERSTATE_CANCELLED, TRANSFERSTATE_FAILED } transferstate_t;
 
-struct Notification
-{
-    dstime timestamp;
-    string path;
-    LocalNode* localnode;
-};
-
-typedef deque<Notification> notify_deque;
 
 // FIXME: use forward_list instad (C++11)
 typedef list<HttpReqCommandPutFA*> putfa_list;
@@ -446,7 +505,7 @@ typedef enum {
     ATTR_LANGUAGE = 14,                     // private, non-encrypted - char array in B64 - non-versioned
     ATTR_PWD_REMINDER = 15,                 // private, non-encrypted - char array in B64 - non-versioned
     ATTR_DISABLE_VERSIONS = 16,             // private, non-encrypted - char array in B64 - non-versioned
-    ATTR_CONTACT_LINK_VERIFICATION = 17,    // private, non-encrypted - char array in B64 - non-versioned
+    ATTR_CONTACT_LINK_VERIFICATION = 17,    // private, non-encrypted - char array in B64 - versioned
     ATTR_RICH_PREVIEWS = 18,                // private - byte array
     ATTR_RUBBISH_TIME = 19,                 // private, non-encrypted - char array in B64 - non-versioned
     ATTR_LAST_PSA = 20,                     // private - char array
@@ -455,10 +514,11 @@ typedef enum {
     ATTR_CAMERA_UPLOADS_FOLDER = 23,        // private - byte array - non-versioned
     ATTR_MY_CHAT_FILES_FOLDER = 24,         // private - byte array - non-versioned
     ATTR_PUSH_SETTINGS = 25,                // private - non-encripted - char array in B64 - non-versioned
-    ATTR_UNSHAREABLE_KEY = 26,              // private - char array
-    ATTR_ALIAS = 27,                        // private - byte array - non-versioned
+    ATTR_UNSHAREABLE_KEY = 26,              // private - char array - versioned
+    ATTR_ALIAS = 27,                        // private - byte array - versioned
     ATTR_AUTHRSA = 28,                      // private - byte array
     ATTR_AUTHCU255 = 29,                    // private - byte array
+    ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -482,7 +542,7 @@ typedef enum { PRIV_UNKNOWN = -2, PRIV_RM = -1, PRIV_RO = 0, PRIV_STANDARD = 2, 
 typedef pair<handle, privilege_t> userpriv_pair;
 typedef vector< userpriv_pair > userpriv_vector;
 typedef map <handle, set <handle> > attachments_map;
-struct TextChat : public Cachable
+struct TextChat : public Cacheable
 {
     enum {
         FLAG_OFFSET_ARCHIVE = 0
@@ -541,7 +601,14 @@ typedef enum { EMAIL_REMOVED = 0, EMAIL_PENDING_REMOVED = 1, EMAIL_PENDING_ADDED
 
 typedef enum { RETRY_NONE = 0, RETRY_CONNECTIVITY = 1, RETRY_SERVERS_BUSY = 2, RETRY_API_LOCK = 3, RETRY_RATE_LIMIT = 4, RETRY_LOCAL_LOCK = 5, RETRY_UNKNOWN = 6} retryreason_t;
 
-typedef enum { STORAGE_UNKNOWN = -9, STORAGE_GREEN = 0, STORAGE_ORANGE = 1, STORAGE_RED = 2, STORAGE_CHANGE = 3 } storagestatus_t;
+typedef enum {
+    STORAGE_UNKNOWN = -9,
+    STORAGE_GREEN = 0,      // there is storage is available
+    STORAGE_ORANGE = 1,     // storage is almost full
+    STORAGE_RED = 2,        // storage is full
+    STORAGE_CHANGE = 3,     // the status of the storage might have changed
+    STORAGE_PAYWALL = 4,    // storage is full and user didn't remedy despite of warnings
+} storagestatus_t;
 
 
 enum SmsVerificationState {
@@ -669,6 +736,179 @@ namespace CodeCounter
 #endif
     };
 }
+
+typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3 } BackupType;
+
+// Holds the config of a sync. Can be extended with future config options
+class SyncConfig : public Cacheable
+{
+public:
+
+    enum Type
+    {
+        TYPE_UP = 0x01, // sync up from local to remote
+        TYPE_DOWN = 0x02, // sync down from remote to local
+        TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
+    };
+
+    SyncConfig(std::string localPath,
+               const handle remoteNode,
+               const fsfp_t localFingerprint,
+               std::vector<std::string> regExps = {},
+               const Type syncType = TYPE_TWOWAY,
+               const bool syncDeletions = false,
+               const bool forceOverwrite = false);
+
+    // whether this sync is resumable
+    bool isResumable() const;
+
+    // sets whether this sync is resumable
+    void setResumable(bool active);
+
+    // returns the local path of the sync
+    const std::string& getLocalPath() const;
+
+    // returns the remote path of the sync
+    handle getRemoteNode() const;
+
+    // returns the local fingerprint
+    fsfp_t getLocalFingerprint() const;
+
+    // sets the local fingerprint
+    void setLocalFingerprint(fsfp_t fingerprint);
+
+    // returns the regular expressions
+    const std::vector<std::string>& getRegExps() const;
+
+    // returns the type of the sync
+    Type getType() const;
+
+    // whether this is an up-sync from local to remote
+    bool isUpSync() const;
+
+    // whether this is a down-sync from remote to local
+    bool isDownSync() const;
+
+    // whether deletions are synced
+    bool syncDeletions() const;
+
+    // whether changes are overwritten irregardless of file properties
+    bool forceOverwrite() const;
+
+    // serializes the object to a string
+    bool serialize(string* data) override;
+
+    // deserializes the string to a SyncConfig object. Returns null in case of failure
+    static std::unique_ptr<SyncConfig> unserialize(const std::string& data);
+
+private:
+    friend bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
+
+    // Whether the sync is resumable
+    bool mResumable = true;
+
+    // the local path of the sync
+    std::string mLocalPath;
+
+    // the remote handle of the sync
+    handle mRemoteNode;
+
+    // the local fingerprint
+    fsfp_t mLocalFingerprint;
+
+    // list of regular expressions
+    std::vector<std::string> mRegExps;
+
+    // type of the sync, defaults to bidirectional
+    Type mSyncType;
+
+    // whether deletions are synced (only relevant for one-way-sync)
+    bool mSyncDeletions;
+
+    // whether changes are overwritten irregardless of file properties (only relevant for one-way-sync)
+    bool mForceOverwrite;
+
+    // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
+    bool serialize(std::string& data) const;
+
+    // this is very handy for defining comparison operators
+    std::tuple<const bool&,
+               const std::string&,
+               const handle&,
+               const fsfp_t&,
+               const std::vector<std::string>&,
+               const Type&,
+               const bool&,
+               const bool&> tie() const
+    {
+        return std::tie(mResumable,
+                        mLocalPath,
+                        mRemoteNode,
+                        mLocalFingerprint,
+                        mRegExps,
+                        mSyncType,
+                        mSyncDeletions,
+                        mForceOverwrite);
+    }
+};
+
+bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
+
+
+// cross reference pointers.  For the case where two classes have pointers to each other, and they should
+// either always be NULL or if one refers to the other, the other refers to the one.
+// This class makes sure that the two pointers are always consistent, and also prevents copy/move (unless the pointers are NULL)
+template<class TO, class FROM>
+FROM*& crossref_other_ptr_ref(TO* s);  // to be supplied for each pair of classes (to assign to the right member thereof) (gets around circular declarations)
+
+template <class  TO, class  FROM>
+class MEGA_API  crossref_ptr 
+{
+    friend class crossref_ptr<FROM, TO>;
+
+    template<class A, class B>
+    friend B*& crossref_other_ptr_ref(A* s);  // friend so that specialization can access `ptr`
+
+    TO* ptr = nullptr;
+
+public:
+    crossref_ptr() = default;
+
+    ~crossref_ptr()
+    {
+        reset();
+    }
+
+    void crossref(TO* to, FROM* from) 
+    {
+        assert(to && from);
+        assert(ptr == nullptr);
+        assert( !(crossref_other_ptr_ref<TO, FROM>(to)) );
+        ptr = to;
+        crossref_other_ptr_ref<TO, FROM>(ptr) = from;
+    }
+
+    void reset()
+    {
+        if (ptr)
+        {
+            assert( !!(crossref_other_ptr_ref<TO, FROM>(ptr)) );
+            crossref_other_ptr_ref<TO, FROM>(ptr) = nullptr;
+            ptr = nullptr;
+        }
+    }
+
+    TO* operator->() const { return ptr; }
+    operator TO*() const { return ptr; }
+
+    // no copying
+    crossref_ptr(const crossref_ptr&) = delete;
+    void operator=(const crossref_ptr&) = delete;
+
+    // only allow move if the pointers are null (check at runtime with assert)
+    crossref_ptr(crossref_ptr&& p) { assert(!p.ptr); }
+    void operator=(crossref_ptr&& p) { assert(!p.ptr); ptr = p; }
+};
 
 } // namespace
 

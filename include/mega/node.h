@@ -1,3 +1,4 @@
+
 /**
  * @file mega/node.h
  * @brief Classes for accessing local and remote nodes
@@ -27,27 +28,31 @@
 #include "attrmap.h"
 
 namespace mega {
+
+struct LocalPathPtrCmp
+{
+    bool operator()(const LocalPath* a, const LocalPath* b) const
+    {
+        return *a < *b;
+    }
+};
+
+typedef map<const LocalPath*, LocalNode*, LocalPathPtrCmp> localnode_map;
+typedef map<const string*, Node*, StringCmp> remotenode_map;
+
 struct MEGA_API NodeCore
 {
-    NodeCore();
-    ~NodeCore();
-
     // node's own handle
-    handle nodehandle;
+    handle nodehandle = UNDEF;
 
     // parent node handle (in a Node context, temporary placeholder until parent is set)
-    handle parenthandle;
+    handle parenthandle = UNDEF;
 
     // node type
-    nodetype_t type;
-
-    // full folder/file key, symmetrically or asymmetrically encrypted
-    // node crypto keys (raw or cooked -
-    // cooked if size() == FOLDERNODEKEYLENGTH or FILEFOLDERNODEKEYLENGTH)
-    string nodekey;
+    nodetype_t type = TYPE_UNKNOWN;
 
     // node attributes
-    string *attrstring;
+    std::unique_ptr<string> attrstring;
 };
 
 // new node for putnodes()
@@ -56,20 +61,21 @@ struct MEGA_API NewNode : public NodeCore
     static const int OLDUPLOADTOKENLEN = 27;
     static const int UPLOADTOKENLEN = 36;
 
-    newnodesource_t source;
+    string nodekey;
 
-    handle ovhandle;
-    handle uploadhandle;
-    byte uploadtoken[UPLOADTOKENLEN];
+    newnodesource_t source = NEW_NODE;
 
-    handle syncid;
-    LocalNode* localnode;
-    string* fileattributes;  // owned here, usually NULL
+    handle ovhandle = UNDEF;
+    handle uploadhandle = UNDEF;
+    byte uploadtoken[UPLOADTOKENLEN]{};
 
-    bool added;
+    handle syncid = UNDEF;
+#ifdef ENABLE_SYNC
+    crossref_ptr<LocalNode, NewNode> localnode; // non-owning
+#endif
+    std::unique_ptr<string> fileattributes;
 
-    NewNode();
-    ~NewNode();
+    bool added = false;
 };
 
 struct MEGA_API PublicLink
@@ -110,7 +116,16 @@ private:
 // filesystem node
 struct MEGA_API Node : public NodeCore, FileFingerprint
 {
-    MegaClient* client;
+    MegaClient* client = nullptr;
+
+    // supplies the nodekey (which is private to ensure we track changes to it)
+    const string& nodekey() const;
+
+    // Also returns the key but does not assert that the key has been applied.  Only use it where we don't need the node to be readable.
+    const string& nodekeyUnchecked() const;
+
+    // check if the key is present and is the correct size for this node
+    bool keyApplied() const;
 
     // change parent node association
     bool setparent(Node*);
@@ -140,10 +155,10 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     AttrMap attrs;
 
     // owner
-    handle owner;
+    handle owner = mega::UNDEF;
 
     // actual time this node was created (cannot be set by user)
-    m_time_t ctime;
+    m_time_t ctime = 0;
 
     // file attributes
     string fileattrstring;
@@ -159,21 +174,21 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     static void parseattr(byte*, AttrMap&, m_off_t, m_time_t&, string&, string&, FileFingerprint&);
 
     // inbound share
-    Share* inshare;
+    Share* inshare = nullptr;
 
     // outbound shares by user
-    share_map *outshares;
+    share_map* outshares = nullptr;
 
     // outbound pending shares
-    share_map *pendingshares;
+    share_map* pendingshares = nullptr;
 
     // incoming/outgoing share key
-    SymmCipher* sharekey;
+    SymmCipher* sharekey = nullptr;
 
     // app-private pointer
-    void* appdata;
+    void* appdata = nullptr;
 
-    bool foreignkey;
+    bool foreignkey = false;
 
     struct
     {
@@ -192,6 +207,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     
     void setkey(const byte* = NULL);
 
+    void setkeyfromjson(const char*);
+
     void setfingerprint();
 
     void faspec(string*);
@@ -199,7 +216,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     NodeCounter subnodeCounts() const;
 
     // parent
-    Node* parent;
+    Node* parent = nullptr;
 
     // children
     node_list children;
@@ -212,13 +229,13 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
 #ifdef ENABLE_SYNC
     // related synced item or NULL
-    LocalNode* localnode;
+    LocalNode* localnode = nullptr;
 
     // active sync get
-    struct SyncFileGet* syncget;
+    struct SyncFileGet* syncget = nullptr;
 
     // state of removal to //bin / SyncDebris
-    syncdel_t syncdeleted;
+    syncdel_t syncdeleted = SYNCDEL_NONE;
 
     // location in the todebris node_set
     node_set::iterator todebris_it;
@@ -229,62 +246,92 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 #endif
 
     // source tag
-    int tag;
+    int tag = 0;
 
     // check if node is below this node
     bool isbelow(Node*) const;
 
     // handle of public link for the node
-    PublicLink *plink;
+    PublicLink* plink = nullptr;
 
     void setpubliclink(handle, m_time_t, m_time_t, bool);
 
-    bool serialize(string*);
-    static Node* unserialize(MegaClient*, string*, node_vector*);
+    bool serialize(string*) override;
+    static Node* unserialize(MegaClient*, const string*, node_vector*);
 
     Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
+
+private:
+    // full folder/file key, symmetrically or asymmetrically encrypted
+    // node crypto keys (raw or cooked -
+    // cooked if size() == FOLDERNODEKEYLENGTH or FILEFOLDERNODEKEYLENGTH)
+    string nodekeydata;
 };
+
+inline const string& Node::nodekey() const
+{
+    assert(keyApplied() || type == ROOTNODE || type == INCOMINGNODE || type == RUBBISHNODE);
+    return nodekeydata;
+}
+
+inline const string& Node::nodekeyUnchecked() const
+{
+    return nodekeydata;
+}
+
+inline bool Node::keyApplied() const
+{
+    return nodekeydata.size() == size_t((type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
+}
+
 
 #ifdef ENABLE_SYNC
 struct MEGA_API LocalNode : public File
 {
-    class Sync* sync;
+    class Sync* sync = nullptr;
 
     // parent linkage
-    LocalNode* parent;
+    LocalNode* parent = nullptr;
 
     // stored to rebuild tree after serialization => this must not be a pointer to parent->dbid
-    int32_t parent_dbid;
+    int32_t parent_dbid = 0;
+
+    // whether this node can be synced to the remote tree
+    bool mSyncable = true;
+
+    // whether this node knew its shortname (otherwise it was loaded from an old db)
+    bool slocalname_in_db = false;
 
     // children by name
     localnode_map children;
 
     // for botched filesystems with legacy secondary ("short") names
-    string *slocalname;
+    // Filesystem notifications could arrive with long or short names, and we need to recognise which LocalNode corresponds.
+    std::unique_ptr<LocalPath> slocalname;   // null means either the entry has no shortname or it's the same as the (normal) longname
     localnode_map schildren;
 
     // local filesystem node ID (inode...) for rename/move detection
-    handle fsid;
-    handlelocalnode_map::iterator fsid_it;
+    handle fsid = mega::UNDEF;
+    handlelocalnode_map::iterator fsid_it{};
 
     // related cloud node, if any
-    Node* node;
+    Node* node = nullptr;
 
     // related pending node creation or NULL
-    NewNode* newnode;
+    crossref_ptr<NewNode, LocalNode> newnode;
 
     // FILENODE or FOLDERNODE
-    nodetype_t type;
+    nodetype_t type = TYPE_UNKNOWN;
 
     // detection of deleted filesystem records
-    int scanseqno;
+    int scanseqno = 0;
 
     // number of iterations since last seen
-    int notseen;
+    int notseen = 0;
 
     // global sync reference
-    handle syncid;
+    handle syncid = mega::UNDEF;
 
     struct
     {
@@ -302,7 +349,8 @@ struct MEGA_API LocalNode : public File
     };
 
     // current subtree sync state: current and displayed
-    treestate_t ts, dts;
+    treestate_t ts = TREESTATE_NONE;
+    treestate_t dts = TREESTATE_NONE;
 
     // update sync state all the way to the root node
     void treestate(treestate_t = TREESTATE_NONE);
@@ -311,45 +359,54 @@ struct MEGA_API LocalNode : public File
     treestate_t checkstate();
 
     // timer to delay upload start
-    dstime nagleds;
+    dstime nagleds = 0;
     void bumpnagleds();
 
     // if delage > 0, own iterator inside MegaClient::localsyncnotseen
-    localnode_set::iterator notseen_it;
+    localnode_set::iterator notseen_it{};
 
     // build full local path to this node
-    void getlocalpath(string*, bool sdisable = false) const;
-    void getlocalsubpath(string*) const;
+    void getlocalpath(LocalPath&, bool sdisable = false, const std::string* localseparator = nullptr) const;
+    LocalPath getLocalPath(bool sdisable = false) const;
     string localnodedisplaypath(FileSystemAccess& fsa) const;
 
     // return child node by name
-    LocalNode* childbyname(string*);
+    LocalNode* childbyname(LocalPath*);
 
 #ifdef USE_INOTIFY
     // node-specific DirNotify tag
-    handle dirnotifytag;
+    handle dirnotifytag = mega::UNDEF;
 #endif
 
-    void prepare();
-    void completed(Transfer*, LocalNode*);
+    void prepare() override;
+    void completed(Transfer*, LocalNode*) override;
 
     void setnode(Node*);
 
     void setnotseen(int);
 
-    void setfsid(handle);
+    // set fsid - assume that an existing assignment of the same fsid is no longer current and revoke.
+    // fsidnodes is a map from fsid to LocalNode, keeping track of all fs ids.
+    void setfsid(handle newfsid, handlelocalnode_map& fsidnodes);
 
-    void setnameparent(LocalNode*, string*);
+    void setnameparent(LocalNode*, LocalPath* newlocalpath, std::unique_ptr<LocalPath>);
 
     LocalNode();
-    void init(Sync*, nodetype_t, LocalNode*, string*);
+    void init(Sync*, nodetype_t, LocalNode*, LocalPath&, std::unique_ptr<LocalPath>);
 
-    virtual bool serialize(string*);
-    static LocalNode* unserialize( Sync* sync, string* sData );
+    bool serialize(string*) override;
+    static LocalNode* unserialize( Sync* sync, const string* sData );
 
     ~LocalNode();
 };
+
+template <> inline NewNode*& crossref_other_ptr_ref<LocalNode, NewNode>(LocalNode* p) { return p->newnode.ptr; }
+template <> inline LocalNode*& crossref_other_ptr_ref<NewNode, LocalNode>(NewNode* p) { return p->localnode.ptr; }
+
 #endif
+
 } // namespace
+
+
 
 #endif

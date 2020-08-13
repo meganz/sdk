@@ -53,9 +53,10 @@ extern appfile_list appxferq[2];
 
 struct AppFileGet : public AppFile
 {
-    void start();
+    void start() override;
     void update();
-    void completed(Transfer*, LocalNode*);
+    void completed(Transfer*, LocalNode*) override;
+    void terminated() override;
 
     AppFileGet(Node*, handle = UNDEF, byte* = NULL, m_off_t = -1, m_time_t = 0, string* = NULL, string* = NULL, const string& targetfolder = "");
     ~AppFileGet();
@@ -63,13 +64,14 @@ struct AppFileGet : public AppFile
 
 struct AppFilePut : public AppFile
 {
-    void start();
+    void start() override;
     void update();
-    void completed(Transfer*, LocalNode*);
+    void completed(Transfer*, LocalNode*) override;
+    void terminated() override;
 
     void displayname(string*);
 
-    AppFilePut(string*, handle, const char*);
+    AppFilePut(const LocalPath&, handle, const char*);
     ~AppFilePut();
 };
 
@@ -156,7 +158,7 @@ struct DemoApp : public MegaApp
     void rename_result(handle, error) override;
     void unlink_result(handle, error) override;
 
-    void fetchnodes_result(error) override;
+    void fetchnodes_result(const Error&) override;
 
     void putnodes_result(error, targettype_t, NewNode*) override;
 
@@ -179,6 +181,7 @@ struct DemoApp : public MegaApp
     void getua_result(TLVstore *, attr_t) override;
 #ifdef DEBUG
     void delua_result(error) override;
+    void senddevcommand_result(int) override;
 #endif
 
     void querytransferquota_result(int) override;
@@ -192,21 +195,21 @@ struct DemoApp : public MegaApp
     void exportnode_result(error) override;
     void exportnode_result(handle, handle) override;
 
-    void openfilelink_result(error) override;
+    void openfilelink_result(const Error&) override;
     void openfilelink_result(handle, const byte*, m_off_t, string*, string*, int) override;
 
     void folderlinkinfo_result(error, handle, handle, string *, string*, m_off_t, uint32_t, uint32_t, m_off_t, uint32_t) override;
 
-    void checkfile_result(handle, error) override;
+    void checkfile_result(handle, const Error&) override;
     void checkfile_result(handle, error, byte*, m_off_t, m_time_t, m_time_t, string*, string*, string*) override;
 
-    dstime pread_failure(error, int, void*, dstime) override;
+    dstime pread_failure(const Error&, int, void*, dstime) override;
     bool pread_data(byte*, m_off_t, m_off_t, m_off_t, m_off_t, void*) override;
 
     void transfer_added(Transfer*) override;
     void transfer_removed(Transfer*) override;
     void transfer_prepare(Transfer*) override;
-    void transfer_failed(Transfer*, error, dstime) override;
+    void transfer_failed(Transfer*, const Error&, dstime) override;
     void transfer_update(Transfer*) override;
     void transfer_complete(Transfer*) override;
 
@@ -231,13 +234,14 @@ struct DemoApp : public MegaApp
     void syncupdate_remote_rename(Sync*, Node*, const char*) override;
     void syncupdate_treestate(LocalNode*) override;
 
-    bool sync_syncable(Sync*, const char*, string*, Node*) override;
-    bool sync_syncable(Sync*, const char*, string*) override;
+    bool sync_syncable(Sync*, const char*, LocalPath&, Node*) override;
+    bool sync_syncable(Sync*, const char*, LocalPath&) override;
 #endif
 
     void changepw_result(error) override;
 
     void userattr_update(User*, int, const char*) override;
+    void resetSmsVerifiedPhoneNumber_result(error e) override;
 
     void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*) override;
     void enumeratequotaitems_result(error) override;
@@ -258,12 +262,14 @@ struct DemoApp : public MegaApp
     void clearing() override;
 
     void notify_retry(dstime, retryreason_t) override;
+
+    string getExtraInfoErrorString(const Error&);
 };
 
 struct DemoAppFolder : public DemoApp
 {
     void login_result(error);
-    void fetchnodes_result(error);
+    void fetchnodes_result(const Error&);
 
     void nodes_updated(Node **, int);
     void users_updated(User**, int) {}
@@ -305,6 +311,7 @@ void exec_mv(autocomplete::ACState& s);
 void exec_cp(autocomplete::ACState& s);
 void exec_du(autocomplete::ACState& s);
 void exec_sync(autocomplete::ACState& s);
+void exec_syncconfig(autocomplete::ACState& s);
 void exec_export(autocomplete::ACState& s);
 void exec_share(autocomplete::ACState& s);
 void exec_invite(autocomplete::ACState& s);
@@ -373,3 +380,5 @@ void exec_find(autocomplete::ACState& s);
 void exec_treecompare(autocomplete::ACState& s);
 void exec_querytransferquota(autocomplete::ACState& s);
 #endif
+void exec_metamac(autocomplete::ACState& s);
+void exec_resetverifiedphonenumber(autocomplete::ACState& s);

@@ -15,14 +15,13 @@ import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
 import android.graphics.Rect;
-import android.media.ExifInterface;
 import android.media.MediaMetadataRetriever;
 import android.media.ThumbnailUtils;
 import android.net.Uri;
 import android.provider.BaseColumns;
 import android.provider.MediaStore;
 
-import static mega.privacy.android.app.utils.LogUtil.*;
+import androidx.exifinterface.media.ExifInterface;
 
 public class AndroidGfxProcessor extends MegaGfxProcessor {
     Rect size;
@@ -74,7 +73,6 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
                 }
                 retriever.release();
 
-                logDebug("Width: " + width + ", Height: " + height + ", Orientation: " + interchangeOrientation);
                 rect.right = width;
                 rect.bottom = height;
             } catch (Exception e) {

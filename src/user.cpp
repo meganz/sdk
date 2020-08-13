@@ -95,7 +95,15 @@ bool User::serialize(string* d)
     d->append(email.c_str(), l);
 
     d->append((char*)&attrVersion, 1);
-    d->append("\0\0\0\0\0\0", 7);
+
+    char bizMode = 0;
+    if (mBizMode != BIZ_MODE_UNKNOWN) // convert number to ascii
+    {
+        bizMode = static_cast<char>('0' + mBizMode);
+    }
+
+    d->append((char*)&bizMode, 1);
+    d->append("\0\0\0\0\0", 6);
 
     // serialization of attributes
     l = (unsigned char)attrs.size();
@@ -169,7 +177,7 @@ User* User::unserialize(MegaClient* client, string* d)
     }
     ptr += l;
 
-    if (ptr + sizeof(char) > end)
+    if (ptr + sizeof(char) + sizeof(char) > end)
     {
         return NULL;
     }
@@ -177,7 +185,23 @@ User* User::unserialize(MegaClient* client, string* d)
     attrVersion = MemAccess::get<char>(ptr);
     ptr += sizeof(attrVersion);
 
-    for (i = 7; i--;)
+    char bizModeValue = MemAccess::get<char>(ptr);
+    ptr += sizeof(bizModeValue);
+    BizMode bizMode;
+    switch (bizModeValue)
+    {
+        case '0':
+            bizMode = BIZ_MODE_SUBUSER;
+            break;
+        case '1':
+            bizMode = BIZ_MODE_MASTER;
+            break;
+        default:
+            bizMode = BIZ_MODE_UNKNOWN;
+            break;
+    }
+
+    for (i = 6; i--;)
     {
         if (ptr + MemAccess::get<unsigned char>(ptr) < end)
         {
@@ -193,6 +217,7 @@ User* User::unserialize(MegaClient* client, string* d)
     client->mapuser(uh, m.c_str());
     u->set(v, ts);
     u->resetTag();
+    u->mBizMode = bizMode;
 
     if (attrVersion == '\0')
     {
@@ -234,7 +259,11 @@ User* User::unserialize(MegaClient* client, string* d)
                 return NULL;
             }
 
-            u->attrs[key].assign(ptr, ll);
+            if (!u->isattrvalid(key))
+            {
+                u->attrs[key].assign(ptr, ll);
+            }
+
             ptr += ll;
 
             ll = MemAccess::get<short>(ptr);
@@ -247,7 +276,12 @@ User* User::unserialize(MegaClient* client, string* d)
                     client->discarduser(uh);
                     return NULL;
                 }
-                u->attrsv[key].assign(ptr,ll);
+
+                if (!u->isattrvalid(key))
+                {
+                    u->attrsv[key].assign(ptr,ll);
+                }
+
                 ptr += ll;
             }
         }
@@ -326,7 +360,11 @@ void User::invalidateattr(attr_t at)
 
 void User::removeattr(attr_t at, const string *version)
 {
-    setChanged(at);
+    if (isattrvalid(at))
+    {
+        setChanged(at);
+    }
+
     attrs.erase(at);
     if (version)
     {
@@ -336,6 +374,18 @@ void User::removeattr(attr_t at, const string *version)
     {
         attrsv.erase(at);
     }
+}
+
+// updates the user attribute value+version only if different
+int User::updateattr(attr_t at, std::string *av, std::string *v)
+{
+    if (attrsv[at] == *v)
+    {
+        return 0;
+    }
+
+    setattr(at, av, v);
+    return 1;
 }
 
 // returns the value if there is value (even if it's invalid by now)
@@ -492,6 +542,10 @@ string User::attr2string(attr_t type)
             attrname =  "*!>alias";
             break;
 
+        case ATTR_DEVICE_NAMES:
+            attrname =  "*!dn";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -628,6 +682,10 @@ string User::attr2longname(attr_t type)
     case ATTR_ALIAS:
         longname = "ALIAS";
         break;
+
+    case ATTR_DEVICE_NAMES:
+        longname = "DEVICE_NAMES";
+        break;
     }
 
     return longname;
@@ -756,6 +814,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_ALIAS;
     }
+    else if (!strcmp(name, "*!dn"))
+    {
+        return ATTR_DEVICE_NAMES;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -796,6 +858,8 @@ int User::needversioning(attr_t at)
         case ATTR_CONTACT_LINK_VERIFICATION:
         case ATTR_ALIAS:
         case ATTR_CAMERA_UPLOADS_FOLDER:
+        case ATTR_UNSHAREABLE_KEY:
+        case ATTR_DEVICE_NAMES:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
@@ -819,6 +883,7 @@ char User::scope(attr_t at)
         case ATTR_MY_CHAT_FILES_FOLDER:
         case ATTR_UNSHAREABLE_KEY:
         case ATTR_ALIAS:
+        case ATTR_DEVICE_NAMES:
             return '*';
 
         case ATTR_AVATAR:
@@ -1241,6 +1306,14 @@ bool User::setChanged(attr_t at)
             changed.alias = true;
             break;
 
+        case ATTR_UNSHAREABLE_KEY:
+            changed.unshareablekey = true;
+            break;
+
+        case ATTR_DEVICE_NAMES:
+            changed.devicenames = true;
+            break;
+
         default:
             return false;
     }
@@ -1284,7 +1357,7 @@ AuthRing::AuthRing(attr_t type, const TLVstore &authring)
 
         handle userhandle;
         byte authFingerprint[20];
-        byte authMethod = AUTH_METHOD_UNKNOWN;
+        signed char authMethod = AUTH_METHOD_UNKNOWN;
 
         const char *ptr = authValue.data();
         const char *end = ptr + authValue.size();
@@ -1452,7 +1525,7 @@ std::string AuthRing::authMethodToStr(AuthMethod authMethod)
 std::string AuthRing::fingerprint(const std::string &pubKey, bool hexadecimal)
 {
     HashSHA256 hash;
-    hash.add((const byte *)pubKey.data(), pubKey.size());
+    hash.add((const byte *)pubKey.data(), static_cast<unsigned>(pubKey.size()));
 
     string result;
     hash.get(&result);

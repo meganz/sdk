@@ -26,7 +26,7 @@
 
 namespace mega {
 // user/contact
-struct MEGA_API User : public Cachable
+struct MEGA_API User : public Cacheable
 {
     // user handle
     handle userhandle;
@@ -46,6 +46,8 @@ struct MEGA_API User : public Cachable
 
     // contact establishment timestamp
     m_time_t ctime;
+
+    BizMode mBizMode = BIZ_MODE_UNKNOWN;
 
     struct
     {
@@ -77,6 +79,8 @@ struct MEGA_API User : public Cachable
         bool myChatFilesFolder : 1;   // target folder for my chat files
         bool pushSettings : 1;  // push notification settings
         bool alias : 1; // user's aliases
+        bool unshareablekey : 1;    // key to encrypt unshareable node attributes
+        bool devicenames : 1; // device names
     } changed;
 
     // user's public key
@@ -88,7 +92,7 @@ struct MEGA_API User : public Cachable
     };
 
     // actions to take after arrival of the public key
-    deque<class PubKeyAction*> pkrs;
+    deque<std::unique_ptr<PubKeyAction>> pkrs;
 
 private:
     // persistent attributes (keyring, firstname...)
@@ -103,7 +107,7 @@ private:
 public:
     void set(visibility_t, m_time_t);
 
-    bool serialize(string*);
+    bool serialize(string*) override;
     static User* unserialize(class MegaClient *, string*);
 
     // attribute methods: set/get/invalidate...
@@ -113,6 +117,7 @@ public:
     void invalidateattr(attr_t at);
     bool isattrvalid(attr_t at);
     void removeattr(attr_t at, const string *version = nullptr);
+    int updateattr(attr_t at, string *av, string *v);
 
     static string attr2string(attr_t at);
     static string attr2longname(attr_t at);

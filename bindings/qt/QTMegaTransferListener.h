@@ -1,5 +1,4 @@
-#ifndef QTMEGATRANSFERLISTENER_H
-#define QTMEGATRANSFERLISTENER_H
+#pragma once
 
 #include <QObject>
 #include <megaapi.h>
@@ -27,5 +26,3 @@ protected:
 	MegaTransferListener *listener;
 };
 }
-
-#endif // QTMEGATRANSFERLISTENER_H

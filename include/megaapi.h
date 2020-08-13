@@ -365,8 +365,17 @@ public:
      *
      * The SDK retains the ownership of this string, it won't be valid after this funtion returns.
      *
+     * @param directMessages: in ENABLE_LOG_PERFORMANCE MODE, this will indicate the logger that an array of const char* should
+     * be written in the logs immediately without buffering the output. message can be discarded in that case.
+     *
+     * @param directMessagesSizes: size of the previous const char *.
+     *
      */
-    virtual void log(const char *time, int loglevel, const char *source, const char *message);
+    virtual void log(const char *time, int loglevel, const char *source, const char *message
+#ifdef ENABLE_LOG_PERFORMANCE
+                     , const char **directMessages = nullptr, size_t *directMessagesSizes = nullptr, int numberMessages = 0
+#endif
+                     );
     virtual ~MegaLogger(){}
 };
 
@@ -1206,6 +1215,8 @@ class MegaUser
             CHANGE_TYPE_MY_CHAT_FILES_FOLDER        = 0x400000,
             CHANGE_TYPE_PUSH_SETTINGS               = 0x800000,
             CHANGE_TYPE_ALIAS                       = 0x1000000,
+            CHANGE_TYPE_UNSHAREABLE_KEY             = 0x2000000,
+            CHANGE_TYPE_DEVICE_NAMES                = 0x4000000,
         };
 
         /**
@@ -1284,6 +1295,15 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_PUSH_SETTINGS = 0x800000
          * Check if settings for push notifications have changed
          *
+         * - MegaUser::CHANGE_TYPE_ALIAS    = 0x1000000
+         * Check if aliases have changed
+         *
+         * - MegaUser::CHANGE_TYPE_UNSHAREABLE_KEY = 0x2000000
+         * (internal) The unshareable key has been created
+         *
+         * - MegaUser::CHANGE_TYPE_DEVICE_NAMES = 0x4000000
+         * Check if device names have changed
+         *
          * @return true if this user has an specific change
          */
         virtual bool hasChanged(int changeType);
@@ -1361,6 +1381,15 @@ class MegaUser
          *
          * - MegaUser::CHANGE_TYPE_PUSH_SETTINGS = 0x800000
          * Check if settings for push notifications have changed
+         *
+         * - MegaUser::CHANGE_TYPE_ALIAS    = 0x1000000
+         * Check if aliases have changed
+         *
+         * - MegaUser::CHANGE_TYPE_UNSHAREABLE_KEY = 0x2000000
+         * (internal) The unshareable key has been created
+         *
+         * - MegaUser::CHANGE_TYPE_DEVICE_NAMES = 0x4000000
+         * Check if device names have changed
          *
          */
         virtual int getChanges();
@@ -1666,6 +1695,29 @@ public:
      * @param megaHandle to be added
      */
     virtual void addMegaHandle(MegaHandle megaHandle);
+};
+
+class MegaIntegerList
+{
+public:
+    virtual ~MegaIntegerList();
+    virtual MegaIntegerList *copy() const;
+
+    /**
+     * @brief Returns the integer at the position i in the MegaIntegerList
+     *
+     * If the index is >= the size of the list, this function returns -1.
+     *
+     * @param i Position of the integer that we want to get for the list
+     * @return Integer at the position i in the list
+     */
+    virtual int64_t get(int i) const;
+
+    /**
+     * @brief Returns the number of integer values in the list
+     * @return Number of integer values in the list
+     */
+    virtual int size() const;
 };
 
 /**
@@ -2551,6 +2603,11 @@ public:
     * @return Number of MegaUserAlert objects in the list
     */
     virtual int size() const;
+
+    /**
+     * @brief Removes all MegaUserAlert objects from the list (does not delete them)
+     */
+    virtual void clear();
 };
 
 
@@ -2744,7 +2801,9 @@ class MegaRequest
             TYPE_GET_CLOUD_STORAGE_USED,
             TYPE_SEND_SMS_VERIFICATIONCODE, TYPE_CHECK_SMS_VERIFICATIONCODE,
             TYPE_GET_REGISTERED_CONTACTS, TYPE_GET_COUNTRY_CALLING_CODES,
-            TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS,
+            TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS, TYPE_RESEND_VERIFICATION_EMAIL,
+            TYPE_SUPPORT_TICKET, TYPE_SET_RETENTION_TIME, TYPE_RESET_SMS_VERIFIED_NUMBER,
+            TYPE_SEND_DEV_COMMAND,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -3649,6 +3708,7 @@ class MegaTransfer
          * @brief Returns the parent path related to this request
          *
          * For uploads, this function returns the path to the folder containing the source file.
+         *  except when uploading files for support: it will return the support account then.
          * For downloads, it returns that path to the folder containing the destination file.
          *
          * The SDK retains the ownership of the returned value. It will be valid until
@@ -3839,9 +3899,26 @@ class MegaTransfer
 
         /**
          * @brief Returns the last error related to the transfer
+         *
+         * @note This method returns a MegaError with the error code, but
+         * the extra info is not valid. If you need to use MegaError::getUserStatus, in
+         * example, you need to use MegaTransfer::getLastErrorExtended.
+         *
+         * @deprecated User use MegaTransfer::getLastErrorExtended.
+         *
          * @return Last error related to the transfer
          */
         virtual MegaError getLastError() const;
+
+        /**
+         * @brief Returns the last error related to the transfer with extra info
+         *
+         * The MegaTransfer object retains the ownership of the returned pointer. It will
+         * be valid until the deletion of the MegaTransfer object.
+         *
+         * @return Last error related to the transfer, with extended info
+         */
+        virtual const MegaError* getLastErrorExtended() const;
 
         /**
          * @brief Returns true if the transfer is a folder transfer
@@ -4125,6 +4202,9 @@ public:
      * the modification of the global parameters (dnd & schedule) or not.
      *
      * @return True if notifications are enabled, false if disabled
+     *
+     * @deprecated This method is deprecated, use isGlobalDndEnabled instead of this.
+     * Note that isGlobalDndEnabled returns the opposite value to isGlobalEnabled
      */
     virtual bool isGlobalEnabled() const;
 
@@ -4135,10 +4215,17 @@ public:
     virtual bool isGlobalDndEnabled() const;
 
     /**
+     * @brief Returns whether Do-Not-Disturb mode for chats is enabled or not
+     
+     * @return True if enabled, false otherwise
+     */
+    virtual bool isGlobalChatsDndEnabled() const;
+
+    /**
      * @brief Returns the timestamp until the DND mode is enabled
      *
-     * This method returns a valid value only if MegaPushNotificationSettings::isGlobalEnabled
-     * returns false and MegaPushNotificationSettings::isGlobalDndEnabled returns true.
+     * This method returns a valid value only if MegaPushNotificationSettings::isGlobalDndEnabled
+     * returns true.
      *
      * If there's no DND mode established, this function returns -1.
      * @note a DND value of 0 means the DND does not expire.
@@ -4193,6 +4280,9 @@ public:
      *
      * @param chatid MegaHandle that identifies the chat room
      * @return True if enabled, false otherwise
+     *
+     * @deprecated This method is deprecated, use isChatDndEnabled instead of this.
+     * Note that isChatDndEnabled returns the opposite value to isChatEnabled
      */
     virtual bool isChatEnabled(MegaHandle chatid) const;
 
@@ -4207,8 +4297,8 @@ public:
     /**
      * @brief Returns the timestamp until the Do-Not-Disturb mode for a chat
      *
-     * This method returns a valid value only if MegaPushNotificationSettings::isChatEnabled
-     * returns false and MegaPushNotificationSettings::isChatDndEnabled returns true.
+     * This method returns a valid value only if MegaPushNotificationSettings::isChatDndEnabled
+     * returns true.
      *
      * If there's no DND mode established for the specified chat, this function returns -1.
      * @note a DND value of 0 means the DND does not expire.
@@ -4243,8 +4333,24 @@ public:
     /**
      * @brief Returns whether notifications about chats are enabled or not
      * @return True if enabled, false otherwise
+     *
+     * @deprecated This method is deprecated, use isGlobalChatsDndEnabled instead of this.
+     * Note that isGlobalChatsDndEnabled returns the opposite result to isChatsEnabled;
      */
     virtual bool isChatsEnabled() const;
+
+    /**
+     * @brief Returns the timestamp until the chats DND mode is enabled
+     *
+     * This method returns a valid value only if MegaPushNotificationSettings::isGlobalChatsDndEnabled
+     * returns true.
+     *
+     * If there's no DND mode established, this function returns -1.
+     * @note a DND value of 0 means the DND does not expire.
+     *
+     * @return Timestamp until chats DND mode is enabled (in seconds since the Epoch)
+     */
+    virtual int64_t getGlobalChatsDnd() const;
 
     /**
      * @brief Enable or disable notifications globally
@@ -4323,6 +4429,15 @@ public:
      * @param timestamp Timestamp until DND mode is enabled (in seconds since the Epoch)
      */
     virtual void setChatDnd(MegaHandle chatid, int64_t timestamp);
+
+    /**
+     * @brief Set the Global DND for chats for a period of time
+     *
+     * No chat notifications will be generated until the specified timestamp.
+     *
+     * @param timestamp Timestamp until DND mode is enabled (in seconds since the Epoch)
+     */
+    virtual void setGlobalChatsDnd(int64_t timestamp);
 
     /**
      * @brief Enable or disable "Always notify" setting
@@ -5183,7 +5298,7 @@ public:
         API_ERATELIMIT = -4,            ///< Too many requests, slow down.
         API_EFAILED = -5,               ///< Request failed permanently.
         API_ETOOMANY = -6,              ///< Too many requests for this resource.
-        API_ERANGE = -7,                ///< Resource access out of rage.
+        API_ERANGE = -7,                ///< Resource access out of range.
         API_EEXPIRED = -8,              ///< Resource expired.
         API_ENOENT = -9,                ///< Resource does not exist.
         API_ECIRCULAR = -10,            ///< Circular linkage.
@@ -5204,6 +5319,7 @@ public:
         API_EMFAREQUIRED = -26,         ///< Multi-factor authentication required
         API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
         API_EBUSINESSPASTDUE = -28,     ///< Business account expired
+        API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
 
         PAYMENT_ECARD = -101,
         PAYMENT_EBILLING = -102,
@@ -5222,28 +5338,30 @@ public:
         API_EC_DEFAULT = 0,         ///< Default error code context
         API_EC_DOWNLOAD = 1,        ///< Download transfer context.
         API_EC_IMPORT = 2,          ///< Import context.
-        API_EC_UPLOAD = 3,        ///< Upload transfer context.
+        API_EC_UPLOAD = 3,          ///< Upload transfer context.
     };
 
     /**
-     * @brief Creates a new MegaError object
-     * @param errorCode Error code for this error
+     * @brief User custom error details
      */
-    MegaError(int errorCode = MegaError::API_OK);
+    enum UserErrorCode
+    {
+        USER_ETD_UNKNOWN = -1,      ///< Unknown state
+        USER_ETD_SUSPENSION = 7,    ///< Account suspend by an ETD/ToS 'severe'
+    };
 
     /**
-     * @brief Creates a new MegaError object
-     * @param errorCode Error code for this error
-     * @param value Value associated to the error
+     * @brief Link custom error details
      */
-    MegaError(int errorCode, long long value);
+    enum LinkErrorCode
+    {
+        LINK_UNKNOWN = -1,      ///< Unknown state
+        LINK_UNDELETED = 0,     ///< Link is undeleted
+        LINK_DELETED_DOWN = 1,  ///< Link is deleted or down
+        LINK_DOWN_ETD = 2,      ///< Link is down due to an ETD specifically
+    };
 
-    /**
-     * @brief Creates a new MegaError object copying another one
-     * @param megaError MegaError object to be copied
-     */
-    MegaError(const MegaError &megaError);
-    virtual ~MegaError();
+        virtual ~MegaError();
 
         /**
          * @brief Creates a copy of this MegaError object
@@ -5256,13 +5374,15 @@ public:
          *
          * @return Copy of the MegaError object
          */
-        MegaError* copy();
+        virtual MegaError* copy() const;
+
 
 		/**
 		 * @brief Returns the error code associated with this MegaError
+         *
 		 * @return Error code associated with this MegaError
 		 */
-		int getErrorCode() const;
+        virtual int getErrorCode() const;
 
         /**
          * @brief Returns a value associated with the error
@@ -5275,7 +5395,48 @@ public:
          *
          * @return Value associated with the error
          */
-        long long getValue() const;
+        virtual long long getValue() const;
+
+        /**
+         * @brief Returns true if error has extra info
+         *
+         * @note This method can return true for:
+         *   - MegaRequest::TYPE_FETCH_NODES with error ENOENT
+         *   - MegaRequest::TYPE_GET_PUBLIC_NODE with error ETOOMANY
+         *   - MegaRequest::TYPE_IMPORT_LINK with error ETOOMANY
+         *   - MegaTransferListener::onTransferFinish with error ETOOMANY
+         *
+         * @return True if error has extra info
+         */
+        virtual bool hasExtraInfo() const;
+
+        /**
+         * @brief Returns the user status
+         *
+         * This method only returns a valid value when hasExtraInfo is true
+         * Possible values:
+         *  MegaError::UserErrorCode::USER_ETD_SUSPENSION
+         *
+         * Otherwise, it returns MegaError::UserErrorCode::USER_ETD_UNKNOWN
+         *
+         * @return user status
+         */
+        virtual long long getUserStatus() const;
+
+        /**
+         * @brief Returns the link status
+         *
+         * This method only returns a valid value when hasExtraInfo is true
+         * Possible values:
+         *  MegaError::LinkErrorCode::LINK_UNDELETED
+         *  MegaError::LinkErrorCode::LINK_DELETED_DOWN
+         *  MegaError::LinkErrorCode::LINK_DOWN_ETD
+         *
+         * Otherwise, it returns MegaError::LinkErrorCode::LINK_UNKNOWN
+         *
+         * @return link status
+         */
+        virtual long long getLinkStatus() const;
 
 		/**
 		 * @brief Returns a readable description of the error
@@ -5285,7 +5446,7 @@ public:
 		 *
 		 * @return Readable description of the error
 		 */
-		const char* getErrorString() const;
+        virtual const char* getErrorString() const;
 
 		/**
 		 * @brief Returns a readable description of the error
@@ -5298,7 +5459,7 @@ public:
 		 *
 		 * @return Readable description of the error
 		 */
-        const char* toString() const;
+        virtual const char* toString() const;
 
 		/**
 		 * @brief Returns a readable description of the error
@@ -5311,7 +5472,7 @@ public:
 		 *
 		 * @return Readable description of the error
 		 */
-		const char* __str__() const;
+        virtual const char* __str__() const;
 
 		/**
 		 * @brief Returns a readable description of the error
@@ -5324,7 +5485,7 @@ public:
 		 *
 		 * @return Readable description of the error
 		 */
-		const char* __toString() const;
+        virtual const char* __toString() const;
 
 		/**
 		 * @brief Provides the error description associated with an error code
@@ -5351,10 +5512,14 @@ public:
         static const char *getErrorString(int errorCode, ErrorContexts context);
 
 
-    private:
+protected:
+        MegaError(int e);
+
         //< 0 = API error code, > 0 = http error, 0 = No error
-		int errorCode;
-        long long value;
+        int errorCode;
+
+        friend class MegaTransfer;
+        friend class MegaApiImpl;
 };
 
 /**
@@ -5917,15 +6082,30 @@ class MegaGlobalListener
          *
          *  - MegaEvent::EVENT_ACCOUNT_BLOCKED: when the account get blocked, typically because of
          * infringement of the Mega's terms of service repeatedly. This event is followed by an automatic
-         * logout.
+         * logout, except for the temporary blockings (ACCOUNT_BLOCKED_VERIFICATION_SMS and
+         * ACCOUNT_BLOCKED_VERIFICATION_EMAIL)
          *
          *  Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: message to show to the user.
          *      - MegaEvent::getNumber: code representing the reason for being blocked.
-         *          200: suspension message for any type of suspension, but copyright suspension.
-         *          300: suspension only for multiple copyright violations.
-         *          400: the subuser account has been disabled.
-         *          401: the subuser account has been removed.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200
+         *              Suspension message for any type of suspension, but copyright suspension.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300
+         *              Suspension only for multiple copyright violations.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400
+         *              Subuser of the business account has been disabled.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_REMOVED = 401
+         *              Subuser of business account has been removed.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_VERIFICATION_SMS = 500
+         *              The account is temporary blocked and needs to be verified by an SMS code.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_VERIFICATION_EMAIL = 700
+         *              The account is temporary blocked and needs to be verified by email (Weak Account Protection).
          *
          * - MegaEvent::EVENT_STORAGE: when the status of the storage changes.
          *
@@ -5946,6 +6126,11 @@ class MegaGlobalListener
          *     It's needed to call MegaApi::getAccountDetails to check the storage status.
          *     After calling it, this callback will be called again with the corresponding
          *     state if there is really a change.
+         *
+         *     - MegaApi::STORAGE_STATE_PAYWALL = 4
+         *     The account has been full for a long time. Now most of actions are disallowed.
+         *     It's needed to call MegaApi::getUserData in order to retrieve the deadline/warnings
+         *     timestamps. @see MegaApi::getOverquotaDeadlineTs and MegaApi::getOverquotaWarningsTs.
          *
          * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
          *
@@ -6412,10 +6597,24 @@ class MegaListener
          *  Valid data in the MegaEvent object received in the callback:
          *      - MegaEvent::getText: message to show to the user.
          *      - MegaEvent::getNumber: code representing the reason for being blocked.
-         *          200: suspension message for any type of suspension, but copyright suspension.
-         *          300: suspension only for multiple copyright violations.
-         *          400: the subuser account has been disabled.
-         *          401: the subuser account has been removed.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200
+         *              Suspension message for any type of suspension, but copyright suspension.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300
+         *              Suspension only for multiple copyright violations.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400
+         *              Subuser of the business account has been disabled.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_REMOVED = 401
+         *              Subuser of business account has been removed.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_VERIFICATION_SMS = 500
+         *              The account is temporary blocked and needs to be verified by an SMS code.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_VERIFICATION_EMAIL = 700
+         *              The account is temporary blocked and needs to be verified by email (Weak Account Protection).
          *
          * - MegaEvent::EVENT_STORAGE: when the status of the storage changes.
          *
@@ -6436,6 +6635,11 @@ class MegaListener
          *     It's needed to call MegaApi::getAccountDetails to check the storage status.
          *     After calling it, this callback will be called again with the corresponding
          *     state if there is really a change.
+         *
+         *     - MegaApi::STORAGE_STATE_PAYWALL = 4
+         *     The account has been full for a long time. Now most of actions are disallowed.
+         *     It's needed to call MegaApi::getUserData in order to retrieve the deadline/warnings
+         *     timestamps. @see MegaApi::getOverquotaDeadlineTs and MegaApi::getOverquotaWarningsTs.
          *
          * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
          *
@@ -6663,6 +6867,18 @@ public:
     void lockOnce();
 
     /**
+     * @brief Tries to lock the MegaApi if this instance does not currently have a lock on it yet.
+     *
+     * If the lock is succeeded in the expected time, the behaviour is the same as lockOnce().
+     *
+     * @param time Milliseconds to wait for locking
+     *
+     * @return if the locking succeded
+     */
+    bool tryLockFor(long long time);
+
+
+    /**
      * @brief Release the lock on the MegaApi if one is still held by this instance
      *
      * The MegaApi will be unable to continue work until all MegaApiLock objects release
@@ -6762,6 +6978,7 @@ class MegaApi
             USER_ATTR_PUSH_SETTINGS = 25,        // private - char array
             // ATTR_UNSHAREABLE_KEY = 26         // it's internal for SDK, not exposed to apps
             USER_ATTR_ALIAS = 27,                // private - byte array
+            USER_ATTR_DEVICE_NAMES = 30,          // private - byte array
         };
 
         enum {
@@ -6775,6 +6992,7 @@ class MegaApi
             PAYMENT_METHOD_PAYPAL = 1,
             PAYMENT_METHOD_ITUNES = 2,
             PAYMENT_METHOD_GOOGLE_WALLET = 3,
+            PAYMENT_METHOD_HUAWEI_WALLET = 18,
             PAYMENT_METHOD_BITCOIN = 4,
             PAYMENT_METHOD_UNIONPAY = 5,
             PAYMENT_METHOD_FORTUMO = 6,
@@ -6794,7 +7012,8 @@ class MegaApi
         enum {
             PUSH_NOTIFICATION_ANDROID = 1,
             PUSH_NOTIFICATION_IOS_VOIP = 2,
-            PUSH_NOTIFICATION_IOS_STD = 3
+            PUSH_NOTIFICATION_IOS_STD = 3,
+            PUSH_NOTIFICATION_ANDROID_HUAWEI = 4
         };
 
         enum {
@@ -6824,7 +7043,8 @@ class MegaApi
             STORAGE_STATE_GREEN = 0,
             STORAGE_STATE_ORANGE = 1,
             STORAGE_STATE_RED = 2,
-            STORAGE_STATE_CHANGE = 3
+            STORAGE_STATE_CHANGE = 3,
+            STORAGE_STATE_PAYWALL = 4,
         };
 
         enum {
@@ -6832,6 +7052,25 @@ class MegaApi
             BUSINESS_STATUS_INACTIVE = 0,   // no business subscription
             BUSINESS_STATUS_ACTIVE = 1,
             BUSINESS_STATUS_GRACE_PERIOD = 2
+        };
+
+        enum {
+            AFFILIATE_TYPE_INVALID = 0, // legacy mode
+            AFFILIATE_TYPE_ID = 1,
+            AFFILIATE_TYPE_FILE_FOLDER = 2,
+            AFFILIATE_TYPE_CHAT = 3,
+            AFFILIATE_TYPE_CONTACT = 4,
+        };
+
+        enum {
+            ACCOUNT_NOT_BLOCKED = 0,
+            ACCOUNT_BLOCKED_EXCESS_DATA_USAGE = 100,        // (deprecated)
+            ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200,        // suspended due to multiple breaches of MEGA ToS
+            ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300,            // suspended due to copyright violations
+            ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400,         // subuser disabled by business administrator
+            ACCOUNT_BLOCKED_SUBUSER_REMOVED = 401,          // subuser removed by business administrator
+            ACCOUNT_BLOCKED_VERIFICATION_SMS = 500,         // temporary blocked, require SMS verification
+            ACCOUNT_BLOCKED_VERIFICATION_EMAIL = 700,       // temporary blocked, require email verification
         };
 
         /**
@@ -6846,8 +7085,12 @@ class MegaApi
          * @param userAgent User agent to use in network requests
          * If you pass NULL to this parameter, a default user agent will be used
          *
+         * @param workerThreadCount The number of worker threads for encryption or other operations
+         * Using worker threads means that synchronous function calls on MegaApi will be blocked less,
+         * and uploads and downloads can proceed more quickly on very fast connections.
+         *
          */
-        MegaApi(const char *appKey, const char *basePath = NULL, const char *userAgent = NULL);
+        MegaApi(const char *appKey, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1);
 
         /**
          * @brief MegaApi Constructor that allows to use a custom GFX processor
@@ -6870,8 +7113,12 @@ class MegaApi
          * @param userAgent User agent to use in network requests
          * If you pass NULL to this parameter, a default user agent will be used
          *
+         * @param workerThreadCount The number of worker threads for encryption or other operations
+         * Using worker threads means that synchronous function calls on MegaApi will be blocked less,
+         * and uploads and downloads can proceed more quickly on very fast connections.
+         *
          */
-        MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL);
+        MegaApi(const char *appKey, MegaGfxProcessor* processor, const char *basePath = NULL, const char *userAgent = NULL, unsigned workerThreadCount = 1);
 
 #ifdef ENABLE_SYNC
         /**
@@ -6909,8 +7156,12 @@ class MegaApi
          *
          * @param fseventsfd Open file descriptor of /dev/fsevents
          *
+         * @param workerThreadCount The number of worker threads for encryption or other operations
+         * Using worker threads means that synchronous function calls on MegaApi will be blocked less,
+         * and uploads and downloads can proceed more quickly on very fast connections.
+         *
          */
-        MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd);
+        MegaApi(const char *appKey, const char *basePath, const char *userAgent, int fseventsfd, unsigned workerThreadCount = 1);
 #endif
 
         virtual ~MegaApi();
@@ -7296,8 +7547,10 @@ class MegaApi
         /**
          * @brief Check if server-side Rubbish Bin autopurging is enabled for the current account
          *
-         * Before using this function, it's needed to:
-         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+         * This function will NOT return a valid value until the callback onEvent with
+         * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+         * a fetchnodes to check this value, but only when it follows a login with user and password,
+         * not when an existing session is resumed.
          *
          * @return True if this feature is enabled. Otherwise false.
          */
@@ -7306,8 +7559,10 @@ class MegaApi
         /**
          * @brief Check if the account has VOIP push enabled
          *
-         * Before using this function, it's needed to:
-         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
+         * This function will NOT return a valid value until the callback onEvent with
+         * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+         * a fetchnodes to check this value, but only when it follows a login with user and password,
+         * not when an existing session is resumed.
          *
          * @return True if this feature is enabled. Otherwise false.
          */
@@ -7316,9 +7571,12 @@ class MegaApi
         /**
          * @brief Check if the new format for public links is enabled
          *
-         * Before using this function, it's needed to:
-         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
-         *  - If you are not logged-in: call to MegaApi::getMiscFlags.
+         * This function will NOT return a valid value until the callback onEvent with
+         * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+         * a fetchnodes to check this value, but only when it follows a login with user and password,
+         * not when an existing session is resumed.
+         *
+         * For not logged-in mode, you need to call MegaApi::getMiscFlags first.
          *
          * @return True if this feature is enabled. Otherwise, false.
          */
@@ -7329,9 +7587,12 @@ class MegaApi
          *
          * The result indicated whether the MegaApi::sendSMSVerificationCode function can be used.
          *
-         * Before using this function, it's needed to:
-         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
-         *  - If you are not logged-in: call to MegaApi::getMiscFlags.
+         * This function will NOT return a valid value until the callback onEvent with
+         * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+         * a fetchnodes to check this value, but only when it follows a login with user and password,
+         * not when an existing session is resumed.
+         *
+         * For not logged-in mode, you need to call MegaApi::getMiscFlags first.
          *
          * @return 2 = Opt-in and unblock SMS allowed.  1 = Only unblock SMS allowed.  0 = No SMS allowed
          */
@@ -7352,13 +7613,27 @@ class MegaApi
         /**
          * @brief Check if multi-factor authentication can be enabled for the current account.
          *
-         * Before using this function, it's needed to:
-         *  - If you are logged-in: call to MegaApi::login and MegaApi::fetchNodes.
-         *  - If you are not logged-in: call to MegaApi::getMiscFlags.
+         * This function will NOT return a valid value until the callback onEvent with
+         * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+         * a fetchnodes to check this value, but only when it follows a login with user and password,
+         * not when an existing session is resumed.
+         *
+         * For not logged-in mode, you need to call MegaApi::getMiscFlags first.
          *
          * @return True if multi-factor authentication can be enabled for the current account, otherwise false.
          */
         bool multiFactorAuthAvailable();
+
+        /**
+         * @brief Reset the verified phone number for the account logged in.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER
+         * If there's no verified phone number associated for the account logged in, the error code
+         * provided in onRequestFinish is MegaError::API_ENOENT.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void resetSmsVerifiedPhoneNumber(MegaRequestListener *listener = NULL);
 
         /**
          * @brief Check if multi-factor authentication is enabled for an account
@@ -7658,6 +7933,156 @@ class MegaApi
         void getMiscFlags(MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Trigger special account state changes for own accounts, for testing
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the first parameter
+         * - MegaRequest::getEmail - Returns the second parameter
+         *
+         * Possible errors are:
+         *  - EACCESS if the calling account is not allowed to perform this method (not a mega email account, not the right IP, etc).
+         *  - EARGS if the subcommand is not present or is invalid
+         *  - EBLOCKED if the target account is not allowed (this could also happen if the target account does not exist)
+         *
+         * Possible commands:
+         *  - "aodq" - Advance ODQ Warning State
+         *      If called, this will advance your ODQ warning state until the final warning state,
+         *      at which point it will turn on the ODQ paywall for your account. It requires an account lock on the target account.
+         *      This subcommand will return the 'step' of the warning flow you have advanced to - 1, 2, 3 or 4
+         *      (the paywall is turned on at step 4)
+         *
+         *      Valid data in the MegaRequest object received in onRequestFinish when the error code is MegaError::API_OK:
+         *       + MegaRequest::getNumber - Returns the number of warnings (1, 2, 3 or 4).
+         *
+         *      Possible errors in addition to the standard dev ones are:
+         *       + EFAILED - your account is not in the RED stoplight state
+         *
+         * @param command The subcommand for the specific operation
+         * @param email Optional email of the target email's account. If null, it will use the logged-in account
+         * @param listener MegaRequestListener to track this request
+         * @deprecated Use MegaApi::sendOdqDevCommand instead, for new API dev commands, a new public method will
+         * be created for each one
+         */
+        void sendDevCommand(const char *command, const char *email = nullptr, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Send dev API command, Advance ODQ Warning State for own accounts (for testing purposes)
+         *
+         * If called, this will advance your ODQ warning state until the final warning state,
+         * at which point it will turn on the ODQ paywall for your account. It requires an account lock on the target account.
+         * This subcommand will return the 'step' of the warning flow you have advanced to - 1, 2, 3 or 4
+         * (the paywall is turned on at step 4)
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the API dev command ("aodq")
+         * - MegaRequest::getEmail - Returns the target email account, or NULL if target is the logged-in account
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code is MegaError::API_OK:
+         * - MegaRequest::getNumber - Returns the number of warnings (1, 2, 3 or 4).
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         *  - EACCESS if the calling account is not allowed to perform this method (not a mega email account, not the right IP, etc).
+         *  - EARGS if the subcommand is not present or is invalid
+         *  - EBLOCKED if the target account is not allowed (this could also happen if the target account does not exist)
+         *  - EFAILED - your account is not in the RED stoplight state
+         *
+         * @param email Optional email of the target email's account. If null, it will use the logged-in account
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendOdqDevCommand(const char *email = nullptr, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Send dev API command, Set used transfer quota for own accounts (for testing purposes)
+         *
+         * Sets the amount of transfer quota the target user has used from their PRO allocation.
+         * This subcommand can only be run with PRO users.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the API dev command ("tq")
+         * - MegaRequest::getEmail - Returns the target email account, or NULL if target is the logged-in account
+         * - MegaRequest::getTotalBytes - Returns the amount of transfer quota the target has used, in bytes
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         *  - EACCESS if the calling account is not allowed to perform this method (not a mega email account, not the right IP, etc).
+         *  - EARGS if the subcommand is not present or is invalid, or if target account is not PRO
+         *  - EBLOCKED if the target account is not allowed (this could also happen if the target account does not exist)
+         *  - EMASTERONLY - if the target is the business internal account as they don't login
+         *
+         * @param quota The amount of transfer quota the target has used, in bytes
+         * @param email Optional email of the target email's account. If null, it will use the logged-in account
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendUsedTransferQuotaDevCommand(long long quota, const char *email = nullptr, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Send dev API command, Set business status for own accounts (for testing purposes)
+         *
+         * Sets the status of the business account. The target user can be the business internal account,
+         * or a master or sub-user in the business. The status set by this method is permanent until removed,
+         * it does not transition to grace period and expired over time.
+         *
+         * The following values are valid for business status:
+         *  - set the business expired = -1
+         *  - clear the status override and set the business back to status of their payments = 0
+         *  - set the business active = 1
+         *  - set the business in grace period = 2
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the API dev command ("bs")
+         * - MegaRequest::getEmail - Returns the target email account, or NULL if target is the logged-in account
+         * - MegaRequest::getAccess - Returns the business status
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         *  - EACCESS if the calling account is not allowed to perform this method (not a mega email account, not the right IP, etc).
+         *  - EARGS if the subcommand is not present or is invalid, or if target account is not part of a business account
+         *  - EBLOCKED if the target account is not allowed (this could also happen if the target account does not exist)
+         *
+         * @param businessStatus The business status
+         * @param email Optional email of the target email's account. If null, it will use the logged-in account
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendBusinessStatusDevCommand(int businessStatus, const char *email = nullptr, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Send dev API command, Set user status for own accounts (for testing purposes)
+         *
+         * Sets the status of a user.
+         *
+         * The following values are valid for user status:
+         * - Enabled = 0
+         * - Suspended (generic) = 2
+         * - Suspended (for payment, but not used) = 3
+         * - Suspended (copyright complaint) = 4
+         * - Suspended (admin full disable) = 5
+         * - Suspended (admin partial disable) = 6
+         * - Suspended (Emergency Takedown) = 7
+         * - Suspended until SMS verified = 8
+         * - Suspended until Email verified = 9
+         *
+         * Note that Action packets are not sent for a suspended user, but next command or action packet request will give a EBLOCKED error.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the API dev command ("us")
+         * - MegaRequest::getEmail - Returns the target email account, or NULL if target is the logged-in account
+         * - MegaRequest::getNumDetails - Returns the user status
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         *  - EACCESS if the calling account is not allowed to perform this method (not a mega email account, not the right IP, etc).
+         *  - EARGS if the subcommand is not present or is invalid, if the status is out of range or the target is a business internal account
+         *  - EBLOCKED if the target account is not allowed (this could also happen if the target account does not exist)
+         *
+         * @param userStatus The user status
+         * @param email Optional email of the target email's account. If null, it will use the logged-in account
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendUserStatusDevCommand(int userStatus, const char *email = nullptr, MegaRequestListener *listener = nullptr);
+
+        /**
          * @brief Returns the current session key
          *
          * You have to be logged in to get a valid session key. Otherwise,
@@ -7715,40 +8140,34 @@ class MegaApi
         void setAccountAuth(const char* auth);
 
         /**
-         * @brief Initialize the creation of a new MEGA account
-         *
-         * This function automatically imports a Welcome PDF file into the new account. The file is
-         * automatically imported in the language used for the account. In case there is no file
-         * available for the language of the account, it will not be imported.
-         *
-         * @note If the account has been created correctly, but there is any error related to the
-         * importing of the file, this request will still return API_OK. However, the nodehandle
-         * at the MegaRequest::getNodeHandle will be INVALID_HANDLE.
+         * @brief Initialize the creation of a new MEGA account, with firstname and lastname
          *
          * The associated request type with this request is MegaRequest::TYPE_CREATE_ACCOUNT.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getEmail - Returns the email for the account
          * - MegaRequest::getPassword - Returns the password for the account
-         * - MegaRequest::getName - Returns the name of the user
+         * - MegaRequest::getName - Returns the firstname of the user
+         * - MegaRequest::getText - Returns the lastname of the user
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getNodeHandle - Returns the nodehandle of the Welcome PDF file, if it
-         * was imported successfully.
+         * - MegaRequest::getSessionKey - Returns the session id to resume the process
          *
-         * If this request succeeds, a confirmation email will be sent to the users.
+         * If this request succeeds, a new ephemeral account will be created for the new user
+         * and a confirmation email will be sent to the specified email address. The app may
+         * resume the create-account process by using MegaApi::resumeCreateAccount.
+         *
          * If an account with the same email already exists, you will get the error code
          * MegaError::API_EEXIST in onRequestFinish
          *
          * @param email Email for the account
          * @param password Password for the account
-         * @param name Name of the user
+         * @param firstname Firstname of the user
+         * @param lastname Lastname of the user
          * @param listener MegaRequestListener to track this request
-         *
-         * @deprecated This function is deprecated and will eventually be removed. Instead,
-         * use the new version of MegaApi::createAccount with firstname and lastname.
          */
-        void createAccount(const char* email, const char* password, const char* name, MegaRequestListener *listener = NULL);
+        void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
+
 
         /**
          * @brief Initialize the creation of a new MEGA account, with firstname and lastname
@@ -7759,6 +8178,9 @@ class MegaApi
          * - MegaRequest::getPassword - Returns the password for the account
          * - MegaRequest::getName - Returns the firstname of the user
          * - MegaRequest::getText - Returns the lastname of the user
+         * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
+         * - MegaRequest::getAccess - Returns the type of lastPublicHandle
+         * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -7775,9 +8197,17 @@ class MegaApi
          * @param password Password for the account
          * @param firstname Firstname of the user
          * @param lastname Lastname of the user
+         * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+         * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+         *      - MegaApi::AFFILIATE_TYPE_ID = 1
+         *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+         *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+         *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
+         *
+         * @param lastAccessTimestamp Timestamp of the last access
          * @param listener MegaRequestListener to track this request
          */
-        void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
+        void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Resume a registration process
@@ -7830,7 +8260,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_SEND_SIGNUP_LINK.
          *
          * @param email Email for the account
-         * @param name Firstname of the user
+         * @param name Fullname of the user (firstname + lastname)
          * @param password Password for the account
          * @param listener MegaRequestListener to track this request
          */
@@ -7843,7 +8273,7 @@ class MegaApi
          * email address, in case the user mistyped the email at the registration form.
          *
          * @param email Email for the account
-         * @param name Firstname of the user
+         * @param name Fullname of the user (firstname + lastname)
          * @param base64pwkey Private key returned by MegaRequest::getPrivateKey in the onRequestFinish callback of createAccount
          * @param listener MegaRequestListener to track this request
          *
@@ -7867,8 +8297,16 @@ class MegaApi
          *
          * If MegaRequest::getFlag returns true, the account was automatically confirmed and it's not needed
          * to call MegaApi::confirmAccount. If it returns false, it's needed to call MegaApi::confirmAccount
-         * as usual. New accounts do not require a confirmation with the password, but old confirmation links
-         * require it, so it's needed to check that parameter in onRequestFinish to know how to proceed.
+         * as usual. New accounts (V2, starting from April 2018) do not require a confirmation with the password,
+         * but old confirmation links (V1) require it, so it's needed to check that parameter in onRequestFinish
+         * to know how to proceed.
+         *
+         * If already logged-in into a different account, you will get the error code MegaError::API_EACCESS
+         * in onRequestFinish.
+         * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
+         * will get the error code MegaError::API_EEXPIRED in onRequestFinish.
+         * In both cases, the MegaRequest::getEmail will return the email of the account that was attempted
+         * to confirm, and the MegaRequest::getName will return the name.
          *
          * @param link Confirmation link (#confirm) or new signup link (#newsignup)
          * @param listener MegaRequestListener to track this request
@@ -7892,6 +8330,13 @@ class MegaApi
          * MegaListener::onEvent and MegaGlobalListener::onEvent with an event of type
          * MegaEvent::EVENT_ACCOUNT_CONFIRMATION. You can check the email used to confirm
          * the account by checking MegaEvent::getText. @see MegaListener::onEvent.
+         *
+         * If already logged-in into a different account, you will get the error code MegaError::API_EACCESS
+         * in onRequestFinish.
+         * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
+         * will get the error code MegaError::API_EEXPIRED in onRequestFinish.
+         * In both cases, the MegaRequest::getEmail will return the email of the account that was attempted
+         * to confirm, and the MegaRequest::getName will return the name.
          *
          * @param link Confirmation link
          * @param password Password of the account
@@ -8047,6 +8492,27 @@ class MegaApi
         void confirmCancelAccount(const char *link, const char *pwd, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Allow to resend the verification email for Weak Account Protection
+         *
+         * The verification email will be resent to the same address as it was previously sent to.
+         *
+         * This function can be called if the the reason for being blocked is:
+         *      700: the account is supended for Weak Account Protection.
+         *
+         * If the logged in account is not suspended or is suspended for some other reason,
+         * onRequestFinish will be called with the error code MegaError::API_EACCESS.
+         *
+         * If the logged in account has not been sent the unlock email before,
+         * onRequestFinish will be called with the error code MegaError::API_EARGS.
+         *
+         * If the logged in account has already sent the unlock email and until it's available again,
+         * onRequestFinish will be called with the error code MegaError::API_ETEMPUNAVAIL.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void resendVerificationEmail(MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Initialize the change of the email address associated to the account.
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_CHANGE_EMAIL_LINK.
@@ -8112,9 +8578,10 @@ class MegaApi
          * The SDK will start using the provided proxy settings as soon as this function returns.
          *
          * @param proxySettings Proxy settings
+         * @param listener MegaRequestListener to track this request
          * @see MegaProxy
          */
-        void setProxySettings(MegaProxy *proxySettings);
+        void setProxySettings(MegaProxy *proxySettings, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Try to detect the system's proxy settings
@@ -8147,12 +8614,26 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getText - Returns the reason string (in English)
          * - MegaRequest::getNumber - Returns the reason code. Possible values:
-         *     0: The account is not blocked
-         *     200: suspension message for any type of suspension, but copyright suspension.
-         *     300: suspension only for multiple copyright violations.
-         *     400: the subuser account has been disabled.
-         *     401: the subuser account has been removed.
-         *     500: The account needs to be verified by an SMS code.
+         *          - MegaApi::ACCOUNT_NOT_BLOCKED = 0
+         *              Account is not blocked in any way.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_NON_COPYRIGHT = 200
+         *              Suspension message for any type of suspension, but copyright suspension.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_TOS_COPYRIGHT = 300
+         *              Suspension only for multiple copyright violations.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_DISABLED = 400
+         *              Subuser of the business account has been disabled.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_SUBUSER_REMOVED = 401
+         *              Subuser of business account has been removed.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_VERIFICATION_SMS = 500
+         *              The account is temporary blocked and needs to be verified by an SMS code.
+         *
+         *          - MegaApi::ACCOUNT_BLOCKED_VERIFICATION_EMAIL = 700
+         *              The account is temporary blocked and needs to be verified by email (Weak Account Protection).
          *
          * If the error code in the MegaRequest object received in onRequestFinish
          * is MegaError::API_OK, the user is not blocked.
@@ -8283,6 +8764,8 @@ class MegaApi
         *
         * Other clients will be notified that alerts to this point have been seen.
         *
+        * The associated request type with this request is MegaRequest::TYPE_USERALERT_ACKNOWLEDGE.
+        *
         * @param listener MegaRequestListener to track this request
         *
         * @see MegaApi::getUserAlerts
@@ -8407,6 +8890,32 @@ class MegaApi
         int getBusinessStatus();
 
         /**
+         * @brief Returns the deadline to remedy the storage overquota situation
+         *
+         * This value is valid only when MegaApi::getUserData has been called after
+         * receiving a callback MegaListener/MegaGlobalListener::onEvent of type
+         * MegaEvent::EVENT_STORAGE, reporting STORAGE_STATE_PAYWALL.
+         * The value will become invalid once the state of storage changes.
+         *
+         * @return Timestamp representing the deadline to remedy the overquota
+         */
+        int64_t getOverquotaDeadlineTs();
+
+        /**
+         * @brief Returns when the user was warned about overquota state
+         *
+         * This value is valid only when MegaApi::getUserData has been called after
+         * receiving a callback MegaListener/MegaGlobalListener::onEvent of type
+         * MegaEvent::EVENT_STORAGE, reporting STORAGE_STATE_PAYWALL.
+         * The value will become invalid once the state of storage changes.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return MegaIntegerList with the timestamp corresponding to each warning
+         */
+        MegaIntegerList *getOverquotaWarningsTs();
+
+        /**
          * @brief Check if the password is correct for the current account
          * @param password Password to check
          * @return True if the password is correct for the current account, otherwise false.
@@ -8484,6 +8993,19 @@ class MegaApi
         void resetCredentials(MegaUser *user, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Returns RSA private key of the currently logged-in account
+         *
+         * If the MegaApi object is not logged-in or there is no private key available,
+         * this function returns NULL.
+         *
+         * You take the ownership of the returned value.
+         * Use delete [] to free it.
+         *
+         * @return RSA private key of the current account
+         */
+        char *getMyRSAPrivateKey();
+
+        /**
          * @brief Set the active log level
          *
          * This function sets the log level of the logging system. Any log listener registered by
@@ -8501,6 +9023,14 @@ class MegaApi
          * - MegaApi::LOG_LEVEL_MAX = 5
          */
         static void setLogLevel(int logLevel);
+
+        /**
+         * @brief Set the limit of size to requests payload
+         *
+         * This functions sets the max size that will be allowed for requests payload
+         * If the payload exceeds that, the line will be truncated in the midle with [...] in between
+         */
+        static void setMaxPayloadLogSize(long long maxSize);
 
         /**
          * @brief Enable log to console
@@ -8618,6 +9148,25 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Move a node in the MEGA account changing the file name
+         *
+         * The associated request type with this request is MegaRequest::TYPE_MOVE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node to move
+         * - MegaRequest::getParentHandle - Returns the handle of the new parent for the node
+         * - MegaRequest::getName - Returns the name for the new node
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node Node to move
+         * @param newParent New parent for the node
+         * @param newName Name for the new node
+         * @param listener MegaRequestListener to track this request
+         */
+        void moveNode(MegaNode* node, MegaNode* newParent, const char* newName, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Copy a node in the MEGA account
@@ -8951,6 +9500,21 @@ class MegaApi
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Build the URL for a public link
+         *
+         * @note This function does not create the public link itself. It simply builds the URL
+         * from the provided data.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param publicHandle Public handle of the link, in B64url encoding.
+         * @param key Encryption key of the link.
+         * @param isFolder True for folder links, false for file links.
+         * @return The public link for the provided data
+         */
+        const char *buildPublicLink(const char *publicHandle, const char *key, bool isFolder);
+
+        /**
          * @brief Get the thumbnail of a node
          *
          * If the node doesn't have a thumbnail the request fails with the MegaError::API_ENOENT
@@ -9078,6 +9642,32 @@ class MegaApi
          * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
          */
         static char *getUserAvatarColor(const char *userhandle);
+    
+        /**
+         * @brief Get the secondary color for the avatar.
+         *
+         * This color should be used only when the user doesn't have an avatar, making a
+         * gradient in combination with the color returned from getUserAvatarColor.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param user MegaUser to get the color of the avatar.
+         * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+         */
+        static char *getUserAvatarSecondaryColor(MegaUser *user);
+
+        /**
+         * @brief Get the secondary color for the avatar.
+         *
+         * This color should be used only when the user doesn't have an avatar, making a
+         * gradient in combination with the color returned from getUserAvatarColor.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param userhandle User handle (Base64 encoded) to get the avatar.
+         * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+         */
+        static char *getUserAvatarSecondaryColor(const char *userhandle);
 
         /**
          * @brief Get an attribute of a MegaUser.
@@ -9138,6 +9728,9 @@ class MegaApi
          * Get the target folder for My chat files (private)
          * MegaApi::ATTR_ALIAS = 27
          * Get the list of the users's aliases (private)
+         * MegaApi::ATTR_DEVICE_NAMES = 30
+         * Get the list of device names (private)
+         *
          * @param listener MegaRequestListener to track this request
          */
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
@@ -9562,6 +10155,8 @@ class MegaApi
          * Set whether the user can send geolocation messages (private)
          * MegaApi::ATTR_ALIAS = 27
          * Set the list of users's aliases (private)
+         * MegaApi::ATTR_DEVICE_NAMES = 30
+         * Set the list of device names (private)
          *
          * @param value New attribute value
          * @param listener MegaRequestListener to track this request
@@ -9744,6 +10339,23 @@ class MegaApi
         void fetchNodes(MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Fetch the filesystem in MEGA and resumes syncs following a successful fetch
+         *
+         * The MegaApi object must be logged in in an account or a public folder
+         * to successfully complete this request.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_NODES
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getFlag - Returns true if logged in into a folder and the provided key is invalid. Otherwise, false.
+         * - MegaRequest::getNodeHandle - Returns the public handle if logged into a public folder. Otherwise, INVALID_HANDLE
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void fetchNodesAndResumeSyncs(MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Get the sum of sizes of all the files stored in the MEGA cloud.
          *
          * The SDK keeps a running total of the sum of the sizes of all the files stored in the cloud.
@@ -9903,6 +10515,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the product
+         * - MegaRequest::getParentHandle - Returns the last public node handle accessed
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
@@ -9915,6 +10528,34 @@ class MegaApi
          * @see MegaApi::getPricing
          */
         void getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get the payment URL for an upgrade
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_PAYMENT_ID
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the product
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - Payment ID
+         * - MegaRequest::getParentHandle - Returns the last public node handle accessed
+         * - MegaRequest::getParamType - Returns the type of lastPublicHandle
+         * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+         *
+         * @param productHandle Handle of the product (see MegaApi::getPricing)
+         * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+         * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+         *      - MegaApi::AFFILIATE_TYPE_ID = 1
+         *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+         *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+         *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
+         *
+         * @param lastAccessTimestamp Timestamp of the last access
+         * @param listener MegaRequestListener to track this request
+         * @see MegaApi::getPricing
+         */
+        void getPaymentId(MegaHandle productHandle, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Upgrade an account
@@ -9945,6 +10586,8 @@ class MegaApi
          * @brief Submit a purchase receipt for verification
          *
          * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - Returns the purchase receipt
          *
          * @param receipt Purchase receipt
          * @param listener MegaRequestListener to track this request
@@ -9960,6 +10603,9 @@ class MegaApi
          * @brief Submit a purchase receipt for verification
          *
          * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the payment gateway
+         * - MegaRequest::getText - Returns the purchase receipt
          *
          * @param gateway Payment gateway
          * Currently supported payment gateways are:
@@ -9976,6 +10622,10 @@ class MegaApi
          * @brief Submit a purchase receipt for verification
          *
          * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the payment gateway
+         * - MegaRequest::getText - Returns the purchase receipt
+         * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
          *
          * @param gateway Payment gateway
          * Currently supported payment gateways are:
@@ -9988,6 +10638,36 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void submitPurchaseReceipt(int gateway, const char* receipt, MegaHandle lastPublicHandle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Submit a purchase receipt for verification
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SUBMIT_PURCHASE_RECEIPT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNumber - Returns the payment gateway
+         * - MegaRequest::getText - Returns the purchase receipt
+         * - MegaRequest::getNodeHandle - Returns the last public node handle accessed
+         * - MegaRequest::getParamType - Returns the type of lastPublicHandle
+         * - MegaRequest::getTransferredBytes - Returns the timestamp of the last access
+         *
+         * @param gateway Payment gateway
+         * Currently supported payment gateways are:
+         * - MegaApi::PAYMENT_METHOD_ITUNES = 2
+         * - MegaApi::PAYMENT_METHOD_GOOGLE_WALLET = 3
+         * - MegaApi::PAYMENT_METHOD_WINDOWS_STORE = 13
+         *
+         * @param receipt Purchase receipt
+         * @param lastPublicHandle Last public node handle accessed by the user in the last 24h
+         * @param lastPublicHandleType Indicates the type of lastPublicHandle, valid values are:
+         *      - MegaApi::AFFILIATE_TYPE_ID = 1
+         *      - MegaApi::AFFILIATE_TYPE_FILE_FOLDER = 2
+         *      - MegaApi::AFFILIATE_TYPE_CHAT = 3
+         *      - MegaApi::AFFILIATE_TYPE_CONTACT = 4
+         *
+         * @param lastAccessTimestamp Timestamp of the last access
+         * @param listener MegaRequestListener to track this request
+         */
+        void submitPurchaseReceipt(int gateway, const char *receipt, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener =  NULL);
 
         /**
          * @brief Store a credit card
@@ -10283,6 +10963,8 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER
+         * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+         * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
          *
          * @param nodehandle MegaHandle of the node to be used as target folder
          * @param listener MegaRequestListener to track this request
@@ -10314,6 +10996,8 @@ class MegaApi
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
          * - MegaRequest::getFlag - Returns false
          * - MegaRequest::getNodehandle - Returns the provided node handle
+         * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+         * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
          *
          * @param nodehandle MegaHandle of the node to be used as primary target folder
          * @param listener MegaRequestListener to track this request
@@ -10328,11 +11012,33 @@ class MegaApi
          * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
          * - MegaRequest::getFlag - Returns true
          * - MegaRequest::getNodehandle - Returns the provided node handle
+         * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+         * The key "sh" in the map contains the nodehandle specified as parameter encoded in B64
          *
          * @param nodehandle MegaHandle of the node to be used as secondary target folder
          * @param listener MegaRequestListener to track this request
+         *
+         * @deprecated Use MegaApi::setCameraUploadsFolders instead
          */
         void setCameraUploadsFolderSecondary(MegaHandle nodehandle, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set Camera Uploads for both primary and secondary target folder.
+         *
+         * If only one of the target folders wants to be set, simply pass a INVALID_HANDLE to
+         * as the other target folder and it will remain untouched.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+         * - MegaRequest::getNodehandle - Returns the provided node handle for primary folder
+         * - MegaRequest::getParentHandle - Returns the provided node handle for secondary folder
+         *
+         * @param primaryFolder MegaHandle of the node to be used as primary target folder
+         * @param secondaryFolder MegaHandle of the node to be used as secondary target folder
+         * @param listener MegaRequestListener to track this request
+         */
+        void setCameraUploadsFolders(MegaHandle primaryFolder, MegaHandle secondaryFolder, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Gets Camera Uploads primary target folder.
@@ -10471,6 +11177,34 @@ class MegaApi
         void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Returns the name set for this device
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getName - Returns device name.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getDeviceName(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Sets device name
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_DEVICE_NAMES
+         * - MegaRequest::getName - Returns device name.
+         *
+         * @param deviceName String with device name
+         * @param listener MegaRequestListener to track this request
+         */
+        void setDeviceName(const char* deviceName, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Change the password of the MEGA account
          *
          * The associated request type with this request is MegaRequest::TYPE_CHANGE_PW
@@ -10575,6 +11309,10 @@ class MegaApi
          * is that the logout action has been notified before the reception of the
          * logout response itself.
          *
+         * In case of an automatic logout (ie. when the account become blocked by
+         * ToS infringment), the MegaRequest::getParamType indicates the error that
+         * triggered the automatic logout (MegaError::API_EBLOCKED for the example).
+         *
          * @param listener MegaRequestListener to track this request
          */
         void logout(MegaRequestListener *listener = NULL);
@@ -10641,6 +11379,7 @@ class MegaApi
          * is sent to MEGA servers.
          *
          * @note Event types are restricted to the following ranges:
+         *  - MEGAcmd:   [98900, 99000)
          *  - MEGAchat:  [99000, 99150)
          *  - Android:   [99200, 99300)
          *  - iOS:       [99300, 99400)
@@ -10649,6 +11388,28 @@ class MegaApi
          *  - Webclient: [99600, 99800]
          */
         void sendEvent(int eventType, const char* message, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Create a new ticket for support with attached description
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SUPPORT_TICKET
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the type of the ticket
+         * - MegaRequest::getText - Returns the description of the issue
+         *
+         * @param message Description of the issue for support
+         * @param type Ticket type. These are the available types:
+         *          0 for General Enquiry
+         *          1 for Technical Issue
+         *          2 for Payment Issue
+         *          3 for Forgotten Password
+         *          4 for Transfer Issue
+         *          5 for Contact/Sharing Issue
+         *          6 for MEGAsync Issue
+         *          7 for Missing/Invisible Data
+         * @param listener MegaRequestListener to track this request
+         */
+        void createSupportTicket(const char* message, int type = 1, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Send a debug report
@@ -10702,6 +11463,24 @@ class MegaApi
         bool usingHttpsOnly();
 
         ///////////////////   TRANSFERS ///////////////////
+
+        /**
+         * @brief Upload a file to support
+         *
+         * If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
+         *
+         * For folders, onTransferFinish will be called with error MegaError:API_EARGS;
+         *
+         * @param localPath Local path of the file
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void startUploadForSupport(const char* localPath, bool isSourceTemporary = false, MegaTransferListener *listener=NULL);
+
 
         /**
          * @brief Upload a file or a folder
@@ -10846,6 +11625,31 @@ class MegaApi
          * is transferred using this function, the custom modification time won't have any effect
          */
         void startUpload(const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, MegaTransferListener *listener = NULL);
+
+        /**
+         * @brief Upload a file or a folder with a custom name and a custom modification time
+         *
+         *If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
+         *
+         * @param localPath Local path of the file
+         * @param parent Parent node for the file in the MEGA account
+         * @param appData Custom app data to save in the MegaTransfer object
+         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+         * related to the transfer. If a transfer is started with exactly the same data
+         * (local path and target parent) as another one in the transfer queue, the new transfer
+         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+         * the appData of the old transfer, using a '!' separator if the old transfer had already
+         * appData.
+         * @param fileName Custom file name for the file in MEGA
+         * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
+         * @param listener MegaTransferListener to track this transfer
+         *
+         * The custom modification time will be only applied for file transfers. If a folder
+         * is transferred using this function, the custom modification time won't have any effect
+         */
+        void startUpload(const char* localPath, MegaNode* parent, const char* appData, const char* fileName, int64_t mtime, MegaTransferListener *listener = NULL);
 
         /**
          * @brief Upload a file or a folder
@@ -11992,6 +12796,12 @@ class MegaApi
         bool isScanning();
 
         /**
+         * @brief Check if any synchronization is in state syncing or pending
+         * @return true if it is syncing, otherwise false
+         */
+        bool isSyncing();
+
+        /**
          * @brief Check if the MegaNode is synchronized with a local file
          * @param MegaNode to check
          * @return true if the node is synchronized, othewise false
@@ -12391,7 +13201,8 @@ class MegaApi
             ORDER_MODIFICATION_ASC, ORDER_MODIFICATION_DESC,
             ORDER_ALPHABETICAL_ASC, ORDER_ALPHABETICAL_DESC,
             ORDER_PHOTO_ASC, ORDER_PHOTO_DESC,
-            ORDER_VIDEO_ASC, ORDER_VIDEO_DESC};
+            ORDER_VIDEO_ASC, ORDER_VIDEO_DESC,
+            ORDER_LINK_CREATION_ASC, ORDER_LINK_CREATION_DESC,};
 
         /**
          * @brief Get the number of child nodes
@@ -12601,18 +13412,6 @@ class MegaApi
         bool hasChildren(MegaNode *parent);
 
         /**
-         * @brief Get the current index of the node in the parent folder for a specific sorting order
-         *
-         * If the node doesn't exist or it doesn't have a parent node (because it's a root node)
-         * this function returns -1
-         *
-         * @param node Node to check
-         * @param order Sorting order to use
-         * @return Index of the node in its parent folder
-         */
-        int getIndex(MegaNode* node, int order = 1);
-
-        /**
          * @brief Get the child node with the provided name
          *
          * If the node doesn't exist, this function returns NULL
@@ -12783,15 +13582,20 @@ class MegaApi
         /**
          * @brief Get the user relative to an incoming share
          *
-         * This function will return NULL if the node is not found or doesn't represent
-         * the root of an incoming share.
+         * This function will return NULL if the node is not found
+         *
+         * When recurse is true and the root of the specified node is not an incoming share,
+         * this function will return NULL.
+         * When recurse is false and the specified node doesn't represent the root of an
+         * incoming share, this function will return NULL.
          *
          * You take the ownership of the returned value
          *
-         * @param node Incoming share
+         * @param node Node to look for inshare user.
+         * @param recurse use root node corresponding to the node passed
          * @return MegaUser relative to the incoming share
          */
-        MegaUser *getUserFromInShare(MegaNode *node);
+        MegaUser *getUserFromInShare(MegaNode *node, bool recurse = false);
 
         /**
           * @brief Check if a MegaNode is being shared by/with your own user
@@ -12894,7 +13698,8 @@ class MegaApi
          * @brief Get a list with all public links
          *
          * Valid value for order are: MegaApi::ORDER_NONE, MegaApi::ORDER_DEFAULT_ASC,
-         * MegaApi::ORDER_DEFAULT_DESC
+         * MegaApi::ORDER_DEFAULT_DESC, MegaApi::ORDER_LINK_CREATION_ASC,
+         * MegaApi::ORDER_LINK_CREATION_DESC
          *
          * You take the ownership of the returned value
          *
@@ -13130,6 +13935,8 @@ class MegaApi
         /**
          * @brief Check if a node has an access level
          *
+         * @deprecated Use checkAccessErrorExtended
+         *
          * @param node Node to check
          * @param level Access level to check
          * Valid values for this parameter are:
@@ -13148,7 +13955,32 @@ class MegaApi
         MegaError checkAccess(MegaNode* node, int level);
 
         /**
+         * @brief Check if a node has an access level
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Node to check
+         * @param level Access level to check
+         * Valid values for this parameter are:
+         * - MegaShare::ACCESS_OWNER
+         * - MegaShare::ACCESS_FULL
+         * - MegaShare::ACCESS_READWRITE
+         * - MegaShare::ACCESS_READ
+         *
+         * @return Pointer to MegaError with the result.
+         * Valid values for the error code are:
+         * - MegaError::API_OK - The node has the required access level
+         * - MegaError::API_EACCESS - The node doesn't have the required access level
+         * - MegaError::API_ENOENT - The node doesn't exist in the account
+         * - MegaError::API_EARGS - Invalid parameters
+         */
+        MegaError* checkAccessErrorExtended(MegaNode* node, int level);
+
+        /**
          * @brief Check if a node can be moved to a target node
+         *
+         * @deprecated Use checkMoveErrorExtended
+         *
          * @param node Node to check
          * @param target Target for the move operation
          * @return MegaError object with the result:
@@ -13160,6 +13992,23 @@ class MegaApi
          * - MegaError::API_EARGS - Invalid parameters
          */
         MegaError checkMove(MegaNode* node, MegaNode* target);
+
+        /**
+         * @brief Check if a node can be moved to a target node
+         *
+         * You take the ownership of the returned value
+         *
+         * @param node Node to check
+         * @param target Target for the move operation
+         * @return MegaError object with the result:
+         * Valid values for the error code are:
+         * - MegaError::API_OK - The node can be moved to the target
+         * - MegaError::API_EACCESS - The node can't be moved because of permissions problems
+         * - MegaError::API_ECIRCULAR - The node can't be moved because that would create a circular linkage
+         * - MegaError::API_ENOENT - The node or the target doesn't exist in the account
+         * - MegaError::API_EARGS - Invalid parameters
+         */
+        MegaError* checkMoveErrorExtended(MegaNode* node, MegaNode* target);
 
         /**
          * @brief Check if the MEGA filesystem is available in the local computer
@@ -13592,6 +14441,216 @@ class MegaApi
          * @return List of nodes that contain the desired string in their name
          */
         MegaNodeList* search(const char* searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
+
+        /**
+         * @brief Search nodes on incoming shares containing a search string in their name
+         *
+         * The search is case-insensitive.
+         *
+         * The method will search exclusively on incoming shares
+         *
+         * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+         * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+         * this method returns.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param searchString Search string. The search is case-insensitive
+         * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+         * @param order Order for the returned list
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Folders first in alphabetical order, then files in the same order
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Files first in reverse alphabetical order, then folders in the same order
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, ascending
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, descending
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, ascending
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, descending
+         *
+         * - MegaApi::ORDER_MODIFICATION_ASC = 7
+         * Sort by modification time of the original file, ascending
+         *
+         * - MegaApi::ORDER_MODIFICATION_DESC = 8
+         * Sort by modification time of the original file, descending
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
+         *
+         * @return List of nodes that contain the desired string in their name
+         */
+        MegaNodeList* searchOnInShares(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
+
+        /**
+         * @brief Search nodes on outbound shares containing a search string in their name
+         *
+         * The search is case-insensitive.
+         *
+         * The method will search exclusively on outbound shares
+         *
+         * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+         * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+         * this method returns.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param searchString Search string. The search is case-insensitive
+         * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+         * @param order Order for the returned list
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Folders first in alphabetical order, then files in the same order
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Files first in reverse alphabetical order, then folders in the same order
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, ascending
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, descending
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, ascending
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, descending
+         *
+         * - MegaApi::ORDER_MODIFICATION_ASC = 7
+         * Sort by modification time of the original file, ascending
+         *
+         * - MegaApi::ORDER_MODIFICATION_DESC = 8
+         * Sort by modification time of the original file, descending
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
+         *
+         * @return List of nodes that contain the desired string in their name
+         */
+        MegaNodeList* searchOnOutShares(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
+
+        /**
+         * @brief Search nodes on public links containing a search string in their name
+         *
+         * The search is case-insensitive.
+         *
+         * The method will search exclusively on public links
+         *
+         * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+         * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+         * this method returns.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param searchString Search string. The search is case-insensitive
+         * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+         * @param order Order for the returned list
+         * Valid values for this parameter are:
+         * - MegaApi::ORDER_NONE = 0
+         * Undefined order
+         *
+         * - MegaApi::ORDER_DEFAULT_ASC = 1
+         * Folders first in alphabetical order, then files in the same order
+         *
+         * - MegaApi::ORDER_DEFAULT_DESC = 2
+         * Files first in reverse alphabetical order, then folders in the same order
+         *
+         * - MegaApi::ORDER_SIZE_ASC = 3
+         * Sort by size, ascending
+         *
+         * - MegaApi::ORDER_SIZE_DESC = 4
+         * Sort by size, descending
+         *
+         * - MegaApi::ORDER_CREATION_ASC = 5
+         * Sort by creation time in MEGA, ascending
+         *
+         * - MegaApi::ORDER_CREATION_DESC = 6
+         * Sort by creation time in MEGA, descending
+         *
+         * - MegaApi::ORDER_MODIFICATION_ASC = 7
+         * Sort by modification time of the original file, ascending
+         *
+         * - MegaApi::ORDER_MODIFICATION_DESC = 8
+         * Sort by modification time of the original file, descending
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
+         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
+         *
+         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
+         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
+         *
+         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
+         * They will be eventually removed.
+         *
+         * - MegaApi::ORDER_PHOTO_ASC = 11
+         * Sort with photos first, then by date ascending
+         *
+         * - MegaApi::ORDER_PHOTO_DESC = 12
+         * Sort with photos first, then by date descending
+         *
+         * - MegaApi::ORDER_VIDEO_ASC = 13
+         * Sort with videos first, then by date ascending
+         *
+         * - MegaApi::ORDER_VIDEO_DESC = 14
+         * Sort with videos first, then by date descending
+         *
+         * @return List of nodes that contain the desired string in their name
+         */
+        MegaNodeList* searchOnPublicLinks(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
 
         /**
          * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
@@ -14091,7 +15150,7 @@ class MegaApi
         /**
          * @brief Make a name suitable for a file name in the local filesystem
          *
-         * This function escapes (%xx) forbidden characters in the local filesystem if needed.
+         * This function escapes (%xx) the characters contained in the following list: \/:?\"<>|*
          * You can revert this operation using MegaApi::unescapeFsIncompatible
          *
          * The input string must be UTF8 encoded. The returned value will be UTF8 too.
@@ -14100,20 +15159,61 @@ class MegaApi
          *
          * @param filename Name to convert (UTF8)
          * @return Converted name (UTF8)
+         * @deprecated There is a new prototype that includes path for filesystem detection
          */
         char* escapeFsIncompatible(const char *filename);
 
         /**
-         * @brief Unescape a file name escaped with MegaApi::escapeFsIncompatible
+         * @brief Make a name suitable for a file name in the local filesystem
+         *
+         * This function escapes (%xx) forbidden characters in the local filesystem if needed.
+         * You can revert this operation using MegaApi::unescapeFsIncompatible
+         *
+         * If no dstPath is provided or filesystem type it's not supported this method will
+         * escape characters contained in the following list: \/:?\"<>|*
+         * Otherwise it will check forbidden characters for local filesystem type
          *
          * The input string must be UTF8 encoded. The returned value will be UTF8 too.
          *
          * You take the ownership of the returned value
          *
-         * @param name Escaped name to convert (UTF8)
+         * @param filename Name to convert (UTF8)
+         * @param dstPath Destination path
          * @return Converted name (UTF8)
          */
+        char* escapeFsIncompatible(const char *filename, const char *dstPath);
+
+        /**
+         * @brief Unescape a file name escaped with MegaApi::escapeFsIncompatible
+         *
+         * This method will unescape those sequences that once has been unescaped results
+         * in any character of the following list: \/:?\"<>|*
+         *
+         * The input string must be UTF8 encoded. The returned value will be UTF8 too.
+         * You take the ownership of the returned value
+         *
+         * @param name Escaped name to convert (UTF8)
+         * @return Converted name (UTF8)
+         * @deprecated There is a new prototype that includes path for filesystem detection
+         */
         char* unescapeFsIncompatible(const char* name);
+
+        /**
+         * @brief Unescape a file name escaped with MegaApi::escapeFsIncompatible
+         *
+         * If no localPath is provided or filesystem type it's not supported, this method will
+         * unescape those sequences that once has been unescaped results in any character
+         * of the following list: \/:?\"<>|*
+         * Otherwise it will unescape those characters forbidden in local filesystem type
+         *
+         * The input string must be UTF8 encoded. The returned value will be UTF8 too.
+         * You take the ownership of the returned value
+         *
+         * @param name Escaped name to convert (UTF8)
+         * @param localPath Local path
+         * @return Converted name (UTF8)
+         */
+        char* unescapeFsIncompatible(const char *name, const char *localPath);
 
 
         /**
@@ -15293,6 +16393,7 @@ class MegaApi
          *  - MegaApi::PUSH_NOTIFICATION_ANDROID    = 1
          *  - MegaApi::PUSH_NOTIFICATION_IOS_VOIP   = 2
          *  - MegaApi::PUSH_NOTIFICATION_IOS_STD    = 3
+         *  - MegaApi::PUSH_NOTIFICATION_ANDROID_HUAWEI = 4
          *
          * The associated request type with this request is MegaRequest::TYPE_REGISTER_PUSH_NOTIFICATION
          * Valid data in the MegaRequest object received on callbacks:
@@ -15405,6 +16506,28 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set a retention timeframe after which older messages in the chat are automatically deleted.
+         *
+         * Allows a logged in operator/moderator to specify a message retention timeframe in seconds,
+         * after which older messages in the chat are automatically deleted.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_RETENTION_TIME
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the chat identifier
+         * - MegaRequest::getNumdetails - Returns the retention timeframe
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - If the chatid is invalid
+         * - MegaError::API_ENOENT - If there isn't any chat with the specified chatid.
+         * - MegaError::API_EACCESS - If the logged in user doesn't have operator privileges
+         *
+         * @param chatid MegaHandle that identifies the chat room
+         * @param period retention timeframe in seconds, after which older messages in the chat are automatically deleted
+         * @param listener MegaRequestListener to track this request
+         */
+        void setChatRetentionTime(MegaHandle chatid, int period, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Request rich preview information for specified URL

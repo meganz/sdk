@@ -57,7 +57,7 @@ struct MEGA_API File: public FileFingerprint
     string name;
 
     // local filename (must be set upon injection for uploads, can be set in start() for downloads)
-    string localname;
+    LocalPath localname;
 
     // source/target node handle
     handle h;
@@ -87,20 +87,20 @@ struct MEGA_API File: public FileFingerprint
     char *chatauth;
 
     // if !hprivate, filekey and size must be valid
-    byte filekey[FILENODEKEYLENGTH];
+    byte filekey[FILENODEKEYLENGTH]{};
 
     // for remote file drops: uid or e-mail address of recipient
     string targetuser;
 
     // transfer linkage
     Transfer* transfer;
-    file_list::iterator file_it;
+    file_list::iterator file_it{};
 
     File();
     virtual ~File();
 
     // serialize the File object
-    virtual bool serialize(string*);
+    bool serialize(string*) override;
 
     static File* unserialize(string*);
 
@@ -126,7 +126,7 @@ struct MEGA_API SyncFileGet: public File
 
     void terminated();
 
-    SyncFileGet(Sync*, Node*, string*);
+    SyncFileGet(Sync*, Node*, const LocalPath&);
     ~SyncFileGet();
 };
 

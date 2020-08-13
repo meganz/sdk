@@ -32,6 +32,26 @@
 
 namespace mega {
 
+TransferSlotFileAccess::TransferSlotFileAccess(std::unique_ptr<FileAccess>&& p, Transfer* t) 
+    : transfer(t)
+{
+    reset(std::move(p));
+}
+
+TransferSlotFileAccess::~TransferSlotFileAccess()
+{
+    reset();
+}
+
+void TransferSlotFileAccess::reset(std::unique_ptr<FileAccess>&& p)
+{
+    fa = std::move(p);
+
+    // transfer has no slot or slot has no fa: timer is enabled
+    transfer->bt.enable(!!p);
+}
+
+
 // transfer attempts are considered failed after XFERTIMEOUT deciseconds
 // without data flow
 const dstime TransferSlot::XFERTIMEOUT = 600;
@@ -48,18 +68,15 @@ const dstime TransferSlot::PROGRESSTIMEOUT = 10;
     const m_off_t TransferSlot::MAX_REQ_SIZE = 4194304; // 4 MB
 #endif
 
-const m_off_t TransferSlot::MAX_UPLOAD_GAP = 62914560; // 60 MB (up to 63 chunks)
-
 TransferSlot::TransferSlot(Transfer* ctransfer)
-    : retrybt(ctransfer->client->rng)
-    , fa(ctransfer->client->fsaccess->newfileaccess())
+    : fa(ctransfer->client->fsaccess->newfileaccess(), ctransfer)
+    , retrybt(ctransfer->client->rng, ctransfer->client->transferSlotsBackoff)
 {
     starttime = 0;
     lastprogressreport = 0;
     progressreported = 0;
     speed = meanSpeed = 0;
     progresscontiguous = 0;
-    delayedchunk = false;
 
     lastdata = Waiter::ds;
     errorcount = 0;
@@ -71,7 +88,6 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
     fileattrsmutable = 0;
 
     connections = 0;
-    reqs = NULL;
     asyncIO = NULL;
     pendingcmd = NULL;
 
@@ -125,7 +141,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 bool TransferSlot::createconnectionsonce()
 {
     // delay creating these until we know if it's raid or non-raid
-    if (!(connections || reqs || asyncIO))
+    if (!(connections || reqs.size() || asyncIO))
     {
         if (transferbuf.tempUrlVector().empty())
         {
@@ -134,7 +150,7 @@ bool TransferSlot::createconnectionsonce()
 
         connections = transferbuf.isRaid() ? RAIDPARTS : (transfer->size > 131072 ? transfer->client->connections[transfer->type] : 1);
         LOG_debug << "Populating transfer slot with " << connections << " connections, max request size of " << maxRequestSize << " bytes";
-        reqs = new HttpReqXfer*[connections]();
+        reqs.resize(connections);
         asyncIO = new AsyncIOContext*[connections]();
     }
     return true;
@@ -168,14 +184,15 @@ TransferSlot::~TransferSlot()
                         LOG_verbose << "Async write failed";
                         transferbuf.bufferWriteCompleted(i, false);
                     }
+                    reqs[i]->status = REQ_READY;
                 }
                 delete asyncIO[i];
                 asyncIO[i] = NULL;
             }
 
             // Open the file in synchonous mode
-            fa = transfer->client->fsaccess->newfileaccess();
-            if (!fa->fopen(&transfer->localfilename, false, true))
+            fa.reset(transfer->client->fsaccess->newfileaccess());
+            if (!fa->fopen(transfer->localfilename, false, true))
             {
                 fa.reset();
             }
@@ -183,14 +200,30 @@ TransferSlot::~TransferSlot()
 
         for (int i = 0; i < connections; i++)
         {
-            HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i]);
-            if (fa && downloadRequest && downloadRequest->status == REQ_INFLIGHT
-                    && downloadRequest->contentlength == downloadRequest->size   
-                    && downloadRequest->bufpos >= SymmCipher::BLOCKSIZE)
+            if (HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i].get()))
             {
-                HttpReq::http_buf_t* buf = downloadRequest->release_buf();
-                buf->end -= buf->datalen() % RAIDSECTOR;
-                transferbuf.submitBuffer(i, new TransferBufferManager::FilePiece(downloadRequest->dlpos, buf)); // resets size & bufpos of downloadrequest.
+                switch (static_cast<reqstatus_t>(downloadRequest->status))
+                {
+                    case REQ_INFLIGHT:
+                        if (fa && downloadRequest && downloadRequest->status == REQ_INFLIGHT
+                            && downloadRequest->contentlength == downloadRequest->size
+                            && downloadRequest->bufpos >= SymmCipher::BLOCKSIZE)
+                        {
+                            HttpReq::http_buf_t* buf = downloadRequest->release_buf();
+                            buf->end -= buf->datalen() % RAIDSECTOR;
+                            transferbuf.submitBuffer(i, new TransferBufferManager::FilePiece(downloadRequest->dlpos, buf)); // resets size & bufpos of downloadrequest.
+                        }
+                        break;
+
+                    case REQ_DECRYPTING:
+                        LOG_info << "Waiting for block decryption";
+                        std::mutex finalizedMutex; 
+                        std::unique_lock<std::mutex> guard(finalizedMutex);
+                        auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
+                        outputPiece->finalizedCV.wait(guard, [&](){ return outputPiece->finalized; });
+                        downloadRequest->status = REQ_DECRYPTED;
+                        break;
+                }
             }
         }
 
@@ -202,9 +235,14 @@ TransferSlot::~TransferSlot()
             {
                 // synchronous writes for all remaining outstanding data (for raid, there can be a sequence of output pieces.  for non-raid, one piece per connection)
                 // check each connection first and then all that were not yet on a connection
-                TransferBufferManager::FilePiece* outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
+                auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                 if (outputPiece)
                 {
+                    if (!outputPiece->finalized)
+                    {
+                        transfer->client->tmptransfercipher.setkey(transfer->transferkey.data());
+                        outputPiece->finalize(true, transfer->size, transfer->ctriv, &transfer->client->tmptransfercipher, &transfer->chunkmacs);
+                    }
                     anyData = true;
                     if (fa && fa->fwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos))
                     {
@@ -258,11 +296,9 @@ TransferSlot::~TransferSlot()
     while (connections--)
     {
         delete asyncIO[connections];
-        delete reqs[connections];
     }
 
     delete[] asyncIO;
-    delete[] reqs;
 }
 
 void TransferSlot::toggleport(HttpReqXfer *req)
@@ -300,28 +336,45 @@ void TransferSlot::disconnect()
     }
 }
 
-// coalesce block macs into file mac
-int64_t chunkmac_map::macsmac(SymmCipher *cipher)
-{
-    byte mac[SymmCipher::BLOCKSIZE] = { 0 };
-
-    for (chunkmac_map::iterator it = begin(); it != end(); it++)
-    {
-        SymmCipher::xorblock(it->second.mac, mac);
-        cipher->ecb_encrypt(mac);
-    }
-
-    uint32_t* m = (uint32_t*)mac;
-
-    m[0] ^= m[1];
-    m[1] = m[2] ^ m[3];
-
-    return MemAccess::get<int64_t>((const char*)mac);
-}
-
 int64_t TransferSlot::macsmac(chunkmac_map* m)
 {
     return m->macsmac(transfer->transfercipher());
+}
+
+bool TransferSlot::checkTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client)
+{
+    if (transfer->progresscompleted == transfer->size)
+    {
+        if (transfer->progresscompleted)
+        {
+            transfer->currentmetamac = macsmac(&transfer->chunkmacs);
+            transfer->hascurrentmetamac = true;
+        }
+
+        // verify meta MAC
+        if (!transfer->progresscompleted
+            || (transfer->currentmetamac == transfer->metamac))
+        {
+            client->transfercacheadd(transfer, &committer);
+            if (transfer->progresscompleted != progressreported)
+            {
+                progressreported = transfer->progresscompleted;
+                lastdata = Waiter::ds;
+
+                progress();
+            }
+
+            transfer->complete(committer);
+        }
+        else
+        {
+            client->sendevent(99431, "MAC verification failed", 0);
+            transfer->chunkmacs.clear();
+            transfer->failed(API_EKEY, committer);
+        }
+        return true;
+    }
+    return false;
 }
 
 // file transfer state machine
@@ -347,10 +400,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                 }
                 else
                 {
-                    int creqtag = client->reqtag;
-                    client->reqtag = 0;
-                    client->sendevent(99432, "MAC verification failed for cached download");
-                    client->reqtag = creqtag;
+                    client->sendevent(99432, "MAC verification failed for cached download", 0);
 
                     transfer->chunkmacs.clear();
                     return transfer->failed(API_EKEY, committer);
@@ -365,16 +415,14 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
         }
         else
         {
-            int creqtag = client->reqtag;
-            client->reqtag = 0;
-            client->sendevent(99410, "No upload token available");
-            client->reqtag = creqtag;
+            client->sendevent(99410, "No upload token available", 0);
 
             return transfer->failed(API_EINTERNAL, committer);
         }
     }
 
     retrying = false;
+    retrybt.reset();  // in case we don't delete the slot, and in case retrybt.next=1
     transfer->state = TRANSFERSTATE_ACTIVE;
 
     if (!createconnectionsonce())   // don't use connections, reqs, or asyncIO before this point.
@@ -399,8 +447,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
             if (transfer->type == GET && reqs[i]->contentlength == reqs[i]->size && transferbuf.detectSlowestRaidConnection(i, slowestConnection))
             {
                 LOG_debug << "Connection " << slowestConnection << " is the slowest to reply, using the other 5.";
-                delete reqs[slowestConnection];
-                reqs[slowestConnection] = NULL;
+                reqs[slowestConnection].reset();
                 transferbuf.resetPart(slowestConnection);
                 i = connections; 
                 continue;
@@ -409,7 +456,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
             if (reqs[i]->status == REQ_FAILURE && reqs[i]->httpstatus == 200 && transfer->type == GET && transferbuf.isRaid())  // the request started out successfully, hence status==200 in the reply headers
             {
                 // check if we got some data and the failure occured partway through the part chunk.  If so, best not to waste it, convert to success case with less data
-                HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i]);
+                HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i].get());
                 LOG_debug << "Connection " << i << " received " << downloadRequest->bufpos << " before failing, processing data.";
                 if (downloadRequest->contentlength == downloadRequest->size && downloadRequest->bufpos >= RAIDSECTOR)
                 {
@@ -420,7 +467,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                 }
             }
 
-            switch (reqs[i]->status)
+            switch (static_cast<reqstatus_t>(reqs[i]->status))
             {
                 case REQ_INFLIGHT:
                     p += reqs[i]->transferred(client);
@@ -438,10 +485,17 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             reqs[i]->status = REQ_READY;
                         }
                     }
+
+                    if (reqs[i]->lastdata > lastdata)
+                    {
+                        // prevent overall timeout if all channels are busy with big chunks for a while
+                        lastdata = reqs[i]->lastdata;
+                    }
+
                     break;
 
                 case REQ_SUCCESS:
-                    if (client->orderdownloadedchunks && transfer->type == GET && !transferbuf.isRaid() && transfer->progresscompleted != static_cast<HttpReqDL*>(reqs[i])->dlpos)
+                    if (client->orderdownloadedchunks && transfer->type == GET && !transferbuf.isRaid() && transfer->progresscompleted != static_cast<HttpReqDL*>(reqs[i].get())->dlpos)
                     {
                         // postponing unsorted chunk
                         p += reqs[i]->size;
@@ -494,19 +548,12 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                     errorcount = 0;
                                     transfer->failcount = 0;
 
-                                    m_off_t startpos = reqs[i]->pos;
-                                    m_off_t finalpos = startpos + reqs[i]->size;
-                                    while (startpos < finalpos)
-                                    {
-                                        transfer->chunkmacs[startpos].finished = true;
-                                        LOG_verbose << "Upload chunk completed: " << startpos;
-                                        startpos = ChunkedHash::chunkceil(startpos, finalpos);
-                                    }
+                                    transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[i].get())->mChunkmacs);
 
                                     updatecontiguousprogress();
 
                                     transfer->progresscompleted += reqs[i]->size;
-                                    memcpy(transfer->filekey, transfer->transferkey, sizeof transfer->transferkey);
+                                    memcpy(transfer->filekey, transfer->transferkey.data(), sizeof transfer->transferkey);
                                     ((int64_t*)transfer->filekey)[2] = transfer->ctriv;
                                     ((int64_t*)transfer->filekey)[3] = macsmac(&transfer->chunkmacs);
                                     SymmCipher::xorblock(transfer->filekey + SymmCipher::KEYLENGTH, transfer->filekey);
@@ -534,10 +581,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             error e = (error)atoi(reqs[i]->in.c_str());
                             if (e == API_EKEY)
                             {
-                                int creqtag = client->reqtag;
-                                client->reqtag = 0;
-                                client->sendevent(99429, "Integrity check failed in upload");
-                                client->reqtag = creqtag;
+                                client->sendevent(99429, "Integrity check failed in upload", 0);
 
                                 lasterror = e;
                                 errorcount++;
@@ -545,24 +589,22 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 break;
                             }
 
-                            if (e == API_ERATELIMIT || (reqs[i]->contenttype.find("text/html") != string::npos
+                            if (e == DAEMON_EFAILED || (reqs[i]->contenttype.find("text/html") != string::npos
                                     && !memcmp(reqs[i]->posturl.c_str(), "http:", 5)))
                             {
                                 client->usehttps = true;
                                 client->app->notify_change_to_https();
 
-                                int creqtag = client->reqtag;
-                                client->reqtag = 0;
-                                if (e == API_ERATELIMIT)
+                                if (e == DAEMON_EFAILED)
                                 {
-                                    client->sendevent(99440, "Retry requested by storage server");
+                                    // megad returning -4 should result in restarting the transfer
+                                    client->sendevent(99440, "Retry requested by storage server", 0);
                                 }
                                 else
                                 {
                                     LOG_warn << "Invalid Content-Type detected during upload: " << reqs[i]->contenttype;
                                 }
-                                client->sendevent(99436, "Automatic change to HTTPS");
-                                client->reqtag = creqtag;
+                                client->sendevent(99436, "Automatic change to HTTPS", 0);
 
                                 return transfer->failed(API_EAGAIN, committer);
                             }
@@ -571,24 +613,14 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             return transfer->failed(e, committer);
                         }
 
-                        m_off_t startpos = reqs[i]->pos;
-                        m_off_t finalpos = startpos + reqs[i]->size;
-                        while (startpos < finalpos)
-                        {
-                            transfer->chunkmacs[startpos].finished = true;
-                            LOG_verbose << "Upload chunk completed: " << startpos;
-                            startpos = ChunkedHash::chunkceil(startpos, finalpos);
-                        }
+                        transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[i].get())->mChunkmacs);
                         transfer->progresscompleted += reqs[i]->size;
 
                         updatecontiguousprogress();
 
                         if (transfer->progresscompleted == transfer->size)
                         {
-                            int creqtag = client->reqtag;
-                            client->reqtag = 0;
-                            client->sendevent(99409, "No upload token received");
-                            client->reqtag = creqtag;
+                            client->sendevent(99409, "No upload token received", 0);
 
                             return transfer->failed(API_EINTERNAL, committer);
                         }
@@ -600,7 +632,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     }
                     else   // GET
                     {
-                        HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i]);
+                        HttpReqDL *downloadRequest = static_cast<HttpReqDL*>(reqs[i].get());
                         if (reqs[i]->size == reqs[i]->bufpos || downloadRequest->buffer_released)   // downloadRequest->buffer_released being true indicates we're retrying this asyncIO
                         {
 
@@ -610,84 +642,30 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 downloadRequest->buffer_released = true;
                             }
 
-                            TransferBufferManager::FilePiece* outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
+                            auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                             if (outputPiece)
                             {
+                                bool parallelNeeded = outputPiece->finalize(false, transfer->size, transfer->ctriv, transfer->transfercipher(), &transfer->chunkmacs);
 
-                                if (fa->asyncavailable())
+                                if (parallelNeeded)
                                 {
-                                    if (asyncIO[i])
+                                    // do full chunk (and chunk-remainder) decryption on a thread for throughput and to minimize mutex lock times.
+                                    auto req = reqs[i];   // shared_ptr for shutdown safety
+                                    auto transferkey = transfer->transferkey;
+                                    auto ctriv = transfer->ctriv;
+                                    auto filesize = transfer->size;
+                                    req->status = REQ_DECRYPTING;
+
+                                    client->mAsyncQueue.push([req, outputPiece, transferkey, ctriv, filesize](SymmCipher& sc)
                                     {
-                                        LOG_warn << "Retrying failed async write";
-                                        delete asyncIO[i];
-                                        asyncIO[i] = NULL;
-                                    }
-
-                                    p += outputPiece->buf.datalen();
-
-                                    LOG_debug << "Writing data asynchronously at " << outputPiece->pos << " to " << (outputPiece->pos + outputPiece->buf.datalen());
-                                    asyncIO[i] = fa->asyncfwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos);
-                                    reqs[i]->status = REQ_ASYNCIO;
+                                        sc.setkey(transferkey.data());
+                                        outputPiece->finalize(true, filesize, ctriv, &sc, nullptr);
+                                        req->status = REQ_DECRYPTED;
+                                    }, false);  // not discardable:  if we downloaded the data, don't waste it - decrypt and write as much as we can to file
                                 }
                                 else
                                 {
-                                    if (fa->fwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos))
-                                    {
-                                        LOG_verbose << "Sync write succeeded";
-                                        transferbuf.bufferWriteCompleted(i, true);
-                                        errorcount = 0;
-                                        transfer->failcount = 0;
-                                        updatecontiguousprogress();
-                                    }
-                                    else
-                                    {
-                                        LOG_err << "Error saving finished chunk";
-                                        if (!fa->retry)
-                                        {
-                                            transferbuf.bufferWriteCompleted(i, false);  // discard failed data so we don't retry on slot deletion
-                                            return transfer->failed(API_EWRITE, committer);
-                                        }
-                                        lasterror = API_EWRITE;
-                                        backoff = 2;
-                                        break;
-                                    }
-
-                                    if (transfer->progresscompleted == transfer->size)
-                                    {
-                                        if (transfer->progresscompleted)
-                                        {
-                                            transfer->currentmetamac = macsmac(&transfer->chunkmacs);
-                                            transfer->hascurrentmetamac = true;
-                                        }
-
-                                        // verify meta MAC
-                                        if (!transfer->progresscompleted
-                                            || (transfer->currentmetamac == transfer->metamac))
-                                        {
-                                            client->transfercacheadd(transfer, &committer);
-                                            if (transfer->progresscompleted != progressreported)
-                                            {
-                                                progressreported = transfer->progresscompleted;
-                                                lastdata = Waiter::ds;
-
-                                                progress();
-                                            }
-
-                                            return transfer->complete(committer);
-                                        }
-                                        else
-                                        {
-                                            int creqtag = client->reqtag;
-                                            client->reqtag = 0;
-                                            client->sendevent(99431, "MAC verification failed");
-                                            client->reqtag = creqtag;
-
-                                            transfer->chunkmacs.clear();
-                                            return transfer->failed(API_EKEY, committer);
-                                        }
-                                    }
-                                    client->transfercacheadd(transfer, &committer);
-                                    reqs[i]->status = REQ_READY;
+                                    reqs[i]->status = REQ_DECRYPTED;
                                 }
                             }
                             else if (transferbuf.isRaid())
@@ -708,24 +686,72 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 client->usehttps = true;
                                 client->app->notify_change_to_https();
 
-                                int creqtag = client->reqtag;
-                                client->reqtag = 0;
-                                client->sendevent(99436, "Automatic change to HTTPS");
-                                client->reqtag = creqtag;
+                                client->sendevent(99436, "Automatic change to HTTPS", 0);
 
                                 return transfer->failed(API_EAGAIN, committer);
                             }
 
-                            int creqtag = client->reqtag;
-                            client->reqtag = 0;
-                            client->sendevent(99430, "Invalid chunk size");
-                            client->reqtag = creqtag;
+                            client->sendevent(99430, "Invalid chunk size", 0);
 
                             LOG_warn << "Invalid chunk size: " << reqs[i]->size << " - " << reqs[i]->bufpos;
                             lasterror = API_EREAD;
                             errorcount++;
                             reqs[i]->status = REQ_PREPARED;
                             break;
+                        }
+                    }
+                    break;
+
+                case REQ_DECRYPTED:
+                    {
+                        // this must return the same piece we just decrypted, since we have not asked the transferbuf to discard it yet.
+                        auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
+                        
+                        if (fa->asyncavailable())
+                        {
+                            if (asyncIO[i])
+                            {
+                                LOG_warn << "Retrying failed async write";
+                                delete asyncIO[i];
+                                asyncIO[i] = NULL;
+                            }
+
+                            p += outputPiece->buf.datalen();
+
+                            LOG_debug << "Writing data asynchronously at " << outputPiece->pos << " to " << (outputPiece->pos + outputPiece->buf.datalen());
+                            asyncIO[i] = fa->asyncfwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos);
+                            reqs[i]->status = REQ_ASYNCIO;
+                        }
+                        else
+                        {
+                            if (fa->fwrite(outputPiece->buf.datastart(), static_cast<unsigned>(outputPiece->buf.datalen()), outputPiece->pos))
+                            {
+                                LOG_verbose << "Sync write succeeded";
+                                transferbuf.bufferWriteCompleted(i, true);
+                                errorcount = 0;
+                                transfer->failcount = 0;
+                                updatecontiguousprogress();
+                            }
+                            else
+                            {
+                                LOG_err << "Error saving finished chunk";
+                                if (!fa->retry)
+                                {
+                                    transferbuf.bufferWriteCompleted(i, false);  // discard failed data so we don't retry on slot deletion
+                                    return transfer->failed(API_EWRITE, committer);
+                                }
+                                lasterror = API_EWRITE;
+                                backoff = 2;
+                                break;
+                            }
+
+                            if (checkTransferFinished(committer, client))
+                            {
+                                return;
+                            }
+
+                            client->transfercacheadd(transfer, &committer);
+                            reqs[i]->status = REQ_READY;
                         }
                     }
                     break;
@@ -750,12 +776,19 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                     }
                                 }
 
-                                reqs[i]->prepare(finaltempurl.c_str(), transfer->transfercipher(),
-                                         &transfer->chunkmacs, transfer->ctriv,
-                                         asyncIO[i]->pos, npos);
+                                auto pos = asyncIO[i]->pos;
+                                auto req = reqs[i];    // shared_ptr so no object is deleted out from under the worker
+                                auto transferkey = transfer->transferkey;
+                                auto ctriv = transfer->ctriv;
+                                req->pos = pos;
+                                req->status = REQ_ENCRYPTING;
 
-                                reqs[i]->pos = ChunkedHash::chunkfloor(asyncIO[i]->pos);
-                                reqs[i]->status = REQ_PREPARED;
+                                client->mAsyncQueue.push([req, transferkey, ctriv, finaltempurl, pos, npos](SymmCipher& sc)
+                                    {
+                                        sc.setkey(transferkey.data());
+                                        req->prepare(finaltempurl.c_str(), &sc, ctriv, pos, npos); 
+                                        req->status = REQ_PREPARED;
+                                    }, true);   // discardable - if the transfer or client are being destroyed, we won't be sending that data.
                             }
                             else
                             {
@@ -766,39 +799,9 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                                 updatecontiguousprogress();
 
-                                if (transfer->progresscompleted == transfer->size)
+                                if (checkTransferFinished(committer, client))
                                 {
-                                    if (transfer->progresscompleted)
-                                    {
-                                        transfer->currentmetamac = macsmac(&transfer->chunkmacs);
-                                        transfer->hascurrentmetamac = true;
-                                    }
-
-                                    // verify meta MAC
-                                    if (!transfer->progresscompleted
-                                            || (transfer->currentmetamac == transfer->metamac))
-                                    {
-                                        client->transfercacheadd(transfer, &committer);
-                                        if (transfer->progresscompleted != progressreported)
-                                        {
-                                            progressreported = transfer->progresscompleted;
-                                            lastdata = Waiter::ds;
-
-                                            progress();
-                                        }
-
-                                        return transfer->complete(committer);
-                                    }
-                                    else
-                                    {
-                                        int creqtag = client->reqtag;
-                                        client->reqtag = 0;
-                                        client->sendevent(99431, "MAC verification failed");
-                                        client->reqtag = creqtag;
-
-                                        transfer->chunkmacs.clear();
-                                        return transfer->failed(API_EKEY, committer);
-                                    }
+                                    return;
                                 }
 
                                 client->transfercacheadd(transfer, &committer);
@@ -848,7 +851,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     break;
 
                 case REQ_FAILURE:
-                    LOG_warn << "Failed chunk. HTTP status: " << reqs[i]->httpstatus;
+                    LOG_warn << "Failed chunk. HTTP status: " << reqs[i]->httpstatus << " on channel " << i;
                     if (reqs[i]->httpstatus && reqs[i]->contenttype.find("text/html") != string::npos
                             && !memcmp(reqs[i]->posturl.c_str(), "http:", 5))
                     {
@@ -856,10 +859,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         client->usehttps = true;
                         client->app->notify_change_to_https();
 
-                        int creqtag = client->reqtag;
-                        client->reqtag = 0;
-                        client->sendevent(99436, "Automatic change to HTTPS");
-                        client->reqtag = creqtag;
+                        client->sendevent(99436, "Automatic change to HTTPS", 0);
 
                         return transfer->failed(API_EAGAIN, committer);
                     }
@@ -868,10 +868,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     {
                         if (reqs[i]->timeleft < 0)
                         {
-                            int creqtag = client->reqtag;
-                            client->reqtag = 0;
-                            client->sendevent(99408, "Overquota without timeleft");
-                            client->reqtag = creqtag;
+                            client->sendevent(99408, "Overquota without timeleft", 0);
                         }
 
                         LOG_warn << "Bandwidth overquota from storage server";
@@ -887,8 +884,23 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                         return transfer->failed(API_EOVERQUOTA, committer, backoff);
                     }
-                    else if (reqs[i]->httpstatus == 403 || reqs[i]->httpstatus == 404)
+                    else if (reqs[i]->httpstatus == 429)  
                     {
+                        // too many requests - back off a bit (may be added serverside at some point.  Added here 202020623)
+                        backoff = 5;
+                        reqs[i]->status = REQ_PREPARED;
+                    }
+                    else if (reqs[i]->httpstatus == 503 && !transferbuf.isRaid())
+                    {
+                        // for non-raid, if a file gets a 503 then back off as it may become available shortly
+                        backoff = 50;
+                        reqs[i]->status = REQ_PREPARED;
+                    }
+                    else if (reqs[i]->httpstatus == 403 || reqs[i]->httpstatus == 404 || (reqs[i]->httpstatus == 503 && transferbuf.isRaid()))
+                    {
+                        // - 404 means "malformed or expired URL" - can be immediately fixed by getting a fresh one from the API
+                        // - 503 means "the API gave you good information, but I don't have the file" - cannot be fixed (at least not immediately) by getting a fresh URL
+                        // for raid parts and 503, it's appropriate to try another raid source
                         if (!tryRaidRecoveryFromHttpGetError(i))
                         {
                             return transfer->failed(API_EAGAIN, committer);
@@ -925,7 +937,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                             if (changeport)
                             {
-                                toggleport(reqs[i]);
+                                toggleport(reqs[i].get());
                             }
                         }
                         reqs[i]->status = REQ_PREPARED;
@@ -942,16 +954,16 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
             {
                 bool newInputBufferSupplied = false;
                 bool pauseConnectionInputForRaid = false;
-                std::pair<m_off_t, m_off_t> posrange = transferbuf.nextNPosForConnection(i, maxRequestSize, connections, newInputBufferSupplied, pauseConnectionInputForRaid);
+                std::pair<m_off_t, m_off_t> posrange = transferbuf.nextNPosForConnection(i, maxRequestSize, connections, newInputBufferSupplied, pauseConnectionInputForRaid, client->httpio->uploadSpeed);
 
                 // we might have a raid-reassembled block to write, or a previously loaded block, or a skip block to process.
                 bool newOutputBufferSupplied = false;
-                TransferBufferManager::FilePiece* outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
+                auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                 if (outputPiece && reqs[i])
                 {
                     // set up to do the actual write on the next loop, as if it was a retry
                     reqs[i]->status = REQ_SUCCESS;
-                    static_cast<HttpReqDL*>(reqs[i])->buffer_released = true;
+                    static_cast<HttpReqDL*>(reqs[i].get())->buffer_released = true;
                     newOutputBufferSupplied = true;
                 }
 
@@ -965,7 +977,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                     if (!reqs[i])
                     {
-                        reqs[i] = transfer->type == PUT ? (HttpReqXfer*)new HttpReqUL() : (HttpReqXfer*)new HttpReqDL();
+                        reqs[i].reset(transfer->type == PUT ? (HttpReqXfer*)new HttpReqUL() : (HttpReqXfer*)new HttpReqDL());
                     }
 
                     bool prepare = true;
@@ -1034,19 +1046,16 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         unsigned size = (unsigned)(posrange.second - posrange.first);
                         if (size > 16777216)
                         {
-                            int creqtag = client->reqtag;
-                            client->reqtag = 0;
-                            client->sendevent(99434, "Invalid request size");
-                            client->reqtag = creqtag;
+                            client->sendevent(99434, "Invalid request size", 0);
 
                             transfer->chunkmacs.clear();
                             return transfer->failed(API_EINTERNAL, committer);
                         }
 
                         reqs[i]->prepare(finaltempurl.c_str(), transfer->transfercipher(),
-                                                               &transfer->chunkmacs, transfer->ctriv,
+                                                               transfer->ctriv,
                                                                posrange.first, posrange.second);
-                        reqs[i]->pos = ChunkedHash::chunkfloor(posrange.first);
+                        reqs[i]->pos = posrange.first;
                         reqs[i]->status = REQ_PREPARED;
                     }
 
@@ -1059,18 +1068,18 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     if (transfer->type == GET)
                     {
                         // raid reassembly can have several chunks to complete at the end of the file - keep processing till they are all done
-                        TransferBufferManager::FilePiece* outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
+                        auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                         if (outputPiece)
                         {
                             // set up to do the actual write on the next loop, as if it was a retry
                             reqs[i]->status = REQ_SUCCESS;
-                            static_cast<HttpReqDL*>(reqs[i])->buffer_released = true;
+                            static_cast<HttpReqDL*>(reqs[i].get())->buffer_released = true;
                         }
                     }
                 }
             }
 
-            if (reqs[i] && (reqs[i]->status == REQ_PREPARED))
+            if (reqs[i] && (reqs[i]->status == REQ_PREPARED) && !backoff)
             {
                 reqs[i]->minspeed = true;
                 reqs[i]->post(client);
@@ -1111,7 +1120,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
     if (Waiter::ds - lastdata >= XFERTIMEOUT && !failure)
     {
-        LOG_warn << "Failed chunk due to a timeout";
+        LOG_warn << "Failed chunk(s) due to a timeout: no data moved for " << (XFERTIMEOUT/10) << " seconds" ;
         failure = true;
         bool changeport = false;
 
@@ -1139,7 +1148,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                 if (changeport)
                 {
-                    toggleport(reqs[i]);
+                    toggleport(reqs[i].get());
                 }
 
                 reqs[i]->status = REQ_PREPARED;
@@ -1149,7 +1158,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
         if (!chunkfailed)
         {
             LOG_warn << "Transfer failed due to a timeout";
-            transfer->failed(API_EAGAIN, committer);
+            return transfer->failed(API_EAGAIN, committer);  // either the (this) slot has been deleted, or the whole transfer including slot has been deleted
         }
         else
         {
@@ -1159,15 +1168,10 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
         }
     }
 
-    if (!failure)
+    if (!failure && backoff > 0)
     {
-        if (!backoff && (Waiter::ds - lastdata) < XFERTIMEOUT)
-        {
-            // no other backoff: check again at XFERMAXFAIL
-            backoff = XFERTIMEOUT - (Waiter::ds - lastdata);
-        }
-
         retrybt.backoff(backoff);
+        retrying = true;  // we don't bother checking the `retrybt` before calling `doio` unless `retrying` is set.
     }
 }
 

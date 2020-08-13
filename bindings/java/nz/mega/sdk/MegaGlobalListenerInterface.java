@@ -154,6 +154,8 @@ public interface MegaGlobalListenerInterface {
      *          300: suspension only for multiple copyright violations.
      *          400: the subuser account has been disabled.
      *          401: the subuser account has been removed.
+     *          500: The account needs to be verified by an SMS code.
+     *          700: the account is supended for Weak Account Protection.
      *
      * - MegaEvent::EVENT_STORAGE: when the status of the storage changes.
      *
@@ -174,6 +176,11 @@ public interface MegaGlobalListenerInterface {
      *     It's needed to call MegaApi::getAccountDetails to check the storage status.
      *     After calling it, this callback will be called again with the corresponding
      *     state if there is really a change.
+     *
+     *     - MegaApi::STORAGE_STATE_PAYWALL = 4
+     *     The account has been full for a long time. Now most of actions are disallowed.
+     *     It's needed to call MegaApi::getUserData in order to retrieve the deadline/warnings
+     *     timestamps. @see MegaApi::getOverquotaDeadlineTs and MegaApi::getOverquotaWarningsTs.
      *
      * - MegaEvent::EVENT_NODES_CURRENT: when all external changes have been received
      *

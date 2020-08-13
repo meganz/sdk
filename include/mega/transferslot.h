@@ -29,6 +29,21 @@
 
 namespace mega {
 
+// Helper class: Automatically manage backoff timer enablement - if the slot is in progress and has an fa, the transfer's backoff timer should not be considered 
+// (part of a performance upgrade, so we don't loop all the transfers, calling their bt.update() on every preparewait() )
+class TransferSlotFileAccess
+{
+    std::unique_ptr<FileAccess> fa;
+    Transfer* transfer;
+public:
+    TransferSlotFileAccess(std::unique_ptr<FileAccess>&& p, Transfer* t);
+    ~TransferSlotFileAccess();
+    void reset(std::unique_ptr<FileAccess>&& p = nullptr);
+    inline operator bool() { return bool(fa); }
+    inline FileAccess* operator->() { return fa.get(); }
+    inline operator FileAccess* () { return fa.get(); }
+};
+
 class DBTableTransactionCommitter;
 
 // active transfer
@@ -38,7 +53,7 @@ struct MEGA_API TransferSlot
     struct Transfer* transfer;
 
     // associated source/destination file
-    std::unique_ptr<FileAccess> fa;
+    TransferSlotFileAccess fa;
 
     // command in flight to obtain temporary URL
     Command* pendingcmd;
@@ -52,11 +67,6 @@ struct MEGA_API TransferSlot
 
     // max request size for downloads and uploads
     static const m_off_t MAX_REQ_SIZE;
-
-    // max allowed difference between the next chunk and the first unfinished chunk
-    static const m_off_t MAX_UPLOAD_GAP;
-
-    bool delayedchunk;
 
     m_off_t maxRequestSize;
 
@@ -83,9 +93,10 @@ struct MEGA_API TransferSlot
     // file attributes mutable
     int fileattrsmutable;
 
-    // maximum number of parallel connections and connection array
+    // maximum number of parallel connections and connection array. 
+    // shared_ptr for convenient coordination with the worker threads that do encrypt/decrypt on this data.
     int connections;
-    HttpReqXfer** reqs;
+    vector<std::shared_ptr<HttpReqXfer>> reqs;
 
     // Manage download input buffers and file output buffers for file download.  Raid-aware, and automatically performs decryption and mac.
     TransferBufferManager transferbuf;
@@ -116,7 +127,7 @@ struct MEGA_API TransferSlot
 
     // slot operation retry timer
     bool retrying;
-    BackoffTimer retrybt;
+    BackoffTimerTracked retrybt;
 
     // transfer failure flag. MegaClient will increment the transfer->errorcount when it sees this set.
     bool failure;
@@ -124,10 +135,10 @@ struct MEGA_API TransferSlot
     TransferSlot(Transfer*);
     ~TransferSlot();
 
-protected:
+private:
     void toggleport(HttpReqXfer* req);
     bool tryRaidRecoveryFromHttpGetError(unsigned i);
-
+    bool checkTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client);
 };
 } // namespace
 

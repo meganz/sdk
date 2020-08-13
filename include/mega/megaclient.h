@@ -41,6 +41,8 @@
 
 namespace mega {
 
+class SyncConfigBag;
+
 class MEGA_API FetchNodesStats
 {
 public:
@@ -178,6 +180,38 @@ public:
     dstime timeToTransfersResumed;
 };
 
+/**
+ * @brief A helper class that keeps the SN (sequence number) members in sync and well initialized.
+ *  The server-client sequence number is updated along with every batch of actionpackets received from API
+ *  It is used to commit the open transaction in DB, so the account's local state is persisted. Upon resumption,
+ *  the scsn is sent to API, which provides the possible updates missing while the client was not running
+ */
+class SCSN
+{
+    // scsn that we are sending in sc requests (ie, where we are up to with the persisted node data)
+    char scsn[12];
+
+    // sc inconsistency: stop querying for action packets
+    bool stopsc = false;
+
+public: 
+
+    bool setScsn(JSON*);
+    void setScsn(handle);
+    void stopScsn();
+
+    bool ready() const;
+    bool stopped() const;
+
+    const char* text() const;
+    handle getHandle() const;
+
+    friend std::ostream& operator<<(std::ostream& os, const SCSN& scsn);
+
+    SCSN();
+    void clear();
+};
+
 class MEGA_API MegaClient
 {
 public:
@@ -232,6 +266,8 @@ public:
 	
     // pseudo-random number generator
     PrnGen rng;
+
+    bool ephemeralSession = false;
 
     static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
@@ -315,11 +351,23 @@ public:
     // check the reason of being blocked
     void whyamiblocked();
 
+    // sets block state: stops querying for action packets, pauses transfer & removes transfer slot availability
+    void block(bool fromServerClientResponse = false);
+
+    // unsets block state
+    void unblock();
+
     // dump current session
     int dumpsession(byte*, size_t);
 
     // create a copy of the current session
     void copysession();
+
+    // resend the verification email to the same email address as it was previously sent to
+    void resendverificationemail();
+
+    // reset the verified phone number
+    void resetSmsVerifiedPhoneNumber();
 
     // get the data for a session transfer
     // the caller takes the ownership of the returned value
@@ -330,14 +378,14 @@ public:
     void killsession(handle session);
     void killallsessions();
 
-    // extract public handle and key from folder link
-    error parsefolderlink(const char* folderlink, handle &h, byte *key);
+    // extract public handle and key from a public file/folder link
+    error parsepubliclink(const char *link, handle &ph, byte *key, bool isFolderLink);
 
     // set folder link: node, key
     error folderaccess(const char*folderlink);
 
-    // open exported file link
-    error openfilelink(const char*, int);
+    // open exported file link (op=0 -> download, op=1 fetch data)
+    void openfilelink(handle ph, const byte *key, int op);
 
     // decrypt password-protected public link
     // the caller takes the ownership of the returned value in decryptedLink parameter
@@ -398,6 +446,9 @@ public:
     // prefix and encrypt attribute json
     void makeattr(SymmCipher*, string*, const char*, int = -1) const;
 
+    // convenience version of the above (frequently we are passing a NodeBase's attrstring)
+    void makeattr(SymmCipher*, const std::unique_ptr<string>&, const char*, int = -1) const;
+
     // check node access level
     int checkaccess(Node*, accesslevel_t);
 
@@ -411,12 +462,12 @@ public:
     void unlinkversions();
 
     // move node to new parent folder
-    error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF);
+    error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF, const char *newName = nullptr);
 
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
     void stopxfer(File* f, DBTableTransactionCommitter* committer);
-    void pausexfers(direction_t, bool, bool = false);
+    void pausexfers(direction_t, bool pause, bool hard, DBTableTransactionCommitter& committer);
 
     // maximum number of connections per transfer
     static const unsigned MAX_NUM_CONNECTIONS = 6;
@@ -439,6 +490,12 @@ public:
 
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;
+
+    // A collection of sync configs backed by a database table
+    std::unique_ptr<SyncConfigBag> syncConfigs;
+
+    // whether we allow the automatic resumption of syncs
+    bool allowAutoResumeSyncs = true;
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
@@ -451,6 +508,9 @@ public:
     // generate & return next upload handle
     handle uploadhandle(int);
 
+    // helper function for preparing a putnodes call for new folders
+    void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername);
+
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
     void putnodes(handle, NewNode*, int, const char * = NULL);
@@ -459,16 +519,16 @@ public:
     void putnodes(const char*, NewNode*, int);
 
     // attach file attribute to upload or node handle
-    void putfa(handle, fatype, SymmCipher*, string*, bool checkAccess = true);
+    void putfa(handle, fatype, SymmCipher*, std::unique_ptr<string>, bool checkAccess = true);
 
     // queue file attribute retrieval
-    error getfa(handle h, string *fileattrstring, string *nodekey, fatype, int = 0);
+    error getfa(handle h, string *fileattrstring, const string &nodekey, fatype, int = 0);
     
     // notify delayed upload completion subsystem about new file attribute
     void checkfacompletion(handle, Transfer* = NULL);
 
     // attach/update/delete a user attribute
-    void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1);
+    void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1, handle lastPublicHandle = UNDEF, int phtype = 0, int64_t ts = 0);
 
     // attach/update multiple versioned user attributes at once
     void putua(userattr_map *attrs, int ctag = -1);
@@ -485,6 +545,9 @@ public:
 #ifdef DEBUG
     // queue a user attribute removal
     void delua(const char* an);
+
+    // send dev command for testing
+    void senddevcommand(const char *command, const char *email, long long q = 0, int bs = 0, int us = 0);
 #endif
 
     // delete or block an existing contact
@@ -507,7 +570,7 @@ public:
     // add/delete sync
     error isnodesyncable(Node*, bool* = NULL);
 
-    error addsync(string*, const char*, string*, Node*, fsfp_t = 0, int = 0, void* = NULL);
+    error addsync(SyncConfig, const char*, string*, int = 0, void* = NULL);
 
     void delsync(Sync*, bool = true);
 
@@ -523,10 +586,7 @@ public:
     void logout();
 
     // free all state information
-    void locallogout();
-
-    // remove caches
-    void removecaches();
+    void locallogout(bool removecaches);
 
     // SDK version
     const char* version();
@@ -571,13 +631,13 @@ public:
     void purchase_begin();
 
     // add item to basket
-    void purchase_additem(int, handle, unsigned, const char *, unsigned, const char *, handle = UNDEF);
+    void purchase_additem(int, handle, unsigned, const char *, unsigned, const char *, handle = UNDEF, int = 0, int64_t = 0);
 
     // submit purchased products for payment
     void purchase_checkout(int);
 
     // submit purchase receipt for verification
-    void submitpurchasereceipt(int, const char*, handle lph = UNDEF);
+    void submitpurchasereceipt(int, const char*, handle lph = UNDEF, int phtype = 0, int64_t ts = 0);
 
     // store credit card
     error creditcardstore(const char *);
@@ -598,11 +658,11 @@ public:
     void sendevent(int, const char *);
     void sendevent(int, const char *, int tag);
 
+    // create support ticket
+    void supportticket(const char *message, int type);
+
     // clean rubbish bin
     void cleanrubbishbin();
-
-    // determine if more transfers fit in the pipeline
-    bool moretransfers(direction_t);
 
     // change the storage status
     bool setstoragestatus(storagestatus_t);
@@ -670,6 +730,9 @@ public:
 
     // auto-join publicchat
     void chatlinkjoin(handle publichandle, const char *unifiedkey);
+
+    // set retention time for a chatroom in seconds, after which older messages in the chat are automatically deleted
+    void setchatretentiontime(handle chatid, int period);
 #endif
 
     // get mega achievements
@@ -735,14 +798,14 @@ public:
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 
-    // timestamp when a business account will enter into Grace Period
-    m_time_t mBizGracePeriodTs;
-
-    // timestamp when a business account will finally expire
-    m_time_t mBizExpirationTs;
-
     // storage status
     storagestatus_t ststatus;
+
+    // warning timestamps related to storage overquota in paywall mode
+    vector<m_time_t> mOverquotaWarningTs;
+
+    // deadline timestamp related to storage overquota in paywall mode
+    m_time_t mOverquotaDeadlineTs;
 
     // minimum bytes per second for streaming (0 == no limit, -1 == use default)
     int minstreamingrate;
@@ -760,10 +823,10 @@ public:
     string accountauth;
 
     // file that is blocking the sync engine
-    string blockedfile;
+    LocalPath blockedfile;
 
     // stats id
-    static char* statsid;
+    static std::string statsid;
 
     // number of ongoing asynchronous fopen
     int asyncfopens;
@@ -785,15 +848,21 @@ private:
     vector<TimerWithBackoff *> bttimers;
 
     // server-client command trigger connection
-    HttpReq* pendingsc;
+    std::unique_ptr<HttpReq> pendingsc;
+    std::unique_ptr<HttpReq> pendingscUserAlerts;
     BackoffTimer btsc;
-    bool stopsc = false;
+
+    // account is blocked: stops querying for action packets, pauses transfer & removes transfer slot availability
+    bool mBlocked = false;
+
+    bool pendingscTimedOut = false;
+
 
     // badhost report
     HttpReq* badhostcs;
 
     // Working lock
-    HttpReq* workinglockcs;
+    unique_ptr<HttpReq> workinglockcs;
 
     // notify URL for new server-client commands
     string scnotifyurl;
@@ -841,6 +910,11 @@ private:
     // maximum number of concurrent putfa
     static const int MAXPUTFA;
 
+#ifdef ENABLE_SYNC
+    // Resumes all resumable syncs
+    void resumeResumableSyncs();
+#endif
+
     // update time at which next deferred transfer retry kicks in
     void nexttransferretry(direction_t d, dstime*);
 
@@ -849,6 +923,9 @@ private:
     
     // fetch state serialize from local cache
     bool fetchsc(DbTable*);
+
+    // remove old (2 days or more) transfers from cache, if they were not resumed
+    void purgeOrphanTransfers(bool remove = false);
 
     // close the local transfer cache
     void closetc(bool remove = false);
@@ -880,11 +957,14 @@ private:
 
     void init();
 
+    // remove caches
+    void removeCaches();
+
     // add node to vector and return index
     unsigned addnode(node_vector*, Node*) const;
 
     // add child for consideration in syncup()/syncdown()
-    void addchild(remotenode_map*, string*, Node*, list<string>*) const;
+    void addchild(remotenode_map*, string*, Node*, list<string>*, FileSystemType fsType) const;
 
     // crypto request response
     void cr_response(node_vector*, node_vector*, JSON*);
@@ -942,7 +1022,7 @@ public:
     bool gfxdisabled;
     
     // DB access
-    DbAccess* dbaccess;
+    DbAccess* dbaccess = nullptr;
 
     // state cache table for logged in user
     DbTable* sctable;
@@ -978,6 +1058,10 @@ public:
     // reqs[r^1] is being processed on the API server
     HttpReq* pendingcs;
 
+    // Only queue the "Server busy" event once, until the current cs completes, otherwise we may DDOS 
+    // ourselves in cases where many clients get 500s for a while and then recover at the same time
+    bool pendingcs_serverBusySent = false;
+
     // pending HTTP requests
     pendinghttp_map pendinghttp;
 
@@ -1001,6 +1085,7 @@ public:
     // Server-MegaClient request JSON and processing state flag ("processing a element")
     JSON jsonsc;
     bool insca;
+    bool insca_notlast;
 
     // no two interrelated client instances should ever have the same sessionid
     char sessionid[10];
@@ -1051,6 +1136,7 @@ public:
 
     // transfer queues (PUT/GET)
     transfer_map transfers[2];
+    BackoffTimerGroupTracker transferRetryBackoffs[2];
 
     // transfer list to manage the priority of transfers
     TransferList transferlist;
@@ -1073,11 +1159,17 @@ public:
     // transfer tslots
     transferslot_list tslots;
 
+    // keep track of next transfer slot timeout
+    BackoffTimerGroupTracker transferSlotsBackoff;
+
     // next TransferSlot to doio() on
     transferslot_list::iterator slotit;
 
     // FileFingerprint to node mapping
     Fingerprints mFingerprints;
+
+    // flag to skip removing nodes from mFingerprints when all nodes get deleted
+    bool mOptimizePurgeNodes = false;
 
     // send updates to app when the storage size changes
     int64_t mNotifiedSumSize = 0;
@@ -1088,9 +1180,6 @@ public:
 
     static const char* const EXPORTEDLINK;
 
-    // minimum number of bytes in transit for upload/download pipelining
-    static const int MINPIPELINE = 65536;
-
     // default number of seconds to wait after a bandwidth overquota
     static dstime DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
 
@@ -1100,10 +1189,11 @@ public:
     // total number of Node objects
     long long totalNodes;
 
-    // server-client request sequence number
-    char scsn[12];
+    // tracks how many nodes have had a successful applykey()
+    long long mAppliedKeyNodeCount = 0;
 
-    bool setscsn(JSON*);
+    // server-client request sequence number
+    SCSN scsn;
 
     void purgenodes(node_vector* = NULL);
     void purgeusers(user_vector* = NULL);
@@ -1148,6 +1238,10 @@ public:
 
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
+#ifdef ENABLE_SYNC
+    Node* nodebyfingerprint(LocalNode*);
+#endif /* ENABLE_SYNC */
+
     node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
     void nodesbyoriginalfingerprint(const char* fingerprint, Node* parent, node_vector *nv);
 
@@ -1162,6 +1256,9 @@ public:
 
     // generate & return upload handle
     handle getuploadhandle();
+
+    // maps node handle to public handle
+    std::map<handle, handle> mPublicLinks;
 
 #ifdef ENABLE_SYNC    
     // sync debris folder name in //bin
@@ -1244,7 +1341,7 @@ public:
     void putnodes_sync_result(error, NewNode*, int);
 
     // start downloading/copy missing files, create missing directories
-    bool syncdown(LocalNode*, string*, bool);
+    bool syncdown(LocalNode*, LocalPath&, bool);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
     void movetosyncdebris(Node*, bool);
@@ -1265,7 +1362,7 @@ public:
 
     // unlink the LocalNode from the corresponding node
     // if the associated local file or folder still exists
-    void unlinkifexists(LocalNode*, FileAccess*, string*);
+    void unlinkifexists(LocalNode*, FileAccess*, LocalPath& reuseBuffer);
 #endif
 
     // recursively cancel transfers in a subtree
@@ -1277,11 +1374,8 @@ public:
     // determine if all transfer slots are full
     bool slotavail() const;
 
-    // dispatch as many queued transfers as possible
-    void dispatchmore(direction_t);
-
     // transfer queue dispatch/retry handling
-    bool dispatch(direction_t);
+    void dispatchTransfers();
 
     void defer(direction_t, int td, int = 0);
     void freeq(direction_t);
@@ -1290,6 +1384,9 @@ public:
 
     // client-server request double-buffering
     RequestDispatcher reqs;
+
+    // returns if the current pendingcs includes a fetch nodes command
+    bool isFetchingNodesPendingCS();
 
     // upload handle -> node handle map (filled by upload completion)
     handlepair_set uhnh;
@@ -1300,6 +1397,7 @@ public:
 
     bool requestLock;
     dstime disconnecttimestamp;
+    dstime lastDispatchTransfersDs = 0;
 
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0, bool applykeys = false);
@@ -1340,7 +1438,7 @@ public:
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection
-    void purgenodesusersabortsc();
+    void purgenodesusersabortsc(bool keepOwnUser);
 
     static const int USERHANDLE = 8;
     static const int PCRHANDLE = 8;
@@ -1369,6 +1467,7 @@ public:
 
     // account access (full account): RSA private key
     AsymmCipher asymkey;
+    string mPrivKey;    // serialized version for apps
 
     // RSA public key
     AsymmCipher pubk;
@@ -1425,8 +1524,8 @@ public:
     PendingContactRequest* findpcr(handle);
 
     // queue public key request for user
-    void queuepubkeyreq(User*, PubKeyAction*);
-    void queuepubkeyreq(const char*, PubKeyAction*);
+    void queuepubkeyreq(User*, std::unique_ptr<PubKeyAction>);
+    void queuepubkeyreq(const char*, std::unique_ptr<PubKeyAction>);
 
     // rewrite foreign keys of the node (tree)
     void rewriteforeignkeys(Node* n);
@@ -1465,6 +1564,7 @@ public:
     // convert hex digit to number
     static int hexval(char);
 
+    // Since it's quite expensive to create a SymmCipher, these are provided to use for quick operations - just set the key and use.
     SymmCipher tmpnodecipher;
     SymmCipher tmptransfercipher;
 
@@ -1524,7 +1624,7 @@ public:
     void acknowledgeuseralerts();
 
     // manage overquota errors
-    void activateoverquota(dstime timeleft);
+    void activateoverquota(dstime timeleft, bool isPaywall);
 
     // achievements enabled for the account
     bool achievements_enabled;
@@ -1550,6 +1650,20 @@ public:
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     BizStatus mBizStatus;
 
+    // list of handles of the Master business account/s
+    std::set<handle> mBizMasters;
+
+    // timestamp when a business account will enter into Grace Period
+    m_time_t mBizGracePeriodTs;
+
+    // timestamp when a business account will finally expire
+    m_time_t mBizExpirationTs;
+
+    // whether the destructor has started running yet
+    bool destructorRunning = false;
+  
+    MegaClientAsyncQueue mAsyncQueue;
+
     // Keep track of high level operation counts and times, for performance analysis
     struct PerformanceStats
     {
@@ -1569,10 +1683,16 @@ public:
         uint64_t prepwaitImmediate = 0, prepwaitZero = 0, prepwaitHttpio = 0, prepwaitFsaccess = 0, nonzeroWait = 0;
         CodeCounter::DurationSum csRequestWaitTime;
         CodeCounter::DurationSum transfersActiveTime;
-        std::string report(bool reset, HttpIO* httpio, Waiter* waiter);
+        std::string report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs);
     } performanceStats;
 
-    MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
+    std::string getDeviceid() const;
+
+#ifdef ENABLE_SYNC
+    void resetSyncConfigs();
+#endif
+
+    MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 };
 } // namespace
