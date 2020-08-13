@@ -178,8 +178,9 @@ class MegaTransferPrivate;
 class MegaTreeProcCopy : public MegaTreeProcessor
 {
 public:
-    NewNode* nn;
-    unsigned nc;
+    vector<NewNode> nn;
+    unsigned nc = 0;
+    bool allocated = false;
 
     MegaTreeProcCopy(MegaClient *client);
     bool processMegaNode(MegaNode* node) override;
@@ -2881,7 +2882,7 @@ protected:
         void key_modified(handle, attr_t) override;
 
         void fetchnodes_result(const Error&) override;
-        void putnodes_result(error, targettype_t, NewNode*) override;
+        void putnodes_result(const Error&, targettype_t, vector<NewNode>&) override;
 
         // share update result
         void share_result(error) override;
@@ -2897,7 +2898,6 @@ protected:
 
         // file attribute modification result
         void putfa_result(handle, fatype, error) override;
-        void putfa_result(handle, fatype, const char*) override;
 
         // purchase transactions
         void enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer,

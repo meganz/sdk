@@ -54,6 +54,8 @@ using namespace ::std;
 
 namespace {
 
+std::atomic<int> nextUniqueTag{1};
+
 bool suppressfiles = false;
 
 typedef ::mega::byte byte;
@@ -61,7 +63,18 @@ typedef ::mega::byte byte;
 void WaitMillisec(unsigned n)
 {
 #ifdef _WIN32
-    Sleep(n);
+    if (n > 1000)
+    {
+        for (int i = 0; i < 10; ++i)
+        {
+            // better for debugging, with breakpoints, pauses, etc
+            Sleep(n/10);
+        }
+    }
+    else
+    {
+        Sleep(n);
+    }
 #else
     usleep(n * 1000);
 #endif
@@ -537,7 +550,7 @@ struct StandardClient : public MegaApp
 
         ASSERT_FALSE(user.empty());
 
-        resultproc.prepresult(PRELOGIN, [&pb](error e) { pb.set_value(!e); });
+        client.reqtag = resultproc.prepresult(PRELOGIN, [&pb](error e) { pb.set_value(!e); });
         client.prelogin(user.c_str());
     }
 
@@ -551,7 +564,7 @@ struct StandardClient : public MegaApp
 
         byte pwkey[SymmCipher::KEYLENGTH];
 
-        resultproc.prepresult(LOGIN, [&pb](error e) { pb.set_value(!e); });
+        client.reqtag = resultproc.prepresult(LOGIN, [&pb](error e) { pb.set_value(!e); });
         if (client.accountversion == 1)
         {
             if (error e = client.pw_key(pwd.c_str(), pwkey))
@@ -575,7 +588,7 @@ struct StandardClient : public MegaApp
 
     void loginFromSession(const string& session, promise<bool>& pb)
     {
-        resultproc.prepresult(LOGIN, [&pb](error e) { pb.set_value(!e); });
+        client.reqtag = resultproc.prepresult(LOGIN, [&pb](error e) { pb.set_value(!e); });
         client.login((byte*)session.data(), (int)session.size());
     }
 
@@ -595,7 +608,7 @@ struct StandardClient : public MegaApp
 
     void fetchnodes(promise<bool>& pb)
     {
-        resultproc.prepresult(FETCHNODES, [this, &pb](error e) 
+        client.reqtag = resultproc.prepresult(FETCHNODES, [this, &pb](error e) 
         { 
             if (e)
             {
@@ -633,44 +646,41 @@ struct StandardClient : public MegaApp
         struct id_callback
         {
             handle h = UNDEF;
+            int tag = 0;
             std::function<void(error)> f;
-            id_callback(std::function<void(error)> cf, handle ch = UNDEF) : h(ch), f(cf) {}
+            id_callback(std::function<void(error)> cf, int t, handle ch = UNDEF) : h(ch), tag(t), f(cf) {}
         };
 
         map<resultprocenum, deque<id_callback>> m;
 
-        void prepresult(resultprocenum rpe, std::function<void(error)>&& f, handle h = UNDEF)
+        int prepresult(resultprocenum rpe, std::function<void(error)>&& f, handle h = UNDEF)
         {
             auto& entry = m[rpe];
-            entry.emplace_back(move(f), h);
+            int tag = ++nextUniqueTag;
+            entry.emplace_back(move(f), tag, h);
+            return tag;
         }
 
-        void processresult(resultprocenum rpe, error e, handle h = UNDEF)
+        void processresult(resultprocenum rpe, error e, handle h, int tag)
         {
-            //cout << "procenum " << rpe << " result " << e << endl;
             auto& entry = m[rpe];
-            if (rpe == MOVENODE)
-            {
-                // rename_result is called back for our app requests but also for sync objects as well, so we need to skip those... todo: should we change that?
-                if (entry.empty() || entry.front().h != h)
-                {
-                    cout << "received unsolicited rename_result call" << endl;
-                    return;
-                }
-            }
-            if (!entry.empty())
+            if (!entry.empty() && entry.front().tag == tag)
             {
                 entry.front().f(e);
                 entry.pop_front();
             }
+            else if (entry.empty())
+            {
+                LOG_debug << "Test ignoring callback for tag " << tag << " of type " << rpe;
+            }
             else
             {
-                assert(!entry.empty());
+                LOG_debug << "Test ignoring callback for tag " << tag << " of type " << rpe << " as next expected tag that we sent is " << entry.front().tag;
             }
         }
     } resultproc;
 
-    void deleteTestBaseFolder(bool mayneeddeleting, promise<bool>& pb)
+    void deleteTestBaseFolder(bool mayneeddeleting, promise<bool>& pb, int tag)
     {
         if (Node* root = client.nodebyhandle(client.rootnodes[0]))
         {
@@ -678,15 +688,15 @@ struct StandardClient : public MegaApp
             {
                 if (mayneeddeleting)
                 {
-                    resultproc.prepresult(UNLINK, [this, &pb](error e) {
+                    client.reqtag = resultproc.prepresult(UNLINK, [this, &pb, tag](error e) {
                         if (e)
                         {
                             cout << "delete of test base folder reply reports: " << e << endl;
                         }
-                        deleteTestBaseFolder(false, pb);
+                        deleteTestBaseFolder(false, pb, tag);
                     });
                     //cout << "old test base folder found, deleting" << endl;
-                    client.unlink(basenode);
+                    client.unlink(basenode, false, client.reqtag);
                     return;
                 }
                 cout << "base folder found, but not expected, failing" << endl;
@@ -721,12 +731,12 @@ struct StandardClient : public MegaApp
             }
             else if (mayneedmaking)
             {
-                resultproc.prepresult(PUTNODES, [this, &pb](error e) {
+                client.reqtag = resultproc.prepresult(PUTNODES, [this, &pb](error e) {
                     ensureTestBaseFolder(false, pb);
                 });
-                auto nn = new NewNode[1]; // freed by putnodes_result
+                vector<NewNode> nn(1);
                 nn[0] = makeSubfolder("mega_test_sync");
-                client.putnodes(root->nodehandle, nn, 1);
+                client.putnodes(root->nodehandle, move(nn));
                 return;
             }
         }
@@ -771,20 +781,20 @@ struct StandardClient : public MegaApp
         }
         else
         {
-            resultproc.prepresult(PUTNODES, [&pb](error e) {
+            client.reqtag = resultproc.prepresult(PUTNODES, [&pb](error e) {
                 pb.set_value(!e);
                 if (e) 
                 {
                     cout << "putnodes result: " << e << endl;
                 }
             });
-            auto nodearray = new NewNode[nodes.size()]; // freed by putnodes_result
+            auto nodearray = vector<NewNode>(nodes.size());
             size_t i = 0;
             for (auto n = nodes.begin(); n != nodes.end(); ++n, ++i)
             {
                 nodearray[i] = std::move(*n);
             }
-            client.putnodes(atnode->nodehandle, nodearray, (int)nodes.size());
+            client.putnodes(atnode->nodehandle, move(nodearray));
         }
     }
 
@@ -1213,46 +1223,43 @@ struct StandardClient : public MegaApp
         {
             this->salt = *salt;
         }
-        resultproc.processresult(PRELOGIN, e);
+        resultproc.processresult(PRELOGIN, e, UNDEF, client.restag);
     }
 
     void login_result(error e) override
     {
         cout << clientname << " Login: " << e << endl;
-        resultproc.processresult(LOGIN, e);
+        resultproc.processresult(LOGIN, e, UNDEF, client.restag);
     }
 
     void fetchnodes_result(const Error& e) override
     {
         cout << clientname << " Fetchnodes: " << e << endl;
-        resultproc.processresult(FETCHNODES, e);
+        resultproc.processresult(FETCHNODES, e, UNDEF, client.restag);
     }
 
     void unlink_result(handle, error e) override
     { 
-        resultproc.processresult(UNLINK, e);
+        resultproc.processresult(UNLINK, e, UNDEF, client.restag);
     }
 
-    void putnodes_result(error e, targettype_t tt, NewNode* nn) override
+    void putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn) override
     {
-        if (nn)  // ignore sync based putnodes
-        {
-            resultproc.processresult(PUTNODES, e);
-            delete[] nn;
-        }
+        resultproc.processresult(PUTNODES, e, UNDEF, client.restag);
     }
 
     void rename_result(handle h, error e)  override
     { 
-        resultproc.processresult(MOVENODE, e, h);
+        resultproc.processresult(MOVENODE, e, h, client.restag);
     }
 
-    void deleteremote(string path, promise<bool>& pb )
+    void deleteremote(string path, promise<bool>& pb, int tag)
     {
         if (Node* n = drillchildnodebyname(gettestbasenode(), path))
         {
-        resultproc.prepresult(UNLINK, [ &pb](error e) { pb.set_value(!e); });
-            client.unlink(n);
+            //resultproc.prepresult(UNLINK, [ &pb](error e) { pb.set_value(!e); });
+            auto f = [&pb](handle h, error e){ pb.set_value(!e); }; // todo: probably need better lifetime management for the promise, so multiple things can be tracked at once
+            client.unlink(n, false, 0, f);
         }
         else
         {
@@ -1260,7 +1267,7 @@ struct StandardClient : public MegaApp
         }
     }
 
-    void deleteremotenodes(vector<Node*> ns, promise<bool>& pb)
+    void deleteremotenodes(vector<Node*> ns, promise<bool>& pb, int tag)
     {
         if (ns.empty())
         {
@@ -1270,8 +1277,8 @@ struct StandardClient : public MegaApp
         {
             for (size_t i = ns.size(); i--; )
             {
-                resultproc.prepresult(UNLINK, [&pb, i](error e) { if (!i) pb.set_value(!e); });
-                client.unlink(ns[i]);
+                client.reqtag = resultproc.prepresult(UNLINK, [&pb, i](error e) { if (!i) pb.set_value(!e); });
+                client.unlink(ns[i], false, client.reqtag);
             }
         }
     }
@@ -1282,7 +1289,7 @@ struct StandardClient : public MegaApp
         Node* p = drillchildnodebyname(gettestbasenode(), path);
         if (n && p)
         {
-            resultproc.prepresult(MOVENODE, [&pb](error e) { pb.set_value(!e); }, n->nodehandle);
+            client.reqtag = resultproc.prepresult(MOVENODE, [&pb](error e) { pb.set_value(!e); }, n->nodehandle);
             client.rename(n, p);
             return;
         }
@@ -1296,7 +1303,7 @@ struct StandardClient : public MegaApp
         Node* p = client.nodebyhandle(h2);
         if (n && p)
         {
-        resultproc.prepresult(MOVENODE, [&pb](error e) { pb.set_value(!e); }, n->nodehandle);
+            client.reqtag = resultproc.prepresult(MOVENODE, [&pb](error e) { pb.set_value(!e); }, n->nodehandle);
             client.rename(n, p);
             return;
         }
@@ -1310,7 +1317,7 @@ struct StandardClient : public MegaApp
         Node* p = getcloudrubbishnode();
         if (n && p && n->parent)
         {
-            resultproc.prepresult(MOVENODE, [&pb](error e) { pb.set_value(!e); }, n->nodehandle);
+            client.reqtag = resultproc.prepresult(MOVENODE, [&pb](error e) { pb.set_value(!e); }, n->nodehandle);
             client.rename(n, p, SYNCDEL_NONE, n->parent->nodehandle);
             return;
         }
@@ -1388,7 +1395,7 @@ struct StandardClient : public MegaApp
             cout << "fetchnodes failed" << endl;
             return false;
         }
-        p1 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.deleteTestBaseFolder(true, pb); });
+        p1 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.deleteTestBaseFolder(true, pb, ++nextUniqueTag); });  // todo: do we need to wait for server response now
         if (!waitonresults(&p1)) {
             cout << "deleteTestBaseFolder failed" << endl;
             return false;
@@ -1483,6 +1490,7 @@ struct StandardClient : public MegaApp
 
 void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1 = nullptr, StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr)
 {
+    auto totalTimeoutStart = chrono::steady_clock::now();
     auto start = chrono::steady_clock::now();
     std::vector<StandardClient*> v{ c1, c2, c3, c4 };
     bool onelastsyncdown = true;
@@ -1542,6 +1550,12 @@ void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1
         }
 
         WaitMillisec(400);
+
+        if ((chrono::steady_clock::now() - totalTimeoutStart) > std::chrono::minutes(5))
+        {
+            cout << "Waiting for syncing to stop timed out at 5 minutes" << endl;
+            return;
+        }
     }
 
 }
@@ -1706,8 +1720,8 @@ public:
     {
         const fs::path root = makeNewTestRoot(LOCAL_TEST_FOLDER);
 
-        client0 = std::make_unique<StandardClient>(root, "c0");
-        client1 = std::make_unique<StandardClient>(root, "c1");
+        client0 = ::mega::make_unique<StandardClient>(root, "c0");
+        client1 = ::mega::make_unique<StandardClient>(root, "c1");
 
         client0->logcb = true;
         client1->logcb = true;
@@ -1910,7 +1924,7 @@ GTEST_TEST(Sync, BasicSync_DelRemoteFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 
     // delete something remotely and let sync catch up
-    future<bool> fb = clientA1.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.deleteremote("f/f_2/f_2_1", pb); });
+    future<bool> fb = clientA1.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.deleteremote("f/f_2/f_2_1", pb, 0); });
     ASSERT_TRUE(waitonresults(&fb));
     waitonsyncs(std::chrono::seconds(60), &clientA1, &clientA2);
 
@@ -2334,7 +2348,7 @@ GTEST_TEST(Sync, BasicSync_MoveExistingIntoNewLocalFolder)
     ASSERT_TRUE(!rename_error) << rename_error;
 
     // let them catch up
-    waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
+    waitonsyncs(std::chrono::seconds(10), &clientA1, &clientA2);
 
     // check everything matches (model has expected state of remote and local)
     auto f = model.makeModelSubfolder("new");
@@ -2583,7 +2597,7 @@ GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteCh
     ASSERT_TRUE(waitonresults(&p1));
 
     cout << "*********************  remove remote folders via A2" << endl;
-    p1 = clientA2.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.deleteremote("f/f_0", pb); });
+    p1 = clientA2.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.deleteremote("f/f_0", pb, 0); });
     model1.movetosynctrash("f/f_0", "f");
     model2.movetosynctrash("f/f_0", "f");
     ASSERT_TRUE(waitonresults(&p1));
@@ -2646,7 +2660,7 @@ GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
     pclientA1->localLogout();
 
     // remove remote folder via A2
-    future<bool> p1 = clientA2.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.deleteremote("f/f_1", pb); });
+    future<bool> p1 = clientA2.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.deleteremote("f/f_1", pb, 0); });
     ASSERT_TRUE(waitonresults(&p1));
 
     // add local folders in A1 on disk folder
@@ -2659,7 +2673,7 @@ GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
     ASSERT_TRUE(pclientA1->login_fetchnodes_resumesync(string((char*)session, sessionsize), sync1path.u8string(), "f", 1));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
-    waitonsyncs(std::chrono::seconds(4), pclientA1.get(), &clientA2);
+    waitonsyncs(std::chrono::seconds(10), pclientA1.get(), &clientA2);
 
     // check everything matches (model has expected state of remote and local)
     model.findnode("f/f_1/f_1_2")->addkid(model.buildModelSubdirs("newlocal", 2, 2, 2));
@@ -2683,7 +2697,7 @@ GTEST_TEST(Sync, CmdChecks_RRAttributeAfterMoveNode)
 
     // make sure there are no 'f' in the rubbish
     auto fv = pclientA1->drillchildnodesbyname(pclientA1->getcloudrubbishnode(), "f");
-    future<bool> fb = pclientA1->thread_do([&fv](StandardClient& sc, promise<bool>& pb) { sc.deleteremotenodes(fv, pb); });
+    future<bool> fb = pclientA1->thread_do([&fv](StandardClient& sc, promise<bool>& pb) { sc.deleteremotenodes(fv, pb, 0); });
     ASSERT_TRUE(waitonresults(&fb));
 
     f = pclientA1->drillchildnodebyname(pclientA1->getcloudrubbishnode(), "f");
@@ -2902,7 +2916,7 @@ GTEST_TEST(Sync, PutnodesForMultipleFolders)
     StandardClient standardclient(localtestroot, "PutnodesForMultipleFolders");
     ASSERT_TRUE(standardclient.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", true));
 
-    NewNode* newnodes = new NewNode[4];
+    vector<NewNode> newnodes(4);
     
     standardclient.client.putnodes_prepareOneFolder(&newnodes[0], "folder1");
     standardclient.client.putnodes_prepareOneFolder(&newnodes[1], "folder2");
@@ -2914,11 +2928,11 @@ GTEST_TEST(Sync, PutnodesForMultipleFolders)
     handle targethandle = standardclient.client.rootnodes[0];
 
     std::atomic<bool> putnodesDone{false};
-    standardclient.resultproc.prepresult(StandardClient::PUTNODES, [&putnodesDone](error e) {
+    standardclient.client.reqtag = standardclient.resultproc.prepresult(StandardClient::PUTNODES, [&putnodesDone](error e) {
         putnodesDone = true;
     });
 
-    standardclient.client.putnodes(targethandle, newnodes, 4, nullptr);
+    standardclient.client.putnodes(targethandle, move(newnodes), nullptr);
     
     while (!putnodesDone)
     {

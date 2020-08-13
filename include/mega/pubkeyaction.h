@@ -64,13 +64,12 @@ public:
 
 class MEGA_API PubKeyActionPutNodes : public PubKeyAction
 {
-    NewNode* nn;    // nodes to add
-    int nc;         // number of nodes to add
+    vector<NewNode> nn;    // nodes to add
 
 public:
     void proc(MegaClient*, User*);
 
-    PubKeyActionPutNodes(NewNode*, int, int);
+    PubKeyActionPutNodes(vector<NewNode>&&, int);
 };
 
 class MEGA_API PubKeyActionNotifyApp : public PubKeyAction

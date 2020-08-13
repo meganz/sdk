@@ -1320,15 +1320,15 @@ bool PosixFileSystemAccess::getextension(const LocalPath& filename, char* extens
     const std::string* str = filename.editStringDirect();
     const char* ptr = str->data() + str->size();
     char c;
-    int i, j;
 
     size = std::min(size - 1, str->size());
 
-    for (i = 0; i < size; i++)
+    for (unsigned i = 0; i < size; i++)
     {
         if (*--ptr == '.')
         {
-            for (j = 0; j <= i; j++)
+            unsigned j = 0;
+            for (; j <= i; j++)
             {
                 if (*ptr < '.' || *ptr > 'z') return false;
 
