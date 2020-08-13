@@ -1675,8 +1675,8 @@ TEST_F(SdkTest, SdkTestContacts)
 
     // --- Check my email and the email of the contact ---
 
-    EXPECT_STREQ(mApi[0].email.data(), std::unique_ptr<char[]>{megaApi[0]->getMyEmail()}.get());
-    EXPECT_STREQ(mApi[1].email.data(), std::unique_ptr<char[]>{megaApi[1]->getMyEmail()}.get());
+    EXPECT_STRCASEEQ(mApi[0].email.data(), std::unique_ptr<char[]>{megaApi[0]->getMyEmail()}.get());
+    EXPECT_STRCASEEQ(mApi[1].email.data(), std::unique_ptr<char[]>{megaApi[1]->getMyEmail()}.get());
 
 
     // --- Send a new contact request ---
@@ -1697,8 +1697,8 @@ TEST_F(SdkTest, SdkTestContacts)
     ASSERT_NO_FATAL_FAILURE( getContactRequest(0, true) );
 
     ASSERT_STREQ(message.data(), mApi[0].cr->getSourceMessage()) << "Message sent is corrupted";
-    ASSERT_STREQ(mApi[0].email.data(), mApi[0].cr->getSourceEmail()) << "Wrong source email";
-    ASSERT_STREQ(mApi[1].email.data(), mApi[0].cr->getTargetEmail()) << "Wrong target email";
+    ASSERT_STRCASEEQ(mApi[0].email.data(), mApi[0].cr->getSourceEmail()) << "Wrong source email";
+    ASSERT_STRCASEEQ(mApi[1].email.data(), mApi[0].cr->getTargetEmail()) << "Wrong target email";
     ASSERT_EQ(MegaContactRequest::STATUS_UNRESOLVED, mApi[0].cr->getStatus()) << "Wrong contact request status";
     ASSERT_TRUE(mApi[0].cr->isOutgoing()) << "Wrong direction of the contact request";
 
@@ -1717,7 +1717,7 @@ TEST_F(SdkTest, SdkTestContacts)
     {
         ASSERT_STREQ(message.data(), mApi[1].cr->getSourceMessage()) << "Message received is corrupted";
     }
-    ASSERT_STREQ(mApi[0].email.data(), mApi[1].cr->getSourceEmail()) << "Wrong source email";
+    ASSERT_STRCASEEQ(mApi[0].email.data(), mApi[1].cr->getSourceEmail()) << "Wrong source email";
     ASSERT_STREQ(NULL, mApi[1].cr->getTargetEmail()) << "Wrong target email";    // NULL according to MegaApi documentation
     ASSERT_EQ(MegaContactRequest::STATUS_UNRESOLVED, mApi[1].cr->getStatus()) << "Wrong contact request status";
     ASSERT_FALSE(mApi[1].cr->isOutgoing()) << "Wrong direction of the contact request";
