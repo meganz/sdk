@@ -1027,6 +1027,27 @@ bool MegaClient::warnlevel()
     return warned ? (warned = false) | true : false;
 }
 
+// Preserve previous version attrs that should be kept
+void MegaClient::honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs)
+{
+    if (previousNode && versions_disabled)
+    {
+        nameid favnid = AttrMap::string2nameid("fav");
+        auto it = previousNode->attrs.map.find(favnid);
+        if (it != previousNode->attrs.map.end())
+        {
+            attrs.map[favnid] = it->second;
+        }
+
+        nameid lblnid = AttrMap::string2nameid("lbl");
+        it = previousNode->attrs.map.find(lblnid);
+        if (it != previousNode->attrs.map.end())
+        {
+            attrs.map[lblnid] = it->second;
+        }
+    }
+}
+
 // returns a matching child node by UTF-8 name (does not resolve name clashes)
 // folder nodes take precedence over file nodes
 Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)

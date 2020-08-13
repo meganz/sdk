@@ -22059,24 +22059,7 @@ void MegaApiImpl::sendPendingRequests()
 #endif
             AttrMap attrs;
             Node *previousNode = client->childnodebyname(parentNode, utf8Name, true);
-            if (!client->versions_disabled && previousNode)
-            {
-               assert(previousNode->type == FILENODE);
-               nameid favnid = AttrMap::string2nameid("fav");
-               auto it = previousNode->attrs.map.find(favnid);
-               if (it != previousNode->attrs.map.end())
-               {
-                   attrs.map[favnid] = it->second;
-               }
-
-               nameid lblnid = AttrMap::string2nameid("lbl");
-               it = previousNode->attrs.map.find(lblnid);
-               if (it != previousNode->attrs.map.end())
-               {
-                   attrs.map[lblnid] = it->second;
-               }
-            }
-
+            client->honorPreviousVersionAttrs(previousNode, attrs);
             attrs.map['n'] = utf8Name;
             attrs.map['c'] = megafingerprint.get();
             if (fingerprintOriginal)
