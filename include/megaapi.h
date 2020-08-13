@@ -600,6 +600,7 @@ class MegaNode
          * @brief Get the attribute of the node representing its label.
          *
          * @return The label of the node, valid values are:
+         *  - MegaNode::NODE_LBL_UNKNOWN = 0
          *  - MegaNode::NODE_LBL_RED = 1
          *  - MegaNode::NODE_LBL_ORANGE = 2
          *  - MegaNode::NODE_LBL_YELLOW = 3
@@ -10159,9 +10160,6 @@ class MegaApi
          * - MegaRequest::getFlag - Returns true (official attribute)
          * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_LABEL
          *
-         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
-         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
-         *
          * @param node Node that will receive the information.
          * @param label Label of the node
          * @param listener MegaRequestListener to track this request
@@ -10177,9 +10175,6 @@ class MegaApi
          * - MegaRequest::getNumDetails - Returns 1 if node is set as favourite, otherwise return 0
          * - MegaRequest::getFlag - Returns true (official attribute)
          * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_FAV
-         *
-         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
-         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
          * @param node Node that will receive the information.
          * @param fav if true set node as favourite, otherwise remove the attribute
