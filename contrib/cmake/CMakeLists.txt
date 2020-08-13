@@ -24,6 +24,7 @@ else()
     set (USE_OPENSSL 1 CACHE STRING "")
 ENDIF()
 
+set (USE_ASIO 1 CACHE STRING "")
 set (USE_CURL 1 CACHE STRING "")
 set (USE_SQLITE 1 CACHE STRING "")
 set (USE_MEDIAINFO 1 CACHE STRING "")
@@ -39,15 +40,14 @@ set (USE_QT 0 CACHE STRING "")
 set (USE_PDFIUM 0 CACHE STRING "")
 set (USE_LIBRAW 0 CACHE STRING "")
 
-
 if (USE_QT)
-    find_package(Qt5 COMPONENTS Core Widgets)
+    set( USE_CPPTHREAD 0)
+else()
+    set( USE_CPPTHREAD 1)
 endif()
-
 
 set (HAVE_LIBUV ${USE_LIBUV})
 set (HAVE_LIBRAW ${USE_LIBRAW})
-
 
 if (WIN32 AND NOT USE_PREBUILT_3RDPARTY)
     set (USE_THIRDPARTY_FROM_VCPKG 1 CACHE STRING "")
@@ -56,24 +56,6 @@ else()
 endif()
 
 message(STATUS " Using 3rd party from vcpkg = ${USE_THIRDPARTY_FROM_VCPKG}")
-
-if (USE_QT)
-    set( USE_CPPTHREAD 0)
-    if (NOT Qt5_FOUND)
-        #For convenience, added some default qt paths if none is specified by CMAKE_PREFIX_PATH
-        if (CMAKE_HOST_WIN32 AND (NOT DEFINED CMAKE_PREFIX_PATH) )
-            if (build_64_bit)
-                set(CMAKE_PREFIX_PATH "C:/Qt/Qt5.6.3_64/5.6.3/msvc2015_64;${CMAKE_PREFIX_PATH}")
-            else()
-                set(CMAKE_PREFIX_PATH "C:/Qt/Qt5.6.3_64/5.6.3/msvc2015;${CMAKE_PREFIX_PATH}")
-            ENDIF()
-        ENDIF()
-        find_package(Qt5 COMPONENTS Core Widgets REQUIRED)
-    endif()
-    set(QTCOMPONENTS "Qt5::Core" "Qt5::Widgets")
-else()
-    set( USE_CPPTHREAD 1)
-ENDIF()
 
 if (WIN32)
     set (NO_READLINE 1 CACHE STRING "")
@@ -86,7 +68,7 @@ if (WIN32)
     ENDIF()
 else(WIN32)
     set(NO_READLINE 0)
-    set(USE_PREBUILT_3RDPARTY 0)
+    set(USE_PREBUILT_3RDPARTY 0 CACHE STRING "")
 endif(WIN32)
 
 if (USE_WEBRTC)
@@ -151,9 +133,40 @@ IF(WIN32)
 ELSE(WIN32)
     set(MegaDir "${CMAKE_CURRENT_LIST_DIR}/../..")
     if ("${Mega3rdPartyDir}" STREQUAL "")
-        set (Mega3rdPartyDir "${MegaDir}/../3rdParty/")
+        set (Mega3rdPartyDir "${MegaDir}/../3rdParty/" CACHE STRING "")
     endif()
 ENDIF(WIN32)
+
+# Since we offer some Qt support in the SDK, set up those dependencies here
+if (USE_QT)
+
+    #For convenience, added some default qt paths if none is specified by CMAKE_PREFIX_PATH
+    if (CMAKE_HOST_WIN32 AND (NOT DEFINED CMAKE_PREFIX_PATH) )
+        if (build_64_bit)
+            set (QT_BASE_PATH "C:/Qt/Qt5.6.3_64/5.6.3/msvc2015" CACHE STRING "Specify your QT install folder if it is nonstandard")
+            set(CMAKE_PREFIX_PATH "${QT_BASE_PATH};${CMAKE_PREFIX_PATH}") 
+        else()
+            set (QT_BASE_PATH "C:/Qt/Qt5.6.3/5.6.3/msvc2015" CACHE STRING "Specify your QT install folder if it is nonstandard")
+            set(CMAKE_PREFIX_PATH "${QT_BASE_PATH};${CMAKE_PREFIX_PATH}")
+        ENDIF()
+    ENDIF()
+
+    message(STATUS "CMAKE_PREFIX_PATH (should contain the QT install path): ${CMAKE_PREFIX_PATH}")
+
+    foreach (PKG IN LISTS MEGA_QT_REQUIRED_COMPONENTS) 
+        message(STATUS "Finding Qt package ${PKG}")
+        find_package(Qt5 COMPONENTS ${PKG} REQUIRED)
+    endforeach(PKG)
+
+    # get qt version
+    if ("${QT_QMAKE_EXECUTABLE}" STREQUAL "")
+        set(QT_QMAKE_EXECUTABLE "${QT_DIR}/bin/qmake.exe")
+    endif()
+
+    execute_process(COMMAND ${QT_QMAKE_EXECUTABLE} -query QT_VERSION OUTPUT_VARIABLE QT_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
+    message(STATUS "Using QT ${QT_VERSION} from ${Qt5_DIR} ${QT_DIR}")
+
+endif(USE_QT)
 
 # currently supported scenarios for getting 3rd party libraries:
 #  - prebuilt libraries, in a folder from mega    (set USE_PREBUILT_3RDPARTY and prebulit_dir (if the default does not suit))
@@ -173,6 +186,8 @@ if (USE_PREBUILT_3RDPARTY)
     include_directories( "${Mega3rdPartyDir}/include/zenlib" )
     include_directories( "${Mega3rdPartyDir}/include/pdfium" )
     include_directories( "${Mega3rdPartyDir}/include/zlib" )
+    include_directories( "${Mega3rdPartyDir}/include/libuv" )
+    include_directories( "${Mega3rdPartyDir}/include/ffmpeg" )
 
     link_directories( "${Mega3rdPartyDir}/libs" )
 
@@ -539,7 +554,7 @@ if(WIN32)
     
     add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE )
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/$<IF:${USE_CURL},wincurl,win32>)
-    SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} ws2_32 winhttp Shlwapi Secur32.lib  $<${USE_WEBRTC}:Wldap32.lib> )
+    SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} ws2_32 winhttp Shlwapi Secur32.lib  $<$<OR:${USE_CURL},${USE_WEBRTC}>:Wldap32.lib> )
     IF(USE_LIBUV)
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} Kernel32.lib Iphlpapi.lib Userenv.lib Psapi.lib )
     ENDIF(USE_LIBUV)
@@ -592,6 +607,10 @@ SET(Mega_GfxFiles ${MegaDir}/src/gfx/external.cpp ${MegaDir}/src/gfx/freeimage.c
 
 if(WIN32)
     SET(WIN_EXTRA_INCLUDE $<${USE_PREBUILT_3RDPARTY}:${prebuilt_dir}/libs/sqlite3.c>)
+endif()
+
+if(CMAKE_HOST_APPLE)
+    SET(MACOS_EXTRA_INCLUDE $<${USE_PREBUILT_3RDPARTY}:${prebuilt_dir}/sqlite3.c>)
 endif()
 
 add_library(Mega STATIC
@@ -728,6 +747,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/waiterbase.cpp 
             ${Mega_PlatformSpecificFiles} ${Mega_CryptoFiles} ${Mega_DbFiles} ${Mega_GfxFiles}
             ${WIN_EXTRA_INCLUDE}
+            ${MACOS_EXTRA_INCLUDE}
             $<${USE_LIBUV}:${MegaDir}/src/mega_evt_tls.cpp> 
             $<${USE_QT}:${MegaDir}/src/gfx/qt.cpp>
             $<${USE_QT}:${MegaDir}/src/thread/qtthread.cpp >
@@ -749,10 +769,12 @@ else()
         set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} $<${HAVE_FFMPEG}:-liconv>)
     endif()
 endif()
-        
-target_link_libraries(Mega PUBLIC
-                        ${QTCOMPONENTS}
 
+foreach (PKG IN LISTS MEGA_QT_LINK_LIBRARIES) 
+    target_link_libraries(Mega PUBLIC ${PKG} )
+endforeach(PKG)
+
+target_link_libraries(Mega PUBLIC
                         $<${USE_CRYPTOPP}:cryptopp>
                         $<${USE_SODIUM}:sodium>
                         $<${USE_WEBRTC}:webrtc>
@@ -868,14 +890,36 @@ target_compile_definitions(test_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRE
 target_compile_definitions(tool_purge_account PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_link_libraries(test_unit gtest Mega )
 target_link_libraries(test_integration gtest Mega )
+if(APPLE)
+    target_link_libraries(test_integration "-framework Security" )
+endif()
 target_link_libraries(tool_purge_account gtest Mega )
 
-if(WIN32)
-add_executable(tool_tcprelay "${MegaDir}/tests/tool/tcprelay/main.cpp" "${MegaDir}/tests/tool/tcprelay/tcprelay.cpp")
-target_include_directories(tool_tcprelay PUBLIC "${Mega3rdPartyDir}/../asio-1.10.6/include")
-target_compile_definitions(tool_tcprelay PUBLIC -DASIO_STANDALONE -D_WIN32_WINNT=0x0A00)
-target_link_libraries(tool_tcprelay Mega Dnsapi.lib)
-endif(WIN32)
+if (USE_ASIO)
+    if (USE_THIRDPARTY_FROM_VCPKG)
+        if (EXISTS "${vcpkg_dir}/include/asio.hpp")
+            set(HAVE_ASIO 1 CACHE STRING "" FORCE)
+        else()
+            set(HAVE_ASIO 0 CACHE STRING "" FORCE)
+        endif()
+    endif()
+endif()
+
+if (HAVE_ASIO)
+    add_executable(tool_tcprelay "${MegaDir}/tests/tool/tcprelay/main.cpp" "${MegaDir}/tests/tool/tcprelay/tcprelay.cpp")
+    target_include_directories(tool_tcprelay PUBLIC "${vcpkg_dir}/installed/include")
+    target_compile_definitions(tool_tcprelay PUBLIC -DASIO_STANDALONE)
+    target_link_libraries(tool_tcprelay Mega)
+
+    if (WIN32)
+        target_compile_definitions(tool_tcprelay PUBLIC -D_WIN32_WINNT=0x601)
+        target_link_libraries(tool_tcprelay Ws2_32.lib)
+    endif()
+
+    if (NOT NO_READLINE)
+        target_link_libraries(tool_tcprelay readline)
+    endif()
+endif()
 
 #test apps need this file or tests fail
 configure_file("${MegaDir}/logo.png" logo.png COPYONLY)

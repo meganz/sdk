@@ -1339,16 +1339,16 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     }
     else
     {
-        if (req->out->size() < SimpleLogger::maxPayloadLogSize)
+        if (req->out->size() < size_t(SimpleLogger::maxPayloadLogSize))
         {
             LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": " << DirectMessage(req->out->c_str(), req->out->size());
         }
         else
         {
             LOG_debug << httpctx->req->logname << "Sending " << req->out->size() << ": "
-                      << DirectMessage(req->out->c_str(), SimpleLogger::maxPayloadLogSize / 2)
+                      << DirectMessage(req->out->c_str(), static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2))
                       << " [...] "
-                      << DirectMessage(req->out->c_str() + req->out->size() - SimpleLogger::maxPayloadLogSize / 2, SimpleLogger::maxPayloadLogSize / 2);
+                      << DirectMessage(req->out->c_str() + req->out->size() - SimpleLogger::maxPayloadLogSize / 2, static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2));
         }
     }
 
@@ -2138,16 +2138,16 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     }
                     else
                     {
-                        if (req->in.size() < SimpleLogger::maxPayloadLogSize)
+                        if (req->in.size() < size_t(SimpleLogger::maxPayloadLogSize))
                         {
                             LOG_debug << req->logname << "Received " << req->in.size() << ": " << DirectMessage(req->in.c_str(), req->in.size());
                         }
                         else
                         {
                             LOG_debug << req->logname << "Received " << req->in.size() << ": "
-                                      << DirectMessage(req->in.c_str(), SimpleLogger::maxPayloadLogSize / 2)
+                                      << DirectMessage(req->in.c_str(), static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2))
                                       << " [...] "
-                                      << DirectMessage(req->in.c_str() + req->in.size() - SimpleLogger::maxPayloadLogSize / 2, SimpleLogger::maxPayloadLogSize / 2);
+                                      << DirectMessage(req->in.c_str() + req->in.size() - SimpleLogger::maxPayloadLogSize / 2, static_cast<size_t>(SimpleLogger::maxPayloadLogSize / 2));
                         }
                     }
                 }
@@ -2354,6 +2354,8 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
     {
         return 0;
     }
+
+    req->lastdata = Waiter::ds;
 
     if (httpio->maxspeed[PUT])
     {
@@ -2679,7 +2681,7 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
     HttpReq *request = (HttpReq *)req;
     CurlHttpIO *httpio = (CurlHttpIO *)request->httpio;
     unsigned char buf[sizeof(APISSLMODULUS1) - 1];
-    EVP_PKEY* evp;
+    EVP_PKEY* evp = nullptr;
     int ok = 0;
 
     if (MegaClient::disablepkp)
@@ -2688,7 +2690,8 @@ int CurlHttpIO::cert_verify_callback(X509_STORE_CTX* ctx, void* req)
         return 1;
     }
 
-    if ((evp = X509_PUBKEY_get(X509_get_X509_PUBKEY(X509_STORE_CTX_get0_cert(ctx)))))
+    if (EVP_PKEY_id(evp) == EVP_PKEY_RSA
+            && (evp = X509_PUBKEY_get(X509_get_X509_PUBKEY(X509_STORE_CTX_get0_cert(ctx)))))
     {
         if (BN_num_bytes(RSA_get0_n(EVP_PKEY_get0_RSA(evp))) == sizeof APISSLMODULUS1 - 1
                 && BN_num_bytes(RSA_get0_e(EVP_PKEY_get0_RSA(evp))) == sizeof APISSLEXPONENT - 1)

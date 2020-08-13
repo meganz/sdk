@@ -180,6 +180,38 @@ public:
     dstime timeToTransfersResumed;
 };
 
+/**
+ * @brief A helper class that keeps the SN (sequence number) members in sync and well initialized.
+ *  The server-client sequence number is updated along with every batch of actionpackets received from API
+ *  It is used to commit the open transaction in DB, so the account's local state is persisted. Upon resumption,
+ *  the scsn is sent to API, which provides the possible updates missing while the client was not running
+ */
+class SCSN
+{
+    // scsn that we are sending in sc requests (ie, where we are up to with the persisted node data)
+    char scsn[12];
+
+    // sc inconsistency: stop querying for action packets
+    bool stopsc = false;
+
+public: 
+
+    bool setScsn(JSON*);
+    void setScsn(handle);
+    void stopScsn();
+
+    bool ready() const;
+    bool stopped() const;
+
+    const char* text() const;
+    handle getHandle() const;
+
+    friend std::ostream& operator<<(std::ostream& os, const SCSN& scsn);
+
+    SCSN();
+    void clear();
+};
+
 class MEGA_API MegaClient
 {
 public:
@@ -234,6 +266,8 @@ public:
 	
     // pseudo-random number generator
     PrnGen rng;
+
+    bool ephemeralSession = false;
 
     static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
@@ -317,6 +351,12 @@ public:
     // check the reason of being blocked
     void whyamiblocked();
 
+    // sets block state: stops querying for action packets, pauses transfer & removes transfer slot availability
+    void block(bool fromServerClientResponse = false);
+
+    // unsets block state
+    void unblock();
+
     // dump current session
     int dumpsession(byte*, size_t);
 
@@ -325,6 +365,9 @@ public:
 
     // resend the verification email to the same email address as it was previously sent to
     void resendverificationemail();
+
+    // reset the verified phone number
+    void resetSmsVerifiedPhoneNumber();
 
     // get the data for a session transfer
     // the caller takes the ownership of the returned value
@@ -421,9 +464,6 @@ public:
     // move node to new parent folder
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF, const char *newName = nullptr);
 
-    // find a transfer by fingerprint and target type (private/foreign) in transfers or cached transfers
-    transfer_map::iterator getTransferByFileFingerprint(FileFingerprint *f, transfer_map &transfers, bool foreign);
-
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
     void stopxfer(File* f, DBTableTransactionCommitter* committer);
@@ -473,10 +513,10 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, NewNode*, int, const char * = nullptr, Transfer * = nullptr);
+    void putnodes(handle, NewNode*, int, const char * = NULL);
 
     // send files/folders to user
-    void putnodes(const char*, NewNode*, int, Transfer * = nullptr);
+    void putnodes(const char*, NewNode*, int);
 
     // attach file attribute to upload or node handle
     void putfa(handle, fatype, SymmCipher*, std::unique_ptr<string>, bool checkAccess = true);
@@ -505,6 +545,9 @@ public:
 #ifdef DEBUG
     // queue a user attribute removal
     void delua(const char* an);
+
+    // send dev command for testing
+    void senddevcommand(const char *command, const char *email, long long q = 0, int bs = 0, int us = 0);
 #endif
 
     // delete or block an existing contact
@@ -687,6 +730,9 @@ public:
 
     // auto-join publicchat
     void chatlinkjoin(handle publichandle, const char *unifiedkey);
+
+    // set retention time for a chatroom in seconds, after which older messages in the chat are automatically deleted
+    void setchatretentiontime(handle chatid, int period);
 #endif
 
     // get mega achievements
@@ -752,14 +798,14 @@ public:
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 
-    // timestamp when a business account will enter into Grace Period
-    m_time_t mBizGracePeriodTs;
-
-    // timestamp when a business account will finally expire
-    m_time_t mBizExpirationTs;
-
     // storage status
     storagestatus_t ststatus;
+
+    // warning timestamps related to storage overquota in paywall mode
+    vector<m_time_t> mOverquotaWarningTs;
+
+    // deadline timestamp related to storage overquota in paywall mode
+    m_time_t mOverquotaDeadlineTs;
 
     // minimum bytes per second for streaming (0 == no limit, -1 == use default)
     int minstreamingrate;
@@ -777,10 +823,10 @@ public:
     string accountauth;
 
     // file that is blocking the sync engine
-    string blockedfile;
+    LocalPath blockedfile;
 
     // stats id
-    static char* statsid;
+    static std::string statsid;
 
     // number of ongoing asynchronous fopen
     int asyncfopens;
@@ -802,15 +848,21 @@ private:
     vector<TimerWithBackoff *> bttimers;
 
     // server-client command trigger connection
-    HttpReq* pendingsc;
+    std::unique_ptr<HttpReq> pendingsc;
+    std::unique_ptr<HttpReq> pendingscUserAlerts;
     BackoffTimer btsc;
-    bool stopsc = false;
+
+    // account is blocked: stops querying for action packets, pauses transfer & removes transfer slot availability
+    bool mBlocked = false;
+
+    bool pendingscTimedOut = false;
+
 
     // badhost report
     HttpReq* badhostcs;
 
     // Working lock
-    HttpReq* workinglockcs;
+    unique_ptr<HttpReq> workinglockcs;
 
     // notify URL for new server-client commands
     string scnotifyurl;
@@ -872,6 +924,9 @@ private:
     // fetch state serialize from local cache
     bool fetchsc(DbTable*);
 
+    // remove old (2 days or more) transfers from cache, if they were not resumed
+    void purgeOrphanTransfers(bool remove = false);
+
     // close the local transfer cache
     void closetc(bool remove = false);
 
@@ -909,7 +964,7 @@ private:
     unsigned addnode(node_vector*, Node*) const;
 
     // add child for consideration in syncup()/syncdown()
-    void addchild(remotenode_map*, string*, Node*, list<string>*) const;
+    void addchild(remotenode_map*, string*, Node*, list<string>*, FileSystemType fsType) const;
 
     // crypto request response
     void cr_response(node_vector*, node_vector*, JSON*);
@@ -1002,6 +1057,10 @@ public:
     // reqs[r] is open for adding commands
     // reqs[r^1] is being processed on the API server
     HttpReq* pendingcs;
+
+    // Only queue the "Server busy" event once, until the current cs completes, otherwise we may DDOS 
+    // ourselves in cases where many clients get 500s for a while and then recover at the same time
+    bool pendingcs_serverBusySent = false;
 
     // pending HTTP requests
     pendinghttp_map pendinghttp;
@@ -1109,6 +1168,9 @@ public:
     // FileFingerprint to node mapping
     Fingerprints mFingerprints;
 
+    // flag to skip removing nodes from mFingerprints when all nodes get deleted
+    bool mOptimizePurgeNodes = false;
+
     // send updates to app when the storage size changes
     int64_t mNotifiedSumSize = 0;
 
@@ -1131,9 +1193,7 @@ public:
     long long mAppliedKeyNodeCount = 0;
 
     // server-client request sequence number
-    char scsn[12];
-
-    bool setscsn(JSON*);
+    SCSN scsn;
 
     void purgenodes(node_vector* = NULL);
     void purgeusers(user_vector* = NULL);
@@ -1178,6 +1238,10 @@ public:
 
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
+#ifdef ENABLE_SYNC
+    Node* nodebyfingerprint(LocalNode*);
+#endif /* ENABLE_SYNC */
+
     node_vector *nodesbyfingerprint(FileFingerprint* fingerprint);
     void nodesbyoriginalfingerprint(const char* fingerprint, Node* parent, node_vector *nv);
 
@@ -1192,6 +1256,9 @@ public:
 
     // generate & return upload handle
     handle getuploadhandle();
+
+    // maps node handle to public handle
+    std::map<handle, handle> mPublicLinks;
 
 #ifdef ENABLE_SYNC    
     // sync debris folder name in //bin
@@ -1274,7 +1341,7 @@ public:
     void putnodes_sync_result(error, NewNode*, int);
 
     // start downloading/copy missing files, create missing directories
-    bool syncdown(LocalNode*, string*, bool);
+    bool syncdown(LocalNode*, LocalPath&, bool);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
     void movetosyncdebris(Node*, bool);
@@ -1295,7 +1362,7 @@ public:
 
     // unlink the LocalNode from the corresponding node
     // if the associated local file or folder still exists
-    void unlinkifexists(LocalNode*, FileAccess*, string*);
+    void unlinkifexists(LocalNode*, FileAccess*, LocalPath& reuseBuffer);
 #endif
 
     // recursively cancel transfers in a subtree
@@ -1317,6 +1384,9 @@ public:
 
     // client-server request double-buffering
     RequestDispatcher reqs;
+
+    // returns if the current pendingcs includes a fetch nodes command
+    bool isFetchingNodesPendingCS();
 
     // upload handle -> node handle map (filled by upload completion)
     handlepair_set uhnh;
@@ -1368,7 +1438,7 @@ public:
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection
-    void purgenodesusersabortsc();
+    void purgenodesusersabortsc(bool keepOwnUser);
 
     static const int USERHANDLE = 8;
     static const int PCRHANDLE = 8;
@@ -1397,6 +1467,7 @@ public:
 
     // account access (full account): RSA private key
     AsymmCipher asymkey;
+    string mPrivKey;    // serialized version for apps
 
     // RSA public key
     AsymmCipher pubk;
@@ -1553,7 +1624,7 @@ public:
     void acknowledgeuseralerts();
 
     // manage overquota errors
-    void activateoverquota(dstime timeleft);
+    void activateoverquota(dstime timeleft, bool isPaywall);
 
     // achievements enabled for the account
     bool achievements_enabled;
@@ -1579,6 +1650,20 @@ public:
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     BizStatus mBizStatus;
 
+    // list of handles of the Master business account/s
+    std::set<handle> mBizMasters;
+
+    // timestamp when a business account will enter into Grace Period
+    m_time_t mBizGracePeriodTs;
+
+    // timestamp when a business account will finally expire
+    m_time_t mBizExpirationTs;
+
+    // whether the destructor has started running yet
+    bool destructorRunning = false;
+  
+    MegaClientAsyncQueue mAsyncQueue;
+
     // Keep track of high level operation counts and times, for performance analysis
     struct PerformanceStats
     {
@@ -1601,11 +1686,13 @@ public:
         std::string report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs);
     } performanceStats;
 
+    std::string getDeviceid() const;
+
 #ifdef ENABLE_SYNC
     void resetSyncConfigs();
 #endif
 
-    MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*);
+    MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
 };
 } // namespace

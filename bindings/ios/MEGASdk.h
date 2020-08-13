@@ -175,7 +175,8 @@ typedef NS_ENUM(NSUInteger, StorageState) {
     StorageStateGreen = 0,
     StorageStateOrange = 1,
     StorageStateRed = 2,
-    StorageStateChange = 3
+    StorageStateChange = 3,
+    StorageStatePaywall = 4
 };
 
 typedef NS_ENUM(NSInteger, SMSState) {
@@ -667,6 +668,36 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  */
 - (BOOL)appleVoipPushEnabled;
 
+/* This function creates a new session for the link so logging out in the web client won't log out
+* the current session.
+*
+* The associated request type with this request is MEGARequestTypeGetSessionTransferUrl
+* Valid data in the MEGARequest object received in onRequestFinish when the error code
+* is MEGAErrorTypeApiOk:
+* - [MEGARequest link] - URL to open the desired page with the same account
+*
+* @param url URL inside https://mega.nz/# that we want to open with the current session
+*
+* For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+*
+* @param delegate MEGARequestDelegate to track this request
+*/
+- (void)getSessionTransferURL:(NSString *)path delegate:(id<MEGARequestDelegate>)delegate;
+
+/* This function creates a new session for the link so logging out in the web client won't log out
+* the current session.
+*
+* The associated request type with this request is MEGARequestTypeGetSessionTransferUrl
+* Valid data in the MEGARequest object received in onRequestFinish when the error code
+* is MEGAErrorTypeApiOk:
+* - [MEGARequest link] - URL to open the desired page with the same account
+*
+* @param url URL inside https://mega.nz/# that we want to open with the current session
+*
+* For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+*/
+- (void)getSessionTransferURL:(NSString *)path;
+
 #pragma mark - Login Requests
 
 /**
@@ -1094,6 +1125,48 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * @param folderLink Link to a folder in MEGA.
  */
 - (void)loginToFolderLink:(NSString *)folderLink;
+
+/**
+ * @brief Trigger special account state changes for own accounts, for testing
+ *
+ * Because the dev API command allows a wide variety of state changes including suspension and unsuspension,
+ * it has restrictions on which accounts you can target, and where it can be called from.
+ *
+ * Your client must be on a company VPN IP address.
+ *
+ * The target account must be an @mega email address. The target account must either be the calling account,
+ * OR a related account via a prefix and + character. For example if the calling account is name1+test@mega.co.nz
+ * then it can perform a dev command on itself or on name1@mega.co.nz, name1+bob@mega.co.nz etc, but NOT on
+ * name2@mega.co.nz or name2+test@meg.co.nz.
+ *
+ * The associated request type with this request is MEGARequestTypeSendDevCommand.
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest name] - Returns the first parameter
+ * - [MEGARequest email] - Returns the second parameter
+ *
+ * Possible errors are:
+ *  - MEGAErrorTypeApiEAccess if the calling account is not allowed to perform this method (not a mega email account, not the right IP, etc).
+ *  - MEGAErrorTypeApiEArgs if the subcommand is not present or is invalid
+ *  - MEGAErrorTypeApiEBlocked if the target account is not allowed (this could also happen if the target account does not exist)
+ *
+ * Possible commands:
+ *  - "aodq" - Advance ODQ Warning State
+ *      If called, this will advance your ODQ warning state until the final warning state,
+ *      at which point it will turn on the ODQ paywall for your account. It requires an account lock on the target account.
+ *      This subcommand will return the 'step' of the warning flow you have advanced to - 1, 2, 3 or 4
+ *      (the paywall is turned on at step 4)
+ *
+ *      Valid data in the MEGARequest object received in onRequestFinish when the error code is MEGAErrorTypeApiOk:
+ *       + [MEGARequest number] - Returns the number of warnings (1, 2, 3 or 4).
+ *
+ *      Possible errors in addition to the standard dev ones are:
+ *       + MEGAErrorTypeApiEFailed - your account is not in the RED stoplight state
+ *
+ * @param command The subcommand for the specific operation
+ * @param email Optional email of the target email's account. If nil, it will use the logged-in account
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)sendDevCommand:(NSString *)command email:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Returns the current session key.
@@ -1583,7 +1656,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (void)fastSendSignupLinkWithEmail:(NSString *)email base64pwkey:(NSString *)base64pwkey name:(NSString *)name __attribute__((deprecated("This function only works using the old registration method and will be removed soon. Please use [MEGASdk sendSignupLinkWithEmail:name:password:] instead.")));
 
 /**
- * @brief Get information about a confirmation link.
+ * @brief Get information about a confirmation link or a new signup link.
  *
  * The associated request type with this request is MEGARequestTypeQuerySignUpLink.
  * Valid data in the MEGARequest object received on all callbacks:
@@ -1593,6 +1666,20 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest email] - Return the email associated with the confirmation link.
  * - [MEGARequest name] - Returns the name associated with the confirmation link.
+ * - [MEGARequest flag] - Returns true if the account was automatically confirmed, otherwise false
+ 
+ * If [MEGARequest flag] returns YES, the account was automatically confirmed and it's not needed
+ * to call [MEGASdk confirmAccountWithLink:password:delegate]. If it returns NO, it's needed to call [MEGASdk confirmAccountWithLink:password:delegate]
+ * as usual. New accounts (V2, starting from April 2018) do not require a confirmation with the password,
+ * but old confirmation links (V1) require it, so it's needed to check that parameter in onRequestFinish
+ * to know how to proceed.
+ *
+ * If already logged-in into a different account, you will get the error code MEGAErrorTypeApiEAccess
+ * in onRequestFinish.
+ * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
+ * will get the error code MEGAErrorTypeApiEExpired in onRequestFinish.
+ * In both cases, the [MEGARequest email] will return the email of the account that was attempted
+ * to confirm, and the [MEGARequest name] will return the name.
  *
  * @param link Confirmation link
  * @param delegate Delegate to track this request
@@ -1600,7 +1687,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (void)querySignupLink:(NSString *)link delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
- * @brief Get information about a confirmation link.
+ * @brief Get information about a confirmation link or a new signup link.
  *
  * The associated request type with this request is MEGARequestTypeQuerySignUpLink.
  * Valid data in the MEGARequest object received on all callbacks:
@@ -1610,6 +1697,20 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest email] - Return the email associated with the confirmation link.
  * - [MEGARequest name] - Returns the name associated with the confirmation link.
+ * - [MEGARequest flag] - Returns true if the account was automatically confirmed, otherwise false
+ 
+ * If [MEGARequest flag] returns YES, the account was automatically confirmed and it's not needed
+ * to call [MEGASdk confirmAccountWithLink:password:delegate]. If it returns NO, it's needed to call [MEGASdk confirmAccountWithLink:password:delegate]
+ * as usual. New accounts (V2, starting from April 2018) do not require a confirmation with the password,
+ * but old confirmation links (V1) require it, so it's needed to check that parameter in onRequestFinish
+ * to know how to proceed.
+ *
+ * If already logged-in into a different account, you will get the error code MEGAErrorTypeApiEAccess
+ * in onRequestFinish.
+ * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
+ * will get the error code MEGAErrorTypeApiEExpired in onRequestFinish.
+ * In both cases, the [MEGARequest email] will return the email of the account that was attempted
+ * to confirm, and the [MEGARequest name] will return the name.
  *
  * @param link Confirmation link.
  */
@@ -1627,6 +1728,18 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest email] - Email of the account
  * - [MEGARequest name] - Name of the user
+ *
+ * As a result of a successfull confirmation, the app will receive the callback
+ * [MEGADelegate onEvent: event:] and [MEGAGlobalDelegate onEvent: event:] with an event of type
+ * EventAccountConfirmation. You can check the email used to confirm
+ * the account by checking [MEGAEvent text]. @see [MEGADelegate onEvent: event:].
+ *
+ * If already logged-in into a different account, you will get the error code MEGAErrorTypeApiEAccess
+ * in onRequestFinish.
+ * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
+ * will get the error code MEGAErrorTypeApiEExpired in onRequestFinish.
+ * In both cases, the [MEGARequest email] will return the email of the account that was attempted
+ * to confirm, and the [MEGARequest name] will return the name.
  *
  * @param link Confirmation link.
  * @param password Password for the account.
@@ -1646,6 +1759,18 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest email] - Email of the account
  * - [MEGARequest name] - Name of the user
+ *
+ * As a result of a successfull confirmation, the app will receive the callback
+ * [MEGADelegate onEvent: event:] and [MEGAGlobalDelegate onEvent: event:] with an event of type
+ * EventAccountConfirmation. You can check the email used to confirm
+ * the account by checking [MEGAEvent text]. @see [MEGADelegate onEvent: event:].
+ *
+ * If already logged-in into a different account, you will get the error code MEGAErrorTypeApiEAccess
+ * in onRequestFinish.
+ * If logged-in into the account that is attempted to confirm and the account is already confirmed, you
+ * will get the error code MEGAErrorTypeApiEExpired in onRequestFinish.
+ * In both cases, the [MEGARequest email] will return the email of the account that was attempted
+ * to confirm, and the [MEGARequest name] will return the name.
  *
  * @param link Confirmation link.
  * @param password Password for the account.
@@ -3544,6 +3669,32 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 + (nullable NSString *)avatarColorForBase64UserHandle:(nullable NSString *)base64UserHandle;
 
 /**
+ * @brief Get the secondary color for the avatar.
+ *
+ * This color should be used only when the user doesn't have an avatar, making a
+ * gradient in combination with the color returned from avatarColorForUser.
+ *
+ * @param user MEGAUser to get the color of the avatar. If this parameter is set to nil, the color
+ * is obtained for the active account.
+ * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+ * If the user is not found, this function always returns the same color.
+ */
++ (nullable NSString *)avatarSecondaryColorForUser:(nullable MEGAUser *)user;
+
+/**
+ * @brief Get the secondary color for the avatar.
+ *
+ * This color should be used only when the user doesn't have an avatar, making a
+ * gradient in combination with the color returned from avatarColorForBase64UserHandle.
+ *
+ * @param base64UserHandle User handle (Base64 encoded) to get the avatar. If this parameter is
+ * set to nil, the avatar is obtained for the active account.
+ * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+ * If the user is not found, this function always returns the same color.
+ */
++ (nullable NSString *)avatarSecondaryColorForBase64UserHandle:(nullable NSString *)base64UserHandle;
+
+/**
  * @brief Set the avatar of the MEGA account.
  *
  * The associated request type with this request is MEGARequestTypeSetAttrFile.
@@ -5339,6 +5490,32 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  */
 - (void)killSession:(uint64_t)sessionHandle;
 
+/**
+ * @brief Returns the deadline to remedy the storage overquota situation
+ *
+ * This value is valid only when [MEGASdk getUserData] has been called after
+ * receiving a callback [MEGAGlobalDelegate onEvent:event] of type
+ * EventStorage, reporting StorageStatePaywall.
+ * The value will become invalid once the state of storage changes.
+ *
+ * @return `NSDate` instance representing the deadline to remedy the overquota
+*/
+- (NSDate *)overquotaDeadlineDate;
+
+/**
+ * @brief Returns when the user was warned about overquota state
+ *
+ * This value is valid only when [MEGASdk getUserData] has been called after
+ * receiving a callback [MEGAGlobalDelegate onEvent:event] of type
+ * EventStorage, reporting StorageStatePaywall.
+ * The value will become invalid once the state of storage changes.
+ *
+ * You take the ownership of the returned value.
+ *
+ * @return An array of `NSDate` with the timestamp corresponding to each warning
+*/
+-(NSArray<NSDate *> *)overquotaWarningDateList;
+
 #pragma mark - Transfers
 
 /**
@@ -7037,6 +7214,22 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (nullable NSString *)escapeFsIncompatible:(NSString *)name;
 
 /**
+ * @brief Make a name suitable for a file name in the local filesystem
+ *
+ * This function escapes (%xx) forbidden characters in the local filesystem if needed.
+ * You can revert this operation using [MEGASdk unescapeFsIncompatible:]
+ *
+ * The input string must be UTF8 encoded. The returned value will be UTF8 too.
+ *
+ * You take the ownership of the returned value
+ *
+ * @param name Name to convert (UTF8)
+ * @param destinationPath Destination file path
+ * @return Converted name (UTF8)
+ */
+- (nullable NSString *)escapeFsIncompatible:(NSString *)name destinationPath:(NSString *)destinationPath;
+
+/**
  * @brief Unescape a file name escaped with [MEGASdk escapeFsIncompatible:]
  *
  * The input string must be UTF8 encoded. The returned value will be UTF8 too.
@@ -7045,6 +7238,17 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * @return Converted name (UTF8)
  */
 - (nullable NSString *)unescapeFsIncompatible:(NSString *)localName;
+
+/**
+ * @brief Unescape a file name escaped with [MEGASdk escapeFsIncompatible:]
+ *
+ * The input string must be UTF8 encoded. The returned value will be UTF8 too.
+ *
+ * @param localName Escaped name to convert (UTF8)
+ * @param destinationPath Destination file path
+ * @return Converted name (UTF8)
+ */
+- (nullable NSString *)unescapeFsIncompatible:(NSString *)localName  destinationPath:(NSString *)destinationPath;
 
 /**
  * @brief Change the API URL
@@ -7930,6 +8134,27 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * @param listener MEGARequestDelegate to track this request
  */
 - (void)getRegisteredContacts:(NSArray<NSDictionary *> *)contacts delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Reset the verified phone number for the account logged in.
+ *
+ * The associated request type with this request is MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER
+ * If there's no verified phone number associated for the account logged in, the error code
+ * provided in onRequestFinish is MegaError::API_ENOENT.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)resetSmsVerifiedPhoneNumberWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Reset the verified phone number for the account logged in.
+ *
+ * The associated request type with this request is MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER
+ * If there's no verified phone number associated for the account logged in, the error code
+ * provided in onRequestFinish is MegaError::API_ENOENT.
+ *
+ */
+- (void)resetSmsVerifiedPhoneNumber;
 
 #pragma mark - Push Notification Settings
 

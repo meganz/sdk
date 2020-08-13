@@ -850,6 +850,31 @@ void UserAlerts::add(UserAlert::Base* unb)
         }
     }
 
+    if (!alerts.empty() && unb->type == UserAlert::type_d && alerts.back()->type == UserAlert::type_d)
+    {
+        // If it's file/folders removed, and the prior one is for the same user and within 5 mins then we can combine instead
+        UserAlert::RemovedSharedNode* nd = dynamic_cast<UserAlert::RemovedSharedNode*>(unb);
+        UserAlert::RemovedSharedNode* od = dynamic_cast<UserAlert::RemovedSharedNode*>(alerts.back());
+        if (nd && od)
+        {
+            if (nd->userHandle == od->userHandle && nd->timestamp - od->timestamp < 300)
+            {
+                od->itemsNumber += nd->itemsNumber;
+                LOG_debug << "Merged user alert, type " << nd->type << " ts " << nd->timestamp;
+
+                if (catchupdone && (useralertnotify.empty() || useralertnotify.back() != alerts.back()))
+                {
+                    alerts.back()->seen = false;
+                    alerts.back()->tag = 0;
+                    useralertnotify.push_back(alerts.back());
+                    LOG_debug << "Updated user alert added to notify queue";
+                }
+                delete unb;
+                return;
+            }
+        }
+    }
+
     if (!alerts.empty() && unb->type == UserAlert::type_psts && static_cast<UserAlert::Payment*>(unb)->success)
     {
         // if a successful payment is made then hide/remove any reminders received

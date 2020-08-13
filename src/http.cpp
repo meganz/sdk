@@ -621,7 +621,7 @@ HttpReqDL::HttpReqDL()
 
 // prepare file chunk download
 void HttpReqDL::prepare(const char* tempurl, SymmCipher* /*key*/,
-                        chunkmac_map* /*macs*/, uint64_t /*ctriv*/, m_off_t pos,
+                        uint64_t /*ctriv*/, m_off_t pos,
                         m_off_t npos)
 {
     char urlbuf[512];
@@ -710,7 +710,7 @@ bool EncryptByChunks::encrypt(m_off_t pos, m_off_t npos, string& urlSuffix)
         if (!buf) return false;
         key->ctr_crypt(buf, unsigned(chunksize), startpos, ctriv, mac, 1);
         memcpy((*macs)[startpos].mac, mac, sizeof mac);
-        (*macs)[startpos].finished = false;
+        (*macs)[startpos].finished = false;  // finished is only set true after confirmation of the chunk uploading.
         LOG_debug << "Encrypted chunk: " << startpos << " - " << endpos << "   Size: " << chunksize;
 
         updateCRC(buf, unsigned(chunksize), unsigned(startpos - pos));
@@ -745,10 +745,10 @@ byte* EncryptBufferByChunks::nextbuffer(unsigned bufsize)
 
 // prepare chunk for uploading: mac and encrypt
 void HttpReqUL::prepare(const char* tempurl, SymmCipher* key,
-                        chunkmac_map* macs, uint64_t ctriv, m_off_t pos,
+                        uint64_t ctriv, m_off_t pos,
                         m_off_t npos)
 {
-    EncryptBufferByChunks eb((byte*)out->data(), key, macs, ctriv);
+    EncryptBufferByChunks eb((byte*)out->data(), key, &mChunkmacs, ctriv);
 
     string urlSuffix;
     eb.encrypt(pos, npos, urlSuffix);

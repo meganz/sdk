@@ -114,7 +114,10 @@ Node::~Node()
     client->preadabort(this);
 
     // remove node's fingerprint from hash
-    client->mFingerprints.remove(this);
+    if (!client->mOptimizePurgeNodes)
+    {
+        client->mFingerprints.remove(this);
+    }
 
 #ifdef ENABLE_SYNC
     // remove from todebris node_set
@@ -151,29 +154,37 @@ Node::~Node()
     }
 
 
-    // remove from parent's children
-    if (parent)
+    if (!client->mOptimizePurgeNodes)
     {
-        parent->children.erase(child_it);
+        // remove from parent's children
+        if (parent)
+        {
+            parent->children.erase(child_it);
+        }
+
+        Node* fa = firstancestor();
+        handle ancestor = fa->nodehandle;
+        if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
+        {
+            client->mNodeCounters[firstancestor()->nodehandle] -= subnodeCounts();
+        }
+
+        if (inshare)
+        {
+            client->mNodeCounters.erase(nodehandle);
+        }
+
+        // delete child-parent associations (normally not used, as nodes are
+        // deleted bottom-up)
+        for (node_list::iterator it = children.begin(); it != children.end(); it++)
+        {
+            (*it)->parent = NULL;
+        }
     }
 
-    Node* fa = firstancestor();
-    handle ancestor = fa->nodehandle;
-    if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
+    if (plink)
     {
-        client->mNodeCounters[firstancestor()->nodehandle] -= subnodeCounts();
-    }
-
-    if (inshare)
-    {
-        client->mNodeCounters.erase(nodehandle);
-    }
-
-    // delete child-parent associations (normally not used, as nodes are
-    // deleted bottom-up)
-    for (node_list::iterator it = children.begin(); it != children.end(); it++)
-    {
-        (*it)->parent = NULL;
+        client->mPublicLinks.erase(nodehandle);
     }
 
     delete plink;
@@ -419,6 +430,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
         }
 
         plink = new PublicLink(ph, cts, ets, takendown);
+        client->mPublicLinks[n->nodehandle] = plink->ph;
     }
     n->plink = plink;
 
@@ -449,7 +461,7 @@ bool Node::serialize(string* d)
 
         if (attrstring)
         {
-            LOG_err << "Skipping undecryptable node";
+            LOG_warn << "Skipping undecryptable node";
             return false;
         }
     }
@@ -1092,15 +1104,18 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
 {
     if (!plink) // creation
     {
+        assert(client->mPublicLinks.find(nodehandle) == client->mPublicLinks.end());
         plink = new PublicLink(ph, cts, ets, takendown);
     }
     else            // update
     {
+        assert(client->mPublicLinks.find(nodehandle) != client->mPublicLinks.end());
         plink->ph = ph;
         plink->cts = cts;
         plink->ets = ets;
         plink->takendown = takendown;
     }
+    client->mPublicLinks[nodehandle] = ph;
 }
 
 PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
@@ -1132,7 +1147,7 @@ bool PublicLink::isExpired()
 // set, change or remove LocalNode's parent and name/localname/slocalname.
 // newlocalpath must be a full path and must not point to an empty string.
 // no shortname allowed as the last path component.
-void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
+void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std::unique_ptr<LocalPath> newshortname)
 {
     if (!sync)
     {
@@ -1141,7 +1156,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
         return;
     }
 
-    bool newnode = !localname.size();
+    bool newnode = localname.empty();
     Node* todelete = NULL;
     int nc = 0;
     Sync* oldsync = NULL;
@@ -1153,37 +1168,22 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
 
         if (slocalname)
         {
-            parent->schildren.erase(slocalname);
-            delete slocalname;
-            slocalname = NULL;
+            parent->schildren.erase(slocalname.get());
+            slocalname.reset();
         }
     }
 
     if (newlocalpath)
     {
         // extract name component from localpath, check for rename unless newnode
-        size_t p;
-
-        for (p = newlocalpath->size(); p -= sync->client->fsaccess->localseparator.size(); )
-        {
-            if (!memcmp(newlocalpath->data() + p,
-                        sync->client->fsaccess->localseparator.data(),
-                        sync->client->fsaccess->localseparator.size()))
-            {
-                p += sync->client->fsaccess->localseparator.size();
-                break;
-            }
-        }
+        size_t p = newlocalpath->getLeafnameByteIndex(*sync->client->fsaccess);
 
         // has the name changed?
-        if (localname.size() != newlocalpath->size() - p
-         || memcmp(localname.data(), newlocalpath->data() + p, localname.size()))
+        if (!newlocalpath->backEqual(p, localname))
         {
             // set new name
-            localname.assign(newlocalpath->data() + p, newlocalpath->size() - p);
-
-            name = localname;
-            sync->client->fsaccess->local2name(&name);
+            localname = newlocalpath->subpathFrom(p);
+            name = localname.toName(*sync->client->fsaccess);
 
             if (node)
             {
@@ -1211,7 +1211,7 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
         }
     }
 
-    if (parent && parent != newparent)
+    if (parent && parent != newparent && !sync->mDestructorRunning)
     {
         treestate(TREESTATE_NONE);
     }
@@ -1263,18 +1263,14 @@ void LocalNode::setnameparent(LocalNode* newparent, string* newlocalpath)
         // (we don't construct a UTF-8 or sname for the root path)
         parent->children[&localname] = this;
 
-        if (!slocalname)
+        if (newshortname && *newshortname != localname)
         {
-            slocalname = new string();
-        }
-        if (sync->client->fsaccess->getsname(newlocalpath, slocalname) && *slocalname != localname)
-        {
-            parent->schildren[slocalname] = this;
+            slocalname = std::move(newshortname);
+            parent->schildren[slocalname.get()] = this;
         }
         else
         {
-            delete slocalname;
-            slocalname = NULL;
+            slocalname.reset();
         }
 
         treestate(TREESTATE_NONE);
@@ -1331,7 +1327,7 @@ LocalNode::LocalNode()
 {}
 
 // initialize fresh LocalNode object - must be called exactly once
-void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* cfullpath)
+void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPath& cfullpath, std::unique_ptr<LocalPath> shortname)
 {
     sync = csync;
     parent = NULL;
@@ -1355,12 +1351,13 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
 
     if (cparent)
     {
-        setnameparent(cparent, cfullpath);
+        setnameparent(cparent, &cfullpath, std::move(shortname));
     }
     else
     {
-        localname = *cfullpath;
-        sync->client->fsaccess->local2path(&localname, &name);
+        localname = cfullpath;
+        slocalname.reset(shortname && *shortname != localname ? shortname.release() : nullptr);
+        name = localname.toPath(*sync->client->fsaccess);
     }
 
     scanseqno = sync->scanseqno;
@@ -1371,7 +1368,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, string* 
     // enable folder notification
     if (type == FOLDERNODE)
     {
-        sync->dirnotify->addnotify(this, cfullpath);
+        sync->dirnotify->addnotify(this, cfullpath.editStringDirect());
     }
 
     sync->client->syncactivity = true;
@@ -1436,7 +1433,7 @@ treestate_t LocalNode::checkstate()
             break;
         }
 
-        if (it->second->ts == TREESTATE_PENDING && ts == TREESTATE_SYNCED)
+        if (it->second->ts == TREESTATE_PENDING && state == TREESTATE_SYNCED)
         {
             state = TREESTATE_PENDING;
         }
@@ -1557,13 +1554,7 @@ LocalNode::~LocalNode()
         // deactivate corresponding notifyq records
         for (int q = DirNotify::RETRY; q >= DirNotify::EXTRA; q--)
         {
-            for (notify_deque::iterator it = sync->dirnotify->notifyq[q].begin(); it != sync->dirnotify->notifyq[q].end(); it++)
-            {
-                if ((*it).localnode == this)
-                {
-                    (*it).localnode = (LocalNode*)~0;
-                }
-            }
+            sync->dirnotify->notifyq[q].replaceLocalNodePointers(this, (LocalNode*)~0);
         }
     }
     
@@ -1592,7 +1583,7 @@ LocalNode::~LocalNode()
     // remove parent association
     if (parent)
     {
-        setnameparent(NULL, NULL);
+        setnameparent(NULL, NULL, NULL);
     }
 
     for (localnode_map::iterator it = children.begin(); it != children.end(); )
@@ -1614,14 +1605,17 @@ LocalNode::~LocalNode()
         }
     }
 
-    if (slocalname)
-    {
-        delete slocalname;
-        slocalname = NULL;
-    }
+    slocalname.reset();
 }
 
-void LocalNode::getlocalpath(string* path, bool sdisable, const std::string* localseparator) const
+LocalPath LocalNode::getLocalPath(bool sdisable) const
+{
+    LocalPath lp;
+    getlocalpath(lp, sdisable);
+    return lp;
+}
+
+void LocalNode::getlocalpath(LocalPath& path, bool sdisable, const std::string* localseparator) const
 {
     if (!sync)
     {
@@ -1630,72 +1624,34 @@ void LocalNode::getlocalpath(string* path, bool sdisable, const std::string* loc
         return;
     }
 
-    const LocalNode* l = this;
+    path.erase();
 
-    path->erase();
-
-    while (l)
+    for (const LocalNode* l = this; l != nullptr; l = l->parent)
     {
+        assert(!l->parent || l->parent->sync == sync);
+
         // use short name, if available (less likely to overflow MAXPATH,
-        // perhaps faster?) and sdisable not set
-        if (!sdisable && l->slocalname)
+        // perhaps faster?) and sdisable not set.  Use localname from the sync root though, as it has the absolute path.
+        if (!sdisable && l->slocalname && l->parent)
         {
-            path->insert(0, *(l->slocalname));
+            path.prependWithSeparator(*l->slocalname, localseparator ? *localseparator : sync->client->fsaccess->localseparator);
         }
         else
         {
-            path->insert(0, l->localname);
-        }
-
-        if ((l = l->parent))
-        {
-            path->insert(0, localseparator ? *localseparator : sync->client->fsaccess->localseparator);
-        }
-
-        if (sdisable)
-        {
-            sdisable = false;
+            path.prependWithSeparator(l->localname, localseparator ? *localseparator : sync->client->fsaccess->localseparator);
         }
     }
 }
 
 string LocalNode::localnodedisplaypath(FileSystemAccess& fsa) const
 {
-    string local;
-    string path;
-    getlocalpath(&local, true);
-    fsa.local2path(&local, &path);
-    return path;
-}
-
-void LocalNode::getlocalsubpath(string* path) const
-{
-    if (!sync)
-    {
-        LOG_err << "LocalNode::init() was never called";
-        assert(false);
-        return;
-    }
-
-    const LocalNode* l = this;
-
-    path->erase();
-
-    for (;;)
-    {
-        path->insert(0, l->localname);
-
-        if (!(l = l->parent) || !l->parent)
-        {
-            break;
-        }
-
-        path->insert(0, sync->client->fsaccess->localseparator);
-    }
+    LocalPath local;
+    getlocalpath(local, true);
+    return local.toPath(fsa);
 }
 
 // locate child by localname or slocalname
-LocalNode* LocalNode::childbyname(string* localname)
+LocalNode* LocalNode::childbyname(LocalPath* localname)
 {
     localnode_map::iterator it;
 
@@ -1709,12 +1665,12 @@ LocalNode* LocalNode::childbyname(string* localname)
 
 void LocalNode::prepare()
 {
-    getlocalpath(&transfer->localfilename, true);
+    getlocalpath(transfer->localfilename, true);
 
     // is this transfer in progress? update file's filename.
-    if (transfer->slot && transfer->slot->fa && transfer->slot->fa->nonblocking_localname.size())
+    if (transfer->slot && transfer->slot->fa && !transfer->slot->fa->nonblocking_localname.empty())
     {
-        transfer->slot->fa->updatelocalname(&transfer->localfilename);
+        transfer->slot->fa->updatelocalname(transfer->localfilename);
     }
 
     treestate(TREESTATE_SYNCING);
@@ -1749,39 +1705,20 @@ void LocalNode::completed(Transfer* t, LocalNode*)
 // - fingerprint crc/mtime (filenodes only)
 bool LocalNode::serialize(string* d)
 {
-    m_off_t s = type ? -type : size;
-
-    d->append((const char*)&s, sizeof s);
-
-    d->append((const char*)&fsid, sizeof fsid);
-
-    uint32_t id = parent ? parent->dbid : 0;
-
-    d->append((const char*)&id, sizeof id);
-
-    handle h = node ? node->nodehandle : UNDEF;
-
-    d->append((const char*)&h, MegaClient::NODEHANDLE);
-
-    unsigned short ll = (unsigned short)localname.size();
-
-    d->append((char*)&ll, sizeof ll);
-    d->append(localname.data(), ll);
-
+    CacheableWriter w(*d);
+    w.serializei64(type ? -type : size);
+    w.serializehandle(fsid);
+    w.serializeu32(parent ? parent->dbid : 0);
+    w.serializenodehandle(node ? node->nodehandle : UNDEF);
+    w.serializestring(*localname.editStringDirect());
     if (type == FILENODE)
     {
-        d->append((const char*)crc.data(), sizeof crc);
-
-        byte buf[sizeof mtime+1];
-
-        d->append((const char*)buf, Serialize64::serialize(buf, mtime));
+        w.serializebinary((byte*)crc.data(), sizeof(crc));
+        w.serializecompressed64(mtime);
     }
-
-    const char syncable = mSyncable ? 1 : 0;
-    d->append(&syncable, sizeof(syncable));
-
-    d->append("\0\0\0\0\0\0\0", 8); // Use these bytes for extensions
-
+    w.serializebyte(mSyncable);
+    w.serializeexpansionflags(1);  // first flag indicates we are storing slocalname.  Storing it is much, much faster than looking it up on startup.
+    w.serializepstr(slocalname ? slocalname->editStringDirect() : nullptr);
     return true;
 }
 
@@ -1797,12 +1734,12 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
         return NULL;
     }
 
-    const char* ptr = d->data();
-    const char* end = ptr + d->size();
+    CacheableReader r(*d);
 
     nodetype_t type;
-    m_off_t size = MemAccess::get<m_off_t>(ptr);
-    ptr += sizeof(m_off_t);
+    m_off_t size;
+    
+    if (!r.unserializei64(size)) return nullptr;
 
     if (size < 0 && size >= -FOLDERNODE)
     {
@@ -1815,77 +1752,30 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
         type = FILENODE;
     }
 
-    handle fsid = MemAccess::get<handle>(ptr);
-    ptr += sizeof fsid;
-
-    uint32_t parent_dbid = MemAccess::get<uint32_t>(ptr);
-    ptr += sizeof parent_dbid;
-
+    handle fsid;
+    uint32_t parent_dbid;
     handle h = 0;
-    memcpy((char*)&h, ptr, MegaClient::NODEHANDLE);
-    ptr += MegaClient::NODEHANDLE;
-
-    unsigned short localnamelen = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof localnamelen;
-
-    if (ptr + localnamelen > end)
-    {
-        LOG_err << "LocalNode unserialization failed - name too long";
-        return NULL;
-    }
-
-    const char* localname = ptr;
-    ptr += localnamelen;
+    string localname, shortname;
     uint64_t mtime = 0;
     int32_t crc[4];
     memset(crc, 0, sizeof crc);
+    byte syncable = 1;
+    unsigned char expansionflags[8] = { 0 };
 
-    if (type == FILENODE)
+    if (!r.unserializehandle(fsid) ||
+        !r.unserializeu32(parent_dbid) || 
+        !r.unserializenodehandle(h) ||
+        !r.unserializestring(localname) ||
+        (type == FILENODE && !r.unserializebinary((byte*)crc, sizeof(crc))) ||
+        (type == FILENODE && !r.unserializecompressed64(mtime)) ||
+        (r.hasdataleft() && !r.unserializebyte(syncable)) ||
+        (r.hasdataleft() && !r.unserializeexpansionflags(expansionflags, 1)) ||
+        (expansionflags[0] && !r.unserializecstr(shortname, false)))
     {
-        if (ptr + 4 * sizeof(int32_t) > end + 1)
-        {
-            LOG_err << "LocalNode unserialization failed - short fingerprint";
-            return NULL;
-        }
-
-        memcpy(crc, ptr, sizeof crc);
-        ptr += sizeof crc;
-
-        int mtimeSize;
-        if ((mtimeSize = Serialize64::unserialize((byte*)ptr, static_cast<int>(end - ptr), &mtime)) < 0)
-        {
-            LOG_err << "LocalNode unserialization failed - malformed fingerprint mtime";
-            return NULL;
-        }
-        else
-        {
-            ptr += mtimeSize;
-        }
+        LOG_err << "LocalNode unserialization failed at field " << r.fieldnum;
+        return nullptr;
     }
-
-    char syncable = 1;
-    if (ptr < end)
-    {
-        if (ptr + sizeof(syncable) + 8 > end)
-        {
-            LOG_err << "LocalNode unserialization failed - syncable flag";
-            return NULL;
-        }
-
-        syncable = MemAccess::get<char>(ptr);
-        ptr += sizeof(syncable);
-
-        // skip extension bytes
-        for (int i = 8; i--;)
-        {
-            if (ptr + (unsigned char)*ptr < end)
-            {
-                ptr += (unsigned char)*ptr + 1;
-            }
-        }
-    }
-
-    assert(ptr == end);
+    assert(!r.hasdataleft());
 
     LocalNode* l = new LocalNode();
 
@@ -1897,10 +1787,10 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->fsid = fsid;
     l->fsid_it = sync->client->fsidnode.end();
 
-    l->localname.assign(localname, localnamelen);
-    l->slocalname = nullptr;
-    l->name.assign(localname, localnamelen);
-    sync->client->fsaccess->local2name(&l->name);
+    l->localname = LocalPath(std::move(localname));
+    l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(std::move(shortname)));
+    l->slocalname_in_db = 0 != expansionflags[0];
+    l->name = l->localname.toName(*sync->client->fsaccess);
 
     memcpy(l->crc.data(), crc, sizeof crc);
     l->mtime = mtime;

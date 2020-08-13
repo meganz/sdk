@@ -24,13 +24,10 @@
 
 #include "DefaultedFileSystemAccess.h"
 #include "utils.h"
+#include "mega.h"
 
 namespace
 {
-
-class MockFileSystemAccess : public mt::DefaultedFileSystemAccess
-{
-};
 
 void checkTransfers(const mega::Transfer& exp, const mega::Transfer& act)
 {
@@ -39,7 +36,9 @@ void checkTransfers(const mega::Transfer& exp, const mega::Transfer& act)
     ASSERT_TRUE(std::equal(exp.filekey, exp.filekey + mega::FILENODEKEYLENGTH, act.filekey));
     ASSERT_EQ(exp.ctriv, act.ctriv);
     ASSERT_EQ(exp.metamac, act.metamac);
-    ASSERT_TRUE(std::equal(exp.transferkey, exp.transferkey + mega::SymmCipher::KEYLENGTH, act.transferkey));
+    ASSERT_TRUE(std::equal(exp.transferkey.data(),
+                           exp.transferkey.data() + mega::SymmCipher::KEYLENGTH,
+                           act.transferkey.data()));
     ASSERT_EQ(exp.lastaccesstime, act.lastaccesstime);
     ASSERT_TRUE(std::equal(exp.ultoken, exp.ultoken + mega::NewNode::UPLOADTOKENLEN, act.ultoken));
     ASSERT_EQ(exp.tempurls, act.tempurls);
@@ -52,15 +51,18 @@ void checkTransfers(const mega::Transfer& exp, const mega::Transfer& act)
 TEST(Transfer, serialize_unserialize)
 {
     mega::MegaApp app;
-    MockFileSystemAccess fsaccess;
+    ::mega::FSACCESS_CLASS fsaccess;
     auto client = mt::makeClient(app, fsaccess);
 
     mega::Transfer tf{client.get(), mega::GET};
-    tf.localfilename = "foo";
+    std::string lfn = "foo";
+    tf.localfilename = ::mega::LocalPath::fromPath(lfn, fsaccess);
     std::fill(tf.filekey, tf.filekey + mega::FILENODEKEYLENGTH, 'X');
     tf.ctriv = 1;
     tf.metamac = 2;
-    std::fill(tf.transferkey, tf.transferkey + mega::SymmCipher::KEYLENGTH, 'Y');
+    std::fill(tf.transferkey.data(),
+              tf.transferkey.data() + mega::SymmCipher::KEYLENGTH,
+              'Y');
     tf.lastaccesstime = 3;
     tf.ultoken = new mega::byte[mega::NewNode::UPLOADTOKENLEN];
     std::fill(tf.ultoken, tf.ultoken + mega::NewNode::UPLOADTOKENLEN, 'Z');
@@ -83,18 +85,22 @@ TEST(Transfer, serialize_unserialize)
     checkTransfers(tf, *newTf);
 }
 
+#ifndef WIN32
 TEST(Transfer, unserialize_32bit)
 {
     mega::MegaApp app;
-    MockFileSystemAccess fsaccess;
+    ::mega::FSACCESS_CLASS fsaccess;
     auto client = mt::makeClient(app, fsaccess);
 
     mega::Transfer tf{client.get(), mega::GET};
-    tf.localfilename = "foo";
+    std::string lfn = "foo";
+    tf.localfilename = ::mega::LocalPath::fromPath(lfn, fsaccess);
     std::fill(tf.filekey, tf.filekey + mega::FILENODEKEYLENGTH, 'X');
     tf.ctriv = 1;
     tf.metamac = 2;
-    std::fill(tf.transferkey, tf.transferkey + mega::SymmCipher::KEYLENGTH, 'Y');
+    std::fill(tf.transferkey.data(),
+              tf.transferkey.data() + mega::SymmCipher::KEYLENGTH,
+              'Y');
     tf.lastaccesstime = 3;
     tf.ultoken = new mega::byte[mega::NewNode::UPLOADTOKENLEN];
     std::fill(tf.ultoken, tf.ultoken + mega::NewNode::UPLOADTOKENLEN, 'Z');
@@ -145,3 +151,4 @@ TEST(Transfer, unserialize_32bit)
     auto newTf = std::unique_ptr<mega::Transfer>{mega::Transfer::unserialize(client.get(), &d, &tfMap)};
     checkTransfers(tf, *newTf);
 }
+#endif

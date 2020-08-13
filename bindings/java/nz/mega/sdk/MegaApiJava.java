@@ -22,6 +22,11 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
+import mega.privacy.android.app.MegaApplication;
+import mega.privacy.android.app.R;
+
+import static nz.mega.sdk.MegaError.*;
+
 /**
  * Java Application Programming Interface (API) to access MEGA SDK services on a MEGA account or shared public folder.
  * <p>
@@ -116,6 +121,7 @@ public class MegaApiJava {
     public final static int PAYMENT_METHOD_PAYPAL = MegaApi.PAYMENT_METHOD_PAYPAL;
     public final static int PAYMENT_METHOD_ITUNES = MegaApi.PAYMENT_METHOD_ITUNES;
     public final static int PAYMENT_METHOD_GOOGLE_WALLET = MegaApi.PAYMENT_METHOD_GOOGLE_WALLET;
+    public final static int PAYMENT_METHOD_HUAWEI_WALLET = MegaApi.PAYMENT_METHOD_HUAWEI_WALLET;
     public final static int PAYMENT_METHOD_BITCOIN = MegaApi.PAYMENT_METHOD_BITCOIN;
     public final static int PAYMENT_METHOD_UNIONPAY = MegaApi.PAYMENT_METHOD_UNIONPAY;
     public final static int PAYMENT_METHOD_FORTUMO = MegaApi.PAYMENT_METHOD_FORTUMO;
@@ -154,6 +160,7 @@ public class MegaApiJava {
     public final static int STORAGE_STATE_ORANGE = MegaApi.STORAGE_STATE_ORANGE;
     public final static int STORAGE_STATE_RED = MegaApi.STORAGE_STATE_RED;
     public final static int STORAGE_STATE_CHANGE = MegaApi.STORAGE_STATE_CHANGE;
+    public final static int STORAGE_STATE_PAYWALL = MegaApi.STORAGE_STATE_PAYWALL;
 
     public final static int BUSINESS_STATUS_EXPIRED = MegaApi.BUSINESS_STATUS_EXPIRED;
     public final static int BUSINESS_STATUS_INACTIVE = MegaApi.BUSINESS_STATUS_INACTIVE;
@@ -437,6 +444,50 @@ public class MegaApiJava {
     }
 
     /**
+     * Get an URL to transfer the current session to the webclient
+     *
+     * This function creates a new session for the link so logging out in the web client won't log out
+     * the current session.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_SESSION_TRANSFER_URL
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - URL to open the desired page with the same account
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param path Path inside https://mega.nz/# that we want to open with the current session
+     *
+     * For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getSessionTransferURL(String path, MegaRequestListenerInterface listener){
+        megaApi.getSessionTransferURL(path, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get an URL to transfer the current session to the webclient
+     *
+     * This function creates a new session for the link so logging out in the web client won't log out
+     * the current session.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_SESSION_TRANSFER_URL
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getLink - URL to open the desired page with the same account
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param path Path inside https://mega.nz/# that we want to open with the current session
+     *
+     * For example, if you want to open https://mega.nz/#pro, the parameter of this function should be "pro".
+     */
+    public void getSessionTransferURL(String path){
+        megaApi.getSessionTransferURL(path);
+    }
+
+    /**
      * Converts a Base32-encoded user handle (JID) to a MegaHandle.
      * <p>
      * @param base32Handle
@@ -570,6 +621,30 @@ public class MegaApiJava {
      */
     public boolean multiFactorAuthAvailable () {
         return megaApi.multiFactorAuthAvailable();
+    }
+
+    /**
+     * Reset the verified phone number for the account logged in.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER
+     * If there's no verified phone number associated for the account logged in, the error code
+     * provided in onRequestFinish is MegaError::API_ENOENT.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void resetSmsVerifiedPhoneNumber(MegaRequestListenerInterface listener) {
+        megaApi.resetSmsVerifiedPhoneNumber(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Reset the verified phone number for the account logged in.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER
+     * If there's no verified phone number associated for the account logged in, the error code
+     * provided in onRequestFinish is MegaError::API_ENOENT.
+     */
+    public void resetSmsVerifiedPhoneNumber() {
+        megaApi.resetSmsVerifiedPhoneNumber();
     }
 
     /**
@@ -1187,6 +1262,50 @@ public class MegaApiJava {
      */
     public void getMiscFlags() {
         megaApi.getMiscFlags();
+    }
+
+    /**
+     * Trigger special account state changes for own accounts, for testing
+     *
+     * Because the dev API command allows a wide variety of state changes including suspension and unsuspension,
+     * it has restrictions on which accounts you can target, and where it can be called from.
+     *
+     * Your client must be on a company VPN IP address.
+     *
+     * The target account must be an @mega email address. The target account must either be the calling account,
+     * OR a related account via a prefix and + character. For example if the calling account is name1+test@mega.co.nz
+     * then it can perform a dev command on itself or on name1@mega.co.nz, name1+bob@mega.co.nz etc, but NOT on
+     * name2@mega.co.nz or name2+test@meg.co.nz.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getName - Returns the first parameter
+     * - MegaRequest::getEmail - Returns the second parameter
+     *
+     * Possible errors are:
+     *  - EACCESS if the calling account is not allowed to perform this method (not a mega email account, not the right IP, etc).
+     *  - EARGS if the subcommand is not present or is invalid
+     *  - EBLOCKED if the target account is not allowed (this could also happen if the target account does not exist)
+     *
+     * Possible commands:
+     *  - "aodq" - Advance ODQ Warning State
+     *      If called, this will advance your ODQ warning state until the final warning state,
+     *      at which point it will turn on the ODQ paywall for your account. It requires an account lock on the target account.
+     *      This subcommand will return the 'step' of the warning flow you have advanced to - 1, 2, 3 or 4
+     *      (the paywall is turned on at step 4)
+     *
+     *      Valid data in the MegaRequest object received in onRequestFinish when the error code is MegaError::API_OK:
+     *       + MegaRequest::getNumber - Returns the number of warnings (1, 2, 3 or 4).
+     *
+     *      Possible errors in addition to the standard dev ones are:
+     *       + EFAILED - your account is not in the RED stoplight state
+     *
+     * @param command The subcommand for the specific operation
+     * @param email Optional email of the target email's account. If null, it will use the logged-in account
+     * @param listener MegaRequestListener to track this request
+     */
+    public void sendDevCommand(String command, String email, MegaRequestListenerInterface listener) {
+        megaApi.sendDevCommand(command, email, createDelegateRequestListener(listener));
     }
 
     /**
@@ -2187,12 +2306,122 @@ public class MegaApiJava {
     }
 
     /**
+     * Returns the deadline to remedy the storage overquota situation
+     *
+     * This value is valid only when MegaApi::getUserData has been called after
+     * receiving a callback MegaListener/MegaGlobalListener::onEvent of type
+     * MegaEvent::EVENT_STORAGE, reporting STORAGE_STATE_PAYWALL.
+     * The value will become invalid once the state of storage changes.
+     *
+     * @return Timestamp representing the deadline to remedy the overquota
+     */
+    public long getOverquotaDeadlineTs() {
+        return megaApi.getOverquotaDeadlineTs();
+    }
+
+    /**
+     * Returns when the user was warned about overquota state
+     *
+     * This value is valid only when MegaApi::getUserData has been called after
+     * receiving a callback MegaListener/MegaGlobalListener::onEvent of type
+     * MegaEvent::EVENT_STORAGE, reporting STORAGE_STATE_PAYWALL.
+     * The value will become invalid once the state of storage changes.
+     *
+     * You take the ownership of the returned value.
+     *
+     * @return MegaIntegerList with the timestamp corresponding to each warning
+     */
+    public MegaIntegerList getOverquotaWarningsTs() {
+        return megaApi.getOverquotaWarningsTs();
+    }
+
+    /**
      * Check if the password is correct for the current account
      * @param password Password to check
      * @return True if the password is correct for the current account, otherwise false.
      */
     public boolean checkPassword(String password){
         return megaApi.checkPassword(password);
+    }
+
+    /**
+     * Returns the credentials of the currently open account
+     *
+     * If the MegaApi object isn't logged in or there's no signing key available,
+     * this function returns NULL
+     *
+     * You take the ownership of the returned value.
+     * Use delete [] to free it.
+     *
+     * @return Fingerprint of the signing key of the current account
+     */
+    public String getMyCredentials() {
+        return megaApi.getMyCredentials();
+    }
+
+    /**
+     * Returns the credentials of a given user
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns MegaApi::USER_ATTR_ED25519_PUBLIC_KEY
+     * - MegaRequest::getFlag - Returns true
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getPassword - Returns the credentials in hexadecimal format
+     *
+     * @param user MegaUser of the contact (see MegaApi::getContact) to get the fingerprint
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getUserCredentials(MegaUser user, MegaRequestListenerInterface listener) {
+        megaApi.getUserCredentials(user, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Checks if credentials are verified for the given user
+     *
+     * @param user MegaUser of the contact whose credentiasl want to be checked
+     * @return true if verified, false otherwise
+     */
+    public boolean areCredentialsVerified(MegaUser user){
+        return megaApi.areCredentialsVerified(user);
+    }
+
+    /**
+     * Verify credentials of a given user
+     *
+     * This function allow to tag credentials of a user as verified. It should be called when the
+     * logged in user compares the fingerprint of the user (provided by an independent and secure
+     * method) with the fingerprint shown by the app (@see MegaApi::getUserCredentials).
+     *
+     * The associated request type with this request is MegaRequest::TYPE_VERIFY_CREDENTIALS
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns userhandle
+     *
+     * @param user MegaUser of the contact whose credentials want to be verified
+     * @param listener MegaRequestListener to track this request
+     */
+    public void verifyCredentials(MegaUser user, MegaRequestListenerInterface listener){
+        megaApi.verifyCredentials(user, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Reset credentials of a given user
+     *
+     * Call this function to forget the existing authentication of keys and signatures for a given
+     * user. A full reload of the account will start the authentication process again.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_VERIFY_CREDENTIALS
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns userhandle
+     * - MegaRequest::getFlag - Returns true
+     *
+     * @param user MegaUser of the contact whose credentials want to be reset
+     * @param listener MegaRequestListener to track this request
+     */
+    public void resetCredentials(MegaUser user, MegaRequestListenerInterface listener) {
+        megaApi.resetCredentials(user, createDelegateRequestListener(listener));
     }
 
     /**
@@ -5128,6 +5357,26 @@ public class MegaApiJava {
     }
 
     /**
+     * Set Camera Uploads for both primary and secondary target folder.
+     *
+     * If only one of the target folders wants to be set, simply pass a INVALID_HANDLE to
+     * as the other target folder and it will remain untouched.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
+     * - MegaRequest::getNodehandle - Returns the provided node handle for primary folder
+     * - MegaRequest::getParentHandle - Returns the provided node handle for secondary folder
+     *
+     * @param primaryFolder MegaHandle of the node to be used as primary target folder
+     * @param secondaryFolder MegaHandle of the node to be used as secondary target folder
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setCameraUploadsFolders(long primaryFolder, long secondaryFolder, MegaRequestListenerInterface listener) {
+        megaApi.setCameraUploadsFolders(primaryFolder, secondaryFolder, createDelegateRequestListener(listener));
+    }
+
+    /**
      * Gets Camera Uploads primary target folder.
      *
      * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
@@ -5203,6 +5452,43 @@ public class MegaApiJava {
      */
     public void setUserAlias(long uh, String alias, MegaRequestListenerInterface listener) {
         megaApi.setUserAlias(uh, alias, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get push notification settings
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PUSH_SETTINGS
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaPushNotificationSettings - Returns settings for push notifications
+     *
+     * @see MegaPushNotificationSettings class for more details.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getPushNotificationSettings(MegaRequestListenerInterface listener) {
+        megaApi.getPushNotificationSettings(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set push notification settings
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_PUSH_SETTINGS
+     * - MegaRequest::getMegaPushNotificationSettings - Returns settings for push notifications
+     *
+     * @see MegaPushNotificationSettings class for more details. You can prepare a new object by
+     * calling MegaPushNotificationSettings::createInstance.
+     *
+     * @param settings MegaPushNotificationSettings with the new settings
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setPushNotificationSettings(MegaPushNotificationSettings settings, MegaRequestListenerInterface listener) {
+        megaApi.setPushNotificationSettings(settings, createDelegateRequestListener(listener));
     }
 
     /**
@@ -5704,6 +5990,59 @@ public class MegaApiJava {
      */
     public void startUpload(String localPath, MegaNode parent, String fileName, long mtime, MegaTransferListenerInterface listener) {
         megaApi.startUpload(localPath, parent, fileName, mtime, createDelegateTransferListener(listener));
+    }
+
+    /**
+     * Upload a file or a folder with a custom name and a custom modification time
+     *
+     *If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath Local path of the file
+     * @param parent Parent node for the file in the MEGA account
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer. If a transfer is started with exactly the same data
+     * (local path and target parent) as another one in the transfer queue, the new transfer
+     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+     * the appData of the old transfer, using a '!' separator if the old transfer had already
+     * appData.
+     * @param fileName Custom file name for the file in MEGA
+     * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
+     * @param listener MegaTransferListener to track this transfer
+     *
+     * The custom modification time will be only applied for file transfers. If a folder
+     * is transferred using this function, the custom modification time won't have any effect
+     */
+    public void startUpload(String localPath, MegaNode parent, String appData, String fileName, long mtime, MegaTransferListenerInterface listener) {
+        megaApi.startUpload(localPath, parent, appData, fileName, mtime, createDelegateTransferListener(listener));
+    }
+
+    /**
+     * Upload a file or a folder with a custom name and a custom modification time
+     *
+     *If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath Local path of the file
+     * @param parent Parent node for the file in the MEGA account
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer. If a transfer is started with exactly the same data
+     * (local path and target parent) as another one in the transfer queue, the new transfer
+     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+     * the appData of the old transfer, using a '!' separator if the old transfer had already
+     * appData.
+     * @param fileName Custom file name for the file in MEGA
+     * @param mtime Custom modification time for the file in MEGA (in seconds since the epoch)
+     *
+     * The custom modification time will be only applied for file transfers. If a folder
+     * is transferred using this function, the custom modification time won't have any effect
+     */
+    public void startUpload(String localPath, MegaNode parent, String appData, String fileName, long mtime) {
+        megaApi.startUpload(localPath, parent, appData, fileName, mtime);
     }
 
     /**
@@ -6677,6 +7016,14 @@ public class MegaApiJava {
     }
 
     /**
+     * Get the total number of nodes in the account
+     * @return Total number of nodes in the account
+     */
+    public long getNumNodes() {
+        return megaApi.getNumNodes();
+    }
+
+    /**
      * Starts an unbuffered download of a node (file) from the user's MEGA account.
      *
      * @param node The MEGA node to download.
@@ -6923,37 +7270,6 @@ public class MegaApiJava {
      */
     public boolean hasChildren(MegaNode parent){
         return megaApi.hasChildren(parent);
-    }
-
-    /**
-     * Get the current index of the node in the parent folder for a specific sorting order.
-     * <p>
-     * If the node does not exist or it does not have a parent node (because it's a root node)
-     * this function returns -1.
-     * 
-     * @param node
-     *            Node to check.
-     * @param order
-     *            Sorting order to use.
-     * @return Index of the node in its parent folder.
-     */
-    public int getIndex(MegaNode node, int order) {
-        return megaApi.getIndex(node, order);
-    }
-
-    /**
-     * Get the current index of the node in the parent folder.
-     * <p>
-     * If the node does not exist or it does not have a parent node (because it's a root node)
-     * this function returns -1.
-     * 
-     * @param node
-     *            Node to check.
-     * 
-     * @return Index of the node in its parent folder.
-     */
-    public int getIndex(MegaNode node) {
-        return megaApi.getIndex(node);
     }
 
     /**
@@ -8317,28 +8633,44 @@ public class MegaApiJava {
     }
 
     /**
-     * Make a name suitable for a file name in the local filesystem.
-     * <p>
+     * Make a name suitable for a file name in the local filesystem
+     *
      * This function escapes (%xx) forbidden characters in the local filesystem if needed.
-     * You can revert this operation using MegaApiJava.unescapeFsIncompatible().
-     * 
-     * @param name
-     *            Name to convert.
-     * @return Converted name.
+     * You can revert this operation using MegaApi::unescapeFsIncompatible
+     *
+     * If no dstPath is provided or filesystem type it's not supported this method will
+     * escape characters contained in the following list: \/:?\"<>|*
+     * Otherwise it will check forbidden characters for local filesystem type
+     *
+     * The input string must be UTF8 encoded. The returned value will be UTF8 too.
+     *
+     * You take the ownership of the returned value
+     *
+     * @param filename Name to convert (UTF8)
+     * @param dstPath Destination path
+     * @return Converted name (UTF8)
      */
-    public String escapeFsIncompatible(String name) {
-        return megaApi.escapeFsIncompatible(name);
+    public String escapeFsIncompatible(String filename, String dstPath) {
+        return megaApi.escapeFsIncompatible(filename, dstPath);
     }
 
     /**
-     * Unescape a file name escaped with MegaApiJava.escapeFsIncompatible().
-     * 
-     * @param localName
-     *            Escaped name to convert.
-     * @return Converted name.
+     * Unescape a file name escaped with MegaApi::escapeFsIncompatible
+     *
+     * If no localPath is provided or filesystem type it's not supported, this method will
+     * unescape those sequences that once has been unescaped results in any character
+     * of the following list: \/:?\"<>|*
+     * Otherwise it will unescape those characters forbidden in local filesystem type
+     *
+     * The input string must be UTF8 encoded. The returned value will be UTF8 too.
+     * You take the ownership of the returned value
+     *
+     * @param name Escaped name to convert (UTF8)
+     * @param localPath Local path
+     * @return Converted name (UTF8)
      */
-    public String unescapeFsIncompatible(String localName) {
-        return megaApi.unescapeFsIncompatible(localName);
+    String unescapeFsIncompatible(String name, String localPath) {
+        return megaApi.unescapeFsIncompatible(name, localPath);
     }
 
     /**
@@ -9226,6 +9558,16 @@ public class MegaApiJava {
     }
 
     /**
+     * Returns whether notifications about a chat have to be generated.
+     *
+     * @param chatid MegaHandle that identifies the chat room.
+     * @return true if notification has to be created.
+     */
+    public boolean isChatNotifiable(long chatid) {
+        return megaApi.isChatNotifiable(chatid);
+    }
+
+    /**
      * Provide a phone number to get verification code.
      *
      * @param phoneNumber the phone number to receive the txt with verification code.
@@ -9312,5 +9654,112 @@ public class MegaApiJava {
      */
     public void cancelCreateAccount(MegaRequestListenerInterface listener){
         megaApi.cancelCreateAccount(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Gets the translated string of an error received in a request.
+     *
+     * @param error MegaError received in the request
+     * @return The translated string
+     */
+    public static String getTranslatedErrorString(MegaError error) {
+        MegaApplication app = MegaApplication.getInstance();
+        if (app == null) {
+            return error.getErrorString();
+        }
+
+        if (error.getErrorCode() > 0) {
+            return app.getString(R.string.api_error_http);
+        }
+
+        switch (error.getErrorCode()) {
+            case API_OK:
+                return app.getString(R.string.api_ok);
+            case API_EINTERNAL:
+                return app.getString(R.string.api_einternal);
+            case API_EARGS:
+                return app.getString(R.string.api_eargs);
+            case API_EAGAIN:
+                return app.getString(R.string.api_eagain);
+            case API_ERATELIMIT:
+                return app.getString(R.string.api_eratelimit);
+            case API_EFAILED:
+                return app.getString(R.string.api_efailed);
+            case API_ETOOMANY:
+                if (error.getErrorString().equals("Terms of Service breached")) {
+                    return app.getString(R.string.api_etoomany_ec_download);
+                } else if (error.getErrorString().equals("Too many concurrent connections or transfers")){
+                    return app.getString(R.string.api_etoomay);
+                } else {
+                    return error.getErrorString();
+                }
+            case API_ERANGE:
+                return app.getString(R.string.api_erange);
+            case API_EEXPIRED:
+                return app.getString(R.string.api_eexpired);
+            case API_ENOENT:
+                return app.getString(R.string.api_enoent);
+            case API_ECIRCULAR:
+                if (error.getErrorString().equals("Upload produces recursivity")) {
+                    return app.getString(R.string.api_ecircular_ec_upload);
+                } else if (error.getErrorString().equals("Circular linkage detected")){
+                    return app.getString(R.string.api_ecircular);
+                } else {
+                    return error.getErrorString();
+                }
+            case API_EACCESS:
+                return app.getString(R.string.api_eaccess);
+            case API_EEXIST:
+                return app.getString(R.string.api_eexist);
+            case API_EINCOMPLETE:
+                return app.getString(R.string.api_eincomplete);
+            case API_EKEY:
+                return app.getString(R.string.api_ekey);
+            case API_ESID:
+                return app.getString(R.string.api_esid);
+            case API_EBLOCKED:
+                if (error.getErrorString().equals("Not accessible due to ToS/AUP violation")) {
+                    return app.getString(R.string.api_eblocked_ec_import_ec_download);
+                } else if (error.getErrorString().equals("Blocked")) {
+                    return app.getString(R.string.api_eblocked);
+                } else {
+                    return error.getErrorString();
+                }
+            case API_EOVERQUOTA:
+                return app.getString(R.string.api_eoverquota);
+            case API_ETEMPUNAVAIL:
+                return app.getString(R.string.api_etempunavail);
+            case API_ETOOMANYCONNECTIONS:
+                return app.getString(R.string.api_etoomanyconnections);
+            case API_EWRITE:
+                return app.getString(R.string.api_ewrite);
+            case API_EREAD:
+                return app.getString(R.string.api_eread);
+            case API_EAPPKEY:
+                return app.getString(R.string.api_eappkey);
+            case API_ESSL:
+                return app.getString(R.string.api_essl);
+            case API_EGOINGOVERQUOTA:
+                return app.getString(R.string.api_egoingoverquota);
+            case API_EMFAREQUIRED:
+                return app.getString(R.string.api_emfarequired);
+            case API_EMASTERONLY:
+                return app.getString(R.string.api_emasteronly);
+            case API_EBUSINESSPASTDUE:
+                return app.getString(R.string.api_ebusinesspastdue);
+            case PAYMENT_ECARD:
+                return app.getString(R.string.payment_ecard);
+            case PAYMENT_EBILLING:
+                return app.getString(R.string.payment_ebilling);
+            case PAYMENT_EFRAUD:
+                return app.getString(R.string.payment_efraud);
+            case PAYMENT_ETOOMANY:
+                return app.getString(R.string.payment_etoomay);
+            case PAYMENT_EBALANCE:
+                return app.getString(R.string.payment_ebalance);
+            case PAYMENT_EGENERIC:
+            default:
+                return app.getString(R.string.payment_egeneric_api_error_unknown);
+        }
     }
 }

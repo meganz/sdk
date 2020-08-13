@@ -54,10 +54,10 @@ DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess* fsaccess, string* n
     newoss << "_" << *name << ".db";
     string currentdbpath = newoss.str();
 
-    string locallegacydbpath;
+    
     auto fa = fsaccess->newfileaccess();
-    fsaccess->path2local(&legacydbpath, &locallegacydbpath);
-    bool legacydbavailable = fa->fopen(&locallegacydbpath);
+    auto locallegacydbpath = LocalPath::fromPath(legacydbpath, *fsaccess);
+    bool legacydbavailable = fa->fopen(locallegacydbpath);
     fa.reset();
 
     if (legacydbavailable)
@@ -72,34 +72,30 @@ DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess* fsaccess, string* n
             if (!recycleLegacyDB)
             {
                 LOG_debug << "Legacy DB is outdated. Deleting.";
-                fsaccess->unlinklocal(&locallegacydbpath);
+                fsaccess->unlinklocal(locallegacydbpath);
             }
             else
             {
                 LOG_debug << "Trying to recycle a legacy DB";
-                string localcurrentdbpath;
-                fsaccess->path2local(&currentdbpath, &localcurrentdbpath);
-                if (fsaccess->renamelocal(&locallegacydbpath, &localcurrentdbpath, false))
+                auto localcurrentdbpath = LocalPath::fromPath(currentdbpath, *fsaccess);
+                if (fsaccess->renamelocal(locallegacydbpath, localcurrentdbpath, false))
                 {
-                    string suffix = "-shm";
-                    string localsuffix;
-                    fsaccess->path2local(&suffix, &localsuffix);
+                    auto localsuffix = LocalPath::fromPath("-shm", *fsaccess);
 
-                    string oldfile = locallegacydbpath + localsuffix;
-                    string newfile = localcurrentdbpath + localsuffix;
-                    fsaccess->renamelocal(&oldfile, &newfile, true);
+                    auto oldfile = locallegacydbpath + localsuffix;
+                    auto newfile = localcurrentdbpath + localsuffix;
+                    fsaccess->renamelocal(oldfile, newfile, true);
 
-                    suffix = "-wal";
-                    fsaccess->path2local(&suffix, &localsuffix);
+                    localsuffix = LocalPath::fromPath("-wal", *fsaccess);
                     oldfile = locallegacydbpath + localsuffix;
                     newfile = localcurrentdbpath + localsuffix;
-                    fsaccess->renamelocal(&oldfile, &newfile, true);
+                    fsaccess->renamelocal(oldfile, newfile, true);
                     LOG_debug << "Legacy DB recycled";
                 }
                 else
                 {
                     LOG_debug << "Unable to recycle legacy DB. Deleting.";
-                    fsaccess->unlinklocal(&locallegacydbpath);
+                    fsaccess->unlinklocal(locallegacydbpath);
                 }
             }
         }
@@ -354,9 +350,8 @@ void SqliteDbTable::remove()
 
     db = NULL;
 
-    string localpath;
-    fsaccess->path2local(&dbfile, &localpath);
-    fsaccess->unlinklocal(&localpath);
+    auto localpath = LocalPath::fromPath(dbfile, *fsaccess);
+    fsaccess->unlinklocal(localpath);
 }
 } // namespace
 

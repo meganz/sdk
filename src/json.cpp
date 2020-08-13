@@ -172,6 +172,28 @@ std::string JSON::getname()
     return name;
 }
 
+std::string JSON::getnameWithoutAdvance() const
+{
+    const char* ptr = pos;
+    string name;
+
+    if (*ptr == ',' || *ptr == ':')
+    {
+        ptr++;
+    }
+
+    if (*ptr++ == '"')
+    {
+        while (*ptr && *ptr != '"')
+        {
+            name += *ptr;
+            ptr++;
+        }
+    }
+
+    return name;
+}
+
 // pos points to [,]"name":...
 // returns nameid and repositons pos after :
 // no unescaping supported
@@ -559,6 +581,37 @@ bool JSON::extractstringvalue(const string &json, const string &name, string *va
     }
 
     *value = json.substr(pos + pattern.size(), end - pos - pattern.size());
+    return true;
+}
+
+bool JSON::isNumericError(error &e)
+{
+    const char* ptr = pos;
+    if (*ptr == ',')
+    {
+        ptr++;
+    }
+
+    const char* auxPtr = ptr;
+    if (*auxPtr != '-' && *auxPtr != '0')
+    {
+        e = API_OK;
+        return false;
+    }
+
+    if (*auxPtr == '-')
+    {
+        auxPtr++;
+        if (!(*auxPtr >= '1' && *auxPtr <= '9'))
+        {
+            e = API_OK;
+            return false;
+        }
+    }
+
+    e = static_cast<error>(atoll(ptr));
+    storeobject();
+
     return true;
 }
 

@@ -57,6 +57,7 @@ cross_compiling=0
 configure_cross_options=""
 openssl_cross_option=""
 status_dir=""
+persistent_path="/opt/persistent"
 
 on_exit_error() {
     echo "ERROR! Please check log files. Exiting.."
@@ -141,7 +142,7 @@ package_download() {
         cp /tmp/megasdkbuild/$3 $file 
     else
         echo "Downloading $name to get $3"
-        wget --secure-protocol=TLSv1 --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
+        wget --secure-protocol=TLSv1_2 --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
         curl -k $url > $file || exit 1
     fi
     
@@ -226,7 +227,7 @@ package_configure() {
     fi
 
     if [ $cross_compiling -eq 1 ] && [ -f $conf_f0 ]; then
-        conf="$conf_f0 os/compiler:$openssl_cross_option"
+        conf="$conf_f0 $openssl_cross_option"
     elif [ $cross_compiling -eq 0 ] && [ -f $conf_f1 ]; then  # ./config is used to figure out which compiler; if we are cross compiling then skip that and use configure directly, $CC $CXX etc specify the tools
         conf="$conf_f1"
     elif [ -f $conf_f2 ]; then
@@ -284,9 +285,10 @@ package_install() {
     local name=$1
     local dir=$2
     local install_dir=$3
+    local md5=$4
 
-    if [ "$#" -eq 4 ]; then
-        local target=$4
+    if [ "$#" -eq 5 ]; then
+        local target=$5
     else
         local target=""
     fi
@@ -310,7 +312,7 @@ package_install() {
         cd $cwd
     else
         cd $cwd
-        echo $exit_code > $status_dir/$name.success
+        echo $md5 > $status_dir/$name.success
     fi
 
     # some packages install libraries to "lib64" folder
@@ -325,12 +327,12 @@ openssl_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="OpenSSL"
-    local openssl_ver="1.0.2h"
-    local openssl_url="https://www.openssl.org/source/openssl-$openssl_ver.tar.gz"
-    local openssl_md5="9392e65072ce4b614c1392eefc1f23d0"
-
-    local openssl_file="openssl-$openssl_ver.tar.gz"
-    local openssl_dir="openssl-$openssl_ver"
+    local openssl_ver="1.1.1"
+    local openssl_rel="d"
+    local openssl_url="https://www.openssl.org/source/old/${openssl_ver}/openssl-$openssl_${openssl_ver}${openssl_rel}.tar.gz"
+    local openssl_md5="3be209000dbc7e1b95bcdf47980a3baa"
+    local openssl_file="openssl-${openssl_ver}${openssl_rel}.tar.gz"
+    local openssl_dir="openssl-${openssl_ver}${openssl_rel}"
     if [ $use_dynamic -eq 1 ]; then
     local openssl_params="--openssldir=$install_dir shared $extra_openssl_params"
     else
@@ -338,7 +340,7 @@ openssl_pkg() {
     fi
     local loc_make_opts=$make_opts
 
-    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ] && [ `cat $status_dir/$name.success` = $openssl_md5 ]; then
         echo "$name already built"
         return
     else
@@ -383,20 +385,20 @@ openssl_pkg() {
     package_build $name $openssl_dir
     make_opts=$loc_make_opts
 
-    package_install $name $openssl_dir $install_dir
+    package_install $name $openssl_dir $install_dir $openssl_md5
 }
 
 cryptopp_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="Crypto++"
-    local cryptopp_ver="800"
+    local cryptopp_ver="820"
     local cryptopp_url="http://www.cryptopp.com/cryptopp$cryptopp_ver.zip"
-    local cryptopp_md5="f5affc19468c78fd8c5694c664cbd8ec"
+    local cryptopp_md5="8a8bcb436af83e16d2227bd4ac642243"
     local cryptopp_file="cryptopp$cryptopp_ver.zip"
     local cryptopp_dir="cryptopp$cryptopp_ver"
 
-    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ] && [ `cat $status_dir/$name.success` = $cryptopp_md5 ]; then
         echo "$name already built"
         return
     else
@@ -412,15 +414,16 @@ cryptopp_pkg() {
 
     #modify Makefile so that it does not use specific cpu architecture optimizations
     sed "s#CXXFLAGS += -march=native#CXXFLAGS += #g" -i $cryptopp_dir/GNUmakefile
+    sed -i -e "160,165d" $cryptopp_dir/GNUmakefile
     
     if [ $android_build -eq 1 ]; then
         cp ${ANDROID_NDK_ROOT}/sources/android/cpufeatures/cpu-features.h $cryptopp_dir/
         cp ${ANDROID_NDK_ROOT}/sources/android/cpufeatures/cpu-features.c $cryptopp_dir/
         package_build $name $cryptopp_dir "static -f GNUmakefile-cross"
-        package_install $name $cryptopp_dir $install_dir "-f GNUmakefile-cross"
+        package_install $name $cryptopp_dir $install_dir $cryptopp_md5 "-f GNUmakefile-cross"
     else
         package_build $name $cryptopp_dir static
-        package_install $name $cryptopp_dir $install_dir
+        package_install $name $cryptopp_dir $install_dir $cryptopp_md5
    fi
 }
 
@@ -439,7 +442,7 @@ sodium_pkg() {
         local sodium_params="--disable-shared --enable-static --disable-pie"
     fi
 
-    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ] && [ `cat $status_dir/$name.success` = $sodium_md5 ]; then
         echo "$name already built"
         return
     else
@@ -454,17 +457,17 @@ sodium_pkg() {
     package_extract $name $sodium_file $sodium_dir
     package_configure $name $sodium_dir $install_dir "$sodium_params"
     package_build $name $sodium_dir
-    package_install $name $sodium_dir $install_dir
+    package_install $name $sodium_dir $install_dir $sodium_md5
 }
 
 libuv_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="libuv"
-    local libuv_ver="v1.8.0"
-    local libuv_url="https://dist.libuv.org/dist/$libuv_ver/libuv-$libuv_ver.tar.gz"
-    local libuv_md5="f4229c4360625e973ae933cb92e1faf7"
-    local libuv_file="libuv-$libuv_ver.tar.gz"
+    local libuv_ver="1.34.2"
+    local libuv_url="https://github.com/libuv/libuv/archive/v${libuv_ver}.tar.gz"
+    local libuv_md5="5b57d93320a4aac3e66de94a1d4da98d"
+    local libuv_file="v${libuv_ver}.tar.gz"
     local libuv_dir="libuv-$libuv_ver"
     if [ $use_dynamic -eq 1 ]; then
         local libuv_params="--enable-shared"
@@ -472,7 +475,7 @@ libuv_pkg() {
         local libuv_params="--disable-shared --enable-static"
     fi
 
-    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ] && [ `cat $status_dir/$name.success` = $libuv_md5 ]; then
         echo "$name already built"
         return
     else
@@ -497,16 +500,16 @@ libuv_pkg() {
     export CFLAGS="$OLD_CFLAGS"
 
     package_build $name $libuv_dir
-    package_install $name $libuv_dir $install_dir
+    package_install $name $libuv_dir $install_dir $libuv_md5
 }
 
 libraw_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="libraw"
-    local libraw_ver="0.19.0"
+    local libraw_ver="0.19.5"
     local libraw_url="https://www.libraw.org/data/LibRaw-$libraw_ver.tar.gz"
-    local libraw_md5="789b03f0ec39eebcba3ae8a0e5b780ac"
+    local libraw_md5="865ab9a40910709ff86988e8c0a7d146"
     local libraw_file="libraw-$libraw_ver.tar.gz"
     local libraw_dir="LibRaw-$libraw_ver"
     if [ $use_dynamic -eq 1 ]; then
@@ -515,7 +518,7 @@ libraw_pkg() {
         local libraw_params="--disable-shared --enable-static"
     fi
 
-    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ] && [ `cat $status_dir/$name.success` = $libraw_md5 ]; then
         echo "$name already built"
         return
     else
@@ -540,7 +543,7 @@ libraw_pkg() {
     export LIBS="$OLD_LIBS"
 
     package_build $name $libraw_dir
-    package_install $name $libraw_dir $install_dir
+    package_install $name $libraw_dir $install_dir $libraw_md5
 }
 
 zlib_pkg() {
@@ -561,7 +564,7 @@ zlib_pkg() {
         local zlib_params="--static"
     fi
 
-    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ] && [ `cat $status_dir/$name.success` = $zlib_md5 ]; then
         echo "$name already built"
         return
     else
@@ -583,13 +586,13 @@ zlib_pkg() {
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
         package_configure $name $zlib_dir $install_dir "$zlib_params"
         package_build $name $zlib_dir
-        package_install $name $zlib_dir $install_dir
+        package_install $name $zlib_dir $install_dir $zlib_md5
     else
         export BINARY_PATH=$install_dir/bin
         export INCLUDE_PATH=$install_dir/include
         export LIBRARY_PATH=$install_dir/lib
         package_build $name $zlib_dir "-f win32/Makefile.gcc"
-        package_install $name $zlib_dir $install_dir "-f win32/Makefile.gcc"
+        package_install $name $zlib_dir $install_dir $zlib_md5 "-f win32/Makefile.gcc"
         unset BINARY_PATH
         unset INCLUDE_PATH
         unset LIBRARY_PATH
@@ -603,9 +606,9 @@ sqlite_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="SQLite"
-    local sqlite_ver="3100100"
-    local sqlite_url="http://www.sqlite.org/2016/sqlite-autoconf-$sqlite_ver.tar.gz"
-    local sqlite_md5="f315a86cb3e8671fe473baa8d34746f6"
+    local sqlite_ver="3300100"
+    local sqlite_url="http://www.sqlite.org/2019/sqlite-autoconf-$sqlite_ver.tar.gz"
+    local sqlite_md5="51252dc6bc9094ba11ab151ba650ff3c"
     local sqlite_file="sqlite-$sqlite_ver.tar.gz"
     local sqlite_dir="sqlite-autoconf-$sqlite_ver"
     if [ $use_dynamic -eq 1 ]; then
@@ -614,7 +617,7 @@ sqlite_pkg() {
         local sqlite_params="--disable-shared --enable-static"
     fi
 
-    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ] && [ `cat $status_dir/$name.success` = $sqlite_md5 ]; then
         echo "$name already built"
         return
     else
@@ -629,16 +632,16 @@ sqlite_pkg() {
     package_extract $name $sqlite_file $sqlite_dir
     package_configure $name $sqlite_dir $install_dir "$sqlite_params"
     package_build $name $sqlite_dir
-    package_install $name $sqlite_dir $install_dir
+    package_install $name $sqlite_dir $install_dir $sqlite_md5
 }
 
 cares_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="c-ares"
-    local cares_ver="1.10.0"
+    local cares_ver="1.14.0"
     local cares_url="http://c-ares.haxx.se/download/c-ares-$cares_ver.tar.gz"
-    local cares_md5="1196067641411a75d3cbebe074fd36d8"
+    local cares_md5="e57b37a7c46283e83c21cde234df10c7"
     local cares_file="cares-$cares_ver.tar.gz"
     local cares_dir="c-ares-$cares_ver"
     if [ $use_dynamic -eq 1 ]; then
@@ -647,7 +650,7 @@ cares_pkg() {
         local cares_params="--disable-shared --enable-static"
     fi
 
-    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ] && [ `cat $status_dir/$name.success` = $cares_md5 ]; then
         echo "$name already built"
         return
     else
@@ -662,16 +665,16 @@ cares_pkg() {
     package_extract $name $cares_file $cares_dir
     package_configure $name $cares_dir $install_dir "$cares_params"
     package_build $name $cares_dir
-    package_install $name $cares_dir $install_dir
+    package_install $name $cares_dir $install_dir $cares_md5
 }
 
 curl_pkg() {
     local build_dir=$1
     local install_dir=$2
     local name="cURL"
-    local curl_ver="7.59.0"
+    local curl_ver="7.68.0"
     local curl_url="http://curl.haxx.se/download/curl-$curl_ver.tar.gz"
-    local curl_md5="a44f98c25c7506e7103039b542aa5ad8"
+    local curl_md5="f68d6f716ff06d357f476ea4ea57a3d6"
     local curl_file="curl-$curl_ver.tar.gz"
     local curl_dir="curl-$curl_ver"
     local openssl_flags=""
@@ -695,7 +698,7 @@ curl_pkg() {
             --without-brotli --disable-shared --with-zlib=$install_dir --enable-ares=$install_dir $openssl_flags"
     fi
 
-    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ] && [ `cat $status_dir/$name.success` = $curl_md5 ]; then
         echo "$name already built"
         return
     else
@@ -710,7 +713,7 @@ curl_pkg() {
     package_extract $name $curl_file $curl_dir
     package_configure $name $curl_dir $install_dir "$curl_params" "-ldl"  
     package_build $name $curl_dir
-    package_install $name $curl_dir $install_dir
+    package_install $name $curl_dir $install_dir $curl_md5
 }
 
 readline_pkg() {
@@ -728,7 +731,7 @@ readline_pkg() {
         local readline_params="--disable-shared --enable-static"
     fi
 
-    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ] && [ `cat $status_dir/$name.success` = $readline_md5 ]; then
         echo "$name already built"
         return
     else
@@ -743,7 +746,7 @@ readline_pkg() {
     package_extract $name $readline_file $readline_dir
     package_configure $name $readline_dir $install_dir "$readline_params"
     package_build $name $readline_dir
-    package_install $name $readline_dir $install_dir
+    package_install $name $readline_dir $install_dir $readline_md5
 }
 
 termcap_pkg() {
@@ -761,7 +764,7 @@ termcap_pkg() {
         local termcap_params="--disable-shared --enable-static"
     fi
 
-    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ] && [ `cat $status_dir/$name.success` = $termcap_md5 ]; then
         echo "$name already built"
         return
     else
@@ -776,7 +779,7 @@ termcap_pkg() {
     package_extract $name $termcap_file $termcap_dir
     package_configure $name $termcap_dir $install_dir "$termcap_params"
     package_build $name $termcap_dir
-    package_install $name $termcap_dir $install_dir
+    package_install $name $termcap_dir $install_dir $termcap_md5
 }
 
 freeimage_pkg() {
@@ -784,14 +787,14 @@ freeimage_pkg() {
     local install_dir=$2
     local cwd=$3
     local name="FreeImage"
-    local freeimage_ver="3170"
+    local freeimage_ver="3180"
     local freeimage_url="http://downloads.sourceforge.net/freeimage/FreeImage$freeimage_ver.zip"
-    local freeimage_md5="459e15f0ec75d6efa3c7bd63277ead86"
+    local freeimage_md5="f8ba138a3be233a3eed9c456e42e2578"
     local freeimage_file="freeimage-$freeimage_ver.zip"
     local freeimage_dir_extract="freeimage-$freeimage_ver"
     local freeimage_dir="freeimage-$freeimage_ver/FreeImage"
 
-    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ] && [ `cat $status_dir/$name.success` = $freeimage_md5 ]; then
         echo "$name already built"
         return
     else
@@ -810,7 +813,7 @@ freeimage_pkg() {
 
     #patch to fix problem with raw strings
     find $freeimage_dir_extract/FreeImage/Source/LibWebP -type f -exec sed -i -e 's/"#\([A-X]\)"/" #\1 "/g' {} \;
-    
+
     #patch to fix problem with newest compilers
     sed -i "s#CXXFLAGS += -D__ANSI__#CXXFLAGS += -D__ANSI__ -std=c++98#g" $freeimage_dir_extract/FreeImage/Makefile.gnu 
 
@@ -818,8 +821,9 @@ freeimage_pkg() {
     #as gcc building for 32 bit linux has long as 32 bit.  Also some files have the utf-8 BOM which old gcc doesn't like
     export CFLAGS="$CFLAGS -fdollars-in-identifiers"
     export CXXFLAGS="$CXXFLAGS -fdollars-in-identifiers"
+
     find $freeimage_dir/Source/OpenEXR/IlmImf/ -name "*.cpp" | xargs sed -i -e "s/0xffffffffffffffffL/0xffffffffffffffffull/" 
-    find $freeimage_dir/Source/LibRawLite/internal/ -name "*.cpp" | xargs sed -i -e "s/\(0x[0-9A-Fa-f]\{9,16\}\)/\1ull/g" 
+
     if command -v dos2unix; then
         find $freeimage_dir/Source/LibRawLite/internal/ -name "*.cpp" | xargs dos2unix
         find $freeimage_dir/Source/LibRawLite/internal/ -name "*.h" | xargs dos2unix
@@ -840,21 +844,9 @@ freeimage_pkg() {
         export FREEIMAGE_LIBRARY_TYPE=STATIC
     fi
 
-cat << EOF > $build_dir/freeimage_neon_arm64_patch
-138c138
-< #  define PNG_FILTER_OPTIMIZATIONS png_init_filter_functions_neon
----
-> //#  define PNG_FILTER_OPTIMIZATIONS png_init_filter_functions_neon
-1931,1932c1931,1932
-< PNG_INTERNAL_FUNCTION(void, png_init_filter_functions_neon,
-<    (png_structp png_ptr, unsigned int bpp), PNG_EMPTY);
----
-> //PNG_INTERNAL_FUNCTION(void, png_init_filter_functions_neon,
-> //   (png_structp png_ptr, unsigned int bpp), PNG_EMPTY);
-EOF
     # freeimage's LibPNG has a problem with deciding to use neon on 64 bit arm, resulting in a missing symbol
     if [ "$ARCH" == "aarch64" ]; then
-      (patch `find . -name pngpriv.h` < $build_dir/freeimage_neon_arm64_patch)
+        export CFLAGS="$CFLAGS -DPNG_ARM_NEON_OPT=0"
     fi 
 
     if [ "$(expr substr $(uname -s) 1 10)" != "MINGW32_NT" ]; then
@@ -862,7 +854,7 @@ EOF
         # manually copy header and library
         cp $freeimage_dir/Dist/FreeImage.h $install_dir/include || exit 1
         cp $freeimage_dir/Dist/libfreeimage* $install_dir/lib || exit 1
-        echo $? > $status_dir/$name.success
+        echo $freeimage_md5 > $status_dir/$name.success
     # MinGW
     else
         package_build $name $freeimage_dir "-f Makefile.mingw"
@@ -872,39 +864,8 @@ EOF
         cp $freeimage_dir/Dist/FreeImage.dll $install_dir/lib || 1
         cp $freeimage_dir/Dist/FreeImage.lib $install_dir/lib || 1
         cp $freeimage_dir/Dist/libFreeImage.a $install_dir/lib || 1
-        echo $? > $status_dir/$name.success
+        echo $freeimage_md5 > $status_dir/$name.success
     fi
-}
-
-# we can't build vanilla ReadLine under MinGW
-readline_win_pkg() {
-    local build_dir=$1
-    local install_dir=$2
-    local name="Readline"
-    local readline_ver="5.0.1"
-    local readline_url="http://downloads.sourceforge.net/project/gnuwin32/readline/5.0-1/readline-5.0-1-bin.zip?r=&ts=1468492036&use_mirror=freefr"
-    local readline_md5="91beae8726edd7ad529f67d82153e61a"
-    local readline_file="readline-bin.zip"
-    local readline_dir="readline-bin"
-
-    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
-        echo "$name already built"
-        return
-    else
-        rm -f $status_dir/$name.success
-    fi
-
-    package_download $name $readline_url $readline_file $readline_md5
-    if [ $download_only -eq 1 ]; then
-        return
-    fi
-
-    package_extract $name $readline_file $readline_dir
-
-    # manually copy binary files
-    cp -R $readline_dir/include/* $install_dir/include/ || exit 1
-    # fix library name
-    cp $readline_dir/lib/libreadline.dll.a $install_dir/lib/libreadline.a || exit 1
 }
 
 mediainfo_pkg() {
@@ -927,7 +888,7 @@ mediainfo_pkg() {
     local mediainfolib_dir_extract="MediaInfoLib-$mediainfolib_ver"
     local mediainfolib_dir="MediaInfoLib-$mediainfolib_ver/Project/GNU/Library"
 
-    if [ $incremental -eq 1 ] && [ -e $status_dir/$mediainfolib_name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$mediainfolib_name.success ] && [ `cat $status_dir/$mediainfolib_name.success` = $mediainfolib_md5 ]; then
         echo "$mediainfolib_name already built"
         return
     else
@@ -970,7 +931,7 @@ mediainfo_pkg() {
 
     package_build $zenlib_name $zenlib_dir
     #package_install $zenlib_name $zenlib_dir $install_dir
-    package_install $zenlib_name $zenlib_dir "$build_dir/ZenLib"
+    package_install $zenlib_name $zenlib_dir "$build_dir/ZenLib" $zenlib_md5
 
     package_configure $mediainfolib_name $mediainfolib_dir $install_dir "$mediainfolib_params" #TODO: tal vez install dir ha de ser ./ZenLib!!! casi 100% seguro
     CR=$(printf '\r')
@@ -1008,7 +969,7 @@ EOF
     package_build $mediainfolib_name $mediainfolib_dir
 
     pushd $build_dir/ZenLib >/dev/null
-    package_install $mediainfolib_name $build_dir/$mediainfolib_dir $install_dir
+    package_install $mediainfolib_name $build_dir/$mediainfolib_dir $install_dir $mediainfolib_md5
     popd
 
 }
@@ -1024,7 +985,7 @@ readline_win_pkg() {
     local readline_file="readline-bin.zip"
     local readline_dir="readline-bin"
 
-    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ]; then
+    if [ $incremental -eq 1 ] && [ -e $status_dir/$name.success ] && [ `cat $status_dir/$name.success` = $readline_md5 ]; then
         echo "$name already built"
         return
     else
@@ -1042,6 +1003,7 @@ readline_win_pkg() {
     cp -R $readline_dir/include/* $install_dir/include/ || exit 1
     # fix library name
     cp $readline_dir/lib/libreadline.dll.a $install_dir/lib/libreadline.a || exit 1
+    echo $readline_md5 > $status_dir/$name.success
 }
 
 build_sdk() {
@@ -1283,6 +1245,7 @@ main() {
                 ;;
             I)
                 echo "* Incremental build - skipping already built/downloaded dependencies"
+                [ -d $persistent_path ] && echo "* Using $persistent_path as a backup for dependecies."
                 incremental=1
                 ;;
             l)
@@ -1354,8 +1317,8 @@ main() {
                 echo "* cross-compiling"
                 ;;
             C)
-               configure_cross_options="$OPTARG"
-               echo "* configure cross compile options: $configure_cross_options"
+                configure_cross_options="$OPTARG"
+                echo "* configure cross compile options: $configure_cross_options"
                 ;;
             O)
                 openssl_cross_option="$OPTARG"
@@ -1410,6 +1373,13 @@ main() {
 
     if [ $incremental -eq 0 ]; then
         rm -fr *.log
+    else
+        # Check if backup exists on persistent path and restore previous status.
+        if [ -d $persistent_path/sdk/ ];then
+            echo "Recovering previous libs and staus, if any."
+            [ -d $persistent_path/sdk/3rdparty ] && cp --preserve=timestamps -r $persistent_path/sdk/3rdparty/* $install_dir/
+            [ -d $persistent_path/sdk/3rdparty_status ] && cp --preserve=timestamps $persistent_path/sdk/3rdparty_status/* $status_dir/
+        fi
     fi
 
     export PREFIX=$install_dir
@@ -1487,6 +1457,19 @@ main() {
         fi
         export "CXXFLAGS=$CXXFLAGS -DCRYPTOPP_MAINTAIN_BACKWARDS_COMPATIBILITY_562"
         build_sdk $install_dir $debug
+    fi
+
+    if [ $incremental -eq 1 ]; then
+        # Check if persistent path exists to backup current build status.
+        if [ -d $persistent_path ];then
+            # Creating directories to store current libraries and status.
+            mkdir -p $persistent_path/sdk/3rdparty
+            mkdir -p $persistent_path/sdk/3rdparty_status
+            echo "Using $persistent_path/sdk/ as persistent path to store current build status."
+            cp --preserve=timestamps -r $install_dir/* $persistent_path/sdk/3rdparty/
+            rm -f $persistent_path/sdk/3rdparty_status/*
+            cp --preserve=timestamps $status_dir/*.success $persistent_path/sdk/3rdparty_status/
+        fi
     fi
 
     unset PREFIX

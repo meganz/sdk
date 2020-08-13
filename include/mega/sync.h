@@ -27,19 +27,16 @@
 
 namespace mega {
 
-// Returns true for a path that can be synced (.debris is not one of those).
-bool isPathSyncable(const string& localpath, const string& localdebris, const string& localseparator);
-
 // Searching from the back, this function compares path1 and path2 character by character and
 // returns the number of consecutive character matches (excluding separators) but only including whole node names.
 // It's assumed that the paths are normalized (e.g. not contain ..) and separated with the given `localseparator`.
 // `accumulated` is a buffer that is used to avoid constant reallocations.
-int computeReversePathMatchScore(string& accumulated, const string& path1, const string& path2, const string& localseparator);
+int computeReversePathMatchScore(string& accumulated, const LocalPath& path1, const LocalPath& path2, const FileSystemAccess&);
 
 // Recursively iterates through the filesystem tree starting at the sync root and assigns
 // fs IDs to those local nodes that match the fingerprint retrieved from disk.
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
-                         const string& localdebris, const string& localseparator);
+                         LocalPath& localdebris);
 
 // A collection of sync configs backed by a database table
 class MEGA_API SyncConfigBag
@@ -89,6 +86,8 @@ public:
     // root of local filesystem tree, holding the sync's root folder.  Never null except briefly in the destructor (to ensure efficient db usage)
     unique_ptr<LocalNode> localroot;
 
+    FileSystemType mFilesystemType = FS_UNKNOWN;
+
     // Path used to normalize sync locaroot name when using prefix /System/Volumes/Data needed by fsevents, due to notification paths
     // are served with such prefix from macOS catalina +
 #ifdef __APPLE__
@@ -116,13 +115,16 @@ public:
     void statecacheadd(LocalNode*);
 
     // recursively add children
-    void addstatecachechildren(uint32_t, idlocalnode_map*, string*, LocalNode*, int);
+    void addstatecachechildren(uint32_t, idlocalnode_map*, LocalPath&, LocalNode*, int);
     
     // Caches all synchronized LocalNode
     void cachenodes();
 
     // change state, signal to application
     void changestate(syncstate_t);
+
+    // skip duplicates and self-caused
+    bool checkValidNotification(int q, Notification& notification);
 
     // process and remove one directory notification queue item from *notify
     dstime procscanq(int);
@@ -131,13 +133,13 @@ public:
     void deletemissing(LocalNode*);
 
     // scan specific path
-    LocalNode* checkpath(LocalNode*, string*, string* = NULL, dstime* = NULL, bool wejustcreatedthisfolder = false);
+    LocalNode* checkpath(LocalNode*, LocalPath*, string* const, dstime*, bool wejustcreatedthisfolder, DirAccess* iteratingDir);
 
     m_off_t localbytes = 0;
     unsigned localnodes[2]{};
 
     // look up LocalNode relative to localroot
-    LocalNode* localnodebypath(LocalNode*, string*, LocalNode** = NULL, string* = NULL);
+    LocalNode* localnodebypath(LocalNode*, const LocalPath&, LocalNode** = NULL, string* = NULL);
 
     // Assigns fs IDs to those local nodes that match the fingerprint retrieved from disk.
     // The fs IDs of unmatched nodes are invalidated.
@@ -145,7 +147,7 @@ public:
 
     // scan items in specified path and add as children of the specified
     // LocalNode
-    bool scan(string*, FileAccess*);
+    bool scan(LocalPath*, FileAccess*);
 
     // own position in session sync list
     sync_list::iterator sync_it{};
@@ -158,7 +160,8 @@ public:
     int tag = 0;
 
     // debris path component relative to the base path
-    string debris, localdebris;
+    string debris;
+    LocalPath localdebris;
 
     // permanent lock on the debris/tmp folder
     std::unique_ptr<FileAccess> tmpfa;
@@ -167,7 +170,7 @@ public:
     DbTable* statecachetable = nullptr;
 
     // move file or folder to localdebris
-    bool movetolocaldebris(string* localpath);
+    bool movetolocaldebris(LocalPath& localpath);
 
     // original filesystem fingerprint
     fsfp_t fsfp = 0;
@@ -188,6 +191,9 @@ public:
     m_off_t updatedfilesize = ~0;
     m_time_t updatedfilets = 0;
     m_time_t updatedfileinitialts = 0;
+
+    // flag to optimize destruction by skipping calls to treestate()
+    bool mDestructorRunning = false;
 
     Sync(MegaClient*, SyncConfig, const char*, string*, Node*, bool, int, void*);
     ~Sync();

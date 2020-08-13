@@ -26,14 +26,28 @@
 #include <deque>
 #include <vector>
 #include <mutex>
-#include "TcpRelay.h"
-#include <windns.h>
+#include "tcprelay.h"
 #include <codecvt>
 #include <mega.h>
+#include <mega/autocomplete.h>
 #include <mega/logging.h>
-#include <windns.h>
 #include <iomanip>
 #include <regex>
+
+#ifndef NO_READLINE
+#include <readline/readline.h>
+#include <readline/history.h>
+#endif
+
+#ifdef _WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#else /* _WIN32 */
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#endif /* ! _WIN32 */
 
 using namespace std;
 using namespace ::mega;
@@ -79,11 +93,11 @@ struct RelayRunner
 
     void AddAcceptor(const string& name, uint16_t port, asio::ip::address_v6 targetAddress, bool start)
     {
-        lock_guard g(relaycollectionmutex);
+        lock_guard<mutex> g(relaycollectionmutex);
         relayacceptors.emplace_back(new TcpRelayAcceptor(asio_service, name, port, asio::ip::tcp::endpoint(targetAddress, 80),
             [this](unique_ptr<TcpRelay> p)
         {
-            lock_guard g(relaycollectionmutex);
+            lock_guard<mutex> g(relaycollectionmutex);
             acceptedrelays.emplace_back(move(p));
             cout << acceptedrelays.back()->reporting_name << " acceptor is #" << (acceptedrelays.size() - 1) << endl;
         }));
@@ -110,13 +124,13 @@ struct RelayRunner
 
     void StartLogTimer()
     {
-        logTimer.expires_from_now(std::chrono::seconds(1));
+        logTimer.expires_from_now(std::chrono::seconds(4));
         logTimer.async_wait([this](const asio::error_code&) { Log(); });
     }
 
     void Log()
     {
-        lock_guard g(relaycollectionmutex);
+        lock_guard<mutex> g(relaycollectionmutex);
         size_t eversent = 0, everreceived = 0;
         size_t sendRate = 0, receiveRate = 0;
         int senders = 0, receivers = 0, active = 0;
@@ -142,7 +156,7 @@ struct RelayRunner
 
     void report()
     {
-        lock_guard g(relaycollectionmutex);
+        lock_guard<mutex> g(relaycollectionmutex);
         for (auto& r : acceptedrelays)
         {
             cout << " " << r->reporting_name << ": " << r->acceptor_side.totalbytes << " " << r->connect_side.totalbytes << " " << (r->stopped ? "stopped" : "active") << (r->paused ? " (paused)" : "") << endl;
@@ -171,28 +185,42 @@ RelayRunner g_relays;
 
 void addRelay(const string& server, uint16_t port)
 {
-    DNS_RECORD* pDnsrec;
-    DNS_STATUS dnss = DnsQuery_A(server.c_str(), DNS_TYPE_A, DNS_QUERY_STANDARD, NULL,  &pDnsrec, NULL);
-    
-    if (dnss || !pDnsrec)
+    using asio::ip::make_address_v4;
+    using asio::ip::make_address_v6;
+    using asio::ip::v4_mapped;
+
+    struct addrinfo hints;
+
+    memset(&hints, 0, sizeof(hints));
+
+    // We want to resolve an IPv4 TCP endpoint.
+    hints.ai_family = AF_INET;
+    hints.ai_protocol = IPPROTO_TCP;
+    hints.ai_socktype = SOCK_STREAM;
+
+    // Attempt the lookup.
+    struct addrinfo* result = nullptr;
+
+    // Bail if we encounter any problems.
+    if (getaddrinfo(server.c_str(), nullptr, &hints, &result) != 0)
     {
         cout << "dns error" << endl;
         return;
     }
-    
-    asio::ip::address_v6::bytes_type bytes;
-    for (auto& b : bytes) b = 0;
-    bytes[10] = 0xff;
-    bytes[11] = 0xff;
-    bytes[12] = *(reinterpret_cast<unsigned char*>(&pDnsrec->Data.A.IpAddress) + 0);
-    bytes[13] = *(reinterpret_cast<unsigned char*>(&pDnsrec->Data.A.IpAddress) + 1);
-    bytes[14] = *(reinterpret_cast<unsigned char*>(&pDnsrec->Data.A.IpAddress) + 2);
-    bytes[15] = *(reinterpret_cast<unsigned char*>(&pDnsrec->Data.A.IpAddress) + 3);
-    
-    asio::ip::address_v6 targetAddress(bytes);
-    
-    g_relays.AddAcceptor(string(server.c_str()), port, targetAddress, true);
-    
+
+    // Construct a v4-mapped IPv6 address.
+    const auto* ai_addr =
+      reinterpret_cast<struct sockaddr_in*>(result->ai_addr);
+
+    const auto address =
+      make_address_v6(v4_mapped,
+                      make_address_v4(ntohl(ai_addr->sin_addr.s_addr)));
+
+    // Give the system back its memory.
+    freeaddrinfo(result);
+
+    // Add the relay.
+    g_relays.AddAcceptor(server, port, address, true);
 }
 
 
@@ -400,7 +428,7 @@ void exec_addbulkrelays(ac::ACState& ac)
 
 void exec_getjavascript(ac::ACState& ac)
 {
-    lock_guard g(g_relays.relaycollectionmutex);
+    lock_guard<mutex> g(g_relays.relaycollectionmutex);
     for (auto& ra : g_relays.relayacceptors)
     {
         cout << "pieceUrl = pieceUrl.replace(\"" << ra->reporting_name << "\", \"localhost:" << ra->listen_port << "\");" << endl;
@@ -410,7 +438,7 @@ void exec_getjavascript(ac::ACState& ac)
 
 void exec_getcpp(ac::ACState& ac)
 {
-    lock_guard g(g_relays.relaycollectionmutex);
+    lock_guard<mutex> g(g_relays.relaycollectionmutex);
     cout << "size_t pos;" << endl;
     for (auto& ra : g_relays.relayacceptors)
     {
@@ -423,7 +451,7 @@ void exec_closeacceptor(ac::ACState& ac)
 {
     bool all = ac.words[1].s == "all";
     regex specific_re(ac.words[1].s);
-    lock_guard g(g_relays.relaycollectionmutex);
+    lock_guard<mutex> g(g_relays.relaycollectionmutex);
     for (auto& r : g_relays.relayacceptors)
     {
         if (all || std::regex_match(r->reporting_name, specific_re))
@@ -438,7 +466,7 @@ void exec_closerelay(ac::ACState& ac)
 {
     bool all = ac.words[1].s == "all";
     regex specific_re(ac.words[1].s);
-    lock_guard g(g_relays.relaycollectionmutex);
+    lock_guard<mutex> g(g_relays.relaycollectionmutex);
     for (auto& r : g_relays.acceptedrelays)
     {
         if (all || std::regex_match(r->reporting_name, specific_re))
@@ -457,7 +485,7 @@ void exec_pauserelay(ac::ACState& ac)
     bool all = ac.words[1].s == "all";
     regex specific_re(ac.words[1].s);
     bool pause = 2 >= ac.words.size() || 0 != atoi(ac.words[2].s.c_str());
-    lock_guard g(g_relays.relaycollectionmutex); 
+    lock_guard<mutex> g(g_relays.relaycollectionmutex); 
     for (auto& r : g_relays.acceptedrelays)
     {
         if (all || std::regex_match(r->reporting_name, specific_re))
@@ -473,7 +501,7 @@ void exec_pauserelay(ac::ACState& ac)
 
 void randompause(int periodsec, int pausesec)
 {
-    lock_guard g(g_relays.relaycollectionmutex);
+    lock_guard<mutex> g(g_relays.relaycollectionmutex);
     vector<TcpRelay*> tr;
     for (auto& r : g_relays.acceptedrelays)
     {
@@ -481,7 +509,7 @@ void randompause(int periodsec, int pausesec)
     }
     if (!tr.empty())
     {
-        int n = rand() % tr.size();
+        size_t n = rand() % tr.size();
         tr[n]->Pause(true);
         cout << "paused " << tr[n]->reporting_name << endl;
         DelayAndDo(chrono::seconds(pausesec), [=, p = tr[n]]() { 
@@ -502,7 +530,7 @@ void exec_randompauses(ac::ACState& ac)
 
 void randomclose(int periodsec)
 {
-    lock_guard g(g_relays.relaycollectionmutex);
+    lock_guard<mutex> g(g_relays.relaycollectionmutex);
     vector<TcpRelay*> tr;
     for (auto& r : g_relays.acceptedrelays)
     {
@@ -510,7 +538,7 @@ void randomclose(int periodsec)
     }
     if (!tr.empty())
     {
-        int n = rand() % tr.size();
+        size_t n = rand() % tr.size();
         tr[n]->StopNow();
         cout << "random closed " << tr[n]->reporting_name << endl;
     }
@@ -528,7 +556,7 @@ void exec_relayspeed(ac::ACState& ac)
     bool all = ac.words[1].s == "all";
     regex specific_re(ac.words[1].s);
     int speed = atoi(ac.words[2].s.c_str());
-    lock_guard g(g_relays.relaycollectionmutex); 
+    lock_guard<mutex> g(g_relays.relaycollectionmutex); 
     for (auto& r : g_relays.acceptedrelays)
     {
         if (all || std::regex_match(r->reporting_name, specific_re))
@@ -543,7 +571,7 @@ void exec_acceptorspeed(ac::ACState& ac)
     bool all = ac.words[1].s == "all";
     regex specific_re(ac.words[1].s);
     int speed = atoi(ac.words[2].s.c_str());
-    lock_guard g(g_relays.relaycollectionmutex);
+    lock_guard<mutex> g(g_relays.relaycollectionmutex);
     for (auto& r : g_relays.relayacceptors)
     {
         if (all || std::regex_match(r->reporting_name, specific_re))
@@ -622,7 +650,12 @@ ac::ACN autocompleteSyntax()
 
 class MegaCLILogger : public ::mega::Logger {
 public:
-    virtual void log(const char * /*time*/, int loglevel, const char * /*source*/, const char *message)
+#ifdef ENABLE_LOG_PERFORMANCE
+    virtual void log(const char*, int loglevel, const char*, const char* message,
+                     const char**, size_t*, unsigned)
+#else /* ENABLE_LOG_PERFORMANCE */
+    virtual void log(const char *, int loglevel, const char *, const char *message)
+#endif /* ! ENABLE_LOG_PERFORMANCE */
     {
 #ifdef _WIN32
         OutputDebugStringA(message);
@@ -641,18 +674,100 @@ MegaCLILogger logger;
 // local console
 Console* console;
 
+// input read from user.
+char* line = nullptr;
+
+#ifndef NO_READLINE
+
+char* longestCommonPrefix(ac::CompletionState& acs)
+{
+    string s = acs.completions[0].s;
+    for (size_t i = acs.completions.size(); i--; )
+    {
+        for (unsigned j = 0; j < s.size() && j < acs.completions[i].s.size(); ++j)
+        {
+            if (s[j] != acs.completions[i].s[j])
+            {
+                s.erase(j, string::npos);
+                break;
+            }
+        }
+    }
+    return strdup(s.c_str());
+}
+
+char** my_rl_completion(const char*, int, int end)
+{
+    rl_attempted_completion_over = 1;
+
+    std::string line(rl_line_buffer, end);
+    ac::CompletionState acs = ac::autoComplete(line, line.size(), autocompleteTemplate, true);
+
+    if (acs.completions.empty())
+    {
+        return NULL;
+    }
+
+    if (acs.completions.size() == 1 && !acs.completions[0].couldExtend)
+    {
+        acs.completions[0].s += " ";
+    }
+
+    char** result = (char**)malloc((sizeof(char*)*(2+acs.completions.size())));
+    for (size_t i = acs.completions.size(); i--; )
+    {
+        result[i+1] = strdup(acs.completions[i].s.c_str());
+    }
+    result[acs.completions.size()+1] = NULL;
+    result[0] = longestCommonPrefix(acs);
+    //for (int i = 0; i <= acs.completions.size(); ++i)
+    //{
+    //    cout << "i " << i << ": " << result[i] << endl;
+    //}
+    rl_completion_suppress_append = true;
+    rl_basic_word_break_characters = " \r\n";
+    rl_completer_word_break_characters = strdup(" \r\n");
+    rl_completer_quote_characters = "";
+    rl_special_prefixes = "";
+    return result;
+}
+
+void store_line(char* l)
+{
+    if (!l)
+    {
+        delete console;
+        exit(0);
+    }
+
+    if (*l)
+    {
+        add_history(l);
+    }
+
+    line = l;
+}
+
+#endif /* ! NO_READLINE */
+
+#ifndef _WIN32
+
+void Sleep(unsigned int ms)
+{
+    usleep(ms * 1000);
+}
+
+#endif /* ! _WIN32 */
 
 int main()
 {
-    ofstream mylog("c:\\tmp\\tcprelaylog.txt");
+    ofstream mylog("tcprelaylog.txt");
     logstream = &mylog;
 
 #ifdef _WIN32
     SimpleLogger::setLogLevel(logMax);  // warning and stronger to console; info and weaker to VS output window
-    SimpleLogger::setOutputClass(&logger);
-#else
-    SimpleLogger::setAllOutputs(&std::cout);
 #endif
+    SimpleLogger::setOutputClass(&logger);
 
     console = new CONSOLE_CLASS;
 
@@ -686,7 +801,7 @@ int main()
 #if defined(WIN32) && defined(NO_READLINE)
         static_cast<WinConsole*>(console)->updateInputPrompt("TCPRELAY>");
 #else
-        rl_callback_handler_install(*dynamicprompt ? dynamicprompt : prompts[COMMAND], store_line);
+        rl_callback_handler_install("TCPRELAY> ", store_line);
 
         // display prompt
         if (saved_line)
@@ -698,34 +813,16 @@ int main()
         rl_point = saved_point;
         rl_redisplay();
 #endif
-        char* line = nullptr;
         // command editing loop - exits when a line is submitted or the engine requires the CPU
-        for (;;)
+        while (!line)
         {
-            //int w = client->wait();
             Sleep(100);
 
-            //if (w & Waiter::HAVESTDIN)
-            {
 #if defined(WIN32) && defined(NO_READLINE)
-                line = static_cast<WinConsole*>(console)->checkForCompletedInputLine();
+            line = static_cast<WinConsole*>(console)->checkForCompletedInputLine();
 #else
-                if (prompt == COMMAND)
-                {
-                    rl_callback_read_char();
-                }
-                else
-                {
-                    console->readpwchar(pw_buf, sizeof pw_buf, &pw_buf_pos, &line);
-                }
+            rl_callback_read_char();
 #endif
-            }
-
-            //if (w & Waiter::NEEDEXEC || line)
-            if (line)
-            {
-                break;
-            }
         }
 
 #ifndef NO_READLINE
@@ -768,6 +865,10 @@ int main()
             }
         }
     }
+
+#ifndef NO_READLINE
+    rl_callback_handler_remove();
+#endif /* ! NO_READLINE */
 
     g_relays.Stop();
     relayRunnerThread.join();

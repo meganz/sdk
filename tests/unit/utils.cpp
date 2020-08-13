@@ -21,6 +21,7 @@
 #include <random>
 
 #include <mega/megaapp.h>
+#include <mega.h>
 
 #include "constants.h"
 #include "DefaultedFileSystemAccess.h"
@@ -61,7 +62,7 @@ std::shared_ptr<mega::MegaClient> makeClient(mega::MegaApp& app, mega::FileSyste
     };
 
     std::shared_ptr<mega::MegaClient> client{new mega::MegaClient{
-            &app, nullptr, httpio, &fsaccess, nullptr, nullptr, "XXX", "unit_test"
+            &app, nullptr, httpio, &fsaccess, nullptr, nullptr, "XXX", "unit_test", 0
         }, deleter};
 
     return client;
@@ -93,18 +94,19 @@ std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode
                                                mega::nodetype_t type, const std::string& name,
                                                const mega::FileFingerprint& ffp)
 {
+    std::string tmpname = name;
+    mega::FSACCESS_CLASS fsaccess;
     auto l = std::unique_ptr<mega::LocalNode>{new mega::LocalNode};
-    std::string path;
-    parent.getlocalpath(&path);
-    path += sync.client->fsaccess->localseparator + name;
-    l->init(&sync, type, &parent, &path);
+    auto path = parent.getLocalPath();
+    path.appendWithSeparator(::mega::LocalPath::fromPath(tmpname, fsaccess), true, fsaccess.localseparator);
+    l->init(&sync, type, &parent, path, sync.client->fsaccess->fsShortname(path));
     l->setfsid(nextFsId(), sync.client->fsidnode);
     static_cast<mega::FileFingerprint&>(*l) = ffp;
     return l;
 }
 #endif
 
-void collectAllFsNodes(std::map<std::string, const mt::FsNode*>& nodes, const mt::FsNode& node)
+void collectAllFsNodes(std::map<mega::LocalPath, const mt::FsNode*>& nodes, const mt::FsNode& node)
 {
     const auto path = node.getPath();
     assert(nodes.find(path) == nodes.end());
