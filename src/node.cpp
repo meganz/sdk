@@ -78,6 +78,19 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     if (mInMemory)
     {
         client->mNodes[h] = this;
+
+        // set parent linkage or queue for delayed parent linkage in case of
+        // out-of-order delivery
+        if ((p = client->nodebyhandle(ph)))
+        {
+            setparent(p);
+        }
+        else
+        {
+            dp->push_back(this);
+        }
+
+        client->mFingerprints.newnode(this);
     }
 
     // folder link access: first returned record defines root node and
@@ -91,19 +104,6 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     {
         client->rootnodes[t - ROOTNODE] = h;
     }
-
-    // set parent linkage or queue for delayed parent linkage in case of
-    // out-of-order delivery
-    if ((p = client->nodebyhandle(ph)))
-    {
-        setparent(p);
-    }
-    else
-    {
-        dp->push_back(this);
-    }
-
-    client->mFingerprints.newnode(this);
 }
 
 Node::~Node()
