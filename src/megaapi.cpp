@@ -2470,6 +2470,11 @@ void MegaApi::setNodeLabel(MegaNode *node, int label, MegaRequestListener *liste
     pImpl->setNodeLabel(node, label, listener);
 }
 
+void MegaApi::resetNodeLabel(MegaNode *node, MegaRequestListener *listener)
+{
+    pImpl->setNodeLabel(node, MegaNode::NODE_LBL_UNKNOWN, listener);
+}
+
 void MegaApi::setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener)
 {
     pImpl->setNodeFavourite(node, fav, listener);

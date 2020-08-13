@@ -10150,9 +10150,6 @@ class MegaApi
          *  - MegaNode::NODE_LBL_PURPLE = 6
          *  - MegaNode::NODE_LBL_GREY = 7
          *
-         * To remove this attribute, this method must be called with label set to the
-         * current value of the attribute for the node.
-         *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
@@ -10165,6 +10162,20 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener =  NULL);
+
+        /**
+         * @brief Remove node label
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_LABEL
+         *
+         * @param node Node that will receive the information.
+         * @param listener MegaRequestListener to track this request
+         */
+        void resetNodeLabel(MegaNode *node, MegaRequestListener *listener =  NULL);
 
         /**
          * @brief Set node favourite as a node attribute.

@@ -19837,17 +19837,14 @@ void MegaApiImpl::sendPendingRequests()
                     if (type == MegaApi::NODE_ATTR_LABEL)
                     {
                         value = request->getNumDetails();
-                        if (value < LBL_RED || value > LBL_GREY)
+                        if (value < LBL_UNKNOWN || value > LBL_GREY)
                         {
                             e = API_EARGS;
                             break;
                         }
 
-                        // if current value is the same as the value we want to set, remove the attribute
                         nid = AttrMap::string2nameid("lbl");
-                        attr_map::iterator it = current->attrs.map.find(nid);
-                        remove = (it != current->attrs.map.end() && !it->second.empty()
-                                && value == std::atoi(it->second.c_str()));
+                        remove = (value == LBL_UNKNOWN);
                     }
                     else
                     {
