@@ -6926,7 +6926,12 @@ void MegaClient::notifypurge(void)
 // return node pointer derived from node handle
 Node* MegaClient::nodebyhandle(handle h)
 {
-    node_map::iterator it;
+    if (h == UNDEF)
+    {
+        return nullptr;
+    }
+
+    node_map::const_iterator it;
 
     if ((it = mNodes.find(h)) != mNodes.end())
     {
@@ -6941,7 +6946,7 @@ Node* MegaClient::nodebyhandle(handle h)
         node = Node::unserialize(this, &nodeSerialized, &nodeVector);
     }
 
-    return nullptr;
+    return node;
 }
 
 // server-client deletion
