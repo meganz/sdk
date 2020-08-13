@@ -4378,6 +4378,25 @@ TEST_F(SdkTest, SdkRecentsTest)
     ASSERT_EQ(UPFILE, string(buckets->get(0)->getNodes()->get(1)->getName()));
 }
 
+TEST_F(SdkTest, SdkMediaUploadRequestURL)
+{
+    LOG_info << "___TEST MediaUploadRequestURL___";
+
+    // Create a "media upload" instance
+    int apiIndex = 0;
+    std::unique_ptr<MegaBackgroundMediaUpload> req(MegaBackgroundMediaUpload::createInstance(megaApi[apiIndex].get()));
+
+    // Request a media upload URL
+    int64_t dummyFileSize = 123456;
+    auto err = synchronousMediaUploadRequestURL(apiIndex, dummyFileSize, req.get(), nullptr);
+    ASSERT_EQ(MegaError::API_OK, err) << "Cannot request media upload URL (error: " << err << ")";
+
+    // Get the generated media upload URL
+    std::unique_ptr<char> url(req->getUploadURL());
+    ASSERT_NE(nullptr, url) << "Got NULL media upload URL";
+    ASSERT_NE(0, *url) << "Got empty media upload URL";
+}
+
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
 {
     LOG_info << "___TEST SdkGetCountryCallingCodes___";
