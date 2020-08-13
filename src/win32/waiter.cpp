@@ -25,26 +25,9 @@
 namespace mega {
 dstime Waiter::ds;
 
-#ifndef WINDOWS_PHONE
-PGTC pGTC;
-static ULONGLONG tickhigh;
-static DWORD prevt;
-#endif
-
 WinWaiter::WinWaiter()
 {
 #ifndef WINDOWS_PHONE
-    if (!pGTC) 
-    {
-        #pragma warning(suppress:4191)
-        pGTC = (PGTC)GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")), "GetTickCount64");
-    }
-
-    if (!pGTC)
-    {
-        tickhigh = 0;
-        prevt = 0;
-    }
     externalEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 #else
     externalEvent = CreateEventEx(NULL, NULL, 0, EVENT_ALL_ACCESS);
@@ -61,28 +44,7 @@ WinWaiter::~WinWaiter()
 // FIXME: restore thread safety for applications using multiple MegaClient objects
 void Waiter::bumpds()
 {
-#ifdef WINDOWS_PHONE
 	ds = dstime(GetTickCount64() / 100);
-#else
-    if (pGTC)
-    {
-        ds = dstime(pGTC() / 100);
-    }
-    else
-    {
-        // emulate GetTickCount64() on XP
-        DWORD t = GetTickCount();
-
-        if (t < prevt)
-        {
-            tickhigh += 0x100000000;
-        }
-
-        prevt = t;
-
-        ds = dstime((t + tickhigh) / 100);
-    }
-#endif
 }
 
 // wait for events (socket, I/O completion, timeout + application events)

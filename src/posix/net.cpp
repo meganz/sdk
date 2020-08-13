@@ -667,7 +667,6 @@ void CurlHttpIO::processcurlevents(direction_t d)
 
     int dummy = 0;
     SockInfoMap *socketmap = &curlsockets[d];
-    m_time_t *timeout = &curltimeoutreset[d];
     bool *paused = &arerequestspaused[d];
 
     for (SockInfoMap::iterator it = socketmap->begin(); !(*paused) && it != socketmap->end();)
@@ -697,11 +696,10 @@ void CurlHttpIO::processcurlevents(direction_t d)
 #endif
     }
 
-    m_time_t value = *timeout;
-    if (value >= 0 && value <= Waiter::ds)
+    if (curltimeoutreset[d] >= 0 && curltimeoutreset[d] <= Waiter::ds)
     {
-        *timeout = -1;
-        LOG_debug << "Informing cURL of timeout";
+        curltimeoutreset[d] = -1;
+        LOG_debug << "Informing cURL of timeout reached for " << d << " at " << Waiter::ds;
         curl_multi_socket_action(curlm[d], CURL_SOCKET_TIMEOUT, 0, &dummy);
     }
 
@@ -2634,6 +2632,7 @@ int CurlHttpIO::upload_socket_callback(CURL *e, curl_socket_t s, int what, void 
 int CurlHttpIO::timer_callback(CURLM *, long timeout_ms, void *userp, direction_t d)
 {
     CurlHttpIO *httpio = (CurlHttpIO *)userp;
+    auto oldValue = httpio->curltimeoutreset[d];
     if (timeout_ms < 0)
     {
         httpio->curltimeoutreset[d] = -1;
@@ -2649,7 +2648,10 @@ int CurlHttpIO::timer_callback(CURLM *, long timeout_ms, void *userp, direction_
         httpio->curltimeoutreset[d] = Waiter::ds + timeoutds;
     }
 
-    LOG_debug << "Set cURL timeout[" << d << "] to " << httpio->curltimeoutreset[d] << " ms from " << timeout_ms;
+    if (oldValue != httpio->curltimeoutreset[d])
+    {
+        LOG_debug << "Set cURL timeout[" << d << "] to " << httpio->curltimeoutreset[d] << " from " << timeout_ms << "(ms) at ds: " << Waiter::ds;
+    }
     return 0;
 }
 
