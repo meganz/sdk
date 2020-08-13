@@ -27,7 +27,6 @@
 
 namespace mega {
 
-
 // API request
 class MEGA_API Request
 {
@@ -36,7 +35,6 @@ private:
     string jsonresponse;
     JSON json;
     size_t processindex = 0;
-
 
 public:
     void add(Command*);
@@ -47,13 +45,13 @@ public:
 
     void serverresponse(string&& movestring, MegaClient*);
     void servererror(const std::string &e, MegaClient* client);
-
+	
     void process(MegaClient* client);
+    bool processCmdJSON(Command* cmd);
 
     void clear();
     bool empty() const; 
     void swap(Request&);
-
     bool stopProcessing = false;
 
     // if contains only one command and that command is FetchNodes
@@ -82,6 +80,7 @@ public:
     void add(Command*);
 
     bool cmdspending() const;
+    bool cmdsInflight() const;
 
     /**
      * @brief get the set of commands to be sent to the server (could be a retry)

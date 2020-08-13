@@ -216,6 +216,7 @@ TransferSlot::~TransferSlot()
                         break;
 
                     case REQ_DECRYPTING:
+                    {
                         LOG_info << "Waiting for block decryption";
                         std::mutex finalizedMutex; 
                         std::unique_lock<std::mutex> guard(finalizedMutex);
@@ -223,6 +224,9 @@ TransferSlot::~TransferSlot()
                         outputPiece->finalizedCV.wait(guard, [&](){ return outputPiece->finalized; });
                         downloadRequest->status = REQ_DECRYPTED;
                         break;
+                    }
+
+                    default: ;
                 }
             }
         }

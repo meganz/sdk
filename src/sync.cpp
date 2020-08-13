@@ -834,7 +834,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         {
             auto sn = client->fsaccess->fsShortname(localpath);
             assert(!l->localname.empty() && 
-                (!l->slocalname && (!sn || l->localname == *sn) ||
+                ((!l->slocalname && (!sn || l->localname == *sn)) ||
                 (l->slocalname && sn && !l->slocalname->empty() && *l->slocalname != l->localname && *l->slocalname == *sn)));
         }
 #endif
