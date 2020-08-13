@@ -474,6 +474,11 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
     }
 }
 
+bool MegaClient::isNodeInRam(handle nodehandle) const
+{
+    return mNodes.find(nodehandle) != mNodes.end();
+}
+
 // configure for full account session access
 void MegaClient::setsid(const byte* newsid, unsigned len)
 {
@@ -7513,6 +7518,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
     node_vector dp;
     Node* n;
     bool addToMemory = false;
+    mOptimizePurgeNodes = true;
 
     while (j->enterobject())
     {
@@ -7639,6 +7645,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
         {
             if ((n = nodebyhandle(h)))
             {
+                addToMemory = true;
                 Node* p = NULL;
                 if (!ISUNDEF(ph))
                 {
@@ -7738,7 +7745,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     sts = ts;
                 }
 
-                if (t == ROOTNODE || t == RUBBISHNODE || t == INCOMINGNODE)
+                if (t == ROOTNODE || t == RUBBISHNODE || t == INCOMINGNODE || (mPuttingNodes && source == PUTNODES_APP && isNodeInRam(ph)))
                 {
                     addToMemory = true;
                 }
@@ -7798,11 +7805,10 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                         uhnh.insert(pair<handle, handle>(uh, h));
                     }
                 }
-
-                sctable->put(n);
             }
 
-            if (notify)
+            sctable->put(n);
+            if (notify && addToMemory)
             {
                 notifynode(n);
             }
@@ -7821,6 +7827,10 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
             n = nullptr;
             addToMemory = false;
         }
+
+    }
+
+    mOptimizePurgeNodes = false;
     }
 
     // any child nodes that arrived before their parents?
@@ -14612,7 +14622,6 @@ node_list MegaClient::getChildrens(Node* node)
         if (nodeIt == mNodes.end())
         {
             n = Node::unserialize(this, &nodeMapIt.second, &dp);
-            n->setparent(node);
         }
         else
         {

@@ -35,6 +35,7 @@ namespace mega {
 Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
            nodetype_t t, m_off_t s, handle u, const char* fa, m_time_t ts, bool addToMemory)
 {
+    mInMemory = addToMemory;
     client = cclient;
     outshares = NULL;
     pendingshares = NULL;
@@ -74,7 +75,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     Node* p;
 
-    if (addToMemory)
+    if (mInMemory)
     {
         client->mNodes[h] = this;
     }
@@ -160,23 +161,26 @@ Node::~Node()
     if (!client->mOptimizePurgeNodes)
     {
         Node* fa = firstancestor();
-        handle ancestor = fa->nodehandle;
-        if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
+        if (fa != nullptr)
         {
-            client->mNodeCounters[firstancestor()->nodehandle] -= subnodeCounts();
-        }
+            handle ancestor = fa->nodehandle;
+            if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
+            {
+                client->mNodeCounters[firstancestor()->nodehandle] -= subnodeCounts();
+            }
 
-        if (inshare)
-        {
-            client->mNodeCounters.erase(nodehandle);
-        }
+            if (inshare)
+            {
+                client->mNodeCounters.erase(nodehandle);
+            }
 
-        // delete child-parent associations (normally not used, as nodes are
-        // deleted bottom-up)
-        node_list nodeList = client->getChildrens(this);
-        for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
-        {
-            (*it)->parent = NULL;
+            // delete child-parent associations (normally not used, as nodes are
+            // deleted bottom-up)
+            node_list nodeList = client->getChildrens(this);
+            for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
+            {
+                (*it)->parent = NULL;
+            }
         }
     }
 
@@ -757,7 +761,10 @@ void Node::setfingerprint()
             mtime = ctime;
         }
 
-        client->mFingerprints.add(this);
+        if (mInMemory)
+        {
+            client->mFingerprints.add(this);
+        }
     }
 }
 

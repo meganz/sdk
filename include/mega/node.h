@@ -259,6 +259,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t, bool addToMemory = true);
     ~Node();
 
+protected:
+    bool mInMemory = false;
+
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
     // node crypto keys (raw or cooked -

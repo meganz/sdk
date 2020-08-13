@@ -439,7 +439,7 @@ public:
         return mNodes.size();
     }
 
-    iterator find(handle h)
+    const_iterator find(handle h) const
     {
         return mNodes.find(h);
     }
