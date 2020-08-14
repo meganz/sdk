@@ -1974,7 +1974,7 @@ class TransferQueue
     protected:
         std::deque<MegaTransferPrivate *> transfers;
         std::mutex mutex;
-        long long lastPushedTransfer = 0;
+        int lastPushedTransferTag = 0;
 
     public:
         TransferQueue();
@@ -1992,7 +1992,7 @@ class TransferQueue
 
         void removeWithFolderTag(int folderTag, std::function<void(MegaTransferPrivate *)> callback);
         void removeListener(MegaTransferListener *listener);
-        long long getLastPushedTag() const;
+        int getLastPushedTag() const;
 };
 
 class MegaApiImpl : public MegaApp
