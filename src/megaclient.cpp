@@ -1130,6 +1130,7 @@ void MegaClient::init()
     pendingsc.reset();
     pendingscUserAlerts.reset();
     mBlocked = false;
+    pendingcs_serverBusySent = false;
 
     btcs.reset();
     btsc.reset();
@@ -1166,7 +1167,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     usealtdownport = false;
     usealtupport = false;
     retryessl = false;
-    workinglockcs = NULL;
     scpaused = false;
     asyncfopens = 0;
     achievements_enabled = false;
@@ -1308,7 +1308,6 @@ MegaClient::~MegaClient()
 
     delete pendingcs;
     delete badhostcs;
-    delete workinglockcs;
     delete sctable;
     delete tctable;
     delete dbaccess;
@@ -1973,9 +1972,11 @@ void MegaClient::exec()
             {
                 if (reqs.cmdspending())
                 {
+                    abortlockrequest();
                     pendingcs = new HttpReq();
                     pendingcs->protect = true;
                     pendingcs->logname = clientname + "cs ";
+                    pendingcs_serverBusySent = false;
 
                     bool suppressSID = true;
                     reqs.serverrequest(pendingcs->out, suppressSID, pendingcs->includesFetchingNodes);
@@ -2303,7 +2304,11 @@ void MegaClient::exec()
                 }
                 else if (workinglockcs->in == "0")
                 {
-                    sendevent(99425, "Timeout (server busy)", 0);
+                    if (!pendingcs_serverBusySent)
+                    {
+                        sendevent(99425, "Timeout (server busy)", 0);
+                        pendingcs_serverBusySent = true;
+                    }
                     pendingcs->lastdata = Waiter::ds;
                 }
                 else
@@ -2312,8 +2317,7 @@ void MegaClient::exec()
                     disconnecttimestamp = Waiter::ds + HttpIO::CONNECTTIMEOUT;
                 }
 
-                delete workinglockcs;
-                workinglockcs = NULL;
+                workinglockcs.reset();
                 requestLock = false;
             }
             else if (workinglockcs->status == REQ_FAILURE
@@ -2321,8 +2325,7 @@ void MegaClient::exec()
             {
                 LOG_warn << "Failed lock request. Retrying...";
                 btworkinglock.backoff();
-                delete workinglockcs;
-                workinglockcs = NULL;
+                workinglockcs.reset();
             }
         }
 
@@ -2938,7 +2941,8 @@ void MegaClient::exec()
         if (!workinglockcs && requestLock && btworkinglock.armed())
         {
             LOG_debug << "Sending lock request";
-            workinglockcs = new HttpReq();
+            workinglockcs.reset(new HttpReq());
+            workinglockcs->logname = clientname + "accountBusyCheck ";
             workinglockcs->posturl = APIURL;
             workinglockcs->posturl.append("cs?");
             workinglockcs->posturl.append(auth);
@@ -3990,8 +3994,7 @@ void MegaClient::catchup()
 
 void MegaClient::abortlockrequest()
 {
-    delete workinglockcs;
-    workinglockcs = NULL;
+    workinglockcs.reset();
     btworkinglock.reset();
     requestLock = false;
     disconnecttimestamp = NEVER;
@@ -6763,7 +6766,13 @@ void MegaClient::notifypurge(void)
 #endif
             || cachedscsn != tscsn)
     {
-        updatesc();
+
+        if (scsn.ready())
+        {
+            // in case of CS operations inbetween login and fetchnodes, don't 
+            // write these to the database yet, as we don't have the scsn
+            updatesc();
+        }
 
 #ifdef ENABLE_SYNC
         // update LocalNode <-> Node associations
@@ -6800,7 +6809,9 @@ void MegaClient::notifypurge(void)
             Node* n = nodenotify[i];
             if (n->attrstring)
             {
-                LOG_err << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekeyUnchecked().size();
+                // make this just a warning to avoid auto test failure
+                // this can happen if another client adds a folder in our share and the key for us is not available yet
+                LOG_warn << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekeyUnchecked().size();
 #ifdef ENABLE_SYNC
                 if (n->localnode)
                 {
@@ -9563,9 +9574,9 @@ void MegaClient::delua(const char *an)
     }
 }
 
-void MegaClient::senddevcommand(const char *command, const char *email)
+void MegaClient::senddevcommand(const char *command, const char *email, long long q, int bs, int us)
 {
-    reqs.add(new CommandSendDevCommand(this, command, email));
+    reqs.add(new CommandSendDevCommand(this, command, email, q, bs, us));
 }
 #endif
 
@@ -11261,7 +11272,7 @@ void MegaClient::fetchnodes(bool nocache)
 
         // allow sc requests to start 
         scsn.setScsn(cachedscsn);
-        LOG_info << "Session loaded from local cache. SCSN: " << scsn;
+        LOG_info << "Session loaded from local cache. SCSN: " << scsn.text();
 
 #ifdef ENABLE_SYNC
         resumeResumableSyncs();

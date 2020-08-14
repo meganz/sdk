@@ -7900,6 +7900,10 @@ void megacli()
             {
                 process_line(line);
             }
+            else if (prompt != COMMAND)
+            {
+                setprompt(prompt);
+            }
             free(line);
             line = NULL;
 
