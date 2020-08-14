@@ -293,8 +293,14 @@ void HeartBeatSyncInfo::updateStatus(MegaClient *client)
 ////////////// BackupInfo ////////////////
 
 MegaBackupInfo::MegaBackupInfo(BackupType type, string localFolder, string name, handle megaHandle, int state, int substate, std::string extra, handle backupId)
-    : mType(type), mLocalFolder(localFolder), mName(name), mMegaHandle(megaHandle),
-      mState(state), mSubState(substate), mExtra(extra), mBackupId(backupId)
+    : mType(type)
+    , mBackupId(backupId)
+    , mLocalFolder(localFolder)
+    , mName(name)
+    , mMegaHandle(megaHandle)
+    , mState(state)
+    , mSubState(substate)
+    , mExtra(extra)
 {
 
 }
@@ -350,7 +356,6 @@ MegaBackupInfoSync::MegaBackupInfoSync(MegaClient *client, const MegaSync &sync,
                  , getSyncState(sync), getSyncSubstatus(sync), getSyncExtraData(sync), backupid)
 {
 
-
 }
 int MegaBackupInfoSync::getSyncState(const MegaSync &sync)
 {
@@ -375,14 +380,12 @@ int MegaBackupInfoSync::getSyncState(const MegaSync &sync)
 
 BackupType MegaBackupInfoSync::getSyncType(MegaClient *client, const MegaSync &sync)
 {
-
     int syncTag = sync.getTag();
     auto config = client->syncConfigs->get(syncTag);
     assert(config);
 
     if (config)
     {
-
         switch (config->getType())
         {
         case SyncConfig::Type::TYPE_UP:
@@ -396,7 +399,6 @@ BackupType MegaBackupInfoSync::getSyncType(MegaClient *client, const MegaSync &s
         }
     }
     return BackupType::INVALID;
-
 }
 
 int MegaBackupInfoSync::getSyncSubstatus(const MegaSync &sync)
@@ -596,10 +598,10 @@ std::shared_ptr<HeartBeatTransferProgressedInfo> MegaBackupMonitor::getHeartBeat
         int syncTag = 0;
 
         // use map to get the syncTag directly if there was one
-        auto mTSPair = mTransferToSyncMap.find(transfer->getTag());
-        if (mTSPair != mTransferToSyncMap.end())
+        auto pair = mTransferToSyncMap.find(transfer->getTag());
+        if (pair != mTransferToSyncMap.end())
         {
-            syncTag = mTSPair->second;
+            syncTag = pair->second;
         }
 
         if (!syncTag) //first time
