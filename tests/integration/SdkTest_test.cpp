@@ -4392,9 +4392,9 @@ TEST_F(SdkTest, SdkMediaUploadRequestURL)
     ASSERT_EQ(MegaError::API_OK, err) << "Cannot request media upload URL (error: " << err << ")";
 
     // Get the generated media upload URL
-    std::unique_ptr<char> url(req->getUploadURL());
+    std::unique_ptr<char[]> url(req->getUploadURL());
     ASSERT_NE(nullptr, url) << "Got NULL media upload URL";
-    ASSERT_NE(0, *url) << "Got empty media upload URL";
+    ASSERT_NE(0, *url.get()) << "Got empty media upload URL";
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
