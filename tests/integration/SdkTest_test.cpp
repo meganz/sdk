@@ -505,6 +505,10 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         }
         break;
 
+    case MegaRequest::TYPE_FETCH_TIMEZONE:
+        mApi[apiIndex].tzDetails.reset(mApi[apiIndex].lastError == API_OK ? request->getMegaTimeZoneDetails()->copy() : nullptr);
+        break;
+
     }
 }
 
@@ -4395,6 +4399,16 @@ TEST_F(SdkTest, SdkMediaUploadRequestURL)
     std::unique_ptr<char[]> url(req->getUploadURL());
     ASSERT_NE(nullptr, url) << "Got NULL media upload URL";
     ASSERT_NE(0, *url.get()) << "Got empty media upload URL";
+}
+
+TEST_F(SdkTest, SdkSimpleCommands)
+{
+    LOG_info << "___TEST SimpleCommands___";
+
+    // fetchTimeZone() test
+    auto err = synchronousFetchTimeZone(0);
+    ASSERT_EQ(MegaError::API_OK, err) << "Fetch time zone failed (error: " << err << ")";
+    ASSERT_TRUE(mApi[0].tzDetails && mApi[0].tzDetails->getNumTimeZones()) << "Invalid Time Zone details"; // some simple validation
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
