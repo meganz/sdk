@@ -4443,6 +4443,24 @@ TEST_F(SdkTest, SdkSimpleCommands)
     err = synchronousGetExtendedAccountDetails(0, true);
     ASSERT_EQ(MegaError::API_OK, err) << "Get extended account details failed (error: " << err << ")";
     ASSERT_TRUE(mApi[0].accountDetails) << "Invalid accout details"; // some simple validation
+
+    // killSession()
+    int numSessions = mApi[0].accountDetails->getNumSessions();
+    for (int i = 0; i < numSessions; ++i)
+    {
+        // look for current session
+        std::unique_ptr<MegaAccountSession> session(mApi[0].accountDetails->getSession(i));
+        if (session->isCurrent())
+        {
+            err = synchronousKillSession(0, session->getHandle());
+            ASSERT_EQ(MegaError::API_OK, err) << "Kill session failed for current session (error: " << err << ")";
+
+            break;
+        }
+    }
+
+    err = synchronousKillSession(0, INVALID_HANDLE);
+    ASSERT_EQ(MegaError::API_OK, err) << "Kill session failed for other sessions (error: " << err << ")";
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
