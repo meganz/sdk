@@ -4409,6 +4409,11 @@ TEST_F(SdkTest, SdkSimpleCommands)
     auto err = synchronousFetchTimeZone(0);
     ASSERT_EQ(MegaError::API_OK, err) << "Fetch time zone failed (error: " << err << ")";
     ASSERT_TRUE(mApi[0].tzDetails && mApi[0].tzDetails->getNumTimeZones()) << "Invalid Time Zone details"; // some simple validation
+
+    // getMiscFlags() -- not logged in
+    logout(0);
+    err = synchronousGetMiscFlags(0);
+    ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
