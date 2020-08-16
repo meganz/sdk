@@ -509,6 +509,13 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         mApi[apiIndex].tzDetails.reset(mApi[apiIndex].lastError == API_OK ? request->getMegaTimeZoneDetails()->copy() : nullptr);
         break;
 
+    case MegaRequest::TYPE_GET_USER_EMAIL:
+        if (mApi[apiIndex].lastError == API_OK)
+        {
+            mApi[apiIndex].email = request->getEmail();
+        }
+        break;
+
     }
 }
 
@@ -4414,6 +4421,15 @@ TEST_F(SdkTest, SdkSimpleCommands)
     logout(0);
     err = synchronousGetMiscFlags(0);
     ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
+
+    // getUserEmail() test
+    login(0);
+    std::unique_ptr<MegaUser> user(megaApi[0]->getMyUser());
+    ASSERT_TRUE(user); // some simple validation
+
+    err = synchronousGetUserEmail(0, user->getHandle());
+    ASSERT_EQ(MegaError::API_OK, err) << "Get user email failed (error: " << err << ")";
+    ASSERT_NE(mApi[0].email.find('@'), std::string::npos); // some simple validation
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
