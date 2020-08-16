@@ -4430,6 +4430,10 @@ TEST_F(SdkTest, SdkSimpleCommands)
     err = synchronousGetUserEmail(0, user->getHandle());
     ASSERT_EQ(MegaError::API_OK, err) << "Get user email failed (error: " << err << ")";
     ASSERT_NE(mApi[0].email.find('@'), std::string::npos); // some simple validation
+
+    // cleanRubbishBin() test (accept both success and already empty statuses)
+    err = synchronousCleanRubbishBin(0);
+    ASSERT_TRUE(err == MegaError::API_OK || err == MegaError::API_ENOENT) << "Clean rubbish bin failed (error: " << err << ")";
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
