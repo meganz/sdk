@@ -144,6 +144,15 @@ int WinWaiter::wait()
 bool WinWaiter::addhandle(HANDLE handle, int flag)
 {
     assert(handles.size() == flags.size() && handles.size() >= index);
+
+#ifdef DEBUG
+    for (unsigned i = index; i--; )
+    {
+        // double check we only add one of each handle
+        assert(handles[i] != handle);
+    }
+#endif
+
     if (index < handles.size())
     {
         handles[index] = handle;

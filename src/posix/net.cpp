@@ -38,33 +38,21 @@ namespace mega {
 
 #if defined(_WIN32)
 
-HANDLE SockInfo::eventHandle()
+HANDLE SockInfo::sharedEventHandle()
 {
-    return handle;
+    return mSharedEvent;
 }
 
 bool SockInfo::createAssociateEvent()
 {
-    if (handle == WSA_INVALID_EVENT)
-    {
-        associatedHandleEvents = 0;
-        signalledWrite = false;
-        handle = WSACreateEvent();
-        if (handle == WSA_INVALID_EVENT)
-        {
-            LOG_err << "Failed to create WSA event for " << fd;
-            return false;
-        }
-    }
-
     int events = (mode & SockInfo::READ ? FD_READ : 0) | (mode & SockInfo::WRITE ? FD_WRITE : 0);
 
     if (associatedHandleEvents != events)
     {
-        if (WSAEventSelect(fd, handle, events))
+        if (WSAEventSelect(fd, mSharedEvent, events))
         {
             auto err = WSAGetLastError();
-            LOG_err << "WSAEventSelect failed " << fd << " " << handle << " " << events << " " << err;
+            LOG_err << "WSAEventSelect failed " << fd << " " << mSharedEvent << " " << events << " " << err;
             closeEvent();
             return false;
         }
@@ -75,51 +63,44 @@ bool SockInfo::createAssociateEvent()
 
 bool SockInfo::checkEvent(bool& read, bool& write)
 {
-    if (handle != WSA_INVALID_EVENT)
+    WSANETWORKEVENTS wne;
+    memset(&wne, 0, sizeof(wne));
+    WSAEnumNetworkEvents(fd, NULL, &wne);
+
+    read = 0 != (FD_READ & wne.lNetworkEvents);
+    write = 0 != (FD_WRITE & wne.lNetworkEvents);
+
+    if (!write && (FD_WRITE & associatedHandleEvents))
     {
-        WSANETWORKEVENTS wne;
-        memset(&wne, 0, sizeof(wne));
-        WSAEnumNetworkEvents(fd, handle, &wne); // resets the event, which we will wait on
+        // per https://curl.haxx.se/mail/lib-2009-10/0313.html check if the socket has any buffer space
 
-        read = 0 != (FD_READ & wne.lNetworkEvents);
-        write = 0 != (FD_WRITE & wne.lNetworkEvents);
+        // The trick is that we want to wait on the event handle to know when we can read and write
+        // that works fine for read, however for write the event is not signalled in the normal case
+        // where curl wrote to the socket, but not enough to cause it to become unwriteable for now.
+        // So, we need to signal curl to write again if it has more data to write, if the socket can take
+        // more data.  This trick with WSASend for 0 bytes enables that - if it fails with would-block
+        // then we can stop asking curl to write to the socket, and start waiting on the handle to 
+        // know when to try again.
+        // If curl has finished writing to the socket, it will call us back to change the mode to read only.
 
-        if (!write && (FD_WRITE & associatedHandleEvents))
-        {
-            // per https://curl.haxx.se/mail/lib-2009-10/0313.html check if the socket has any buffer space
+        WSABUF buf{ 0, (CHAR*)&buf };
+        DWORD bSent = 0;
+        auto writeResult = WSASend(fd, &buf, 1, &bSent, 0, NULL, NULL);
+        auto writeError = WSAGetLastError();
+        write = writeResult == 0 || writeError != WSAEWOULDBLOCK;
+    }
 
-            // The trick is that we want to wait on the event handle to know when we can read and write
-            // that works fine for read, however for write the event is not signalled in the normal case
-            // where curl wrote to the socket, but not enough to cause it to become unwriteable for now.
-            // So, we need to signal curl to write again if it has more data to write, if the socket can take
-            // more data.  This trick with WSASend for 0 bytes enables that - if it fails with would-block
-            // then we can stop asking curl to write to the socket, and start waiting on the handle to 
-            // know when to try again.
-            // If curl has finished writing to the socket, it will call us back to change the mode to read only.
-
-            WSABUF buf{ 0, (CHAR*)&buf };
-            DWORD bSent = 0;
-            auto writeResult = WSASend(fd, &buf, 1, &bSent, 0, NULL, NULL);
-            auto writeError = WSAGetLastError();
-            write = writeResult == 0 || writeError != WSAEWOULDBLOCK;
-        }
-
-        if (read || write)
-        {
-            signalledWrite = signalledWrite || write;
-            return true;   // if we return true, both read and write must have been set.
-        }
+    if (read || write)
+    {
+        signalledWrite = signalledWrite || write;
+        return true;   // if we return true, both read and write must have been set.
     }
     return false;
 }
 
 void SockInfo::closeEvent()
 {
-    if (handle != WSA_INVALID_EVENT)
-    {
-        WSACloseEvent(handle);
-        handle = WSA_INVALID_EVENT;
-    }
+    WSAEventSelect(fd, NULL, 0); // cancel association by specifying lNetworkEvents = 0
     associatedHandleEvents = 0;
     signalledWrite = false;
 }
@@ -128,15 +109,13 @@ SockInfo::SockInfo(SockInfo&& o)
     : fd(o.fd)
     , mode(o.mode)
     , signalledWrite(o.signalledWrite)
-    , handle(o.handle)
+    , mSharedEvent(o.mSharedEvent)
     , associatedHandleEvents(o.associatedHandleEvents)
 {
-    o.handle = WSA_INVALID_EVENT;
 }
 
 SockInfo::~SockInfo()
 {
-    assert(handle == WSA_INVALID_EVENT);
 }
 #endif
 
@@ -186,6 +165,14 @@ unsigned long CurlHttpIO::id_function()
 
 CurlHttpIO::CurlHttpIO()
 {
+#ifdef WIN32
+    mSocketsWaitEvent = WSACreateEvent();
+    if (mSocketsWaitEvent == WSA_INVALID_EVENT)
+    {
+        LOG_err << "Failed to create WSA event for cURL";
+    }
+#endif
+
     curl_version_info_data* data = curl_version_info(CURLVERSION_NOW);
     if (data->version)
     {
@@ -486,7 +473,23 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
         if (readable || writeable)
         {
             // take the old record from the prior version of the map, if there is one, and then we will update it
-            SockInfo& info = aressockets.emplace(socks[i], std::move(prevAressockets[socks[i]])).first->second;
+            auto it = prevAressockets.find(socks[i]);
+            if (it == prevAressockets.end())
+            {
+#ifdef WIN32
+                auto it_bool = aressockets.emplace(socks[i], SockInfo(mSocketsWaitEvent));
+#else
+                auto it_bool = aressockets.emplace(socks[i], SockInfo());
+#endif
+                it = it_bool.first;
+            }
+            else
+            {
+                auto it_bool = aressockets.emplace(socks[i], std::move(it->second));
+                prevAressockets.erase(it);
+                it = it_bool.first;
+            }
+            SockInfo& info = it->second;
             info.mode = 0;
 
             if (readable)
@@ -502,10 +505,7 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
             }
 
 #if defined(_WIN32)
-            if (info.createAssociateEvent())
-            {
-                ((WinWaiter *)waiter)->addhandle(info.eventHandle(), Waiter::NEEDEXEC);
-            }
+            info.createAssociateEvent();
 #else
             if (readable)
             {
@@ -524,6 +524,7 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
 #if defined(_WIN32)
     for (auto& mapPair : prevAressockets)
     {
+        // todo: has the socket always been closed at this point anyway? (and, any chance the socket number might already be being reused?
         mapPair.second.closeEvent();
     }
 #endif
@@ -549,11 +550,7 @@ void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 #if defined(_WIN32)
         anyWriters = anyWriters || info.signalledWrite;
         info.signalledWrite = false;
-
-        if (info.createAssociateEvent())
-        {
-            ((WinWaiter *)waiter)->addhandle(info.eventHandle(), Waiter::NEEDEXEC);
-        }
+        info.createAssociateEvent();
 #else
 
         if (info.mode & SockInfo::READ)
@@ -577,6 +574,14 @@ void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
         static_cast<WinWaiter*>(waiter)->maxds = 0;
     }
 #endif
+}
+
+int CurlHttpIO::checkevents(Waiter*)
+{
+#ifdef WIN32
+    ResetEvent(mSocketsWaitEvent);
+#endif
+    return 0;
 }
 
 void CurlHttpIO::closearesevents()
@@ -687,7 +692,7 @@ void CurlHttpIO::processcurlevents(direction_t d)
     if (value >= 0 && value <= Waiter::ds)
     {
         *timeout = -1;
-        LOG_debug << "Disabling cURL timeout";
+        LOG_debug << "Informing cURL of timeout";
         curl_multi_socket_action(curlm[d], CURL_SOCKET_TIMEOUT, 0, &dummy);
     }
 
@@ -718,6 +723,10 @@ CurlHttpIO::~CurlHttpIO()
     closecurlevents(API);
     closecurlevents(GET);
     closecurlevents(PUT);
+
+#ifdef WIN32
+    WSACloseEvent(mSocketsWaitEvent);
+#endif
 
     curlMutex.lock();
     if (--instanceCount == 0)
@@ -878,6 +887,11 @@ void CurlHttpIO::addevents(Waiter* w, int)
 
     addaresevents(waiter);
     addcurlevents(waiter, API);
+
+#ifdef WIN32
+    ((WinWaiter *)waiter)->addhandle(mSocketsWaitEvent, Waiter::NEEDEXEC);
+#endif
+
     if (curltimeoutreset[API] >= 0)
     {
         m_time_t ds = curltimeoutreset[API] - Waiter::ds;
@@ -2526,17 +2540,37 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
 
     if (what == CURL_POLL_REMOVE)
     {
-        LOG_debug << "Removing socket " << s;
+        auto it = socketmap.find(s);
+        if (it != socketmap.end())
+        {
+            LOG_debug << "Removing socket " << s;
 
 #if defined(_WIN32)
-        socketmap[s].closeEvent();
+            it->second.closeEvent();
 #endif
-        socketmap[s].mode = 0;
+            it->second.mode = 0;
+        }
     }
     else
     {
-        LOG_debug << "Adding/setting curl socket " << s << " to " << what;
-        auto& info = socketmap[s];
+
+        auto it = socketmap.find(s);
+        if (it == socketmap.end())
+        {
+            LOG_debug << "Adding curl socket " << s << " to " << what;
+#ifdef WIN32
+            auto it_bool = socketmap.emplace(s, SockInfo(httpio->mSocketsWaitEvent));
+#else
+            auto it_bool = socketmap.emplace(s, SockInfo());
+#endif
+            it = it_bool.first;
+        }
+        else
+        {
+            LOG_debug << "Setting curl socket " << s << " to " << what;
+        }
+        
+        auto& info = it->second;
         info.fd = s;
         info.mode = what;
 #if defined(_WIN32)
