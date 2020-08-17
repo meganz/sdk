@@ -401,8 +401,8 @@ int computeReversePathMatchScore(string& accumulated, const LocalPath& path1Arg,
     const std::wstring& path2 = path2Arg.getLocalpath();
     const int sizeofnullterminator = 2;
 #else 
-    const string& path1 = *path1Arg.editStringDirect();
-    const string& path2 = *path2Arg.editStringDirect();
+    const string& path1 = *path1Arg.getLocalpath();
+    const string& path2 = *path2Arg.getLocalpath();
     const int sizeofnullterminator = 1;
 #endif
 
@@ -1020,13 +1020,8 @@ void Sync::changestate(syncstate_t newstate)
 // NULL: no match, optionally returns residual path
 LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, LocalNode** parent, string* rpath)
 {
-#ifdef _WIN32
     const wchar_t* ptr = localpath.getLocalpath().c_str();
     const wchar_t* end = ptr + localpath.getLocalpath().size();
-#else
-    const char* ptr = localpath.editStringDirect->data();
-    const wchar* end = ptr + localpath.editStringDirect()->size();
-#endif
     size_t separatorlen = client->fsaccess->localseparator.size();
 
     if (rpath)
@@ -1049,11 +1044,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
         }
 
         l = localroot.get();
-    #ifdef _WIN32
         ptr += l->localname.getLocalpath().size();
-    #else
-        ptr += l->localname.editStringDirect()->size();
-    #endif
         if (!memcmp(ptr, client->fsaccess->localseparator.data(), client->fsaccess->localseparator.size()))
         {
             ptr += client->fsaccess->localseparator.size();
@@ -1106,7 +1097,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
                 #ifdef _WIN32
                     rpath = &(wstring2string(localpath.getLocalpath().c_str()));
                 #else
-                    rpath->assign(ptr, localpath.editStringDirect()->data() - ptr + localpath.editStringDirect()->size());
+                    rpath->assign(ptr, localpath.getLocalpath().data() - ptr + localpath.getLocalpath().size());
                 #endif
                 }
 
@@ -1268,11 +1259,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                 string utf8newname;
                 client->fsaccess->local2path(&newname, &utf8newname);
                 LOG_warn << "Parent not detected yet. Unknown reminder: " << utf8newname;
-            #if defined(_WIN32)
                 string parentpath = input_localpath->substrTo(input_localpath->getLocalpath().size() - newname.size() + index);
-            #else
-                string parentpath = input_localpath->substrTo(input_localpath->editStringDirect()->size() - newname.size() + index);
-            #endif
                 dirnotify->notify(DirNotify::DIREVENTS, l, LocalPath::fromLocalname(parentpath), true);
                 return NULL;
             }

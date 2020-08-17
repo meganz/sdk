@@ -3707,10 +3707,10 @@ void MegaClient::dispatchTransfers()
                             nexttransfer->uploadhandle = getuploadhandle();
 
                         #if defined(_WIN32)
-                            if (!gfxdisabled && gfx && gfx->isgfx(&(wstring2string(nexttransfer->localfilename.getLocalpath().c_str()))))
+                            if (!gfxdisabled && gfx && gfx->isgfx(nexttransfer->localfilename))
                             {
                                 // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
-                                nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, &(wstring2string(nexttransfer->localfilename.getLocalpath().c_str())), nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
+                                nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, nexttransfer->localfilename, nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
                             }
                         #else
                             if (!gfxdisabled && gfx && gfx->isgfx(nexttransfer->localfilename.editStringDirect()))
@@ -12977,11 +12977,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                 ll->reported = true;
 
                 char report[256];
-            #if defined(_WIN32)
                 sprintf(report, "%d %d %d %d", (int)lit->first->getLocalpath().size(), (int)localname.size(), (int)ll->name.size(), (int)ll->type);
-            #else
-                sprintf(report, "%d %d %d %d", (int)lit->first->editStringDirect()->size(), (int)localname.size(), (int)ll->name.size(), (int)ll->type);
-            #endif
                 // report a "no-name localnode" event
                 reportevent("LN", report, 0);
             }
@@ -13033,7 +13029,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                         // same fingerprint, if available): no action needed
                         if (!ll->checked)
                         {
-                            if (!gfxdisabled && gfx && gfx->isgfx(&(wstring2string((ll->localname.getLocalpath().c_str())))))
+                            if (!gfxdisabled && gfx && gfx->isgfx(ll->localname))
                             {
                                 int missingattr = 0;
 
@@ -13049,7 +13045,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                                 }
 
                                 if (missingattr && checkaccess(ll->node, OWNER)
-                                        && !gfx->isvideo(&(wstring2string(ll->localname.getLocalpath().c_str()))))
+                                        && !gfx->isvideo(ll->localname))
                                 {
                                     char me64[12];
                                     Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
@@ -13058,7 +13054,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds)
                                         LOG_debug << "Restoring missing attributes: " << ll->name;
                                         SymmCipher *symmcipher = ll->node->nodecipher();
                                         auto llpath = ll->getLocalPath();
-                                        gfx->gendimensionsputfa(NULL, &(wstring2string(llpath.getLocalpath().c_str())), ll->node->nodehandle, symmcipher, missingattr);
+                                        gfx->gendimensionsputfa(NULL, llpath, ll->node->nodehandle, symmcipher, missingattr);
                                     }
                                 }
                             }

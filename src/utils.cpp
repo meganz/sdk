@@ -70,9 +70,12 @@ std::wstring string2wstring(std::string narrow_utf8_src)
 void RemoveHiddenFileAttribute(mega::Transfer* transfer)
 {
 #ifdef _WIN32
-    WIN32_FILE_ATTRIBUTE_DATA fad;
-    if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.getLocalpath().data(), GetFileExInfoStandard, &fad))
-        SetFileAttributesW((LPCWSTR)transfer->localfilename.getLocalpath().data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
+    if (transfer)
+    {
+        WIN32_FILE_ATTRIBUTE_DATA fad;
+        if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.getLocalpath().data(), GetFileExInfoStandard, &fad))
+            SetFileAttributesW((LPCWSTR)transfer->localfilename.getLocalpath().data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
+    }
 #endif
 }
 

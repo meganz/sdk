@@ -1719,9 +1719,9 @@ bool LocalNode::serialize(string* d)
     w.serializeu32(parent ? parent->dbid : 0);
     w.serializenodehandle(node ? node->nodehandle : UNDEF);
 #if defined(_WIN32)
-    w.serializestring(wstring2string(localname.getLocalpath().c_str()));
+    w.serializestring(wstring2string(localname.getLocalpath()));
 #else
-    w.serializestring(*localname.editStringDirect());
+    w.serializestring(localname.getLocalpath());
 #endif
     if (type == FILENODE)
     {
@@ -1731,9 +1731,9 @@ bool LocalNode::serialize(string* d)
     w.serializebyte(mSyncable);
     w.serializeexpansionflags(1);  // first flag indicates we are storing slocalname.  Storing it is much, much faster than looking it up on startup.
 #if defined(_WIN32)
-    w.serializepstr(slocalname ? &(wstring2string(slocalname->getLocalpath().c_str())) : nullptr);
+    w.serializepstr(slocalname ? &(wstring2string(slocalname->getLocalpath())) : nullptr);
 #else
-    w.serializepstr(slocalname ? slocalname->editStringDirect() : nullptr);
+    w.serializepstr(slocalname ? &(slocalname->getLocalpath()) : nullptr);
 #endif
 
     return true;
@@ -1772,7 +1772,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     handle fsid;
     uint32_t parent_dbid;
     handle h = 0;
-    string slocalname, shortname;
+    string localname, shortname;
     uint64_t mtime = 0;
     int32_t crc[4];
     memset(crc, 0, sizeof crc);
@@ -1782,7 +1782,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     if (!r.unserializehandle(fsid) ||
         !r.unserializeu32(parent_dbid) || 
         !r.unserializenodehandle(h) ||
-        !r.unserializestring(slocalname) ||
+        !r.unserializestring(localname) ||
         (type == FILENODE && !r.unserializebinary((byte*)crc, sizeof(crc))) ||
         (type == FILENODE && !r.unserializecompressed64(mtime)) ||
         (r.hasdataleft() && !r.unserializebyte(syncable)) ||
@@ -1804,7 +1804,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->fsid = fsid;
     l->fsid_it = sync->client->fsidnode.end();
 
-    l->localname = LocalPath(std::move(slocalname));
+    l->localname = LocalPath(std::move(localname));
     l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(std::move(shortname)));
     l->slocalname_in_db = 0 != expansionflags[0];
     l->name = l->localname.toName(*sync->client->fsaccess);

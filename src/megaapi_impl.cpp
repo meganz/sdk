@@ -462,9 +462,9 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
         LocalPath lp;
         node->localnode->getlocalpath(lp, true);
 #if defined(_WIN32)
-        localPath.swap(wstring2string(lp.getLocalpath().c_str()));
+        localPath.swap(wstring2string(lp.getLocalpath()));
 #else
-        localPath.swap(*lp.editStringDirect());
+        localPath.swap(lp.getLocalpath());
 #endif
        
         localPath.append("", 1);
@@ -7481,7 +7481,8 @@ bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &
     bool hasPreview = (Node::hasfileattribute(&node.fileattrstring, GfxProc::PREVIEW) != 0);
     bool hasThumbnail = (Node::hasfileattribute(&node.fileattrstring, GfxProc::THUMBNAIL) != 0);
     string name = node.displayname();
-    bool isMedia = gfxAccess->isgfx(&name) || gfxAccess->isvideo(&name);
+    LocalPath lp = LocalPath::fromPath(name, *client->fsaccess);
+    bool isMedia = gfxAccess->isgfx(lp) || gfxAccess->isvideo(lp);
     bool canForceUpload = transfer.isStreamingTransfer();
     bool isPdf = name.find(".pdf") != string::npos;
 
@@ -8638,9 +8639,9 @@ string MegaApiImpl::getLocalPath(MegaNode *n)
     LocalPath lp;
     node->localnode->getlocalpath(lp, true);
 #if defined(_WIN32)
-    result.swap(wstring2string(lp.getLocalpath().c_str()));
+    result.swap(wstring2string(lp.getLocalpath()));
 #else
-    result.swap(*lp.editStringDirect());
+    result.swap(lp.getLocalpath());
 #endif
     result.append("", 1);
     sdkMutex.unlock();
@@ -12990,9 +12991,9 @@ void MegaApiImpl::syncupdate_treestate(LocalNode *l)
     MegaSyncPrivate* megaSync = syncMap.at(l->sync->tag);
 
 #if defined(_WIN32)
-    fireOnFileSyncStateChanged(megaSync, &(wstring2string(localpath.getLocalpath().c_str())), (int)l->ts);
+    fireOnFileSyncStateChanged(megaSync, &wstring2string(localpath.getLocalpath()), (int)l->ts);
 #else
-    fireOnFileSyncStateChanged(megaSync, localpath.editStringDirect(), (int)l->ts);
+    fireOnFileSyncStateChanged(megaSync, &localpath.getLocalpath(), (int)l->ts);
 #endif
 }
 

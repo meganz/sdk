@@ -105,16 +105,16 @@ public:
     virtual int checkevents(Waiter*);
 
     // check whether the filename looks like a supported media type
-    bool isgfx(string*);
+    bool isgfx(const LocalPath&);
 
     // check whether the filename looks like a video
-    bool isvideo(string*);
+    bool isvideo(const LocalPath&);
 
     // generate all dimensions, write to metadata server and attach to PUT transfer or existing node
     // handle is uploadhandle or nodehandle
     // - must respect JPEG EXIF rotation tag
     // - must save at 85% quality (120*120 pixel result: ~4 KB)
-    int gendimensionsputfa(FileAccess*, string*, handle, SymmCipher*, int = -1, bool checkAccess = true);
+    int gendimensionsputfa(FileAccess*, const LocalPath&, handle, SymmCipher*, int = -1, bool checkAccess = true);
 
     // FIXME: read dynamically from API server
     typedef enum { THUMBNAIL, PREVIEW } meta_t;
@@ -122,6 +122,7 @@ public:
 
     // generate and save a fa to a file
     bool savefa(string*, int, int, string*);
+    bool savefa(const LocalPath&, int, int, string*);
 
     // - w*0: largest square crop at the center (landscape) or at 1/6 of the height above center (portrait)
     // - w*h: resize to fit inside w*h bounding box

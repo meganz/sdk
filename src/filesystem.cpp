@@ -458,7 +458,7 @@ FileAccess::~FileAccess()
 // open file for reading
 bool FileAccess::fopen(LocalPath& name)
 {
-    nonblocking_localname.setlocalsize(1);
+    nonblocking_localname.setlocalpathsize(1);
     updatelocalname(name);
 
     return sysstat(&mtime, &size);
@@ -519,7 +519,7 @@ void FileAccess::asyncopfinished(void *param)
 
 AsyncIOContext *FileAccess::asyncfopen(LocalPath& f)
 {
-    nonblocking_localname.setlocalsize(1);
+    nonblocking_localname.setlocalpathsize(1);
     updatelocalname(f);
 
     LOG_verbose << "Async open start";
@@ -1022,7 +1022,11 @@ void LocalPath::ensureWinExtendedPathLenPrefix()
 
 string LocalPath::substrTo(size_t bytePos) const
 {
+#if defined(_WIN32) 
     return wstring2string(localpath.substr(0, bytePos));
+#else
+    return localpath.substr(0, bytePos);
+#endif
 }
 
 string LocalPath::toPath(const FileSystemAccess& fsaccess) const

@@ -165,7 +165,6 @@ public:
         std::wstring ws = string2wstring(s);
         localpath = std::move(ws);
     }
-    const std::wstring& getLocalpath() const { return localpath; }
     void setLocalpath(std::wstring s) { localpath = s; }
 
     //std::wstring* editStringDirect();
@@ -175,7 +174,8 @@ public:
     std::string* editStringDirect();
     const std::string* editStringDirect() const;
 #endif
-    void setlocalsize(int size) { localpath.resize(size); }
+    const std::wstring& getLocalpath() const { return localpath; }
+    void setlocalpathsize(int size) { localpath.resize(size); }
     bool empty() const;
     void clear() { localpath.clear(); }
     void erase(size_t pos = 0, size_t count = std::string::npos) { localpath.erase(pos, count); }

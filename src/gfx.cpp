@@ -32,7 +32,7 @@ const int GfxProc::dimensionsavatar[][2] = {
     { 250, 0 }      // AVATAR250X250: square thumbnail, cropped from near center
 };
 
-bool GfxProc::isgfx(string* localfilename)
+bool GfxProc::isgfx(const LocalPath& localfilename)
 {
     char ext[8];
     const char* supported;
@@ -42,7 +42,7 @@ bool GfxProc::isgfx(string* localfilename)
         return true;
     }
 
-    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localfilename), ext, sizeof ext))
+    if (client->fsaccess->getextension(localfilename, ext, sizeof ext))
     {
         const char* ptr;
 
@@ -56,7 +56,7 @@ bool GfxProc::isgfx(string* localfilename)
     return false;
 }
 
-bool GfxProc::isvideo(string *localfilename)
+bool GfxProc::isvideo(const LocalPath& localfilename)
 {
     char ext[8];
     const char* supported;
@@ -66,7 +66,7 @@ bool GfxProc::isvideo(string *localfilename)
         return false;
     }
 
-    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localfilename), ext, sizeof ext))
+    if (client->fsaccess->getextension(localfilename, ext, sizeof ext))
     {
         const char* ptr;
 
@@ -283,12 +283,12 @@ void GfxProc::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 
 // load bitmap image, generate all designated sizes, attach to specified upload/node handle
 // FIXME: move to a worker thread to keep the engine nonblocking
-int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, string* localfilename, handle th, SymmCipher* key, int missing, bool checkAccess)
+int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilename, handle th, SymmCipher* key, int missing, bool checkAccess)
 {
     if (SimpleLogger::logCurrentLevel >= logDebug)
     {
         string utf8path;
-        client->fsaccess->local2path(localfilename, &utf8path);
+        client->fsaccess->local2path(&(localfilename.getLocalpath()), &utf8path);
         LOG_debug << "Creating thumb/preview for " << utf8path;
     }
 
@@ -296,7 +296,7 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, string* localfilename, handl
     job->h = th;
     job->flag = checkAccess;
     memcpy(job->key, key->key, SymmCipher::KEYLENGTH);
-    job->localfilename = *localfilename;
+    job->localfilename = localfilename.toPath(*client->fsaccess); 
     for (fatype i = sizeof dimensions/sizeof dimensions[0]; i--; )
     {
         if (missing & (1 << i))
@@ -316,7 +316,7 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, string* localfilename, handl
     return int(job->imagetypes.size());
 }
 
-bool GfxProc::savefa(string *localfilepath, int width, int height, string *localdstpath)
+bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, string *localdstpath)
 {
     if (!isgfx(localfilepath))
     {
@@ -324,7 +324,8 @@ bool GfxProc::savefa(string *localfilepath, int width, int height, string *local
     }
 
     mutex.lock();
-    if (!readbitmap(NULL, localfilepath, width > height ? width : height))
+    std::string filepath = wstring2string(localfilepath.getLocalpath());
+    if (!readbitmap(NULL, &filepath, width > height ? width : height))
     {
         mutex.unlock();
         return false;
