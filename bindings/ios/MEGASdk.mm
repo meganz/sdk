@@ -1653,6 +1653,14 @@ using namespace mega;
     self.megaApi->cancelTransfer((transfer != nil) ? [transfer getCPtr] : NULL);
 }
 
+- (void)retryTransfer:(MEGATransfer *)transfer delegate:(id<MEGATransferDelegate>)delegate {
+    self.megaApi->retryTransfer((transfer != nil) ? [transfer getCPtr] : NULL, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
+}
+
+- (void)retryTransfer:(MEGATransfer *)transfer {
+    self.megaApi->retryTransfer((transfer != nil) ? [transfer getCPtr] : NULL);
+}
+
 - (void)moveTransferToFirst:(MEGATransfer *)transfer delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->moveTransferToFirst((transfer != nil) ? [transfer getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
