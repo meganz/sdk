@@ -55,17 +55,27 @@ string toHandle(handle h)
     return string(base64Handle);
 }
 
-std::string wstringToString(std::wstring wide_utf16_src)
+std::string wstring2string(std::wstring wide_utf16_src)
 {
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
     return converter.to_bytes(wide_utf16_src);
 }
 
-std::wstring stringToWString(std::string narrow_utf8_src)
+std::wstring string2wstring(std::string narrow_utf8_src)
 {
     std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
     return converter.from_bytes(narrow_utf8_src);
 }
+
+void RemoveHiddenFileAttribute(mega::Transfer* transfer)
+{
+#ifdef _WIN32
+    WIN32_FILE_ATTRIBUTE_DATA fad;
+    if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.getLocalpath().data(), GetFileExInfoStandard, &fad))
+        SetFileAttributesW((LPCWSTR)transfer->localfilename.getLocalpath().data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
+#endif
+}
+
 
 CacheableWriter::CacheableWriter(string& d)
     : dest(d)

@@ -68,10 +68,15 @@ bool File::serialize(string *d)
     d->append((char*)&ll, sizeof(ll));
     d->append(name.data(), ll);
 
+#if defined(_WIN32)
+    ll = (unsigned short)localname.getLocalpath().size();
+    d->append((char*)&ll, sizeof(ll));
+    d->append(wstring2string(localname.getLocalpath().data()), ll);
+#else
     ll = (unsigned short)localname.editStringDirect()->size();
     d->append((char*)&ll, sizeof(ll));
     d->append(localname.editStringDirect()->data(), ll);
-
+#endif
     ll = (unsigned short)targetuser.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(targetuser.data(), ll);
@@ -206,7 +211,12 @@ File *File::unserialize(string *d)
     delete fp;
 
     file->name.assign(name, namelen);
+#if defined(_WIN32)
+    std::string s(localname, localnamelen);
+    file->localname.setLocalpath(string2wstring(s));
+#else
     file->localname.editStringDirect()->assign(localname, localnamelen);
+#endif
     file->targetuser.assign(targetuser, targetuserlen);
     file->privauth.assign(privauth, privauthlen);
     file->pubauth.assign(pubauth, pubauthlen);

@@ -59,9 +59,11 @@ public:
     void tmpnamelocal(LocalPath&) const override;
 
     void path2local(const string*, string*) const override;
-    void local2path(const string*, string*) const override;
+    void local2path(const std::wstring*, string*) const override;
+    void local2path(const string* local, string* path) const override;
 
-    static int sanitizedriveletter(LocalPath&);
+
+    static int sanitizedriveletter(std::wstring&);
 
     bool getsname(LocalPath&, LocalPath&) const override;
 

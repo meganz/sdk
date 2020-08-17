@@ -1048,7 +1048,11 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
         }
 
         l = localroot.get();
+    #ifdef _WIN32
+        ptr += l->localname.getLocalpath().size();
+    #else
         ptr += l->localname.editStringDirect()->size();
+    #endif
         if (!memcmp(ptr, client->fsaccess->localseparator.data(), client->fsaccess->localseparator.size()))
         {
             ptr += client->fsaccess->localseparator.size();
@@ -1086,7 +1090,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
             }
 
 #ifdef _WIN32
-            LocalPath t = LocalPath::fromLocalname(wstringToString(std::wstring(ptr, nptr - ptr)));
+            LocalPath t = LocalPath::fromLocalname(wstring2string(std::wstring(ptr, nptr - ptr)));
 #else
             LocalPath t = LocalPath::fromLocalname(std::string(ptr, nptr - ptr));
 #endif
@@ -1098,12 +1102,11 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
                 // matching component LocalNode in parent
                 if (rpath)
                 {
-#ifdef _WIN32
-                    rpath = &(wstringToString(localpath.getLocalpath().c_str()));
-#else
+                #ifdef _WIN32
+                    rpath = &(wstring2string(localpath.getLocalpath().c_str()));
+                #else
                     rpath->assign(ptr, localpath.editStringDirect()->data() - ptr + localpath.editStringDirect()->size());
-                 
-#endif
+                #endif
                 }
 
                 return NULL;
@@ -1219,9 +1222,15 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
     LocalNode* parent;
     string path;        // UTF-8 representation of tmppath
     LocalPath tmppath;     // full path represented by l + localpath
+#if defined(_WIN32)    
+    std::wstring newname;       // portion of tmppath not covered by the existing
+                                // LocalNode structure (always the last path component
+                                // that does not have a corresponding LocalNode yet)
+#else
     string newname;     // portion of tmppath not covered by the existing
                         // LocalNode structure (always the last path component
                         // that does not have a corresponding LocalNode yet)
+#endif
 
     if (localname)
     {
@@ -1248,7 +1257,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
         // look up deepest existing LocalNode by path, store remainder (if any)
         // in newname
-        LocalNode *tmp = localnodebypath(l, *input_localpath, &parent, &newname);
+        LocalNode *tmp = localnodebypath(l, *input_localpath, &parent, &wstring2string(newname));
 
         size_t index = 0;
         while ((index = newname.find(client->fsaccess->localseparator, index)) != string::npos)
@@ -1258,7 +1267,11 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                 string utf8newname;
                 client->fsaccess->local2path(&newname, &utf8newname);
                 LOG_warn << "Parent not detected yet. Unknown reminder: " << utf8newname;
+            #if defined(_WIN32)
+                string parentpath = input_localpath->substrTo(input_localpath->getLocalpath().size() - newname.size() + index);
+            #else
                 string parentpath = input_localpath->substrTo(input_localpath->editStringDirect()->size() - newname.size() + index);
+            #endif
                 dirnotify->notify(DirNotify::DIREVENTS, l, LocalPath::fromLocalname(parentpath), true);
                 return NULL;
             }
@@ -1278,7 +1291,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             return NULL;
         }
 
-        string name = newname.size() ? newname : l->name;
+        string name = newname.size() ? wstring2string(newname) : l->name;
         client->fsaccess->local2name(&name, mFilesystemType);
 
         if (!client->app->sync_syncable(this, name.c_str(), tmppath))

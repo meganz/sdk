@@ -112,7 +112,10 @@ struct MEGA_API AsyncIOContext
     m_off_t pos;
     unsigned len;
     unsigned pad;
-    byte *buffer;
+#if defined(_WIN32)
+    wchar_t* wbuffer;
+#endif
+    byte* buffer;
     Waiter *waiter;
     FileAccess *fa;
 };
@@ -143,40 +146,49 @@ class MEGA_API LocalPath
 #endif
 
     friend class ScopedLengthRestore;
+    friend class FileAccess;
+    friend class FileSystemAccess;
     friend class WinFileSystemAccess;
     friend class WinDirAccess;
+    friend class WinDirNotify;
+    friend class WinFileAccess;
+
     size_t getLength() { return localpath.size(); }
     void setLength(size_t length) { localpath.resize(length); }
 
 public:
-
     LocalPath() {}
 
 #if defined(_WIN32)
     explicit LocalPath::LocalPath(std::string&& s)
     {
-        std::wstring ws = stringToWString(s);
+        std::wstring ws = string2wstring(s);
         localpath = std::move(ws);
     }
     const std::wstring& getLocalpath() const { return localpath; }
-    
-    //TODO: will remove these two once all calls are replaced with c_str() or something. Here just for successful compilation
-    std::wstring* editStringDirect();
-    const std::wstring* editStringDirect() const;
+    void setLocalpath(std::wstring s) { localpath = s; }
+
+    //std::wstring* editStringDirect();
+    //const std::wstring* editStringDirect() const;
 #else 
     explicit LocalPath(std::string&& s) : localpath(std::move(s)) {}
     std::string* editStringDirect();
     const std::string* editStringDirect() const;
 #endif
-
+    void setlocalsize(int size) { localpath.resize(size); }
     bool empty() const;
     void clear() { localpath.clear(); }
     void erase(size_t pos = 0, size_t count = std::string::npos) { localpath.erase(pos, count); }
     void truncate(size_t bytePos) { localpath.resize(bytePos); }
     size_t lastpartlocal(const FileSystemAccess& fsaccess) const;
     void append(const LocalPath& additionalPath);
+#if defined(_WIN32)
+    void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways, const std::wstring& localseparator);
+    void prependWithSeparator(const LocalPath& additionalPath, const std::wstring& localseparator);
+#else 
     void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways, const std::string& localseparator);
     void prependWithSeparator(const LocalPath& additionalPath, const std::string& localseparator);
+#endif
     void trimNonDriveTrailingSeparator(const FileSystemAccess& fsaccess);
     bool findNextSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
     bool findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
@@ -210,7 +222,11 @@ public:
 
     // Create a LocalPath from a string that was already converted to be appropriate for a local file path.
     static LocalPath fromLocalname(std::string localname);
-
+#if defined(_WIN32)
+    static LocalPath fromLocalname(std::wstring localname);
+#else
+    static LocalPath fromLocalname(std::string localname);
+#endif
     // Generates a name for a temporary file
     static LocalPath tmpNameLocal(const FileSystemAccess& fsaccess);
 
@@ -437,8 +453,11 @@ public:
 struct MEGA_API FileSystemAccess : public EventTrigger
 {
     // local path separator, e.g. "/"
-    string localseparator;
-
+#if defined(_WIN32)
+    std::wstring localseparator;
+#else
+    std::string localseparator;
+#endif
     // waiter to notify on filesystem events
     Waiter *waiter;
 
@@ -472,10 +491,18 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // convert MEGA path (UTF-8) to local format
     virtual void path2local(const string*, string*) const = 0;
-    virtual void local2path(const string*, string*) const = 0;
 
+#if defined(_WIN32)
     // convert MEGA-formatted filename (UTF-8) to local filesystem name; escape
     // forbidden characters using urlencode
+    std::string local2name(std::wstring*, FileSystemType) const;
+    virtual void local2path(const std::wstring*, string*) const = 0;
+#else
+#endif
+    // convert MEGA-formatted filename (UTF-8) to local filesystem name; escape
+    // forbidden characters using urlencode
+    virtual void local2path(const string*, string*) const = 0;
+
     void local2name(string*, FileSystemType) const;
 
     // convert local path to MEGA format (UTF-8) with unescaping

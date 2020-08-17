@@ -461,7 +461,12 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     {
         LocalPath lp;
         node->localnode->getlocalpath(lp, true);
+#if defined(_WIN32)
+        localPath.swap(wstring2string(lp.getLocalpath().c_str()));
+#else
         localPath.swap(*lp.editStringDirect());
+#endif
+       
         localPath.append("", 1);
     }
 #endif
@@ -4891,11 +4896,7 @@ void MegaFileGet::prepare()
 void MegaFileGet::updatelocalname()
 {
 #ifdef _WIN32
-    transfer->localfilename.editStringDirect()->append("", 1);
-    WIN32_FILE_ATTRIBUTE_DATA fad;
-    if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), GetFileExInfoStandard, &fad))
-        SetFileAttributesW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
-    transfer->localfilename.editStringDirect()->resize(transfer->localfilename.editStringDirect()->size()-1);
+    RemoveHiddenFileAttribute(transfer);
 #endif
 }
 
@@ -4904,11 +4905,9 @@ void MegaFileGet::progress()
 #ifdef _WIN32
     if(transfer->slot && !transfer->slot->progressreported)
     {
-        transfer->localfilename.editStringDirect()->append("", 1);
         WIN32_FILE_ATTRIBUTE_DATA fad;
-        if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), GetFileExInfoStandard, &fad))
-            SetFileAttributesW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), fad.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN);
-        transfer->localfilename.editStringDirect()->resize(transfer->localfilename.editStringDirect()->size()-1);
+        if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.getLocalpath().data(), GetFileExInfoStandard, &fad))
+            SetFileAttributesW((LPCWSTR)transfer->localfilename.getLocalpath().data(), fad.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN);
     }
 #endif
 }
@@ -8638,7 +8637,11 @@ string MegaApiImpl::getLocalPath(MegaNode *n)
     string result;
     LocalPath lp;
     node->localnode->getlocalpath(lp, true);
+#if defined(_WIN32)
+    result.swap(wstring2string(lp.getLocalpath().c_str()));
+#else
     result.swap(*lp.editStringDirect());
+#endif
     result.append("", 1);
     sdkMutex.unlock();
     return result;
@@ -12986,7 +12989,11 @@ void MegaApiImpl::syncupdate_treestate(LocalNode *l)
     if(syncMap.find(l->sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(l->sync->tag);
 
+#if defined(_WIN32)
+    fireOnFileSyncStateChanged(megaSync, &(wstring2string(localpath.getLocalpath().c_str())), (int)l->ts);
+#else
     fireOnFileSyncStateChanged(megaSync, localpath.editStringDirect(), (int)l->ts);
+#endif
 }
 
 bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, LocalPath& localpath, Node *node)
@@ -20596,11 +20603,7 @@ void MegaApiImpl::sendPendingRequests()
                 #ifdef _WIN32
                     if (transfer->type == GET)
                     {
-                        transfer->localfilename.editStringDirect()->append("", 1);
-                        WIN32_FILE_ATTRIBUTE_DATA fad;
-                        if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), GetFileExInfoStandard, &fad))
-                            SetFileAttributesW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
-                        transfer->localfilename.editStringDirect()->resize(transfer->localfilename.editStringDirect()->size()-1);
+                        RemoveHiddenFileAttribute(transfer);
                     }
                 #endif
 
@@ -23975,11 +23978,7 @@ void MegaFolderUploadController::cancel()
 #ifdef _WIN32
         if (transfer->type == GET)
         {
-            transfer->localfilename.editStringDirect()->append("", 1);
-            WIN32_FILE_ATTRIBUTE_DATA fad;
-            if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), GetFileExInfoStandard, &fad))
-                SetFileAttributesW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
-            transfer->localfilename.editStringDirect()->resize(transfer->localfilename.editStringDirect()->size()-1);
+            RemoveHiddenFileAttribute(transfer);    
         }
 #endif
 
@@ -25371,13 +25370,7 @@ void MegaFolderDownloadController::cancel()
 
 #ifdef _WIN32
         if (transfer->type == GET)
-        {
-            transfer->localfilename.editStringDirect()->append("", 1);
-            WIN32_FILE_ATTRIBUTE_DATA fad;
-            if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), GetFileExInfoStandard, &fad))
-                SetFileAttributesW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
-            transfer->localfilename.editStringDirect()->resize(transfer->localfilename.editStringDirect()->size()-1);
-        }
+            RemoveHiddenFileAttribute(transfer);
 #endif
 
         MegaErrorPrivate megaError(API_EINCOMPLETE);
@@ -25420,7 +25413,6 @@ void MegaFolderDownloadController::cancel()
 
     transfer = nullptr;  // no final callback for this one since it is being destroyed now
 }
-
 
 void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, LocalPath& localpath, FileSystemType fsType)
 {

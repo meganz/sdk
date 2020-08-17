@@ -53,8 +53,9 @@ namespace mega {
 
 std::string toNodeHandle(handle nodeHandle);
 std::string toHandle(handle h);
-std::string wstringToString(std::wstring wide_utf16_src);
-std::wstring stringToWString(std::string narrow_utf8_src);
+std::string wstring2string(std::wstring wide_utf16_src);
+std::wstring string2wstring(std::string narrow_utf8_src);
+void RemoveHiddenFileAttribute(mega::Transfer* transfer);
 #define LOG_NODEHANDLE(x) toNodeHandle(x)
 #define LOG_HANDLE(x) toHandle(x)
 

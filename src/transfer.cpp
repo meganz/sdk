@@ -150,9 +150,15 @@ bool Transfer::serialize(string *d)
 
     d->append((const char*)&type, sizeof(type));
 
+#if defined(_WIN32)                        
+    ll = (unsigned short)localfilename.getLocalpath().size();
+    d->append((char*)&ll, sizeof(ll));
+    d->append(wstring2string(localfilename.getLocalpath().data()), ll);
+#else
     ll = (unsigned short)localfilename.editStringDirect()->size();
     d->append((char*)&ll, sizeof(ll));
     d->append(localfilename.editStringDirect()->data(), ll);
+#endif
 
     d->append((const char*)filekey, sizeof(filekey));
     d->append((const char*)&ctriv, sizeof(ctriv));
@@ -884,9 +890,16 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     // set missing node attributes
                     if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
                     {
+                    #if defined(_WIN32)                        
+                        if (!client->gfxdisabled && client->gfx && client->gfx->isgfx(&(wstring2string(localname.getLocalpath().c_str()))) &&
+                            keys.find(n->nodekey()) == keys.end() &&    // this file hasn't been processed yet
+                            client->checkaccess(n, OWNER))
+                    #else
                         if (!client->gfxdisabled && client->gfx && client->gfx->isgfx(localname.editStringDirect()) &&
-                                keys.find(n->nodekey()) == keys.end() &&    // this file hasn't been processed yet
-                                client->checkaccess(n, OWNER))
+                            keys.find(n->nodekey()) == keys.end() &&    // this file hasn't been processed yet
+                            client->checkaccess(n, OWNER))
+
+                    #endif
                         {
                             keys.insert(n->nodekey());
 
@@ -900,7 +913,11 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                                 if (missingattr)
                                 {
+                                #if defined(_WIN32)                        
+                                    client->gfx->gendimensionsputfa(NULL, &(wstring2string(localname.getLocalpath().c_str())), n->nodehandle, n->nodecipher(), missingattr);
+                                #else
                                     client->gfx->gendimensionsputfa(NULL, localname.editStringDirect(), n->nodehandle, n->nodecipher(), missingattr);
+                                #endif
                                 }
 
                                 addAnyMissingMediaFileAttributes(n, localname);

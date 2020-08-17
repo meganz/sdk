@@ -1368,7 +1368,11 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     // enable folder notification
     if (type == FOLDERNODE)
     {
+    #if defined(_WIN32)
+        sync->dirnotify->addnotify(this, nullptr /*unused in Windows*/);
+    #else
         sync->dirnotify->addnotify(this, cfullpath.editStringDirect());
+    #endif
     }
 
     sync->client->syncactivity = true;
@@ -1615,7 +1619,11 @@ LocalPath LocalNode::getLocalPath(bool sdisable) const
     return lp;
 }
 
+#if defined(_WIN32)
+void LocalNode::getlocalpath(LocalPath& path, bool sdisable, const std::wstring* localseparator) const
+#else
 void LocalNode::getlocalpath(LocalPath& path, bool sdisable, const std::string* localseparator) const
+#endif
 {
     if (!sync)
     {
@@ -1710,7 +1718,11 @@ bool LocalNode::serialize(string* d)
     w.serializehandle(fsid);
     w.serializeu32(parent ? parent->dbid : 0);
     w.serializenodehandle(node ? node->nodehandle : UNDEF);
+#if defined(_WIN32)
+    w.serializestring(wstring2string(localname.getLocalpath().c_str()));
+#else
     w.serializestring(*localname.editStringDirect());
+#endif
     if (type == FILENODE)
     {
         w.serializebinary((byte*)crc.data(), sizeof(crc));
@@ -1718,7 +1730,12 @@ bool LocalNode::serialize(string* d)
     }
     w.serializebyte(mSyncable);
     w.serializeexpansionflags(1);  // first flag indicates we are storing slocalname.  Storing it is much, much faster than looking it up on startup.
+#if defined(_WIN32)
+    w.serializepstr(slocalname ? &(wstring2string(slocalname->getLocalpath().c_str())) : nullptr);
+#else
     w.serializepstr(slocalname ? slocalname->editStringDirect() : nullptr);
+#endif
+
     return true;
 }
 
@@ -1755,17 +1772,17 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     handle fsid;
     uint32_t parent_dbid;
     handle h = 0;
-    string localname, shortname;
+    string slocalname, shortname;
     uint64_t mtime = 0;
     int32_t crc[4];
     memset(crc, 0, sizeof crc);
     byte syncable = 1;
     unsigned char expansionflags[8] = { 0 };
-
+    
     if (!r.unserializehandle(fsid) ||
         !r.unserializeu32(parent_dbid) || 
         !r.unserializenodehandle(h) ||
-        !r.unserializestring(localname) ||
+        !r.unserializestring(slocalname) ||
         (type == FILENODE && !r.unserializebinary((byte*)crc, sizeof(crc))) ||
         (type == FILENODE && !r.unserializecompressed64(mtime)) ||
         (r.hasdataleft() && !r.unserializebyte(syncable)) ||
@@ -1787,7 +1804,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->fsid = fsid;
     l->fsid_it = sync->client->fsidnode.end();
 
-    l->localname = LocalPath(std::move(localname));
+    l->localname = LocalPath(std::move(slocalname));
     l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(std::move(shortname)));
     l->slocalname_in_db = 0 != expansionflags[0];
     l->name = l->localname.toName(*sync->client->fsaccess);
