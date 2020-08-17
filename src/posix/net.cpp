@@ -477,17 +477,17 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
             if (it == prevAressockets.end())
             {
 #ifdef WIN32
-                auto it_bool = aressockets.emplace(socks[i], SockInfo(mSocketsWaitEvent));
+                auto pair = aressockets.emplace(socks[i], SockInfo(mSocketsWaitEvent));
 #else
-                auto it_bool = aressockets.emplace(socks[i], SockInfo());
+                auto pair = aressockets.emplace(socks[i], SockInfo());
 #endif
-                it = it_bool.first;
+                it = pair.first;
             }
             else
             {
-                auto it_bool = aressockets.emplace(socks[i], std::move(it->second));
+                auto pair = aressockets.emplace(socks[i], std::move(it->second));
                 prevAressockets.erase(it);
-                it = it_bool.first;
+                it = pair.first;
             }
             SockInfo& info = it->second;
             info.mode = 0;
@@ -2559,11 +2559,11 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
         {
             LOG_debug << "Adding curl socket " << s << " to " << what;
 #ifdef WIN32
-            auto it_bool = socketmap.emplace(s, SockInfo(httpio->mSocketsWaitEvent));
+            auto pair = socketmap.emplace(s, SockInfo(httpio->mSocketsWaitEvent));
 #else
-            auto it_bool = socketmap.emplace(s, SockInfo());
+            auto pair = socketmap.emplace(s, SockInfo());
 #endif
-            it = it_bool.first;
+            it = pair.first;
         }
         else
         {
