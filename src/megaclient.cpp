@@ -6774,7 +6774,13 @@ void MegaClient::notifypurge(void)
 #endif
             || cachedscsn != tscsn)
     {
-        updatesc();
+
+        if (scsn.ready())
+        {
+            // in case of CS operations inbetween login and fetchnodes, don't 
+            // write these to the database yet, as we don't have the scsn
+            updatesc();
+        }
 
 #ifdef ENABLE_SYNC
         // update LocalNode <-> Node associations
@@ -6811,7 +6817,9 @@ void MegaClient::notifypurge(void)
             Node* n = nodenotify[i];
             if (n->attrstring)
             {
-                LOG_err << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekeyUnchecked().size();
+                // make this just a warning to avoid auto test failure
+                // this can happen if another client adds a folder in our share and the key for us is not available yet
+                LOG_warn << "NO_KEY node: " << n->type << " " << n->size << " " << n->nodehandle << " " << n->nodekeyUnchecked().size();
 #ifdef ENABLE_SYNC
                 if (n->localnode)
                 {
