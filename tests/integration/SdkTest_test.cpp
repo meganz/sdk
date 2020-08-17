@@ -4429,7 +4429,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
     // getUserEmail() test
     login(0);
     std::unique_ptr<MegaUser> user(megaApi[0]->getMyUser());
-    ASSERT_TRUE(user); // some simple validation
+    ASSERT_TRUE(!!user); // some simple validation
 
     err = synchronousGetUserEmail(0, user->getHandle());
     ASSERT_EQ(MegaError::API_OK, err) << "Get user email failed (error: " << err << ")";
@@ -4442,7 +4442,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
     // getExtendedAccountDetails()
     err = synchronousGetExtendedAccountDetails(0, true);
     ASSERT_EQ(MegaError::API_OK, err) << "Get extended account details failed (error: " << err << ")";
-    ASSERT_TRUE(mApi[0].accountDetails) << "Invalid accout details"; // some simple validation
+    ASSERT_TRUE(!!mApi[0].accountDetails) << "Invalid accout details"; // some simple validation
 
     // killSession()
     int numSessions = mApi[0].accountDetails->getNumSessions();
