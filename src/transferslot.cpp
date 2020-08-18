@@ -226,7 +226,8 @@ TransferSlot::~TransferSlot()
                         break;
                     }
 
-                    default: ;
+                    default: 
+                        break;
                 }
             }
         }

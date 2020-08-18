@@ -80,7 +80,6 @@ public:
     void add(Command*);
 
     bool cmdspending() const;
-    bool cmdsInflight() const;
 
     /**
      * @brief get the set of commands to be sent to the server (could be a retry)
