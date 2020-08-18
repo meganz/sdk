@@ -63,7 +63,7 @@ struct MEGA_API SockInfo
     bool checkEvent(bool& read, bool& write);
 
     // manually close the event (used when we know the socket is no longer active)
-    void closeEvent();
+    void closeEvent(bool adjustSocket = true);
 
     // get the event handle, for waiting on
     HANDLE sharedEventHandle();

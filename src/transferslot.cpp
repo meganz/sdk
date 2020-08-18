@@ -978,6 +978,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     if (!reqs[i])
                     {
                         reqs[i].reset(transfer->type == PUT ? (HttpReqXfer*)new HttpReqUL() : (HttpReqXfer*)new HttpReqDL());
+                        reqs[i]->logname = client->clientname + (transfer->type == PUT ? "UL" : "DL") + std::to_string(++client->transferHttpCounter) + " ";
                     }
 
                     bool prepare = true;

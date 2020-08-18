@@ -1498,6 +1498,9 @@ public:
     // distinguish activity from different MegaClients in logs
     string clientname;
 
+    // number our http requests so we can distinguish them (and the curl debug logging for them) in logs
+    unsigned transferHttpCounter = 0;
+
     // apply keys
     void applykeys();
 

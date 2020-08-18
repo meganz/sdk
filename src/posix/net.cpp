@@ -98,9 +98,16 @@ bool SockInfo::checkEvent(bool& read, bool& write)
     return false;
 }
 
-void SockInfo::closeEvent()
+void SockInfo::closeEvent(bool adjustSocket)
 {
-    WSAEventSelect(fd, NULL, 0); // cancel association by specifying lNetworkEvents = 0
+    if (adjustSocket)
+    {
+#ifdef DEBUG
+        int result = 
+#endif
+        WSAEventSelect(fd, NULL, 0); // cancel association by specifying lNetworkEvents = 0
+        assert(result == 0);
+    }
     associatedHandleEvents = 0;
     signalledWrite = false;
 }
@@ -524,8 +531,10 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
 #if defined(_WIN32)
     for (auto& mapPair : prevAressockets)
     {
-        // todo: has the socket always been closed at this point anyway? (and, any chance the socket number might already be being reused?
-        mapPair.second.closeEvent();
+        // We pass false for c-ares becase we can't be sure if c-ares closed the socket or not
+        // If it's not using the socket, the event should not be triggered, and even if it is 
+        // then we just do one extra loop.
+        mapPair.second.closeEvent(false);
     }
 #endif
 }
@@ -1716,12 +1725,12 @@ bool CurlHttpIO::crackurl(string* url, string* scheme, string* hostname, int* po
     return true;
 }
 
-int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t size, void*)
+int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t size, void* debugdata)
 {
     if (type == CURLINFO_TEXT && size)
     {
         data[size - 1] = 0;
-        LOG_verbose << "cURL DEBUG: " << data;
+        LOG_verbose << (debugdata ? static_cast<HttpReq*>(debugdata)->logname : string()) << "cURL: " << data;
     }
 
     return 0;
@@ -2553,7 +2562,6 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
     }
     else
     {
-
         auto it = socketmap.find(s);
         if (it == socketmap.end())
         {
