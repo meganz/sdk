@@ -243,6 +243,7 @@ bool CommandGetFA::procresult(Result r)
 
 CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, handle ah, int ctag)
 {
+    mSeqtagArray = true;
     cmd("pfa");
 
     arg("n", (byte*)&nh, MegaClient::NODEHANDLE);
@@ -260,6 +261,7 @@ CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, handle
 
 CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, const std::string& encryptedAttributes, int ctag)
 {
+    mSeqtagArray = true;
     cmd("pfa");
 
     arg("n", (byte*)&nh, MegaClient::NODEHANDLE);
@@ -273,9 +275,28 @@ CommandAttachFA::CommandAttachFA(MegaClient *client, handle nh, fatype t, const 
 
 bool CommandAttachFA::procresult(Result r)
 {
-    client->app->putfa_result(h, type, r.errorResultOrActionpacket());
-    assert(r.wasErrorOrActionpacket());
-    return r.wasErrorOrActionpacket();
+    if (r.wasErrorOrOK())
+    {
+        client->app->putfa_result(h, type, r.errorOrOK());
+        return true;
+    }
+    else
+    {
+        string fa;
+
+        if (client->json.storeobject(&fa))
+        {
+            Node* n = client->nodebyhandle(h);
+            if (n)
+            {
+                assert(n->fileattrstring == fa);
+            }
+            client->app->putfa_result(h, type, API_OK); // todo: double check we don't need to pass the attribute string here - should we ask if the value even needs to be returned
+            return true;
+        }
+    }
+    client->app->putfa_result(h, type, API_EINTERNAL);
+    return false;
 }
 
 // request upload target URL
@@ -6854,6 +6875,7 @@ bool CommandChatSetTitle::procresult(Result r)
 
 CommandChatPresenceURL::CommandChatPresenceURL(MegaClient *client)
 {
+    mStringIsNotSeqtag = true;
     this->client = client;
     cmd("pu");
     tag = client->reqtag;
