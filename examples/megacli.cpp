@@ -2684,7 +2684,7 @@ void exec_treecompare(autocomplete::ACState& s)
 bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersperfolder, int recurselevel, int filesperfolder, int filesize, int& totalfilecount, int& totalfoldercount)
 {
     fs::path p = targetfolder / fs::u8path(prefix);
-    if (!fs::create_directory(p))
+    if (!fs::is_directory(p) && !fs::create_directory(p))
         return false;
     ++totalfoldercount;
 
@@ -2727,7 +2727,11 @@ void exec_generatetestfilesfolders(autocomplete::ACState& s)
     {
         int totalfilecount = 0, totalfoldercount = 0;
         buildLocalFolders(p, nameprefix, folderwidth, folderdepth, filecount, filesize, totalfilecount, totalfoldercount);
-        cout << "created " << totalfilecount << " files and " << totalfoldercount << " folders";
+        cout << "created " << totalfilecount << " files and " << totalfoldercount << " folders" << endl;
+    }
+    else
+    {
+        cout << "invalid directory: " << p.u8string() << endl;
     }
 }
 
