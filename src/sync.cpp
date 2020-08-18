@@ -1095,7 +1095,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
                 if (rpath)
                 {
                 #ifdef _WIN32
-                    rpath = &(wstring2string(localpath.getLocalpath().c_str()));
+                    rpath = &(wstring2string(localpath.getLocalpath()));
                 #else
                     rpath->assign(ptr, localpath.getLocalpath().data() - ptr + localpath.getLocalpath().size());
                 #endif
@@ -1214,15 +1214,9 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
     LocalNode* parent;
     string path;        // UTF-8 representation of tmppath
     LocalPath tmppath;     // full path represented by l + localpath
-#if defined(_WIN32)    
-    std::wstring newname;       // portion of tmppath not covered by the existing
-                                // LocalNode structure (always the last path component
-                                // that does not have a corresponding LocalNode yet)
-#else
     string newname;     // portion of tmppath not covered by the existing
                         // LocalNode structure (always the last path component
                         // that does not have a corresponding LocalNode yet)
-#endif
 
     if (localname)
     {
@@ -1249,10 +1243,10 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
         // look up deepest existing LocalNode by path, store remainder (if any)
         // in newname
-        LocalNode *tmp = localnodebypath(l, *input_localpath, &parent, &wstring2string(newname));
+        LocalNode *tmp = localnodebypath(l, *input_localpath, &parent, &newname);
 
         size_t index = 0;
-        while ((index = newname.find(client->fsaccess->localseparator, index)) != string::npos)
+        while ((index = newname.find(wstring2string(client->fsaccess->localseparator), index)) != string::npos)
         {
             if(!(index % client->fsaccess->localseparator.size()))
             {
@@ -1279,7 +1273,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             return NULL;
         }
 
-        string name = newname.size() ? wstring2string(newname) : l->name;
+        string name = newname.size() ? newname : l->name;
         client->fsaccess->local2name(&name, mFilesystemType);
 
         if (!client->app->sync_syncable(this, name.c_str(), tmppath))
