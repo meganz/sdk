@@ -14,6 +14,7 @@ normal fashion:
 The instructions given here are strictly only valid for Linux. The may need
 adaptation for other platforms.
 
+**Note:** we will refer to the root directory where SDK is downloaded as <SDK>
 
 Prerequisites
 -------------
@@ -46,9 +47,9 @@ Build Python Distribution Package
 To use the Mega API from Python, you need to built the Python package as a platform specific "Wheel" package,
 as it contains all native libraries (shared libraries, DLLs) required. 
 
-    python <sdk_dir>/bindings/python/setup.py bdist_wheel
+    python <SDK>/bindings/python/setup.py bdist_wheel
 
-The package created will be located in folder `<sdk_dir>/bindings/python/dist/`.
+The package created will be located in folder `<SDK>/bindings/python/dist/`.
 
 **Note:** You may need to install the `wheel` package for Python, if your Python
 is not by default equipped for it, yet. This could be the (Linux) `python-wheel`
@@ -58,7 +59,7 @@ distribution package, or by using e. g. `pip install wheel`.
 Install Python Distribution Package
 -----------------------------------
 
-Once you have generated the Wheel package located at `<sdk_dir>/bindings/python/dist/`, you need to install it by using `pip` in the common
+Once you have generated the Wheel package located at `<SDK>/bindings/python/dist/`, you need to install it by using `pip` in the common
 fashion, e. g.
 
     pip install megasdk-2.6.0-py2.py3-none-any.whl
@@ -77,4 +78,4 @@ Test Installed Package
 Run megacli with python
 -----------------------------------
 
-    python <sdk_dir>/examples/python/megacli.py
+    python <SDK>/examples/python/megacli.py
