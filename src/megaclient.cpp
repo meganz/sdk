@@ -12395,6 +12395,16 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
 {
 #ifdef ENABLE_SYNC
     Node* remotenode = nodebyhandle(syncConfig.getRemoteNode());
+    if (!remotenode)
+    {
+        LOG_err << "Sync root does not exist in the cloud: "
+                << syncConfig.getLocalPath()
+                << ": "
+                << LOG_NODEHANDLE(syncConfig.getRemoteNode());
+
+        return API_ENOENT;
+    }
+
     bool inshare = false;
     error e = isnodesyncable(remotenode, &inshare);
     if (e)
