@@ -14,7 +14,7 @@ normal fashion:
 The instructions given here are strictly only valid for Linux. The may need
 adaptation for other platforms.
 
-**Note:** we will refer to the root directory where SDK is downloaded as <SDK>
+**Note:** we will refer to the root directory where SDK is downloaded as `<SDK>`
 
 Prerequisites
 -------------
