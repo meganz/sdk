@@ -14624,6 +14624,7 @@ error MegaClient::enableSync(int tag, SyncError &syncError, bool resetFingerprin
 
 void MegaClient::restoreSyncs()
 {
+    bool anySyncRestored = false;
     for (const auto& config : syncConfigs->all())
     {
         SyncError syncError = static_cast<SyncError>(config.getError());
@@ -14632,6 +14633,10 @@ void MegaClient::restoreSyncs()
         {
             LOG_verbose << "Restoring sync: " << config.getLocalPath();
             const auto e = enableSync(&config, syncError);
+            if (e == API_OK)
+            {
+                anySyncRestored = true;
+            }
         }
         else
         {
@@ -14640,7 +14645,10 @@ void MegaClient::restoreSyncs()
         }
     }
 
-    app->syncs_restored();
+    if (anySyncRestored)
+    {
+        app->syncs_restored();
+    }
     syncactivity = true;
 }
 
