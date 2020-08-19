@@ -121,7 +121,6 @@ public:
     typedef enum { AVATAR250X250 } avatar_t;
 
     // generate and save a fa to a file
-    bool savefa(string*, int, int, string*);
     bool savefa(const LocalPath&, int, int, string*);
 
     // - w*0: largest square crop at the center (landscape) or at 1/6 of the height above center (portrait)

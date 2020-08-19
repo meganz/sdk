@@ -8895,7 +8895,7 @@ bool MegaApiImpl::createThumbnail(const char *imagePath, const char *dstPath)
     fsAccess->path2local(&utf8DstPath, &localDstPath);
 
     sdkMutex.lock();
-    bool result = gfxAccess->savefa(&localImagePath, GfxProc::dimensions[GfxProc::THUMBNAIL][0],
+    bool result = gfxAccess->savefa(LocalPath::fromPath(localImagePath, *client->fsaccess), GfxProc::dimensions[GfxProc::THUMBNAIL][0],
             GfxProc::dimensions[GfxProc::THUMBNAIL][1], &localDstPath);
     sdkMutex.unlock();
 
@@ -8918,7 +8918,7 @@ bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
     fsAccess->path2local(&utf8DstPath, &localDstPath);
 
     sdkMutex.lock();
-    bool result = gfxAccess->savefa(&localImagePath, GfxProc::dimensions[GfxProc::PREVIEW][0],
+    bool result = gfxAccess->savefa(LocalPath::fromPath(localImagePath, *client->fsaccess), GfxProc::dimensions[GfxProc::PREVIEW][0],
             GfxProc::dimensions[GfxProc::PREVIEW][1], &localDstPath);
     sdkMutex.unlock();
 
@@ -8941,7 +8941,7 @@ bool MegaApiImpl::createAvatar(const char *imagePath, const char *dstPath)
     fsAccess->path2local(&utf8DstPath, &localDstPath);
     
     sdkMutex.lock();
-    bool result = gfxAccess->savefa(&localImagePath, GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][0],
+    bool result = gfxAccess->savefa(LocalPath::fromPath(localImagePath, *client->fsaccess), GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][0],
             GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][1], &localDstPath);
     sdkMutex.unlock();
     

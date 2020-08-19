@@ -166,13 +166,12 @@ public:
         localpath = std::move(ws);
     }
     void setLocalpath(std::wstring s) { localpath = s; }
-
-    //std::wstring* editStringDirect();
-    //const std::wstring* editStringDirect() const;
+    void assign(const wchar_t* ptr, size_t sz) { localpath.assign(ptr, sz); }
 #else 
     explicit LocalPath(std::string&& s) : localpath(std::move(s)) {}
     std::string* editStringDirect();
     const std::string* editStringDirect() const;
+    void assign(const char* ptr, size_t sz) { localpath.assign(ptr, sz); }
 #endif
     const std::wstring& getLocalpath() const { return localpath; }
     void setlocalpathsize(int size) { localpath.resize(size); }
@@ -497,7 +496,6 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // forbidden characters using urlencode
     std::string local2name(std::wstring*, FileSystemType) const;
     virtual void local2path(const std::wstring*, string*) const = 0;
-#else
 #endif
     // convert MEGA-formatted filename (UTF-8) to local filesystem name; escape
     // forbidden characters using urlencode

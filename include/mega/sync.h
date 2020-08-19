@@ -139,7 +139,7 @@ public:
     unsigned localnodes[2]{};
 
     // look up LocalNode relative to localroot
-    LocalNode* localnodebypath(LocalNode*, const LocalPath&, LocalNode** = NULL, string* = NULL);
+    LocalNode* localnodebypath(LocalNode*, const LocalPath&, LocalNode** = nullptr, LocalPath* outpath = nullptr);
 
     // Assigns fs IDs to those local nodes that match the fingerprint retrieved from disk.
     // The fs IDs of unmatched nodes are invalidated.

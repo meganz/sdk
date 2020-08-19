@@ -20,6 +20,10 @@
 
 #include <mega/filesystem.h>
 
+#if defined(_WIN32)
+#include <mega/utils.h>
+#endif
+
 #include "NotImplemented.h"
 
 namespace mt {
@@ -31,7 +35,11 @@ public:
     {
         notifyerr = false;
         notifyfailed = true;
+#if defined(_WIN32)
+        localseparator = mega::string2wstring(separator);
+#else
         localseparator = separator;
+#endif
     }
     std::unique_ptr<mega::FileAccess> newfileaccess(bool followSymLinks = true) override
     {
@@ -49,6 +57,14 @@ public:
     {
         throw NotImplemented{__func__};
     }
+
+#if defined(_WIN32)
+    void local2path(const std::wstring* local, std::string* path) const override
+    {
+        throw NotImplemented{ __func__ };
+    }
+#endif
+
     void tmpnamelocal(mega::LocalPath&) const override
     {
         throw NotImplemented{__func__};

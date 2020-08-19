@@ -1018,15 +1018,21 @@ void Sync::changestate(syncstate_t newstate)
 // path must be relative to l or start with the root prefix if l == NULL
 // path must be a full sync path, i.e. start with localroot->localname
 // NULL: no match, optionally returns residual path
-LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, LocalNode** parent, string* rpath)
+LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, LocalNode** parent, LocalPath* outpath)
 {
+#ifdef _WIN32
     const wchar_t* ptr = localpath.getLocalpath().c_str();
     const wchar_t* end = ptr + localpath.getLocalpath().size();
+#else
+    const char* ptr = localpath.localpath.getLocalpath().data();
+    const char* end = ptr + localpath.localpath.getLocalpath().size();
+#endif
     size_t separatorlen = client->fsaccess->localseparator.size();
+    size_t separatorpos = 0;
 
-    if (rpath)
+    if (outpath)
     {
-        assert(!rpath->size());
+        assert(!outpath->getLocalpath().size());
     }
 
     if (!l)
@@ -1066,9 +1072,9 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
         {
             LOG_err << "Invalid parameter in localnodebypath: " << localpath.toPath(*client->fsaccess);
 
-            if (rpath)
+            if (outpath)
             {
-                rpath->clear();
+                outpath->clear();
             }
 
             return NULL;
@@ -1082,7 +1088,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
             }
 
 #ifdef _WIN32
-            LocalPath t = LocalPath::fromLocalname(wstring2string(std::wstring(ptr, nptr - ptr)));
+            LocalPath t = LocalPath::fromLocalname(std::wstring(ptr, nptr - ptr));
 #else
             LocalPath t = LocalPath::fromLocalname(std::string(ptr, nptr - ptr));
 #endif
@@ -1092,13 +1098,9 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
             {
                 // no full match: store residual path, return NULL with the
                 // matching component LocalNode in parent
-                if (rpath)
+                if (outpath)
                 {
-                #ifdef _WIN32
-                    rpath = &(wstring2string(localpath.getLocalpath()));
-                #else
-                    rpath->assign(ptr, localpath.getLocalpath().data() - ptr + localpath.getLocalpath().size());
-                #endif
+                    outpath->assign(ptr, localpath.getLocalpath().data() - ptr + localpath.getLocalpath().size());
                 }
 
                 return NULL;
@@ -1109,9 +1111,9 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
             if (nptr == end)
             {
                 // full match: no residual path, return corresponding LocalNode
-                if (rpath)
+                if (outpath)
                 {
-                    rpath->clear();
+                    outpath->clear();
                 }
 
                 return l;
@@ -1243,8 +1245,9 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
         // look up deepest existing LocalNode by path, store remainder (if any)
         // in newname
-        LocalNode *tmp = localnodebypath(l, *input_localpath, &parent, &newname);
-
+        LocalPath outpath = LocalPath::fromLocalname(newname);
+        LocalNode *tmp = localnodebypath(l, *input_localpath, &parent, &outpath);
+        newname = wstring2string(outpath.getLocalpath());
         size_t index = 0;
         while ((index = newname.find(wstring2string(client->fsaccess->localseparator), index)) != string::npos)
         {
