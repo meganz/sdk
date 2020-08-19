@@ -1267,11 +1267,13 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
     LOG_verbose << "Scanning: " << path << " in=" << initializing << " full=" << fullscan << " l=" << l;
     LocalPath* localpathNew = localname ? input_localpath : &tmppath;
 
-    // postpone moving nodes into nonexistent parents
-    if (parent && !parent->node)
+    if (parent)
     {
-        LOG_warn << "Parent doesn't exist yet: " << path;
-        return (LocalNode*)~0;
+        if (state != SYNC_INITIALSCAN && !parent->node)
+        {
+            LOG_warn << "Parent doesn't exist yet: " << path;
+            return (LocalNode*)~0;
+        }
     }
 
     // attempt to open/type this file
