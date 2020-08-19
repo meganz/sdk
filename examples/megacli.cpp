@@ -2295,6 +2295,10 @@ static void store_line(char* l)
 {
     if (!l)
     {
+#ifndef NO_READLINE
+        rl_callback_handler_remove();
+#endif /* ! NO_READLINE */
+
         delete console;
         exit(0);
     }
@@ -6551,6 +6555,10 @@ void DemoApp::request_error(error e)
 
     cout << "FATAL: Request failed (" << errorstring(e) << "), exiting" << endl;
 
+#ifndef NO_READLINE
+    rl_callback_handler_remove();
+#endif /* ! NO_READLINE */
+
     delete console;
     exit(0);
 }
@@ -7913,6 +7921,9 @@ void megacli()
 
             if (quit_flag)
             {
+#ifndef NO_READLINE
+                rl_callback_handler_remove();
+#endif /* ! NO_READLINE */
                 return;
             }
 
