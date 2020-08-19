@@ -501,7 +501,7 @@ public:
 class MEGA_API CommandLogout : public Command
 {
 public:
-    bool procresult(Result r) override;
+    bool procresult(Result) override;
 
     CommandLogout(MegaClient*);
 };
@@ -915,7 +915,7 @@ public:
 class MEGA_API CommandResetSmsVerifiedPhoneNumber : public Command
 {
 public:
-    bool procresult(Result);
+    bool procresult(Result) override;
 
     CommandResetSmsVerifiedPhoneNumber(MegaClient *);
 };
@@ -1096,7 +1096,7 @@ protected:
 class MEGA_API CommandSetChatRetentionTime : public Command
 {
 public:
-    bool procresult(Result);
+    bool procresult(Result) override;
 
     CommandSetChatRetentionTime(MegaClient*, handle , int);
 
@@ -1314,7 +1314,7 @@ public:
 class MEGA_API CommandBackupPut : public Command
 {
 public:
-    bool procresult(Result r);
+    bool procresult(Result) override;
 
     // Register a new Sync
     CommandBackupPut(MegaClient* client, BackupType type, handle nodeHandle, const std::string& localFolder, const std::string& deviceId, const std::string& backupName, int state, int subState, const std::string& extraData);
@@ -1341,7 +1341,7 @@ class MEGA_API CommandBackupRemove : public Command
     handle id;
 
 public:
-    bool procresult(Result r);
+    bool procresult(Result) override;
 
     CommandBackupRemove(MegaClient* client, handle backupId);
 };
@@ -1349,7 +1349,7 @@ public:
 class MEGA_API CommandBackupPutHeartBeat : public Command
 {
 public:
-    bool procresult(Result r);
+    bool procresult(Result) override;
 
     CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, uint32_t ts, handle lastNode);
 };
