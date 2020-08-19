@@ -147,7 +147,6 @@ public:
         string pwd;
         int lastError;
         int lastTransferError;
-        unique_ptr<MegaAccountDetails> accountDetails;
         
         // flags to monitor the completion of requests/transfers
         bool requestFlags[MegaRequest::TOTAL_OF_REQUEST_TYPES];
