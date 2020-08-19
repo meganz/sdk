@@ -65,12 +65,21 @@ bool SockInfo::checkEvent(bool& read, bool& write)
 {
     WSANETWORKEVENTS wne;
     memset(&wne, 0, sizeof(wne));
-    WSAEnumNetworkEvents(fd, NULL, &wne);
+    auto err = WSAEnumNetworkEvents(fd, NULL, &wne);
+    if (err)
+    {
+        auto e = WSAGetLastError();
+        LOG_err << "WSAEnumNetworkEvents error " << e;
+        return false;
+    }
 
     read = 0 != (FD_READ & wne.lNetworkEvents);
-    write = 0 != (FD_WRITE & wne.lNetworkEvents);
+    write = 0 != (FD_WRITE & wne.lNetworkEvents);  
 
-    if (!write && (FD_WRITE & associatedHandleEvents))
+    // Even though the writeable network event occurred, double check there is no space available in the write buffer
+    // Otherwise curl can report a spurious timeout error
+
+    if (FD_WRITE & associatedHandleEvents)
     {
         // per https://curl.haxx.se/mail/lib-2009-10/0313.html check if the socket has any buffer space
 
@@ -87,7 +96,11 @@ bool SockInfo::checkEvent(bool& read, bool& write)
         DWORD bSent = 0;
         auto writeResult = WSASend(fd, &buf, 1, &bSent, 0, NULL, NULL);
         auto writeError = WSAGetLastError();
-        write = writeResult == 0 || writeError != WSAEWOULDBLOCK;
+        write = writeResult == 0 || (writeError != WSAEWOULDBLOCK && writeError != WSAENOTCONN);
+        if (writeResult != 0 && writeError != WSAEWOULDBLOCK && writeError != WSAENOTCONN)
+        {
+            LOG_err << "Unexpected WSASend check error: " << writeError;
+        }
     }
 
     if (read || write)
