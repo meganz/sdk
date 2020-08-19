@@ -1138,6 +1138,7 @@ void MegaClient::init()
     btbadhost.reset();
 
     abortlockrequest();
+    transferHttpCounter = 0;
 
     jsonsc.pos = NULL;
     insca = false;
