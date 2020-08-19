@@ -32,7 +32,7 @@ adaptation for other platforms.
         make
 ```  
 
-**Note:** if your PHP version is equal or less than `5.3.0`, you will need to make some adjustements in configuration file `php.ini`
+**Note:** if your PHP version is later than `5.3.0`, you will need to make some adjustements in configuration file `php.ini`
 
 - To check your PHP version, you can run this command: `php -v`
 - To locate file `php.ini`, you can run this command in linux: `php -i | grep "Loaded Configuration File"`
