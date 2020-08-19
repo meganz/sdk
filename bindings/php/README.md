@@ -9,7 +9,7 @@ normal fashion:
 The instructions given here are strictly only valid for Linux. The may need
 adaptation for other platforms.
 
-**Note:** we will refer to the root directory where SDK is downloaded as <SDK>
+**Note:** we will refer to the root directory where SDK is downloaded as `<SDK>`
 
 ## Prerequisites  
 ```
@@ -19,11 +19,17 @@ adaptation for other platforms.
 ```
 
 ## How to build and run the project:  
+
+- Configure the project for PHP:
+
 ```
-    ./autogen.sh
-    ./configure --disable-silent-rules --enable-php --disable-examples
-    make
-    php <SDK>/examples/php/megacli.php
+        ./autogen.sh
+        ./configure --disable-silent-rules --enable-php --disable-examples    
+```  
+
+- Build the shared libraries and packages:
+``` 
+        make
 ```  
 
 **Note:** if your PHP version is equal or less than `5.3.0`, you will need to make some adjustements in configuration file `php.ini`
@@ -39,4 +45,9 @@ Uncomment and set this line like this:
 Add this line at the end of the file  
 ```
     extension="<SDK>/bindings/php/.libs/libmegaphp.so"
+```
+
+## Run megacli with PHP  
+```
+ php <SDK>/examples/php/megacli.php
 ```
