@@ -14,7 +14,7 @@ It shows a shell like the one in the `megacli` example that allows to:
 - Change the password of the account (`passwd`)
 - Get info about the account (`whoami`)
 
-**Note:** we will refer to the root directory where SDK is downloaded as `<sdk-dir>`  
+**Note:** we will refer to the root directory where SDK is downloaded as `<SDK>`  
 
 ## Prerequisites  
 ```
@@ -28,7 +28,7 @@ It shows a shell like the one in the `megacli` example that allows to:
     ./autogen.sh
     ./configure --disable-silent-rules --enable-php --disable-examples
     make
-    php <sdk-dir>/examples/php/megacli.php
+    php <SDK>/examples/php/megacli.php
 ```  
 
 **Note:** if your PHP version is equal or less than `5.3.0`, you will need to make some adjustements in configuration file `php.ini`
@@ -43,7 +43,7 @@ Uncomment and set this line like this:
 
 Add this line at the end of the file  
 ```
-    extension="<sdk-dir>/bindings/php/.libs/libmegaphp.so"
+    extension="<SDK>/bindings/php/.libs/libmegaphp.so"
 ```
 
  
