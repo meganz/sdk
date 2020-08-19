@@ -17,5 +17,5 @@ It shows a shell like the one in the `megacli` example that allows to:
 ## How to build and run the project:
 
 To build and run the project with PHP bindings, please refer to this section: 
-[Build/Install Python Bindings](https://github.com/meganz/sdk/tree/develop/bindings/php)
+[Build/Install PHP Bindings](https://github.com/meganz/sdk/tree/develop/bindings/php)
 

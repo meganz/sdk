@@ -4,9 +4,6 @@ There are two basic examples contained here. A Mega Command Line Interface
 client (`megacli`), and a simple CRUD example (create, read, update, delete
 a file).
 
-To build the required (Python) modules, see the `README.md` in
-`bindings/python/`.
-
 ## Mega Command Line Interface
 
 This is a console app that uses the Python bindings of the SDK.

@@ -45,10 +45,11 @@ Build Python Distribution Package
 ---------------------------------
 
 To use the Mega API from Python, you need to built the Python package as a platform specific "Wheel" package,
-as it contains all native libraries (shared libraries, DLLs) required. 
-
-    python <SDK>/bindings/python/setup.py bdist_wheel
-
+as it contains all native libraries (shared libraries, DLLs) required.  
+```
+    cd <SDK>/bindings/python/  
+    python setup.py bdist_wheel  
+```
 The package created will be located in folder `<SDK>/bindings/python/dist/`.
 
 **Note:** You may need to install the `wheel` package for Python, if your Python
