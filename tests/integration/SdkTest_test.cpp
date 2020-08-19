@@ -228,31 +228,6 @@ std::map<int, std::string> gSessionIDs;
 void SdkTest::SetUp()
 {
     gTestingInvalidArgs = false;
-
-    if (megaApi[0].get() == NULL)
-    {
-        megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), int(0), unsigned(THREADS_PER_MEGACLIENT)));
-        mApi[0].megaApi = megaApi[0].get();
-
-        megaApi[0]->setLoggingName("0");
-        megaApi[0]->addListener(this);
-
-        LOG_info << "___ Initializing test (SetUp()) ___";
-
-        if (!gResumeSessions || gSessionIDs[0].empty())
-        {
-            ASSERT_NO_FATAL_FAILURE( login(0) );
-        }
-        else
-        {
-            ASSERT_NO_FATAL_FAILURE( loginBySessionId(0, gSessionIDs[0].c_str()) );
-        }
-
-        ASSERT_NO_FATAL_FAILURE( fetchnodes(0) );
-    }
-
-    // In case the last test exited without cleaning up (eg, debugging etc)
-    Cleanup();
 }
 
 void SdkTest::TearDown()
@@ -3637,7 +3612,6 @@ TEST_F(SdkTest, SdkTestFingerprint)
     int value = 0x01020304;
     for (int i = sizeof filesizes / sizeof filesizes[0]; i--; )
     {
-
         {
             ofstream ofs(name.c_str(), ios::binary);
             char s[8192];
@@ -3667,7 +3641,6 @@ TEST_F(SdkTest, SdkTestFingerprint)
         ASSERT_EQ(streamfp, expected[i]);
     }
 }
-
 
 
 static void incrementFilename(string& s)
@@ -4559,7 +4532,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
     ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
 
     // getUserEmail() test
-    login(0);
+    getAccountsForTest(1);
     std::unique_ptr<MegaUser> user(megaApi[0]->getMyUser());
     ASSERT_TRUE(!!user); // some simple validation
 
