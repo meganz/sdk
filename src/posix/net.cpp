@@ -98,9 +98,16 @@ bool SockInfo::checkEvent(bool& read, bool& write)
     return false;
 }
 
-void SockInfo::closeEvent()
+void SockInfo::closeEvent(bool adjustSocket)
 {
-    WSAEventSelect(fd, NULL, 0); // cancel association by specifying lNetworkEvents = 0
+    if (adjustSocket)
+    {
+#ifdef DEBUG
+        int result = 
+#endif
+        WSAEventSelect(fd, NULL, 0); // cancel association by specifying lNetworkEvents = 0
+        assert(result == 0);
+    }
     associatedHandleEvents = 0;
     signalledWrite = false;
 }
@@ -477,17 +484,17 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
             if (it == prevAressockets.end())
             {
 #ifdef WIN32
-                auto it_bool = aressockets.emplace(socks[i], SockInfo(mSocketsWaitEvent));
+                auto pair = aressockets.emplace(socks[i], SockInfo(mSocketsWaitEvent));
 #else
-                auto it_bool = aressockets.emplace(socks[i], SockInfo());
+                auto pair = aressockets.emplace(socks[i], SockInfo());
 #endif
-                it = it_bool.first;
+                it = pair.first;
             }
             else
             {
-                auto it_bool = aressockets.emplace(socks[i], std::move(it->second));
+                auto pair = aressockets.emplace(socks[i], std::move(it->second));
                 prevAressockets.erase(it);
-                it = it_bool.first;
+                it = pair.first;
             }
             SockInfo& info = it->second;
             info.mode = 0;
@@ -524,8 +531,10 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
 #if defined(_WIN32)
     for (auto& mapPair : prevAressockets)
     {
-        // todo: has the socket always been closed at this point anyway? (and, any chance the socket number might already be being reused?
-        mapPair.second.closeEvent();
+        // We pass false for c-ares becase we can't be sure if c-ares closed the socket or not
+        // If it's not using the socket, the event should not be triggered, and even if it is 
+        // then we just do one extra loop.
+        mapPair.second.closeEvent(false);
     }
 #endif
 }
@@ -601,7 +610,7 @@ void CurlHttpIO::closecurlevents(direction_t d)
 #if defined(_WIN32)
     for (SockInfoMap::iterator it = socketmap.begin(); it != socketmap.end(); it++)
     {
-        it->second.closeEvent();
+        it->second.closeEvent(false);
     }
 #endif
     socketmap.clear();
@@ -658,7 +667,6 @@ void CurlHttpIO::processcurlevents(direction_t d)
 
     int dummy = 0;
     SockInfoMap *socketmap = &curlsockets[d];
-    m_time_t *timeout = &curltimeoutreset[d];
     bool *paused = &arerequestspaused[d];
 
     for (SockInfoMap::iterator it = socketmap->begin(); !(*paused) && it != socketmap->end();)
@@ -688,11 +696,10 @@ void CurlHttpIO::processcurlevents(direction_t d)
 #endif
     }
 
-    m_time_t value = *timeout;
-    if (value >= 0 && value <= Waiter::ds)
+    if (curltimeoutreset[d] >= 0 && curltimeoutreset[d] <= Waiter::ds)
     {
-        *timeout = -1;
-        LOG_debug << "Informing cURL of timeout";
+        curltimeoutreset[d] = -1;
+        LOG_debug << "Informing cURL of timeout reached for " << d << " at " << Waiter::ds;
         curl_multi_socket_action(curlm[d], CURL_SOCKET_TIMEOUT, 0, &dummy);
     }
 
@@ -1716,12 +1723,12 @@ bool CurlHttpIO::crackurl(string* url, string* scheme, string* hostname, int* po
     return true;
 }
 
-int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t size, void*)
+int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t size, void* debugdata)
 {
     if (type == CURLINFO_TEXT && size)
     {
         data[size - 1] = 0;
-        LOG_verbose << "cURL DEBUG: " << data;
+        LOG_verbose << (debugdata ? static_cast<HttpReq*>(debugdata)->logname : string()) << "cURL: " << data;
     }
 
     return 0;
@@ -2061,7 +2068,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 CURLcode errorCode = msg->data.result;
                 if (errorCode != CURLE_OK)
                 {
-                    LOG_debug << "CURLMSG_DONE with error " << errorCode << ": " << curl_easy_strerror(errorCode);
+                    LOG_debug << req->logname << "CURLMSG_DONE with error " << errorCode << ": " << curl_easy_strerror(errorCode);
 
                 #if LIBCURL_VERSION_NUM >= 0x072c00 // At least cURL 7.44.0
                     if (errorCode == CURLE_SSL_PINNEDPUBKEYNOTMATCH)
@@ -2180,7 +2187,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 }
                 else
                 {
-                    LOG_warn << "REQ_FAILURE. Status: " << req->httpstatus << "  Content-Length: " << req->contentlength
+                    LOG_warn << req->logname << "REQ_FAILURE. Status: " << req->httpstatus << "  Content-Length: " << req->contentlength
                              << "  buffer? " << (req->buf != NULL) << "  bufferSize: " << (req->buf ? req->bufpos : (int)req->in.size());
                 }
 
@@ -2394,6 +2401,7 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
     
     memcpy(ptr, buf, nread);
     req->outpos += nread;
+    //LOG_debug << req->logname << "Supplying " << nread << " bytes to cURL to send";
     return nread;
 }
 
@@ -2553,17 +2561,16 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
     }
     else
     {
-
         auto it = socketmap.find(s);
         if (it == socketmap.end())
         {
             LOG_debug << "Adding curl socket " << s << " to " << what;
 #ifdef WIN32
-            auto it_bool = socketmap.emplace(s, SockInfo(httpio->mSocketsWaitEvent));
+            auto pair = socketmap.emplace(s, SockInfo(httpio->mSocketsWaitEvent));
 #else
-            auto it_bool = socketmap.emplace(s, SockInfo());
+            auto pair = socketmap.emplace(s, SockInfo());
 #endif
-            it = it_bool.first;
+            it = pair.first;
         }
         else
         {
@@ -2626,6 +2633,7 @@ int CurlHttpIO::upload_socket_callback(CURL *e, curl_socket_t s, int what, void 
 int CurlHttpIO::timer_callback(CURLM *, long timeout_ms, void *userp, direction_t d)
 {
     CurlHttpIO *httpio = (CurlHttpIO *)userp;
+    auto oldValue = httpio->curltimeoutreset[d];
     if (timeout_ms < 0)
     {
         httpio->curltimeoutreset[d] = -1;
@@ -2641,7 +2649,10 @@ int CurlHttpIO::timer_callback(CURLM *, long timeout_ms, void *userp, direction_
         httpio->curltimeoutreset[d] = Waiter::ds + timeoutds;
     }
 
-    LOG_debug << "Set cURL timeout[" << d << "] to " << httpio->curltimeoutreset[d] << " ms from " << timeout_ms;
+    if (oldValue != httpio->curltimeoutreset[d])
+    {
+        LOG_debug << "Set cURL timeout[" << d << "] to " << httpio->curltimeoutreset[d] << " from " << timeout_ms << "(ms) at ds: " << Waiter::ds;
+    }
     return 0;
 }
 
