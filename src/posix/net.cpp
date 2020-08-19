@@ -610,7 +610,7 @@ void CurlHttpIO::closecurlevents(direction_t d)
 #if defined(_WIN32)
     for (SockInfoMap::iterator it = socketmap.begin(); it != socketmap.end(); it++)
     {
-        it->second.closeEvent();
+        it->second.closeEvent(false);
     }
 #endif
     socketmap.clear();
@@ -2068,7 +2068,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 CURLcode errorCode = msg->data.result;
                 if (errorCode != CURLE_OK)
                 {
-                    LOG_debug << "CURLMSG_DONE with error " << errorCode << ": " << curl_easy_strerror(errorCode);
+                    LOG_debug << req->logname << "CURLMSG_DONE with error " << errorCode << ": " << curl_easy_strerror(errorCode);
 
                 #if LIBCURL_VERSION_NUM >= 0x072c00 // At least cURL 7.44.0
                     if (errorCode == CURLE_SSL_PINNEDPUBKEYNOTMATCH)
@@ -2187,7 +2187,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 }
                 else
                 {
-                    LOG_warn << "REQ_FAILURE. Status: " << req->httpstatus << "  Content-Length: " << req->contentlength
+                    LOG_warn << req->logname << "REQ_FAILURE. Status: " << req->httpstatus << "  Content-Length: " << req->contentlength
                              << "  buffer? " << (req->buf != NULL) << "  bufferSize: " << (req->buf ? req->bufpos : (int)req->in.size());
                 }
 
@@ -2401,6 +2401,7 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
     
     memcpy(ptr, buf, nread);
     req->outpos += nread;
+    //LOG_debug << req->logname << "Supplying " << nread << " bytes to cURL to send";
     return nread;
 }
 
