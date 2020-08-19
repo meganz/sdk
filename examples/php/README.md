@@ -14,14 +14,38 @@ It shows a shell like the one in the `megacli` example that allows to:
 - Change the password of the account (`passwd`)
 - Get info about the account (`whoami`)
 
-## How to build and run the project:
+**Note:** we will refer to the root directory where SDK is downloaded as `<sdk-dir>`  
 
-To build and run the project, follow these steps:
+## Prerequisites  
+```
+    Install `PHP` in your system  
+    Install `SWIG` in your system (it's required to generate PHP bindings)  
+    Install the required PHP dependendy `Symfony Console`, You can use `Composer` for that  
+```
 
-1. Install `SWIG` in your system (it's required to generate PHP bindings)
-2. Build the SDK including the option `--enable-php` in the `./configure` step
-3. Install the required PHP dependendy `Symfony Console`, You can use `Composer` for that
-3. Run the `megacli.php` file in this folder
+## How to build and run the project:  
+```
+    ./autogen.sh
+    ./configure --disable-silent-rules --enable-php --disable-examples
+    make
+    php <sdk-dir>/examples/php/megacli.php
+```  
+
+**Note:** if your PHP version is equal or less than `5.3.0`, you will need to make some adjustements in configuration file `php.ini`
+
+- To check your PHP version, you can run this command: `php -v`
+- To locate file `php.ini`, you can run this command in linux: `php -i | grep "Loaded Configuration File"`
+
+Uncomment and set this line like this:  
+```
+    enable_dl = On
+```
+
+Add this line at the end of the file  
+```
+    extension="<sdk-dir>/bindings/php/.libs/libmegaphp.so"
+```
+
  
 If you you want to build your own app, just create your own `MegaApiPHP` object and use it. Please don't
 directly use the `MegaApi` object, it's intended to be internally used by `MegaApiPHP`, that solves
