@@ -14358,7 +14358,7 @@ namespace action_bucket_compare
     bool getExtensionDotted(const Node* n, char ext[12], const MegaClient& mc)
     {
         auto localname = LocalPath::fromPath(n->displayname(), *mc.fsaccess);
-        if (mc.fsaccess->getextension(localname, ext, 8))  // plenty of buffer space left to append a '.'
+        if (mc.fsaccess->getextension(localname, ext, MAXEXTENSIONLEN))  // plenty of buffer space left to append a '.'
         {
             strcat(ext, ".");
             return true;

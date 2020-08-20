@@ -548,7 +548,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
     assert(type == PUT || (node && node->type == FILENODE));
 
 #ifdef USE_MEDIAINFO
-    char ext[8];
+    char ext[MAXEXTENSIONLEN];
     if (((type == PUT && size >= 16) || (node && node->nodekey().size() == FILENODEKEYLENGTH && node->size >= 16)) &&
         client->fsaccess->getextension(localpath, ext, sizeof(ext)) &&
         MediaProperties::isMediaFilenameExt(ext) &&

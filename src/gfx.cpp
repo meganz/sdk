@@ -34,7 +34,7 @@ const int GfxProc::dimensionsavatar[][2] = {
 
 bool GfxProc::isgfx(string* localfilename)
 {
-    char ext[8];
+    char ext[MAXEXTENSIONLEN];
     const char* supported;
 
     if (!(supported = supportedformats()))
@@ -58,7 +58,7 @@ bool GfxProc::isgfx(string* localfilename)
 
 bool GfxProc::isvideo(string *localfilename)
 {
-    char ext[8];
+    char ext[MAXEXTENSIONLEN];
     const char* supported;
 
     if (!(supported = supportedvideoformats()))
