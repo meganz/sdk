@@ -4501,6 +4501,7 @@ TEST_F(SdkTest, SdkRecentsTest)
 TEST_F(SdkTest, SdkMediaUploadRequestURL)
 {
     LOG_info << "___TEST MediaUploadRequestURL___";
+    getAccountsForTest(1);
 
     // Create a "media upload" instance
     int apiIndex = 0;
@@ -4519,6 +4520,7 @@ TEST_F(SdkTest, SdkMediaUploadRequestURL)
 
 TEST_F(SdkTest, SdkSimpleCommands)
 {
+    getAccountsForTest(1);
     LOG_info << "___TEST SimpleCommands___";
 
     // fetchTimeZone() test
@@ -4565,7 +4567,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
     }
 
     err = synchronousKillSession(0, INVALID_HANDLE);
-    ASSERT_EQ(MegaError::API_OK, err) << "Kill session failed for other sessions (error: " << err << ")";
+    ASSERT_EQ(MegaError::API_ESID, err) << "Kill session for unknown seesions shoud fail with API_ESID (error: " << err << ")";
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
