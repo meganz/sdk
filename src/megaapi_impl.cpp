@@ -8481,7 +8481,7 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaNode
 }
 
 void MegaApiImpl::copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
-                                      long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener)
+                                      long long localfp, bool enabled, bool temporaryDisabled, MegaSync::Error syncError, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_COPY_SYNC_CONFIG, listener);
 
@@ -8507,7 +8507,8 @@ void MegaApiImpl::copySyncDataToCache(const char *localFolder, const char *name,
 
     request->setLink(remotePath);
     request->setFlag(enabled);
-    request->setNumDetails(temporaryDisabled);
+    request->setAccess(temporaryDisabled);
+    request->setNumDetails(syncError);
     request->setNumber(localfp);
     requestQueue.push(request);
     waiter->notify();
@@ -21241,46 +21242,44 @@ void MegaApiImpl::sendPendingRequests()
             auto nextSyncTag = client->nextSyncTag(10000);//We artificially start giving syncs number from 10k, to avoid clashing
             //when mixed syncConfig vs app configs (i.e. new -> old -> new version)
 
-            using CType = CacheableStatus::Type;
-            bool overStorage = client->mCachedStatus[CType::STATUS_STORAGE] ? (client->mCachedStatus[CType::STATUS_STORAGE]->value() >= MegaApi::STORAGE_STATE_RED) : false;
-            bool businessExpired = client->mCachedStatus[CType::STATUS_BUSINESS] ? (client->mCachedStatus[CType::STATUS_BUSINESS]->value() == BIZ_STATUS_EXPIRED) : false;
-            bool blocked = client->mCachedStatus[CType::STATUS_BLOCKED] ? (client->mCachedStatus[CType::STATUS_BLOCKED]->value()) : false;
-
-            auto syncError = NO_SYNC_ERROR;
-            // the order is important here: a user needs to resolve blocked in order to resolve storage
-            if (overStorage)
-            {
-                syncError = STORAGE_OVERQUOTA;
-            }
-            else if (businessExpired)
-            {
-                syncError = BUSINESS_EXPIRED;
-            }
-            else if (blocked)
-            {
-                syncError = ACCOUNT_BLOCKED;
-            }
+            SyncError syncError = static_cast<SyncError>(request->getNumDetails());
 
             bool enabled = request->getFlag();
-            bool temporaryDisabled = request->getNumDetails();
+            bool temporaryDisabled = request->getAccess();
 
             if (!enabled && temporaryDisabled)
             {
-                if (!syncError)
+                enabled = true; //we consider enabled when it is temporary disabled
+
+                if (syncError == NO_SYNC_ERROR) //no sync error provided, we guess it from temporary situations
                 {
                     syncError = UNKNOWN_TEMPORARY_ERROR;
+                    using CType = CacheableStatus::Type;
+                    bool overStorage = client->mCachedStatus[CType::STATUS_STORAGE] ? (client->mCachedStatus[CType::STATUS_STORAGE]->value() >= MegaApi::STORAGE_STATE_RED) : false;
+                    bool businessExpired = client->mCachedStatus[CType::STATUS_BUSINESS] ? (client->mCachedStatus[CType::STATUS_BUSINESS]->value() == BIZ_STATUS_EXPIRED) : false;
+                    bool blocked = client->mCachedStatus[CType::STATUS_BLOCKED] ? (client->mCachedStatus[CType::STATUS_BLOCKED]->value()) : false;
+
+                    // the order is important here: a user needs to resolve blocked in order to resolve storage
+                    if (overStorage)
+                    {
+                        syncError = STORAGE_OVERQUOTA;
+                    }
+                    else if (businessExpired)
+                    {
+                        syncError = BUSINESS_EXPIRED;
+                    }
+                    else if (blocked)
+                    {
+                        syncError = ACCOUNT_BLOCKED;
+                    }
                 }
-                enabled = true; //we consider enabled when it is temporary disabled
             }
 
             SyncConfig syncConfig{nextSyncTag, localPath, name, request->getNodeHandle(), remotePath ? remotePath : "",
                                   static_cast<fsfp_t>(request->getNumber()),
                                   regExpToVector(request->getRegExp()), enabled};
 
-            if (temporaryDisabled)
-            {
-                syncConfig.setError(syncError);
-            }
+            syncConfig.setError(syncError);
 
             if (client->syncConfigs)
             {

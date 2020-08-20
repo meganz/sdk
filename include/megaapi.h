@@ -3082,6 +3082,7 @@ class MegaRequest
          * - MegaApi::exportNode - Returns true
          * - MegaApi::disableExport - Returns false
          * - MegaApi::inviteToChat - Returns the privilege level wanted for the user
+         * - MegaApi::copySyncDataToCache - Returns the sync error
          *
          * @return Access level related to the request
          */
@@ -13031,7 +13032,8 @@ class MegaApi
          * - MegaRequest::getName - Returns the name of the sync
          * - MegaRequest::getLink - Returns the path of the remote folder
          * - MegaRequest::getNumber - Returns the local filesystem fingreprint
-         * - MegaRequest::setNumDetails - Returns if sync is temporarily disabled
+         * - MegaRequest::getNumDetails - Returns the sync error (if any)
+         * - MegaRequest::getAccess - Returns if the sync is temporarily disabled
          * - MegaRequest::getFlag - if sync is enabled
 
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -13045,10 +13047,12 @@ class MegaApi
          * @param localfp Filesystem fingerprint
          * @param enabled If the sync is enabled by the user
          * @param temporaryDisabled If the sync is temporarily disabled
+         * @param syncError Sync error (if any)
          * @param listener MegaRequestListener to track this request
          */
         void copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
-                                 long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener = NULL);
+                                 long long localfp, bool enabled, bool temporaryDisabled, MegaSync::Error syncError = MegaSync::Error::NO_SYNC_ERROR,
+                                 MegaRequestListener *listener = NULL);
         /**
          * @brief Copy sync data to SDK cache.
          *
@@ -13063,7 +13067,8 @@ class MegaApi
          * - MegaRequest::getName - Returns the name of the sync
          * - MegaRequest::getLink - Returns the path of the remote folder
          * - MegaRequest::getNumber - Returns the local filesystem fingreprint
-         * - MegaRequest::setNumDetails - Returns if sync is temporarily disabled
+         * - MegaRequest::getNumDetails - Returns the sync error (if any)
+         * - MegaRequest::getAccess - Returns if the sync is temporarily disabled
          * - MegaRequest::getFlag - if sync is enabled
 
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -13076,10 +13081,12 @@ class MegaApi
          * @param localfp Filesystem fingerprint
          * @param enabled If the sync is enabled by the user
          * @param temporaryDisabled If the sync is temporarily disabled
+         * @param syncError Sync error (if any)
          * @param listener MegaRequestListener to track this request
          */
         void copySyncDataToCache(const char *localFolder, MegaHandle megaHandle, const char *remotePath,
-                                 long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener = NULL);
+                                 long long localfp, bool enabled, bool temporaryDisabled, MegaSync::Error syncError = MegaSync::Error::NO_SYNC_ERROR,
+                                 MegaRequestListener *listener = NULL);
         /**
          * @brief Copy sync data to SDK cache.
          *

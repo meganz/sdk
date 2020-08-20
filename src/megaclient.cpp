@@ -2724,7 +2724,7 @@ void MegaClient::exec()
                     for (it = syncs.begin(); it != syncs.end(); it++)
                     {
                         // make sure that the remote synced folder still exists
-                        if (!(*it)->localroot->node)
+                        if (!(*it)->localroot->node && (*it)->state != SYNC_FAILED)
                         {
                             LOG_err << "The remote root node doesn't exist";
                             (*it)->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND);
@@ -2916,7 +2916,10 @@ void MegaClient::exec()
                         if (!(*it)->localroot->node)
                         {
                             LOG_err << "The remote root node doesn't exist";
-                            (*it)->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND);
+                            if ((*it)->state != SYNC_FAILED )
+                            {
+                                (*it)->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND);
+                            }
                         }
                         else
                         {
@@ -12809,7 +12812,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
     {
         if (fa->type == FOLDERNODE)
         {
-            LOG_debug << "Adding sync: " << syncConfig.getLocalPath() << " vs " << remotenode->displaypath();;
+            LOG_debug << "Adding sync: " << syncConfig.getLocalPath() << " vs " << remotenode->displaypath();
             int tag = syncConfig.getTag();
 
             // Note localpath is stored as utf8 in syncconfig as passed from the apps!
