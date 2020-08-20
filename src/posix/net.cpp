@@ -61,12 +61,12 @@ bool SockInfo::createAssociateEvent()
     return true;
 }
 
-bool SockInfo::checkEvent(bool& read, bool& write)
+bool SockInfo::checkEvent(bool& read, bool& write, bool c_ares = false)
 {
     WSANETWORKEVENTS wne;
     memset(&wne, 0, sizeof(wne));
     auto err = WSAEnumNetworkEvents(fd, NULL, &wne);
-    if (err)
+    if (err && !c_ares)
     {
         auto e = WSAGetLastError();
         LOG_err << "WSAEnumNetworkEvents error " << e;
@@ -115,11 +115,12 @@ void SockInfo::closeEvent(bool adjustSocket)
 {
     if (adjustSocket)
     {
-#ifdef DEBUG
-        int result = 
-#endif
-        WSAEventSelect(fd, NULL, 0); // cancel association by specifying lNetworkEvents = 0
-        assert(result == 0);
+        int result = WSAEventSelect(fd, NULL, 0); // cancel association by specifying lNetworkEvents = 0
+        if (result)
+        {
+            auto err = WSAGetLastError();
+            LOG_err << "WSAEventSelect error: " << err;
+        }
     }
     associatedHandleEvents = 0;
     signalledWrite = false;
@@ -611,7 +612,7 @@ void CurlHttpIO::closearesevents()
 #if defined(_WIN32)
     for (auto& mapPair : aressockets)
     {
-        mapPair.second.closeEvent();
+        mapPair.second.closeEvent(false);
     }
 #endif
     aressockets.clear();
@@ -648,7 +649,7 @@ void CurlHttpIO::processaresevents()
 
 #if defined(_WIN32)
         bool read, write;
-        if (info.checkEvent(read, write))  // if checkEvent returns true, both `read` and `write` have been set.
+        if (info.checkEvent(read, write, true))  // if checkEvent returns true, both `read` and `write` have been set.
         {
             ares_process_fd(ares, read ? info.fd : ARES_SOCKET_BAD, write ? info.fd : ARES_SOCKET_BAD);
         }
