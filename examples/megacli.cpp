@@ -2280,6 +2280,10 @@ static void store_line(char* l)
 {
     if (!l)
     {
+#ifndef NO_READLINE
+        rl_callback_handler_remove();
+#endif /* ! NO_READLINE */
+
         delete console;
         exit(0);
     }
@@ -2666,7 +2670,7 @@ void exec_treecompare(autocomplete::ACState& s)
 bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersperfolder, int recurselevel, int filesperfolder, int filesize, int& totalfilecount, int& totalfoldercount)
 {
     fs::path p = targetfolder / fs::u8path(prefix);
-    if (!fs::create_directory(p))
+    if (!fs::is_directory(p) && !fs::create_directory(p))
         return false;
     ++totalfoldercount;
 
@@ -2709,7 +2713,11 @@ void exec_generatetestfilesfolders(autocomplete::ACState& s)
     {
         int totalfilecount = 0, totalfoldercount = 0;
         buildLocalFolders(p, nameprefix, folderwidth, folderdepth, filecount, filesize, totalfilecount, totalfoldercount);
-        cout << "created " << totalfilecount << " files and " << totalfoldercount << " folders";
+        cout << "created " << totalfilecount << " files and " << totalfoldercount << " folders" << endl;
+    }
+    else
+    {
+        cout << "invalid directory: " << p.u8string() << endl;
     }
 }
 
@@ -6525,6 +6533,10 @@ void DemoApp::request_error(error e)
 
     cout << "FATAL: Request failed (" << errorstring(e) << "), exiting" << endl;
 
+#ifndef NO_READLINE
+    rl_callback_handler_remove();
+#endif /* ! NO_READLINE */
+
     delete console;
     exit(0);
 }
@@ -7888,6 +7900,9 @@ void megacli()
 
             if (quit_flag)
             {
+#ifndef NO_READLINE
+                rl_callback_handler_remove();
+#endif /* ! NO_READLINE */
                 return;
             }
 
