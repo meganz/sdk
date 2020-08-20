@@ -609,17 +609,17 @@ std::shared_ptr<HeartBeatTransferProgressedInfo> MegaBackupMonitor::getHeartBeat
             Node *n = mClient->nodebyhandle(transfer->getType() == MegaTransfer::TYPE_UPLOAD ? transfer->getParentHandle() : transfer->getNodeHandle());
             while (n)
             {
-                if (n && n->localnode && n->localnode->sync)
+                if (n->localnode && n->localnode->sync)
                 {
                     syncTag = n->localnode->sync->tag;
                     mTransferToSyncMap[transfer->getTag()] = syncTag;
                     break;
                 }
-                LOG_warn << "Heartbeat could not get sync tag direclty from transfer handle. Going up";
                 n = n->parent;
             }
         }
 
+        assert(syncTag && "couldn't get syncTag from sync transfer");
         if (syncTag)
         {
             auto hBPair = mHeartBeatedSyncs.find(syncTag);
