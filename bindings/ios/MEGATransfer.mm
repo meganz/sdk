@@ -20,6 +20,7 @@
  */
 #import "MEGATransfer.h"
 #import "MEGANode+init.h"
+#import "MEGAError+init.h"
 
 using namespace mega;
 
@@ -161,6 +162,11 @@ using namespace mega;
 
 - (MEGATransferState)state {
     return (MEGATransferState) (self.megaTransfer ? self.megaTransfer->getState() : 0);
+}
+
+- (MEGAError *)lastErrorExtended {
+    MegaError *tempError = self.megaTransfer->getLastErrorExtended()->copy();
+    return self.megaTransfer ? [[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES] : nil;
 }
 
 - (unsigned long long)priority {

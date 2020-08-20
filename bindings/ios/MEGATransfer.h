@@ -20,6 +20,7 @@
  */
 #import <Foundation/Foundation.h>
 #import "MEGANode.h"
+#import "MEGAError.h"
 
 typedef NS_ENUM (NSInteger, MEGATransferType) {
     MEGATransferTypeDownload,
@@ -233,6 +234,16 @@ typedef NS_ENUM (NSInteger, MEGATransferState) {
  * @brief State of the transfer
  */
 @property (readonly, nonatomic) MEGATransferState state;
+
+/**
+ * @brief Returns the last error related to the transfer with extra info
+ *
+ * The MEGATransfer object retains the ownership of the returned pointer. It will
+ * be valid until the deletion of the MEGATransfer object.
+ *
+ * @return Last error related to the transfer, with extended info
+ */
+@property (readonly, nonatomic) MEGAError *lastErrorExtended;
 
 /**
  * @brief Returns the priority of the transfer
