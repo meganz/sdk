@@ -735,6 +735,7 @@ void WinFileSystemAccess::local2path(const string* local, string* path) const
 void WinFileSystemAccess::local2path(const std::wstring* local, string* path) const
 {
     wstring2string_utf16(*path, *local);
+    path->append("", 1);
     normalize(path);
 }
 

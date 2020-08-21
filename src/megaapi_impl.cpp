@@ -465,8 +465,8 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
         wstring2string_utf16(localPath, lp.getLocalpath());
 #else
         localPath.swap(lp.getLocalpath());
-        localPath.append("", 1);
 #endif
+        localPath.append("", 1);
     }
 #endif
 
@@ -8641,8 +8641,8 @@ string MegaApiImpl::getLocalPath(MegaNode *n)
     wstring2string_utf16(result, lp.getLocalpath());
 #else
     result.swap(lp.getLocalpath());
-    result.append("", 1);
 #endif
+    result.append("", 1);
     sdkMutex.unlock();
     return result;
 }
@@ -12992,6 +12992,7 @@ void MegaApiImpl::syncupdate_treestate(LocalNode *l)
 #if defined(_WIN32)
     string s;
     wstring2string_utf16(s, localpath.getLocalpath());
+    s.append("", 1);
     fireOnFileSyncStateChanged(megaSync, &s, (int)l->ts);
 #else
     fireOnFileSyncStateChanged(megaSync, &localpath.getLocalpath(), (int)l->ts);

@@ -1248,6 +1248,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
         LocalPath outpath = LocalPath::fromLocalname(newname);
         LocalNode *tmp = localnodebypath(l, *input_localpath, &parent, &outpath);
         wstring2string_utf16(newname, outpath.getLocalpath());
+        newname.append("", 1);
         size_t index = 0;
         while ((index = newname.find(wstring2string(client->fsaccess->localseparator), index)) != string::npos)
         {
