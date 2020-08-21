@@ -11417,12 +11417,14 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
     MegaNodeList *nodeList = nullptr;
     if (n)
     {
+        // if node is provided, it will be the parent node of the tree to explore
         Node *node = client->nodebyhandle(n->getHandle());
         if (!node)
         {
             return new MegaNodeListPrivate();
         }
 
+        // searchString and nodeType (if provided), are considered in search
         SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
         for (node_list::iterator it = node->children.begin(); it != node->children.end()
              && !(cancelToken && cancelToken->isCancelled()); )
@@ -11439,30 +11441,73 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         node_vector result;
         Node *node;
 
-        // rootnodes
-        for (unsigned int i = 0; i < (sizeof client->rootnodes / sizeof *client->rootnodes)
-              && !(cancelToken && cancelToken->isCancelled()); i++)
+        // Target parameter is only considered if node is not provided
+        if (target < MegaApi::TARGET_INSHARE || target > MegaApi::TARGET_ALL)
         {
-            node = client->nodebyhandle(client->rootnodes[i]);
-            SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
-            processTree(node, &searchProcessor, recursive, cancelToken);
-            node_vector& vNodes = searchProcessor.getResults();
-            result.insert(result.end(), vNodes.begin(), vNodes.end());
+            return new MegaNodeListPrivate();
         }
 
-        // inshares
-        MegaShareList *shares = getInSharesList(MegaApi::ORDER_NONE);
-        for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
+        if (target == MegaApi::TARGET_ROOTNODES || target == MegaApi::TARGET_ALL)
         {
-            node = client->nodebyhandle(shares->get(i)->getNodeHandle());
-
-            SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
-            processTree(node, &searchProcessor, recursive, cancelToken);
-            vector<Node *>& vNodes  = searchProcessor.getResults();
-
-            result.insert(result.end(), vNodes.begin(), vNodes.end());
+            // Search on rootnodes
+            for (unsigned int i = 0; i < (sizeof client->rootnodes / sizeof *client->rootnodes)
+                  && !(cancelToken && cancelToken->isCancelled()); i++)
+            {
+                node = client->nodebyhandle(client->rootnodes[i]);
+                SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
+                processTree(node, &searchProcessor, recursive, cancelToken);
+                node_vector& vNodes = searchProcessor.getResults();
+                result.insert(result.end(), vNodes.begin(), vNodes.end());
+            }
         }
-        delete shares;
+
+        if (target == MegaApi::TARGET_INSHARE || target == MegaApi::TARGET_ALL)
+        {
+            // Search on inshares
+            MegaShareList *shares = getInSharesList(MegaApi::ORDER_NONE);
+            for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
+            {
+                node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+
+                SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
+                processTree(node, &searchProcessor, recursive, cancelToken);
+                vector<Node *>& vNodes  = searchProcessor.getResults();
+
+                result.insert(result.end(), vNodes.begin(), vNodes.end());
+            }
+            delete shares;
+        }
+
+        if (target == MegaApi::TARGET_OUTSHARE || target == MegaApi::TARGET_ALL)
+        {
+            // Search on outshares
+            MegaShareList *shares = getOutShares(MegaApi::ORDER_NONE);
+            for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
+            {
+                node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+
+                SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
+                processTree(node, &searchProcessor, recursive, cancelToken);
+                vector<Node *>& vNodes  = searchProcessor.getResults();
+
+                result.insert(result.end(), vNodes.begin(), vNodes.end());
+            }
+            delete shares;
+        }
+
+        if (target == MegaApi::TARGET_PUBLICLINK || target == MegaApi::TARGET_ALL)
+        {
+            // Search on public links
+            for (auto it = client->mPublicLinks.begin(); it != client->mPublicLinks.end()
+                 && !(cancelToken && cancelToken->isCancelled()); it++)
+            {
+                node = client->nodebyhandle(it->first);
+                SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
+                processTree(node, &searchProcessor, true, cancelToken);
+                vector<Node *>& vNodes  = searchProcessor.getResults();
+                result.insert(result.end(), vNodes.begin(), vNodes.end());
+            }
+        }
 
         sortByComparatorFunction(result, order, *client);
         nodeList = new MegaNodeListPrivate(result.data(), int(result.size()));
