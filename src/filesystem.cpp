@@ -1069,8 +1069,7 @@ LocalPath LocalPath::fromName(string path, const FileSystemAccess& fsaccess, Fil
     fsaccess.name2local(&path, fsType);
 #if defined(_WIN32)
     LocalPath p;
-    p.localpath.resize(path.size() / sizeof(wchar_t) + 1);
-    memcpy(const_cast<wchar_t*>(p.localpath.data()), path.data(), path.size());
+    utf16string2wstring(p.localpath, path);
     return p;
 #else
     return fromLocalname(path);
@@ -1090,8 +1089,7 @@ LocalPath LocalPath::fromLocalname(std::string path)
 {
 #if defined(_WIN32)
     LocalPath p;
-    p.localpath.resize(path.size() / sizeof(wchar_t) + 1);
-    memcpy(const_cast<wchar_t*>(p.localpath.data()), path.data(), path.size());
+    utf16string2wstring(p.localpath, path);
     return p;
 #else
     LocalPath p;

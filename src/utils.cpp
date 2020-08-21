@@ -67,6 +67,19 @@ std::wstring string2wstring(std::string narrow_utf8_src)
     return converter.from_bytes(narrow_utf8_src);
 }
 
+void wstring2string_utf16(std::string& outstr, std::wstring inwstr)
+{
+    outstr.resize(inwstr.size() * sizeof(wchar_t) + 1);
+    memcpy(const_cast<char*>(outstr.data()), inwstr.data(), inwstr.size() * sizeof(wchar_t));
+    outstr.append("", 1);
+}
+
+void utf16string2wstring(std::wstring& outwstr, std::string instr)
+{
+    outwstr.resize(instr.size() / sizeof(wchar_t) + 1);
+    memcpy(const_cast<wchar_t*>(outwstr.data()), instr.data(), instr.size());
+}
+
 void RemoveHiddenFileAttribute(mega::Transfer* transfer)
 {
 #ifdef _WIN32

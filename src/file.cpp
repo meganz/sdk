@@ -213,7 +213,9 @@ File *File::unserialize(string *d)
     file->name.assign(name, namelen);
 #if defined(_WIN32)
     std::string s(localname, localnamelen);
-    file->localname.setLocalpath(string2wstring(s));
+    std::wstring ws;
+    utf16string2wstring(ws, s); 
+    file->localname.setLocalpath(ws);
 #else
     file->localname.editStringDirect()->assign(localname, localnamelen);
 #endif

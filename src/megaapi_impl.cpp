@@ -462,12 +462,11 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
         LocalPath lp;
         node->localnode->getlocalpath(lp, true);
 #if defined(_WIN32)
-        localPath.swap(wstring2string(lp.getLocalpath()));
+        wstring2string_utf16(localPath, lp.getLocalpath());
 #else
         localPath.swap(lp.getLocalpath());
-#endif
-       
         localPath.append("", 1);
+#endif
     }
 #endif
 
@@ -8639,12 +8638,11 @@ string MegaApiImpl::getLocalPath(MegaNode *n)
     LocalPath lp;
     node->localnode->getlocalpath(lp, true);
 #if defined(_WIN32)
-    result.resize(lp.getLocalpath().size() * sizeof(wchar_t) + 1);
-    memcpy(const_cast<char*>(result.data()), lp.getLocalpath().data(), lp.getLocalpath().size() * sizeof(wchar_t));
+    wstring2string_utf16(result, lp.getLocalpath());
 #else
     result.swap(lp.getLocalpath());
-#endif
     result.append("", 1);
+#endif
     sdkMutex.unlock();
     return result;
 }
@@ -12992,7 +12990,9 @@ void MegaApiImpl::syncupdate_treestate(LocalNode *l)
     MegaSyncPrivate* megaSync = syncMap.at(l->sync->tag);
 
 #if defined(_WIN32)
-    fireOnFileSyncStateChanged(megaSync, &wstring2string(localpath.getLocalpath()), (int)l->ts);
+    string s;
+    wstring2string_utf16(s, localpath.getLocalpath());
+    fireOnFileSyncStateChanged(megaSync, &s, (int)l->ts);
 #else
     fireOnFileSyncStateChanged(megaSync, &localpath.getLocalpath(), (int)l->ts);
 #endif
