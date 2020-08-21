@@ -1002,6 +1002,13 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             asyncIO[i] = fa->asyncfread(reqs[i]->out, size, (-(int)size) & (SymmCipher::BLOCKSIZE - 1), pos);
                             reqs[i]->status = REQ_ASYNCIO;
                             prepare = false;
+
+                            // in case something happened while reading (i.e. file permissions have been changed)
+                            // just prevent retrying for current context (though it will still retry for other contexts)
+                            if (asyncIO[i]->failed)
+                            {
+                                asyncIO[i]->retry = false;
+                            }
                         }
                         else
                         {
