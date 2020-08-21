@@ -11414,23 +11414,59 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCan
         return new MegaNodeListPrivate();
     }
     
-    Node *node = client->nodebyhandle(n->getHandle());
-    if (!node)
+    MegaNodeList *nodeList = nullptr;
+    if (n)
     {
-        return new MegaNodeListPrivate();
-    }
+        Node *node = client->nodebyhandle(n->getHandle());
+        if (!node)
+        {
+            return new MegaNodeListPrivate();
+        }
 
-    SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
-    for (node_list::iterator it = node->children.begin(); it != node->children.end()
-         && !(cancelToken && cancelToken->isCancelled()); )
+        SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
+        for (node_list::iterator it = node->children.begin(); it != node->children.end()
+             && !(cancelToken && cancelToken->isCancelled()); )
+        {
+            processTree(*it++, &searchProcessor, recursive, cancelToken);
+        }
+
+        vector<Node *>& vNodes = searchProcessor.getResults();
+        sortByComparatorFunction(vNodes, order, *client);
+        nodeList = new MegaNodeListPrivate(vNodes.data(), int(vNodes.size()));
+    }
+    else
     {
-        processTree(*it++, &searchProcessor, recursive, cancelToken);
+        node_vector result;
+        Node *node;
+
+        // rootnodes
+        for (unsigned int i = 0; i < (sizeof client->rootnodes / sizeof *client->rootnodes)
+              && !(cancelToken && cancelToken->isCancelled()); i++)
+        {
+            node = client->nodebyhandle(client->rootnodes[i]);
+            SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
+            processTree(node, &searchProcessor, recursive, cancelToken);
+            node_vector& vNodes = searchProcessor.getResults();
+            result.insert(result.end(), vNodes.begin(), vNodes.end());
+        }
+
+        // inshares
+        MegaShareList *shares = getInSharesList(MegaApi::ORDER_NONE);
+        for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
+        {
+            node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+
+            SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
+            processTree(node, &searchProcessor, recursive, cancelToken);
+            vector<Node *>& vNodes  = searchProcessor.getResults();
+
+            result.insert(result.end(), vNodes.begin(), vNodes.end());
+        }
+        delete shares;
+
+        sortByComparatorFunction(result, order, *client);
+        nodeList = new MegaNodeListPrivate(result.data(), int(result.size()));
     }
-
-    vector<Node *>& vNodes = searchProcessor.getResults();
-    sortByComparatorFunction(vNodes, order, *client);
-
-    MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), int(vNodes.size()));
     return nodeList;
 }
 
