@@ -13098,6 +13098,9 @@ class MegaApi
         typedef enum { NODE_UNKNOWN = 0, NODE_PHOTO, NODE_AUDIO,
                NODE_VIDEO, NODE_DOCUMENT,} nodefiletype_t;
 
+        typedef enum { TARGET_INSHARE = 0, TARGET_OUTSHARE, TARGET_PUBLICLINK,
+                       TARGET_ROOTNODES, TARGET_ALL } searchtarget_t;
+
         /**
          * @brief Get the number of child nodes
          *
@@ -14628,7 +14631,7 @@ class MegaApi
          *
          * @return List of nodes that match with the search parameters
          */
-        MegaNodeList* searchByType(MegaNode* node, const char* searchString, MegaCancelToken *cancelToken, bool recursive = 1, int order = ORDER_NONE, int type = NODE_UNKNOWN);
+        MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int type = NODE_UNKNOWN, int target = TARGET_ALL);
 
         /**
          * @brief Search nodes containing a search string in their name

@@ -10791,7 +10791,7 @@ MegaNodeList* MegaApiImpl::searchInAllShares(const char *searchString, MegaCance
         return new MegaNodeListPrivate();
     }
 
-    if (target < TARGET_INSHARE || target > TARGET_PUBLICLINK)
+    if (target < MegaApi::TARGET_INSHARE || target > MegaApi::TARGET_PUBLICLINK)
     {
         return new MegaNodeListPrivate();
     }
@@ -10805,10 +10805,10 @@ MegaNodeList* MegaApiImpl::searchInAllShares(const char *searchString, MegaCance
 
     node_vector result;
     Node *node;
-    if (target == TARGET_INSHARE || target == TARGET_OUTSHARE)
+    if (target == MegaApi::TARGET_INSHARE || target == MegaApi::TARGET_OUTSHARE)
     {
         // Search in inShares or outShares
-        ::mega::unique_ptr<MegaShareList> shares (target == TARGET_INSHARE
+        ::mega::unique_ptr<MegaShareList> shares (target == MegaApi::TARGET_INSHARE
                                                   ? getInSharesList(MegaApi::ORDER_NONE)
                                                   : getOutShares(MegaApi::ORDER_NONE));
 
@@ -11388,7 +11388,7 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
     return result;
 }
 
-MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCancelToken *cancelToken, bool recursive, int order, int type)
+MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCancelToken *cancelToken, bool recursive, int order, int type, int target)
 {
     if (!n && !searchString && (type < MegaApi::NODE_PHOTO || type > MegaApi::NODE_DOCUMENT))
     {

@@ -3735,22 +3735,22 @@ MegaNodeList *MegaApi::search(const char *searchString, MegaCancelToken *cancelT
 
 MegaNodeList* MegaApi::searchOnInShares(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApiImpl::TARGET_INSHARE);
+    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApi::TARGET_INSHARE);
 }
 
 MegaNodeList* MegaApi::searchOnOutShares(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApiImpl::TARGET_OUTSHARE);
+    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApi::TARGET_OUTSHARE);
 }
 
 MegaNodeList* MegaApi::searchOnPublicLinks(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApiImpl::TARGET_PUBLICLINK);
+    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApi::TARGET_PUBLICLINK);
 }
 
-MegaNodeList* MegaApi::searchByType(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order, int type)
+MegaNodeList* MegaApi::searchByType(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order, int type, int target)
 {
-    return pImpl->search(n, searchString, cancelToken, recursive, order, type);
+    return pImpl->search(n, searchString, cancelToken, recursive, order, type, target);
 }
 
 MegaNodeList* MegaApi::searchByType(const char *searchString, MegaCancelToken *cancelToken, int order, int type)
@@ -3760,17 +3760,17 @@ MegaNodeList* MegaApi::searchByType(const char *searchString, MegaCancelToken *c
 
 MegaNodeList* MegaApi::searchOnInSharesBytype(const char *searchString, MegaCancelToken *cancelToken, int order, int type)
 {
-    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApiImpl::TARGET_INSHARE, type);
+    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApi::TARGET_INSHARE, type);
 }
 
 MegaNodeList* MegaApi::searchOnOutSharesBytype(const char *searchString, MegaCancelToken *cancelToken, int order, int type)
 {
-    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApiImpl::TARGET_OUTSHARE, type);
+    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApi::TARGET_OUTSHARE, type);
 }
 
 MegaNodeList* MegaApi::searchOnPublicLinksBytype(const char *searchString, MegaCancelToken *cancelToken, int order, int type)
 {
-    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApiImpl::TARGET_PUBLICLINK, type);
+    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApi::TARGET_PUBLICLINK, type);
 }
 
 long long MegaApi::getSize(MegaNode *n)
