@@ -11390,7 +11390,7 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
 
 MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCancelToken *cancelToken, bool recursive, int order, int type)
 {
-    if (!n || (!searchString && (type < MegaApi::NODE_PHOTO || type > MegaApi::NODE_DOCUMENT)))
+    if (!n && !searchString && (type < MegaApi::NODE_PHOTO || type > MegaApi::NODE_DOCUMENT))
     {
         // If node is not valid or no search string and type is not valid
         return new MegaNodeListPrivate();
