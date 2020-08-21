@@ -85,10 +85,7 @@ bool HttpReqCommandPutFA::procresult(Result r)
                 {
                     LOG_debug << "Restoration of file attributes is not allowed for current user (" << me64 << ").";
 
-                    int creqtag = client->reqtag;
-                    client->reqtag = 0;
-                    client->setattr(n, attr_map('f', me64));
-                    client->reqtag = creqtag;
+                    client->setattr(n, attr_map('f', me64), 0);
                 }
             }
 
@@ -117,7 +114,7 @@ bool HttpReqCommandPutFA::procresult(Result r)
                     else
                     {
                         LOG_debug << "Sending file attribute data";
-                        Node::copystring(&posturl, p);
+                        JSON::copystring(&posturl, p);
                         progressreported = 0;
                         HttpReq::type = REQ_BINARY;
                         post(client, data->data(), unsigned(data->size()));
@@ -201,7 +198,7 @@ bool CommandGetFA::procresult(Result r)
                 {
                     if (p)
                     {
-                        Node::copystring(&it->second->posturl, p);
+                        JSON::copystring(&it->second->posturl, p);
                         it->second->urltime = Waiter::ds;
                         it->second->dispatch();
                     }
@@ -965,10 +962,10 @@ bool CommandGetFile::procresult(Result r)
     }
 }
 
-CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, attr_map&& attrMapUpdates)
+CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, attr_map&& attrMapUpdates, int reqtag)
     : mAttrMapUpdates(attrMapUpdates)
 {
-    tag = client->reqtag;
+    tag = reqtag;
     h = n->nodehandle;
     generationError = API_OK;
 
@@ -2525,10 +2522,10 @@ bool CommandEnumerateQuotaItems::procresult(Result r)
         }
 
         client->json.leaveobject();
-        Node::copystring(&currency, curr);
-        Node::copystring(&description, desc);
-        Node::copystring(&ios_id, ios);
-        Node::copystring(&android_id, android);
+        JSON::copystring(&currency, curr);
+        JSON::copystring(&description, desc);
+        JSON::copystring(&ios_id, ios);
+        JSON::copystring(&android_id, android);
 
         amount = atoi(amountStr) * 100;
         if ((curr = strchr(amountStr, '.')))

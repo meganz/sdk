@@ -19028,7 +19028,7 @@ void MegaApiImpl::sendPendingRequests()
 
             string sname = newName;
             fsAccess->normalize(&sname);
-            e = client->setattr(node, attr_map('n', sname));
+            e = client->setattr(node, attr_map('n', sname), client->reqtag);
             break;
         }
         case MegaRequest::TYPE_REMOVE:
@@ -19776,7 +19776,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (!e)
             {
-                e = client->setattr(node, std::move(attrUpdates));
+                e = client->setattr(node, std::move(attrUpdates), client->reqtag);
             }
 
             break;

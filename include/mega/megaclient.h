@@ -441,7 +441,7 @@ public:
     void querytransferquota(m_off_t size);
 
     // update node attributes
-    error setattr(Node*, attr_map&& updates);
+    error setattr(Node*, attr_map&& updates, int reqtag);
 
     // prefix and encrypt attribute json
     void makeattr(SymmCipher*, string*, const char*, int = -1) const;

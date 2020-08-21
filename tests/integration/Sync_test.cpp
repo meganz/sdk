@@ -351,10 +351,21 @@ struct StandardClient : public MegaApp
     std::atomic<bool> clientthreadexit{false};
     bool fatalerror = false;
     string clientname;
-    std::function<void(MegaClient&, promise<bool>&)> nextfunctionMC;
-    std::promise<bool> nextfunctionMCpromise;
-    std::function<void(StandardClient&, promise<bool>&)> nextfunctionSC;
-    std::promise<bool> nextfunctionSCpromise;
+
+    struct {
+        
+        std::function<void(MegaClient&, promise<bool>&)> nextfunctionMC;
+        std::promise<bool> nextfunctionMCpromise;
+
+        std::function<void(StandardClient&, promise<bool>&)> nextfunctionSC;
+        std::promise<bool> nextfunctionSCpromise;
+    } boolDo;
+
+    struct {
+        std::function<void(StandardClient&, promise<Error>&)> nextfunctionSC;
+        std::promise<Error> nextfunctionSCpromise;
+    } errDo;
+
     std::condition_variable functionDone;
     std::mutex functionDoneMutex;
     std::string salt;
@@ -475,17 +486,24 @@ struct StandardClient : public MegaApp
 
             {
                 std::lock_guard<mutex> g(functionDoneMutex);
-                if (nextfunctionMC)
+                if (boolDo.nextfunctionMC)
                 {
-                    nextfunctionMC(client, nextfunctionMCpromise);
-                    nextfunctionMC = nullptr;
+                    boolDo.nextfunctionMC(client, boolDo.nextfunctionMCpromise);
+                    boolDo.nextfunctionMC = nullptr;
                     functionDone.notify_all();
                     r = Waiter::NEEDEXEC;
                 }
-                if (nextfunctionSC)
+                if (boolDo.nextfunctionSC)
                 {
-                    nextfunctionSC(*this, nextfunctionSCpromise);
-                    nextfunctionSC = nullptr;
+                    boolDo.nextfunctionSC(*this, boolDo.nextfunctionSCpromise);
+                    boolDo.nextfunctionSC = nullptr;
+                    functionDone.notify_all();
+                    r = Waiter::NEEDEXEC;
+                }
+                if (errDo.nextfunctionSC)
+                {
+                    errDo.nextfunctionSC(*this, errDo.nextfunctionSCpromise);
+                    errDo.nextfunctionSC = nullptr;
                     functionDone.notify_all();
                     r = Waiter::NEEDEXEC;
                 }
@@ -511,38 +529,55 @@ struct StandardClient : public MegaApp
     future<bool> thread_do(std::function<void(MegaClient&, promise<bool>&)>&& f)
     {
         unique_lock<mutex> guard(functionDoneMutex);
-        nextfunctionMCpromise = promise<bool>();
-        nextfunctionMC = std::move(f);
+        boolDo.nextfunctionMCpromise = promise<bool>();
+        boolDo.nextfunctionMC = std::move(f);
         waiter.notify();
-        while (!functionDone.wait_until(guard, chrono::steady_clock::now() + chrono::seconds(600), [this]() { return !nextfunctionMC; }))
+        while (!functionDone.wait_until(guard, chrono::steady_clock::now() + chrono::seconds(600), [this]() { return !boolDo.nextfunctionMC; }))
         {
             if (!debugging)
             {
-                nextfunctionMCpromise.set_value(false);
+                boolDo.nextfunctionMCpromise.set_value(false);
                 break;
             }
         }
-        return nextfunctionMCpromise.get_future();
+        return boolDo.nextfunctionMCpromise.get_future();
     }
 
     future<bool> thread_do(std::function<void(StandardClient&, promise<bool>&)>&& f)
     {
         unique_lock<mutex> guard(functionDoneMutex);
-        nextfunctionSCpromise = promise<bool>();
-        nextfunctionSC = std::move(f);
+        boolDo.nextfunctionSCpromise = promise<bool>();
+        boolDo.nextfunctionSC = std::move(f);
         waiter.notify();
-        while (!functionDone.wait_until(guard, chrono::steady_clock::now() + chrono::seconds(600), [this]() { return !nextfunctionSC; }))
+        while (!functionDone.wait_until(guard, chrono::steady_clock::now() + chrono::seconds(600), [this]() { return !boolDo.nextfunctionSC; }))
         {
             if (!debugging)
             {
-                nextfunctionSCpromise.set_value(false);
+                boolDo.nextfunctionSCpromise.set_value(false);
                 break;
             }
         }
-        return nextfunctionSCpromise.get_future();
+        return boolDo.nextfunctionSCpromise.get_future();
     }
 
-    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE };
+    future<Error> thread_do(std::function<void(StandardClient&, promise<Error>&)>&& f)
+    {
+        unique_lock<mutex> guard(functionDoneMutex);
+        errDo.nextfunctionSCpromise = promise<Error>();
+        errDo.nextfunctionSC = std::move(f);
+        waiter.notify();
+        while (!functionDone.wait_until(guard, chrono::steady_clock::now() + chrono::seconds(600), [this]() { return !errDo.nextfunctionSC; }))
+        {
+            if (!debugging)
+            {
+                errDo.nextfunctionSCpromise.set_value(error(-999)); // timeout
+                break;
+            }
+        }
+        return errDo.nextfunctionSCpromise.get_future();
+    }
+
+    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE, EXPORTNODE };
 
     void preloginFromEnv(const string& userenv, promise<bool>& pb)
     {
@@ -648,12 +683,12 @@ struct StandardClient : public MegaApp
             handle h = UNDEF;
             int tag = 0;
             std::function<void(error)> f;
-            id_callback(std::function<void(error)> cf, int t, handle ch = UNDEF) : h(ch), tag(t), f(cf) {}
+            id_callback(std::function<void(Error)> cf, int t, handle ch = UNDEF) : h(ch), tag(t), f(cf) {}
         };
 
         map<resultprocenum, deque<id_callback>> m;
 
-        int prepresult(resultprocenum rpe, std::function<void(error)>&& f, handle h = UNDEF)
+        int prepresult(resultprocenum rpe, std::function<void(Error)>&& f, handle h = UNDEF)
         {
             auto& entry = m[rpe];
             int tag = ++nextUniqueTag;
@@ -661,7 +696,7 @@ struct StandardClient : public MegaApp
             return tag;
         }
 
-        void processresult(resultprocenum rpe, error e, handle h, int tag)
+        void processresult(resultprocenum rpe, error e, int tag)
         {
             auto& entry = m[rpe];
             if (!entry.empty() && entry.front().tag == tag)
@@ -1223,35 +1258,46 @@ struct StandardClient : public MegaApp
         {
             this->salt = *salt;
         }
-        resultproc.processresult(PRELOGIN, e, UNDEF, client.restag);
+        resultproc.processresult(PRELOGIN, e, client.restag);
     }
 
     void login_result(error e) override
     {
         cout << clientname << " Login: " << e << endl;
-        resultproc.processresult(LOGIN, e, UNDEF, client.restag);
+        resultproc.processresult(LOGIN, e, client.restag);
     }
 
     void fetchnodes_result(const Error& e) override
     {
         cout << clientname << " Fetchnodes: " << e << endl;
-        resultproc.processresult(FETCHNODES, e, UNDEF, client.restag);
+        resultproc.processresult(FETCHNODES, e, client.restag);
     }
 
     void unlink_result(handle, error e) override
     { 
-        resultproc.processresult(UNLINK, e, UNDEF, client.restag);
+        resultproc.processresult(UNLINK, e, client.restag);
     }
 
     void putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn) override
     {
-        resultproc.processresult(PUTNODES, e, UNDEF, client.restag);
+        resultproc.processresult(PUTNODES, e, client.restag);
     }
 
     void rename_result(handle h, error e)  override
     { 
-        resultproc.processresult(MOVENODE, e, h, client.restag);
+        resultproc.processresult(MOVENODE, e, client.restag);
     }
+
+    void exportnode_result(error e) override 
+    { 
+        resultproc.processresult(EXPORTNODE, e, client.restag);
+    }
+
+    void exportnode_result(handle, handle) override 
+    { 
+        resultproc.processresult(EXPORTNODE, API_OK, client.restag);
+    }
+
 
     void deleteremote(string path, promise<bool>& pb, int tag)
     {
@@ -1325,6 +1371,21 @@ struct StandardClient : public MegaApp
         pb.set_value(false);
     }
 
+    void exportnode(Node* n, int del, m_time_t expiry, promise<Error>& pb)
+    {
+        client.reqtag = resultproc.prepresult(EXPORTNODE, [&pb](Error e) { pb.set_value(e); });
+        error e = client.exportnode(n, del, expiry);
+        if (e)
+        {
+            pb.set_value(e);
+        }
+    }
+
+    void getpubliclink(Node* n, int del, m_time_t expiry, promise<Error>& pb)
+    {
+        client.reqtag = resultproc.prepresult(EXPORTNODE, [&pb](Error e) { pb.set_value(e); });
+        client.getpubliclink(n, del, expiry);
+    }
 
 
     void waitonsyncs(chrono::seconds d = chrono::seconds(2))
@@ -2947,6 +3008,50 @@ GTEST_TEST(Sync, PutnodesForMultipleFolders)
     ASSERT_TRUE(nullptr != standardclient.drillchildnodebyname(cloudRoot, "folder2/folder2.2"));
 }
 
+GTEST_TEST(SdkCore, ExerciseCommands)
+{
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    StandardClient standardclient(localtestroot, "ExerciseCommands");
+    ASSERT_TRUE(standardclient.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", true));
+
+    // Using this set setup to execute commands direct in the SDK Core 
+    // so that we can test things that the MegaApi interface would 
+    // disallow or shortcut.
+
+    future<bool> p1 = standardclient.thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.makeCloudSubdirs("testlinkfolder", 1, 1, pb); });
+    ASSERT_TRUE(waitonresults(&p1));
+
+    Node* n2 = standardclient.client.nodebyhandle(standardclient.basefolderhandle);
+
+    // create on existing node, no link yet
+    auto future1 = standardclient.thread_do([&](StandardClient& sc, promise<Error>& pb)
+    {
+        sc.getpubliclink(n2, 0, 0, pb);
+    });
+    ASSERT_EQ(API_OK, future1.get());
+
+    // create on existing node, with link already  (different command response)
+    auto future2 = standardclient.thread_do([&](StandardClient& sc, promise<Error>& pb)
+    {
+        sc.getpubliclink(n2, 0, 0, pb);
+    });
+    ASSERT_EQ(API_OK, future2.get());
+
+    // delete existing link on node
+    auto future3 = standardclient.thread_do([&](StandardClient& sc, promise<Error>& pb)
+    {
+        sc.getpubliclink(n2, 1, 0, pb);
+    });
+    ASSERT_EQ(API_OK, future3.get());
+
+    // create on non existent node
+    n2->nodehandle = UNDEF;
+    auto future4 = standardclient.thread_do([&](StandardClient& sc, promise<Error>& pb)
+    {
+        sc.getpubliclink(n2, 0, 0, pb);
+    });
+    ASSERT_EQ(API_EACCESS, future4.get());
+}
 
 #ifndef _WIN32
 GTEST_TEST(Sync, BasicSync_CreateAndDeleteLink)

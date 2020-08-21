@@ -305,7 +305,7 @@ typedef enum { OPCA_ADD = 0, OPCA_DELETE, OPCA_REMIND} opcactions_t;
 typedef enum { IPCA_ACCEPT = 0, IPCA_DENY, IPCA_IGNORE} ipcactions_t;
 
 
-typedef vector<struct Node*> node_vector;
+typedef vector<Node*> node_vector;
 
 // contact visibility:
 // HIDDEN - not shown

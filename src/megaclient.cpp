@@ -5366,7 +5366,7 @@ void MegaClient::sc_updatenode()
                             {
                                 n->attrstring.reset(new string);
                             }
-                            Node::copystring(n->attrstring.get(), a);
+                            JSON::copystring(n->attrstring.get(), a);
                             n->changed.attrs = true;
                             notify = true;
                         }
@@ -5838,7 +5838,7 @@ void MegaClient::sc_fileattr()
             case EOO:
                 if (fa && n)
                 {
-                    Node::copystring(&n->fileattrstring, fa);
+                    JSON::copystring(&n->fileattrstring, fa);
                     n->changed.fileattrstring = true;
                     notifynode(n);
                 }
@@ -6052,7 +6052,7 @@ void MegaClient::sc_ipc()
                 if (m && statecurrent)
                 {
                     string email;
-                    Node::copystring(&email, m);
+                    JSON::copystring(&email, m);
                     useralerts.add(new UserAlert::IncomingPendingContact(dts, rts, p, email, ts, useralerts.nextId()));
                 }
 
@@ -6298,7 +6298,7 @@ void MegaClient::sc_upc(bool incoming)
                 if (statecurrent && ou != me && (incoming || s != 2))
                 {
                     string email;
-                    Node::copystring(&email, m);
+                    JSON::copystring(&email, m);
                     using namespace UserAlert;
                     useralerts.add(incoming ? (Base*) new UpdatedPendingContactIncoming(s, p, email, uts, useralerts.nextId())
                                             : (Base*) new UpdatedPendingContactOutgoing(s, p, email, uts, useralerts.nextId()));
@@ -7242,8 +7242,7 @@ void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrst
 }
 
 // update node attributes
-// (with speculative instant completion)
-error MegaClient::setattr(Node* n, attr_map&& updates)
+error MegaClient::setattr(Node* n, attr_map&& updates, int reqtag)
 {
     if (ststatus == STORAGE_PAYWALL)
     {
@@ -7256,7 +7255,7 @@ error MegaClient::setattr(Node* n, attr_map&& updates)
     }
 
     // we only update the values stored in the node once the command completes successfully
-    reqs.add(new CommandSetAttr(this, n, std::move(updates)));
+    reqs.add(new CommandSetAttr(this, n, std::move(updates), reqtag));
 
     return API_OK;
 }
@@ -7480,7 +7479,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
     if (!attrUpdates.empty())
     {
         // send attribute changes first so that any rename is already applied when the move node completes
-        setattr(n, std::move(attrUpdates));
+        setattr(n, std::move(attrUpdates), reqtag);
     }
 
     reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent));
@@ -7869,7 +7868,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 if (a && k && n->attrstring)
                 {
                     LOG_warn << "Updating the key of a NO_KEY node";
-                    Node::copystring(n->attrstring.get(), a);
+                    JSON::copystring(n->attrstring.get(), a);
                     n->setkeyfromjson(k);
                 }
             }
@@ -7909,7 +7908,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
                 string fas;
 
-                Node::copystring(&fas, fa);
+                JSON::copystring(&fas, fa);
 
                 // fallback timestamps
                 if (!(ts + 1))
@@ -7928,7 +7927,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 n->tag = tag;
 
                 n->attrstring.reset(new string);
-                Node::copystring(n->attrstring.get(), a);
+                JSON::copystring(n->attrstring.get(), a);
                 n->setkeyfromjson(k);
 
                 if (!ISUNDEF(su))
@@ -8565,7 +8564,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
             if (actionpackets && v >= 0 && v <= 3 && statecurrent)
             {
                 string email;
-                Node::copystring(&email, m);
+                JSON::copystring(&email, m);
                 useralerts.add(new UserAlert::ContactChange(v, uh, email, ts, useralerts.nextId()));
             }
             User* u = finduser(uh, 0);
@@ -9023,7 +9022,7 @@ User* MegaClient::finduser(const char* uid, int add)
     User* u;
 
     // convert e-mail address to lowercase (ASCII only)
-    Node::copystring(&nuid, uid);
+    JSON::copystring(&nuid, uid);
     tolower_string(nuid);
 
     um_map::iterator it = umindex.find(nuid);
@@ -9038,7 +9037,7 @@ User* MegaClient::finduser(const char* uid, int add)
         // add user by lowercase e-mail address
         u = &users[++userid];
         u->uid = nuid;
-        Node::copystring(&u->email, nuid.c_str());
+        JSON::copystring(&u->email, nuid.c_str());
         umindex[nuid] = userid;
 
         return u;
@@ -9102,7 +9101,7 @@ void MegaClient::mapuser(handle uh, const char* email)
     User* u;
     string nuid;
 
-    Node::copystring(&nuid, email);
+    JSON::copystring(&nuid, email);
     tolower_string(nuid);
 
     // does user uh exist?
@@ -9130,7 +9129,7 @@ void MegaClient::mapuser(handle uh, const char* email)
                 umindex.erase(u->email);
             }
 
-            Node::copystring(&u->email, nuid.c_str());
+            JSON::copystring(&u->email, nuid.c_str());
         }
 
         umindex[nuid] = hit->second;
@@ -9353,7 +9352,7 @@ void MegaClient::queuepubkeyreq(const char *uid, std::unique_ptr<PubKeyAction> p
         if (strchr(uid, '@'))   // uid is an e-mail address
         {
             string nuid;
-            Node::copystring(&nuid, uid);
+            JSON::copystring(&nuid, uid);
             tolower_string(nuid);
 
             u = new User(nuid.c_str());

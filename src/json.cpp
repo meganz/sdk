@@ -620,4 +620,27 @@ void JSON::begin(const char* json)
 {
     pos = json;
 }
+
+// copy remainder of quoted string (no unescaping, use for base64 data only)
+void JSON::copystring(string* s, const char* p)
+{
+    if (p)
+    {
+        const char* pp;
+
+        if ((pp = strchr(p, '"')))
+        {
+            s->assign(p, pp - p);
+        }
+        else
+        {
+            *s = p;
+        }
+    }
+    else
+    {
+        s->clear();
+    }
+}
+
 } // namespace

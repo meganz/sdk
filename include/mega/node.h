@@ -173,10 +173,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     bool setparent(Node*);
 
     // follow the parent links all the way to the top
-    Node* firstancestor();
-
-    // copy JSON-delimited string
-    static void copystring(string*, const char*);
+    const Node* firstancestor() const;
 
     // try to resolve node key string
     bool applykey();
@@ -189,6 +186,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // display name (UTF-8)
     const char* displayname() const;
+
+    // check if the name matches (UTF-8)
+    bool hasName(const string&) const;
 
     // display path from its root in the cloud (UTF-8)
     string displaypath() const;

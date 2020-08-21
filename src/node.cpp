@@ -60,7 +60,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     size = s;
     owner = u;
 
-    copystring(&fileattrstring, fa);
+    JSON::copystring(&fileattrstring, fa);
 
     ctime = ts;
 
@@ -162,7 +162,7 @@ Node::~Node()
             parent->children.erase(child_it);
         }
 
-        Node* fa = firstancestor();
+        const Node* fa = firstancestor();
         handle ancestor = fa->nodehandle;
         if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
         {
@@ -207,7 +207,7 @@ Node::~Node()
 void Node::setkeyfromjson(const char* k)
 {
     if (keyApplied()) --client->mAppliedKeyNodeCount;
-    Node::copystring(&nodekeydata, k);
+    JSON::copystring(&nodekeydata, k);
     if (keyApplied()) ++client->mAppliedKeyNodeCount;
     assert(client->mAppliedKeyNodeCount >= 0);
 }
@@ -596,28 +596,6 @@ bool Node::serialize(string* d)
     return true;
 }
 
-// copy remainder of quoted string (no unescaping, use for base64 data only)
-void Node::copystring(string* s, const char* p)
-{
-    if (p)
-    {
-        const char* pp;
-
-        if ((pp = strchr(p, '"')))
-        {
-            s->assign(p, pp - p);
-        }
-        else
-        {
-            *s = p;
-        }
-    }
-    else
-    {
-        s->clear();
-    }
-}
-
 // decrypt attrstring and check magic number prefix
 byte* Node::decryptattr(SymmCipher* key, const char* attrstring, size_t attrstrlen)
 {
@@ -761,6 +739,12 @@ void Node::setfingerprint()
 
         client->mFingerprints.add(this);
     }
+}
+
+bool Node::hasName(const string& name) const
+{
+    auto it = attrs.map.find('n');
+    return it != attrs.map.end() && it->second == name;
 }
 
 // return file/folder name or special status strings
@@ -999,7 +983,7 @@ bool Node::setparent(Node* p)
     NodeCounter nc;
     bool gotnc = false;
 
-    Node *originalancestor = firstancestor();
+    const Node *originalancestor = firstancestor();
     handle oah = originalancestor->nodehandle;
     if (oah == client->rootnodes[0] || oah == client->rootnodes[1] || oah == client->rootnodes[2] || originalancestor->inshare)
     {
@@ -1027,7 +1011,7 @@ bool Node::setparent(Node* p)
         child_it = parent->children.insert(parent->children.end(), this);
     }
 
-    Node* newancestor = firstancestor();
+    const Node* newancestor = firstancestor();
     handle nah = newancestor->nodehandle;
     if (nah == client->rootnodes[0] || nah == client->rootnodes[1] || nah == client->rootnodes[2] || newancestor->inshare)
     {
@@ -1070,9 +1054,9 @@ bool Node::setparent(Node* p)
     return true;
 }
 
-Node* Node::firstancestor()
+const Node* Node::firstancestor() const
 {
-    Node* n = this;
+    const Node* n = this;
     while (n->parent != NULL)
     {
         n = n->parent;
@@ -1188,7 +1172,7 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
 
             if (node)
             {
-                if (name != node->attrs.map['n'])
+                if (node->hasName(name))
                 {
                     if (node->type == FILENODE)
                     {
@@ -1199,13 +1183,8 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
                         sync->client->app->syncupdate_treestate(this);
                     }
 
-                    string prevname = node->attrs.map['n'];
-                    int creqtag = sync->client->reqtag;
-
-                    // set new name
-                    sync->client->reqtag = sync->tag;
-                    sync->client->setattr(node, attr_map('n', name));
-                    sync->client->reqtag = creqtag;
+                    // queue command to set new name
+                    sync->client->setattr(node, attr_map('n', name), sync->tag);
                 }
             }
         }
@@ -1847,6 +1826,7 @@ void Fingerprints::newnode(Node* n)
 
 void Fingerprints::add(Node* n)
 {
+    assert(n->fingerprint_it == mFingerprints.end());
     if (n->type == FILENODE)
     {
         n->fingerprint_it = mFingerprints.insert(n);

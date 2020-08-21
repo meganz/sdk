@@ -61,27 +61,23 @@ void Request::get(string* req, bool& suppressSID, MegaClient* client) const
 
 bool Request::processCmdJSON(Command* cmd)
 {
-    if (cmd->client->json.enterobject())
+    Error e;
+    if (cmd->checkError(e, cmd->client->json))
     {
-        if (!cmd->procresult(Command::CmdObject) || !cmd->client->json.leaveobject())
-        {
-            LOG_err << "Invalid object";
-            return false;
-        }
+        return cmd->procresult(Command::Result(Command::CmdError, e));
+    }
+    else if (cmd->client->json.enterobject())
+    {
+        return cmd->procresult(Command::CmdObject) && cmd->client->json.leaveobject();
     }
     else if (cmd->client->json.enterarray())
     {
-        if (!cmd->procresult(Command::CmdArray) || !cmd->client->json.leavearray())
-        {
-            LOG_err << "Invalid array";
-            return false;
-        }
+        return cmd->procresult(Command::CmdArray) && cmd->client->json.leavearray();
     }
     else
     {
         return cmd->procresult(Command::CmdItem);
     }
-    return true;
 }
 
 bool Request::processSeqTag(Command* cmd, bool withJSON, bool& parsedOk)
@@ -125,61 +121,53 @@ void Request::process(MegaClient* client)
         auto cmdJSON = client->json;
         bool parsedOk = true;
 
-        Error e;
-        if (cmd->checkError(e, client->json))
+        if (*client->json.pos == ',') ++client->json.pos;
+
+        if (cmd->mSeqtagArray && client->json.enterarray())
         {
-            parsedOk = cmd->procresult(Command::Result(Command::CmdError, e));
+            // Some commands need to return not just a seqtag but also some JSON, in which case they are in an array
+            // These can also return 0 instead of a seqtag instead if no actionpacket was produced.  Coding for any error in that field
+            assert(cmd->mV3);
+            if (client->json.isnumeric())
+            {
+                if (error e = error(client->json.getint()))
+                {
+                    cmd->procresult(Command::Result(Command::CmdError, e));
+                    parsedOk = false; // skip any extra json delivered in the array
+                }
+                else
+                {
+                    parsedOk = processCmdJSON(cmd);
+                }
+            }
+            else if (!processSeqTag(cmd, true, parsedOk))
+            {
+                // we need to wait for sc processing to catch up with the seqtag we just read
+                json = cmdJSON;
+                return;
+            }
+
+            if (parsedOk && !client->json.leavearray())
+            {
+                LOG_err << "Invalid seqtag array";
+                parsedOk = false;
+            }
+        }
+        else if (mV3 && !cmd->mStringIsNotSeqtag && *client->json.pos == '"')
+        {
+            // For v3 commands, a string result is a seqtag.  
+            // Except for commands with mStringIsNotSeqtag which already returned a string and don't produce actionpackets.
+            if (!processSeqTag(cmd, false, parsedOk))
+            {
+                // we need to wait for sc processing to catch up with the seqtag we just read
+                json = cmdJSON;
+                return;
+            }
         }
         else
         {
-            if (*client->json.pos == ',') ++client->json.pos;
-
-            if (cmd->mSeqtagArray && client->json.enterarray())
-            {
-                // Some commands need to return not just a seqtag but also some JSON, in which case they are in an array
-                // These can also return 0 instead of a seqtag instead if no actionpacket was produced.  Coding for any error in that field
-                assert(cmd->mV3);
-                if (client->json.isnumeric())
-                {
-                    if (error e = error(client->json.getint()))
-                    {
-                        cmd->procresult(Command::Result(Command::CmdError, e));
-                        parsedOk = false; // skip any extra json delivered in the array
-                    }
-                    else
-                    {
-                        parsedOk = processCmdJSON(cmd);
-                    }
-                }
-                else if (!processSeqTag(cmd, true, parsedOk))
-                {
-                    // we need to wait for sc processing to catch up with the seqtag we just read
-                    json = cmdJSON;
-                    return;
-                }
-
-                if (parsedOk && !client->json.leavearray())
-                {
-                    LOG_err << "Invalid seqtag array";
-                    parsedOk = false;
-                }
-            }
-            else if (mV3 && !cmd->mStringIsNotSeqtag && *client->json.pos == '"')
-            {
-                // For v3 commands, a string result is a seqtag.  
-                // Except for commands with mStringIsNotSeqtag which already returned a string and don't produce actionpackets.
-                if (!processSeqTag(cmd, false, parsedOk))
-                {
-                    // we need to wait for sc processing to catch up with the seqtag we just read
-                    json = cmdJSON;
-                    return;
-                }
-            }
-            else
-            {
-                // straightforward case - plain JSON response, no seqtag, no error
-                parsedOk = processCmdJSON(cmd);
-            }
+            // straightforward case - plain JSON response, no seqtag, no error
+            parsedOk = processCmdJSON(cmd);
         }
 
         if (!parsedOk)

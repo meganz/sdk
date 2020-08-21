@@ -79,6 +79,10 @@ struct MEGA_API JSON
 
     // Only advance the pointer if it's an error (0, -1, -2, -3, ...)
     bool isNumericError(error& e);
+
+    // copy JSON-delimited string
+    static void copystring(string*, const char*);
+
 };
 
 } // namespace

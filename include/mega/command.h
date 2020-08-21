@@ -627,7 +627,7 @@ class MEGA_API CommandSetAttr : public Command
 public:
     bool procresult(Result) override;
 
-    CommandSetAttr(MegaClient*, Node*, attr_map&& attrMapUpdates);
+    CommandSetAttr(MegaClient*, Node*, attr_map&& attrMapUpdates, int reqtag);
 };
 
 class MEGA_API CommandSetShare : public Command

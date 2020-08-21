@@ -1369,6 +1369,21 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     lon = nimported->getLongitude();
     ASSERT_EQ(MegaNode::INVALID_COORDINATE, lat) << "Latitude value does not match";
     ASSERT_EQ(MegaNode::INVALID_COORDINATE, lon) << "Longitude value does not match";
+
+    // exercise all the cases for 'l' command:
+    
+    // delete existing link on node
+    ASSERT_EQ(API_OK, doDisableExport(0, n2));
+
+    // create on existing node, no link yet
+    ASSERT_EQ(API_OK, doExportNode(0, n2));
+
+    // create on existing node, with link already  (different command response)
+    ASSERT_EQ(API_OK, doExportNode(0, n2));
+
+    // create on non existent node
+    ASSERT_EQ(API_EARGS, doExportNode(0, nullptr));
+
 }
 
 
