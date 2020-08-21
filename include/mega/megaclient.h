@@ -1251,7 +1251,7 @@ public:
     bool nodeIsMedia(const Node*, bool* isphoto, bool* isvideo) const;
 
     // determine if the file is a photo.
-    bool nodeIsPhoto(const Node* n) const;
+    bool nodeIsPhoto(const Node* n, bool checkPreview) const;
 
     // determine if the file is a video.
     bool nodeIsVideo(const Node* n) const;

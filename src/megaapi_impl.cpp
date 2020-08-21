@@ -11815,7 +11815,7 @@ bool SearchTreeProcessor::isValidTypeNode(Node *node)
     switch (type)
     {
         case MegaApi::NODE_PHOTO:
-            return client->nodeIsPhoto(node);
+            return client->nodeIsPhoto(node, false);
         case MegaApi::NODE_AUDIO:
             return client->nodeIsAudio(node);
         case MegaApi::NODE_VIDEO:

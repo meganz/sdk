@@ -14326,12 +14326,13 @@ namespace action_bucket_compare
          return action_bucket_compare::webclient_mime_document_extensions.find(ext) != string::npos;
     }
 
-    bool nodeIsPhoto(const Node* n, char ext[12])
+    bool nodeIsPhoto(const Node* n, char ext[12], bool checkPreview)
     {
         // evaluate according to the webclient rules, so that we get exactly the same bucketing.
         return action_bucket_compare::webclient_is_image_def.find(ext) != string::npos ||
             action_bucket_compare::webclient_is_image_raw.find(ext) != string::npos ||
-            (action_bucket_compare::webclient_mime_photo_extensions.find(ext) != string::npos && n->hasfileattribute(GfxProc::PREVIEW));
+            (action_bucket_compare::webclient_mime_photo_extensions.find(ext) != string::npos
+                && (!checkPreview || n->hasfileattribute(GfxProc::PREVIEW)));
     }
 
     static bool compare(const Node* a, const Node* b, MegaClient* mc)
@@ -14374,7 +14375,7 @@ bool MegaClient::nodeIsMedia(const Node* n, bool* isphoto, bool* isvideo) const
     char ext[12];
     if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
     {
-        bool a = action_bucket_compare::nodeIsPhoto(n, ext);
+        bool a = action_bucket_compare::nodeIsPhoto(n, ext, true);
         if (isphoto)
         {
             *isphoto = a;
@@ -14403,12 +14404,12 @@ bool MegaClient::nodeIsVideo(const Node* n) const
     return false;
 }
 
-bool MegaClient::nodeIsPhoto(const Node* n) const
+bool MegaClient::nodeIsPhoto(const Node* n, bool checkPreview) const
 {
     char ext[12];
     if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
     {
-        return action_bucket_compare::nodeIsPhoto(n, ext);
+        return action_bucket_compare::nodeIsPhoto(n, ext, checkPreview);
     }
     return false;
 }
