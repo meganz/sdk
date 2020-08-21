@@ -1279,7 +1279,7 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
         {
             // complete the copy/delete operation
             dstime nds = NEVER;
-            sync->client->syncup(parent, &nds);
+            sync->client->syncup(parent, &nds, false);
 
             // check if nodes can be immediately created
             bool immediatecreation = (int) sync->client->synccreate.size() == nc;
@@ -1324,6 +1324,8 @@ LocalNode::LocalNode()
 , created{false}
 , reported{false}
 , checked{false}
+, syncdownTargetedAction(synctree_resolved)
+, syncupTargetedAction(synctree_resolved)
 {}
 
 // initialize fresh LocalNode object - must be called exactly once
@@ -1336,6 +1338,8 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     deleted = false;
     created = false;
     reported = false;
+    syncdownTargetedAction = synctree_resolved;
+    syncupTargetedAction = synctree_resolved;
     syncxfer = true;
     newnode.reset();
     parent_dbid = 0;
@@ -1375,6 +1379,26 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
 
     sync->client->totalLocalNodes++;
     sync->localnodes[type]++;
+}
+
+void LocalNode::needsFutureSyncup()
+{
+    syncupTargetedAction = syncupTargetedAction < synctree_scanhere ? synctree_scanhere : syncupTargetedAction;
+    for (auto p = parent; p != NULL; p = p->parent)
+    {
+        if (p->syncupTargetedAction >= synctree_descendantflagged) break;
+        p->syncupTargetedAction = synctree_descendantflagged;
+    }
+}
+
+void LocalNode::needsFutureSyncdown()
+{
+    syncdownTargetedAction = syncdownTargetedAction < synctree_scanhere ? synctree_scanhere : syncdownTargetedAction;
+    for (auto p = parent; p != NULL; p = p->parent)
+    {
+        if (p->syncdownTargetedAction >= synctree_descendantflagged) break;
+        p->syncdownTargetedAction = synctree_descendantflagged;
+    }
 }
 
 // update treestates back to the root LocalNode, inform app about changes

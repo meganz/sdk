@@ -984,10 +984,12 @@ CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, 
     {
         pa = prevattr;
     }
+    addToNodePendingCommands(n);
 }
 
 bool CommandSetAttr::procresult(Result r)
 {
+    removeFromNodePendingCommands(h, client);
 #ifdef ENABLE_SYNC
     if(r.wasError(API_OK) && syncop)
     {
@@ -1008,6 +1010,15 @@ bool CommandSetAttr::procresult(Result r)
             {
                 client->app->syncupdate_remote_rename(sync, node, pa.c_str());
             }
+        }
+    }
+
+    if (Node* n = client->nodebyhandle(h))
+    {
+        // in case the name of the file/folder changed
+        if (n && n->parent && n->parent->localnode)
+        {
+            n->parent->localnode->needsFutureSyncdown();
         }
     }
 #endif
@@ -1187,6 +1198,17 @@ bool CommandPutNodes::procresult(Result r)
 {
     removePendingDBRecordsAndTempFiles();
 
+#ifdef ENABLE_SYNC
+    if (targethandle != UNDEF)
+    {
+        Node* n = client->nodebyhandle(targethandle);
+        if (n && n->localnode)
+        {
+            n->localnode->needsFutureSyncdown();
+        }
+    }
+#endif
+
     if (r.wasErrorOrOK())
     {
         LOG_debug << "Putnodes error " << r.errorOrOK();
@@ -1199,10 +1221,7 @@ bool CommandPutNodes::procresult(Result r)
         {
             if (r.wasError(API_EACCESS))
             {
-                int creqtag = client->reqtag;
-                client->reqtag = 0;
-                client->sendevent(99402, "API_EACCESS putting node in sync transfer");
-                client->reqtag = creqtag;
+                client->sendevent(99402, "API_EACCESS putting node in sync transfer", 0);
             }
 
             vector<NewNode> emptyVec;
@@ -1340,10 +1359,14 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     tpsk.get(this);
 
     tag = client->reqtag;
+
+    addToNodePendingCommands(n);
 }
 
 bool CommandMoveNode::procresult(Result r)
 {
+    removeFromNodePendingCommands(h, client);
+
     if (r.wasErrorOrOK())
     {
         if (r.wasError(API_EOVERQUOTA))
@@ -1514,6 +1537,9 @@ CommandDelNode::CommandDelNode(MegaClient* client, handle th, bool keepversions,
 
     h = th;
     tag = cmdtag;
+
+    const Node* n = client->nodebyhandle(h);
+    parent = (n && n->parent) ? n->parent->nodehandle : UNDEF;
 }
 
 bool CommandDelNode::procresult(Result r)
@@ -1522,6 +1548,21 @@ bool CommandDelNode::procresult(Result r)
 
     if (r.wasErrorOrOK())
     {
+
+#ifdef ENABLE_SYNC
+        if (r.wasError(API_OK))
+        {
+            if (parent != UNDEF)
+            {
+                Node* n = client->nodebyhandle(parent);
+                if (n && n->localnode)
+                {
+                    n->localnode->needsFutureSyncdown();
+                }
+            }
+        }
+#endif
+
         if (mResultFunction)    mResultFunction(h, e);
         else         client->app->unlink_result(h, e);
         return true;
@@ -1547,6 +1588,17 @@ bool CommandDelNode::procresult(Result r)
                 case EOO:
                     if (mResultFunction)    mResultFunction(h, e);
                     else         client->app->unlink_result(h, e);
+
+#ifdef ENABLE_SYNC
+                    if (parent != UNDEF)
+                    {
+                        Node* n = client->nodebyhandle(parent);
+                        if (n && n->localnode)
+                        {
+                            n->localnode->needsFutureSyncdown();
+                        }
+                    }
+#endif
                     return true;
 
                 default:

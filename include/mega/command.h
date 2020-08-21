@@ -168,6 +168,11 @@ public:
 
     bool checkError(Error &errorDetails, JSON &json);
 
+    void addToNodePendingCommands(handle h, MegaClient* client);
+    void addToNodePendingCommands(Node* n);
+    void removeFromNodePendingCommands(handle h, MegaClient* client);
+    void removeFromNodePendingCommands(Node* n);
+
     MEGA_DEFAULT_COPY_MOVE(Command)
 };
 
@@ -471,6 +476,7 @@ public:
 class MEGA_API CommandDelNode : public Command
 {
     handle h;
+    handle parent;
     std::function<void(handle, error)> mResultFunction;
 
 public:

@@ -498,6 +498,8 @@ public:
 
     // whether we allow the automatic resumption of syncs
     bool allowAutoResumeSyncs = true;
+
+    bool anySyncNeedsTargetedSyncdown();
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
@@ -1337,13 +1339,13 @@ public:
     void syncupdate();
 
     // create missing folders, copy/start uploading missing files
-    bool syncup(LocalNode*, dstime*);
+    bool syncup(LocalNode*, dstime*, bool targetedOnly);
 
     // sync putnodes() completion
     void putnodes_sync_result(error, vector<NewNode>&);
 
     // start downloading/copy missing files, create missing directories
-    bool syncdown(LocalNode*, LocalPath&, bool);
+    bool syncdown(LocalNode * const, LocalPath&, bool targetedOnly);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
     void movetosyncdebris(Node*, bool);
