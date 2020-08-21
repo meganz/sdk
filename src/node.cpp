@@ -1804,8 +1804,8 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->fsid = fsid;
     l->fsid_it = sync->client->fsidnode.end();
 
-    l->localname = LocalPath(std::move(localname));
-    l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(std::move(shortname)));
+    l->localname = LocalPath::fromLocalname(localname);
+    l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromLocalname(shortname)));
     l->slocalname_in_db = 0 != expansionflags[0];
     l->name = l->localname.toName(*sync->client->fsaccess);
 

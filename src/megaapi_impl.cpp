@@ -8634,12 +8634,13 @@ string MegaApiImpl::getLocalPath(MegaNode *n)
         sdkMutex.unlock();
         return string();
     }
-
+        
     string result;
     LocalPath lp;
     node->localnode->getlocalpath(lp, true);
 #if defined(_WIN32)
-    result.swap(wstring2string(lp.getLocalpath()));
+    result.resize(lp.getLocalpath().size() * sizeof(wchar_t) + 1);
+    memcpy(const_cast<char*>(result.data()), lp.getLocalpath().data(), lp.getLocalpath().size() * sizeof(wchar_t));
 #else
     result.swap(lp.getLocalpath());
 #endif

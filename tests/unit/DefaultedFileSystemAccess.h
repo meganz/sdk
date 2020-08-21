@@ -101,10 +101,17 @@ public:
     {
         throw NotImplemented{__func__};
     }
+#if defined(_WIN32)
+    size_t lastpartlocal(const std::wstring*) const override
+    {
+        throw NotImplemented{ __func__ };
+    }
+#endif
     size_t lastpartlocal(const std::string*) const override
     {
-        throw NotImplemented{__func__};
+        throw NotImplemented{ __func__ };
     }
+
     bool getextension(const mega::LocalPath&, char*, size_t) const override
     {
         throw NotImplemented{__func__};

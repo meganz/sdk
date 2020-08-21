@@ -160,11 +160,6 @@ public:
     LocalPath() {}
 
 #if defined(_WIN32)
-    explicit LocalPath::LocalPath(std::string&& s)
-    {
-        std::wstring ws = string2wstring(s);
-        localpath = std::move(ws);
-    }
     void setLocalpath(std::wstring s) { localpath = s; }
     void assign(const wchar_t* ptr, size_t sz) { localpath.assign(ptr, sz); }
 #else 
@@ -197,7 +192,12 @@ public:
     size_t getLeafnameByteIndex(const FileSystemAccess& fsaccess) const;
     bool backEqual(size_t bytePos, const LocalPath& compareTo) const;
     LocalPath subpathFrom(size_t bytePos) const;
+
+#if defined(_WIN32)
+    std::wstring substrTo(size_t bytePos) const;
+#else 
     std::string substrTo(size_t bytePos) const;
+#endif
 
     void ensureWinExtendedPathLenPrefix();
 
@@ -219,13 +219,13 @@ public:
     // for characters that are disallowed on that filesystem.  fsaccess is used to do the conversion.
     static LocalPath fromName(std::string path, const FileSystemAccess& fsaccess, FileSystemType fsType);
 
-    // Create a LocalPath from a string that was already converted to be appropriate for a local file path.
-    static LocalPath fromLocalname(std::string localname);
 #if defined(_WIN32)
+    // Create a LocalPath from a std::wstring that was already converted to be appropriate for a local file path.
     static LocalPath fromLocalname(std::wstring localname);
-#else
-    static LocalPath fromLocalname(std::string localname);
 #endif
+    // Create a LocalPath from a std::string that was already converted to be appropriate for a local file path.
+    static LocalPath fromLocalname(std::string localname);
+
     // Generates a name for a temporary file
     static LocalPath tmpNameLocal(const FileSystemAccess& fsaccess);
 
@@ -542,6 +542,10 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // change working directory
     virtual bool chdirlocal(LocalPath&) const = 0;
 
+#if defined(_WIN32)
+    // locate byte offset of last path component
+    virtual size_t lastpartlocal(const std::wstring*) const = 0;
+#endif
     // locate byte offset of last path component
     virtual size_t lastpartlocal(const string*) const = 0;
 

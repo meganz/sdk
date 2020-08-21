@@ -1256,7 +1256,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                 string utf8newname;
                 client->fsaccess->local2path(&newname, &utf8newname);
                 LOG_warn << "Parent not detected yet. Unknown reminder: " << utf8newname;
-                string parentpath = input_localpath->substrTo(input_localpath->getLocalpath().size() - newname.size() + index);
+                auto parentpath = input_localpath->substrTo(input_localpath->getLocalpath().size() - newname.size() + index);
                 dirnotify->notify(DirNotify::DIREVENTS, l, LocalPath::fromLocalname(parentpath), true);
                 return NULL;
             }

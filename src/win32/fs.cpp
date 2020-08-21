@@ -292,7 +292,7 @@ bool WinFileAccess::asyncavailable()
 void WinFileAccess::asyncsysopen(AsyncIOContext *context)
 {
 #ifndef WINDOWS_PHONE
-    auto path = LocalPath::fromLocalname(string((char *)context->buffer, context->len));
+    auto path = LocalPath::fromLocalname(std::wstring(context->wbuffer, context->len));
     bool read = context->access & AsyncIOContext::ACCESS_READ;
     bool write = context->access & AsyncIOContext::ACCESS_WRITE;
 
@@ -1036,7 +1036,8 @@ bool WinFileSystemAccess::chdirlocal(LocalPath& namePath) const
 #endif
 }
 
-size_t WinFileSystemAccess::lastpartlocal(const string* name) const
+#if defined(_WIN32)
+size_t WinFileSystemAccess::lastpartlocal(const std::wstring* name) const
 {
     for (size_t i = name->size() / sizeof(wchar_t); i--;)
     {
@@ -1050,6 +1051,23 @@ size_t WinFileSystemAccess::lastpartlocal(const string* name) const
 
     return 0;
 }
+#endif
+
+size_t WinFileSystemAccess::lastpartlocal(const std::string* name) const
+{
+    for (size_t i = name->size() / sizeof(wchar_t); i--;)
+    {
+        if (((wchar_t*)name->data())[i] == '\\'
+            || ((wchar_t*)name->data())[i] == '/'
+            || ((wchar_t*)name->data())[i] == ':')
+        {
+            return (i + 1) * sizeof(wchar_t);
+        }
+    }
+
+    return 0;
+}
+
 
 // return lowercased ASCII file extension, including the . separator
 bool WinFileSystemAccess::getextension(const LocalPath& filenamePath, char* extension, size_t size) const
@@ -1344,7 +1362,7 @@ void WinDirNotify::process(DWORD dwBytes)
 #endif
                 }
 #ifdef ENABLE_SYNC
-                notify(DIREVENTS, localrootnode, LocalPath::fromLocalname(std::string((char*)fni->FileName, fni->FileNameLength)));
+                notify(DIREVENTS, localrootnode, LocalPath::fromLocalname(std::wstring((wchar_t*)fni->FileName, fni->FileNameLength)));
 #endif
             }
             else if (SimpleLogger::logCurrentLevel >= logDebug)

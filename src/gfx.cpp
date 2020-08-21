@@ -351,7 +351,7 @@ bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, stri
     }
 
     auto f = client->fsaccess->newfileaccess();
-    auto localpath = LocalPath::fromLocalname(*localdstpath);
+    auto localpath = LocalPath::fromLocalname(string2wstring(*localdstpath));
     client->fsaccess->unlinklocal(localpath);
     if (!f->fopen(localpath, false, true))
     {

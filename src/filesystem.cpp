@@ -858,7 +858,7 @@ bool LocalPath::empty() const
 
 size_t LocalPath::lastpartlocal(const FileSystemAccess& fsaccess) const
 {
-    auto str = wstring2string(localpath);
+    auto str = localpath;
     return fsaccess.lastpartlocal(&str);
 }
 
@@ -1005,11 +1005,7 @@ bool LocalPath::backEqual(size_t bytePos, const LocalPath& compareTo) const
 
 LocalPath LocalPath::subpathFrom(size_t bytePos) const
 {
-#if defined(_WIN32)
-    return LocalPath::fromLocalname(wstring2string(localpath.substr(bytePos)));
-#else
     return LocalPath::fromLocalname(localpath.substr(bytePos));
-#endif
 }
 
 void LocalPath::ensureWinExtendedPathLenPrefix()
@@ -1020,13 +1016,13 @@ void LocalPath::ensureWinExtendedPathLenPrefix()
 #endif
 }
 
-string LocalPath::substrTo(size_t bytePos) const
-{
 #if defined(_WIN32) 
-    return wstring2string(localpath.substr(0, bytePos));
+std::wstring LocalPath::substrTo(size_t bytePos) const
 #else
-    return localpath.substr(0, bytePos);
+string LocalPath::substrTo(size_t bytePos) const
 #endif
+{
+    return localpath.substr(0, bytePos);
 }
 
 string LocalPath::toPath(const FileSystemAccess& fsaccess) const
@@ -1071,19 +1067,14 @@ LocalPath LocalPath::fromPath(const string& path, const FileSystemAccess& fsacce
 LocalPath LocalPath::fromName(string path, const FileSystemAccess& fsaccess, FileSystemType fsType)
 {
     fsaccess.name2local(&path, fsType);
-    return fromLocalname(path);
-}
-
-LocalPath LocalPath::fromLocalname(string path)
-{
-    LocalPath p;
 #if defined(_WIN32)
-    std::wstring wpath = string2wstring(path);
-    p.localpath = std::move(wpath);
-#else
-    p.localpath = std::move(path);
-#endif    
+    LocalPath p;
+    p.localpath.resize(path.size() / sizeof(wchar_t) + 1);
+    memcpy(const_cast<wchar_t*>(p.localpath.data()), path.data(), path.size());
     return p;
+#else
+    return fromLocalname(path);
+#endif
 }
 
 #if defined(_WIN32)
@@ -1093,14 +1084,21 @@ LocalPath LocalPath::fromLocalname(std::wstring wpath)
     p.localpath = std::move(wpath);
     return p;
 }
-#else
+#endif
+
 LocalPath LocalPath::fromLocalname(std::string path)
 {
+#if defined(_WIN32)
+    LocalPath p;
+    p.localpath.resize(path.size() / sizeof(wchar_t) + 1);
+    memcpy(const_cast<wchar_t*>(p.localpath.data()), path.data(), path.size());
+    return p;
+#else
     LocalPath p;
     p.localpath = std::move(path);
     return p;
-}
 #endif
+}
 
 LocalPath LocalPath::tmpNameLocal(const FileSystemAccess& fsaccess)
 {
