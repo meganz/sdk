@@ -14550,7 +14550,23 @@ class MegaApi
         MegaNodeList* searchOnPublicLinks(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
 
         /**
-         * @brief Search nodes containing a search string in their name and allow to filter by the type of the node
+         * @brief Allow to search nodes with the following options:
+         * - Search given a parent node of the tree to explore, or on the contrary search in a
+         *   specific target (root nodes, inshares, outshares, public links)
+         * - Search recursively
+         * - Containing a search string in their name
+         * - Filter by the type of the node
+         * - Order the returned list
+         *
+         * If node is provided, it will be the parent node of the tree to explore,
+         * search string and/or nodeType can be added to search parameters
+         *
+         * If node and searchString are not provided, and node type is not valid, this method will
+         * return an empty list.
+         *
+         * If parameter type is different of MegaApi::NODE_UNKNOWN, the following values for parameter
+         * order are invalid: MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
+         * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
          *
          * The search is case-insensitive. If the search string is not provided but type has any value
          * defined at MegaApi::nodefiletype_t (except MegaApi::NODE_UNKNOWN),
@@ -14561,9 +14577,6 @@ class MegaApi
          * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
          * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
          * this method returns.
-         *
-         * Note that if parameter type is different of MegaApi::NODE_UNKNOWN, the following values for parameter order are invalid:
-         * - MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC, MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
          *
          * @param node The parent node of the tree to explore
          * @param searchString Search string. The search is case-insensitive
@@ -14628,6 +14641,14 @@ class MegaApi
          * - MegaApi::NODE_AUDIO = 2
          * - MegaApi::NODE_VIDEO = 3
          * - MegaApi::NODE_DOCUMENT = 4
+         *
+         * @param target Target type where this method will search
+         * Valid values for this parameter are
+         * - TARGET_INSHARE = 0
+         * - TARGET_OUTSHARE = 1
+         * - TARGET_PUBLICLINK = 2
+         * - TARGET_ROOTNODES = 3
+         * - TARGET_ALL = 4
          *
          * @return List of nodes that match with the search parameters
          */
