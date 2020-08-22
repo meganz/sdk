@@ -403,10 +403,10 @@ struct MEGA_API LocalNode : public File
 
     };
 
-    // set the syncupPartialAction for this, and parents
+    // set the syncupTargetedAction for this, and parents
     void needsFutureSyncup();
 
-    // set the syncupPartialAction for this, and parents
+    // set the syncdownTargetedAction for this, and parents
     void needsFutureSyncdown();
 
     // current subtree sync state: current and displayed

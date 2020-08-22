@@ -1279,7 +1279,7 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
         {
             // complete the copy/delete operation
             dstime nds = NEVER;
-            sync->client->syncup(parent, &nds, false);
+            sync->client->syncup(parent, &nds, true);
 
             // check if nodes can be immediately created
             bool immediatecreation = (int) sync->client->synccreate.size() == nc;

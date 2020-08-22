@@ -1321,7 +1321,7 @@ bool CommandPutNodes::procresult(Result r)
                 // A node has been added by a regular (non sync) putnodes
                 // inside a synced folder, so force a syncdown to detect
                 // and sync the changes.
-                client->syncdownrequired = true;
+                client->setAllSyncsNeedSyncdown();
             }
         }
 #endif

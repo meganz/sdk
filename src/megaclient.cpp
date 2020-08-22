@@ -1115,8 +1115,6 @@ void MegaClient::init()
     syncnagleretry = false;
     syncextraretry = false;
     syncsup = true;
-    syncdownrequired = false;
-    syncuprequired = false;
 
     if (syncscanstate)
     {
@@ -1368,6 +1366,22 @@ bool MegaClient::anySyncNeedsTargetedSyncdown()
         }
     }
     return false;
+}
+
+void MegaClient::setAllSyncsNeedSyncdown()
+{
+    for (Sync* sync : syncs)
+    {
+        sync->localroot->syncdownTargetedAction = LocalNode::synctree_scanhere;
+    }
+}
+
+void MegaClient::setAllSyncsNeedSyncup()
+{
+    for (Sync* sync : syncs)
+    {
+        sync->localroot->syncupTargetedAction = LocalNode::synctree_scanhere;
+    }
 }
 
 // nonblocking state machine executing all operations currently in progress
@@ -2217,14 +2231,13 @@ void MegaClient::exec()
                         << " statecurrent=" << statecurrent
                         << " syncadding=" << syncadding
                         << " syncactivity=" << syncactivity
-                        << " syncdownrequired=" << syncdownrequired
                         << " anySyncNeedsTargetedSyncdown=" << anySyncNeedsTargetedSyncdown()
                         << " syncdownretry=" << syncdownretry;
         }
 
         // do not process the SC result until all preconfigured syncs are up and running
         // except if SC packets are required to complete a fetchnodes
-        if (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !(syncdownrequired || anySyncNeedsTargetedSyncdown()) && !syncdownretry)
+        if (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !anySyncNeedsTargetedSyncdown() && !syncdownretry)
 #else
         if (!scpaused && jsonsc.pos)
 #endif
@@ -2242,7 +2255,7 @@ void MegaClient::exec()
             else
             {
                 // remote changes require immediate attention of syncdown()
-                syncdownrequired = true;
+                setAllSyncsNeedSyncdown();
                 syncactivity = true;
             }
 #endif
@@ -2432,7 +2445,7 @@ void MegaClient::exec()
             {
                 syncsup = true;
                 syncactivity = true;
-                syncdownrequired = true;
+                setAllSyncsNeedSyncdown();
             }
         }
 
@@ -2466,7 +2479,7 @@ void MegaClient::exec()
         // halt all syncing while the local filesystem is pending a lock-blocked operation
         // or while we are fetching nodes
         // FIXME: indicate by callback
-        if (!syncdownretry && !syncadding && statecurrent && !(syncdownrequired || anySyncNeedsTargetedSyncdown()) && !fetchingnodes)
+        if (!syncdownretry && !syncadding && statecurrent && !anySyncNeedsTargetedSyncdown() && !fetchingnodes)
         {
             // process active syncs, stop doing so while transient local fs ops are pending
             if (syncs.size() || syncactivity)
@@ -2584,7 +2597,7 @@ void MegaClient::exec()
                                         if (!syncadding)
                                         {
                                             LOG_debug << "Running syncup to create missing folders";
-                                            syncup(sync->localroot.get(), &nds, false);
+                                            syncup(sync->localroot.get(), &nds, true);
                                             sync->cachenodes();
                                         }
 
@@ -2680,7 +2693,7 @@ void MegaClient::exec()
                 if (prevpending && !totalpending)
                 {
                     LOG_debug << "Scan queue processed, triggering a scan";
-                    syncdownrequired = true;
+                    setAllSyncsNeedSyncdown();
                 }
 
                 notifypurge();
@@ -2747,18 +2760,19 @@ void MegaClient::exec()
                             bool syncupdone = false;
                             for (Sync* sync : syncs)
                             {
-                                bool targetedSyncup = !syncuprequired && (sync->localroot->syncupTargetedAction != LocalNode::synctree_resolved);
-
                                 if ((sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
-                                 && !syncadding && (syncuprequired || targetedSyncup) && !syncnagleretry)
+                                 && !syncadding && (sync->localroot->syncupTargetedAction != LocalNode::synctree_resolved) && !syncnagleretry)
                                 {
                                     LOG_debug << "Running syncup on demand";
-                                    repeatsyncup |= !syncup(sync->localroot.get(), &nds, targetedSyncup);
+                                    repeatsyncup |= !syncup(sync->localroot.get(), &nds, true);
                                     syncupdone = true;
                                     sync->cachenodes();
                                 }
                             }
-                            syncuprequired = !syncupdone || repeatsyncup;
+                            if (!syncupdone || repeatsyncup)
+                            {
+                                setAllSyncsNeedSyncup();
+                            }
 
                             if (EVER(nds))
                             {
@@ -2768,7 +2782,7 @@ void MegaClient::exec()
                                 }
 
                                 syncnagleretry = true;
-                                syncuprequired = true;
+                                setAllSyncsNeedSyncup();
                             }
 
                             // delete files that were overwritten by folders in syncup()
@@ -2869,13 +2883,11 @@ void MegaClient::exec()
             if (syncdownretry && syncdownbt.armed())
             {
                 syncdownretry = false;
-                syncdownrequired = true;
+                setAllSyncsNeedSyncdown();
             }
 
-            if (syncdownrequired || anySyncNeedsTargetedSyncdown())
+            if (anySyncNeedsTargetedSyncdown())
             {
-                bool targetedSyncdown = !syncdownrequired;
-                syncdownrequired = false;
                 if (!fetchingnodes)
                 {
                     LOG_verbose << "Running syncdown";
@@ -2895,7 +2907,7 @@ void MegaClient::exec()
                             if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
                             {
                                 LOG_debug << "Running syncdown on demand";
-                                if (!syncdown(sync->localroot.get(), localpath, targetedSyncdown))
+                                if (!syncdown(sync->localroot.get(), localpath, false))
                                 {
                                     // a local filesystem item was locked - schedule periodic retry
                                     // and force a full rescan afterwards as the local item may
@@ -2912,7 +2924,7 @@ void MegaClient::exec()
                     // notify the app if a lock is being retried
                     if (success)
                     {
-                        syncuprequired = true;
+                        setAllSyncsNeedSyncup();
                         syncdownretry = false;
                         syncactivity = true;
 
@@ -3053,7 +3065,7 @@ int MegaClient::preparewait()
 #ifdef ENABLE_SYNC
     // sync directory scans in progress or still processing sc packet without having
     // encountered a locally locked item? don't wait.
-    if (syncactivity || syncdownrequired || (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownretry))
+    if (syncactivity || anySyncNeedsTargetedSyncdown() || (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownretry))
     {
         nds = Waiter::ds;
     }
@@ -3165,7 +3177,7 @@ int MegaClient::preparewait()
 
         // retrying of transient failed read ops
         if (syncfslockretry && !syncdownretry && !syncadding
-                && statecurrent && !syncdownrequired && !syncfsopsfailed)
+                && statecurrent && !anySyncNeedsTargetedSyncdown() && !syncfsopsfailed)
         {
             LOG_debug << "Waiting for a temporary error checking filesystem notification";
             syncfslockretrybt.update(&nds);
@@ -12580,14 +12592,14 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
 // * attempt to execute renames, moves and deletions (deletions require the
 // rubbish flag to be set)
 // returns false if any local fs op failed transiently
-bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool targetedOnly)
+bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWholeSubtree)
 {
-    if (targetedOnly && l->syncdownTargetedAction == LocalNode::synctree_resolved)
+    if (!scanWholeSubtree && l->syncdownTargetedAction == LocalNode::synctree_resolved)
     {
         return true;
     }
 
-    bool processHere = !targetedOnly || l->syncdownTargetedAction == LocalNode::synctree_scanhere;
+    scanWholeSubtree = scanWholeSubtree || l->syncdownTargetedAction == LocalNode::synctree_scanhere;
 
     auto originalTargetedAction =  l->syncdownTargetedAction;
     l->syncdownTargetedAction = LocalNode::synctree_resolved;
@@ -12726,7 +12738,7 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool target
                 }
 
                 // recurse into directories of equal name
-                if (!syncdown(ll, localpath, targetedOnly))
+                if (!syncdown(ll, localpath, scanWholeSubtree))
                 {
                     l->syncdownTargetedAction = std::max<int>(originalTargetedAction, LocalNode::synctree_descendantflagged);
                     success = false;
@@ -12783,7 +12795,7 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool target
         }
     }
 
-    if (!processHere)
+    if (!scanWholeSubtree)
     {
         return success;
     }
@@ -12912,7 +12924,7 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool target
                         ll->setnode(rit->second);
                         ll->sync->statecacheadd(ll);
 
-                        if (!syncdown(ll, localpath, targetedOnly))
+                        if (!syncdown(ll, localpath, true))
                         {
                             if (success)
                             {
@@ -12953,14 +12965,14 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool target
 // if attached to an existing node
 // l and n are assumed to be folders and existing on both sides or scheduled
 // for creation
-bool MegaClient::syncup(LocalNode* l, dstime* nds, bool targetedOnly)
+bool MegaClient::syncup(LocalNode* l, dstime* nds, bool scanWholeSubtree)
 {
-    if (targetedOnly && l->syncupTargetedAction == LocalNode::synctree_resolved)
+    if (!scanWholeSubtree && l->syncupTargetedAction == LocalNode::synctree_resolved)
     {
         return true;
     }
 
-    bool processHere = !targetedOnly || l->syncupTargetedAction == LocalNode::synctree_scanhere;
+    scanWholeSubtree = scanWholeSubtree || l->syncupTargetedAction == LocalNode::synctree_scanhere;
 
     auto originalTargetedAction =  l->syncupTargetedAction;
     l->syncupTargetedAction = LocalNode::synctree_resolved;
@@ -13259,7 +13271,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, bool targetedOnly)
                     }
 
                     // recurse into directories of equal name
-                    if (!syncup(ll, nds, targetedOnly))
+                    if (!syncup(ll, nds, scanWholeSubtree))
                     {
                         l->syncupTargetedAction = originalTargetedAction;
                         return false;
@@ -13269,7 +13281,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, bool targetedOnly)
             }
         }
 
-        if (!processHere)
+        if (!scanWholeSubtree)
         {
             return true;
         }
@@ -13476,7 +13488,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, bool targetedOnly)
 
         if (ll->type == FOLDERNODE)
         {
-            if (!syncup(ll, nds, targetedOnly))
+            if (!syncup(ll, nds, true))
             {
                 l->syncupTargetedAction = originalTargetedAction;
                 return false;

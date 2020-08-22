@@ -1507,7 +1507,7 @@ void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1
     auto totalTimeoutStart = chrono::steady_clock::now();
     auto start = chrono::steady_clock::now();
     std::vector<StandardClient*> v{ c1, c2, c3, c4 };
-    bool onelastsyncdown = true;
+//    bool onelastsyncdown = true;
     for (;;)
     {
         bool any_add_del = false;
@@ -1548,12 +1548,12 @@ void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1
             start = chrono::steady_clock::now();
         }
 
-        if (onelastsyncdown && (chrono::steady_clock::now() - start + d/2) > d)
-        {
-            // synced folders that were removed remotely don't have the corresponding local folder removed unless we prompt an extra syncdown.  // todo:  do we need to fix
-            for (auto vn : v) if (vn) vn->client.syncdownrequired = true;
-            onelastsyncdown = false;
-        }
+        //if (onelastsyncdown && (chrono::steady_clock::now() - start + d/2) > d)
+        //{
+        //    // synced folders that were removed remotely don't have the corresponding local folder removed unless we prompt an extra syncdown.  // todo:  do we need to fix
+        //    for (auto vn : v) if (vn) vn->client.syncdownrequired = true;
+        //    onelastsyncdown = false;
+        //}
 
         for (auto vn : v) if (vn)
         {

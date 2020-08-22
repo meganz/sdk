@@ -22128,7 +22128,7 @@ void MegaApiImpl::update()
     LOG_debug << "PendingCS? " << (client->pendingcs != NULL);
     LOG_debug << "PendingFA? " << client->activefa.size() << " active, " << client->queuedfa.size() << " queued";
     LOG_debug << "FLAGS: " << client->syncactivity
-              << " " << client->syncdownrequired << " " << client->syncdownretry
+              << " " << client->anySyncNeedsTargetedSyncdown() << " " << client->syncdownretry
               << " " << client->syncfslockretry << " " << client->syncfsopsfailed
               << " " << client->syncnagleretry << " " << client->syncscanfailed
               << " " << client->syncops << " " << client->syncscanstate
