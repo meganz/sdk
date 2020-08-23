@@ -1040,13 +1040,13 @@ bool WinFileSystemAccess::chdirlocal(LocalPath& namePath) const
 #if defined(_WIN32)
 size_t WinFileSystemAccess::lastpartlocal(const std::wstring* name) const
 {
-    for (size_t i = name->size() / sizeof(wchar_t); i--;)
+    for (size_t i = name->size(); i--;)
     {
-        if (((wchar_t*)name->data())[i] == '\\'
-                || ((wchar_t*)name->data())[i] == '/'
-                || ((wchar_t*)name->data())[i] == ':')
+        if ((name->data())[i] == '\\'
+            || (name->data())[i] == '/'
+            || (name->data())[i] == ':')
         {
-            return (i + 1) * sizeof(wchar_t);
+            return (i + 1);
         }
     }
 
