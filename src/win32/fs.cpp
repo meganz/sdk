@@ -645,7 +645,7 @@ WinFileSystemAccess::WinFileSystemAccess()
     notifyerr = false;
     notifyfailed = false;
 
-    localseparator.assign((const wchar_t*)L"\\", sizeof(wchar_t));
+    localseparator = L"\\";
 }
 
 WinFileSystemAccess::~WinFileSystemAccess()
@@ -658,7 +658,7 @@ int WinFileSystemAccess::sanitizedriveletter(std::wstring& localpath)
 {
     if (localpath.size() > sizeof(wchar_t) && !memcmp(localpath.c_str() + localpath.size() - sizeof(wchar_t), (const wchar_t*)L":", sizeof(wchar_t)))
     {
-        localpath.append((const wchar_t*)L"\\", sizeof(wchar_t));
+        localpath.append((const wchar_t*)L"\\");
         return sizeof(wchar_t);
     }
 
@@ -734,8 +734,13 @@ void WinFileSystemAccess::local2path(const string* local, string* path) const
 
 void WinFileSystemAccess::local2path(const std::wstring* local, string* path) const
 {
-    wstring2string_utf16(*path, *local);
-    path->append("", 1);
+    path->resize(local->size());
+
+    path->resize(WideCharToMultiByte(CP_UTF8, 0, local->data(), 
+                                     int(local->size()),
+                                     (char*)path->data(),
+                                     int(path->size() + 1),
+                                     NULL, NULL));
     normalize(path);
 }
 
@@ -1658,7 +1663,7 @@ bool WinDirAccess::dopen(LocalPath* nameArg, FileAccess* f, bool glob)
     {
         if (!glob)
         {
-            nameArg->localpath.append((const wchar_t*)L"\\*", 5); //TODO:why 5?
+            nameArg->localpath.append((const wchar_t*)L"\\*"); //TODO:why 5?
         }
 
 #ifdef WINDOWS_PHONE
