@@ -36,12 +36,6 @@
 
 namespace mega {
 
-// interval to calculate the mean speed (ds)
-const int SpeedController::SPEED_MEAN_INTERVAL_DS = 50;
-
-// max time to calculate the mean speed
-const int SpeedController::SPEED_MAX_VALUES = 10000;
-
 // data receive timeout (ds)
 const int HttpIO::NETWORKTIMEOUT = 6000;
 
@@ -773,57 +767,83 @@ m_off_t HttpReqUL::transferred(MegaClient* client)
 
 SpeedController::SpeedController()
 {
-    partialBytes = 0;
-    meanSpeed = 0;
-    lastUpdate = 0;
-    speedCounter = 0;
+    memset(mCircularBuf.data(), 0, sizeof(mCircularBuf));
+}
+
+void SpeedController::requestStarted()
+{
+    mRequestPos = 0;
+    mRequestStart = mLastRequestUpdate = Waiter::ds;
+}
+
+m_off_t SpeedController::requestProgressed(m_off_t newPos)
+{
+    if (newPos > mRequestPos)
+    {
+        m_off_t delta = newPos - mRequestPos;
+        calculateSpeed(delta);
+        mRequestPos = newPos;
+        mLastRequestUpdate = Waiter::ds;
+        return delta;
+    }
+    return 0;
+}
+
+m_off_t SpeedController::lastRequestSpeed()
+{
+    dstime deltaDs = mLastRequestUpdate - mRequestStart;
+    return mRequestPos * 10 / (deltaDs ? deltaDs : 1);
+}
+
+dstime SpeedController::requestElapsedDs()
+{
+    return Waiter::ds - mRequestStart;
 }
 
 m_off_t SpeedController::calculateSpeed(long long numBytes)
 {
     dstime currentTime = Waiter::ds;
-    if (numBytes <= 0 && lastUpdate == currentTime)
+    if (numBytes <= 0 && mLastCalcTime == currentTime)
     {
-        return (partialBytes * 10) / SPEED_MEAN_INTERVAL_DS;
+        return (mCircularCurrentSum * 10) / SPEED_MEAN_MAX_INTERVAL_DS;
     }
 
-    while (transferBytes.size())
+    for (int i = SPEED_MEAN_MAX_INTERVAL_DS; i--; )
     {
-        map<dstime, m_off_t>::iterator it = transferBytes.begin();
-        dstime deltaTime = currentTime - it->first;
-        if (deltaTime < SPEED_MEAN_INTERVAL_DS)
+        if (mCircularCurrentTime < currentTime)
         {
-            break;
+            ++mCircularCurrentTime;
+            if (++mCircularCurrentIndex == SPEED_MEAN_MAX_INTERVAL_DS)
+                mCircularCurrentIndex = 0;
+            mCircularCurrentSum -= mCircularBuf[mCircularCurrentIndex];
+            mCircularBuf[mCircularCurrentIndex] = 0;
         }
-
-        partialBytes -= it->second;
-        transferBytes.erase(it);
+        else
+            break;
     }
 
-    if (numBytes > 0)
-    {
-        transferBytes[currentTime] += numBytes;
-        partialBytes += numBytes;
-    }
+    mCircularCurrentTime = currentTime;
+    mCircularBuf[mCircularCurrentIndex] += numBytes;
+    mCircularCurrentSum += numBytes;
 
-    m_off_t speed = (partialBytes * 10) / SPEED_MEAN_INTERVAL_DS;
+    m_off_t speed = (mCircularCurrentSum * 10) / SPEED_MEAN_MAX_INTERVAL_DS;
+    
     if (numBytes)
     {
-        meanSpeed = meanSpeed * speedCounter + speed;
-        speedCounter++;
-        meanSpeed /= speedCounter;
-        if (speedCounter > SPEED_MAX_VALUES)
-        {
-            speedCounter = SPEED_MAX_VALUES;
-        }
+        if (!mMeanSpeedStart)
+            mMeanSpeedStart = currentTime;
+        dstime delta = currentTime - mMeanSpeedStart;
+        mMeanSpeedSum += numBytes;
+        mMeanSpeed = delta ? (mMeanSpeedSum * 10 / delta) : mMeanSpeedSum;
     }
-    lastUpdate = currentTime;
+    mLastCalcTime = currentTime;
+    
     return speed;
 }
 
 m_off_t SpeedController::getMeanSpeed()
 {
-    return meanSpeed;
+    return mMeanSpeed;
 }
 
 GenericHttpReq::GenericHttpReq(PrnGen &rng, bool binary)

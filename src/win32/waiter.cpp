@@ -25,26 +25,9 @@
 namespace mega {
 dstime Waiter::ds;
 
-#ifndef WINDOWS_PHONE
-PGTC pGTC;
-static ULONGLONG tickhigh;
-static DWORD prevt;
-#endif
-
 WinWaiter::WinWaiter()
 {
 #ifndef WINDOWS_PHONE
-    if (!pGTC) 
-    {
-        #pragma warning(suppress:4191)
-        pGTC = (PGTC)GetProcAddress(GetModuleHandle(TEXT("kernel32.dll")), "GetTickCount64");
-    }
-
-    if (!pGTC)
-    {
-        tickhigh = 0;
-        prevt = 0;
-    }
     externalEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 #else
     externalEvent = CreateEventEx(NULL, NULL, 0, EVENT_ALL_ACCESS);
@@ -61,28 +44,7 @@ WinWaiter::~WinWaiter()
 // FIXME: restore thread safety for applications using multiple MegaClient objects
 void Waiter::bumpds()
 {
-#ifdef WINDOWS_PHONE
 	ds = dstime(GetTickCount64() / 100);
-#else
-    if (pGTC)
-    {
-        ds = dstime(pGTC() / 100);
-    }
-    else
-    {
-        // emulate GetTickCount64() on XP
-        DWORD t = GetTickCount();
-
-        if (t < prevt)
-        {
-            tickhigh += 0x100000000;
-        }
-
-        prevt = t;
-
-        ds = dstime((t + tickhigh) / 100);
-    }
-#endif
 }
 
 // wait for events (socket, I/O completion, timeout + application events)
@@ -92,8 +54,6 @@ void Waiter::bumpds()
 // network layer)
 int WinWaiter::wait()
 {
-    int r = 0;
-
     // only allow interaction of asynccallback() with the main process while
     // waiting (because WinHTTP is threaded)
     if (pcsHTTP)
@@ -101,32 +61,43 @@ int WinWaiter::wait()
         LeaveCriticalSection(pcsHTTP);
     }
 
+    int r = 0;
     addhandle(externalEvent, NEEDEXEC);
-    DWORD dwWaitResult = WaitForMultipleObjectsEx((DWORD)index, &handles.front(), FALSE, maxds * 100, TRUE);
+
+    if (index <= MAXIMUM_WAIT_OBJECTS)
+    {
+        DWORD dwWaitResult = WaitForMultipleObjectsEx((DWORD)index, &handles.front(), FALSE, maxds * 100, TRUE);
+        assert(dwWaitResult != WAIT_FAILED);
+
+#ifdef MEGA_MEASURE_CODE
+        if (dwWaitResult == WAIT_TIMEOUT && maxds > 0) ++performanceStats.waitTimedoutNonzero;
+        else if (dwWaitResult == WAIT_TIMEOUT && maxds == 0) ++performanceStats.waitTimedoutZero;
+        else if (dwWaitResult == WAIT_IO_COMPLETION) ++performanceStats.waitIOCompleted;
+        else if (dwWaitResult >= WAIT_OBJECT_0) ++performanceStats.waitSignalled;
+#endif
+
+        if ((dwWaitResult == WAIT_TIMEOUT) || (dwWaitResult == WAIT_IO_COMPLETION) || maxds == 0 || (dwWaitResult == WAIT_FAILED))
+        {
+            r |= NEEDEXEC;
+        }
+        if ((dwWaitResult >= WAIT_OBJECT_0) && (dwWaitResult < WAIT_OBJECT_0 + flags.size()))
+        {
+            r |= flags[dwWaitResult - WAIT_OBJECT_0];
+        }
+    }
+    else
+    {
+        assert(false); // alert developers that we're hitting the limit
+        r |= NEEDEXEC;
+    }
+
+    index = 0;
+
 
     if (pcsHTTP)
     {
         EnterCriticalSection(pcsHTTP);
     }
-
-#ifdef MEGA_MEASURE_CODE
-    if (dwWaitResult == WAIT_TIMEOUT && maxds > 0) ++performanceStats.waitTimedoutNonzero;
-    else if (dwWaitResult == WAIT_TIMEOUT && maxds == 0) ++performanceStats.waitTimedoutZero;
-    else if (dwWaitResult == WAIT_IO_COMPLETION) ++performanceStats.waitIOCompleted;
-    else if (dwWaitResult >= WAIT_OBJECT_0) ++performanceStats.waitSignalled;
-#endif
-
-    if ((dwWaitResult == WAIT_TIMEOUT) || (dwWaitResult == WAIT_IO_COMPLETION) || maxds == 0)
-    {
-        r = NEEDEXEC;
-    }
-    if ((dwWaitResult >= WAIT_OBJECT_0) && (dwWaitResult < WAIT_OBJECT_0 + flags.size()))
-    {
-        r |= flags[dwWaitResult - WAIT_OBJECT_0];
-    }
-
-    index = 0;
-
     return r;
 }
 
@@ -135,6 +106,15 @@ int WinWaiter::wait()
 bool WinWaiter::addhandle(HANDLE handle, int flag)
 {
     assert(handles.size() == flags.size() && handles.size() >= index);
+
+#ifdef DEBUG
+    for (unsigned i = index; i--; )
+    {
+        // double check we only add one of each handle
+        assert(handles[i] != handle);
+    }
+#endif
+
     if (index < handles.size())
     {
         handles[index] = handle;

@@ -417,41 +417,55 @@ struct StandardClient : public MegaApp
     static mutex om;
     bool logcb = false;
     chrono::steady_clock::time_point lastcb = std::chrono::steady_clock::now();
+
     string lp(LocalNode* ln) { return ln->getLocalPath().toName(*client.fsaccess, FS_UNKNOWN); }
-    void syncupdate_state(Sync*, syncstate_t state) override { if (logcb) { lock_guard<mutex> g(om);  cout << clientname << " syncupdate_state() " << state << endl; } }
-    void syncupdate_scanning(bool b) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_scanning()" << b << endl; } }
-    //void syncupdate_local_folder_addition(Sync* s, LocalNode* ln, const char* cp) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_folder_addition() " << lp(ln) << " " << cp << endl; }}
-    //void syncupdate_local_folder_deletion(Sync*, LocalNode* ln) override { if (logcb) { lock_guard<mutex> g(om);  cout << clientname << " syncupdate_local_folder_deletion() " << lp(ln) << endl; }}
-    void syncupdate_local_folder_addition(Sync*, LocalNode* ln, const char* cp) override { lastcb = chrono::steady_clock::now(); }
-    void syncupdate_local_folder_deletion(Sync*, LocalNode* ln) override { lastcb = chrono::steady_clock::now(); }
-    void syncupdate_local_file_addition(Sync*, LocalNode* ln, const char* cp) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_file_addition() " << lp(ln) << " " << cp << endl; }}
-    void syncupdate_local_file_deletion(Sync*, LocalNode* ln) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_file_deletion() " << lp(ln) << endl; }}
-    void syncupdate_local_file_change(Sync*, LocalNode* ln, const char* cp) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_file_change() " << lp(ln) << " " << cp << endl; }}
-    void syncupdate_local_move(Sync*, LocalNode* ln, const char* cp) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_move() " << lp(ln) << " " << cp << endl; }}
-    void syncupdate_local_lockretry(bool b) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_lockretry() " << b << endl; }}
-    //void syncupdate_get(Sync*, Node* n, const char* cp) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_get()" << n->displaypath() << " " << cp << endl; }}
-    void syncupdate_put(Sync*, LocalNode* ln, const char* cp) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_put()" << lp(ln) << " " << cp << endl; }}
-    //void syncupdate_remote_file_addition(Sync*, Node* n) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_remote_file_addition() " << n->displaypath() << endl; }}
-    //void syncupdate_remote_file_deletion(Sync*, Node* n) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_remote_file_deletion() " << n->displaypath() << endl; }}
-    //void syncupdate_remote_folder_addition(Sync*, Node* n) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_remote_folder_addition() " << n->displaypath() << endl; }}
-    //void syncupdate_remote_folder_deletion(Sync*, Node* n) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_remote_folder_deletion() " << n->displaypath() << endl; }}
-    void syncupdate_remote_folder_addition(Sync*, Node* n) override { lastcb = chrono::steady_clock::now(); }
-    void syncupdate_remote_folder_deletion(Sync*, Node* n) override { lastcb = chrono::steady_clock::now(); }
-    void syncupdate_remote_copy(Sync*, const char* cp) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_remote_copy() " << cp << endl; }}
-    //void syncupdate_remote_move(Sync*, Node* n1, Node* n2) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_remote_move() " << n1->displaypath() << " " << n2->displaypath() << endl; }}
-    //void syncupdate_remote_rename(Sync*, Node* n, const char* cp) override { if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_remote_rename() " << n->displaypath() << " " << cp << endl; }}
-    //void syncupdate_treestate(LocalNode* ln) override { if (logcb) { lock_guard<mutex> g(om);   cout << clientname << " syncupdate_treestate() " << ln->ts << " " << ln->dts << " " << lp(ln) << endl; }}
 
+    void onCallback() { lastcb = chrono::steady_clock::now(); };
 
-    
+    void syncupdate_state(Sync*, syncstate_t state) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  cout << clientname << " syncupdate_state() " << state << endl; } }
+    void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); cout << clientname << " syncupdate_scanning()" << b << endl; } }
+    //void syncupdate_local_folder_addition(Sync* s, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_folder_addition() " << lp(ln) << " " << cp << endl; }}
+    //void syncupdate_local_folder_deletion(Sync*, LocalNode* ln) override { if (logcb) { onCallback(); lock_guard<mutex> g(om);  cout << clientname << " syncupdate_local_folder_deletion() " << lp(ln) << endl; }}
+    void syncupdate_local_folder_addition(Sync*, LocalNode* ln, const char* cp) override { onCallback(); }
+    void syncupdate_local_folder_deletion(Sync*, LocalNode* ln) override { onCallback(); }
+    void syncupdate_local_file_addition(Sync*, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_file_addition() " << lp(ln) << " " << cp << endl; }}
+    void syncupdate_local_file_deletion(Sync*, LocalNode* ln) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_file_deletion() " << lp(ln) << endl; }}
+    void syncupdate_local_file_change(Sync*, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_file_change() " << lp(ln) << " " << cp << endl; }}
+    void syncupdate_local_move(Sync*, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_move() " << lp(ln) << " " << cp << endl; }}
+    void syncupdate_local_lockretry(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); cout << clientname << " syncupdate_local_lockretry() " << b << endl; }}
+    //void syncupdate_get(Sync*, Node* n, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_get()" << n->displaypath() << " " << cp << endl; }}
+    void syncupdate_put(Sync*, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_put()" << lp(ln) << " " << cp << endl; }}
+    void syncupdate_remote_file_addition(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_remote_file_addition() " << n->displaypath() << endl; }}
+    void syncupdate_remote_file_deletion(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_remote_file_deletion() " << n->displaypath() << endl; }}
+    //void syncupdate_remote_folder_addition(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_remote_folder_addition() " << n->displaypath() << endl; }}
+    //void syncupdate_remote_folder_deletion(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_remote_folder_deletion() " << n->displaypath() << endl; }}
+    void syncupdate_remote_folder_addition(Sync*, Node* n) override { onCallback(); }
+    void syncupdate_remote_folder_deletion(Sync*, Node* n) override { onCallback(); }
+    void syncupdate_remote_copy(Sync*, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_remote_copy() " << cp << endl; }}
+    void syncupdate_remote_move(Sync*, Node* n1, Node* n2) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_remote_move() " << n1->displaypath() << " " << n2->displaypath() << endl; }}
+    void syncupdate_remote_rename(Sync*, Node* n, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); cout << clientname << " syncupdate_remote_rename() " << n->displaypath() << " " << cp << endl; }}
+    //void syncupdate_treestate(LocalNode* ln) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);   cout << clientname << " syncupdate_treestate() " << ln->ts << " " << ln->dts << " " << lp(ln) << endl; }}
+
+    bool sync_syncable(Sync* sync, const char* name, LocalPath& path, Node*) override
+    {
+        return sync_syncable(sync, name, path);
+    }
+
+    bool sync_syncable(Sync*, const char*, LocalPath&) override
+    {
+        onCallback();
+
+        return true;
+    }
+
     std::atomic<unsigned> transfersAdded{0}, transfersRemoved{0}, transfersPrepared{0}, transfersFailed{0}, transfersUpdated{0}, transfersComplete{0};
-    void transfer_added(Transfer*) override { ++transfersAdded; }
-    void transfer_removed(Transfer*) override { ++transfersRemoved; }
-    void transfer_prepare(Transfer*) override { ++transfersPrepared; }
-    void transfer_failed(Transfer*,  const Error&, dstime = 0) override { ++transfersFailed; }
-    void transfer_update(Transfer*) override { ++transfersUpdated; }
-    void transfer_complete(Transfer*) override { ++transfersComplete; }
 
+    void transfer_added(Transfer*) override { onCallback(); ++transfersAdded; }
+    void transfer_removed(Transfer*) override { onCallback(); ++transfersRemoved; }
+    void transfer_prepare(Transfer*) override { onCallback(); ++transfersPrepared; }
+    void transfer_failed(Transfer*,  const Error&, dstime = 0) override { onCallback(); ++transfersFailed; }
+    void transfer_update(Transfer*) override { onCallback(); ++transfersUpdated; }
+    void transfer_complete(Transfer*) override { onCallback(); ++transfersComplete; }
 
     void threadloop()
         try
@@ -1069,11 +1083,11 @@ struct StandardClient : public MegaApp
             std::vector<uint8_t> buffer;
             std::ifstream istream(p, ios::binary);
 
-            buffer.reserve(mn->data.size());
+            buffer.resize(mn->data.size());
 
             istream.read(reinterpret_cast<char *>(buffer.data()), buffer.capacity());
 
-            if (static_cast<size_t>(istream.gcount()) != buffer.capacity()
+            if (static_cast<size_t>(istream.gcount()) != buffer.size()
                 || !std::equal(mn->data.begin(), mn->data.end(), buffer.begin()))
             {
                 return false;
@@ -2165,7 +2179,28 @@ GTEST_TEST(Sync, BasicSync_MassNotifyFromLocalFolderTree)
     ASSERT_TRUE(buildLocalFolders(clientA1.syncSet[1].localpath, "initial", 0, 0, 16000));
 
     //waitonsyncs(std::chrono::seconds(10), &clientA1 /*, &clientA2*/);
-    std::this_thread::sleep_for(std::chrono::seconds(20));
+    std::this_thread::sleep_for(std::chrono::seconds(5));
+
+    // wait until the notify queues subside, it shouldn't take too long.  Limit of 5 minutes
+    auto startTime = std::chrono::steady_clock::now();
+    while (std::chrono::steady_clock::now() - startTime < std::chrono::seconds(5 * 60))
+    {
+        int remaining = 0;
+        auto result0 = clientA1.thread_do([&](StandardClient &sc, std::promise<bool> &p)
+        {
+            for (auto& s : sc.client.syncs)
+            {
+                for (int q = DirNotify::NUMQUEUES; q--; )
+                {
+                    remaining += s->dirnotify->notifyq[q].size();
+                }
+            }
+            p.set_value(true);
+        });
+        result0.get();
+        if (!remaining) break;
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
 
     Model model;
     model.root->addkid(model.buildModelSubdirs("initial", 0, 0, 16000));

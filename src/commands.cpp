@@ -3754,7 +3754,6 @@ void CommandGetUserData::procresult()
             parseUserAttribute(deviceNames, versionDeviceNames);
             break;
 
-
         case 'b':   // business account's info
             assert(!b);
             b = true;

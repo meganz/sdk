@@ -66,6 +66,12 @@ namespace mega {
         // indicate if the file is raid or not.  Most variation due to raid/non-raid is captured in this class
         bool isRaid() const;
 
+        // Is this the connection we are not using
+        bool isUnusedRaidConection(unsigned connectionNum) const;
+
+        // Is this connection unable to continue currently because other connections are too far behind
+        bool isRaidConnectionProgressBlocked(unsigned connectionNum) const;
+
         // in case URLs expire, use this to update them and keep downloading without wasting any data
         void updateUrlsAndResetPos(const std::vector<std::string>& tempUrls);
 
@@ -100,10 +106,7 @@ namespace mega {
         static m_off_t raidPartSize(unsigned part, m_off_t fullfilesize);
 
         // report a failed connection.  The function tries to switch to 5 connection raid or a different 5 connections.  Two fails without progress and we should fail the transfer as usual
-        bool tryRaidHttpGetErrorRecovery(unsigned errorConnectionNum);
-
-        // check to see if all other channels than the one specified are up to date with data and so we could go faster with 5 connections rather than 6.
-        bool connectionRaidPeersAreAllPaused(unsigned slowConnection);
+        bool tryRaidHttpGetErrorRecovery(unsigned errorConnectionNum, bool incrementErrors);
 
         // indicate that this connection has responded with headers, and see if we now know which is the slowest connection, and make that the unused one
         bool detectSlowestRaidConnection(unsigned thisConnection, unsigned& slowestConnection);
@@ -167,7 +170,7 @@ namespace mega {
 
         // track errors across the connections.  A successful fetch resets the error count for a connection.  Stop trying to recover if we hit 3 total.
         unsigned raidHttpGetErrorCount[RAIDPARTS];
-
+        
         bool connectionStarted[RAIDPARTS];
 
         // take raid input part buffers and combine to form the asyncoutputbuffers
