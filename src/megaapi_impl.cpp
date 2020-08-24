@@ -11392,7 +11392,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
 {
     if (!n && !searchString && (type < MegaApi::NODE_PHOTO || type > MegaApi::NODE_DOCUMENT))
     {
-        // If node is not valid or no search string and type is not valid
+        // If node is not valid, and no search string, and type is not valid
         return new MegaNodeListPrivate();
     }
 
@@ -11876,6 +11876,7 @@ bool SearchTreeProcessor::processNode(Node* node)
 
     if (node->type <= FOLDERNODE && (!search || strcasestr(node->displayname(), search) != NULL))
     {
+        // If no search string provided (filter by node type), or search string match with node name
         if (isValidTypeNode(node))
         {
             results.push_back(node);
