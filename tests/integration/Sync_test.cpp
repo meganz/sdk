@@ -3575,7 +3575,7 @@ struct TwoWaySyncSymmetryCase
             ASSERT_TRUE(pb.get_future().get());
 
             promise<bool> pb2;
-            std::atomic<int> inprogress = 0;
+            std::atomic<int> inprogress(0);
             changeClient().uploadFilesInTree(localTestBasePath, n2, inprogress, pb2);
             ASSERT_TRUE(pb2.get_future().get());
             cout << "Uploaded tree for " << name() << endl;
