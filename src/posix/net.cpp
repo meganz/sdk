@@ -61,12 +61,12 @@ bool SockInfo::createAssociateEvent()
     return true;
 }
 
-bool SockInfo::checkEvent(bool& read, bool& write)
+bool SockInfo::checkEvent(bool& read, bool& write, bool logErr)
 {
     WSANETWORKEVENTS wne;
     memset(&wne, 0, sizeof(wne));
     auto err = WSAEnumNetworkEvents(fd, NULL, &wne);
-    if (err)
+    if (err && logErr)
     {
         auto e = WSAGetLastError();
         LOG_err << "WSAEnumNetworkEvents error " << e;
@@ -648,7 +648,7 @@ void CurlHttpIO::processaresevents()
 
 #if defined(_WIN32)
         bool read, write;
-        if (info.checkEvent(read, write))  // if checkEvent returns true, both `read` and `write` have been set.
+        if (info.checkEvent(read, write, false))  // if checkEvent returns true, both `read` and `write` have been set.
         {
             ares_process_fd(ares, read ? info.fd : ARES_SOCKET_BAD, write ? info.fd : ARES_SOCKET_BAD);
         }
