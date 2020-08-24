@@ -129,10 +129,10 @@ struct Model
         vector<unique_ptr<ModelNode>> kids;
         ModelNode* parent = nullptr;
 
-        string path() 
+        string path()
         {
             string s;
-            for (auto p = this; p; p = p->parent) 
+            for (auto p = this; p; p = p->parent)
                 s = "/" + p->name + s;
             return s;
         }
@@ -146,14 +146,14 @@ struct Model
             switch (type)
             {
             case file: return nodetype == FILENODE;
-            case folder: return nodetype == FOLDERNODE; 
+            case folder: return nodetype == FOLDERNODE;
             }
             return false;
         }
         void print(string prefix="")
         {
             cout << prefix << name << endl;
-            prefix.append(name).append("/");     
+            prefix.append(name).append("/");
             for (const auto &in: kids)
             {
                 in->print(prefix);
@@ -191,7 +191,7 @@ struct Model
         if (suppressfiles) filesperdir = 0;
 
         unique_ptr<ModelNode> nn = makeModelSubfolder(prefix);
-        
+
         for (int i = 0; i < filesperdir; ++i)
         {
             nn->addkid(makeModelSubfile("file" + to_string(i) + "_" + prefix));
@@ -415,7 +415,7 @@ struct StandardClient : public MegaApp
     GFX_CLASS gfx;
 #endif
 
-    string client_dbaccess_path; 
+    string client_dbaccess_path;
     std::unique_ptr<HttpIO> httpio;
     std::unique_ptr<FileSystemAccess> fsaccess;
     MegaClient client;
@@ -474,10 +474,10 @@ struct StandardClient : public MegaApp
     ~StandardClient()
     {
         // shut down any syncs on the same thread, or they stall the client destruction (CancelIo instead of CancelIoEx on the WinDirNotify)
-        thread_do([](MegaClient& mc, promise<bool>&) { 
+        thread_do([](MegaClient& mc, promise<bool>&) {
             #ifdef _WIN32
                 // logout stalls in windows due to the issue above
-                mc.purgenodesusersabortsc(false); 
+                mc.purgenodesusersabortsc(false);
             #else
                 mc.logout();
             #endif
@@ -640,7 +640,7 @@ struct StandardClient : public MegaApp
         resultproc.prepresult(PRELOGIN, ++next_request_tag,
             [&](){ client.prelogin(user.c_str()); },
             [this, &pb](error e) { pb.set_value(!e); return true; });
-        
+
     }
 
     void loginFromEnv(const string& userenv, const string& pwdenv, promise<bool>& pb)
@@ -708,9 +708,9 @@ struct StandardClient : public MegaApp
                 client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
                 client.putnodes(n2->nodehandle, tc.nn, nc);
             },
-            [this, &pb](error e) { 
-                pb.set_value(!e);  
-                return true; 
+            [this, &pb](error e) {
+                pb.set_value(!e);
+                return true;
             });
     }
 
@@ -721,7 +721,7 @@ struct StandardClient : public MegaApp
         handle thishandle = n.nodehandle = h++;
         n.parenthandle = parent;
         newnodes.emplace_back(std::move(n));
-        
+
         for (fs::directory_iterator i(p); i != fs::directory_iterator(); ++i)
         {
             if (fs::is_directory(*i))
@@ -778,14 +778,14 @@ struct StandardClient : public MegaApp
                 DBTableTransactionCommitter committer(client.tctable);
                 uploadFilesInTree_recurse(n2, p, inprogress, committer);
             },
-            [this, &pb, &inprogress](error e) 
-            { 
-                if (!--inprogress) 
-                    pb.set_value(true); 
+            [this, &pb, &inprogress](error e)
+            {
+                if (!--inprogress)
+                    pb.set_value(true);
                 return !inprogress;
             });
     }
-    
+
 
 
     class TreeProcPrintTree : public TreeProc
@@ -805,8 +805,8 @@ struct StandardClient : public MegaApp
     {
         resultproc.prepresult(FETCHNODES, ++next_request_tag,
             [&](){ client.fetchnodes(); },
-            [this, &pb](error e) 
-            { 
+            [this, &pb](error e)
+            {
                 if (e)
                 {
                     pb.set_value(false);
@@ -836,11 +836,11 @@ struct StandardClient : public MegaApp
         client.putnodes_prepareOneFolder(&newnode, utf8Name);
         return newnode;
     }
-     
+
 
     struct ResultProc
     {
-        MegaClient& client; 
+        MegaClient& client;
         ResultProc(MegaClient& c) : client(c) {}
 
         struct id_callback
@@ -880,7 +880,7 @@ struct StandardClient : public MegaApp
 
             if (tag < (2 << 30))
             {
-                cout << "ignoring callback from SDK internal sync operation " << rpe << " tag " << tag << endl; 
+                cout << "ignoring callback from SDK internal sync operation " << rpe << " tag " << tag << endl;
                 return;
             }
 
@@ -902,7 +902,7 @@ struct StandardClient : public MegaApp
                 cout << "received notification of operation type " << rpe << " completion but we don't have a record of it.  tag: " << tag << endl;
                 return;
             }
-            
+
             if (tag != entry.front().request_tag)
             {
                 cout << "tag mismatch for operation completion of " << rpe << " tag " << tag << ", we expected " << entry.front().request_tag << endl;
@@ -994,7 +994,7 @@ struct StandardClient : public MegaApp
                 resultproc.prepresult(PUTNODES, ++next_request_tag,
                     [&](){ client.putnodes(root->nodehandle, nn, 1); },
                     [this, &pb](error e) { ensureTestBaseFolder(false, pb); return true; });
-                
+
                 return;
             }
         }
@@ -1050,7 +1050,7 @@ struct StandardClient : public MegaApp
                 [&](){ client.putnodes(atnode->nodehandle, nodearray, int(nodes.size())); },
                 [this, &pb](error e) {
                 pb.set_value(!e);
-                if (e) 
+                if (e)
                 {
                     cout << "putnodes result: " << e << endl;
                 }
@@ -1152,7 +1152,7 @@ struct StandardClient : public MegaApp
             return false;
         }
 
-        if (n->type == FILENODE) 
+        if (n->type == FILENODE)
         {
             // not comparing any file versioning (for now)
             return true;
@@ -1290,7 +1290,7 @@ struct StandardClient : public MegaApp
             bool any_equal_matched = false;
             for (auto i = er.first; i != er.second; ++i)
             {
-                int rdescendants = 0; 
+                int rdescendants = 0;
                 if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, firstreported))
                 {
                     ++matched;
@@ -1380,7 +1380,7 @@ struct StandardClient : public MegaApp
             bool any_equal_matched = false;
             for (auto i = er.first; i != er.second; ++i)
             {
-                int rdescendants = 0; 
+                int rdescendants = 0;
                 if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, ignoreDebris, firstreported))
                 {
                     ++matched;
@@ -1458,7 +1458,7 @@ struct StandardClient : public MegaApp
         }
 
         // compare model against LocalNodes
-        descendants = 0; 
+        descendants = 0;
         if (Sync* sync = syncByTag(syncid))
         {
             bool firstreported = false;
@@ -1504,12 +1504,12 @@ struct StandardClient : public MegaApp
     }
 
     void unlink_result(handle, error e) override
-    { 
+    {
         resultproc.processresult(UNLINK, e);
     }
 
-    void catchup_result() override 
-    { 
+    void catchup_result() override
+    {
         resultproc.processresult(CATCHUP, error(API_OK));
     }
 
@@ -1523,7 +1523,7 @@ struct StandardClient : public MegaApp
     }
 
     void rename_result(handle h, error e)  override
-    { 
+    {
         resultproc.processresult(MOVENODE, e, h);
     }
 
@@ -1724,7 +1724,7 @@ struct StandardClient : public MegaApp
     {
         future<bool> p2;
         p2 = thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.loginFromSession(session, pb); });
-        if (!waitonresults(&p2)) return false; 
+        if (!waitonresults(&p2)) return false;
         p2 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.fetchnodes(pb); });
         if (!waitonresults(&p2)) return false;
         p2 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.ensureTestBaseFolder(false, pb); });
@@ -1737,7 +1737,7 @@ struct StandardClient : public MegaApp
         future<bool> p2;
         p2 = thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.loginFromSession(session, pb); });
         if (!waitonresults(&p2)) return false;
-        
+
         assert(!onFetchNodes);
         onFetchNodes = [=](StandardClient& mc, promise<bool>& pb)
         {
@@ -1802,7 +1802,7 @@ void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1
                     if (sync->deleteq.size() || sync->insertq.size())
                         any_add_del = true;
                 }
-                if (!(mc.client.todebris.empty() && mc.client.tounlink.empty() && mc.client.synccreate.empty() 
+                if (!(mc.client.todebris.empty() && mc.client.tounlink.empty() && mc.client.synccreate.empty()
                     && mc.client.transferlist.transfers[GET].empty() && mc.client.transferlist.transfers[PUT].empty()))
                 {
                     any_add_del = true;
@@ -2034,7 +2034,7 @@ public:
 
     void addModelFile(Model &model,
                       const std::string &directory,
-                      const std::string &file, 
+                      const std::string &file,
                       const std::string &content)
     {
         auto *node = model.findnode(directory);
@@ -2505,7 +2505,7 @@ GTEST_TEST(Sync, BasicSync_MassNotifyFromLocalFolderTree)
  //   renameLocalFolders(clientA1.syncSet[1].localpath, "renamed_");
 
     // let them catch up
-    //waitonsyncs(std::chrono::seconds(10), &clientA1 /*, &clientA2*/);  
+    //waitonsyncs(std::chrono::seconds(10), &clientA1 /*, &clientA2*/);
 
     // rename is too slow to check, even just in localnodes, for now.
 
@@ -2517,7 +2517,7 @@ GTEST_TEST(Sync, BasicSync_MassNotifyFromLocalFolderTree)
     //// check everything matches (model has expected state of remote and local)
     //ASSERT_TRUE(clientA1.confirmModel_mainthread(model2.root.get(), 1));
     ////ASSERT_TRUE(clientA2.confirmModel_mainthread(model2.findnode("f"), 2));
-}               
+}
 
 
 
@@ -3133,7 +3133,7 @@ Node* makenode(MegaClient& mc, handle parent, ::mega::nodetype_t type, m_off_t s
     static handle handlegenerator = 10;
     std::vector<Node*> dp;
     auto newnode = new Node(&mc, &dp, ++handlegenerator, parent, type, size, owner, nullptr, 1);
-    
+
     newnode->setkey(key);
     newnode->attrstring.reset(new string);
 
@@ -3204,7 +3204,7 @@ GTEST_TEST(Sync, PutnodesForMultipleFolders)
     ASSERT_TRUE(standardclient.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", true));
 
     NewNode* newnodes = new NewNode[4];
-    
+
     standardclient.client.putnodes_prepareOneFolder(&newnodes[0], "folder1");
     standardclient.client.putnodes_prepareOneFolder(&newnodes[1], "folder2");
     standardclient.client.putnodes_prepareOneFolder(&newnodes[2], "folder2.1");
@@ -3218,7 +3218,7 @@ GTEST_TEST(Sync, PutnodesForMultipleFolders)
     standardclient.resultproc.prepresult(StandardClient::PUTNODES,  ++next_request_tag,
         [&](){ standardclient.client.putnodes(targethandle, newnodes, 4, nullptr); },
         [&putnodesDone](error e) { putnodesDone = true; return true; });
-    
+
     while (!putnodesDone)
     {
         WaitMillisec(100);
@@ -3376,7 +3376,7 @@ GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkLocally)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 
     fs::remove(clientA1.syncSet[1].localpath / "linked");
-    ASSERT_TRUE(createFile(clientA1.syncSet[1].localpath, "linked"));
+    ASSERT_TRUE(createNameFile(clientA1.syncSet[1].localpath, "linked"));
 
     // let them catch up
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
@@ -3424,7 +3424,7 @@ GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkUponSyncDown)
     //check client 2 is unaffected
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 
-    ASSERT_TRUE(createFile(clientA2.syncSet[2].localpath, "linked"));
+    ASSERT_TRUE(createNameFile(clientA2.syncSet[2].localpath, "linked"));
 
     // let them catch up
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
@@ -3445,7 +3445,7 @@ GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkUponSyncDown)
 struct TwoWaySyncSymmetryCase
 {
     enum Action { action_rename, action_moveWithinSync, action_moveOutOfSync, action_moveIntoSync, action_delete, action_numactions };
-    
+
     enum MatchState { match_exact,      // the sync destination has the exact same file/folder at the same relative path
                       match_older,      // the sync destination has an older file/folder at the same relative path
                       match_newer,      // the sync destination has a newer file/folder at the same relative path
@@ -3483,8 +3483,8 @@ struct TwoWaySyncSymmetryCase
 
     // todo: remote changes made by client (of this sync) or other client
 
-    std::string actionName() 
-    { 
+    std::string actionName()
+    {
         switch (action)
         {
         case action_rename: return "rename";
@@ -3498,8 +3498,8 @@ struct TwoWaySyncSymmetryCase
 
     std::string matchName(MatchState m)
     {
-        switch (m) 
-        { 
+        switch (m)
+        {
             case match_exact: return "exact";
             case match_older: return "older";
             case match_newer: return "newer";
@@ -3508,17 +3508,17 @@ struct TwoWaySyncSymmetryCase
         return "bad enum";
     }
 
-    std::string name() 
-    { 
+    std::string name()
+    {
         return  actionName() +
-                (selfChange?"_self":"_other") + 
-                (up?"_up":"_down") + 
-                (file?"_file":"_folder") + 
+                (selfChange?"_self":"_other") +
+                (up?"_up":"_down") +
+                (file?"_file":"_folder") +
                 "_before" + matchName(destinationMatchBefore) +
                 (action == action_delete ? "" : "_after" + matchName(destinationMatchAfter)) +
                 (propagateDeletes?"_pd":"") +
                 (forceOverwrites?"_fo":"") +
-                (pauseDuringAction?"_pda":""); 
+                (pauseDuringAction?"_pda":"");
     }
 
     fs::path localTestBasePath;
@@ -3635,9 +3635,9 @@ struct TwoWaySyncSymmetryCase
 
     void remote_move(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction, bool deleteTargetFirst)
     {
-        
+
         if (deleteTargetFirst) remote_delete(newparentpath + "/" + leafname(nodepath), updatemodel, reportaction, true); // in case the target already exists
-        
+
         if (updatemodel) remoteModel.emulate_move(nodepath, newparentpath);
 
         Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
@@ -3683,7 +3683,7 @@ struct TwoWaySyncSymmetryCase
 
     void remote_renamed_copy(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
     {
-        if (updatemodel) 
+        if (updatemodel)
         {
             remoteModel.emulate_rename_copy(nodepath, newparentpath, newname);
         }
@@ -3717,7 +3717,7 @@ struct TwoWaySyncSymmetryCase
 
     void remote_renamed_move(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
     {
-        if (updatemodel) 
+        if (updatemodel)
         {
             remoteModel.emulate_rename_copy(nodepath, newparentpath, newname);
         }
@@ -3740,7 +3740,7 @@ struct TwoWaySyncSymmetryCase
         Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
         Node* n = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
         if (mightNotExist && !n) return;  // eg when checking to remove an item that is a move target but there isn't one
-        
+
         ASSERT_TRUE(!!n);
 
         if (reportaction) cout << name() << " action: remote delete " << n->displaypath() << endl;
@@ -3762,7 +3762,7 @@ struct TwoWaySyncSymmetryCase
     void local_rename(std::string path, std::string newname, bool updatemodel, bool reportaction, bool deleteTargetFirst)
     {
         if (deleteTargetFirst) local_delete(parentpath(path) + "/" + newname, updatemodel, reportaction, true); // in case the target already exists
-        
+
         if (updatemodel) localModel.emulate_rename(path, newname);
 
         fs::path p1(localTestBasePath);
@@ -3797,10 +3797,10 @@ struct TwoWaySyncSymmetryCase
 
         std::error_code ec;
         fs::rename(p1, p2, ec);
-        if (ec) 
+        if (ec)
         {
             fs::remove_all(p2, ec);
-            fs::rename(p1, p2, ec);    
+            fs::rename(p1, p2, ec);
         }
         ASSERT_TRUE(!ec) << "local_move " << p1 << " to " << p2 << " failed: " << ec.message();
     }
@@ -3980,7 +3980,7 @@ struct TwoWaySyncSymmetryCase
 
         switch (action)
         {
-        case action_rename: 
+        case action_rename:
             if (prep)
             {
                 if (file)
@@ -4023,12 +4023,12 @@ struct TwoWaySyncSymmetryCase
             }
             break;
 
-        case action_moveWithinSync: 
+        case action_moveWithinSync:
             if (prep)
             {
                 if (file)
                 {
-                    destination_copy_renamed("f/f_1", "file0_f_1", "original", "f", true, false, false);  
+                    destination_copy_renamed("f/f_1", "file0_f_1", "original", "f", true, false, false);
                     if (destinationMatchAfter == match_exact) destination_copy_renamed("f/f_1", "file0_f_1", "file0_f_1", "f/f_0", true, false, false);  // not really renaming
                     if (destinationMatchAfter == match_older) { destination_copy_renamed("f", "file_older_2", "file0_f_1", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_f_1"); }
                     if (destinationMatchAfter == match_newer) { destination_copy_renamed("f", "file_newer_2", "file0_f_1", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_f_1"); }
@@ -4252,9 +4252,9 @@ TEST(Sync, DISABLED_TwoWay_Highlevel_Symmetries)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
-    
-    StandardClient clientA1(localtestroot, "clientA1");   
-    StandardClient clientA2(localtestroot, "clientA2");   
+
+    StandardClient clientA1(localtestroot, "clientA1");
+    StandardClient clientA2(localtestroot, "clientA2");
     ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "twoway", 0, 0));
     ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     fs::create_directory(clientA1.fsBasePath / fs::u8path("twoway"));
@@ -4266,7 +4266,7 @@ TEST(Sync, DISABLED_TwoWay_Highlevel_Symmetries)
     std::map<std::string, TwoWaySyncSymmetryCase> cases;
 
     static bool singleCase = false;
-    static string singleNamedTest = "move_other_down_file_beforenewer_afterabsent_pd_fo";//"rename_other_down_file_beforemismatch_afterabsent"; 
+    static string singleNamedTest = "move_other_down_file_beforenewer_afterabsent_pd_fo";//"rename_other_down_file_beforemismatch_afterabsent";
     if (singleCase)
     {
         TwoWaySyncSymmetryCase testcase(allstate);
@@ -4439,7 +4439,7 @@ TEST(Sync, DISABLED_TwoWay_Highlevel_Symmetries)
 
 
     cout << "Letting all " << cases.size() << " Two-way syncs run" << endl;
-    
+
     waitonsyncs(5s, &clientA1, &clientA2);
 
     CatchupClients(clientA1, clientA2);
@@ -4454,7 +4454,7 @@ TEST(Sync, DISABLED_TwoWay_Highlevel_Symmetries)
     for (auto& testcase : cases)
     {
         if (testcase.second.finalResult) ++succeeded;
-        else 
+        else
         {
             cout << "failed: " << testcase.second.name() << endl;
             ++failed;
