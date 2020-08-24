@@ -233,7 +233,7 @@ void SdkTest::SetUp()
 
     if (megaApi[0].get() == NULL)
     {
-        megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), THREADS_PER_MEGACLIENT));
+        megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), int(0), unsigned(THREADS_PER_MEGACLIENT)));
         mApi[0].megaApi = megaApi[0].get();
 
         megaApi[0]->setLoggingName("0");
@@ -503,6 +503,21 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         {
             stringListMap.reset(request->getMegaStringListMap()->copy());
         }
+        break;
+
+    case MegaRequest::TYPE_FETCH_TIMEZONE:
+        mApi[apiIndex].tzDetails.reset(mApi[apiIndex].lastError == API_OK ? request->getMegaTimeZoneDetails()->copy() : nullptr);
+        break;
+
+    case MegaRequest::TYPE_GET_USER_EMAIL:
+        if (mApi[apiIndex].lastError == API_OK)
+        {
+            mApi[apiIndex].email = request->getEmail();
+        }
+        break;
+
+    case MegaRequest::TYPE_ACCOUNT_DETAILS:
+        mApi[apiIndex].accountDetails.reset(mApi[apiIndex].lastError == API_OK ? request->getMegaAccountDetails() : nullptr);
         break;
 
     }
@@ -850,7 +865,7 @@ void SdkTest::getMegaApiAux(unsigned index)
         }
         ASSERT_LT((size_t) 0, mApi[index].pwd.length()) << "Set the auxiliar password at the environment variable $MEGA_PWD_AUX" << strIndex;
 
-        megaApi[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), THREADS_PER_MEGACLIENT));
+        megaApi[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), int(0), unsigned(THREADS_PER_MEGACLIENT)));
         mApi[index].megaApi = megaApi[index].get();
 
         megaApi[index]->setLoggingName(to_string(index).c_str());
@@ -3776,7 +3791,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                 exitresumecount += 1;
                 WaitMillisec(100);
                 
-                megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), THREADS_PER_MEGACLIENT));
+                megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), int(0), unsigned(THREADS_PER_MEGACLIENT)));
                 mApi[0].megaApi = megaApi[0].get();
                 megaApi[0]->setLogLevel(MegaApi::LOG_LEVEL_DEBUG);
                 megaApi[0]->addListener(this);
@@ -4392,9 +4407,60 @@ TEST_F(SdkTest, SdkMediaUploadRequestURL)
     ASSERT_EQ(MegaError::API_OK, err) << "Cannot request media upload URL (error: " << err << ")";
 
     // Get the generated media upload URL
-    std::unique_ptr<char> url(req->getUploadURL());
+    std::unique_ptr<char[]> url(req->getUploadURL());
     ASSERT_NE(nullptr, url) << "Got NULL media upload URL";
-    ASSERT_NE(0, *url) << "Got empty media upload URL";
+    ASSERT_NE(0, *url.get()) << "Got empty media upload URL";
+}
+
+TEST_F(SdkTest, SdkSimpleCommands)
+{
+    LOG_info << "___TEST SimpleCommands___";
+
+    // fetchTimeZone() test
+    auto err = synchronousFetchTimeZone(0);
+    ASSERT_EQ(MegaError::API_OK, err) << "Fetch time zone failed (error: " << err << ")";
+    ASSERT_TRUE(mApi[0].tzDetails && mApi[0].tzDetails->getNumTimeZones()) << "Invalid Time Zone details"; // some simple validation
+
+    // getMiscFlags() -- not logged in
+    logout(0);
+    err = synchronousGetMiscFlags(0);
+    ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
+
+    // getUserEmail() test
+    login(0);
+    std::unique_ptr<MegaUser> user(megaApi[0]->getMyUser());
+    ASSERT_TRUE(!!user); // some simple validation
+
+    err = synchronousGetUserEmail(0, user->getHandle());
+    ASSERT_EQ(MegaError::API_OK, err) << "Get user email failed (error: " << err << ")";
+    ASSERT_NE(mApi[0].email.find('@'), std::string::npos); // some simple validation
+
+    // cleanRubbishBin() test (accept both success and already empty statuses)
+    err = synchronousCleanRubbishBin(0);
+    ASSERT_TRUE(err == MegaError::API_OK || err == MegaError::API_ENOENT) << "Clean rubbish bin failed (error: " << err << ")";
+
+    // getExtendedAccountDetails()
+    err = synchronousGetExtendedAccountDetails(0, true);
+    ASSERT_EQ(MegaError::API_OK, err) << "Get extended account details failed (error: " << err << ")";
+    ASSERT_TRUE(!!mApi[0].accountDetails) << "Invalid accout details"; // some simple validation
+
+    // killSession()
+    int numSessions = mApi[0].accountDetails->getNumSessions();
+    for (int i = 0; i < numSessions; ++i)
+    {
+        // look for current session
+        std::unique_ptr<MegaAccountSession> session(mApi[0].accountDetails->getSession(i));
+        if (session->isCurrent())
+        {
+            err = synchronousKillSession(0, session->getHandle());
+            ASSERT_EQ(MegaError::API_OK, err) << "Kill session failed for current session (error: " << err << ")";
+
+            break;
+        }
+    }
+
+    err = synchronousKillSession(0, INVALID_HANDLE);
+    ASSERT_EQ(MegaError::API_OK, err) << "Kill session failed for other sessions (error: " << err << ")";
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)

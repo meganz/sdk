@@ -42,7 +42,11 @@ struct MEGA_API SockInfo
         WRITE = 2
     };
 
+#ifdef WIN32
+    SockInfo(HANDLE& sharedEvent) : mSharedEvent(sharedEvent) { }
+#else
     SockInfo() = default;
+#endif
     curl_socket_t fd = curl_socket_t(-1);
     int mode = NONE;
 
@@ -59,16 +63,16 @@ struct MEGA_API SockInfo
     bool checkEvent(bool& read, bool& write);
 
     // manually close the event (used when we know the socket is no longer active)
-    void closeEvent();
+    void closeEvent(bool adjustSocket = true);
 
     // get the event handle, for waiting on
-    HANDLE eventHandle();
+    HANDLE sharedEventHandle();
 
     // Flag for dealing with windows write event signalling, where we only get signalled if the socket goes from unwriteable to writeable (but not if we wrote to it and didn't get it to the unwriteable state)
     bool signalledWrite = false;
 
 private:
-    HANDLE handle = WSA_INVALID_EVENT;
+    HANDLE& mSharedEvent;
     int associatedHandleEvents = 0;
 #endif
 };
@@ -161,6 +165,7 @@ protected:
 
     void addaresevents(Waiter *waiter);
     void addcurlevents(Waiter *waiter, direction_t d);
+    int checkevents(Waiter*) override;
     void closearesevents();
     void closecurlevents(direction_t d);
     void processaresevents();
@@ -207,6 +212,10 @@ public:
 
     CurlHttpIO();
     ~CurlHttpIO();
+
+#ifdef WIN32
+    HANDLE mSocketsWaitEvent;
+#endif
 
 private:
     static int instanceCount;

@@ -54,8 +54,6 @@ void Waiter::bumpds()
 // network layer)
 int WinWaiter::wait()
 {
-    int r = 0;
-
     // only allow interaction of asynccallback() with the main process while
     // waiting (because WinHTTP is threaded)
     if (pcsHTTP)
@@ -63,32 +61,43 @@ int WinWaiter::wait()
         LeaveCriticalSection(pcsHTTP);
     }
 
+    int r = 0;
     addhandle(externalEvent, NEEDEXEC);
-    DWORD dwWaitResult = WaitForMultipleObjectsEx((DWORD)index, &handles.front(), FALSE, maxds * 100, TRUE);
+
+    if (index <= MAXIMUM_WAIT_OBJECTS)
+    {
+        DWORD dwWaitResult = WaitForMultipleObjectsEx((DWORD)index, &handles.front(), FALSE, maxds * 100, TRUE);
+        assert(dwWaitResult != WAIT_FAILED);
+
+#ifdef MEGA_MEASURE_CODE
+        if (dwWaitResult == WAIT_TIMEOUT && maxds > 0) ++performanceStats.waitTimedoutNonzero;
+        else if (dwWaitResult == WAIT_TIMEOUT && maxds == 0) ++performanceStats.waitTimedoutZero;
+        else if (dwWaitResult == WAIT_IO_COMPLETION) ++performanceStats.waitIOCompleted;
+        else if (dwWaitResult >= WAIT_OBJECT_0) ++performanceStats.waitSignalled;
+#endif
+
+        if ((dwWaitResult == WAIT_TIMEOUT) || (dwWaitResult == WAIT_IO_COMPLETION) || maxds == 0 || (dwWaitResult == WAIT_FAILED))
+        {
+            r |= NEEDEXEC;
+        }
+        if ((dwWaitResult >= WAIT_OBJECT_0) && (dwWaitResult < WAIT_OBJECT_0 + flags.size()))
+        {
+            r |= flags[dwWaitResult - WAIT_OBJECT_0];
+        }
+    }
+    else
+    {
+        assert(false); // alert developers that we're hitting the limit
+        r |= NEEDEXEC;
+    }
+
+    index = 0;
+
 
     if (pcsHTTP)
     {
         EnterCriticalSection(pcsHTTP);
     }
-
-#ifdef MEGA_MEASURE_CODE
-    if (dwWaitResult == WAIT_TIMEOUT && maxds > 0) ++performanceStats.waitTimedoutNonzero;
-    else if (dwWaitResult == WAIT_TIMEOUT && maxds == 0) ++performanceStats.waitTimedoutZero;
-    else if (dwWaitResult == WAIT_IO_COMPLETION) ++performanceStats.waitIOCompleted;
-    else if (dwWaitResult >= WAIT_OBJECT_0) ++performanceStats.waitSignalled;
-#endif
-
-    if ((dwWaitResult == WAIT_TIMEOUT) || (dwWaitResult == WAIT_IO_COMPLETION) || maxds == 0)
-    {
-        r = NEEDEXEC;
-    }
-    if ((dwWaitResult >= WAIT_OBJECT_0) && (dwWaitResult < WAIT_OBJECT_0 + flags.size()))
-    {
-        r |= flags[dwWaitResult - WAIT_OBJECT_0];
-    }
-
-    index = 0;
-
     return r;
 }
 
@@ -97,6 +106,15 @@ int WinWaiter::wait()
 bool WinWaiter::addhandle(HANDLE handle, int flag)
 {
     assert(handles.size() == flags.size() && handles.size() >= index);
+
+#ifdef DEBUG
+    for (unsigned i = index; i--; )
+    {
+        // double check we only add one of each handle
+        assert(handles[i] != handle);
+    }
+#endif
+
     if (index < handles.size())
     {
         handles[index] = handle;
