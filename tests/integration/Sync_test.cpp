@@ -739,7 +739,7 @@ struct StandardClient : public MegaApp
                 handle h = 1;
                 uploadFolderTree_recurse(UNDEF, h, p, newnodes);
                 auto nn = new NewNode[newnodes.size()];
-                for (int i = newnodes.size(); i--; ) nn[i] = std::move(newnodes[i]);
+                for (auto i = newnodes.size(); i--; ) nn[i] = std::move(newnodes[i]);
 
                 client.putnodes(n2->nodehandle, nn, (int)newnodes.size());
             },
