@@ -80,7 +80,7 @@ using namespace mega;
 
 - (void)setUrl:(NSURL * _Nullable)url {
     if (self.proxy) {
-        self.proxy->setProxyURL(url.path.UTF8String);
+        self.proxy->setProxyURL(url.absoluteString.UTF8String);
     }
 }
 
