@@ -1028,7 +1028,6 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
     const char* end = ptr + localpath.localpath.getLocalpath().size();
 #endif
     size_t separatorlen = client->fsaccess->localseparator.size();
-    size_t separatorpos = 0;
 
     if (outpath)
     {
@@ -1244,13 +1243,18 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
         }
 
         // look up deepest existing LocalNode by path, store remainder (if any)
-        // in newname
-        LocalPath outpath = LocalPath::fromLocalname(newname);
+        // in outpath.localpath
+        LocalPath outpath;
         LocalNode *tmp = localnodebypath(l, *input_localpath, &parent, &outpath);
-        wstring2string_utf16(newname, outpath.getLocalpath());
-        newname.append("", 1);
         size_t index = 0;
-        while ((index = newname.find(wstring2string(client->fsaccess->localseparator), index)) != string::npos)
+
+    #if defined(_WIN32)
+        newname = wstring2string_utf16(outpath.getLocalpath());
+        while ((index = newname.find(wstring2string_utf16(client->fsaccess->localseparator), index)) != string::npos)
+    #else
+        newname = outpath.getLocalpath();
+        while ((index = newname.find(client->fsaccess->localseparator, index)) != string::npos)
+    #endif    
         {
             if(!(index % client->fsaccess->localseparator.size()))
             {

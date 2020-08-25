@@ -153,7 +153,7 @@ bool Transfer::serialize(string *d)
 #if defined(_WIN32)                        
     ll = (unsigned short)localfilename.getLocalpath().size();
     d->append((char*)&ll, sizeof(ll));
-    d->append(wstring2string(localfilename.getLocalpath().data()), ll);
+    d->append(wstring2string_utf16(localfilename.getLocalpath()), ll);    
 #else
     ll = (unsigned short)localfilename.getLocalpath().size();
     d->append((char*)&ll, sizeof(ll));

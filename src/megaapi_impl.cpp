@@ -462,11 +462,11 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
         LocalPath lp;
         node->localnode->getlocalpath(lp, true);
 #if defined(_WIN32)
-        wstring2string_utf16(localPath, lp.getLocalpath());
+        localPath = wstring2string_utf16(lp.getLocalpath());
 #else
         localPath.swap(lp.getLocalpath());
-#endif
         localPath.append("", 1);
+#endif
     }
 #endif
 
@@ -8638,11 +8638,11 @@ string MegaApiImpl::getLocalPath(MegaNode *n)
     LocalPath lp;
     node->localnode->getlocalpath(lp, true);
 #if defined(_WIN32)
-    wstring2string_utf16(result, lp.getLocalpath());
+    result = wstring2string_utf16(lp.getLocalpath());
 #else
     result.swap(lp.getLocalpath());
-#endif
     result.append("", 1);
+#endif
     sdkMutex.unlock();
     return result;
 }
@@ -8895,7 +8895,7 @@ bool MegaApiImpl::createThumbnail(const char *imagePath, const char *dstPath)
 
     sdkMutex.lock();
     bool result = gfxAccess->savefa(LocalPath::fromPath(localImagePath, *client->fsaccess), GfxProc::dimensions[GfxProc::THUMBNAIL][0],
-            GfxProc::dimensions[GfxProc::THUMBNAIL][1], &localDstPath);
+            GfxProc::dimensions[GfxProc::THUMBNAIL][1], LocalPath::fromPath(localDstPath, *client->fsaccess));
     sdkMutex.unlock();
 
     return result;
@@ -8918,7 +8918,7 @@ bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
 
     sdkMutex.lock();
     bool result = gfxAccess->savefa(LocalPath::fromPath(localImagePath, *client->fsaccess), GfxProc::dimensions[GfxProc::PREVIEW][0],
-            GfxProc::dimensions[GfxProc::PREVIEW][1], &localDstPath);
+            GfxProc::dimensions[GfxProc::PREVIEW][1], LocalPath::fromPath(localDstPath, *client->fsaccess));
     sdkMutex.unlock();
 
     return result;
@@ -8941,7 +8941,7 @@ bool MegaApiImpl::createAvatar(const char *imagePath, const char *dstPath)
     
     sdkMutex.lock();
     bool result = gfxAccess->savefa(LocalPath::fromPath(localImagePath, *client->fsaccess), GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][0],
-            GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][1], &localDstPath);
+            GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][1], LocalPath::fromPath(localDstPath, *client->fsaccess));
     sdkMutex.unlock();
     
     return result;
@@ -12990,10 +12990,7 @@ void MegaApiImpl::syncupdate_treestate(LocalNode *l)
     MegaSyncPrivate* megaSync = syncMap.at(l->sync->tag);
 
 #if defined(_WIN32)
-    string s;
-    wstring2string_utf16(s, localpath.getLocalpath());
-    s.append("", 1);
-    fireOnFileSyncStateChanged(megaSync, &s, (int)l->ts);
+    fireOnFileSyncStateChanged(megaSync, &wstring2string_utf16(localpath.getLocalpath()), (int)l->ts);
 #else
     fireOnFileSyncStateChanged(megaSync, &localpath.getLocalpath(), (int)l->ts);
 #endif

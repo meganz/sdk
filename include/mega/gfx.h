@@ -83,7 +83,7 @@ class MEGA_API GfxProc
     void loop();
 
     // read and store bitmap
-    virtual bool readbitmap(FileAccess*, string*, int) = 0;
+    virtual bool readbitmap(FileAccess*, const LocalPath&, int) = 0;
 
     // resize stored bitmap and store result as JPEG
     virtual bool resizebitmap(int, int, string*) = 0;
@@ -121,7 +121,7 @@ public:
     typedef enum { AVATAR250X250 } avatar_t;
 
     // generate and save a fa to a file
-    bool savefa(const LocalPath&, int, int, string*);
+    bool savefa(const LocalPath&, int, int, LocalPath&);
 
     // - w*0: largest square crop at the center (landscape) or at 1/6 of the height above center (portrait)
     // - w*h: resize to fit inside w*h bounding box

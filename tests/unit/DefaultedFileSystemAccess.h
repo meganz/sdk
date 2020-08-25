@@ -20,10 +20,6 @@
 
 #include <mega/filesystem.h>
 
-#if defined(_WIN32)
-#include <mega/utils.h>
-#endif
-
 #include "NotImplemented.h"
 
 namespace mt {
@@ -36,7 +32,7 @@ public:
         notifyerr = false;
         notifyfailed = true;
 #if defined(_WIN32)
-        localseparator = mega::string2wstring(separator);
+        localseparator = L"\\";
 #else
         localseparator = separator;
 #endif

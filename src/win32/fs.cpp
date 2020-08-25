@@ -21,6 +21,7 @@
 
 #include "mega.h"
 #include <wow64apiset.h>
+#include "megaapi.h"
 
 namespace mega {
 #if defined(_WIN32)
@@ -445,7 +446,7 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
     bool skipcasecheck = false;
     WinFileSystemAccess::sanitizedriveletter(namePath.localpath);
     
-    std::wstring name = namePath.localpath.c_str();
+    std::wstring name = namePath.localpath;
 
     if (write)
     {
@@ -498,11 +499,11 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
 
         if (!skipcasecheck)
         {
-            const wchar_t* filename = name.c_str() + name.size() - 1;
+            const wchar_t* filename = name.c_str() + name.size();
             int filenamesize = 0;
             bool separatorfound = false;
             do {
-                filename -= sizeof(wchar_t);
+                --filename;
                 filenamesize += sizeof(wchar_t);
                 separatorfound = !memcmp(L"\\", filename, sizeof(wchar_t)) || !memcmp(L"/", filename, sizeof(wchar_t)) || !memcmp(L":", filename, sizeof(wchar_t));
             } while (filename > name.c_str() && !separatorfound);
@@ -511,7 +512,7 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
             {
                 if (separatorfound)
                 {
-                    filename += sizeof(wchar_t);
+                    ++filename;
                 }
                 else
                 {
@@ -536,7 +537,9 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
         {            
             if (SimpleLogger::logCurrentLevel >= logDebug)
             {
-                LOG_debug << "Excluded: " << wstring2string(name) << "   Attributes: " << fad.dwFileAttributes;
+                string excluded;
+                MegaApi::utf16ToUtf8(name.data(), name.length(), &excluded);
+                LOG_debug << "Excluded: " << excluded << "   Attributes: " << fad.dwFileAttributes;
             }
             retry = false;
             return false;

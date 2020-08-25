@@ -65,17 +65,17 @@ const char* GfxProcCG::supportedformats() {
     return ".bmp.cr2.crw.cur.dng.gif.heic.ico.j2c.jp2.jpf.jpeg.jpg.nef.orf.pbm.pdf.pgm.png.pnm.ppm.psd.raf.rw2.rwl.tga.tif.tiff.3g2.3gp.avi.m4v.mov.mp4.mqv.qt.";
 }
 
-bool GfxProcCG::readbitmap(FileAccess* fa, string* name, int size) {
+bool GfxProcCG::readbitmap(FileAccess* fa, const LocalPath& name, int size) {
     string absolutename;
     if (PosixFileSystemAccess::appbasepath) {
-        if (name->size() && name->at(0) != '/') {
+        if (name.getLocalpath().size() && getLocalpath().at(0) != '/') {
             absolutename = PosixFileSystemAccess::appbasepath;
-            absolutename.append(*name);
+            absolutename.append(name.getLocalpath());
             name = &absolutename;
         }
     }
     
-    NSString *sourcePath = [NSString stringWithCString:name->c_str() encoding:[NSString defaultCStringEncoding]];
+    NSString *sourcePath = [NSString stringWithCString:name.getLocalpath().c_str() encoding:[NSString defaultCStringEncoding]];
     NSURL *sourceURL = [NSURL fileURLWithPath:sourcePath isDirectory:NO];
     if (sourceURL == nil) {
         return false;

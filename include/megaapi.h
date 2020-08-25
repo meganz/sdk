@@ -132,6 +132,24 @@ public:
     virtual bool readBitmap(const char* path);
 
     /**
+     * @brief Read the image file and check if it can be processed
+     *
+     * This is the first function that will be called to process an image. No other
+     * functions of this interface will be called before this one.
+     *
+     * The recommended implementation is to read the file, check if it's an image and
+     * get its dimensions. If everything is OK, the function should return true. If the
+     * file isn't an image or can't be processed, this function should return false.
+     *
+     * The SDK will call this function with all files so it's probably a good idea to
+     * check the extension before trying to open them.
+     *
+     * @param path Path (as a wchar_t string) of the file that is going to be processed
+     * @return True if the implementation is able to manage the file, false otherwise.
+     */
+    virtual bool readBitmap(const wchar_t* path);
+
+    /**
      * @brief Returns the width of the image
      *
      * This function must return the width of the image at the path provided in MegaGfxProcessor::readBitmap

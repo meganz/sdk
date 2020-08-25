@@ -5402,6 +5402,11 @@ bool MegaGfxProcessor::readBitmap(const char* /*path*/)
     return false;
 }
 
+bool MegaGfxProcessor::readBitmap(const wchar_t* /*path*/)
+{
+    return false;
+}
+
 int MegaGfxProcessor::getWidth()
 {
     return 0;

@@ -71,7 +71,7 @@ bool File::serialize(string *d)
 #if defined(_WIN32)
     ll = (unsigned short)localname.getLocalpath().size();
     d->append((char*)&ll, sizeof(ll));
-    d->append(wstring2string(localname.getLocalpath().data()), ll);
+    d->append(wstring2string_utf16(localname.getLocalpath().data()), ll);
 #else
     ll = (unsigned short)localname.getLocalpath().size();
     d->append((char*)&ll, sizeof(ll));
@@ -213,9 +213,7 @@ File *File::unserialize(string *d)
     file->name.assign(name, namelen);
 #if defined(_WIN32)
     std::string s(localname, localnamelen);
-    std::wstring ws;
-    utf16string2wstring(ws, s); 
-    file->localname.setLocalpath(ws);
+    file->localname.setLocalpath(utf16string2wstring(s));
 #else
     file->localname.editStringDirect()->assign(localname, localnamelen);
 #endif

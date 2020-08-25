@@ -31,7 +31,7 @@ class MEGA_API GfxProcFreeImage : public GfxProc
 {
     FIBITMAP* dib;
 
-    bool readbitmap(FileAccess*, string*, int);
+    bool readbitmap(FileAccess*, const LocalPath&, int);
     bool resizebitmap(int, int, string*);
     void freebitmap();
 

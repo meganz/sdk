@@ -116,7 +116,7 @@ void GfxProc::loop()
             LOG_debug << "Processing media file: " << job->h;
 
             // (this assumes that the width of the largest dimension is max)
-            if (readbitmap(NULL, &job->localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
+            if (readbitmap(NULL, LocalPath::fromLocalname(job->localfilename), dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
             {
                 for (unsigned i = 0; i < job->imagetypes.size(); i++)
                 {
@@ -316,7 +316,7 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilena
     return int(job->imagetypes.size());
 }
 
-bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, string *localdstpath)
+bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, LocalPath& localdstpath)
 {
     if (!isgfx(localfilepath))
     {
@@ -324,8 +324,7 @@ bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, stri
     }
 
     mutex.lock();
-    std::string filepath = wstring2string(localfilepath.getLocalpath());
-    if (!readbitmap(NULL, &filepath, width > height ? width : height))
+    if (!readbitmap(NULL, localfilepath, width > height ? width : height))
     {
         mutex.unlock();
         return false;
@@ -351,9 +350,8 @@ bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, stri
     }
 
     auto f = client->fsaccess->newfileaccess();
-    auto localpath = LocalPath::fromLocalname(string2wstring(*localdstpath));
-    client->fsaccess->unlinklocal(localpath);
-    if (!f->fopen(localpath, false, true))
+    client->fsaccess->unlinklocal(localdstpath);
+    if (!f->fopen(localdstpath, false, true))
     {
         return false;
     }

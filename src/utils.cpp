@@ -55,28 +55,20 @@ string toHandle(handle h)
     return string(base64Handle);
 }
 
-std::string wstring2string(std::wstring wide_utf16_src)
+std::string wstring2string_utf16(std::wstring inwstr)
 {
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-    return converter.to_bytes(wide_utf16_src);
-}
-
-std::wstring string2wstring(std::string narrow_utf8_src)
-{
-    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-    return converter.from_bytes(narrow_utf8_src);
-}
-
-void wstring2string_utf16(std::string& outstr, std::wstring inwstr)
-{
+    std::string outstr;
     outstr.resize(inwstr.size() * sizeof(wchar_t));
     memcpy(const_cast<char*>(outstr.data()), inwstr.data(), inwstr.size() * sizeof(wchar_t));
+    return outstr;
 }
 
-void utf16string2wstring(std::wstring& outwstr, std::string instr)
+std::wstring utf16string2wstring(std::string instr)
 {
-    outwstr.resize(instr.size() / sizeof(wchar_t) + 1);
+    std::wstring outwstr;
+    outwstr.resize(instr.size() / sizeof(wchar_t));
     memcpy(const_cast<wchar_t*>(outwstr.data()), instr.data(), instr.size());
+    return outwstr;
 }
 
 void RemoveHiddenFileAttribute(mega::Transfer* transfer)

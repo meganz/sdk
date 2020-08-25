@@ -1050,14 +1050,13 @@ string LocalPath::toName(const FileSystemAccess& fsaccess, FileSystemType fsType
     
 }
 
-
 LocalPath LocalPath::fromPath(const string& path, const FileSystemAccess& fsaccess)
 {
     std::string s;
     fsaccess.path2local(&path, &s);
     LocalPath p;
 #if defined(_WIN32)
-    p.localpath = string2wstring(s);
+    p.localpath = utf16string2wstring(s);
 #else
     p.localpath = s;
 #endif
@@ -1069,7 +1068,7 @@ LocalPath LocalPath::fromName(string path, const FileSystemAccess& fsaccess, Fil
     fsaccess.name2local(&path, fsType);
 #if defined(_WIN32)
     LocalPath p;
-    utf16string2wstring(p.localpath, path);
+    p.localpath = utf16string2wstring(path);
     return p;
 #else
     return fromLocalname(path);
@@ -1089,7 +1088,7 @@ LocalPath LocalPath::fromLocalname(std::string path)
 {
 #if defined(_WIN32)
     LocalPath p;
-    utf16string2wstring(p.localpath, path);
+    p.localpath = utf16string2wstring(path);
     return p;
 #else
     LocalPath p;

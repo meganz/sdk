@@ -398,29 +398,22 @@ const char* GfxProcFreeImage::supportedformats()
     return sformats.c_str();
 }
 
-bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
+bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, int size)
 {
-#ifdef _WIN32
-    localname->append("", 1);
-#endif
-
 #ifdef HAVE_FFMPEG
     char ext[8];
     bool isvideo = false;
-    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localname), ext, sizeof ext))
+    if (client->fsaccess->getextension(localname, ext, sizeof ext))
     {
         const char* ptr;
         if ((ptr = strstr(supportedformatsFfmpeg(), ext)) && ptr[strlen(ext)] == '.')
         {
             string name;  // WIN32 ffmpeg uses utf8 rather than wide strings
-            client->fsaccess->local2path(localname, &name);
+            client->fsaccess->local2path(localname.getLocalpath(), &name);
 
             isvideo = true;
             if (!readbitmapFfmpeg(fa, &name, size) )
             {
-#ifdef _WIN32
-                localname->resize(localname->size()-1);
-#endif
                 return false;
             }
         }
@@ -430,13 +423,10 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
 #endif
 
     // FIXME: race condition, need to use open file instead of filename
-    FREE_IMAGE_FORMAT fif = FreeImage_GetFileTypeX((freeimage_filename_char_t*)localname->data());
+    FREE_IMAGE_FORMAT fif = FreeImage_GetFileTypeX((freeimage_filename_char_t*)localname.getLocalpath().data());
 
     if (fif == FIF_UNKNOWN)
     {
-#ifdef _WIN32
-        localname->resize(localname->size()-1);
-#endif
         return false;
     }
 
@@ -444,12 +434,9 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
     if (fif == FIF_JPEG)
     {
         // load JPEG (scale & EXIF-rotate)
-        if (!(dib = FreeImage_LoadX(fif, (freeimage_filename_char_t*) localname->data(),
+        if (!(dib = FreeImage_LoadX(fif, (freeimage_filename_char_t*)localname.getLocalpath().data(),
                                     JPEG_EXIFROTATE | JPEG_FAST | (size << 16))))
         {
-#ifdef _WIN32
-            localname->resize(localname->size()-1);
-#endif
             return false;
         }
     }
@@ -457,16 +444,13 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
 #endif
     {
         // load all other image types - for RAW formats, rely on embedded preview
-        if (!(dib = FreeImage_LoadX(fif, (freeimage_filename_char_t*)localname->data(),
+        if (!(dib = FreeImage_LoadX(fif, (freeimage_filename_char_t*)localname.getLocalpath().data(),
                 #ifndef OLD_FREEIMAGE
                                     (fif == FIF_RAW) ? RAW_PREVIEW : 0)))
                 #else
                                     0)))
                 #endif
         {
-#ifdef _WIN32
-            localname->resize(localname->size()-1);
-#endif
             return false;
         }
     }
@@ -479,15 +463,9 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
 
     if (!w || !h)
     {
-#ifdef _WIN32
-            localname->resize(localname->size()-1);
-#endif
         return false;
     }
 
-#ifdef _WIN32
-            localname->resize(localname->size()-1);
-#endif
     return true;
 }
 
