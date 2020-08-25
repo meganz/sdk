@@ -32,6 +32,7 @@
 //#include <mega/tsthooks.h>
 #include <fstream>
 #include <atomic>
+#include <random>
 
 #include <megaapi_impl.h>
 
@@ -58,6 +59,55 @@ bool suppressfiles = false;
 
 typedef ::mega::byte byte;
 
+// Creates a temporary directory in the current path
+fs::path makeTmpDir(const int maxTries = 1000)
+{
+    const auto cwd = fs::current_path();
+    std::random_device dev;
+    std::mt19937 prng{dev()};
+    std::uniform_int_distribution<uint64_t> rand{0};
+    fs::path path;
+    for (int i = 0;; ++i)
+    {
+        std::ostringstream os;
+        os << std::hex << rand(prng);
+        path = cwd / os.str();
+        if (fs::create_directory(path))
+        {
+            break;
+        }
+        if (i == maxTries)
+        {
+            throw std::runtime_error{"Couldn't create tmp dir"};
+        }
+    }
+    return path;
+}
+
+// Copies a file while maintaining the write time.
+void copyFile(const fs::path& source, const fs::path& target)
+{
+    assert(fs::is_regular_file(source));
+    const auto tmpDir = makeTmpDir();
+    const auto tmpFile = tmpDir / "copied_file";
+    fs::copy_file(source, tmpFile);
+    fs::last_write_time(tmpFile, fs::last_write_time(source));
+    fs::rename(tmpFile, target);
+    fs::remove(tmpDir);
+}
+
+string leafname(const string& p)
+{
+    auto n = p.find_last_of("/");
+    return n == string::npos ? p : p.substr(n+1);
+}
+
+string parentpath(const string& p)
+{
+    auto n = p.find_last_of("/");
+    return n == string::npos ? "" : p.substr(0, n-1);
+}
+
 void WaitMillisec(unsigned n)
 {
 #ifdef _WIN32
@@ -75,14 +125,14 @@ struct Model
         enum nodetype { file, folder };
         nodetype type = folder;
         string name;
-        vector<uint8_t> data;
+        string content;
         vector<unique_ptr<ModelNode>> kids;
         ModelNode* parent = nullptr;
 
-        string path() 
+        string path()
         {
             string s;
-            for (auto p = this; p; p = p->parent) 
+            for (auto p = this; p; p = p->parent)
                 s = "/" + p->name + s;
             return s;
         }
@@ -109,7 +159,15 @@ struct Model
                 in->print(prefix);
             }
         }
-
+        std::unique_ptr<ModelNode> clone()
+        {
+            auto result = std::make_unique<ModelNode>();
+            result->name = name;
+            result->type = type;
+            result->content = content;
+            for (auto& k : kids) result->addkid(k->clone());
+            return result;
+        }
     };
 
     unique_ptr<ModelNode> makeModelSubfolder(const string& utf8Name)
@@ -119,31 +177,13 @@ struct Model
         return n;
     }
 
-    unique_ptr<ModelNode> makeModelSubfile(const string& u8name, const void *data, const size_t data_length)
+    unique_ptr<ModelNode> makeModelSubfile(const string& utf8Name, string content = {})
     {
-        unique_ptr<ModelNode> node(new ModelNode());
-        const uint8_t * const m = reinterpret_cast<const uint8_t *>(data);
-
-        node->name = u8name;
-        node->data.assign(m, m + data_length);
-        node->type = ModelNode::file;
-
-        return node;
-    }
-
-    unique_ptr<ModelNode> makeModelSubfile(const string& u8name, const std::vector<uint8_t> &data)
-    {
-        return makeModelSubfile(u8name, data.data(), data.size());
-    }
-
-    unique_ptr<ModelNode> makeModelSubfile(const string& u8name, const string& data)
-    {
-        return makeModelSubfile(u8name, data.data(), data.size());
-    }
-
-    unique_ptr<ModelNode> makeModelSubfile(const string& u8name)
-    {
-        return makeModelSubfile(u8name, u8name.data(), u8name.size());
+        unique_ptr<ModelNode> n(new ModelNode);
+        n->name = utf8Name;
+        n->type = ModelNode::file;
+        n->content = content.empty() ? utf8Name : std::move(content);
+        return n;
     }
 
     unique_ptr<ModelNode> buildModelSubdirs(const string& prefix, int n, int recurselevel, int filesperdir)
@@ -151,7 +191,7 @@ struct Model
         if (suppressfiles) filesperdir = 0;
 
         unique_ptr<ModelNode> nn = makeModelSubfolder(prefix);
-        
+
         for (int i = 0; i < filesperdir; ++i)
         {
             nn->addkid(makeModelSubfile("file" + to_string(i) + "_" + prefix));
@@ -213,6 +253,8 @@ struct Model
         ModelNode* dest = findnode(destpath);
         if (source && source && source->parent && dest)
         {
+            auto replaced_node = removenode(destpath + "/" + source->name);
+
             unique_ptr<ModelNode> n;
             ModelNode* parent = source->parent;
             auto newend = std::remove_if(parent->kids.begin(), parent->kids.end(), [&n, source](unique_ptr<ModelNode>& v) { if (v.get() == source) return n = move(v), true; else return false; });
@@ -307,6 +349,46 @@ struct Model
         }
     }
 
+    void emulate_rename(std::string nodepath, std::string newname)
+    {
+        auto node = findnode(nodepath);
+        ASSERT_TRUE(!!node);
+        if (node) node->name = newname;
+    }
+
+    void emulate_move(std::string nodepath, std::string newparentpath)
+    {
+        auto removed = removenode(newparentpath + "/" + leafname(nodepath));
+
+        ASSERT_TRUE(movenode(nodepath, newparentpath));
+    }
+
+    void emulate_copy(std::string nodepath, std::string newparentpath)
+    {
+        auto node = findnode(nodepath);
+        auto newparent = findnode(newparentpath);
+        ASSERT_TRUE(!!node);
+        ASSERT_TRUE(!!newparent);
+        newparent->addkid(node->clone());
+    }
+
+    void emulate_rename_copy(std::string nodepath, std::string newparentpath, std::string newname)
+    {
+        auto node = findnode(nodepath);
+        auto newparent = findnode(newparentpath);
+        ASSERT_TRUE(!!node);
+        ASSERT_TRUE(!!newparent);
+        auto newnode = node->clone();
+        newnode->name = newname;
+        newparent->addkid(std::move(newnode));
+    }
+
+    void emulate_delete(std::string nodepath)
+    {
+        auto removed = removenode(nodepath);
+       // ASSERT_TRUE(!!removed);
+    }
+
     Model() : root(makeModelSubfolder("root"))
     {
     }
@@ -324,6 +406,8 @@ bool waitonresults(future<bool>* r1 = nullptr, future<bool>* r2 = nullptr, futur
     return (!r1 || r1->get()) && (!r2 || r2->get()) && (!r3 || r3->get()) && (!r4 || r4->get());
 }
 
+atomic<int> next_request_tag{ 1 << 30 };
+
 struct StandardClient : public MegaApp
 {
     WAIT_CLASS waiter;
@@ -331,7 +415,7 @@ struct StandardClient : public MegaApp
     GFX_CLASS gfx;
 #endif
 
-    string client_dbaccess_path; 
+    string client_dbaccess_path;
     std::unique_ptr<HttpIO> httpio;
     std::unique_ptr<FileSystemAccess> fsaccess;
     MegaClient client;
@@ -345,6 +429,7 @@ struct StandardClient : public MegaApp
     std::condition_variable functionDone;
     std::mutex functionDoneMutex;
     std::string salt;
+    std::set<fs::path> localFSFilesThatMayDiffer;
 
     fs::path fsBasePath;
 
@@ -377,6 +462,7 @@ struct StandardClient : public MegaApp
             "N9tSBJDC", USER_AGENT.c_str(), THREADS_PER_MEGACLIENT )
         , clientname(name)
         , fsBasePath(basepath / fs::u8path(name))
+        , resultproc(client)
         , clientthread([this]() { threadloop(); })
     {
         client.clientname = clientname + " ";
@@ -388,10 +474,10 @@ struct StandardClient : public MegaApp
     ~StandardClient()
     {
         // shut down any syncs on the same thread, or they stall the client destruction (CancelIo instead of CancelIoEx on the WinDirNotify)
-        thread_do([](MegaClient& mc, promise<bool>&) { 
+        thread_do([](MegaClient& mc, promise<bool>&) {
             #ifdef _WIN32
                 // logout stalls in windows due to the issue above
-                mc.purgenodesusersabortsc(false); 
+                mc.purgenodesusersabortsc(false);
             #else
                 mc.logout();
             #endif
@@ -543,7 +629,7 @@ struct StandardClient : public MegaApp
         return nextfunctionSCpromise.get_future();
     }
 
-    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE };
+    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE, CATCHUP };
 
     void preloginFromEnv(const string& userenv, promise<bool>& pb)
     {
@@ -551,8 +637,10 @@ struct StandardClient : public MegaApp
 
         ASSERT_FALSE(user.empty());
 
-        resultproc.prepresult(PRELOGIN, [&pb](error e) { pb.set_value(!e); });
-        client.prelogin(user.c_str());
+        resultproc.prepresult(PRELOGIN, ++next_request_tag,
+            [&](){ client.prelogin(user.c_str()); },
+            [this, &pb](error e) { pb.set_value(!e); return true; });
+
     }
 
     void loginFromEnv(const string& userenv, const string& pwdenv, promise<bool>& pb)
@@ -565,33 +653,139 @@ struct StandardClient : public MegaApp
 
         byte pwkey[SymmCipher::KEYLENGTH];
 
-        resultproc.prepresult(LOGIN, [&pb](error e) { pb.set_value(!e); });
-        if (client.accountversion == 1)
-        {
-            if (error e = client.pw_key(pwd.c_str(), pwkey))
-            {
-                ASSERT_TRUE(false) << "login error: " << e;
-            }
-            else
-            {
-                client.login(user.c_str(), pwkey);
-            }
-        }
-        else if (client.accountversion == 2 && !salt.empty())
-        {
-            client.login2(user.c_str(), pwd.c_str(), &salt);
-        }
-        else
-        {
-            ASSERT_TRUE(false) << "Login unexpected error";
-        }
+        resultproc.prepresult(LOGIN, ++next_request_tag,
+            [&](){
+                if (client.accountversion == 1)
+                {
+                    if (error e = client.pw_key(pwd.c_str(), pwkey))
+                    {
+                        ASSERT_TRUE(false) << "login error: " << e;
+                    }
+                    else
+                    {
+                        client.login(user.c_str(), pwkey);
+                    }
+                }
+                else if (client.accountversion == 2 && !salt.empty())
+                {
+                    client.login2(user.c_str(), pwd.c_str(), &salt);
+                }
+                else
+                {
+                    ASSERT_TRUE(false) << "Login unexpected error";
+                }
+            },
+            [this, &pb](error e) { pb.set_value(!e); return true; });
+
     }
 
     void loginFromSession(const string& session, promise<bool>& pb)
     {
-        resultproc.prepresult(LOGIN, [&pb](error e) { pb.set_value(!e); });
-        client.login((byte*)session.data(), (int)session.size());
+        resultproc.prepresult(LOGIN, ++next_request_tag,
+            [&](){ client.login((byte*)session.data(), (int)session.size()); },
+            [this, &pb](error e) { pb.set_value(!e);  return true; });
     }
+
+    void cloudCopyTreeAs(Node* n1, Node* n2, std::string newname, promise<bool>& pb)
+    {
+        resultproc.prepresult(PUTNODES, ++next_request_tag,
+            [&](){
+                TreeProcCopy tc;
+                client.proctree(n1, &tc, false, true);
+                tc.allocnodes();
+                auto nc = tc.nc;
+                client.proctree(n1, &tc, false, true);
+                tc.nn[0].parenthandle = UNDEF;
+
+                SymmCipher key;
+                AttrMap attrs;
+                string attrstring;
+                key.setkey((const ::mega::byte*)tc.nn[0].nodekey.data(), n1->type);
+                attrs = n1->attrs;
+                client.fsaccess->normalize(&newname);
+                attrs.map['n'] = newname;
+                attrs.getjson(&attrstring);
+                client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
+                client.putnodes(n2->nodehandle, tc.nn, nc);
+            },
+            [this, &pb](error e) {
+                pb.set_value(!e);
+                return true;
+            });
+    }
+
+    void uploadFolderTree_recurse(handle parent, handle& h, const fs::path& p, vector<NewNode>& newnodes)
+    {
+        NewNode n;
+        client.putnodes_prepareOneFolder(&n, p.filename().u8string());
+        handle thishandle = n.nodehandle = h++;
+        n.parenthandle = parent;
+        newnodes.emplace_back(std::move(n));
+
+        for (fs::directory_iterator i(p); i != fs::directory_iterator(); ++i)
+        {
+            if (fs::is_directory(*i))
+            {
+                uploadFolderTree_recurse(thishandle, h, *i, newnodes);
+            }
+        }
+    }
+
+    void uploadFolderTree(fs::path p, Node* n2, promise<bool>& pb)
+    {
+        resultproc.prepresult(PUTNODES, ++next_request_tag,
+            [&](){
+                vector<NewNode> newnodes;
+                handle h = 1;
+                uploadFolderTree_recurse(UNDEF, h, p, newnodes);
+                auto nn = new NewNode[newnodes.size()];
+                for (auto i = newnodes.size(); i--; ) nn[i] = std::move(newnodes[i]);
+
+                client.putnodes(n2->nodehandle, nn, (int)newnodes.size());
+            },
+            [this, &pb](error e) { pb.set_value(!e);  return true; });
+    }
+
+    void uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer)
+    {
+        if (fs::is_regular_file(p))
+        {
+            ++inprogress;
+            File* f = new File();
+            // full local path
+            f->localname = LocalPath::fromPath(p.u8string(), *client.fsaccess);
+            f->h = target->nodehandle;
+            f->name = p.filename().u8string();
+            client.startxfer(PUT, f, committer);
+        }
+        else if (fs::is_directory(p))
+        {
+            if (auto newtarget = client.childnodebyname(target, p.filename().u8string().c_str()))
+            {
+                for (fs::directory_iterator i(p); i != fs::directory_iterator(); ++i)
+                {
+                    uploadFilesInTree_recurse(newtarget, *i, inprogress, committer);
+                }
+            }
+        }
+    }
+
+
+    void uploadFilesInTree(fs::path p, Node* n2, std::atomic<int>& inprogress, std::promise<bool>& pb)
+    {
+        resultproc.prepresult(PUTNODES, ++next_request_tag,
+            [&](){
+                DBTableTransactionCommitter committer(client.tctable);
+                uploadFilesInTree_recurse(n2, p, inprogress, committer);
+            },
+            [this, &pb, &inprogress](error e)
+            {
+                if (!--inprogress)
+                    pb.set_value(true);
+                return !inprogress;
+            });
+    }
+
 
 
     class TreeProcPrintTree : public TreeProc
@@ -609,29 +803,31 @@ struct StandardClient : public MegaApp
 
     void fetchnodes(promise<bool>& pb)
     {
-        resultproc.prepresult(FETCHNODES, [this, &pb](error e) 
-        { 
-            if (e)
+        resultproc.prepresult(FETCHNODES, ++next_request_tag,
+            [&](){ client.fetchnodes(); },
+            [this, &pb](error e)
             {
-                pb.set_value(false);
-            }
-            else
-            {
-                TreeProcPrintTree tppt;
-                client.proctree(client.nodebyhandle(client.rootnodes[0]), &tppt);
-
-                if (onFetchNodes)
+                if (e)
                 {
-                    onFetchNodes(*this, pb);
+                    pb.set_value(false);
                 }
                 else
                 {
-                    pb.set_value(true);
+                    TreeProcPrintTree tppt;
+                    client.proctree(client.nodebyhandle(client.rootnodes[0]), &tppt);
+
+                    if (onFetchNodes)
+                    {
+                        onFetchNodes(*this, pb);
+                    }
+                    else
+                    {
+                        pb.set_value(true);
+                    }
                 }
-            }
-            onFetchNodes = nullptr;
-        });
-        client.fetchnodes();
+                onFetchNodes = nullptr;
+                return true;
+            });
     }
 
     NewNode makeSubfolder(const string& utf8Name)
@@ -640,49 +836,104 @@ struct StandardClient : public MegaApp
         client.putnodes_prepareOneFolder(&newnode, utf8Name);
         return newnode;
     }
-     
+
 
     struct ResultProc
     {
+        MegaClient& client;
+        ResultProc(MegaClient& c) : client(c) {}
+
         struct id_callback
         {
+            int request_tag = 0;
             handle h = UNDEF;
-            std::function<void(error)> f;
-            id_callback(std::function<void(error)> cf, handle ch = UNDEF) : h(ch), f(cf) {}
+            std::function<bool(error)> f;
+            id_callback(std::function<bool(error)> cf, int tag, handle ch) : request_tag(tag), h(ch), f(cf) {}
         };
 
+        recursive_mutex mtx;  // recursive because sometimes we need to set up new operations during a completion callback
         map<resultprocenum, deque<id_callback>> m;
 
-        void prepresult(resultprocenum rpe, std::function<void(error)>&& f, handle h = UNDEF)
+        void prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h = UNDEF)
         {
+            lock_guard<recursive_mutex> g(mtx);
             auto& entry = m[rpe];
-            entry.emplace_back(move(f), h);
+            entry.emplace_back(move(f), tag, h);
+
+            assert(tag > 0);
+            int oldtag = client.reqtag;
+            client.reqtag = tag;
+            requestfunc();
+            client.reqtag = oldtag;
+
+            client.waiter->notify();
         }
 
         void processresult(resultprocenum rpe, error e, handle h = UNDEF)
         {
-            //cout << "procenum " << rpe << " result " << e << endl;
+            int tag = client.restag;
+            if (tag == 0 && rpe != CATCHUP)
+            {
+                //cout << "received notification of SDK initiated operation " << rpe << " tag " << tag << endl; // too many of those to output
+                return;
+            }
+
+            if (tag < (2 << 30))
+            {
+                cout << "ignoring callback from SDK internal sync operation " << rpe << " tag " << tag << endl;
+                return;
+            }
+
+            lock_guard<recursive_mutex> g(mtx);
             auto& entry = m[rpe];
-            if (rpe == MOVENODE)
+
+            if (rpe == CATCHUP)
             {
-                // rename_result is called back for our app requests but also for sync objects as well, so we need to skip those... todo: should we change that?
-                if (entry.empty() || entry.front().h != h)
+                while (!entry.empty())
                 {
-                    cout << "received unsolicited rename_result call" << endl;
-                    return;
+                    entry.front().f(e);
+                    entry.pop_front();
                 }
+                return;
             }
-            if (!entry.empty())
+
+            if (entry.empty())
             {
-                entry.front().f(e);
+                cout << "received notification of operation type " << rpe << " completion but we don't have a record of it.  tag: " << tag << endl;
+                return;
+            }
+
+            if (tag != entry.front().request_tag)
+            {
+                cout << "tag mismatch for operation completion of " << rpe << " tag " << tag << ", we expected " << entry.front().request_tag << endl;
+                return;
+            }
+
+            if (entry.front().f(e))
+            {
                 entry.pop_front();
-            }
-            else
-            {
-                assert(!entry.empty());
             }
         }
     } resultproc;
+
+   void catchup(promise<bool>& pb)
+    {
+        resultproc.prepresult(CATCHUP, ++next_request_tag,
+            [&](){
+                auto request_sent = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.client.catchup(); pb.set_value(true); });
+                if (!waitonresults(&request_sent)) {
+                    cout << "catchup not sent" << endl;
+                }
+            },
+            [this, &pb](error e) {
+                if (e)
+                {
+                    cout << "catchup reports: " << e << endl;
+                }
+                pb.set_value(!e);
+                return true;
+            });
+    }
 
     void deleteTestBaseFolder(bool mayneeddeleting, promise<bool>& pb)
     {
@@ -692,15 +943,17 @@ struct StandardClient : public MegaApp
             {
                 if (mayneeddeleting)
                 {
-                    resultproc.prepresult(UNLINK, [this, &pb](error e) {
-                        if (e)
-                        {
-                            cout << "delete of test base folder reply reports: " << e << endl;
-                        }
-                        deleteTestBaseFolder(false, pb);
-                    });
                     //cout << "old test base folder found, deleting" << endl;
-                    client.unlink(basenode);
+                    resultproc.prepresult(UNLINK, ++next_request_tag,
+                        [&](){ client.unlink(basenode); },
+                        [this, &pb](error e) {
+                            if (e)
+                            {
+                                cout << "delete of test base folder reply reports: " << e << endl;
+                            }
+                            deleteTestBaseFolder(false, pb);
+                            return true;
+                        });
                     return;
                 }
                 cout << "base folder found, but not expected, failing" << endl;
@@ -735,12 +988,13 @@ struct StandardClient : public MegaApp
             }
             else if (mayneedmaking)
             {
-                resultproc.prepresult(PUTNODES, [this, &pb](error e) {
-                    ensureTestBaseFolder(false, pb);
-                });
-                auto nn = new NewNode[1]; // freed by putnodes_result
+                auto nn = new NewNode[1];
                 nn[0] = makeSubfolder("mega_test_sync");
-                client.putnodes(root->nodehandle, nn, 1);
+
+                resultproc.prepresult(PUTNODES, ++next_request_tag,
+                    [&](){ client.putnodes(root->nodehandle, nn, 1); },
+                    [this, &pb](error e) { ensureTestBaseFolder(false, pb); return true; });
+
                 return;
             }
         }
@@ -785,20 +1039,23 @@ struct StandardClient : public MegaApp
         }
         else
         {
-            resultproc.prepresult(PUTNODES, [&pb](error e) {
-                pb.set_value(!e);
-                if (e) 
-                {
-                    cout << "putnodes result: " << e << endl;
-                }
-            });
             auto nodearray = new NewNode[nodes.size()]; // freed by putnodes_result
             size_t i = 0;
             for (auto n = nodes.begin(); n != nodes.end(); ++n, ++i)
             {
                 nodearray[i] = std::move(*n);
             }
-            client.putnodes(atnode->nodehandle, nodearray, (int)nodes.size());
+
+            resultproc.prepresult(PUTNODES, ++next_request_tag,
+                [&](){ client.putnodes(atnode->nodehandle, nodearray, int(nodes.size())); },
+                [this, &pb](error e) {
+                pb.set_value(!e);
+                if (e)
+                {
+                    cout << "putnodes result: " << e << endl;
+                }
+                return true;
+            });
         }
     }
 
@@ -854,14 +1111,13 @@ struct StandardClient : public MegaApp
         }
     }
 
-    bool setupSync_inthread(int syncid, const string& subfoldername, const fs::path& localpath)
+    bool setupSync_inthread(SyncConfig config, int syncid, const string& subfoldername, const fs::path& localpath)
     {
         if (Node* n = client.nodebyhandle(basefolderhandle))
         {
             if (Node* m = drillchildnodebyname(n, subfoldername))
             {
-                SyncConfig syncConfig{localpath.u8string(), m->nodehandle, 0};
-                error e = client.addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncid);  // use syncid as tag
+                error e = client.addsync(std::move(config), DEBRISFOLDER, NULL, syncid);  // use syncid as tag
                 if (!e)
                 {
                     syncSet[syncid] = SyncInfo{ m->nodehandle, localpath };
@@ -872,6 +1128,14 @@ struct StandardClient : public MegaApp
         return false;
     }
 
+    bool delSync_inthread(const int syncId, const bool keepCache)
+    {
+        const auto handle = syncSet.at(syncId).h;
+        const auto node = client.nodebyhandle(handle);
+        EXPECT_TRUE(node);
+        client.delsync(node->localnode->sync, keepCache);
+        return true;
+    }
 
     bool recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported)
     {
@@ -888,7 +1152,7 @@ struct StandardClient : public MegaApp
             return false;
         }
 
-        if (n->type == FILENODE) 
+        if (n->type == FILENODE)
         {
             // not comparing any file versioning (for now)
             return true;
@@ -1026,7 +1290,7 @@ struct StandardClient : public MegaApp
             bool any_equal_matched = false;
             for (auto i = er.first; i != er.second; ++i)
             {
-                int rdescendants = 0; 
+                int rdescendants = 0;
                 if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, firstreported))
                 {
                     ++matched;
@@ -1080,17 +1344,14 @@ struct StandardClient : public MegaApp
 
         if (pathtype == FILENODE && p.filename().u8string() != "lock")
         {
-            std::vector<uint8_t> buffer;
-            std::ifstream istream(p, ios::binary);
-
-            buffer.resize(mn->data.size());
-
-            istream.read(reinterpret_cast<char *>(buffer.data()), buffer.capacity());
-
-            if (static_cast<size_t>(istream.gcount()) != buffer.size()
-                || !std::equal(mn->data.begin(), mn->data.end(), buffer.begin()))
+            if (localFSFilesThatMayDiffer.find(p) == localFSFilesThatMayDiffer.end())
             {
-                return false;
+                ifstream fs(p, ios::binary);
+                std::vector<char> buffer;
+                buffer.resize(mn->content.size() + 1024);
+                fs.read(reinterpret_cast<char *>(buffer.data()), buffer.size());
+                EXPECT_EQ(size_t(fs.gcount()), mn->content.size()) << " file is not expected size " << p;
+                EXPECT_TRUE(!memcmp(buffer.data(), mn->content.data(), mn->content.size())) << " file data mismatch " << p;
             }
         }
 
@@ -1119,7 +1380,7 @@ struct StandardClient : public MegaApp
             bool any_equal_matched = false;
             for (auto i = er.first; i != er.second; ++i)
             {
-                int rdescendants = 0; 
+                int rdescendants = 0;
                 if (recursiveConfirm(m_iter->second, i->second, rdescendants, identifier, depth+1, ignoreDebris, firstreported))
                 {
                     ++matched;
@@ -1197,7 +1458,7 @@ struct StandardClient : public MegaApp
         }
 
         // compare model against LocalNodes
-        descendants = 0; 
+        descendants = 0;
         if (Sync* sync = syncByTag(syncid))
         {
             bool firstreported = false;
@@ -1243,8 +1504,13 @@ struct StandardClient : public MegaApp
     }
 
     void unlink_result(handle, error e) override
-    { 
+    {
         resultproc.processresult(UNLINK, e);
+    }
+
+    void catchup_result() override
+    {
+        resultproc.processresult(CATCHUP, error(API_OK));
     }
 
     void putnodes_result(error e, targettype_t tt, NewNode* nn) override
@@ -1257,7 +1523,7 @@ struct StandardClient : public MegaApp
     }
 
     void rename_result(handle h, error e)  override
-    { 
+    {
         resultproc.processresult(MOVENODE, e, h);
     }
 
@@ -1265,8 +1531,9 @@ struct StandardClient : public MegaApp
     {
         if (Node* n = drillchildnodebyname(gettestbasenode(), path))
         {
-        resultproc.prepresult(UNLINK, [ &pb](error e) { pb.set_value(!e); });
-            client.unlink(n);
+            resultproc.prepresult(UNLINK, ++next_request_tag,
+                [&](){ client.unlink(n); },
+                [this, &pb](error e) { pb.set_value(!e); return true; });
         }
         else
         {
@@ -1284,8 +1551,9 @@ struct StandardClient : public MegaApp
         {
             for (size_t i = ns.size(); i--; )
             {
-                resultproc.prepresult(UNLINK, [&pb, i](error e) { if (!i) pb.set_value(!e); });
-                client.unlink(ns[i]);
+                resultproc.prepresult(UNLINK, ++next_request_tag,
+                    [&](){ client.unlink(ns[i]); },
+                    [this, &pb, i](error e) { if (!i) pb.set_value(!e); return true; });
             }
         }
     }
@@ -1293,11 +1561,12 @@ struct StandardClient : public MegaApp
     void movenode(string path, string newparentpath, promise<bool>& pb)
     {
         Node* n = drillchildnodebyname(gettestbasenode(), path);
-        Node* p = drillchildnodebyname(gettestbasenode(), path);
+        Node* p = drillchildnodebyname(gettestbasenode(), newparentpath);
         if (n && p)
         {
-            resultproc.prepresult(MOVENODE, [&pb](error e) { pb.set_value(!e); }, n->nodehandle);
-            client.rename(n, p);
+            resultproc.prepresult(MOVENODE, ++next_request_tag,
+                [&](){ client.rename(n, p); },
+                [this, &pb](error e) { pb.set_value(!e); return true; });
             return;
         }
         cout << "node or new parent not found" << endl;
@@ -1310,8 +1579,9 @@ struct StandardClient : public MegaApp
         Node* p = client.nodebyhandle(h2);
         if (n && p)
         {
-        resultproc.prepresult(MOVENODE, [&pb](error e) { pb.set_value(!e); }, n->nodehandle);
-            client.rename(n, p);
+            resultproc.prepresult(MOVENODE, ++next_request_tag,
+                [&](){ client.rename(n, p);},
+                [this, &pb](error e) { pb.set_value(!e); return true; });
             return;
         }
         cout << "node or new parent not found by handle" << endl;
@@ -1324,8 +1594,9 @@ struct StandardClient : public MegaApp
         Node* p = getcloudrubbishnode();
         if (n && p && n->parent)
         {
-            resultproc.prepresult(MOVENODE, [&pb](error e) { pb.set_value(!e); }, n->nodehandle);
-            client.rename(n, p, SYNCDEL_NONE, n->parent->nodehandle);
+            resultproc.prepresult(MOVENODE, ++next_request_tag,
+                [&](){ client.rename(n, p, SYNCDEL_NONE, n->parent->nodehandle); },
+                [this, &pb](error e) { pb.set_value(!e);  return true; });
             return;
         }
         cout << "node or rubbish or node parent not found" << endl;
@@ -1351,6 +1622,10 @@ struct StandardClient : public MegaApp
                         any_add_del = true;
                 }
                 if (!(client.todebris.empty() && client.tounlink.empty() && client.synccreate.empty()))
+                {
+                    any_add_del = true;
+                }
+                if (!client.transfers[GET].empty() || !client.transfers[PUT].empty())
                 {
                     any_add_del = true;
                 }
@@ -1449,7 +1724,7 @@ struct StandardClient : public MegaApp
     {
         future<bool> p2;
         p2 = thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.loginFromSession(session, pb); });
-        if (!waitonresults(&p2)) return false; 
+        if (!waitonresults(&p2)) return false;
         p2 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.fetchnodes(pb); });
         if (!waitonresults(&p2)) return false;
         p2 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.ensureTestBaseFolder(false, pb); });
@@ -1462,7 +1737,7 @@ struct StandardClient : public MegaApp
         future<bool> p2;
         p2 = thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.loginFromSession(session, pb); });
         if (!waitonresults(&p2)) return false;
-        
+
         assert(!onFetchNodes);
         onFetchNodes = [=](StandardClient& mc, promise<bool>& pb)
         {
@@ -1479,9 +1754,21 @@ struct StandardClient : public MegaApp
 
     bool setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, int syncid)
     {
+        SyncConfig config{(fsBasePath / fs::u8path(localsyncrootfolder)).u8string(), drillchildnodebyname(gettestbasenode(), remotesyncrootfolder)->nodehandle, 0};
+        return setupSync_mainthread(std::move(config), localsyncrootfolder, remotesyncrootfolder, syncid);
+    }
+
+    bool setupSync_mainthread(SyncConfig config, const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, int syncid)
+    {
         fs::path syncdir = fsBasePath / fs::u8path(localsyncrootfolder);
         fs::create_directory(syncdir);
-        future<bool> fb = thread_do([=](StandardClient& mc, promise<bool>& pb) { pb.set_value(mc.setupSync_inthread(syncid, remotesyncrootfolder, syncdir)); });
+        future<bool> fb = thread_do([=](StandardClient& mc, promise<bool>& pb) { pb.set_value(mc.setupSync_inthread(config, syncid, remotesyncrootfolder, syncdir)); });
+        return fb.get();
+    }
+
+    bool delSync_mainthread(int syncId, bool keepCache = false)
+    {
+        future<bool> fb = thread_do([=](StandardClient& mc, promise<bool>& pb) { pb.set_value(mc.delSync_inthread(syncId, keepCache)); });
         return fb.get();
     }
 
@@ -1515,7 +1802,7 @@ void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1
                     if (sync->deleteq.size() || sync->insertq.size())
                         any_add_del = true;
                 }
-                if (!(mc.client.todebris.empty() && mc.client.tounlink.empty() && mc.client.synccreate.empty() 
+                if (!(mc.client.todebris.empty() && mc.client.tounlink.empty() && mc.client.synccreate.empty()
                     && mc.client.transferlist.transfers[GET].empty() && mc.client.transferlist.transfers[PUT].empty()))
                 {
                     any_add_del = true;
@@ -1605,21 +1892,21 @@ bool createFile(const fs::path &path, const void *data, const size_t data_length
     return ostream.good();
 }
 
-bool createFile(const fs::path &path, const std::vector<uint8_t> &data)
+bool createDataFile(const fs::path &path, const std::string &data)
 {
     return createFile(path, data.data(), data.size());
 }
 
-bool createFile(const fs::path &p, const string &filename)
+bool createNameFile(const fs::path &p, const string &filename)
 {
     return createFile(p / fs::u8path(filename), filename.data(), filename.size());
 }
 
-bool createFileWithTimestamp(const fs::path &path,
-                             const std::vector<uint8_t> &data,
+bool createDataFileWithTimestamp(const fs::path &path,
+                             const std::string &data,
                              const fs::file_time_type &timestamp)
 {
-    const bool result = createFile(path, data);
+    const bool result = createDataFile(path, data);
 
     if (result)
     {
@@ -1640,7 +1927,7 @@ bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int r
     for (int i = 0; i < filesperfolder; ++i)
     {
         string filename = "file" + to_string(i) + "_" + prefix;
-        createFile(p, filename);
+        createNameFile(p, filename);
         //int thisSize = (++fileSizeCount)/2;
         //for (int j = 0; j < thisSize; ++j) fs << ('0' + j % 10);
     }
@@ -1747,8 +2034,8 @@ public:
 
     void addModelFile(Model &model,
                       const std::string &directory,
-                      const std::string &file, 
-                      const std::vector<uint8_t> &content)
+                      const std::string &file,
+                      const std::string &content)
     {
         auto *node = model.findnode(directory);
         ASSERT_NE(node, nullptr);
@@ -1772,13 +2059,13 @@ public:
         return client.syncSet.at(0).localpath;
     }
 
-    std::vector<uint8_t> randomData(const std::size_t length) const
+    std::string randomData(const std::size_t length) const
     {
         std::vector<uint8_t> data(length);
 
         std::generate_n(data.begin(), data.size(), [](){ return (uint8_t)std::rand(); });
 
-        return data;
+        return std::string((const char*)data.data(), data.size());
     }
 
     void startSyncs()
@@ -1809,14 +2096,14 @@ TEST_F(SyncFingerprintCollision, DifferentMacSameName)
     // Alter MAC but leave fingerprint untouched.
     data1[0x41] = static_cast<uint8_t>(~data1[0x41]);
 
-    ASSERT_TRUE(createFile(path0, data0));
+    ASSERT_TRUE(createDataFile(path0, data0));
     waitOnSyncs();
 
     auto result0 =
       client0->thread_do([&](StandardClient &sc, std::promise<bool> &p)
                          {
                              p.set_value(
-                               createFileWithTimestamp(
+                                 createDataFileWithTimestamp(
                                  path1,
                                  data1,
                                  fs::last_write_time(path0)));
@@ -1843,14 +2130,14 @@ TEST_F(SyncFingerprintCollision, DifferentMacDifferentName)
 
     data1[0x41] = static_cast<uint8_t>(~data1[0x41]);
 
-    ASSERT_TRUE(createFile(path0, data0));
+    ASSERT_TRUE(createDataFile(path0, data0));
     waitOnSyncs();
 
     auto result0 =
       client0->thread_do([&](StandardClient &sc, std::promise<bool> &p)
                          {
                              p.set_value(
-                               createFileWithTimestamp(
+                                 createDataFileWithTimestamp(
                                  path1,
                                  data1,
                                  fs::last_write_time(path0)));
@@ -1874,14 +2161,14 @@ TEST_F(SyncFingerprintCollision, SameMacDifferentName)
     const auto path0 = localRoot(*client0) / "d_0" / "a";
     const auto path1 = localRoot(*client0) / "d_0" / "b";
 
-    ASSERT_TRUE(createFile(path0, data0));
+    ASSERT_TRUE(createDataFile(path0, data0));
     waitOnSyncs();
 
     auto result0 =
       client0->thread_do([&](StandardClient &sc, std::promise<bool> &p)
                          {
                              p.set_value(
-                               createFileWithTimestamp(
+                                 createDataFileWithTimestamp(
                                  path1,
                                  data0,
                                  fs::last_write_time(path0)));
@@ -2087,7 +2374,7 @@ GTEST_TEST(Sync, BasicSync_RenameLocalFile)
     waitonsyncs(TIMEOUT, &client0, &client1);
 
     // Add x/f.
-    ASSERT_TRUE(createFile(client0.syncSet[0].localpath, "f"));
+    ASSERT_TRUE(createNameFile(client0.syncSet[0].localpath, "f"));
 
     // Wait for sync to complete.
     waitonsyncs(TIMEOUT, &client0, &client1);
@@ -2218,7 +2505,7 @@ GTEST_TEST(Sync, BasicSync_MassNotifyFromLocalFolderTree)
  //   renameLocalFolders(clientA1.syncSet[1].localpath, "renamed_");
 
     // let them catch up
-    //waitonsyncs(std::chrono::seconds(10), &clientA1 /*, &clientA2*/);  
+    //waitonsyncs(std::chrono::seconds(10), &clientA1 /*, &clientA2*/);
 
     // rename is too slow to check, even just in localnodes, for now.
 
@@ -2230,7 +2517,7 @@ GTEST_TEST(Sync, BasicSync_MassNotifyFromLocalFolderTree)
     //// check everything matches (model has expected state of remote and local)
     //ASSERT_TRUE(clientA1.confirmModel_mainthread(model2.root.get(), 1));
     ////ASSERT_TRUE(clientA2.confirmModel_mainthread(model2.findnode("f"), 2));
-}               
+}
 
 
 
@@ -2846,7 +3133,7 @@ Node* makenode(MegaClient& mc, handle parent, ::mega::nodetype_t type, m_off_t s
     static handle handlegenerator = 10;
     std::vector<Node*> dp;
     auto newnode = new Node(&mc, &dp, ++handlegenerator, parent, type, size, owner, nullptr, 1);
-    
+
     newnode->setkey(key);
     newnode->attrstring.reset(new string);
 
@@ -2917,7 +3204,7 @@ GTEST_TEST(Sync, PutnodesForMultipleFolders)
     ASSERT_TRUE(standardclient.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", true));
 
     NewNode* newnodes = new NewNode[4];
-    
+
     standardclient.client.putnodes_prepareOneFolder(&newnodes[0], "folder1");
     standardclient.client.putnodes_prepareOneFolder(&newnodes[1], "folder2");
     standardclient.client.putnodes_prepareOneFolder(&newnodes[2], "folder2.1");
@@ -2928,12 +3215,10 @@ GTEST_TEST(Sync, PutnodesForMultipleFolders)
     handle targethandle = standardclient.client.rootnodes[0];
 
     std::atomic<bool> putnodesDone{false};
-    standardclient.resultproc.prepresult(StandardClient::PUTNODES, [&putnodesDone](error e) {
-        putnodesDone = true;
-    });
+    standardclient.resultproc.prepresult(StandardClient::PUTNODES,  ++next_request_tag,
+        [&](){ standardclient.client.putnodes(targethandle, newnodes, 4, nullptr); },
+        [&putnodesDone](error e) { putnodesDone = true; return true; });
 
-    standardclient.client.putnodes(targethandle, newnodes, 4, nullptr);
-    
     while (!putnodesDone)
     {
         WaitMillisec(100);
@@ -3091,7 +3376,7 @@ GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkLocally)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 
     fs::remove(clientA1.syncSet[1].localpath / "linked");
-    ASSERT_TRUE(createFile(clientA1.syncSet[1].localpath, "linked"));
+    ASSERT_TRUE(createNameFile(clientA1.syncSet[1].localpath, "linked"));
 
     // let them catch up
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
@@ -3139,7 +3424,7 @@ GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkUponSyncDown)
     //check client 2 is unaffected
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 
-    ASSERT_TRUE(createFile(clientA2.syncSet[2].localpath, "linked"));
+    ASSERT_TRUE(createNameFile(clientA2.syncSet[2].localpath, "linked"));
 
     // let them catch up
     waitonsyncs(DEFAULTWAIT, &clientA1, &clientA2);
@@ -3156,5 +3441,1026 @@ GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkUponSyncDown)
 }
 
 #endif
+
+struct TwoWaySyncSymmetryCase
+{
+    enum Action { action_rename, action_moveWithinSync, action_moveOutOfSync, action_moveIntoSync, action_delete, action_numactions };
+
+    enum MatchState { match_exact,      // the sync destination has the exact same file/folder at the same relative path
+                      match_older,      // the sync destination has an older file/folder at the same relative path
+                      match_newer,      // the sync destination has a newer file/folder at the same relative path
+                      match_absent };   // the sync destination has no node at the same relative path
+
+    Action action = action_rename;
+    bool selfChange = false; // changed by our own client or another
+    bool up = false;  // or down - sync direction
+    bool file = false;  // or folder.  Which one this test changes
+    MatchState destinationMatchBefore = match_exact;
+    MatchState destinationMatchAfter = match_absent;
+    bool propagateDeletes = false;
+    bool forceOverwrites = false;
+    bool pauseDuringAction = false;
+    int sync_tag = -1;
+    Model localModel;
+    Model remoteModel;
+
+    bool printTreesBeforeAndAfter = false;
+
+    struct State
+    {
+        StandardClient& client;
+        StandardClient& nonsyncClient;
+        fs::path localBaseFolder;
+        std::string remoteBaseFolder = "twoway";   // leave out initial / so we can drill down from root node
+        int next_sync_tag = 100;
+        std::string first_test_name;
+
+        State(StandardClient& sc, StandardClient& sc2) : client(sc), nonsyncClient(sc2) {}
+    };
+
+    State& state;
+    TwoWaySyncSymmetryCase(State& wholestate) : state(wholestate) {}
+
+    // todo: remote changes made by client (of this sync) or other client
+
+    std::string actionName()
+    {
+        switch (action)
+        {
+        case action_rename: return "rename";
+        case action_moveWithinSync: return "move";
+        case action_moveOutOfSync: return "moveOut";
+        case action_moveIntoSync: return "moveIn";
+        case action_delete: return "delete";
+        default: assert(false); return "";
+        }
+    }
+
+    std::string matchName(MatchState m)
+    {
+        switch (m)
+        {
+            case match_exact: return "exact";
+            case match_older: return "older";
+            case match_newer: return "newer";
+            case match_absent: return "absent";
+        }
+        return "bad enum";
+    }
+
+    std::string name()
+    {
+        return  actionName() +
+                (selfChange?"_self":"_other") +
+                (up?"_up":"_down") +
+                (file?"_file":"_folder") +
+                "_before" + matchName(destinationMatchBefore) +
+                (action == action_delete ? "" : "_after" + matchName(destinationMatchAfter)) +
+                (propagateDeletes?"_pd":"") +
+                (forceOverwrites?"_fo":"") +
+                (pauseDuringAction?"_pda":"");
+    }
+
+    fs::path localTestBasePath;
+    std::string remoteTestBasePath;
+
+    Model& sourceModel() { return up ? localModel : remoteModel; }
+    Model& destinationModel() { return up ? remoteModel : localModel; }
+
+    StandardClient& changeClient() { return selfChange ? state.client : state.nonsyncClient; }
+
+    void makeMtimeFile(std::string name, int mtime_delta, Model& m1, Model& m2)
+    {
+        createNameFile(localTestBasePath, name);
+        auto initial_mtime = fs::last_write_time(localTestBasePath / name);
+        fs::last_write_time(localTestBasePath / name, initial_mtime + std::chrono::seconds(mtime_delta));
+        fs::rename(localTestBasePath / name, localTestBasePath / "f" / name); // move it after setting the time to be 100% sure the sync sees it with the adjusted mtime only
+        m1.findnode("f")->addkid(m1.makeModelSubfile(name));
+        m2.findnode("f")->addkid(m2.makeModelSubfile(name));
+    }
+
+    promise<bool> cloudCopySetupPromise;
+
+    // prepares a local folder for testing, which will be two-way synced before the test
+    void SetupForSync()
+    {
+        localTestBasePath = state.localBaseFolder / name();
+        remoteTestBasePath = state.remoteBaseFolder + "/" + name();
+        std::error_code ec;
+        fs::create_directories(localTestBasePath, ec);
+        ASSERT_TRUE(!ec);
+        ASSERT_TRUE(buildLocalFolders(localTestBasePath, "f", 2, 2, 2));
+        ASSERT_TRUE(buildLocalFolders(localTestBasePath, "outside", 2, 1, 1));
+
+        localModel.root->addkid(localModel.buildModelSubdirs("f", 2, 2, 2));
+        localModel.root->addkid(localModel.buildModelSubdirs("outside", 2, 1, 1));
+        remoteModel.root->addkid(remoteModel.buildModelSubdirs("f", 2, 2, 2));
+        remoteModel.root->addkid(remoteModel.buildModelSubdirs("outside", 2, 1, 1));
+
+        makeMtimeFile("file_older_1", -3600, localModel, remoteModel);
+        makeMtimeFile("file_newer_1", 3600, localModel, remoteModel);
+        makeMtimeFile("file_older_2", -3600, localModel, remoteModel);
+        makeMtimeFile("file_newer_2", 3600, localModel, remoteModel);
+
+        // for the first one, copy that to the cloud.
+        // for subsequent, duplicate in the cloud with this test's name.
+
+        Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
+        Node* n2 = changeClient().drillchildnodebyname(testRoot, state.remoteBaseFolder);
+        if (state.first_test_name.empty())
+        {
+            state.first_test_name = name();
+            promise<bool> pb;
+            changeClient().uploadFolderTree(localTestBasePath, n2, pb);
+            ASSERT_TRUE(pb.get_future().get());
+
+            promise<bool> pb2;
+            std::atomic<int> inprogress(0);
+            changeClient().uploadFilesInTree(localTestBasePath, n2, inprogress, pb2);
+            ASSERT_TRUE(pb2.get_future().get());
+            cout << "Uploaded tree for " << name() << endl;
+        }
+        else
+        {
+            Node* n1 = changeClient().drillchildnodebyname(testRoot, state.remoteBaseFolder + "/" + state.first_test_name);
+            changeClient().cloudCopyTreeAs(n1, n2, name(), cloudCopySetupPromise);
+            ASSERT_TRUE(cloudCopySetupPromise.get_future().get());
+            cout << "Copied cloud tree for " << name() << endl;
+        }
+
+    }
+
+    void SetupTwoWaySync()
+    {
+        string localname, syncrootpath((localTestBasePath / "f").u8string());
+        state.client.client.fsaccess->path2local(&syncrootpath, &localname);
+
+        Node* testRoot = state.client.client.nodebyhandle(state.client.basefolderhandle);
+        Node* n = state.client.drillchildnodebyname(testRoot, remoteTestBasePath + "/f");
+        ASSERT_TRUE(!!n);
+
+        SyncConfig config(syncrootpath, n->nodehandle, 0, {}, (up ? SyncConfig::TYPE_UP : SyncConfig::TYPE_DOWN), propagateDeletes, forceOverwrites);
+        bool syncsetup = state.client.setupSync_mainthread(std::move(config),
+                                                           syncrootpath.erase(0, state.client.fsBasePath.u8string().size()+1),  remoteTestBasePath + "/f", sync_tag = ++state.next_sync_tag);
+        ASSERT_TRUE(syncsetup);
+    }
+
+    void PauseTwoWaySync()
+    {
+        state.client.delSync_mainthread(sync_tag, true);
+    }
+
+    void ResumeTwoWaySync()
+    {
+        SetupTwoWaySync();
+    }
+
+    void remote_rename(std::string nodepath, std::string newname, bool updatemodel, bool reportaction, bool deleteTargetFirst)
+    {
+        if (deleteTargetFirst) remote_delete(parentpath(nodepath) + "/" + newname, updatemodel, reportaction, true); // in case the target already exists
+
+        if (updatemodel) remoteModel.emulate_rename(nodepath, newname);
+
+        Node* testRoot = changeClient().client.nodebyhandle(state.client.basefolderhandle);
+        Node* n = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
+        ASSERT_TRUE(!!n);
+
+        if (reportaction) cout << name() << " action: remote rename " << n->displaypath() << " to " << newname << endl;
+
+        n->attrs.map['n'] = newname;
+        auto e = changeClient().client.setattr(n, nullptr);
+
+        ASSERT_EQ(API_OK, e);
+    }
+
+    void remote_move(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction, bool deleteTargetFirst)
+    {
+
+        if (deleteTargetFirst) remote_delete(newparentpath + "/" + leafname(nodepath), updatemodel, reportaction, true); // in case the target already exists
+
+        if (updatemodel) remoteModel.emulate_move(nodepath, newparentpath);
+
+        Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
+        Node* n1 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
+        Node* n2 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + newparentpath);
+        ASSERT_TRUE(!!n1);
+        ASSERT_TRUE(!!n2);
+
+        if (reportaction) cout << name() << " action: remote move " << n1->displaypath() << " to " << n2->displaypath() << endl;
+
+        auto e = changeClient().client.rename(n1, n2, SYNCDEL_NONE, UNDEF, nullptr);
+        ASSERT_EQ(API_OK, e);
+    }
+
+    void remote_copy(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction)
+    {
+        if (updatemodel) remoteModel.emulate_copy(nodepath, newparentpath);
+
+        Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
+        Node* n1 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
+        Node* n2 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + newparentpath);
+        ASSERT_TRUE(!!n1);
+        ASSERT_TRUE(!!n2);
+
+        if (reportaction) cout << name() << " action: remote copy " << n1->displaypath() << " to " << n2->displaypath() << endl;
+
+        TreeProcCopy tc;
+        changeClient().client.proctree(n1, &tc, false, true);
+        tc.allocnodes();
+        auto nc = tc.nc;
+        changeClient().client.proctree(n1, &tc, false, true);
+        tc.nn[0].parenthandle = UNDEF;
+
+        SymmCipher key;
+        AttrMap attrs;
+        string attrstring;
+        key.setkey((const ::mega::byte*)tc.nn[0].nodekey.data(), n1->type);
+        attrs = n1->attrs;
+        attrs.getjson(&attrstring);
+        state.client.client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
+        changeClient().client.putnodes(n2->nodehandle, tc.nn, nc);
+    }
+
+    void remote_renamed_copy(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
+    {
+        if (updatemodel)
+        {
+            remoteModel.emulate_rename_copy(nodepath, newparentpath, newname);
+        }
+
+        Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
+        Node* n1 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
+        Node* n2 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + newparentpath);
+        ASSERT_TRUE(!!n1);
+        ASSERT_TRUE(!!n2);
+
+        if (reportaction) cout << name() << " action: remote rename + copy " << n1->displaypath() << " to " << n2->displaypath() << " as " << newname << endl;
+
+        TreeProcCopy tc;
+        changeClient().client.proctree(n1, &tc, false, true);
+        tc.allocnodes();
+        auto nc = tc.nc;
+        changeClient().client.proctree(n1, &tc, false, true);
+        tc.nn[0].parenthandle = UNDEF;
+
+        SymmCipher key;
+        AttrMap attrs;
+        string attrstring;
+        key.setkey((const ::mega::byte*)tc.nn[0].nodekey.data(), n1->type);
+        attrs = n1->attrs;
+        state.client.client.fsaccess->normalize(&newname);
+        attrs.map['n'] = newname;
+        attrs.getjson(&attrstring);
+        state.client.client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
+        changeClient().client.putnodes(n2->nodehandle, tc.nn, nc);
+    }
+
+    void remote_renamed_move(std::string nodepath, std::string newparentpath, string newname, bool updatemodel, bool reportaction)
+    {
+        if (updatemodel)
+        {
+            remoteModel.emulate_rename_copy(nodepath, newparentpath, newname);
+        }
+
+        Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
+        Node* n1 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
+        Node* n2 = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + newparentpath);
+        ASSERT_TRUE(!!n1);
+        ASSERT_TRUE(!!n2);
+
+        if (reportaction) cout << name() << " action: remote rename + move " << n1->displaypath() << " to " << n2->displaypath() << " as " << newname << endl;
+
+        error e = changeClient().client.rename(n1, n2, SYNCDEL_NONE, UNDEF, newname.c_str());
+        EXPECT_EQ(e, API_OK);
+    }
+
+    void remote_delete(std::string nodepath, bool updatemodel, bool reportaction, bool mightNotExist)
+    {
+
+        Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
+        Node* n = changeClient().drillchildnodebyname(testRoot, remoteTestBasePath + "/" + nodepath);
+        if (mightNotExist && !n) return;  // eg when checking to remove an item that is a move target but there isn't one
+
+        ASSERT_TRUE(!!n);
+
+        if (reportaction) cout << name() << " action: remote delete " << n->displaypath() << endl;
+
+        if (updatemodel) remoteModel.emulate_delete(nodepath);
+
+        auto e = changeClient().client.unlink(n);
+        ASSERT_TRUE(!e);
+    }
+
+    fs::path fixSeparators(std::string p)
+    {
+        for (auto& c : p)
+            if (c == '/')
+                c = fs::path::preferred_separator;
+        return fs::u8path(p);
+    }
+
+    void local_rename(std::string path, std::string newname, bool updatemodel, bool reportaction, bool deleteTargetFirst)
+    {
+        if (deleteTargetFirst) local_delete(parentpath(path) + "/" + newname, updatemodel, reportaction, true); // in case the target already exists
+
+        if (updatemodel) localModel.emulate_rename(path, newname);
+
+        fs::path p1(localTestBasePath);
+        p1 /= fixSeparators(path);
+        fs::path p2 = p1.parent_path() / newname;
+
+        if (reportaction) cout << name() << " action: local rename " << p1 << " to " << p2 << endl;
+
+        std::error_code ec;
+        for (int i = 0; i < 5; ++i)
+        {
+            fs::rename(p1, p2, ec);
+            if (!ec) break;
+            WaitMillisec(100);
+        }
+        ASSERT_TRUE(!ec) << "local_rename " << p1 << " to " << p2 << " failed: " << ec.message();
+    }
+
+    void local_move(std::string from, std::string to, bool updatemodel, bool reportaction, bool deleteTargetFirst)
+    {
+        if (deleteTargetFirst) local_delete(to + "/" + leafname(from), updatemodel, reportaction, true);
+
+        if (updatemodel) localModel.emulate_move(from, to);
+
+        fs::path p1(localTestBasePath);
+        fs::path p2(localTestBasePath);
+        p1 /= fixSeparators(from);
+        p2 /= fixSeparators(to);
+        p2 /= p1.filename();  // non-existing file in existing directory case
+
+        if (reportaction) cout << name() << " action: local move " << p1 << " to " << p2 << endl;
+
+        std::error_code ec;
+        fs::rename(p1, p2, ec);
+        if (ec)
+        {
+            fs::remove_all(p2, ec);
+            fs::rename(p1, p2, ec);
+        }
+        ASSERT_TRUE(!ec) << "local_move " << p1 << " to " << p2 << " failed: " << ec.message();
+    }
+
+    void local_copy(std::string from, std::string to, bool updatemodel, bool reportaction)
+    {
+        if (updatemodel) localModel.emulate_copy(from, to);
+
+        fs::path p1(localTestBasePath);
+        fs::path p2(localTestBasePath);
+        p1 /= fixSeparators(from);
+        p2 /= fixSeparators(to);
+
+        if (reportaction) cout << name() << " action: local copy " << p1 << " to " << p2 << endl;
+
+        std::error_code ec;
+        fs::copy(p1, p2, ec);
+        ASSERT_TRUE(!ec) << "local_copy " << p1 << " to " << p2 << " failed: " << ec.message();
+    }
+
+    void local_delete(std::string path, bool updatemodel, bool reportaction, bool mightNotExist)
+    {
+        fs::path p(localTestBasePath);
+        p /= fixSeparators(path);
+
+        if (mightNotExist && !fs::exists(p)) return;
+
+        if (reportaction) cout << name() << " action: local_delete " << p << endl;
+
+        std::error_code ec;
+        fs::remove_all(p, ec);
+        ASSERT_TRUE(!ec) << "local_delete " << p << " failed: " << ec.message();
+        if (updatemodel) localModel.emulate_delete(path);
+    }
+
+    void source_rename(std::string nodepath, std::string newname, bool updatemodel, bool reportaction, bool deleteTargetFirst)
+    {
+        if (up) local_rename(nodepath, newname, updatemodel, reportaction, deleteTargetFirst);
+        else remote_rename(nodepath, newname, updatemodel, reportaction, deleteTargetFirst);
+    }
+
+    void source_move(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction, bool deleteTargetFirst)
+    {
+        if (up) local_move(nodepath, newparentpath, updatemodel, reportaction, deleteTargetFirst);
+        else remote_move(nodepath, newparentpath, updatemodel, reportaction, deleteTargetFirst);
+    }
+
+    void source_copy(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction)
+    {
+        if (up) local_copy(nodepath, newparentpath, updatemodel, reportaction);
+        else remote_copy(nodepath, newparentpath, updatemodel, reportaction);
+    }
+
+    void source_delete(std::string nodepath, bool updatemodel, bool reportaction = false)
+    {
+        if (up) local_delete(nodepath, updatemodel, reportaction, false);
+        else remote_delete(nodepath, updatemodel, reportaction, false);
+    }
+
+    void destination_rename(std::string nodepath, std::string newname, bool updatemodel, bool reportaction, bool deleteTargetFirst)
+    {
+        if (!up) local_rename(nodepath, newname, updatemodel, reportaction, deleteTargetFirst);
+        else remote_rename(nodepath, newname, updatemodel, reportaction, deleteTargetFirst);
+    }
+
+    void destination_move(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction, bool deleteTargetFirst)
+    {
+        if (!up) local_move(nodepath, newparentpath, updatemodel, reportaction, deleteTargetFirst);
+        else remote_move(nodepath, newparentpath, updatemodel, reportaction, deleteTargetFirst);
+    }
+
+    void destination_copy(std::string nodepath, std::string newparentpath, bool updatemodel, bool reportaction)
+    {
+        if (!up) local_copy(nodepath, newparentpath, updatemodel, reportaction);
+        else remote_copy(nodepath, newparentpath, updatemodel, reportaction);
+    }
+
+    void destination_delete(std::string nodepath, bool updatemodel, bool reportaction)
+    {
+        if (!up) local_delete(nodepath, updatemodel, reportaction, false);
+        else remote_delete(nodepath, updatemodel, reportaction, false);
+    }
+
+    void destination_copy_renamed(std::string sourcefolder, std::string oldname, std::string newname, std::string targetfolder, bool updatemodel, bool reportaction, bool deleteTargetFirst)
+    {
+        if (up)
+        {
+            remote_renamed_copy(sourcefolder + "/" + oldname, targetfolder, newname, updatemodel, reportaction);
+            return;
+        }
+
+        // avoid name clashes in any one folder
+        if (sourcefolder != "f") destination_copy(sourcefolder + "/" + oldname, "f", updatemodel, reportaction);
+        destination_rename("f/" + oldname, newname, updatemodel, reportaction, false);
+        if (targetfolder != "f") destination_move("f/" + newname, targetfolder, updatemodel, reportaction, deleteTargetFirst);
+    }
+
+    void destination_rename_move(std::string sourcefolder, std::string oldname, std::string newname, std::string targetfolder, bool updatemodel, bool reportaction, bool deleteTargetFirst, std::string deleteNameInTargetFirst)
+    {
+        if (up)
+        {
+            remote_renamed_move(sourcefolder + "/" + oldname, targetfolder, newname, updatemodel, reportaction);
+            return;
+        }
+
+        if (!deleteNameInTargetFirst.empty()) destination_delete(targetfolder + "/" + deleteNameInTargetFirst, updatemodel, reportaction);
+        destination_rename("f/" + oldname, newname, updatemodel, reportaction, false);
+        destination_move("f/" + newname, targetfolder, updatemodel, reportaction, deleteTargetFirst);
+    }
+
+    void fileMayDiffer(std::string filepath)
+    {
+        fs::path p(localTestBasePath);
+        p /= fixSeparators(filepath);
+
+        state.client.localFSFilesThatMayDiffer.insert(p);
+        cout << "File may differ: " << p << endl;
+    }
+
+    // Two-way sync has been started and is stable.  Now perform the test action
+
+    enum ModifyStage { Prepare, MainAction };
+
+    void PrintLocalTree(fs::path p)
+    {
+        cout << p << endl;
+        if (fs::is_directory(p))
+        {
+            for (auto i = fs::directory_iterator(p); i != fs::directory_iterator(); ++i)
+            {
+                PrintLocalTree(*i);
+            }
+        }
+    }
+
+    void PrintRemoteTree(Node* n, string prefix = "")
+    {
+        prefix += string("/") + n->displayname();
+        cout << prefix << endl;
+        if (n->type == FILENODE) return;
+        for (auto& c : n->children)
+        {
+            PrintRemoteTree(c, prefix);
+        }
+    }
+
+    void PrintModelTree(Model::ModelNode* n, string prefix = "")
+    {
+        prefix += string("/") + n->name;
+        cout << prefix << endl;
+        if (n->type == FILENODE) return;
+        for (auto& c : n->kids)
+        {
+            PrintModelTree(c.get(), prefix);
+        }
+    }
+
+    void Modify(ModifyStage stage)
+    {
+        bool prep = stage == Prepare;
+        bool act = stage == MainAction;
+
+        if (prep) cout << "Preparing action " << endl;
+        if (act) cout << "Executing action " << endl;
+
+        if (prep && printTreesBeforeAndAfter)
+        {
+            cout << " ---- local filesystem initial state ----" << endl;
+            PrintLocalTree(fs::path(localTestBasePath));
+            cout << " ---- remote node tree initial state ----" << endl;
+            Node* testRoot = state.client.client.nodebyhandle(changeClient().basefolderhandle);
+            if (Node* n = state.client.drillchildnodebyname(testRoot, remoteTestBasePath))
+            {
+                PrintRemoteTree(n);
+            }
+        }
+
+        switch (action)
+        {
+        case action_rename:
+            if (prep)
+            {
+                if (file)
+                {
+                    if (destinationMatchAfter == match_exact) { destination_copy_renamed("f/f_0", "file0_f_0", "file0_f_0_renamed", "f/f_0", true, false, false); };
+                    if (destinationMatchAfter == match_older) { destination_rename_move("f", "file_older_2", "file0_f_0_renamed", "f/f_0", true, false, false, ""); fileMayDiffer("f/f_0/file0_f_0_renamed"); }
+                    if (destinationMatchAfter == match_newer) { destination_rename_move("f", "file_newer_2", "file0_f_0_renamed", "f/f_0", true, false, false, ""); fileMayDiffer("f/f_0/file0_f_0_renamed"); }
+                    if (destinationMatchBefore == match_older) { destination_rename_move("f", "file_older_1", "file0_f_0", "f/f_0", true, false, true, "file0_f_0"); fileMayDiffer("f/f_0/file0_f_0"); }
+                    if (destinationMatchBefore == match_newer) { destination_rename_move("f", "file_newer_1", "file0_f_0", "f/f_0", true, false, true, "file0_f_0"); fileMayDiffer("f/f_0/file0_f_0"); }
+                    if (destinationMatchBefore == match_absent) { destination_delete("f/f_0/file0_f_0", true, false); }
+                }
+                else
+                {
+                    if (destinationMatchAfter == match_exact) destination_copy_renamed("f", "f_1", "f_1", "f/f_1_renamed", true, false, false);
+                    if (destinationMatchAfter == match_older) destination_rename("f/f_2", "f/f_1_renamed", true, false, false);
+                    if (destinationMatchAfter == match_newer) destination_rename("f/f_2", "f/f_1_renamed", true, false, false);
+                    if (destinationMatchBefore == match_older) { destination_delete("f/f_1", true, false), destination_copy("f/f_2", "f/f_1", true, false); }
+                    if (destinationMatchBefore == match_newer) { destination_delete("f/f_1", true, false), destination_copy("f/f_2", "f/f_1", true, false); }
+                    if (destinationMatchBefore == match_absent) { destination_delete("f/f_1", true, false); }
+                }
+            }
+            else if (act)
+            {
+                if (file)
+                {
+                    source_rename("f/f_0/file0_f_0", "file0_f_0_renamed", true, true, true);
+                    if (destinationMatchBefore == match_exact && destinationMatchAfter == match_absent)
+                    {
+                        destinationModel().emulate_rename("f/f_0/file0_f_0", "file0_f_0_renamed");
+                    }
+                }
+                else
+                {
+                    source_rename("f/f_0", "f_0_renamed", true, true, false);
+                    if (destinationMatchBefore == match_exact && destinationMatchAfter == match_absent)
+                    {
+                        destinationModel().emulate_rename("f/f_0", "f_0_renamed");
+                    }
+                }
+            }
+            break;
+
+        case action_moveWithinSync:
+            if (prep)
+            {
+                if (file)
+                {
+                    destination_copy_renamed("f/f_1", "file0_f_1", "original", "f", true, false, false);
+                    if (destinationMatchAfter == match_exact) destination_copy_renamed("f/f_1", "file0_f_1", "file0_f_1", "f/f_0", true, false, false);  // not really renaming
+                    if (destinationMatchAfter == match_older) { destination_copy_renamed("f", "file_older_2", "file0_f_1", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_f_1"); }
+                    if (destinationMatchAfter == match_newer) { destination_copy_renamed("f", "file_newer_2", "file0_f_1", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_f_1"); }
+                    if (destinationMatchBefore == match_older) { destination_copy_renamed("f", "file_older_1", "file0_f_1", "f/f_1", true, false, true); fileMayDiffer("f/f_1/file0_f_1"); }
+                    if (destinationMatchBefore == match_newer) { destination_copy_renamed("f", "file_newer_1", "file0_f_1", "f/f_1", true, false, true); fileMayDiffer("f/f_1/file0_f_1"); }
+                    if (destinationMatchBefore == match_absent) destination_delete("f/f_1/file0_f_1", true, false);
+                }
+                else
+                {
+                    if (destinationMatchAfter == match_exact) destination_copy("f/f_1", "f/f_0", true, false);
+                    if (destinationMatchAfter == match_older) destination_copy_renamed("f/f_0", "f_0_0", "f_1", "f/f_0", true, false, true);
+                    if (destinationMatchAfter == match_newer) destination_copy_renamed("f/f_0", "f_0_0", "f_1", "f/f_0", true, false, true);
+                    if (destinationMatchBefore == match_older) destination_copy_renamed("f/f_0", "f_0_1", "f_1", "f", true, false, true);
+                    if (destinationMatchBefore == match_newer) destination_copy_renamed("f/f_0", "f_0_1", "f_1", "f", true, false, true);
+                    if (destinationMatchBefore == match_absent) destination_delete("f/f_1", true, false);
+                }
+            }
+            else if (act)
+            {
+                if (file)
+                {
+                    source_move("f/f_1/file0_f_1", "f/f_0", true, true, false);
+                    if (destinationMatchBefore == match_exact && destinationMatchAfter == match_absent)
+                    {
+                        destinationModel().emulate_move("f/f_1/file0_f_1", "f/f_0");
+                    }
+                    else if (forceOverwrites || destinationMatchAfter != match_newer)
+                    {
+                        // we don't imitiate the move, but the Two-way will upload/download the file from the source
+                        destinationModel().emulate_rename_copy("f/original", "f/f_0", "file0_f_1");
+                    }
+                }
+                else
+                {
+                    source_move("f/f_1", "f/f_0", true, true, false);
+                    if (destinationMatchBefore == match_exact && destinationMatchAfter == match_absent)
+                    {
+                        destinationModel().emulate_move("f/f_1", "f/f_0");
+                    }
+                }
+            }
+            break;
+
+        case action_moveOutOfSync:
+            if (prep)
+            {
+                if (file)
+                {
+                    if (destinationMatchBefore == match_older) { destination_copy_renamed("f/f_1", "file1_f_1", "file0_f_0", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_f_0"); }
+                    if (destinationMatchBefore == match_newer) { destination_copy_renamed("f/f_1", "file1_f_1", "file0_f_0", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_f_0"); }
+                    if (destinationMatchBefore == match_absent) destination_delete("f/f_0/file0_f_0", true, false);
+                }
+                else
+                {
+                    if (destinationMatchBefore == match_older) destination_copy_renamed("f/f_0", "f_0_1", "f_1", "f", true, false, true);
+                    if (destinationMatchBefore == match_newer) destination_copy_renamed("f/f_0", "f_0_1", "f_1", "f", true, false, true);
+                    if (destinationMatchBefore == match_absent) destination_delete("f/f_1", true, false);
+                }
+            }
+            else if (act)
+            {
+                if (file)
+                {
+                    source_move("f/f_0/file0_f_0", "outside", true, false, false);
+                    if (propagateDeletes)
+                    {
+                        destinationModel().emulate_delete("f/f_0/file0_f_0");
+                    }
+                }
+                else
+                {
+                    source_move("f/f_0", "outside", true, false, false);
+                    if (propagateDeletes)
+                    {
+                        destinationModel().emulate_delete("f/f_0");
+                    }
+                }
+            }
+            break;
+
+        case action_moveIntoSync:
+            if (prep)
+            {
+                if (file)
+                {
+                    if (destinationMatchAfter == match_exact) destination_copy_renamed("outside", "file0_outside", "file0_outside", "f/f_0", true, false, false);  // not really renaming
+                    if (destinationMatchAfter == match_older) { destination_copy_renamed("f", "file_older_2", "file0_outside", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_outside"); }
+                    if (destinationMatchAfter == match_newer) { destination_copy_renamed("f", "file_newer_2", "file0_outside", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_outside"); }
+                }
+                else
+                {
+                    if (destinationMatchAfter == match_exact) destination_copy("outside", "f/f_0", true, false);
+                    if (destinationMatchAfter == match_older) destination_copy("outside", "f/f_0", true, false);    //todo:  actually make it older
+                    if (destinationMatchAfter == match_newer) destination_copy("outside", "f/f_0", true, false);
+                }
+            }
+            else if (act)
+            {
+                if (file)
+                {
+                    source_move("outside/file0_outside", "f/f_0", true, false, false);
+                    destinationModel().emulate_delete("f/f_0/file0_outside");
+                    destinationModel().emulate_copy("outside/file0_outside", "f/f_0");
+                }
+                else
+                {
+                    source_move("outside", "f/f_0", true, false, false);
+                    destinationModel().emulate_delete("f/f_0/outside");
+                    destinationModel().emulate_copy("outside", "f/f_0");
+                }
+            }
+            break;
+
+        case action_delete:
+            if (prep)
+            {
+                if (file)
+                {
+                    if (destinationMatchBefore == match_older) { destination_copy_renamed("f", "file_older_1", "file0_f_0", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_f_0"); }
+                    if (destinationMatchBefore == match_newer) { destination_copy_renamed("f", "file_newer_1", "file0_f_0", "f/f_0", true, false, true); fileMayDiffer("f/f_0/file0_f_0"); }
+                    if (destinationMatchBefore == match_absent) destination_delete("f/f_0/file0_f_0", true, false);
+                }
+                else
+                {
+                    if (destinationMatchBefore == match_older) destination_copy_renamed("f/f_1", "f_0_1", "f_0", "f", true, false, true);
+                    if (destinationMatchBefore == match_newer) destination_copy_renamed("f/f_1", "f_0_1", "f_0", "f", true, false, true);
+                    if (destinationMatchBefore == match_absent) destination_delete("f/f_0", true, false);
+                }
+            }
+            else if (act)
+            {
+                if (file)
+                {
+                    source_delete("f/f_0/file0_f_0", true, true);
+                    if (propagateDeletes && (destinationMatchBefore != match_absent))
+                    {
+                        destinationModel().emulate_delete("f/f_0/file0_f_0");
+                    }
+                }
+                else
+                {
+                    source_delete("f/f_0", true, true);
+                    if (propagateDeletes && (destinationMatchBefore != match_absent))
+                    {
+                        destinationModel().emulate_delete("f/f_0");
+                    }
+                }
+            }
+            break;
+
+        default: ASSERT_TRUE(false);
+        }
+    }
+
+    void CheckSetup(State&, bool initial)
+    {
+        if (!initial && printTreesBeforeAndAfter)
+        {
+            cout << " ---- local filesystem before change ----" << endl;
+            PrintLocalTree(fs::path(localTestBasePath));
+            cout << " ---- remote node tree before change ----" << endl;
+            Node* testRoot = state.client.client.nodebyhandle(changeClient().basefolderhandle);
+            if (Node* n = state.client.drillchildnodebyname(testRoot, remoteTestBasePath))
+            {
+                PrintRemoteTree(n);
+            }
+        }
+
+        if (!initial) cout << "Checking setup state (should be no changes in twoway sync source): "<< name() << endl;
+
+        // confirm source is unchanged after setup  (Two-way is not sending changes to the wrong side)
+        bool localfs = state.client.confirmModel(sync_tag, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true); // todo: later enable debris checks
+        bool localnode = state.client.confirmModel(sync_tag, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true); // todo: later enable debris checks
+        bool remote = state.client.confirmModel(sync_tag, remoteModel.findnode("f"), StandardClient::CONFIRM_REMOTE, true); // todo: later enable debris checks
+        EXPECT_EQ(localfs, localnode);
+        EXPECT_EQ(localnode, remote);
+        EXPECT_TRUE(localfs && localnode && remote) << " failed in " << name();
+    }
+
+
+    // Two-way sync is stable again after the change.  Check the results.
+    bool finalResult = false;
+    void CheckResult(State&)
+    {
+        if (printTreesBeforeAndAfter)
+        {
+            cout << " ---- local filesystem after sync of change ----" << endl;
+            PrintLocalTree(fs::path(localTestBasePath));
+            cout << " ---- remote node tree after sync of change ----" << endl;
+            Node* testRoot = state.client.client.nodebyhandle(changeClient().basefolderhandle);
+            if (Node* n = state.client.drillchildnodebyname(testRoot, remoteTestBasePath))
+            {
+                PrintRemoteTree(n);
+            }
+            cout << " ---- expected sync destination (model) ----" << endl;
+            PrintModelTree(destinationModel().findnode("f"));
+        }
+
+        cout << "Checking twoway sync "<< name() << endl;
+        bool localfs = state.client.confirmModel(sync_tag, localModel.findnode("f"), StandardClient::CONFIRM_LOCALFS, true); // todo: later enable debris checks
+        bool localnode = state.client.confirmModel(sync_tag, localModel.findnode("f"), StandardClient::CONFIRM_LOCALNODE, true); // todo: later enable debris checks
+        bool remote = state.client.confirmModel(sync_tag, remoteModel.findnode("f"), StandardClient::CONFIRM_REMOTE, true); // todo: later enable debris checks
+        EXPECT_EQ(localfs, localnode);
+        EXPECT_EQ(localnode, remote);
+        EXPECT_TRUE(localfs && localnode && remote) << " failed in " << name();
+        finalResult = localfs && localnode && remote;
+    }
+};
+
+void CatchupClients(StandardClient& c1, StandardClient& c2)
+{
+    cout << "Catching up" << endl;
+    promise<bool> pb1, pb2;
+    c1.catchup(pb1);
+    c2.catchup(pb2);
+    ASSERT_TRUE(pb1.get_future().get() && pb2.get_future().get());
+    cout << "Caught up" << endl;
+}
+
+TEST(Sync, DISABLED_TwoWay_Highlevel_Symmetries)
+{
+    // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+
+    StandardClient clientA1(localtestroot, "clientA1");
+    StandardClient clientA2(localtestroot, "clientA2");
+    ASSERT_TRUE(clientA1.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "twoway", 0, 0));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    fs::create_directory(clientA1.fsBasePath / fs::u8path("twoway"));
+    fs::create_directory(clientA2.fsBasePath / fs::u8path("twoway"));
+
+    TwoWaySyncSymmetryCase::State allstate(clientA1, clientA2);
+    allstate.localBaseFolder = clientA1.fsBasePath / fs::u8path("twoway");
+
+    std::map<std::string, TwoWaySyncSymmetryCase> cases;
+
+    static bool singleCase = false;
+    static string singleNamedTest = "move_other_down_file_beforenewer_afterabsent_pd_fo";//"rename_other_down_file_beforemismatch_afterabsent";
+    if (singleCase)
+    {
+        TwoWaySyncSymmetryCase testcase(allstate);
+        testcase.selfChange = false;
+        testcase.up = false;
+        testcase.action = TwoWaySyncSymmetryCase::action_rename;
+        testcase.file = false;
+        testcase.destinationMatchBefore = TwoWaySyncSymmetryCase::match_exact;
+        testcase.destinationMatchAfter = TwoWaySyncSymmetryCase::match_absent;
+        testcase.propagateDeletes = false;
+        testcase.forceOverwrites = false;
+        testcase.pauseDuringAction = true;
+        cases.emplace(testcase.name(), move(testcase));
+    }
+    else
+    for (int selfChange = 0; selfChange < 2; ++selfChange)
+    {
+        if (selfChange) continue;
+
+        for (int up = 0; up < 2; ++up)
+        {
+            for (int action = (int)TwoWaySyncSymmetryCase::action_rename; action < (int)TwoWaySyncSymmetryCase::action_numactions; ++action)
+            {
+                for (int file = 1; file < 2; ++file)
+                {
+                    if (!file) continue;
+
+                    for (int destinationMatchBefore = 0; destinationMatchBefore < 4; ++destinationMatchBefore)
+                    {
+                        for (int destinationMatchAfter = 0; destinationMatchAfter < 4; ++destinationMatchAfter)
+                        {
+                            //if (!(destinationMatchBefore == TwoWaySyncSymmetryCase::match_exact && destinationMatchAfter == TwoWaySyncSymmetryCase::match_absent)) continue;
+
+                            if (action == TwoWaySyncSymmetryCase::action_delete && destinationMatchAfter > 0) continue;  // only before matters for delete since there's only one path involved
+
+                            for (int propagateDeletes = 0; propagateDeletes < 2; ++propagateDeletes)
+                            {
+                                if (!propagateDeletes) continue;
+
+                                for (int forceOverwrites = 0; forceOverwrites < 2; ++forceOverwrites)
+                                {
+                                    if (!forceOverwrites) continue;
+
+                                    for (int pauseDuringAction = 0; pauseDuringAction < 2; ++pauseDuringAction)
+                                    {
+                                        if (pauseDuringAction) continue;
+
+                                        if (forceOverwrites && destinationMatchBefore == TwoWaySyncSymmetryCase::match_older) continue;  // the sync would overwrite the setup
+
+
+                                        TwoWaySyncSymmetryCase testcase(allstate);
+                                        testcase.selfChange = selfChange != 0;
+                                        testcase.up = up;
+                                        testcase.action = TwoWaySyncSymmetryCase::Action(action);
+                                        testcase.file = file;
+                                        testcase.destinationMatchBefore = TwoWaySyncSymmetryCase::MatchState(destinationMatchBefore);
+                                        testcase.destinationMatchAfter = TwoWaySyncSymmetryCase::MatchState(destinationMatchAfter);
+                                        testcase.propagateDeletes = propagateDeletes;
+                                        testcase.forceOverwrites = forceOverwrites;
+                                        testcase.pauseDuringAction = pauseDuringAction;
+
+                                        if (singleNamedTest.empty() || testcase.name() == singleNamedTest)
+                                        {
+                                            testcase.printTreesBeforeAndAfter = !singleNamedTest.empty();
+
+                                            cases.emplace(testcase.name(), move(testcase));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+    cout << "Creating initial local files/folders for " << cases.size() << " Two-way sync test cases" << endl;
+    for (auto& testcase : cases)
+    {
+        testcase.second.SetupForSync();
+    }
+
+    // set up sync for A1, it should build matching cloud files/folders as the test cases add local files/folders
+    ASSERT_TRUE(clientA1.setupSync_mainthread("twoway", "twoway", 1));
+    assert(allstate.localBaseFolder == clientA1.syncSet[1].localpath);
+
+    cout << "Full-sync all test folders to the cloud for setup" << endl;
+    waitonsyncs(10s, &clientA1);
+    CatchupClients(clientA1, clientA2);
+    waitonsyncs(20s, &clientA1);
+
+    cout << "Stopping full-sync" << endl;
+    future<bool> fb = clientA1.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.client.delsync(sc.syncByTag(1), true); pb.set_value(true); });
+    ASSERT_TRUE(waitonresults(&fb));
+
+    cout << "Setting up each sub-test's Two-way sync of 'f'" << endl;
+    for (auto& testcase : cases)
+    {
+        testcase.second.SetupTwoWaySync();
+    }
+
+    cout << "Letting all " << cases.size() << " Two-way syncs run" << endl;
+    WaitMillisec(10000);
+
+    CatchupClients(clientA1, clientA2);
+
+    cout << "Checking intial state" << endl;
+    for (auto& testcase : cases)
+    {
+        testcase.second.CheckSetup(allstate, true);
+    }
+
+
+    // make changes in destination to set up test
+    for (auto& testcase : cases)
+    {
+        testcase.second.Modify(TwoWaySyncSymmetryCase::Prepare);
+    }
+
+    CatchupClients(clientA1, clientA2);
+
+    cout << "Letting all " << cases.size() << " Two-way syncs run" << endl;
+    waitonsyncs(5s, &clientA1, &clientA2);
+
+    cout << "Checking Two-way source is unchanged" << endl;
+    for (auto& testcase : cases)
+    {
+        testcase.second.CheckSetup(allstate, false);
+    }
+
+    int paused = 0;
+    for (auto& testcase : cases)
+    {
+        if (testcase.second.pauseDuringAction)
+        {
+            testcase.second.PauseTwoWaySync();
+            ++paused;
+        }
+    }
+    if (paused)
+    {
+        cout << "Paused " << paused << " Two-way syncs" << endl;
+        WaitMillisec(1000);
+    }
+
+    cout << "Performing action " << endl;
+    for (auto& testcase : cases)
+    {
+        testcase.second.Modify(TwoWaySyncSymmetryCase::MainAction);
+    }
+    waitonsyncs(5s, &clientA1, &clientA2);
+    CatchupClients(clientA1, clientA2);
+
+    int resumed = 0;
+    for (auto& testcase : cases)
+    {
+        if (testcase.second.pauseDuringAction)
+        {
+            testcase.second.ResumeTwoWaySync();
+            ++resumed;
+        }
+    }
+    if (resumed)
+    {
+        cout << "Resumed " << resumed << " Two-way syncs" << endl;
+        WaitMillisec(3000);
+    }
+
+
+    cout << "Letting all " << cases.size() << " Two-way syncs run" << endl;
+
+    waitonsyncs(5s, &clientA1, &clientA2);
+
+    CatchupClients(clientA1, clientA2);
+
+    cout << "Checking local and remote state in each sub-test" << endl;
+
+    for (auto& testcase : cases)
+    {
+        testcase.second.CheckResult(allstate);
+    }
+    int succeeded = 0, failed = 0;
+    for (auto& testcase : cases)
+    {
+        if (testcase.second.finalResult) ++succeeded;
+        else
+        {
+            cout << "failed: " << testcase.second.name() << endl;
+            ++failed;
+        }
+    }
+    cout << "Succeeded: " << succeeded << " Failed: " << failed << endl;
+}
 
 #endif
