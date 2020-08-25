@@ -293,7 +293,7 @@ bool WinFileAccess::asyncavailable()
 void WinFileAccess::asyncsysopen(AsyncIOContext *context)
 {
 #ifndef WINDOWS_PHONE
-    auto path = LocalPath::fromLocalname(std::wstring(context->wbuffer, context->len));
+    auto path = LocalPath::fromLocalname(context->wbuffer);
     bool read = context->access & AsyncIOContext::ACCESS_READ;
     bool write = context->access & AsyncIOContext::ACCESS_WRITE;
 
@@ -607,7 +607,7 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
     if (type == FOLDERNODE)
     {
         ScopedLengthRestore undoStar(namePath);
-        namePath.appendWithSeparator(LocalPath::fromLocalname(std::string((const char*)(const wchar_t*)L"*", 2)), true, gWindowsSeparator);
+        namePath.appendWithSeparator(LocalPath::fromLocalname(L"*"), true, gWindowsSeparator);
         std::wstring searchName = namePath.localpath.c_str();
 
 #ifdef WINDOWS_PHONE
@@ -940,7 +940,7 @@ void WinFileSystemAccess::emptydirlocal(LocalPath& namePath, dev_t basedev)
                     || ffd.cFileName[2]))))
             {
                 auto childname = LocalPath::fromLocalname(name);
-                childname.appendWithSeparator(LocalPath::fromLocalname(std::string((char*)ffd.cFileName, sizeof(wchar_t) * wcslen(ffd.cFileName))), true, gWindowsSeparator);
+                childname.appendWithSeparator(LocalPath::fromLocalname(ffd.cFileName), true, gWindowsSeparator);
                 if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
                 {
                     emptydirlocal(childname, currentdev);
@@ -1086,36 +1086,36 @@ bool WinFileSystemAccess::getextension(const LocalPath& filenamePath, char* exte
     char c;
     size_t i, j;
 
-	size--;
+    size--;
 
-	if (size * sizeof(wchar_t) > filenamePath.localpath.size())
-	{
-		size = int(filenamePath.localpath.size() / sizeof(wchar_t));
-	}
+    if (size > filenamePath.localpath.size())
+    {
+        size = int(filenamePath.localpath.size());
+    }
 
-	for (i = 0; i < size; i++)
-	{
-		if (*--ptr == '.')
-		{
-			for (j = 0; j <= i; j++)
-			{
-				if (*ptr < '.' || *ptr > 'z') return false;
+    for (i = 0; i < size; i++)
+    {
+        if (*--ptr == '.')
+        {
+            for (j = 0; j <= i; j++)
+            {
+                if (*ptr < '.' || *ptr > 'z') return false;
 
-				c = (char)*(ptr++);
+                c = (char)*(ptr++);
 
-				// tolower()
-				if (c >= 'A' && c <= 'Z') c |= ' ';
-                
+                // tolower()
+                if (c >= 'A' && c <= 'Z') c |= ' ';
+
                 extension[j] = c;
-			}
-			
-            extension[j] = 0;
-            
-			return true;
-		}
-	}
+            }
 
-	return false;
+            extension[j] = 0;
+
+            return true;
+        }
+    }
+
+    return false;
 }
 
 bool WinFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolutepathArg)
@@ -1371,7 +1371,7 @@ void WinDirNotify::process(DWORD dwBytes)
 #endif
                 }
 #ifdef ENABLE_SYNC
-                notify(DIREVENTS, localrootnode, LocalPath::fromLocalname(std::wstring((wchar_t*)fni->FileName, fni->FileNameLength)));
+                notify(DIREVENTS, localrootnode, LocalPath::fromLocalname(fni->FileName));
 #endif
             }
             else if (SimpleLogger::logCurrentLevel >= logDebug)
