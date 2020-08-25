@@ -96,6 +96,11 @@ int main (int argc, char *argv[])
         return 1;
     }
 
+    // delete old test folders, created during previous runs
+    TestFS testFS;
+    testFS.DeleteTestFolder();
+    testFS.DeleteTrashFolder();
+
     std::vector<char*> myargv1(argv, argv + argc);
     std::vector<char*> myargv2;
 
