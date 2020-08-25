@@ -144,7 +144,7 @@ bool WinFileAccess::sysstat(m_time_t* mtime, m_off_t* size)
     WIN32_FILE_ATTRIBUTE_DATA fad;
 
     type = TYPE_UNKNOWN;
-    if (!GetFileAttributesExW((LPCWSTR)nonblocking_localname.localpath.c_str(), GetFileExInfoStandard, (LPVOID)&fad))
+    if (!GetFileAttributesExW(nonblocking_localname.localpath.c_str(), GetFileExInfoStandard, (LPVOID)&fad))
     {
         DWORD e = GetLastError();
         errorcode = e;
@@ -185,11 +185,11 @@ bool WinFileAccess::sysopen(bool async)
     }
 
 #ifdef WINDOWS_PHONE
-    hFile = CreateFile2((LPCWSTR)localname.data(), GENERIC_READ,
+    hFile = CreateFile2(localname.localpath.data(), GENERIC_READ,
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         OPEN_EXISTING, NULL);
 #else
-    hFile = CreateFileW((LPCWSTR)nonblocking_localname.localpath.c_str(), GENERIC_READ,
+    hFile = CreateFileW(nonblocking_localname.localpath.c_str(), GENERIC_READ,
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         NULL, OPEN_EXISTING, async ? FILE_FLAG_OVERLAPPED : 0, NULL);
 #endif
@@ -462,7 +462,7 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
         else
         {
             HANDLE  h = name.size() > sizeof(wchar_t)
-                    ? FindFirstFileExW((LPCWSTR)name.c_str(), FindExInfoStandard, &fad,
+                    ? FindFirstFileExW(name.c_str(), FindExInfoStandard, &fad,
                                  FindExSearchNameMatch, NULL, 0)
                     : INVALID_HANDLE_VALUE;
 
@@ -474,7 +474,7 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
             else
             {
                 WIN32_FILE_ATTRIBUTE_DATA fatd;
-                if (!GetFileAttributesExW((LPCWSTR)name.c_str(), GetFileExInfoStandard, (LPVOID)&fatd))
+                if (!GetFileAttributesExW(name.c_str(), GetFileExInfoStandard, (LPVOID)&fatd))
                 {
                     DWORD e = GetLastError();
                     // this is an expected case so no need to log.  the FindFirstFileEx did not find the file, 
@@ -563,13 +563,13 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
         ex.dwFileFlags = FILE_FLAG_OVERLAPPED;
     }
 
-    hFile = CreateFile2((LPCWSTR)name->data(),
+    hFile = CreateFile2(name.data(),
                         read ? GENERIC_READ : (write ? GENERIC_WRITE : 0),
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         !write ? OPEN_EXISTING : OPEN_ALWAYS,
                         &ex);
 #else
-    hFile = CreateFileW((LPCWSTR)name.c_str(),
+    hFile = CreateFileW(name.c_str(),
                         read ? GENERIC_READ : (write ? GENERIC_WRITE : 0),
                         FILE_SHARE_WRITE | FILE_SHARE_READ,
                         NULL,
@@ -611,9 +611,9 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
         std::wstring searchName = namePath.localpath.c_str();
 
 #ifdef WINDOWS_PHONE
-        hFind = FindFirstFileExW((LPCWSTR)searchName->data(), FindExInfoBasic, &ffd, FindExSearchNameMatch, NULL, 0);
+        hFind = FindFirstFileExW(searchName.data(), FindExInfoBasic, &ffd, FindExSearchNameMatch, NULL, 0);
 #else
-        hFind = FindFirstFileW((LPCWSTR)searchName.c_str(), &ffd);
+        hFind = FindFirstFileW(searchName.c_str(), &ffd);
 #endif
 
         if (hFind == INVALID_HANDLE_VALUE)
@@ -756,7 +756,7 @@ bool WinFileSystemAccess::getsname(LocalPath& namePath, LocalPath& snamePath) co
     std::wstring& name = namePath.localpath;
     std::wstring& sname = snamePath.localpath;
 
-    int rr = GetShortPathNameW((LPCWSTR)name.data(), (LPWSTR)sname.data(), name.size());
+    int rr = GetShortPathNameW(name.data(), (LPWSTR)sname.data(), name.size());
 
     if (!rr == 0 || rr != name.size())
     {
@@ -783,7 +783,7 @@ bool WinFileSystemAccess::renamelocal(LocalPath& oldnamePath, LocalPath& newname
     std::wstring oldname = oldnamePath.localpath;
     std::wstring newname = newnamePath.localpath;
 
-    bool r = !!MoveFileExW((LPCWSTR)oldname.c_str(), (LPCWSTR)newname.c_str(), replace ? MOVEFILE_REPLACE_EXISTING : 0);
+    bool r = !!MoveFileExW(oldname.c_str(), newname.c_str(), replace ? MOVEFILE_REPLACE_EXISTING : 0);
 
     if (!r)
     {
@@ -809,9 +809,9 @@ bool WinFileSystemAccess::copylocal(LocalPath& oldnamePath, LocalPath& newnamePa
     std::wstring newname = newnamePath.localpath;
 
 #ifdef WINDOWS_PHONE
-    bool r = SUCCEEDED(CopyFile2((LPCWSTR)oldname.c_str(), (LPCWSTR)newname.c_str(), NULL));
+    bool r = SUCCEEDED(CopyFile2(oldname.c_str(), newname.c_str(), NULL));
 #else
-    bool r = !!CopyFileW((LPCWSTR)oldname.c_str(), (LPCWSTR)newname.c_str(), FALSE);
+    bool r = !!CopyFileW(oldname.c_str(), newname.c_str(), FALSE);
 #endif
 
     if (!r)
@@ -827,7 +827,7 @@ bool WinFileSystemAccess::copylocal(LocalPath& oldnamePath, LocalPath& newnamePa
 bool WinFileSystemAccess::rmdirlocal(LocalPath& namePath)
 {
     std::wstring name = namePath.localpath.data();
-    bool r = !!RemoveDirectoryW((LPCWSTR)name.data());
+    bool r = !!RemoveDirectoryW(name.data());
     if (!r)
     {
         DWORD e = GetLastError();
@@ -841,7 +841,7 @@ bool WinFileSystemAccess::rmdirlocal(LocalPath& namePath)
 bool WinFileSystemAccess::unlinklocal(LocalPath& namePath)
 {
     std::wstring name = namePath.localpath.data();
-    bool r = !!DeleteFileW((LPCWSTR)name.data());
+    bool r = !!DeleteFileW(name.data());
 
     if (!r)
     {
@@ -863,7 +863,7 @@ void WinFileSystemAccess::emptydirlocal(LocalPath& namePath, dev_t basedev)
     WinFileSystemAccess::sanitizedriveletter(name);
 
     WIN32_FILE_ATTRIBUTE_DATA fad;
-    if (!GetFileAttributesExW((LPCWSTR)name.data(), GetFileExInfoStandard, (LPVOID)&fad)
+    if (!GetFileAttributesExW(name.data(), GetFileExInfoStandard, (LPVOID)&fad)
         || !(fad.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
         || fad.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
     {
@@ -874,10 +874,10 @@ void WinFileSystemAccess::emptydirlocal(LocalPath& namePath, dev_t basedev)
     CREATEFILE2_EXTENDED_PARAMETERS ex = { 0 };
     ex.dwSize = sizeof(ex);
     ex.dwFileFlags = FILE_FLAG_BACKUP_SEMANTICS;
-    hDirectory = CreateFile2((LPCWSTR)name->data(), GENERIC_READ, FILE_SHARE_WRITE | FILE_SHARE_READ,
+    hDirectory = CreateFile2(name.data(), GENERIC_READ, FILE_SHARE_WRITE | FILE_SHARE_READ,
                         OPEN_EXISTING, &ex);
 #else
-    hDirectory = CreateFileW((LPCWSTR)name.data(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
+    hDirectory = CreateFileW(name.data(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE,
                              NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
 #endif
     if (hDirectory == INVALID_HANDLE_VALUE)
@@ -920,9 +920,9 @@ void WinFileSystemAccess::emptydirlocal(LocalPath& namePath, dev_t basedev)
         name.append((const wchar_t*)L"\\*", 5);
         WIN32_FIND_DATAW ffd;
     #ifdef WINDOWS_PHONE
-        hFind = FindFirstFileExW((LPCWSTR)name->data(), FindExInfoBasic, &ffd, FindExSearchNameMatch, NULL, 0);
+        hFind = FindFirstFileExW(name.data(), FindExInfoBasic, &ffd, FindExSearchNameMatch, NULL, 0);
     #else
-        hFind = FindFirstFileW((LPCWSTR)name.data(), &ffd);
+        hFind = FindFirstFileW(name.data(), &ffd);
     #endif
         name = namePath.localpath;
         if (hFind == INVALID_HANDLE_VALUE)
@@ -944,11 +944,11 @@ void WinFileSystemAccess::emptydirlocal(LocalPath& namePath, dev_t basedev)
                 if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
                 {
                     emptydirlocal(childname, currentdev);
-                    removed |= !!RemoveDirectoryW((LPCWSTR)childname.localpath.data());
+                    removed |= !!RemoveDirectoryW(childname.localpath.data());
                 }
                 else
                 {
-                    removed |= !!DeleteFileW((LPCWSTR)childname.localpath.data());
+                    removed |= !!DeleteFileW(childname.localpath.data());
                 }
             }
             morefiles = FindNextFileW(hFind, &ffd);
@@ -966,7 +966,7 @@ bool WinFileSystemAccess::mkdirlocal(LocalPath& namePath, bool hidden)
 {
     std::wstring name = namePath.localpath;
 
-    bool r = !!CreateDirectoryW((LPCWSTR)name.data(), NULL);
+    bool r = !!CreateDirectoryW(name.data(), NULL);
 
     if (!r)
     {
@@ -978,18 +978,18 @@ bool WinFileSystemAccess::mkdirlocal(LocalPath& namePath, bool hidden)
     {
 #ifdef WINDOWS_PHONE
         WIN32_FILE_ATTRIBUTE_DATA a = { 0 };
-        BOOL res = GetFileAttributesExW((LPCWSTR)name->data(), GetFileExInfoStandard, &a);
+        BOOL res = GetFileAttributesExW(name.data(), GetFileExInfoStandard, &a);
 
         if (res)
         {
-            SetFileAttributesW((LPCWSTR)name->data(), a.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN);
+            SetFileAttributesW(name.data(), a.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN);
         }
 #else
-        DWORD a = GetFileAttributesW((LPCWSTR)name.data());
+        DWORD a = GetFileAttributesW(name.data());
 
         if (a != INVALID_FILE_ATTRIBUTES)
         {
-            SetFileAttributesW((LPCWSTR)name.data(), a | FILE_ATTRIBUTE_HIDDEN);
+            SetFileAttributesW(name.data(), a | FILE_ATTRIBUTE_HIDDEN);
         }
 #endif
     }
@@ -1006,7 +1006,7 @@ bool WinFileSystemAccess::setmtimelocal(LocalPath& namePath, m_time_t mtime)
     LONGLONG ll;
     HANDLE hFile;
 
-    hFile = CreateFileW((LPCWSTR)namePath.localpath.data(), FILE_WRITE_ATTRIBUTES, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+    hFile = CreateFileW(namePath.localpath.data(), FILE_WRITE_ATTRIBUTES, FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
 
     if (hFile == INVALID_HANDLE_VALUE)
     {
@@ -1040,7 +1040,7 @@ bool WinFileSystemAccess::chdirlocal(LocalPath& namePath) const
 #ifdef WINDOWS_PHONE
     return false;
 #else
-    int r = SetCurrentDirectoryW((LPCWSTR)namePath.localpath.c_str());
+    int r = SetCurrentDirectoryW(namePath.localpath.c_str());
     return r;
 #endif
 }
@@ -1131,7 +1131,7 @@ bool WinFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolu
     return false;
 #else
 
-    int len = GetFullPathNameW((LPCWSTR)pathArg.localpath.data(), 0, NULL, NULL);
+    int len = GetFullPathNameW(pathArg.localpath.data(), 0, NULL, NULL);
     if (len <= 0)
     {
         absolutepathArg.localpath = pathArg.localpath;
@@ -1139,7 +1139,7 @@ bool WinFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolu
     }
 
     absolutepathArg.localpath.resize(len);
-    int newlen = GetFullPathNameW((LPCWSTR)pathArg.localpath.data(), len, (LPWSTR)absolutepathArg.localpath.data(), NULL);
+    int newlen = GetFullPathNameW(pathArg.localpath.data(), len, (LPWSTR)absolutepathArg.localpath.data(), NULL);
     if (newlen <= 0 || newlen >= len)
     {
         absolutepathArg.localpath = pathArg.localpath;
@@ -1273,7 +1273,7 @@ bool WinDirNotify::fsstableids() const
 #error "Not implemented"
 #endif
     TCHAR volume[MAX_PATH + 1];
-    if (GetVolumePathNameW((LPCWSTR)localbasepath.localpath.data(), volume, MAX_PATH + 1))
+    if (GetVolumePathNameW(localbasepath.localpath.data(), volume, MAX_PATH + 1))
     {
         TCHAR fs[MAX_PATH + 1];
         if (GetVolumeInformation(volume, NULL, 0, NULL, NULL, NULL, fs, MAX_PATH + 1))
@@ -1522,16 +1522,16 @@ WinDirNotify::WinDirNotify(LocalPath& localbasepath, const LocalPath& ignore, Wi
     std::wstring longname;
     auto r = localbasepath.localpath.size() / sizeof(wchar_t) + 20;
     longname.resize(r);
-    auto rr = GetLongPathNameW((LPCWSTR)localbasepath.localpath.data(), (LPWSTR)longname.data(), DWORD(r));
+    auto rr = GetLongPathNameW(localbasepath.localpath.data(), (LPWSTR)longname.data(), DWORD(r));
 
     longname.resize(rr);
     if (rr >= r)
     {
-        rr = GetLongPathNameW((LPCWSTR)localbasepath.localpath.data(), (LPWSTR)longname.data(), rr);
+        rr = GetLongPathNameW(localbasepath.localpath.data(), (LPWSTR)longname.data(), rr);
         longname.resize(rr);
     }
 
-    if ((hDirectory = CreateFileW((LPCWSTR)longname.data(),
+    if ((hDirectory = CreateFileW(longname.data(),
                                   FILE_LIST_DIRECTORY,
                                   FILE_SHARE_READ | FILE_SHARE_WRITE,
                                   NULL,
@@ -1623,15 +1623,15 @@ bool WinFileSystemAccess::issyncsupported(LocalPath& localpathArg, bool *isnetwo
     path.resize(MAX_PATH * sizeof(WCHAR));
     fsname.resize(MAX_PATH * sizeof(WCHAR));
 
-    if (GetVolumePathNameW((LPCWSTR)localpathArg.localpath.data(), (LPWSTR)path.data(), MAX_PATH)
-        && GetVolumeInformationW((LPCWSTR)path.data(), NULL, 0, NULL, NULL, NULL, (LPWSTR)fsname.data(), MAX_PATH)
+    if (GetVolumePathNameW(localpathArg.localpath.data(), path.data(), MAX_PATH)
+        && GetVolumeInformationW(path.data(), NULL, 0, NULL, NULL, NULL, fsname.data(), MAX_PATH)
         && !memcmp(fsname.data(), VBoxSharedFolderFS, sizeof(VBoxSharedFolderFS)))
     {
         LOG_warn << "VBoxSharedFolderFS is not supported because it doesn't provide ReadDirectoryChanges() nor unique file identifiers";
         result = false;
     }
 
-    if (GetDriveTypeW((LPCWSTR)path.data()) == DRIVE_REMOTE)
+    if (GetDriveTypeW(path.data()) == DRIVE_REMOTE)
     {
         LOG_debug << "Network folder detected";
         if (isnetwork)
@@ -1670,14 +1670,14 @@ bool WinDirAccess::dopen(LocalPath* nameArg, FileAccess* f, bool glob)
         }
 
 #ifdef WINDOWS_PHONE
-        hFind = FindFirstFileExW((LPCWSTR)nameArg->data(), FindExInfoBasic, &ffd, FindExSearchNameMatch, NULL, 0);
+        hFind = FindFirstFileExW(nameArg->localpath.c_str(), FindExInfoBasic, &ffd, FindExSearchNameMatch, NULL, 0);
 #else
-        hFind = FindFirstFileW((LPCWSTR)nameArg->localpath.c_str(), &ffd);
+        hFind = FindFirstFileW(nameArg->localpath.c_str(), &ffd);
 #endif
 
         if (glob)
         {
-            wchar_t* bp = (wchar_t*)nameArg->localpath.c_str();
+            wchar_t* bp = const_cast<wchar_t*>(nameArg->localpath.c_str());
 
             // store base path for glob() emulation
             int p = int(wcslen(bp));

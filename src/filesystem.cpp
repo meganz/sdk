@@ -157,7 +157,7 @@ FileSystemType FileSystemAccess::getlocalfstype(const LocalPath& dstPath) const
     std::wstring volMountPoint;
     volMountPoint.resize(MAX_PATH);
     DWORD mountLen = static_cast<DWORD>(volMountPoint.size());
-    if (!(GetVolumePathNameW((LPCWSTR)tmpPath.localpath.c_str(), &volMountPoint[0], mountLen)))
+    if (!(GetVolumePathNameW(tmpPath.localpath.c_str(), &volMountPoint[0], mountLen)))
     {
         return FS_UNKNOWN;
     }

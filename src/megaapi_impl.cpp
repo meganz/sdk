@@ -4905,8 +4905,8 @@ void MegaFileGet::progress()
     if(transfer->slot && !transfer->slot->progressreported)
     {
         WIN32_FILE_ATTRIBUTE_DATA fad;
-        if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.getLocalpath().data(), GetFileExInfoStandard, &fad))
-            SetFileAttributesW((LPCWSTR)transfer->localfilename.getLocalpath().data(), fad.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN);
+        if (GetFileAttributesExW(transfer->localfilename.getLocalpath().data(), GetFileExInfoStandard, &fad))
+            SetFileAttributesW(transfer->localfilename.getLocalpath().data(), fad.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN);
     }
 #endif
 }
