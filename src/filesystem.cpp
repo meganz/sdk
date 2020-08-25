@@ -1012,7 +1012,7 @@ void LocalPath::ensureWinExtendedPathLenPrefix()
 {
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
     if (!PathIsRelativeW((LPWSTR)localpath.c_str()) && ((localpath.size() < 4) || memcmp(localpath.data(), L"\\\\", 4)))
-        localpath.insert(0, (const wchar_t*)L"\\\\?\\", 8);
+        localpath.insert(0, (const wchar_t*)L"\\\\?\\", 4);
 #endif
 }
 
