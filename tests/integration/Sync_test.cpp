@@ -53,6 +53,71 @@ using namespace ::std;
  #define LOCAL_TEST_FOLDER (string(getenv("HOME"))+"/synctests_mega_auto")
 #endif
 
+
+/*
+**  TestFS implementation
+*/
+
+const string& TestFS::GetTestFolder()
+{
+    // This function should probably contain the definition of LOCAL_TEST_FOLDER,
+    // and replace it in all other places.
+    static string testfolder(LOCAL_TEST_FOLDER);
+
+    return testfolder;
+}
+
+
+const string& TestFS::GetTrashFolder()
+{
+    static string trashfolder((fs::path(GetTestFolder()).parent_path() / "trash").string());
+
+    return trashfolder;
+}
+
+
+void TestFS::DeleteFolder(const std::string& folder)
+{
+    // rename folder, so that tests can still create one and add to it
+    error_code ec;
+    fs::path oldpath(folder);
+    fs::path newpath(folder + "_del"); // this can be improved later if needed
+    fs::rename(oldpath, newpath, ec);
+
+    // if renaming failed, then there's nothing to delete
+    if (ec)
+    {
+        // report failures, other than the case when it didn't exist
+        if (ec != errc::no_such_file_or_directory)
+        {
+            cout << "Renaming " << folder << " failed." << endl
+                 << ec.message() << endl;
+        }
+
+        return;
+    }
+
+    // delete folder in a separate thread
+    m_cleaners.emplace_back(thread([=]() mutable // ...mostly for fun, to avoid declaring another ec
+        {
+            fs::remove_all(newpath, ec);
+
+            if (ec)
+            {
+                cout << "Deleting " << folder << " failed." << endl
+                     << ec.message() << endl;
+            }
+        }));
+}
+
+
+TestFS::~TestFS()
+{
+    for_each(m_cleaners.begin(), m_cleaners.end(), [](thread& t) { t.join(); });
+}
+
+
+
 namespace {
 
 bool suppressfiles = false;
@@ -1853,7 +1918,7 @@ bool StandardClient::debugging = false;
 
 void moveToTrash(const fs::path& p)
 {
-    fs::path trashpath = p.parent_path() / "trash";
+    fs::path trashpath(TestFS::GetTrashFolder());
     fs::create_directory(trashpath);
     fs::path newpath = trashpath / p.filename();
     for (int i = 2; fs::exists(newpath); ++i)
