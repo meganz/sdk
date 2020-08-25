@@ -32,7 +32,7 @@
 
 namespace mega {
 
-TransferSlotFileAccess::TransferSlotFileAccess(std::unique_ptr<FileAccess>&& p, Transfer* t) 
+TransferSlotFileAccess::TransferSlotFileAccess(std::unique_ptr<FileAccess>&& p, Transfer* t)
     : transfer(t)
 {
     reset(std::move(p));
@@ -84,7 +84,7 @@ TransferSlot::TransferSlot(Transfer* ctransfer)
 
     failure = false;
     retrying = false;
-    
+
     fileattrsmutable = 0;
 
     connections = 0;
@@ -218,7 +218,7 @@ TransferSlot::~TransferSlot()
 
                     case REQ_DECRYPTING:
                         LOG_info << "Waiting for block decryption";
-                        std::mutex finalizedMutex; 
+                        std::mutex finalizedMutex;
                         std::unique_lock<std::mutex> guard(finalizedMutex);
                         auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
                         outputPiece->finalizedCV.wait(guard, [&](){ return outputPiece->finalized; });
@@ -413,7 +413,7 @@ bool TransferSlot::testForSlowRaidConnection(unsigned connectionNum, bool& incre
                     }
                 }
             }
-        
+
             averageOtherRate /=  otherCount ? otherCount : 1;
             m_off_t thisRate = mReqSpeeds[connectionNum].lastRequestSpeed();
 
@@ -421,8 +421,8 @@ bool TransferSlot::testForSlowRaidConnection(unsigned connectionNum, bool& incre
                     && averageOtherRate > 50 * 1024 // avg is more than 50KB/s
                     && thisRate < 1024 * 1024)      // this is less than 1MB/s
             {
-                LOG_warn << "Raid connection " << connectionNum 
-                         << " is much slower than its peers, with speed " << thisRate 
+                LOG_warn << "Raid connection " << connectionNum
+                         << " is much slower than its peers, with speed " << thisRate
                          << " while they are managing " << averageOtherRate;
 
                 mRaidChannelSwapsForSlowness += 1;
@@ -507,7 +507,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                 LOG_debug << "Connection " << slowestStartConnection << " is the slowest to reply, using the other 5.";
                 reqs[slowestStartConnection].reset();
                 transferbuf.resetPart(slowestStartConnection);
-                i = connections; 
+                i = connections;
                 continue;
             }
 
@@ -589,7 +589,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         if (reqs[i]->in.size())
                         {
                             if (reqs[i]->in.size() == NewNode::UPLOADTOKENLEN)
-                            {                                        
+                            {
                                 LOG_debug << "Upload token received";
                                 if (!transfer->ultoken)
                                 {
@@ -773,7 +773,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     {
                         // this must return the same piece we just decrypted, since we have not asked the transferbuf to discard it yet.
                         auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
-                        
+
                         if (fa->asyncavailable())
                         {
                             if (asyncIO[i])
@@ -853,7 +853,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 client->mAsyncQueue.push([req, transferkey, ctriv, finaltempurl, pos, npos](SymmCipher& sc)
                                     {
                                         sc.setkey(transferkey.data());
-                                        req->prepare(finaltempurl.c_str(), &sc, ctriv, pos, npos); 
+                                        req->prepare(finaltempurl.c_str(), &sc, ctriv, pos, npos);
                                         req->status = REQ_PREPARED;
                                     }, true);   // discardable - if the transfer or client are being destroyed, we won't be sending that data.
                             }
@@ -951,7 +951,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                         return transfer->failed(API_EOVERQUOTA, committer, backoff);
                     }
-                    else if (reqs[i]->httpstatus == 429)  
+                    else if (reqs[i]->httpstatus == 429)
                     {
                         // too many requests - back off a bit (may be added serverside at some point.  Added here 202020623)
                         backoff = 5;
@@ -1162,12 +1162,12 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
         p += transferbuf.progress();
     }
     p += transfer->progresscompleted;
-    
+
     if (p != progressreported || (Waiter::ds - lastprogressreport) > PROGRESSTIMEOUT)
     {
         if (p != progressreported)
         {
-            m_off_t diff = p - progressreported;
+            m_off_t diff = std::max<m_off_t>(0, p - progressreported);
             speed = speedController.calculateSpeed(diff);
             meanSpeed = speedController.getMeanSpeed();
             if (transfer->type == PUT)
