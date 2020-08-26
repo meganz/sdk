@@ -872,10 +872,7 @@ bool CommandGetFile::procresult(Result r)
                                                 }
                                             }
 
-                                            int creqtag = client->reqtag;
-                                            client->reqtag = 0;
-                                            client->sendevent(99411, "Node size mismatch");
-                                            client->reqtag = creqtag;
+                                            client->sendevent(99411, "Node size mismatch", 0);
                                         }
 
                                         tslot->starttime = tslot->lastdata = client->waiter->ds;
@@ -1197,10 +1194,7 @@ bool CommandPutNodes::procresult(Result r)
         {
             if (r.wasError(API_EACCESS))
             {
-                int creqtag = client->reqtag;
-                client->reqtag = 0;
-                client->sendevent(99402, "API_EACCESS putting node in sync transfer");
-                client->reqtag = creqtag;
+                client->sendevent(99402, "API_EACCESS putting node in sync transfer", 0);
             }
 
             vector<NewNode> emptyVec;
@@ -1487,10 +1481,7 @@ bool CommandMoveNode::procresult(Result r)
         }
         else if (syncdel == SYNCDEL_NONE)
         {
-            int creqtag = client->reqtag;
-            client->reqtag = 0;
-            client->sendevent(99439, "Unexpected move error");
-            client->reqtag = creqtag;
+            client->sendevent(99439, "Unexpected move error", 0);
         }
     }
     client->app->rename_result(h, r.errorOrOK());
@@ -1830,10 +1821,7 @@ bool CommandLogin::procresult(Result r)
                         client->cachedscsn = UNDEF;
                         client->dbaccess->currentDbVersion = DbAccess::DB_VERSION;
 
-                        int creqtag = client->reqtag;
-                        client->reqtag = 0;
-                        client->sendevent(99404, "Local DB upgrade granted");
-                        client->reqtag = creqtag;
+                        client->sendevent(99404, "Local DB upgrade granted", 0);
                     }
                 }
 
@@ -2734,10 +2722,7 @@ bool CommandPutMultipleUAVer::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        int creqtag = client->reqtag;
-        client->reqtag = 0;
-        client->sendevent(99419, "Error attaching keys");
-        client->reqtag = creqtag;
+        client->sendevent(99419, "Error attaching keys", 0);
 
         client->app->putua_result(r.errorOrOK());
         return true;
@@ -3048,7 +3033,7 @@ bool CommandGetUA::procresult(Result r)
             return true;
         }
 
-        if (u && u->userhandle == client->me && r.wasError(API_EBLOCKED))
+        if (u && u->userhandle == client->me && !r.wasError(API_EBLOCKED))
         {
             if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK)
             {
@@ -4157,7 +4142,7 @@ bool CommandGetUserData::procresult(Result r)
                 {
                     std::string err = "GetUserData: invalid business status / account mode";
                     LOG_err << err;
-                    client->sendevent(99450, err.c_str());
+                    client->sendevent(99450, err.c_str(), 0);
 
                     client->mBizStatus = BIZ_STATUS_EXPIRED;
                     client->mBizMode = BIZ_MODE_SUBUSER;

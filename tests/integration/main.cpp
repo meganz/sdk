@@ -7,6 +7,7 @@
 bool gRunningInCI = false;
 bool gResumeSessions = false;
 bool gTestingInvalidArgs = false;
+bool gOutputToCout = false;
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
 namespace {
@@ -109,6 +110,11 @@ int main (int argc, char *argv[])
         else if (std::string(*it).substr(0, 12) == "--USERAGENT:")
         {
             USER_AGENT = std::string(*it).substr(12);
+            argc -= 1;
+        }
+        else if (std::string(*it).substr(0, 12) == "--COUT")
+        {
+            gOutputToCout = true;
             argc -= 1;
         }
         else if (std::string(*it).substr(0, 9) == "--APIURL:")
