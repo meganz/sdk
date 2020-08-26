@@ -7750,10 +7750,15 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                     sts = ts;
                 }
 
-                if (t == ROOTNODE || t == RUBBISHNODE || t == INCOMINGNODE || (mPuttingNodes && source == PUTNODES_APP && isNodeInRam(ph)))
+#ifdef ENABLE_SYNC
+                addToMemory = true;
+#else
+
+                if (t == ROOTNODE || t == RUBBISHNODE || t == INCOMINGNODE || (mPuttingNodes && source == PUTNODES_APP))
                 {
                     addToMemory = true;
                 }
+#endif
 
                 n = new Node(this, &dp, h, ph, t, s, u, fas.c_str(), ts, addToMemory);
                 n->changed.newnode = true;
@@ -10964,7 +10969,28 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     if (isNodeOnDemandDb)
     {
+        assert(!mNodes.size());
         std::vector<std::string> nodes;
+#ifdef ENABLE_SYNC
+        sctable->getNodes(nodes);
+        for (const std::string& node : nodes)
+        {
+            n = Node::unserialize(this, &node, &dp);
+            if (n->type == ROOTNODE)
+            {
+                getChildrens(n);
+            }
+        }
+
+        for (size_t i = dp.size(); i--; )
+        {
+            if ((n = nodebyhandle(dp[i]->parenthandle)))
+            {
+                dp[i]->setparent(n);
+            }
+        }
+
+#else
         sctable->getNodesWithoutParent(nodes);
         for (const std::string& node : nodes)
         {
@@ -10974,6 +11000,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 getChildrens(n);
             }
         }
+#endif
     }
 
     bool hasNext = sctable->next(&id, &data, &key);
