@@ -255,7 +255,7 @@ bool SqliteDbTable::getNode(handle nodehandle, std::string &nodeSerialized)
     nodeSerialized.clear();
 
     sqlite3_stmt *stmt;
-    if (sqlite3_prepare(db, "SELECT node FROM nodes  WHERE parenthandle = ?", -1, &stmt, NULL) == SQLITE_OK)
+    if (sqlite3_prepare(db, "SELECT node FROM nodes  WHERE nodehandle = ?", -1, &stmt, NULL) == SQLITE_OK)
     {
         if (sqlite3_bind_int64(stmt, 1, nodehandle) == SQLITE_OK)
         {
