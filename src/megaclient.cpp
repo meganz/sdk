@@ -7285,7 +7285,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparenth
         // rewrite keys of foreign nodes that are moved out of an outbound share
         rewriteforeignkeys(n);
 
-        reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparent));
+        reqs.add(new CommandMoveNode(this, n, p, syncdel, prevparenthandle));
         if (updateNodeAttributes)
         {
             setattr(n);
