@@ -474,11 +474,6 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
     }
 }
 
-bool MegaClient::isNodeInRam(handle nodehandle) const
-{
-    return mNodes.find(nodehandle) != mNodes.end();
-}
-
 // configure for full account session access
 void MegaClient::setsid(const byte* newsid, unsigned len)
 {
