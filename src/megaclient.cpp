@@ -7219,7 +7219,7 @@ error MegaClient::checkmove(Node* fn, Node* tn)
 
 // move node to new parent node (for changing the filename, use setattr and
 // modify the 'n' attribute)
-error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent, const char *newName)
+error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparenthandle, const char *newName)
 {
     error e;
 
@@ -7229,9 +7229,9 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
     }
 
     Node *prevParent = NULL;
-    if (!ISUNDEF(prevparent))
+    if (!ISUNDEF(prevparenthandle))
     {
-        prevParent = nodebyhandle(prevparent);
+        prevParent = nodebyhandle(prevparenthandle);
     }
     else
     {
