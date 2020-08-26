@@ -511,11 +511,11 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
             {
                 if (separatorfound)
                 {
-                    filename += sizeof(wchar_t);
+                    ++filename;
                 }
                 else
                 {
-                    filenamesize += 1;
+                    ++filenamesize;
                 }
 
                 if (memcmp(filename, fad.cFileName, filenamesize < sizeof(fad.cFileName) ? filenamesize : sizeof(fad.cFileName))
