@@ -101,12 +101,6 @@ public:
             return mOutcome != CmdError || error(mError) != API_OK;
         }
 
-        Error errorGeneral()
-        {
-            // for the general case- command could result in an error, actionpacket, or JSON to process
-            return mOutcome == CmdError ? mError : Error(API_OK);
-        }
-
         bool hasJsonArray()
         {
             // true if there is JSON Array to process (and we have already entered it) (note some commands that respond with cmdseq plus JSON, so this can happen for actionpacket results)
@@ -125,22 +119,11 @@ public:
             return mOutcome == CmdItem;
         }
 
-        // convenience function for commands that should only return numeric or actionpacket, consider anything else EINTERNAL
-        //Error errorResultOrActionpacket()
-        //{
-        //    return mOutcome == CmdError ? mError : Error(mOutcome == CmdActionpacket ? API_OK : API_EINTERNAL);
-        //}
-
         Error errorOrOK()
         {
             assert(mOutcome == CmdError);
             return mOutcome == CmdError ? mError : Error(API_EINTERNAL);
         }
-
-        //bool wasErrorOrActionpacket()
-        //{
-        //    return mOutcome == CmdError || mOutcome == CmdActionpacket;
-        //}
 
         bool wasErrorOrOK()
         {
@@ -160,7 +143,7 @@ public:
     };
 
     virtual bool procresult(Result) = 0;
-    
+
     const char* getstring() const;
 
     Command();
@@ -572,7 +555,7 @@ class MEGA_API CommandAttachFA : public Command
 public:
     bool procresult(Result) override;
 
-    // use this one for attribute blobs 
+    // use this one for attribute blobs
     CommandAttachFA(MegaClient*, handle, fatype, handle, int);
 
     // use this one for numeric 64 bit attributes (which must be pre-encrypted with XXTEA)
@@ -1020,7 +1003,7 @@ public:
 };
 
 class MEGA_API CommandChatRemoveAccess : public Command
-{    
+{
     handle chatid;
     handle h;
     handle uh;
