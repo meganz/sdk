@@ -49,6 +49,14 @@ public:
     {
         throw NotImplemented{__func__};
     }
+
+#if defined(_WIN32)
+    void path2local(const std::string*, std::wstring*) const
+    {
+        throw NotImplemented{ __func__ };
+    }
+#endif
+
     void local2path(const std::string* local, std::string* path) const override
     {
         throw NotImplemented{__func__};
