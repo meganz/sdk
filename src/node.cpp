@@ -1719,8 +1719,7 @@ bool LocalNode::serialize(string* d)
     w.serializeu32(parent ? parent->dbid : 0);
     w.serializenodehandle(node ? node->nodehandle : UNDEF);
 #if defined(_WIN32)
-    string utf16name = wstring2string_utf16(localname.getLocalpath());
-    w.serializestring(utf16name);
+    w.serializestring(localname.clientAppEncoded());
 #else
     w.serializestring(localname.getLocalpath());
 #endif
@@ -1732,9 +1731,8 @@ bool LocalNode::serialize(string* d)
     w.serializebyte(mSyncable);
     w.serializeexpansionflags(1);  // first flag indicates we are storing slocalname.  Storing it is much, much faster than looking it up on startup.
 #if defined(_WIN32)
-    utf16name.clear();
-    utf16name = wstring2string_utf16(slocalname->getLocalpath());
-    w.serializepstr(slocalname ? &utf16name : nullptr);
+    auto tmpstr = slocalname ? slocalname->clientAppEncoded() : string();
+    w.serializepstr(slocalname ? &tmpstr : nullptr);
 #else
     w.serializepstr(slocalname ? &(slocalname->getLocalpath()) : nullptr);
 #endif

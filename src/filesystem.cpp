@@ -867,6 +867,22 @@ void LocalPath::append(const LocalPath& additionalPath)
     localpath.append(additionalPath.localpath);
 }
 
+std::string LocalPath::clientAppEncoded() const
+{
+#ifdef WIN32
+    // this function is typically used where we need to pass a file path to the client app, which expects utf16 in a std::string buffer
+    // some other backwards compatible cases need this format also, eg. serialization
+    std::string outstr;
+    outstr.resize(localpath.size() * sizeof(wchar_t));
+    memcpy(const_cast<char*>(outstr.data()), localpath.data(), localpath.size() * sizeof(wchar_t));
+    return outstr;
+#else
+    // for non-windows, it's just the same utf8 string we use anyway
+    return localpath;
+#endif
+}
+
+
 #if defined(_WIN32)
 void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways, const std::wstring& localseparator)
 {
@@ -1016,13 +1032,11 @@ void LocalPath::ensureWinExtendedPathLenPrefix()
 #endif
 }
 
-#if defined(_WIN32) 
-std::wstring LocalPath::substrTo(size_t bytePos) const
-#else
-string LocalPath::substrTo(size_t bytePos) const
-#endif
+LocalPath LocalPath::subpathTo(size_t bytePos) const
 {
-    return localpath.substr(0, bytePos);
+    LocalPath p;
+    p.localpath = localpath.substr(0, bytePos);
+    return p;
 }
 
 string LocalPath::toPath(const FileSystemAccess& fsaccess) const
@@ -1052,27 +1066,15 @@ string LocalPath::toName(const FileSystemAccess& fsaccess, FileSystemType fsType
 
 LocalPath LocalPath::fromPath(const string& path, const FileSystemAccess& fsaccess)
 {
-    std::string s;
-    fsaccess.path2local(&path, &s);
     LocalPath p;
-#if defined(_WIN32)
-    p.localpath = utf16string2wstring(s);
-#else
-    p.localpath = s;
-#endif
+    fsaccess.path2local(&path, &p.localpath);
     return p;
 }
 
 LocalPath LocalPath::fromName(string path, const FileSystemAccess& fsaccess, FileSystemType fsType)
 {
     fsaccess.name2local(&path, fsType);
-#if defined(_WIN32)
-    LocalPath p;
-    p.localpath = utf16string2wstring(path);
-    return p;
-#else
     return fromLocalname(path);
-#endif
 }
 
 #if defined(_WIN32)
@@ -1088,7 +1090,8 @@ LocalPath LocalPath::fromLocalname(std::string path)
 {
 #if defined(_WIN32)
     LocalPath p;
-    p.localpath = utf16string2wstring(path);
+    p.localpath.resize(path.size() / sizeof(wchar_t));
+    memcpy(p.localpath.data(), path.data(), p.localpath.size() * sizeof(wchar_t));
     return p;
 #else
     LocalPath p;

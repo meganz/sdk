@@ -35,8 +35,7 @@ class GfxProcExternal : public GfxProc
     MegaGfxProcessor *processor;
 
     bool readbitmap(FileAccess*, const LocalPath&, int);
-
-    bool resizebitmap(int, int, string*);
+    bool resizebitmap(int, int, string* result);
     void freebitmap();
 
 public:

@@ -152,6 +152,8 @@ class MEGA_API LocalPath
     friend struct WinDirAccess;
     friend struct WinDirNotify;
     friend class WinFileAccess;
+    friend void RemoveHiddenFileAttribute(LocalPath& path);
+    friend void AddHiddenFileAttribute(LocalPath& path);
 
     size_t getLength() { return localpath.size(); }
     void setLength(size_t length) { localpath.resize(length); }
@@ -160,15 +162,22 @@ public:
     LocalPath() {}
 
 #if defined(_WIN32)
-    void setLocalpath(std::wstring s) { localpath = s; }
-    void assign(const wchar_t* ptr, size_t sz) { localpath.assign(ptr, sz); }
+    //void setLocalpath(std::wstring s) { localpath = s; }
+    //void assign(const wchar_t* ptr, size_t sz) { localpath.assign(ptr, sz); }
+    // todo: currently used in computeReversePathMatchScore, can we adjust that one to work just on std::string, with LocalPath converted wtih toPath() ?
+    const std::wstring& getLocalpath() const { return localpath; }
+
 #else 
     explicit LocalPath(std::string&& s) : localpath(std::move(s)) {}
     std::string* editStringDirect();
     const std::string* editStringDirect() const;
     void assign(const char* ptr, size_t sz) { localpath.assign(ptr, sz); }
+
+    const std::string& getLocalpath() const { return localpath; }
 #endif
-    const std::wstring& getLocalpath() const { return localpath; }
+
+    std::string clientAppEncoded() const;
+
     void setlocalpathsize(int size) { localpath.resize(size); }
     bool empty() const;
     void clear() { localpath.clear(); }
@@ -192,12 +201,7 @@ public:
     size_t getLeafnameByteIndex(const FileSystemAccess& fsaccess) const;
     bool backEqual(size_t bytePos, const LocalPath& compareTo) const;
     LocalPath subpathFrom(size_t bytePos) const;
-
-#if defined(_WIN32)
-    std::wstring substrTo(size_t bytePos) const;
-#else 
-    std::string substrTo(size_t bytePos) const;
-#endif
+    LocalPath subpathTo(size_t bytePos) const;
 
     void ensureWinExtendedPathLenPrefix();
 
@@ -233,6 +237,9 @@ public:
     bool operator!=(const LocalPath& p) const { return localpath != p.localpath; }
     bool operator<(const LocalPath& p) const { return localpath < p.localpath; }
 };
+
+void AddHiddenFileAttribute(mega::LocalPath& path);
+void RemoveHiddenFileAttribute(mega::LocalPath& path);
 
 inline LocalPath operator+(LocalPath& a, LocalPath& b)
 {
@@ -496,6 +503,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // forbidden characters using urlencode
     std::string local2name(std::wstring*, FileSystemType) const;
     virtual void local2path(const std::wstring*, string*) const = 0;
+    virtual void path2local(const string*, std::wstring*) const = 0;
 #endif
     // convert MEGA-formatted filename (UTF-8) to local filesystem name; escape
     // forbidden characters using urlencode

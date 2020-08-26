@@ -63,10 +63,7 @@ bool GfxProcExternal::readbitmap(FileAccess* /*fa*/, const LocalPath& localname,
 {
     if(!processor) return false;
 
-    string filepath;
-
-    bool result = processor->readBitmap(localname.getLocalpath().c_str());
-
+	bool result = processor->readBitmap(localname.clientAppEncoded().c_str());
 	if(!result) return false;
 
 	w = processor->getWidth();

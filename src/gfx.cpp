@@ -276,7 +276,7 @@ void GfxProc::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 
         px = (w - rw) / 2;
         py = (h - rw) / 3;
-        
+
         rh = rw;
     }
 }
@@ -287,16 +287,14 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilena
 {
     if (SimpleLogger::logCurrentLevel >= logDebug)
     {
-        string utf8path;
-        client->fsaccess->local2path(&(localfilename.getLocalpath()), &utf8path);
-        LOG_debug << "Creating thumb/preview for " << utf8path;
+        LOG_debug << "Creating thumb/preview for " << localfilename.toPath(*client->fsaccess);
     }
 
     GfxJob *job = new GfxJob();
     job->h = th;
     job->flag = checkAccess;
     memcpy(job->key, key->key, SymmCipher::KEYLENGTH);
-    job->localfilename = localfilename.toPath(*client->fsaccess); 
+    job->localfilename = localfilename.toPath(*client->fsaccess);
     for (fatype i = sizeof dimensions/sizeof dimensions[0]; i--; )
     {
         if (missing & (1 << i))

@@ -55,31 +55,21 @@ string toHandle(handle h)
     return string(base64Handle);
 }
 
-std::string wstring2string_utf16(std::wstring inwstr)
-{
-    std::string outstr;
-    outstr.resize(inwstr.size() * sizeof(wchar_t));
-    memcpy(const_cast<char*>(outstr.data()), inwstr.data(), inwstr.size() * sizeof(wchar_t));
-    return outstr;
-}
-
-std::wstring utf16string2wstring(std::string instr)
-{
-    std::wstring outwstr;
-    outwstr.resize(instr.size() / sizeof(wchar_t));
-    memcpy(const_cast<wchar_t*>(outwstr.data()), instr.data(), instr.size());
-    return outwstr;
-}
-
-void RemoveHiddenFileAttribute(mega::Transfer* transfer)
+void AddHiddenFileAttribute(mega::LocalPath& path)
 {
 #ifdef _WIN32
-    if (transfer)
-    {
-        WIN32_FILE_ATTRIBUTE_DATA fad;
-        if (GetFileAttributesExW(transfer->localfilename.getLocalpath().data(), GetFileExInfoStandard, &fad))
-            SetFileAttributesW(transfer->localfilename.getLocalpath().data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
-    }
+    WIN32_FILE_ATTRIBUTE_DATA fad;
+    if (GetFileAttributesExW(path.localpath.data(), GetFileExInfoStandard, &fad))
+        SetFileAttributesW(path.localpath.data(), fad.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN);
+#endif
+}
+
+void RemoveHiddenFileAttribute(mega::LocalPath& path)
+{
+#ifdef _WIN32
+    WIN32_FILE_ATTRIBUTE_DATA fad;
+    if (GetFileAttributesExW(path.localpath.data(), GetFileExInfoStandard, &fad))
+        SetFileAttributesW(path.localpath.data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
 #endif
 }
 

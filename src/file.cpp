@@ -69,9 +69,10 @@ bool File::serialize(string *d)
     d->append(name.data(), ll);
 
 #if defined(_WIN32)
-    ll = (unsigned short)localname.getLocalpath().size();
+    auto tmpstr = localname.clientAppEncoded();
+    ll = (unsigned short)tmpstr.size();
     d->append((char*)&ll, sizeof(ll));
-    d->append(wstring2string_utf16(localname.getLocalpath().data()), ll);
+    d->append(tmpstr.data(), ll);
 #else
     ll = (unsigned short)localname.getLocalpath().size();
     d->append((char*)&ll, sizeof(ll));
@@ -212,8 +213,7 @@ File *File::unserialize(string *d)
 
     file->name.assign(name, namelen);
 #if defined(_WIN32)
-    std::string s(localname, localnamelen);
-    file->localname.setLocalpath(utf16string2wstring(s));
+    file->localname = LocalPath::fromLocalname(std::wstring((wchar_t*)localname, localnamelen/2));
 #else
     file->localname.editStringDirect()->assign(localname, localnamelen);
 #endif
@@ -352,7 +352,7 @@ void File::completed(Transfer* t, LocalNode* l)
             {
                 th = t->client->rootnodes[RUBBISHNODE - ROOTNODE];
             }
-#ifdef ENABLE_SYNC            
+#ifdef ENABLE_SYNC
             if (l)
             {
                 // tag the previous version in the synced folder (if any) or move to SyncDebris

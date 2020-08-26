@@ -1099,7 +1099,13 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
                 // matching component LocalNode in parent
                 if (outpath)
                 {
-                    outpath->assign(ptr, localpath.getLocalpath().data() - ptr + localpath.getLocalpath().size());
+#ifdef WIN32
+                    // todo:  thia whole function should be adjusted to use LocalPath member functions instead of manipulating its internal strings, so we don't need any ifdefs
+                    std::wstring s(ptr, localpath.getLocalpath().data() - ptr + localpath.getLocalpath().size());
+#else
+                    std::string s(ptr, localpath.getLocalpath().data() - ptr + localpath.getLocalpath().size());
+#endif
+                    *outpath = LocalPath::fromLocalname(s);
                 }
 
                 return NULL;
@@ -1213,11 +1219,11 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
     bool isroot;
 
     LocalNode* parent;
-    string path;        // UTF-8 representation of tmppath
+    string path;           // UTF-8 representation of tmppath
     LocalPath tmppath;     // full path represented by l + localpath
-    string newname;     // portion of tmppath not covered by the existing
-                        // LocalNode structure (always the last path component
-                        // that does not have a corresponding LocalNode yet)
+    LocalPath newname;     // portion of tmppath not covered by the existing
+                           // LocalNode structure (always the last path component
+                           // that does not have a corresponding LocalNode yet)
 
     if (localname)
     {
@@ -1243,31 +1249,20 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
         }
 
         // look up deepest existing LocalNode by path, store remainder (if any)
-        // in outpath.localpath
-        LocalPath outpath;
-        LocalNode *tmp = localnodebypath(l, *input_localpath, &parent, &outpath);
+        // in newname
+        LocalNode *tmp = localnodebypath(l, *input_localpath, &parent, &newname);
         size_t index = 0;
 
-    #if defined(_WIN32)
-        newname = wstring2string_utf16(outpath.getLocalpath());
-        while ((index = newname.find(wstring2string_utf16(client->fsaccess->localseparator), index)) != string::npos)
-    #else
-        newname = outpath.getLocalpath();
-        while ((index = newname.find(client->fsaccess->localseparator, index)) != string::npos)
-    #endif    
+        if (newname.findNextSeparator(index, *client->fsaccess))
         {
-            if(!(index % client->fsaccess->localseparator.size()))
+            LOG_warn << "Parent not detected yet. Unknown remainder: " << newname.toPath(*client->fsaccess);
+            if (parent)
             {
-                string utf8newname;
-                client->fsaccess->local2path(&newname, &utf8newname);
-                LOG_warn << "Parent not detected yet. Unknown reminder: " << utf8newname;
-                auto parentpath = input_localpath->substrTo(input_localpath->getLocalpath().size() - newname.size() + index);
-                dirnotify->notify(DirNotify::DIREVENTS, l, LocalPath::fromLocalname(parentpath), true);
-                return NULL;
+                LocalPath notifyPath = parent->getLocalPath(true);
+                notifyPath.appendWithSeparator(newname.subpathTo(index), true, client->fsaccess->localseparator);
+                dirnotify->notify(DirNotify::DIREVENTS, l, std::move(notifyPath), true);
             }
-
-            LOG_debug << "Skipping invalid separator detection";
-            index++;
+            return NULL;
         }
 
         l = tmp;
@@ -1275,14 +1270,13 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
         path = tmppath.toPath(*client->fsaccess);
 
         // path invalid?
-        if ( ( !l && !newname.size() ) || !path.size())
+        if ( ( !l && newname.empty() ) || !path.size())
         {
             LOG_warn << "Invalid path: " << path;
             return NULL;
         }
 
-        string name = newname.size() ? newname : l->name;
-        client->fsaccess->local2name(&name, mFilesystemType);
+        string name = !newname.empty() ? newname.toName(*client->fsaccess, mFilesystemType) : l->name;
 
         if (!client->app->sync_syncable(this, name.c_str(), tmppath))
         {
@@ -1290,7 +1284,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             return NULL;
         }
 
-        isroot = l == localroot.get() && !newname.size();
+        isroot = l == localroot.get() && newname.empty();
     }
 
     LOG_verbose << "Scanning: " << path << " in=" << initializing << " full=" << fullscan << " l=" << l;
