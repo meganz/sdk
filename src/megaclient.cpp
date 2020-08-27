@@ -11085,6 +11085,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
         hasNext = sctable->next(&id, &data, &key);
     }
 
+    sctable->commit();
     WAIT_CLASS::bumpds();
     fnstats.timeToLastByte = Waiter::ds - fnstats.startTime;
 
