@@ -703,6 +703,18 @@ bool SqliteDbTable::del(handle nodehandle)
     return !sqlite3_exec(db, buf, 0, 0, NULL);
 }
 
+bool SqliteDbTable::removeNodes()
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    checkTransaction();
+
+    return !sqlite3_exec(db, "TRUNCATE TABLE nodes", 0, 0, NULL);
+}
+
 // truncate table
 void SqliteDbTable::truncate()
 {

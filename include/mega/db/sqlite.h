@@ -63,6 +63,7 @@ public:
     bool put(Node* node) override;
     bool del(uint32_t) override;
     bool del(handle nodehandle) override;
+    bool removeNodes() override;
     void truncate() override;
     void begin() override;
     void commit() override;

@@ -5343,6 +5343,7 @@ void CommandFetchNodes::procresult()
                 if (!client->readnodes(&client->json, 0))
                 {
                     client->fetchingnodes = false;
+                    client->cleanNodesFromBd();
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
@@ -5352,6 +5353,7 @@ void CommandFetchNodes::procresult()
                 if (!client->readnodes(&client->json, 0))
                 {
                     client->fetchingnodes = false;
+                    client->cleanNodesFromBd();
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
@@ -5373,6 +5375,7 @@ void CommandFetchNodes::procresult()
                 if (!client->readusers(&client->json, false))
                 {
                     client->fetchingnodes = false;
+                    client->cleanNodesFromBd();
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
@@ -5385,6 +5388,7 @@ void CommandFetchNodes::procresult()
             case MAKENAMEID2('s', 'r'):
                 // sharekey distribution request
                 client->procsr(&client->json);
+                client->cleanNodesFromBd();
                 break;
 
             case MAKENAMEID2('s', 'n'):
@@ -5392,6 +5396,7 @@ void CommandFetchNodes::procresult()
                 if (!client->scsn.setScsn(&client->json))
                 {
                     client->fetchingnodes = false;
+                    client->cleanNodesFromBd();
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
                 break;
@@ -5428,6 +5433,7 @@ void CommandFetchNodes::procresult()
                 if (!client->scsn.ready())
                 {
                     client->fetchingnodes = false;
+                    client->cleanNodesFromBd();
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
 
@@ -5446,6 +5452,7 @@ void CommandFetchNodes::procresult()
                 if (!client->json.storeobject())
                 {
                     client->fetchingnodes = false;
+                    client->cleanNodesFromBd();
                     return client->app->fetchnodes_result(API_EINTERNAL);
                 }
         }

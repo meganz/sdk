@@ -7855,6 +7855,11 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
     return j->leavearray();
 }
 
+void MegaClient::cleanNodesFromBd()
+{
+    sctable->removeNodes();
+}
+
 // decrypt and set encrypted sharekey
 void MegaClient::setkey(SymmCipher* c, const char* k)
 {
