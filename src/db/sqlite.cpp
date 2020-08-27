@@ -478,7 +478,6 @@ uint32_t SqliteDbTable::getNumberOfChildrenFromNode(handle node)
     {
         if (sqlite3_bind_int64(stmt, 1, node) == SQLITE_OK)
         {
-
             int result;
             if ((result = sqlite3_step(stmt) == SQLITE_ROW))
             {
@@ -505,12 +504,12 @@ NodeCounter SqliteDbTable::getNodeCounter(handle node)
     int64_t size = 0;
     int type = TYPE_UNKNOWN;
     handle parentHandle = UNDEF;
-    int result = SQLITE_ERROR;
-    if (sqlite3_prepare(db, "SELECT size, type, parentHandle FROM nodes WHERE nodeHandle = ?", -1, &stmt, NULL) == SQLITE_OK)
+
+    if (sqlite3_prepare(db, "SELECT size, type, parentHandle FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL) == SQLITE_OK)
     {
         if (sqlite3_bind_int64(stmt, 1, node) == SQLITE_OK)
         {
-            if ((result = sqlite3_step(stmt) == SQLITE_ROW))
+            if ((sqlite3_step(stmt) == SQLITE_ROW))
             {
                 size = sqlite3_column_int64(stmt, 0);
                 type = sqlite3_column_int(stmt, 1);
@@ -526,11 +525,11 @@ NodeCounter SqliteDbTable::getNodeCounter(handle node)
         if (parentHandle != UNDEF)
         {
             int parentType = TYPE_UNKNOWN;
-            if (sqlite3_prepare(db, "SELECT type FROM nodes WHERE nodeHandle = ?", -1, &stmt, NULL) == SQLITE_OK)
+            if (sqlite3_prepare(db, "SELECT type FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL) == SQLITE_OK)
             {
                 if (sqlite3_bind_int64(stmt, 1, parentHandle) == SQLITE_OK)
                 {
-                    if ((result = sqlite3_step(stmt) == SQLITE_ROW))
+                    if ((sqlite3_step(stmt) == SQLITE_ROW))
                     {
                         parentType = sqlite3_column_int(stmt, 0);
                     }
