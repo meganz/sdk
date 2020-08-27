@@ -397,13 +397,11 @@ size_t assignFilesystemIdsImpl(const FingerprintCache& fingerprints, Fingerprint
 int computeReversePathMatchScore(string& accumulated, const LocalPath& path1Arg, const LocalPath& path2Arg, const FileSystemAccess& fsaccess)
 {
 #if defined(_WIN32)
-    const std::wstring& path1 = path1Arg.getLocalpath();
-    const std::wstring& path2 = path2Arg.getLocalpath();
-    const int sizeofnullterminator = 2;
+    const std::string path1 = path1Arg.toPath(fsaccess);
+    const std::string path2 = path2Arg.toPath(fsaccess);
 #else 
     const string& path1 = path1Arg.getLocalpath();
     const string& path2 = path2Arg.getLocalpath();
-    const int sizeofnullterminator = 1;
 #endif
 
     if (path1.empty() || path2.empty())
@@ -413,8 +411,8 @@ int computeReversePathMatchScore(string& accumulated, const LocalPath& path1Arg,
 
     accumulated.clear();
 
-    const auto path1End = path1.size() - sizeofnullterminator;
-    const auto path2End = path2.size() - sizeofnullterminator;
+    const auto path1End = path1.size() - 1;
+    const auto path2End = path2.size() - 1;
 
     size_t index = 0;
     size_t separatorBias = 0;
@@ -426,7 +424,7 @@ int computeReversePathMatchScore(string& accumulated, const LocalPath& path1Arg,
         {
             break;
         }
-        accumulated.push_back(static_cast<char>(value1));
+        accumulated.push_back(value1);
       
         ++index;
 

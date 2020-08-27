@@ -24,7 +24,7 @@
 
 namespace mt {
 
-class DefaultedFileSystemAccess : public mega::FileSystemAccess
+class DefaultedFileSystemAccess: public mega::FileSystemAccess
 {
 public:
     DefaultedFileSystemAccess(const std::string &separator = "/")
@@ -59,13 +59,21 @@ public:
 
     void local2path(const std::string* local, std::string* path) const override
     {
-        throw NotImplemented{__func__};
+        throw NotImplemented{ __func__ };
     }
 
 #if defined(_WIN32)
     void local2path(const std::wstring* local, std::string* path) const override
     {
-        throw NotImplemented{ __func__ };
+        path->resize((local->size() * sizeof(wchar_t) + 1) * 4 / sizeof(wchar_t) + 1);
+
+        path->resize(WideCharToMultiByte(CP_UTF8, 0, local->data(),
+            int(local->size()),
+            (char*)path->data(),
+            int(path->size()),
+            NULL, NULL));
+
+        normalize(path);
     }
 #endif
 

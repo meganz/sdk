@@ -1027,8 +1027,8 @@ LocalPath LocalPath::subpathFrom(size_t bytePos) const
 void LocalPath::ensureWinExtendedPathLenPrefix()
 {
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
-    if (!PathIsRelativeW((LPWSTR)localpath.c_str()) && ((localpath.size() < 4) || memcmp(localpath.data(), L"\\\\", 4)))
-        localpath.insert(0, (const wchar_t*)L"\\\\?\\", 4);
+    if (!PathIsRelativeW(localpath.c_str()) && ((localpath.size() < 2) || memcmp(localpath.data(), L"\\\\", 4)))
+        localpath.insert(0, L"\\\\?\\", 4);
 #endif
 }
 
