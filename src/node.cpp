@@ -1001,6 +1001,7 @@ bool Node::setparent(Node* p)
     Node *oldparent = parent;
 #endif
 
+    parenthandle = p->nodehandle;
     parent = p;
 
     Node* newancestor = firstancestor();
