@@ -5044,6 +5044,7 @@ public:
         ACCOUNT_BLOCKED= 25, // Account blocked
         UNKNOWN_TEMPORARY_ERROR = 26, // unknown temporary error
         TOO_MANY_ACTION_PACKETS = 27, // Too many changes in account, local state discarded
+        LOGGED_OUT = 28, // Logged out
     };
 
     enum SyncAdded
@@ -5178,6 +5179,7 @@ public:
      *  - ACCOUNT_BLOCKED = 25: Account blocked
      *  - UNKNOWN_TEMPORARY_ERROR = 26: Unknown temporary error
      *  - TOO_MANY_ACTION_PACKETS = 27: Too many changes in account, local state discarded
+     *  - LOGGED_OUT = 28: Logged out
      *
      * @return Error of a synchronization
      */
@@ -13096,6 +13098,16 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Enable keeping sync configuration after logout
+         *
+         * By default, sync configurations are removed upon logout. Enabling this will
+         * keep configurations so that new sessions will restore syncs configured previously.
+         *
+         * @param enable True to keep sync configurations after logout.
+         */
+        void setKeepSyncsAfterLogout(bool enable);
 
 #ifdef USE_PCRE
         /**
