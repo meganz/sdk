@@ -937,7 +937,7 @@ void WinFileSystemAccess::emptydirlocal(LocalPath& namePath, dev_t basedev)
     {
         // iterate over children and delete
         removed = false;
-        name.append((const wchar_t*)L"\\*", 5);
+        name.append(L"\\*", 3);
         WIN32_FIND_DATAW ffd;
     #ifdef WINDOWS_PHONE
         hFind = FindFirstFileExW(name.data(), FindExInfoBasic, &ffd, FindExSearchNameMatch, NULL, 0);
@@ -1144,7 +1144,7 @@ bool WinFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolu
     wchar_t full[_MAX_PATH];
     if (_wfullpath(full, pathArg.localpath.data(), _MAX_PATH))
     {
-        absolutepathArg.localpath.assign(full, wcslen(full) * sizeof(wchar_t));
+        absolutepathArg.localpath.assign(full, wcslen(full));
         return true;
     }
     absolutepathArg.localpath = pathArg.localpath;
@@ -1684,20 +1684,21 @@ bool WinDirAccess::dopen(LocalPath* nameArg, FileAccess* f, bool glob)
     }
     else
     {
+        std::wstring name = nameArg->localpath;
         if (!glob)
         {
-            nameArg->localpath.append((const wchar_t*)L"\\*"); //TODO:why 5?
+            name.append(L"\\*", 3);
         }
 
 #ifdef WINDOWS_PHONE
         hFind = FindFirstFileExW(nameArg->localpath.c_str(), FindExInfoBasic, &ffd, FindExSearchNameMatch, NULL, 0);
 #else
-        hFind = FindFirstFileW(nameArg->localpath.c_str(), &ffd);
+        hFind = FindFirstFileW(name.c_str(), &ffd);
 #endif
 
         if (glob)
         {
-            wchar_t* bp = const_cast<wchar_t*>(nameArg->localpath.c_str());
+            wchar_t* bp = const_cast<wchar_t*>(name.c_str());
 
             // store base path for glob() emulation
             int p = int(wcslen(bp));
@@ -1719,8 +1720,6 @@ bool WinDirAccess::dopen(LocalPath* nameArg, FileAccess* f, bool glob)
                 globbase.clear();
             }
         }
-
-        nameArg->localpath.resize(nameArg->localpath.size() - (glob ? 0 : 5));
     }
 
     if (!(ffdvalid = hFind != INVALID_HANDLE_VALUE))
@@ -1742,7 +1741,7 @@ bool WinDirAccess::dnext(LocalPath& /*path*/, LocalPath& nameArg, bool /*follows
           || *ffd.cFileName != '.'
           || (ffd.cFileName[1] && ((ffd.cFileName[1] != '.') || ffd.cFileName[2]))))
         {
-            nameArg.localpath.assign(ffd.cFileName, sizeof(wchar_t) * wcslen(ffd.cFileName));
+            nameArg.localpath.assign(ffd.cFileName, wcslen(ffd.cFileName));
 
             if (type)
             {
