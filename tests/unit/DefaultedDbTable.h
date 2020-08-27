@@ -100,6 +100,10 @@ public:
     {
         throw NotImplemented{__func__};
     }
+    bool removeNodes() override
+    {
+        throw NotImplemented{__func__};
+    }
     void truncate() override
     {
         throw NotImplemented{__func__};
