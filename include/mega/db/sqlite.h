@@ -61,12 +61,13 @@ public:
     handle getFirstAncestor(handle node) override;
     bool put(uint32_t, char*, unsigned);
     bool put(Node* node) override;
-    bool del(uint32_t);
-    void truncate();
-    void begin();
-    void commit();
-    void abort();
-    void remove();
+    bool del(uint32_t) override;
+    bool del(handle nodehandle) override;
+    void truncate() override;
+    void begin() override;
+    void commit() override;
+    void abort() override;
+    void remove() override;
 
     SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess *fs, string *filepath, bool checkAlwaysTransacted);
     ~SqliteDbTable();

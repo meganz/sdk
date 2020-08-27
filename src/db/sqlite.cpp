@@ -687,6 +687,22 @@ bool SqliteDbTable::del(uint32_t index)
     return !sqlite3_exec(db, buf, 0, 0, NULL);
 }
 
+bool SqliteDbTable::del(handle nodehandle)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    checkTransaction();
+
+    char buf[64];
+
+    sprintf(buf, "DELETE FROM nodes WHERE nodehandle = %" PRId64, nodehandle);
+
+    return !sqlite3_exec(db, buf, 0, 0, NULL);
+}
+
 // truncate table
 void SqliteDbTable::truncate()
 {

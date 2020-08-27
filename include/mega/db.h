@@ -72,6 +72,7 @@ public:
 
     // delete specific record
     virtual bool del(uint32_t) = 0;
+    virtual bool del(handle nodehandle) = 0;
 
     // delete all records
     virtual void truncate() = 0;

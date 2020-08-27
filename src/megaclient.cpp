@@ -4857,13 +4857,18 @@ void MegaClient::updatesc()
                 char base64[12];
                 if ((*it)->changed.removed)
                 {
-                    if ((*it)->dbid)
+                    LOG_verbose << "Removing node from database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
+                    if (!(complete = sctable->del((*it)->nodehandle)))
                     {
-                        LOG_verbose << "Removing node from database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
-                        if (!(complete = sctable->del((*it)->dbid)))
-                        {
-                            break;
-                        }
+                        break;
+                    }
+                }
+                else
+                {
+                    LOG_verbose << "Adding node to database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
+                    if (!(complete = sctable->put(*it)))
+                    {
+                        break;
                     }
                 }
             }

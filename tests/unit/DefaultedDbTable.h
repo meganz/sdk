@@ -96,6 +96,10 @@ public:
     {
         throw NotImplemented{__func__};
     }
+    bool del(mega::handle) override
+    {
+        throw NotImplemented{__func__};
+    }
     void truncate() override
     {
         throw NotImplemented{__func__};
