@@ -7754,7 +7754,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 addToMemory = true;
 #else
 
-                if (t == ROOTNODE || t == RUBBISHNODE || t == INCOMINGNODE || (mPuttingNodes && source == PUTNODES_APP))
+                if (t == ROOTNODE || t == RUBBISHNODE || t == INCOMINGNODE || notify)
                 {
                     addToMemory = true;
                 }
@@ -7817,21 +7817,25 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 }
             }
 
-            sctable->put(n);
-            if (notify && addToMemory)
-            {
-                notifynode(n);
-            }
-
             if (applykeys)
             {
                 n->applykey();
             }
 
+            n->setattr();
 
-            if (!addToMemory)
+            if (notify)
             {
-                delete n;
+                assert(addToMemory);
+                notifynode(n);
+            }
+            else
+            {
+                sctable->put(n);
+                if (!addToMemory)
+                {
+                    delete n;
+                }
             }
 
             n = nullptr;
