@@ -401,8 +401,8 @@ int computeReversePathMatchScore(string& accumulated, const LocalPath& path1Arg,
     const std::wstring& path2 = path2Arg.getLocalpath();
     const int sizeofnullterminator = 2;
 #else 
-    const string& path1 = *path1Arg.getLocalpath();
-    const string& path2 = *path2Arg.getLocalpath();
+    const string& path1 = path1Arg.getLocalpath();
+    const string& path2 = path2Arg.getLocalpath();
     const int sizeofnullterminator = 1;
 #endif
 
@@ -1024,8 +1024,8 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
     const wchar_t* ptr = localpath.getLocalpath().c_str();
     const wchar_t* end = ptr + localpath.getLocalpath().size();
 #else
-    const char* ptr = localpath.localpath.getLocalpath().data();
-    const char* end = ptr + localpath.localpath.getLocalpath().size();
+    const char* ptr = localpath.getLocalpath().data();
+    const char* end = ptr + localpath.getLocalpath().size();
 #endif
     size_t separatorlen = client->fsaccess->localseparator.size();
 

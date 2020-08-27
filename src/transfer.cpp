@@ -910,7 +910,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                                 #if defined(_WIN32)                        
                                     client->gfx->gendimensionsputfa(NULL, localname, n->nodehandle, n->nodecipher(), missingattr);
                                 #else
-                                    client->gfx->gendimensionsputfa(NULL, localname.editStringDirect(), n->nodehandle, n->nodecipher(), missingattr);
+                                    client->gfx->gendimensionsputfa(NULL, localname, n->nodehandle, n->nodecipher(), missingattr);
                                 #endif
                                 }
 
