@@ -37,15 +37,6 @@ using namespace std;
 
 MegaFileSystemAccess fileSystemAccess;
 
-std::ofstream gUnopenedOfstream;
-
-std::ostream& out()
-{
-    if (gOutputToCout) return std::cout;
-    else return gUnopenedOfstream;
-}
-
-
 #ifdef _WIN32
 #if (__cplusplus >= 201700L)
 namespace fs = std::filesystem;

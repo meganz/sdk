@@ -10,6 +10,14 @@ bool gTestingInvalidArgs = false;
 bool gOutputToCout = false;
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
+std::ofstream gUnopenedOfstream;
+
+std::ostream& out()
+{
+    if (gOutputToCout) return std::cout;
+    else return gUnopenedOfstream;
+}
+
 namespace {
 
 class MegaLogger : public mega::Logger
