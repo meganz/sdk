@@ -104,18 +104,28 @@ public:
     m_off_t getMeanSpeed();
 
     // interval to calculate the mean speed (ds)
-    static const int SPEED_MEAN_INTERVAL_DS;
+    static const int SPEED_MEAN_MAX_INTERVAL_DS = 50;
 
-    // max values to calculate the mean speed
-    static const int SPEED_MAX_VALUES;
+    void requestStarted();
+    m_off_t requestProgressed(m_off_t newPos);
+    m_off_t lastRequestSpeed();
+    dstime requestElapsedDs();
 
 protected:
-    map<dstime, m_off_t> transferBytes;
-    m_off_t partialBytes;
+    // a circular buffer of bytes received/transmitted per decisecond
+    std::array<m_off_t, SPEED_MEAN_MAX_INTERVAL_DS> mCircularBuf;
+    unsigned mCircularCurrentIndex = 0;
+    unsigned mCircularCurrentTime = 0;
+    m_off_t mCircularCurrentSum = 0;
 
-    m_off_t meanSpeed;
-    dstime lastUpdate;
-    int speedCounter;
+    m_off_t mMeanSpeed = 0;
+    m_off_t mMeanSpeedSum = 0;
+    dstime mMeanSpeedStart = 0;
+    dstime mLastCalcTime = 0;
+
+    m_off_t mRequestPos = 0;
+    dstime mRequestStart = 0;
+    dstime mLastRequestUpdate = 0;
 };
 
 // generic host HTTP I/O interface
