@@ -883,6 +883,9 @@ public:
     // whether this sync should be resumed at startup
     bool isResumableAtStartup() const;
 
+    // wether this sync has errors (was inactive)
+    bool hasError() const;
+
     // returns the local path of the sync
     const std::string& getLocalPath() const;
 
