@@ -174,7 +174,7 @@ public:
 
     void setBackupId(const handle &backupId);
 
-private:
+protected:
     BackupType mType;
     handle mBackupId;
     string mLocalFolder;
@@ -195,14 +195,22 @@ public:
         FAILED = 2,             // Failed (permanently disabled)
         TEMPORARY_DISABLED = 3, // Temporarily disabled due to a transient situation (e.g: account blocked). Will be resumed when the condition passes
         DISABLED = 4,           // Disabled by the user
-        UNKNOWN = 5,            // Unknown state
+        PAUSE_UP = 5,           // Active but upload transfers paused in the SDK
+        PAUSE_DOWN = 6,           // Active but download transfers paused in the SDK
+        PAUSE_FULL = 7,           // Active but transfers paused in the SDK
+        UNKNOWN = 99,            // Unknown state
     };
     MegaBackupInfoSync(mega::MegaClient *client, const MegaSync &sync, handle backupid = UNDEF);
 
+    void updatePauseState(MegaClient *client);
+
     static BackupType getSyncType(MegaClient *client, const MegaSync &sync);
-    static int getSyncState (const MegaSync &sync);
+    static int getSyncState (MegaClient *client, const MegaSync &sync);
     static int getSyncSubstatus (const MegaSync &sync);
     string getSyncExtraData(const MegaSync &sync);
+
+private:
+    static int calculatePauseActiveState(MegaClient *client);
 };
 #endif
 
@@ -218,6 +226,7 @@ public:
     void onSyncAdded(MegaApi *api, MegaSync *sync, int additionState) override;
     void onSyncDeleted(MegaApi *api, MegaSync *sync) override;
     void onSyncStateChanged(MegaApi *api, MegaSync *sync) override;
+    void onPauseStateChanged(MegaApi *api, bool xferpaused[2]);
 #endif
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error) override;

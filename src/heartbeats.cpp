@@ -353,11 +353,33 @@ void MegaBackupInfo::setBackupId(const handle &backupId)
 #ifdef ENABLE_SYNC
 MegaBackupInfoSync::MegaBackupInfoSync(MegaClient *client, const MegaSync &sync, handle backupid)
     : MegaBackupInfo(getSyncType(client, sync), sync.getLocalFolder(), sync.getName(), sync.getMegaHandle()
-                 , getSyncState(sync), getSyncSubstatus(sync), getSyncExtraData(sync), backupid)
+                 , getSyncState(client, sync), getSyncSubstatus(sync), getSyncExtraData(sync), backupid)
 {
 
 }
-int MegaBackupInfoSync::getSyncState(const MegaSync &sync)
+
+int MegaBackupInfoSync::calculatePauseActiveState(MegaClient *client)
+{
+    auto pauseDown = client->xferpaused[GET];
+    auto pauseUp = client->xferpaused[PUT];
+    if (pauseDown && pauseUp)
+    {
+        return State::PAUSE_FULL;
+    }
+    else if (pauseDown)
+    {
+        return State::PAUSE_DOWN;
+    }
+    else if (pauseUp)
+    {
+        return State::PAUSE_UP;
+    }
+
+    return State::ACTIVE;
+}
+
+
+int MegaBackupInfoSync::getSyncState(MegaClient *client, const MegaSync &sync)
 {
     if (sync.isTemporaryDisabled())
     {
@@ -365,8 +387,7 @@ int MegaBackupInfoSync::getSyncState(const MegaSync &sync)
     }
     else if (sync.isActive())
     {
-        //TODO: consider use case: paused, if transfers are paused!?
-        return State::ACTIVE;
+        return calculatePauseActiveState(client);
     }
     else if (!sync.isEnabled())
     {
@@ -574,6 +595,20 @@ void MegaBackupMonitor::onSyncAdded(MegaApi* /*api*/, MegaSync *sync, int /*addi
 void MegaBackupMonitor::onSyncStateChanged(MegaApi* /*api*/, MegaSync *sync)
 {
     updateOrRegisterSync(sync);
+}
+
+void MegaBackupMonitor::onPauseStateChanged(MegaApi *api, bool xferpaused[])
+{
+    //loop on active syncs to update
+    for (sync_list::iterator it = mClient->syncs.begin(); it != mClient->syncs.end(); it++)
+    {
+        Sync *sync = (*it);
+        auto megaSync = api->getSyncByTag(sync->tag);
+        if (megaSync)
+        {
+            updateOrRegisterSync(megaSync);
+        }
+    }
 }
 
 void MegaBackupMonitor::onSyncDeleted(MegaApi *api, MegaSync *sync)

@@ -14933,6 +14933,7 @@ void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
 // pause/unpause transfers
 void MegaClient::pausexfers(direction_t d, bool pause, bool hard, DBTableTransactionCommitter& committer)
 {
+    bool changed{xferpaused[d] != pause};
     xferpaused[d] = pause;
 
     if (!pause || hard)
@@ -14961,6 +14962,11 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard, DBTableTransac
                 it++;
             }
         }
+    }
+
+    if (changed)
+    {
+        app->pause_state_changed(xferpaused);
     }
 }
 
