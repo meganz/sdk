@@ -4102,21 +4102,21 @@ void MegaClient::locallogout(bool removecaches)
 {
     mAsyncQueue.clearDiscardable();
 
-    if (mKeepSyncsAfterLogout)
-    {
-        //disableSyncs in a temporarily state: so that they will be resumed when relogin
-        disableSyncs(LOGGED_OUT);
-    }
-    else
-    {
-        for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
-        {
-            delsync(*it);
-        }
-    }
-
     if (removecaches)
     {
+        if (mKeepSyncsAfterLogout)
+        {
+            //disableSyncs in a temporarily state: so that they will be resumed when relogin
+            disableSyncs(LOGGED_OUT);
+        }
+        else
+        {
+            for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+            {
+                delsync(*it);
+            }
+        }
+
         removeCaches();
     }
 
