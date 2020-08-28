@@ -279,6 +279,7 @@ public:
     void getRegisteredContacts(const std::map<std::string, std::string>& contacts);
 
     void getCountryCallingCodes(int timeout = maxTimeout);
+    void explorePath(int account, MegaNode* node, int& files, int& folders);
 
 #ifdef ENABLE_CHAT
     void createChat(bool group, MegaTextChatPeerList *peers, int timeout = maxTimeout);

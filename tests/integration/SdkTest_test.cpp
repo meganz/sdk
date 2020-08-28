@@ -978,6 +978,31 @@ void SdkTest::getCountryCallingCodes(const int timeout)
     ASSERT_EQ(MegaError::API_OK, synchronousGetCountryCallingCodes(apiIndex, this)) << "Get country calling codes failed";
 }
 
+void SdkTest::explorePath(int account, MegaNode* node, int& files, int& folders)
+{
+    MegaNodeList* nodeList = mApi[account].megaApi->getChildren(node);
+    if (!nodeList)
+    {
+        return;
+    }
+
+    for (int i = 0; i < nodeList->size(); i++)
+    {
+        MegaNode* auxNode = nodeList->get(i);
+        if (auxNode->getType() == FILENODE)
+        {
+            files++;
+        }
+        else
+        {
+            folders++;
+            explorePath(account, auxNode, files, folders);
+        }
+    }
+
+    delete nodeList;
+}
+
 void SdkTest::setUserAttribute(int type, string value, int timeout)
 {
     int apiIndex = 0;
@@ -4834,3 +4859,272 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     cleanUp();
 }
 #endif
+
+// This test should be executed with principal MegaApi and MegaApi Aux with same user
+TEST_F(SdkTest, SdkTestNodesOnDemand)
+{
+    const char *secondAccountEmail = getenv("MEGA_EMAIL_AUX");
+    const char* secondAccountPwd = getenv("MEGA_PWD_AUX");
+
+    setenv("MEGA_EMAIL_AUX", mApi[0].email.c_str(), 1);
+    setenv("MEGA_PWD_AUX", mApi[0].pwd.c_str(), 1);
+
+    gTestingInvalidArgs = true;
+    const int NUM_CHILDS = 5;
+
+    // Create Folders Folder1, Folder1_1, Folder2
+    std::string folder1Name("Folder1");
+    std::unique_ptr<MegaNode> rootNode1 = std::unique_ptr<MegaNode>(mApi[0].megaApi->getRootNode());
+    createFolder(0, folder1Name.c_str(), rootNode1.get());
+    MegaHandle folder1Handle = mApi[0].h;
+    std::unique_ptr<MegaNode> folder1 = std::unique_ptr<MegaNode>(mApi[0].megaApi->getNodeByHandle(folder1Handle));
+
+    std::string folder1_1Name("Folder1_1");
+    createFolder(0, folder1_1Name.c_str(), folder1.get());
+    MegaHandle folder1_1Handle = mApi[0].h;
+    std::unique_ptr<MegaNode> folder1_1 = std::unique_ptr<MegaNode>(mApi[0].megaApi->getNodeByHandle(folder1_1Handle));
+
+    std::string folder2Name("Folder2");
+    createFolder(0, folder2Name.c_str(), rootNode1.get());
+    MegaHandle folder2Handle = mApi[0].h;
+    std::unique_ptr<MegaNode> folder2 = std::unique_ptr<MegaNode>(mApi[0].megaApi->getNodeByHandle(folder2Handle));
+
+    // Create files in folder Folder1_1
+    std::vector<MegaHandle> nodeHandles1_1;
+    for (int i = 0; i < NUM_CHILDS; i++)
+    {
+        std::string fileName("1_1File");
+        fileName.append(std::to_string(i));
+
+        createFile(fileName.c_str(), false);
+        ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, fileName.data(), folder1_1.get())) << "Cannot upload a test file" << fileName;
+        MegaHandle handleNode = mApi[0].h;
+        nodeHandles1_1.push_back(handleNode);
+    }
+
+    // Create files in folder Folder2
+    for (int i = 0; i < NUM_CHILDS; i++)
+    {
+        std::string fileName("2File");
+        fileName.append(std::to_string(i));
+
+        createFile(fileName.c_str(), false);
+        ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, fileName.data(), folder2.get())) << "Cannot upload a test file" << fileName;
+    }
+
+    // Explore tree
+    int folders = 0;
+    int files = 0;
+    explorePath(0, rootNode1.get(), files, folders);
+
+    char* session = dumpSession();
+
+    // local logout
+    locallogout();
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    // Explore tree
+    int folders1 = 0;
+    int files1 = 0;
+    explorePath(0, rootNode1.get(), files1, folders1);
+
+    // Check if files are the same after locallogout
+    ASSERT_EQ(files, files1) << "Different number of files";
+    ASSERT_EQ(folders, folders1) << "Different number of folders";
+
+    locallogout();
+
+    // Open new session (session2)
+    getMegaApiAux(1);
+
+    // Create folders with session2
+    folder2 = std::unique_ptr<MegaNode>(mApi[1].megaApi->getNodeByHandle(folder2Handle));
+    std::string folder2_1Name("Folder2_1");
+    createFolder(1, folder2_1Name.c_str(), folder2.get());
+    MegaHandle folder2_1Handle = mApi[1].h;
+
+    std::string folder2_2Name("Folder2_2");
+    createFolder(1, folder2_2Name.c_str(), folder2.get());
+    MegaHandle folder2_2Handle = mApi[1].h;
+
+    std::string folder2_3Name("Folder2_3");
+    createFolder(1, folder2_3Name.c_str(), folder2.get());
+    MegaHandle folder2_3Handle = mApi[1].h;
+    std::unique_ptr<MegaNode> folder2_3 = std::unique_ptr<MegaNode>(mApi[1].megaApi->getNodeByHandle(folder2_3Handle));
+
+    std::unique_ptr<MegaNode> folder2_1 = std::unique_ptr<MegaNode>(mApi[1].megaApi->getNodeByHandle(folder2_1Handle));
+    std::string folder2_1_1Name("Folder2_1_1");
+    createFolder(1, folder2_1_1Name.c_str(), folder2_1.get());
+    MegaHandle folder2_1_1Handle = mApi[1].h;
+
+    // Create files with session2 in Folder2_1_1
+    std::unique_ptr<MegaNode> folder2_1_1 = std::unique_ptr<MegaNode>(mApi[1].megaApi->getNodeByHandle(folder2_1_1Handle));
+    std::vector<std::string> fingerPrints;
+    std::vector<MegaHandle> nodeHandles2_1_1;
+    std::vector<std::unique_ptr<MegaNode>> files2_1_1;
+    for (int i = 0; i < NUM_CHILDS; i++)
+    {
+        std::string fileName = "2_1_1File";
+        fileName.append(std::to_string(i));
+
+        createFile(fileName.c_str(), false);
+        ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(1, fileName.data(), folder2_1_1.get())) << "Cannot upload a test file" << fileName;
+        MegaHandle handleNode = mApi[1].h;
+        MegaNode* node = mApi[1].megaApi->getNodeByHandle(handleNode);
+        fingerPrints.push_back(node->getFingerprint());
+        nodeHandles2_1_1.push_back(node->getHandle());
+        files2_1_1.push_back(std::unique_ptr<MegaNode>(node));
+    }
+
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    // Rename, move and revome nodes with Session2 and check behaviour with Session1
+    // The operation are done with Session1 logged in and disconnected
+
+    // Rename node
+    std::string name = "NEW NAME";
+    mApi[1].requestFlags[MegaRequest::TYPE_RENAME] = false;
+    mApi[1].nodeUpdated = false;
+    mApi[0].nodeUpdated = false;
+    mApi[1].megaApi->renameNode(files2_1_1.at(2).get(), name.c_str());
+    ASSERT_TRUE( waitForResponse(&mApi[1].requestFlags[MegaRequest::TYPE_RENAME]) )
+            << "Move operation failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[1].lastError) << "Cannot rename node : " << files2_1_1.at(2)->getName() << " (error: " << mApi[1].lastError << ")";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated));
+    ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated));
+    std::unique_ptr<MegaNode> node1_2 = std::unique_ptr<MegaNode>(mApi[0].megaApi->getNodeByHandle(nodeHandles2_1_1.at(2)));
+    ASSERT_TRUE(strcmp(name.c_str(), node1_2->getName()) == 0);
+
+    // Move node 1 to folder 3
+    locallogout();
+    mApi[1].requestFlags[MegaRequest::TYPE_MOVE] = false;
+    mApi[1].nodeUpdated = false;
+    mApi[1].megaApi->moveNode(files2_1_1.front().get(), folder2_3.get());
+    ASSERT_TRUE( waitForResponse(&mApi[1].requestFlags[MegaRequest::TYPE_MOVE]) )
+            << "Move operation failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[1].lastError) << "Cannot move node : " << files2_1_1.front()->getName() << " (error: " << mApi[1].lastError << ")";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated));
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    std::unique_ptr<MegaNode> node1Last = std::unique_ptr<MegaNode>(mApi[0].megaApi->getNodeByHandle(nodeHandles2_1_1.back()));
+    std::unique_ptr<MegaNode> node1Front = std::unique_ptr<MegaNode>(mApi[0].megaApi->getNodeByHandle(nodeHandles2_1_1.front()));
+    ASSERT_NE(node1Last->getParentHandle(), node1Front->getParentHandle());
+
+    // Move node 5 to folder 3
+    mApi[1].requestFlags[MegaRequest::TYPE_MOVE] = false;
+    mApi[1].nodeUpdated = false;
+    mApi[0].nodeUpdated = false;
+    mApi[1].megaApi->moveNode(files2_1_1.back().get(), folder2_3.get());
+    ASSERT_TRUE( waitForResponse(&mApi[1].requestFlags[MegaRequest::TYPE_MOVE]) )
+            << "Move operation failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[1].lastError) << "Cannot move node: " << files2_1_1.back()->getName() << " (error: " << mApi[1].lastError << ")";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated));
+    ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated));
+    node1Last = std::unique_ptr<MegaNode>(mApi[0].megaApi->getNodeByHandle(nodeHandles2_1_1.back()));
+    ASSERT_EQ(node1Last->getParentHandle(), node1Front->getParentHandle());
+
+    // Remove node 2_1_1
+    mApi[1].requestFlags[MegaRequest::TYPE_REMOVE] = false;
+    mApi[1].nodeUpdated = false;
+    mApi[0].nodeUpdated = false;
+    mApi[1].megaApi->remove(files2_1_1.front().get());
+    ASSERT_TRUE( waitForResponse(&mApi[1].requestFlags[MegaRequest::TYPE_REMOVE]) )
+            << "Remove operation failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[1].lastError) << "Cannot remove node: " << files2_1_1.front()->getName() << " (error: " << mApi[1].lastError << ")";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated));
+    ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated));
+    ASSERT_EQ(mApi[0].megaApi->getNodeByHandle(nodeHandles2_1_1.front()), nullptr);
+
+    // Remove node 2_1_1
+    locallogout();
+    mApi[1].requestFlags[MegaRequest::TYPE_REMOVE] = false;
+    mApi[1].nodeUpdated = false;
+    mApi[1].megaApi->remove(files2_1_1.at(1).get());
+    ASSERT_TRUE( waitForResponse(&mApi[1].requestFlags[MegaRequest::TYPE_REMOVE]) )
+            << "Remove operation failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[1].lastError) << "Cannot remove node: " << files2_1_1.at(1)->getName() << " (error: " << mApi[1].lastError << ")";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated));
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    ASSERT_EQ(mApi[0].megaApi->getNodeByHandle(nodeHandles2_1_1.at(1)), nullptr);
+
+    //Move Folder 2_1 to 1_1
+    mApi[1].requestFlags[MegaRequest::TYPE_MOVE] = false;
+    mApi[1].nodeUpdated = false;
+    mApi[0].nodeUpdated = false;
+    mApi[1].megaApi->moveNode(folder2_1.get(), folder1_1.get());
+    ASSERT_TRUE( waitForResponse(&mApi[1].requestFlags[MegaRequest::TYPE_MOVE]) )
+            << "Remove operation failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[1].lastError) << "Cannot remove node: " << files2_1_1.front()->getName() << " (error: " << mApi[1].lastError << ")";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated));
+    ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated));
+    folder2_1 = std::unique_ptr<MegaNode>(mApi[1].megaApi->getNodeByHandle(folder2_1->getHandle()));
+    ASSERT_EQ(folder2_1->getParentHandle(), folder1_1->getHandle());
+    std::unique_ptr<MegaNode> folder2_1__1 = std::unique_ptr<MegaNode>(mApi[0].megaApi->getNodeByHandle(folder2_1->getHandle()));
+    ASSERT_EQ(folder2_1__1->getParentHandle(), folder1_1->getHandle());
+
+    //Move Folder 2_1 to 2
+    locallogout();
+    mApi[1].requestFlags[MegaRequest::TYPE_MOVE] = false;
+    mApi[1].nodeUpdated = false;
+    mApi[1].megaApi->moveNode(folder2_1.get(), folder2.get());
+    ASSERT_TRUE( waitForResponse(&mApi[1].requestFlags[MegaRequest::TYPE_MOVE]) )
+            << "Remove operation failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[1].lastError) << "Cannot remove node: " << files2_1_1.front()->getName() << " (error: " << mApi[1].lastError << ")";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated));
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    std::unique_ptr<MegaNode> folder2_1__2 = std::unique_ptr<MegaNode>(mApi[0].megaApi->getNodeByHandle(folder2_1->getHandle()));
+    ASSERT_EQ(folder2_1__1->getParentHandle(), folder1_1->getHandle());
+
+    // Remove Folder 2_1_1
+    folder2_1_1 = std::unique_ptr<MegaNode>(mApi[1].megaApi->getNodeByHandle(folder2_1_1Handle));
+    mApi[1].requestFlags[MegaRequest::TYPE_REMOVE] = false;
+    mApi[1].nodeUpdated = false;
+    mApi[0].nodeUpdated = false;
+    mApi[1].megaApi->remove(folder2_1_1.get());
+    ASSERT_TRUE( waitForResponse(&mApi[1].requestFlags[MegaRequest::TYPE_REMOVE]) )
+            << "Remove operation failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[1].lastError) << "Cannot remove node: " << folder2_1_1->getName() << " (error: " << mApi[1].lastError << ")";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated));
+    ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated));
+    ASSERT_EQ(mApi[1].megaApi->getNodeByHandle(nodeHandles2_1_1.at(3)), nullptr);
+    ASSERT_EQ(mApi[0].megaApi->getNodeByHandle(nodeHandles2_1_1.at(3)), nullptr);
+
+    //Remove Folder 1_1
+    locallogout();
+    folder1_1 = std::unique_ptr<MegaNode>(mApi[1].megaApi->getNodeByHandle(folder1_1Handle));
+    mApi[1].requestFlags[MegaRequest::TYPE_REMOVE] = false;
+    mApi[1].nodeUpdated = false;
+    mApi[1].megaApi->remove(folder1_1.get());
+    ASSERT_TRUE( waitForResponse(&mApi[1].requestFlags[MegaRequest::TYPE_REMOVE]) )
+            << "Remove operation failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[1].lastError) << "Cannot remove node: " << folder1_1->getName() << " (error: " << mApi[1].lastError << ")";
+    ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated));
+    ASSERT_EQ(mApi[1].megaApi->getNodeByHandle(nodeHandles1_1.at(3)), nullptr);
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    ASSERT_EQ(mApi[0].megaApi->getNodeByHandle(nodeHandles1_1.at(3)), nullptr);
+
+
+    // Explore tree with Session1 and Session2
+    rootNode1 = std::unique_ptr<MegaNode>(mApi[0].megaApi->getRootNode());
+    explorePath(0, rootNode1.get(), files1, folders1);
+    std::unique_ptr<MegaNode> rootNode2 = std::unique_ptr<MegaNode>(mApi[1].megaApi->getRootNode());
+    explorePath(1, rootNode2.get(), files, folders);
+
+    ASSERT_EQ(files, files1) << "Different number of files";
+    ASSERT_EQ(folders, folders1) << "Different number of folders";
+
+    purgeTree(rootNode1.get());
+
+    logout(1);
+    logout(0);
+
+    delete [] session;
+
+    setenv("MEGA_EMAIL_AUX", secondAccountEmail, 1);
+    setenv("MEGA_PWD_AUX", secondAccountPwd, 1);
+}
