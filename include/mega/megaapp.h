@@ -419,7 +419,7 @@ struct MEGA_API MegaApp
 
     virtual void heartbeat() { }
 
-    virtual void pause_state_changed(bool xferpaused[2]) { }
+    virtual void pause_state_changed() { }
 
     virtual ~MegaApp() { }
 };

@@ -13269,9 +13269,9 @@ void MegaApiImpl::heartbeat()
     mHeartBeatMonitor->beat();
 }
 
-void MegaApiImpl::pause_state_changed(bool xferpaused[2])
+void MegaApiImpl::pause_state_changed()
 {
-    mHeartBeatMonitor->onPauseStateChanged(api, xferpaused);
+    mHeartBeatMonitor->onPauseStateChanged(api);
 }
 
 // user addition/update (users never get deleted)

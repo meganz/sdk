@@ -226,7 +226,7 @@ public:
     void onSyncAdded(MegaApi *api, MegaSync *sync, int additionState) override;
     void onSyncDeleted(MegaApi *api, MegaSync *sync) override;
     void onSyncStateChanged(MegaApi *api, MegaSync *sync) override;
-    void onPauseStateChanged(MegaApi *api, bool xferpaused[2]);
+    void onPauseStateChanged(MegaApi *api);
 #endif
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error) override;

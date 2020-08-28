@@ -14966,7 +14966,7 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard, DBTableTransac
 
     if (changed)
     {
-        app->pause_state_changed(xferpaused);
+        app->pause_state_changed();
     }
 }
 

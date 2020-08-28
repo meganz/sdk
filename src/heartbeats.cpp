@@ -597,12 +597,11 @@ void MegaBackupMonitor::onSyncStateChanged(MegaApi* /*api*/, MegaSync *sync)
     updateOrRegisterSync(sync);
 }
 
-void MegaBackupMonitor::onPauseStateChanged(MegaApi *api, bool xferpaused[])
+void MegaBackupMonitor::onPauseStateChanged(MegaApi *api)
 {
     //loop on active syncs to update
-    for (sync_list::iterator it = mClient->syncs.begin(); it != mClient->syncs.end(); it++)
+    for (auto &sync : mClient->syncs)
     {
-        Sync *sync = (*it);
         auto megaSync = api->getSyncByTag(sync->tag);
         if (megaSync)
         {
