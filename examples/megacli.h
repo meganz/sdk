@@ -160,7 +160,7 @@ struct DemoApp : public MegaApp
 
     void fetchnodes_result(const Error&) override;
 
-    void putnodes_result(error, targettype_t, NewNode*) override;
+    void putnodes_result(const Error&, targettype_t, vector<NewNode>&) override;
 
     void share_result(error) override;
     void share_result(int, error) override;
@@ -172,7 +172,6 @@ struct DemoApp : public MegaApp
     int fa_failed(handle, fatype, int, error) override;
 
     void putfa_result(handle, fatype, error) override;
-    void putfa_result(handle, fatype, const char*) override;
 
     void removecontact_result(error) override;
     void putua_result(error) override;

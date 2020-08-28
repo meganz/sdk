@@ -1148,12 +1148,10 @@ void DemoApp::fetchnodes_result(const Error& e)
     }
 }
 
-void DemoApp::putnodes_result(error e, targettype_t t, NewNode* nn)
+void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& nn)
 {
     if (t == USER_HANDLE)
     {
-        delete[] nn;
-
         if (!e)
         {
             cout << "Success." << endl;
@@ -1293,10 +1291,6 @@ void DemoApp::putfa_result(handle, fatype, error e)
     {
         cout << "File attribute attachment failed (" << errorstring(e) << ")" << endl;
     }
-}
-
-void DemoApp::putfa_result(handle, fatype, const char*)
-{
 }
 
 void DemoApp::removecontact_result(error e)
@@ -2034,34 +2028,25 @@ class TreeProcCopy_mcli : public TreeProc
     // However some products are built with the megaapi_impl intermediate layer and some without so
     // we can avoid duplicated symbols in some products this way
 public:
-    NewNode * nn;
-    unsigned nc;
+    vector<NewNode> nn;
+    unsigned nc = 0;
+    bool populated = false;
 
-
-    TreeProcCopy_mcli()
-    {
-        nn = NULL;
-        nc = 0;
-    }
 
     void allocnodes()
     {
-        nn = new NewNode[nc];
-    }
-
-    ~TreeProcCopy_mcli()
-    {
-        delete[] nn;
+        nn.resize(nc);
+        populated = true;
     }
 
     // determine node tree size (nn = NULL) or write node tree to new nodes array
     void proc(MegaClient* mc, Node* n)
     {
-        if (nn)
+        if (populated)
         {
             string attrstring;
             SymmCipher key;
-            NewNode* t = nn + --nc;
+            NewNode* t = &nn[--nc];
 
             // copy node
             t->source = NEW_NODE;
@@ -2130,7 +2115,7 @@ void xferq(direction_t d, int cancel, bool showActive, bool showAll, bool showCo
             bool active = (*it)->transfer && (*it)->transfer->slot;
             (*it)->displayname(&name);
 
-            if (active && showActive || showAll)
+            if ((active && showActive) || showAll)
             {
                 cout << (*it)->seqno << ": " << name;
 
@@ -2347,13 +2332,9 @@ public:
     }
 
     // process file credentials
-    void procresult() override
+    bool procresult(Result r) override
     {
-        if (client->json.isnumeric())
-        {
-            client->json.getint();
-        }
-        else
+        if (!r.wasErrorOrOK())
         {
             std::vector<string> tempurls;
             bool done = false;
@@ -2414,6 +2395,7 @@ public:
                 cout << s << endl;
             }
         }
+        return true;
     }
 
 private:
@@ -3440,7 +3422,7 @@ void exec_rm(autocomplete::ACState& s)
         {
             if (client->checkaccess(d, FULL))
             {
-                error e = client->unlink(d);
+                error e = client->unlink(d, false, 0);
 
                 if (e)
                 {
@@ -3539,7 +3521,7 @@ void exec_mv(autocomplete::ACState& s)
                             if (n != tn)
                             {
                                 // ...delete target...
-                                e = client->unlink(tn);
+                                e = client->unlink(tn, false, 0);
 
                                 if (e)
                                 {
@@ -3620,7 +3602,7 @@ void exec_cp(autocomplete::ACState& s)
                         }
 
                         // ...delete target...
-                        e = client->unlink(tn);
+                        e = client->unlink(tn, false, 0);
 
                         if (e)
                         {
@@ -3640,7 +3622,6 @@ void exec_cp(autocomplete::ACState& s)
             }
 
             TreeProcCopy_mcli tc;
-            unsigned nc;
             handle ovhandle = UNDEF;
 
             if (!n->keyApplied())
@@ -3694,7 +3675,6 @@ void exec_cp(autocomplete::ACState& s)
             client->proctree(n, &tc, false, ovhandle != UNDEF);
 
             tc.allocnodes();
-            nc = tc.nc;
 
             // build new nodes array
             client->proctree(n, &tc, false, ovhandle != UNDEF);
@@ -3711,25 +3691,22 @@ void exec_cp(autocomplete::ACState& s)
                 attrs.map = n->attrs.map;
                 attrs.map['n'] = sname;
 
-                key.setkey((const byte*)tc.nn->nodekey.data(), tc.nn->type);
+                key.setkey((const byte*)tc.nn[0].nodekey.data(), tc.nn[0].type);
 
                 // JSON-encode object and encrypt attribute string
                 attrs.getjson(&attrstring);
-                tc.nn->attrstring.reset(new string);
-                client->makeattr(&key, tc.nn->attrstring, attrstring.c_str());
+                tc.nn[0].attrstring.reset(new string);
+                client->makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
             }
 
             // tree root: no parent
-            tc.nn->parenthandle = UNDEF;
-            tc.nn->ovhandle = ovhandle;
+            tc.nn[0].parenthandle = UNDEF;
+            tc.nn[0].ovhandle = ovhandle;
 
             if (tn)
             {
                 // add the new nodes
-                client->putnodes(tn->nodehandle, tc.nn, nc);
-
-                // free in putnodes_result()
-                tc.nn = NULL;
+                client->putnodes(tn->nodehandle, move(tc.nn));
             }
             else
             {
@@ -3737,10 +3714,7 @@ void exec_cp(autocomplete::ACState& s)
                 {
                     cout << "Attempting to drop into user " << targetuser << "'s inbox..." << endl;
 
-                    client->putnodes(targetuser.c_str(), tc.nn, nc);
-
-                    // free in putnodes_result()
-                    tc.nn = NULL;
+                    client->putnodes(targetuser.c_str(), move(tc.nn));
                 }
                 else
                 {
@@ -3974,8 +3948,8 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
         }
         else
         {
-            auto nn = new NewNode[1];
-            client->putnodes_prepareOneFolder(nn, name);
+            vector<NewNode> nn(1);
+            client->putnodes_prepareOneFolder(&nn[0], name);
 
             gOnPutNodeTag[gNextClientTag] = [localname](Node* parent) {
                 auto tmp = localname;
@@ -3983,7 +3957,7 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
             };
 
             client->reqtag = gNextClientTag++;
-            client->putnodes(parent->nodehandle, nn, 1);
+            client->putnodes(parent->nodehandle, move(nn));
             client->reqtag = 0;
         }
     }
@@ -4231,6 +4205,10 @@ void exec_open(autocomplete::ACState& s)
         if (!clientFolder)
         {
             using namespace mega;
+#ifdef GFX_CLASS
+            auto gfx = new GFX_CLASS;
+            gfx->startProcessingThread();
+#endif
             // create a new MegaClient with a different MegaApp to process callbacks
             // from the client logged into a folder. Reuse the waiter and httpio
             clientFolder = new MegaClient(new DemoAppFolder, client->waiter,
@@ -4241,7 +4219,7 @@ void exec_open(autocomplete::ACState& s)
                                             NULL,
                 #endif
                 #ifdef GFX_CLASS
-                                            new GFX_CLASS,
+                                            gfx,
                 #else
                                             NULL,
                 #endif
@@ -4712,9 +4690,9 @@ void exec_mkdir(autocomplete::ACState& s)
 
             if (newname.size())
             {
-                auto nn = new NewNode[1];
-                client->putnodes_prepareOneFolder(nn, newname);
-                client->putnodes(n->nodehandle, nn, 1);
+                vector<NewNode> nn(1);
+                client->putnodes_prepareOneFolder(&nn[0], newname);
+                client->putnodes(n->nodehandle, move(nn));
             }
             else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
             {
@@ -4722,9 +4700,9 @@ void exec_mkdir(autocomplete::ACState& s)
                 auto leafname = s.words[1].s;
                 auto pos = leafname.find_last_of("/");
                 if (pos != string::npos) leafname.erase(0, pos + 1);
-                auto nn = new NewNode[1];
-                client->putnodes_prepareOneFolder(nn, leafname);
-                client->putnodes(n->parent->nodehandle, nn, 1);
+                vector<NewNode> nn(1);
+                client->putnodes_prepareOneFolder(&nn[0], leafname);
+                client->putnodes(n->parent->nodehandle, move(nn));
             }
             else
             {
@@ -7106,7 +7084,8 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
         nameid name;
         string* t;
         json.begin((char*)buf + 5);
-        NewNode* newnode = new NewNode[1];
+        vector<NewNode> nn(1);
+        NewNode* newnode = &nn[0];
 
         // set up new node as folder node
         newnode->source = NEW_PUBLIC;
@@ -7153,7 +7132,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
             }
         }
 
-        client->putnodes(n->nodehandle, newnode, 1);
+        client->putnodes(n->nodehandle, move(nn));
     }
     else
     {
@@ -7959,6 +7938,11 @@ int main()
 
     console = new CONSOLE_CLASS;
 
+#ifdef GFX_CLASS
+    auto gfx = new GFX_CLASS;
+    gfx->startProcessingThread();
+#endif
+
     // instantiate app components: the callback processor (DemoApp),
     // the HTTP I/O engine (WinHttpIO) and the MegaClient itself
     client = new MegaClient(new DemoApp,
@@ -7974,7 +7958,7 @@ int main()
                             NULL,
 #endif
 #ifdef GFX_CLASS
-                            new GFX_CLASS,
+                            gfx,
 #else
                             NULL,
 #endif

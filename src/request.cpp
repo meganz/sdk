@@ -46,6 +46,8 @@ void Request::get(string* req, bool& suppressSID) const
     // concatenate all command objects, resulting in an API request
     *req = "[";
 
+    suppressSID = true; // only if all commands in batch are suppressSID
+
     for (int i = 0; i < (int)cmds.size(); i++)
     {
         req->append(i ? ",{" : "{");
@@ -55,6 +57,31 @@ void Request::get(string* req, bool& suppressSID) const
     }
 
     req->append("]");
+}
+
+bool Request::processCmdJSON(Command* cmd)
+{
+    if (cmd->client->json.enterobject())
+    {
+        if (!cmd->procresult(Command::CmdObject) || !cmd->client->json.leaveobject())
+        {
+            LOG_err << "Invalid object";
+            return false;
+        }
+    }
+    else if (cmd->client->json.enterarray())
+    {
+        if (!cmd->procresult(Command::CmdArray) || !cmd->client->json.leavearray())
+        {
+            LOG_err << "Invalid array";
+            return false;
+        }
+    }
+    else
+    {
+        return cmd->procresult(Command::CmdItem);
+    }
+    return true;
 }
 
 void Request::process(MegaClient* client)
@@ -67,36 +94,48 @@ void Request::process(MegaClient* client)
     {
         Command* cmd = cmds[processindex];
 
-        // in future we may exit this loop early here, when processing actionpackets associated with the command
-
         client->restag = cmd->tag;
 
         cmd->client = client;
 
-        if (client->json.enterobject())
-        {
-            cmd->procresult();
+        auto cmdJSON = client->json;
+        bool parsedOk = true;
 
-            if (!client->json.leaveobject())
-            {
-                LOG_err << "Invalid object";
-            }
-        }
-        else if (client->json.enterarray())
+        Error e;
+        if (cmd->checkError(e, client->json))
         {
-            cmd->procresult();
-
-            if (!client->json.leavearray())
-            {
-                LOG_err << "Invalid array";
-            }
+            parsedOk = cmd->procresult(Command::Result(Command::CmdError, e));
         }
         else
         {
-            cmd->procresult();
+            if (*client->json.pos == ',') ++client->json.pos;
+
+
+            // straightforward case - plain JSON response, no seqtag, no error
+            parsedOk = processCmdJSON(cmd);
+        }
+
+        if (!parsedOk)
+        {
+            LOG_err << "JSON for that command was not recognised/consumed properly, adjusting";
+            client->json = cmdJSON;
+            client->json.storeobject();
+        }
+        else
+        {
+#ifdef DEBUG
+            // double check the command consumed the right amount of JSON
+            cmdJSON.storeobject();
+            if (client->json.pos != cmdJSON.pos)
+            {
+                assert(client->json.pos == cmdJSON.pos);
+            }
+#endif
         }
     }
+
     json = client->json;
+    client->json.pos = nullptr;
     if (processindex == cmds.size() || stopProcessing)
     {
         clear();
