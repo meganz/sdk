@@ -60,7 +60,7 @@ struct MEGA_API SockInfo
     bool createAssociateEvent();
 
     // see if there is any work to be done on this socket (to be called after waiting, and a network event was triggered)
-    bool checkEvent(bool& read, bool& write, bool c_ares);
+    bool checkEvent(bool& read, bool& write, bool logErr = true);
 
     // manually close the event (used when we know the socket is no longer active)
     void closeEvent(bool adjustSocket = true);
