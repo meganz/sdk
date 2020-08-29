@@ -800,10 +800,7 @@ bool WinFileSystemAccess::getsname(LocalPath& namePath, LocalPath& snamePath) co
 // recursive copy/delete
 bool WinFileSystemAccess::renamelocal(LocalPath& oldnamePath, LocalPath& newnamePath, bool replace)
 {
-    std::wstring oldname = oldnamePath.localpath;
-    std::wstring newname = newnamePath.localpath;
-
-    bool r = !!MoveFileExW(oldname.c_str(), newname.c_str(), replace ? MOVEFILE_REPLACE_EXISTING : 0);
+    bool r = !!MoveFileExW(oldnamePath.localpath.c_str(), newnamePath.localpath.c_str(), replace ? MOVEFILE_REPLACE_EXISTING : 0);
 
     if (!r)
     {
@@ -811,10 +808,10 @@ bool WinFileSystemAccess::renamelocal(LocalPath& oldnamePath, LocalPath& newname
         if (SimpleLogger::logCurrentLevel >= logWarning && !skip_errorreport)
         {
             string utf8oldname;
-            client->fsaccess->local2path(&oldname, &utf8oldname);
+            client->fsaccess->local2path(&oldnamePath.localpath, &utf8oldname);
 
             string utf8newname;
-            client->fsaccess->local2path(&newname, &utf8newname);
+            client->fsaccess->local2path(&newnamePath.localpath, &utf8newname);
             LOG_warn << "Unable to move file: " << utf8oldname.c_str() << " to " << utf8newname.c_str() << ". Error code: " << e;
         }
         transient_error = istransientorexists(e);
@@ -825,13 +822,10 @@ bool WinFileSystemAccess::renamelocal(LocalPath& oldnamePath, LocalPath& newname
 
 bool WinFileSystemAccess::copylocal(LocalPath& oldnamePath, LocalPath& newnamePath, m_time_t)
 {
-    std::wstring oldname = oldnamePath.localpath;
-    std::wstring newname = newnamePath.localpath;
-
 #ifdef WINDOWS_PHONE
-    bool r = SUCCEEDED(CopyFile2(oldname.c_str(), newname.c_str(), NULL));
+    bool r = SUCCEEDED(CopyFile2(oldnamePath.localpath.c_str(), newnamePath.localpath.c_str(), NULL));
 #else
-    bool r = !!CopyFileW(oldname.c_str(), newname.c_str(), FALSE);
+    bool r = !!CopyFileW(oldnamePath.localpath.c_str(), newnamePath.localpath.c_str(), FALSE);
 #endif
 
     if (!r)
@@ -846,8 +840,7 @@ bool WinFileSystemAccess::copylocal(LocalPath& oldnamePath, LocalPath& newnamePa
 
 bool WinFileSystemAccess::rmdirlocal(LocalPath& namePath)
 {
-    std::wstring name = namePath.localpath.data();
-    bool r = !!RemoveDirectoryW(name.data());
+    bool r = !!RemoveDirectoryW(namePath.localpath.data());
     if (!r)
     {
         DWORD e = GetLastError();
@@ -860,8 +853,7 @@ bool WinFileSystemAccess::rmdirlocal(LocalPath& namePath)
 
 bool WinFileSystemAccess::unlinklocal(LocalPath& namePath)
 {
-    std::wstring name = namePath.localpath.data();
-    bool r = !!DeleteFileW(name.data());
+    bool r = !!DeleteFileW(namePath.localpath.data());
 
     if (!r)
     {
