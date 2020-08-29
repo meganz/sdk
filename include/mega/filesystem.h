@@ -499,7 +499,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 #if defined(_WIN32)
     // convert MEGA-formatted filename (UTF-8) to local filesystem name; escape
     // forbidden characters using urlencode
-    std::string local2name(std::wstring*, FileSystemType) const;
+    std::string local2name(const std::wstring&, FileSystemType) const;
     virtual void local2path(const std::wstring*, std::string*) const = 0;
     virtual void path2local(const std::string*, std::wstring*) const = 0;
 #endif

@@ -347,11 +347,10 @@ void FileSystemAccess::normalize(string* filename) const
 
 // convert from local encoding, then unescape escaped forbidden characters
 #if defined(_WIN32)
-std::string FileSystemAccess::local2name(std::wstring* filename, FileSystemType fsType) const
+std::string FileSystemAccess::local2name(const std::wstring& filename, FileSystemType fsType) const
 {
-    assert(filename);
     std::string path;
-    local2path(filename, &path);
+    local2path(&filename, &path);
     unescapefsincompatible(&path, fsType);
     return path;
 }
@@ -1052,8 +1051,7 @@ string LocalPath::toPath(const FileSystemAccess& fsaccess) const
 string LocalPath::toName(const FileSystemAccess& fsaccess, FileSystemType fsType) const
 {
 #if defined(_WIN32)
-    std::wstring name = localpath;
-    std::string path = fsaccess.local2name(&name, fsType);
+    std::string path = fsaccess.local2name(localpath, fsType);
     return path;
 #else
     string name = localpath;
