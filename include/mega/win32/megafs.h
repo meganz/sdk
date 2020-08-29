@@ -58,11 +58,11 @@ public:
 
     void tmpnamelocal(LocalPath&) const override;
 
-    void path2local(const string*, string*) const override;
-    void local2path(const string* local, string* path) const override;
+    void path2local(const std::string*, std::string*) const override;
+    void local2path(const std::string*, std::string*) const override;
 
-    void local2path(const std::wstring*, string*) const override;
-    void path2local(const string*, std::wstring*) const override;
+    void local2path(const std::wstring*, std::string*) const override;
+    void path2local(const std::string*, std::wstring*) const override;
 
     static int sanitizedriveletter(std::wstring&);
 

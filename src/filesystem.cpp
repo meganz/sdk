@@ -1041,9 +1041,9 @@ string LocalPath::toPath(const FileSystemAccess& fsaccess) const
 {
     string path;
 #if defined(_WIN32)
-    fsaccess.local2path(const_cast<std::wstring*>(&localpath), &path); // todo: const correctness for local2path etc
+    fsaccess.local2path(const_cast<std::wstring*>(&localpath), &path);
 #else
-    fsaccess.local2path(const_cast<string*>(&localpath), &path); // todo: const correctness for local2path etc
+    fsaccess.local2path(const_cast<string*>(&localpath), &path);
 #endif   
     return path;
 }

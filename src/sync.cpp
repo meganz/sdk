@@ -1098,7 +1098,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
                 if (outpath)
                 {
 #ifdef WIN32
-                    // todo:  thia whole function should be adjusted to use LocalPath member functions instead of manipulating its internal strings, so we don't need any ifdefs
+                    // todo:  this whole function should be adjusted to use LocalPath member functions instead of manipulating its internal strings, so we don't need any ifdefs
                     std::wstring s(ptr, localpath.getLocalpath().data() - ptr + localpath.getLocalpath().size());
 #else
                     std::string s(ptr, localpath.getLocalpath().data() - ptr + localpath.getLocalpath().size());

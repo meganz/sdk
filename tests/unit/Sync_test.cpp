@@ -224,7 +224,7 @@ public:
     size_t lastpartlocal(const std::wstring* localname) const override
     {
         auto p = localname->find_last_of(L"\\/:");
-        return p == string::npos ? 0 : p + 1;
+        return p == std::string::npos ? 0 : p + 1;
     }
 #else
     size_t lastpartlocal(const std::string* localname) const override
