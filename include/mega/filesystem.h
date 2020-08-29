@@ -298,7 +298,7 @@ struct MEGA_API FileAccess
     virtual void updatelocalname(LocalPath&) = 0;
 
     // absolute position read, with NUL padding
-    bool fread(string *, unsigned, unsigned, m_off_t);
+    bool fread(std::string *, unsigned, unsigned, m_off_t);
 
     // absolute position read to byte buffer
     bool frawread(byte *, unsigned, m_off_t, bool caller_opened = false);
@@ -326,7 +326,7 @@ struct MEGA_API FileAccess
     void asyncclosef();
 
     AsyncIOContext *asyncfopen(LocalPath&, bool, bool, m_off_t = 0);
-    AsyncIOContext* asyncfread(string *, unsigned, unsigned, m_off_t);
+    AsyncIOContext* asyncfread(std::string *, unsigned, unsigned, m_off_t);
     AsyncIOContext* asyncfwrite(const byte *, unsigned, m_off_t);
 
 
@@ -419,20 +419,20 @@ private:
     int mFailed;
 
     // reason of the permanent failure of filesystem notifications
-    string mFailReason;
+    std::string mFailReason;
 
 public:
     // set if a temporary error occurred.  May be set from a thread.
     std::atomic<int> mErrorCount;
 
     // thread safe setter/getters
-    void setFailed(int errCode, const string& reason);
-    int  getFailed(string& reason);
+    void setFailed(int errCode, const std::string& reason);
+    int  getFailed(std::string& reason);
 
     // base path
     LocalPath localbasepath;
 
-    virtual void addnotify(LocalNode*, string*) { }
+    virtual void addnotify(LocalNode*, std::string*) { }
     virtual void delnotify(LocalNode*) { }
 
     void notify(notifyqueue, LocalNode *, LocalPath&&, bool = false);
@@ -486,37 +486,37 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     bool islchex(char) const;
     bool isControlChar(unsigned char c) const;
     bool islocalfscompatible(unsigned char, bool isEscape, FileSystemType = FS_UNKNOWN) const;
-    void escapefsincompatible(string*, FileSystemType fileSystemType) const;
+    void escapefsincompatible(std::string*, FileSystemType fileSystemType) const;
 
     FileSystemType getFilesystemType(const LocalPath& dstPath) const;
     const char *fstypetostring(FileSystemType type) const;
     FileSystemType getlocalfstype(const LocalPath& dstPath) const;
-    void unescapefsincompatible(string*,FileSystemType) const;
+    void unescapefsincompatible(std::string*,FileSystemType) const;
 
     // convert MEGA path (UTF-8) to local format
-    virtual void path2local(const string*, string*) const = 0;
+    virtual void path2local(const std::string*, std::string*) const = 0;
 
 #if defined(_WIN32)
     // convert MEGA-formatted filename (UTF-8) to local filesystem name; escape
     // forbidden characters using urlencode
     std::string local2name(std::wstring*, FileSystemType) const;
-    virtual void local2path(const std::wstring*, string*) const = 0;
-    virtual void path2local(const string*, std::wstring*) const = 0;
+    virtual void local2path(const std::wstring*, std::string*) const = 0;
+    virtual void path2local(const std::string*, std::wstring*) const = 0;
 #endif
     // convert MEGA-formatted filename (UTF-8) to local filesystem name; escape
     // forbidden characters using urlencode
-    virtual void local2path(const string*, string*) const = 0;
+    virtual void local2path(const std::string*, std::string*) const = 0;
 
-    void local2name(string*, FileSystemType) const;
+    void local2name(std::string*, FileSystemType) const;
 
     // convert local path to MEGA format (UTF-8) with unescaping
-    void name2local(string*, FileSystemType) const;
+    void name2local(std::string*, FileSystemType) const;
 
     // returns a const char pointer that contains the separator character for the target system
     static const char *getPathSeparator();
 
     //Normalize UTF-8 string
-    void normalize(string *) const;
+    void normalize(std::string *) const;
 
     // generate local temporary file name
     virtual void tmpnamelocal(LocalPath&) const = 0;
@@ -553,7 +553,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual size_t lastpartlocal(const std::wstring*) const = 0;
 #else
     // locate byte offset of last path component
-    virtual size_t lastpartlocal(const string*) const = 0;
+    virtual size_t lastpartlocal(const std::string*) const = 0;
 #endif
 
     // obtain lowercased extension
@@ -563,7 +563,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool issyncsupported(LocalPath&, bool* = NULL) { return true; }
 
     // add notification (has to be called for all directories in tree for full crossplatform support)
-    virtual void addnotify(LocalNode*, string*) { }
+    virtual void addnotify(LocalNode*, std::string*) { }
 
     // delete notification
     virtual void delnotify(LocalNode*) { }
@@ -593,12 +593,12 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // set whenever an operation fails because the target already exists
     bool target_exists;
 
-    // append local operating system version information to string.
+    // append local operating system version information to std::string.
     // Set includeArchExtraInfo to know if the app is 32 bit running on 64 bit (on windows, that is via the WOW subsystem)
-    virtual void osversion(string*, bool includeArchExtraInfo) const { }
+    virtual void osversion(std::string*, bool includeArchExtraInfo) const { }
 
     // append id for stats
-    virtual void statsid(string*) const { }
+    virtual void statsid(std::string*) const { }
 
     MegaClient* client;
 
