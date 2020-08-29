@@ -69,7 +69,7 @@ bool File::serialize(string *d)
     d->append(name.data(), ll);
 
 #if defined(_WIN32)
-    auto tmpstr = localname.clientAppEncoded();
+    const auto& tmpstr = localname.clientAppEncoded();
     ll = (unsigned short)tmpstr.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(tmpstr.data(), ll);
@@ -213,6 +213,7 @@ File *File::unserialize(string *d)
 
     file->name.assign(name, namelen);
 #if defined(_WIN32)
+    assert(!(localnamelen % 2));
     file->localname = LocalPath::fromLocalname(std::wstring((wchar_t*)localname, localnamelen/2));
 #else
     file->localname.editStringDirect()->assign(localname, localnamelen);

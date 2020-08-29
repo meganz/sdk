@@ -151,7 +151,7 @@ bool Transfer::serialize(string *d)
     d->append((const char*)&type, sizeof(type));
 
 #if defined(_WIN32)                        
-    auto tmpstr = localfilename.clientAppEncoded();
+    const auto& tmpstr = localfilename.clientAppEncoded();
     ll = (unsigned short)tmpstr.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(tmpstr.data(), ll);
@@ -907,11 +907,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                                 if (missingattr)
                                 {
-                                #if defined(_WIN32)                        
                                     client->gfx->gendimensionsputfa(NULL, localname, n->nodehandle, n->nodecipher(), missingattr);
-                                #else
-                                    client->gfx->gendimensionsputfa(NULL, localname, n->nodehandle, n->nodecipher(), missingattr);
-                                #endif
                                 }
 
                                 addAnyMissingMediaFileAttributes(n, localname);

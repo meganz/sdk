@@ -1731,7 +1731,7 @@ bool LocalNode::serialize(string* d)
     w.serializebyte(mSyncable);
     w.serializeexpansionflags(1);  // first flag indicates we are storing slocalname.  Storing it is much, much faster than looking it up on startup.
 #if defined(_WIN32)
-    auto tmpstr = slocalname ? slocalname->clientAppEncoded() : string();
+    const auto& tmpstr = slocalname ? slocalname->clientAppEncoded() : string();
     w.serializepstr(slocalname ? &tmpstr : nullptr);
 #else
     w.serializepstr(slocalname ? &(slocalname->getLocalpath()) : nullptr);

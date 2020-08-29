@@ -53,7 +53,6 @@ namespace mega {
 
 std::string toNodeHandle(handle nodeHandle);
 std::string toHandle(handle h);
-
 #define LOG_NODEHANDLE(x) toNodeHandle(x)
 #define LOG_HANDLE(x) toHandle(x)
 

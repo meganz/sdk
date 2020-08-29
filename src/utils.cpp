@@ -27,9 +27,6 @@
 #include "mega/filesystem.h"
 
 #include <iomanip>
-#include <locale>
-#include <codecvt>
-#include <string>
 
 #if defined(_WIN32) && defined(_MSC_VER)
 #include <sys/timeb.h>
