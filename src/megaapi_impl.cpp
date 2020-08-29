@@ -8407,7 +8407,14 @@ int MegaApiImpl::syncPathState(string* path)
             }
             else
             {
+            #ifdef _WIN32
+                std::wstring wpath;
+                wpath.resize((path->size() + 1) / sizeof(wchar_t));
+                memcpy(wpath.data(), path->data(), wpath.size() * sizeof(wchar_t));
+                size_t index = fsAccess->lastpartlocal(&wpath);
+            #else
                 size_t index = fsAccess->lastpartlocal(path);
+            #endif
                 string name = path->substr(index);
                 fsAccess->local2name(&name, sync->mFilesystemType);
                 if (is_syncable(sync, name.c_str(), localpath))

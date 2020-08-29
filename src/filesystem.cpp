@@ -858,8 +858,7 @@ bool LocalPath::empty() const
 
 size_t LocalPath::lastpartlocal(const FileSystemAccess& fsaccess) const
 {
-    auto str = localpath;
-    return fsaccess.lastpartlocal(&str);
+    return fsaccess.lastpartlocal(&localpath);
 }
 
 void LocalPath::append(const LocalPath& additionalPath)

@@ -553,9 +553,10 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 #if defined(_WIN32)
     // locate byte offset of last path component
     virtual size_t lastpartlocal(const std::wstring*) const = 0;
-#endif
+#else
     // locate byte offset of last path component
     virtual size_t lastpartlocal(const string*) const = 0;
+#endif
 
     // obtain lowercased extension
     virtual bool getextension(const LocalPath&, char*, size_t) const = 0;
