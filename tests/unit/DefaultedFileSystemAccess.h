@@ -118,11 +118,12 @@ public:
     {
         throw NotImplemented{ __func__ };
     }
-#endif
+#else
     size_t lastpartlocal(const std::string*) const override
     {
         throw NotImplemented{ __func__ };
     }
+#endif
 
     bool getextension(const mega::LocalPath&, char*, size_t) const override
     {
