@@ -25,9 +25,9 @@
 
 namespace mega {
 #if defined(_WIN32)
-    std::wstring gWindowsSeparator(L"\\", 1);
+    std::wstring gWindowsSeparator(L"\\");
 #else
-    std::string gWindowsSeparator(L"\\", 2);
+    std::string gWindowsSeparator((const char*)(const wchar_t*)L"\\", 2);
 #endif
 
 WinFileAccess::WinFileAccess(Waiter *w) : FileAccess(w)
