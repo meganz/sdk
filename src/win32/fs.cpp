@@ -1117,7 +1117,7 @@ bool WinFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolu
     wchar_t full[_MAX_PATH];
     if (_wfullpath(full, pathArg.localpath.data(), _MAX_PATH))
     {
-        absolutepathArg.localpath.assign(full, wcslen(full));
+        absolutepathArg.localpath = full;
         return true;
     }
     absolutepathArg.localpath = pathArg.localpath;

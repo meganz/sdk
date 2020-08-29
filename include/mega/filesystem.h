@@ -162,8 +162,6 @@ public:
     LocalPath() {}
 
 #if defined(_WIN32)
-    //void setLocalpath(std::wstring s) { localpath = s; }
-    //void assign(const wchar_t* ptr, size_t sz) { localpath.assign(ptr, sz); }
     // todo: currently used in computeReversePathMatchScore, can we adjust that one to work just on std::string, with LocalPath converted wtih toPath() ?
     const std::wstring& getLocalpath() const { return localpath; }
 
