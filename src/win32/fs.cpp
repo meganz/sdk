@@ -21,7 +21,6 @@
 
 #include "mega.h"
 #include <wow64apiset.h>
-#include "megaapi.h"
 
 namespace mega {
 #if defined(_WIN32)
@@ -773,12 +772,23 @@ bool WinFileSystemAccess::getsname(LocalPath& namePath, LocalPath& snamePath) co
 #ifdef WINDOWS_PHONE
     return false;
 #else
-    std::wstring& name = namePath.localpath;
+    const std::wstring& name = namePath.localpath;
     std::wstring& sname = snamePath.localpath;
 
-    int rr = GetShortPathNameW(name.data(), sname.data(), DWORD(name.size()));  // todo: don't we need to make sure sname is long enough?
+    int r = name.size();
+    sname.resize(r);
 
-    if (!rr == 0 || rr != name.size())
+    int rr = GetShortPathNameW(name.data(), sname.data(), r);
+
+    sname.resize(rr);
+
+    if (rr >= r)
+    {
+        rr = GetShortPathNameW(name.data(), sname.data(), rr);
+        sname.resize(rr);
+    }
+
+    if (!rr)
     {
         DWORD e = GetLastError();
         LOG_warn << "Unable to get short path name: " << namePath.localpath.c_str() << ". Error code: " << e;
@@ -787,10 +797,11 @@ bool WinFileSystemAccess::getsname(LocalPath& namePath, LocalPath& snamePath) co
     }
 
     // we are only interested in the path's last component
-    size_t pos = std::string::npos;
-    if ((pos = sname.rfind('\\') != std::string::npos) || (pos = sname.rfind(':') != std::string::npos))
+    wchar_t* ptr;
+
+    if ((ptr = wcsrchr(sname.data(), L'\\')) || (ptr = wcsrchr(sname.data(), L':')))
     {
-        sname.erase(0, pos);
+        sname.erase(0, ptr - sname.data() + 1);
     }
     return sname.size();
 #endif
