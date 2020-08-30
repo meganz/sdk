@@ -153,11 +153,10 @@ FileSystemType FileSystemAccess::getlocalfstype(const LocalPath& dstPath) const
     }
 #elif defined(_WIN32) || defined(WINDOWS_PHONE)
     // Filesystem detection for Windows
-    auto tmpPath = dstPath;
     std::wstring volMountPoint;
     volMountPoint.resize(MAX_PATH);
     DWORD mountLen = static_cast<DWORD>(volMountPoint.size());
-    if (!(GetVolumePathNameW(tmpPath.getLocalpath().c_str(), &volMountPoint[0], mountLen)))
+    if (!(GetVolumePathNameW(dstPath.getLocalpath().c_str(), &volMountPoint[0], mountLen)))
     {
         return FS_UNKNOWN;
     }
@@ -525,10 +524,9 @@ AsyncIOContext *FileAccess::asyncfopen(LocalPath& f)
     AsyncIOContext *context = newasynccontext();
     context->op = AsyncIOContext::OPEN;
     context->access = AsyncIOContext::ACCESS_READ;
-
 #if defined(_WIN32)
     context->wbuffer = const_cast<wchar_t*>(f.getLocalpath().c_str());
-    context->len = static_cast<unsigned>(f.getLocalpath().size());
+    context->len = static_cast<unsigned>(f.getLocalpath().size() * sizeof(wchar_t));
 #else
     context->buffer = (byte*)f.editStringDirect()->data();
     context->len = static_cast<unsigned>(f.editStringDirect()->size());
@@ -612,7 +610,7 @@ AsyncIOContext *FileAccess::asyncfopen(LocalPath& f, bool read, bool write, m_of
 
 #if defined(_WIN32)
     context->wbuffer = const_cast<wchar_t*>(f.getLocalpath().c_str());
-    context->len = static_cast<unsigned>(f.getLocalpath().size());
+    context->len = static_cast<unsigned>(f.getLocalpath().size() * sizeof(wchar_t));
 #else
     context->buffer = (byte*)f.editStringDirect()->data();
     context->len = static_cast<unsigned>(f.editStringDirect()->size());
@@ -647,9 +645,14 @@ AsyncIOContext *FileAccess::asyncfread(string *dst, unsigned len, unsigned pad, 
     AsyncIOContext *context = newasynccontext();
     context->op = AsyncIOContext::READ;
     context->pos = pos;
-    context->len = len;
     context->pad = pad;
-    context->buffer = (byte*)dst->data(); 
+#if defined(_WIN32)
+    context->wbuffer = (wchar_t*)dst->data();
+    context->len = len * sizeof(wchar_t);
+#else
+    context->buffer = (byte*)dst->data();
+    context->len = len;
+#endif
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
     context->userData = waiter;
@@ -688,7 +691,14 @@ AsyncIOContext *FileAccess::asyncfwrite(const byte* data, unsigned len, m_off_t 
     context->op = AsyncIOContext::WRITE;
     context->pos = pos;
     context->len = len;
+#if defined(_WIN32)
+    context->wbuffer = (wchar_t*)data;
+    context->len = len * sizeof(wchar_t);
+#else
     context->buffer = (byte*)data;
+    context->len = len;
+#endif
+    
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
     context->userData = waiter;

@@ -258,7 +258,7 @@ VOID WinFileAccess::asyncopfinished(DWORD dwErrorCode, DWORD dwNumberOfBytesTran
     {
         if (context->op == AsyncIOContext::READ)
         {
-            memset((void *)(((char *)(context->buffer)) + context->len), 0, context->pad);
+            memset((void *)(((wchar_t *)(context->wbuffer)) + context->len), 0, context->pad);
             LOG_verbose << "Async read finished OK";
         }
         else
@@ -335,7 +335,7 @@ void WinFileAccess::asyncsysread(AsyncIOContext *context)
     overlapped->hEvent = winContext;
     winContext->overlapped = overlapped;
 
-    if (!ReadFileEx(hFile, (LPVOID)winContext->buffer, (DWORD)winContext->len,
+    if (!ReadFileEx(hFile, (LPVOID)winContext->wbuffer, (DWORD)winContext->len,
                    overlapped, asyncopfinished))
     {
         DWORD e = GetLastError();
@@ -382,7 +382,7 @@ void WinFileAccess::asyncsyswrite(AsyncIOContext *context)
     overlapped->hEvent = winContext;
     winContext->overlapped = overlapped;
 
-    if (!WriteFileEx(hFile, (LPVOID)winContext->buffer, (DWORD)winContext->len,
+    if (!WriteFileEx(hFile, (LPVOID)winContext->wbuffer, (DWORD)winContext->len,
                    overlapped, asyncopfinished))
     {
         DWORD e = GetLastError();

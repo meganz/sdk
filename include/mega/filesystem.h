@@ -114,8 +114,9 @@ struct MEGA_API AsyncIOContext
     unsigned pad;
 #if defined(_WIN32)
     wchar_t* wbuffer;
-#endif
+#else
     byte* buffer;
+#endif
     Waiter *waiter;
     FileAccess *fa;
 };
