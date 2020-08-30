@@ -955,7 +955,8 @@ void LocalPath::trimNonDriveTrailingSeparator(const FileSystemAccess& fsaccess)
     {
         // ok so the last character is a directory separator.  But don't remove it for eg. F:\ on windows
         #ifdef WIN32
-        if (localpath.size() > 2 * fsaccess.localseparator.size() && !memcmp(localpath.data() + localpath.size() - 2 * fsaccess.localseparator.size(), L":", fsaccess.localseparator.size()))
+          if (localpath.size() > fsaccess.localseparator.size() &&
+              localpath[localpath.size() - fsaccess.localseparator.size() - 1] == L':')
         {
             return;
         }

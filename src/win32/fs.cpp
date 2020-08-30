@@ -656,9 +656,9 @@ WinFileSystemAccess::~WinFileSystemAccess()
 // append \ to bare Windows drive letter paths
 int WinFileSystemAccess::sanitizedriveletter(std::wstring& localpath)
 {
-    if (localpath.size() > sizeof(wchar_t) && !memcmp(localpath.c_str() + localpath.size() - sizeof(wchar_t), (const wchar_t*)L":", sizeof(wchar_t)))
+    if (localpath.size() > 1 && localpath[localpath.size() - 1] == L':')
     {
-        localpath.append((const wchar_t*)L"\\");
+        localpath.append(L"\\");
         return sizeof(wchar_t);
     }
 
@@ -1131,17 +1131,18 @@ bool WinFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolu
         return false;
     }
 
-    if (memcmp(absolutepathArg.localpath.data(), L"\\\\?\\", 8))
+    if (absolutepathArg.localpath.compare(0, 4, L"\\\\?\\"))
     {
-        if (!memcmp(absolutepathArg.localpath.data(), L"\\\\", 4)) //network location
+        if (!absolutepathArg.localpath.compare(0, 2, L"\\\\")) //network location
         {
-            absolutepathArg.localpath.insert(0, (const wchar_t*)L"\\\\?\\UNC\\", 16);
+            absolutepathArg.localpath.insert(0, L"\\\\?\\UNC\\", 8);
         }
         else
         {
-            absolutepathArg.localpath.insert(0, (const wchar_t*)L"\\\\?\\", 8);
+            absolutepathArg.localpath.insert(0, L"\\\\?\\", 4);
         }
     }
+
     return true;
 #endif
 }
@@ -1332,10 +1333,10 @@ void WinDirNotify::process(DWORD dwBytes)
             // skip the local debris folder
             // also, we skip the old name in case of renames
             if (fni->Action != FILE_ACTION_RENAMED_OLD_NAME
-             && (fni->FileNameLength < ignore.localpath.size()
-              || memcmp((char*)fni->FileName, ignore.localpath.data(), ignore.localpath.size())
-              || (fni->FileNameLength > ignore.localpath.size()
-               && memcmp((char*)fni->FileName + ignore.localpath.size(), (const char*)(const wchar_t*)L"\\", sizeof(wchar_t)))))
+                && (fni->FileNameLength < ignore.localpath.size()
+                    || ignore.localpath.compare(0, ignore.localpath.size(), fni->FileName)
+                    || (fni->FileNameLength > ignore.localpath.size()
+                        && fni->FileName[ignore.localpath.size() - 1] == L'\\')))
             {
                 if (SimpleLogger::logCurrentLevel >= logDebug)
                 {
@@ -1610,7 +1611,7 @@ bool WinFileSystemAccess::issyncsupported(LocalPath& localpathArg, bool *isnetwo
 
     if (GetVolumePathNameW(localpathArg.localpath.data(), path.data(), MAX_PATH)
         && GetVolumeInformationW(path.data(), NULL, 0, NULL, NULL, NULL, fsname.data(), MAX_PATH)
-        && !memcmp(fsname.data(), VBoxSharedFolderFS, sizeof(VBoxSharedFolderFS)))
+        && !fsname.compare(0, sizeof(VBoxSharedFolderFS),VBoxSharedFolderFS))
     {
         LOG_warn << "VBoxSharedFolderFS is not supported because it doesn't provide ReadDirectoryChanges() nor unique file identifiers";
         result = false;
