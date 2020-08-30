@@ -511,6 +511,86 @@ struct StandardClient : public MegaApp
 
     handle basefolderhandle = UNDEF;
 
+    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE, CATCHUP };
+
+    struct ResultProc
+    {
+        MegaClient& client;
+        ResultProc(MegaClient& c) : client(c) {}
+
+        struct id_callback
+        {
+            int request_tag = 0;
+            handle h = UNDEF;
+            std::function<bool(error)> f;
+            id_callback(std::function<bool(error)> cf, int tag, handle ch) : request_tag(tag), h(ch), f(cf) {}
+        };
+
+        recursive_mutex mtx;  // recursive because sometimes we need to set up new operations during a completion callback
+        map<resultprocenum, deque<id_callback>> m;
+
+        void prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h = UNDEF)
+        {
+            lock_guard<recursive_mutex> g(mtx);
+            auto& entry = m[rpe];
+            entry.emplace_back(move(f), tag, h);
+
+            assert(tag > 0);
+            int oldtag = client.reqtag;
+            client.reqtag = tag;
+            requestfunc();
+            client.reqtag = oldtag;
+
+            client.waiter->notify();
+        }
+
+        void processresult(resultprocenum rpe, error e, handle h = UNDEF)
+        {
+            int tag = client.restag;
+            if (tag == 0 && rpe != CATCHUP)
+            {
+                //out() << "received notification of SDK initiated operation " << rpe << " tag " << tag << endl; // too many of those to output
+                return;
+            }
+
+            if (tag < (2 << 30))
+            {
+                out() << "ignoring callback from SDK internal sync operation " << rpe << " tag " << tag << endl;
+                return;
+            }
+
+            lock_guard<recursive_mutex> g(mtx);
+            auto& entry = m[rpe];
+
+            if (rpe == CATCHUP)
+            {
+                while (!entry.empty())
+                {
+                    entry.front().f(e);
+                    entry.pop_front();
+                }
+                return;
+            }
+
+            if (entry.empty())
+            {
+                out() << "received notification of operation type " << rpe << " completion but we don't have a record of it.  tag: " << tag << endl;
+                return;
+            }
+
+            if (tag != entry.front().request_tag)
+            {
+                out() << "tag mismatch for operation completion of " << rpe << " tag " << tag << ", we expected " << entry.front().request_tag << endl;
+                return;
+            }
+
+            if (entry.front().f(e))
+            {
+                entry.pop_front();
+            }
+        }
+    } resultproc;
+
     // thread as last member so everything else is initialised before we start it
     std::thread clientthread;
 
@@ -704,8 +784,6 @@ struct StandardClient : public MegaApp
         }
         return nextfunctionSCpromise.get_future();
     }
-
-    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE, CATCHUP };
 
     void preloginFromEnv(const string& userenv, promise<bool>& pb)
     {
@@ -909,86 +987,7 @@ struct StandardClient : public MegaApp
         return newnode;
     }
 
-
-    struct ResultProc
-    {
-        MegaClient& client;
-        ResultProc(MegaClient& c) : client(c) {}
-
-        struct id_callback
-        {
-            int request_tag = 0;
-            handle h = UNDEF;
-            std::function<bool(error)> f;
-            id_callback(std::function<bool(error)> cf, int tag, handle ch) : request_tag(tag), h(ch), f(cf) {}
-        };
-
-        recursive_mutex mtx;  // recursive because sometimes we need to set up new operations during a completion callback
-        map<resultprocenum, deque<id_callback>> m;
-
-        void prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h = UNDEF)
-        {
-            lock_guard<recursive_mutex> g(mtx);
-            auto& entry = m[rpe];
-            entry.emplace_back(move(f), tag, h);
-
-            assert(tag > 0);
-            int oldtag = client.reqtag;
-            client.reqtag = tag;
-            requestfunc();
-            client.reqtag = oldtag;
-
-            client.waiter->notify();
-        }
-
-        void processresult(resultprocenum rpe, error e, handle h = UNDEF)
-        {
-            int tag = client.restag;
-            if (tag == 0 && rpe != CATCHUP)
-            {
-                //out() << "received notification of SDK initiated operation " << rpe << " tag " << tag << endl; // too many of those to output
-                return;
-            }
-
-            if (tag < (2 << 30))
-            {
-                out() << "ignoring callback from SDK internal sync operation " << rpe << " tag " << tag << endl;
-                return;
-            }
-
-            lock_guard<recursive_mutex> g(mtx);
-            auto& entry = m[rpe];
-
-            if (rpe == CATCHUP)
-            {
-                while (!entry.empty())
-                {
-                    entry.front().f(e);
-                    entry.pop_front();
-                }
-                return;
-            }
-
-            if (entry.empty())
-            {
-                out() << "received notification of operation type " << rpe << " completion but we don't have a record of it.  tag: " << tag << endl;
-                return;
-            }
-
-            if (tag != entry.front().request_tag)
-            {
-                out() << "tag mismatch for operation completion of " << rpe << " tag " << tag << ", we expected " << entry.front().request_tag << endl;
-                return;
-            }
-
-            if (entry.front().f(e))
-            {
-                entry.pop_front();
-            }
-        }
-    } resultproc;
-
-   void catchup(promise<bool>& pb)
+    void catchup(promise<bool>& pb)
     {
         resultproc.prepresult(CATCHUP, ++next_request_tag,
             [&](){
