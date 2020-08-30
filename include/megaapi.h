@@ -16914,7 +16914,6 @@ class MegaApi
          */
         void getPublicLinkInformation(const char *megaFolderLink, MegaRequestListener *listener = NULL);
 
-
         /**
          * @brief Get an object that can lock the MegaApi, allowing multiple quick synchronous calls.
          *
@@ -16931,6 +16930,19 @@ class MegaApi
          * You take ownership of the returned value, and you must delete it when the sequence is complete.
          */
         MegaApiLock* getMegaApiLock(bool lockNow);
+
+    /**
+     * @brief Call the low level function setrlimit() for NOFILE, needed for some platforms.
+     *
+     * Particularly on phones, the system default limit for the number of open files (and sockets)
+     * is quite low.   When the SDK can be working on many files and many sockets at once,
+     * we need a higher limit.   Those limits need to take into account the needs of the whole
+     * app and not just the SDK, of course.   This function is provided in order that the app
+     * can make that call and set appropriate limits.
+     *
+     * @param newNumFileLimit The new limit of file and socket handles for the whole app.
+     */
+    void platformSetRLimitNumFile(int newNumFileLimit);
 
  private:
         MegaApiImpl *pImpl;

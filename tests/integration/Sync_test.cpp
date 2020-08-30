@@ -511,6 +511,86 @@ struct StandardClient : public MegaApp
 
     handle basefolderhandle = UNDEF;
 
+    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE, CATCHUP };
+
+    struct ResultProc
+    {
+        MegaClient& client;
+        ResultProc(MegaClient& c) : client(c) {}
+
+        struct id_callback
+        {
+            int request_tag = 0;
+            handle h = UNDEF;
+            std::function<bool(error)> f;
+            id_callback(std::function<bool(error)> cf, int tag, handle ch) : request_tag(tag), h(ch), f(cf) {}
+        };
+
+        recursive_mutex mtx;  // recursive because sometimes we need to set up new operations during a completion callback
+        map<resultprocenum, deque<id_callback>> m;
+
+        void prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h = UNDEF)
+        {
+            lock_guard<recursive_mutex> g(mtx);
+            auto& entry = m[rpe];
+            entry.emplace_back(move(f), tag, h);
+
+            assert(tag > 0);
+            int oldtag = client.reqtag;
+            client.reqtag = tag;
+            requestfunc();
+            client.reqtag = oldtag;
+
+            client.waiter->notify();
+        }
+
+        void processresult(resultprocenum rpe, error e, handle h = UNDEF)
+        {
+            int tag = client.restag;
+            if (tag == 0 && rpe != CATCHUP)
+            {
+                //out() << "received notification of SDK initiated operation " << rpe << " tag " << tag << endl; // too many of those to output
+                return;
+            }
+
+            if (tag < (2 << 30))
+            {
+                out() << "ignoring callback from SDK internal sync operation " << rpe << " tag " << tag << endl;
+                return;
+            }
+
+            lock_guard<recursive_mutex> g(mtx);
+            auto& entry = m[rpe];
+
+            if (rpe == CATCHUP)
+            {
+                while (!entry.empty())
+                {
+                    entry.front().f(e);
+                    entry.pop_front();
+                }
+                return;
+            }
+
+            if (entry.empty())
+            {
+                out() << "received notification of operation type " << rpe << " completion but we don't have a record of it.  tag: " << tag << endl;
+                return;
+            }
+
+            if (tag != entry.front().request_tag)
+            {
+                out() << "tag mismatch for operation completion of " << rpe << " tag " << tag << ", we expected " << entry.front().request_tag << endl;
+                return;
+            }
+
+            if (entry.front().f(e))
+            {
+                entry.pop_front();
+            }
+        }
+    } resultproc;
+
     // thread as last member so everything else is initialised before we start it
     std::thread clientthread;
 
@@ -704,8 +784,6 @@ struct StandardClient : public MegaApp
         }
         return nextfunctionSCpromise.get_future();
     }
-
-    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE, CATCHUP };
 
     void preloginFromEnv(const string& userenv, promise<bool>& pb)
     {
@@ -909,86 +987,7 @@ struct StandardClient : public MegaApp
         return newnode;
     }
 
-
-    struct ResultProc
-    {
-        MegaClient& client;
-        ResultProc(MegaClient& c) : client(c) {}
-
-        struct id_callback
-        {
-            int request_tag = 0;
-            handle h = UNDEF;
-            std::function<bool(error)> f;
-            id_callback(std::function<bool(error)> cf, int tag, handle ch) : request_tag(tag), h(ch), f(cf) {}
-        };
-
-        recursive_mutex mtx;  // recursive because sometimes we need to set up new operations during a completion callback
-        map<resultprocenum, deque<id_callback>> m;
-
-        void prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h = UNDEF)
-        {
-            lock_guard<recursive_mutex> g(mtx);
-            auto& entry = m[rpe];
-            entry.emplace_back(move(f), tag, h);
-
-            assert(tag > 0);
-            int oldtag = client.reqtag;
-            client.reqtag = tag;
-            requestfunc();
-            client.reqtag = oldtag;
-
-            client.waiter->notify();
-        }
-
-        void processresult(resultprocenum rpe, error e, handle h = UNDEF)
-        {
-            int tag = client.restag;
-            if (tag == 0 && rpe != CATCHUP)
-            {
-                //out() << "received notification of SDK initiated operation " << rpe << " tag " << tag << endl; // too many of those to output
-                return;
-            }
-
-            if (tag < (2 << 30))
-            {
-                out() << "ignoring callback from SDK internal sync operation " << rpe << " tag " << tag << endl;
-                return;
-            }
-
-            lock_guard<recursive_mutex> g(mtx);
-            auto& entry = m[rpe];
-
-            if (rpe == CATCHUP)
-            {
-                while (!entry.empty())
-                {
-                    entry.front().f(e);
-                    entry.pop_front();
-                }
-                return;
-            }
-
-            if (entry.empty())
-            {
-                out() << "received notification of operation type " << rpe << " completion but we don't have a record of it.  tag: " << tag << endl;
-                return;
-            }
-
-            if (tag != entry.front().request_tag)
-            {
-                out() << "tag mismatch for operation completion of " << rpe << " tag " << tag << ", we expected " << entry.front().request_tag << endl;
-                return;
-            }
-
-            if (entry.front().f(e))
-            {
-                entry.pop_front();
-            }
-        }
-    } resultproc;
-
-   void catchup(promise<bool>& pb)
+    void catchup(promise<bool>& pb)
     {
         resultproc.prepresult(CATCHUP, ++next_request_tag,
             [&](){
@@ -1596,7 +1595,7 @@ struct StandardClient : public MegaApp
         resultproc.processresult(MOVENODE, e, h);
     }
 
-    void deleteremote(string path, promise<bool>& pb, int tag)
+    void deleteremote(string path, promise<bool>& pb)
     {
         if (Node* n = drillchildnodebyname(gettestbasenode(), path))
         {
@@ -1611,7 +1610,7 @@ struct StandardClient : public MegaApp
         }
     }
 
-    void deleteremotenodes(vector<Node*> ns, promise<bool>& pb, int tag)
+    void deleteremotenodes(vector<Node*> ns, promise<bool>& pb)
     {
         if (ns.empty())
         {
@@ -2288,7 +2287,7 @@ GTEST_TEST(Sync, BasicSync_DelRemoteFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 
     // delete something remotely and let sync catch up
-    future<bool> fb = clientA1.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.deleteremote("f/f_2/f_2_1", pb, 0); });
+    future<bool> fb = clientA1.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.deleteremote("f/f_2/f_2_1", pb); });
     ASSERT_TRUE(waitonresults(&fb));
     waitonsyncs(std::chrono::seconds(60), &clientA1, &clientA2);
 
@@ -2961,7 +2960,7 @@ GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteCh
     ASSERT_TRUE(waitonresults(&p1));
 
     out() << "*********************  remove remote folders via A2" << endl;
-    p1 = clientA2.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.deleteremote("f/f_0", pb, 0); });
+    p1 = clientA2.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.deleteremote("f/f_0", pb); });
     model1.movetosynctrash("f/f_0", "f");
     model2.movetosynctrash("f/f_0", "f");
     ASSERT_TRUE(waitonresults(&p1));
@@ -3024,7 +3023,7 @@ GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
     pclientA1->localLogout();
 
     // remove remote folder via A2
-    future<bool> p1 = clientA2.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.deleteremote("f/f_1", pb, 0); });
+    future<bool> p1 = clientA2.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.deleteremote("f/f_1", pb); });
     ASSERT_TRUE(waitonresults(&p1));
 
     // add local folders in A1 on disk folder
@@ -3061,7 +3060,7 @@ GTEST_TEST(Sync, CmdChecks_RRAttributeAfterMoveNode)
 
     // make sure there are no 'f' in the rubbish
     auto fv = pclientA1->drillchildnodesbyname(pclientA1->getcloudrubbishnode(), "f");
-    future<bool> fb = pclientA1->thread_do([&fv](StandardClient& sc, promise<bool>& pb) { sc.deleteremotenodes(fv, pb, 0); });
+    future<bool> fb = pclientA1->thread_do([&fv](StandardClient& sc, promise<bool>& pb) { sc.deleteremotenodes(fv, pb); });
     ASSERT_TRUE(waitonresults(&fb));
 
     f = pclientA1->drillchildnodebyname(pclientA1->getcloudrubbishnode(), "f");
@@ -4053,7 +4052,7 @@ struct TwoWaySyncSymmetryCase
     {
         prefix += string("/") + n->name;
         out() << prefix << endl;
-        if (n->type == FILENODE) return;
+        if (n->type == Model::ModelNode::file) return;
         for (auto& c : n->kids)
         {
             PrintModelTree(c.get(), prefix);

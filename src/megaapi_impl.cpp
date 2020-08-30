@@ -2,7 +2,7 @@
  * @file megaapi_impl.cpp
  * @brief Private implementation of the intermediate layer for the MEGA C++ SDK.
  *
- * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
+ * (c) 2013-2020 by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -42,6 +42,7 @@
     #define _LARGEFILE64_SOURCE
 #endif
 #include <signal.h>
+#include <sys/resource.h>
 #endif
 
 
@@ -7487,6 +7488,30 @@ bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &
     bool isPdf = name.find(".pdf") != string::npos;
 
     return canForceUpload && (isMedia || isPdf) && !(hasPreview && hasThumbnail);
+}
+
+void MegaApiImpl::platformSetRLimitNumFile(int newNumFileLimit) const
+{
+#ifndef WIN32
+    struct rlimit rl{0,0};
+    if (0 < getrlimit(RLIMIT_NOFILE, &rl))
+    {
+        auto e = errno;
+        LOG_err << "Error calling getrlimit: " << e;
+    }
+    else
+    {
+        LOG_info << "rlimit for NOFILE before change is: " << rl.rlim_cur << ", " << rl.rlim_max;
+        rl.rlim_cur = rlim_t(newNumFileLimit);
+        if (0 < setrlimit(RLIMIT_NOFILE, &rl))
+        {
+            auto e = errno;
+            LOG_err << "Error calling setrlimit: " << e;
+        }
+    }
+#else
+    LOG_err << "Code for calling setrlimit is not available yet (or not relevant) on this platform";
+#endif
 }
 
 void MegaApiImpl::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)

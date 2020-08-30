@@ -2138,6 +2138,8 @@ class MegaApiImpl : public MegaApp
 
         void setLoggingName(const char* loggingName);
 
+        void platformSetRLimitNumFile(int newNumFileLimit) const;
+
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         bool createLocalFolder(const char *path);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
