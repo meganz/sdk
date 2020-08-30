@@ -19,6 +19,7 @@
 #pragma once
 
 #include <mega/filesystem.h>
+#include <megaapi.h>
 
 #include "NotImplemented.h"
 
@@ -32,7 +33,10 @@ public:
         notifyerr = false;
         notifyfailed = true;
 #if defined(_WIN32)
-        localseparator = L"\\";
+        std::string utf16str;
+        mega::MegaApi::utf8ToUtf16(separator.data(), &utf16str);
+        localseparator.resize(utf16str.size() / 2);
+        memcpy(localseparator.data(), utf16str.data(), utf16str.size());
 #else
         localseparator = separator;
 #endif

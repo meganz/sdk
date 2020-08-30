@@ -295,10 +295,22 @@ int computeReversePathMatchScore(string& accumulated,
                                  const string& path2,
                                  const string& sep)
 {
+#if defined(_WIN32)
+    mega::WinFileSystemAccess wfa;
+    auto localpath1 = LocalPath::fromPath(path1, wfa);
+    auto localpath2 = LocalPath::fromPath(path2, wfa);
+
     return mega::computeReversePathMatchScore(accumulated,
-                                              LocalPath::fromLocalname(path1),
-                                              LocalPath::fromLocalname(path2),
+                                              localpath1,
+                                              localpath2,
                                               mt::DefaultedFileSystemAccess(sep));
+#else
+    return mega::computeReversePathMatchScore(accumulated,
+        LocalPath::fromLocalname(path1),
+        LocalPath::fromLocalname(path2),
+        mt::DefaultedFileSystemAccess(sep));
+
+#endif
 }
 
 void test_computeReversePathMatchScore(const string &sep)

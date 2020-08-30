@@ -397,8 +397,8 @@ size_t assignFilesystemIdsImpl(const FingerprintCache& fingerprints, Fingerprint
 int computeReversePathMatchScore(string& accumulated, const LocalPath& path1Arg, const LocalPath& path2Arg, const FileSystemAccess& fsaccess)
 {
 #if defined(_WIN32)
-    const std::string path1 = path1Arg.toPath(fsaccess);
-    const std::string path2 = path2Arg.toPath(fsaccess);
+    const std::string& path1 = path1Arg.toPath(fsaccess);
+    const std::string& path2 = path2Arg.toPath(fsaccess);
 #else 
     const string& path1 = path1Arg.getLocalpath();
     const string& path2 = path2Arg.getLocalpath();
