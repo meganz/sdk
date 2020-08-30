@@ -4052,7 +4052,7 @@ struct TwoWaySyncSymmetryCase
     {
         prefix += string("/") + n->name;
         out() << prefix << endl;
-        if (n->type == FILENODE) return;
+        if (n->type == Model::ModelNode::file) return;
         for (auto& c : n->kids)
         {
             PrintModelTree(c.get(), prefix);
