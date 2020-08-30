@@ -157,7 +157,7 @@ FileSystemType FileSystemAccess::getlocalfstype(const LocalPath& dstPath) const
     std::wstring volMountPoint;
     volMountPoint.resize(MAX_PATH);
     DWORD mountLen = static_cast<DWORD>(volMountPoint.size());
-    if (!(GetVolumePathNameW(tmpPath.localpath.c_str(), &volMountPoint[0], mountLen)))
+    if (!(GetVolumePathNameW(tmpPath.getLocalpath().c_str(), &volMountPoint[0], mountLen)))
     {
         return FS_UNKNOWN;
     }
@@ -527,8 +527,8 @@ AsyncIOContext *FileAccess::asyncfopen(LocalPath& f)
     context->access = AsyncIOContext::ACCESS_READ;
 
 #if defined(_WIN32)
-    context->wbuffer = const_cast<wchar_t*>(f.localpath.c_str());
-    context->len = static_cast<unsigned>(f.localpath.size());
+    context->wbuffer = const_cast<wchar_t*>(f.getLocalpath().c_str());
+    context->len = static_cast<unsigned>(f.getLocalpath().size());
 #else
     context->buffer = (byte*)f.editStringDirect()->data();
     context->len = static_cast<unsigned>(f.editStringDirect()->size());
@@ -611,8 +611,8 @@ AsyncIOContext *FileAccess::asyncfopen(LocalPath& f, bool read, bool write, m_of
             | (write ? AsyncIOContext::ACCESS_WRITE : 0);
 
 #if defined(_WIN32)
-    context->wbuffer = const_cast<wchar_t*>(f.localpath.c_str());
-    context->len = static_cast<unsigned>(f.localpath.size());
+    context->wbuffer = const_cast<wchar_t*>(f.getLocalpath().c_str());
+    context->len = static_cast<unsigned>(f.getLocalpath().size());
 #else
     context->buffer = (byte*)f.editStringDirect()->data();
     context->len = static_cast<unsigned>(f.editStringDirect()->size());

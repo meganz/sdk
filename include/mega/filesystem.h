@@ -146,8 +146,6 @@ class MEGA_API LocalPath
 #endif
 
     friend class ScopedLengthRestore;
-    friend struct FileAccess;
-    friend struct FileSystemAccess;
     friend class WinFileSystemAccess;
     friend struct WinDirAccess;
     friend struct WinDirNotify;

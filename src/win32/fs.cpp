@@ -1664,7 +1664,7 @@ bool WinDirAccess::dopen(LocalPath* nameArg, FileAccess* f, bool glob)
         std::wstring name = nameArg->localpath;
         if (!glob)
         {
-            name.append(L"\\*", 3);
+            name.append(L"\\*");
         }
 
 #ifdef WINDOWS_PHONE
