@@ -223,7 +223,7 @@ std::string logTime()
     return ts;
 }
 
-std::map<int, std::string> gSessionIDs;
+std::map<size_t, std::string> gSessionIDs;
 
 void SdkTest::SetUp()
 {
@@ -235,7 +235,7 @@ void SdkTest::TearDown()
     out() << logTime() << "Test done, teardown starts" << endl;
     // do some cleanup
 
-    for (int i = 0; i < gSessionIDs.size(); ++i)
+    for (size_t i = 0; i < gSessionIDs.size(); ++i)
     {
         if (gResumeSessions && megaApi[i] && gSessionIDs[i].empty())
         {
