@@ -983,7 +983,7 @@ void WinFileSystemAccess::emptydirlocal(LocalPath& namePath, dev_t basedev)
 
 bool WinFileSystemAccess::mkdirlocal(LocalPath& namePath, bool hidden)
 {
-    std::wstring name = namePath.localpath;
+    const std::wstring& name = namePath.localpath;
 
     bool r = !!CreateDirectoryW(name.data(), NULL);
 

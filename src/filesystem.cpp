@@ -1062,8 +1062,7 @@ string LocalPath::toPath(const FileSystemAccess& fsaccess) const
 string LocalPath::toName(const FileSystemAccess& fsaccess, FileSystemType fsType) const
 {
 #if defined(_WIN32)
-    std::string path = fsaccess.local2name(localpath, fsType);
-    return path;
+    return fsaccess.local2name(localpath, fsType);
 #else
     string name = localpath;
     fsaccess.local2name(&name, fsType);
