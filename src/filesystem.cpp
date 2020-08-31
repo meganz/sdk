@@ -392,7 +392,7 @@ void DirNotify::setFailed(int errCode, const string& reason)
 
 int DirNotify::getFailed(string& reason)
 {
-    if (mFailed) 
+    if (mFailed)
     {
         reason = mFailReason;
     }
@@ -403,7 +403,7 @@ int DirNotify::getFailed(string& reason)
 // notify base LocalNode + relative path/filename
 void DirNotify::notify(notifyqueue q, LocalNode* l, LocalPath&& path, bool immediate)
 {
-    // We may be executing on a thread here so we can't access the LocalNode data structures.  Queue everything, and   
+    // We may be executing on a thread here so we can't access the LocalNode data structures.  Queue everything, and
     // filter when the notifications are processed.  Also, queueing it here is faster than logging the decision anyway.
 
     Notification n;
@@ -864,7 +864,7 @@ void LocalPath::prependWithSeparator(const LocalPath& additionalPath, const stri
     if (localpath.size() >= localseparator.size() && memcmp(localpath.data(), localseparator.data(), localseparator.size()))
     {
         // no additional separator if there is already one before
-        if (additionalPath.editStringDirect()->size() < localseparator.size() || 
+        if (additionalPath.editStringDirect()->size() < localseparator.size() ||
             memcmp(additionalPath.editStringDirect()->data() + additionalPath.editStringDirect()->size() - localseparator.size(), localseparator.data(), localseparator.size()))
         {
             localpath.insert(0, localseparator);
@@ -908,7 +908,7 @@ bool LocalPath::findPrevSeparator(size_t& separatorBytePos, const FileSystemAcce
         if (separatorBytePos == string::npos) return false;
         if (separatorBytePos % fsaccess.localseparator.size() == 0) return true;
         separatorBytePos--;
-    } 
+    }
 }
 
 bool LocalPath::endsInSeparator(const FileSystemAccess& fsaccess) const
@@ -923,7 +923,7 @@ size_t LocalPath::getLeafnameByteIndex(const FileSystemAccess& fsaccess) const
 {
     // todo: take utf8 two byte characters into account
     size_t p = localpath.size();
-    p -= fsaccess.localseparator.size() % 2; // just in case on windows
+    p -= localpath.size() % fsaccess.localseparator.size(); // just in case on windows
     while (p && (p -= fsaccess.localseparator.size()))
     {
         if (!memcmp(localpath.data() + p, fsaccess.localseparator.data(), fsaccess.localseparator.size()))
@@ -1006,7 +1006,7 @@ LocalPath LocalPath::tmpNameLocal(const FileSystemAccess& fsaccess)
 
 bool LocalPath::isContainingPathOf(const LocalPath& path, const FileSystemAccess& fsaccess)
 {
-    return path.localpath.size() >= localpath.size() 
+    return path.localpath.size() >= localpath.size()
         && !memcmp(path.localpath.data(), localpath.data(), localpath.size())
         && (path.localpath.size() == localpath.size() ||
            !memcmp(path.localpath.data() + localpath.size(), fsaccess.localseparator.data(), fsaccess.localseparator.size()) ||
