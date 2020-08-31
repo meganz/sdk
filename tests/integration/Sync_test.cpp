@@ -2139,7 +2139,7 @@ fs::path makeNewTestRoot(fs::path p)
     #ifndef NDEBUG
     bool b =
     #endif
-    fs::create_directory(p);
+    fs::create_directories(p);
     assert(b);
     return p;
 }
