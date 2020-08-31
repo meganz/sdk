@@ -68,16 +68,11 @@ bool File::serialize(string *d)
     d->append((char*)&ll, sizeof(ll));
     d->append(name.data(), ll);
 
-#if defined(_WIN32)
     auto tmpstr = localname.clientAppEncoded();
     ll = (unsigned short)tmpstr.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(tmpstr.data(), ll);
-#else
-    ll = (unsigned short)localname.getLocalpath().size();
-    d->append((char*)&ll, sizeof(ll));
-    d->append(localname.getLocalpath().data(), ll);
-#endif
+
     ll = (unsigned short)targetuser.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(targetuser.data(), ll);
