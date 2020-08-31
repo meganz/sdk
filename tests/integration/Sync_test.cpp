@@ -594,14 +594,22 @@ struct StandardClient : public MegaApp
     // thread as last member so everything else is initialised before we start it
     std::thread clientthread;
 
-    fs::path ensureDir(const fs::path& p)
+    string ensureDir(const fs::path& p)
     {
         fs::create_directories(p);
-        return p;
+
+        string result = p.u8string();
+
+        if (result.back() != fs::path::preferred_separator)
+        {
+            result += fs::path::preferred_separator;
+        }
+
+        return result;
     }
 
     StandardClient(const fs::path& basepath, const string& name)
-        : client_dbaccess_path(ensureDir(basepath / name / "").u8string())
+        : client_dbaccess_path(ensureDir(basepath / name))
         , httpio(new HTTPIO_CLASS)
         , fsaccess(new FSACCESS_CLASS)
         , client(this, &waiter, httpio.get(), fsaccess.get(),
