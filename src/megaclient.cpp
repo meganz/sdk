@@ -1212,6 +1212,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     syncadding = 0;
     currsyncid = 0;
     totalLocalNodes = 0;
+    mKeepSyncsAfterLogout = false;
 #endif
 
     pendingcs = NULL;
@@ -4103,6 +4104,19 @@ void MegaClient::locallogout(bool removecaches)
 
     if (removecaches)
     {
+        if (mKeepSyncsAfterLogout)
+        {
+            //disableSyncs in a temporarily state: so that they will be resumed when relogin
+            disableSyncs(LOGGED_OUT);
+        }
+        else
+        {
+            for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+            {
+                delsync(*it);
+            }
+        }
+
         removeCaches();
     }
 
@@ -4276,7 +4290,7 @@ void MegaClient::removeCaches()
             (*it)->statecachetable = NULL;
         }
     }
-    if (syncConfigs)
+    if (syncConfigs && !mKeepSyncsAfterLogout)
     {
         syncConfigs->clear();
     }
@@ -12509,6 +12523,16 @@ void MegaClient::preadabort(Node* n, m_off_t offset, m_off_t count)
 void MegaClient::preadabort(handle ph, m_off_t offset, m_off_t count)
 {
     abortreads(ph, false, offset, count);
+}
+
+bool MegaClient::getKeepSyncsAfterLogout() const
+{
+    return mKeepSyncsAfterLogout;
+}
+
+void MegaClient::setKeepSyncsAfterLogout(bool keepSyncsAfterLogout)
+{
+    mKeepSyncsAfterLogout = keepSyncsAfterLogout;
 }
 
 void MegaClient::abortreads(handle h, bool p, m_off_t offset, m_off_t count)

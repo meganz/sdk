@@ -8525,6 +8525,11 @@ void MegaApiImpl::copyCachedStatus(int storageStatus, int blockStatus, int busin
     waiter->notify();
 }
 
+void MegaApiImpl::setKeepSyncsAfterLogout(bool enable)
+{
+    client->setKeepSyncsAfterLogout(enable);
+}
+
 void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
@@ -13142,7 +13147,8 @@ void MegaApiImpl::sync_auto_resume_result(const SyncConfig &config, const syncst
     sync->setError(syncError);
 
     bool failedToResume = config.isResumableAtStartup() && !sync->isActive(); //the sync could not be resumed
-    bool wasEnabled = config.getEnabled();
+    bool attemptedReenabling = config.isResumableAtStartup() && config.hasError();
+
 
     auto existingpair = syncMap.find(config.getTag());
     if (existingpair !=  syncMap.end())
@@ -13155,7 +13161,7 @@ void MegaApiImpl::sync_auto_resume_result(const SyncConfig &config, const syncst
     }
     syncMap[config.getTag()] = sync;
 
-    if (!wasEnabled && config.isResumableAtStartup()) //attempted to re-enable
+    if (attemptedReenabling && config.isResumableAtStartup()) //attempted to re-enable
     {
         fireOnSyncAdded(sync, failedToResume ? MegaSync::REENABLED_FAILED : MegaSync::FROM_CACHE_REENABLED);
     }

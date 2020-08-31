@@ -503,6 +503,9 @@ public:
     // A collection of sync configs backed by a database table
     std::unique_ptr<SyncConfigBag> syncConfigs;
 
+    // keep sync configuration after logout
+    bool mKeepSyncsAfterLogout = false;
+
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
@@ -1787,6 +1790,8 @@ public:
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
+    bool getKeepSyncsAfterLogout() const;
+    void setKeepSyncsAfterLogout(bool keepSyncsAfterLogout);
 };
 } // namespace
 

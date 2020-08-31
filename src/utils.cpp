@@ -2253,8 +2253,14 @@ bool SyncConfig::isResumable() const
 bool SyncConfig::isResumableAtStartup() const
 {
     return mEnabled && (!isAnError(mError)
+                        || mError == LOGGED_OUT
                         || mError == UNKNOWN_TEMPORARY_ERROR
                         || mError == FOREIGN_TARGET_OVERSTORAGE); //temporary errors that don't have an asociated restore functionality
+}
+
+bool SyncConfig::hasError() const
+{
+    return isAnError(mError);
 }
 
 const std::string& SyncConfig::getLocalPath() const
@@ -2266,7 +2272,6 @@ const std::string& SyncConfig::getName() const
 {
     return mName;
 }
-
 
 handle SyncConfig::getRemoteNode() const
 {
