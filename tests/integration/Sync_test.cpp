@@ -192,6 +192,25 @@ void WaitMillisec(unsigned n)
     usleep(n * 1000);
 #endif
 }
+
+bool createFile(const fs::path &path, const void *data, const size_t data_length)
+{
+#if (__cplusplus >= 201700L)
+    ofstream ostream(path, ios::binary);
+#else
+    ofstream ostream(path.u8string(), ios::binary);
+#endif
+
+    ostream.write(reinterpret_cast<const char *>(data), data_length);
+
+    return ostream.good();
+}
+
+bool createDataFile(const fs::path &path, const std::string &data)
+{
+    return createFile(path, data.data(), data.size());
+}
+
 struct Model
 {
     // records what we think the tree should look like after sync so we can confirm it
@@ -204,6 +223,46 @@ struct Model
         string content;
         vector<unique_ptr<ModelNode>> kids;
         ModelNode* parent = nullptr;
+        bool changed = false;
+
+        ModelNode() = default;
+
+        ModelNode(const ModelNode& other)
+          : type(other.type)
+          , name(other.name)
+          , content(other.content)
+          , kids()
+          , parent()
+          , changed(other.changed)
+        {
+            for (auto& child : other.kids)
+            {
+                addkid(child->clone());
+            }
+        }
+
+        void generate(const fs::path& path)
+        {
+            const fs::path ourPath = path / name;
+
+            if (type == file)
+            {
+                if (changed)
+                {
+                    ASSERT_TRUE(createDataFile(ourPath, content));
+                    changed = false;
+                }
+            }
+            else
+            {
+                fs::create_directory(ourPath);
+
+                for (auto& child : kids)
+                {
+                    child->generate(ourPath);
+                }
+            }
+        }
 
         string path()
         {
@@ -212,11 +271,20 @@ struct Model
                 s = "/" + p->name + s;
             return s;
         }
-        void addkid(unique_ptr<ModelNode>&& p)
+
+        ModelNode* addkid()
+        {
+            return addkid(::mega::make_unique<ModelNode>());
+        }
+
+        ModelNode* addkid(unique_ptr<ModelNode>&& p)
         {
             p->parent = this;
             kids.emplace_back(move(p));
+
+            return kids.back().get();
         }
+
         bool typematchesnodetype(nodetype_t nodetype)
         {
             switch (type)
@@ -226,6 +294,7 @@ struct Model
             }
             return false;
         }
+
         void print(string prefix="")
         {
             out() << prefix << name << endl;
@@ -235,16 +304,117 @@ struct Model
                 in->print(prefix);
             }
         }
+
         std::unique_ptr<ModelNode> clone()
         {
-            auto result = ::mega::make_unique<ModelNode>();
-            result->name = name;
-            result->type = type;
-            result->content = content;
-            for (auto& k : kids) result->addkid(k->clone());
-            return result;
+            return ::mega::make_unique<ModelNode>(*this);
         }
     };
+
+    Model()
+      : root(makeModelSubfolder("root"))
+    {
+    }
+
+    Model(const Model& other)
+      : root(other.root->clone())
+    {
+    }
+
+    Model& operator=(const Model& rhs)
+    {
+        Model temp(rhs);
+
+        swap(temp);
+
+        return *this;
+    }
+
+    ModelNode* addfile(const string& path, const string& content)
+    {
+        auto* node = addnode(path, ModelNode::file);
+
+        node->content = content;
+        node->changed = true;
+
+        return node;
+    }
+
+    ModelNode* addfile(const string& path)
+    {
+        return addfile(path, path);
+    }
+
+    ModelNode* addfolder(const string& path)
+    {
+        return addnode(path, ModelNode::folder);
+    }
+
+    ModelNode* addnode(const string& path, ModelNode::nodetype type)
+    {
+        ModelNode* child;
+        ModelNode* node = root.get();
+        string name;
+        size_t current = 0;
+        size_t end = path.size();
+
+        while (current < end)
+        {
+            size_t delimiter = path.find('/', current);
+
+            if (delimiter == path.npos)
+            {
+                break;
+            }
+
+            name = path.substr(current, delimiter - current);
+
+            if (!(child = childnodebyname(node, name)))
+            {
+                child = node->addkid();
+
+                child->name = name;
+                child->type = ModelNode::folder;
+            }
+
+            assert(child->type == ModelNode::folder);
+
+            current = delimiter + 1;
+            node = child;
+        }
+
+        assert(current < end);
+
+        name = path.substr(current);
+
+        if (!(child = childnodebyname(node, name)))
+        {
+            child = node->addkid();
+
+            child->name = name;
+            child->type = type;
+        }
+
+        assert(child->type == type);
+
+        return child;
+    }
+
+    ModelNode* copynode(const string& src, const string& dst)
+    {
+        const ModelNode* source = findnode(src);
+        ModelNode* destination = addnode(dst, source->type);
+
+        destination->content = source->content;
+        destination->kids.clear();
+
+        for (auto& child : source->kids)
+        {
+            destination->addkid(child->clone());
+        }
+
+        return destination;
+    }
 
     unique_ptr<ModelNode> makeModelSubfolder(const string& utf8Name)
     {
@@ -465,8 +635,21 @@ struct Model
        // ASSERT_TRUE(!!removed);
     }
 
-    Model() : root(makeModelSubfolder("root"))
+    void generate(const fs::path& path)
     {
+        fs::create_directories(path);
+
+        for (auto& child : root->kids)
+        {
+            child->generate(path);
+        }
+    }
+
+    void swap(Model& other)
+    {
+        using std::swap;
+
+        swap(root, other.root);
     }
 
     unique_ptr<ModelNode> root;
@@ -594,14 +777,22 @@ struct StandardClient : public MegaApp
     // thread as last member so everything else is initialised before we start it
     std::thread clientthread;
 
-    fs::path ensureDir(const fs::path& p)
+    string ensureDir(const fs::path& p)
     {
         fs::create_directories(p);
-        return p;
+
+        string result = p.u8string();
+
+        if (result.back() != fs::path::preferred_separator)
+        {
+            result += fs::path::preferred_separator;
+        }
+
+        return result;
     }
 
     StandardClient(const fs::path& basepath, const string& name)
-        : client_dbaccess_path(ensureDir(basepath / name / "").u8string())
+        : client_dbaccess_path(ensureDir(basepath / name))
         , httpio(new HTTPIO_CLASS)
         , fsaccess(new FSACCESS_CLASS)
         , client(this, &waiter, httpio.get(), fsaccess.get(),
@@ -1511,7 +1702,7 @@ struct StandardClient : public MegaApp
         CONFIRM_ALL = CONFIRM_LOCAL | CONFIRM_REMOTE,
     };
 
-    bool confirmModel(int syncid, Model::ModelNode* mnode, const Confirm confirm, const bool ignoreDebris)
+    bool confirmModel(int syncid, Model::ModelNode* mnode, const int confirm, const bool ignoreDebris)
     {
         auto si = syncSet.find(syncid);
         if (si == syncSet.end())
@@ -1841,7 +2032,7 @@ struct StandardClient : public MegaApp
         return fb.get();
     }
 
-    bool confirmModel_mainthread(Model::ModelNode* mnode, int syncid, const bool ignoreDebris = false, const Confirm confirm = CONFIRM_ALL)
+    bool confirmModel_mainthread(Model::ModelNode* mnode, int syncid, const bool ignoreDebris = false, const int confirm = CONFIRM_ALL)
     {
         future<bool> fb;
         fb = thread_do([syncid, mnode, ignoreDebris, confirm](StandardClient& sc, promise<bool>& pb) { pb.set_value(sc.confirmModel(syncid, mnode, confirm, ignoreDebris)); });
@@ -1948,30 +2139,12 @@ fs::path makeNewTestRoot(fs::path p)
     #ifndef NDEBUG
     bool b =
     #endif
-    fs::create_directory(p);
+    fs::create_directories(p);
     assert(b);
     return p;
 }
 
 //std::atomic<int> fileSizeCount = 20;
-
-bool createFile(const fs::path &path, const void *data, const size_t data_length)
-{
-#if (__cplusplus >= 201700L)
-    ofstream ostream(path, ios::binary);
-#else
-    ofstream ostream(path.u8string(), ios::binary);
-#endif
-
-    ostream.write(reinterpret_cast<const char *>(data), data_length);
-
-    return ostream.good();
-}
-
-bool createDataFile(const fs::path &path, const std::string &data)
-{
-    return createFile(path, data.data(), data.size());
-}
 
 bool createNameFile(const fs::path &p, const string &filename)
 {
