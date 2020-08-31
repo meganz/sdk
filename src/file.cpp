@@ -69,7 +69,7 @@ bool File::serialize(string *d)
     d->append(name.data(), ll);
 
 #if defined(_WIN32)
-    const auto& tmpstr = localname.clientAppEncoded();
+    auto tmpstr = localname.clientAppEncoded();
     ll = (unsigned short)tmpstr.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(tmpstr.data(), ll);
