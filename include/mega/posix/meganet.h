@@ -199,16 +199,16 @@ public:
     void disconnect() override;
 
     // set max download speed
-    virtual bool setmaxdownloadspeed(m_off_t bpslimit) override;
+    bool setmaxdownloadspeed(m_off_t bpslimit) override;
 
     // set max upload speed
-    virtual bool setmaxuploadspeed(m_off_t bpslimit) override;
+    bool setmaxuploadspeed(m_off_t bpslimit) override;
 
     // get max download speed
-    virtual m_off_t getmaxdownloadspeed() override;
+    m_off_t getmaxdownloadspeed() override;
 
     // get max upload speed
-    virtual m_off_t getmaxuploadspeed() override;
+    m_off_t getmaxuploadspeed() override;
 
     CurlHttpIO();
     ~CurlHttpIO();
