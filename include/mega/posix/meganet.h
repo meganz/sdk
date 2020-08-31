@@ -183,32 +183,32 @@ protected:
     m_time_t arestimeout;
 
 public:
-    void post(HttpReq*, const char* = 0, unsigned = 0);
-    void cancel(HttpReq*);
+    void post(HttpReq*, const char* = 0, unsigned = 0) override;
+    void cancel(HttpReq*) override;
 
-    m_off_t postpos(void*);
+    m_off_t postpos(void*) override;
 
-    bool doio(void);
+    bool doio(void) override;
     bool multidoio(CURLM *curlmhandle);
 
-    void addevents(Waiter*, int);
+    void addevents(Waiter*, int) override;
 
-    void setuseragent(string*);
+    void setuseragent(string*) override;
     void setproxy(Proxy*);
     void setdnsservers(const char*);
-    void disconnect();
+    void disconnect() override;
 
     // set max download speed
-    virtual bool setmaxdownloadspeed(m_off_t bpslimit);
+    virtual bool setmaxdownloadspeed(m_off_t bpslimit) override;
 
     // set max upload speed
-    virtual bool setmaxuploadspeed(m_off_t bpslimit);
+    virtual bool setmaxuploadspeed(m_off_t bpslimit) override;
 
     // get max download speed
-    virtual m_off_t getmaxdownloadspeed();
+    virtual m_off_t getmaxdownloadspeed() override;
 
     // get max upload speed
-    virtual m_off_t getmaxuploadspeed();
+    virtual m_off_t getmaxuploadspeed() override;
 
     CurlHttpIO();
     ~CurlHttpIO();

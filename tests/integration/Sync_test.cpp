@@ -237,7 +237,7 @@ struct Model
         }
         std::unique_ptr<ModelNode> clone()
         {
-            auto result = std::make_unique<ModelNode>();
+            auto result = ::mega::make_unique<ModelNode>();
             result->name = name;
             result->type = type;
             result->content = content;
@@ -793,7 +793,7 @@ struct StandardClient : public MegaApp
 
         resultproc.prepresult(PRELOGIN, ++next_request_tag,
             [&](){ client.prelogin(user.c_str()); },
-            [this, &pb](error e) { pb.set_value(!e); return true; });
+            [&pb](error e) { pb.set_value(!e); return true; });
 
     }
 
@@ -829,7 +829,7 @@ struct StandardClient : public MegaApp
                     ASSERT_TRUE(false) << "Login unexpected error";
                 }
             },
-            [this, &pb](error e) { pb.set_value(!e); return true; });
+            [&pb](error e) { pb.set_value(!e); return true; });
 
     }
 
@@ -837,7 +837,7 @@ struct StandardClient : public MegaApp
     {
         resultproc.prepresult(LOGIN, ++next_request_tag,
             [&](){ client.login((byte*)session.data(), (int)session.size()); },
-            [this, &pb](error e) { pb.set_value(!e);  return true; });
+            [&pb](error e) { pb.set_value(!e);  return true; });
     }
 
     void cloudCopyTreeAs(Node* n1, Node* n2, std::string newname, promise<bool>& pb)
@@ -861,7 +861,7 @@ struct StandardClient : public MegaApp
                 client.makeattr(&key, tc.nn[0].attrstring, attrstring.c_str());
                 client.putnodes(n2->nodehandle, move(tc.nn));
             },
-            [this, &pb](error e) {
+            [&pb](error e) {
                 pb.set_value(!e);
                 return true;
             });
@@ -893,7 +893,7 @@ struct StandardClient : public MegaApp
                 uploadFolderTree_recurse(UNDEF, h, p, newnodes);
                 client.putnodes(n2->nodehandle, move(newnodes));
             },
-            [this, &pb](error e) { pb.set_value(!e);  return true; });
+            [&pb](error e) { pb.set_value(!e);  return true; });
     }
 
     void uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer)
@@ -928,7 +928,7 @@ struct StandardClient : public MegaApp
                 DBTableTransactionCommitter committer(client.tctable);
                 uploadFilesInTree_recurse(n2, p, inprogress, committer);
             },
-            [this, &pb, &inprogress](error e)
+            [&pb, &inprogress](error e)
             {
                 if (!--inprogress)
                     pb.set_value(true);
@@ -996,7 +996,7 @@ struct StandardClient : public MegaApp
                     out() << "catchup not sent" << endl;
                 }
             },
-            [this, &pb](error e) {
+            [&pb](error e) {
                 if (e)
                 {
                     out() << "catchup reports: " << e << endl;
@@ -1119,7 +1119,7 @@ struct StandardClient : public MegaApp
 
             resultproc.prepresult(PUTNODES, ++next_request_tag,
                 [&](){ client.putnodes(atnode->nodehandle, move(nodearray)); },
-                [this, &pb](error e) {
+                                  [ &pb](error e) {
                 pb.set_value(!e);
                 if (e)
                 {
@@ -1602,7 +1602,7 @@ struct StandardClient : public MegaApp
             auto f = [&pb](handle h, error e){ pb.set_value(!e); }; // todo: probably need better lifetime management for the promise, so multiple things can be tracked at once
             resultproc.prepresult(UNLINK, ++next_request_tag,
                 [&](){ client.unlink(n, false, 0, f); },
-                [this, &pb](error e) { pb.set_value(!e); return true; });
+                                  [&pb](error e) { pb.set_value(!e); return true; });
         }
         else
         {
@@ -1622,7 +1622,7 @@ struct StandardClient : public MegaApp
             {
                 resultproc.prepresult(UNLINK, ++next_request_tag,
                     [&](){ client.unlink(ns[i], false, client.reqtag); },
-                    [this, &pb, i](error e) { if (!i) pb.set_value(!e); return true; });
+                    [&pb, i](error e) { if (!i) pb.set_value(!e); return true; });
             }
         }
     }
@@ -1635,7 +1635,7 @@ struct StandardClient : public MegaApp
         {
             resultproc.prepresult(MOVENODE, ++next_request_tag,
                 [&](){ client.rename(n, p); },
-                [this, &pb](error e) { pb.set_value(!e); return true; });
+                [&pb](error e) { pb.set_value(!e); return true; });
             return;
         }
         out() << "node or new parent not found" << endl;
@@ -1650,7 +1650,7 @@ struct StandardClient : public MegaApp
         {
             resultproc.prepresult(MOVENODE, ++next_request_tag,
                 [&](){ client.rename(n, p);},
-                [this, &pb](error e) { pb.set_value(!e); return true; });
+                [&pb](error e) { pb.set_value(!e); return true; });
             return;
         }
         out() << "node or new parent not found by handle" << endl;
@@ -1665,7 +1665,7 @@ struct StandardClient : public MegaApp
         {
             resultproc.prepresult(MOVENODE, ++next_request_tag,
                 [&](){ client.rename(n, p, SYNCDEL_NONE, n->parent->nodehandle); },
-                [this, &pb](error e) { pb.set_value(!e);  return true; });
+                [&pb](error e) { pb.set_value(!e);  return true; });
             return;
         }
         out() << "node or rubbish or node parent not found" << endl;
@@ -4327,9 +4327,9 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     assert(allstate.localBaseFolderResume == clientA1Resume.syncSet[2].localpath);
 
     out() << "Full-sync all test folders to the cloud for setup" << endl;
-    waitonsyncs(10s, &clientA1Steady, &clientA1Resume);
+    waitonsyncs(std::chrono::seconds(10), &clientA1Steady, &clientA1Resume);
     CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2);
-    waitonsyncs(20s, &clientA1Steady, &clientA1Resume);
+    waitonsyncs(std::chrono::seconds(20), &clientA1Steady, &clientA1Resume);
 
     out() << "Stopping full-sync" << endl;
     future<bool> fb1 = clientA1Steady.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.client.delsync(sc.syncByTag(1), true); pb.set_value(true); });
@@ -4343,7 +4343,7 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     }
 
     out() << "Letting all " << cases.size() << " Two-way syncs run" << endl;
-    waitonsyncs(10s, &clientA1Steady, &clientA1Resume);
+    waitonsyncs(std::chrono::seconds(10), &clientA1Steady, &clientA1Resume);
 
     CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2);
 
@@ -4363,7 +4363,7 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2);
 
     out() << "Letting all " << cases.size() << " Two-way syncs run" << endl;
-    waitonsyncs(15s, &clientA1Steady, &clientA1Resume, &clientA2);
+    waitonsyncs(std::chrono::seconds(15), &clientA1Steady, &clientA1Resume, &clientA2);
 
     out() << "Checking Two-way source is unchanged" << endl;
     for (auto& testcase : cases)
@@ -4396,7 +4396,7 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     {
         testcase.second.Modify(TwoWaySyncSymmetryCase::MainAction);
     }
-    waitonsyncs(15s, &clientA1Steady, &clientA2);   // leave out clientA1Resume as it's 'paused' (locallogout'd) for now
+    waitonsyncs(std::chrono::seconds(15), &clientA1Steady, &clientA2);   // leave out clientA1Resume as it's 'paused' (locallogout'd) for now
     CatchupClients(&clientA1Steady, &clientA2);
 
     // resume A1R session (with sync), see if A2 nodes and localnodes get in sync again
@@ -4434,7 +4434,7 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
 
     out() << "Letting all " << cases.size() << " Two-way syncs run" << endl;
 
-    waitonsyncs(15s, &clientA1Steady, &clientA1Resume, &clientA2);
+    waitonsyncs(std::chrono::seconds(15), &clientA1Steady, &clientA1Resume, &clientA2);
 
     CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2);
 
