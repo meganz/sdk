@@ -10408,6 +10408,11 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
     if (n->plink && !del && !n->plink->takendown
             && (ets == n->plink->ets) && !n->plink->isExpired())
     {
+        if (ststatus == STORAGE_PAYWALL)
+        {
+            LOG_warn << "Rejecting public link request when ODQ paywall";
+            return API_EPAYWALL;
+        }
         restag = reqtag;
         app->exportnode_result(n->nodehandle, n->plink->ph);
         return API_OK;
