@@ -118,11 +118,12 @@ void SockInfo::closeEvent(bool adjustSocket)
 {
     if (adjustSocket)
     {
-#ifdef DEBUG
-        int result =
-#endif
-        WSAEventSelect(fd, NULL, 0); // cancel association by specifying lNetworkEvents = 0
-        assert(result == 0);
+        int result = WSAEventSelect(fd, NULL, 0); // cancel association by specifying lNetworkEvents = 0
+        if (result)
+        {
+            auto err = WSAGetLastError();
+            LOG_err << "WSAEventSelect error: " << err;
+        }
     }
     associatedHandleEvents = 0;
     signalledWrite = false;
