@@ -2107,9 +2107,9 @@ void MegaClient::exec()
                     else if (e == API_ETOOMANY)
                     {
                         LOG_warn << "Too many pending updates - reloading local state";
-
+#ifdef ENABLE_SYNC
                         failSyncs(TOO_MANY_ACTION_PACKETS);
-
+#endif
                         int creqtag = reqtag;
                         reqtag = fetchnodestag; // associate with ongoing request, if any
                         fetchingnodes = false;
@@ -14933,6 +14933,7 @@ void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
 // pause/unpause transfers
 void MegaClient::pausexfers(direction_t d, bool pause, bool hard, DBTableTransactionCommitter& committer)
 {
+    bool changed{xferpaused[d] != pause};
     xferpaused[d] = pause;
 
     if (!pause || hard)
@@ -14961,6 +14962,11 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard, DBTableTransac
                 it++;
             }
         }
+    }
+
+    if (changed)
+    {
+        app->pause_state_changed();
     }
 }
 

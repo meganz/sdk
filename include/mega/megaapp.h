@@ -419,6 +419,8 @@ struct MEGA_API MegaApp
 
     virtual void heartbeat() { }
 
+    virtual void pause_state_changed() { }
+
     virtual ~MegaApp() { }
 };
 } // namespace

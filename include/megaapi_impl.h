@@ -3135,6 +3135,7 @@ protected:
         void backupputheartbeat_result(const Error&) override;
         void backupremove_result(const Error&, handle) override;
         void heartbeat() override;
+        void pause_state_changed() override;
 
 protected:
         // suggest reload due to possible race condition with other clients
