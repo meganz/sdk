@@ -52,7 +52,7 @@ struct Base64Str
     Base64Str(const byte* b)
     {
         #ifndef NDEBUG
-        int n = 
+        int n =
         #endif
         Base64::btoa(b, BINARYSIZE, chars);
         assert(static_cast<size_t>(n + 1) == sizeof(chars));

@@ -194,7 +194,7 @@ class SCSN
     // sc inconsistency: stop querying for action packets
     bool stopsc = false;
 
-public: 
+public:
 
     bool setScsn(JSON*);
     void setScsn(handle);
@@ -265,7 +265,7 @@ public:
 
     // the verified account phone number, filled in from 'ug'
     string mSmsVerifiedPhone;
-	
+
     // pseudo-random number generator
     PrnGen rng;
 
@@ -525,7 +525,7 @@ public:
 
     // queue file attribute retrieval
     error getfa(handle h, string *fileattrstring, const string &nodekey, fatype, int = 0);
-    
+
     // notify delayed upload completion subsystem about new file attribute
     void checkfacompletion(handle, Transfer* = NULL);
 
@@ -772,7 +772,7 @@ public:
 
     // use HTTPS for all communications
     bool usehttps;
-    
+
     // use an alternative port for downloads (8080)
     bool usealtdownport;
 
@@ -922,7 +922,7 @@ private:
 
     // a TransferSlot chunk failed
     bool chunkfailed;
-    
+
     // fetch state serialize from local cache
     bool fetchsc(DbTable*);
 
@@ -986,10 +986,10 @@ private:
     // encode/query handle type
     void encodehandletype(handle*, bool);
     bool isprivatehandle(handle*);
-    
+
     // add direct read
     void queueread(handle, bool, SymmCipher*, int64_t, m_off_t, m_off_t, void*, const char* = NULL, const char* = NULL, const char* = NULL);
-    
+
     // execute pending direct reads
     bool execdirectreads();
 
@@ -1022,7 +1022,7 @@ public:
 
     // enable / disable the gfx layer
     bool gfxdisabled;
-    
+
     // DB access
     DbAccess* dbaccess = nullptr;
 
@@ -1041,7 +1041,7 @@ public:
     // scsn as read from sctable
     handle cachedscsn;
 
-    // initial state load in progress?  initial state can come from the database cache or via an 'f' command to the API.  
+    // initial state load in progress?  initial state can come from the database cache or via an 'f' command to the API.
     // Either way there can still be a lot of historic actionpackets to follow since that snaphot, especially if the user has not been online for a long time.
     bool fetchingnodes;
     int fetchnodestag;
@@ -1060,7 +1060,7 @@ public:
     // reqs[r^1] is being processed on the API server
     HttpReq* pendingcs;
 
-    // Only queue the "Server busy" event once, until the current cs completes, otherwise we may DDOS 
+    // Only queue the "Server busy" event once, until the current cs completes, otherwise we may DDOS
     // ourselves in cases where many clients get 500s for a while and then recover at the same time
     bool pendingcs_serverBusySent = false;
 
@@ -1118,7 +1118,7 @@ public:
     fa_map pendingfa;
 
     // upload waiting for file attributes
-    handletransfer_map faputcompletion;    
+    handletransfer_map faputcompletion;
 
     // file attribute fetch channels
     fafc_map fafcs;
@@ -1128,7 +1128,7 @@ public:
 
     // active/pending direct reads
     handledrn_map hdrns;   // DirectReadNodes, main ownership.  One per file, each with one DirectRead per client request.
-    dsdrn_map dsdrns;      // indicates the time at which DRNs should be retried 
+    dsdrn_map dsdrns;      // indicates the time at which DRNs should be retried
     dr_list drq;           // DirectReads that are in DirectReadNodes which have fectched URLs
     drs_list drss;         // DirectReadSlot for each DR in drq, up to Max
 
@@ -1262,7 +1262,7 @@ public:
     // maps node handle to public handle
     std::map<handle, handle> mPublicLinks;
 
-#ifdef ENABLE_SYNC    
+#ifdef ENABLE_SYNC
     // sync debris folder name in //bin
     static const char* const SYNCDEBRISFOLDERNAME;
 
@@ -1356,7 +1356,7 @@ public:
     // unlink queued nodes directly (for inbound share syncing)
     void execsyncunlink();
     node_set tounlink;
-    
+
     // commit all queueud deletions
     void execsyncdeletions();
 
@@ -1667,7 +1667,7 @@ public:
 
     // whether the destructor has started running yet
     bool destructorRunning = false;
-  
+
     MegaClientAsyncQueue mAsyncQueue;
 
     // Keep track of high level operation counts and times, for performance analysis

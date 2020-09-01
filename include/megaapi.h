@@ -3545,7 +3545,7 @@ public:
      * @brief Returns a number relative to this event
      *
      * For event EVENT_STORAGE_SUM_CHANGED, this number is the new storage sum.
-     * 
+     *
      * @return Number relative to this event
      */
     virtual int64_t getNumber() const;
@@ -4216,7 +4216,7 @@ public:
 
     /**
      * @brief Returns whether Do-Not-Disturb mode for chats is enabled or not
-     
+
      * @return True if enabled, false otherwise
      */
     virtual bool isGlobalChatsDndEnabled() const;
@@ -6760,7 +6760,7 @@ public:
      * @brief Retrieves the value of the uploadURL once it has been successfully requested via MegaApi::backgroundMediaUploadRequestUploadURL
      *
      * You take ownership of the returned value.
-     * 
+     *
      * @return The URL to upload to (after appending the suffix), if one has been received. Otherwise NULL.
      */
     virtual char *getUploadURL();
@@ -6808,7 +6808,7 @@ public:
      * The object can then be recreated via MegaBackgroundMediaUpload::unserialize and supplying the returned string.
      *
      * You take ownership of the returned value.
-     * 
+     *
      * @return serialized version of this object (including URL, mediainfo attributes, and internal data suitable to resume uploading with in future)
      */
     virtual char *serialize();
@@ -7451,8 +7451,8 @@ class MegaApi
          * You take ownership of the pointer assigned to *binary.
          *
          * @param base64string The base 64 encoded string to decode.
-         * @param binary A pointer to a pointer to assign with a `new unsigned char[]` 
-         *        allocated buffer containing the decoded binary data.  
+         * @param binary A pointer to a pointer to assign with a `new unsigned char[]`
+         *        allocated buffer containing the decoded binary data.
          * @param size A pointer to a variable that will be assigned the size of the buffer allocated.
          */
         static void base64ToBinary(const char *base64string, unsigned char **binary, size_t* binarysize);
@@ -7605,7 +7605,7 @@ class MegaApi
          * and MegaApi::checkSMSVerificationCode.
          *
          * You take the ownership of the returned value.
-         * 
+         *
          * @return NULL if there is no verified number, otherwise a string containing that phone number.
          */
         char* smsVerifiedPhoneNumber();
@@ -9642,7 +9642,7 @@ class MegaApi
          * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
          */
         static char *getUserAvatarColor(const char *userhandle);
-    
+
         /**
          * @brief Get the secondary color for the avatar.
          *
@@ -9982,7 +9982,7 @@ class MegaApi
          * - MegaRequest::getMegaBackgroundMediaUploadPtr - Returns the background upload object
          * - MegaRequest::getFile - Returns the source path
          * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_THUMBNAIL
-         * 
+         *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - The handle of the uploaded file attribute.
@@ -10034,7 +10034,7 @@ class MegaApi
          * - MegaRequest::getMegaBackgroundMediaUploadPtr - Returns the background upload object
          * - MegaRequest::getFile - Returns the source path
          * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_THUMBNAIL
-         * 
+         *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - The handle of the uploaded file attribute.
@@ -10360,7 +10360,7 @@ class MegaApi
          *
          * The SDK keeps a running total of the sum of the sizes of all the files stored in the cloud.
          * This function retrieves that sum, via listener in order to avoid any blocking when called
-         * from a GUI thread. Provided the local state is caught up, the number will match the 
+         * from a GUI thread. Provided the local state is caught up, the number will match the
          * storageUsed from MegaApi::getAccountDetails which requests data from the servers, and is much
          * quicker to retrieve.
          *
@@ -11785,7 +11785,7 @@ class MegaApi
          * @brief Set the miniumum acceptable streaming speed for streaming transfers
          *
          * When streaming a file with startStreaming(), the SDK monitors the transfer rate.
-         * After a few seconds grace period, the monitoring starts. If the average rate is below 
+         * After a few seconds grace period, the monitoring starts. If the average rate is below
          * the minimum rate specified (determined by this function, or by default a reasonable rate
          * for audio/video, then the streaming operation will fail with MegaError::API_EAGAIN.
          *
@@ -16787,7 +16787,7 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getMegaAchievements(MegaRequestListener *listener = NULL);
-       
+
        /**
          * @brief Catch up with API for pending actionpackets
          *
@@ -16831,7 +16831,7 @@ class MegaApi
          * @param reverifying_whitelisted debug usage only.  May be removed in future.
          */
         void sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener = NULL, bool reverifying_whitelisted = false);
- 
+
         /**
          * @brief Check a verification code that the user should have received via txt
          *
@@ -16942,16 +16942,16 @@ class MegaApi
         /**
          * @brief Get an object that can lock the MegaApi, allowing multiple quick synchronous calls.
          *
-         * This object must be used very carefully.  It is meant to be used  when the application is about 
+         * This object must be used very carefully.  It is meant to be used  when the application is about
          * to make a burst of synchronous calls (that return data immediately, without using a listener)
          * to the API over a very short time period, which could otherwise be blocked multiple times
          * interrupted by the MegaApi's operation.
          *
          * The MegaApiLock usual use is to request it already locked, and the caller must destroy it
          * when its sequence of operations are complete, which will allow the MegaApi to continue again.
-         * However explicit lock and unlock calls can also be made on it, which are protected from 
+         * However explicit lock and unlock calls can also be made on it, which are protected from
          * making more than one lock, and the destructor will make sure the lock is released.
-         * 
+         *
          * You take ownership of the returned value, and you must delete it when the sequence is complete.
          */
         MegaApiLock* getMegaApiLock(bool lockNow);

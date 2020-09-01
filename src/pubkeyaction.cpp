@@ -25,8 +25,8 @@
 
 namespace mega {
 PubKeyAction::PubKeyAction()
-{ 
-    cmd = NULL; 
+{
+    cmd = NULL;
 }
 
 PubKeyActionPutNodes::PubKeyActionPutNodes(vector<NewNode>&& newnodes, int ctag)

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-/* 
+/*
  * File:   ccronexpr.h
  * Author: alex
  *
@@ -26,7 +26,7 @@
  * Additionally modifications can be seen in detail our public github repository.
  *
  * 2018/06/18: -  marked cron_next's first parameter as a const pointer, as the function does not change the object passed
- *             -  also marked some internal function parameters in a similar fashion.  
+ *             -  also marked some internal function parameters in a similar fashion.
  *
  */
 
@@ -68,7 +68,7 @@ typedef struct {
 
 /**
  * Parses specified cron expression.
- * 
+ *
  * @param expression cron expression as nul-terminated string,
  *        should be no longer that 256 bytes
  * @param target to cron expression structure, it's client code responsibility
@@ -81,10 +81,10 @@ void cron_parse_expr(const char* expression, cron_expr* target, const char** err
 
 /**
  * Uses the specified expression to calculate the next 'fire' date after
- * the specified date. All dates are processed as UTC (GMT) dates 
- * without timezones information. To use local dates (current system timezone) 
+ * the specified date. All dates are processed as UTC (GMT) dates
+ * without timezones information. To use local dates (current system timezone)
  * instead of GMT compile with '-DCRON_USE_LOCAL_TIME'
- * 
+ *
  * @param expr parsed cron expression to use in next date calculation
  * @param date start date to start calculation from
  * @return next 'fire' date in case of success, '((time_t) -1)' in case of error.

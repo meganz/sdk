@@ -39,7 +39,7 @@ struct MEGA_API AccountSession
     char country[3];
     int current;
     handle id;
-    int alive; 
+    int alive;
 };
 
 struct MEGA_API AccountPurchase
