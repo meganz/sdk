@@ -1026,6 +1026,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
     const char* end = ptr + localpath.getLocalpath().size();
 #endif
     size_t separatorlen = client->fsaccess->localseparator.size();
+    auto sz = typeid(client->fsaccess->localseparator) == typeid(std::wstring) ? sizeof(wchar_t) : 1;
 
     if (outpath)
     {
@@ -1047,8 +1048,9 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
         }
 
         l = localroot.get();
+
         ptr += l->localname.getLocalpath().size();
-        if (!memcmp(ptr, client->fsaccess->localseparator.data(), client->fsaccess->localseparator.size()))
+        if (!memcmp(ptr, client->fsaccess->localseparator.data(), client->fsaccess->localseparator.size() * sz))
         {
             ptr += client->fsaccess->localseparator.size();
         }
@@ -1077,7 +1079,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
             return NULL;
         }
 
-        if (nptr == end || !memcmp(nptr, client->fsaccess->localseparator.data(), separatorlen))
+        if (nptr == end || !memcmp(nptr, client->fsaccess->localseparator.data(), separatorlen * sz))
         {
             if (parent)
             {

@@ -898,7 +898,9 @@ void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separa
     {
         // still have to be careful about appending a \ to F:\ for example, on windows, which produces an invalid path
         if (localpath.size() < localseparator.size() ||
-            memcmp(localpath.data() + localpath.size() - localseparator.size(), localseparator.data(), localseparator.size()))
+            memcmp(localpath.data() + localpath.size() - localseparator.size(), 
+                   localseparator.data(), 
+                   localseparator.size() * sizeof(wchar_t)))
         {
             localpath.append(localseparator);
         }
@@ -928,12 +930,12 @@ void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separa
 void LocalPath::prependWithSeparator(const LocalPath& additionalPath, const std::wstring& localseparator)
 {
     // no additional separator if there is already one after
-    if (localpath.size() >= localseparator.size() && memcmp(localpath.data(), localseparator.data(), localseparator.size()))
+    if (localpath.size() >= localseparator.size() && memcmp(localpath.data(), localseparator.data(), localseparator.size() * sizeof(wchar_t)))
     {
         // no additional separator if there is already one before
 
         if (additionalPath.localpath.size() < localseparator.size() ||
-            memcmp(additionalPath.localpath.data() + additionalPath.localpath.size() - localseparator.size(), localseparator.data(), localseparator.size()))
+            memcmp(additionalPath.localpath.data() + additionalPath.localpath.size() - localseparator.size(), localseparator.data(), localseparator.size() * sizeof(wchar_t)))
         {
             localpath.insert(0, localseparator);
         }
@@ -1000,20 +1002,24 @@ bool LocalPath::findPrevSeparator(size_t& separatorBytePos, const FileSystemAcce
 
 bool LocalPath::endsInSeparator(const FileSystemAccess& fsaccess) const
 {
+    auto sz = typeid(localpath) == typeid(std::wstring) ? sizeof(wchar_t) : 1;
+
     return localpath.size() >= fsaccess.localseparator.size()
         && !memcmp(localpath.data() + (int(localpath.size()) & -int(fsaccess.localseparator.size())) - fsaccess.localseparator.size(),
             fsaccess.localseparator.data(),
-            fsaccess.localseparator.size());
+            fsaccess.localseparator.size() * sz);
 }
 
 size_t LocalPath::getLeafnameByteIndex(const FileSystemAccess& fsaccess) const
 {
     // todo: take utf8 two byte characters into account
     size_t p = localpath.size();
-    p -= fsaccess.localseparator.size() % 2; // just in case on windows
+//    p -= fsaccess.localseparator.size() % 2; // just in case on windows
+    auto sz = typeid(localpath) == typeid(std::wstring) ? sizeof(wchar_t) : 1;
+
     while (p && (p -= fsaccess.localseparator.size()))
     {
-        if (!memcmp(localpath.data() + p, fsaccess.localseparator.data(), fsaccess.localseparator.size()))
+        if (!memcmp(localpath.data() + p, fsaccess.localseparator.data(), fsaccess.localseparator.size() * sz))
         {
             p += fsaccess.localseparator.size();
             break;
@@ -1025,7 +1031,8 @@ size_t LocalPath::getLeafnameByteIndex(const FileSystemAccess& fsaccess) const
 bool LocalPath::backEqual(size_t bytePos, const LocalPath& compareTo) const
 {
     auto n = compareTo.localpath.size();
-    return bytePos + n == localpath.size() && !memcmp(compareTo.localpath.data(), localpath.data() + bytePos, n);
+    auto sz = typeid(localpath) == typeid(std::wstring) ? sizeof(wchar_t) : 1;
+    return bytePos + n == localpath.size() && !memcmp(compareTo.localpath.data(), localpath.data() + bytePos, n * sz);
 }
 
 LocalPath LocalPath::subpathFrom(size_t bytePos) const
@@ -1116,12 +1123,14 @@ LocalPath LocalPath::tmpNameLocal(const FileSystemAccess& fsaccess)
 
 bool LocalPath::isContainingPathOf(const LocalPath& path, const FileSystemAccess& fsaccess)
 {
-    return path.localpath.size() >= localpath.size() 
-        && !memcmp(path.localpath.data(), localpath.data(), localpath.size())
+    auto sz = typeid(path.localpath) == typeid(std::wstring) ? sizeof(wchar_t) : 1;
+
+    return path.localpath.size() >= localpath.size()
+        && !memcmp(path.localpath.data(), localpath.data(), localpath.size() * sz)
         && (path.localpath.size() == localpath.size() ||
-           !memcmp(path.localpath.data() + localpath.size(), fsaccess.localseparator.data(), fsaccess.localseparator.size()) ||
+           !memcmp(path.localpath.data() + localpath.size(), fsaccess.localseparator.data(), fsaccess.localseparator.size() * sz) ||
            (localpath.size() >= fsaccess.localseparator.size() &&
-           !memcmp(path.localpath.data() + localpath.size() - fsaccess.localseparator.size(), fsaccess.localseparator.data(), fsaccess.localseparator.size())));
+           !memcmp(path.localpath.data() + localpath.size() - fsaccess.localseparator.size(), fsaccess.localseparator.data(), fsaccess.localseparator.size() * sz)));
 }
 
 ScopedLengthRestore::ScopedLengthRestore(LocalPath& p)

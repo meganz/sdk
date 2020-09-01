@@ -502,7 +502,7 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
                 separatorfound = !memcmp(L"\\", filename, sizeof(wchar_t)) || !memcmp(L"/", filename, sizeof(wchar_t)) || !memcmp(L":", filename, sizeof(wchar_t));
             } while (filename > namePath.localpath.c_str() && !separatorfound);
 
-            if (filenamesize > sizeof(wchar_t) || !separatorfound)
+            if (filenamesize > 1 || !separatorfound)
             {
                 if (separatorfound)
                 {
@@ -654,7 +654,7 @@ int WinFileSystemAccess::sanitizedriveletter(std::wstring& localpath)
     if (localpath.size() > 1 && localpath[localpath.size() - 1] == L':')
     {
         localpath.append(L"\\");
-        return sizeof(wchar_t);
+        return 1;
     }
 
     return 0;
