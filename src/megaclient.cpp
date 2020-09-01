@@ -1361,7 +1361,9 @@ bool MegaClient::anySyncNeedsTargetedSyncdown()
 {
     for (Sync* sync : syncs)
     {
-        if (sync->localroot->syncdownTargetedAction != LocalNode::synctree_resolved)
+        if (sync->state != SYNC_CANCELED &&
+            sync->state != SYNC_FAILED &&
+            sync->localroot->syncdownTargetedAction != LocalNode::synctree_resolved)
         {
             return true;
         }
