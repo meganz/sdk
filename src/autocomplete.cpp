@@ -775,7 +775,6 @@ bool MegaFS::addCompletions(ACState& s)
                 pathprefix += folderName + "/";
                 if (folderName == ".")
                 {
-                    n = n;
                 }
                 else if (folderName == "..")
                 {

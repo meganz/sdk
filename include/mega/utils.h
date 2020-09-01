@@ -543,7 +543,6 @@ private:
     void asyncThreadLoop();
 };
 
-
 template<class T>
 struct ThreadSafeDeque
 {
@@ -605,7 +604,6 @@ public:
     }
 
 };
-
 
 } // namespace
 

@@ -704,7 +704,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
     fsstableids = dirnotify->fsstableids();
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
 
-    mFilesystemType = client->fsaccess->getFilesystemType(&mLocalPath);
+    mFilesystemType = client->fsaccess->getFilesystemType(crootpath);
 
     localroot->init(this, FOLDERNODE, NULL, crootpath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
     localroot->setnode(remotenode);
@@ -769,6 +769,7 @@ Sync::~Sync()
 {
     // must be set to prevent remote mass deletion while rootlocal destructor runs
     assert(state == SYNC_CANCELED || state == SYNC_FAILED || state == SYNC_DISABLED);
+    mDestructorRunning = true;
 
     // unlock tmp lock
     tmpfa.reset();
@@ -834,7 +835,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         {
             auto sn = client->fsaccess->fsShortname(localpath);
             assert(!l->localname.empty() && 
-                (!l->slocalname && (!sn || l->localname == *sn) ||
+                ((!l->slocalname && (!sn || l->localname == *sn)) ||
                 (l->slocalname && sn && !l->slocalname->empty() && *l->slocalname != l->localname && *l->slocalname == *sn)));
         }
 #endif
@@ -1253,11 +1254,13 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
     LOG_verbose << "Scanning: " << path << " in=" << initializing << " full=" << fullscan << " l=" << l;
     LocalPath* localpathNew = localname ? input_localpath : &tmppath;
 
-    // postpone moving nodes into nonexistent parents
-    if (parent && !parent->node)
+    if (parent)
     {
-        LOG_warn << "Parent doesn't exist yet: " << path;
-        return (LocalNode*)~0;
+        if (state != SYNC_INITIALSCAN && !parent->node)
+        {
+            LOG_warn << "Parent doesn't exist yet: " << path;
+            return (LocalNode*)~0;
+        }
     }
 
     // attempt to open/type this file

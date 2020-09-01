@@ -39,9 +39,16 @@ class BucketCountArray
 {
     struct Bucket
     {
-        size_t bytes = 0;
-        size_t millisec = 0;
-        bool valid = false;  // true if any download was in progress during this bucket; then the bucket counts towards average even if no data actually arrived during that timeslot
+        Bucket()
+          : bytes(0)
+          , millisec(0)
+          , valid(false)
+        {
+        }
+
+        size_t bytes;
+        size_t millisec;
+        bool valid;  // true if any download was in progress during this bucket; then the bucket counts towards average even if no data actually arrived during that timeslot
     };
 
     std::array<Bucket, BucketCount> buckets;
@@ -57,7 +64,7 @@ public:
     }
     void Reset()
     {
-        memset(&buckets[0], 0, sizeof buckets);
+        buckets.fill(Bucket());
         started = false;
     }
     void RollBucket()
@@ -67,8 +74,8 @@ public:
         current_bucket_start_time = now;
 
         // todo: make this circular for more efficiency later
-        memmove(&buckets[0], &buckets[1], (BucketCount - 1) * sizeof(buckets[0]));
-        buckets[BucketCount - 1] = Bucket{ 0, 0, false };
+        std::rotate(&buckets[0], &buckets[1], &buckets[BucketCount - 1]);
+        buckets[BucketCount - 1] = Bucket();
     }
     void AddToCurrentBucket(size_t bytes_sent)
     {
@@ -86,7 +93,7 @@ public:
     {
         size_t bytessum = 0;
         size_t millisecsum = 0;
-        for (int i = 0; i < BucketCount; ++i)
+        for (unsigned i = 0; i < BucketCount; ++i)
         {
             auto& bucket = buckets[i];
             if (bucket.valid)
@@ -112,9 +119,9 @@ public:
     {
         for (int i = 0; i < buckets.size(); ++i)
         {
-            cout << buckets[i].bytes << "/" << buckets[i].millisec << "/" << buckets[i].valid << " ";
+                std::cout << buckets[i].bytes << "/" << buckets[i].millisec << "/" << buckets[i].valid << " ";
         }
-        cout << endl;
+        std::cout << std::endl;
     }
 };
 
@@ -240,20 +247,26 @@ private:
     struct Side {
         asio::ip::tcp::socket asio_socket;
         asio::steady_timer send_timer;
-        bool receive_in_progress = false;
-        bool send_in_progress = false;
-        std::atomic<size_t> target_bytes_per_second = 1024 * 1024;
+        bool receive_in_progress;
+        bool send_in_progress;
+        std::atomic<size_t> target_bytes_per_second;
         BucketCountArray<30> send_rate_buckets;
-        size_t totalbytes = 0;
+        size_t totalbytes;
         
         static std::atomic<unsigned> s_activesenders;
 
         Side(asio::io_service& as) 
             : asio_socket(as) 
             , send_timer(as)
+            , receive_in_progress(false)
+            , send_in_progress(false)
+            , target_bytes_per_second(1024 * 1024)
+            , send_rate_buckets()
+            , totalbytes(0)
         { 
             Reset();
         }
+
         void Reset() 
         { 
             assert(!receive_in_progress);
@@ -307,14 +320,14 @@ private:
     asio::ip::tcp::acceptor asio_acceptor;
 
     std::unique_ptr<TcpRelay> nextRelay;
-    int relayCount = 0;
+    int relayCount;
 
-    bool stopped = false;
+    bool stopped;
 
     typedef std::function<void(std::unique_ptr<TcpRelay>&&)> onAcceptedFn;
     onAcceptedFn onAccepted;
 
-    size_t bytespersec = 0;
+    size_t bytespersec;
 
 public:
 

@@ -38,33 +38,21 @@ namespace mega {
 
 #if defined(_WIN32)
 
-HANDLE SockInfo::eventHandle()
+HANDLE SockInfo::sharedEventHandle()
 {
-    return handle;
+    return mSharedEvent;
 }
 
 bool SockInfo::createAssociateEvent()
 {
-    if (handle == WSA_INVALID_EVENT)
-    {
-        associatedHandleEvents = 0;
-        signalledWrite = false;
-        handle = WSACreateEvent();
-        if (handle == WSA_INVALID_EVENT)
-        {
-            LOG_err << "Failed to create WSA event for " << fd;
-            return false;
-        }
-    }
-
     int events = (mode & SockInfo::READ ? FD_READ : 0) | (mode & SockInfo::WRITE ? FD_WRITE : 0);
 
     if (associatedHandleEvents != events)
     {
-        if (WSAEventSelect(fd, handle, events))
+        if (WSAEventSelect(fd, mSharedEvent, events))
         {
             auto err = WSAGetLastError();
-            LOG_err << "WSAEventSelect failed " << fd << " " << handle << " " << events << " " << err;
+            LOG_err << "WSAEventSelect failed " << fd << " " << mSharedEvent << " " << events << " " << err;
             closeEvent();
             return false;
         }
@@ -73,52 +61,69 @@ bool SockInfo::createAssociateEvent()
     return true;
 }
 
-bool SockInfo::checkEvent(bool& read, bool& write)
+bool SockInfo::checkEvent(bool& read, bool& write, bool logErr)
 {
-    if (handle != WSA_INVALID_EVENT)
+    WSANETWORKEVENTS wne;
+    memset(&wne, 0, sizeof(wne));
+    auto err = WSAEnumNetworkEvents(fd, NULL, &wne);
+    if (err)
     {
-        WSANETWORKEVENTS wne;
-        memset(&wne, 0, sizeof(wne));
-        WSAEnumNetworkEvents(fd, handle, &wne); // resets the event, which we will wait on
-
-        read = 0 != (FD_READ & wne.lNetworkEvents);
-        write = 0 != (FD_WRITE & wne.lNetworkEvents);
-
-        if (!write && (FD_WRITE & associatedHandleEvents))
+        if (logErr)
         {
-            // per https://curl.haxx.se/mail/lib-2009-10/0313.html check if the socket has any buffer space
-
-            // The trick is that we want to wait on the event handle to know when we can read and write
-            // that works fine for read, however for write the event is not signalled in the normal case
-            // where curl wrote to the socket, but not enough to cause it to become unwriteable for now.
-            // So, we need to signal curl to write again if it has more data to write, if the socket can take
-            // more data.  This trick with WSASend for 0 bytes enables that - if it fails with would-block
-            // then we can stop asking curl to write to the socket, and start waiting on the handle to 
-            // know when to try again.
-            // If curl has finished writing to the socket, it will call us back to change the mode to read only.
-
-            WSABUF buf{ 0, (CHAR*)&buf };
-            DWORD bSent = 0;
-            auto writeResult = WSASend(fd, &buf, 1, &bSent, 0, NULL, NULL);
-            auto writeError = WSAGetLastError();
-            write = writeResult == 0 || writeError != WSAEWOULDBLOCK;
+            auto e = WSAGetLastError();
+            LOG_err << "WSAEnumNetworkEvents error " << e;
         }
+        return false;
+    }
 
-        if (read || write)
+    read = 0 != (FD_READ & wne.lNetworkEvents);
+    write = 0 != (FD_WRITE & wne.lNetworkEvents);
+
+    // Even though the writeable network event occurred, double check there is no space available in the write buffer
+    // Otherwise curl can report a spurious timeout error
+
+    if (FD_WRITE & associatedHandleEvents)
+    {
+        // per https://curl.haxx.se/mail/lib-2009-10/0313.html check if the socket has any buffer space
+
+        // The trick is that we want to wait on the event handle to know when we can read and write
+        // that works fine for read, however for write the event is not signalled in the normal case
+        // where curl wrote to the socket, but not enough to cause it to become unwriteable for now.
+        // So, we need to signal curl to write again if it has more data to write, if the socket can take
+        // more data.  This trick with WSASend for 0 bytes enables that - if it fails with would-block
+        // then we can stop asking curl to write to the socket, and start waiting on the handle to
+        // know when to try again.
+        // If curl has finished writing to the socket, it will call us back to change the mode to read only.
+
+        WSABUF buf{ 0, (CHAR*)&buf };
+        DWORD bSent = 0;
+        auto writeResult = WSASend(fd, &buf, 1, &bSent, 0, NULL, NULL);
+        auto writeError = WSAGetLastError();
+        write = writeResult == 0 || (writeError != WSAEWOULDBLOCK && writeError != WSAENOTCONN);
+        if (writeResult != 0 && writeError != WSAEWOULDBLOCK && writeError != WSAENOTCONN)
         {
-            signalledWrite = signalledWrite || write;
-            return true;   // if we return true, both read and write must have been set.
+            LOG_err << "Unexpected WSASend check error: " << writeError;
         }
+    }
+
+    if (read || write)
+    {
+        signalledWrite = signalledWrite || write;
+        return true;   // if we return true, both read and write must have been set.
     }
     return false;
 }
 
-void SockInfo::closeEvent()
+void SockInfo::closeEvent(bool adjustSocket)
 {
-    if (handle != WSA_INVALID_EVENT)
+    if (adjustSocket)
     {
-        WSACloseEvent(handle);
-        handle = WSA_INVALID_EVENT;
+        int result = WSAEventSelect(fd, NULL, 0); // cancel association by specifying lNetworkEvents = 0
+        if (result)
+        {
+            auto err = WSAGetLastError();
+            LOG_err << "WSAEventSelect error: " << err;
+        }
     }
     associatedHandleEvents = 0;
     signalledWrite = false;
@@ -128,15 +133,13 @@ SockInfo::SockInfo(SockInfo&& o)
     : fd(o.fd)
     , mode(o.mode)
     , signalledWrite(o.signalledWrite)
-    , handle(o.handle)
+    , mSharedEvent(o.mSharedEvent)
     , associatedHandleEvents(o.associatedHandleEvents)
 {
-    o.handle = WSA_INVALID_EVENT;
 }
 
 SockInfo::~SockInfo()
 {
-    assert(handle == WSA_INVALID_EVENT);
 }
 #endif
 
@@ -186,6 +189,14 @@ unsigned long CurlHttpIO::id_function()
 
 CurlHttpIO::CurlHttpIO()
 {
+#ifdef WIN32
+    mSocketsWaitEvent = WSACreateEvent();
+    if (mSocketsWaitEvent == WSA_INVALID_EVENT)
+    {
+        LOG_err << "Failed to create WSA event for cURL";
+    }
+#endif
+
     curl_version_info_data* data = curl_version_info(CURLVERSION_NOW);
     if (data->version)
     {
@@ -486,7 +497,23 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
         if (readable || writeable)
         {
             // take the old record from the prior version of the map, if there is one, and then we will update it
-            SockInfo& info = aressockets.emplace(socks[i], std::move(prevAressockets[socks[i]])).first->second;
+            auto it = prevAressockets.find(socks[i]);
+            if (it == prevAressockets.end())
+            {
+#ifdef WIN32
+                auto pair = aressockets.emplace(socks[i], SockInfo(mSocketsWaitEvent));
+#else
+                auto pair = aressockets.emplace(socks[i], SockInfo());
+#endif
+                it = pair.first;
+            }
+            else
+            {
+                auto pair = aressockets.emplace(socks[i], std::move(it->second));
+                prevAressockets.erase(it);
+                it = pair.first;
+            }
+            SockInfo& info = it->second;
             info.mode = 0;
 
             if (readable)
@@ -502,10 +529,7 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
             }
 
 #if defined(_WIN32)
-            if (info.createAssociateEvent())
-            {
-                ((WinWaiter *)waiter)->addhandle(info.eventHandle(), Waiter::NEEDEXEC);
-            }
+            info.createAssociateEvent();
 #else
             if (readable)
             {
@@ -524,7 +548,10 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
 #if defined(_WIN32)
     for (auto& mapPair : prevAressockets)
     {
-        mapPair.second.closeEvent();
+        // We pass false for c-ares becase we can't be sure if c-ares closed the socket or not
+        // If it's not using the socket, the event should not be triggered, and even if it is
+        // then we just do one extra loop.
+        mapPair.second.closeEvent(false);
     }
 #endif
 }
@@ -549,11 +576,7 @@ void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 #if defined(_WIN32)
         anyWriters = anyWriters || info.signalledWrite;
         info.signalledWrite = false;
-
-        if (info.createAssociateEvent())
-        {
-            ((WinWaiter *)waiter)->addhandle(info.eventHandle(), Waiter::NEEDEXEC);
-        }
+        info.createAssociateEvent();
 #else
 
         if (info.mode & SockInfo::READ)
@@ -579,12 +602,20 @@ void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 #endif
 }
 
+int CurlHttpIO::checkevents(Waiter*)
+{
+#ifdef WIN32
+    ResetEvent(mSocketsWaitEvent);
+#endif
+    return 0;
+}
+
 void CurlHttpIO::closearesevents()
 {
 #if defined(_WIN32)
     for (auto& mapPair : aressockets)
     {
-        mapPair.second.closeEvent();
+        mapPair.second.closeEvent(false);
     }
 #endif
     aressockets.clear();
@@ -596,7 +627,7 @@ void CurlHttpIO::closecurlevents(direction_t d)
 #if defined(_WIN32)
     for (SockInfoMap::iterator it = socketmap.begin(); it != socketmap.end(); it++)
     {
-        it->second.closeEvent();
+        it->second.closeEvent(false);
     }
 #endif
     socketmap.clear();
@@ -621,7 +652,7 @@ void CurlHttpIO::processaresevents()
 
 #if defined(_WIN32)
         bool read, write;
-        if (info.checkEvent(read, write))  // if checkEvent returns true, both `read` and `write` have been set.
+        if (info.checkEvent(read, write, false))  // if checkEvent returns true, both `read` and `write` have been set.
         {
             ares_process_fd(ares, read ? info.fd : ARES_SOCKET_BAD, write ? info.fd : ARES_SOCKET_BAD);
         }
@@ -653,7 +684,6 @@ void CurlHttpIO::processcurlevents(direction_t d)
 
     int dummy = 0;
     SockInfoMap *socketmap = &curlsockets[d];
-    m_time_t *timeout = &curltimeoutreset[d];
     bool *paused = &arerequestspaused[d];
 
     for (SockInfoMap::iterator it = socketmap->begin(); !(*paused) && it != socketmap->end();)
@@ -683,11 +713,10 @@ void CurlHttpIO::processcurlevents(direction_t d)
 #endif
     }
 
-    m_time_t value = *timeout;
-    if (value >= 0 && value <= Waiter::ds)
+    if (curltimeoutreset[d] >= 0 && curltimeoutreset[d] <= Waiter::ds)
     {
-        *timeout = -1;
-        LOG_debug << "Disabling cURL timeout";
+        curltimeoutreset[d] = -1;
+        LOG_debug << "Informing cURL of timeout reached for " << d << " at " << Waiter::ds;
         curl_multi_socket_action(curlm[d], CURL_SOCKET_TIMEOUT, 0, &dummy);
     }
 
@@ -718,6 +747,10 @@ CurlHttpIO::~CurlHttpIO()
     closecurlevents(API);
     closecurlevents(GET);
     closecurlevents(PUT);
+
+#ifdef WIN32
+    WSACloseEvent(mSocketsWaitEvent);
+#endif
 
     curlMutex.lock();
     if (--instanceCount == 0)
@@ -878,6 +911,11 @@ void CurlHttpIO::addevents(Waiter* w, int)
 
     addaresevents(waiter);
     addcurlevents(waiter, API);
+
+#ifdef WIN32
+    ((WinWaiter *)waiter)->addhandle(mSocketsWaitEvent, Waiter::NEEDEXEC);
+#endif
+
     if (curltimeoutreset[API] >= 0)
     {
         m_time_t ds = curltimeoutreset[API] - Waiter::ds;
@@ -1038,7 +1076,7 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
         if (httpio->proxyhost == httpctx->hostname && httpctx->hostip.size())
         {
             std::ostringstream oss;
-            
+
             oss << httpctx->hostip << ":" << httpio->proxyport;
             httpio->proxyip = oss.str();
 
@@ -1380,7 +1418,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         httpio->statechange = true;
         return;
     }
-    
+
     CURL* curl;
     if ((curl = curl_easy_init()))
     {
@@ -1702,12 +1740,12 @@ bool CurlHttpIO::crackurl(string* url, string* scheme, string* hostname, int* po
     return true;
 }
 
-int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t size, void*)
+int CurlHttpIO::debug_callback(CURL*, curl_infotype type, char* data, size_t size, void* debugdata)
 {
     if (type == CURLINFO_TEXT && size)
     {
         data[size - 1] = 0;
-        LOG_verbose << "cURL DEBUG: " << data;
+        LOG_verbose << (debugdata ? static_cast<HttpReq*>(debugdata)->logname : string()) << "cURL: " << data;
     }
 
     return 0;
@@ -1727,7 +1765,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     httpctx->isCachedIp = false;
     httpctx->ares_pending = 0;
     httpctx->d = (req->type == REQ_JSON || req->method == METHOD_NONE) ? API : ((data ? len : req->out->size()) ? PUT : GET);
-    req->httpiohandle = (void*)httpctx;    
+    req->httpiohandle = (void*)httpctx;
 
     bool validrequest = true;
     if ((proxyurl.size() && !proxyhost.size()) // malformed proxy string
@@ -2047,7 +2085,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 CURLcode errorCode = msg->data.result;
                 if (errorCode != CURLE_OK)
                 {
-                    LOG_debug << "CURLMSG_DONE with error " << errorCode << ": " << curl_easy_strerror(errorCode);
+                    LOG_debug << req->logname << "CURLMSG_DONE with error " << errorCode << ": " << curl_easy_strerror(errorCode);
 
                 #if LIBCURL_VERSION_NUM >= 0x072c00 // At least cURL 7.44.0
                     if (errorCode == CURLE_SSL_PINNEDPUBKEYNOTMATCH)
@@ -2131,7 +2169,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                         }
                         req->httpstatus = 200;
                     }
-                    
+
                     if (req->binary)
                     {
                         LOG_debug << "[received " << (req->buf ? req->bufpos : (int)req->in.size()) << " bytes of raw data]";
@@ -2166,7 +2204,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                 }
                 else
                 {
-                    LOG_warn << "REQ_FAILURE. Status: " << req->httpstatus << "  Content-Length: " << req->contentlength
+                    LOG_warn << req->logname << "REQ_FAILURE. Status: " << req->httpstatus << "  Content-Length: " << req->contentlength
                              << "  buffer? " << (req->buf != NULL) << "  bufferSize: " << (req->buf ? req->bufpos : (int)req->in.size());
                 }
 
@@ -2362,7 +2400,7 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
         bool isApi = (req->type == REQ_JSON);
         if (!isApi)
         {
-            long maxbytes = long( (httpio->maxspeed[PUT] - httpio->uploadSpeed) * (SpeedController::SPEED_MEAN_INTERVAL_DS / 10) - httpio->partialdata[PUT] );
+            long maxbytes = long( (httpio->maxspeed[PUT] - httpio->uploadSpeed) * (SpeedController::SPEED_MEAN_MAX_INTERVAL_DS / 10) - httpio->partialdata[PUT] );
             if (maxbytes <= 0)
             {
                 httpio->pausedrequests[PUT].insert(httpctx->curl);
@@ -2377,9 +2415,10 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
             httpio->partialdata[PUT] += nread;
         }
     }
-    
+
     memcpy(ptr, buf, nread);
     req->outpos += nread;
+    //LOG_debug << req->logname << "Supplying " << nread << " bytes to cURL to send";
     return nread;
 }
 
@@ -2397,7 +2436,7 @@ size_t CurlHttpIO::write_data(void* ptr, size_t size, size_t nmemb, void* target
             bool isApi = (req->type == REQ_JSON);
             if (!isApi && !isUpload)
             {
-                if ((httpio->downloadSpeed + 10 * (httpio->partialdata[GET] + len) / SpeedController::SPEED_MEAN_INTERVAL_DS) > httpio->maxspeed[GET])
+                if ((httpio->downloadSpeed + 10 * (httpio->partialdata[GET] + len) / SpeedController::SPEED_MEAN_MAX_INTERVAL_DS) > httpio->maxspeed[GET])
                 {
                     CurlHttpContext* httpctx = (CurlHttpContext*)req->httpiohandle;
                     httpio->pausedrequests[GET].insert(httpctx->curl);
@@ -2526,17 +2565,36 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
 
     if (what == CURL_POLL_REMOVE)
     {
-        LOG_debug << "Removing socket " << s;
+        auto it = socketmap.find(s);
+        if (it != socketmap.end())
+        {
+            LOG_debug << "Removing socket " << s;
 
 #if defined(_WIN32)
-        socketmap[s].closeEvent();
+            it->second.closeEvent();
 #endif
-        socketmap[s].mode = 0;
+            it->second.mode = 0;
+        }
     }
     else
     {
-        LOG_debug << "Adding/setting curl socket " << s << " to " << what;
-        auto& info = socketmap[s];
+        auto it = socketmap.find(s);
+        if (it == socketmap.end())
+        {
+            LOG_debug << "Adding curl socket " << s << " to " << what;
+#ifdef WIN32
+            auto pair = socketmap.emplace(s, SockInfo(httpio->mSocketsWaitEvent));
+#else
+            auto pair = socketmap.emplace(s, SockInfo());
+#endif
+            it = pair.first;
+        }
+        else
+        {
+            LOG_debug << "Setting curl socket " << s << " to " << what;
+        }
+
+        auto& info = it->second;
         info.fd = s;
         info.mode = what;
 #if defined(_WIN32)
@@ -2592,6 +2650,7 @@ int CurlHttpIO::upload_socket_callback(CURL *e, curl_socket_t s, int what, void 
 int CurlHttpIO::timer_callback(CURLM *, long timeout_ms, void *userp, direction_t d)
 {
     CurlHttpIO *httpio = (CurlHttpIO *)userp;
+    auto oldValue = httpio->curltimeoutreset[d];
     if (timeout_ms < 0)
     {
         httpio->curltimeoutreset[d] = -1;
@@ -2607,7 +2666,10 @@ int CurlHttpIO::timer_callback(CURLM *, long timeout_ms, void *userp, direction_
         httpio->curltimeoutreset[d] = Waiter::ds + timeoutds;
     }
 
-    LOG_debug << "Set cURL timeout[" << d << "] to " << httpio->curltimeoutreset[d] << " ms from " << timeout_ms;
+    if (oldValue != httpio->curltimeoutreset[d])
+    {
+        LOG_debug << "Set cURL timeout[" << d << "] to " << httpio->curltimeoutreset[d] << " from " << timeout_ms << "(ms) at ds: " << Waiter::ds;
+    }
     return 0;
 }
 
