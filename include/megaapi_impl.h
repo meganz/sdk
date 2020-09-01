@@ -178,8 +178,9 @@ class MegaTransferPrivate;
 class MegaTreeProcCopy : public MegaTreeProcessor
 {
 public:
-    NewNode* nn;
-    unsigned nc;
+    vector<NewNode> nn;
+    unsigned nc = 0;
+    bool allocated = false;
 
     MegaTreeProcCopy(MegaClient *client);
     bool processMegaNode(MegaNode* node) override;
@@ -1977,7 +1978,7 @@ class TransferQueue
     protected:
         std::deque<MegaTransferPrivate *> transfers;
         std::mutex mutex;
-        long long lastPushedTransfer = 0;
+        int lastPushedTransferTag = 0;
 
     public:
         TransferQueue();
@@ -1995,7 +1996,7 @@ class TransferQueue
 
         void removeWithFolderTag(int folderTag, std::function<void(MegaTransferPrivate *)> callback);
         void removeListener(MegaTransferListener *listener);
-        long long getLastPushedTag() const;
+        int getLastPushedTag() const;
 };
 
 class MegaApiImpl : public MegaApp
@@ -2087,7 +2088,7 @@ class MegaApiImpl : public MegaApp
         void getUserData(MegaUser *user, MegaRequestListener *listener = NULL);
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
         void getMiscFlags(MegaRequestListener *listener = NULL);
-        void sendDevCommand(const char *command, const char *email, MegaRequestListener *listener = NULL);
+        void sendDevCommand(const char *command, const char *email, long long quota, int businessStatus, int userStatus, MegaRequestListener *listener);
         void getCloudStorageUsed(MegaRequestListener *listener = NULL); 
         void getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, int source = -1, MegaRequestListener *listener = NULL);
         void queryTransferQuota(long long size, MegaRequestListener *listener = NULL);
@@ -2882,7 +2883,7 @@ protected:
         void key_modified(handle, attr_t) override;
 
         void fetchnodes_result(const Error&) override;
-        void putnodes_result(error, targettype_t, NewNode*) override;
+        void putnodes_result(const Error&, targettype_t, vector<NewNode>&) override;
 
         // share update result
         void share_result(error) override;
@@ -2898,7 +2899,6 @@ protected:
 
         // file attribute modification result
         void putfa_result(handle, fatype, error) override;
-        void putfa_result(handle, fatype, const char*) override;
 
         // purchase transactions
         void enumeratequotaitems_result(unsigned type, handle product, unsigned prolevel, int gbstorage, int gbtransfer,

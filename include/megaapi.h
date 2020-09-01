@@ -6992,6 +6992,7 @@ class MegaApi
             PAYMENT_METHOD_PAYPAL = 1,
             PAYMENT_METHOD_ITUNES = 2,
             PAYMENT_METHOD_GOOGLE_WALLET = 3,
+            PAYMENT_METHOD_HUAWEI_WALLET = 18,
             PAYMENT_METHOD_BITCOIN = 4,
             PAYMENT_METHOD_UNIONPAY = 5,
             PAYMENT_METHOD_FORTUMO = 6,
@@ -7934,16 +7935,6 @@ class MegaApi
         /**
          * @brief Trigger special account state changes for own accounts, for testing
          *
-         * Because the dev API command allows a wide variety of state changes including suspension and unsuspension,
-         * it has restrictions on which accounts you can target, and where it can be called from.
-         *
-         * Your client must be on a company VPN IP address.
-         *
-         * The target account must be an @mega email address. The target account must either be the calling account,
-         * OR a related account via a prefix and + character. For example if the calling account is name1+test@mega.co.nz
-         * then it can perform a dev command on itself or on name1@mega.co.nz, name1+bob@mega.co.nz etc, but NOT on
-         * name2@mega.co.nz or name2+test@meg.co.nz.
-         *
          * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getName - Returns the first parameter
@@ -7970,8 +7961,126 @@ class MegaApi
          * @param command The subcommand for the specific operation
          * @param email Optional email of the target email's account. If null, it will use the logged-in account
          * @param listener MegaRequestListener to track this request
+         * @deprecated Use MegaApi::sendOdqDevCommand instead, for new API dev commands, a new public method will
+         * be created for each one
          */
         void sendDevCommand(const char *command, const char *email = nullptr, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Send dev API command, Advance ODQ Warning State for own accounts (for testing purposes)
+         *
+         * If called, this will advance your ODQ warning state until the final warning state,
+         * at which point it will turn on the ODQ paywall for your account. It requires an account lock on the target account.
+         * This subcommand will return the 'step' of the warning flow you have advanced to - 1, 2, 3 or 4
+         * (the paywall is turned on at step 4)
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the API dev command ("aodq")
+         * - MegaRequest::getEmail - Returns the target email account, or NULL if target is the logged-in account
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code is MegaError::API_OK:
+         * - MegaRequest::getNumber - Returns the number of warnings (1, 2, 3 or 4).
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         *  - EACCESS if the calling account is not allowed to perform this method (not a mega email account, not the right IP, etc).
+         *  - EARGS if the subcommand is not present or is invalid
+         *  - EBLOCKED if the target account is not allowed (this could also happen if the target account does not exist)
+         *  - EFAILED - your account is not in the RED stoplight state
+         *
+         * @param email Optional email of the target email's account. If null, it will use the logged-in account
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendOdqDevCommand(const char *email = nullptr, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Send dev API command, Set used transfer quota for own accounts (for testing purposes)
+         *
+         * Sets the amount of transfer quota the target user has used from their PRO allocation.
+         * This subcommand can only be run with PRO users.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the API dev command ("tq")
+         * - MegaRequest::getEmail - Returns the target email account, or NULL if target is the logged-in account
+         * - MegaRequest::getTotalBytes - Returns the amount of transfer quota the target has used, in bytes
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         *  - EACCESS if the calling account is not allowed to perform this method (not a mega email account, not the right IP, etc).
+         *  - EARGS if the subcommand is not present or is invalid, or if target account is not PRO
+         *  - EBLOCKED if the target account is not allowed (this could also happen if the target account does not exist)
+         *  - EMASTERONLY - if the target is the business internal account as they don't login
+         *
+         * @param quota The amount of transfer quota the target has used, in bytes
+         * @param email Optional email of the target email's account. If null, it will use the logged-in account
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendUsedTransferQuotaDevCommand(long long quota, const char *email = nullptr, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Send dev API command, Set business status for own accounts (for testing purposes)
+         *
+         * Sets the status of the business account. The target user can be the business internal account,
+         * or a master or sub-user in the business. The status set by this method is permanent until removed,
+         * it does not transition to grace period and expired over time.
+         *
+         * The following values are valid for business status:
+         *  - set the business expired = -1
+         *  - clear the status override and set the business back to status of their payments = 0
+         *  - set the business active = 1
+         *  - set the business in grace period = 2
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the API dev command ("bs")
+         * - MegaRequest::getEmail - Returns the target email account, or NULL if target is the logged-in account
+         * - MegaRequest::getAccess - Returns the business status
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         *  - EACCESS if the calling account is not allowed to perform this method (not a mega email account, not the right IP, etc).
+         *  - EARGS if the subcommand is not present or is invalid, or if target account is not part of a business account
+         *  - EBLOCKED if the target account is not allowed (this could also happen if the target account does not exist)
+         *
+         * @param businessStatus The business status
+         * @param email Optional email of the target email's account. If null, it will use the logged-in account
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendBusinessStatusDevCommand(int businessStatus, const char *email = nullptr, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Send dev API command, Set user status for own accounts (for testing purposes)
+         *
+         * Sets the status of a user.
+         *
+         * The following values are valid for user status:
+         * - Enabled = 0
+         * - Suspended (generic) = 2
+         * - Suspended (for payment, but not used) = 3
+         * - Suspended (copyright complaint) = 4
+         * - Suspended (admin full disable) = 5
+         * - Suspended (admin partial disable) = 6
+         * - Suspended (Emergency Takedown) = 7
+         * - Suspended until SMS verified = 8
+         * - Suspended until Email verified = 9
+         *
+         * Note that Action packets are not sent for a suspended user, but next command or action packet request will give a EBLOCKED error.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the API dev command ("us")
+         * - MegaRequest::getEmail - Returns the target email account, or NULL if target is the logged-in account
+         * - MegaRequest::getNumDetails - Returns the user status
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         *  - EACCESS if the calling account is not allowed to perform this method (not a mega email account, not the right IP, etc).
+         *  - EARGS if the subcommand is not present or is invalid, if the status is out of range or the target is a business internal account
+         *  - EBLOCKED if the target account is not allowed (this could also happen if the target account does not exist)
+         *
+         * @param userStatus The user status
+         * @param email Optional email of the target email's account. If null, it will use the logged-in account
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendUserStatusDevCommand(int userStatus, const char *email = nullptr, MegaRequestListener *listener = nullptr);
 
         /**
          * @brief Returns the current session key
@@ -11451,6 +11560,30 @@ class MegaApi
          * @param listener MegaTransferListener to track this transfer
          */
         void startUploadWithTopPriority(const char* localPath, MegaNode *parent, const char* appData, bool isSourceTemporary, MegaTransferListener *listener=NULL);
+
+        /**
+         * @brief Upload a file or a folder, putting the transfer on top of the upload queue
+         *
+         *If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
+         *
+         * @param localPath Local path of the file or folder
+         * @param parent Parent node for the file or folder in the MEGA account
+         * @param appData Custom app data to save in the MegaTransfer object
+         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+         * related to the transfer. If a transfer is started with exactly the same data
+         * (local path and target parent) as another one in the transfer queue, the new transfer
+         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+         * the appData of the old transfer, using a '!' separator if the old transfer had already
+         * appData.
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+         * @param fileName Custom file name for the file or folder in MEGA
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void startUploadWithTopPriority(const char* localPath, MegaNode *parent, const char* appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener=NULL);
 
         /**
          * @brief Upload a file or a folder with a custom modification time

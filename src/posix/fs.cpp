@@ -405,7 +405,7 @@ int PosixFileAccess::stealFileDescriptor()
     return toret;
 }
 
-bool PosixFileAccess::fopen(LocalPath& f, bool read, bool write, DirAccess* iteratingDir)
+bool PosixFileAccess::fopen(LocalPath& f, bool read, bool write, DirAccess* iteratingDir, bool)
 {
     struct stat statbuf;
 
@@ -863,7 +863,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     // which we filter
     int pos, avail;
     int off;
-    int i, n, s;
+    int i, n;
     kfs_event* kfse;
     kfs_event_arg* kea;
     char buffer[131072];
@@ -872,10 +872,10 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     Sync* pathsync[2];
     sync_list::iterator it;
     fd_set rfds;
-    timeval tv = { 0 };
+    timeval tv = { 0, 0 };
     struct stat statbuf;
     static char rsrc[] = "/..namedfork/rsrc";
-    static unsigned int rsrcsize = sizeof(rsrc) - 1;
+    static size_t rsrcsize = sizeof(rsrc) - 1;
 
     for (;;)
     {
@@ -885,7 +885,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         // ensure nonblocking behaviour
         if (select(notifyfd + 1, &rfds, NULL, NULL, &tv) <= 0) break;
 
-        if ((avail = read(notifyfd, buffer, sizeof buffer)) < 0)
+        if ((avail = read(notifyfd, buffer, int(sizeof buffer))) < 0)
         {
             notifyerr = true;
             break;
@@ -929,15 +929,15 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
             for (i = n; i--; )
             {
                 path = paths[i];
-                unsigned int psize = strlen(path);
+                size_t psize = strlen(path);
 
                 for (it = client->syncs.begin(); it != client->syncs.end(); it++)
                 {
                     std::string* ignore = (*it)->dirnotify->ignore.editStringDirect();
                     std::string* localname = (*it)->localroot->localname.editStringDirect();
 
-                    int rsize = (*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.size() : localname->size();
-                    int isize = ignore->size();
+                    size_t rsize = (*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.size() : localname->size();
+                    size_t isize = ignore->size();
 
                     if (psize >= rsize
                       && !memcmp((*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.c_str() : localname->c_str(), path, rsize)    // prefix match
@@ -1320,15 +1320,15 @@ bool PosixFileSystemAccess::getextension(const LocalPath& filename, char* extens
     const std::string* str = filename.editStringDirect();
     const char* ptr = str->data() + str->size();
     char c;
-    int i, j;
 
     size = std::min(size - 1, str->size());
 
-    for (i = 0; i < size; i++)
+    for (unsigned i = 0; i < size; i++)
     {
         if (*--ptr == '.')
         {
-            for (j = 0; j <= i; j++)
+            unsigned j = 0;
+            for (; j <= i; j++)
             {
                 if (*ptr < '.' || *ptr > 'z') return false;
 

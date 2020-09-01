@@ -394,7 +394,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 
     if (e == API_EOVERQUOTA || e == API_EPAYWALL)
     {
-        assert((API_EPAYWALL && !timeleft) || (type == PUT && !timeleft) || (type == GET && timeleft)); // overstorage only possible for uploads, overbandwidth for downloads
+        assert((e == API_EPAYWALL && !timeleft) || (type == PUT && !timeleft) || (type == GET && timeleft)); // overstorage only possible for uploads, overbandwidth for downloads
         if (!slot)
         {
             bt.backoff(timeleft ? timeleft : NEVER);

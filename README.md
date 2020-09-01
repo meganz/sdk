@@ -125,9 +125,37 @@ To build the client access engine under Windows, you'll need the following:
 Optional dependency:
 * Sodium, configure `--with-sodium`
 
-To build the reference `megacli.exe` example, you will also need to procure
-development packages (at least headers and `.lib`/`.a` libraries) of:
+### Build Dependencies
+* Consult contrib\cmake\3rdparty_deps.txt to enable/disable a particular package.
+* Your 3rdParty library builds should be outside the SDK repo. You can use the same 3rdParty folder for other mega components, e.g., megasync, etc..
+* We are moving to use vcpkg to build most of them. You can start like this:
+	mkdir 3rdParty
+	cd 3rdParty
+	git clone https://github.com/Microsoft/vcpkg.git
+	cd vcpkg
+	.\bootstrap-vcpkg.bat -disableMetrics
+* Edit triplet configuration as required in contrib\cmake\vcpkg_extra_triplets\<x64-windows-mega-staticdev.cmake/x64-windows-mega.cmake/x86-windows-mega.cmake>
+* Fix compiler and toolset selection. Just comment them if you only have one VS installed.
+* Run the batch file contrib\cmake\build3rdparty.cmd from vcpkg folder
+* Provide the parameters as desired, e.g., C:\work\mega\3rdParty\vcpkg>..\..\sdk\contrib\cmake\build3rdparty.cmd -o x64-windows-mega
 
+This should build 3rdParty dependencies.
+
+### Building SDK
+Once the 3rdParty dependencies are built, you can start building your SDK as follows:
+* cd contrib\cmake
+* mkdir cmake-build-x64 (folder names matching pattern cmake-build-* in contrib/cmake are ignored by git)
+* Download and install CMake from https://cmake.org/download/. Mininimum required version is 3.15
+* cd cmake-build-x64
+* Run CMake-gui from this folder
+	* Set your options. Choose the same compiler and confugurations used to generate 3rdParty.
+	* Set your flags, e.g., USE_FREEIMAGE == 0
+	* Generate Projects
+* It should generate all the prjects inside cmake-build-x64 folder.
+* Open the sln file in your Visual Studio and build Debug/Release target as desired.
+	
+To build the reference `megacli.exe` example, you will also need to procure 
+development packages (at least headers and `.lib`/`.a` libraries) of:
 * GNU Readline/Termcap
 
 ### Folder syncing

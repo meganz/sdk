@@ -1358,7 +1358,7 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
         case API_EBUSINESSPASTDUE:
             return "Business account has expired";
         case API_EPAYWALL:
-            return "Over Disk Quota Paywall";
+            return "Storage Quota Exceeded. Upgrade now";
         case PAYMENT_ECARD:
             return "Credit card rejected";
         case PAYMENT_EBILLING:
@@ -2057,7 +2057,27 @@ void MegaApi::getMiscFlags(MegaRequestListener *listener)
 
 void MegaApi::sendDevCommand(const char *command, const char *email, MegaRequestListener *listener)
 {
-    pImpl->sendDevCommand(command, email, listener);
+    pImpl->sendDevCommand(command, email, 0, 0, 0, listener);
+}
+
+void MegaApi::sendOdqDevCommand(const char *email, MegaRequestListener *listener)
+{
+    pImpl->sendDevCommand("aodq", email, 0, 0, 0, listener);
+}
+
+void MegaApi::sendUsedTransferQuotaDevCommand(long long quota, const char *email, MegaRequestListener *listener)
+{
+    pImpl->sendDevCommand("tq", email, quota, 0, 0, listener);
+}
+
+void MegaApi::sendBusinessStatusDevCommand(int businessStatus, const char *email, MegaRequestListener *listener)
+{
+    pImpl->sendDevCommand("bs", email, 0, businessStatus, 0, listener);
+}
+
+void MegaApi::sendUserStatusDevCommand(int userStatus, const char *email, MegaRequestListener *listener)
+{
+    pImpl->sendDevCommand("us", email, 0, 0, userStatus, listener);
 }
 
 void MegaApi::login(const char *login, const char *password, MegaRequestListener *listener)
@@ -3011,6 +3031,11 @@ void MegaApi::startUploadWithData(const char *localPath, MegaNode *parent, const
 void MegaApi::startUploadWithTopPriority(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener)
 {
     pImpl->startUpload(true, localPath, parent, (const char *)NULL, -1, 0, false, appData, isSourceTemporary, false, FS_UNKNOWN, listener);
+}
+
+void MegaApi::startUploadWithTopPriority(const char* localPath, MegaNode* parent, const char* appData, bool isSourceTemporary, const char* fileName, MegaTransferListener* listener)
+{
+    pImpl->startUpload(true, localPath, parent, fileName, -1, 0, false, appData, isSourceTemporary, false, FS_UNKNOWN, listener);
 }
 
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener)

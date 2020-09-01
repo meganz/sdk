@@ -212,6 +212,8 @@ public:
     void clear();
 };
 
+std::ostream& operator<<(std::ostream &os, const SCSN &scsn);
+
 class MEGA_API MegaClient
 {
 public:
@@ -456,7 +458,7 @@ public:
     error checkmove(Node*, Node*);
 
     // delete node
-    error unlink(Node*, bool = false);
+    error unlink(Node*, bool keepversions, int tag, std::function<void(handle, error)> resultFunction = nullptr);
 
     // delete all versions
     void unlinkversions();
@@ -513,10 +515,10 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, NewNode*, int, const char * = NULL);
+    void putnodes(handle, vector<NewNode>&&, const char * = NULL);
 
     // send files/folders to user
-    void putnodes(const char*, NewNode*, int);
+    void putnodes(const char*, vector<NewNode>&&);
 
     // attach file attribute to upload or node handle
     void putfa(handle, fatype, SymmCipher*, std::unique_ptr<string>, bool checkAccess = true);
@@ -547,7 +549,7 @@ public:
     void delua(const char* an);
 
     // send dev command for testing
-    void senddevcommand(const char *command, const char *email);
+    void senddevcommand(const char *command, const char *email, long long q = 0, int bs = 0, int us = 0);
 #endif
 
     // delete or block an existing contact
@@ -862,7 +864,7 @@ private:
     HttpReq* badhostcs;
 
     // Working lock
-    HttpReq* workinglockcs;
+    unique_ptr<HttpReq> workinglockcs;
 
     // notify URL for new server-client commands
     string scnotifyurl;
@@ -1057,6 +1059,10 @@ public:
     // reqs[r] is open for adding commands
     // reqs[r^1] is being processed on the API server
     HttpReq* pendingcs;
+
+    // Only queue the "Server busy" event once, until the current cs completes, otherwise we may DDOS 
+    // ourselves in cases where many clients get 500s for a while and then recover at the same time
+    bool pendingcs_serverBusySent = false;
 
     // pending HTTP requests
     pendinghttp_map pendinghttp;
@@ -1336,17 +1342,18 @@ public:
     handle currsyncid;
 
     // SyncDebris folder addition result
-    void putnodes_syncdebris_result(error, NewNode*);
+    void putnodes_syncdebris_result(error, vector<NewNode>&);
 
     // if no sync putnodes operation is in progress, apply the updates stored
     // in syncadded/syncdeleted/syncoverwritten to the remote tree
     void syncupdate();
 
     // create missing folders, copy/start uploading missing files
-    bool syncup(LocalNode*, dstime*);
+    bool syncup(LocalNode* l, dstime* nds, size_t& parentPending);
+    bool syncup(LocalNode* l, dstime* nds);
 
     // sync putnodes() completion
-    void putnodes_sync_result(error, NewNode*, int);
+    void putnodes_sync_result(error, vector<NewNode>&);
 
     // start downloading/copy missing files, create missing directories
     bool syncdown(LocalNode*, LocalPath&, bool);
@@ -1408,7 +1415,7 @@ public:
     dstime lastDispatchTransfersDs = 0;
 
     // process object arrays by the API server
-    int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0, bool applykeys = false);
+    int readnodes(JSON*, int, putsource_t, vector<NewNode>*, int, bool applykeys);
 
     void readok(JSON*);
     void readokelement(JSON*);
@@ -1509,6 +1516,9 @@ public:
 
     // distinguish activity from different MegaClients in logs
     string clientname;
+
+    // number our http requests so we can distinguish them (and the curl debug logging for them) in logs
+    unsigned transferHttpCounter = 0;
 
     // apply keys
     void applykeys();
