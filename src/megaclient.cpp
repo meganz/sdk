@@ -13987,6 +13987,11 @@ void MegaClient::delsync(Sync* sync, bool deletecache)
         sync->statecachetable = NULL;
     }
 
+    if (deletecache && syncConfigs)
+    {
+        syncConfigs->remove(sync->getConfig().getLocalPath());
+    }
+
     syncactivity = true;
 }
 
