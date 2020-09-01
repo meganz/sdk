@@ -93,6 +93,14 @@ using namespace mega;
     return self.megaNode ? self.megaNode->getVideocodecid(): -1;
 }
 
+- (BOOL)isFavourite {
+    return self.megaNode ? self.megaNode->isFavourite() : NO;
+}
+
+- (MEGANodeLabel)label {
+    return (MEGANodeLabel) (self.megaNode ? self.megaNode->getLabel() : 0);
+}
+
 - (NSNumber *)latitude {
     if (!self.megaNode) return nil;
     double latitude = self.megaNode->getLatitude();
