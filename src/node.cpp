@@ -1258,7 +1258,8 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
         {
             // complete the copy/delete operation
             dstime nds = NEVER;
-            sync->client->syncup(parent, &nds, false);
+            size_t numPending = 0;
+            sync->client->syncup(parent, &nds, numPending, true);
 
             // check if nodes can be immediately created
             bool immediatecreation = (int) sync->client->synccreate.size() == nc;
@@ -1303,8 +1304,8 @@ LocalNode::LocalNode()
 , created{false}
 , reported{false}
 , checked{false}
-, syncdownPartialAction(synctree_resolved)
-, syncupPartialAction(synctree_resolved)
+, syncdownTargetedAction(synctree_resolved)
+, syncupTargetedAction(synctree_resolved)
 {}
 
 // initialize fresh LocalNode object - must be called exactly once
@@ -1317,8 +1318,8 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     deleted = false;
     created = false;
     reported = false;
-    syncdownPartialAction = synctree_resolved;
-    syncupPartialAction = synctree_resolved;
+    syncdownTargetedAction = synctree_resolved;
+    syncupTargetedAction = synctree_resolved;
     syncxfer = true;
     newnode.reset();
     parent_dbid = 0;
@@ -1360,27 +1361,25 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     sync->localnodes[type]++;
 }
 
-
 void LocalNode::needsFutureSyncup()
 {
-    if (syncupPartialAction < synctree_scanhere) syncupPartialAction = synctree_scanhere;
+    syncupTargetedAction = syncupTargetedAction < synctree_scanhere ? synctree_scanhere : syncupTargetedAction;
     for (auto p = parent; p != NULL; p = p->parent)
     {
-        if (p->syncupPartialAction >= synctree_descendantflagged) break;
-        p->syncupPartialAction = synctree_descendantflagged;
+        if (p->syncupTargetedAction >= synctree_descendantflagged) break;
+        p->syncupTargetedAction = synctree_descendantflagged;
     }
 }
 
 void LocalNode::needsFutureSyncdown()
 {
-    if (syncdownPartialAction < synctree_scanhere) syncdownPartialAction = synctree_scanhere;
+    syncdownTargetedAction = syncdownTargetedAction < synctree_scanhere ? synctree_scanhere : syncdownTargetedAction;
     for (auto p = parent; p != NULL; p = p->parent)
     {
-        if (p->syncdownPartialAction >= synctree_descendantflagged) break;
-        p->syncdownPartialAction = synctree_descendantflagged;
+        if (p->syncdownTargetedAction >= synctree_descendantflagged) break;
+        p->syncdownTargetedAction = synctree_descendantflagged;
     }
 }
-
 
 // update treestates back to the root LocalNode, inform app about changes
 void LocalNode::treestate(treestate_t newts)

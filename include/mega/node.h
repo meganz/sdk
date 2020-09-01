@@ -397,17 +397,17 @@ struct MEGA_API LocalNode : public File
         bool checked : 1;
 
         // needs another syncdown after pending changes
-        unsigned syncdownPartialAction: 2;
+        unsigned syncdownTargetedAction: 2;
 
         // at least one child has needsAnotherSyncdown set
-        unsigned syncupPartialAction: 2;
+        unsigned syncupTargetedAction: 2;
 
     };
 
-    // set the syncupPartialAction for this, and parents
+    // set the syncupTargetedAction for this, and parents
     void needsFutureSyncup();
 
-    // set the syncupPartialAction for this, and parents
+    // set the syncdownTargetedAction for this, and parents
     void needsFutureSyncdown();
 
     // current subtree sync state: current and displayed

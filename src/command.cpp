@@ -109,7 +109,7 @@ bool Command::checkError(Error& errorDetails, JSON& json)
                         errorDetails.setUserStatus(json.getint());
                         break;
                     case 'l':
-                       errorDetails.setLinkStatus(json.getint());
+                        errorDetails.setLinkStatus(json.getint());
                         break;
                     case EOO:
                         exit = true;
@@ -119,6 +119,7 @@ bool Command::checkError(Error& errorDetails, JSON& json)
                         break;
                 }
             }
+            json.leaveobject();
         }
     }
 

@@ -453,7 +453,7 @@ public:
 
 class MEGA_API CommandKeyCR : public Command
 {
-    bool procresult(Result) { return true; }
+    bool procresult(Result) override { return true; }
 public:
     CommandKeyCR(MegaClient*, node_vector*, node_vector*, const char*);
 };
@@ -476,12 +476,13 @@ class MEGA_API CommandSingleKeyCR : public Command
 {
 public:
     CommandSingleKeyCR(handle, handle, const byte*, size_t);
-    bool procresult(Result) { return true; }
+    bool procresult(Result) override { return true; }
 };
 
 class MEGA_API CommandDelNode : public Command
 {
     handle h;
+    handle parent;
     std::function<void(handle, error)> mResultFunction;
 
 public:
@@ -586,7 +587,7 @@ class MEGA_API CommandAttachFA : public Command
 public:
     bool procresult(Result) override;
 
-    // use this one for attribute blobs 
+    // use this one for attribute blobs
     CommandAttachFA(MegaClient*, handle, fatype, handle, int);
 
     // use this one for numeric 64 bit attributes (which must be pre-encrypted with XXTEA)
@@ -934,7 +935,7 @@ public:
 class MEGA_API CommandResetSmsVerifiedPhoneNumber : public Command
 {
 public:
-    bool procresult(Result);
+    bool procresult(Result) override;
 
     CommandResetSmsVerifiedPhoneNumber(MegaClient *);
 };
@@ -1039,7 +1040,7 @@ public:
 };
 
 class MEGA_API CommandChatRemoveAccess : public Command
-{    
+{
     handle chatid;
     handle h;
     handle uh;
@@ -1115,7 +1116,7 @@ protected:
 class MEGA_API CommandSetChatRetentionTime : public Command
 {
 public:
-    bool procresult(Result);
+    bool procresult(Result) override;
 
     CommandSetChatRetentionTime(MegaClient*, handle , int);
 
@@ -1333,7 +1334,7 @@ public:
 class MEGA_API CommandBackupPut : public Command
 {
 public:
-    bool procresult(Result r);
+    bool procresult(Result) override;
 
     // Register a new Sync
     CommandBackupPut(MegaClient* client, BackupType type, handle nodeHandle, const std::string& localFolder, const std::string& deviceId, const std::string& backupName, int state, int subState, const std::string& extraData);
@@ -1358,8 +1359,9 @@ private:
 class MEGA_API CommandBackupRemove : public Command
 {
     handle id;
+
 public:
-    bool procresult(Result r);
+    bool procresult(Result) override;
 
     CommandBackupRemove(MegaClient* client, handle backupId);
 };
@@ -1367,7 +1369,7 @@ public:
 class MEGA_API CommandBackupPutHeartBeat : public Command
 {
 public:
-    bool procresult(Result r);
+    bool procresult(Result) override;
 
     CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, uint32_t ts, handle lastNode);
 };

@@ -1358,7 +1358,7 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
         case API_EBUSINESSPASTDUE:
             return "Business account has expired";
         case API_EPAYWALL:
-            return "Over Disk Quota Paywall";
+            return "Storage Quota Exceeded. Upgrade now";
         case PAYMENT_ECARD:
             return "Credit card rejected";
         case PAYMENT_EBILLING:
@@ -3031,6 +3031,11 @@ void MegaApi::startUploadWithData(const char *localPath, MegaNode *parent, const
 void MegaApi::startUploadWithTopPriority(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener)
 {
     pImpl->startUpload(true, localPath, parent, (const char *)NULL, -1, 0, false, appData, isSourceTemporary, false, FS_UNKNOWN, listener);
+}
+
+void MegaApi::startUploadWithTopPriority(const char* localPath, MegaNode* parent, const char* appData, bool isSourceTemporary, const char* fileName, MegaTransferListener* listener)
+{
+    pImpl->startUpload(true, localPath, parent, fileName, -1, 0, false, appData, isSourceTemporary, false, FS_UNKNOWN, listener);
 }
 
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener)

@@ -167,7 +167,7 @@ bool CommandGetFA::procresult(Result r)
     if (r.wasErrorOrOK())
     {
         if (it != client->fafcs.end())
-        {            
+        {
             faf_map::iterator fafsit;
             for (fafsit = it->second->fafs[0].begin(); fafsit != it->second->fafs[0].end(); )
             {
@@ -382,7 +382,7 @@ bool CommandPutFile::procresult(Result r)
         {
             tslot->transfer->failed(r.errorOrOK(), *client->mTctableRequestCommitter);
         }
-       
+
         return true;
     }
 
@@ -488,7 +488,7 @@ CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
     arg(drn->p ? "n" : "p", (byte*)&drn->h, MegaClient::NODEHANDLE);
     arg("g", 1);
     arg("v", 2);  // version 2: server can supply details for cloudraid files
-	
+
     if (drn->privateauth.size())
     {
         arg("esid", drn->privateauth.c_str());
@@ -614,12 +614,12 @@ bool CommandDirectRead::procresult(Result r)
                         {
                             drn->cmdresult(e);
                         }
-                        
+
                         return false;
                     }
             }
         }
-    } 
+    }
 }
 
 // request temporary source URL for full-file access (p == private node)
@@ -676,17 +676,15 @@ bool CommandGetFile::procresult(Result r)
 
     if (r.wasErrorOrOK())
     {
-        error e = r.errorOrOK();
-
         if (!canceled)
         {
             if (tslot)
             {
-                tslot->transfer->failed(e, *client->mTctableRequestCommitter);
+                tslot->transfer->failed(r.errorOrOK(), *client->mTctableRequestCommitter);
             }
             else
             {
-                client->app->checkfile_result(ph, e);
+                client->app->checkfile_result(ph, r.errorOrOK());
             }
         }
         return true;
@@ -792,7 +790,7 @@ bool CommandGetFile::procresult(Result r)
                         {
                             tslot->transfer->failed(e, *client->mTctableRequestCommitter);
                         }
-                        else 
+                        else
                         {
                             client->app->checkfile_result(ph, e);
                         }
@@ -873,10 +871,7 @@ bool CommandGetFile::procresult(Result r)
                                                 }
                                             }
 
-                                            int creqtag = client->reqtag;
-                                            client->reqtag = 0;
-                                            client->sendevent(99411, "Node size mismatch");
-                                            client->reqtag = creqtag;
+                                            client->sendevent(99411, "Node size mismatch", 0);
                                         }
 
                                         tslot->starttime = tslot->lastdata = client->waiter->ds;
@@ -894,7 +889,7 @@ bool CommandGetFile::procresult(Result r)
                                             // default retry interval
                                             tl = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS;
                                         }
-                                        
+
                                         tslot->transfer->failed(e, *client->mTctableRequestCommitter, e == API_EOVERQUOTA ? tl * 10 : 0);
                                         return true;
                                     }
@@ -999,7 +994,7 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
                 }
             }
         }
-        
+
         m.map.applyUpdates(mAttrMapUpdates);
 
         if (SymmCipher* cipher = n->nodecipher())
@@ -1107,7 +1102,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
                 if (s.size())
                 {
                     arg("fa", s.c_str(), 1);
-                }                
+                }
         }
 
         if (!ISUNDEF(nn[i].parenthandle))
@@ -1205,6 +1200,17 @@ bool CommandPutNodes::procresult(Result r)
 {
     removePendingDBRecordsAndTempFiles();
 
+#ifdef ENABLE_SYNC
+    if (targethandle != UNDEF)
+    {
+        Node* n = client->nodebyhandle(targethandle);
+        if (n && n->localnode)
+        {
+            n->localnode->needsFutureSyncdown();
+        }
+    }
+#endif
+
     if (r.hasJsonArray() || r.hasJsonObject())
     {
         client->sendkeyrewrites();
@@ -1218,7 +1224,7 @@ bool CommandPutNodes::procresult(Result r)
         {
             if (r.hasJsonArray())
             {
-                if (!client->json.isnumeric()) 
+                if (!client->json.isnumeric())
                 {
                     break;
                 }
@@ -1231,7 +1237,7 @@ bool CommandPutNodes::procresult(Result r)
             else
             {
                 string index, errorCode;
-                if (client->json.storeobject(&index) && !client->json.storeobject(&errorCode)) 
+                if (client->json.storeobject(&index) && !client->json.storeobject(&errorCode))
                 {
                     arrayIndex = unsigned(atoi(index.c_str()));
                     nn[arrayIndex].mError = error(atoi(errorCode.c_str()));
@@ -1244,7 +1250,7 @@ bool CommandPutNodes::procresult(Result r)
         for (auto& n : nn)
         {
             // double check we got a node, or know the error why it didn't get created
-            if (!((n.added && n.mAddedHandle != UNDEF && !n.mError) || 
+            if (!((n.added && n.mAddedHandle != UNDEF && !n.mError) ||
                  (!n.added && n.mAddedHandle == UNDEF && n.mError)))
             {
                 assert(false);
@@ -1276,7 +1282,7 @@ bool CommandPutNodes::procresult(Result r)
 //            }
 //#endif
             assert(!emptyResponse);  // todo: can this emptyResponse case occur now that we use actionpackets?
-            client->app->putnodes_result(emptyResponse ? API_ENOENT : API_OK, type, nn);  
+            client->app->putnodes_result(emptyResponse ? API_ENOENT : API_OK, type, nn);
         }
 #ifdef ENABLE_SYNC
         else
@@ -1298,12 +1304,9 @@ bool CommandPutNodes::procresult(Result r)
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
         {
-            if (e == API_EACCESS)
+            if (r.wasError(API_EACCESS))
             {
-                int creqtag = client->reqtag;
-                client->reqtag = 0;
-                client->sendevent(99402, "API_EACCESS putting node in sync transfer");
-                client->reqtag = creqtag;
+                client->sendevent(99402, "API_EACCESS putting node in sync transfer", 0);
             }
 
             client->app->putnodes_result(e, type, nn);
@@ -1343,9 +1346,9 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     syncop = pp != UNDEF;
 
     cmd("m");
-    
+
     // Special case for Move, we do set the 'i' field.
-    // This is needed for backward compatibility, old versions used memcmp to determine if a 't' actionpacket follwed 'd' and we need to satisfy those
+    // This is needed for backward compatibility, old versions used memcmp to detect if a 'd' actionpacket was followed by a 't'  actionpacket with the same 'i' (ie, a move)
     // Additionally the servers can't deliver `st` in that packet for the same reason.  And of course we will not ignore this `t` packet, despite setting 'i'.
     notself(client);
 
@@ -1542,6 +1545,9 @@ CommandDelNode::CommandDelNode(MegaClient* client, handle th, bool keepversions,
 
     h = th;
     tag = cmdtag;
+    tag = client->reqtag;
+    const Node* n = client->nodebyhandle(h);
+    parent = (n && n->parent) ? n->parent->nodehandle : UNDEF;
 }
 
 bool CommandDelNode::procresult(Result r)
@@ -1556,6 +1562,8 @@ bool CommandDelNode::procresult(Result r)
     }
     else
     {
+        error e = API_OK;
+
         for (;;)
         {
             switch (client->json.getnameid())
@@ -1575,6 +1583,17 @@ bool CommandDelNode::procresult(Result r)
                 case EOO:
                     if (mResultFunction)    mResultFunction(h, e);
                     else         client->app->unlink_result(h, e);
+
+#ifdef ENABLE_SYNC
+                    if (parent != UNDEF)
+                    {
+                        Node* n = client->nodebyhandle(parent);
+                        if (n && n->localnode)
+                        {
+                            n->localnode->needsFutureSyncdown();
+                        }
+                    }
+#endif
                     return true;
 
                 default:
@@ -1606,7 +1625,7 @@ CommandKillSessions::CommandKillSessions(MegaClient* client)
 {
     cmd("usr");
     arg("ko", 1); // Request to kill all sessions except the current one
-    
+
     h = UNDEF;
     tag = client->reqtag;
 }
@@ -1617,7 +1636,7 @@ CommandKillSessions::CommandKillSessions(MegaClient* client, handle sessionid)
     beginarray("s");
     element(sessionid, MegaClient::USERHANDLE);
     endarray();
-    
+
     h = sessionid;
     tag = client->reqtag;
 }
@@ -1652,20 +1671,19 @@ const char* CommandLogout::getJSON(MegaClient* client)
 bool CommandLogout::procresult(Result r)
 {
     assert(r.wasErrorOrOK());
-    error e = r.errorOrOK();
     MegaApp *app = client->app;
     if (client->loggingout > 0)
     {
         client->loggingout--;
     }
-    if(!e)
+    if(r.wasError(API_OK))
     {
         // notify client after cache removal, as before
         client->loggedout = true;
     }
     else
     {
-        app->logout_result(e);
+        app->logout_result(r.errorOrOK());
     }
     return true;
 }
@@ -1684,7 +1702,7 @@ bool CommandPrelogin::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->prelogin_result(0, NULL, NULL, r.errorGeneral());
+        client->app->prelogin_result(0, NULL, NULL, r.errorOrOK());
     }
 
     assert(r.hasJsonObject());
@@ -1873,10 +1891,7 @@ bool CommandLogin::procresult(Result r)
                         client->cachedscsn = UNDEF;
                         client->dbaccess->currentDbVersion = DbAccess::DB_VERSION;
 
-                        int creqtag = client->reqtag;
-                        client->reqtag = 0;
-                        client->sendevent(99404, "Local DB upgrade granted");
-                        client->reqtag = creqtag;
+                        client->sendevent(99404, "Local DB upgrade granted", 0);
                     }
                 }
 
@@ -1952,7 +1967,7 @@ bool CommandLogin::procresult(Result r)
                     {
                         if (len_csid < 32)
                         {
-                            client->app->login_result(API_EINTERNAL);                   
+                            client->app->login_result(API_EINTERNAL);
                             return true;
                         }
 
@@ -2189,7 +2204,7 @@ bool CommandSetShare::procresult(Result r)
                 }
                 break;
             }
-                
+
             case 'u':   // user/handle confirmation
                 if (client->json.enterarray())
                 {
@@ -2249,8 +2264,8 @@ CommandSetPendingContact::CommandSetPendingContact(MegaClient* client, const cha
     }
 
     arg("u", temail);
-    switch (action)     
-    {   
+    switch (action)
+    {
         case OPCA_DELETE:
             arg("aa", "d");
             break;
@@ -2396,18 +2411,18 @@ bool CommandSetPendingContact::procresult(Result r)
 
 CommandUpdatePendingContact::CommandUpdatePendingContact(MegaClient* client, handle p, ipcactions_t action)
 {
-    cmd("upca");   
+    cmd("upca");
 
     arg("p", (byte*)&p, MegaClient::PCRHANDLE);
-    switch (action)     
-    {   
+    switch (action)
+    {
         case IPCA_ACCEPT:
             arg("aa", "a");
             break;
         case IPCA_DENY:
             arg("aa", "d");
             break;
-        case IPCA_IGNORE:          
+        case IPCA_IGNORE:
         default:
             arg("aa", "i");
             break;
@@ -2741,16 +2756,15 @@ bool CommandRemoveContact::procresult(Result r)
         if (User *u = client->finduser(email.c_str()))
         {
             u->show = HIDDEN;
-        }   
+        }
 
         client->app->removecontact_result(API_OK);
         return true;
     }
-    
+
     client->app->removecontact_result(r.errorOrOK());
     return r.wasErrorOrOK();
 }
-
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag)
 {
     mV3 = false;
@@ -2783,10 +2797,7 @@ bool CommandPutMultipleUAVer::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        int creqtag = client->reqtag;
-        client->reqtag = 0;
-        client->sendevent(99419, "Error attaching keys");
-        client->reqtag = creqtag;
+        client->sendevent(99419, "Error attaching keys", 0);
 
         client->app->putua_result(r.errorOrOK());
         return true;
@@ -3018,16 +3029,13 @@ CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, un
 
 bool CommandPutUA::procresult(Result r)
 {
-    error e;
-
     if (r.wasErrorOrOK())
     {
-        e = r.errorOrOK();
+        client->app->putua_result(r.errorOrOK());
     }
     else
     {
         client->json.storeobject(); // [<uh>]
-        e = API_OK;
 
         User *u = client->ownuser();
         assert(u);
@@ -3058,9 +3066,9 @@ bool CommandPutUA::procresult(Result r)
             LOG_info << "Unshareable key successfully created";
             client->unshareablekey.swap(av);
         }
+        client->app->putua_result(API_OK);
     }
 
-    client->app->putua_result(e);
     return true;
 }
 
@@ -3094,28 +3102,26 @@ bool CommandGetUA::procresult(Result r)
 
     if (r.wasErrorOrOK())
     {
-        error e = r.errorOrOK();
-
-        if (e == API_ENOENT && u)
+        if (r.wasError(API_ENOENT) && u)
         {
             u->removeattr(at);
         }
 
-        client->app->getua_result(e);
+        client->app->getua_result(r.errorOrOK());
 
         if (isFromChatPreview())    // if `mcuga` was sent, no need to do anything else
         {
             return true;
         }
 
-        if (u && u->userhandle == client->me && e != API_EBLOCKED)
+        if (u && u->userhandle == client->me && !r.wasError(API_EBLOCKED))
         {
             if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK)
             {
                 client->initializekeys(); // we have now all the required data
             }
 
-            if (e == API_ENOENT && User::isAuthring(at))
+            if (r.wasError(API_ENOENT) && User::isAuthring(at))
             {
                 // authring not created yet, will do it upon retrieval of public keys
                 client->mAuthRings.erase(at);
@@ -3130,7 +3136,7 @@ bool CommandGetUA::procresult(Result r)
         }
 
         // if the attr does not exist, initialize it
-        if (at == ATTR_DISABLE_VERSIONS && e == API_ENOENT)
+        if (at == ATTR_DISABLE_VERSIONS && r.wasError(API_ENOENT))
         {
             LOG_info << "File versioning is enabled";
             client->versions_disabled = false;
@@ -3849,7 +3855,6 @@ bool CommandGetUserData::procresult(Result r)
             parseUserAttribute(deviceNames, versionDeviceNames);
             break;
 
-
         case 'b':   // business account's info
             assert(!b);
             b = true;
@@ -4226,7 +4231,7 @@ bool CommandGetUserData::procresult(Result r)
                 {
                     std::string err = "GetUserData: invalid business status / account mode";
                     LOG_err << err;
-                    client->sendevent(99450, err.c_str());
+                    client->sendevent(99450, err.c_str(), 0);
 
                     client->mBizStatus = BIZ_STATUS_EXPIRED;
                     client->mBizMode = BIZ_MODE_SUBUSER;
@@ -4400,7 +4405,7 @@ CommandGetMiscFlags::CommandGetMiscFlags(MegaClient *client)
     cmd("gmf");
 
     // this one can get the smsve flag when the account is blocked (if it's in a batch by itself)
-    batchSeparately = true;  
+    batchSeparately = true;
     suppressSID = true;
 
     tag = client->reqtag;
@@ -4425,7 +4430,7 @@ bool CommandGetMiscFlags::procresult(Result r)
     }
 
     client->app->getmiscflags_result(e);
-    return e != API_EINTERNAL;
+    return error(e) != API_EINTERNAL;
 }
 
 CommandGetUserQuota::CommandGetUserQuota(MegaClient* client, AccountDetails* ad, bool storage, bool transfer, bool pro, int source)
@@ -4573,10 +4578,10 @@ bool CommandGetUserQuota::procresult(Result r)
                         {
                             LOG_debug << client->nodebyhandle(h)->displaypath() << " " << iter->second.storage << " " << ns->bytes << " " << iter->second.files << " " << ns->files << " " << iter->second.folders << " " << ns->folders << " "
                                       << iter->second.versionStorage << " " << ns->version_bytes << " " << iter->second.versions << " " << ns->version_files
-                                      << (iter->second.storage == ns->bytes && iter->second.files == ns->files && iter->second.folders == ns->folders && iter->second.versionStorage == ns->version_bytes && iter->second.versions == ns->version_files 
+                                      << (iter->second.storage == ns->bytes && iter->second.files == ns->files && iter->second.folders == ns->folders && iter->second.versionStorage == ns->version_bytes && iter->second.versions == ns->version_files
                                           ? "" : " ******************************************* mismatch *******************************************");
                         }
-#endif 
+#endif
 
                         while(client->json.storeobject());
                         client->json.leavearray();
@@ -5191,7 +5196,7 @@ bool CommandWhyAmIblocked::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        if (!r.wasError(API_OK)) //unblocked
+        if (r.wasError(API_OK)) //unblocked
         {
             client->unblock();
         }
@@ -5897,7 +5902,7 @@ CommandGetRecoveryLink::CommandGetRecoveryLink(MegaClient *client, const char *e
 }
 
 bool CommandGetRecoveryLink::procresult(Result r)
-{    
+{
     client->app->getrecoverylink_result(r.errorOrOK());
     return r.wasErrorOrOK();
 }
@@ -5912,23 +5917,18 @@ CommandQueryRecoveryLink::CommandQueryRecoveryLink(MegaClient *client, const cha
 
 bool CommandQueryRecoveryLink::procresult(Result r)
 {
-    // [<code>,"<email>","<ip_address>",<timestamp>,"<user_handle>",["<email>"]]
-
-    //todo: haven't we already entered the array
-    client->json.enterarray();
-
+    // [<code>,"<email>","<ip_address>",<timestamp>,"<user_handle>",["<email>"]]   (and we are already in the array)
     string email;
     string ip;
     m_time_t ts;
     handle uh;
 
-    if (r.wasErrorOrOK() && !r.wasError(API_OK))
+    if (r.wasStrictlyError())
     {
         client->app->queryrecoverylink_result(r.errorOrOK());
         return true;
     }
 
-    //todo: code here was a bit odd, double check
     if (!client->json.isnumeric())
     {
         client->app->queryrecoverylink_result(API_EINTERNAL);
@@ -5960,7 +5960,6 @@ bool CommandQueryRecoveryLink::procresult(Result r)
         }
     }
     client->json.leavearray();  // emails array
-    client->json.leavearray();  // response array
 
     if (!emails.size()) // there should be at least one email
     {
@@ -6111,8 +6110,17 @@ CommandValidatePassword::CommandValidatePassword(MegaClient *client, const char 
 
 bool CommandValidatePassword::procresult(Result r)
 {
-    client->app->validatepassword_result(r.errorOrOK());
-    return r.wasErrorOrOK();
+    if (r.wasError(API_OK))
+    {
+        client->app->validatepassword_result(r.errorOrOK());
+        return true;
+    }
+    else
+    {
+        assert(r.hasJsonObject());  // we don't use the object contents, and will exit the object automatically
+        client->app->validatepassword_result(API_OK);
+        return r.hasJsonObject();
+    }
 }
 
 CommandGetEmailLink::CommandGetEmailLink(MegaClient *client, const char *email, int add, const char *pin)
@@ -7524,7 +7532,7 @@ CommandMediaCodecs::CommandMediaCodecs(MegaClient* c, Callback cb)
 }
 
 bool CommandMediaCodecs::procresult(Result r)
-{    
+{
     if (r.wasErrorOrOK())
     {
         LOG_err << "mc result: " << error(r.errorOrOK());
@@ -7555,7 +7563,7 @@ CommandContactLinkCreate::CommandContactLinkCreate(MegaClient *client, bool rene
     {
         cmd("clc");
     }
-    
+
     tag = client->reqtag;
 }
 
@@ -7568,7 +7576,7 @@ bool CommandContactLinkCreate::procresult(Result r)
     else
     {
         handle h = client->json.gethandle(MegaClient::CONTACTLINKHANDLE);
-        client->app->contactlinkcreate_result(API_OK, h);                
+        client->app->contactlinkcreate_result(API_OK, h);
     }
     return true;
 }
@@ -7579,12 +7587,12 @@ CommandContactLinkQuery::CommandContactLinkQuery(MegaClient *client, handle h)
     arg("cl", (byte*)&h, MegaClient::CONTACTLINKHANDLE);
 
     arg("b", 1);    // return firstname/lastname in B64
-    
+
     tag = client->reqtag;
 }
 
 bool CommandContactLinkQuery::procresult(Result r)
-{    
+{
     handle h = UNDEF;
     string email;
     string firstname;
@@ -7638,7 +7646,7 @@ CommandContactLinkDelete::CommandContactLinkDelete(MegaClient *client, handle h)
     {
         arg("cl", (byte*)&h, MegaClient::CONTACTLINKHANDLE);
     }
-    tag = client->reqtag;    
+    tag = client->reqtag;
 }
 
 bool CommandContactLinkDelete::procresult(Result r)
@@ -8333,17 +8341,19 @@ bool CommandBackupPut::procresult(Result r)
 {
     assert(r.wasStrictlyError() || r.hasJsonItem());
     handle backupId = UNDEF;
+    Error e = r.errorOrOK();
     if (r.hasJsonItem())
     {
         backupId = client->json.gethandle(MegaClient::USERHANDLE);
+        e = API_OK;
     }
     if (mUpdate)
     {
-        client->app->backupupdate_result(r.errorGeneral(), backupId);
+        client->app->backupupdate_result(e, backupId);
     }
     else
     {
-        client->app->backupput_result(r.errorGeneral(), backupId);
+        client->app->backupput_result(e, backupId);
     }
     return r.wasStrictlyError() || r.hasJsonItem();
 }
