@@ -2063,13 +2063,23 @@ using namespace mega;
 }
 
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString cancelToken:(MEGACancelToken *)cancelToken recursive:(BOOL)recursive order:(MEGASortOrderType)order {
-    return [MEGANodeList.alloc initWithNodeList:self.megaApi->search(node ? [node getCPtr] : NULL, searchString.UTF8String, cancelToken ? [cancelToken getCPtr] : NULL, recursive, (int)order) cMemoryOwn:YES];
+//    return [MEGANodeList.alloc initWithNodeList:self.megaApi->search(node ? [node getCPtr] : NULL, searchString.UTF8String, cancelToken ? [cancelToken getCPtr] : NULL, recursive, (int)order) cMemoryOwn:YES];
+     return [MEGANodeList.alloc initWithNodeList:self.megaApi->search(node ? [node getCPtr] : NULL, searchString.UTF8String, cancelToken ? [cancelToken getCPtr] : NULL, recursive, (int)order, (int)MEGANodeFormatTypeUnknown, (int)MEGAFolderTargetTypeAll) cMemoryOwn:YES];
 }
 
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString {
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->search((node != nil) ? [node getCPtr] : NULL, (searchString != nil) ? [searchString UTF8String] : NULL, YES) cMemoryOwn:YES];
 }
 
+- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node
+                           searchString:(nullable NSString *)searchString
+                            cancelToken:(MEGACancelToken *)cancelToken
+                              recursive:(BOOL)recursive
+                              orderType:(MEGASortOrderType)orderType
+                         nodeFormatType:(MEGANodeFormatType)nodeFormatType
+                       folderTargetType:(MEGAFolderTargetType)folderTargetType {
+    return [MEGANodeList.alloc initWithNodeList:self.megaApi->search(node ? [node getCPtr] : NULL, searchString.UTF8String, cancelToken ? [cancelToken getCPtr] : NULL, recursive, (int)orderType, (int)nodeFormatType, (int)folderTargetType) cMemoryOwn:YES];
+}
 - (NSMutableArray *)recentActions {
     MegaRecentActionBucketList *megaRecentActionBucketList = self.megaApi->getRecentActions();
     int count = megaRecentActionBucketList->size();

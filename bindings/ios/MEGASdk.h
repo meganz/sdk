@@ -71,6 +71,22 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeLinkCreationDesc
 };
 
+typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
+    MEGANodeFormatTypeUnknown = 0,
+    MEGANodeFormatTypePhoto,
+    MEGANodeFormatTypeAudio,
+    MEGANodeFormatTypeVideo,
+    MEGANodeFormatTypeDocument,
+};
+
+typedef NS_ENUM (NSInteger, MEGAFolderTargetType) {
+    MEGAFolderTargetTypeInShare = 0,
+    MEGAFolderTargetTypeOutShare,
+    MEGAFolderTargetTypePublicLink,
+    MEGAFolderTargetTypeRootNodes,
+    MEGAFolderTargetTypeAll,
+};
+
 typedef NS_ENUM (NSInteger, MEGAEventType) {
     MEGAEventTypeFeedback = 0,
     MEGAEventTypeDebug,
@@ -7081,6 +7097,91 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * @return List of nodes that contain the desired string in their name.
  */
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString;
+
+/**
+ * @brief Search nodes containing a search string in their name.
+ *
+ * The search is case-insensitive.
+ *
+ * @param node The parent node of the tree to explore.
+ * @param searchString Search string. The search is case-insensitive.
+ * If the search string is not provided but nodeFormatType has any value apart from MEGANodeFormatTypeUnknown
+ * this method will return a list that contains nodes of the same type as provided.
+ * @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
+ * @param recursive YES if you want to seach recursively in the node tree.
+ * NO if you want to seach in the children of the node only
+ * @param orderType MEGASortOrderType for the returned list.
+ * Valid values for this parameter are:
+ * - MEGASortOrderTypeNone = 0
+ * Undefined order
+ *
+ * - MEGASortOrderTypeDefaultAsc = 1
+ * Folders first in alphabetical order, then files in the same order
+ *
+ * - MEGASortOrderTypeDefaultDesc = 2
+ * Files first in reverse alphabetical order, then folders in the same order
+ *
+ * - MEGASortOrderTypeSizeAsc = 3
+ * Sort by size, ascending
+ *
+ * - MEGASortOrderTypeSizeDesc = 4
+ * Sort by size, descending
+ *
+ * - MEGASortOrderTypeCreationAsc = 5
+ *  Sort by creation time in MEGA, ascending
+ *
+ * - MEGASortOrderTypeCreationDesc = 6
+ * Sort by creation time in MEGA, descending
+ *
+ * - MEGASortOrderTypeModificationAsc = 7
+ * Sort by modification time of the original file, ascending
+ *
+ * - MEGASortOrderTypeModificationDesc = 8
+ * Sort by modification time of the original file, descending
+ *
+ * - MEGASortOrderTypeAlphabeticalAsc = 9
+ * Same behavior than MEGASortOrderTypeDefaultAsc
+ *
+ * - MEGASortOrderTypeAlphabeticalDesc = 10
+ * Same behavior than MEGASortOrderTypeDefaultDesc
+ *
+ * - MEGASortOrderTypePhotoAsc = 11
+ * Sort with photos first, then by date ascending
+ *
+ * - MEGASortOrderTypePhotoDesc = 12
+ * Sort with photos first, then by date descending
+ *
+ * - MEGASortOrderTypeVideoAsc = 13
+ * Sort with videos first, then by date ascending
+ *
+ * - MEGASortOrderTypeVideoDesc = 14
+ * Sort with videos first, then by date descending
+ *
+ * @param nodeFormatType Type of nodes requested in the search
+ * Valid values for this parameter are:
+ * - MEGANodeFormatTypeUnknown = 0
+ * - MEGANodeFormatTypePhoto = 1
+ * - MEGANodeFormatTypeAudio = 2
+ * - MEGANodeFormatTypeVideo = 3
+ * - MEGANodeFormatTypeDocument = 4
+ *
+ * @param folderTargetType Target type where this method will search
+ * Valid values for this parameter are
+ * - MEGAFolderTargetTypeInShare = 0
+ * - MEGAFolderTargetTypeOutShare = 1
+ * - MEGAFolderTargetTypePublicLink = 2
+ * - MEGAFolderTargetTypeRootNodes = 3
+ * - MEGAFolderTargetTypeAll = 4
+ *
+ * @return List of nodes that contain the desired string in their name.
+ */
+- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node
+                           searchString:(nullable NSString *)searchString
+                            cancelToken:(MEGACancelToken *)cancelToken
+                              recursive:(BOOL)recursive
+                              orderType:(MEGASortOrderType)orderType
+                         nodeFormatType:(MEGANodeFormatType)nodeFormatType
+                       folderTargetType:(MEGAFolderTargetType)folderTargetType;
 
 /**
  * @brief Return an array of buckets, each bucket containing a list of recently added/modified nodes
