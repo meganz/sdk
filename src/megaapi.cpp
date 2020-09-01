@@ -3773,7 +3773,7 @@ MegaNodeList* MegaApi::searchOnPublicLinks(const char *searchString, MegaCancelT
     return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApi::TARGET_PUBLICLINK);
 }
 
-MegaNodeList* MegaApi::search(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order, int type, int target)
+MegaNodeList* MegaApi::searchByType(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order, int type, int target)
 {
     return pImpl->search(n, searchString, cancelToken, recursive, order, type, target);
 }

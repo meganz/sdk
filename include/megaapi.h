@@ -14745,16 +14745,6 @@ class MegaApi
          * - MegaApi::ORDER_MODIFICATION_DESC = 8
          * Sort by modification time of the original file, descending
          *
-         * - MegaApi::ORDER_ALPHABETICAL_ASC = 9
-         * Same behavior than MegaApi::ORDER_DEFAULT_ASC
-         *
-         * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
-         * Same behavior than MegaApi::ORDER_DEFAULT_DESC
-         *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
-         * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
-         * They will be eventually removed.
-         *
          * - MegaApi::ORDER_PHOTO_ASC = 11
          * Sort with photos first, then by date ascending
          *
@@ -14769,7 +14759,7 @@ class MegaApi
          *
          * @param type Type of nodes requested in the search
          * Valid values for this parameter are:
-         * - MegaApi::NODE_UNKNOWN = 0
+         * - MegaApi::NODE_UNKNOWN = 0  --> all types
          * - MegaApi::NODE_PHOTO = 1
          * - MegaApi::NODE_AUDIO = 2
          * - MegaApi::NODE_VIDEO = 3
@@ -14785,7 +14775,7 @@ class MegaApi
          *
          * @return List of nodes that match with the search parameters
          */
-        MegaNodeList* search(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int type = NODE_UNKNOWN, int target = TARGET_ALL);
+        MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int type = NODE_UNKNOWN, int target = TARGET_ALL);
 
         /**
          * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
