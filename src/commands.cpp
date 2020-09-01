@@ -1277,8 +1277,7 @@ bool CommandPutNodes::procresult(Result r)
 #ifdef ENABLE_SYNC
     if (source == PUTNODES_SYNC)
     {
-        vector<NewNode> emptyVec;
-        client->app->putnodes_result(e, type, emptyVec);
+        client->app->putnodes_result(e, type, nn);
         client->putnodes_sync_result(e, nn);
     }
     else
