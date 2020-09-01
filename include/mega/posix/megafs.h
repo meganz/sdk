@@ -148,7 +148,7 @@ public:
     DIR* dp;
 #endif
 
-    bool fopen(LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr) override;
+    bool fopen(LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false) override;
 
     void updatelocalname(LocalPath&) override;
     bool fread(string *, unsigned, unsigned, m_off_t);

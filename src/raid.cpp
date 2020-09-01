@@ -239,6 +239,17 @@ bool RaidBufferManager::isRaid() const
     return is_raid;
 }
 
+bool RaidBufferManager::isUnusedRaidConection(unsigned connectionNum) const
+{
+    return connectionNum == unusedRaidConnection;
+}
+
+bool RaidBufferManager::isRaidConnectionProgressBlocked(unsigned connectionNum) const
+{
+    return connectionPaused[connectionNum];
+}
+
+
 const std::string& RaidBufferManager::tempURL(unsigned connectionNum)
 {
     if (isRaid())
@@ -706,11 +717,14 @@ void TransferBufferManager::finalize(FilePiece& r)
 }
 
 
-bool RaidBufferManager::tryRaidHttpGetErrorRecovery(unsigned errorConnectionNum)
+bool RaidBufferManager::tryRaidHttpGetErrorRecovery(unsigned errorConnectionNum, bool incrementErrors)
 {
     assert(isRaid());
 
-    raidHttpGetErrorCount[errorConnectionNum] += 1;
+    if (incrementErrors)
+    {
+        raidHttpGetErrorCount[errorConnectionNum] += 1;
+    }
 
     g_faultyServers.add(tempurls[errorConnectionNum]);
 
@@ -749,26 +763,6 @@ bool RaidBufferManager::tryRaidHttpGetErrorRecovery(unsigned errorConnectionNum)
     {
         return false;
     }
-}
-
-bool RaidBufferManager::connectionRaidPeersAreAllPaused(unsigned slowConnection)
-{
-    if (!isRaid())
-    {
-        return false;
-    }
-
-    // see if one connection is stalled or running much slower than the others, in which case try the other 5 instead
-    // (if already using 5 connections and all of them are paused, except slowConnection, the unusedRaidConnection will
-    // be started again and the slowConnection will become the new unusedRaidConnection)
-    for (unsigned j = RAIDPARTS; j--; )
-    {
-        if (j != slowConnection && j != unusedRaidConnection && !connectionPaused[j])
-        {
-            return false;
-        }
-    }
-    return true;
 }
 
 bool RaidBufferManager::detectSlowestRaidConnection(unsigned thisConnection, unsigned& slowestConnection)

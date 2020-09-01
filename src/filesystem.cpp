@@ -199,46 +199,9 @@ bool FileSystemAccess::isControlChar(unsigned char c) const
 }
 
 // Group different filesystems types in families, according to its restricted charsets
-bool FileSystemAccess::islocalfscompatible(unsigned char c, bool isEscape, FileSystemType fileSystemType) const
+bool FileSystemAccess::islocalfscompatible(unsigned char c, bool, FileSystemType) const
 {
-    switch (fileSystemType)
-    {
-        case FS_APFS:
-        case FS_HFS:
-            // APFS, HFS, HFS+ restricted characters => : /
-            return c != '\x3A' && c != '\x2F';
-        case FS_F2FS:
-        case FS_EXT:
-            // f2fs and ext2/ext3/ext4 restricted characters =>  / NULL
-            return c != '\x00' && c != '\x2F';
-        case FS_FAT32:
-            // Control characters will be escaped but not unescaped
-            // FAT32 restricted characters => " * / : < > ? \ | + , ; = [ ]
-            return (isControlChar(c) && isEscape)
-                        ? false
-                        : !strchr("\\/:?\"<>|*+,;=[]", c);
-        case FS_EXFAT:
-        case FS_NTFS:
-            // Control characters will be escaped but not unescaped
-            // ExFAT, NTFS restricted characters => " * / : < > ? \ |
-            return (isControlChar(c) && isEscape)
-                        ? false
-                        : !strchr("\\/:?\"<>|*", c);
-        case FS_FUSE:
-        case FS_SDCARDFS:
-            // FUSE and SDCARDFS are Android filesystem wrappers used to mount traditional filesystems
-            // as ext4, Fat32, extFAT...
-            // So we will consider that restricted characters for these wrappers are the same
-            // as for Android => " * / : < > ? \ |
-            return !strchr("\\/:?\"<>|*", c);
-
-        case FS_UNKNOWN:
-        default:
-            // If filesystem couldn't be detected we'll use the most restrictive charset to avoid issues.
-            return (isControlChar(c) && isEscape)
-                    ? false
-                    : !strchr("\\/:?\"<>|*+,;=[]", c);
-    }
+    return c >= ' ' && !strchr("\\/:?\"<>|*", c);
 }
 
 FileSystemType FileSystemAccess::getFilesystemType(const LocalPath& dstPath) const
@@ -429,7 +392,7 @@ void DirNotify::setFailed(int errCode, const string& reason)
 
 int DirNotify::getFailed(string& reason)
 {
-    if (mFailed) 
+    if (mFailed)
     {
         reason = mFailReason;
     }
@@ -440,7 +403,7 @@ int DirNotify::getFailed(string& reason)
 // notify base LocalNode + relative path/filename
 void DirNotify::notify(notifyqueue q, LocalNode* l, LocalPath&& path, bool immediate)
 {
-    // We may be executing on a thread here so we can't access the LocalNode data structures.  Queue everything, and   
+    // We may be executing on a thread here so we can't access the LocalNode data structures.  Queue everything, and
     // filter when the notifications are processed.  Also, queueing it here is faster than logging the decision anyway.
 
     Notification n;
@@ -884,15 +847,12 @@ void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separa
     if (separatorAlways || localpath.size())
     {
         // still have to be careful about appending a \ to F:\ for example, on windows, which produces an invalid path
-        #ifdef WIN32
-            if (localpath.size() < localseparator.size() || 
-                memcmp(localpath.data() + localpath.size() - localseparator.size(), localseparator.data(), localseparator.size()))
-            {
-                localpath.append(localseparator);
-            }
-        #else
+        if ( localpath.size() < localseparator.size() ||
+             memcmp(localpath.data() + localpath.size() - localseparator.size(),
+                    localseparator.data(), localseparator.size()) )
+        {
             localpath.append(localseparator);
-        #endif
+        }
     }
 
     localpath.append(additionalPath.localpath);
@@ -904,7 +864,7 @@ void LocalPath::prependWithSeparator(const LocalPath& additionalPath, const stri
     if (localpath.size() >= localseparator.size() && memcmp(localpath.data(), localseparator.data(), localseparator.size()))
     {
         // no additional separator if there is already one before
-        if (additionalPath.editStringDirect()->size() < localseparator.size() || 
+        if (additionalPath.editStringDirect()->size() < localseparator.size() ||
             memcmp(additionalPath.editStringDirect()->data() + additionalPath.editStringDirect()->size() - localseparator.size(), localseparator.data(), localseparator.size()))
         {
             localpath.insert(0, localseparator);
@@ -948,7 +908,7 @@ bool LocalPath::findPrevSeparator(size_t& separatorBytePos, const FileSystemAcce
         if (separatorBytePos == string::npos) return false;
         if (separatorBytePos % fsaccess.localseparator.size() == 0) return true;
         separatorBytePos--;
-    } 
+    }
 }
 
 bool LocalPath::endsInSeparator(const FileSystemAccess& fsaccess) const
@@ -963,7 +923,7 @@ size_t LocalPath::getLeafnameByteIndex(const FileSystemAccess& fsaccess) const
 {
     // todo: take utf8 two byte characters into account
     size_t p = localpath.size();
-    p -= fsaccess.localseparator.size() % 2; // just in case on windows
+    p -= localpath.size() % fsaccess.localseparator.size(); // just in case on windows
     while (p && (p -= fsaccess.localseparator.size()))
     {
         if (!memcmp(localpath.data() + p, fsaccess.localseparator.data(), fsaccess.localseparator.size()))
@@ -1046,7 +1006,7 @@ LocalPath LocalPath::tmpNameLocal(const FileSystemAccess& fsaccess)
 
 bool LocalPath::isContainingPathOf(const LocalPath& path, const FileSystemAccess& fsaccess)
 {
-    return path.localpath.size() >= localpath.size() 
+    return path.localpath.size() >= localpath.size()
         && !memcmp(path.localpath.data(), localpath.data(), localpath.size())
         && (path.localpath.size() == localpath.size() ||
            !memcmp(path.localpath.data() + localpath.size(), fsaccess.localseparator.data(), fsaccess.localseparator.size()) ||
@@ -1063,6 +1023,5 @@ ScopedLengthRestore::~ScopedLengthRestore()
 {
     path.setLength(length);
 };
-
 
 } // namespace
