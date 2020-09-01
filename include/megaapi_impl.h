@@ -2153,12 +2153,13 @@ class MegaApiImpl : public MegaApp
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
         void share(MegaNode *node, MegaUser* user, int level, MegaRequestListener *listener = NULL);
         void share(MegaNode* node, const char* email, int level, MegaRequestListener *listener = NULL);
-        void loginToFolder(const char* megaFolderLink, MegaRequestListener *listener = NULL);
+        void loginToFolder(const char* megaFolderLink, const char *authKey = nullptr, MegaRequestListener *listener = NULL);
         void importFileLink(const char* megaFileLink, MegaNode* parent, MegaRequestListener *listener = NULL);
         void decryptPasswordProtectedLink(const char* link, const char* password, MegaRequestListener *listener = NULL);
         void encryptLinkWithPassword(const char* link, const char* password, MegaRequestListener *listener = NULL);
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
         const char *buildPublicLink(const char *publicHandle, const char *key, bool isFolder);
+        const char *getAuthKey(MegaHandle nodeHandle);
         void getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
 		void cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener = NULL);
         void setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
@@ -2192,7 +2193,7 @@ class MegaApiImpl : public MegaApp
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
         void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
-        void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
+        void exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(bool resumeSyncs, MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);

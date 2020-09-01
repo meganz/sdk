@@ -1100,12 +1100,12 @@ bool Node::isbelow(Node* p) const
     }
 }
 
-void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
+void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, string authKey)
 {
     if (!plink) // creation
     {
         assert(client->mPublicLinks.find(nodehandle) == client->mPublicLinks.end());
-        plink = new PublicLink(ph, cts, ets, takendown);
+        plink = new PublicLink(ph, cts, ets, takendown, authKey);
     }
     else            // update
     {
@@ -1114,16 +1114,18 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
         plink->cts = cts;
         plink->ets = ets;
         plink->takendown = takendown;
+        plink->mAuthKey = authKey;
     }
     client->mPublicLinks[nodehandle] = ph;
 }
 
-PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
+PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, std::string authKey)
 {
     this->ph = ph;
     this->cts = cts;
     this->ets = ets;
     this->takendown = takendown;
+    this->mAuthKey = authKey;
 }
 
 PublicLink::PublicLink(PublicLink *plink)
@@ -1132,6 +1134,7 @@ PublicLink::PublicLink(PublicLink *plink)
     this->cts = plink->cts;
     this->ets = plink->ets;
     this->takendown = plink->takendown;
+    this->mAuthKey = plink->mAuthKey;
 }
 
 bool PublicLink::isExpired()

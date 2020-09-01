@@ -273,6 +273,8 @@ public:
 
     static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
+    string getPublicLinkAuthKey(handle node);
+
 #ifdef ENABLE_CHAT
     // all chats
     textchat_map chats;
@@ -384,7 +386,7 @@ public:
     error parsepubliclink(const char *link, handle &ph, byte *key, bool isFolderLink);
 
     // set folder link: node, key
-    error folderaccess(const char*folderlink);
+    error folderaccess(const char*folderlink, const char *authKey);
 
     // open exported file link (op=0 -> download, op=1 fetch data)
     void openfilelink(handle ph, const byte *key, int op);
@@ -563,8 +565,8 @@ public:
     void updatepcr(handle, ipcactions_t);
 
     // export node link or remove existing exported link for this node
-    error exportnode(Node*, int, m_time_t);
-    void getpubliclink(Node* n, int del, m_time_t ets); // auxiliar method to add req
+    error exportnode(Node*, int, m_time_t, bool writable = false);
+    void getpubliclink(Node* n, int del, m_time_t ets, bool writable = false); // auxiliar method to add req
 
     // add timer
     error addtimer(TimerWithBackoff *twb);
@@ -1542,7 +1544,7 @@ public:
 
     // set authentication context, either a session ID or a exported folder node handle
     void setsid(const byte*, unsigned);
-    void setrootnode(handle);
+    void setrootnode(handle, const char *authKey = nullptr);
 
     bool setlang(string *code);
 

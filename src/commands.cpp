@@ -4806,7 +4806,7 @@ bool CommandGetUserSessions::procresult(Result r)
     return true;
 }
 
-CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t ets)
+CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t ets, bool writable)
 {
     cmd("l");
     arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);
@@ -4821,9 +4821,15 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t ets)
         arg("ets", ets);
     }
 
+    if (writable)
+    {
+        arg("w", "1");
+    }
+
     this->h = n->nodehandle;
     this->ets = ets;
     this->tag = client->reqtag;
+    mWritable = writable;
 }
 
 bool CommandSetPH::procresult(Result r)
@@ -4834,23 +4840,71 @@ bool CommandSetPH::procresult(Result r)
         return true;
     }
 
-    handle ph = client->json.gethandle();
 
-    if (ISUNDEF(ph))
+    if (mWritable) // aparently, depending on 'w', the response can be [{"ph":"XXXXXXXX","w":"YYYYYYYYYYYYYYYYYYYYYY"}] or simply [XXXXXXXX]
     {
-        client->app->exportnode_result(API_EINTERNAL);
-        return true;
+        handle ph = UNDEF;
+        std::string authKey;
+        bool hasAuthKey = false;
+
+        for (;;)
+        {
+            switch (client->json.getnameid())
+            {
+            case 'w':
+                hasAuthKey = client->json.storeobject(&authKey);
+                break;
+
+            case MAKENAMEID2('p', 'h'):
+                ph = client->json.gethandle();
+                break;
+
+            case EOO:
+            {
+                if (ISUNDEF(ph))
+                {
+                    client->app->exportnode_result(API_EINTERNAL);
+                    return true;
+                }
+                Node *n = client->nodebyhandle(h);
+                if (n)
+                {
+                    n->setpubliclink(ph, time(nullptr), ets, false, authKey);
+                    n->changed.publiclink = true;
+                    client->notifynode(n);
+                }
+                client->app->exportnode_result(h, ph);
+                return true;
+            }
+            default:
+                if (!client->json.storeobject())
+                {
+                    client->app->exportnode_result(API_EINTERNAL);
+                    return true;
+                }
+            }
+        }
+    }
+    else
+    {
+        handle ph = client->json.gethandle();
+
+        if (ISUNDEF(ph))
+        {
+            client->app->exportnode_result(API_EINTERNAL);
+            return true;
+        }
+
+        Node *n = client->nodebyhandle(h);
+        if (n)
+        {
+            n->setpubliclink(ph, time(nullptr), ets, false);
+            n->changed.publiclink = true;
+            client->notifynode(n);
+        }
+        client->app->exportnode_result(h, ph);
     }
 
-    Node *n = client->nodebyhandle(h);
-    if (n)
-    {
-        n->setpubliclink(ph, time(nullptr), ets, false);
-        n->changed.publiclink = true;
-        client->notifynode(n);
-    }
-
-    client->app->exportnode_result(h, ph);
     return true;
 }
 

@@ -705,11 +705,12 @@ class MEGA_API CommandSetPH : public Command
 {
     handle h;
     m_time_t ets;
+    bool mWritable = false;
 
 public:
     bool procresult(Result) override;
 
-    CommandSetPH(MegaClient*, Node*, int, m_time_t);
+    CommandSetPH(MegaClient*, Node*, int, m_time_t, bool writable = false);
 };
 
 class MEGA_API CommandGetPH : public Command

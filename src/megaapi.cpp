@@ -2290,9 +2290,14 @@ void MegaApi::share(MegaNode *node, const char* email, int access, MegaRequestLi
     pImpl->share(node, email, access, listener);
 }
 
+void MegaApi::loginToFolder(const char* megaFolderLink, const char* authKey, MegaRequestListener *listener)
+{
+    pImpl->loginToFolder(megaFolderLink, authKey, listener);
+}
+
 void MegaApi::loginToFolder(const char* megaFolderLink, MegaRequestListener *listener)
 {
-    pImpl->loginToFolder(megaFolderLink, listener);
+    pImpl->loginToFolder(megaFolderLink, nullptr, listener);
 }
 
 void MegaApi::importFileLink(const char* megaFileLink, MegaNode *parent, MegaRequestListener *listener)
@@ -2318,6 +2323,11 @@ void MegaApi::getPublicNode(const char* megaFileLink, MegaRequestListener *liste
 const char *MegaApi::buildPublicLink(const char *publicHandle, const char *key, bool isFolder)
 {
     return pImpl->buildPublicLink(publicHandle, key, isFolder);
+}
+
+const char *MegaApi::getAuthKey(MegaHandle nodeHandle)
+{
+    return pImpl->getAuthKey(nodeHandle);
 }
 
 void MegaApi::getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
@@ -2490,9 +2500,19 @@ void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
     pImpl->exportNode(node, 0, listener);
 }
 
+void MegaApi::exportNode(MegaNode *node, bool writable, MegaRequestListener *listener)
+{
+    pImpl->exportNode(node, 0, writable, listener);
+}
+
 void MegaApi::exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener)
 {
-    pImpl->exportNode(node, expireTime, listener);
+    pImpl->exportNode(node, expireTime, false, listener);
+}
+
+void MegaApi::exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener)
+{
+    pImpl->exportNode(node, expireTime, writable, listener);
 }
 
 void MegaApi::disableExport(MegaNode *node, MegaRequestListener *listener)

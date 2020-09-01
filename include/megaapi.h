@@ -3066,7 +3066,7 @@ class MegaRequest
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::getUserData - Returns the private RSA key of the account, Base64-encoded
-         *
+         * TODO: add doc for logintofolder
          * @return Private key related to the request
          */
         virtual const char* getPrivateKey() const;
@@ -7814,6 +7814,8 @@ class MegaApi
          * @param megaFolderLink Public link to a folder in MEGA
          * @param listener MegaRequestListener to track this request
          */
+        //TODO: doc authKey
+        void loginToFolder(const char* megaFolderLink, const char *authKey = nullptr, MegaRequestListener *listener = NULL);
         void loginToFolder(const char* megaFolderLink, MegaRequestListener *listener = NULL);
 
         /**
@@ -9514,6 +9516,10 @@ class MegaApi
          */
         const char *buildPublicLink(const char *publicHandle, const char *key, bool isFolder);
 
+        // TODO: doc this
+        const char *getAuthKey(MegaHandle nodeHandle);
+
+
         /**
          * @brief Get the thumbnail of a node
          *
@@ -10304,6 +10310,10 @@ class MegaApi
          * @note A Unix timestamp represents the number of seconds since 00:00 hours, Jan 1, 1970 UTC
          */
         void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
+
+
+        void exportNode(MegaNode *node, bool writable, MegaRequestListener *listener);
+        void exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener);
 
         /**
          * @brief Stop sharing a file/folder

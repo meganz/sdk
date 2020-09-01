@@ -113,11 +113,13 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
 }
 
 // share node sh with access level sa
-PubKeyActionCreateShare::PubKeyActionCreateShare(handle sh, accesslevel_t sa, int ctag, const char* personal_representation)
+PubKeyActionCreateShare::PubKeyActionCreateShare(handle sh, accesslevel_t sa, int ctag,
+                                                 bool writable,  const char* personal_representation)
 {
     h = sh;
     a = sa;
     tag = ctag;
+    mWritable = writable;
 
     if (personal_representation)
     {
