@@ -1138,15 +1138,15 @@ bool WinFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolu
         return false;
     }
 
-    if (absolutepathArg.localpath.compare(0, 4, L"\\\\?\\"))
+    if (memcmp(absolutepathArg.localpath.data(), L"\\\\?\\", 8))
     {
-        if (!absolutepathArg.localpath.compare(0, 2, L"\\\\")) //network location
+        if (!memcmp(absolutepathArg.localpath.data(), L"\\\\", 4)) //network location
         {
-            absolutepathArg.localpath.insert(0, L"\\\\?\\UNC\\", 8);
+            absolutepathArg.localpath.insert(0, L"\\\\?\\UNC\\");
         }
         else
         {
-            absolutepathArg.localpath.insert(0, L"\\\\?\\", 4);
+            absolutepathArg.localpath.insert(0, L"\\\\?\\");
         }
     }
 
@@ -1341,7 +1341,7 @@ void WinDirNotify::process(DWORD dwBytes)
             // also, we skip the old name in case of renames
             if (fni->Action != FILE_ACTION_RENAMED_OLD_NAME
                 && (fni->FileNameLength < ignore.localpath.size()
-                    || ignore.localpath.compare(0, ignore.localpath.size(), fni->FileName)
+                    || memcmp(fni->FileName, ignore.localpath.data(), ignore.localpath.size() * sizeof(wchar_t))
                     || (fni->FileNameLength > ignore.localpath.size()
                         && fni->FileName[ignore.localpath.size() - 1] == L'\\')))
             {
@@ -1618,7 +1618,7 @@ bool WinFileSystemAccess::issyncsupported(LocalPath& localpathArg, bool *isnetwo
 
     if (GetVolumePathNameW(localpathArg.localpath.data(), path.data(), MAX_PATH)
         && GetVolumeInformationW(path.data(), NULL, 0, NULL, NULL, NULL, fsname.data(), MAX_PATH)
-        && !fsname.compare(0, sizeof(VBoxSharedFolderFS),VBoxSharedFolderFS))
+        && !memcmp(fsname.data(), VBoxSharedFolderFS, sizeof(VBoxSharedFolderFS)))
     {
         LOG_warn << "VBoxSharedFolderFS is not supported because it doesn't provide ReadDirectoryChanges() nor unique file identifiers";
         result = false;
