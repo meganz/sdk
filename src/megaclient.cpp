@@ -12799,8 +12799,8 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, SyncError 
         fsaccess->expanselocalpath(otherLocallyEncodedPath, otherLocallyEncodedAbsolutePath);
 
         if (config.getEnabled() && !isAnError(config.getError()) &&
-                ( fsaccess->contains(*newLocallyEncodedAbsolutePath.editStringDirect(), *otherLocallyEncodedAbsolutePath.editStringDirect())
-                || fsaccess->contains(*otherLocallyEncodedAbsolutePath.editStringDirect(), *newLocallyEncodedAbsolutePath.editStringDirect())
+                ( newLocallyEncodedAbsolutePath.isContainingPathOf(otherLocallyEncodedAbsolutePath, *fsaccess)
+                  || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath, *fsaccess)
                 ) )
         {
 
