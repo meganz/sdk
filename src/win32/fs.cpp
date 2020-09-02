@@ -1364,7 +1364,7 @@ void WinDirNotify::process(DWORD dwBytes)
 #endif
                 }
 #ifdef ENABLE_SYNC
-                notify(DIREVENTS, localrootnode, LocalPath::fromLocalname(fni->FileName));
+                notify(DIREVENTS, localrootnode, LocalPath::fromLocalname(std::wstring(fni->FileName, fni->FileNameLength)));
 #endif
             }
             else if (SimpleLogger::logCurrentLevel >= logDebug)
@@ -1513,7 +1513,7 @@ WinDirNotify::WinDirNotify(LocalPath& localbasepath, const LocalPath& ignore, Wi
 
     // ReadDirectoryChangesW: If you opened the file using the short name, you can receive change notifications for the short name.  (so make sure it's a long name)
     std::wstring longname;
-    auto r = localbasepath.localpath.size() / sizeof(wchar_t) + 20;
+    auto r = localbasepath.localpath.size() + 20;
     longname.resize(r);
     auto rr = GetLongPathNameW(localbasepath.localpath.data(), longname.data(), DWORD(r));
 
