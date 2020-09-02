@@ -1369,8 +1369,10 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     // create on existing node, with link already  (different command response)
     ASSERT_EQ(API_OK, doExportNode(0, n2));
 
+    gTestingInvalidArgs = true;
     // create on non existent node
     ASSERT_EQ(API_EARGS, doExportNode(0, nullptr));
+    gTestingInvalidArgs = false;
 
 }
 
