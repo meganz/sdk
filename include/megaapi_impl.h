@@ -663,10 +663,10 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 		MegaTransferPrivate(int type, MegaTransferListener *listener = NULL);
         MegaTransferPrivate(const MegaTransferPrivate *transfer);
         virtual ~MegaTransferPrivate();
-        
+
         MegaTransfer *copy() override;
 	    Transfer *getTransfer() const;
-        void setTransfer(Transfer *transfer); 
+        void setTransfer(Transfer *transfer);
         void setStartTime(int64_t startTime);
 		void setTransferredBytes(long long transferredBytes);
 		void setTotalBytes(long long totalBytes);
@@ -1042,7 +1042,7 @@ private:
 };
 
 class MegaSyncPrivate : public MegaSync
-{  
+{
 public:
     MegaSyncPrivate(const char *path, const char *name, handle nodehandle, int tag);
     MegaSyncPrivate(MegaSyncPrivate *sync);
@@ -1282,7 +1282,7 @@ public:
 
     int getType() const override;
     const char *getText() const override;
-    int64_t getNumber() const override;    
+    int64_t getNumber() const override;
     MegaHandle getHandle() const override;
     const char *getEventString() const override;
 
@@ -1337,7 +1337,7 @@ private:
 
 class MegaAccountPurchasePrivate : public MegaAccountPurchase
 {
-public:   
+public:
     static MegaAccountPurchase *fromAccountPurchase(const AccountPurchase *purchase);
     virtual ~MegaAccountPurchasePrivate() ;
     virtual MegaAccountPurchase* copy();
@@ -1674,7 +1674,7 @@ class MegaNodeListPrivate : public MegaNodeList
         int size() const override;
 
         void addNode(MegaNode* node) override;
-	
+
 	protected:
 		MegaNode** list;
 		int s;
@@ -1704,7 +1704,7 @@ class MegaUserListPrivate : public MegaUserList
         virtual MegaUserList *copy();
         virtual MegaUser* get(int i);
         virtual int size();
-	
+
 	protected:
         MegaUserListPrivate(MegaUserListPrivate *userList);
 		MegaUser** list;
@@ -1719,7 +1719,7 @@ class MegaShareListPrivate : public MegaShareList
         virtual ~MegaShareListPrivate();
         virtual MegaShare* get(int i);
         virtual int size();
-		
+
 	protected:
 		MegaShare** list;
 		int s;
@@ -1733,7 +1733,7 @@ class MegaTransferListPrivate : public MegaTransferList
         virtual ~MegaTransferListPrivate();
         virtual MegaTransfer* get(int i);
         virtual int size();
-	
+
 	protected:
 		MegaTransfer** list;
 		int s;
@@ -2128,7 +2128,7 @@ class MegaApiImpl : public MegaApp
         void getUserData(const char *user, MegaRequestListener *listener = NULL);
         void getMiscFlags(MegaRequestListener *listener = NULL);
         void sendDevCommand(const char *command, const char *email, long long quota, int businessStatus, int userStatus, MegaRequestListener *listener);
-        void getCloudStorageUsed(MegaRequestListener *listener = NULL); 
+        void getCloudStorageUsed(MegaRequestListener *listener = NULL);
         void getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, int source = -1, MegaRequestListener *listener = NULL);
         void queryTransferQuota(long long size, MegaRequestListener *listener = NULL);
         void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
@@ -2793,7 +2793,7 @@ protected:
         int ftpServerRestrictedMode;
         set<MegaTransferListener *> ftpServerListeners;
 #endif
-		
+
         map<int, MegaBackupController *> backupsMap;
 
         RequestQueue requestQueue;
@@ -3205,7 +3205,7 @@ class MegaHashSignatureImpl
 		void add(const char *data, unsigned size);
         bool checkSignature(const char *base64Signature);
 
-	protected:    
+	protected:
 		HashSignature *hashSignature;
 		AsymmCipher* asymmCypher;
 };

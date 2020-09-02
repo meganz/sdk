@@ -101,7 +101,7 @@ public:
 
     // syncing to an inbound share?
     bool inshare = false;
-    
+
     // deletion queue
     set<uint32_t> deleteq;
 
@@ -116,7 +116,7 @@ public:
 
     // recursively add children
     void addstatecachechildren(uint32_t, idlocalnode_map*, LocalPath&, LocalNode*, int);
-    
+
     // Caches all synchronized LocalNode
     void cachenodes();
 

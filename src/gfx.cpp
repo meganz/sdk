@@ -276,7 +276,7 @@ void GfxProc::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 
         px = (w - rw) / 2;
         py = (h - rw) / 3;
-        
+
         rh = rw;
     }
 }
