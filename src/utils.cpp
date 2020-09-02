@@ -1233,7 +1233,7 @@ int mega_snprintf(char *s, size_t n, const char *format, ...)
 #endif
 
 string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptionsetting_t encSetting)
-{    
+{
     // decide nonce/IV and auth. tag lengths based on the `mode`
     unsigned ivlen = TLVstore::getIvlen(encSetting);
     unsigned taglen = TLVstore::getTaglen(encSetting);

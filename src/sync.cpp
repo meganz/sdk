@@ -804,7 +804,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
     for (auto it = range.first; it != range.second; it++)
     {
         ScopedLengthRestore restoreLen(localpath);
-        
+
         localpath.appendWithSeparator(it->second->localname, true, client->fsaccess->localseparator);
 
         LocalNode* l = it->second;
@@ -834,7 +834,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         if (fa->fopen(localpath))  // exists, is file
         {
             auto sn = client->fsaccess->fsShortname(localpath);
-            assert(!l->localname.empty() && 
+            assert(!l->localname.empty() &&
                 ((!l->slocalname && (!sn || l->localname == *sn)) ||
                 (l->slocalname && sn && !l->slocalname->empty() && *l->slocalname != l->localname && *l->slocalname == *sn)));
         }
@@ -1777,7 +1777,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
 bool Sync::checkValidNotification(int q, Notification& notification)
 {
-    // This code moved from filtering before going on notifyq, to filtering after when it's thread-safe to do so 
+    // This code moved from filtering before going on notifyq, to filtering after when it's thread-safe to do so
 
     if (q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
     {
