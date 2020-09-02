@@ -309,9 +309,12 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilena
         return 0;
     }
 
+    // get the count before it might be popped off and processed already
+    auto count = int(job->imagetypes.size());
+
     requests.push(job);
     waiter.notify();
-    return int(job->imagetypes.size());
+    return count;
 }
 
 bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, LocalPath& localdstpath)

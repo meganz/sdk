@@ -142,7 +142,7 @@ class MEGA_API LocalPath
 {
 #if defined(_WIN32)
     std::wstring localpath;
-#else 
+#else
     std::string localpath;
 #endif
 
@@ -164,7 +164,7 @@ public:
     // todo: currently used in computeReversePathMatchScore, can we adjust that one to work just on string, with LocalPath converted wtih toPath() ?
     const std::wstring& getLocalpath() const { return localpath; }
 
-#else 
+#else
     explicit LocalPath(std::string&& s) : localpath(std::move(s)) {}
     std::string* editStringDirect();
     const std::string* editStringDirect() const;
@@ -185,7 +185,7 @@ public:
 #if defined(_WIN32)
     void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways, const std::wstring& localseparator);
     void prependWithSeparator(const LocalPath& additionalPath, const std::wstring& localseparator);
-#else 
+#else
     void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways, const std::string& localseparator);
     void prependWithSeparator(const LocalPath& additionalPath, const std::string& localseparator);
 #endif
@@ -207,8 +207,8 @@ public:
     // Return a utf8 representation of the LocalPath (fsaccess is used to do the conversion)
     // No escaping or unescaping is done.
     std::string toPath(const FileSystemAccess& fsaccess) const;
-    
-    // Return a utf8 representation of the LocalPath, taking into account that the LocalPath 
+
+    // Return a utf8 representation of the LocalPath, taking into account that the LocalPath
     // may contain escaped characters that are disallowed for the filesystem.
     // Those characters are converted back (unescaped).  fsaccess is used to do the conversion.
     std::string toName(const FileSystemAccess& fsaccess, FileSystemType fsType = FS_UNKNOWN) const;
@@ -383,11 +383,11 @@ struct Notification
     LocalNode* localnode;
 };
 
-struct NotificationDeque : ThreadSafeDeque<Notification> 
+struct NotificationDeque : ThreadSafeDeque<Notification>
 {
     void replaceLocalNodePointers(LocalNode* check, LocalNode* newvalue)
     {
-        std::lock_guard<std::mutex> g(m); 
+        std::lock_guard<std::mutex> g(m);
         for (auto& n : mNotifications)
         {
             if (n.localnode == check)
@@ -540,7 +540,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // make sure that we stay within the range of timestamps supported by the server data structures (unsigned 32-bit)
     static void captimestamp(m_time_t*);
-    
+
     // set mtime
     virtual bool setmtimelocal(LocalPath&, m_time_t) = 0;
 
@@ -583,7 +583,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // set whenever an operation fails due to a transient condition (e.g. locking violation)
     bool transient_error;
-    
+
     // set whenever there was a global file notification error or permanent failure
     // (this is in addition to the DirNotify-local error)
     bool notifyerr;

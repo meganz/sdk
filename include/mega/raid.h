@@ -170,7 +170,7 @@ namespace mega {
 
         // track errors across the connections.  A successful fetch resets the error count for a connection.  Stop trying to recover if we hit 3 total.
         unsigned raidHttpGetErrorCount[RAIDPARTS];
-        
+
         bool connectionStarted[RAIDPARTS];
 
         // take raid input part buffers and combine to form the asyncoutputbuffers
