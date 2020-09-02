@@ -71,6 +71,7 @@ bool Command::checkError(Error& errorDetails, JSON& json)
     bool errorDetected = false;
     if (json.isNumericError(e))
     {
+        // isNumericError already moved the pointer past the integer (name could imply this?)
         errorDetails.setErrorCode(e);
         errorDetected = true;
     }
@@ -82,7 +83,7 @@ bool Command::checkError(Error& errorDetails, JSON& json)
             ptr++;
         }
 
-        if (strncmp(ptr, "\"err\":", 6) == 0)
+        if (strncmp(ptr, "{\"err\":", 7) == 0)
         {
             bool exit = false;
             json.enterobject();
@@ -98,7 +99,7 @@ bool Command::checkError(Error& errorDetails, JSON& json)
                         errorDetails.setUserStatus(json.getint());
                         break;
                     case 'l':
-                       errorDetails.setLinkStatus(json.getint());
+                        errorDetails.setLinkStatus(json.getint());
                         break;
                     case EOO:
                         exit = true;
@@ -108,6 +109,7 @@ bool Command::checkError(Error& errorDetails, JSON& json)
                         break;
                 }
             }
+            json.leaveobject();
         }
     }
 
@@ -327,29 +329,6 @@ int Command::elements()
     return 1;
 }
 
-// default command result handler: ignore & skip
-void Command::procresult()
-{
-    if (client->json.isnumeric())
-    {
-        client->json.getint();
-        return;
-    }
 
-    for (;;)
-    {
-        switch (client->json.getnameid())
-        {
-            case EOO:
-                return;
-
-            default:
-                if (!client->json.storeobject())
-                {
-                    return;
-                }
-        }
-    }
-}
 
 } // namespace

@@ -2254,8 +2254,14 @@ bool SyncConfig::isResumable() const
 bool SyncConfig::isResumableAtStartup() const
 {
     return mEnabled && (!isAnError(mError)
+                        || mError == LOGGED_OUT
                         || mError == UNKNOWN_TEMPORARY_ERROR
                         || mError == FOREIGN_TARGET_OVERSTORAGE); //temporary errors that don't have an asociated restore functionality
+}
+
+bool SyncConfig::hasError() const
+{
+    return isAnError(mError);
 }
 
 const std::string& SyncConfig::getLocalPath() const
@@ -2267,7 +2273,6 @@ const std::string& SyncConfig::getName() const
 {
     return mName;
 }
-
 
 handle SyncConfig::getRemoteNode() const
 {
@@ -2494,12 +2499,12 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAcces
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv)
 {
-    static const m_off_t SZ_1024K = 1l << 20;
-    static const m_off_t SZ_128K  = 128l << 10;
+    static const unsigned int SZ_1024K = 1l << 20;
+    static const unsigned int SZ_128K  = 128l << 10;
 
     std::unique_ptr<byte[]> buffer(new byte[SZ_1024K + SymmCipher::BLOCKSIZE]);
     chunkmac_map chunkMacs;
-    m_off_t chunkLength = 0;
+    unsigned int chunkLength = 0;
     m_off_t current = 0;
     m_off_t remaining = isAccess.size();
 
@@ -2507,15 +2512,15 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
     {
         chunkLength =
           std::min(chunkLength + SZ_128K,
-                   std::min(remaining, SZ_1024K));
+                   static_cast<unsigned int>(std::min<m_off_t>(remaining, SZ_1024K)));
 
-        if (!isAccess.read(&buffer[0], (unsigned int)chunkLength))
+        if (!isAccess.read(&buffer[0], chunkLength))
             return std::make_pair(false, 0l);
 
         memset(&buffer[chunkLength], 0, SymmCipher::BLOCKSIZE);
 
         cipher.ctr_crypt(&buffer[0],
-                         (unsigned int)chunkLength,
+                         chunkLength,
                          current,
                          iv,
                          chunkMacs[current].mac,

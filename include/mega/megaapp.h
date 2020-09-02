@@ -123,7 +123,7 @@ struct MEGA_API MegaApp
     virtual void key_modified(handle, attr_t) { }
 
     // node addition has failed
-    virtual void putnodes_result(error, targettype_t, NewNode*) { }
+    virtual void putnodes_result(const Error&, targettype_t, vector<NewNode>&) { }
 
     // share update result
     virtual void share_result(error) { }
@@ -143,7 +143,6 @@ struct MEGA_API MegaApp
 
     // file attribute modification result
     virtual void putfa_result(handle, fatype, error) { }
-    virtual void putfa_result(handle, fatype, const char*) { }
 
     // purchase transactions
     virtual void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*) { }

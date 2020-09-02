@@ -355,6 +355,7 @@ enum SyncError {
     ACCOUNT_BLOCKED= 25,                    // Account blocked
     UNKNOWN_TEMPORARY_ERROR = 26,           // Unknown temporary error
     TOO_MANY_ACTION_PACKETS = 27,           // Too many changes in account, local state discarded
+    LOGGED_OUT = 28,                        // Logged out
 };
 
 static bool isSyncErrorPermanent(SyncError e)
@@ -362,6 +363,7 @@ static bool isSyncErrorPermanent(SyncError e)
     switch (e)
     {
     case NO_SYNC_ERROR:
+    case LOGGED_OUT: //syncs may be restored after relogging
     case UNKNOWN_TEMPORARY_ERROR:
     case STORAGE_OVERQUOTA:
     case BUSINESS_EXPIRED:
@@ -881,6 +883,9 @@ public:
 
     // whether this sync should be resumed at startup
     bool isResumableAtStartup() const;
+
+    // wether this sync has errors (was inactive)
+    bool hasError() const;
 
     // returns the local path of the sync
     const std::string& getLocalPath() const;
