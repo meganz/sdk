@@ -1336,6 +1336,16 @@ void MegaClient::resetSyncConfigs()
         syncConfigs.reset(new SyncConfigBag{*dbaccess, *fsaccess, rng, uid});
     }
 }
+
+bool MegaClient::getKeepSyncsAfterLogout() const
+{
+    return mKeepSyncsAfterLogout;
+}
+
+void MegaClient::setKeepSyncsAfterLogout(bool keepSyncsAfterLogout)
+{
+    mKeepSyncsAfterLogout = keepSyncsAfterLogout;
+}
 #endif
 
 std::string MegaClient::getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
@@ -4117,6 +4127,7 @@ void MegaClient::locallogout(bool removecaches)
 
     if (removecaches)
     {
+#ifdef ENABLE_SYNC
         if (mKeepSyncsAfterLogout)
         {
             //disableSyncs in a temporarily state: so that they will be resumed when relogin
@@ -4129,7 +4140,7 @@ void MegaClient::locallogout(bool removecaches)
                 delsync(*it);
             }
         }
-
+#endif
         removeCaches();
     }
 
@@ -12546,16 +12557,6 @@ void MegaClient::preadabort(Node* n, m_off_t offset, m_off_t count)
 void MegaClient::preadabort(handle ph, m_off_t offset, m_off_t count)
 {
     abortreads(ph, false, offset, count);
-}
-
-bool MegaClient::getKeepSyncsAfterLogout() const
-{
-    return mKeepSyncsAfterLogout;
-}
-
-void MegaClient::setKeepSyncsAfterLogout(bool keepSyncsAfterLogout)
-{
-    mKeepSyncsAfterLogout = keepSyncsAfterLogout;
 }
 
 void MegaClient::abortreads(handle h, bool p, m_off_t offset, m_off_t count)

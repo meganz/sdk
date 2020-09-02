@@ -1793,6 +1793,8 @@ public:
 
 #ifdef ENABLE_SYNC
     void resetSyncConfigs();
+    bool getKeepSyncsAfterLogout() const;
+    void setKeepSyncsAfterLogout(bool keepSyncsAfterLogout);
 #endif
 
     void loadCacheableStatus(std::shared_ptr<CacheableStatus> status);
@@ -1800,8 +1802,6 @@ public:
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
-    bool getKeepSyncsAfterLogout() const;
-    void setKeepSyncsAfterLogout(bool keepSyncsAfterLogout);
 };
 } // namespace
 
