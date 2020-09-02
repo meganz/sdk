@@ -1359,7 +1359,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     ASSERT_EQ(MegaNode::INVALID_COORDINATE, lon) << "Longitude value does not match";
 
     // exercise all the cases for 'l' command:
-    
+
     // delete existing link on node
     ASSERT_EQ(API_OK, doDisableExport(0, n2));
 

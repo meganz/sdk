@@ -2240,7 +2240,7 @@ void MegaClient::exec()
         }
 
         // now we do need to process SC while syncs are doing their initial scan, so CS requests can complete
-        if (!scpaused && jsonsc.pos && !!anySyncNeedsTargetedSyncdown() && !syncdownretry)
+        if (!scpaused && jsonsc.pos && !anySyncNeedsTargetedSyncdown() && !syncdownretry)
 #else
         if (!scpaused && jsonsc.pos)
 #endif
