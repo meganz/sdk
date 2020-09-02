@@ -88,7 +88,7 @@ endif
 # IOS specific
 if USE_IOS
 src_libmega_la_SOURCES += src/gfx/GfxProcCG.mm
-else 
+else
 if DARWIN
 # MacOS specific
 src_libmega_la_OBJCXXFLAGS = $(src_libmega_la_CXXFLAGS)
