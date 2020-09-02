@@ -2120,9 +2120,9 @@ void MegaClient::exec()
                     else if (e == API_ETOOMANY)
                     {
                         LOG_warn << "Too many pending updates - reloading local state";
-
+#ifdef ENABLE_SYNC
                         failSyncs(TOO_MANY_ACTION_PACKETS);
-
+#endif
                         int creqtag = reqtag;
                         reqtag = fetchnodestag; // associate with ongoing request, if any
                         fetchingnodes = false;
