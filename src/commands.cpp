@@ -1294,10 +1294,8 @@ bool CommandPutNodes::procresult(Result r)
     }
     else
     {
-        error e = r.errorOrOK();
-
-        LOG_debug << "Putnodes error " << e;
-        if (e == API_EOVERQUOTA)
+        LOG_debug << "Putnodes error " << r.errorOrOK();
+        if (r.wasError(API_EOVERQUOTA))
         {
             client->activateoverquota(0, false);
         }
@@ -1309,26 +1307,26 @@ bool CommandPutNodes::procresult(Result r)
                 client->sendevent(99402, "API_EACCESS putting node in sync transfer", 0);
             }
 
-            client->app->putnodes_result(e, type, nn);
+            client->app->putnodes_result(r.errorOrOK(), type, nn);
 
-            for (unsigned i = 0; i < nn.size(); i++)
+            for (size_t i = 0; i < nn.size(); i++)
             {
                 nn[i].localnode.reset();
             }
 
-            client->putnodes_sync_result(e, nn);
+            client->putnodes_sync_result(r.errorOrOK(), nn);
         }
         else
         {
 #endif
             if (source == PUTNODES_APP)
             {
-                client->app->putnodes_result(e, type, nn);
+                client->app->putnodes_result(r.errorOrOK(), type, nn);
             }
 #ifdef ENABLE_SYNC
             else
             {
-                client->putnodes_syncdebris_result(e, nn);
+                client->putnodes_syncdebris_result(r.errorOrOK(), nn);
             }
         }
 #endif
