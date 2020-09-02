@@ -9701,4 +9701,15 @@ public class MegaApiJava {
     public void cancelCreateAccount(MegaRequestListenerInterface listener){
         megaApi.cancelCreateAccount(createDelegateRequestListener(listener));
     }
+
+    /**
+     * Search nodes by type.
+     *
+     * TODO: add parameter descriptions
+     */
+    public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
+            MegaCancelToken cancelToken, boolean recursive, int order, int type, int target) {
+        return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive,
+                order, type, target));
+    }
 }
