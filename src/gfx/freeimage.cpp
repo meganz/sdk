@@ -103,7 +103,7 @@ const char *GfxProcFreeImage::supportedformatsFfmpeg()
             ".qt.sls.tmf.trp.ts.ty.vc1.vob.vr.webm.wmv.";
 }
 
-bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int size)
+bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePath, int size)
 {
 #ifndef DEBUG
     av_log_set_level(AV_LOG_PANIC);
@@ -111,16 +111,16 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
 
     // Open video file
     AVFormatContext* formatContext = avformat_alloc_context();
-    if (avformat_open_input(&formatContext, imagePath->data(), NULL, NULL))
+    if (avformat_open_input(&formatContext, imagePath.toPath(*client->fsaccess).c_str(), NULL, NULL))
     {
-        LOG_warn << "Error opening video: " << imagePath;
+        LOG_warn << "Error opening video: " << imagePath.toPath(*client->fsaccess);
         return NULL;
     }
 
     // Get stream information
     if (avformat_find_stream_info(formatContext, NULL))
     {
-        LOG_warn << "Stream info not found: " << imagePath;
+        LOG_warn << "Stream info not found: " << imagePath.toPath(*client->fsaccess);
         avformat_close_input(&formatContext);
         return NULL;
     }
@@ -140,7 +140,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
 
     if (!videoStream)
     {
-        LOG_warn << "Video stream not found: " << imagePath;
+        LOG_warn << "Video stream not found: " << imagePath.toPath(*client->fsaccess);
         avformat_close_input(&formatContext);
         return NULL;
     }
@@ -252,7 +252,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
 
     char ext[8];
 
-    if (client->fsaccess->getextension(LocalPath::fromLocalname(*imagePath),ext,8)
+    if (client->fsaccess->getextension(imagePath,ext,8)
             && strcmp(ext,".mp3") && seek_target > 0
             && av_seek_frame(formatContext, videoStreamIdx, seek_target, AVSEEK_FLAG_BACKWARD) < 0)
     {
@@ -329,11 +329,11 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
                                                              pitch, 24, FI_RGBA_RED_SHIFT, FI_RGBA_GREEN_MASK,
                                                              FI_RGBA_BLUE_MASK | 0xFFFF, TRUE) ) )
                     {
-                        LOG_warn << "Error loading freeimage from memory: " << imagePath;
+                        LOG_warn << "Error loading freeimage from memory: " << imagePath.toPath(*client->fsaccess);
                     }
                     else
                     {
-                        LOG_verbose << "SUCCESS loading freeimage from memory: "<< imagePath;
+                        LOG_verbose << "SUCCESS loading freeimage from memory: "<< imagePath.toPath(*client->fsaccess);
                     }
 
                     free (fmemory.data);
@@ -408,11 +408,8 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, in
         const char* ptr;
         if ((ptr = strstr(supportedformatsFfmpeg(), ext)) && ptr[strlen(ext)] == '.')
         {
-            // WIN32 ffmpeg uses utf8 rather than wide strings
-            string name = localname.toPath(*client->fsaccess);
-
             isvideo = true;
-            if (!readbitmapFfmpeg(fa, &name, size) )    //todo: just pass LocalPath
+            if (!readbitmapFfmpeg(fa, localname, size) )    //todo: just pass LocalPath
             {
                 return false;
             }
@@ -423,7 +420,7 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, in
 #endif
 
     // FIXME: race condition, need to use open file instead of filename
-    FREE_IMAGE_FORMAT fif = FreeImage_GetFileTypeX((freeimage_filename_char_t*)localname.getLocalpath().data());
+    FREE_IMAGE_FORMAT fif = FreeImage_GetFileTypeX(localname.localpath.c_str());
 
     if (fif == FIF_UNKNOWN)
     {
@@ -434,7 +431,7 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, in
     if (fif == FIF_JPEG)
     {
         // load JPEG (scale & EXIF-rotate)
-        if (!(dib = FreeImage_LoadX(fif, (freeimage_filename_char_t*)localname.getLocalpath().data(),
+        if (!(dib = FreeImage_LoadX(fif, localname.localpath.c_str(),
                                     JPEG_EXIFROTATE | JPEG_FAST | (size << 16))))
         {
             return false;
@@ -444,7 +441,7 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, in
 #endif
     {
         // load all other image types - for RAW formats, rely on embedded preview
-        if (!(dib = FreeImage_LoadX(fif, (freeimage_filename_char_t*)localname.getLocalpath().data(),
+        if (!(dib = FreeImage_LoadX(fif, localname.localpath.c_str(),
                 #ifndef OLD_FREEIMAGE
                                     (fif == FIF_RAW) ? RAW_PREVIEW : 0)))
                 #else

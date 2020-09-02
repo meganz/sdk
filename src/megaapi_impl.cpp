@@ -4742,7 +4742,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, Node *n, const LocalPath& dstPath, 
     LocalPath finalPath;
     if(!dstPath.empty())
     {
-        if (dstPath.endsInSeparator(*client->fsaccess))
+        if (dstPath.endsInSeparator(client->fsaccess->localseparator))
         {
             finalPath = dstPath;
             finalPath.appendWithSeparator(lpName, true, client->fsaccess->localseparator);
@@ -4775,7 +4775,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, const LocalPath& dstPa
     LocalPath finalPath;
     if(!dstPath.empty())
     {
-        if (dstPath.endsInSeparator(*client->fsaccess))
+        if (dstPath.endsInSeparator(client->fsaccess->localseparator))
         {
             finalPath = dstPath;
             finalPath.appendWithSeparator(lpName, true, client->fsaccess->localseparator);
@@ -5112,14 +5112,12 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 
     if (basePath)
     {
-        string sBasePath = basePath;
-        int lastIndex = int(sBasePath.size() - 1);
-        if (sBasePath[lastIndex] != '/' && sBasePath[lastIndex] != '\\')
+        LocalPath lp = LocalPath::fromPath(basePath, *fsAccess);
+        if (!lp.endsInSeparator(fsAccess->localseparator))
         {
-            string utf8Separator;
-            fsAccess->local2path(&fsAccess->localseparator, &utf8Separator);
-            sBasePath.append(utf8Separator);
+            lp.appendWithSeparator(LocalPath(), true, fsAccess->localseparator);
         }
+        string sBasePath = lp.toPath(*fsAccess);
         dbAccess = new MegaDbAccess(&sBasePath);
 
         this->basePath = basePath;
@@ -8322,7 +8320,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
     Sync *sync = NULL;
     for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
     {
-        if ((*it)->localroot->localname.isContainingPathOf(localpath, *fsAccess))
+        if ((*it)->localroot->localname.isContainingPathOf(localpath, fsAccess->localseparator))
         {
             sync = (*it);
             break;
@@ -8383,12 +8381,12 @@ int MegaApiImpl::syncPathState(string* path)
     for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
     {
         Sync *sync = (*it);
-        if (!sync->localroot->localname.isContainingPathOf(localpath, *client->fsaccess))
+        if (!sync->localroot->localname.isContainingPathOf(localpath, client->fsaccess->localseparator))
         {
             continue;
         }
 
-        if (sync->localdebris.isContainingPathOf(localpath, *client->fsaccess))
+        if (sync->localdebris.isContainingPathOf(localpath, client->fsaccess->localseparator))
         {
             state = MegaApi::STATE_IGNORED;
             break;
@@ -8408,16 +8406,7 @@ int MegaApiImpl::syncPathState(string* path)
             }
             else
             {
-            #ifdef _WIN32
-                std::wstring wpath;
-                wpath.resize((path->size() + 1) / sizeof(wchar_t));
-                memcpy(wpath.data(), path->data(), wpath.size() * sizeof(wchar_t));
-                size_t index = fsAccess->lastpartlocal(&wpath);
-            #else
-                size_t index = fsAccess->lastpartlocal(path);
-            #endif
-                string name = path->substr(index);
-                fsAccess->local2name(&name, sync->mFilesystemType);
+                string name = localpath.leafName(fsAccess->localseparator).toName(*fsAccess, sync->mFilesystemType);
                 if (is_syncable(sync, name.c_str(), localpath))
                 {
                     auto fa = fsAccess->newfileaccess();
@@ -8661,7 +8650,6 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
     }
 #endif
 
-    string name;
     LocalNode *parent = NULL;
     auto localpath = LocalPath::fromPath(utf8path, *fsAccess);
 
@@ -8681,14 +8669,12 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
         Sync *sync = (*it);
         if (sync->localnodebypath(NULL, localpath, &parent) || parent)
         {
-            if (sync->localdebris.isContainingPathOf(localpath, *fsAccess))
+            if (sync->localdebris.isContainingPathOf(localpath, fsAccess->localseparator))
             {
                 break;
             }
 
-            size_t lastpart = localpath.lastpartlocal(*fsAccess);
-            name = localpath.subpathFrom(lastpart).toName(*fsAccess);
-            fsAccess->local2name(&name, sync->mFilesystemType);
+            string name = localpath.leafName(fsAccess->localseparator).toName(*fsAccess);
             result = is_syncable(sync, name.c_str(), localpath);
             break;
         }
@@ -25693,14 +25679,12 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool tls, st
 
     if (basePath.size())
     {
-        string sBasePath = basePath;
-        int lastIndex = int(sBasePath.size() - 1);
-        if (sBasePath[lastIndex] != '/' && sBasePath[lastIndex] != '\\')
+        LocalPath lp = LocalPath::fromPath(basePath, *fsAccess);
+        if (!lp.endsInSeparator(fsAccess->localseparator))
         {
-            string utf8Separator;
-            fsAccess->local2path(&fsAccess->localseparator, &utf8Separator);
-            sBasePath.append(utf8Separator);
+            lp.appendWithSeparator(LocalPath(), true, fsAccess->localseparator);
         }
+        string sBasePath = lp.toPath(*fsAccess);
         this->basePath = sBasePath;
     }
     semaphoresdestroyed = false;

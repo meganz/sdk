@@ -514,7 +514,7 @@ bool Node::serialize(string* d)
     time_t ts = 0;  // we don't want to break backward compatibiltiy by changing the size (where m_time_t differs)
     d->append((char*)&ts, sizeof(ts));
 
-    ts = (time_t)ctime; 
+    ts = (time_t)ctime;
     d->append((char*)&ts, sizeof(ts));
 
     d->append(nodekeydata);
@@ -1225,7 +1225,7 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
             if (!newnode && node)
             {
                 assert(parent->node);
-                
+
                 int creqtag = sync->client->reqtag;
                 sync->client->reqtag = sync->tag;
                 LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
@@ -1561,7 +1561,7 @@ LocalNode::~LocalNode()
             sync->dirnotify->notifyq[q].replaceLocalNodePointers(this, (LocalNode*)~0);
         }
     }
-    
+
     // remove from fsidnode map, if present
     if (fsid_it != sync->client->fsidnode.end())
     {
@@ -1619,11 +1619,7 @@ LocalPath LocalNode::getLocalPath(bool sdisable) const
     return lp;
 }
 
-#if defined(_WIN32)
-void LocalNode::getlocalpath(LocalPath& path, bool sdisable, const std::wstring* localseparator) const
-#else
-void LocalNode::getlocalpath(LocalPath& path, bool sdisable, const std::string* localseparator) const
-#endif
+void LocalNode::getlocalpath(LocalPath& path, bool sdisable, LocalPath::separator_t* localseparator) const
 {
     if (!sync)
     {
@@ -1756,7 +1752,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
 
     nodetype_t type;
     m_off_t size;
-    
+
     if (!r.unserializei64(size)) return nullptr;
 
     if (size < 0 && size >= -FOLDERNODE)
@@ -1779,9 +1775,9 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     memset(crc, 0, sizeof crc);
     byte syncable = 1;
     unsigned char expansionflags[8] = { 0 };
-    
+
     if (!r.unserializehandle(fsid) ||
-        !r.unserializeu32(parent_dbid) || 
+        !r.unserializeu32(parent_dbid) ||
         !r.unserializenodehandle(h) ||
         !r.unserializestring(localname) ||
         (type == FILENODE && !r.unserializebinary((byte*)crc, sizeof(crc))) ||

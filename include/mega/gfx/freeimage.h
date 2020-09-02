@@ -45,7 +45,7 @@ protected:
 #ifdef HAVE_FFMPEG
     static std::mutex gfxMutex;
     const char* supportedformatsFfmpeg();
-    bool readbitmapFfmpeg(FileAccess*, string*, int);
+    bool readbitmapFfmpeg(FileAccess*, const LocalPath&, int);
 #endif
 
 };

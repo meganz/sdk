@@ -2521,9 +2521,7 @@ TEST_F(SdkTest, SdkTestShareKeys)
 
 string localpathToUtf8Leaf(const LocalPath& itemlocalname, FSACCESS_CLASS& fsa)
 {
-    size_t lastpart = itemlocalname.lastpartlocal(fsa);
-    LocalPath name(itemlocalname.subpathFrom(lastpart));
-    return name.toPath(fsa);
+    return itemlocalname.leafName(fsa.localseparator).toPath(fsa);
 }
 
 LocalPath fspathToLocal(const fs::path& p, FSACCESS_CLASS& fsa)

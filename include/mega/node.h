@@ -205,7 +205,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         bool publiclink : 1;
         bool newnode : 1;
     } changed;
-    
+
     void setkey(const byte* = NULL);
 
     void setkeyfromjson(const char*);
@@ -367,11 +367,7 @@ struct MEGA_API LocalNode : public File
     localnode_set::iterator notseen_it{};
 
     // build full local path to this node
-#if defined(_WIN32)
-    void getlocalpath(LocalPath&, bool sdisable = false, const std::wstring* localseparator = nullptr) const;
-#else
-    void getlocalpath(LocalPath&, bool sdisable = false, const std::string* localseparator = nullptr) const;
-#endif
+    void getlocalpath(LocalPath&, bool sdisable = false, LocalPath::separator_t* localseparator = nullptr) const;
     LocalPath getLocalPath(bool sdisable = false) const;
     string localnodedisplaypath(FileSystemAccess& fsa) const;
 

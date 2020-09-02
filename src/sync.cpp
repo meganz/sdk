@@ -120,7 +120,7 @@ set<LocalPath> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAcces
         if (app.sync_syncable(&sync, localname.toName(fsaccess).c_str(), localpath))
         {
             // skip the sync's debris folder
-            if (!localdebris.isContainingPathOf(localpath, fsaccess))
+            if (!localdebris.isContainingPathOf(localpath, fsaccess.localseparator))
             {
                 paths.insert(localpath);
             }
@@ -320,7 +320,6 @@ size_t assignFilesystemIdsImpl(const FingerprintCache& fingerprints, Fingerprint
                                FingerprintFileMap& files, handlelocalnode_map& fsidnodes, FileSystemAccess& fsaccess)
 {
     LocalPath nodePath;
-    string accumulated;
     size_t assignmentCount = 0;
     for (const auto& fp : fingerprints.all())
     {
@@ -358,7 +357,7 @@ size_t assignFilesystemIdsImpl(const FingerprintCache& fingerprints, Fingerprint
                 for (auto fileIt = fileRange.first; fileIt != fileRange.second; ++fileIt)
                 {
                     auto& filePath = fileIt->second.path;
-                    const auto score = computeReversePathMatchScore(accumulated, nodePath, filePath, fsaccess);
+                    const auto score = computeReversePathMatchScore(nodePath, filePath, fsaccess);
                     if (score > 0) // leaf name must match
                     {
                         elements.push_back({score, fileIt->second.fsid, l});
@@ -394,59 +393,36 @@ size_t assignFilesystemIdsImpl(const FingerprintCache& fingerprints, Fingerprint
 
 } // anonymous
 
-int computeReversePathMatchScore(string& accumulated, const LocalPath& path1Arg, const LocalPath& path2Arg, const FileSystemAccess& fsaccess)
+int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2, const FileSystemAccess& fsaccess)
 {
-#if defined(_WIN32)
-    const std::string& path1 = path1Arg.toPath(fsaccess);
-    const std::string& path2 = path2Arg.toPath(fsaccess);
-#else 
-    const string& path1 = path1Arg.getLocalpath();
-    const string& path2 = path2Arg.getLocalpath();
-#endif
-
     if (path1.empty() || path2.empty())
     {
         return 0;
     }
 
-    accumulated.clear();
-
-    const auto path1End = path1.size() - 1;
-    const auto path2End = path2.size() - 1;
+    const auto path1End = path1.localpath.size() - 1;
+    const auto path2End = path2.localpath.size() - 1;
 
     size_t index = 0;
     size_t separatorBias = 0;
     while (index <= path1End && index <= path2End)
     {
-        const auto value1 = path1[path1End - index];
-        const auto value2 = path2[path2End - index];
+        const auto value1 = path1.localpath[path1End - index];
+        const auto value2 = path2.localpath[path2End - index];
         if (value1 != value2)
         {
             break;
         }
-        accumulated.push_back(value1);
-      
+
         ++index;
 
-        if (accumulated.size() >= fsaccess.localseparator.size())
+        if (value1 == fsaccess.localseparator)
         {
-            const auto diffSize = accumulated.size() - fsaccess.localseparator.size();
-            if (std::equal(accumulated.begin() + diffSize, accumulated.end(), fsaccess.localseparator.begin()))
-            {
-                separatorBias += fsaccess.localseparator.size();
-                accumulated.clear();
-            }
+            ++separatorBias;
         }
     }
 
-    if (index > path1End && index > path2End) // we got to the beginning of both paths (full score)
-    {
-        return static_cast<int>(index - separatorBias);
-    }
-    else // the paths only partly match
-    {
-        return static_cast<int>(index - separatorBias - accumulated.size());
-    }
+    return static_cast<int>(index - separatorBias);
 }
 
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
@@ -808,7 +784,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
     for (auto it = range.first; it != range.second; it++)
     {
         ScopedLengthRestore restoreLen(localpath);
-        
+
         localpath.appendWithSeparator(it->second->localname, true, client->fsaccess->localseparator);
 
         LocalNode* l = it->second;
@@ -838,7 +814,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         if (fa->fopen(localpath))  // exists, is file
         {
             auto sn = client->fsaccess->fsShortname(localpath);
-            assert(!l->localname.empty() && 
+            assert(!l->localname.empty() &&
                 ((!l->slocalname && (!sn || l->localname == *sn)) ||
                 (l->slocalname && sn && !l->slocalname->empty() && *l->slocalname != l->localname && *l->slocalname == *sn)));
         }
@@ -1018,26 +994,18 @@ void Sync::changestate(syncstate_t newstate)
 // NULL: no match, optionally returns residual path
 LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, LocalNode** parent, LocalPath* outpath)
 {
-#ifdef _WIN32
-    const wchar_t* ptr = localpath.getLocalpath().c_str();
-    const wchar_t* end = ptr + localpath.getLocalpath().size();
-#else
-    const char* ptr = localpath.getLocalpath().data();
-    const char* end = ptr + localpath.getLocalpath().size();
-#endif
-    size_t separatorlen = client->fsaccess->localseparator.size();
-    auto sz = typeid(client->fsaccess->localseparator) == typeid(std::wstring) ? sizeof(wchar_t) : 1;
-
     if (outpath)
     {
-        assert(!outpath->getLocalpath().size());
+        assert(outpath->empty());
     }
+
+    size_t subpathIndex = 0;
 
     if (!l)
     {
         // verify matching localroot prefix - this should always succeed for
         // internal use
-        if (!localroot->localname.isContainingPathOf(localpath, *client->fsaccess))
+        if (!localroot->localname.isContainingPathOf(localpath, client->fsaccess->localseparator, &subpathIndex))
         {
             if (parent)
             {
@@ -1048,90 +1016,42 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
         }
 
         l = localroot.get();
-
-        ptr += l->localname.getLocalpath().size();
-        if (!memcmp(ptr, client->fsaccess->localseparator.data(), client->fsaccess->localseparator.size() * sz))
-        {
-            ptr += client->fsaccess->localseparator.size();
-        }
     }
 
-#ifdef _WIN32
-    const wchar_t* nptr = ptr; 
-#else
-    const char* nptr = ptr; 
-#endif
 
-    localnode_map::iterator it;
-    string t;
+    LocalPath component;
 
-    for (;;)
+    while (localpath.nextPathComponent(subpathIndex, component, client->fsaccess->localseparator))
     {
-        if (nptr > end)
+        if (parent)
         {
-            LOG_err << "Invalid parameter in localnodebypath: " << localpath.toPath(*client->fsaccess);
+            *parent = l;
+        }
 
+        localnode_map::iterator it;
+        if ((it = l->children.find(&component)) == l->children.end()
+            && (it = l->schildren.find(&component)) == l->schildren.end())
+        {
+            // no full match: store residual path, return NULL with the
+            // matching component LocalNode in parent
             if (outpath)
             {
-                outpath->clear();
+                *outpath = std::move(component);
+                outpath->appendWithSeparator(localpath.subpathFrom(subpathIndex), false, client->fsaccess->localseparator);
             }
 
             return NULL;
         }
 
-        if (nptr == end || !memcmp(nptr, client->fsaccess->localseparator.data(), separatorlen * sz))
-        {
-            if (parent)
-            {
-                *parent = l;
-            }
-
-#ifdef _WIN32
-            LocalPath t = LocalPath::fromLocalname(std::wstring(ptr, nptr - ptr));
-#else
-            LocalPath t = LocalPath::fromLocalname(std::string(ptr, nptr - ptr));
-#endif
-
-            if ((it = l->children.find(&t)) == l->children.end()
-             && (it = l->schildren.find(&t)) == l->schildren.end())
-            {
-                // no full match: store residual path, return NULL with the
-                // matching component LocalNode in parent
-                if (outpath)
-                {
-#ifdef WIN32
-                    // todo:  this whole function should be adjusted to use LocalPath member functions instead of manipulating its internal strings, so we don't need any ifdefs
-                    std::wstring s(ptr, localpath.getLocalpath().data() - ptr + localpath.getLocalpath().size());
-#else
-                    std::string s(ptr, localpath.getLocalpath().data() - ptr + localpath.getLocalpath().size());
-#endif
-                    *outpath = LocalPath::fromLocalname(s);
-                }
-
-                return NULL;
-            }
-
-            l = it->second;
-
-            if (nptr == end)
-            {
-                // full match: no residual path, return corresponding LocalNode
-                if (outpath)
-                {
-                    outpath->clear();
-                }
-
-                return l;
-            }
-
-            ptr = nptr + separatorlen;
-            nptr = ptr;
-        }
-        else
-        {
-            nptr += separatorlen;
-        }
+        l = it->second;
     }
+
+    // full match: no residual path, return corresponding LocalNode
+    if (outpath)
+    {
+        outpath->clear();
+    }
+    return l;
 }
 
 bool Sync::assignfsids()
@@ -1148,7 +1068,7 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
     {
         assert(fa->type == FOLDERNODE);
     }
-    if (!localdebris.isContainingPathOf(*localpath, *client->fsaccess))
+    if (!localdebris.isContainingPathOf(*localpath, client->fsaccess->localseparator))
     {
         DirAccess* da;
         LocalPath localname;
@@ -1176,7 +1096,7 @@ bool Sync::scan(LocalPath* localpath, FileAccess* fa)
                 if (client->app->sync_syncable(this, name.c_str(), *localpath))
                 {
                     // skip the sync's debris folder
-                    if (!localdebris.isContainingPathOf(*localpath, *client->fsaccess))
+                    if (!localdebris.isContainingPathOf(*localpath, client->fsaccess->localseparator))
                     {
                         LocalNode *l = NULL;
                         if (initializing)
@@ -1253,7 +1173,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
         LocalNode *tmp = localnodebypath(l, *input_localpath, &parent, &newname);
         size_t index = 0;
 
-        if (newname.findNextSeparator(index, *client->fsaccess))
+        if (newname.findNextSeparator(index, client->fsaccess->localseparator))
         {
             LOG_warn << "Parent not detected yet. Unknown remainder: " << newname.toPath(*client->fsaccess);
             if (parent)
@@ -1305,7 +1225,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
     if (initializing || fullscan)
     {
         // find corresponding LocalNode by file-/foldername
-        size_t lastpart = localpathNew->lastpartlocal(*client->fsaccess);
+        size_t lastpart = localpathNew->getLeafnameByteIndex(*client->fsaccess);
 
         LocalPath fname(localpathNew->subpathFrom(lastpart));
 
@@ -1814,7 +1734,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
 bool Sync::checkValidNotification(int q, Notification& notification)
 {
-    // This code moved from filtering before going on notifyq, to filtering after when it's thread-safe to do so 
+    // This code moved from filtering before going on notifyq, to filtering after when it's thread-safe to do so
 
     if (q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
     {
@@ -2006,7 +1926,7 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
             havedir = client->fsaccess->mkdirlocal(localdebris, false) || client->fsaccess->target_exists;
         }
 
-        localdebris.appendWithSeparator(localpath.subpathFrom(localpath.lastpartlocal(*client->fsaccess)), true, client->fsaccess->localseparator);
+        localdebris.appendWithSeparator(localpath.subpathFrom(localpath.getLeafnameByteIndex(*client->fsaccess)), true, client->fsaccess->localseparator);
 
         client->fsaccess->skip_errorreport = i == -3;  // we expect a problem on the first one when the debris folders or debris day folders don't exist yet
         if (client->fsaccess->renamelocal(localpath, localdebris, false))

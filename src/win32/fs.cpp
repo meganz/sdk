@@ -23,7 +23,7 @@
 #include <wow64apiset.h>
 
 namespace mega {
-std::wstring gWindowsSeparator(L"\\");
+wchar_t gWindowsSeparator(L'\\');
 
 WinFileAccess::WinFileAccess(Waiter *w) : FileAccess(w)
 {
@@ -125,11 +125,11 @@ m_time_t FileTime_to_POSIX(FILETIME* ft)
 
     // clamp
     if (t < 0) return 0;
-    
+
     t /= 10000000;
 
     FileSystemAccess::captimestamp(&t);
-    
+
     return t;
 }
 
@@ -249,12 +249,12 @@ AsyncIOContext *WinFileAccess::newasynccontext()
 VOID WinFileAccess::asyncopfinished(DWORD dwErrorCode, DWORD dwNumberOfBytesTransfered, LPOVERLAPPED lpOverlapped)
 {
     WinAsyncIOContext *context = (WinAsyncIOContext *)(lpOverlapped->hEvent);
-    context->failed = dwErrorCode || dwNumberOfBytesTransfered != context->len;
+    context->failed = dwErrorCode || dwNumberOfBytesTransfered != context->dataBufferLen;
     if (!context->failed)
     {
         if (context->op == AsyncIOContext::READ)
         {
-            memset((void *)(((wchar_t *)(context->wbuffer)) + context->len), 0, context->pad);
+            memset(context->dataBuffer + context->dataBufferLen, 0, context->pad);
             LOG_verbose << "Async read finished OK";
         }
         else
@@ -288,11 +288,10 @@ bool WinFileAccess::asyncavailable()
 void WinFileAccess::asyncsysopen(AsyncIOContext *context)
 {
 #ifndef WINDOWS_PHONE
-    auto path = LocalPath::fromLocalname(context->wbuffer);
     bool read = context->access & AsyncIOContext::ACCESS_READ;
     bool write = context->access & AsyncIOContext::ACCESS_WRITE;
 
-    context->failed = !fopen_impl(path, read, write, true, nullptr, false);
+    context->failed = !fopen_impl(context->openPath, read, write, true, nullptr, false);
     context->retry = retry;
     context->finished = true;
     if (context->userCallback)
@@ -326,12 +325,12 @@ void WinFileAccess::asyncsysread(AsyncIOContext *context)
     OVERLAPPED *overlapped = new OVERLAPPED;
     memset(overlapped, 0, sizeof (OVERLAPPED));
 
-    overlapped->Offset = winContext->pos & 0xFFFFFFFF;
-    overlapped->OffsetHigh = (winContext->pos >> 32) & 0xFFFFFFFF;
+    overlapped->Offset = winContext->posOfBuffer & 0xFFFFFFFF;
+    overlapped->OffsetHigh = (winContext->posOfBuffer >> 32) & 0xFFFFFFFF;
     overlapped->hEvent = winContext;
     winContext->overlapped = overlapped;
 
-    if (!ReadFileEx(hFile, (LPVOID)winContext->wbuffer, (DWORD)winContext->len,
+    if (!ReadFileEx(hFile, winContext->dataBuffer, (DWORD)winContext->dataBufferLen,
                    overlapped, asyncopfinished))
     {
         DWORD e = GetLastError();
@@ -373,12 +372,12 @@ void WinFileAccess::asyncsyswrite(AsyncIOContext *context)
 
     OVERLAPPED *overlapped = new OVERLAPPED;
     memset(overlapped, 0, sizeof (OVERLAPPED));
-    overlapped->Offset = winContext->pos & 0xFFFFFFFF;
-    overlapped->OffsetHigh = (winContext->pos >> 32) & 0xFFFFFFFF;
+    overlapped->Offset = winContext->posOfBuffer & 0xFFFFFFFF;
+    overlapped->OffsetHigh = (winContext->posOfBuffer >> 32) & 0xFFFFFFFF;
     overlapped->hEvent = winContext;
     winContext->overlapped = overlapped;
 
-    if (!WriteFileEx(hFile, (LPVOID)winContext->wbuffer, (DWORD)winContext->len,
+    if (!WriteFileEx(hFile, winContext->dataBuffer, (DWORD)winContext->dataBufferLen,
                    overlapped, asyncopfinished))
     {
         DWORD e = GetLastError();
@@ -440,7 +439,7 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
 
     bool skipcasecheck = false;
     WinFileSystemAccess::sanitizedriveletter(namePath.localpath);
-    
+
     if (write)
     {
         type = FILENODE;
@@ -470,7 +469,7 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
                 if (!GetFileAttributesExW(namePath.localpath.c_str(), GetFileExInfoStandard, (LPVOID)&fatd))
                 {
                     DWORD e = GetLastError();
-                    // this is an expected case so no need to log.  the FindFirstFileEx did not find the file, 
+                    // this is an expected case so no need to log.  the FindFirstFileEx did not find the file,
                     // GetFileAttributesEx is only expected to find it if it's a network share point
                     // LOG_debug << "Unable to get the attributes of the file. Error code: " << e;
                     retry = WinFileSystemAccess::istransient(e);
@@ -528,7 +527,7 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
         // ignore symlinks - they would otherwise be treated as moves
         // also, ignore some other obscure filesystem object categories
         if (!ignoreAttributes && skipattributes(fad.dwFileAttributes))
-        {            
+        {
             if (SimpleLogger::logCurrentLevel >= logDebug)
             {
                 WinFileSystemAccess wfsa;
@@ -640,7 +639,7 @@ WinFileSystemAccess::WinFileSystemAccess()
     notifyerr = false;
     notifyfailed = false;
 
-    localseparator = L"\\";
+    localseparator = L'\\';
 }
 
 WinFileSystemAccess::~WinFileSystemAccess()
@@ -771,10 +770,10 @@ bool WinFileSystemAccess::getsname(LocalPath& namePath, LocalPath& snamePath) co
     const std::wstring& name = namePath.localpath;
     std::wstring& sname = snamePath.localpath;
 
-    int r = name.size();
+    DWORD r = DWORD(name.size());
     sname.resize(r);
 
-    int rr = GetShortPathNameW(name.data(), sname.data(), r);
+    DWORD rr = GetShortPathNameW(name.data(), sname.data(), r);
 
     sname.resize(rr);
 
@@ -1064,12 +1063,6 @@ bool WinFileSystemAccess::chdirlocal(LocalPath& namePath) const
 #endif
 }
 
-size_t WinFileSystemAccess::lastpartlocal(const std::wstring* name) const
-{
-    auto p = name->find_last_of(L"\\/:");
-    return p == string::npos ? 0 : p + 1;
-}
-
 // return lowercased ASCII file extension, including the . separator
 bool WinFileSystemAccess::getextension(const LocalPath& filenamePath, char* extension, size_t size) const
 {
@@ -1204,12 +1197,12 @@ void WinFileSystemAccess::statsid(string *id) const
     LONG hr;
     HKEY hKey = NULL;
     hr = RegOpenKeyEx(HKEY_LOCAL_MACHINE, L"Software\\Microsoft\\Cryptography", 0,
-                      KEY_QUERY_VALUE 
+                      KEY_QUERY_VALUE
 #ifdef KEY_WOW64_64KEY
 		      | KEY_WOW64_64KEY
-#else		      
+#else
 		      | 0x0100
-#endif		      
+#endif
 		      , &hKey);
     if (hr == ERROR_SUCCESS)
     {
@@ -1406,8 +1399,8 @@ void WinDirNotify::readchanges()
 #ifndef WINDOWS_PHONE
     if (notifybuf.size() != 65534)
     {
-        // Use 65534 for the buffer size becaues (from doco): 
-        // ReadDirectoryChangesW fails with ERROR_INVALID_PARAMETER when the buffer length is greater than 64 KB and the application is 
+        // Use 65534 for the buffer size becaues (from doco):
+        // ReadDirectoryChangesW fails with ERROR_INVALID_PARAMETER when the buffer length is greater than 64 KB and the application is
         // monitoring a directory over the network. This is due to a packet size limitation with the underlying file sharing protocols.
         notifybuf.resize(65534);
     }
@@ -1457,7 +1450,7 @@ void WinDirNotify::notifierThreadFunction()
     bool recheck = false;
     for (;;)
     {
-        if (!recheck) 
+        if (!recheck)
         {
             WaitForSingleObjectEx(smEventHandle, INFINITE, TRUE);  // alertable, so filesystem notify callbacks can occur on this thread during this time.
             ResetEvent(smEventHandle);
@@ -1474,7 +1467,7 @@ void WinDirNotify::notifierThreadFunction()
                 smQueue.pop_front();
             }
         }
-        if (f) 
+        if (f)
         {
             f();
             recheck = true;
