@@ -408,11 +408,11 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, in
         const char* ptr;
         if ((ptr = strstr(supportedformatsFfmpeg(), ext)) && ptr[strlen(ext)] == '.')
         {
-            string name;  // WIN32 ffmpeg uses utf8 rather than wide strings
-            client->fsaccess->local2path(localname.getLocalpath(), &name);
+            // WIN32 ffmpeg uses utf8 rather than wide strings
+            string name = localname.toPath(*client->fsaccess);
 
             isvideo = true;
-            if (!readbitmapFfmpeg(fa, &name, size) )
+            if (!readbitmapFfmpeg(fa, &name, size) )    //todo: just pass LocalPath
             {
                 return false;
             }

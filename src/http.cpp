@@ -235,7 +235,7 @@ Proxy *HttpIO::getautoproxy()
     if (ieProxyConfig.lpszAutoConfigUrl)
     {
         GlobalFree(ieProxyConfig.lpszAutoConfigUrl);
-    }    
+    }
 #endif
 
 #if defined(__APPLE__) && !(TARGET_OS_IPHONE)
@@ -382,7 +382,7 @@ void HttpReq::dns(MegaClient *client)
         httpio->cancel(this);
         init();
     }
-    
+
     httpio = client->httpio;
     bufpos = 0;
     outpos = 0;
@@ -391,7 +391,7 @@ void HttpReq::dns(MegaClient *client)
     method = METHOD_NONE;
     contentlength = -1;
     lastdata = Waiter::ds;
-    
+
     httpio->post(this);
 }
 
@@ -480,7 +480,7 @@ void HttpReq::put(void* data, unsigned len, bool purge)
 
         in.append((char*)data, len);
     }
-    
+
     bufpos += len;
 }
 
@@ -508,17 +508,17 @@ bool HttpReq::http_buf_t::isNull()
 }
 
 byte* HttpReq::http_buf_t::datastart()
-{ 
-    return buf + start; 
+{
+    return buf + start;
 }
 
-size_t HttpReq::http_buf_t::datalen() 
-{ 
-    return end - start; 
+size_t HttpReq::http_buf_t::datalen()
+{
+    return end - start;
 }
 
 
-// give up ownership of the buffer for client to use.  
+// give up ownership of the buffer for client to use.
 struct HttpReq::http_buf_t* HttpReq::release_buf()
 {
     HttpReq::http_buf_t* result = new HttpReq::http_buf_t(buf, inpurge, (size_t)bufpos);
@@ -802,6 +802,7 @@ dstime SpeedController::requestElapsedDs()
 
 m_off_t SpeedController::calculateSpeed(long long numBytes)
 {
+    assert(numBytes >= 0);
     dstime currentTime = Waiter::ds;
     if (numBytes <= 0 && mLastCalcTime == currentTime)
     {
@@ -827,7 +828,7 @@ m_off_t SpeedController::calculateSpeed(long long numBytes)
     mCircularCurrentSum += numBytes;
 
     m_off_t speed = (mCircularCurrentSum * 10) / SPEED_MEAN_MAX_INTERVAL_DS;
-    
+
     if (numBytes)
     {
         if (!mMeanSpeedStart)
@@ -837,7 +838,7 @@ m_off_t SpeedController::calculateSpeed(long long numBytes)
         mMeanSpeed = delta ? (mMeanSpeedSum * 10 / delta) : mMeanSpeedSum;
     }
     mLastCalcTime = currentTime;
-    
+
     return speed;
 }
 

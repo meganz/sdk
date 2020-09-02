@@ -395,7 +395,7 @@ void DirNotify::setFailed(int errCode, const string& reason)
 
 int DirNotify::getFailed(string& reason)
 {
-    if (mFailed) 
+    if (mFailed)
     {
         reason = mFailReason;
     }
@@ -406,7 +406,7 @@ int DirNotify::getFailed(string& reason)
 // notify base LocalNode + relative path/filename
 void DirNotify::notify(notifyqueue q, LocalNode* l, LocalPath&& path, bool immediate)
 {
-    // We may be executing on a thread here so we can't access the LocalNode data structures.  Queue everything, and   
+    // We may be executing on a thread here so we can't access the LocalNode data structures.  Queue everything, and
     // filter when the notifications are processed.  Also, queueing it here is faster than logging the decision anyway.
 
     Notification n;
@@ -698,7 +698,7 @@ AsyncIOContext *FileAccess::asyncfwrite(const byte* data, unsigned len, m_off_t 
     context->buffer = (byte*)data;
     context->len = len;
 #endif
-    
+
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
     context->userData = waiter;
@@ -898,8 +898,8 @@ void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separa
     {
         // still have to be careful about appending a \ to F:\ for example, on windows, which produces an invalid path
         if (localpath.size() < localseparator.size() ||
-            memcmp(localpath.data() + localpath.size() - localseparator.size(), 
-                   localseparator.data(), 
+            memcmp(localpath.data() + localpath.size() - localseparator.size(),
+                   localseparator.data(),
                    localseparator.size() * sizeof(wchar_t)))
         {
             localpath.append(localseparator);
@@ -997,7 +997,7 @@ bool LocalPath::findPrevSeparator(size_t& separatorBytePos, const FileSystemAcce
         if (separatorBytePos == string::npos) return false;
         if (separatorBytePos % fsaccess.localseparator.size() == 0) return true;
         separatorBytePos--;
-    } 
+    }
 }
 
 bool LocalPath::endsInSeparator(const FileSystemAccess& fsaccess) const
@@ -1062,7 +1062,7 @@ string LocalPath::toPath(const FileSystemAccess& fsaccess) const
     fsaccess.local2path(const_cast<std::wstring*>(&localpath), &path);
 #else
     fsaccess.local2path(const_cast<string*>(&localpath), &path);
-#endif   
+#endif
     return path;
 }
 
@@ -1075,7 +1075,7 @@ string LocalPath::toName(const FileSystemAccess& fsaccess, FileSystemType fsType
     fsaccess.local2name(&name, fsType);
     return name;
 #endif
-    
+
 }
 
 LocalPath LocalPath::fromPath(const string& path, const FileSystemAccess& fsaccess)
