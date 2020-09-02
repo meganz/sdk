@@ -4583,8 +4583,10 @@ TEST_F(SdkTest, SdkSimpleCommands)
         }
     }
 
+    gTestingInvalidArgs = true;
     err = synchronousKillSession(0, INVALID_HANDLE);
     ASSERT_EQ(MegaError::API_ESID, err) << "Kill session for unknown sessions shoud fail with API_ESID (error: " << err << ")";
+    gTestingInvalidArgs = false;
 
     // getMiscFlags() -- not logged in
     logout(0);
