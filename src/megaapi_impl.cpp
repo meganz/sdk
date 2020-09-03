@@ -459,7 +459,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->syncdeleted = (node->syncdeleted != SYNCDEL_NONE);
     if(node->localnode)
     {
-        localPath = node->localnode->getLocalPath(true).clientAppEncoded();
+        localPath = node->localnode->getLocalPath(true).platformEncoded();
         localPath.append("", 1);
     }
 #endif
@@ -8623,7 +8623,7 @@ string MegaApiImpl::getLocalPath(MegaNode *n)
         return string();
     }
 
-    string result = node->localnode->getLocalPath(true).clientAppEncoded();
+    string result = node->localnode->getLocalPath(true).platformEncoded();
     result.append("", 1);
 
     sdkMutex.unlock();
@@ -12964,7 +12964,7 @@ void MegaApiImpl::syncupdate_treestate(LocalNode *l)
     if(syncMap.find(l->sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(l->sync->tag);
 
-    string s = l->getLocalPath(true).clientAppEncoded();
+    string s = l->getLocalPath(true).platformEncoded();
 
     fireOnFileSyncStateChanged(megaSync, &s, (int)l->ts);
 }

@@ -368,9 +368,9 @@ void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
 }
 
 // update local name
-void PosixFileAccess::updatelocalname(LocalPath& name)
+void PosixFileAccess::updatelocalname(const LocalPath& name, bool force)
 {
-    if (!nonblocking_localname.empty())
+    if (force || !nonblocking_localname.empty())
     {
         nonblocking_localname = name;
     }
@@ -1159,7 +1159,7 @@ void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
         {
             return;
         }
-        
+
         basedev = statbuf.st_dev;
     }
 
@@ -1750,7 +1750,7 @@ fsfp_t PosixDirNotify::fsfingerprint() const
     struct statfs statfsbuf;
 
     // FIXME: statfs() does not really do what we want.
-    if (statfs(localbasepath.editStringDirect()->c_str(), &statfsbuf)) 
+    if (statfs(localbasepath.editStringDirect()->c_str(), &statfsbuf))
     {
         return 0;
     }

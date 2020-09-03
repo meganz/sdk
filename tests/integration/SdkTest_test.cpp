@@ -4524,19 +4524,6 @@ TEST_F(SdkTest, SdkSimpleCommands)
     ASSERT_EQ(MegaError::API_OK, err) << "Fetch time zone failed (error: " << err << ")";
     ASSERT_TRUE(mApi[0].tzDetails && mApi[0].tzDetails->getNumTimeZones()) << "Invalid Time Zone details"; // some simple validation
 
-    // getMiscFlags() -- not logged in
-    logout(0);
-    err = synchronousGetMiscFlags(0);
-    ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
-
-    // getUserEmail() test
-    getAccountsForTest(1);
-    std::unique_ptr<MegaUser> user(megaApi[0]->getMyUser());
-    ASSERT_TRUE(!!user); // some simple validation
-
-    err = synchronousGetUserEmail(0, user->getHandle());
-    ASSERT_EQ(MegaError::API_OK, err) << "Get user email failed (error: " << err << ")";
-    ASSERT_NE(mApi[0].email.find('@'), std::string::npos); // some simple validation
 
     // cleanRubbishBin() test (accept both success and already empty statuses)
     err = synchronousCleanRubbishBin(0);
@@ -4562,8 +4549,26 @@ TEST_F(SdkTest, SdkSimpleCommands)
         }
     }
 
+    gTestingInvalidArgs = true;
     err = synchronousKillSession(0, INVALID_HANDLE);
     ASSERT_EQ(MegaError::API_ESID, err) << "Kill session for unknown seesions shoud fail with API_ESID (error: " << err << ")";
+    gTestingInvalidArgs = false;
+
+    // getMiscFlags() -- not logged in
+    logout(0);
+    err = synchronousGetMiscFlags(0);
+    ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
+
+    // getUserEmail() test
+    gSessionIDs[0].clear();
+    getAccountsForTest(1);
+    std::unique_ptr<MegaUser> user(megaApi[0]->getMyUser());
+    ASSERT_TRUE(!!user); // some simple validation
+
+    err = synchronousGetUserEmail(0, user->getHandle());
+    ASSERT_EQ(MegaError::API_OK, err) << "Get user email failed (error: " << err << ")";
+    ASSERT_NE(mApi[0].email.find('@'), std::string::npos); // some simple validation
+
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)

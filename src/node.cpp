@@ -1619,7 +1619,7 @@ LocalPath LocalNode::getLocalPath(bool sdisable) const
     return lp;
 }
 
-void LocalNode::getlocalpath(LocalPath& path, bool sdisable, LocalPath::separator_t* localseparator) const
+void LocalNode::getlocalpath(LocalPath& path, bool sdisable) const
 {
     if (!sync)
     {
@@ -1638,11 +1638,11 @@ void LocalNode::getlocalpath(LocalPath& path, bool sdisable, LocalPath::separato
         // perhaps faster?) and sdisable not set.  Use localname from the sync root though, as it has the absolute path.
         if (!sdisable && l->slocalname && l->parent)
         {
-            path.prependWithSeparator(*l->slocalname, localseparator ? *localseparator : sync->client->fsaccess->localseparator);
+            path.prependWithSeparator(*l->slocalname, sync->client->fsaccess->localseparator);
         }
         else
         {
-            path.prependWithSeparator(l->localname, localseparator ? *localseparator : sync->client->fsaccess->localseparator);
+            path.prependWithSeparator(l->localname, sync->client->fsaccess->localseparator);
         }
     }
 }
@@ -1674,7 +1674,7 @@ void LocalNode::prepare()
     // is this transfer in progress? update file's filename.
     if (transfer->slot && transfer->slot->fa && !transfer->slot->fa->nonblocking_localname.empty())
     {
-        transfer->slot->fa->updatelocalname(transfer->localfilename);
+        transfer->slot->fa->updatelocalname(transfer->localfilename, false);
     }
 
     treestate(TREESTATE_SYNCING);
@@ -1715,7 +1715,7 @@ bool LocalNode::serialize(string* d)
     w.serializeu32(parent ? parent->dbid : 0);
     w.serializenodehandle(node ? node->nodehandle : UNDEF);
 #if defined(_WIN32)
-    w.serializestring(localname.clientAppEncoded());
+    w.serializestring(localname.platformEncoded());
 #else
     w.serializestring(localname.getLocalpath());
 #endif
@@ -1727,7 +1727,7 @@ bool LocalNode::serialize(string* d)
     w.serializebyte(mSyncable);
     w.serializeexpansionflags(1);  // first flag indicates we are storing slocalname.  Storing it is much, much faster than looking it up on startup.
 #if defined(_WIN32)
-    auto tmpstr = slocalname ? slocalname->clientAppEncoded() : string();
+    auto tmpstr = slocalname ? slocalname->platformEncoded() : string();
     w.serializepstr(slocalname ? &tmpstr : nullptr);
 #else
     w.serializepstr(slocalname ? &(slocalname->getLocalpath()) : nullptr);

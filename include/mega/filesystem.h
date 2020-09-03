@@ -104,9 +104,9 @@ public:
 class MEGA_API LocalPath
 {
 #if defined(_WIN32)
-    std::wstring localpath;
+    wstring localpath;
 #else
-    std::string localpath;
+    string localpath;
 #endif
 
     // only functions that need to call the OS or 3rdParty libraries - normal code should have no access (or accessor) to localpath
@@ -133,30 +133,31 @@ public:
     typedef char separator_t;
 #endif
 
-#ifndef _WIN32
-    explicit LocalPath(std::string&& s) : localpath(std::move(s)) {}
-    std::string* editStringDirect();
-    const std::string* editStringDirect() const;
-    void assign(const char* ptr, size_t sz) { localpath.assign(ptr, sz); }
+//#ifndef _WIN32
+//    explicit LocalPath(string&& s) : localpath(move(s)) {}
+//    string* editStringDirect();
+//    const string* editStringDirect() const;
+//    void assign(const char* ptr, size_t sz) { localpath.assign(ptr, sz); }
+//
+//    const string& getLocalpath() const { return localpath; }
+//#endif
 
-    const std::string& getLocalpath() const { return localpath; }
-#endif
+    // returns the internal representation copied into a string buffer, for backward compatibility
+    string platformEncoded() const;
 
-    std::string clientAppEncoded() const;
-
-    void setlocalpathsize(int size) { localpath.resize(size); }
     bool empty() const;
-    void clear() { localpath.clear(); }
-    void erase(size_t pos = 0, size_t count = std::string::npos) { localpath.erase(pos, count); }
-    void truncate(size_t bytePos) { localpath.resize(bytePos); }
+    void clear();
+    void erase(size_t pos = 0, size_t count = string::npos);
+    void truncate(size_t bytePos);
     LocalPath leafName(separator_t localseparator) const;
     void append(const LocalPath& additionalPath);
     void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways, separator_t localseparator);
     void prependWithSeparator(const LocalPath& additionalPath, separator_t separator_t);
     void trimNonDriveTrailingSeparator(separator_t);
     bool findNextSeparator(size_t& separatorBytePos, separator_t localseparator) const;
-    //bool findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
+    bool findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
     bool endsInSeparator(separator_t) const;
+    bool beginsWithSeparator(separator_t) const;
     size_t reportSize() const { return localpath.size() * sizeof(separator_t); } // only for reporting, not logic
 
     // get the index of the leaf name.  A trailing separator is considered part of the leaf.
@@ -174,26 +175,26 @@ public:
 
     // Return a utf8 representation of the LocalPath (fsaccess is used to do the conversion)
     // No escaping or unescaping is done.
-    std::string toPath(const FileSystemAccess& fsaccess) const;
+    string toPath(const FileSystemAccess& fsaccess) const;
 
     // Return a utf8 representation of the LocalPath, taking into account that the LocalPath
     // may contain escaped characters that are disallowed for the filesystem.
     // Those characters are converted back (unescaped).  fsaccess is used to do the conversion.
-    std::string toName(const FileSystemAccess& fsaccess, FileSystemType fsType = FS_UNKNOWN) const;
+    string toName(const FileSystemAccess& fsaccess, FileSystemType fsType = FS_UNKNOWN) const;
 
     // Create a Localpath from a utf8 string where no character conversions or escaping is necessary.
-    static LocalPath fromPath(const std::string& path, const FileSystemAccess& fsaccess);
+    static LocalPath fromPath(const string& path, const FileSystemAccess& fsaccess);
 
     // Create a LocalPath from a utf8 string, making any character conversions (escaping) necessary
     // for characters that are disallowed on that filesystem.  fsaccess is used to do the conversion.
-    static LocalPath fromName(std::string path, const FileSystemAccess& fsaccess, FileSystemType fsType);
+    static LocalPath fromName(string path, const FileSystemAccess& fsaccess, FileSystemType fsType);
 
 #if defined(_WIN32)
-    // Create a LocalPath from a std::wstring that was already converted to be appropriate for a local file path.
-    static LocalPath fromLocalname(std::wstring localname);
+    // Create a LocalPath from a wstring that was already converted to be appropriate for a local file path.
+    static LocalPath fromLocalname(wstring localname);
 #endif
-    // Create a LocalPath from a std::string that was already converted to be appropriate for a local file path.
-    static LocalPath fromLocalname(std::string localname);
+    // Create a LocalPath from a string that was already converted to be appropriate for a local file path.
+    static LocalPath fromLocalname(string localname);
 
     // Generates a name for a temporary file
     static LocalPath tmpNameLocal(const FileSystemAccess& fsaccess);
@@ -290,13 +291,13 @@ struct MEGA_API FileAccess
 
     // nonblocking open: Only prepares for opening.  Actually stats the file/folder, getting mtime, size, type.
     // Call openf() afterwards to actually open it if required.  For folders, returns false with type==FOLDERNODE.
-    bool fopen(LocalPath&);
+    bool fopen(const LocalPath&);
 
     // check if a local path is a folder
     bool isfolder(LocalPath&);
 
     // update localname (only has an effect if operating in by-name mode)
-    virtual void updatelocalname(LocalPath&) = 0;
+    virtual void updatelocalname(const LocalPath&, bool force) = 0;
 
     // absolute position read, with NUL padding
     bool fread(string*, unsigned, unsigned, m_off_t);
@@ -320,13 +321,13 @@ struct MEGA_API FileAccess
 
     virtual bool asyncavailable() { return false; }
 
-    AsyncIOContext *asyncfopen(LocalPath&);
+    AsyncIOContext *asyncfopen(const LocalPath&);
 
     // non-locking ops: open/close temporary hFile
     bool asyncopenf();
     void asyncclosef();
 
-    AsyncIOContext *asyncfopen(LocalPath&, bool, bool, m_off_t = 0);
+    AsyncIOContext *asyncfopen(const LocalPath&, bool, bool, m_off_t = 0);
     AsyncIOContext* asyncfread(string*, unsigned, unsigned, m_off_t);
     AsyncIOContext* asyncfwrite(const byte *, unsigned, m_off_t);
 
@@ -457,12 +458,9 @@ public:
 // generic host filesystem access interface
 struct MEGA_API FileSystemAccess : public EventTrigger
 {
-    // local path separator, e.g. "/"
-#if defined(_WIN32)
-    wchar_t localseparator;
-#else
-    char localseparator;
-#endif
+    // local path separator, e.g. "/" or "\\"
+    LocalPath::separator_t localseparator;
+
     // waiter to notify on filesystem events
     Waiter *waiter;
 
@@ -496,22 +494,13 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // convert MEGA path (UTF-8) to local format
     virtual void path2local(const string*, string*) const = 0;
+    virtual void local2path(const string*, string*) const = 0;
 
 #if defined(_WIN32)
-    // convert MEGA-formatted filename (UTF-8) to local filesystem name; escape
-    // forbidden characters using urlencode
-    string local2name(const std::wstring&, FileSystemType) const;
+    // convert MEGA-formatted filename (UTF-8) to local filesystem name
     virtual void local2path(const std::wstring*, string*) const = 0;
     virtual void path2local(const string*, std::wstring*) const = 0;
 #endif
-    // convert MEGA-formatted filename (UTF-8) to local filesystem name; escape
-    // forbidden characters using urlencode
-    virtual void local2path(const string*, string*) const = 0;
-
-    void local2name(string*, FileSystemType) const;
-
-    // convert local path to MEGA format (UTF-8) with unescaping
-    void name2local(string*, FileSystemType) const;
 
     // returns a const char pointer that contains the separator character for the target system
     static const char *getPathSeparator();
@@ -586,7 +575,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // set whenever an operation fails because the target already exists
     bool target_exists;
 
-    // append local operating system version information to std::string.
+    // append local operating system version information to string.
     // Set includeArchExtraInfo to know if the app is 32 bit running on 64 bit (on windows, that is via the WOW subsystem)
     virtual void osversion(string*, bool includeArchExtraInfo) const { }
 

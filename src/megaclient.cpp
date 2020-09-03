@@ -12533,14 +12533,10 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
 
     if (name->find('%') + 1)
     {
-        string tmplocalname;
-
         // perform one round of unescaping to ensure that the resulting local
         // filename matches
-        fsaccess->path2local(name, &tmplocalname);
-        fsaccess->local2name(&tmplocalname, fsType);
-
-        strings->push_back(tmplocalname);
+        LocalPath p = LocalPath::fromPath(*name, *fsaccess);
+        strings->push_back(p.toName(*fsaccess, fsType));
         name = &strings->back();
     }
 

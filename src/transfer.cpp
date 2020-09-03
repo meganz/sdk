@@ -151,7 +151,7 @@ bool Transfer::serialize(string *d)
     d->append((const char*)&type, sizeof(type));
 
 #if defined(_WIN32)
-    const auto& tmpstr = localfilename.clientAppEncoded();
+    const auto& tmpstr = localfilename.platformEncoded();
     ll = (unsigned short)tmpstr.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(tmpstr.data(), ll);

@@ -397,9 +397,9 @@ void WinFileAccess::asyncsyswrite(AsyncIOContext *context)
 }
 
 // update local name
-void WinFileAccess::updatelocalname(LocalPath& name)
+void WinFileAccess::updatelocalname(const LocalPath& name, bool force)
 {
-    if (!nonblocking_localname.empty())
+    if (force || !nonblocking_localname.empty())
     {
         nonblocking_localname = name;
         WinFileSystemAccess::sanitizedriveletter(nonblocking_localname.localpath);

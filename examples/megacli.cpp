@@ -673,9 +673,7 @@ AppFilePut::AppFilePut(const LocalPath& clocalname, handle ch, const char* ctarg
     // erase path component
     auto fileSystemType = client->fsaccess->getFilesystemType(clocalname);
 
-    LocalPath p = clocalname;
-    p.erase(0, p.lastpartlocal(*client->fsaccess));
-    name = p.toName(*client->fsaccess, fileSystemType);
+    name = clocalname.leafName(client->fsaccess->localseparator).toName(*client->fsaccess, fileSystemType);
 }
 
 // user addition/update (users never get deleted)
@@ -3966,10 +3964,7 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
 
 string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 {
-
-    size_t n = itemlocalname.lastpartlocal(*client->fsaccess);
-    LocalPath leaf = itemlocalname.subpathFrom(n);
-    return leaf.toPath(*client->fsaccess);
+    return itemlocalname.leafName(client->fsaccess->localseparator).toPath(*client->fsaccess);
 }
 
 void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder)
@@ -7764,7 +7759,7 @@ void megacli()
             // display put/get transfer speed in the prompt
             if (client->tslots.size() || responseprogress >= 0)
             {
-                unsigned xferrate[2] = { 0 };
+                m_off_t xferrate[2] = { 0 };
                 Waiter::bumpds();
 
                 for (transferslot_list::iterator it = client->tslots.begin(); it != client->tslots.end(); it++)
@@ -7786,7 +7781,7 @@ void megacli()
 
                     if (xferrate[GET])
                     {
-                        sprintf(dynamicprompt + 6, "In: %u KB/s", xferrate[GET]);
+                        sprintf(dynamicprompt + 6, "In: %lld KB/s", xferrate[GET]);
 
                         if (xferrate[PUT])
                         {
@@ -7796,7 +7791,7 @@ void megacli()
 
                     if (xferrate[PUT])
                     {
-                        sprintf(strchr(dynamicprompt, 0), "Out: %u KB/s", xferrate[PUT]);
+                        sprintf(strchr(dynamicprompt, 0), "Out: %lld KB/s", xferrate[PUT]);
                     }
 
                     if (responseprogress >= 0)

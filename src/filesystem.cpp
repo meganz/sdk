@@ -296,18 +296,6 @@ const char *FileSystemAccess::getPathSeparator()
 #endif
 }
 
-// escape forbidden characters, then convert to local encoding
-void FileSystemAccess::name2local(string* filename, FileSystemType fsType) const
-{
-    assert(filename);
-
-    escapefsincompatible(filename, fsType);
-
-    string t = *filename;
-
-    path2local(&t, filename);
-}
-
 void FileSystemAccess::normalize(string* filename) const
 {
     if (!filename) return;
@@ -343,25 +331,6 @@ void FileSystemAccess::normalize(string* filename) const
 
     *filename = std::move(result);
 }
-
-// convert from local encoding, then unescape escaped forbidden characters
-#if defined(_WIN32)
-std::string FileSystemAccess::local2name(const std::wstring& filename, FileSystemType fsType) const
-{
-    std::string path;
-    local2path(&filename, &path);
-    unescapefsincompatible(&path, fsType);
-    return path;
-}
-#endif
-void FileSystemAccess::local2name(string* filename, FileSystemType fsType) const
-{
-    assert(filename);
-    string t = *filename;
-    local2path(&t, filename);
-    unescapefsincompatible(filename, fsType);
-}
-
 
 std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(LocalPath& localname)
 {
@@ -454,10 +423,9 @@ FileAccess::~FileAccess()
 }
 
 // open file for reading
-bool FileAccess::fopen(LocalPath& name)
+bool FileAccess::fopen(const LocalPath& name)
 {
-    nonblocking_localname.setlocalpathsize(1);
-    updatelocalname(name);
+    updatelocalname(name, true);
 
     return sysstat(&mtime, &size);
 }
@@ -515,10 +483,9 @@ void FileAccess::asyncopfinished(void *param)
     }
 }
 
-AsyncIOContext *FileAccess::asyncfopen(LocalPath& f)
+AsyncIOContext *FileAccess::asyncfopen(const LocalPath& f)
 {
-    nonblocking_localname.setlocalpathsize(1);
-    updatelocalname(f);
+    updatelocalname(f, true);
 
     LOG_verbose << "Async open start";
     AsyncIOContext *context = newasynccontext();
@@ -593,7 +560,7 @@ void FileAccess::asyncclosef()
     }
 }
 
-AsyncIOContext *FileAccess::asyncfopen(LocalPath& f, bool read, bool write, m_off_t pos)
+AsyncIOContext *FileAccess::asyncfopen(const LocalPath& f, bool read, bool write, m_off_t pos)
 {
     LOG_verbose << "Async open start";
     AsyncIOContext *context = newasynccontext();
@@ -818,6 +785,21 @@ bool LocalPath::empty() const
     return localpath.empty();
 }
 
+void LocalPath::clear()
+{
+    localpath.clear();
+}
+
+void LocalPath::erase(size_t pos, size_t count)
+{
+    localpath.erase(pos, count);
+}
+
+void LocalPath::truncate(size_t bytePos)
+{
+    localpath.resize(bytePos);
+}
+
 LocalPath LocalPath::leafName(separator_t localseparator) const
 {
     auto p = localpath.find_last_of(localseparator);
@@ -830,7 +812,7 @@ void LocalPath::append(const LocalPath& additionalPath)
     localpath.append(additionalPath.localpath);
 }
 
-std::string LocalPath::clientAppEncoded() const
+std::string LocalPath::platformEncoded() const
 {
 #ifdef WIN32
     // this function is typically used where we need to pass a file path to the client app, which expects utf16 in a std::string buffer
@@ -898,16 +880,20 @@ bool LocalPath::findNextSeparator(size_t& separatorBytePos, separator_t localsep
     return separatorBytePos != string::npos;
 }
 
-//bool LocalPath::findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const
-//{
-//    separatorBytePos = localpath.rfind(fsaccess.localseparator, separatorBytePos);
-//    return separatorBytePos != string::npos;
-//}
+bool LocalPath::findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const
+{
+    separatorBytePos = localpath.rfind(fsaccess.localseparator, separatorBytePos);
+    return separatorBytePos != string::npos;
+}
 
 bool LocalPath::endsInSeparator(separator_t localseparator) const
 {
-    return localpath.size() > 0 &&
-           localpath[localpath.size() - 1] == localseparator;
+    return !localpath.empty() && localpath.back() == localseparator;
+}
+
+bool LocalPath::beginsWithSeparator(separator_t localseparator) const
+{
+    return !localpath.empty() && localpath.front() == localseparator;
 }
 
 size_t LocalPath::getLeafnameByteIndex(const FileSystemAccess& fsaccess) const
@@ -992,14 +978,9 @@ string LocalPath::toPath(const FileSystemAccess& fsaccess) const
 
 string LocalPath::toName(const FileSystemAccess& fsaccess, FileSystemType fsType) const
 {
-#if defined(_WIN32)
-    return fsaccess.local2name(localpath, fsType);
-#else
-    string name = localpath;
-    fsaccess.local2name(&name, fsType);
-    return name;
-#endif
-
+    std::string path = toPath(fsaccess);
+    fsaccess.unescapefsincompatible(&path, fsType);
+    return path;
 }
 
 LocalPath LocalPath::fromPath(const string& path, const FileSystemAccess& fsaccess)
@@ -1011,8 +992,8 @@ LocalPath LocalPath::fromPath(const string& path, const FileSystemAccess& fsacce
 
 LocalPath LocalPath::fromName(string path, const FileSystemAccess& fsaccess, FileSystemType fsType)
 {
-    fsaccess.name2local(&path, fsType);
-    return fromLocalname(path);
+    fsaccess.escapefsincompatible(&path, fsType);
+    return fromPath(path, fsaccess);
 }
 
 #if defined(_WIN32)
