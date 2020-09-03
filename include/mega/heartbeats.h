@@ -38,6 +38,9 @@ class HeartBeatBackupInfo : public CommandListener
 {
 public:
     HeartBeatBackupInfo(handle backupId);
+    HeartBeatBackupInfo(HeartBeatBackupInfo&&) = default;
+    HeartBeatBackupInfo& operator=(HeartBeatBackupInfo&&) = default;
+    virtual ~HeartBeatBackupInfo() = default;
 
     MEGA_DISABLE_COPY(HeartBeatBackupInfo)
 
@@ -63,6 +66,7 @@ public:
     virtual void setLastBeat(const m_time_t &lastBeat);
     virtual void setLastAction(const m_time_t &lastAction);
     virtual void setStatus(const int &status);
+    virtual void setProgress(const double &progress);
     virtual void setPendingUps(uint32_t pendingUps);
     virtual void setPendingDowns(uint32_t pendingDowns);
     virtual void setLastSyncedItem(const mega::MegaHandle &lastItemUpdated);
@@ -74,6 +78,7 @@ protected:
     handle mBackupId = UNDEF;   // assigned by API upon registration
 
     int mStatus = 0;
+    double mProgress = 0;
 
     uint32_t mPendingUps = 0;
     uint32_t mPendingDowns = 0;

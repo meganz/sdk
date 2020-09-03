@@ -52,7 +52,7 @@ int HeartBeatBackupInfo::status() const
 
 double HeartBeatBackupInfo::progress() const
 {
-    return 0.;
+    return mProgress;
 }
 
 uint32_t HeartBeatBackupInfo::pendingUps() const
@@ -114,6 +114,12 @@ void HeartBeatBackupInfo::setStatus(const int &status)
         mStatus = status;
         updateLastActionTime();
     }
+}
+
+void HeartBeatBackupInfo::setProgress(const double &progress)
+{
+    mProgress = progress;
+    updateLastActionTime();
 }
 
 void HeartBeatBackupInfo::setLastAction(const m_time_t &lastAction)
