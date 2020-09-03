@@ -65,7 +65,7 @@ char* PosixFileSystemAccess::appbasepath = nullptr;
 
 #else /* USE_IOS */
 
-static const string& adjustBasePath(const LocalPath& name)
+const string& adjustBasePath(const LocalPath& name)
 {
     return name.localpath;
 }
@@ -587,7 +587,7 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
     defaultfilepermissions = 0600;
     defaultfolderpermissions = 0700;
 
-    localseparator = "/";
+    localseparator = '/';
 
 #ifdef USE_IOS
     if (!appbasepath)
@@ -756,7 +756,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                 if (lastname.size() < ignore->size()
                                  || memcmp(lastname.c_str(), ignore->data(), ignore->size())
                                  || (lastname.size() > ignore->size()
-                                  && memcmp(lastname.c_str() + ignore->size(), localseparator.c_str(), localseparator.size())))
+                                  && lastname[ignore->size()] != localseparator))
                                 {
                                     // previous IN_MOVED_FROM is not followed by the
                                     // corresponding IN_MOVED_TO, so was actually a deletion
@@ -811,7 +811,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
             if (lastname.size() < ignore->size()
              || memcmp(lastname.c_str(), ignore->data(), ignore->size())
              || (lastname.size() > ignore->size()
-              && memcmp(lastname.c_str() + ignore->size(), localseparator.c_str(), localseparator.size())))
+              && lastname[ignore->size()] != localseparator))
             {
                 LOG_debug << "Filesystem notification. Root: " << lastlocalnode->name << "   Path: " << lastname;
                 lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
