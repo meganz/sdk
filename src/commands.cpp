@@ -8324,22 +8324,15 @@ bool CommandGetBanners::procresult(Result r)
     }
 
     /*
-    [
-        [
-            {
-                "id": 2, ///The banner id
-                "t": "R2V0IFZlcmlmaWVk", ///Banner title
-                "d": "TWFrZSBpdCBlYXNpZXIgZm9yIHlvdXIgY29udGFjdHMgdG8gZmluZCB5b3Ugb24gTUVHQS4", ///Banner description.
-                "img": "Verified_image.png", ///Image name.
-                "l": "", ///URL
-                "bimg": "Verified_BG.png", ///background image name.
-                "dsp": "https://web-sandbox3.developers.mega.co.nz/images/mega/" ///Where to get the image.
-            },
-            {
-                ...
-            }
-        ]
-    ]
+        [ {
+            "id": 2, ///The banner id
+            "t": "R2V0IFZlcmlmaWVk", ///Banner title
+            "d": "TWFrZSBpdCBlYXNpZXIgZm9yIHlvdXIgY29udGFjdHMgdG8gZmluZCB5b3Ugb24gTUVHQS4", ///Banner description.
+            "img": "Verified_image.png", ///Image name.
+            "l": "", ///URL
+            "bimg": "Verified_BG.png", ///background image name.
+            "dsp": "https://web-sandbox3.developers.mega.co.nz/images/mega/" ///Where to get the image.
+          }, {"id":3, ...}, ... ]
     */
 
     if (!client->json.enterarray() ||
