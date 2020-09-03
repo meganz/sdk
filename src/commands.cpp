@@ -8289,55 +8289,50 @@ bool CommandGetBanners::procresult(Result r)
     // loop array elements
     while (client->json.enterobject())
     {
-        int fieldcount = 7,
-            id = 0;
+        int id = 0;
         string title, description, img, url, bimg, dsp;
-        bool ok = true;
+        bool read = true;
 
         // loop and read object members
-        for (int i = 0; ok && i < fieldcount; ++i)
+        while (read)
         {
             switch (client->json.getnameid())
             {
             case MAKENAMEID2('i', 'd'):
                 id = client->json.getint32();
-                ok = id != -1;
                 break;
 
             case MAKENAMEID1('t'):
-                ok = client->json.storeobject(&title);
+                client->json.storeobject(&title);
                 break;
 
             case MAKENAMEID1('d'):
-                ok = client->json.storeobject(&description);
+                client->json.storeobject(&description);
                 break;
 
             case MAKENAMEID3('i', 'm', 'g'):
-                ok = client->json.storeobject(&img);
+                client->json.storeobject(&img);
                 break;
 
             case MAKENAMEID1('l'):
-                ok = client->json.storeobject(&url);
+                client->json.storeobject(&url);
                 break;
 
             case MAKENAMEID4('b', 'i', 'm', 'g'):
-                ok = client->json.storeobject(&bimg);
+                client->json.storeobject(&bimg);
                 break;
 
             case MAKENAMEID3('d', 's', 'p'):
-                ok = client->json.storeobject(&dsp);
+                client->json.storeobject(&dsp);
                 break;
 
-            case EOO:  // [[fallthrough]];
-            default:
-                ok = false;
-            }
-        }
+            case EOO:
+                read = false;
+                break;
 
-        if (!ok)
-        {
-            client->app->getbanner_result(API_EARGS);
-            return false; // parsing failed
+            default:
+                client->json.storeobject(); // skip unknown member
+            }
         }
 
         banners.emplace_back(make_tuple(id, move(title), move(description), move(img), move(url), move(bimg), move(dsp)));
