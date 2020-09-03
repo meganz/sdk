@@ -1655,6 +1655,14 @@ void MegaListener::onSyncFileStateChanged(MegaApi *, MegaSync *, string *, int)
 { }
 void MegaListener::onSyncEvent(MegaApi *, MegaSync *, MegaSyncEvent *)
 { }
+void MegaListener::onSyncAdded(MegaApi *, MegaSync *, int additionState)
+{ }
+void MegaListener::onSyncDisabled(MegaApi *, MegaSync *)
+{ }
+void MegaListener::onSyncEnabled(MegaApi *, MegaSync *)
+{ }
+void MegaListener::onSyncDeleted(MegaApi *, MegaSync *)
+{ }
 void MegaListener::onSyncStateChanged(MegaApi *, MegaSync *)
 { }
 void MegaListener::onGlobalSyncStateChanged(MegaApi *)
@@ -2501,12 +2509,7 @@ void MegaApi::disableExport(MegaNode *node, MegaRequestListener *listener)
 
 void MegaApi::fetchNodes(MegaRequestListener *listener)
 {
-    pImpl->fetchNodes(false, listener);
-}
-
-void MegaApi::fetchNodesAndResumeSyncs(MegaRequestListener *listener)
-{
-    pImpl->fetchNodes(true, listener);
+    pImpl->fetchNodes(listener);
 }
 
 void MegaApi::getCloudStorageUsed(MegaRequestListener *listener)
@@ -3180,31 +3183,52 @@ MegaNode *MegaApi::getSyncedNode(string *path)
     return pImpl->getSyncedNode(LocalPath::fromLocalname(*path));
 }
 
-void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
+void MegaApi::syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, megaFolder, NULL, 0, listener);
+    pImpl->syncFolder(localFolder, name, megaFolder, NULL, listener);
 }
 
-void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRequestListener *listener)
+void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
 {
-#ifdef __APPLE__
-    localfp = 0; //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
-#endif
-    pImpl->syncFolder(localFolder, megaFolder, NULL, localfp, listener);
+    pImpl->syncFolder(localFolder, nullptr, megaFolder, NULL, listener);
+}
+
+void MegaApi::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, MegaRequestListener *listener)
+{
+    pImpl->syncFolder(localFolder, name, megaHandle, NULL, listener);
+}
+
+void MegaApi::syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRequestListener *listener)
+{
+    pImpl->syncFolder(localFolder, nullptr, megaHandle, NULL, listener);
+}
+
+void MegaApi::copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
+                                  long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener)
+{
+    pImpl->copySyncDataToCache(localFolder, name, megaHandle, remotePath, localfp, enabled, temporaryDisabled, listener);
+}
+
+void MegaApi::copySyncDataToCache(const char *localFolder, MegaHandle megaHandle, const char *remotePath,
+                                  long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener)
+{
+    pImpl->copySyncDataToCache(localFolder, nullptr, megaHandle, remotePath, localfp, enabled, temporaryDisabled, listener);
+}
+
+void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener)
+{
+    pImpl->copyCachedStatus(storageStatus, blockStatus, businessStatus, listener);
+}
+
+void MegaApi::setKeepSyncsAfterLogout(bool enable)
+{
+    pImpl->setKeepSyncsAfterLogout(enable);
 }
 
 #ifdef USE_PCRE
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, megaFolder, regExp, 0, listener);
-}
-
-void MegaApi::resumeSync(const char *localFolder, MegaNode *megaFolder, long long localfp, MegaRegExp *regExp, MegaRequestListener *listener)
-{
-#ifdef __APPLE__
-    localfp = 0; //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
-#endif
-    pImpl->syncFolder(localFolder, megaFolder, regExp, localfp, listener);
+    pImpl->syncFolder(localFolder, nullptr, megaFolder, regExp, listener);
 }
 #endif
 
@@ -3215,7 +3239,12 @@ void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
 
 void MegaApi::removeSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->removeSync(sync ? sync->getMegaHandle() : UNDEF, listener);
+    pImpl->removeSync(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
+}
+
+void MegaApi::removeSync(int tag, MegaRequestListener *listener)
+{
+    pImpl->removeSync(tag, listener);
 }
 
 void MegaApi::disableSync(MegaNode *megaFolder, MegaRequestListener *listener)
@@ -3225,12 +3254,32 @@ void MegaApi::disableSync(MegaNode *megaFolder, MegaRequestListener *listener)
 
 void MegaApi::disableSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->disableSync(sync ? sync->getMegaHandle() : UNDEF, listener);
+    pImpl->disableSync(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
+}
+
+void MegaApi::enableSync(MegaSync *sync, MegaRequestListener *listener)
+{
+    pImpl->enableSync(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
+}
+
+void MegaApi::enableSync(int tag, MegaRequestListener *listener)
+{
+    pImpl->enableSync(tag, listener);
+}
+
+void MegaApi::disableSync(int tag, MegaRequestListener *listener)
+{
+    pImpl->disableSync(tag, listener);
 }
 
 void MegaApi::removeSyncs(MegaRequestListener *listener)
 {
    pImpl->stopSyncs(listener);
+}
+
+MegaSyncList* MegaApi::getSyncs()
+{
+   return pImpl->getSyncs();
 }
 
 int MegaApi::getNumActiveSyncs()
@@ -4017,6 +4066,11 @@ MegaNode* MegaApi::getParentNode(MegaNode* n)
 char *MegaApi::getNodePath(MegaNode *node)
 {
     return pImpl->getNodePath(node);
+}
+
+char *MegaApi::getNodePathByNodeHandle(MegaHandle handle)
+{
+    return pImpl->getNodePathByNodeHandle(handle);
 }
 
 MegaNode* MegaApi::getNodeByPath(const char *path, MegaNode* node)
@@ -5519,6 +5573,16 @@ const char *MegaSync::getLocalFolder() const
     return NULL;
 }
 
+const char *MegaSync::getName() const
+{
+    return NULL;
+}
+
+const char *MegaSync::getMegaFolder() const
+{
+    return NULL;
+}
+
 long long MegaSync::getLocalFingerprint() const
 {
     return 0;
@@ -5534,6 +5598,133 @@ int MegaSync::getState() const
     return MegaSync::SYNC_FAILED;
 }
 
+int MegaSync::getError() const
+{
+    return MegaSync::Error::NO_SYNC_ERROR;
+}
+
+bool MegaSync::isEnabled() const
+{
+    return true;
+}
+
+bool MegaSync::isActive() const
+{
+    return false;
+}
+
+bool MegaSync::isTemporaryDisabled() const
+{
+    return false;
+}
+
+const char* MegaSync::getMegaSyncErrorCode()
+{
+    return MegaSync::getMegaSyncErrorCode(getError());
+}
+
+const char* MegaSync::getMegaSyncErrorCode(int errorCode)
+{
+    switch(errorCode)
+    {
+    case MegaSync::Error::NO_SYNC_ERROR:
+        return "No error";
+    case MegaSync::Error::UNKNOWN_ERROR:
+        return "Unknown error";
+    case MegaSync::Error::UNSUPPORTED_FILE_SYSTEM:
+        return "File system not supported";
+    case MegaSync::Error::INVALID_REMOTE_TYPE:
+        return "Remote node is not valid";
+    case MegaSync::Error::INVALID_LOCAL_TYPE:
+        return "Local path is not valid";
+    case MegaSync::Error::INITIAL_SCAN_FAILED:
+        return "Initial scan failed";
+    case MegaSync::Error::LOCAL_PATH_TEMPORARY_UNAVAILABLE:
+        return "Local path temporarily unavailable";
+    case MegaSync::Error::LOCAL_PATH_UNAVAILABLE:
+        return "Local path not available";
+    case MegaSync::Error::REMOTE_NODE_NOT_FOUND:
+        return "Remote node not found";
+    case MegaSync::Error::STORAGE_OVERQUOTA:
+        return "Reached storage quota limit";
+    case MegaSync::Error::BUSINESS_EXPIRED:
+        return "Business account expired";
+    case MegaSync::Error::FOREIGN_TARGET_OVERSTORAGE:
+        return "Foreign target storage quota reached";
+    case MegaSync::Error::REMOTE_PATH_HAS_CHANGED:
+        return "Remote path has changed";
+    case MegaSync::Error::REMOTE_NODE_MOVED_TO_RUBBISH:
+        return "Remote node moved to Rubbish Bin";
+    case MegaSync::Error::SHARE_NON_FULL_ACCESS:
+        return "Share without full access";
+    case MegaSync::Error::LOCAL_FINGERPRINT_MISMATCH:
+        return "Local fingerprint mismatch";
+    case MegaSync::Error::PUT_NODES_ERROR:
+        return "Put nodes error";
+    case MegaSync::Error::ACTIVE_SYNC_BELOW_PATH:
+        return "Active sync below path";
+    case MegaSync::Error::ACTIVE_SYNC_ABOVE_PATH:
+        return "Active sync above path";
+    case MegaSync::Error::REMOTE_PATH_DELETED:
+        return "Remote node has been deleted";
+    case MegaSync::Error::REMOTE_NODE_INSIDE_RUBBISH:
+        return "Remote node is inside Rubbish Bin";
+    case MegaSync::Error::VBOXSHAREDFOLDER_UNSUPPORTED:
+        return "Unsupported VBoxSharedFolderFS filesystem";
+    case MegaSync::Error::LOCAL_PATH_SYNC_COLLISION:
+        return "Local path collides with an existing sync";
+    case MegaSync::Error::LOCAL_IS_FAT:
+        return "Local filesystem is FAT";
+    case MegaSync::Error::LOCAL_IS_HGFS:
+        return "Local filesystem is HGFS";
+    case MegaSync::Error::ACCOUNT_BLOCKED:
+        return "Your account is blocked";
+    case MegaSync::Error::UNKNOWN_TEMPORARY_ERROR:
+        return "Unknown temporary error";
+    case MegaSync::Error::LOGGED_OUT:
+        return "Session closed";
+    case MegaSync::Error::TOO_MANY_ACTION_PACKETS:
+        return "Too many changes in account, local state invalid";
+    default:
+        return "Undefined error";
+    }
+}
+
+
+MegaSyncList *MegaSyncList::createInstance()
+{
+    return new MegaSyncListPrivate();
+}
+
+MegaSyncList::MegaSyncList()
+{
+
+}
+
+MegaSyncList::~MegaSyncList()
+{
+
+}
+
+MegaSyncList *MegaSyncList::copy() const
+{
+    return NULL;
+}
+
+MegaSync *MegaSyncList::get(int) const
+{
+    return NULL;
+}
+
+int MegaSyncList::size() const
+{
+    return 0;
+}
+
+void MegaSyncList::addSync(MegaSync *sync)
+{
+
+}
 
 void MegaSyncListener::onSyncFileStateChanged(MegaApi *, MegaSync *, string *, int)
 { }
@@ -5542,6 +5733,18 @@ void MegaSyncListener::onSyncStateChanged(MegaApi *, MegaSync *)
 { }
 
 void MegaSyncListener::onSyncEvent(MegaApi *, MegaSync *, MegaSyncEvent *)
+{ }
+
+void MegaSyncListener::onSyncAdded(MegaApi *, MegaSync *, int additionState)
+{ }
+
+void MegaSyncListener::onSyncDisabled(MegaApi *, MegaSync *)
+{ }
+
+void MegaSyncListener::onSyncEnabled(MegaApi *, MegaSync *)
+{ }
+
+void MegaSyncListener::onSyncDeleted(MegaApi *, MegaSync *)
 { }
 
 MegaSyncEvent::~MegaSyncEvent()

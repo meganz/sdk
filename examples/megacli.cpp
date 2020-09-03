@@ -119,6 +119,22 @@ int attempts = 0;
 
 #ifdef ENABLE_SYNC
 
+struct NewSyncConfig
+{
+    SyncConfig::Type type = SyncConfig::Type::TYPE_TWOWAY;
+    bool syncDeletions = true;
+    bool forceOverwrite = false;
+
+    static NewSyncConfig from(const SyncConfig& config)
+    {
+        return NewSyncConfig{config.getType(), config.syncDeletions(), config.forceOverwrite()};
+    }
+
+    NewSyncConfig(SyncConfig::Type t = SyncConfig::TYPE_TWOWAY, bool s = true, bool f = false)
+        : type(t), syncDeletions(s), forceOverwrite(f)
+    {}
+};
+
 // converts the given sync configuration to a string
 static std::string syncConfigToString(const SyncConfig& config)
 {
@@ -154,6 +170,7 @@ static std::string syncConfigToString(const SyncConfig& config)
 // returns a pair where `first` is success and `second` is the sync config.
 static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {})
 {
+    static int syncTag = 13217;
     auto toLower = [](std::string& s)
     {
         for (char& c : s) { c = static_cast<char>(tolower(c)); };
@@ -178,7 +195,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
     }
     else
     {
-        return std::make_pair(false, SyncConfig("", UNDEF, 0));
+        return std::make_pair(false, SyncConfig(syncTag++, "", "", UNDEF, "", 0));
     }
 
     bool syncDeletions = false;
@@ -196,7 +213,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig("", UNDEF, 0));
+            return std::make_pair(false, SyncConfig(syncTag++, "", "", UNDEF, "", 0));
         }
 
         if (overwrite == "on")
@@ -209,11 +226,11 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig("", UNDEF, 0));
+            return std::make_pair(false, SyncConfig(syncTag++, "", "", UNDEF, "", 0));
         }
     }
 
-    return std::make_pair(true, SyncConfig("", UNDEF, 0, {}, syncType, syncDeletions, forceOverwrite));
+    return std::make_pair(true, SyncConfig(syncTag++, "", "", UNDEF, "", 0, {}, true, syncType, syncDeletions, forceOverwrite));
 }
 
 // sync configuration used when creating a new sync
@@ -459,8 +476,10 @@ static void syncstat(Sync* sync)
          << " file(s) and " << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
 }
 
-void DemoApp::syncupdate_state(Sync*, syncstate_t newstate)
+void DemoApp::syncupdate_state(int tag, syncstate_t newstate, SyncError syncError, bool fireDisableEvent)
 {
+    cout << "Sync state updated: " << tag << " newstate: " << newstate << " error: " << syncError << endl;
+
     switch (newstate)
     {
         case SYNC_ACTIVE:
@@ -473,6 +492,18 @@ void DemoApp::syncupdate_state(Sync*, syncstate_t newstate)
         default:
             ;
     }
+}
+
+void DemoApp::sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const SyncError &error)
+{
+    cout << "Sync - auresumed " <<config.getTag() << " " << config.getLocalPath()  << " enabled: "
+         << config.getEnabled()  << " state: " << state << " syncError: " << error << endl;
+}
+
+void DemoApp::sync_removed(int tag)
+{
+    cout << "Sync - removed: " << tag << endl;
+
 }
 
 void DemoApp::syncupdate_scanning(bool active)
@@ -4262,9 +4293,11 @@ void exec_sync(autocomplete::ACState& s)
             }
             else
             {
-                SyncConfig syncConfig{s.words[1].s, n->nodehandle, 0, {}, newSyncConfig.getType(),
+                static int syncTag = 2027;
+                SyncConfig syncConfig{syncTag++, s.words[1].s, s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.getType(),
                             newSyncConfig.syncDeletions(), newSyncConfig.forceOverwrite()};
-                error e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL);
+                SyncError syncError;
+                error e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError);
 
                 if (e)
                 {
@@ -4285,9 +4318,10 @@ void exec_sync(autocomplete::ACState& s)
         {
             if ((*it)->state > SYNC_CANCELED && i++ == cancel)
             {
+                auto tag = (*it)->tag;
                 client->delsync(*it);
 
-                cout << "Sync " << cancel << " deactivated and removed." << endl;
+                cout << "Sync " << cancel << " deactivated and removed. tag: " << tag << endl;
                 break;
             }
         }

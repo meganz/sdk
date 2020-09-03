@@ -1044,7 +1044,7 @@ private:
 class MegaSyncPrivate : public MegaSync
 {
 public:
-    MegaSyncPrivate(const char *path, handle nodehandle, int tag);
+    MegaSyncPrivate(const char *path, const char *name, handle nodehandle, int tag);
     MegaSyncPrivate(MegaSyncPrivate *sync);
 
     virtual ~MegaSyncPrivate();
@@ -1055,6 +1055,11 @@ public:
     void setMegaHandle(MegaHandle handle);
     virtual const char* getLocalFolder() const;
     void setLocalFolder(const char*path);
+    virtual const char* getName() const;
+    void setName(const char*name);
+    virtual const char* getMegaFolder() const;
+    void setMegaFolder(const char *path);
+    void setMegaFolderYielding(char *path); //MEGAsync acquires the ownership of path
     virtual long long getLocalFingerprint() const;
     void setLocalFingerprint(long long fingerprint);
     virtual int getTag() const;
@@ -1062,18 +1067,53 @@ public:
     void setListener(MegaSyncListener *listener);
     MegaSyncListener *getListener();
     virtual int getState() const;
+
     void setState(int state);
     virtual MegaRegExp* getRegExp() const;
     void setRegExp(MegaRegExp *regExp);
 
+    virtual int getError() const;
+    void setError(int error);
+
+    void disable(int error = NO_SYNC_ERROR); //disable. NO_SYNC_ERROR = user disable
+
+    virtual bool isEnabled() const; //enabled by user
+    virtual bool isActive() const; //not disabled by user nor failed (nor being removed)
+    virtual bool isTemporaryDisabled() const; //disabled automatically for a transient reason
+
 protected:
     MegaHandle megaHandle;
     char *localFolder;
+    char *mName;
+    char *megaFolder;
     MegaRegExp *regExp;
     int tag;
     long long fingerprint;
     MegaSyncListener *listener;
-    int state;
+    int state; //this refers to status (initialscan/active/failed/canceled/disabled)
+
+    //holds error cause
+    int mError;
+
+};
+
+
+class MegaSyncListPrivate : public MegaSyncList
+{
+    public:
+        MegaSyncListPrivate();
+        MegaSyncListPrivate(MegaSyncPrivate **newlist, int size);
+        MegaSyncListPrivate(const MegaSyncListPrivate *syncList);
+        virtual ~MegaSyncListPrivate();
+        MegaSyncList *copy() const override;
+        MegaSync* get(int i) const override;
+        int size() const override;
+
+        void addSync(MegaSync* sync) override;
+
+    protected:
+        MegaSync** list;
+        int s;
 };
 
 #endif
@@ -2194,7 +2234,7 @@ class MegaApiImpl : public MegaApp
         void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
-        void fetchNodes(bool resumeSyncs, MegaRequestListener *listener = NULL);
+        void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
         void getPaymentId(handle productHandle, handle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
         void upgradeAccount(MegaHandle productHandle, int paymentMethod, MegaRequestListener *listener = NULL);
@@ -2292,9 +2332,19 @@ class MegaApiImpl : public MegaApp
         //Sync
         int syncPathState(string *path);
         MegaNode *getSyncedNode(const LocalPath& path);
-        void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp = NULL, long long localfp = 0, MegaRequestListener* listener = NULL);
+        void syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, MegaRegExp *regExp = NULL, MegaRequestListener* listener = NULL);
+        void syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRegExp *regExp = NULL, MegaRequestListener* listener = NULL);
+        void copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
+                                          long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener = NULL);
+        void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
+        void setKeepSyncsAfterLogout(bool enable);
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
+        void removeSync(int syncTag, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
+        void disableSync(int syncTag, MegaRequestListener *listener = NULL);
+        void enableSync(int syncTag, MegaRequestListener *listener = NULL);
+        MegaSyncList *getSyncs();
+
         int getNumActiveSyncs();
         void stopSyncs(MegaRequestListener *listener=NULL);
         bool isSynced(MegaNode *n);
@@ -2356,6 +2406,7 @@ class MegaApiImpl : public MegaApp
         MegaNode *getChildNode(MegaNode *parent, const char* name);
         MegaNode *getParentNode(MegaNode *node);
         char *getNodePath(MegaNode *node);
+        char *getNodePathByNodeHandle(MegaHandle handle);
         MegaNode *getNodeByPath(const char *path, MegaNode *n = NULL);
         MegaNode *getNodeByHandle(handle handler);
         MegaContactRequest *getContactRequestByHandle(MegaHandle handle);
@@ -2697,6 +2748,10 @@ protected:
         void fireOnGlobalSyncStateChanged();
         void fireOnSyncStateChanged(MegaSyncPrivate *sync);
         void fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event);
+        void fireOnSyncAdded(MegaSyncPrivate *sync, int additionState);
+        void fireOnSyncDisabled(MegaSyncPrivate *sync);
+        void fireOnSyncEnabled(MegaSyncPrivate *sync);
+        void fireonSyncDeleted(MegaSyncPrivate *sync);
         void fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState);
 #endif
 
@@ -2749,7 +2804,12 @@ protected:
         RequestQueue scRequestQueue;
 
 #ifdef ENABLE_SYNC
-        map<int, MegaSyncPrivate *> syncMap;
+        map<int, MegaSyncPrivate *> syncMap;    // maps tag to MegaSync objects
+
+        // removes a sync from syncmap and from cache
+        void eraseSync(int tag);
+        map<int, MegaSyncPrivate *>::iterator eraseSyncByIterator(map<int, MegaSyncPrivate *>::iterator it);
+
 #endif
 
         int pendingUploads;
@@ -3010,7 +3070,36 @@ protected:
 
 #ifdef ENABLE_SYNC
         // sync status updates and events
-        void syncupdate_state(Sync*, syncstate_t) override;
+
+        /**
+         * @brief updates sync state and fires changes corresponding callbacks:
+         * - fireOnSyncStateChanged: this will be fired regardless
+         * - firOnSyncDisabled: when transitioning from active to inactive sync
+         * - fireOnSyncEnabled: when transitioning from inactive to active sync
+         * @param tag
+         * @param fireDisableEvent if when the change entails a transition to inactive should call to fireOnSyncDisabled. Should
+         * be false when adding a new sync (there was no sync: failure implies no transition)
+         */
+        void syncupdate_state(int tag, syncstate_t, SyncError, bool fireDisableEvent = true) override;
+
+        // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded indicating the result of that addition
+        void sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const SyncError &syncError) override;
+
+        // this will fire onSyncStateChange if remote path of the synced node has changed
+        virtual void syncupdate_remote_root_changed(const SyncConfig &) override;
+
+        // this will call will fire EVENT_SYNCS_RESTORED
+        virtual void syncs_restored();
+
+        // this will call will fire EVENT_SYNCS_DISABLED
+        virtual void syncs_disabled(SyncError syncError);
+
+        // this will call will fire EVENT_FIRST_SYNC_RESUMING before the first sync is resumed
+        virtual void syncs_about_to_be_resumed() override;
+
+        // removes the sync from syncMap and fires onSyncDeleted callback
+        void sync_removed(int tag) override;
+
         void syncupdate_scanning(bool scanning) override;
         void syncupdate_local_folder_addition(Sync* sync, LocalNode *localNode, const char *path) override;
         void syncupdate_local_folder_deletion(Sync* sync, LocalNode *localNode) override;
@@ -3030,7 +3119,7 @@ protected:
         void syncupdate_treestate(LocalNode*) override;
         bool sync_syncable(Sync *, const char*, LocalPath&, Node *) override;
         bool sync_syncable(Sync *, const char*, LocalPath&) override;
-        void sync_auto_resumed(const string& localPath, handle remoteNode, long long localFp, const vector<string>& regExp) override;
+
         void syncupdate_local_lockretry(bool) override;
 
         // for the exclusive use of sync_syncable
@@ -3081,7 +3170,6 @@ protected:
         void sendPendingRequests();
         unsigned sendPendingTransfers();
         void updateBackups();
-        char *stringToArray(string &buffer);
 
         //Internal
         Node* getNodeByFingerprintInternal(const char *fingerprint);
