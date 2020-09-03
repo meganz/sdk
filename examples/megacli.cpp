@@ -7810,7 +7810,7 @@ void megacli()
 #if defined(WIN32) && defined(NO_READLINE)
             static_cast<WinConsole*>(console)->updateInputPrompt(!dynamicpromptstr.empty() ? dynamicpromptstr : prompts[COMMAND]);
 #else
-            rl_callback_handler_install(!dynamicpromptstr.empty() ? dynamicpromptstr : prompts[COMMAND], store_line);
+            rl_callback_handler_install(!dynamicpromptstr.empty() ? dynamicpromptstr.c_str() : prompts[COMMAND], store_line);
 
             // display prompt
             if (saved_line)
