@@ -276,6 +276,7 @@ public:
     template<typename ... Args> int synchronousCleanRubbishBin(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_CLEAN_RUBBISH_BIN, [this, apiIndex, args...]() { megaApi[apiIndex]->cleanRubbishBin(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetExtendedAccountDetails(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_ACCOUNT_DETAILS, [this, apiIndex, args...]() { megaApi[apiIndex]->getExtendedAccountDetails(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousKillSession(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_KILL_SESSION, [this, apiIndex, args...]() { megaApi[apiIndex]->killSession(args...); }); return mApi[apiIndex].lastError; }
+    template<typename ... Args> int synchronousGetBanners(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_BANNERS, [this, apiIndex, args...]() { megaApi[apiIndex]->getBanners(args...); }); return mApi[apiIndex].lastError; }
 
 
     // convenience functions - make a request and wait for the result via listener, return the result code.  To add new functions to call, just copy the line
