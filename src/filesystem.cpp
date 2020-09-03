@@ -18,6 +18,8 @@
  * You should have received a copy of the license along with this
  * program.
  */
+#include <cctype>
+
 #include "mega/filesystem.h"
 #include "mega/node.h"
 #include "mega/megaclient.h"
@@ -41,6 +43,21 @@ void FileSystemAccess::captimestamp(m_time_t* t)
     // FIXME: remove upper bound before the year 2100 and upgrade server-side timestamps to BIGINT
     if (*t > (uint32_t)-1) *t = (uint32_t)-1;
     else if (*t < 0) *t = 0;
+}
+
+int FileSystemAccess::decodeEscape(const char *s) const
+{
+    if (!isEscape(s))
+    {
+        return -1;
+    }
+
+    return MegaClient::hexval(s[1]) << 4 | MegaClient::hexval(s[2]);
+}
+
+bool FileSystemAccess::isEscape(const char* s) const
+{
+    return *s == '%' && islchex(s[1]) && islchex(s[2]);
 }
 
 bool FileSystemAccess::islchex(char c) const
@@ -127,51 +144,38 @@ FileSystemType FileSystemAccess::getlocalfstype(const LocalPath& path) const
     return FS_UNKNOWN;
 }
 
-bool FileSystemAccess::isControlChar(unsigned char c) const
+bool FileSystemAccess::islocalfscompatible(const int character, const FileSystemType type) const
 {
-    return (c <= '\x1F' || c == '\x7F');
-}
-
-// Group different filesystems types in families, according to its restricted charsets
-bool FileSystemAccess::islocalfscompatible(unsigned char c, bool isEscape, FileSystemType fileSystemType) const
-{
-    switch (fileSystemType)
+    // NUL is always escaped.
+    if (!character)
     {
-        case FS_APFS:
-        case FS_HFS:
-            // APFS, HFS, HFS+ restricted characters => : /
-            return c != '\x3A' && c != '\x2F';
-        case FS_F2FS:
-        case FS_EXT:
-            // f2fs and ext2/ext3/ext4 restricted characters =>  / NULL
-            return c != '\x00' && c != '\x2F';
-        case FS_FAT32:
-            // Control characters will be escaped but not unescaped
-            // FAT32 restricted characters => " * / : < > ? \ | + , ; = [ ]
-            return (isControlChar(c) && isEscape)
-                        ? false
-                        : !strchr("\\/:?\"<>|*+,;=[]", c);
-        case FS_EXFAT:
-        case FS_NTFS:
-            // Control characters will be escaped but not unescaped
-            // ExFAT, NTFS restricted characters => " * / : < > ? \ |
-            return (isControlChar(c) && isEscape)
-                        ? false
-                        : !strchr("\\/:?\"<>|*", c);
-        case FS_FUSE:
-        case FS_SDCARDFS:
-            // FUSE and SDCARDFS are Android filesystem wrappers used to mount traditional filesystems
-            // as ext4, Fat32, extFAT...
-            // So we will consider that restricted characters for these wrappers are the same
-            // as for Android => " * / : < > ? \ |
-            return !strchr("\\/:?\"<>|*", c);
+        return false;
+    }
+    
+    // Escape '%' if it is not encoding a control character.
+    if (character == '%')
+    {
+        return false;
+    }
 
-        case FS_UNKNOWN:
-        default:
-            // If filesystem couldn't be detected we'll use the most restrictive charset to avoid issues.
-            return (isControlChar(c) && isEscape)
-                    ? false
-                    : !strchr("\\/:?\"<>|*+,;=[]", c);
+    // Filesystem-specific policies.
+    switch (type)
+    {
+    case FS_APFS:
+    case FS_HFS:
+        return character != ':' && character != '/';
+    case FS_EXT:
+    case FS_F2FS:
+    case FS_XFS:
+        return character != '/';
+    case FS_EXFAT:
+    case FS_FAT32:
+    case FS_FUSE:
+    case FS_NTFS:
+    case FS_SDCARDFS:
+    case FS_UNKNOWN:
+    default:
+        return !(std::iscntrl(character) || strchr("\\/:?\"<>|*", character));
     }
 }
 
@@ -183,64 +187,143 @@ void FileSystemAccess::escapefsincompatible(string* name, FileSystemType fileSys
         name->replace(0, 2, "%2e%2e");
         return;
     }
+
     if (!name->compare("."))
     {
         name->replace(0, 1, "%2e");
         return;
     }
 
-    char buf[4];
-    size_t utf8seqsize = 0;
-    size_t i = 0;
-    unsigned char c = '0';
-    while (i < name->size())
+    for (size_t i = 0; i < name->size(); )
     {
-        c = static_cast<unsigned char>((*name)[i]);
-        utf8seqsize = Utils::utf8SequenceSize(c);
-        assert (utf8seqsize);
-        if (utf8seqsize == 1 && !islocalfscompatible(c, true, fileSystemType))
+        int character;
+
+        // Are we processing an escape sequence?
+        if ((character = decodeEscape(&(*name)[i])) >= 0)
         {
-            const char incompatibleChar = name->at(i);
-            sprintf(buf, "%%%02x", c);
-            name->replace(i, 1, buf);
-            LOG_debug << "Escape incompatible character for filesystem type "
-                      << fstypetostring(fileSystemType)
-                      << ", replace '" << incompatibleChar << "' by '" << buf << "'\n";
+            // Is it encoding a control character?
+            if (std::iscntrl(character))
+            {
+                // Substitute the character in.
+                // It'll be escaped again if necessary.
+                name->replace(i, 3, 1, static_cast<char>(character));
+            }
         }
-        i += utf8seqsize;
+
+        character = (*name)[i];
+        auto seqsize = Utils::utf8SequenceSize(static_cast<char>(character));
+        assert(seqsize);
+
+        if (seqsize == 1 && !islocalfscompatible(character, fileSystemType))
+        {
+            char buffer[4];
+
+            sprintf(buffer, "%%%02x", character);
+            name->replace(i, 1, buffer);
+
+            LOG_debug << "Escaped character for filesystem type "
+                      << fstypetostring(fileSystemType)
+                      << ": "
+                      << buffer;
+
+            seqsize = 3;
+        }
+
+        i += seqsize;
     }
 }
 
-void FileSystemAccess::unescapefsincompatible(string *name, FileSystemType fileSystemType) const
+void FileSystemAccess::unescapefsincompatible(string *name) const
 {
     if (!name->compare("%2e%2e"))
     {
         name->replace(0, 6, "..");
         return;
     }
+
     if (!name->compare("%2e"))
     {
         name->replace(0, 3, ".");
         return;
     }
 
-    for (int i = int(name->size()) - 2; i-- > 0; )
+    for (size_t i = 0; i < name->size(); ++i)
     {
-        // conditions for unescaping: %xx must be well-formed
-        if ((*name)[i] == '%' && islchex((*name)[i + 1]) && islchex((*name)[i + 2]))
-        {
-            char c = static_cast<char>((MegaClient::hexval((*name)[i + 1]) << 4) + MegaClient::hexval((*name)[i + 2]));
+        // For convenience.
+        const char* s = &(*name)[i];
 
-            if (!islocalfscompatible(static_cast<unsigned char>(c), false, fileSystemType))
-            {
-                std::string incompatibleChar = name->substr(i, 3);
-                name->replace(i, 3, &c, 1);
-                LOG_debug << "Unescape incompatible character for filesystem type "
-                          << fstypetostring(fileSystemType)
-                          << ", replace '" << incompatibleChar << "' by '" << name->substr(i, 1) << "'\n";
-            }
+        // Are we looking at a raw control character?
+        int character = static_cast<uint8_t>(*s);
+
+        // If so, escape it.
+        if (std::iscntrl(character))
+        {
+            char buffer[4];
+
+            sprintf(buffer, "%%%02x", character);
+            name->replace(i, 1, buffer);
+
+            // Skip over the encoded sequence.
+            i += 2;
+            continue;
+        }
+
+        // Are we processing an escape sequence?
+        if ((character = decodeEscape(s)) < 0)
+        {
+            // Nope, continue.
+            continue;
+        }
+
+        // Is the escape encoding a control character?
+        if (std::iscntrl(character))
+        {
+            // Yup, skip the sequence.
+            i += 2;
+            continue;
+        }
+
+        // Substitute in the decoded character.
+        name->replace(i, 3, 1, static_cast<char>(character));
+    }
+}
+
+void FileSystemAccess::canonicalize(string* name) const
+{
+    for (size_t i = 0; i < name->size(); ++i)
+    {
+        int character = static_cast<uint8_t>((*name)[i]);
+
+        // Have we encountered a raw control character?
+        if (std::iscntrl(character))
+        {
+            // If so, escape it.
+            char buffer[4];
+
+            sprintf(buffer, "%%%02x", character);
+            name->replace(i, 1, buffer);
+
+            // Skip the newly inserted sequence.
+            i += 2;
+            continue;
+        }
+
+        // Have we encountered an escape sequence?
+        if ((character = decodeEscape(&(*name)[i])) >= 0)
+        {
+            // Skip over the sequence.
+            i += 2;
         }
     }
+}
+
+string FileSystemAccess::canonicalize(const string& name) const
+{
+    string result = name;
+
+    canonicalize(&result);
+
+    return result;
 }
 
 const char *FileSystemAccess::getPathSeparator()
@@ -313,7 +396,7 @@ void FileSystemAccess::local2name(string *filename, FileSystemType fsType) const
 
     local2path(&t, filename);
 
-    unescapefsincompatible(filename, fsType);
+    unescapefsincompatible(filename);
 }
 
 std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(LocalPath& localname)

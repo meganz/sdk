@@ -13149,22 +13149,9 @@ void MegaClient::stopxfers(LocalNode* l, DBTableTransactionCommitter& committer)
 // of identical names to avoid flapping)
 // apply standard unescaping, if necessary (use *strings as ephemeral storage
 // space)
-void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list<string>* strings, FileSystemType fsType) const
+void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n) const
 {
     Node** npp;
-
-    if (name->find('%') + 1)
-    {
-        string tmplocalname;
-
-        // perform one round of unescaping to ensure that the resulting local
-        // filename matches
-        fsaccess->path2local(name, &tmplocalname);
-        fsaccess->local2name(&tmplocalname, fsType);
-
-        strings->push_back(tmplocalname);
-        name = &strings->back();
-    }
 
     npp = &(*nchildren)[name];
 
@@ -13225,14 +13212,17 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWh
              && !(*it)->attrstring
              && (ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end()
              && ait->second.size())
-         && (l->parent || l->sync->debris != ait->second))
+             && (l->parent || l->sync->debris != ait->second))
         {
-            ScopedLengthRestore restoreLen(localpath);
-            localpath.appendWithSeparator(LocalPath::fromName(ait->second, *fsaccess, l->sync->mFilesystemType), true, fsaccess->localseparator);
+            // Ensure the remote's name is correctly escaped.
+            strings.emplace_back(fsaccess->canonicalize(ait->second));
 
-            if (app->sync_syncable(l->sync, ait->second.c_str(), localpath, *it))
+            ScopedLengthRestore restoreLen(localpath);
+            localpath.appendWithSeparator(LocalPath::fromName(strings.back(), *fsaccess, l->sync->mFilesystemType), true, fsaccess->localseparator);
+
+            if (app->sync_syncable(l->sync, strings.back().c_str(), localpath, *it))
             {
-                addchild(&nchildren, &ait->second, *it, &strings, l->sync->mFilesystemType);
+                addchild(&nchildren, &strings.back(), *it);
             }
             else
             {
@@ -13635,7 +13625,9 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
                     continue;
                 }
 
-                addchild(&nchildren, &ait->second, *it, &strings, l->sync->mFilesystemType);
+                // Ensure the remote's name is correctly escaped.
+                strings.emplace_back(fsaccess->canonicalize(ait->second));
+                addchild(&nchildren, &strings.back(), *it);
             }
         }
     }

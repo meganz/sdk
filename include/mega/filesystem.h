@@ -408,16 +408,27 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // notification configured) with given root path
     virtual DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*);
 
+    // Returns the character encoded by the escape s.
+    // This function returns -1 if s is not a valid escape sequence.
+    int decodeEscape(const char* s) const;
+
+    // True if s is an escape of the format %xy.
+    bool isEscape(const char* s) const;
+
     // check if character is lowercase hex ASCII
     bool islchex(char) const;
-    bool isControlChar(unsigned char c) const;
-    bool islocalfscompatible(unsigned char, bool isEscape, FileSystemType = FS_UNKNOWN) const;
+
+    bool islocalfscompatible(const int character, const FileSystemType type) const;
     void escapefsincompatible(string*, FileSystemType fileSystemType) const;
 
     const char *fstypetostring(FileSystemType type) const;
     virtual bool getlocalfstype(const LocalPath& path, FileSystemType& type) const = 0;
     FileSystemType getlocalfstype(const LocalPath& path) const;
-    void unescapefsincompatible(string*,FileSystemType) const;
+    void unescapefsincompatible(string*) const;
+
+    // canonicalize a remote name.
+    void canonicalize(string* name) const;
+    string canonicalize(const string& name) const;
 
     // convert MEGA path (UTF-8) to local format
     virtual void path2local(const string*, string*) const = 0;

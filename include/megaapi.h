@@ -15826,7 +15826,7 @@ class MegaApi
         /**
          * @brief Make a name suitable for a file name in the local filesystem
          *
-         * This function escapes (%xx) the characters contained in the following list: \/:?\"<>|*
+         * This function escapes (%xx) the characters contained in the following list: \/:?"<>|+,;=[]
          * You can revert this operation using MegaApi::unescapeFsIncompatible
          *
          * The input string must be UTF8 encoded. The returned value will be UTF8 too.
@@ -15846,7 +15846,7 @@ class MegaApi
          * You can revert this operation using MegaApi::unescapeFsIncompatible
          *
          * If no dstPath is provided or filesystem type it's not supported this method will
-         * escape characters contained in the following list: \/:?\"<>|*
+         * escape characters contained in the following list: \/:?"<>|*+,;=[]
          * Otherwise it will check forbidden characters for local filesystem type
          *
          * The input string must be UTF8 encoded. The returned value will be UTF8 too.
@@ -15863,7 +15863,7 @@ class MegaApi
          * @brief Unescape a file name escaped with MegaApi::escapeFsIncompatible
          *
          * This method will unescape those sequences that once has been unescaped results
-         * in any character of the following list: \/:?\"<>|*
+         * in any character of the following list: \/:?"<>|*+,;=[]
          *
          * The input string must be UTF8 encoded. The returned value will be UTF8 too.
          * You take the ownership of the returned value
