@@ -1371,7 +1371,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     #if defined(_WIN32)
         sync->dirnotify->addnotify(this, nullptr /*unused in Windows*/);
     #else
-        sync->dirnotify->addnotify(this, cfullpath.editStringDirect());
+        sync->dirnotify->addnotify(this, &cfullpath);
     #endif
     }
 
@@ -1801,8 +1801,8 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->fsid = fsid;
     l->fsid_it = sync->client->fsidnode.end();
 
-    l->localname = LocalPath::fromLocalname(localname);
-    l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromLocalname(shortname)));
+    l->localname = LocalPath::fromPlatformEncoded(localname);
+    l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromPlatformEncoded(shortname)));
     l->slocalname_in_db = 0 != expansionflags[0];
     l->name = l->localname.toName(*sync->client->fsaccess);
 

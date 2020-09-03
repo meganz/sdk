@@ -291,7 +291,7 @@ MegaRecentActionBucket* MegaRecentActionBucket::copy() const
     return NULL;
 }
 
- 
+
 int64_t MegaRecentActionBucket::getTimestamp() const
 {
     return 0;
@@ -1241,8 +1241,8 @@ MegaError* MegaError::copy() const
     return new MegaError(*this);
 }
 
-int MegaError::getErrorCode() const 
-{ 
+int MegaError::getErrorCode() const
+{
     return errorCode;
 }
 
@@ -1377,13 +1377,13 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
     return "HTTP Error";
 }
 
-const char* MegaError::toString() const 
-{ 
+const char* MegaError::toString() const
+{
     return getErrorString();
 }
 
-const char* MegaError::__str__() const 
-{ 
+const char* MegaError::__str__() const
+{
     return getErrorString();
 }
 
@@ -3178,7 +3178,7 @@ int MegaApi::syncPathState(string* path)
 
 MegaNode *MegaApi::getSyncedNode(string *path)
 {
-    return pImpl->getSyncedNode(LocalPath::fromLocalname(*path));
+    return pImpl->getSyncedNode(LocalPath::fromPlatformEncoded(*path));
 }
 
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequestListener *listener)
@@ -3779,7 +3779,7 @@ long long MegaApi::getSize(MegaNode *n)
 }
 
 char *MegaApi::getFingerprint(const char *filePath)
-{   
+{
     return pImpl->getFingerprint(filePath);
 }
 
@@ -5192,7 +5192,7 @@ bool MegaApi::createAvatar(const char *imagePath, const char *dstPath)
 
 void MegaApi::backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener)
 {
-    return pImpl->backgroundMediaUploadRequestUploadURL(fullFileSize, state, listener); 
+    return pImpl->backgroundMediaUploadRequestUploadURL(fullFileSize, state, listener);
 }
 
 void MegaApi::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,

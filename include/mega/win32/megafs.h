@@ -64,8 +64,6 @@ public:
     void local2path(const std::wstring*, std::string*) const override;
     void path2local(const std::string*, std::wstring*) const override;
 
-    static int sanitizedriveletter(std::wstring&);
-
     bool getsname(LocalPath&, LocalPath&) const override;
 
     bool renamelocal(LocalPath&, LocalPath&, bool) override;
@@ -128,7 +126,7 @@ private:
 
 public:
 
-    void addnotify(LocalNode*, string*) override;
+    void addnotify(LocalNode*, LocalPath*) override;
 
     fsfp_t fsfingerprint() const override;
     bool fsstableids() const override;

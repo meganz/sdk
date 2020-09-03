@@ -220,23 +220,6 @@ public:
         *path = *local;
     }
 
-#ifdef WIN32
-    size_t lastpartlocal(const std::wstring* localname) const override
-    {
-        auto p = localname->find_last_of(L"\\/:");
-        return p == std::string::npos ? 0 : p + 1;
-    }
-#else
-    size_t lastpartlocal(const std::string* localname) const override
-    {
-        const char* ptr = localname->data();
-        if ((ptr = strrchr(ptr, '/')))
-        {
-            return ptr - localname->data() + 1;
-        }
-        return 0;
-    }
-#endif
     bool getsname(mega::LocalPath&, mega::LocalPath&) const override
     {
         return false;

@@ -112,14 +112,18 @@ class MEGA_API LocalPath
     // only functions that need to call the OS or 3rdParty libraries - normal code should have no access (or accessor) to localpath
     friend class ScopedLengthRestore;
     friend class WinFileSystemAccess;
+    friend class PosixFileSystemAccess;
     friend struct WinDirAccess;
     friend struct WinDirNotify;
+    friend struct PosixDirNotify;
     friend class WinFileAccess;
+    friend class PosixFileAccess;
     friend void RemoveHiddenFileAttribute(LocalPath& path);
     friend void AddHiddenFileAttribute(LocalPath& path);
     friend class GfxProcFreeImage;
     friend struct FileSystemAccess;
     friend int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2, const FileSystemAccess& fsaccess);
+    friend const string& adjustBasePath(const LocalPath& name);
 
     size_t getLength() { return localpath.size(); }
     void setLength(size_t length) { localpath.resize(length); }
@@ -132,15 +136,6 @@ public:
 #else
     typedef char separator_t;
 #endif
-
-//#ifndef _WIN32
-//    explicit LocalPath(string&& s) : localpath(move(s)) {}
-//    string* editStringDirect();
-//    const string* editStringDirect() const;
-//    void assign(const char* ptr, size_t sz) { localpath.assign(ptr, sz); }
-//
-//    const string& getLocalpath() const { return localpath; }
-//#endif
 
     // returns the internal representation copied into a string buffer, for backward compatibility
     string platformEncoded() const;
@@ -189,12 +184,11 @@ public:
     // for characters that are disallowed on that filesystem.  fsaccess is used to do the conversion.
     static LocalPath fromName(string path, const FileSystemAccess& fsaccess, FileSystemType fsType);
 
-#if defined(_WIN32)
-    // Create a LocalPath from a wstring that was already converted to be appropriate for a local file path.
-    static LocalPath fromLocalname(wstring localname);
-#endif
     // Create a LocalPath from a string that was already converted to be appropriate for a local file path.
-    static LocalPath fromLocalname(string localname);
+    static LocalPath fromPlatformEncoded(string localname);
+#ifdef WIN32
+    static LocalPath fromPlatformEncoded(wstring&& localname);
+#endif
 
     // Generates a name for a temporary file
     static LocalPath tmpNameLocal(const FileSystemAccess& fsaccess);
@@ -434,7 +428,7 @@ public:
     // base path
     LocalPath localbasepath;
 
-    virtual void addnotify(LocalNode*, string*) { }
+    virtual void addnotify(LocalNode*, LocalPath*) { }
     virtual void delnotify(LocalNode*) { }
 
     void notify(notifyqueue, LocalNode *, LocalPath&&, bool = false);
@@ -545,7 +539,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool issyncsupported(LocalPath&, bool* = NULL) { return true; }
 
     // add notification (has to be called for all directories in tree for full crossplatform support)
-    virtual void addnotify(LocalNode*, string*) { }
+    virtual void addnotify(LocalNode*, LocalPath*) { }
 
     // delete notification
     virtual void delnotify(LocalNode*) { }

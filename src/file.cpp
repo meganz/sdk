@@ -207,12 +207,7 @@ File *File::unserialize(string *d)
     delete fp;
 
     file->name.assign(name, namelen);
-#if defined(_WIN32)
-    assert(!(localnamelen % 2));
-    file->localname = LocalPath::fromLocalname(std::wstring((wchar_t*)localname, localnamelen/2));
-#else
-    file->localname.editStringDirect()->assign(localname, localnamelen);
-#endif
+    file->localname = LocalPath::fromPlatformEncoded(std::string(localname, localnamelen));
     file->targetuser.assign(targetuser, targetuserlen);
     file->privauth.assign(privauth, privauthlen);
     file->pubauth.assign(pubauth, pubauthlen);

@@ -87,7 +87,7 @@ FileSystemType FileSystemAccess::getlocalfstype(const LocalPath& dstPath) const
 #if defined (__linux__) && !defined (__ANDROID__)
     // Filesystem detection for Linux
     struct statfs fileStat;
-    if (!statfs(dstPath.editStringDirect()->c_str(), &fileStat))
+    if (!statfs(dstPath.platformEncoded().c_str(), &fileStat))
     {
         switch (fileStat.f_type)
         {
@@ -106,7 +106,7 @@ FileSystemType FileSystemAccess::getlocalfstype(const LocalPath& dstPath) const
 #elif defined (__ANDROID__)
     // Filesystem detection for Android
     struct statfs fileStat;
-    if (!statfs(dstPath.editStringDirect()->c_str(), &fileStat))
+    if (!statfs(dstPath.platformEncoded().c_str(), &fileStat))
     {
         switch (fileStat.f_type)
         {
@@ -132,7 +132,7 @@ FileSystemType FileSystemAccess::getlocalfstype(const LocalPath& dstPath) const
 #elif defined  (__APPLE__) || defined (USE_IOS)
     // Filesystem detection for Apple and iOS
     struct statfs fileStat;
-    if (!statfs(dstPath.editStringDirect()->c_str(), &fileStat))
+    if (!statfs(dstPath.platformEncoded().c_str(), &fileStat))
     {
         if (!strcmp(fileStat.f_fstypename, "apfs"))
         {
@@ -765,21 +765,6 @@ bool FileInputStream::read(byte *buffer, unsigned size)
     return false;
 }
 
-#ifndef _WIN32
-const std::string* LocalPath::editStringDirect() const
-{
-    // this function for compatibiltiy while converting to use LocalPath class.  TODO: phase out this function
-    return const_cast<std::string*>(&localpath);
-}
-
-std::string* LocalPath::editStringDirect()
-{
-    // this function for compatibiltiy while converting to use LocalPath class.  TODO: phase out this function
-    return const_cast<std::string*>(&localpath);
-}
-
-#endif
-
 bool LocalPath::empty() const
 {
     return localpath.empty();
@@ -804,7 +789,9 @@ LocalPath LocalPath::leafName(separator_t localseparator) const
 {
     auto p = localpath.find_last_of(localseparator);
     p = p == string::npos ? 0 : p + 1;
-    return LocalPath::fromLocalname(localpath.substr(p, localpath.size() - p));
+    LocalPath result;
+    result.localpath = localpath.substr(p, localpath.size() - p);
+    return result;
 }
 
 void LocalPath::append(const LocalPath& additionalPath)
@@ -919,7 +906,9 @@ bool LocalPath::backEqual(size_t bytePos, const LocalPath& compareTo) const
 
 LocalPath LocalPath::subpathFrom(size_t bytePos) const
 {
-    return LocalPath::fromLocalname(localpath.substr(bytePos));
+    LocalPath result;
+    result.localpath = localpath.substr(bytePos);
+    return result;
 }
 
 void LocalPath::ensureWinExtendedPathLenPrefix()
@@ -996,18 +985,10 @@ LocalPath LocalPath::fromName(string path, const FileSystemAccess& fsaccess, Fil
     return fromPath(path, fsaccess);
 }
 
-#if defined(_WIN32)
-LocalPath LocalPath::fromLocalname(std::wstring wpath)
-{
-    LocalPath p;
-    p.localpath = std::move(wpath);
-    return p;
-}
-#endif
-
-LocalPath LocalPath::fromLocalname(std::string path)
+LocalPath LocalPath::fromPlatformEncoded(string path)
 {
 #if defined(_WIN32)
+    assert(!(path.size() % 2));
     LocalPath p;
     p.localpath.resize(path.size() / sizeof(wchar_t));
     memcpy(p.localpath.data(), path.data(), p.localpath.size() * sizeof(wchar_t));
@@ -1018,6 +999,16 @@ LocalPath LocalPath::fromLocalname(std::string path)
     return p;
 #endif
 }
+
+#if defined(_WIN32)
+LocalPath LocalPath::fromPlatformEncoded(wstring&& wpath)
+{
+    LocalPath p;
+    p.localpath = std::move(wpath);
+    return p;
+}
+#endif
+
 
 LocalPath LocalPath::tmpNameLocal(const FileSystemAccess& fsaccess)
 {

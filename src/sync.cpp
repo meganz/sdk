@@ -612,7 +612,7 @@ std::vector<SyncConfig> SyncConfigBag::all() const
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
-           string* clocaldebris, Node* remotenode, bool cinshare, int ctag, void *cappdata)
+           LocalPath* clocaldebris, Node* remotenode, bool cinshare, int ctag, void *cappdata)
 : localroot(new LocalNode)
 {
     isnetwork = false;
@@ -651,7 +651,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
     }
     else
     {
-        localdebris = LocalPath::fromLocalname(*clocaldebris);
+        localdebris = *clocaldebris;
 
         // FIXME: pass last segment of localdebris
         dirnotify.reset(client->fsaccess->newdirnotify(crootpath, localdebris, client->waiter));
@@ -682,13 +682,13 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
     if (macOSmajorVersion() >= 19) //macOS catalina+
     {
         LOG_debug << "macOS 10.15+ filesystem detected. Checking fseventspath.";
-        string supercrootpath = "/System/Volumes/Data" + *crootpath.editStringDirect();
+        string supercrootpath = "/System/Volumes/Data" + crootpath.platformEncoded();
 
         int fd = open(supercrootpath.c_str(), O_RDONLY);
         if (fd == -1)
         {
             LOG_debug << "Unable to open path using fseventspath.";
-            mFsEventsPath = *crootpath.editStringDirect();
+            mFsEventsPath = crootpath.platformEncoded();
         }
         else
         {
@@ -696,7 +696,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
             if (fcntl(fd, F_GETPATH, buf) < 0)
             {
                 LOG_debug << "Using standard paths to detect filesystem notifications.";
-                mFsEventsPath = *crootpath.editStringDirect();
+                mFsEventsPath = crootpath.platformEncoded();
             }
             else
             {

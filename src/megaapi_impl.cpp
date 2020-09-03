@@ -8376,7 +8376,7 @@ int MegaApiImpl::syncPathState(string* path)
         return state;
     }
 
-    LocalPath localpath = LocalPath::fromLocalname(*path);
+    LocalPath localpath = LocalPath::fromPlatformEncoded(*path);
 
     for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
     {
@@ -18274,7 +18274,7 @@ void MegaApiImpl::removeRecursively(const char *path)
     if (utf16path.size() > 1)
     {
         utf16path.resize(utf16path.size() - 1);
-        auto localpath = LocalPath::fromLocalname(utf16path);
+        auto localpath = LocalPath::fromPlatformEncoded(utf16path);
         WinFileSystemAccess::emptydirlocal(localpath);
     }
 #endif

@@ -264,7 +264,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     memcpy(t->transferkey.data(), ptr, SymmCipher::KEYLENGTH);
     ptr += SymmCipher::KEYLENGTH;
 
-    t->localfilename = LocalPath::fromLocalname(std::string(filepath, ll));
+    t->localfilename = LocalPath::fromPlatformEncoded(std::string(filepath, ll));
 
     if (!t->chunkmacs.unserialize(ptr, end))
     {
