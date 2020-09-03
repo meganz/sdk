@@ -15892,6 +15892,11 @@ void MegaApiImpl::getbanner_result(vector< tuple<int, string, string, string, st
 
     MegaRequestPrivate* request = it->second;
 
+    if (!request || (request->getType() != MegaRequest::TYPE_GET_BANNERS))
+    {
+        return;
+    }
+
     request->setBanners(move(banners));
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
