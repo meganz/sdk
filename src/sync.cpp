@@ -1050,7 +1050,11 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
             if (outpath)
             {
                 *outpath = std::move(component);
-                outpath->appendWithSeparator(localpath.subpathFrom(subpathIndex), false, client->fsaccess->localseparator);
+                auto remainder = localpath.subpathFrom(subpathIndex);
+                if (!remainder.empty())
+                {
+                    outpath->appendWithSeparator(remainder, false, client->fsaccess->localseparator);
+                }
             }
 
             return NULL;

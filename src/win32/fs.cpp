@@ -1364,7 +1364,7 @@ void WinDirNotify::process(DWORD dwBytes)
 #endif
                 }
 #ifdef ENABLE_SYNC
-                notify(DIREVENTS, localrootnode, LocalPath::fromPlatformEncoded(std::wstring(fni->FileName, fni->FileNameLength)));
+                notify(DIREVENTS, localrootnode, LocalPath::fromPlatformEncoded(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))));
 #endif
             }
             else if (SimpleLogger::logCurrentLevel >= logDebug)

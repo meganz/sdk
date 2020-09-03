@@ -1061,6 +1061,7 @@ bool LocalPath::nextPathComponent(size_t& subpathIndex, LocalPath& component, se
     else
     {
         component.localpath = localpath.substr(start, localpath.size() - start);
+        subpathIndex = localpath.size();
         return true;
     }
 }
