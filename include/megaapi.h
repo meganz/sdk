@@ -2745,12 +2745,12 @@ public:
     MegaBanner(std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string>&& details);
 
     int getId() const;
-    const std::string& getTitle() const;
-    const std::string& getDescription() const;
-    const std::string& getImage() const;
-    const std::string& getUrl() const;
-    const std::string& getBackgroundImage() const;
-    const std::string& getImageLocation() const;
+    const char* getTitle() const;
+    const char* getDescription() const;
+    const char* getImage() const;
+    const char* getUrl() const;
+    const char* getBackgroundImage() const;
+    const char* getImageLocation() const;
 
 private:
     std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string> mDetails;
