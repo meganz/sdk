@@ -1714,11 +1714,7 @@ bool LocalNode::serialize(string* d)
     w.serializehandle(fsid);
     w.serializeu32(parent ? parent->dbid : 0);
     w.serializenodehandle(node ? node->nodehandle : UNDEF);
-#if defined(_WIN32)
     w.serializestring(localname.platformEncoded());
-#else
-    w.serializestring(localname.getLocalpath());
-#endif
     if (type == FILENODE)
     {
         w.serializebinary((byte*)crc.data(), sizeof(crc));
@@ -1726,12 +1722,8 @@ bool LocalNode::serialize(string* d)
     }
     w.serializebyte(mSyncable);
     w.serializeexpansionflags(1);  // first flag indicates we are storing slocalname.  Storing it is much, much faster than looking it up on startup.
-#if defined(_WIN32)
     auto tmpstr = slocalname ? slocalname->platformEncoded() : string();
     w.serializepstr(slocalname ? &tmpstr : nullptr);
-#else
-    w.serializepstr(slocalname ? &(slocalname->getLocalpath()) : nullptr);
-#endif
 
     return true;
 }

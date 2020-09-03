@@ -150,16 +150,10 @@ bool Transfer::serialize(string *d)
 
     d->append((const char*)&type, sizeof(type));
 
-#if defined(_WIN32)
     const auto& tmpstr = localfilename.platformEncoded();
     ll = (unsigned short)tmpstr.size();
     d->append((char*)&ll, sizeof(ll));
     d->append(tmpstr.data(), ll);
-#else
-    ll = (unsigned short)localfilename.getLocalpath().size();
-    d->append((char*)&ll, sizeof(ll));
-    d->append(localfilename.getLocalpath().data(), ll);
-#endif
 
     d->append((const char*)filekey, sizeof(filekey));
     d->append((const char*)&ctriv, sizeof(ctriv));
