@@ -286,7 +286,7 @@ int computeReversePathMatchScore(const string& path1,
                                               localpath2,
                                               mt::DefaultedFileSystemAccess(sep));
 #else
-    return mega::computeReversePathMatchScore(accumulated,
+    return mega::computeReversePathMatchScore(
         LocalPath::fromPlatformEncoded(path1),
         LocalPath::fromPlatformEncoded(path2),
         mt::DefaultedFileSystemAccess(sep));

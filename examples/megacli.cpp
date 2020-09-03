@@ -1978,8 +1978,6 @@ static void nodepath(handle h, string* path)
 
 appfile_list appxferq[2];
 
-static char dynamicprompt[128];
-
 static const char* prompts[] =
 {
     "MEGAcli> ", "Password:", "Old Password:", "New Password:", "Retype New Password:", "Master Key (base64):", "Type 2FA pin:", "Type pin to enable 2FA:"
@@ -7756,6 +7754,8 @@ void megacli()
     {
         if (prompt == COMMAND)
         {
+            ostringstream  dynamicprompt;
+
             // display put/get transfer speed in the prompt
             if (client->tslots.size() || responseprogress >= 0)
             {
@@ -7773,46 +7773,44 @@ void megacli()
                 xferrate[GET] /= 1024;
                 xferrate[PUT] /= 1024;
 
-                strcpy(dynamicprompt, "MEGA");
+                dynamicprompt << "MEGA";
 
                 if (xferrate[GET] || xferrate[PUT] || responseprogress >= 0)
                 {
-                    strcpy(dynamicprompt + 4, " (");
+                    dynamicprompt << " (";
 
                     if (xferrate[GET])
                     {
-                        sprintf(dynamicprompt + 6, "In: %lld KB/s", xferrate[GET]);
+                        dynamicprompt << "In: " << xferrate[GET] << " KB/s";
 
                         if (xferrate[PUT])
                         {
-                            strcat(dynamicprompt + 9, "/");
+                            dynamicprompt << "/";
                         }
                     }
 
                     if (xferrate[PUT])
                     {
-                        sprintf(strchr(dynamicprompt, 0), "Out: %lld KB/s", xferrate[PUT]);
+                        dynamicprompt << "Out: " << xferrate[PUT] << " KB/s";
                     }
 
                     if (responseprogress >= 0)
                     {
-                        sprintf(strchr(dynamicprompt, 0), "%d%%", responseprogress);
+                        dynamicprompt << responseprogress << "%";
                     }
 
-                    strcat(dynamicprompt + 6, ")");
+                    dynamicprompt  << ")";
                 }
 
-                strcat(dynamicprompt + 4, "> ");
-            }
-            else
-            {
-                *dynamicprompt = 0;
+                dynamicprompt  << "> ";
             }
 
+            string dynamicpromptstr = dynamicprompt.str();
+
 #if defined(WIN32) && defined(NO_READLINE)
-            static_cast<WinConsole*>(console)->updateInputPrompt(*dynamicprompt ? dynamicprompt : prompts[COMMAND]);
+            static_cast<WinConsole*>(console)->updateInputPrompt(!dynamicpromptstr.empty() ? dynamicpromptstr : prompts[COMMAND]);
 #else
-            rl_callback_handler_install(*dynamicprompt ? dynamicprompt : prompts[COMMAND], store_line);
+            rl_callback_handler_install(!dynamicpromptstr.empty() ? dynamicpromptstr : prompts[COMMAND], store_line);
 
             // display prompt
             if (saved_line)
