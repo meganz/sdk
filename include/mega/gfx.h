@@ -87,7 +87,7 @@ class MEGA_API GfxProc
 
     // resize stored bitmap and store result as JPEG
     virtual bool resizebitmap(int, int, string*) = 0;
-    
+
     // free stored bitmap
     virtual void freebitmap() = 0;
 

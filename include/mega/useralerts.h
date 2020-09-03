@@ -27,7 +27,7 @@ namespace mega {
 struct UserAlertRaw
 {
     // notifications have a very wide range of fields; so for most we interpret them once we know the type.
-    map<nameid, string> fields; 
+    map<nameid, string> fields;
 
     struct handletype {
         handle h;    // file/folder
@@ -90,7 +90,7 @@ namespace UserAlert
         // user already saw it (based on 'last notified' time)
         bool seen;
 
-        // if false, not worth showing, eg obsolete payment reminder 
+        // if false, not worth showing, eg obsolete payment reminder
         bool relevant;
 
         Base(UserAlertRaw& un, unsigned int id);
@@ -120,7 +120,7 @@ namespace UserAlert
     struct ContactChange : public Base
     {
         int action;
-        handle otherUserHandle; 
+        handle otherUserHandle;
 
         ContactChange(UserAlertRaw& un, unsigned int id);
         ContactChange(int c, handle uh, const string& email, m_time_t timestamp, unsigned int id);
@@ -261,7 +261,7 @@ private:
     std::vector<UserAlert::Base*> provisionals;
 
     struct ff {
-        int files; 
+        int files;
         int folders;
         m_time_t timestamp;
         ff() : files(0), folders(0), timestamp(0) {}
@@ -294,7 +294,7 @@ public:
     void convertNotedSharedNodes(bool added, handle originatingUser);
     void ignoreNextSharedNodesUnder(handle h);
 
-    // enter provisional mode, added items will be checked for suitability before actually adding 
+    // enter provisional mode, added items will be checked for suitability before actually adding
     void startprovisional();
     void evalprovisional(handle originatinguser);
 

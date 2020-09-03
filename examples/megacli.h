@@ -213,7 +213,10 @@ struct DemoApp : public MegaApp
     void transfer_complete(Transfer*) override;
 
 #ifdef ENABLE_SYNC
-    void syncupdate_state(Sync*, syncstate_t) override;
+    void syncupdate_state(int tag, syncstate_t, SyncError, bool fireDisableEvent = true) override;
+    void sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const SyncError &error) override;
+    void sync_removed(int tag) override;
+
     void syncupdate_scanning(bool) override;
     void syncupdate_local_folder_addition(Sync*, LocalNode*, const char*) override;
     void syncupdate_local_folder_deletion(Sync* , LocalNode*) override;
