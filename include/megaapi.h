@@ -2739,6 +2739,14 @@ public:
     virtual int size() const;
 };
 
+
+/**
+* @brief Represents a set of properties that define a SmartBanner.
+* These are used to display a banner in mobile apps.
+*
+* MegaBanner-s can be retrieved from MegaBannerList
+*
+*/
 class MegaBanner
 {
 public:
@@ -2756,6 +2764,13 @@ private:
     std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string> mDetails;
 };
 
+/**
+* @brief List of MegaBanner objects
+*
+* A MegaBannerList has the ownership of the MegaBanner objects that it contains, so they will be
+* only valid until the MegaBannerList is deleted.
+*
+*/
 typedef std::vector<MegaBanner> MegaBannerList;
 
 /**
