@@ -739,6 +739,8 @@ class MegaNode
          */
         virtual int64_t getPublicLinkCreationTime();
 
+        virtual std::string getPublicLinkAuthKey();
+
         /**
          * @brief Returns true if this node represents a file (type == TYPE_FILE)
          * @return true if this node represents a file, otherwise false
@@ -3024,6 +3026,7 @@ class MegaRequest
          *
          * This value is valid for these requests:
          * - MegaApi::login - Returns the password of the account
+         * - MegaApi::loginToFolder - Returns the authentication key to write in public folder
          * - MegaApi::fastLogin - Returns the hash of the email
          * - MegaApi::createAccount - Returns the password for the account
          * - MegaApi::confirmAccount - Returns the password for the account
@@ -3236,6 +3239,7 @@ class MegaRequest
          * - MegaApi::retryPendingConnections - Returns if request are disconnected
          * - MegaApi::pauseTransfers - Returns true if transfers were paused, false if they were resumed
          * - MegaApi::createChat - Creates a chat for one or more participants
+         * - MegaApi::exportNode - Makes the public folder writable
          * - MegaApi::fetchnodes - Return true if logged in into a folder and the provided key is invalid.
          * - MegaApi::getPublicNode - Return true if the provided key along the link is invalid.
          * - MegaApi::pauseTransfer - Returns true if the transfer has to be pause or false if it has to be resumed
@@ -7814,10 +7818,25 @@ class MegaApi
          * @param megaFolderLink Public link to a folder in MEGA
          * @param listener MegaRequestListener to track this request
          */
-        //TODO: doc authKey
-        void loginToFolder(const char* megaFolderLink, const char *authKey = nullptr, MegaRequestListener *listener = NULL);
         void loginToFolder(const char* megaFolderLink, MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Log in to a public folder using a folder link
+         *
+         * After a successful login, you should call MegaApi::fetchNodes to get filesystem and
+         * start working with the folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_LOGIN.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Retuns the string "FOLDER"
+         * - MegaRequest::getLink - Returns the public link to the folder
+         * - MegaRequest::getPassword - Returns the auth link used for writting
+         *
+         * @param megaFolderLink Public link to a folder in MEGA
+         * @param authKey Authentication key to write into the folder link
+         * @param listener MegaRequestListener to track this request
+         */
+        void loginToFolder(const char* megaFolderLink, const char *authKey = nullptr, MegaRequestListener *listener = NULL);
         /**
          * @brief Log in to a MEGA account using precomputed keys
          *
@@ -9516,10 +9535,6 @@ class MegaApi
          */
         const char *buildPublicLink(const char *publicHandle, const char *key, bool isFolder);
 
-        // TODO: doc this
-        const char *getAuthKey(MegaHandle nodeHandle);
-
-
         /**
          * @brief Get the thumbnail of a node
          *
@@ -10311,8 +10326,49 @@ class MegaApi
          */
         void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
 
-
+        /**
+         * @brief Generate a public link of a file/folder in MEGA
+         *
+         * The associated request type with this request is MegaRequest::TYPE_EXPORT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getAccess - Returns true
+         * - MegaRequest::getFlag - Returns true if writable
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - Public link
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node MegaNode to get the public link
+         * @param writable if the public link should be writable.
+         * @param listener MegaRequestListener to track this request
+         */
         void exportNode(MegaNode *node, bool writable, MegaRequestListener *listener);
+
+        /**
+         * @brief Generate a public link of a file/folder in MEGA
+         *
+         * The associated request type with this request is MegaRequest::TYPE_EXPORT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getAccess - Returns true
+         * - MegaRequest::getFlag - Returns true if writable
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - Public link
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node MegaNode to get the public link
+         * @param expireTime Unix timestamp until the public link will be valid
+         * @param writable if the public link should be writable.
+         * @param listener MegaRequestListener to track this request
+         */
         void exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener);
 
         /**

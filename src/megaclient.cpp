@@ -8559,7 +8559,7 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool 
     return API_EARGS;
 }
 
-error MegaClient::folderaccess(const char *folderlink, const char *authKey) //TODO: doc
+error MegaClient::folderaccess(const char *folderlink, const char *authKey)
 {
     handle h = UNDEF;
     byte folderkey[FOLDERNODEKEYLENGTH];

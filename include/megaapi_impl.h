@@ -446,6 +446,8 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaNode* getPublicNode() override;
         char *getPublicLink(bool includeKey = true) override;
         int64_t getPublicLinkCreationTime() override;
+        string getPublicLinkAuthKey() override;
+
         bool isNewLinkFormat();
         bool isFile() override;
         bool isFolder() override;
@@ -2159,7 +2161,6 @@ class MegaApiImpl : public MegaApp
         void encryptLinkWithPassword(const char* link, const char* password, MegaRequestListener *listener = NULL);
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
         const char *buildPublicLink(const char *publicHandle, const char *key, bool isFolder);
-        const char *getAuthKey(MegaHandle nodeHandle);
         void getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
 		void cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener = NULL);
         void setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);

@@ -208,7 +208,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
 
     if (node->isExported())
     {
-        this->plink = new PublicLink(node->getPublicHandle(), node->getPublicLinkCreationTime(), node->getExpirationTime(), node->isTakenDown());
+        this->plink = new PublicLink(node->getPublicHandle(), node->getPublicLinkCreationTime(), node->getExpirationTime(), node->isTakenDown(), node->getPublicLinkAuthKey());
 
         if (type == FOLDERNODE)
         {
@@ -915,6 +915,11 @@ char *MegaNodePrivate::getPublicLink(bool includeKey)
 int64_t MegaNodePrivate::getPublicLinkCreationTime()
 {
     return plink ? plink->cts : -1;
+}
+
+string MegaNodePrivate::getPublicLinkAuthKey()
+{
+    return plink ? plink->mAuthKey : string();
 }
 
 bool MegaNodePrivate::isNewLinkFormat()
@@ -6510,13 +6515,6 @@ const char *MegaApiImpl::buildPublicLink(const char *publicHandle, const char *k
     handle ph = MegaApi::base64ToHandle(publicHandle);
     string link = client->getPublicLink(client->mNewLinkFormat, isFolder ? FOLDERNODE : FILENODE, ph, key);
     return MegaApi::strdup(link.c_str());
-}
-
-const char *MegaApiImpl::getAuthKey(MegaHandle nodeHandle)
-{
-    SdkMutexGuard g(sdkMutex);
-    auto authKey = client->getPublicLinkAuthKey(nodeHandle);
-    return MegaApi::strdup(authKey.c_str());
 }
 
 void MegaApiImpl::getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
@@ -13514,7 +13512,7 @@ void MegaApiImpl::share_result(error e)
 
         int creqtag = client->reqtag;
         client->reqtag = client->restag;
-        client->getpubliclink(node, false, request->getNumber(), request->getFlag()); //TODO: doc getFlag here too!
+        client->getpubliclink(node, false, request->getNumber(), request->getFlag());
         client->reqtag = creqtag;
 
         return;
@@ -18551,7 +18549,7 @@ void MegaApiImpl::sendPendingRequests()
             }
             else
             {
-                e = client->folderaccess(megaFolderLink, password); //TODO: document password usage
+                e = client->folderaccess(megaFolderLink, password);
                 if(e == API_OK)
                 {
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));

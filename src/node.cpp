@@ -245,6 +245,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     int i;
     char isExported = '\0';
     char hasLinkCreationTs = '\0';
+    char hasLinkAuthKey = '\0';
 
     if (ptr + sizeof s + 2 * MegaClient::NODEHANDLE + MegaClient::USERHANDLE + 2 * sizeof ts + sizeof ll > end)
     {
@@ -328,7 +329,10 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     hasLinkCreationTs = MemAccess::get<char>(ptr);
     ptr += sizeof(hasLinkCreationTs);
 
-    for (i = 6; i--;)
+    hasLinkAuthKey = MemAccess::get<char>(ptr);
+    ptr += sizeof(hasLinkAuthKey);
+
+    for (i = 5; i--;)
     {
         if (ptr + (unsigned char)*ptr < end)
         {
@@ -429,7 +433,17 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
             ptr += sizeof(cts);
         }
 
-        plink = new PublicLink(ph, cts, ets, takendown);
+        const char *authKey = nullptr;
+        if (hasLinkAuthKey)
+        {
+            auto authKeySize = MemAccess::get<unsigned short>(ptr);
+            ptr += sizeof authKeySize;
+
+            authKey = ptr;
+            ptr += authKeySize;
+        }
+
+        plink = new PublicLink(ph, cts, ets, takendown, authKey ? authKey : "");
         client->mPublicLinks[n->nodehandle] = plink->ph;
     }
     n->plink = plink;
@@ -532,7 +546,10 @@ bool Node::serialize(string* d)
     char hasLinkCreationTs = plink ? 1 : 0;
     d->append((char*)&hasLinkCreationTs, 1);
 
-    d->append("\0\0\0\0\0", 6); // Use these bytes for extensions
+    char hasLinkAuthKey = plink ? 1 : 0;
+    d->append((char*)&hasLinkAuthKey, 1);
+
+    d->append("\0\0\0\0", 5); // Use these bytes for extensions
 
     if (inshare)
     {
@@ -591,6 +608,10 @@ bool Node::serialize(string* d)
         {
             d->append((char*) &plink->cts, sizeof(plink->cts));
         }
+
+        auto authKeySize = (unsigned short)plink->mAuthKey.size();
+        d->append((char*)&authKeySize, sizeof(authKeySize));
+        d->append(plink->mAuthKey.data(), authKeySize);
     }
 
     return true;

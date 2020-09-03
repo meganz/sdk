@@ -385,7 +385,7 @@ public:
     // extract public handle and key from a public file/folder link
     error parsepubliclink(const char *link, handle &ph, byte *key, bool isFolderLink);
 
-    // set folder link: node, key
+    // set folder link: node, key. authKey is the authentication key to be able to write into the folder
     error folderaccess(const char*folderlink, const char *authKey);
 
     // open exported file link (op=0 -> download, op=1 fetch data)

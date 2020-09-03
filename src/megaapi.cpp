@@ -503,6 +503,11 @@ int64_t MegaNode::getPublicLinkCreationTime()
     return 0;
 }
 
+string MegaNode::getPublicLinkAuthKey()
+{
+    return string();
+}
+
 bool MegaNode::isFile()
 {
     return false;
@@ -2323,11 +2328,6 @@ void MegaApi::getPublicNode(const char* megaFileLink, MegaRequestListener *liste
 const char *MegaApi::buildPublicLink(const char *publicHandle, const char *key, bool isFolder)
 {
     return pImpl->buildPublicLink(publicHandle, key, isFolder);
-}
-
-const char *MegaApi::getAuthKey(MegaHandle nodeHandle)
-{
-    return pImpl->getAuthKey(nodeHandle);
 }
 
 void MegaApi::getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
