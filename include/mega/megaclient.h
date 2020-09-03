@@ -1033,7 +1033,7 @@ public:
     bool pendingsccommit;
 
     // transfer cache table
-    DbTable* tctable;
+    DbTable* tctable = nullptr;
 
     // during processing of request responses, transfer table updates can be wrapped up in a single begin/commit
     DBTableTransactionCommitter* mTctableRequestCommitter = nullptr;

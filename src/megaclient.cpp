@@ -4066,7 +4066,10 @@ void MegaClient::locallogout(bool removecaches)
 #endif
 
     // remove any cached transfers older than two days that have not been resumed (updates transfer list)
-    purgeOrphanTransfers();
+    if (tctable)
+    {
+        purgeOrphanTransfers();
+    }
 
     // delete all remaining transfers (optimized not to remove from transfer list one by one)
     // transfer destructors update the transfer in the cache database
