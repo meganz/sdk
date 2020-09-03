@@ -1168,7 +1168,7 @@ public:
     enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT} sctablerectype;
 
     // record type indicator for statusTable
-    enum { CACHEDSTATUS } statusTableRecType;
+    enum StatusTableRecType { CACHEDSTATUS };
 
     // open/create state cache database table
     void opensctable();

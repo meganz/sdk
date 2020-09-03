@@ -1171,7 +1171,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 {
     sctable = NULL;
     pendingsccommit = false;
-    statusTable = NULL;
+    tctable = NULL;
+    statusTable = nullptr;
     me = UNDEF;
     publichandle = UNDEF;
     followsymlinks = false;
@@ -4952,8 +4953,6 @@ void MegaClient::initStatusTable()
 {
     if (statusTable)
     {
-        bool complete;
-
         statusTable->begin();
         statusTable->truncate();
     }
@@ -11431,7 +11430,6 @@ bool MegaClient::fetchStatusTable(DbTable* table)
     table->rewind();
 
     bool hasNext = table->next(&id, &data, &key);
-
     while (hasNext)
     {
         switch (id & (15))
@@ -11450,11 +11448,9 @@ bool MegaClient::fetchStatusTable(DbTable* table)
                 }
                 break;
             }
-
         }
         hasNext = table->next(&id, &data, &key);
     }
-
 
     return true;
 }
