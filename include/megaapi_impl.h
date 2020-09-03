@@ -1223,6 +1223,9 @@ class MegaRequestPrivate : public MegaRequest
         MegaBackupListener *getBackupListener() const;
         void setBackupListener(MegaBackupListener *value);
 
+        MegaBannerList* getBannerList() const;
+        void setBanners(vector< tuple<int, string, string, string, string, string, string> >&& banners);
+
 protected:
         AccountDetails *accountDetails;
         MegaPricingPrivate *megaPricing;
@@ -1270,6 +1273,9 @@ protected:
         MegaFolderInfo *folderInfo;
         MegaPushNotificationSettings *settings;
         MegaBackgroundMediaUpload* backgroundMediaUpload;  // non-owned pointer
+
+    private:
+        unique_ptr<MegaBannerList> mBannerList;
 };
 
 class MegaEventPrivate : public MegaEvent
@@ -2693,6 +2699,8 @@ class MegaApiImpl : public MegaApp
 
         void getCountryCallingCodes(MegaRequestListener *listener = NULL);
 
+        void getBanners(MegaRequestListener *listener);
+
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e, DBTableTransactionCommitter& committer);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
@@ -3043,6 +3051,8 @@ protected:
         void mediadetection_ready() override;
         void storagesum_changed(int64_t newsum) override;
         void getmiscflags_result(error) override;
+        void getbanner_result(error e) override;
+        void getbanner_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult

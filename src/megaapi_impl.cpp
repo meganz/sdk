@@ -3746,6 +3746,16 @@ void MegaRequestPrivate::setPublicNode(MegaNode *publicNode, bool copyChildren)
     }
 }
 
+void MegaRequestPrivate::setBanners(vector< tuple<int, string, string, string, string, string, string> >&& banners)
+{
+    mBannerList = make_unique<MegaBannerList>();
+
+    for (auto&& b : banners)
+    {
+        mBannerList->emplace_back(MegaBanner(move(b)));
+    }
+}
+
 const char *MegaRequestPrivate::getRequestString() const
 {
     switch(type)
@@ -3880,6 +3890,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_SET_RETENTION_TIME: return "SET_RETENTION_TIME";
         case TYPE_RESET_SMS_VERIFIED_NUMBER: return "RESET_SMS_VERIFIED_NUMBER";
         case TYPE_SEND_DEV_COMMAND: return "SEND_DEV_COMMAND";
+        case TYPE_GET_BANNERS: return "TYPE_GET_BANNERS";
     }
     return "UNKNOWN";
 }
@@ -15871,6 +15882,34 @@ void MegaApiImpl::checkfile_result(handle h, error e, byte*, m_off_t, m_time_t, 
     }
 }
 
+void MegaApiImpl::getbanner_result(error e)
+{
+    auto it = requestMap.find(client->restag);
+    if (it == requestMap.end())
+    {
+        return;
+    }
+
+    MegaRequestPrivate* request = it->second;
+
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+}
+
+void MegaApiImpl::getbanner_result(vector< tuple<int, string, string, string, string, string, string> >&& banners)
+{
+    auto it = requestMap.find(client->restag);
+    if (it == requestMap.end())
+    {
+        return;
+    }
+
+    MegaRequestPrivate* request = it->second;
+
+    request->setBanners(move(banners));
+
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+}
+
 void MegaApiImpl::addListener(MegaListener* listener)
 {
     if(!listener) return;
@@ -22622,6 +22661,11 @@ void MegaApiImpl::sendPendingRequests()
             client->getmiscflags();
             break;
         }
+        case MegaRequest::TYPE_GET_BANNERS:
+        {
+            client->reqs.add(new CommandGetBanners(client));
+            break;
+        }
         default:
         {
             e = API_EINTERNAL;
@@ -22747,6 +22791,13 @@ bool MegaApiImpl::tryLockMutexFor(long long time)
     {
         return sdkMutex.try_lock_for(std::chrono::milliseconds(time));
     }
+}
+
+void MegaApiImpl::getBanners(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_BANNERS, listener);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void TreeProcCopy::allocnodes()

@@ -2739,6 +2739,25 @@ public:
     virtual int size() const;
 };
 
+class MegaBanner
+{
+public:
+    MegaBanner(std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string>&& details);
+
+    int getId() const;
+    const std::string& getTitle() const;
+    const std::string& getDescription() const;
+    const std::string& getImage() const;
+    const std::string& getUrl() const;
+    const std::string& getBackgroundImage() const;
+    const std::string& getImageLocation() const;
+
+private:
+    std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string> mDetails;
+};
+
+typedef std::vector<MegaBanner> MegaBannerList;
+
 /**
  * @brief Provides information about an asynchronous request
  *
@@ -2805,6 +2824,7 @@ class MegaRequest
             TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS, TYPE_RESEND_VERIFICATION_EMAIL,
             TYPE_SUPPORT_TICKET, TYPE_SET_RETENTION_TIME, TYPE_RESET_SMS_VERIFIED_NUMBER,
             TYPE_SEND_DEV_COMMAND,
+            TYPE_GET_BANNERS,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -17605,6 +17625,8 @@ class MegaApi
          * You take ownership of the returned value, and you must delete it when the sequence is complete.
          */
         MegaApiLock* getMegaApiLock(bool lockNow);
+
+        void getBanners(MegaRequestListener *listener = nullptr);
 
  private:
         MegaApiImpl *pImpl;
