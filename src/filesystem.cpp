@@ -600,7 +600,7 @@ AsyncIOContext *FileAccess::asyncfread(string *dst, unsigned len, unsigned pad, 
     context->op = AsyncIOContext::READ;
     context->posOfBuffer = pos;
     context->pad = pad;
-    context->dataBuffer = dst->data();
+    context->dataBuffer = (byte*)dst->data();
     context->dataBufferLen = len;
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
@@ -640,7 +640,7 @@ AsyncIOContext *FileAccess::asyncfwrite(const byte* data, unsigned len, m_off_t 
     context->op = AsyncIOContext::WRITE;
     context->posOfBuffer = pos;
     context->dataBufferLen = len;
-    context->dataBuffer = reinterpret_cast<char*>(const_cast<byte*>(data));
+    context->dataBuffer = const_cast<byte*>(data);
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
     context->userData = waiter;

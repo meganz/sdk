@@ -18266,7 +18266,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
 void MegaApiImpl::removeRecursively(const char *path)
 {
 #ifndef _WIN32
-    auto localpath = LocalPath::fromLocalname(path);
+    auto localpath = LocalPath::fromPlatformEncoded(path);
     PosixFileSystemAccess::emptydirlocal(localpath);
 #else
     string utf16path;

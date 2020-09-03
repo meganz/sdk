@@ -236,7 +236,7 @@ struct MEGA_API AsyncIOContext
     m_off_t posOfBuffer = 0;
     unsigned pad = 0;
     LocalPath openPath;
-    char* dataBuffer = nullptr;
+    byte* dataBuffer = nullptr;
     unsigned dataBufferLen = 0;
     Waiter *waiter = nullptr;
     FileAccess *fa = nullptr;

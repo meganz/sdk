@@ -28,18 +28,11 @@ namespace mt {
 class DefaultedFileSystemAccess: public mega::FileSystemAccess
 {
 public:
-    DefaultedFileSystemAccess(const std::string &separator = "/")
+    DefaultedFileSystemAccess(mega::LocalPath::separator_t separator = '/')
     {
         notifyerr = false;
         notifyfailed = true;
-#if defined(_WIN32)
-        std::string utf16str;
-        mega::MegaApi::utf8ToUtf16(separator.data(), &utf16str);
-        localseparator.resize(utf16str.size() / 2);
-        memcpy(localseparator.data(), utf16str.data(), utf16str.size());
-#else
         localseparator = separator;
-#endif
     }
     std::unique_ptr<mega::FileAccess> newfileaccess(bool followSymLinks = true) override
     {

@@ -405,6 +405,7 @@ int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2,
 
     size_t index = 0;
     size_t separatorBias = 0;
+    LocalPath accumulated;
     while (index <= path1End && index <= path2End)
     {
         const auto value1 = path1.localpath[path1End - index];
@@ -413,16 +414,28 @@ int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2,
         {
             break;
         }
+        accumulated.localpath.push_back(value1);
 
         ++index;
 
-        if (value1 == fsaccess.localseparator)
+        if (!accumulated.localpath.empty())
         {
-            ++separatorBias;
+            if (accumulated.localpath.back() == fsaccess.localseparator)
+            {
+                ++separatorBias;
+                accumulated.clear();
+            }
         }
     }
 
-    return static_cast<int>(index - separatorBias);
+    if (index > path1End && index > path2End) // we got to the beginning of both paths (full score)
+    {
+        return static_cast<int>(index - separatorBias);
+    }
+    else // the paths only partly match
+    {
+        return static_cast<int>(index - separatorBias - accumulated.localpath.size());
+    }
 }
 
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,

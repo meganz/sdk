@@ -81,11 +81,13 @@ mega::Node& makeNode(mega::MegaClient& client, const mega::nodetype_t type, cons
 #ifdef ENABLE_SYNC
 std::unique_ptr<mega::Sync> makeSync(mega::MegaClient& client, const std::string& localname)
 {
+    mega::FSACCESS_CLASS fsaccess;
     std::string localdebris = gLocalDebris;
     auto& n = makeNode(client, mega::FOLDERNODE, std::hash<std::string>{}(localname));
+    auto localdebrisLP = ::mega::LocalPath::fromPath(localdebris, fsaccess);
     mega::SyncConfig config{localname, n.nodehandle, 0};
-    auto sync = new mega::Sync{&client, std::move(config),
-                               nullptr, &localdebris, &n, false, 0, nullptr};
+    auto sync = new mega::Sync(&client, std::move(config),
+                               nullptr, &localdebrisLP, &n, false, 0, nullptr);
     sync->state = mega::SYNC_CANCELED; // to avoid the assertion in Sync::~Sync()
     return std::unique_ptr<mega::Sync>{sync};
 }

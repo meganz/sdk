@@ -255,7 +255,7 @@ void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
 {
 #ifdef HAVE_AIO_RT
     auto localName = string((char*)context->buffer, context->len);
-    auto localPath = LocalPath::fromLocalname(localName);
+    auto localPath = LocalPath::fromPlatformEncoded(localName);
 
     context->failed = !fopen(localPath, context->access & AsyncIOContext::ACCESS_READ,
                              context->access & AsyncIOContext::ACCESS_WRITE);
@@ -763,7 +763,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                     LOG_debug << "Filesystem notification (deletion). Root: " << lastlocalnode->name << "   Path: " << lastname;
                                     lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
                                                                            lastlocalnode,
-                                                                           LocalPath::fromLocalname(lastname));
+                                                                           LocalPath::fromPlatformEncoded(lastname));
 
                                     r |= Waiter::NEEDEXEC;
                                 }
@@ -792,7 +792,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                     LOG_debug << "Filesystem notification. Root: " << it->second->name << "   Path: " << in->name;
                                     it->second->sync->dirnotify->notify(DirNotify::DIREVENTS,
                                                                         it->second,
-                                                                        LocalPath::fromLocalname(std::string(in->name, insize)));
+                                                                        LocalPath::fromPlatformEncoded(std::string(in->name, insize)));
 
                                     r |= Waiter::NEEDEXEC;
                                 }
@@ -816,7 +816,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 LOG_debug << "Filesystem notification. Root: " << lastlocalnode->name << "   Path: " << lastname;
                 lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
                                                        lastlocalnode,
-                                                       LocalPath::fromLocalname(lastname));
+                                                       LocalPath::fromPlatformEncoded(lastname));
 
                 r |= Waiter::NEEDEXEC;
             }
@@ -981,7 +981,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                     LOG_debug << "Filesystem notification. Root: " << pathsync[i]->localroot->name << "   Path: " << paths[i];
                     pathsync[i]->dirnotify->notify(DirNotify::DIREVENTS,
                                                    pathsync[i]->localroot.get(),
-                                                   LocalPath::fromLocalname(paths[i]),
+                                                   LocalPath::fromPlatformEncoded(paths[i]),
                                                    strlen(paths[i]));
 
                     r |= Waiter::NEEDEXEC;
@@ -1002,7 +1002,7 @@ void PosixFileSystemAccess::tmpnamelocal(LocalPath& localname) const
 
     sprintf(buf, ".getxfer.%lu.%u.mega", (unsigned long)getpid(), tmpindex++);
 
-    localname = LocalPath::fromLocalname(buf);
+    localname = LocalPath::fromPlatformEncoded(buf);
 }
 
 void PosixFileSystemAccess::path2local(const string* path, string* local) const
@@ -1177,7 +1177,7 @@ void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
                 {
                     ScopedLengthRestore restore(name);
 
-                    name.appendWithSeparator(LocalPath::fromLocalname(d->d_name), true, pfsa.localseparator);
+                    name.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true, pfsa.localseparator);
 
 #ifdef USE_IOS
                     const string nameStr = adjustBasePath(name);
@@ -1831,7 +1831,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
                 if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode)) // this evaluates false for symlinks
                 //if (statbuf.st_mode & (S_IFREG | S_IFDIR)) //TODO: use this when symlinks are supported
                 {
-                    name = LocalPath::fromLocalname(globbuf.gl_pathv[globindex]);
+                    name = LocalPath::fromPlatformEncoded(globbuf.gl_pathv[globindex]);
                     *type = (statbuf.st_mode & S_IFREG) ? FILENODE : FOLDERNODE;
 
                     globindex++;
@@ -1854,7 +1854,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
 
         if (*d->d_name != '.' || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2])))
         {
-            path.appendWithSeparator(LocalPath::fromLocalname(d->d_name), true, pfsa.localseparator);
+            path.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true, pfsa.localseparator);
 
 #ifdef USE_IOS
             const string pathStr = adjustBasePath(path);
@@ -1879,7 +1879,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
                 if (S_ISREG(statbuf.st_mode) || S_ISDIR(statbuf.st_mode)) // this evalves false for symlinks
                 //if (statbuf.st_mode & (S_IFREG | S_IFDIR)) //TODO: use this when symlinks are supported
                 {
-                    name = LocalPath::fromLocalname(d->d_name);
+                    name = LocalPath::fromPlatformEncoded(d->d_name);
 
                     if (type)
                     {
