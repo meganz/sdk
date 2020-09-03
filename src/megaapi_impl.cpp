@@ -3890,7 +3890,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_SET_RETENTION_TIME: return "SET_RETENTION_TIME";
         case TYPE_RESET_SMS_VERIFIED_NUMBER: return "RESET_SMS_VERIFIED_NUMBER";
         case TYPE_SEND_DEV_COMMAND: return "SEND_DEV_COMMAND";
-        case TYPE_GET_BANNERS: return "TYPE_GET_BANNERS";
+        case TYPE_GET_BANNERS: return "GET_BANNERS";
     }
     return "UNKNOWN";
 }
