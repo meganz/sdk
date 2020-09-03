@@ -696,12 +696,9 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filenam
         if (accepted)
         {
             bool hasVideo = 0 < mi.Count_Get(MediaInfoLib::Stream_Video, 0);
-            bool hasAudio = 0 < mi.Count_Get(MediaInfoLib::Stream_Audio, 0);
-
             bool vidDuration = !mi.Get(MediaInfoLib::Stream_Video, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
-            bool audDuration = !mi.Get(MediaInfoLib::Stream_Audio, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
 
-            if (hasVideo && hasAudio && vidDuration && audDuration)
+            if (hasVideo && vidDuration)
             {
                 break;
             }
