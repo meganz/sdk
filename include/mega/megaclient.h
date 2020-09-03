@@ -837,6 +837,10 @@ public:
     // stats id
     static std::string statsid;
 
+    static string STORAGE_NAME;
+    static string FOLDERS_NAME;
+    static string FILES_NAME;
+
     // number of ongoing asynchronous fopen
     int asyncfopens;
 

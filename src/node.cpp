@@ -93,6 +93,32 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
         client->mFingerprints.newnode(this);
     }
+    else
+    {
+        handle firstValidAntecestor = client->sctable->getFirstAncestor(parenthandle);
+
+        if (firstValidAntecestor != UNDEF)
+        {
+            if (type == FILENODE)
+            {
+                client->mNodeCounters[firstValidAntecestor].files++;
+                client->mNodeCounters[firstValidAntecestor].storage += size;
+            }
+            else if (type == FOLDERNODE)
+            {
+                client->mNodeCounters[firstValidAntecestor].folders++;
+            }
+
+            auto it = client->mNodeCounters.find(nodehandle);
+            if (it != client->mNodeCounters.end())
+            {
+                client->mNodeCounters[firstValidAntecestor].files += it->second.files;
+                client->mNodeCounters[firstValidAntecestor].storage += it->second.storage;
+                client->mNodeCounters[firstValidAntecestor].folders += it->second.folders;
+                client->mNodeCounters.erase(it);
+            }
+        }
+    }
 
     // folder link access: first returned record defines root node and
     // identity
@@ -156,33 +182,6 @@ Node::~Node()
             delete it->second;
         }
         delete pendingshares;
-    }
-
-
-    if (!client->mOptimizePurgeNodes)
-    {
-        Node* fa = firstancestor();
-        if (fa != nullptr)
-        {
-            handle ancestor = fa->nodehandle;
-            if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
-            {
-                client->mNodeCounters[firstancestor()->nodehandle] -= subnodeCounts();
-            }
-
-            if (inshare)
-            {
-                client->mNodeCounters.erase(nodehandle);
-            }
-
-            // delete child-parent associations (normally not used, as nodes are
-            // deleted bottom-up)
-            node_list nodeList = client->getChildrens(this);
-            for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
-            {
-                (*it)->parent = NULL;
-            }
-        }
     }
 
     if (plink)
@@ -986,15 +985,18 @@ bool Node::setparent(Node* p)
     NodeCounter nc;
     bool gotnc = false;
 
-    Node *originalancestor = firstancestor();
-    handle oah = originalancestor->nodehandle;
-    if (oah == client->rootnodes[0] || oah == client->rootnodes[1] || oah == client->rootnodes[2] || originalancestor->inshare)
+   if (parent)
     {
-        nc = subnodeCounts();
-        gotnc = true;
+        Node *originalancestor = firstancestor();
+        handle oah = originalancestor->nodehandle;
+        if (oah == client->rootnodes[0] || oah == client->rootnodes[1] || oah == client->rootnodes[2] || originalancestor->inshare)
+        {
+            nc = subnodeCounts();
+            gotnc = true;
 
-        // nodes moving from cloud drive to rubbish for example, or between inshares from the same user.
-        client->mNodeCounters[oah] -= nc;
+            // nodes moving from cloud drive to rubbish for example, or between inshares from the same user.
+            client->mNodeCounters[oah] -= nc;
+        }
     }
 
 #ifdef ENABLE_SYNC
@@ -1056,8 +1058,8 @@ Node* Node::firstancestor()
 
     handle ancestorhandle = client->sctable->getFirstAncestor(parenthandle);
 
-
-    return client->nodebyhandle(ancestorhandle);
+    Node* node = client->nodebyhandle(ancestorhandle);
+    return (node != nullptr) ? node : this;
 }
 
 // returns 1 if n is under p, 0 otherwise

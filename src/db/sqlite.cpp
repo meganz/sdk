@@ -136,6 +136,13 @@ DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess* fsaccess, string* n
         return NULL;
     }
 
+    sql = "CREATE TABLE IF NOT EXISTS vars(name text PRIMARY KEY NOT NULL, value BLOB)";
+    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
+    if (rc)
+    {
+        return NULL;
+    }
+
     return new SqliteDbTable(rng, db, fsaccess, &dbfile, checkAlwaysTransacted);
 }
 
@@ -522,26 +529,6 @@ NodeCounter SqliteDbTable::getNodeCounter(handle node)
     {
         nodeCounter.files = 1;
         nodeCounter.storage = size;
-        if (parentHandle != UNDEF)
-        {
-            int parentType = TYPE_UNKNOWN;
-            if (sqlite3_prepare(db, "SELECT type FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL) == SQLITE_OK)
-            {
-                if (sqlite3_bind_int64(stmt, 1, parentHandle) == SQLITE_OK)
-                {
-                    if ((sqlite3_step(stmt) == SQLITE_ROW))
-                    {
-                        parentType = sqlite3_column_int(stmt, 0);
-                    }
-                }
-            }
-
-            if (parentType == FILENODE)
-            {
-                nodeCounter.versions = 1;
-                nodeCounter.versionStorage = size;
-            }
-        }
     }
     else if (type == FOLDERNODE)
     {
@@ -781,6 +768,66 @@ void SqliteDbTable::remove()
 
     auto localpath = LocalPath::fromPath(dbfile, *fsaccess);
     fsaccess->unlinklocal(localpath);
+}
+std::string SqliteDbTable::getVar(const std::string& name)
+{
+    if (!db)
+    {
+        return "";
+    }
+
+    std::string value;
+    checkTransaction();
+
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare(db, "SELECT value FROM vars WHERE name = ?", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_bind_text(stmt, 1, name.c_str(), name.length(), SQLITE_STATIC) == SQLITE_OK)
+        {
+            if((sqlite3_step(stmt) == SQLITE_ROW))
+            {
+                const void* data = sqlite3_column_blob(stmt, 0);
+                int size = sqlite3_column_bytes(stmt, 0);
+                if (data && size)
+                {
+                    value.assign(static_cast<const char*>(data), size);
+                }
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return value;
+}
+
+bool SqliteDbTable::setVar(const std::string& name, const std::string& value)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    checkTransaction();
+
+    sqlite3_stmt *stmt;
+    bool result = false;
+
+    if (sqlite3_prepare(db, "INSERT OR REPLACE INTO vars (name, value) VALUES (?, ?)", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_bind_text(stmt, 1, name.c_str(), name.length(), SQLITE_STATIC) == SQLITE_OK)
+        {
+            if (sqlite3_bind_blob(stmt, 2, value.data(), value.size(), SQLITE_STATIC) == SQLITE_OK)
+            {
+                if (sqlite3_step(stmt) == SQLITE_DONE)
+                {
+                    result = true;
+                }
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return result;
 }
 } // namespace
 

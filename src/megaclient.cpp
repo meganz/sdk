@@ -59,6 +59,10 @@ const int MegaClient::MAXQUEUEDFA = 30;
 // maximum number of concurrent putfa
 const int MegaClient::MAXPUTFA = 10;
 
+string MegaClient::STORAGE_NAME = "STORAGE";
+string MegaClient::FOLDERS_NAME = "FOLDERS";
+string MegaClient::FILES_NAME = "FILES";
+
 #ifdef ENABLE_SYNC
 // //bin/SyncDebris/yyyy-mm-dd base folder name
 const char* const MegaClient::SYNCDEBRISFOLDERNAME = "SyncDebris";
@@ -4860,6 +4864,19 @@ void MegaClient::updatesc()
                     LOG_verbose << "Removing node from database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
                     if (!(complete = sctable->del((*it)->nodehandle)))
                     {
+                        handle firstValidAntecestor = sctable->getFirstAncestor((*it)->parenthandle);
+                        assert(firstValidAntecestor != UNDEF);
+                        assert(firstValidAntecestor == rootnodes[0] || firstValidAntecestor == rootnodes[1] || firstValidAntecestor == rootnodes[2]);
+
+                        if ((*it)->type == FILENODE)
+                        {
+                            mNodeCounters[firstValidAntecestor].files--;
+                            mNodeCounters[firstValidAntecestor].storage -= (*it)->size;
+                        }
+                        else if ((*it)->type == FOLDERNODE)
+                        {
+                            mNodeCounters[firstValidAntecestor].folders--;
+                        }
                         break;
                     }
                 }
@@ -4872,6 +4889,10 @@ void MegaClient::updatesc()
                     }
                 }
             }
+
+            sctable->setVar(STORAGE_NAME, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].storage));
+            sctable->setVar(FILES_NAME, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].files));
+            sctable->setVar(FOLDERS_NAME, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].folders));
         }
 
         if (complete)
@@ -7852,6 +7873,13 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
         {
             dp[i]->setparent(n);
         }
+    }
+
+    if (!notify)
+    {
+        sctable->setVar(STORAGE_NAME, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].storage));
+        sctable->setVar(FILES_NAME, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].files));
+        sctable->setVar(FOLDERS_NAME, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].folders));
     }
 
     return j->leavearray();
@@ -11008,6 +11036,13 @@ bool MegaClient::fetchsc(DbTable* sctable)
             }
         }
 #endif
+
+        std::string storageString = sctable->getVar(STORAGE_NAME);
+        std::string filesString = sctable->getVar(FILES_NAME);
+        std::string foldersString = sctable->getVar(FOLDERS_NAME);
+        mNodeCounters[rootnodes[ROOTNODE]].storage = atoll(storageString.c_str());
+        mNodeCounters[rootnodes[ROOTNODE]].files = atoi(filesString.c_str());
+        mNodeCounters[rootnodes[ROOTNODE]].folders = atoi(foldersString.c_str());
     }
 
     bool hasNext = sctable->next(&id, &data, &key);
@@ -14679,17 +14714,34 @@ size_t MegaClient::getNumberOfChildren(handle node)
     return sctable->getNumberOfChildrenFromNode(node);
 }
 
-NodeCounter MegaClient::getTreeInfoFromNode(handle node)
+NodeCounter MegaClient::getTreeInfoFromNode(handle nodehandle)
 {
     std::vector<handle> nodeHandles;
-    sctable->getChildrenHandlesFromNode(node, nodeHandles);
+    sctable->getChildrenHandlesFromNode(nodehandle, nodeHandles);
     NodeCounter nc;
     for (handle &h : nodeHandles)
     {
         nc += getTreeInfoFromNode(h);
     }
 
-    nc += sctable->getNodeCounter(node);
+    Node* node = nodebyhandleInRam(nodehandle);
+    if (node)
+    {
+        if (node->type == FILENODE)
+        {
+            nc.files ++;
+            nc.storage += node->size;
+        }
+        else if (node->type == FOLDERNODE)
+        {
+            nc.folders ++;
+        }
+    }
+    else
+    {
+        nc += sctable->getNodeCounter(nodehandle);
+    }
+
     return nc;
 }
 

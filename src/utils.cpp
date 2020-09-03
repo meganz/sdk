@@ -2121,19 +2121,15 @@ int macOSmajorVersion()
 void NodeCounter::operator += (const NodeCounter& o)
 {
     storage += o.storage;
-    versionStorage += o.versionStorage;
     files += o.files;
     folders += o.folders;
-    versions += o.versions;
 }
 
 void NodeCounter::operator -= (const NodeCounter& o)
 {
     storage -= o.storage;
-    versionStorage -= o.versionStorage;
     files -= o.files;
     folders -= o.folders;
-    versions -= o.versions;
 }
 
 SyncConfig::SyncConfig(std::string localPath,
