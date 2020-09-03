@@ -787,7 +787,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                 if (insize < ignore->size()
                                  || memcmp(in->name, ignore->data(), ignore->size())
                                  || (insize > ignore->size()
-                                  && memcmp(in->name + ignore->size(), localseparator.c_str(), localseparator.size())))
+                                  && in->name[ignore->size()] != localseparator))
                                 {
                                     LOG_debug << "Filesystem notification. Root: " << it->second->name << "   Path: " << in->name;
                                     it->second->sync->dirnotify->notify(DirNotify::DIREVENTS,
