@@ -8308,4 +8308,114 @@ bool CommandBackupRemove::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
+CommandGetBanners::CommandGetBanners(MegaClient* client)
+{
+    cmd("gban");
+
+    tag = client->reqtag;
+}
+
+bool CommandGetBanners::procresult(Result r)
+{
+    if (r.wasErrorOrOK())
+    {
+        client->app->getbanner_result(r.errorOrOK());
+        return true; // because parsing didn't fail
+    }
+
+    /*
+    [
+        [
+            {
+                "id": 2, ///The banner id
+                "t": "R2V0IFZlcmlmaWVk", ///Banner title
+                "d": "TWFrZSBpdCBlYXNpZXIgZm9yIHlvdXIgY29udGFjdHMgdG8gZmluZCB5b3Ugb24gTUVHQS4", ///Banner description.
+                "img": "Verified_image.png", ///Image name.
+                "l": "", ///URL
+                "bimg": "Verified_BG.png", ///background image name.
+                "dsp": "https://web-sandbox3.developers.mega.co.nz/images/mega/" ///Where to get the image.
+            },
+            {
+                ...
+            }
+        ]
+    ]
+    */
+
+    if (!client->json.enterarray() ||
+        !client->json.enterarray())
+    {
+        client->app->getbanner_result(API_EARGS);
+        return false; // parsing failed
+    }
+
+    vector< tuple<int, string, string, string, string, string, string> > banners;
+
+    // loop array elements
+    while (client->json.enterobject())
+    {
+        int fieldcount = 7,
+            id = 0;
+        string title, description, img, url, bimg, dsp;
+        bool ok = true;
+
+        // loop and read object members
+        for (int i = 0; ok && i < fieldcount; ++i)
+        {
+            switch (client->json.getnameid())
+            {
+            case MAKENAMEID2('i', 'd'):
+                id = client->json.getint32();
+                ok = id != -1;
+                break;
+
+            case MAKENAMEID1('t'):
+                ok = client->json.storeobject(&title);
+                break;
+
+            case MAKENAMEID1('d'):
+                ok = client->json.storeobject(&description);
+                break;
+
+            case MAKENAMEID3('i', 'm', 'g'):
+                ok = client->json.storeobject(&img);
+                break;
+
+            case MAKENAMEID1('l'):
+                ok = client->json.storeobject(&url);
+                break;
+
+            case MAKENAMEID4('b', 'i', 'm', 'g'):
+                ok = client->json.storeobject(&bimg);
+                break;
+
+            case MAKENAMEID3('d', 's', 'p'):
+                ok = client->json.storeobject(&dsp);
+                break;
+
+            case EOO:  // [[fallthrough]];
+            default:
+                ok = false;
+            }
+        }
+
+        if (!ok)
+        {
+            client->app->getbanner_result(API_EARGS);
+            return false; // parsing failed
+        }
+
+        banners.emplace_back(make_tuple(id, move(title), move(description), move(img), move(url), move(bimg), move(dsp)));
+
+        client->json.leaveobject();
+    }
+
+    client->json.leavearray();
+    client->json.leavearray();
+
+    client->app->getbanner_result(move(banners));
+
+    return true;
+}
+
 } // namespace

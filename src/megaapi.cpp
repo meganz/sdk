@@ -5264,6 +5264,11 @@ void MegaApi::setOriginalFingerprint(MegaNode* node, const char* originalFingerp
     return pImpl->setOriginalFingerprint(node, originalFingerprint, listener);
 }
 
+void MegaApi::getBanners(MegaRequestListener *listener)
+{
+    pImpl->getBanners(listener);
+}
+
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
     pImpl = new MegaHashSignatureImpl(base64Key);
@@ -6878,6 +6883,46 @@ int64_t MegaIntegerList::get(int /*i*/) const
 int MegaIntegerList::size() const
 {
     return 0;
+}
+
+
+MegaBanner::MegaBanner(tuple<int, string, string, string, string, string, string>&& details) : mDetails(move(details))
+{
+}
+
+int MegaBanner::getId() const
+{
+    return std::get<0>(mDetails);
+}
+
+const string& MegaBanner::getTitle() const
+{
+    return std::get<1>(mDetails);
+}
+
+const string& MegaBanner::getDescription() const
+{
+    return std::get<2>(mDetails);
+}
+
+const string& MegaBanner::getImage() const
+{
+    return std::get<3>(mDetails);
+}
+
+const string& MegaBanner::getUrl() const
+{
+    return std::get<4>(mDetails);
+}
+
+const string& MegaBanner::getBackgroundImage() const
+{
+    return std::get<5>(mDetails);
+}
+
+const string& MegaBanner::getImageLocation() const
+{
+    return std::get<6>(mDetails);
 }
 
 }
