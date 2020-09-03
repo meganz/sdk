@@ -1172,6 +1172,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     sctable = NULL;
     pendingsccommit = false;
     tctable = NULL;
+    statusTable = nullptr;
     me = UNDEF;
     publichandle = UNDEF;
     followsymlinks = false;
@@ -1323,6 +1324,7 @@ MegaClient::~MegaClient()
     delete pendingcs;
     delete badhostcs;
     delete sctable;
+    delete statusTable;
     delete tctable;
     delete dbaccess;
 }
@@ -4148,6 +4150,9 @@ void MegaClient::locallogout(bool removecaches)
     sctable = NULL;
     pendingsccommit = false;
 
+    delete statusTable;
+    statusTable = NULL;
+
     me = UNDEF;
     uid.clear();
     unshareablekey.clear();
@@ -4302,6 +4307,13 @@ void MegaClient::removeCaches()
         delete sctable;
         sctable = NULL;
         pendingsccommit = false;
+    }
+
+    if (statusTable)
+    {
+        statusTable->remove();
+        delete statusTable;
+        statusTable = NULL;
     }
 
 #ifdef ENABLE_SYNC
@@ -4937,6 +4949,16 @@ void MegaClient::initsc()
     }
 }
 
+void MegaClient::initStatusTable()
+{
+    if (statusTable)
+    {
+        statusTable->begin();
+        statusTable->truncate();
+    }
+}
+
+
 // erase and and fill user's local state cache
 void MegaClient::updatesc()
 {
@@ -5262,11 +5284,12 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         }
 
         //persist change:
-        if (sctable)
+        if (statusTable)
         {
+            DBTableTransactionCommitter committer(statusTable);
             LOG_verbose << "Adding/updating status to database: "
                         << statusInCache->type() << " = " << statusInCache->value();
-            if (!(sctable->put(CACHEDSTATUS, statusInCache.get(), &key)))
+            if (!(statusTable->put(CACHEDSTATUS, statusInCache.get(), &key)))
             {
                 LOG_err << "Failed to add/update status to db: "
                             << statusInCache->type() << " = " << statusInCache->value();
@@ -6893,11 +6916,12 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
         }
 
         //persist change:
-        if (sctable)
+        if (statusTable)
         {
+            DBTableTransactionCommitter committer(statusTable);
             LOG_verbose << "Adding/updating status to database: "
                         << status->type() << " = " << status->value();
-            if (!(sctable->put(CACHEDSTATUS, status.get(), &key)))
+            if (!(statusTable->put(CACHEDSTATUS, status.get(), &key)))
             {
                 LOG_err << "Failed to add/update status to db: "
                             << status->type() << " = " << status->value();
@@ -9110,6 +9134,32 @@ void MegaClient::opensctable()
     }
 }
 
+void MegaClient::openStatusTable()
+{
+    if (dbaccess && !statusTable)
+    {
+        string dbname;
+
+        if (sid.size() >= SIDLEN)
+        {
+            dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
+            dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key, SIDLEN - sizeof key.key, (char*)dbname.c_str()));
+        }
+        else if (loggedinfolderlink())
+        {
+            dbname.resize(NODEHANDLE * 4 / 3 + 3);
+            dbname.resize(Base64::btoa((const byte*)&publichandle, NODEHANDLE, (char*)dbname.c_str()));
+        }
+
+        if (dbname.size())
+        {
+            dbname.insert(0, "status_");
+
+            statusTable = dbaccess->open(rng, fsaccess, &dbname, false, false);
+        }
+    }
+}
+
 // verify a static symmetric password challenge
 int MegaClient::checktsid(byte* sidbuf, unsigned len)
 {
@@ -11043,11 +11093,12 @@ void MegaClient::setBlocked(bool value)
     }
 
     //persist change:
-    if (sctable)
+    if (statusTable)
     {
+        DBTableTransactionCommitter committer(statusTable);
         LOG_verbose << "Adding/updating status to database: "
                     << status->type() << " = " << status->value();
-        if (!(sctable->put(CACHEDSTATUS, status.get(), &key)))
+        if (!(statusTable->put(CACHEDSTATUS, status.get(), &key)))
         {
             LOG_err << "Failed to add/update status to db: "
                         << status->type() << " = " << status->value();
@@ -11347,21 +11398,6 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 }
 #endif
                 break;
-            case CACHEDSTATUS:
-            {
-                auto status = CacheableStatus::unserialize(this, data);
-                if (status)
-                {
-                    status->dbid = id;
-                }
-                else
-                {
-                    LOG_err << "Failed - status record read error";
-                    return false;
-                }
-                break;
-            }
-
         }
         hasNext = sctable->next(&id, &data, &key);
     }
@@ -11379,6 +11415,42 @@ bool MegaClient::fetchsc(DbTable* sctable)
     }
 
     mergenewshares(0);
+
+    return true;
+}
+
+
+bool MegaClient::fetchStatusTable(DbTable* table)
+{
+    uint32_t id;
+    string data;
+
+    LOG_info << "Loading session state from local cache";
+
+    table->rewind();
+
+    bool hasNext = table->next(&id, &data, &key);
+    while (hasNext)
+    {
+        switch (id & (15))
+        {
+            case CACHEDSTATUS:
+            {
+                auto status = CacheableStatus::unserialize(this, data);
+                if (status)
+                {
+                    status->dbid = id;
+                }
+                else
+                {
+                    LOG_err << "Failed - status record read error";
+                    return false;
+                }
+                break;
+            }
+        }
+        hasNext = table->next(&id, &data, &key);
+    }
 
     return true;
 }
@@ -11604,8 +11676,10 @@ void MegaClient::fetchnodes(bool nocache)
         sctable->truncate();
     }
 
+    openStatusTable();
+
     // only initial load from local cache
-    if (loggedin() == FULLACCOUNT && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable))
+    if (loggedin() == FULLACCOUNT && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable) && fetchStatusTable(statusTable))
     {
         WAIT_CLASS::bumpds();
         fnstats.mode = FetchNodesStats::MODE_DB;

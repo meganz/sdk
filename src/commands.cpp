@@ -5439,6 +5439,7 @@ bool CommandFetchNodes::procresult(Result r)
 
                 client->mergenewshares(0);
                 client->applykeys();
+                client->initStatusTable();
                 client->initsc();
                 client->pendingsccommit = false;
                 client->fetchnodestag = tag;

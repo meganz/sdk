@@ -1017,6 +1017,9 @@ private:
     // fetch state serialize from local cache
     bool fetchsc(DbTable*);
 
+    // fetch statusTable from local cache
+    bool fetchStatusTable(DbTable*);
+
     // remove old (2 days or more) transfers from cache, if they were not resumed
     void purgeOrphanTransfers(bool remove = false);
 
@@ -1129,6 +1132,9 @@ public:
     // during processing of request responses, transfer table updates can be wrapped up in a single begin/commit
     DBTableTransactionCommitter* mTctableRequestCommitter = nullptr;
 
+    // status cache table for logged in user. For data pertaining status which requires immediate commits
+    DbTable* statusTable;
+
     // scsn as read from sctable
     handle cachedscsn;
 
@@ -1159,15 +1165,23 @@ public:
     pendinghttp_map pendinghttp;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT, CACHEDSTATUS } sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT} sctablerectype;
+
+    // record type indicator for statusTable
+    enum StatusTableRecType { CACHEDSTATUS };
 
     // open/create state cache database table
     void opensctable();
+
+    // open/create status database table
+    void openStatusTable();
 
     // initialize/update state cache referenced sctable
     void initsc();
     void updatesc();
     void finalizesc(bool);
+
+    void initStatusTable();
 
     // flag to pause / resume the processing of action packets
     bool scpaused;

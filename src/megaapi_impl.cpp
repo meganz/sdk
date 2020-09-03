@@ -19488,6 +19488,13 @@ void MegaApiImpl::sendPendingRequests()
                     client->cachedscsn = UNDEF;
                 }
 
+                if (client->statusTable)
+                {
+                    client->statusTable->remove();
+                    delete client->statusTable;
+                    client->statusTable = NULL;
+                }
+
                 nocache = false;
             }
 
@@ -21329,10 +21336,11 @@ void MegaApiImpl::sendPendingRequests()
 
                 client->loadCacheableStatus(status);
 
-                if (client->sctable)
+                if (client->statusTable)
                 {
+                    DBTableTransactionCommitter committer(client->statusTable);
                     LOG_verbose << "Adding/updating migrated status to database: " << status->type() << " = " << status->value();
-                    if (!(client->sctable->put(MegaClient::CACHEDSTATUS, status.get(), &client->key)))
+                    if (!(client->statusTable->put(MegaClient::CACHEDSTATUS, status.get(), &client->key)))
                     {
                         LOG_err << "Failed to add/update migrated status to db: "
                                     << status->type() << " = " << status->value();
