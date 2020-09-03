@@ -6895,34 +6895,34 @@ int MegaBanner::getId() const
     return std::get<0>(mDetails);
 }
 
-const string& MegaBanner::getTitle() const
+const char* MegaBanner::getTitle() const
 {
-    return std::get<1>(mDetails);
+    return std::get<1>(mDetails).c_str();
 }
 
-const string& MegaBanner::getDescription() const
+const char* MegaBanner::getDescription() const
 {
-    return std::get<2>(mDetails);
+    return std::get<2>(mDetails).c_str();
 }
 
-const string& MegaBanner::getImage() const
+const char* MegaBanner::getImage() const
 {
-    return std::get<3>(mDetails);
+    return std::get<3>(mDetails).c_str();
 }
 
-const string& MegaBanner::getUrl() const
+const char* MegaBanner::getUrl() const
 {
-    return std::get<4>(mDetails);
+    return std::get<4>(mDetails).c_str();
 }
 
-const string& MegaBanner::getBackgroundImage() const
+const char* MegaBanner::getBackgroundImage() const
 {
-    return std::get<5>(mDetails);
+    return std::get<5>(mDetails).c_str();
 }
 
-const string& MegaBanner::getImageLocation() const
+const char* MegaBanner::getImageLocation() const
 {
-    return std::get<6>(mDetails);
+    return std::get<6>(mDetails).c_str();
 }
 
 }
