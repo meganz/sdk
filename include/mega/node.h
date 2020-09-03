@@ -249,7 +249,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         bool publiclink : 1;
         bool newnode : 1;
     } changed;
-    
+
     void setkey(const byte* = NULL);
 
     void setkeyfromjson(const char*);

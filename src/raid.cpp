@@ -21,8 +21,8 @@
 
 #include "mega/raid.h"
 
-#include "mega/transfer.h" 
-#include "mega/testhooks.h" 
+#include "mega/transfer.h"
+#include "mega/testhooks.h"
 #include "mega.h" // for thread definitions
 
 #undef min //avoids issues with std::min
@@ -663,7 +663,7 @@ bool RaidBufferManager::FilePiece::finalize(bool parallel, m_off_t filesize, int
 
     m_off_t endpos = ChunkedHash::chunkceil(startpos, finalpos);
     unsigned chunksize = static_cast<unsigned>(endpos - startpos);
-    
+
     while (chunksize)
     {
         m_off_t chunkid = ChunkedHash::chunkfloor(startpos);
@@ -861,7 +861,7 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
             m_off_t speedsize = std::min<m_off_t>(maxsize, uploadSpeed * 2 / 3);    // two seconds of data over 3 connections
             m_off_t sizesize = transfer->size > 32 * 1024 * 1024 ? 8 * 1024 * 1024 : 0;  // start with large-ish portions for large files.
             m_off_t targetsize = std::max<m_off_t>(sizesize, speedsize);
-            
+
             while (npos < transfer->pos + targetsize && npos < transfer->size)
             {
                 npos = ChunkedHash::chunkceil(npos, transfer->size);
