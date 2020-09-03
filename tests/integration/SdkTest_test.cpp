@@ -4510,6 +4510,15 @@ TEST_F(SdkTest, SdkMediaUploadRequestURL)
     ASSERT_NE(0, *url.get()) << "Got empty media upload URL";
 }
 
+TEST_F(SdkTest, SdkGetBanners)
+{
+    getAccountsForTest(1);
+    LOG_info << "___TEST GetBanners___";
+
+    auto err = synchronousGetBanners(0);
+    ASSERT_TRUE(err == MegaError::API_OK) << "Get banners failed (error: " << err << ")";
+}
+
 TEST_F(SdkTest, SdkSimpleCommands)
 {
     getAccountsForTest(1);
