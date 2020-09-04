@@ -503,7 +503,7 @@ int64_t MegaNode::getPublicLinkCreationTime()
     return 0;
 }
 
-string MegaNode::getPublicLinkAuthKey()
+string MegaNode::getWritableLinkAuthKey()
 {
     return string();
 }

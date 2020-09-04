@@ -739,7 +739,7 @@ class MegaNode
          */
         virtual int64_t getPublicLinkCreationTime();
 
-        virtual std::string getPublicLinkAuthKey();
+        virtual std::string getWritableLinkAuthKey();
 
         /**
          * @brief Returns true if this node represents a file (type == TYPE_FILE)
@@ -3239,7 +3239,7 @@ class MegaRequest
          * - MegaApi::retryPendingConnections - Returns if request are disconnected
          * - MegaApi::pauseTransfers - Returns true if transfers were paused, false if they were resumed
          * - MegaApi::createChat - Creates a chat for one or more participants
-         * - MegaApi::exportNode - Makes the public folder writable
+         * - MegaApi::exportNode - Makes the folder writable
          * - MegaApi::fetchnodes - Return true if logged in into a folder and the provided key is invalid.
          * - MegaApi::getPublicNode - Return true if the provided key along the link is invalid.
          * - MegaApi::pauseTransfer - Returns true if the transfer has to be pause or false if it has to be resumed
@@ -10343,7 +10343,7 @@ class MegaApi
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
          * @param node MegaNode to get the public link
-         * @param writable if the public link should be writable.
+         * @param writable if the link should be writable.
          * @param listener MegaRequestListener to track this request
          */
         void exportNode(MegaNode *node, bool writable, MegaRequestListener *listener);
@@ -10366,7 +10366,7 @@ class MegaApi
          *
          * @param node MegaNode to get the public link
          * @param expireTime Unix timestamp until the public link will be valid
-         * @param writable if the public link should be writable.
+         * @param writable if the link should be writable.
          * @param listener MegaRequestListener to track this request
          */
         void exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener);

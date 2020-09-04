@@ -273,7 +273,7 @@ public:
 
     static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
-    string getPublicLinkAuthKey(handle node);
+    string getWritableLinkAuthKey(handle node);
 
 #ifdef ENABLE_CHAT
     // all chats

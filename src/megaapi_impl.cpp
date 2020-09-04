@@ -208,7 +208,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
 
     if (node->isExported())
     {
-        this->plink = new PublicLink(node->getPublicHandle(), node->getPublicLinkCreationTime(), node->getExpirationTime(), node->isTakenDown(), node->getPublicLinkAuthKey());
+        this->plink = new PublicLink(node->getPublicHandle(), node->getPublicLinkCreationTime(), node->getExpirationTime(), node->isTakenDown(), node->getWritableLinkAuthKey());
 
         if (type == FOLDERNODE)
         {
@@ -917,7 +917,7 @@ int64_t MegaNodePrivate::getPublicLinkCreationTime()
     return plink ? plink->cts : -1;
 }
 
-string MegaNodePrivate::getPublicLinkAuthKey()
+string MegaNodePrivate::getWritableLinkAuthKey()
 {
     return plink ? plink->mAuthKey : string();
 }

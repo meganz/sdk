@@ -1363,7 +1363,7 @@ std::string MegaClient::getPublicLink(bool newLinkFormat, nodetype_t type, handl
     return strlink;
 }
 
-std::string MegaClient::getPublicLinkAuthKey(handle nodeHandle)
+std::string MegaClient::getWritableLinkAuthKey(handle nodeHandle)
 {
     auto node = nodebyhandle(nodeHandle);
     if (node->plink)
