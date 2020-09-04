@@ -1656,7 +1656,7 @@ DirNotify* WinFileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& ig
     return new WinDirNotify(localpath, ignore, this, waiter);
 }
 
-bool WinFileSystemAccess::issyncsupported(LocalPath& localpathArg, bool *isnetwork)
+bool WinFileSystemAccess::issyncsupported(LocalPath& localpathArg, bool *isnetwork, SyncError *syncError)
 {
     string* localpath = localpathArg.editStringDirect();
 
@@ -1670,11 +1670,40 @@ bool WinFileSystemAccess::issyncsupported(LocalPath& localpathArg, bool *isnetwo
     fsname.resize(MAX_PATH * sizeof(WCHAR));
 
     if (GetVolumePathNameW((LPCWSTR)localpath->data(), (LPWSTR)path.data(), MAX_PATH)
-        && GetVolumeInformationW((LPCWSTR)path.data(), NULL, 0, NULL, NULL, NULL, (LPWSTR)fsname.data(), MAX_PATH)
-        && !memcmp(fsname.data(), VBoxSharedFolderFS, sizeof(VBoxSharedFolderFS)))
+        && GetVolumeInformationW((LPCWSTR)path.data(), NULL, 0, NULL, NULL, NULL, (LPWSTR)fsname.data(), MAX_PATH))
     {
-        LOG_warn << "VBoxSharedFolderFS is not supported because it doesn't provide ReadDirectoryChanges() nor unique file identifiers";
-        result = false;
+        if (!memcmp(fsname.data(), VBoxSharedFolderFS, sizeof(VBoxSharedFolderFS)))
+        {
+            LOG_warn << "VBoxSharedFolderFS is not supported because it doesn't provide ReadDirectoryChanges() nor unique file identifiers";
+            if (syncError)
+            {
+                *syncError = VBOXSHAREDFOLDER_UNSUPPORTED;
+            }
+            result = false;
+        }
+        else if ((!memcmp(fsname.data(), L"FAT", 6) || !memcmp(fsname.data(), L"exFAT", 10))) // TODO: have these checks for !windows too
+        {
+            LOG_warn << "You are syncing a local folder formatted with a FAT filesystem. "
+                        "That filesystem has deficiencies managing big files and modification times "
+                        "that can cause synchronization problems (e.g. when daylight saving changes), "
+                        "so it's strongly recommended that you only sync folders formatted with more "
+                        "reliable filesystems like NTFS (more information at https://help.mega.nz/megasync/syncing.html#can-i-sync-fat-fat32-partitions-under-windows.";
+            if (syncError)
+            {
+                *syncError = LOCAL_IS_FAT;
+            }
+
+        }
+        else if (!memcmp(fsname.data(), L"HGFS", 8))
+        {
+            LOG_warn << "You are syncing a local folder shared with VMWare. Those folders do not support filesystem notifications "
+            "so MEGAsync will have to be continuously scanning to detect changes in your files and folders. "
+            "Please use a different folder if possible to reduce the CPU usage.";
+            if (syncError)
+            {
+                *syncError = LOCAL_IS_HGFS;
+            }
+        }
     }
 
     if (GetDriveTypeW((LPCWSTR)path.data()) == DRIVE_REMOTE)

@@ -1299,8 +1299,7 @@ bool CommandPutNodes::procresult(Result r)
 #ifdef ENABLE_SYNC
     if (source == PUTNODES_SYNC)
     {
-        vector<NewNode> emptyVec;
-        client->app->putnodes_result(e, type, emptyVec);
+        client->app->putnodes_result(e, type, nn);
         client->putnodes_sync_result(e, nn);
     }
     else
@@ -4198,11 +4197,9 @@ bool CommandGetUserData::procresult(Result r)
                     std::string err = "GetUserData: invalid business status / account mode";
                     LOG_err << err;
                     client->sendevent(99450, err.c_str(), 0);
-
-                    client->mBizStatus = BIZ_STATUS_EXPIRED;
                     client->mBizMode = BIZ_MODE_SUBUSER;
                     client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
-                    client->app->notify_business_status(client->mBizStatus);
+                    client->setBusinessStatus(BIZ_STATUS_EXPIRED);
                 }
                 else
                 {
@@ -4229,11 +4226,7 @@ bool CommandGetUserData::procresult(Result r)
                     assert(m != BIZ_MODE_SUBUSER || !masters.empty());
                     client->mBizMasters = masters;
 
-                    if (client->mBizStatus != s)
-                    {
-                        client->mBizStatus = s;
-                        client->app->notify_business_status(s);
-                    }
+                    client->setBusinessStatus(s);
 
                     // if current business status will expire sooner than the scheduled `ug`, update the
                     // backoff to a shorter one in order to refresh the business status asap
@@ -4261,16 +4254,10 @@ bool CommandGetUserData::procresult(Result r)
             }
             else
             {
-                BizStatus oldStatus = client->mBizStatus;
-                client->mBizStatus = BIZ_STATUS_INACTIVE;
                 client->mBizMode = BIZ_MODE_UNKNOWN;
                 client->mBizMasters.clear();
                 client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
-
-                if (client->mBizStatus != oldStatus)
-                {
-                    client->app->notify_business_status(client->mBizStatus);
-                }
+                client->setBusinessStatus(BIZ_STATUS_INACTIVE);
             }
 
             if (uspw)
@@ -5507,6 +5494,7 @@ bool CommandFetchNodes::procresult(Result r)
 
                 client->mergenewshares(0);
                 client->applykeys();
+                client->initStatusTable();
                 client->initsc();
                 client->pendingsccommit = false;
                 client->fetchnodestag = tag;
