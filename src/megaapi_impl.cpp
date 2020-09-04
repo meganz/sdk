@@ -11451,18 +11451,16 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
             return new MegaNodeListPrivate();
         }
 
-        if (target == MegaApi::TARGET_ROOTNODES || target == MegaApi::TARGET_ALL)
+        if (target == MegaApi::TARGET_ROOTNODE || target == MegaApi::TARGET_ALL)
         {
-            // Search on rootnodes
-            for (unsigned int i = 0; i < (sizeof client->rootnodes / sizeof *client->rootnodes)
-                  && !(cancelToken && cancelToken->isCancelled()); i++)
-            {
-                node = client->nodebyhandle(client->rootnodes[i]);
-                SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
-                processTree(node, &searchProcessor, recursive, cancelToken);
-                node_vector& vNodes = searchProcessor.getResults();
-                result.insert(result.end(), vNodes.begin(), vNodes.end());
-            }
+            // Search on rootnode (cloud, excludes Inbox and Rubbish)
+            node = client->nodebyhandle(client->rootnodes[0]);
+
+            SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
+            processTree(node, &searchProcessor, recursive, cancelToken);
+            node_vector& vNodes = searchProcessor.getResults();
+
+            result.insert(result.end(), vNodes.begin(), vNodes.end());
         }
 
         if (target == MegaApi::TARGET_INSHARE || target == MegaApi::TARGET_ALL)

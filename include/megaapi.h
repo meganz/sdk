@@ -13232,7 +13232,7 @@ class MegaApi
                NODE_VIDEO, NODE_DOCUMENT,} nodefiletype_t;
 
         typedef enum { TARGET_INSHARE = 0, TARGET_OUTSHARE, TARGET_PUBLICLINK,
-                       TARGET_ROOTNODES, TARGET_ALL } searchtarget_t;
+                       TARGET_ROOTNODE, TARGET_ALL } searchtarget_t;
 
         /**
          * @brief Get the number of child nodes
@@ -14770,7 +14770,7 @@ class MegaApi
          * - TARGET_INSHARE = 0
          * - TARGET_OUTSHARE = 1
          * - TARGET_PUBLICLINK = 2
-         * - TARGET_ROOTNODES = 3
+         * - TARGET_ROOTNODE = 3
          * - TARGET_ALL = 4
          *
          * @return List of nodes that match with the search parameters
