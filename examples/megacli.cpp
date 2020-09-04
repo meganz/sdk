@@ -3083,6 +3083,7 @@ autocomplete::ACN autocompleteSyntax()
 
     p->Add(exec_setmaxconnections, sequence(text("setmaxconnections"), either(text("put"), text("get")), opt(wholenumber(4))));
     p->Add(exec_metamac, sequence(text("metamac"), localFSPath(), remoteFSPath(client, &cwd)));
+    p->Add(exec_banner, sequence(text("banner"), either(text("get"), sequence(text("dismiss"), param("id")))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -7713,6 +7714,38 @@ void DemoApp::resetSmsVerifiedPhoneNumber_result(error e)
     }
 }
 
+void DemoApp::getbanners_result(error e)
+{
+    cout << "Getting Smart Banners failed: " << e << endl;
+}
+
+void DemoApp::getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners)
+{
+    for (auto& b : banners)
+    {
+        cout << "Smart Banner:" << endl
+             << "\tid         : " << std::get<0>(b) << endl
+             << "\ttitle      : " << std::get<1>(b) << endl
+             << "\tdescription: " << std::get<2>(b) << endl
+             << "\timage      : " << std::get<3>(b) << endl
+             << "\turl        : " << std::get<4>(b) << endl
+             << "\tbkgr image : " << std::get<5>(b) << endl
+             << "\tdsp        : " << std::get<6>(b) << endl;
+    }
+}
+
+void DemoApp::dismissbanner_result(error e)
+{
+    if (e)
+    {
+        cout << "Dismissing Smart Banner failed: " << e << endl;
+    }
+    else
+    {
+        cout << "Dismissing Smart Banner succeeded" << endl;
+    }
+}
+
 #ifndef NO_READLINE
 char* longestCommonPrefix(ac::CompletionState& acs)
 {
@@ -8160,4 +8193,20 @@ void exec_metamac(autocomplete::ACState& s)
 void exec_resetverifiedphonenumber(autocomplete::ACState& s)
 {
     client->resetSmsVerifiedPhoneNumber();
+}
+
+void exec_banner(autocomplete::ACState& s)
+{
+    if (s.words.size() == 2 && s.words[1].s == "get")
+    {
+        cout << "Retrieving banner info..." << endl;
+
+        client->reqs.add(new CommandGetBanners(client));
+    }
+    else if (s.words.size() == 3 && s.words[1].s == "dismiss")
+    {
+        cout << "Dismissing banner with id " << s.words[2].s << "..." << endl;
+
+        client->reqs.add(new CommandDismissBanner(client, stoi(s.words[2].s)));
+    }
 }
