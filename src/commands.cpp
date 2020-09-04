@@ -8266,7 +8266,7 @@ bool CommandGetBanners::procresult(Result r)
     }
 
     /*
-        [ {
+        {
             "id": 2, ///The banner id
             "t": "R2V0IFZlcmlmaWVk", ///Banner title
             "d": "TWFrZSBpdCBlYXNpZXIgZm9yIHlvdXIgY29udGFjdHMgdG8gZmluZCB5b3Ugb24gTUVHQS4", ///Banner description.
@@ -8274,15 +8274,8 @@ bool CommandGetBanners::procresult(Result r)
             "l": "", ///URL
             "bimg": "Verified_BG.png", ///background image name.
             "dsp": "https://web-sandbox3.developers.mega.co.nz/images/mega/" ///Where to get the image.
-          }, {"id":3, ...}, ... ]
+        }, {"id":3, ...}, ... ]
     */
-
-    if (!client->json.enterarray() ||
-        !client->json.enterarray())
-    {
-        client->app->getbanner_result(API_EARGS);
-        return false; // parsing failed
-    }
 
     vector< tuple<int, string, string, string, string, string, string> > banners;
 
@@ -8339,9 +8332,6 @@ bool CommandGetBanners::procresult(Result r)
 
         client->json.leaveobject();
     }
-
-    client->json.leavearray();
-    client->json.leavearray();
 
     client->app->getbanners_result(move(banners));
 

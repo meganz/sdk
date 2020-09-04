@@ -15885,14 +15885,11 @@ void MegaApiImpl::checkfile_result(handle h, error e, byte*, m_off_t, m_time_t, 
 void MegaApiImpl::getbanners_result(error e)
 {
     auto it = requestMap.find(client->restag);
-    if (it == requestMap.end())
+
+    if (it != requestMap.end() && it->second && (it->second->getType() == MegaRequest::TYPE_GET_BANNERS))
     {
-        return;
+        fireOnRequestFinish(it->second, make_unique<MegaErrorPrivate>(e));
     }
-
-    MegaRequestPrivate* request = it->second;
-
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
 void MegaApiImpl::getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners)
