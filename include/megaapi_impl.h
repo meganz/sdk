@@ -3051,8 +3051,8 @@ protected:
         void mediadetection_ready() override;
         void storagesum_changed(int64_t newsum) override;
         void getmiscflags_result(error) override;
-        void getbanner_result(error e) override;
-        void getbanner_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;
+        void getbanners_result(error e) override;
+        void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult
