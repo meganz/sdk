@@ -31,6 +31,8 @@
 #include "mega.h"
 #include "mega/mediafileattribute.h"
 
+#include <chrono>
+
 namespace mega {
 HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, std::unique_ptr<string> cdata, bool checkAccess)
     : data(move(cdata))
@@ -8394,6 +8396,22 @@ bool CommandGetBanners::procresult(Result r)
     client->app->getbanners_result(move(banners));
 
     return true;
+}
+
+CommandDismissBanner::CommandDismissBanner(MegaClient* client, int id)
+{
+    cmd("dban");
+    arg("id", id); // id of the Smart Banner
+    uint64_t msSinceEpoch = std::chrono::system_clock::now().time_since_epoch() / std::chrono::milliseconds(1);
+    arg("ts", msSinceEpoch); // timestamp
+
+    tag = client->reqtag;
+}
+
+bool CommandDismissBanner::procresult(Result r)
+{
+    client->app->dismissbanner_result(r.errorOrOK());
+    return r.wasErrorOrOK();
 }
 
 } // namespace

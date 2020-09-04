@@ -1351,6 +1351,14 @@ public:
     CommandGetBanners(MegaClient*);
 };
 
+class MEGA_API CommandDismissBanner : public Command
+{
+public:
+    bool procresult(Result) override;
+
+    CommandDismissBanner(MegaClient*, int id);
+};
+
 } // namespace
 
 #endif
