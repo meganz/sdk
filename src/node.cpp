@@ -1325,8 +1325,8 @@ LocalNode::LocalNode()
 , created{false}
 , reported{false}
 , checked{false}
-, syncdownTargetedAction(synctree_resolved)
-, syncupTargetedAction(synctree_resolved)
+, syncdownTargetedAction(SYNCTREE_RESOLVED)
+, syncupTargetedAction(SYNCTREE_RESOLVED)
 {}
 
 // initialize fresh LocalNode object - must be called exactly once
@@ -1339,8 +1339,8 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     deleted = false;
     created = false;
     reported = false;
-    syncdownTargetedAction = synctree_resolved;
-    syncupTargetedAction = synctree_resolved;
+    syncdownTargetedAction = SYNCTREE_RESOLVED;
+    syncupTargetedAction = SYNCTREE_RESOLVED;
     syncxfer = true;
     newnode.reset();
     parent_dbid = 0;
@@ -1384,21 +1384,27 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
 
 void LocalNode::needsFutureSyncup()
 {
-    syncupTargetedAction = syncupTargetedAction < synctree_scanhere ? synctree_scanhere : syncupTargetedAction;
+    syncupTargetedAction = syncupTargetedAction < SYNCTREE_SCAN_HERE ? SYNCTREE_SCAN_HERE : syncupTargetedAction;
     for (auto p = parent; p != NULL; p = p->parent)
     {
-        if (p->syncupTargetedAction >= synctree_descendantflagged) break;
-        p->syncupTargetedAction = synctree_descendantflagged;
+        if (p->syncupTargetedAction >= SYNCTREE_DESCENDANT_FLAGGED)
+        {
+            break;
+        }
+        p->syncupTargetedAction = SYNCTREE_DESCENDANT_FLAGGED;
     }
 }
 
 void LocalNode::needsFutureSyncdown()
 {
-    syncdownTargetedAction = syncdownTargetedAction < synctree_scanhere ? synctree_scanhere : syncdownTargetedAction;
+    syncdownTargetedAction = syncdownTargetedAction < SYNCTREE_SCAN_HERE ? SYNCTREE_SCAN_HERE : syncdownTargetedAction;
     for (auto p = parent; p != NULL; p = p->parent)
     {
-        if (p->syncdownTargetedAction >= synctree_descendantflagged) break;
-        p->syncdownTargetedAction = synctree_descendantflagged;
+        if (p->syncdownTargetedAction >= SYNCTREE_DESCENDANT_FLAGGED)
+        {
+            break;
+        }
+        p->syncdownTargetedAction = SYNCTREE_DESCENDANT_FLAGGED;
     }
 }
 

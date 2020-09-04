@@ -1353,7 +1353,7 @@ bool MegaClient::anySyncNeedsTargetedSyncdown()
     {
         if (sync->state != SYNC_CANCELED &&
             sync->state != SYNC_FAILED &&
-            sync->localroot->syncdownTargetedAction != LocalNode::synctree_resolved)
+            sync->localroot->syncdownTargetedAction != LocalNode::SYNCTREE_RESOLVED)
         {
             return true;
         }
@@ -1365,7 +1365,7 @@ void MegaClient::setAllSyncsNeedSyncdown()
 {
     for (Sync* sync : syncs)
     {
-        sync->localroot->syncdownTargetedAction = LocalNode::synctree_scanhere;
+        sync->localroot->syncdownTargetedAction = LocalNode::SYNCTREE_SCAN_HERE;
     }
 }
 
@@ -1373,7 +1373,7 @@ void MegaClient::setAllSyncsNeedSyncup()
 {
     for (Sync* sync : syncs)
     {
-        sync->localroot->syncupTargetedAction = LocalNode::synctree_scanhere;
+        sync->localroot->syncupTargetedAction = LocalNode::SYNCTREE_SCAN_HERE;
     }
 }
 #endif  // ENABLE_SYNC
@@ -2828,7 +2828,7 @@ void MegaClient::exec()
                             for (Sync* sync : syncs)
                             {
                                 if ((sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
-                                 && !syncadding && (sync->localroot->syncupTargetedAction != LocalNode::synctree_resolved) && !syncnagleretry)
+                                 && !syncadding && (sync->localroot->syncupTargetedAction != LocalNode::SYNCTREE_RESOLVED) && !syncnagleretry)
                                 {
                                     LOG_debug << "Running syncup on demand";
                                     size_t numPending = 0;
@@ -13171,15 +13171,15 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
 // returns false if any local fs op failed transiently
 bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWholeSubtree)
 {
-    if (!scanWholeSubtree && l->syncdownTargetedAction == LocalNode::synctree_resolved)
+    if (!scanWholeSubtree && l->syncdownTargetedAction == LocalNode::SYNCTREE_RESOLVED)
     {
         return true;
     }
 
-    scanWholeSubtree = scanWholeSubtree || l->syncdownTargetedAction == LocalNode::synctree_scanhere;
+    scanWholeSubtree = scanWholeSubtree || l->syncdownTargetedAction == LocalNode::SYNCTREE_SCAN_HERE;
 
     auto originalTargetedAction =  l->syncdownTargetedAction;
-    l->syncdownTargetedAction = LocalNode::synctree_resolved;
+    l->syncdownTargetedAction = LocalNode::SYNCTREE_RESOLVED;
 
     // only use for LocalNodes with a corresponding and properly linked Node
     if (l->type != FOLDERNODE || !l->node || (l->parent && l->node->parent->localnode != l->parent))
@@ -13317,7 +13317,7 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWh
                 // recurse into directories of equal name
                 if (!syncdown(ll, localpath, scanWholeSubtree))
                 {
-                    l->syncdownTargetedAction = std::max<int>(originalTargetedAction, LocalNode::synctree_descendantflagged);
+                    l->syncdownTargetedAction = std::max<int>(originalTargetedAction, LocalNode::SYNCTREE_DESCENDANT_FLAGGED);
                     success = false;
                 }
 
@@ -13346,24 +13346,21 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWh
                 }
             }
 
-            if (ll->deleted)
-            {
-                // attempt deletion and re-queue for retry in case of a transient failure
-                ll->treestate(TREESTATE_SYNCING);
+            // attempt deletion and re-queue for retry in case of a transient failure
+            ll->treestate(TREESTATE_SYNCING);
 
-                if (l->sync->movetolocaldebris(localpath) || !fsaccess->transient_error)
-                {
-                    DBTableTransactionCommitter committer(tctable);
-                    delete lit++->second;
-                }
-                else
-                {
-                    blockedfile = localpath;
-                    LOG_warn << "Transient error deleting " << blockedfile.toPath(*fsaccess);
-                    l->needsFutureSyncdown();
-                    success = false;
-                    lit++;
-                }
+            if (l->sync->movetolocaldebris(localpath) || !fsaccess->transient_error)
+            {
+                DBTableTransactionCommitter committer(tctable);
+                delete lit++->second;
+            }
+            else
+            {
+                blockedfile = localpath;
+                LOG_warn << "Transient error deleting " << blockedfile.toPath(*fsaccess);
+                l->needsFutureSyncdown();
+                success = false;
+                lit++;
             }
         }
         else
@@ -13507,7 +13504,7 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWh
                             {
                                 LOG_debug << "Syncdown not finished";
                             }
-                            l->syncdownTargetedAction = std::max<int>(originalTargetedAction, LocalNode::synctree_descendantflagged);
+                            l->syncdownTargetedAction = std::max<int>(originalTargetedAction, LocalNode::SYNCTREE_DESCENDANT_FLAGGED);
                             success = false;
                         }
                     }
@@ -13544,15 +13541,15 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWh
 // for creation
 bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool scanWholeSubtree)
 {
-    if (!scanWholeSubtree && l->syncupTargetedAction == LocalNode::synctree_resolved)
+    if (!scanWholeSubtree && l->syncupTargetedAction == LocalNode::SYNCTREE_RESOLVED)
     {
         return true;
     }
 
-    scanWholeSubtree = scanWholeSubtree || l->syncupTargetedAction == LocalNode::synctree_scanhere;
+    scanWholeSubtree = scanWholeSubtree || l->syncupTargetedAction == LocalNode::SYNCTREE_SCAN_HERE;
 
-    auto originalTargetedAction =  l->syncupTargetedAction;
-    l->syncupTargetedAction = LocalNode::synctree_resolved;
+    auto originalTargetedAction = l->syncupTargetedAction;
+    l->syncupTargetedAction = LocalNode::SYNCTREE_RESOLVED;
 
     bool insync = true;
 
@@ -15214,7 +15211,6 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
         return nullptr;
 
     std::string localName = localNode->localname.toName(*fsaccess);
-
     
     // Only compare metamac if the node doesn't already exist.
     node_vector::const_iterator remoteNode =
