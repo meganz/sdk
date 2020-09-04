@@ -196,7 +196,12 @@ public class MegaApiJava {
     public final static int HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = MegaApi.HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
     public final static int HTTP_SERVER_ALLOW_LAST_LOCAL_LINK = MegaApi.HTTP_SERVER_ALLOW_LAST_LOCAL_LINK;
 
-
+    public final static int TARGET_ROOTNODES = 3;
+    public final static int NODE_UNKNOWN = 0;
+    public final static int NODE_PHOTO = 1;
+    public final static int NODE_AUDIO = 2;
+    public final static int NODE_VIDEO = 3;
+    public final static int NODE_DOCUMENT = 4;
 
     MegaApi getMegaApi()
     {
