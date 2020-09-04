@@ -485,4 +485,6 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  */
 - (BOOL)isTakenDown;
 
++ (NSString *)stringForNodeLabel:(MEGANodeLabel)nodeLabel;
+
 @end

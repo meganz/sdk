@@ -233,4 +233,47 @@ using namespace mega;
     return self.megaNode ? self.megaNode->isTakenDown() : NO;
 }
 
++ (NSString *)stringForNodeLabel:(MEGANodeLabel)nodeLabel {
+    NSString *result;
+    switch (nodeLabel) {
+        case MEGANodeLabelUnknown:
+            result = @"";
+            break;
+            
+        case MEGANodeLabelRed:
+            result = @"Red";
+            break;
+            
+        case MEGANodeLabelOrange:
+            result = @"Orange";
+            break;
+            
+        case MEGANodeLabelYellow:
+            result = @"Yellow";
+            break;
+            
+        case MEGANodeLabelGreen:
+            result = @"Green";
+            break;
+            
+        case MEGANodeLabelBlue:
+            result = @"Blue";
+            break;
+            
+        case MEGANodeLabelPurple:
+            result = @"Purple";
+            break;
+            
+        case MEGANodeLabelGrey:
+            result = @"Grey";
+            break;
+            
+        default:
+            result = @"";
+            break;
+    }
+    
+    return result;
+}
+
 @end
