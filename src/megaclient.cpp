@@ -1346,35 +1346,6 @@ void MegaClient::setKeepSyncsAfterLogout(bool keepSyncsAfterLogout)
 {
     mKeepSyncsAfterLogout = keepSyncsAfterLogout;
 }
-#endif
-
-std::string MegaClient::getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
-{
-    string strlink = "https://mega.nz/";
-    string nodeType;
-    if (newLinkFormat)
-    {
-        nodeType = (type == FOLDERNODE ?  "folder/" : "file/");
-    }
-    else
-    {
-        nodeType = (type == FOLDERNODE ? "#F!" : "#!");
-    }
-
-    strlink += nodeType;
-
-    Base64Str<MegaClient::NODEHANDLE> base64ph(ph);
-    strlink += base64ph;
-    strlink += (newLinkFormat ? "#" : "");
-
-    if (key)
-    {
-        strlink += (newLinkFormat ? "" : "!");
-        strlink += key;
-    }
-
-    return strlink;
-}
 
 bool MegaClient::anySyncNeedsTargetedSyncdown()
 {
@@ -1404,6 +1375,35 @@ void MegaClient::setAllSyncsNeedSyncup()
     {
         sync->localroot->syncupTargetedAction = LocalNode::synctree_scanhere;
     }
+}
+#endif  // ENABLE_SYNC
+
+std::string MegaClient::getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
+{
+    string strlink = "https://mega.nz/";
+    string nodeType;
+    if (newLinkFormat)
+    {
+        nodeType = (type == FOLDERNODE ?  "folder/" : "file/");
+    }
+    else
+    {
+        nodeType = (type == FOLDERNODE ? "#F!" : "#!");
+    }
+
+    strlink += nodeType;
+
+    Base64Str<MegaClient::NODEHANDLE> base64ph(ph);
+    strlink += base64ph;
+    strlink += (newLinkFormat ? "#" : "");
+
+    if (key)
+    {
+        strlink += (newLinkFormat ? "" : "!");
+        strlink += key;
+    }
+
+    return strlink;
 }
 
 // nonblocking state machine executing all operations currently in progress
