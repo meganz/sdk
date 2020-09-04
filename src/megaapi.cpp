@@ -5269,6 +5269,11 @@ void MegaApi::getBanners(MegaRequestListener *listener)
     pImpl->getBanners(listener);
 }
 
+void MegaApi::dismissBanner(int id, MegaRequestListener *listener)
+{
+    pImpl->dismissBanner(id, listener);
+}
+
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
     pImpl = new MegaHashSignatureImpl(base64Key);

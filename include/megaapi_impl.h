@@ -2700,6 +2700,7 @@ class MegaApiImpl : public MegaApp
         void getCountryCallingCodes(MegaRequestListener *listener = NULL);
 
         void getBanners(MegaRequestListener *listener);
+        void dismissBanner(int id, MegaRequestListener *listener);
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e, DBTableTransactionCommitter& committer);
@@ -3053,6 +3054,7 @@ protected:
         void getmiscflags_result(error) override;
         void getbanners_result(error e) override;
         void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;
+        void dismissbanner_result(error e) override;
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult

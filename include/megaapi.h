@@ -2839,7 +2839,7 @@ class MegaRequest
             TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS, TYPE_RESEND_VERIFICATION_EMAIL,
             TYPE_SUPPORT_TICKET, TYPE_SET_RETENTION_TIME, TYPE_RESET_SMS_VERIFIED_NUMBER,
             TYPE_SEND_DEV_COMMAND,
-            TYPE_GET_BANNERS,
+            TYPE_GET_BANNERS, TYPE_DISMISS_BANNER,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -17645,6 +17645,11 @@ class MegaApi
          * @brief Request a list of all Smart Banners available for current user.
          */
         void getBanners(MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief No longer show the Smart Banner with the specified id to the current user.
+         */
+        void dismissBanner(int id, MegaRequestListener *listener = nullptr);
 
  private:
         MegaApiImpl *pImpl;

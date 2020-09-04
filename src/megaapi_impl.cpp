@@ -3891,6 +3891,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_RESET_SMS_VERIFIED_NUMBER: return "RESET_SMS_VERIFIED_NUMBER";
         case TYPE_SEND_DEV_COMMAND: return "SEND_DEV_COMMAND";
         case TYPE_GET_BANNERS: return "GET_BANNERS";
+        case TYPE_DISMISS_BANNER: return "DISMISS_BANNER";
     }
     return "UNKNOWN";
 }
@@ -15912,6 +15913,16 @@ void MegaApiImpl::getbanners_result(vector< tuple<int, string, string, string, s
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
 }
 
+void MegaApiImpl::dismissbanner_result(error e)
+{
+    auto itReq = requestMap.find(client->restag);
+
+    if (itReq != requestMap.end() && itReq->second && (itReq->second->getType() == MegaRequest::TYPE_DISMISS_BANNER))
+    {
+        fireOnRequestFinish(itReq->second, make_unique<MegaErrorPrivate>(e));
+    }
+}
+
 void MegaApiImpl::addListener(MegaListener* listener)
 {
     if(!listener) return;
@@ -22668,6 +22679,11 @@ void MegaApiImpl::sendPendingRequests()
             client->reqs.add(new CommandGetBanners(client));
             break;
         }
+        case MegaRequest::TYPE_DISMISS_BANNER:
+        {
+            client->reqs.add(new CommandDismissBanner(client, int(request->getNumber())));
+            break;
+        }
         default:
         {
             e = API_EINTERNAL;
@@ -22798,6 +22814,14 @@ bool MegaApiImpl::tryLockMutexFor(long long time)
 void MegaApiImpl::getBanners(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_BANNERS, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::dismissBanner(int id, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DISMISS_BANNER, listener);
+    request->setNumber(id);
     requestQueue.push(request);
     waiter->notify();
 }

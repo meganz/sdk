@@ -419,6 +419,8 @@ struct MEGA_API MegaApp
     virtual void getbanners_result(error) { }
     virtual void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) { }
 
+    virtual void dismissbanner_result(error) { }
+
     virtual ~MegaApp() { }
 };
 } // namespace
