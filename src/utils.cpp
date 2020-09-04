@@ -1252,7 +1252,7 @@ int mega_snprintf(char *s, size_t n, const char *format, ...)
 #endif
 
 string * TLVstore::tlvRecordsToContainer(PrnGen &rng, SymmCipher *key, encryptionsetting_t encSetting)
-{    
+{
     // decide nonce/IV and auth. tag lengths based on the `mode`
     unsigned ivlen = TLVstore::getIvlen(encSetting);
     unsigned taglen = TLVstore::getTaglen(encSetting);
@@ -2155,30 +2155,131 @@ void NodeCounter::operator -= (const NodeCounter& o)
     versions -= o.versions;
 }
 
-SyncConfig::SyncConfig(std::string localPath,
+
+CacheableStatus::CacheableStatus(int64_t type, int64_t value)
+    : mType{type}, mValue{value}
+{ }
+
+
+// This should be a const-method but can't be due to the broken Cacheable interface.
+// Do not mutate members in this function! Hence, we forward to a private const-method.
+bool CacheableStatus::serialize(std::string* data)
+{
+    return const_cast<const CacheableStatus*>(this)->serialize(*data);
+}
+
+std::shared_ptr<CacheableStatus> CacheableStatus::unserialize(class MegaClient *client, const std::string& data)
+{
+    int64_t type;
+    int64_t value;
+
+    CacheableReader reader{data};
+    if (!reader.unserializei64(type))
+    {
+        return {};
+    }
+    if (!reader.unserializei64(value))
+    {
+        return {};
+    }
+
+    auto cacheableStatus = std::make_shared<CacheableStatus>(type, value);
+
+    client->loadCacheableStatus(cacheableStatus);
+    return cacheableStatus;
+}
+
+bool CacheableStatus::serialize(std::string& data) const
+{
+    CacheableWriter writer{data};
+    writer.serializei64(mType);
+    writer.serializei64(mValue);
+    return true;
+}
+
+int64_t CacheableStatus::value() const
+{
+    return mValue;
+}
+
+int64_t CacheableStatus::type() const
+{
+    return mType;
+}
+
+void CacheableStatus::setValue(const int64_t value)
+{
+    mValue = value;
+}
+
+SyncConfig::SyncConfig(int tag,
+                       std::string localPath,
+                       std::string name,
                        const handle remoteNode,
+                       const std::string &remotePath,
                        const fsfp_t localFingerprint,
                        std::vector<std::string> regExps,
+                       const bool enabled,
                        const Type syncType,
                        const bool syncDeletions,
-                       const bool forceOverwrite)
-    : mLocalPath{std::move(localPath)}
+                       const bool forceOverwrite,
+                       const SyncError error)
+    : mTag{tag}
+    , mEnabled{enabled}
+    , mLocalPath{std::move(localPath)}
+    , mName{std::move(name)}
     , mRemoteNode{remoteNode}
+    , mRemotePath{remotePath}
     , mLocalFingerprint{localFingerprint}
     , mRegExps{std::move(regExps)}
     , mSyncType{syncType}
     , mSyncDeletions{syncDeletions}
     , mForceOverwrite{forceOverwrite}
+    , mError{error}
 {}
+
+
+int SyncConfig::getTag() const
+{
+    return mTag;
+}
+
+void SyncConfig::setTag(int tag)
+{
+    mTag = tag;
+}
+
+bool SyncConfig::getEnabled() const
+{
+    return mEnabled;
+}
+
+void SyncConfig::setEnabled(bool enabled)
+{
+    mEnabled = enabled;
+}
+
+bool SyncConfig::isEnabled(syncstate_t state, SyncError syncError)
+{
+    return state != SYNC_CANCELED && (state != SYNC_DISABLED || syncError != NO_SYNC_ERROR);
+}
 
 bool SyncConfig::isResumable() const
 {
-    return mResumable;
+    return mEnabled && !isSyncErrorPermanent(mError);
 }
 
-void SyncConfig::setResumable(bool resumable)
+bool SyncConfig::isResumableAtStartup() const
 {
-    mResumable = resumable;
+    return mEnabled && (!isAnError(mError)
+                        || mError == LOGGED_OUT
+                        || mError == UNKNOWN_TEMPORARY_ERROR
+                        || mError == FOREIGN_TARGET_OVERSTORAGE); //temporary errors that don't have an asociated restore functionality
+}
+
+bool SyncConfig::hasError() const
+{
+    return isAnError(mError);
 }
 
 const std::string& SyncConfig::getLocalPath() const
@@ -2186,9 +2287,29 @@ const std::string& SyncConfig::getLocalPath() const
     return mLocalPath;
 }
 
+const std::string& SyncConfig::getName() const
+{
+    return mName;
+}
+
 handle SyncConfig::getRemoteNode() const
 {
     return mRemoteNode;
+}
+
+void SyncConfig::setRemoteNode(const handle &remoteNode)
+{
+    mRemoteNode = remoteNode;
+}
+
+const std::string& SyncConfig::getRemotePath() const
+{
+    return mRemotePath;
+}
+
+void SyncConfig::setRemotePath(const std::string &remotePath)
+{
+    mRemotePath = remotePath;
 }
 
 handle SyncConfig::getLocalFingerprint() const
@@ -2245,6 +2366,16 @@ bool SyncConfig::forceOverwrite() const
     return false;
 }
 
+SyncError SyncConfig::getError() const
+{
+    return mError;
+}
+
+void SyncConfig::setError(SyncError value)
+{
+    mError = value;
+}
+
 // This should be a const-method but can't be due to the broken Cacheable interface.
 // Do not mutate members in this function! Hence, we forward to a private const-method.
 bool SyncConfig::serialize(std::string* data)
@@ -2254,18 +2385,26 @@ bool SyncConfig::serialize(std::string* data)
 
 std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
 {
-    bool resumable;
+    int64_t tag;
+    bool enabled;
     std::string localPath;
+    std::string name;
     handle remoteNode;
+    std::string remotePath;
     fsfp_t fingerprint;
     uint32_t regExpCount;
     std::vector<std::string> regExps;
     uint32_t syncType;
     bool syncDeletions;
     bool forceOverwrite;
+    uint32_t error;
 
     CacheableReader reader{data};
-    if (!reader.unserializebool(resumable))
+    if (!reader.unserializei64(tag))
+    {
+        return {};
+    }
+    if (!reader.unserializebool(enabled))
     {
         return {};
     }
@@ -2273,7 +2412,15 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     {
         return {};
     }
+    if (!reader.unserializestring(name))
+    {
+        return {};
+    }
     if (!reader.unserializehandle(remoteNode))
+    {
+        return {};
+    }
+    if (!reader.unserializestring(remotePath))
     {
         return {};
     }
@@ -2306,20 +2453,26 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     {
         return {};
     }
-
-    auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{std::move(localPath),
-                    remoteNode, fingerprint, std::move(regExps),
-                    static_cast<Type>(syncType), syncDeletions, forceOverwrite}};
-    syncConfig->setResumable(resumable);
+    if (!reader.unserializeu32(error))
+    {
+        return {};
+    }
+    auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{static_cast<int>(tag), std::move(localPath), std::move(name),
+                    remoteNode, std::move(remotePath), fingerprint, std::move(regExps), enabled,
+                    static_cast<Type>(syncType), syncDeletions,
+                    forceOverwrite, static_cast<SyncError>(error)}};
     return syncConfig;
 }
 
 bool SyncConfig::serialize(std::string& data) const
 {
     CacheableWriter writer{data};
-    writer.serializebool(mResumable);
+    writer.serializei64(mTag);
+    writer.serializebool(mEnabled);
     writer.serializestring(mLocalPath);
+    writer.serializestring(mName);
     writer.serializehandle(mRemoteNode);
+    writer.serializestring(mRemotePath);
     writer.serializefsfp(mLocalFingerprint);
     writer.serializeu32(static_cast<uint32_t>(mRegExps.size()));
     for (const auto& regExp : mRegExps)
@@ -2329,6 +2482,7 @@ bool SyncConfig::serialize(std::string& data) const
     writer.serializeu32(static_cast<uint32_t>(mSyncType));
     writer.serializebool(mSyncDeletions);
     writer.serializebool(mForceOverwrite);
+    writer.serializeu32(static_cast<int>(mError));
     writer.serializeexpansionflags();
     return true;
 }

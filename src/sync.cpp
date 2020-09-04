@@ -490,7 +490,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 
 SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng, const std::string& id)
 {
-    std::string dbname = "syncconfigs_" + id;
+    std::string dbname = "syncconfigsv2_" + id;
     mTable.reset(dbaccess.open(rng, &fsaccess, &dbname, false, false));
     if (!mTable)
     {
@@ -514,7 +514,7 @@ SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, Prn
         }
         syncConfig->dbid = tableId;
 
-        mSyncConfigs.insert(std::make_pair(syncConfig->getLocalPath(), *syncConfig));
+        mSyncConfigs.insert(std::make_pair(syncConfig->getTag(), *syncConfig));
         if (tableId > mTable->nextid)
         {
             mTable->nextid = tableId;
@@ -540,7 +540,7 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
         return true;
     };
 
-    map<string, SyncConfig>::iterator syncConfigIt = mSyncConfigs.find(syncConfig.getLocalPath());
+    map<int, SyncConfig>::iterator syncConfigIt = mSyncConfigs.find(syncConfig.getTag());
     if (syncConfigIt == mSyncConfigs.end()) // syncConfig is new
     {
         if (mTable)
@@ -550,7 +550,7 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
                 return;
             }
         }
-        auto insertPair = mSyncConfigs.insert(std::make_pair(syncConfig.getLocalPath(), syncConfig));
+        auto insertPair = mSyncConfigs.insert(std::make_pair(syncConfig.getTag(), syncConfig));
         if (mTable)
         {
             insertPair.first->second.dbid = mTable->nextid;
@@ -572,9 +572,9 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
     }
 }
 
-void SyncConfigBag::remove(const std::string& localPath)
+bool SyncConfigBag::removeByTag(const int tag)
 {
-    auto syncConfigPair = mSyncConfigs.find(localPath);
+    auto syncConfigPair = mSyncConfigs.find(tag);
     if (syncConfigPair != mSyncConfigs.end())
     {
         if (mTable)
@@ -585,19 +585,31 @@ void SyncConfigBag::remove(const std::string& localPath)
                 LOG_err << "Incomplete database del at id: " << syncConfigPair->second.dbid;
                 assert(false);
                 mTable->abort();
-                return;
             }
         }
         mSyncConfigs.erase(syncConfigPair);
+        return true;
     }
+    return false;
 }
 
-const SyncConfig* SyncConfigBag::get(const std::string& localPath) const
+const SyncConfig* SyncConfigBag::get(const int tag) const
 {
-    auto syncConfigPair = mSyncConfigs.find(localPath);
+    auto syncConfigPair = mSyncConfigs.find(tag);
     if (syncConfigPair != mSyncConfigs.end())
     {
         return &syncConfigPair->second;
+    }
+    return nullptr;
+}
+
+
+const SyncConfig* SyncConfigBag::getByNodeHandle(handle nodeHandle) const
+{
+    for (const auto& syncConfigPair : mSyncConfigs)
+    {
+        if (syncConfigPair.second.getRemoteNode() == nodeHandle)
+            return &syncConfigPair.second;
     }
     return nullptr;
 }
@@ -624,7 +636,7 @@ std::vector<SyncConfig> SyncConfigBag::all() const
 
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
-Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
+Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
            LocalPath* clocaldebris, Node* remotenode, bool cinshare, int ctag, void *cappdata)
 : localroot(new LocalNode)
 {
@@ -633,7 +645,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
     tag = ctag;
     inshare = cinshare;
     appData = cappdata;
-    errorcode = API_OK;
+    errorCode = NO_SYNC_ERROR;
     tmpfa = NULL;
     initializing = true;
     updatedfilesize = ~0;
@@ -745,24 +757,13 @@ Sync::Sync(MegaClient* cclient, SyncConfig config, const char* cdebris,
             readstatecache();
         }
     }
-
-    if (client->syncConfigs)
-    {
-        client->syncConfigs->insert(config);
-    }
 }
 
 Sync::~Sync()
 {
     // must be set to prevent remote mass deletion while rootlocal destructor runs
-    assert(state == SYNC_CANCELED || state == SYNC_FAILED);
+    assert(state == SYNC_CANCELED || state == SYNC_FAILED || state == SYNC_DISABLED);
     mDestructorRunning = true;
-
-    if (!statecachetable && client->syncConfigs)
-    {
-        // if there's no localnode cache then remove the sync config
-        client->syncConfigs->remove(mLocalPath);
-    }
 
     // unlock tmp lock
     tmpfa.reset();
@@ -892,21 +893,9 @@ bool Sync::readstatecache()
 const SyncConfig& Sync::getConfig() const
 {
     assert(client->syncConfigs && "Calling getConfig() requires sync configs");
-    const auto config = client->syncConfigs->get(mLocalPath);
+    const auto config = client->syncConfigs->get(tag);
     assert(config);
     return *config;
-}
-
-void Sync::setResumable(const bool isResumable)
-{
-    if (client->syncConfigs)
-    {
-        const auto config = client->syncConfigs->get(mLocalPath);
-        assert(config);
-        auto newConfig = *config;
-        newConfig.setResumable(isResumable);
-        client->syncConfigs->insert(newConfig);
-    }
 }
 
 // remove LocalNode from DB cache
@@ -983,20 +972,18 @@ void Sync::cachenodes()
     }
 }
 
-void Sync::changestate(syncstate_t newstate)
+void Sync::changestate(syncstate_t newstate, SyncError newSyncError)
 {
-    if (newstate != state)
+    if (newstate != state || newSyncError != errorCode)
     {
-        client->app->syncupdate_state(this, newstate);
-
-        if (newstate == SYNC_FAILED && statecachetable)
+        LOG_debug << "Sync state/error changing. from " << state << "/" << errorCode << " to "  << newstate << "/" << newSyncError;
+        if (newstate != SYNC_CANCELED)
         {
-            statecachetable->remove();
-            delete statecachetable;
-            statecachetable = NULL;
+            client->changeSyncState(tag, newstate, newSyncError);
         }
 
         state = newstate;
+        errorCode = newSyncError;
         fullscan = false;
     }
 }
@@ -1654,8 +1641,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                 {
                     // root node cannot be a file
                     LOG_err << "The local root node is a file";
-                    errorcode = API_EFAILED;
-                    changestate(SYNC_FAILED);
+                    changestate(SYNC_FAILED, INVALID_LOCAL_TYPE);
                 }
                 else
                 {
