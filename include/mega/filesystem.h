@@ -147,7 +147,7 @@ public:
     LocalPath leafName(separator_t localseparator) const;
     void append(const LocalPath& additionalPath);
     void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways, separator_t localseparator);
-    void prependWithSeparator(const LocalPath& additionalPath, separator_t separator_t);
+    void prependWithSeparator(const LocalPath& additionalPath, separator_t localseparator);
     void trimNonDriveTrailingSeparator(separator_t);
     bool findNextSeparator(size_t& separatorBytePos, separator_t localseparator) const;
     bool findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;

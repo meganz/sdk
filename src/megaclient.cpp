@@ -4003,7 +4003,7 @@ void MegaClient::resumeResumableSyncs()
                 newstate = s->state; //override state with the actual one from the sync
 
                 // update config entry with the error, if any. otherwise addsync would have updated it
-                saveAndUpdateSyncConfig(&config, isSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED, static_cast<SyncError>(syncError) );
+                saveAndUpdateSyncConfig(&config, newstate, static_cast<SyncError>(syncError) );
             }
         }
 
