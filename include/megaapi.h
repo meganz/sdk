@@ -17643,6 +17643,9 @@ class MegaApi
          */
         MegaApiLock* getMegaApiLock(bool lockNow);
 
+        /**
+         * @brief Request a list of all Smart Banners available for current user.
+         */
         void getBanners(MegaRequestListener *listener = nullptr);
 
  private:

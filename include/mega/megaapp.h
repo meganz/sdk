@@ -416,8 +416,8 @@ struct MEGA_API MegaApp
     virtual void backupputheartbeat_result(const Error&) { }
     virtual void backupremove_result(const Error&, handle /*backup id*/) { }
 
-    virtual void getbanner_result(error) { }
-    virtual void getbanner_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) { }
+    virtual void getbanners_result(error) { }
+    virtual void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) { }
 
     virtual ~MegaApp() { }
 };

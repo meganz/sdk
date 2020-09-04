@@ -15869,7 +15869,7 @@ void MegaApiImpl::checkfile_result(handle h, error e, byte*, m_off_t, m_time_t, 
     }
 }
 
-void MegaApiImpl::getbanner_result(error e)
+void MegaApiImpl::getbanners_result(error e)
 {
     auto it = requestMap.find(client->restag);
     if (it == requestMap.end())
@@ -15882,7 +15882,7 @@ void MegaApiImpl::getbanner_result(error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::getbanner_result(vector< tuple<int, string, string, string, string, string, string> >&& banners)
+void MegaApiImpl::getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners)
 {
     auto it = requestMap.find(client->restag);
     if (it == requestMap.end())

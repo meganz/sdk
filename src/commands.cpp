@@ -8319,7 +8319,7 @@ bool CommandGetBanners::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->getbanner_result(r.errorOrOK());
+        client->app->getbanners_result(r.errorOrOK());
         return true; // because parsing didn't fail
     }
 
@@ -8401,7 +8401,7 @@ bool CommandGetBanners::procresult(Result r)
     client->json.leavearray();
     client->json.leavearray();
 
-    client->app->getbanner_result(move(banners));
+    client->app->getbanners_result(move(banners));
 
     return true;
 }
