@@ -358,7 +358,7 @@ enum SyncError {
     LOGGED_OUT = 28,                        // Logged out
 };
 
-static bool isSyncErrorPermanent(SyncError e)
+inline bool isSyncErrorPermanent(SyncError e)
 {
     switch (e)
     {
@@ -377,7 +377,7 @@ static bool isSyncErrorPermanent(SyncError e)
     }
 }
 
-static bool isAnError(SyncError e)
+inline bool isAnError(SyncError e)
 {
     switch (e)
     {

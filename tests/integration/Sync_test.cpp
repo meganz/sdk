@@ -1373,19 +1373,18 @@ struct StandardClient : public MegaApp
         }
     }
 
-    bool setupSync_inthread(int syncid, const string& subfoldername, const fs::path& localpath)
+    bool setupSync_inthread(int syncTag, const string& subfoldername, const fs::path& localpath)
     {
         if (Node* n = client.nodebyhandle(basefolderhandle))
         {
             if (Node* m = drillchildnodebyname(n, subfoldername))
             {
-                static int syncTag = 1001;
-                SyncConfig syncConfig{syncTag++, localpath.u8string(), localpath.u8string(), m->nodehandle, subfoldername, 0};
+                SyncConfig syncConfig{syncTag, localpath.u8string(), localpath.u8string(), m->nodehandle, subfoldername, 0};
                 SyncError syncError;
                 error e = client.addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError);  // use syncid as tag
                 if (!e)
                 {
-                    syncSet[syncid] = SyncInfo{ m->nodehandle, localpath };
+                    syncSet[syncTag] = SyncInfo{ m->nodehandle, localpath };
                     return true;
                 }
             }
@@ -2020,17 +2019,17 @@ struct StandardClient : public MegaApp
     //    return setupSync_mainthread(localsyncrootfolder, remotesyncrootfolder, syncid);
     //}
 
-    bool setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, int syncid)
+    bool setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, int syncTag)
     {
         fs::path syncdir = fsBasePath / fs::u8path(localsyncrootfolder);
         fs::create_directory(syncdir);
-        future<bool> fb = thread_do([=](StandardClient& mc, promise<bool>& pb) { pb.set_value(mc.setupSync_inthread(syncid, remotesyncrootfolder, syncdir)); });
+        future<bool> fb = thread_do([=](StandardClient& mc, promise<bool>& pb) { pb.set_value(mc.setupSync_inthread(syncTag, remotesyncrootfolder, syncdir)); });
         return fb.get();
     }
 
-    bool delSync_mainthread(int syncId, bool keepCache = false)
+    bool delSync_mainthread(int syncTag, bool keepCache = false)
     {
-        future<bool> fb = thread_do([=](StandardClient& mc, promise<bool>& pb) { pb.set_value(mc.delSync_inthread(syncId, keepCache)); });
+        future<bool> fb = thread_do([=](StandardClient& mc, promise<bool>& pb) { pb.set_value(mc.delSync_inthread(syncTag, keepCache)); });
         return fb.get();
     }
 

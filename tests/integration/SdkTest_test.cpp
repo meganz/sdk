@@ -269,8 +269,26 @@ void SdkTest::Cleanup()
     deleteFile(PUBLICFILE);
     deleteFile(AVATARDST);
 
+    std::vector<std::unique_ptr<RequestTracker>> delSyncTrackers;
+
+    for (auto &m : megaApi)
+    {
+        auto syncs = unique_ptr<MegaSyncList>(m->getSyncs());
+        for (int i = syncs->size(); i--; )
+        {
+            delSyncTrackers.push_back(std::unique_ptr<RequestTracker>(new RequestTracker(m.get())));
+            m->removeSync(syncs->get(i), delSyncTrackers.back().get());
+        }
+    }
+
+    // wait for delsyncs to complete:
+    for (auto& d : delSyncTrackers) d->waitForResult();
+    WaitMillisec(5000);
+
+
     if (megaApi[0])
     {
+
         // Remove nodes in Cloud & Rubbish
         purgeTree(std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), false);
         purgeTree(std::unique_ptr<MegaNode>{megaApi[0]->getRubbishNode()}.get(), false);
@@ -5046,10 +5064,10 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     LOG_verbose << " SyncResumptionAfterFetchNodes : syncying folders";
 
-    int tag1 = syncFolder(sync1Path);
+    int tag1 = syncFolder(sync1Path);  tag1;
     int tag2 = syncFolder(sync2Path);
-    int tag3 = syncFolder(sync3Path);
-    int tag4 = syncFolder(sync4Path);
+    int tag3 = syncFolder(sync3Path);  tag3;
+    int tag4 = syncFolder(sync4Path);  tag4;
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_TRUE(checkSyncOK(sync2Path));
