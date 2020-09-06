@@ -1011,7 +1011,7 @@ bool CommandSetAttr::procresult(Result r)
     if (Node* n = client->nodebyhandle(h))
     {
         // in case the name of the file/folder changed
-        if (n && n->parent && n->parent->localnode)
+        if (n->parent && n->parent->localnode)
         {
             n->parent->localnode->needsFutureSyncdown();
         }

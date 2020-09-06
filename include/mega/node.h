@@ -114,9 +114,9 @@ private:
 };
 
 struct CommandChain
-{   
+{
     // convenience functions, hides the unique_ptr aspect, removes it when empty
-    bool empty() 
+    bool empty()
     {
         return !chain || chain->empty();
     }
@@ -403,7 +403,7 @@ struct MEGA_API LocalNode : public File
         // needs another syncdown after pending changes
         unsigned syncdownTargetedAction : 2;
 
-        // at least one child has needsAnotherSyncdown set
+        // needs another syncup after pending changes
         unsigned syncupTargetedAction : 2;
     };
 

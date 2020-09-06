@@ -13317,7 +13317,7 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWh
                 // recurse into directories of equal name
                 if (!syncdown(ll, localpath, scanWholeSubtree))
                 {
-                    l->syncdownTargetedAction = std::max<int>(originalTargetedAction, LocalNode::SYNCTREE_DESCENDANT_FLAGGED);
+                    l->syncdownTargetedAction = std::max<unsigned>(originalTargetedAction, LocalNode::SYNCTREE_DESCENDANT_FLAGGED);
                     success = false;
                 }
 
@@ -14092,13 +14092,6 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
 
     return true;
 }
-
-//bool MegaClient::syncup(LocalNode* l, dstime* nds, bool scanWholeSubtree)
-//{
-//    size_t numPending = 0;
-//
-//    return syncup(l, nds, numPending) && numPending == 0;
-//}
 
 // execute updates stored in synccreate[]
 // must not be invoked while the previous creation operation is still in progress
@@ -15211,7 +15204,7 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
         return nullptr;
 
     std::string localName = localNode->localname.toName(*fsaccess);
-    
+
     // Only compare metamac if the node doesn't already exist.
     node_vector::const_iterator remoteNode =
       std::find_if(remoteNodes->begin(),
