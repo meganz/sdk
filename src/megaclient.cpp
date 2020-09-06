@@ -13346,21 +13346,24 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWh
                 }
             }
 
-            // attempt deletion and re-queue for retry in case of a transient failure
-            ll->treestate(TREESTATE_SYNCING);
+            if (ll->deleted)
+            {
+                // attempt deletion and re-queue for retry in case of a transient failure
+                ll->treestate(TREESTATE_SYNCING);
 
-            if (l->sync->movetolocaldebris(localpath) || !fsaccess->transient_error)
-            {
-                DBTableTransactionCommitter committer(tctable);
-                delete lit++->second;
-            }
-            else
-            {
-                blockedfile = localpath;
-                LOG_warn << "Transient error deleting " << blockedfile.toPath(*fsaccess);
-                l->needsFutureSyncdown();
-                success = false;
-                lit++;
+                if (l->sync->movetolocaldebris(localpath) || !fsaccess->transient_error)
+                {
+                    DBTableTransactionCommitter committer(tctable);
+                    delete lit++->second;
+                }
+                else
+                {
+                    blockedfile = localpath;
+                    LOG_warn << "Transient error deleting " << blockedfile.toPath(*fsaccess);
+                    l->needsFutureSyncdown();
+                    success = false;
+                    lit++;
+                }
             }
         }
         else
@@ -14609,7 +14612,7 @@ bool MegaClient::updateSyncRemoteLocation(const SyncConfig *config, Node *n, boo
     if (!config)
     {
         LOG_err << "no config upon updateSyncRemotePath";
-        return API_ENOENT;
+        return false;
     }
     assert(syncConfigs);
 
