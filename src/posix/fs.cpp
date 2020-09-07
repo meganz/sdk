@@ -254,10 +254,7 @@ void PosixFileAccess::asyncopfinished(sigval sigev_value)
 void PosixFileAccess::asyncsysopen(AsyncIOContext *context)
 {
 #ifdef HAVE_AIO_RT
-    auto localName = string((char*)context->buffer, context->len);
-    auto localPath = LocalPath::fromPlatformEncoded(localName);
-
-    context->failed = !fopen(localPath, context->access & AsyncIOContext::ACCESS_READ,
+    context->failed = !fopen(context->openPath, context->access & AsyncIOContext::ACCESS_READ,
                              context->access & AsyncIOContext::ACCESS_WRITE);
     context->retry = retry;
     context->finished = true;
@@ -293,9 +290,9 @@ void PosixFileAccess::asyncsysread(AsyncIOContext *context)
     memset(aiocbp, 0, sizeof (struct aiocb));
 
     aiocbp->aio_fildes = fd;
-    aiocbp->aio_buf = (void *)posixContext->buffer;
-    aiocbp->aio_nbytes = posixContext->len;
-    aiocbp->aio_offset = posixContext->pos;
+    aiocbp->aio_buf = (void *)posixContext->dataBuffer;
+    aiocbp->aio_nbytes = posixContext->dataBufferLen;
+    aiocbp->aio_offset = posixContext->posOfBuffer;
     aiocbp->aio_sigevent.sigev_notify = SIGEV_THREAD;
     aiocbp->aio_sigevent.sigev_notify_function = asyncopfinished;
     aiocbp->aio_sigevent.sigev_value.sival_ptr = (void *)posixContext;
@@ -342,9 +339,9 @@ void PosixFileAccess::asyncsyswrite(AsyncIOContext *context)
     memset(aiocbp, 0, sizeof (struct aiocb));
 
     aiocbp->aio_fildes = fd;
-    aiocbp->aio_buf = (void *)posixContext->buffer;
-    aiocbp->aio_nbytes = posixContext->len;
-    aiocbp->aio_offset = posixContext->pos;
+    aiocbp->aio_buf = (void *)posixContext->dataBuffer;
+    aiocbp->aio_nbytes = posixContext->dataBufferLen;
+    aiocbp->aio_offset = posixContext->posOfBuffer;
     aiocbp->aio_sigevent.sigev_notify = SIGEV_THREAD;
     aiocbp->aio_sigevent.sigev_notify_function = asyncopfinished;
     aiocbp->aio_sigevent.sigev_value.sival_ptr = (void *)posixContext;
