@@ -16,9 +16,9 @@ for l in open(sys.argv[1]):
             header = found = m.group(1)
             found = m.group(2)
             if header and found:
-                print header,
                 try:
-                    print json.dumps(json.loads(found), sort_keys=False, indent=4)
+                    contents = json.dumps(json.loads(found), sort_keys=False, indent=4)
+                    print header+contents
                 except:
                     #try this other format:
                     m = re.search('(.*)((sc|cs) (Received|Sending) [0-9]*:  *)(\{.*\}|\[.*\])  *(\[.*cpp.*\])*', l)
@@ -28,16 +28,15 @@ for l in open(sys.argv[1]):
                         found = m.group(5)
                         fil = m.group(6)
                         if header and sendrecv and found:
-                            print header,
                             try:
-                                print json.dumps(json.loads(found), sort_keys=False, indent=4)
+                                contents = json.dumps(json.loads(found), sort_keys=False, indent=4)
+                                print header+sendrecv+contents
                             except:
-                                print found
+                                print l
                         else:
                             print l,
                     else:
                         print l,
-                    print found
             else:
                 print l,
         else:
