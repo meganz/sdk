@@ -1316,7 +1316,7 @@ public:
     bool procresult(Result) override;
 
     // Register a new Sync
-    CommandBackupPut(MegaClient* client, BackupType type, handle nodeHandle, const std::string& localFolder, const std::string& deviceId, const std::string& backupName, int state, int subState, const std::string& extraData);
+    CommandBackupPut(MegaClient* client, BackupType type, handle nodeHandle, const std::string& localFolder, const std::string& deviceId, int state, int subState, const std::string& extraData);
 
     // Update a Backup
     // Params that keep the same value are passed with invalid value to avoid to send to the server
@@ -1325,11 +1325,10 @@ public:
     // - nodeHandle: UNDEF
     // - localFolder: nullptr
     // - deviceId: nullptr
-    // - backupName: nullptr
     // - state: -1
     // - subState: -1
     // - extraData: nullptr
-    CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char* deviceId, const char* backupName, int state, int subState, const char* extraData);
+    CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData);
 
 private:
     bool mUpdate = false;

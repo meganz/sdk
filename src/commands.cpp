@@ -8124,7 +8124,7 @@ bool CommandFolderLinkInfo::procresult(Result r)
 }
 
 // to register a new backup
-CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle nodeHandle, const string& localFolder, const std::string &deviceId, const string& backupName, int state, int subState, const string& extraData)
+CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle nodeHandle, const string& localFolder, const std::string &deviceId, int state, int subState, const string& extraData)
 {
     assert(type != BackupType::INVALID);
 
@@ -8134,7 +8134,6 @@ CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle n
     arg("h", (byte*)&nodeHandle, MegaClient::NODEHANDLE);
     arg("l", localFolder.c_str());
     arg("d", deviceId.c_str());
-    arg("n", backupName.c_str());
     arg("s", state);
     arg("ss", subState);
 
@@ -8146,7 +8145,7 @@ CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle n
 }
 
 // to update an already registered backup
-CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, const char* backupName, int state, int subState, const char* extraData)
+CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, int state, int subState, const char* extraData)
 {
     cmd("sp");
 
@@ -8170,11 +8169,6 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupTy
     if (deviceId)
     {
         arg("d", deviceId);
-    }
-
-    if (backupName)
-    {
-        arg("n", backupName);
     }
 
     if (state > 0)

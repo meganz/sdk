@@ -159,15 +159,13 @@ private:
 class MegaBackupInfo
 {
 public:
-    MegaBackupInfo(BackupType type, string localFolder, string mName, handle megaHandle, int state, int substate, string extra, handle backupId = UNDEF);
+    MegaBackupInfo(BackupType type, string localFolder, handle megaHandle, int state, int substate, string extra, handle backupId = UNDEF);
 
     BackupType type() const;
 
     handle backupId() const;
 
     string localFolder() const;
-
-    string name() const;
 
     handle megaHandle() const;
 
@@ -183,7 +181,6 @@ protected:
     BackupType mType;
     handle mBackupId;
     string mLocalFolder;
-    string mName;
     handle mMegaHandle;
     int mState;
     int mSubState;

@@ -298,11 +298,10 @@ void HeartBeatSyncInfo::updateStatus(MegaClient *client)
 
 ////////////// BackupInfo ////////////////
 
-MegaBackupInfo::MegaBackupInfo(BackupType type, string localFolder, string name, handle megaHandle, int state, int substate, std::string extra, handle backupId)
+MegaBackupInfo::MegaBackupInfo(BackupType type, string localFolder, handle megaHandle, int state, int substate, std::string extra, handle backupId)
     : mType(type)
     , mBackupId(backupId)
     , mLocalFolder(localFolder)
-    , mName(name)
     , mMegaHandle(megaHandle)
     , mState(state)
     , mSubState(substate)
@@ -324,11 +323,6 @@ handle MegaBackupInfo::backupId() const
 string MegaBackupInfo::localFolder() const
 {
     return mLocalFolder;
-}
-
-string MegaBackupInfo::name() const
-{
-    return mName;
 }
 
 handle MegaBackupInfo::megaHandle() const
@@ -358,7 +352,7 @@ void MegaBackupInfo::setBackupId(const handle &backupId)
 
 #ifdef ENABLE_SYNC
 MegaBackupInfoSync::MegaBackupInfoSync(MegaClient *client, const MegaSync &sync, handle backupid)
-    : MegaBackupInfo(getSyncType(client, sync), sync.getLocalFolder(), sync.getName(), sync.getMegaHandle()
+    : MegaBackupInfo(getSyncType(client, sync), sync.getLocalFolder(), sync.getMegaHandle()
                  , getSyncState(client, sync), getSyncSubstatus(sync), getSyncExtraData(sync), backupid)
 {
 
@@ -524,11 +518,10 @@ void MegaBackupMonitor::updateBackupInfo(const MegaBackupInfo &info)
 {
     string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", info.localFolder()) );
     string deviceIDEncrypted(mClient->cypherTLVTextWithMasterKey("de", mClient->getDeviceid()) );
-    string nameEncrypted(mClient->cypherTLVTextWithMasterKey("na", info.name()) );
 
     mClient->reqs.add(new CommandBackupPut(mClient, info.backupId(), info.type(), info.megaHandle(),
                                            localFolderEncrypted.c_str(),
-                                           deviceIDEncrypted.c_str(), nameEncrypted.c_str(),
+                                           deviceIDEncrypted.c_str(),
                                            info.state(), info.subState(), info.extra().c_str()
                                            ));
 }
@@ -538,11 +531,10 @@ void MegaBackupMonitor::registerBackupInfo(const MegaBackupInfo &info)
 {
     string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", info.localFolder()) );
     string deviceIDEncrypted(mClient->cypherTLVTextWithMasterKey("de", mClient->getDeviceid()) );
-    string nameEncrypted(mClient->cypherTLVTextWithMasterKey("na", info.name()) );
 
     mClient->reqs.add(new CommandBackupPut(mClient, info.type(), info.megaHandle(),
                                            localFolderEncrypted.c_str(),
-                                           deviceIDEncrypted.c_str(), nameEncrypted.c_str(),
+                                           deviceIDEncrypted.c_str(),
                                            info.state(), info.subState(), info.extra().c_str()
                                            ));
 }

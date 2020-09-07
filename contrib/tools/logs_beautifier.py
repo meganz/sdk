@@ -20,6 +20,23 @@ for l in open(sys.argv[1]):
                 try:
                     print json.dumps(json.loads(found), sort_keys=False, indent=4)
                 except:
+                    #try this other format:
+                    m = re.search('(.*)((sc|cs) (Received|Sending) [0-9]*:  *)(\{.*\}|\[.*\])  *(\[.*cpp.*\])*', l)
+                    if m and m is not None and len(m.groups()) > 4:
+                        header = found = m.group(1)
+                        sendrecv = m.group(2)
+                        found = m.group(5)
+                        fil = m.group(6)
+                        if header and sendrecv and found:
+                            print header,
+                            try:
+                                print json.dumps(json.loads(found), sort_keys=False, indent=4)
+                            except:
+                                print found
+                        else:
+                            print l,
+                    else:
+                        print l,
                     print found
             else:
                 print l,
