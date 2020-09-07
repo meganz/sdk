@@ -4001,10 +4001,10 @@ void MegaClient::resumeResumableSyncs()
             {
                 Sync *s = syncs.back();
                 newstate = s->state; //override state with the actual one from the sync
-
-                // update config entry with the error, if any. otherwise addsync would have updated it
-                saveAndUpdateSyncConfig(&config, newstate, static_cast<SyncError>(syncError) );
             }
+
+            // update config entry with the error, if any. otherwise addsync would have updated it
+            saveAndUpdateSyncConfig(&config, newstate, static_cast<SyncError>(syncError) );
         }
 
         LOG_debug << "Sync autoresumed: " << config.getTag() << " " << config.getLocalPath() << " fsfp= " << config.getLocalFingerprint() << " error = " << syncError ;
