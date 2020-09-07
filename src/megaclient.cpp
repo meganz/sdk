@@ -3687,7 +3687,8 @@ void MegaClient::dispatchTransfers()
                 {
                     if (!nexttransfer->asyncopencontext)
                     {
-                        LOG_debug << "Starting async open";
+                        LOG_debug << "Starting async open: "
+                                  << nexttransfer->localfilename.toPath(*fsaccess);
 
                         // try to open file (PUT transfers: open in nonblocking mode)
                         nexttransfer->asyncopencontext = (nexttransfer->type == PUT)
@@ -3698,7 +3699,9 @@ void MegaClient::dispatchTransfers()
 
                     if (nexttransfer->asyncopencontext->finished)
                     {
-                        LOG_debug << "Async open finished";
+                        LOG_debug << "Async open finished: "
+                                  << nexttransfer->localfilename.toPath(*fsaccess);
+
                         openok = !nexttransfer->asyncopencontext->failed;
                         openfinished = true;
                         delete nexttransfer->asyncopencontext;
@@ -3720,6 +3723,9 @@ void MegaClient::dispatchTransfers()
                 else
                 {
                     // try to open file (PUT transfers: open in nonblocking mode)
+                    LOG_debug << "Sync open: "
+                              << nexttransfer->localfilename.toPath(*fsaccess);
+
                     openok = (nexttransfer->type == PUT)
                         ? ts->fa->fopen(nexttransfer->localfilename)
                         : ts->fa->fopen(nexttransfer->localfilename, false, true);
@@ -3769,8 +3775,18 @@ void MegaClient::dispatchTransfers()
                     {
                         if (ts->fa->mtime != nexttransfer->mtime || ts->fa->size != nexttransfer->size)
                         {
-                            LOG_warn << "Modification detected starting upload.   Size: " << nexttransfer->size << "  Mtime: " << nexttransfer->mtime
-                                << "    FaSize: " << ts->fa->size << "  FaMtime: " << ts->fa->mtime;
+                            LOG_warn << "Modification detected starting upload."
+                                     << " Path: "
+                                     << nexttransfer->localfilename.toPath(*fsaccess)
+                                     << " Size: "
+                                     << nexttransfer->size
+                                     << " Mtime: "
+                                     << nexttransfer->mtime
+                                     << " FaSize: "
+                                     << ts->fa->size
+                                     << " FaMtime: "
+                                     << ts->fa->mtime;
+
                             nexttransfer->failed(API_EREAD, committer);
                             continue;
                         }
@@ -13874,6 +13890,8 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                 bool t;
                 auto fa = fsaccess->newfileaccess(false);
 
+                LOG_debug << "Checking node stability: " << localpath.toPath(*fsaccess);
+
                 if (!(t = fa->fopen(localpath, true, false))
                  || fa->size != ll->size
                  || fa->mtime != ll->mtime)
@@ -14918,11 +14936,13 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 }
 
                 auto fa = fsaccess->newfileaccess();
+                auto localpath = t->localfilename.toPath(*fsaccess);
+
                 if (!fa->fopen(t->localfilename))
                 {
                     if (d == PUT)
                     {
-                        LOG_warn << "Local file not found";
+                        LOG_warn << "Local file not found: " << localpath;
                         // the transfer will be retried to ensure that the file
                         // is not just just temporarily blocked
                     }
@@ -14930,7 +14950,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                     {
                         if (hadAnyData)
                         {
-                            LOG_warn << "Temporary file not found";
+                            LOG_warn << "Temporary file not found:" << localpath;
                         }
                         t->localfilename.clear();
                         t->chunkmacs.clear();
@@ -14944,7 +14964,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                     {
                         if (f->genfingerprint(fa.get()))
                         {
-                            LOG_warn << "The local file has been modified";
+                            LOG_warn << "The local file has been modified: " << localpath;
                             t->tempurls.clear();
                             t->chunkmacs.clear();
                             t->progresscompleted = 0;
@@ -14957,7 +14977,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                     {
                         if (t->progresscompleted > fa->size)
                         {
-                            LOG_warn << "Truncated temporary file";
+                            LOG_warn << "Truncated temporary file: " << localpath;
                             t->chunkmacs.clear();
                             t->progresscompleted = 0;
                             t->pos = 0;
