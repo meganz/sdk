@@ -441,6 +441,8 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
 #endif
 
     bool skipcasecheck = false;
+
+    ScopedLengthRestore restoreNamePath(namePath);
     sanitizedriveletter(namePath.localpath);
 
     if (write)
@@ -494,36 +496,15 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
 
         if (!skipcasecheck)
         {
-            // todo: use localpath function to get the leaf name instead?
-            const wchar_t* filename = namePath.localpath.c_str() + namePath.localpath.size() - 1;
-            int filenamesize = 0;
-            bool separatorfound = false;
-            do {
-                filename -= 1;
-                filenamesize += 1;
-                separatorfound = !memcmp(L"\\", filename, sizeof(wchar_t)) || !memcmp(L"/", filename, sizeof(wchar_t)) || !memcmp(L":", filename, sizeof(wchar_t));
-            } while (filename > namePath.localpath.c_str() && !separatorfound);
+            LocalPath filename = namePath.leafName(gWfsa.localseparator);
 
-            if (filenamesize > 1 || !separatorfound)
+            if (filename.localpath != wstring(fad.cFileName) &&
+                filename.localpath != wstring(fad.cAlternateFileName) &&
+                filename.localpath != L"." && filename.localpath != L"..")
             {
-                if (separatorfound)
-                {
-                    ++filename;
-                }
-                else
-                {
-                    ++filenamesize;
-                }
-
-                if (memcmp(filename, fad.cFileName, filenamesize < sizeof(fad.cFileName) ? filenamesize : sizeof(fad.cFileName))
-                        && (filenamesize > sizeof(fad.cAlternateFileName) || memcmp(filename, fad.cAlternateFileName, filenamesize))
-                        && !((filenamesize == 2 && !memcmp(filename, L".", 4))
-                             || (filenamesize == 3 && !memcmp(filename, L"..", 6))))  // please double check arithmetic here
-                {
-                    LOG_warn << "fopen failed due to invalid case";
-                    retry = false;
-                    return false;
-                }
+                LOG_warn << "fopen failed due to invalid case";
+                retry = false;
+                return false;
             }
         }
 
@@ -1693,7 +1674,7 @@ bool WinDirAccess::dopen(LocalPath* nameArg, FileAccess* f, bool glob)
         }
 
 #ifdef WINDOWS_PHONE
-        hFind = FindFirstFileExW(nameArg->localpath.c_str(), FindExInfoBasic, &ffd, FindExSearchNameMatch, NULL, 0);
+        hFind = FindFirstFileExW(name.c_str(), FindExInfoBasic, &ffd, FindExSearchNameMatch, NULL, 0);
 #else
         hFind = FindFirstFileW(name.c_str(), &ffd);
 #endif

@@ -291,7 +291,6 @@ MegaRecentActionBucket* MegaRecentActionBucket::copy() const
     return NULL;
 }
 
- 
 int64_t MegaRecentActionBucket::getTimestamp() const
 {
     return 0;
@@ -5457,11 +5456,6 @@ void MegaLogger::log(const char* /*time*/, int /*loglevel*/, const char* /*sourc
 }
 
 bool MegaGfxProcessor::readBitmap(const char* /*path*/)
-{
-    return false;
-}
-
-bool MegaGfxProcessor::readBitmap(const wchar_t* /*path*/)
 {
     return false;
 }

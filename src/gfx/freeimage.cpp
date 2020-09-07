@@ -409,7 +409,7 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, in
         if ((ptr = strstr(supportedformatsFfmpeg(), ext)) && ptr[strlen(ext)] == '.')
         {
             isvideo = true;
-            if (!readbitmapFfmpeg(fa, localname, size) )    //todo: just pass LocalPath
+            if (!readbitmapFfmpeg(fa, localname, size) )
             {
                 return false;
             }
