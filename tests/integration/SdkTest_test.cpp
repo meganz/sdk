@@ -4586,9 +4586,8 @@ TEST_F(SdkTest, SdkSimpleCommands)
     err = synchronousGetMiscFlags(0);
     ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
 
-    // getUserEmail() test
+    // leave a valid session, so it works as expected in --RESUMESESSIONS mode
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)

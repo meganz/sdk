@@ -13507,7 +13507,7 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWh
                             {
                                 LOG_debug << "Syncdown not finished";
                             }
-                            l->syncdownTargetedAction = std::max<int>(originalTargetedAction, LocalNode::SYNCTREE_DESCENDANT_FLAGGED);
+                            l->syncdownTargetedAction = std::max<unsigned>(originalTargetedAction, LocalNode::SYNCTREE_DESCENDANT_FLAGGED);
                             success = false;
                         }
                     }
