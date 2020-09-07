@@ -1379,7 +1379,7 @@ main() {
             echo "Recovering previous libs and staus, if any."
             if [ -d $persistent_path/sdk/3rdparty ]; then
                 cp --preserve=timestamps -r $persistent_path/sdk/3rdparty/* $install_dir/
-                sed -i "s#/[^ ]*/lib\([^[:alnum:]]\)#$install_dir/lib\1#g" $install_dir/lib/*.la
+                sed -i "s#/[^ ]*/lib\([^[:alnum:]]\)#$install_dir/lib\1#g" $install_dir/lib*/*.la
             fi
             [ -d $persistent_path/sdk/3rdparty_status ] && cp --preserve=timestamps $persistent_path/sdk/3rdparty_status/* $status_dir/
         fi
