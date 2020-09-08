@@ -115,16 +115,19 @@ private:
 };
 
 struct CommandChain
-{   
+{
     // convenience functions, hides the unique_ptr aspect, removes it when empty
-    bool empty() 
+    bool empty()
     {
         return !chain || chain->empty();
     }
 
     void push_back(Command* c)
     {
-        if (!chain) chain.reset(new std::list<Command*>);
+        if (!chain)
+        {
+            chain.reset(new std::list<Command*>);
+        }
         chain->push_back(c);
     }
 
@@ -378,9 +381,11 @@ struct MEGA_API LocalNode : public File
     // global sync reference
     handle syncid = mega::UNDEF;
 
-    enum { synctree_resolved = 0, 
-           synctree_descendantflagged = 1, 
-           synctree_scanhere = 2 };  // scan here also implies checking immdiate children for synctree_descendantflagged
+    enum : unsigned
+    {
+        SYNCTREE_RESOLVED = 0,
+        SYNCTREE_DESCENDANT_FLAGGED = 1,
+        SYNCTREE_SCAN_HERE = 2 };  // scan here also implies checking immdiate children for synctree_descendantflagged
 
     struct
     {
@@ -397,11 +402,10 @@ struct MEGA_API LocalNode : public File
         bool checked : 1;
 
         // needs another syncdown after pending changes
-        unsigned syncdownTargetedAction: 2;
+        unsigned syncdownTargetedAction : 2;
 
-        // at least one child has needsAnotherSyncdown set
-        unsigned syncupTargetedAction: 2;
-
+        // needs another syncup after pending changes
+        unsigned syncupTargetedAction : 2;
     };
 
     // set the syncupTargetedAction for this, and parents
