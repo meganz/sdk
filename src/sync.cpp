@@ -1402,7 +1402,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                                         client->app->syncupdate_local_move(this, it->second, path.c_str());
 
                                         // (in case of a move, this synchronously updates l->parent and l->node->parent)
-                                        it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew));
+                                        it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew), true);
 
                                         // mark as seen / undo possible deletion
                                         it->second->setnotseen(0);
@@ -1617,7 +1617,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
                     // (in case of a move, this synchronously updates l->parent
                     // and l->node->parent)
-                    it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew));
+                    it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew), true);
 
                     // make sure that active PUTs receive their updated filenames
                     client->updateputs();

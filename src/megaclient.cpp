@@ -1362,7 +1362,21 @@ bool MegaClient::anySyncNeedsTargetedSyncdown()
     return false;
 }
 
-void MegaClient::setAllSyncsNeedSyncdown()
+bool MegaClient::anySyncNeedsFullSyncdown()
+{
+    for (Sync* sync : syncs)
+    {
+        if (sync->state != SYNC_CANCELED &&
+            sync->state != SYNC_FAILED &&
+            sync->localroot->syncdownTargetedAction == LocalNode::SYNCTREE_SCAN_HERE)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void MegaClient::setAllSyncsNeedFullSyncdown()
 {
     for (Sync* sync : syncs)
     {
@@ -1370,7 +1384,7 @@ void MegaClient::setAllSyncsNeedSyncdown()
     }
 }
 
-void MegaClient::setAllSyncsNeedSyncup()
+void MegaClient::setAllSyncsNeedFullSyncup()
 {
     for (Sync* sync : syncs)
     {
@@ -2089,19 +2103,20 @@ void MegaClient::exec()
 
                 // fall through
             case REQ_FAILURE:
-                if (pendingscUserAlerts->httpstatus == 200)
-                {
-                    error e = (error)atoi(pendingscUserAlerts->in.c_str());
-                    if (e == API_EAGAIN || e == API_ERATELIMIT)
-                    {
-                        btsc.backoff();
-                        pendingscUserAlerts.reset();
-                        LOG_warn << "Backing off before retrying useralerts request: " << btsc.retryin();
-                        break;
-                    }
-                    LOG_err << "Unexpected sc response: " << pendingscUserAlerts->in;
-                }
-                LOG_err << "Useralerts request failed, continuing without them";
+//TODO: uncomment this
+                //if (pendingscUserAlerts->httpstatus == 200)
+                //{
+                //    error e = (error)atoi(pendingscUserAlerts->in.c_str());
+                //    if (e == API_EAGAIN || e == API_ERATELIMIT)
+                //    {
+                //        btsc.backoff();
+                //        pendingscUserAlerts.reset();
+                //        LOG_warn << "Backing off before retrying useralerts request: " << btsc.retryin();
+                //        break;
+                //    }
+                //    LOG_err << "Unexpected sc response: " << pendingscUserAlerts->in;
+                //}
+                LOG_warn << "Useralerts request failed, continuing without them";
 
                 if (useralerts.begincatchup)
                 {
@@ -2263,7 +2278,7 @@ void MegaClient::exec()
         }
 
         // now we do need to process SC while syncs are doing their initial scan, so CS requests can complete
-        if (!scpaused && jsonsc.pos && !anySyncNeedsTargetedSyncdown() && !syncdownretry)
+        if (!scpaused && jsonsc.pos && !anySyncNeedsFullSyncdown() && !syncdownretry)
 #else
         if (!scpaused && jsonsc.pos)
 #endif
@@ -2503,7 +2518,7 @@ void MegaClient::exec()
             {
                 syncsup = true;
                 syncactivity = true;
-                setAllSyncsNeedSyncdown();
+                setAllSyncsNeedFullSyncdown();
             }
         }
 
@@ -2752,7 +2767,7 @@ void MegaClient::exec()
                 if (prevpending && !totalpending)
                 {
                     LOG_debug << "Scan queue processed, triggering a scan";
-                    setAllSyncsNeedSyncdown();
+                    setAllSyncsNeedFullSyncdown();
                 }
 
                 notifypurge();
@@ -2830,7 +2845,7 @@ void MegaClient::exec()
                             }
                             if (!syncupdone || repeatsyncup)
                             {
-                                setAllSyncsNeedSyncup();
+                                setAllSyncsNeedFullSyncup();
                             }
 
                             if (EVER(nds))
@@ -2841,7 +2856,7 @@ void MegaClient::exec()
                                 }
 
                                 syncnagleretry = true;
-                                setAllSyncsNeedSyncup();
+                                setAllSyncsNeedFullSyncup();
                             }
 
                             // delete files that were overwritten by folders in syncup()
@@ -2942,7 +2957,7 @@ void MegaClient::exec()
             if (syncdownretry && syncdownbt.armed())
             {
                 syncdownretry = false;
-                setAllSyncsNeedSyncdown();
+                setAllSyncsNeedFullSyncdown();
             }
 
             if (anySyncNeedsTargetedSyncdown())
@@ -2982,7 +2997,7 @@ void MegaClient::exec()
                     // notify the app if a lock is being retried
                     if (success)
                     {
-                        setAllSyncsNeedSyncup();
+                        setAllSyncsNeedFullSyncup();
                         syncdownretry = false;
                         syncactivity = true;
 
@@ -4725,7 +4740,7 @@ bool MegaClient::procsc()
                             applykeys();
 
                             // remote changes require immediate attention of syncdown()
-                            setAllSyncsNeedSyncdown();
+                            setAllSyncsNeedFullSyncdown();
                             syncactivity = true;
 
                             jsonsc.pos = actionpacketStart;
@@ -4756,7 +4771,7 @@ bool MegaClient::procsc()
                                     applykeys();
 
                                     // remote changes require immediate attention of syncdown()
-                                    setAllSyncsNeedSyncdown();
+                                    setAllSyncsNeedFullSyncdown();
                                     syncactivity = true;
 
                                     return false;
@@ -4802,7 +4817,7 @@ bool MegaClient::procsc()
                                         applykeys();
 
                                         // remote changes require immediate attention of syncdown()
-                                        setAllSyncsNeedSyncdown();
+                                        setAllSyncsNeedFullSyncdown();
                                         syncactivity = true;
 
                                         return false;
@@ -4951,7 +4966,7 @@ bool MegaClient::procsc()
                     applykeys();
 
                     // remote changes require immediate attention of syncdown()
-                    setAllSyncsNeedSyncdown();
+                    setAllSyncsNeedFullSyncdown();
                     syncactivity = true;
 
                     return false;
@@ -5452,7 +5467,7 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
     {
         if (!mCurrentSeqtag.empty() && mCurrentSeqtagSeen)
         {
-            LOG_verbose << "st tag exhausted for " << mCurrentSeqtag;
+            LOG_verbose << clientname << "st tag exhausted for " << mCurrentSeqtag;
             reqs.continueProcessing(this);
         }
         return true;
@@ -5465,12 +5480,12 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
             {
                 if (reqs.cmdsInflight())
                 {
-                    LOG_verbose << "st tag " << tag << " wait for cs requests";
+                    LOG_verbose << clientname << "st tag " << tag << " wait for cs requests";
                     return false;  // we can't tell yet if a command will give us a tag to wait for
                 }
                 else
                 {
-                    LOG_verbose << "st tag " << tag << " no tag pending";
+                    LOG_verbose << clientname << "st tag " << tag << " no tag pending";
                     return true;  // nothing pending, process everything
                 }
             }
@@ -5478,21 +5493,21 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
             {
                 if (tag == mCurrentSeqtag)
                 {
-                    LOG_verbose << "st tag " << tag << " matched";
+                    LOG_verbose << clientname << "st tag " << tag << " matched";
                     // there may be more than one, process until a different one arrives
                     mCurrentSeqtagSeen = true;
                     return true;
                 }
                 else if (mCurrentSeqtagSeen)
                 {
-                    LOG_verbose << "st tag " << tag << " processing for " << mCurrentSeqtag;
+                    LOG_verbose << clientname << "st tag " << tag << " processing for " << mCurrentSeqtag;
                     reqs.continueProcessing(this);
                     continue;   // we may have a new mCurrentSeqtag now
                 }
                 else
                 {
                     // We know there is a mCurrentSeqtag that we must receive, but we have not encountered it yet.  Continue with actionpackets
-                    LOG_verbose << "st tag " << tag << " catching up";
+                    LOG_verbose << clientname << "st tag " << tag << " catching up";
                     assert(tag.size() < mCurrentSeqtag.size() || (tag.size() == mCurrentSeqtag.size() && tag < mCurrentSeqtag));
                     return true;
                 }
@@ -5530,7 +5545,7 @@ bool MegaClient::sc_checkActionPacket(Node* lastAPDeletedNode)
             {
                 // special case for actionpackets from the move command - the d t sequence has the tag on d but not t.
                 // However we must process the t as part of the move, and only call the command completion after.
-                LOG_verbose << "st tag implicity not changing for moves";
+                LOG_verbose << clientname << "st tag implicity not changing for moves";
                 return true;
             }
             else
@@ -13576,7 +13591,7 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWh
                                                rit->second->localnode, localpath.toPath(*fsaccess).c_str());
 
                     // update LocalNode tree to reflect the move/rename
-                    rit->second->localnode->setnameparent(l, &localpath, fsaccess->fsShortname(localpath));
+                    rit->second->localnode->setnameparent(l, &localpath, fsaccess->fsShortname(localpath), false);
 
                     rit->second->localnode->sync->statecacheadd(rit->second->localnode);
 

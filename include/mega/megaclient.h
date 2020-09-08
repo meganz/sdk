@@ -509,9 +509,12 @@ public:
     bool mKeepSyncsAfterLogout = false;
 
     // manage syncdown flags inside the syncs
-    void setAllSyncsNeedSyncdown();
+    void setAllSyncsNeedFullSyncdown();
+    void setAllSyncsNeedFullSyncup();
+
+    bool anySyncNeedsFullSyncdown();
     bool anySyncNeedsTargetedSyncdown();
-    void setAllSyncsNeedSyncup();
+
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
@@ -1197,7 +1200,7 @@ public:
     JSON json;
 
     // actionpacket sequence tags
-    string mCurrentSeqtag;  
+    string mCurrentSeqtag;
     bool mCurrentSeqtagSeen = false;
     int mCurrentSeqtagCmdtag = 0;
 

@@ -1132,7 +1132,7 @@ bool PublicLink::isExpired()
 // set, change or remove LocalNode's parent and name/localname/slocalname.
 // newlocalpath must be a full path and must not point to an empty string.
 // no shortname allowed as the last path component.
-void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std::unique_ptr<LocalPath> newshortname)
+void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std::unique_ptr<LocalPath> newshortname, bool applyToCloud)
 {
     if (!sync)
     {
@@ -1170,7 +1170,7 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
             localname = newlocalpath->subpathFrom(p);
             name = localname.toName(*sync->client->fsaccess);
 
-            if (node)
+            if (node && applyToCloud)
             {
                 if (node->hasName(name))
                 {
@@ -1201,7 +1201,7 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
         {
             parent = newparent;
 
-            if (!newnode && node)
+            if (!newnode && node && applyToCloud)
             {
                 assert(parent->node);
 
@@ -1335,7 +1335,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
 
     if (cparent)
     {
-        setnameparent(cparent, &cfullpath, std::move(shortname));
+        setnameparent(cparent, &cfullpath, std::move(shortname), false);
     }
     else
     {
@@ -1593,7 +1593,7 @@ LocalNode::~LocalNode()
     // remove parent association
     if (parent)
     {
-        setnameparent(NULL, NULL, NULL);
+        setnameparent(NULL, NULL, NULL, false);
     }
 
     for (localnode_map::iterator it = children.begin(); it != children.end(); )
