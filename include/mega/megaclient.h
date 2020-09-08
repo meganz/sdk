@@ -514,7 +514,6 @@ public:
 
     bool anySyncNeedsFullSyncdown();
     bool anySyncNeedsTargetedSyncdown();
-
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
