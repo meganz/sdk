@@ -1200,6 +1200,7 @@ public:
 
     // actionpacket sequence tags
     string mCurrentSeqtag;
+    string mPriorSeqTag;
     bool mCurrentSeqtagSeen = false;
     int mCurrentSeqtagCmdtag = 0;
 

@@ -84,7 +84,7 @@ bool Request::processSeqTag(Command* cmd, bool withJSON, bool& parsedOk)
 {
     string st;
     cmd->client->json.storeobject(&st);
-                
+
     if (cmd->client->mCurrentSeqtag == st)
     {
         cmd->client->mCurrentSeqtag.clear();
@@ -96,11 +96,15 @@ bool Request::processSeqTag(Command* cmd, bool withJSON, bool& parsedOk)
     else
     {
         // result processing paused until we encounter and process actionpackets matching client->mCurrentSeqtag
+        cmd->client->mPriorSeqTag = cmd->client->mCurrentSeqtag;
         cmd->client->mCurrentSeqtag = st;
         cmd->client->mCurrentSeqtagSeen = false;
         cmd->client->mCurrentSeqtagCmdtag = cmd->tag;
         cmd->client->json.pos = nullptr;
-        return false;  
+        assert(cmd->client->mPriorSeqTag.size() < cmd->client->mCurrentSeqtag.size() ||
+              (cmd->client->mPriorSeqTag.size() == cmd->client->mCurrentSeqtag.size() &&
+               cmd->client->mPriorSeqTag < cmd->client->mCurrentSeqtag));
+        return false;
     }
 }
 
@@ -155,7 +159,7 @@ void Request::process(MegaClient* client)
         }
         else if (mV3 && !cmd->mStringIsNotSeqtag && *client->json.pos == '"')
         {
-            // For v3 commands, a string result is a seqtag.  
+            // For v3 commands, a string result is a seqtag.
             // Except for commands with mStringIsNotSeqtag which already returned a string and don't produce actionpackets.
             if (!processSeqTag(cmd, false, parsedOk))
             {

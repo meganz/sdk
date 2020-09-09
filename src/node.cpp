@@ -1172,7 +1172,7 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
 
             if (node && applyToCloud)
             {
-                if (node->hasName(name))
+                if (!node->hasName(name))
                 {
                     if (node->type == FILENODE)
                     {

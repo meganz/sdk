@@ -677,6 +677,7 @@ struct StandardClient : public MegaApp
     string client_dbaccess_path;
     std::unique_ptr<HttpIO> httpio;
     std::unique_ptr<FileSystemAccess> fsaccess;
+    std::recursive_mutex clientMutex;
     MegaClient client;
     std::atomic<bool> clientthreadexit{false};
     bool fatalerror = false;
@@ -709,8 +710,8 @@ struct StandardClient : public MegaApp
 
     struct ResultProc
     {
-        MegaClient& client;
-        ResultProc(MegaClient& c) : client(c) {}
+        StandardClient& client;
+        ResultProc(StandardClient& c) : client(c) {}
 
         struct id_callback
         {
@@ -725,22 +726,26 @@ struct StandardClient : public MegaApp
 
         void prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h = UNDEF)
         {
-            lock_guard<recursive_mutex> g(mtx);
-            auto& entry = m[rpe];
-            entry.emplace_back(move(f), tag, h);
+            {
+                lock_guard<recursive_mutex> g(mtx);
+                auto& entry = m[rpe];
+                entry.emplace_back(move(f), tag, h);
+            }
+
+            std::lock_guard<std::recursive_mutex> lg(client.clientMutex);
 
             assert(tag > 0);
-            int oldtag = client.reqtag;
-            client.reqtag = tag;
+            int oldtag = client.client.reqtag;
+            client.client.reqtag = tag;
             requestfunc();
-            client.reqtag = oldtag;
+            client.client.reqtag = oldtag;
 
-            client.waiter->notify();
+            client.client.waiter->notify();
         }
 
         void processresult(resultprocenum rpe, error e, handle h = UNDEF)
         {
-            int tag = client.restag;
+            int tag = client.client.restag;
             if (tag == 0 && rpe != CATCHUP)
             {
                 //out() << "received notification of SDK initiated operation " << rpe << " tag " << tag << endl; // too many of those to output
@@ -820,7 +825,7 @@ struct StandardClient : public MegaApp
             "N9tSBJDC", USER_AGENT.c_str(), THREADS_PER_MEGACLIENT )
         , clientname(name)
         , fsBasePath(basepath / fs::u8path(name))
-        , resultproc(client)
+        , resultproc(*this)
         , clientthread([this]() { threadloop(); })
     {
         client.clientname = clientname + " ";
@@ -875,7 +880,10 @@ struct StandardClient : public MegaApp
     void syncupdate_local_file_addition(Sync*, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_addition() " << lp(ln) << " " << cp << endl; }}
     void syncupdate_local_file_deletion(Sync*, LocalNode* ln) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_deletion() " << lp(ln) << endl; }}
     void syncupdate_local_file_change(Sync*, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_change() " << lp(ln) << " " << cp << endl; }}
-    void syncupdate_local_move(Sync*, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_move() " << lp(ln) << " " << cp << endl; }}
+    void syncupdate_local_move(Sync*, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) {
+        lock_guard<mutex> g(om);
+        out() << clientname << " syncupdate_local_move() " << lp(ln) << " " << cp << endl;
+    }}
     void syncupdate_local_lockretry(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_lockretry() " << b << endl; }}
     //void syncupdate_get(Sync*, Node* n, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_get()" << n->displaypath() << " " << cp << endl; }}
     void syncupdate_put(Sync*, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_put()" << lp(ln) << " " << cp << endl; }}
@@ -886,8 +894,15 @@ struct StandardClient : public MegaApp
     void syncupdate_remote_folder_addition(Sync*, Node* n) override { onCallback(); }
     void syncupdate_remote_folder_deletion(Sync*, Node* n) override { onCallback(); }
     void syncupdate_remote_copy(Sync*, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_copy() " << cp << endl; }}
-    void syncupdate_remote_move(Sync*, Node* n1, Node* n2) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_move() " << n1->displaypath() << " " << n2->displaypath() << endl; }}
-    void syncupdate_remote_rename(Sync*, Node* n, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_rename() " << n->displaypath() << " " << cp << endl; }}
+    void syncupdate_remote_move(Sync*, Node* n1, Node* n2) override { onCallback();
+    if (logcb) {
+        lock_guard<mutex> g(om);
+        out() << clientname << " syncupdate_remote_move() " << n1->displaypath() << " " << n2->displaypath() << endl;
+    } }
+    void syncupdate_remote_rename(Sync*, Node* n, const char* cp) override { onCallback(); if (logcb) {
+        lock_guard<mutex> g(om);
+        out() << clientname << " syncupdate_remote_rename() new: " << n->displaypath() << " old: " << cp << endl;
+    }}
     //void syncupdate_treestate(LocalNode* ln) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);   out() << clientname << " syncupdate_treestate() " << ln->ts << " " << ln->dts << " " << lp(ln) << endl; }}
 
     bool sync_syncable(Sync* sync, const char* name, LocalPath& path, Node*) override
@@ -916,7 +931,19 @@ struct StandardClient : public MegaApp
     {
         while (!clientthreadexit)
         {
-            int r = client.wait();
+            int r;
+            {
+                std::lock_guard<std::recursive_mutex> lg(clientMutex);
+                r = client.preparewait();
+            }
+
+            if (!r)
+            {
+                r |= client.dowait();
+            }
+
+            std::lock_guard<std::recursive_mutex> lg(clientMutex);
+            r |= client.checkevents();
 
             {
                 std::lock_guard<mutex> g(functionDoneMutex);
@@ -925,21 +952,21 @@ struct StandardClient : public MegaApp
                     boolDo.nextfunctionMC(client, boolDo.nextfunctionMCpromise);
                     boolDo.nextfunctionMC = nullptr;
                     functionDone.notify_all();
-                    r = Waiter::NEEDEXEC;
+                    r |= Waiter::NEEDEXEC;
                 }
                 if (boolDo.nextfunctionSC)
                 {
                     boolDo.nextfunctionSC(*this, boolDo.nextfunctionSCpromise);
                     boolDo.nextfunctionSC = nullptr;
                     functionDone.notify_all();
-                    r = Waiter::NEEDEXEC;
+                    r |= Waiter::NEEDEXEC;
                 }
                 if (errDo.nextfunctionSC)
                 {
                     errDo.nextfunctionSC(*this, errDo.nextfunctionSCpromise);
                     errDo.nextfunctionSC = nullptr;
                     functionDone.notify_all();
-                    r = Waiter::NEEDEXEC;
+                    r |= Waiter::NEEDEXEC;
                 }
             }
             if (r & Waiter::NEEDEXEC)
@@ -1216,12 +1243,7 @@ struct StandardClient : public MegaApp
     void catchup(promise<bool>& pb)
     {
         resultproc.prepresult(CATCHUP, ++next_request_tag,
-            [&](){
-                auto request_sent = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.client.catchup(); pb.set_value(true); });
-                if (!waitonresults(&request_sent)) {
-                    out() << "catchup not sent" << endl;
-                }
-            },
+            [&](){ client.catchup(); },
             [&pb](error e) {
                 if (e)
                 {
@@ -4664,6 +4686,8 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
         out() << "Paused " << paused << " Two-way syncs" << endl;
         WaitMillisec(1000);
     }
+
+    clientA1Steady.logcb = clientA1Resume.logcb = clientA2.logcb = true;
 
     out() << "Performing action " << endl;
     for (auto& testcase : cases)
