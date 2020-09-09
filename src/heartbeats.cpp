@@ -600,10 +600,10 @@ void MegaBackupMonitor::onPauseStateChanged(MegaApi *api)
     //loop on active syncs to update
     for (auto &sync : mClient->syncs)
     {
-        auto megaSync = api->getSyncByTag(sync->tag);
+        std::unique_ptr<MegaSync> megaSync{ api->getSyncByTag(sync->tag) };
         if (megaSync)
         {
-            updateOrRegisterSync(megaSync);
+            updateOrRegisterSync(megaSync.get());
         }
     }
 }
@@ -622,7 +622,7 @@ void MegaBackupMonitor::onSyncDeleted(MegaApi *api, MegaSync *sync)
 }
 #endif
 
-std::shared_ptr<HeartBeatTransferProgressedInfo> MegaBackupMonitor::getHeartBeatBackupInfoByTransfer(MegaTransfer *transfer)
+std::shared_ptr<HeartBeatTransferProgressedInfo> MegaBackupMonitor::getHeartBeatBackupInfoByTransfer(MegaApi *api, MegaTransfer *transfer)
 {
 #ifdef ENABLE_SYNC
     if (transfer->isSyncTransfer())
@@ -661,8 +661,16 @@ std::shared_ptr<HeartBeatTransferProgressedInfo> MegaBackupMonitor::getHeartBeat
             }
             else
             {
-                //create new HeartBeatSyncInfo
-                return mHeartBeatedSyncs.insert(std::make_pair(syncTag, std::make_shared<HeartBeatSyncInfo>(syncTag, UNDEF))).first->second;
+                std::unique_ptr<MegaSync> sync{api->getSyncByTag(syncTag)};
+                if (sync) //only if sync tag exists (to avoid handling transfer removed after sync removal)
+                {
+                    //create new HeartBeatSyncInfo
+                    return mHeartBeatedSyncs.insert(std::make_pair(syncTag, std::make_shared<HeartBeatSyncInfo>(syncTag, UNDEF))).first->second;
+                }
+                else
+                {
+                    LOG_debug << "Getting HeartBeatBackupInfo associated to transfer for non existing sync. No need to create one";
+                }
             }
         }
     }
@@ -672,7 +680,7 @@ std::shared_ptr<HeartBeatTransferProgressedInfo> MegaBackupMonitor::getHeartBeat
 
 void MegaBackupMonitor::onTransferStart(MegaApi *api, MegaTransfer *transfer)
 {
-    auto hbs = getHeartBeatBackupInfoByTransfer(transfer);
+    auto hbs = getHeartBeatBackupInfoByTransfer(api, transfer);
     if (hbs)
     {
         if (transfer->getType() == MegaTransfer::TYPE_UPLOAD)
@@ -689,7 +697,7 @@ void MegaBackupMonitor::onTransferStart(MegaApi *api, MegaTransfer *transfer)
 
 void MegaBackupMonitor::onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
 {
-    auto hbs = getHeartBeatBackupInfoByTransfer(transfer);
+    auto hbs = getHeartBeatBackupInfoByTransfer(api, transfer);
     if (hbs)
     {
         hbs->updateTransferInfo(transfer);
@@ -698,7 +706,7 @@ void MegaBackupMonitor::onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
 
 void MegaBackupMonitor::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error)
 {
-    auto hbs = getHeartBeatBackupInfoByTransfer(transfer);
+    auto hbs = getHeartBeatBackupInfoByTransfer(api, transfer);
     if (hbs)
     {
         if (transfer->getType() == MegaTransfer::TYPE_UPLOAD)

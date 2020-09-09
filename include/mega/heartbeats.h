@@ -249,7 +249,7 @@ private:
     void beatBackupInfo(const std::shared_ptr<HeartBeatBackupInfo> &hbs);
     void calculateStatus(HeartBeatBackupInfo *hbs);
 
-    std::shared_ptr<HeartBeatTransferProgressedInfo> getHeartBeatBackupInfoByTransfer(MegaTransfer *transfer);
+    std::shared_ptr<HeartBeatTransferProgressedInfo> getHeartBeatBackupInfoByTransfer(MegaApi *api, MegaTransfer *transfer);
 
 #ifdef ENABLE_SYNC
     // --- Members and methods for syncs. i.e: backups of type: TWO_WAY, UP_SYNC, DOWN_SYNC
