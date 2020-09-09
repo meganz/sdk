@@ -948,7 +948,6 @@ public:
     static bool isEnabled(syncstate_t state, SyncError syncError);
 
 private:
-    friend bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
 
     // Unique identifier. any other field can change (even remote handle),
     // and we want to keep disabled configurations saved: e.g: remote handle changed
@@ -990,37 +989,7 @@ private:
     // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
     bool serialize(std::string& data) const;
 
-    // this is very handy for defining comparison operators
-    std::tuple<const int&,
-               const bool&,
-               const std::string&,
-               const std::string&,
-               const handle&,
-               const std::string&,
-               const fsfp_t&,
-               const std::vector<std::string>&,
-               const Type&,
-               const bool&,
-               const bool&,
-               const int&> tie() const
-    {
-        return std::tie(mTag,
-                        mEnabled,
-                        mLocalPath,
-                        mName,
-                        mRemoteNode,
-                        mRemotePath,
-                        mLocalFingerprint,
-                        mRegExps,
-                        mSyncType,
-                        mSyncDeletions,
-                        mForceOverwrite,
-                        mError);
-    }
 };
-
-bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
-
 
 // cross reference pointers.  For the case where two classes have pointers to each other, and they should
 // either always be NULL or if one refers to the other, the other refers to the one.
