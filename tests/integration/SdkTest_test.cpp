@@ -4565,8 +4565,8 @@ TEST_F(SdkTest, SdkSimpleCommands)
     }
 
     gTestingInvalidArgs = true;
-    err = synchronousKillSession(0, INVALID_HANDLE);
-    ASSERT_EQ(MegaError::API_ESID, err) << "Kill session for unknown seesions shoud fail with API_ESID (error: " << err << ")";
+    err = synchronousKillSession(0, INVALID_HANDLE + 1);  // INVALID_HANDLE is special and means kill all (in the intermediate layer) - so +1 for a (probably) really invalid handle
+    ASSERT_EQ(MegaError::API_ESID, err) << "Kill session for unknown sessions shoud fail with API_ESID (error: " << err << ")";
     gTestingInvalidArgs = false;
 
     // getMiscFlags() -- not logged in
