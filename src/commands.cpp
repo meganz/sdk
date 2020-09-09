@@ -8194,12 +8194,18 @@ bool CommandBackupPut::procresult(Result r)
 {
     assert(r.wasStrictlyError() || r.hasJsonItem());
     handle backupId = UNDEF;
-    Error e = r.errorOrOK();
+    Error e = API_OK;
+
     if (r.hasJsonItem())
     {
         backupId = client->json.gethandle(MegaClient::USERHANDLE);
         e = API_OK;
     }
+    else
+    {
+        e = r.errorOrOK();
+    }
+
     if (mUpdate)
     {
         client->app->backupupdate_result(e, backupId);
