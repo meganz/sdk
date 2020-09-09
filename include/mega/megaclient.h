@@ -1145,7 +1145,7 @@ public:
 
     // merge newly received share into nodes
     void mergenewshares(bool);
-    void mergenewshare(NewShare *s, bool notify);    // merge only the given share
+    void mergenewshare(NewShare *s, bool notify, Node* node = nullptr, bool updateDb = true);    // merge only the given share
 
     // transfer queues (PUT/GET)
     transfer_map transfers[2];
