@@ -6966,11 +6966,11 @@ Node* MegaClient::nodebyhandle(handle h)
     }
 
     Node* node = nullptr;
-    std::string nodeSerialized;
+    NodeSerialized nodeSerialized;
     node_vector nodeVector;
     if (sctable->getNode(h, nodeSerialized))
     {
-        node = Node::unserialize(this, &nodeSerialized, &nodeVector);
+        node = Node::unserialize(this, &nodeSerialized.mNode, &nodeVector, nodeSerialized.mDecrypted);
     }
 
     return node;
@@ -11011,12 +11011,12 @@ bool MegaClient::fetchsc(DbTable* sctable)
     if (isNodeOnDemandDb)
     {
         assert(!mNodes.size());
-        std::vector<std::string> nodes;
+        std::vector<NodeSerialized> nodes;
 #ifdef ENABLE_SYNC
         sctable->getNodes(nodes);
-        for (const std::string& node : nodes)
+        for (const NodeSerialized& node : nodes)
         {
-            n = Node::unserialize(this, &node, &dp);
+            n = Node::unserialize(this, &node.mNode, &dp);
             if (n->type == ROOTNODE)
             {
                 getChildrens(n);
@@ -11033,13 +11033,21 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
 #else
         sctable->getNodesWithoutParent(nodes);
-        for (const std::string& node : nodes)
+        for (const NodeSerialized& node : nodes)
         {
-            n = Node::unserialize(this, &node, &dp);
+            n = Node::unserialize(this, &node.mNode, &dp, node.mDecrypted);
             if (n->type == ROOTNODE)
             {
                 getChildrens(n);
             }
+        }
+
+        nodes.clear();
+
+        sctable->getNodesWithShares(nodes);
+        for (const NodeSerialized& node : nodes)
+        {
+            n = Node::unserialize(this, &node.mNode, &dp, node.mDecrypted);
         }
 #endif
 
@@ -14692,7 +14700,7 @@ node_list MegaClient::getChildrens(Node* node)
         return nodeList;
     }
 
-    std::map<handle, std::string> nodeMap;
+    std::map<handle, NodeSerialized> nodeMap;
     sctable->getChildrenFromNode(node->nodehandle, nodeMap);
     node_vector dp;
 
@@ -14702,7 +14710,7 @@ node_list MegaClient::getChildrens(Node* node)
         auto nodeIt = mNodes.find(nodeMapIt.first);
         if (nodeIt == mNodes.end())
         {
-            n = Node::unserialize(this, &nodeMapIt.second, &dp);
+            n = Node::unserialize(this, &nodeMapIt.second.mNode, &dp, nodeMapIt.second.mDecrypted);
         }
         else
         {
