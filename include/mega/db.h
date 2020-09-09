@@ -28,6 +28,13 @@ namespace mega {
 // generic host transactional database access interface
 class DBTableTransactionCommitter;
 
+class NodeSerialized
+{
+public:
+    bool mDecrypted = true;
+    std::string mNode;
+};
+
 class MEGA_API DbTable
 {
     static const int IDSPACING = 16;
@@ -52,12 +59,13 @@ public:
     // get specific record by key
     virtual bool get(uint32_t, string*) = 0;
 
-    virtual bool getNode(handle nodehandle, std::string& nodeSerialized) = 0;
-    virtual bool getNodes(std::vector<std::string>& nodes) = 0;
-    virtual bool getNodesByFingerprint(const FileFingerprint& fingerprint, std::map<mega::handle, std::string>& nodes) = 0;
-    virtual bool getNodeByFingerprint(const FileFingerprint& fingerprint, std::string& node) = 0;
-    virtual bool getNodesWithoutParent(std::vector<std::string>& nodes) = 0;
-    virtual bool getChildrenFromNode(handle node, std::map<handle, std::string>& nodes) = 0;
+    virtual bool getNode(handle nodehandle, NodeSerialized& nodeSerialized) = 0;
+    virtual bool getNodes(std::vector<NodeSerialized>& nodes) = 0;
+    virtual bool getNodesByFingerprint(const FileFingerprint& fingerprint, std::map<mega::handle, NodeSerialized>& nodes) = 0;
+    virtual bool getNodeByFingerprint(const FileFingerprint& fingerprint, NodeSerialized& node) = 0;
+    virtual bool getNodesWithoutParent(std::vector<NodeSerialized>& nodes) = 0;
+    virtual bool getNodesWithShares(std::vector<NodeSerialized>& nodes) = 0;
+    virtual bool getChildrenFromNode(handle node, std::map<handle, NodeSerialized>& nodes) = 0;
     virtual bool getChildrenHandlesFromNode(handle node, std::vector<handle>& nodes) = 0;
     virtual NodeCounter getNodeCounter(handle node) = 0;
     virtual uint32_t getNumberOfChildrenFromNode(handle node) = 0;

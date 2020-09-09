@@ -230,7 +230,7 @@ void Node::setkey(const byte* newkey)
 
 // parse serialized node and return Node object - updates nodes hash and parent
 // mismatch vector
-Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
+Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp, bool decrypted)
 {
     handle h, ph;
     nodetype_t t;
@@ -288,17 +288,35 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     ts = (uint32_t)MemAccess::get<time_t>(ptr);
     ptr += sizeof(time_t);
 
-    if ((t == FILENODE) || (t == FOLDERNODE))
+    std::string undecryptedKey;
+    if (decrypted)
     {
-        int keylen = ((t == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
+        if ((t == FILENODE) || (t == FOLDERNODE))
+        {
+            int keylen = ((t == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
 
-        if (ptr + keylen + 8 + sizeof(short) > end)
+            if (ptr + keylen + 8 + sizeof(short) > end)
+            {
+                return NULL;
+            }
+
+            k = (const byte*)ptr;
+            ptr += keylen;
+        }
+    }
+    else
+    {
+        ll = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof ll;
+
+        if (ptr + ll > end)
         {
             return NULL;
         }
 
-        k = (const byte*)ptr;
-        ptr += keylen;
+        k = nullptr;
+        undecryptedKey = std::string(ptr, ll);
+        ptr += ll;
     }
 
     if (t == FILENODE)
@@ -367,6 +385,10 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     {
         n->setkey(k);
     }
+    else if (!decrypted)
+    {
+        n->nodekeydata = undecryptedKey;
+    }
 
     // read inshare, outshares, or pending shares
     while (numshares)   // inshares: -1, outshare/s: num_shares
@@ -379,7 +401,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
             break;
         }
 
-        client->newshares.push_back(newShare);
+        client->mergenewshare(newShare, false, n, false);
         if (numshares > 0)  // outshare/s
         {
             numshares--;
@@ -390,11 +412,29 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
         }
     }
 
-    ptr = n->attrs.unserialize(ptr, end);
-    if (!ptr)
+    if (decrypted)
     {
-        delete n;
-        return NULL;
+        ptr = n->attrs.unserialize(ptr, end);
+        if (!ptr)
+        {
+            delete n;
+            return NULL;
+        }
+    }
+    else
+    {
+        ll = MemAccess::get<unsigned short>(ptr);
+        ptr += sizeof ll;
+
+        if (ptr + ll > end)
+        {
+            return NULL;
+        }
+
+        n->attrstring = make_unique<std::string>(ptr, ll);
+        ptr += ll;
+        n->applykey();
+        n->setattr();
     }
 
     // It's needed to re-normalize node names because
@@ -440,6 +480,11 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
 
     if (ptr == end)
     {
+        if (!decrypted && !n->attrstring)
+        {
+            client->sctable->put(n);
+        }
+
         return n;
     }
     else
@@ -453,6 +498,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
 bool Node::serialize(string* d)
 {
     // do not serialize encrypted nodes
+    bool decrypted = true;
     if (attrstring)
     {
         LOG_warn << "Trying to serialize an encrypted node";
@@ -463,22 +509,22 @@ bool Node::serialize(string* d)
 
         if (attrstring)
         {
-            LOG_warn << "Skipping undecryptable node";
-            return false;
+            LOG_warn << "Unable undecryptable node, save in bd encryped";
+            decrypted = false;
         }
     }
 
     switch (type)
     {
         case FILENODE:
-            if ((int)nodekeydata.size() != FILENODEKEYLENGTH)
+            if ((int)nodekeydata.size() != FILENODEKEYLENGTH && decrypted)
             {
                 return false;
             }
             break;
 
         case FOLDERNODE:
-            if ((int)nodekeydata.size() != FOLDERNODEKEYLENGTH)
+            if ((int)nodekeydata.size() != FOLDERNODEKEYLENGTH && decrypted)
             {
                 return false;
             }
@@ -519,7 +565,16 @@ bool Node::serialize(string* d)
     ts = (time_t)ctime; 
     d->append((char*)&ts, sizeof(ts));
 
-    d->append(nodekeydata);
+    if (decrypted)
+    {
+        d->append(nodekeydata);
+    }
+    else
+    {
+        ll = static_cast<unsigned short>(nodekeydata.size() + 1);
+        d->append((char*)&ll, sizeof ll);
+        d->append(nodekeydata.c_str(), ll);
+    }
 
     if (type == FILENODE)
     {
@@ -582,7 +637,16 @@ bool Node::serialize(string* d)
         }
     }
 
-    attrs.serialize(d);
+    if (decrypted)
+    {
+        attrs.serialize(d);
+    }
+    else
+    {
+        ll = static_cast<unsigned short>(attrstring->size() + 1);
+        d->append((char*)&ll, sizeof ll);
+        d->append(attrstring->c_str(), ll);
+    }
 
     if (isExported)
     {
@@ -965,8 +1029,21 @@ bool Node::applykey()
         setattr();
     }
 
-    assert(keyApplied());
-    return true;
+    /// TODO commented when in to avoid crash when A shares a folder 1 with B and, folder 1 has a subfolder
+    /// folder 1_1, A shares Folder 1_1 with C and C adds some files
+    //assert(keyApplied());
+    bool applied = keyApplied();
+
+    if (applied)
+    {
+        // TODO: if node in DB update if not we can wait until it will save in DB
+        if (client->sctable->isNodeInDB(nodehandle))
+        {
+            client->sctable->put(this);
+        }
+    }
+
+    return applied;
 }
 
 NodeCounter Node::subnodeCounts() const
@@ -1846,11 +1923,11 @@ Node* Fingerprints::nodebyfingerprint(FileFingerprint* fingerprint)
         return static_cast<Node*>(*it);
     }
 
-    std::string nodeSerialized;
+    NodeSerialized nodeSerialized;
     if (mClient.sctable->getNodeByFingerprint(*fingerprint, nodeSerialized))
     {
         node_vector nodeVector;
-        Node* node = Node::unserialize(&mClient, &nodeSerialized, &nodeVector);
+        Node* node = Node::unserialize(&mClient, &nodeSerialized.mNode, &nodeVector, nodeSerialized.mDecrypted);
         return node;
     }
 
@@ -1866,7 +1943,7 @@ node_vector *Fingerprints::nodesbyfingerprint(FileFingerprint* fingerprint)
         nodes->push_back(static_cast<Node*>(*it));
     }
 
-    std::map<handle, std::string> nodeMap;
+    std::map<handle, NodeSerialized> nodeMap;
     if (mClient.sctable->getNodesByFingerprint(*fingerprint, nodeMap))
     {
         for (auto nodeIt : nodeMap)
@@ -1884,7 +1961,7 @@ node_vector *Fingerprints::nodesbyfingerprint(FileFingerprint* fingerprint)
             if (!found)
             {
                 node_vector nodeVector;
-                Node* node = Node::unserialize(&mClient, &nodeIt.second, &nodeVector);
+                Node* node = Node::unserialize(&mClient, &nodeIt.second.mNode, &nodeVector, nodeIt.second.mDecrypted);
                 nodes->push_back(node);
             }
         }
