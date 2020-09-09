@@ -72,6 +72,56 @@ const string& adjustBasePath(const LocalPath& name)
 
 #endif /* ! USE_IOS */
 
+const size_t LocalPath::npos = std::string::npos;
+
+size_t LocalPath::getLastComponentIndex() const
+{
+    if (localpath.empty())
+    {
+        return npos;
+    }
+
+    size_t index = localpath.size() - 1;
+
+    // Ignore trailing separator.
+    index -= localpath.back() == '/';
+
+    // Did our path consist only of /?
+    if (index == npos)
+    {
+        return 0;
+    }
+
+    return localpath.find_last_of('/', index) + 1;
+}
+
+size_t LocalPath::getNextComponentIndex(size_t index) const
+{
+    index = localpath.find('/', index) + 1;
+
+    if (!index || index >= localpath.size())
+    {
+        return npos;
+    }
+
+    return index;
+}
+
+size_t LocalPath::getPreviousComponentIndex(size_t index) const
+{
+    if (!index || localpath.empty())
+    {
+        return npos;
+    }
+
+    if (index == 1 && localpath.front() == '/')
+    {
+        return 0;
+    }
+
+    return localpath.rfind('/', index - 2) + 1;
+}
+
 #ifdef HAVE_AIO_RT
 PosixAsyncIOContext::PosixAsyncIOContext() : AsyncIOContext()
 {
