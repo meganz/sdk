@@ -25,25 +25,28 @@
 #include "megaapi_impl.h"
 #include <algorithm>
 
-#ifdef WIN32
-#include <filesystem>
-namespace fs = ::std::filesystem;
-#else
-#include <experimental/filesystem>
-namespace fs = ::std::experimental::filesystem;
+#if (__cplusplus >= 201700L)
+    #include <filesystem>
+    namespace fs = std::filesystem;
+    #define USE_FILESYSTEM
+#elif (__clang_major__ >= 11)
+    #include <filesystem>
+    namespace fs = std::__fs::filesystem;
+    #define USE_FILESYSTEM
+#elif !defined(__MINGW32__) && !defined(__ANDROID__) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
+    #define USE_FILESYSTEM
+    #ifdef WIN32
+        #include <filesystem>
+        namespace fs = std::experimental::filesystem;
+    #else
+        #include <experimental/filesystem>
+        namespace fs = std::experimental::filesystem;
+    #endif
 #endif
 
 using namespace std;
 
 MegaFileSystemAccess fileSystemAccess;
-
-#ifdef _WIN32
-#if (__cplusplus >= 201700L)
-namespace fs = std::filesystem;
-#else
-namespace fs = std::experimental::filesystem;
-#endif
-#endif
 
 #ifdef _WIN32
 DWORD ThreadId()
@@ -4979,13 +4982,6 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         return std::unique_ptr<MegaNode>{megaApi[0]->getNodeByPath(path.c_str())};
     };
 
-    auto localFp = [this, &megaNode](const fs::path& p)
-    {
-        auto node = megaNode(p.filename().u8string());
-        auto sync = std::unique_ptr<MegaSync>{megaApi[0]->getSyncByNode(node.get())};
-        return sync->getLocalFingerprint();
-    };
-
     auto syncFolder = [this, &megaNode](const fs::path& p) -> int
     {
         RequestTracker syncTracker(megaApi[0].get());
@@ -5056,10 +5052,10 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     LOG_verbose << " SyncResumptionAfterFetchNodes : syncying folders";
 
-    int tag1 = syncFolder(sync1Path);  tag1;
+    int tag1 = syncFolder(sync1Path);  (void)tag1;
     int tag2 = syncFolder(sync2Path);
-    int tag3 = syncFolder(sync3Path);  tag3;
-    int tag4 = syncFolder(sync4Path);  tag4;
+    int tag3 = syncFolder(sync3Path);  (void)tag3;
+    int tag4 = syncFolder(sync4Path);  (void)tag4;
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_TRUE(checkSyncOK(sync2Path));

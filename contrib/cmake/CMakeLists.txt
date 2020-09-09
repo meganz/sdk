@@ -173,6 +173,10 @@ endif(USE_QT)
 #  - vcpkg built dependencies (there are some scripts that do most of that)  (do not set USE_PREBUILT_3RDPARTY, and set vcpkg_dir if the default does not suit, also set )
 #  - libraries from the system, installed via eg. apt-get on linux
 
+if (APPLE AND NOT NO_READLINE)
+    include_directories( BEFORE SYSTEM "${Mega3rdPartyDir}/vcpkg/readline-8.0" )
+endif()
+
 if (USE_PREBUILT_3RDPARTY)
     if ("${prebuilt_dir}" STREQUAL "")
         SET (prebuilt_dir ${Mega3rdPartyDir} CACHE STRING "Location of prebuilt 3rd party folder from MEGA.nz")
@@ -335,6 +339,11 @@ function(ImportHeaderLibrary libName includeDir)
     add_library(${libName} INTERFACE IMPORTED)
     set_property(TARGET ${libName} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${includeDir})
 endfunction(ImportHeaderLibrary)
+
+if (APPLE AND NOT NO_READLINE)
+    ImportALibrary(macgnureadline  "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/libreadline.a" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/libreadline.a")
+    ImportALibrary(macgnuhistory   "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/libhistory.a" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/libhistory.a" )
+endif()
 
 IF(WIN32)
 if(USE_PREBUILT_3RDPARTY) #TODO: do this explicitly for !Win32? (currently relying on lib path & -lLIBNAME)
@@ -927,9 +936,13 @@ configure_file("${MegaDir}/logo.png" logo.png COPYONLY)
 # actual apps
 
 add_executable(megacli ${MegaDir}/examples/megacli.cpp)
-target_link_libraries(megacli Mega)
+target_link_libraries(megacli Mega )
 if (NOT NO_READLINE)
-    target_link_libraries(megacli readline)
+    if (APPLE)
+        target_link_libraries(megacli macgnureadline macgnuhistory)
+    else()
+        target_link_libraries(megacli readline)
+    endif()
 endif (NOT NO_READLINE)
 
 add_executable(megasimplesync ${MegaDir}/examples/megasimplesync.cpp)

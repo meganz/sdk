@@ -3089,10 +3089,10 @@ protected:
         virtual void syncupdate_remote_root_changed(const SyncConfig &) override;
 
         // this will call will fire EVENT_SYNCS_RESTORED
-        virtual void syncs_restored();
+        virtual void syncs_restored() override;
 
         // this will call will fire EVENT_SYNCS_DISABLED
-        virtual void syncs_disabled(SyncError syncError);
+        virtual void syncs_disabled(SyncError syncError) override;
 
         // this will call will fire EVENT_FIRST_SYNC_RESUMING before the first sync is resumed
         virtual void syncs_about_to_be_resumed() override;

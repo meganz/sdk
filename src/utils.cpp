@@ -2482,14 +2482,9 @@ bool SyncConfig::serialize(std::string& data) const
     writer.serializeu32(static_cast<uint32_t>(mSyncType));
     writer.serializebool(mSyncDeletions);
     writer.serializebool(mForceOverwrite);
-    writer.serializeu32(static_cast<int>(mError));
+    writer.serializeu32(static_cast<uint32_t>(mError));
     writer.serializeexpansionflags();
     return true;
-}
-
-bool operator==(const SyncConfig& lhs, const SyncConfig& rhs)
-{
-    return lhs.tie() == rhs.tie();
 }
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv)

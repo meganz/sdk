@@ -115,7 +115,7 @@ class MEGA_API LocalPath
     friend class PosixFileSystemAccess;
     friend struct WinDirAccess;
     friend struct WinDirNotify;
-    friend struct PosixDirNotify;
+    friend class PosixDirNotify;
     friend class WinFileAccess;
     friend class PosixFileAccess;
     friend void RemoveHiddenFileAttribute(LocalPath& path);
