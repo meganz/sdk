@@ -949,7 +949,6 @@ public:
     static bool isEnabled(syncstate_t state, SyncError syncError);
 
 private:
-    friend bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
 
     // Unique identifier. any other field can change (even remote handle),
     // and we want to keep disabled configurations saved: e.g: remote handle changed
