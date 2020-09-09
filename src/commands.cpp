@@ -5358,7 +5358,7 @@ void CommandFetchNodes::procresult()
                 }
                 break;
 
-            case MAKENAMEID2('o', 'k'):
+            case MAKENAMEID3('o', 'k', '0'):
                 // outgoing sharekeys
                 client->readok(&client->json);
                 break;

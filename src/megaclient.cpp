@@ -7888,6 +7888,8 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
         sctable->setVar(FOLDERS_NAME, std::to_string(mNodeCounters[rootnodes[ROOTNODE - ROOTNODE]].folders));
     }
 
+    mergenewshares(notify);
+
     return j->leavearray();
 }
 
@@ -7919,8 +7921,6 @@ void MegaClient::readok(JSON* j)
         }
 
         j->leavearray();
-
-        mergenewshares(0);
     }
 }
 
