@@ -374,15 +374,15 @@ TEST(Filesystem, GetLastComponentIndex)
         LocalPath path;
 
         // Only a single component.
-        path = LocalPath::fromPlatformEncoded(L"/");
+        path = LocalPath::fromPlatformEncoded("/");
         EXPECT_EQ(path.getLastComponentIndex(), 0);
 
         // No trailing separator.
-        path = LocalPath::fromPlatformEncoded(L"/a/b");
+        path = LocalPath::fromPlatformEncoded("/a/b");
         EXPECT_EQ(path.getLastComponentIndex(), 3);
 
         // Trailing separator.
-        path = LocalPath::fromPlatformEncoded(L"/a/b/");
+        path = LocalPath::fromPlatformEncoded("/a/b/");
         EXPECT_EQ(path.getLastComponentIndex(), 3);
     }
 
@@ -394,15 +394,15 @@ TEST(Filesystem, GetLastComponentIndex)
         LocalPath path;
 
         // Only a single component.
-        path = LocalPath::fromPlatformEncoded(L"a");
+        path = LocalPath::fromPlatformEncoded("a");
         EXPECT_EQ(path.getLastComponentIndex(), 0);
 
         // No trailing separator.
-        path = LocalPath::fromPlatformEncoded(L"a/b");
+        path = LocalPath::fromPlatformEncoded("a/b");
         EXPECT_EQ(path.getLastComponentIndex(), 2);
 
         // Trailing separator.
-        path = LocalPath::fromPlatformEncoded(L"a/b/");
+        path = LocalPath::fromPlatformEncoded("a/b/");
         EXPECT_EQ(path.getLastComponentIndex(), 2);
     }
 }
@@ -413,7 +413,7 @@ TEST(Filesystem, GetNextComponentIndex)
 
     // Absolute
     {
-        auto path = LocalPath::fromPlatformEncoded(L"/a/b/c");
+        auto path = LocalPath::fromPlatformEncoded("/a/b/c");
 
         EXPECT_EQ(path.getNextComponentIndex(0), 1);
         EXPECT_EQ(path.getNextComponentIndex(1), 3);
@@ -423,7 +423,7 @@ TEST(Filesystem, GetNextComponentIndex)
         EXPECT_EQ(path.getNextComponentIndex(5), LocalPath::npos);
 
         // Trailing separator.
-        path = LocalPath::fromPlatformEncoded(L"/a/b/c/");
+        path = LocalPath::fromPlatformEncoded("/a/b/c/");
         EXPECT_EQ(path.getNextComponentIndex(5), LocalPath::npos);
     }
 
@@ -432,7 +432,7 @@ TEST(Filesystem, GetNextComponentIndex)
 
     // Relative
     {
-        auto path = LocalPath::fromPlatformEncoded(L"a/b/c");
+        auto path = LocalPath::fromPlatformEncoded("a/b/c");
 
         EXPECT_EQ(path.getNextComponentIndex(0), 2);
         EXPECT_EQ(path.getNextComponentIndex(2), 4);
@@ -441,7 +441,7 @@ TEST(Filesystem, GetNextComponentIndex)
         EXPECT_EQ(path.getNextComponentIndex(4), LocalPath::npos);
 
         // Trailing separator.
-        path = LocalPath::fromPlatformEncoded(L"a/b/c/");
+        path = LocalPath::fromPlatformEncoded("a/b/c/");
         EXPECT_EQ(path.getNextComponentIndex(4), LocalPath::npos);
     }
 }
@@ -452,7 +452,7 @@ TEST(Filesystem, GetPreviousComponentIndex)
 
     // Absolute
     {
-        auto path = LocalPath::fromPlatformEncoded(L"/a/b/c");
+        auto path = LocalPath::fromPlatformEncoded("/a/b/c");
 
         EXPECT_EQ(path.getPreviousComponentIndex(5), 3);
         EXPECT_EQ(path.getPreviousComponentIndex(3), 1);
@@ -465,7 +465,7 @@ TEST(Filesystem, GetPreviousComponentIndex)
 
     // Relative
     {
-        auto path = LocalPath::fromPlatformEncoded(L"a/b/c");
+        auto path = LocalPath::fromPlatformEncoded("a/b/c");
 
         EXPECT_EQ(path.getPreviousComponentIndex(4), 2);
         EXPECT_EQ(path.getPreviousComponentIndex(2), 0);
