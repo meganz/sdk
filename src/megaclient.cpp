@@ -10440,6 +10440,8 @@ void MegaClient::cr_response(node_vector* shares, node_vector* nodes, JSON* sele
                         LOG_warn << "Skipping node due to an unavailable key";
                     }
                 }
+
+                sctable->put(n);
             }
             else
             {
