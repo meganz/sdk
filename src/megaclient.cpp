@@ -7781,7 +7781,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
                 addToMemory = true;
 #else
 
-                if (t == ROOTNODE || t == RUBBISHNODE || t == INCOMINGNODE || notify)
+                if (t == ROOTNODE || t == RUBBISHNODE || t == INCOMINGNODE || notify || !ISUNDEF(su))
                 {
                     addToMemory = true;
                 }
