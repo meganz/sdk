@@ -704,7 +704,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
     fsstableids = dirnotify->fsstableids();
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
 
-    mFilesystemType = client->fsaccess->getFilesystemType(&mLocalPath);
+    mFilesystemType = client->fsaccess->getFilesystemType(crootpath);
 
     localroot->init(this, FOLDERNODE, NULL, crootpath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
     localroot->setnode(remotenode);
@@ -713,13 +713,13 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
     if (macOSmajorVersion() >= 19) //macOS catalina+
     {
         LOG_debug << "macOS 10.15+ filesystem detected. Checking fseventspath.";
-        string supercrootpath = "/System/Volumes/Data" + crootpath;
+        string supercrootpath = "/System/Volumes/Data" + *crootpath.editStringDirect();
 
         int fd = open(supercrootpath.c_str(), O_RDONLY);
         if (fd == -1)
         {
             LOG_debug << "Unable to open path using fseventspath.";
-            mFsEventsPath = crootpath;
+            mFsEventsPath = *crootpath.editStringDirect();
         }
         else
         {
@@ -727,7 +727,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
             if (fcntl(fd, F_GETPATH, buf) < 0)
             {
                 LOG_debug << "Using standard paths to detect filesystem notifications.";
-                mFsEventsPath = crootpath;
+                mFsEventsPath = *crootpath.editStringDirect();
             }
             else
             {
@@ -769,6 +769,7 @@ Sync::~Sync()
 {
     // must be set to prevent remote mass deletion while rootlocal destructor runs
     assert(state == SYNC_CANCELED || state == SYNC_FAILED || state == SYNC_DISABLED);
+    mDestructorRunning = true;
 
     // unlock tmp lock
     tmpfa.reset();
@@ -803,7 +804,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
     for (auto it = range.first; it != range.second; it++)
     {
         ScopedLengthRestore restoreLen(localpath);
-        
+
         localpath.appendWithSeparator(it->second->localname, true, client->fsaccess->localseparator);
 
         LocalNode* l = it->second;
@@ -833,8 +834,8 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         if (fa->fopen(localpath))  // exists, is file
         {
             auto sn = client->fsaccess->fsShortname(localpath);
-            assert(!l->localname.empty() && 
-                (!l->slocalname && (!sn || l->localname == *sn) ||
+            assert(!l->localname.empty() &&
+                ((!l->slocalname && (!sn || l->localname == *sn)) ||
                 (l->slocalname && sn && !l->slocalname->empty() && *l->slocalname != l->localname && *l->slocalname == *sn)));
         }
 #endif
@@ -1253,11 +1254,13 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
     LOG_verbose << "Scanning: " << path << " in=" << initializing << " full=" << fullscan << " l=" << l;
     LocalPath* localpathNew = localname ? input_localpath : &tmppath;
 
-    // postpone moving nodes into nonexistent parents
-    if (parent && !parent->node)
+    if (parent)
     {
-        LOG_warn << "Parent doesn't exist yet: " << path;
-        return (LocalNode*)~0;
+        if (state != SYNC_INITIALSCAN && !parent->node)
+        {
+            LOG_warn << "Parent doesn't exist yet: " << path;
+            return (LocalNode*)~0;
+        }
     }
 
     // attempt to open/type this file
@@ -1774,7 +1777,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
 bool Sync::checkValidNotification(int q, Notification& notification)
 {
-    // This code moved from filtering before going on notifyq, to filtering after when it's thread-safe to do so 
+    // This code moved from filtering before going on notifyq, to filtering after when it's thread-safe to do so
 
     if (q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
     {

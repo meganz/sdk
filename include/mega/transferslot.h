@@ -29,7 +29,7 @@
 
 namespace mega {
 
-// Helper class: Automatically manage backoff timer enablement - if the slot is in progress and has an fa, the transfer's backoff timer should not be considered 
+// Helper class: Automatically manage backoff timer enablement - if the slot is in progress and has an fa, the transfer's backoff timer should not be considered
 // (part of a performance upgrade, so we don't loop all the transfers, calling their bt.update() on every preparewait() )
 class TransferSlotFileAccess
 {
@@ -93,10 +93,17 @@ struct MEGA_API TransferSlot
     // file attributes mutable
     int fileattrsmutable;
 
-    // maximum number of parallel connections and connection array. 
+    // maximum number of parallel connections and connection array.
     // shared_ptr for convenient coordination with the worker threads that do encrypt/decrypt on this data.
     int connections;
     vector<std::shared_ptr<HttpReqXfer>> reqs;
+
+    // Keep track of transfer network speed per channel, and overall
+    vector<SpeedController> mReqSpeeds;
+    SpeedController mTransferSpeed;
+
+    // only swap channels twice for speed issues, to prevent endless non-progress (counter is reset if we make overall progress, ie data reassembled)
+    unsigned mRaidChannelSwapsForSlowness = 0;
 
     // Manage download input buffers and file output buffers for file download.  Raid-aware, and automatically performs decryption and mac.
     TransferBufferManager transferbuf;
@@ -131,14 +138,17 @@ struct MEGA_API TransferSlot
 
     // transfer failure flag. MegaClient will increment the transfer->errorcount when it sees this set.
     bool failure;
-    
+
     TransferSlot(Transfer*);
     ~TransferSlot();
 
 private:
     void toggleport(HttpReqXfer* req);
-    bool tryRaidRecoveryFromHttpGetError(unsigned i);
+    bool tryRaidRecoveryFromHttpGetError(unsigned i, bool incrementErrors);
     bool checkTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client);
+
+    // returns true if connection haven't received data recently (set incrementErrors) or if slower than other connections (reset incrementErrors)
+    bool testForSlowRaidConnection(unsigned connectionNum, bool& incrementErrors);
 };
 } // namespace
 

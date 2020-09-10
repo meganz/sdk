@@ -13,7 +13,7 @@ using namespace std;
 
 enum { HTTP_PROXY = 0, HTTPS_PROXY };
 
-void path2localMac(string* path, string* local)
+void path2localMac(const string* path, string* local)
 {
     if (!path->size())
     {

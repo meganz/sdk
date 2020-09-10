@@ -80,6 +80,11 @@ bool DbTable::next(uint32_t* type, string* data, SymmCipher* key)
     return false;
 }
 
+DBTableTransactionCommitter *DbTable::getTransactionCommitter() const
+{
+    return mTransactionCommitter;
+}
+
 void DbTable::checkTransaction()
 {
     if (mCheckAlwaysTransacted)

@@ -514,7 +514,7 @@ bool Node::serialize(string* d)
     time_t ts = 0;  // we don't want to break backward compatibiltiy by changing the size (where m_time_t differs)
     d->append((char*)&ts, sizeof(ts));
 
-    ts = (time_t)ctime; 
+    ts = (time_t)ctime;
     d->append((char*)&ts, sizeof(ts));
 
     d->append(nodekeydata);
@@ -1211,7 +1211,7 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
         }
     }
 
-    if (parent && parent != newparent && !sync->client->destructorRunning)
+    if (parent && parent != newparent && !sync->mDestructorRunning)
     {
         treestate(TREESTATE_NONE);
     }
@@ -1225,7 +1225,7 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
             if (!newnode && node)
             {
                 assert(parent->node);
-                
+
                 int creqtag = sync->client->reqtag;
                 sync->client->reqtag = sync->tag;
                 LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
@@ -1279,7 +1279,8 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
         {
             // complete the copy/delete operation
             dstime nds = NEVER;
-            sync->client->syncup(parent, &nds);
+            size_t numPending = 0;
+            sync->client->syncup(parent, &nds, numPending, true);
 
             // check if nodes can be immediately created
             bool immediatecreation = (int) sync->client->synccreate.size() == nc;
@@ -1324,6 +1325,8 @@ LocalNode::LocalNode()
 , created{false}
 , reported{false}
 , checked{false}
+, syncdownTargetedAction(SYNCTREE_RESOLVED)
+, syncupTargetedAction(SYNCTREE_RESOLVED)
 {}
 
 // initialize fresh LocalNode object - must be called exactly once
@@ -1336,6 +1339,8 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     deleted = false;
     created = false;
     reported = false;
+    syncdownTargetedAction = SYNCTREE_RESOLVED;
+    syncupTargetedAction = SYNCTREE_RESOLVED;
     syncxfer = true;
     newnode.reset();
     parent_dbid = 0;
@@ -1375,6 +1380,32 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
 
     sync->client->totalLocalNodes++;
     sync->localnodes[type]++;
+}
+
+void LocalNode::needsFutureSyncup()
+{
+    syncupTargetedAction = syncupTargetedAction < SYNCTREE_SCAN_HERE ? SYNCTREE_SCAN_HERE : syncupTargetedAction;
+    for (auto p = parent; p != NULL; p = p->parent)
+    {
+        if (p->syncupTargetedAction >= SYNCTREE_DESCENDANT_FLAGGED)
+        {
+            break;
+        }
+        p->syncupTargetedAction = SYNCTREE_DESCENDANT_FLAGGED;
+    }
+}
+
+void LocalNode::needsFutureSyncdown()
+{
+    syncdownTargetedAction = syncdownTargetedAction < SYNCTREE_SCAN_HERE ? SYNCTREE_SCAN_HERE : syncdownTargetedAction;
+    for (auto p = parent; p != NULL; p = p->parent)
+    {
+        if (p->syncdownTargetedAction >= SYNCTREE_DESCENDANT_FLAGGED)
+        {
+            break;
+        }
+        p->syncdownTargetedAction = SYNCTREE_DESCENDANT_FLAGGED;
+    }
 }
 
 // update treestates back to the root LocalNode, inform app about changes
@@ -1433,7 +1464,7 @@ treestate_t LocalNode::checkstate()
             break;
         }
 
-        if (it->second->ts == TREESTATE_PENDING && ts == TREESTATE_SYNCED)
+        if (it->second->ts == TREESTATE_PENDING && state == TREESTATE_SYNCED)
         {
             state = TREESTATE_PENDING;
         }
@@ -1557,7 +1588,7 @@ LocalNode::~LocalNode()
             sync->dirnotify->notifyq[q].replaceLocalNodePointers(this, (LocalNode*)~0);
         }
     }
-    
+
     // remove from fsidnode map, if present
     if (fsid_it != sync->client->fsidnode.end())
     {
@@ -1738,7 +1769,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
 
     nodetype_t type;
     m_off_t size;
-    
+
     if (!r.unserializei64(size)) return nullptr;
 
     if (size < 0 && size >= -FOLDERNODE)
@@ -1763,7 +1794,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     unsigned char expansionflags[8] = { 0 };
 
     if (!r.unserializehandle(fsid) ||
-        !r.unserializeu32(parent_dbid) || 
+        !r.unserializeu32(parent_dbid) ||
         !r.unserializenodehandle(h) ||
         !r.unserializestring(localname) ||
         (type == FILENODE && !r.unserializebinary((byte*)crc, sizeof(crc))) ||

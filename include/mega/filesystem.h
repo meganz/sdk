@@ -31,7 +31,7 @@
 #elif defined  (__APPLE__) || defined (USE_IOS)
 #include <sys/mount.h>
 #include <sys/param.h>
-#elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
+#elif defined(_WIN32) || defined(WINDOWS_PHONE)
 #include <winsock2.h>
 #include <Windows.h>
 #endif
@@ -160,18 +160,23 @@ public:
     void trimNonDriveTrailingSeparator(const FileSystemAccess& fsaccess);
     bool findNextSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
     bool findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
+    bool endsInSeparator(const FileSystemAccess& fsaccess) const;
+
+    // get the index of the leaf name.  A trailing separator is considered part of the leaf.
     size_t getLeafnameByteIndex(const FileSystemAccess& fsaccess) const;
     bool backEqual(size_t bytePos, const LocalPath& compareTo) const;
     LocalPath subpathFrom(size_t bytePos) const;
     std::string substrTo(size_t bytePos) const;
+
+    void ensureWinExtendedPathLenPrefix();
 
     bool isContainingPathOf(const LocalPath& path, const FileSystemAccess& fsaccess);
 
     // Return a utf8 representation of the LocalPath (fsaccess is used to do the conversion)
     // No escaping or unescaping is done.
     std::string toPath(const FileSystemAccess& fsaccess) const;
-    
-    // Return a utf8 representation of the LocalPath, taking into account that the LocalPath 
+
+    // Return a utf8 representation of the LocalPath, taking into account that the LocalPath
     // may contain escaped characters that are disallowed for the filesystem.
     // Those characters are converted back (unescaped).  fsaccess is used to do the conversion.
     std::string toName(const FileSystemAccess& fsaccess, FileSystemType fsType = FS_UNKNOWN) const;
@@ -240,7 +245,7 @@ struct MEGA_API FileAccess
     // blocking mode: open for reading, writing or reading and writing.
     // This one really does open the file, and openf(), closef() will have no effect
     // If iteratingDir is supplied, this fopen() call must be for the directory entry being iterated by dopen()/dnext()
-    virtual bool fopen(LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr) = 0;
+    virtual bool fopen(LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false) = 0;
 
     // nonblocking open: Only prepares for opening.  Actually stats the file/folder, getting mtime, size, type.
     // Call openf() afterwards to actually open it if required.  For folders, returns false with type==FOLDERNODE.
@@ -339,11 +344,11 @@ struct Notification
     LocalNode* localnode;
 };
 
-struct NotificationDeque : ThreadSafeDeque<Notification> 
+struct NotificationDeque : ThreadSafeDeque<Notification>
 {
     void replaceLocalNodePointers(LocalNode* check, LocalNode* newvalue)
     {
-        std::lock_guard<std::mutex> g(m); 
+        std::lock_guard<std::mutex> g(m);
         for (auto& n : mNotifications)
         {
             if (n.localnode == check)
@@ -440,12 +445,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     bool islocalfscompatible(unsigned char, bool isEscape, FileSystemType = FS_UNKNOWN) const;
     void escapefsincompatible(string*, FileSystemType fileSystemType) const;
 
-    // Obtain a valid path by removing filename or debris directory from originalPath
-    // returns true if tempPath is modified, otherwise returns false
-    bool getValidPath(const string *originalPath, std::string &tempPath) const;
-    FileSystemType getFilesystemType(const string* dstPath) const;
+    FileSystemType getFilesystemType(const LocalPath& dstPath) const;
     const char *fstypetostring(FileSystemType type) const;
-    FileSystemType getlocalfstype(const std::string *dstPath) const;
+    FileSystemType getlocalfstype(const LocalPath& dstPath) const;
     void unescapefsincompatible(string*,FileSystemType) const;
 
     // convert MEGA path (UTF-8) to local format
@@ -464,10 +466,6 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     //Normalize UTF-8 string
     void normalize(string *) const;
-
-    // returns if local path1 contains local path2 (this does not expanse the paths)
-    // true if both paths are the same
-    bool contains(const std::string &localPath1, const std::string &localPath2) const;
 
     // generate local temporary file name
     virtual void tmpnamelocal(LocalPath&) const = 0;
@@ -492,7 +490,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // make sure that we stay within the range of timestamps supported by the server data structures (unsigned 32-bit)
     static void captimestamp(m_time_t*);
-    
+
     // set mtime
     virtual bool setmtimelocal(LocalPath&, m_time_t) = 0;
 
@@ -530,7 +528,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // set whenever an operation fails due to a transient condition (e.g. locking violation)
     bool transient_error;
-    
+
     // set whenever there was a global file notification error or permanent failure
     // (this is in addition to the DirNotify-local error)
     bool notifyerr;

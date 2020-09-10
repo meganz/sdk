@@ -135,9 +135,9 @@ class AuthRing;
 
 #define EOO 0
 
-// Our own version of time_t which we can be sure is 64 bit.  
+// Our own version of time_t which we can be sure is 64 bit.
 // Utils.h has functions m_time() and so on corresponding to time() which help us to use this type and avoid arithmetic overflow when working with time_t on systems where it's 32-bit
-typedef int64_t m_time_t; 
+typedef int64_t m_time_t;
 
 // monotonously increasing time in deciseconds
 typedef uint32_t dstime;
@@ -355,13 +355,15 @@ enum SyncError {
     ACCOUNT_BLOCKED= 25,                    // Account blocked
     UNKNOWN_TEMPORARY_ERROR = 26,           // Unknown temporary error
     TOO_MANY_ACTION_PACKETS = 27,           // Too many changes in account, local state discarded
+    LOGGED_OUT = 28,                        // Logged out
 };
 
-static bool isSyncErrorPermanent(SyncError e)
+inline bool isSyncErrorPermanent(SyncError e)
 {
     switch (e)
     {
     case NO_SYNC_ERROR:
+    case LOGGED_OUT: //syncs may be restored after relogging
     case UNKNOWN_TEMPORARY_ERROR:
     case STORAGE_OVERQUOTA:
     case BUSINESS_EXPIRED:
@@ -375,7 +377,7 @@ static bool isSyncErrorPermanent(SyncError e)
     }
 }
 
-static bool isAnError(SyncError e)
+inline bool isAnError(SyncError e)
 {
     switch (e)
     {
@@ -422,7 +424,7 @@ template <class T, class E>
 class deque_with_lazy_bulk_erase
 {
     // This is a wrapper class for deque.  Erasing an element from the middle of a deque is not cheap since all the subsequent elements need to be shuffled back.
-    // This wrapper intercepts the erase() calls for single items, and instead marks each one as 'erased'.  
+    // This wrapper intercepts the erase() calls for single items, and instead marks each one as 'erased'.
     // The supplied template class E contains the normal deque entry T, plus a flag or similar to mark an entry erased.
     // Any other operation on the deque performs all the gathered erases in a single std::remove_if for efficiency.
     // This makes an enormous difference when cancelling 100k transfers in MEGAsync's transfers window for example.
@@ -744,9 +746,9 @@ namespace CodeCounter
         std::string name;
         ScopeStats(std::string s) : name(std::move(s)) {}
 
-        inline string report(bool reset = false) 
-        { 
-            string s = " " + name + ": " + std::to_string(count) + " " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(timeSpent).count()); 
+        inline string report(bool reset = false)
+        {
+            string s = " " + name + ": " + std::to_string(count) + " " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(timeSpent).count());
             if (reset)
             {
                 count = 0;
@@ -770,9 +772,9 @@ namespace CodeCounter
         inline void start(bool b = true) { if (b && !started) { deltaStart = high_resolution_clock::now(); started = true; }  }
         inline void stop(bool b = true) { if (b && started) { sum += high_resolution_clock::now() - deltaStart; started = false; } }
         inline bool inprogress() { return started; }
-        inline string report(bool reset = false) 
-        { 
-            string s = std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(sum).count()); 
+        inline string report(bool reset = false)
+        {
+            string s = std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(sum).count());
             if (reset) sum = high_resolution_clock::duration{ 0 };
             return s;
         }
@@ -857,6 +859,7 @@ public:
 
     SyncConfig(int tag,
                std::string localPath,
+               std::string syncName,
                const handle remoteNode,
                const std::string &remotePath,
                const fsfp_t localFingerprint,
@@ -880,8 +883,14 @@ public:
     // whether this sync should be resumed at startup
     bool isResumableAtStartup() const;
 
+    // wether this sync has errors (was inactive)
+    bool hasError() const;
+
     // returns the local path of the sync
     const std::string& getLocalPath() const;
+
+    // returns the name of the sync
+    const std::string& getName() const;
 
     // returns the remote path of the sync
     handle getRemoteNode() const;
@@ -951,6 +960,9 @@ private:
     // the local path of the sync
     std::string mLocalPath;
 
+    // name of the sync (if localpath is not adecuate)
+    std::string mName;
+
     // the remote handle of the sync
     handle mRemoteNode;
 
@@ -982,6 +994,7 @@ private:
     std::tuple<const int&,
                const bool&,
                const std::string&,
+               const std::string&,
                const handle&,
                const std::string&,
                const fsfp_t&,
@@ -994,6 +1007,7 @@ private:
         return std::tie(mTag,
                         mEnabled,
                         mLocalPath,
+                        mName,
                         mRemoteNode,
                         mRemotePath,
                         mLocalFingerprint,
@@ -1015,7 +1029,7 @@ template<class TO, class FROM>
 FROM*& crossref_other_ptr_ref(TO* s);  // to be supplied for each pair of classes (to assign to the right member thereof) (gets around circular declarations)
 
 template <class  TO, class  FROM>
-class MEGA_API  crossref_ptr 
+class MEGA_API  crossref_ptr
 {
     friend class crossref_ptr<FROM, TO>;
 
@@ -1032,7 +1046,7 @@ public:
         reset();
     }
 
-    void crossref(TO* to, FROM* from) 
+    void crossref(TO* to, FROM* from)
     {
         assert(to && from);
         assert(ptr == nullptr);

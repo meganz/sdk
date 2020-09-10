@@ -101,7 +101,7 @@ public:
 
     // syncing to an inbound share?
     bool inshare = false;
-    
+
     // deletion queue
     set<uint32_t> deleteq;
 
@@ -116,7 +116,7 @@ public:
 
     // recursively add children
     void addstatecachechildren(uint32_t, idlocalnode_map*, LocalPath&, LocalNode*, int);
-    
+
     // Caches all synchronized LocalNode
     void cachenodes();
 
@@ -193,6 +193,8 @@ public:
     m_time_t updatedfilets = 0;
     m_time_t updatedfileinitialts = 0;
 
+    // flag to optimize destruction by skipping calls to treestate()
+    bool mDestructorRunning = false;
     Sync(MegaClient*, SyncConfig &, const char*, string*, Node*, bool, int, void*);
     ~Sync();
 
