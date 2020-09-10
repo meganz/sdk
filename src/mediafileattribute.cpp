@@ -651,6 +651,8 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filenam
     m_off_t readpos = 0;
     m_time_t startTime = 0;
 
+    bool hasVideo = false;
+    bool vidDuration = false;
     for (;;)
     {
         byte buf[30 * 1024];
@@ -660,12 +662,6 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filenam
         {
             break;
         }
-
-        bool hasVideo = 0 < mi.Count_Get(MediaInfoLib::Stream_Video, 0);
-        bool hasAudio = 0 < mi.Count_Get(MediaInfoLib::Stream_Audio, 0);
-
-        bool vidDuration = !mi.Get(MediaInfoLib::Stream_Video, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
-        bool audDuration = !mi.Get(MediaInfoLib::Stream_Audio, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
 
         if (totalBytesRead > maxBytesToRead || (startTime != 0 && ((m_time() - startTime) > maxSeconds))) 
         {
@@ -704,9 +700,18 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filenam
             break;
         }
 
-        if (accepted && hasVideo && hasAudio && vidDuration && audDuration)
+        if (accepted)
         {
-            break;
+            hasVideo = 0 < mi.Count_Get(MediaInfoLib::Stream_Video, 0);
+            bool hasAudio = 0 < mi.Count_Get(MediaInfoLib::Stream_Audio, 0);
+
+            vidDuration = !mi.Get(MediaInfoLib::Stream_Video, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
+            bool audDuration = !mi.Get(MediaInfoLib::Stream_Audio, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
+
+            if (hasVideo && hasAudio && vidDuration && audDuration)
+            {
+                break;
+            }
         }
 
         m_off_t requestPos = mi.Open_Buffer_Continue_GoTo_Get();
