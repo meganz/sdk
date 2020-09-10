@@ -5017,6 +5017,7 @@ TEST_F(SdkTest, SyncBasicOperations)
     // - Remove a removed sync
 
     LOG_info << "___TEST SyncBasicOperations___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     fs::path basePath = "SyncBasicOperations";
     std::string syncFolder1 = "sync1";
@@ -5121,7 +5122,7 @@ TEST_F(SdkTest, SyncBasicOperations)
 TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 {
     LOG_info << "___TEST SyncResumptionAfterFetchNodes___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // This test has several issues:
     // 1. Remote nodes may not be committed to the sctable database in time for fetchnodes which
@@ -5339,6 +5340,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 TEST_F(SdkTest, SyncRemoteNode)
 {
     LOG_info << "___TEST SyncRemoteNode___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     fs::path basePath = "SyncRemoteNode";
     const auto localPath = fs::current_path() / basePath;
@@ -5429,7 +5431,9 @@ TEST_F(SdkTest, SyncRemoteNode)
 
     std::string session = dumpSession();
     locallogout();
-    loginBySessionId(0, session);
+    //loginBySessionId(0, session);
+    auto tracker = asyncRequestFastLogin(0, session.c_str());
+    ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for accout " << 0;
     fetchnodes(0);
 
     sync.reset(megaApi[0]->getSyncByTag(tagID));
