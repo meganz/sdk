@@ -5088,17 +5088,17 @@ TEST_F(SdkTest, SyncBasicOperations)
 
     LOG_verbose << "SyncRemoveRemoteNode :  Enable Syncs";
     // Sync 1
-    ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0,syncTag));
+    ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, syncTag));
     sync = waitForSyncState(megaApi[0].get(), remoteBaseNode1.get(), mega::syncstate_t::SYNC_ACTIVE);
     ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_ACTIVE);
     // Sync 2
-    ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0,sync2.get()));
+    ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, sync2.get()));
     sync2 = waitForSyncState(megaApi[0].get(), remoteBaseNode2.get(), mega::syncstate_t::SYNC_ACTIVE);
     ASSERT_TRUE(sync2 && sync2->getState() == mega::syncstate_t::SYNC_ACTIVE);
 
     LOG_verbose << "SyncRemoveRemoteNode :  Enable syncs that fails";
-    ASSERT_EQ(MegaError::API_ENOENT, synchronousEnableSync(0,999999)); // Hope it doesn't exist.
-    ASSERT_EQ(MegaError::API_EEXIST, synchronousEnableSync(0,sync2.get())); // Currently enabled.
+    ASSERT_EQ(MegaError::API_ENOENT, synchronousEnableSync(0, 999999)); // Hope it doesn't exist.
+    ASSERT_EQ(MegaError::API_EEXIST, synchronousEnableSync(0, sync2.get())); // Currently enabled.
 
     LOG_verbose << "SyncRemoveRemoteNode :  Remove Syncs";
     // Sync 1
