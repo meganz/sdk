@@ -841,7 +841,7 @@ void SdkTest::getAccountsForTest(unsigned howMany)
         megaApi[index]->setLoggingName(to_string(index).c_str());
         megaApi[index]->addListener(this);    // TODO: really should be per api
 
-        if (!gResumeSessions || gSessionIDs[index].empty())
+        if (!gResumeSessions || gSessionIDs[index].empty() || gSessionIDs[index] == "invalid")
         {
             out() << logTime() << "Logging into account " << index << endl;
             trackers[index] = asyncRequestLogin(index, mApi[index].email.c_str(), mApi[index].pwd.c_str());
@@ -4581,6 +4581,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
     ASSERT_TRUE(!!mApi[0].accountDetails) << "Invalid accout details"; // some simple validation
 
     // killSession()
+    gSessionIDs[0] = "invalid";
     int numSessions = mApi[0].accountDetails->getNumSessions();
     for (int i = 0; i < numSessions; ++i)
     {
@@ -4604,9 +4605,6 @@ TEST_F(SdkTest, SdkSimpleCommands)
     logout(0);
     err = synchronousGetMiscFlags(0);
     ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
-
-    // leave a valid session, so it works as expected in --RESUMESESSIONS mode
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
