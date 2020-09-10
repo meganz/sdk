@@ -635,6 +635,32 @@ handle SqliteDbTable::getFirstAncestor(handle node)
     return ancestor;
 }
 
+bool SqliteDbTable::isNodeInDB(handle node)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    checkTransaction();
+    bool inDb = false;
+    sqlite3_stmt *stmt;
+
+    if (sqlite3_prepare(db, "SELECT count(*) FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_bind_int64(stmt, 1, node) == SQLITE_OK)
+        {
+            if (sqlite3_step(stmt) == SQLITE_ROW)
+            {
+               inDb = sqlite3_column_int(stmt, 0);
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return inDb;
+}
+
 // add/update record by index
 bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
 {

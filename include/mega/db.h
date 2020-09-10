@@ -71,6 +71,7 @@ public:
     virtual uint32_t getNumberOfChildrenFromNode(handle node) = 0;
     virtual bool isNodesOnDemandDb() = 0;
     virtual handle getFirstAncestor(handle node) = 0;
+    virtual bool isNodeInDB(handle node) = 0;
 
     // update or add specific record
     virtual bool put(uint32_t, char*, unsigned) = 0;

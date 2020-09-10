@@ -60,6 +60,7 @@ public:
     NodeCounter getNodeCounter(handle node) override;
     bool isNodesOnDemandDb() override;
     handle getFirstAncestor(handle node) override;
+    bool isNodeInDB(handle node) override;
     bool put(uint32_t, char*, unsigned);
     bool put(Node* node) override;
     bool del(uint32_t) override;
