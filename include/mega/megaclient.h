@@ -1421,7 +1421,7 @@ public:
     void readok(JSON*);
     void readokelement(JSON*);
     void readoutshares(JSON*);
-    void readoutshareelement(JSON*);
+    void readoutshareelement(JSON*, std::vector<handle>& nodes);
 
     void readipc(JSON*);
     void readopc(JSON*);

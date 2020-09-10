@@ -7986,21 +7986,30 @@ void MegaClient::readokelement(JSON* j)
 // read outbound shares and pending shares
 void MegaClient::readoutshares(JSON* j)
 {
+    std::vector<handle> nodes;
     if (j->enterarray())
     {
         while (j->enterobject())
         {
-            readoutshareelement(j);
+            readoutshareelement(j, nodes);
         }
 
         j->leavearray();
 
         mergenewshares(0);
+        for (handle h : nodes)
+        {
+            if (sctable->isNodeInDB(h))
+            {
+                Node* node = nodebyhandle(h);
+                sctable->put(node);
+            }
+        }
     }
 }
 
 // - h/u/r/ts/p (outbound share or pending share)
-void MegaClient::readoutshareelement(JSON* j)
+void MegaClient::readoutshareelement(JSON* j, std::vector<handle>& nodes)
 {
     handle h = UNDEF;
     handle uh = UNDEF;
@@ -8052,6 +8061,7 @@ void MegaClient::readoutshareelement(JSON* j)
                 }
 
                 newshares.push_back(new NewShare(h, 1, uh, r, ts, NULL, NULL, p));
+                nodes.push_back(h);
                 return;
 
             default:
