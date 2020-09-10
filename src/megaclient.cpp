@@ -7868,9 +7868,9 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, NewNode* nn, 
             n = nullptr;
             addToMemory = false;
         }
-
-        mOptimizePurgeNodes = false;
     }
+
+    mOptimizePurgeNodes = false;
 
     // any child nodes that arrived before their parents?
     for (size_t i = dp.size(); i--; )
