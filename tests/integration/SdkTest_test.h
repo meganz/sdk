@@ -287,7 +287,9 @@ public:
     void getContactRequest(unsigned int apiIndex, bool outgoing, int expectedSize = 1);
 
     void createFolder(unsigned int apiIndex, const char * name, MegaNode *n, int timeout = maxTimeout);
-    void deleteFolder(unsigned int apiIndex, MegaNode *n, int timeout = maxTimeout);
+    void deleteNode(unsigned int apiIndex, MegaNode *n, int timeout = maxTimeout);
+    void renameNode(unsigned int apiIndex, MegaNode *n, std::string newFolderName, int timeout = maxTimeout);
+    void moveNode(unsigned int apiIndex, MegaNode *n, MegaNode *newParent, int timeout = maxTimeout);
 
     void getRegisteredContacts(const std::map<std::string, std::string>& contacts);
 

@@ -314,6 +314,18 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         mApi[apiIndex].h = request->getNodeHandle();
         break;
 
+    case MegaRequest::TYPE_RENAME:
+        mApi[apiIndex].h = request->getNodeHandle();
+        break;
+
+    case MegaRequest::TYPE_REMOVE:
+        mApi[apiIndex].h = request->getNodeHandle();
+        break;
+
+    case MegaRequest::TYPE_MOVE:
+        mApi[apiIndex].h = request->getNodeHandle();
+        break;
+
     case MegaRequest::TYPE_COPY:
         mApi[apiIndex].h = request->getNodeHandle();
         break;
@@ -953,15 +965,34 @@ void SdkTest::createFolder(unsigned int apiIndex, const char *name, MegaNode *n,
     ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Cannot create a folder (error: " << mApi[apiIndex].lastError << ")";
 }
 
-void SdkTest::deleteFolder(unsigned int apiIndex, MegaNode *n, int timeout)
+void SdkTest::deleteNode(unsigned int apiIndex, MegaNode *n, int timeout)
 {
-    ASSERT_EQ(1,n->getType());
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_REMOVE] = false;
     mApi[apiIndex].megaApi->remove(n);
 
     ASSERT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_REMOVE], timeout) )
-            << "Removing folder failed after " << timeout  << " seconds";
-    ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Cannot remove a folder (error: " << mApi[apiIndex].lastError << ")";
+            << "Removing node failed after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Cannot remove a node (error: " << mApi[apiIndex].lastError << ")";
+}
+
+void SdkTest::renameNode(unsigned int apiIndex, MegaNode *n, std::string newFolderName, int timeout)
+{
+    mApi[apiIndex].requestFlags[MegaRequest::TYPE_RENAME] = false;
+    mApi[apiIndex].megaApi->renameNode(n,newFolderName.c_str());
+
+    ASSERT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_RENAME], timeout) )
+            << "Renaming node failed after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Cannot rename a node (error: " << mApi[apiIndex].lastError << ")";
+}
+
+void SdkTest::moveNode(unsigned int apiIndex, MegaNode *n, MegaNode *newParent, int timeout)
+{
+    mApi[apiIndex].requestFlags[MegaRequest::TYPE_MOVE] = false;
+    mApi[apiIndex].megaApi->moveNode(n,newParent);
+
+    ASSERT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_MOVE], timeout) )
+            << "Moving node failed after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Cannot move a node (error: " << mApi[apiIndex].lastError << ")";
 }
 
 void SdkTest::getRegisteredContacts(const std::map<std::string, std::string>& contacts)
@@ -4671,6 +4702,18 @@ std::unique_ptr<mega::MegaSync> waitForSyncState(mega::MegaApi* megaApi, mega::M
     return sync;
 }
 
+std::unique_ptr<mega::MegaSync> waitForSyncState(mega::MegaApi* megaApi, int tagID, int expectedState)
+{
+    std::unique_ptr<MegaSync> sync;
+    WaitFor([&megaApi, tagID, &sync, expectedState]() -> bool
+    {
+        sync.reset(megaApi->getSyncByTag(tagID));
+        return (sync && sync->getState() == expectedState);
+    }, 30*1000);
+    return sync;
+}
+
+
 TEST_F(SdkTest, SyncBasicOperations)
 {
     // What we are going to test here:
@@ -4685,6 +4728,8 @@ TEST_F(SdkTest, SyncBasicOperations)
     // - Remove a sync
     // - Remove a sync that doesn't exist
     // - Remove a removed sync
+
+    LOG_info << "___TEST SyncBasicOperations___";
 
     fs::path basePath = "SyncBasicOperations";
     std::string syncFolder1 = "sync1";
@@ -4996,15 +5041,15 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 }
 
 /**
- * @brief TEST_F SdkTestCreateAccount
+ * @brief TEST_F SdkRemoveRemoteNode
  *
  * Testing reenabling a sync after the remote node is removeed and recreated.
  */
-TEST_F(SdkTest, SyncRemoveRemoteNode)
+TEST_F(SdkTest, SyncRemoteNode)
 {
-    LOG_info << "___TEST SyncRemoveRemoteNode___";
+    LOG_info << "___TEST SyncRemoteNode___";
 
-    fs::path basePath = "SyncRemoveRemoteNode";
+    fs::path basePath = "SyncRemoteNode";
     const auto localPath = fs::current_path() / basePath;
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
@@ -5013,66 +5058,95 @@ TEST_F(SdkTest, SyncRemoveRemoteNode)
     fs::create_directories(localPath);
     createFile(localPath / "fileTest1", false);
 
-    LOG_verbose << "SyncRemoveRemoteNode :  Creating remote folder";
+    LOG_verbose << "SyncRemoteNode :  Creating remote folder";
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
     ASSERT_NE(remoteRootNode.get(), nullptr);
     ASSERT_NO_FATAL_FAILURE(createFolder(0, basePath.u8string().c_str(), remoteRootNode.get())) << "Error creating remote basePath";
     std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(mApi[0].h));
     ASSERT_NE(remoteBaseNode.get(), nullptr);
 
-    LOG_verbose << "SyncRemoveRemoteNode :  Enabling sync";
+    LOG_verbose << "SyncRemoteNode :  Enabling sync";
     ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, localPath.u8string().c_str(), remoteBaseNode.get())) << "API Error adding a new sync";
-    std::unique_ptr<MegaSync> sync;
-    WaitFor([this, &localPath, &remoteBaseNode, &sync]() -> bool
-    {
-        sync.reset(megaApi[0]->getSyncByNode(remoteBaseNode.get()));
-        return (sync && sync->getState() == mega::syncstate_t::SYNC_ACTIVE);
-    }, 20*1000);
-    ASSERT_NE(nullptr, sync.get());
-    ASSERT_EQ(sync->getState(), mega::syncstate_t::SYNC_ACTIVE);
-
-    LOG_verbose << "SyncRemoveRemoteNode :  Removing remote node with sync active.";
-    ASSERT_NO_FATAL_FAILURE(deleteFolder(0, remoteBaseNode.get()));
+    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), mega::syncstate_t::SYNC_ACTIVE);
+    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_ACTIVE);
     int tagID = sync->getTag();
-    WaitFor([this, &localPath, &sync, tagID]() -> bool
-    {
-        sync.reset(megaApi[0]->getSyncByTag(tagID));
-        return (sync && sync->getState() != mega::syncstate_t::SYNC_ACTIVE);
-    }, 20*1000);
-    ASSERT_NE(nullptr, sync.get());
-    ASSERT_EQ(sync->getState(), mega::syncstate_t::SYNC_FAILED);
 
-    LOG_verbose << "SyncRemoveRemoteNode :  Recreating remote folder.";
+    // Rename remote folder --> Sync fail
+    LOG_verbose << "SyncRemoteNode :  Rename remote node with sync active.";
+    std::string basePathRenamed = "SyncRemoteNodeRenamed";
+    ASSERT_NO_FATAL_FAILURE(renameNode(0, remoteBaseNode.get(),basePathRenamed.c_str()));
+    sync = waitForSyncState(megaApi[0].get(), tagID, mega::syncstate_t::SYNC_FAILED);
+    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_FAILED);
+
+    LOG_verbose << "SyncRemoteNode :  Restoring remote folder name.";
+    ASSERT_NO_FATAL_FAILURE(renameNode(0, remoteBaseNode.get(),basePath.u8string().c_str()));
+    ASSERT_NE(remoteBaseNode.get(), nullptr);
+    sync = waitForSyncState(megaApi[0].get(), tagID, mega::syncstate_t::SYNC_FAILED);
+    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_FAILED);
+
+    LOG_verbose << "SyncRemoteNode :  Enabling sync again.";
+    ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, tagID)) << "API Error enabling the sync";
+    sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), mega::syncstate_t::SYNC_ACTIVE);
+    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_ACTIVE);
+
+    // Move remote folder --> Sync fail
+    LOG_verbose << "SyncRemoteNode :  Creating secondary folder";
+    std::string movedBasePath = basePath.u8string() + "Moved";
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, movedBasePath.c_str(), remoteRootNode.get())) << "Error creating remote movedBasePath";
+    std::unique_ptr<MegaNode> remoteMoveNodeParent(megaApi[0]->getNodeByHandle(mApi[0].h));
+    ASSERT_NE(remoteMoveNodeParent.get(), nullptr);
+
+    LOG_verbose << "SyncRemoteNode :  Move remote node with sync active to the secondary folder.";
+    ASSERT_NO_FATAL_FAILURE(moveNode(0, remoteBaseNode.get(),remoteMoveNodeParent.get()));
+    sync = waitForSyncState(megaApi[0].get(), tagID, mega::syncstate_t::SYNC_FAILED);
+    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_FAILED);
+
+    LOG_verbose << "SyncRemoteNode :  Moving back the remote node.";
+    ASSERT_NO_FATAL_FAILURE(moveNode(0, remoteBaseNode.get(),remoteRootNode.get()));
+    ASSERT_NE(remoteBaseNode.get(), nullptr);
+    sync = waitForSyncState(megaApi[0].get(), tagID, mega::syncstate_t::SYNC_FAILED);
+    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_FAILED);
+
+    LOG_verbose << "SyncRemoteNode :  Enabling sync again.";
+    ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, tagID)) << "API Error enabling the sync";
+    sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), mega::syncstate_t::SYNC_ACTIVE);
+    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_ACTIVE);
+
+    // Remove remote folder --> Sync fail
+    LOG_verbose << "SyncRemoteNode :  Removing remote node with sync active.";
+    ASSERT_NO_FATAL_FAILURE(deleteNode(0, remoteBaseNode.get()));
+    sync = waitForSyncState(megaApi[0].get(), tagID, mega::syncstate_t::SYNC_FAILED);
+    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_FAILED);
+
+    LOG_verbose << "SyncRemoteNode :  Recreating remote folder.";
     ASSERT_NO_FATAL_FAILURE(createFolder(0, basePath.u8string().c_str(), remoteRootNode.get())) << "Error creating remote basePath";
     remoteBaseNode.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
     ASSERT_NE(remoteBaseNode.get(), nullptr);
-    WaitFor([this, &localPath, &sync, tagID]() -> bool
-    {
-        sync.reset(megaApi[0]->getSyncByTag(tagID));
-        return (sync && sync->getState() != mega::syncstate_t::SYNC_ACTIVE);
-    }, 20*1000);
+    sync = waitForSyncState(megaApi[0].get(), tagID, mega::syncstate_t::SYNC_FAILED);
+    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_FAILED);
 
-    LOG_verbose << "SyncRemoveRemoteNode :  Enabling sync again.";
+    LOG_verbose << "SyncRemoteNode :  Enabling sync again.";
     ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, tagID)) << "API Error enabling the sync";
-    WaitFor([this, &localPath, &remoteBaseNode, &sync]() -> bool
-    {
-        sync.reset(megaApi[0]->getSyncByNode(remoteBaseNode.get()));
-        return (sync && sync->getState() == mega::syncstate_t::SYNC_ACTIVE);
-    }, 20*1000);
-    ASSERT_NE(nullptr, sync.get());
-    ASSERT_EQ(sync->getState(), mega::syncstate_t::SYNC_ACTIVE);
+    sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), mega::syncstate_t::SYNC_ACTIVE);
+    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_ACTIVE);
 
-    LOG_verbose << "SyncRemoveRemoteNode :  Removing remote node with sync active.";
-    ASSERT_NO_FATAL_FAILURE(deleteFolder(0, remoteBaseNode.get())) << "Error deleting remote basePath";;
-    WaitFor([this, &localPath, &sync, tagID]() -> bool
-    {
-        sync.reset(megaApi[0]->getSyncByTag(tagID));
-        return (sync && sync->getState() != mega::syncstate_t::SYNC_ACTIVE);
-    }, 20*1000);
-    ASSERT_NE(nullptr, sync.get());
-    ASSERT_EQ(sync->getState(), mega::syncstate_t::SYNC_FAILED);
+    // Check if a locallogout keeps the sync configuration.
+    LOG_verbose << "SyncRemoteNode :  Removing remote node with sync active.";
+    ASSERT_NO_FATAL_FAILURE(deleteNode(0, remoteBaseNode.get())) << "Error deleting remote basePath";;
+    sync = waitForSyncState(megaApi[0].get(), tagID, mega::syncstate_t::SYNC_FAILED);
+    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_FAILED);
 
-    LOG_verbose << "SyncRemoveRemoteNode :  Remove failed sync";
+    std::string session = dumpSession();
+    locallogout();
+    loginBySessionId(0, session);
+    fetchnodes(0);
+
+    sync.reset(megaApi[0]->getSyncByTag(tagID));
+    std::string FolderAfter(sync->getMegaFolder());
+    ASSERT_EQ(FolderAfter, ("/" / basePath).u8string());
+
+    // Remove a failing sync.
+    LOG_verbose << "SyncRemoteNode :  Remove failed sync";
     ASSERT_EQ(MegaError::API_OK, synchronousRemoveSync(0, sync.get())) << "API Error removing the sync";
     sync.reset(megaApi[0]->getSyncByTag(tagID));
     ASSERT_EQ(nullptr, sync.get());
