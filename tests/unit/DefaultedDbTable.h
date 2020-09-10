@@ -40,27 +40,31 @@ public:
     {
         throw NotImplemented{__func__};
     }
-    bool getNode(mega::handle, std::string&) override
+    bool getNode(mega::handle, mega::NodeSerialized&) override
     {
         throw NotImplemented{__func__};
     }
-    bool getNodes(std::vector<std::string>&) override
+    bool getNodes(std::vector<mega::NodeSerialized>&) override
     {
         throw NotImplemented{__func__};
     }
-    bool getNodesByFingerprint(const mega::FileFingerprint&, std::map<mega::handle, std::string>&) override
+    bool getNodesByFingerprint(const mega::FileFingerprint&, std::map<mega::handle, mega::NodeSerialized>&) override
     {
         throw NotImplemented{__func__};
     }
-    bool getNodeByFingerprint(const mega::FileFingerprint&, std::string&) override
+    bool getNodeByFingerprint(const mega::FileFingerprint&, mega::NodeSerialized&) override
     {
         throw NotImplemented{__func__};
     }
-    bool getNodesWithoutParent(std::vector<std::string>&) override
+    bool getNodesWithoutParent(std::vector<mega::NodeSerialized>&) override
     {
         throw NotImplemented(__func__);
     }
-    bool getChildrenFromNode(mega::handle, std::map<mega::handle, std::string>&) override
+    bool getNodesWithShares(std::vector<mega::NodeSerialized>& nodes) override
+    {
+        throw NotImplemented(__func__);
+    }
+    bool getChildrenFromNode(mega::handle, std::map<mega::handle, mega::NodeSerialized>&) override
     {
         throw NotImplemented(__func__);
     }
@@ -81,6 +85,10 @@ public:
         throw NotImplemented{__func__};
     }
     mega::handle getFirstAncestor(mega::handle) override
+    {
+        throw NotImplemented{__func__};
+    }
+    bool isNodeInDB(mega::handle) override
     {
         throw NotImplemented{__func__};
     }
