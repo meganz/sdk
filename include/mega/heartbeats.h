@@ -159,15 +159,13 @@ private:
 class MegaBackupInfo
 {
 public:
-    MegaBackupInfo(BackupType type, string localFolder, string mName, handle megaHandle, int state, int substate, string extra, handle backupId = UNDEF);
+    MegaBackupInfo(BackupType type, string localFolder, handle megaHandle, int state, int substate, string extra, handle backupId = UNDEF);
 
     BackupType type() const;
 
     handle backupId() const;
 
     string localFolder() const;
-
-    string name() const;
 
     handle megaHandle() const;
 
@@ -183,7 +181,6 @@ protected:
     BackupType mType;
     handle mBackupId;
     string mLocalFolder;
-    string mName;
     handle mMegaHandle;
     int mState;
     int mSubState;
@@ -252,7 +249,7 @@ private:
     void beatBackupInfo(const std::shared_ptr<HeartBeatBackupInfo> &hbs);
     void calculateStatus(HeartBeatBackupInfo *hbs);
 
-    std::shared_ptr<HeartBeatTransferProgressedInfo> getHeartBeatBackupInfoByTransfer(MegaTransfer *transfer);
+    std::shared_ptr<HeartBeatTransferProgressedInfo> getHeartBeatBackupInfoByTransfer(MegaApi *api, MegaTransfer *transfer);
 
 #ifdef ENABLE_SYNC
     // --- Members and methods for syncs. i.e: backups of type: TWO_WAY, UP_SYNC, DOWN_SYNC

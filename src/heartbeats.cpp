@@ -298,11 +298,10 @@ void HeartBeatSyncInfo::updateStatus(MegaClient *client)
 
 ////////////// BackupInfo ////////////////
 
-MegaBackupInfo::MegaBackupInfo(BackupType type, string localFolder, string name, handle megaHandle, int state, int substate, std::string extra, handle backupId)
+MegaBackupInfo::MegaBackupInfo(BackupType type, string localFolder, handle megaHandle, int state, int substate, std::string extra, handle backupId)
     : mType(type)
     , mBackupId(backupId)
     , mLocalFolder(localFolder)
-    , mName(name)
     , mMegaHandle(megaHandle)
     , mState(state)
     , mSubState(substate)
@@ -324,11 +323,6 @@ handle MegaBackupInfo::backupId() const
 string MegaBackupInfo::localFolder() const
 {
     return mLocalFolder;
-}
-
-string MegaBackupInfo::name() const
-{
-    return mName;
 }
 
 handle MegaBackupInfo::megaHandle() const
@@ -358,7 +352,7 @@ void MegaBackupInfo::setBackupId(const handle &backupId)
 
 #ifdef ENABLE_SYNC
 MegaBackupInfoSync::MegaBackupInfoSync(MegaClient *client, const MegaSync &sync, handle backupid)
-    : MegaBackupInfo(getSyncType(client, sync), sync.getLocalFolder(), sync.getName(), sync.getMegaHandle()
+    : MegaBackupInfo(getSyncType(client, sync), sync.getLocalFolder(), sync.getMegaHandle()
                  , getSyncState(client, sync), getSyncSubstatus(sync), getSyncExtraData(sync), backupid)
 {
 
@@ -523,12 +517,11 @@ void MegaBackupMonitor::digestPutResult(handle backupId)
 void MegaBackupMonitor::updateBackupInfo(const MegaBackupInfo &info)
 {
     string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", info.localFolder()) );
-    string deviceIDEncrypted(mClient->cypherTLVTextWithMasterKey("de", mClient->getDeviceid()) );
-    string nameEncrypted(mClient->cypherTLVTextWithMasterKey("na", info.name()) );
+    string deviceIdHash = mClient->getDeviceidHash();
 
     mClient->reqs.add(new CommandBackupPut(mClient, info.backupId(), info.type(), info.megaHandle(),
                                            localFolderEncrypted.c_str(),
-                                           deviceIDEncrypted.c_str(), nameEncrypted.c_str(),
+                                           deviceIdHash.c_str(),
                                            info.state(), info.subState(), info.extra().c_str()
                                            ));
 }
@@ -537,12 +530,11 @@ void MegaBackupMonitor::updateBackupInfo(const MegaBackupInfo &info)
 void MegaBackupMonitor::registerBackupInfo(const MegaBackupInfo &info)
 {
     string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", info.localFolder()) );
-    string deviceIDEncrypted(mClient->cypherTLVTextWithMasterKey("de", mClient->getDeviceid()) );
-    string nameEncrypted(mClient->cypherTLVTextWithMasterKey("na", info.name()) );
+    string deviceIdHash = mClient->getDeviceidHash();
 
     mClient->reqs.add(new CommandBackupPut(mClient, info.type(), info.megaHandle(),
                                            localFolderEncrypted.c_str(),
-                                           deviceIDEncrypted.c_str(), nameEncrypted.c_str(),
+                                           deviceIdHash.c_str(),
                                            info.state(), info.subState(), info.extra().c_str()
                                            ));
 }
@@ -608,10 +600,10 @@ void MegaBackupMonitor::onPauseStateChanged(MegaApi *api)
     //loop on active syncs to update
     for (auto &sync : mClient->syncs)
     {
-        auto megaSync = api->getSyncByTag(sync->tag);
+        std::unique_ptr<MegaSync> megaSync{ api->getSyncByTag(sync->tag) };
         if (megaSync)
         {
-            updateOrRegisterSync(megaSync);
+            updateOrRegisterSync(megaSync.get());
         }
     }
 }
@@ -630,7 +622,7 @@ void MegaBackupMonitor::onSyncDeleted(MegaApi *api, MegaSync *sync)
 }
 #endif
 
-std::shared_ptr<HeartBeatTransferProgressedInfo> MegaBackupMonitor::getHeartBeatBackupInfoByTransfer(MegaTransfer *transfer)
+std::shared_ptr<HeartBeatTransferProgressedInfo> MegaBackupMonitor::getHeartBeatBackupInfoByTransfer(MegaApi *api, MegaTransfer *transfer)
 {
 #ifdef ENABLE_SYNC
     if (transfer->isSyncTransfer())
@@ -669,8 +661,16 @@ std::shared_ptr<HeartBeatTransferProgressedInfo> MegaBackupMonitor::getHeartBeat
             }
             else
             {
-                //create new HeartBeatSyncInfo
-                return mHeartBeatedSyncs.insert(std::make_pair(syncTag, std::make_shared<HeartBeatSyncInfo>(syncTag, UNDEF))).first->second;
+                std::unique_ptr<MegaSync> sync{api->getSyncByTag(syncTag)};
+                if (sync) //only if sync tag exists (to avoid handling transfer removed after sync removal)
+                {
+                    //create new HeartBeatSyncInfo
+                    return mHeartBeatedSyncs.insert(std::make_pair(syncTag, std::make_shared<HeartBeatSyncInfo>(syncTag, UNDEF))).first->second;
+                }
+                else
+                {
+                    LOG_debug << "Getting HeartBeatBackupInfo associated to transfer for non existing sync. No need to create one";
+                }
             }
         }
     }
@@ -680,7 +680,7 @@ std::shared_ptr<HeartBeatTransferProgressedInfo> MegaBackupMonitor::getHeartBeat
 
 void MegaBackupMonitor::onTransferStart(MegaApi *api, MegaTransfer *transfer)
 {
-    auto hbs = getHeartBeatBackupInfoByTransfer(transfer);
+    auto hbs = getHeartBeatBackupInfoByTransfer(api, transfer);
     if (hbs)
     {
         if (transfer->getType() == MegaTransfer::TYPE_UPLOAD)
@@ -697,7 +697,7 @@ void MegaBackupMonitor::onTransferStart(MegaApi *api, MegaTransfer *transfer)
 
 void MegaBackupMonitor::onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
 {
-    auto hbs = getHeartBeatBackupInfoByTransfer(transfer);
+    auto hbs = getHeartBeatBackupInfoByTransfer(api, transfer);
     if (hbs)
     {
         hbs->updateTransferInfo(transfer);
@@ -706,7 +706,7 @@ void MegaBackupMonitor::onTransferUpdate(MegaApi *api, MegaTransfer *transfer)
 
 void MegaBackupMonitor::onTransferFinish(MegaApi *api, MegaTransfer *transfer, MegaError *error)
 {
-    auto hbs = getHeartBeatBackupInfoByTransfer(transfer);
+    auto hbs = getHeartBeatBackupInfoByTransfer(api, transfer);
     if (hbs)
     {
         if (transfer->getType() == MegaTransfer::TYPE_UPLOAD)

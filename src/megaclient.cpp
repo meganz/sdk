@@ -1026,6 +1026,21 @@ std::string MegaClient::getDeviceid() const
     return MegaClient::statsid;
 }
 
+std::string MegaClient::getDeviceidHash() const
+{
+    string deviceIdHash;
+    string id = getDeviceid();
+    if (id.size())
+    {
+        string hash;
+        HashSHA256 hasher;
+        hasher.add((const byte*)id.data(), unsigned(id.size()));
+        hasher.get(&hash);
+        Base64::btoa(hash, deviceIdHash);
+    }
+    return deviceIdHash;
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {

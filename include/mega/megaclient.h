@@ -1804,6 +1804,8 @@ public:
 
     std::string getDeviceid() const;
 
+    std::string getDeviceidHash() const;
+
 #ifdef ENABLE_SYNC
     void resetSyncConfigs();
     bool getKeepSyncsAfterLogout() const;
