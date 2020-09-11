@@ -517,22 +517,11 @@ void MegaBackupMonitor::digestPutResult(handle backupId)
 void MegaBackupMonitor::updateBackupInfo(const MegaBackupInfo &info)
 {
     string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", info.localFolder()) );
-
-    string deviceIDEncrypted;
-    string id = mClient->getDeviceid();
-    if (id.size())
-    {
-        string hash;
-        HashSHA256 hasher;
-        hasher.add((const byte*)id.data(), unsigned(id.size()));
-        hasher.get(&hash);
-        Base64::btoa(hash, deviceIDEncrypted);
-    }
-
+    string deviceIdHash = mClient->getDeviceidHash();
 
     mClient->reqs.add(new CommandBackupPut(mClient, info.backupId(), info.type(), info.megaHandle(),
                                            localFolderEncrypted.c_str(),
-                                           deviceIDEncrypted.c_str(),
+                                           deviceIdHash.c_str(),
                                            info.state(), info.subState(), info.extra().c_str()
                                            ));
 }
@@ -541,21 +530,11 @@ void MegaBackupMonitor::updateBackupInfo(const MegaBackupInfo &info)
 void MegaBackupMonitor::registerBackupInfo(const MegaBackupInfo &info)
 {
     string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", info.localFolder()) );
-
-    string deviceIDEncrypted;
-    string id = mClient->getDeviceid();
-    if (id.size())
-    {
-        string hash;
-        HashSHA256 hasher;
-        hasher.add((const byte*)id.data(), unsigned(id.size()));
-        hasher.get(&hash);
-        Base64::btoa(hash, deviceIDEncrypted);
-    }
+    string deviceIdHash = mClient->getDeviceidHash();
 
     mClient->reqs.add(new CommandBackupPut(mClient, info.type(), info.megaHandle(),
                                            localFolderEncrypted.c_str(),
-                                           deviceIDEncrypted.c_str(),
+                                           deviceIdHash.c_str(),
                                            info.state(), info.subState(), info.extra().c_str()
                                            ));
 }

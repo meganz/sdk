@@ -1718,15 +1718,10 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *em
         arg("sn", (byte*)&client->cachedscsn, sizeof client->cachedscsn);
     }
 
-    string id = client->getDeviceid();
-
-    if (id.size())
+    string deviceIdHash = client->getDeviceidHash();
+    if (!deviceIdHash.empty())
     {
-        string hash;
-        HashSHA256 hasher;
-        hasher.add((const byte*)id.data(), unsigned(id.size()));
-        hasher.get(&hash);
-        arg("si", (const byte*)hash.data(), int(hash.size()));
+        arg("si", deviceIdHash.c_str());
     }
 
     tag = client->reqtag;
