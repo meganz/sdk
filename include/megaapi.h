@@ -2750,18 +2750,90 @@ public:
 class MegaBanner
 {
 public:
-    MegaBanner(std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string>&& details);
+    virtual ~MegaBanner();
 
-    int getId() const;
-    const char* getTitle() const;
-    const char* getDescription() const;
-    const char* getImage() const;
-    const char* getUrl() const;
-    const char* getBackgroundImage() const;
-    const char* getImageLocation() const;
+    /**
+    * @brief Creates a copy of this MegaBanner object.
+    *
+    * The resulting object is fully independent of the source MegaBanner,
+    * it contains a copy of all internal attributes, so it will be valid after
+    * the original object is deleted.
+    *
+    * You are the owner of the returned object
+    *
+    * @return Copy of the MegaBanner object
+    */
+    virtual MegaBanner* copy() const;
 
-private:
-    std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string> mDetails;
+    /**
+    * @brief Returns the id of the MegaBanner
+    *
+    * @return Id of this banner
+    */
+    virtual int getId() const;
+
+    /**
+    * @brief Returns the title associated with the MegaBanner object
+    *
+    * The SDK retains the ownership of the returned value. It will be valid until
+    * the MegaBanner object is deleted.
+    *
+    * @return Title associated with the MegaBanner object
+    */
+    virtual const char* getTitle() const;
+
+    /**
+    * @brief Returns the description associated with the MegaBanner object
+    *
+    * The SDK retains the ownership of the returned value. It will be valid until
+    * the MegaBanner object is deleted.
+    *
+    * @return Description associated with the MegaBanner object
+    */
+    virtual const char* getDescription() const;
+
+    /**
+    * @brief Returns the filename of the image used by the MegaBanner object
+    *
+    * The SDK retains the ownership of the returned value. It will be valid until
+    * the MegaBanner object is deleted.
+    *
+    * @return Filename of the image used by the MegaBanner object
+    */
+    virtual const char* getImage() const;
+
+    /**
+    * @brief Returns the URL associated with the MegaBanner object
+    *
+    * The SDK retains the ownership of the returned value. It will be valid until
+    * the MegaBanner object is deleted.
+    *
+    * @return URL associated with the MegaBanner object
+    */
+    virtual const char* getUrl() const;
+
+    /**
+    * @brief Returns the filename of the background image used by the MegaBanner object
+    *
+    * The SDK retains the ownership of the returned value. It will be valid until
+    * the MegaBanner object is deleted.
+    *
+    * @return Filename of the background image used by the MegaBanner object
+    */
+    virtual const char* getBackgroundImage() const;
+
+    /**
+    * @brief Returns the URL where images are located
+    *
+    * The SDK retains the ownership of the returned value. It will be valid until
+    * the MegaBanner object is deleted.
+    *
+    * @return URL where images are located
+    */
+    virtual const char* getImageLocation() const;
+
+protected:
+    MegaBanner();
 };
 
 /**
@@ -2771,7 +2843,46 @@ private:
 * only valid until the MegaBannerList is deleted.
 *
 */
-typedef std::vector<MegaBanner> MegaBannerList;
+class MegaBannerList
+{
+public:
+    virtual ~MegaBannerList();
+
+    /**
+    * @brief Creates a copy of this MegaBannerList object.
+    *
+    * The resulting object is fully independent of the source MegaBannerList,
+    * it contains a copy of all internal objects, so it will be valid after
+    * the original object is deleted.
+    *
+    * You are the owner of the returned object
+    *
+    * @return Copy of the MegaBannerList object
+    */
+    virtual MegaBannerList* copy() const;
+
+    /**
+    * @brief Returns the MegaBanner at position i in the MegaBannerList
+    *
+    * The MegaBannerList retains the ownership of the returned MegaBanner. It will be only valid until
+    * the MegaBannerList is deleted.
+    *
+    * If the index is >= the size of the list, this function returns NULL.
+    *
+    * @param i Position of the MegaBanner that we want to get for the list
+    * @return MegaBanner at position i in the list
+    */
+    virtual const MegaBanner* get(int i) const;
+
+    /**
+    * @brief Returns the number of MegaBanner objects in the list
+    * @return Number of MegaBanner objects in the list
+    */
+    virtual int size() const;
+
+protected:
+    MegaBannerList();
+};
 
 /**
  * @brief Provides information about an asynchronous request
@@ -3525,6 +3636,20 @@ class MegaRequest
          * @return Object with information about the contents of a folder
          */
         virtual MegaBackgroundMediaUpload* getMegaBackgroundMediaUploadPtr() const;
+
+        /**
+         * @brief Returns the list of all Smart Banners available for current user
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests in onRequestFinish when the
+         * error code is MegaError::API_OK:
+         * - MegaApi::getBanners - Requests all Smart Banners available for current user
+         *
+         * @return List of all Smart Banners available for current user
+         */
+        virtual MegaBannerList* getBannerList() const;
 };
 
 /**
@@ -17642,7 +17767,19 @@ class MegaApi
         MegaApiLock* getMegaApiLock(bool lockNow);
 
         /**
-         * @brief Request a list of all Smart Banners available for current user.
+         * @brief Requests a list of all Smart Banners available for current user.
+         *
+         * The response value is stored as a MegaBannerList.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_BANNERS
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaStringListMap where the keys are two-letter country codes and the
+         *   values a list of calling codes.
+         *
+         * For this command, there are currently no command specific error codes returned by the API.
+         *
+         * @param listener MegaRequestListener to track this request
          */
         void getBanners(MegaRequestListener *listener = nullptr);
 

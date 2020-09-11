@@ -1028,6 +1028,11 @@ MegaBackgroundMediaUpload* MegaRequest::getMegaBackgroundMediaUploadPtr() const
     return NULL;
 }
 
+MegaBannerList* MegaRequest::getBannerList() const
+{
+    return nullptr;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -6891,43 +6896,76 @@ int MegaIntegerList::size() const
 }
 
 
-MegaBanner::MegaBanner(tuple<int, string, string, string, string, string, string>&& details) : mDetails(move(details))
+MegaBanner::MegaBanner()
 {
+}
+
+MegaBanner::~MegaBanner()
+{
+}
+
+MegaBanner* MegaBanner::copy() const
+{
+    return nullptr;
 }
 
 int MegaBanner::getId() const
 {
-    return std::get<0>(mDetails);
+    return 0;
 }
 
 const char* MegaBanner::getTitle() const
 {
-    return std::get<1>(mDetails).c_str();
+    return nullptr;
 }
 
 const char* MegaBanner::getDescription() const
 {
-    return std::get<2>(mDetails).c_str();
+    return nullptr;
 }
 
 const char* MegaBanner::getImage() const
 {
-    return std::get<3>(mDetails).c_str();
+    return nullptr;
 }
 
 const char* MegaBanner::getUrl() const
 {
-    return std::get<4>(mDetails).c_str();
+    return nullptr;
 }
 
 const char* MegaBanner::getBackgroundImage() const
 {
-    return std::get<5>(mDetails).c_str();
+    return nullptr;
 }
 
 const char* MegaBanner::getImageLocation() const
 {
-    return std::get<6>(mDetails).c_str();
+    return nullptr;
+}
+
+
+MegaBannerList::MegaBannerList()
+{
+}
+
+MegaBannerList::~MegaBannerList()
+{
+}
+
+MegaBannerList* MegaBannerList::copy() const
+{
+    return nullptr;
+}
+
+const MegaBanner* MegaBannerList::get(int i) const
+{
+    return nullptr;
+}
+
+int MegaBannerList::size() const
+{
+    return 0;
 }
 
 }

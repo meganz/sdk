@@ -3746,13 +3746,18 @@ void MegaRequestPrivate::setPublicNode(MegaNode *publicNode, bool copyChildren)
     }
 }
 
+MegaBannerList* MegaRequestPrivate::getBannerList() const
+{
+    return mBannerList.get();
+}
+
 void MegaRequestPrivate::setBanners(vector< tuple<int, string, string, string, string, string, string> >&& banners)
 {
-    mBannerList = make_unique<MegaBannerList>();
+    mBannerList = make_unique<MegaBannerListPrivate>();
 
     for (auto&& b : banners)
     {
-        mBannerList->emplace_back(MegaBanner(move(b)));
+        mBannerList->add(MegaBannerPrivate(move(b)));
     }
 }
 
@@ -3919,6 +3924,71 @@ const char *MegaRequestPrivate::__str__() const
 const char *MegaRequestPrivate::__toString() const
 {
     return getRequestString();
+}
+
+MegaBannerPrivate::MegaBannerPrivate(std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string>&& details)
+                  :mDetails(move(details))
+{
+}
+
+MegaBanner* MegaBannerPrivate::copy() const
+{
+    return new MegaBannerPrivate(*this);
+}
+
+int MegaBannerPrivate::getId() const
+{
+    return std::get<0>(mDetails);
+}
+
+const char* MegaBannerPrivate::getTitle() const
+{
+    return std::get<1>(mDetails).c_str();
+}
+
+const char* MegaBannerPrivate::getDescription() const
+{
+    return std::get<2>(mDetails).c_str();
+}
+
+const char* MegaBannerPrivate::getImage() const
+{
+    return std::get<3>(mDetails).c_str();
+}
+
+const char* MegaBannerPrivate::getUrl() const
+{
+    return std::get<4>(mDetails).c_str();
+}
+
+const char* MegaBannerPrivate::getBackgroundImage() const
+{
+    return std::get<5>(mDetails).c_str();
+}
+
+const char* MegaBannerPrivate::getImageLocation() const
+{
+    return std::get<6>(mDetails).c_str();
+}
+
+MegaBannerList* MegaBannerListPrivate::copy() const
+{
+    return new MegaBannerListPrivate(*this);
+}
+
+const MegaBanner* MegaBannerListPrivate::get(int i) const
+{
+    return (i >= 0 && i < mVector.size()) ? &(mVector[i]) : nullptr;
+}
+
+int MegaBannerListPrivate::size() const
+{
+    return int(mVector.size());
+}
+
+void MegaBannerListPrivate::add(MegaBannerPrivate&& banner)
+{
+    mVector.emplace_back(std::move(banner));
 }
 
 MegaStringMapPrivate::MegaStringMapPrivate()
