@@ -15966,17 +15966,9 @@ void MegaApiImpl::getbanners_result(error e)
 void MegaApiImpl::getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners)
 {
     auto it = requestMap.find(client->restag);
-    if (it == requestMap.end())
-    {
-        return;
-    }
-
+    if (it == requestMap.end()) return;
     MegaRequestPrivate* request = it->second;
-
-    if (!request || (request->getType() != MegaRequest::TYPE_GET_BANNERS))
-    {
-        return;
-    }
+    if (!request || (request->getType() != MegaRequest::TYPE_GET_BANNERS)) return;
 
     request->setBanners(move(banners));
 
