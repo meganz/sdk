@@ -22751,7 +22751,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_DISMISS_BANNER:
         {
-            client->reqs.add(new CommandDismissBanner(client, int(request->getNumber())));
+            client->reqs.add(new CommandDismissBanner(client, request->getParamType(), request->getNumber()));
             break;
         }
         default:
@@ -22891,7 +22891,8 @@ void MegaApiImpl::getBanners(MegaRequestListener *listener)
 void MegaApiImpl::dismissBanner(int id, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DISMISS_BANNER, listener);
-    request->setNumber(id);
+    request->setParamType(id); // banner id
+    request->setNumber(m_time(nullptr)); // timestamp
     requestQueue.push(request);
     waiter->notify();
 }

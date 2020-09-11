@@ -3311,6 +3311,7 @@ class MegaRequest
          * - MegaApi::setUserAttribute - Returns the attribute type
          * - MegaApi::getUserAttribute - Returns the attribute type
          * - MegaApi::setMaxConnections - Returns the direction of transfers
+         * - MegaApi::dismissBanner - Returns the id of the banner
          *
          * @return Type of parameter related to the request
          */
@@ -3365,6 +3366,7 @@ class MegaRequest
          * - MegaApi::removeBackup - Returns the tag of the deleted backup
          * - MegaApi::startTimer - Returns the selected period
          * - MegaApi::sendChatStats - Returns the connection port
+         * - MegaApi::dismissBanner - Returns the timestamp of the request
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:

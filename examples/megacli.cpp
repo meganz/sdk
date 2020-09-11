@@ -8207,6 +8207,6 @@ void exec_banner(autocomplete::ACState& s)
     {
         cout << "Dismissing banner with id " << s.words[2].s << "..." << endl;
 
-        client->reqs.add(new CommandDismissBanner(client, stoi(s.words[2].s)));
+        client->reqs.add(new CommandDismissBanner(client, stoi(s.words[2].s), m_time(nullptr)));
     }
 }
