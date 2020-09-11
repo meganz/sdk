@@ -31,8 +31,6 @@
 #include "mega.h"
 #include "mega/mediafileattribute.h"
 
-#include <chrono>
-
 namespace mega {
 HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, std::unique_ptr<string> cdata, bool checkAccess)
     : data(move(cdata))
