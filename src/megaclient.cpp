@@ -7344,7 +7344,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
 // delete node tree
 error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(handle, error)> resultFunction)
 {
-    if (!n->inshare && !checkaccess(n, FULL))
+    if (!mLoggedIntoWritableFolder && !n->inshare && !checkaccess(n, FULL))
     {
         return API_EACCESS;
     }
