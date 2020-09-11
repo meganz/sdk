@@ -1367,14 +1367,14 @@ struct StandardClient : public MegaApp
 
             resultproc.prepresult(PUTNODES, ++next_request_tag,
                 [&](){ client.putnodes(atnode->nodehandle, move(nodearray)); },
-                                  [ &pb](error e) {
-                pb.set_value(!e);
-                if (e)
-                {
-                    out() << "putnodes result: " << e << endl;
-                }
-                return true;
-            });
+                [ &pb](error e) {
+                    pb.set_value(!e);
+                    if (e)
+                    {
+                        out() << "putnodes result: " << e << endl;
+                    }
+                    return true;
+                });
         }
     }
 
@@ -1829,8 +1829,21 @@ struct StandardClient : public MegaApp
         resultproc.processresult(UNLINK, e, h);
     }
 
+    vector<NewNode> lastPutnodesResult;
+    handle lastPutnodesResultFirstHandle = UNDEF;
+
     void putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn) override
     {
+        lastPutnodesResult = move(nn);
+
+        if (!lastPutnodesResult.empty() && lastPutnodesResult[0].mError == API_OK)
+        {
+            lastPutnodesResultFirstHandle = lastPutnodesResult[0].mAddedHandle;
+        }
+        else
+        {
+            lastPutnodesResultFirstHandle = UNDEF;
+        }
         resultproc.processresult(PUTNODES, e, client.restag);
     }
 
@@ -2152,6 +2165,11 @@ void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1
                 if (!(mc.client.todebris.empty() && mc.client.tounlink.empty() && mc.client.synccreate.empty()
                     && mc.client.transferlist.transfers[GET].empty() && mc.client.transferlist.transfers[PUT].empty()))
                 {
+                    any_add_del = true;
+                }
+                if (mc.client.reqs.cmdsInflight())
+                {
+                    // helps with waiting for 500s to pass
                     any_add_del = true;
                 }
             });
@@ -3570,39 +3588,36 @@ GTEST_TEST(SdkCore, ExerciseCommands)
     // so that we can test things that the MegaApi interface would
     // disallow or shortcut.
 
-    future<bool> p1 = standardclient.thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.makeCloudSubdirs("testlinkfolder", 1, 1, pb); });
+    // make sure it's a brand new folder
+    future<bool> p1 = standardclient.thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.makeCloudSubdirs("testlinkfolder_brandnew2", 1, 1, pb); });
     ASSERT_TRUE(waitonresults(&p1));
 
-    Node* n2 = standardclient.client.nodebyhandle(standardclient.basefolderhandle);
+    assert(standardclient.lastPutnodesResultFirstHandle != UNDEF);
+    Node* n2 = standardclient.client.nodebyhandle(standardclient.lastPutnodesResultFirstHandle);
+
+    out() << "Testing make public link for node: " << n2->displaypath();
+
+    Node* base = standardclient.client.nodebyhandle(standardclient.basefolderhandle);
+    Node* child = standardclient.client.childnodebyname(base, "testlinkfolder_brandnew2");
+    ASSERT_EQ(child, n2);
 
     // create on existing node, no link yet
-    auto future1 = standardclient.thread_do([&](StandardClient& sc, promise<Error>& pb)
-    {
-        sc.getpubliclink(n2, 0, 0, pb);
-    });
-    ASSERT_EQ(API_OK, future1.get());
+    promise<Error> pe1, pe2, pe3, pe4;
+    standardclient.getpubliclink(n2, 0, 0, pe1);
+    ASSERT_EQ(API_OK, pe1.get_future().get());
 
     // create on existing node, with link already  (different command response)
-    auto future2 = standardclient.thread_do([&](StandardClient& sc, promise<Error>& pb)
-    {
-        sc.getpubliclink(n2, 0, 0, pb);
-    });
-    ASSERT_EQ(API_OK, future2.get());
+    standardclient.getpubliclink(n2, 0, 0, pe2);
+    ASSERT_EQ(API_OK, pe2.get_future().get());
 
     // delete existing link on node
-    auto future3 = standardclient.thread_do([&](StandardClient& sc, promise<Error>& pb)
-    {
-        sc.getpubliclink(n2, 1, 0, pb);
-    });
-    ASSERT_EQ(API_OK, future3.get());
+    standardclient.getpubliclink(n2, 1, 0, pe3);
+    ASSERT_EQ(API_OK, pe3.get_future().get());
 
     // create on non existent node
     n2->nodehandle = UNDEF;
-    auto future4 = standardclient.thread_do([&](StandardClient& sc, promise<Error>& pb)
-    {
-        sc.getpubliclink(n2, 0, 0, pb);
-    });
-    ASSERT_EQ(API_EACCESS, future4.get());
+    standardclient.getpubliclink(n2, 0, 0, pe4);
+    ASSERT_EQ(API_EACCESS, pe4.get_future().get());
 }
 
 #ifndef _WIN32
