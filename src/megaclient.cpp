@@ -500,6 +500,7 @@ void MegaClient::setrootnode(handle h, const char *authKey)
     if (authKey && strlen(authKey))
     {
         auth.append(authKey); //nodehandle+authkey
+        mLoggedIntoWritableFolder = true;
     }
 
     if (accountauth.size())
@@ -4103,6 +4104,7 @@ void MegaClient::locallogout(bool removecaches)
     pendingcs = NULL;
     scsn.clear();
     mBlocked = false;
+    mLoggedIntoWritableFolder = false;
 
     for (putfa_list::iterator it = queuedfa.begin(); it != queuedfa.end(); it++)
     {

@@ -844,6 +844,9 @@ public:
     // backoff for the expiration of cached user data
     BackoffTimer btugexpiration;
 
+    // if logged into writable folder
+    bool mLoggedIntoWritableFolder = false;
+
 private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
