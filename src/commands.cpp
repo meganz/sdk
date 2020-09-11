@@ -8273,7 +8273,7 @@ bool CommandGetBanners::procresult(Result r)
             "img": "Verified_image.png", ///Image name.
             "l": "", ///URL
             "bimg": "Verified_BG.png", ///background image name.
-            "dsp": "https://web-sandbox3.developers.mega.co.nz/images/mega/" ///Where to get the image.
+            "dsp": "https://domain/path" ///Where to get the image.
         }, {"id":3, ...}, ... ]
     */
 
