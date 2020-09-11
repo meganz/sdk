@@ -18,151 +18,16 @@
  * You should have received a copy of the license along with this
  * program.
  */
-#include <cwchar>
-#include <cwctype>
 
 #include "mega.h"
 #include <wow64apiset.h>
 
 namespace mega {
-
-const size_t LocalPath::npos = std::wstring::npos;
-
 wchar_t gWindowsSeparator(L'\\');
 
 WinFileSystemAccess gWfsa;
 
 int sanitizedriveletter(std::wstring& localpath);
-
-static size_t isDriveLetter(const wchar_t* s)
-{
-    if (std::iswalpha(*s) && s[1] == L':')
-    {
-        return 2;
-    }
-
-    return 0;
-}
-
-static size_t isExtendedPathPrefix(const wchar_t* s)
-{
-    if (!std::wcsncmp(s, L"\\\\?\\", 4))
-    {
-        return 4;
-    }
-
-    return 0;
-}
-
-static size_t isDriveLetterOrExtendedPathPrefix(const wchar_t* s)
-{
-    size_t offset = 0;
-
-    offset += isExtendedPathPrefix(s);
-    offset += isDriveLetter(s + offset);
-    offset += s[offset] == L'\\';
-
-    return offset;
-}
-
-size_t LocalPath::getLastComponentIndex() const
-{
-    if (localpath.empty())
-    {
-        return npos;
-    }
-
-    size_t index = localpath.size() - 1;
-
-    // Ignore trailing separator.
-    index -= localpath.back() == L'\\';
-
-    // Path must not consist solely of an \.
-    assert(index != npos);
-
-    // Search for prior : or \.
-    index = localpath.find_last_of(L":\\", index);
-
-    // Sanity.
-    assert(index > 0);
-
-    // Single path element.
-    if (index == npos)
-    {
-        return 0;
-    }
-
-    if (localpath[index++] == L'\\')
-    {
-        return index;
-    }
-
-    if (index >= localpath.size()
-        || localpath[index] == L'\\')
-    {
-        return 0;
-    }
-
-    return index;
-}
-
-size_t LocalPath::getNextComponentIndex(size_t index) const
-{
-    if (localpath.empty())
-    {
-        return npos;
-    }
-
-    if (index == 0)
-    {
-        index += isDriveLetterOrExtendedPathPrefix(localpath.c_str());
-
-        if (index == localpath.size())
-        {
-            return npos;
-        }
-
-        if (index > 0)
-        {
-            return index;
-        }
-    }
-
-    index = localpath.find(L'\\', index) + 1;
-
-    if (!index || index >= localpath.size())
-    {
-        return npos;
-    }
-
-    return index;
-}
-
-size_t LocalPath::getPreviousComponentIndex(size_t index) const
-{
-    if (!index || localpath.empty())
-    {
-        return npos;
-    }
-
-    if (localpath[index - 1] == L':')
-    {
-        return 0;
-    }
-
-    assert(index >= 2);
-
-    switch (localpath[index - 2])
-    {
-    case L'?':
-    case L':':
-        return 0;
-    default:
-        break;
-    }
-
-    return localpath.find_last_of(L":\\", index - 2) + 1;
-}
 
 WinFileAccess::WinFileAccess(Waiter *w) : FileAccess(w)
 {

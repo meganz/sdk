@@ -137,8 +137,6 @@ public:
     typedef char separator_t;
 #endif
 
-    static const size_t npos;
-
     // returns the internal representation copied into a string buffer, for backward compatibility
     string platformEncoded() const;
 
@@ -198,15 +196,6 @@ public:
     bool operator==(const LocalPath& p) const { return localpath == p.localpath; }
     bool operator!=(const LocalPath& p) const { return localpath != p.localpath; }
     bool operator<(const LocalPath& p) const { return localpath < p.localpath; }
-
-    // Returns the index of the last path component.
-    size_t getLastComponentIndex() const;
-
-    // Returns the index of the next path component.
-    size_t getNextComponentIndex(size_t index) const;
-
-    // Returns the index of the previous path component.
-    size_t getPreviousComponentIndex(size_t index) const;
 };
 
 void AddHiddenFileAttribute(mega::LocalPath& path);
