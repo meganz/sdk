@@ -1120,6 +1120,7 @@ class MegaSyncListPrivate : public MegaSyncList
 
 
 class MegaPricingPrivate;
+class MegaBannerListPrivate;
 class MegaRequestPrivate : public MegaRequest
 {
 	public:
@@ -1223,7 +1224,7 @@ class MegaRequestPrivate : public MegaRequest
         MegaBackupListener *getBackupListener() const;
         void setBackupListener(MegaBackupListener *value);
 
-        MegaBannerList* getBannerList() const;
+        MegaBannerList* getBannerList() const override;
         void setBanners(vector< tuple<int, string, string, string, string, string, string> >&& banners);
 
 protected:
@@ -1275,7 +1276,7 @@ protected:
         MegaBackgroundMediaUpload* backgroundMediaUpload;  // non-owned pointer
 
     private:
-        unique_ptr<MegaBannerList> mBannerList;
+        unique_ptr<MegaBannerListPrivate> mBannerList;
 };
 
 class MegaEventPrivate : public MegaEvent
@@ -1596,6 +1597,36 @@ private:
 };
 
 #endif
+
+class MegaBannerPrivate : public MegaBanner
+{
+public:
+    MegaBannerPrivate(std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string>&& details);
+    MegaBanner* copy() const override;
+
+    int getId() const override;
+    const char* getTitle() const override;
+    const char* getDescription() const override;
+    const char* getImage() const override;
+    const char* getUrl() const override;
+    const char* getBackgroundImage() const override;
+    const char* getImageLocation() const override;
+
+private:
+    std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string> mDetails;
+};
+
+class MegaBannerListPrivate : public MegaBannerList
+{
+public:
+    MegaBannerList* copy() const override;
+    const MegaBanner* get(int i) const override;
+    int size() const override;
+    void add(MegaBannerPrivate&&);
+
+private:
+    std::vector<MegaBannerPrivate> mVector;
+};
 
 class MegaStringMapPrivate : public MegaStringMap
 {
