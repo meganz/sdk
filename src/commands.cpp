@@ -8322,6 +8322,12 @@ bool CommandGetBanners::procresult(Result r)
                 break;
 
             case EOO:
+                if (!id || title.empty() || description.empty() || url.empty())
+                {
+                    client->app->getbanners_result(API_EINTERNAL);
+                    return true;
+                }
+
                 read = false;
                 break;
 
