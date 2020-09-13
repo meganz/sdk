@@ -844,7 +844,7 @@ void SdkTest::getAccountsForTest(unsigned howMany)
         megaApi[index]->setLoggingName(to_string(index).c_str());
         megaApi[index]->addListener(this);    // TODO: really should be per api
 
-        if (!gResumeSessions || gSessionIDs[index].empty())
+        if (!gResumeSessions || gSessionIDs[index].empty() || gSessionIDs[index] == "invalid")
         {
             out() << logTime() << "Logging into account " << index << endl;
             trackers[index] = asyncRequestLogin(index, mApi[index].email.c_str(), mApi[index].pwd.c_str());
@@ -4558,6 +4558,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
     ASSERT_TRUE(!!mApi[0].accountDetails) << "Invalid accout details"; // some simple validation
 
     // killSession()
+    gSessionIDs[0] = "invalid";
     int numSessions = mApi[0].accountDetails->getNumSessions();
     for (int i = 0; i < numSessions; ++i)
     {
@@ -4581,17 +4582,6 @@ TEST_F(SdkTest, SdkSimpleCommands)
     logout(0);
     err = synchronousGetMiscFlags(0);
     ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
-
-    // getUserEmail() test
-    gSessionIDs[0].clear();
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-    std::unique_ptr<MegaUser> user(megaApi[0]->getMyUser());
-    ASSERT_TRUE(!!user); // some simple validation
-
-    err = synchronousGetUserEmail(0, user->getHandle());
-    ASSERT_EQ(MegaError::API_OK, err) << "Get user email failed (error: " << err << ")";
-    ASSERT_NE(mApi[0].email.find('@'), std::string::npos); // some simple validation
-
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
