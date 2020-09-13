@@ -2009,6 +2009,7 @@ void MegaClient::exec()
                         btcs.backoff();
                         app->notify_retry(btcs.retryin(), reason);
                         csretrying = true;
+                        LOG_warn << "Retrying cs request in " << btcs.retryin() << " ds";
 
                         reqs.requeuerequest();
 
