@@ -198,9 +198,8 @@ public:
         TEMPORARY_DISABLED = 3, // Temporarily disabled due to a transient situation (e.g: account blocked). Will be resumed when the condition passes
         DISABLED = 4,           // Disabled by the user
         PAUSE_UP = 5,           // Active but upload transfers paused in the SDK
-        PAUSE_DOWN = 6,           // Active but download transfers paused in the SDK
-        PAUSE_FULL = 7,           // Active but transfers paused in the SDK
-        UNKNOWN = 99,            // Unknown state
+        PAUSE_DOWN = 6,         // Active but download transfers paused in the SDK
+        PAUSE_FULL = 7,         // Active but transfers paused in the SDK
     };
     MegaBackupInfoSync(mega::MegaClient *client, const MegaSync &sync, handle backupid = UNDEF);
 
