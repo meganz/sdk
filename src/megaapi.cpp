@@ -1028,7 +1028,7 @@ MegaBackgroundMediaUpload* MegaRequest::getMegaBackgroundMediaUploadPtr() const
     return NULL;
 }
 
-MegaBannerList* MegaRequest::getBannerList() const
+MegaBannerList* MegaRequest::getMegaBannerList() const
 {
     return nullptr;
 }
