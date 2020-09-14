@@ -508,6 +508,10 @@ public:
     // keep sync configuration after logout
     bool mKeepSyncsAfterLogout = false;
 
+    // manage syncdown flags inside the syncs
+    void setAllSyncsNeedSyncdown();
+    bool anySyncNeedsTargetedSyncdown();
+    void setAllSyncsNeedSyncup();
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
@@ -1030,6 +1034,9 @@ private:
     // fetch state serialize from local cache
     bool fetchsc(DbTable*);
 
+    // fetch statusTable from local cache
+    bool fetchStatusTable(DbTable*);
+
     // remove old (2 days or more) transfers from cache, if they were not resumed
     void purgeOrphanTransfers(bool remove = false);
 
@@ -1142,6 +1149,9 @@ public:
     // during processing of request responses, transfer table updates can be wrapped up in a single begin/commit
     DBTableTransactionCommitter* mTctableRequestCommitter = nullptr;
 
+    // status cache table for logged in user. For data pertaining status which requires immediate commits
+    DbTable* statusTable;
+
     // scsn as read from sctable
     handle cachedscsn;
 
@@ -1172,15 +1182,23 @@ public:
     pendinghttp_map pendinghttp;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT, CACHEDSTATUS } sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT} sctablerectype;
+
+    // record type indicator for statusTable
+    enum StatusTableRecType { CACHEDSTATUS };
 
     // open/create state cache database table
     void opensctable();
+
+    // open/create status database table
+    void openStatusTable();
 
     // initialize/update state cache referenced sctable
     void initsc();
     void updatesc();
     void finalizesc(bool);
+
+    void initStatusTable();
 
     // flag to pause / resume the processing of action packets
     bool scpaused;
@@ -1388,11 +1406,6 @@ public:
     // app scanstate flag
     bool syncscanstate;
 
-    // scan required flag
-    bool syncdownrequired;
-
-    bool syncuprequired;
-
     // block local fs updates processing while locked ops are in progress
     bool syncfsopsfailed;
 
@@ -1444,14 +1457,13 @@ public:
     void syncupdate();
 
     // create missing folders, copy/start uploading missing files
-    bool syncup(LocalNode* l, dstime* nds, size_t& parentPending);
-    bool syncup(LocalNode* l, dstime* nds);
+    bool syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool scanWholeSubtree);
 
     // sync putnodes() completion
     void putnodes_sync_result(error, vector<NewNode>&);
 
     // start downloading/copy missing files, create missing directories
-    bool syncdown(LocalNode*, LocalPath&, bool);
+    bool syncdown(LocalNode * const, LocalPath&, bool scanWholeSubtree);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
     void movetosyncdebris(Node*, bool);
