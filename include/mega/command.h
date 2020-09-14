@@ -58,7 +58,11 @@ public:
 
     // true if the command processing has been updated to use the URI v3 system, where successful state updates arrive via actionpackets.
     bool mV3 = true;
+
+    // true if the command returns strings that are never a seqtag (despite the URI v3 is in use)
     bool mStringIsNotSeqtag = false;
+
+    // true if the command returns strings, arrays or objects, but a seqtag is also required. In example: ["seqtag", <JSON from before v3>]
     bool mSeqtagArray = false;
 
     // some commands are guaranteed to work if we query without specifying a SID (eg. gmf)
@@ -104,12 +108,6 @@ public:
         bool succeeded()
         {
             return mOutcome != CmdError || error(mError) != API_OK;
-        }
-
-        Error errorGeneral()
-        {
-            // for the general case- command could result in an error, actionpacket, or JSON to process
-            return mOutcome == CmdError ? mError : Error(API_OK);
         }
 
         bool hasJsonArray()
