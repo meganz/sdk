@@ -1889,10 +1889,10 @@ class SearchTreeProcessor : public TreeProcessor
         vector<Node *> &getResults();
 
     protected:
-        MegaApi::nodefiletype_t type;
-        const char *search;
-        vector<Node *> results;
-        MegaClient *client;
+        MegaApi::nodefiletype_t mType;
+        const char *mSearch;
+        vector<Node *> mResults;
+        MegaClient *mClient;
 };
 
 class OutShareProcessor : public TreeProcessor

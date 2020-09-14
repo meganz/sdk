@@ -11832,9 +11832,9 @@ MegaNode *MegaApiImpl::getNodeByCRC(const char *crc, MegaNode *parent)
 
 SearchTreeProcessor::SearchTreeProcessor(MegaClient *client, const char *search, MegaApi::nodefiletype_t type)
 {
-    this->search = search;
-    this->type = type;
-    this->client = client;
+    mSearch = search;
+    mType = type;
+    mClient = client;
 }
 
 #if defined(_WIN32) || defined(__APPLE__)
@@ -11870,18 +11870,18 @@ bool SearchTreeProcessor::processNode(Node* node)
         return true;
     }
 
-    if (!search && (!client || (type < MegaApi::NODE_UNKNOWN || type > MegaApi::NODE_DOCUMENT)))
+    if (!mSearch && (!mClient || (mType < MegaApi::NODE_UNKNOWN || mType > MegaApi::NODE_DOCUMENT)))
     {
         // If no search string provided, client and type must be valid, otherwise return false
         return false;
     }
 
-    if (node->type <= FOLDERNODE && (!search || strcasestr(node->displayname(), search) != NULL))
+    if (node->type <= FOLDERNODE && (!mSearch || strcasestr(node->displayname(), mSearch) != NULL))
     {
         // If no search string provided (filter by node type), or search string match with node name
         if (isValidTypeNode(node))
         {
-            results.push_back(node);
+            mResults.push_back(node);
         }
     }
 
@@ -11891,21 +11891,21 @@ bool SearchTreeProcessor::processNode(Node* node)
 bool SearchTreeProcessor::isValidTypeNode(Node *node)
 {
     assert(node);
-    if (!client)
+    if (!mClient)
     {
         return true;
     }
 
-    switch (type)
+    switch (mType)
     {
         case MegaApi::NODE_PHOTO:
-            return client->nodeIsPhoto(node, false);
+            return mClient->nodeIsPhoto(node, false);
         case MegaApi::NODE_AUDIO:
-            return client->nodeIsAudio(node);
+            return mClient->nodeIsAudio(node);
         case MegaApi::NODE_VIDEO:
-            return client->nodeIsVideo(node);
+            return mClient->nodeIsVideo(node);
         case MegaApi::NODE_DOCUMENT:
-            return client->nodeIsDocument(node);
+            return mClient->nodeIsDocument(node);
         case MegaApi::NODE_UNKNOWN:
         default:
             return true;
@@ -11914,7 +11914,7 @@ bool SearchTreeProcessor::isValidTypeNode(Node *node)
 
 vector<Node *> &SearchTreeProcessor::getResults()
 {
-    return results;
+    return mResults;
 }
 
 SizeProcessor::SizeProcessor()
