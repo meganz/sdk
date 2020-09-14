@@ -3746,7 +3746,7 @@ void MegaRequestPrivate::setPublicNode(MegaNode *publicNode, bool copyChildren)
     }
 }
 
-MegaBannerList* MegaRequestPrivate::getBannerList() const
+MegaBannerList* MegaRequestPrivate::getMegaBannerList() const
 {
     return mBannerList.get();
 }
