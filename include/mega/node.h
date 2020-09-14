@@ -40,6 +40,9 @@ struct LocalPathPtrCmp
 typedef map<const LocalPath*, LocalNode*, LocalPathPtrCmp> localnode_map;
 typedef map<const string*, Node*, StringCmp> remotenode_map;
 
+typedef map<const string*, LocalNode*, NamePtrCmp> name_localnode_map;
+typedef map<const string*, Node*, NamePtrCmp> name_remotenode_map;
+
 struct MEGA_API NodeCore
 {
     // node's own handle
@@ -309,6 +312,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
 
+    // Detach this remote from it's local associate.
+    void detach(const bool recreate = false);
+
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
     // node crypto keys (raw or cooked -
@@ -434,6 +440,7 @@ struct MEGA_API LocalNode : public File
     void getlocalpath(LocalPath&, bool sdisable = false, const std::string* localseparator = nullptr) const;
     LocalPath getLocalPath(bool sdisable = false) const;
     string localnodedisplaypath(FileSystemAccess& fsa) const;
+    string localnodedisplaypath() const;
 
     // return child node by name
     LocalNode* childbyname(LocalPath*);
@@ -463,6 +470,9 @@ struct MEGA_API LocalNode : public File
     static LocalNode* unserialize( Sync* sync, const string* sData );
 
     ~LocalNode();
+
+    // Detach this node from it's remote associate.
+    void detach(const bool recreate = false);
 };
 
 template <> inline NewNode*& crossref_other_ptr_ref<LocalNode, NewNode>(LocalNode* p) { return p->newnode.ptr; }

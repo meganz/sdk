@@ -204,6 +204,14 @@ Node::~Node()
 #endif
 }
 
+void Node::detach(const bool recreate)
+{
+    if (localnode)
+    {
+        localnode->detach(recreate);
+    }
+}
+
 void Node::setkeyfromjson(const char* k)
 {
     if (keyApplied()) --client->mAppliedKeyNodeCount;
@@ -1639,6 +1647,19 @@ LocalNode::~LocalNode()
     slocalname.reset();
 }
 
+void LocalNode::detach(const bool recreate)
+{
+    // Never detach the root node.
+    if (parent && node)
+    {
+        node->localnode = nullptr;
+        node->tag = sync->tag;
+        node = nullptr;
+
+        created &= !recreate;
+    }
+}
+
 LocalPath LocalNode::getLocalPath(bool sdisable) const
 {
     LocalPath lp;
@@ -1679,6 +1700,11 @@ string LocalNode::localnodedisplaypath(FileSystemAccess& fsa) const
     LocalPath local;
     getlocalpath(local, true);
     return local.toPath(fsa);
+}
+
+string LocalNode::localnodedisplaypath() const
+{
+    return localnodedisplaypath(*sync->client->fsaccess);
 }
 
 // locate child by localname or slocalname

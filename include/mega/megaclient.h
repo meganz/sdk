@@ -1063,8 +1063,17 @@ private:
     // add node to vector and return index
     unsigned addnode(node_vector*, Node*) const;
 
-    // add child for consideration in syncup()/syncdown()
-    void addchild(remotenode_map*, string*, Node*) const;
+    // add local child for consideration in syncup/syncdown.
+    // returns false if a name collision was detected.
+    bool addLocalChild(LocalNode& node,
+                       name_localnode_map& lchildren,
+                       name_remotenode_map& rchildren) const;
+
+    // add remote child for consideration in syncup/syncdown.
+    // returns false if a name collision was detected.
+    bool addRemoteChild(name_remotenode_map& children,
+                        const string& name,
+                        Node& node) const;
 
     // crypto request response
     void cr_response(node_vector*, node_vector*, JSON*);

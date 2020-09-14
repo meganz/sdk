@@ -44,6 +44,31 @@ enum FileSystemType
     FS_XFS = 9
 };
 
+class NameCmp
+{
+public:
+    explicit
+    NameCmp(const FileSystemType type);
+
+    bool operator()(const string& lhs, const string& rhs) const;
+
+private:
+    FileSystemType mType;
+}; /* NameCmp */
+
+class NamePtrCmp
+  : private NameCmp
+{
+public:
+    explicit
+    NamePtrCmp(const FileSystemType type);
+
+    bool operator()(const string* lhs, const string *rhs) const;
+}; /* NamePtrCmp */
+
+typedef set<string, NameCmp> name_set;
+typedef set<const string*, NamePtrCmp> nameptr_set;
+
 // generic host filesystem node ID interface
 struct MEGA_API FsNodeId
 {

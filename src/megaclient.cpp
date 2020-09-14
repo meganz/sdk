@@ -13145,23 +13145,92 @@ void MegaClient::stopxfers(LocalNode* l, DBTableTransactionCommitter& committer)
     stopxfer(l, &committer);
 }
 
-// add child to nchildren hash (deterministically prefer newer/larger versions
-// of identical names to avoid flapping)
-// apply standard unescaping, if necessary (use *strings as ephemeral storage
-// space)
-void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n) const
+bool MegaClient::addLocalChild(LocalNode& node,
+                               name_localnode_map& lchildren,
+                               name_remotenode_map& rchildren) const
 {
-    Node** npp;
+    // Has this name been locally recorded?
+    auto lit = lchildren.find(&node.name);
 
-    npp = &(*nchildren)[name];
+    // Has this name been remotely recorded?
+    auto rit = rchildren.find(&node.name);
 
-    if (!*npp
-     || n->mtime > (*npp)->mtime
-     || (n->mtime == (*npp)->mtime && n->size > (*npp)->size)
-     || (n->mtime == (*npp)->mtime && n->size == (*npp)->size && memcmp(n->crc.data(), (*npp)->crc.data(), sizeof n->crc) > 0))
+    // Does this name collide locally?
+    if (lit != lchildren.end())
     {
-        *npp = n;
+        // Has a local node already been recorded?
+        if (lit->second)
+        {
+            // Detach the node from its remote.
+            lit->second->detach(true);
+
+            // Null the link so this node is skipped.
+            lit->second = nullptr;
+        }
+
+        // Has a remote node already been recorded?
+        if (rit != rchildren.end() && rit->second)
+        {
+            rit->second->detach(true);
+            rit->second = nullptr;
+        }
+
+        // Don't record the new node.
+        node.detach(true);
+
+        // Tell caller we detected a collision.
+        return false;
     }
+
+    // Did we detect a remote collision with this name?
+    if (rit != rchildren.end() && !rit->second)
+    {
+        // Don't record the new node.
+        node.detach(true);
+
+        // Tell caller we detected a collision.
+        return false;
+    }
+
+    // Child is acceptable.
+    lchildren.emplace(&node.name, &node);
+
+    // No collision detected.
+    return true;
+}
+
+// Add remote child to children hash.
+bool MegaClient::addRemoteChild(name_remotenode_map& children,
+                                const string& name,
+                                Node& node) const
+{
+    // Has this name already been defined?
+    auto it = children.find(&name);
+
+    if (it != children.end())
+    {
+        // Has a node already been recorded?
+        if (it->second)
+        {
+            // Detach the node so that movements aren't recorded.
+            it->second->detach(true);
+
+            // Null the link so that this name is skipped.
+            it->second = nullptr;
+        }
+
+        // Detach the dupe, too.
+        node.detach(true);
+
+        // Tell caller we detected a collision.
+        return false;
+    }
+
+    // Name hasn't been recorded.
+    children[&name] = &node;
+
+    // No collision detected.
+    return true;
 }
 
 // downward sync - recursively scan for tree differences and execute them locally
@@ -13191,9 +13260,10 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWh
         return true;
     }
 
+    auto namePtrComparator = NamePtrCmp(l->sync->mFilesystemType);
+
+    name_remotenode_map nchildren(namePtrComparator);
     list<string> strings;
-    remotenode_map nchildren;
-    remotenode_map::iterator rit;
 
     bool success = true;
 
@@ -13222,7 +13292,7 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWh
 
             if (app->sync_syncable(l->sync, strings.back().c_str(), localpath, *it))
             {
-                addchild(&nchildren, &strings.back(), *it);
+                addRemoteChild(nchildren, strings.back(), *(*it));
             }
             else
             {
@@ -13235,12 +13305,27 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWh
         }
     }
 
+    // Compute syncable local children.
+    name_localnode_map lchildren(namePtrComparator);
+
+    for (auto& childIt : l->children)
+    {
+        addLocalChild(*childIt.second, lchildren, nchildren);
+    }
+
     // remove remote items that exist locally from hash, recurse into existing folders
-    for (localnode_map::iterator lit = l->children.begin(); lit != l->children.end(); )
+    for (auto lit = lchildren.begin(); lit != lchildren.end(); )
     {
         LocalNode* ll = lit->second;
 
-        rit = nchildren.find(&ll->name);
+        // Skip nodes with name collisions.
+        if (!ll)
+        {
+            ++lit;
+            continue;
+        }
+
+        auto rit = nchildren.find(&ll->name);
 
         ScopedLengthRestore restoreLen(localpath);
         localpath.appendWithSeparator(ll->localname, true, fsaccess->localseparator);
@@ -13386,8 +13471,14 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWh
 
     // create/move missing local folders / FolderNodes, initiate downloads of
     // missing local files
-    for (rit = nchildren.begin(); rit != nchildren.end(); rit++)
+    for (auto rit = nchildren.begin(); rit != nchildren.end(); rit++)
     {
+        // Skip nodes with name collisions.
+        if (!rit->second)
+        {
+            continue;
+        }
+
         if (!rit->second->mPendingChanges.empty())
         {
             // if we already decided on an action for this node, wait until that is finished before considering more changes.
@@ -13564,9 +13655,10 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
     bool insync = true;
     bool success = true;
 
+    auto namePtrComparator = NamePtrCmp(l->sync->mFilesystemType);
+
+    name_remotenode_map nchildren(namePtrComparator);
     list<string> strings;
-    remotenode_map nchildren;
-    remotenode_map::iterator rit;
 
     // build array of sync-relevant (newest alias wins) remote children by name
     attr_map::iterator ait;
@@ -13628,16 +13720,31 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
 
                 // Ensure the remote's name is correctly escaped.
                 strings.emplace_back(fsaccess->canonicalize(ait->second));
-                addchild(&nchildren, &strings.back(), *it);
+
+                addRemoteChild(nchildren, strings.back(), *(*it));
             }
         }
     }
 
+    // Compute syncable local children.
+    name_localnode_map lchildren(namePtrComparator);
+
+    for (auto& childIt : l->children)
+    {
+        addLocalChild(*childIt.second, lchildren, nchildren);
+    }
+
     // check for elements that need to be created, deleted or updated on the
     // remote side
-    for (localnode_map::iterator lit = l->children.begin(); lit != l->children.end(); lit++)
+    for (auto lit = lchildren.begin(); lit != lchildren.end(); lit++)
     {
         LocalNode* ll = lit->second;
+
+        // Skip nodes with name collisions.
+        if (!ll)
+        {
+            continue;
+        }
 
         if (ll->deleted)
         {
@@ -13662,7 +13769,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
                 ll->reported = true;
 
                 char report[256];
-                sprintf(report, "%d %d %d %d", (int)lit->first->editStringDirect()->size(), (int)localname.size(), (int)ll->name.size(), (int)ll->type);
+                sprintf(report, "%d %d %d %d", (int)ll->localname.editStringDirect()->size(), (int)localname.size(), (int)ll->name.size(), (int)ll->type);
 
                 // report a "no-name localnode" event
                 reportevent("LN", report, 0);
@@ -13670,7 +13777,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
             continue;
         }
 
-        rit = nchildren.find(&localname);
+        auto rit = nchildren.find(&localname);
 
         bool isSymLink = false;
 #ifndef WIN32

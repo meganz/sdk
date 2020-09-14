@@ -27,6 +27,44 @@
 #include "mega/mega_utf8proc.h"
 
 namespace mega {
+
+NameCmp::NameCmp(const FileSystemType type)
+  : mType(type)
+{
+}
+
+bool NameCmp::operator()(const string& lhs, const string& rhs) const
+{
+#ifdef _WIN32
+#define strcasecmp _stricmp
+#endif /* _WIN32 */
+
+    switch (mType)
+    {
+    case FS_EXFAT:
+    case FS_NTFS:
+    case FS_FAT32:
+    case FS_UNKNOWN:
+        return strcasecmp(lhs.c_str(), rhs.c_str()) < 0;
+    default:
+        return lhs < rhs;
+    }
+
+#ifdef _WIN32
+#undef strcasecmp
+#endif /* _WIN32 */
+}
+
+NamePtrCmp::NamePtrCmp(const FileSystemType type)
+  : NameCmp(type)
+{
+}
+
+bool NamePtrCmp::operator()(const string* lhs, const string* rhs) const
+{
+    return NameCmp::operator()(*lhs, *rhs);
+}
+
 FileSystemAccess::FileSystemAccess()
     : waiter(NULL)
     , skip_errorreport(false)

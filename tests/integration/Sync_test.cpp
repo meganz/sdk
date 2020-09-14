@@ -3817,6 +3817,174 @@ GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkUponSyncDown)
 
 #endif
 
+TEST(Sync, DoesntDownloadFilesWithClashingNames)
+{
+    const auto TESTFOLDER = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    const auto TIMEOUT = chrono::seconds(4);
+
+    // Populate cloud.
+    {
+        StandardClient cu(TESTFOLDER, "cu");
+
+        // Log callbacks.
+        cu.logcb = true;
+
+        // Log client in.
+        ASSERT_TRUE(cu.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
+
+        // Needed so that we can create files with the same name.
+        cu.client.versions_disabled = true;
+
+        // Create local test hierarchy.
+        const auto root = TESTFOLDER / "cu" / "x";
+
+        // d will be duplicated and generate a clash.
+        fs::create_directories(root / "d");
+
+        // dd will be singular, no clash.
+        fs::create_directories(root / "dd");
+
+        // f will be duplicated and generate a clash.
+        ASSERT_TRUE(createNameFile(root, "f"));
+
+        // ff will be singular, no clash.
+        ASSERT_TRUE(createNameFile(root, "ff"));
+
+        auto* node = cu.drillchildnodebyname(cu.gettestbasenode(), "x");
+        ASSERT_TRUE(!!node);
+
+        // Upload d twice, generate clash.
+        ASSERT_TRUE(cu.uploadFolderTree(root / "d", node));
+        ASSERT_TRUE(cu.uploadFolderTree(root / "d", node));
+
+        // Upload dd once.
+        ASSERT_TRUE(cu.uploadFolderTree(root / "dd", node));
+
+        // Upload f twice, generate clash.
+        ASSERT_TRUE(cu.uploadFile(root / "f", node));
+        ASSERT_TRUE(cu.uploadFile(root / "f", node));
+
+        // Upload ff once.
+        ASSERT_TRUE(cu.uploadFile(root / "ff", node));
+    }
+
+    StandardClient cd(TESTFOLDER, "cd");
+
+    // Log callbacks.
+    cd.logcb = true;
+
+    // Log in client.
+    ASSERT_TRUE(cd.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+
+    // Add and start sync.
+    ASSERT_TRUE(cd.setupSync_mainthread("sd", "x", 0));
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, &cd);
+
+    // Populate and confirm model.
+    Model model;
+
+    // d and f are missing due to name collisions in the cloud.
+    model.root->addkid(model.makeModelSubfolder("x"));
+    model.findnode("x")->addkid(model.makeModelSubfolder("dd"));
+    model.findnode("x")->addkid(model.makeModelSubfile("ff"));
+
+    // Needed because we've downloaded files.
+    model.ensureLocalDebrisTmpLock("x");
+
+    // Confirm the model.
+    ASSERT_TRUE(cd.confirmModel_mainthread(
+                  model.findnode("x"),
+                  0,
+                  false,
+                  StandardClient::CONFIRM_LOCAL));
+
+    // Resolve the name collisions.
+    ASSERT_TRUE(cd.deleteremote("x/d"));
+    ASSERT_TRUE(cd.deleteremote("x/f"));
+
+    // Wait for the sync to update.
+    waitonsyncs(TIMEOUT, &cd);
+
+    // Confirm that d and f have now been downloaded.
+    model.findnode("x")->addkid(model.makeModelSubfolder("d"));
+    model.findnode("x")->addkid(model.makeModelSubfile("f"));
+
+    // Local FS, Local Tree and Remote Tree should now be consistent.
+    ASSERT_TRUE(cd.confirmModel_mainthread(model.findnode("x"), 0));
+}
+
+TEST(Sync, DoesntUploadFilesWithClashingNames)
+{
+    const auto TESTFOLDER = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    const auto TIMEOUT = chrono::seconds(4);
+
+    // Download client.
+    StandardClient cd(TESTFOLDER, "cd");
+    // Upload client.
+    StandardClient cu(TESTFOLDER, "cu");
+
+    // Log callbacks.
+    cd.logcb = true;
+    cu.logcb = true;
+
+    // Log in the clients.
+    ASSERT_TRUE(cu.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
+    ASSERT_TRUE(cd.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(cd.basefolderhandle, cu.basefolderhandle);
+
+    // Populate the local filesystem.
+    const auto root = TESTFOLDER / "cu" / "su";
+
+    // Make sure clashing directories are skipped.
+    fs::create_directories(root / "d0");
+    fs::create_directories(root / "d%30");
+
+    // Make sure other directories are uploaded.
+    fs::create_directories(root / "d1");
+
+    // Make sure clashing files are skipped.
+    createNameFile(root, "f0");
+    createNameFile(root, "f%30");
+
+    // Make sure other files are uploaded.
+    createNameFile(root, "f1");
+    createNameFile(root / "d1", "f0");
+
+    // Start the syncs.
+    ASSERT_TRUE(cd.setupSync_mainthread("sd", "x", 0));
+    ASSERT_TRUE(cu.setupSync_mainthread("su", "x", 0));
+
+    // Wait for the initial sync to complete.
+    waitonsyncs(TIMEOUT, &cu, &cd);
+
+    // Populate and confirm model.
+    Model model;
+
+    model.root->addkid(model.makeModelSubfolder("root"));
+    model.findnode("root")->addkid(model.makeModelSubfolder("d1"));
+    model.findnode("root")->addkid(model.makeModelSubfile("f1"));
+    model.findnode("root/d1")->addkid(model.makeModelSubfile("f0"));
+
+    model.ensureLocalDebrisTmpLock("root");
+
+    ASSERT_TRUE(cd.confirmModel_mainthread(model.findnode("root"), 0));
+
+    // Remove the clashing nodes.
+    fs::remove_all(root / "d0");
+    fs::remove_all(root / "f0");
+
+    // Wait for the sync to complete.
+    waitonsyncs(TIMEOUT, &cd, &cu);
+
+    // Confirm that d0 and f0 have been downloaded.
+    model.findnode("root")->addkid(model.makeModelSubfolder("d0"));
+    model.findnode("root")->addkid(model.makeModelSubfile("f0", "f%30"));
+
+    ASSERT_TRUE(cd.confirmModel_mainthread(model.findnode("root"), 0));
+}
+
 TEST(Sync, RemotesWithControlCharactersSynchronizeCorrectly)
 {
     const auto TESTROOT = makeNewTestRoot(LOCAL_TEST_FOLDER);
