@@ -20027,8 +20027,6 @@ void MegaApiImpl::sendPendingRequests()
                 else if (type == MegaApi::NODE_ATTR_ORIGINALFINGERPRINT)
                 {
                     nameid nid = AttrMap::string2nameid("c0");
-                    SymmCipher tkey;
-                    string tattrstring;
                     if (!request->getText())
                     {
                         attrUpdates[nid] = "";

@@ -2751,7 +2751,7 @@ bool CommandRemoveContact::procresult(Result r)
 
         if (User *u = client->finduser(email.c_str()))
         {
-            u->show = HIDDEN;
+            u->show = v;
         }
 
         client->app->removecontact_result(API_OK);
@@ -2761,6 +2761,7 @@ bool CommandRemoveContact::procresult(Result r)
     client->app->removecontact_result(r.errorOrOK());
     return r.wasErrorOrOK();
 }
+
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag)
 {
     mV3 = false;
