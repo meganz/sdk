@@ -651,6 +651,8 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filenam
     m_off_t readpos = 0;
     m_time_t startTime = 0;
 
+    bool hasVideo = false;
+    bool vidDuration = false;
     for (;;)
     {
         byte buf[30 * 1024];
@@ -661,8 +663,13 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filenam
             break;
         }
 
-        if (totalBytesRead > maxBytesToRead || (startTime != 0 && ((m_time() - startTime) > maxSeconds)))
+        if (totalBytesRead > maxBytesToRead || (startTime != 0 && ((m_time() - startTime) > maxSeconds))) 
         {
+            if (hasVideo && vidDuration)
+            {
+                break;
+            }
+
             LOG_warn << "could not extract mediainfo data within reasonable limits";
             mi.Open_Buffer_Finalize();
             fa->closef();
@@ -695,10 +702,10 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filenam
 
         if (accepted)
         {
-            bool hasVideo = 0 < mi.Count_Get(MediaInfoLib::Stream_Video, 0);
+            hasVideo = 0 < mi.Count_Get(MediaInfoLib::Stream_Video, 0);
             bool hasAudio = 0 < mi.Count_Get(MediaInfoLib::Stream_Audio, 0);
 
-            bool vidDuration = !mi.Get(MediaInfoLib::Stream_Video, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
+            vidDuration = !mi.Get(MediaInfoLib::Stream_Video, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
             bool audDuration = !mi.Get(MediaInfoLib::Stream_Audio, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
 
             if (hasVideo && hasAudio && vidDuration && audDuration)
