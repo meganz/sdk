@@ -2751,7 +2751,7 @@ bool CommandRemoveContact::procresult(Result r)
 
         if (User *u = client->finduser(email.c_str()))
         {
-            u->show = HIDDEN;
+            u->show = v;
         }
 
         client->app->removecontact_result(API_OK);
