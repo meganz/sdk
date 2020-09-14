@@ -280,15 +280,13 @@ bool CommandAttachFA::procresult(Result r)
     else
     {
         string fa;
-
         if (client->json.storeobject(&fa))
         {
+#ifdef DEBUG
             Node* n = client->nodebyhandle(h);
-            if (n)
-            {
-                assert(n->fileattrstring == fa);
-            }
-            client->app->putfa_result(h, type, API_OK); // todo: double check we don't need to pass the attribute string here - should we ask if the value even needs to be returned
+            assert(!n || n->fileattrstring == fa);
+#endif
+            client->app->putfa_result(h, type, API_OK);
             return true;
         }
     }

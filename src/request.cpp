@@ -130,7 +130,7 @@ void Request::process(MegaClient* client)
         if (cmd->mSeqtagArray && client->json.enterarray())
         {
             // Some commands need to return not just a seqtag but also some JSON, in which case they are in an array
-            // These can also return 0 instead of a seqtag instead if no actionpacket was produced.  Coding for any error in that field
+            // These can also return 0 instead of a seqtag if no actionpacket was produced. Coding for any error in that field
             assert(cmd->mV3);
             if (client->json.isnumeric())
             {
@@ -255,7 +255,7 @@ bool Request::empty() const
 
 void Request::swap(Request& r)
 {
-    // we use swap to move between queues, but process only after it gets into the completedreqs
+    // we use swap to move between queues, but process only after it gets completed
     cmds.swap(r.cmds);
     assert(jsonresponse.empty() && r.jsonresponse.empty());
     assert(json.pos == NULL && r.json.pos == NULL);

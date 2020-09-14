@@ -94,7 +94,7 @@ public:
     int elements();
 
     enum Outcome {  CmdError,            // The reply was an error, already extracted from the JSON.  The error code may have been 0 (API_OK)
-                    CmdActionpacket,     // The reply was a cmdseq string, and we have processed the corresponding actionpackets
+                    CmdActionpacket,     // The reply was a seqtag string, and we have processed the corresponding actionpackets
                     CmdArray,            // The reply was an array, and we have already entered it
                     CmdObject,           // the reply was an object, and we have already entered it
                     CmdItem };           // The reply was none of the above - so a string
@@ -615,9 +615,6 @@ public:
 class MEGA_API CommandSetAttr : public Command
 {
     handle h;
-    //string pa;
-    //bool syncop;
-
     attr_map mAttrMapUpdates;
     error generationError;
 

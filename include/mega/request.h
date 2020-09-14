@@ -76,9 +76,6 @@ class MEGA_API RequestDispatcher
     bool processing = false;
     bool clearWhenSafe = false;
 
-    // these ones have completed, but we haven't received all the corresponding actionpackets yet
-    deque<Request> completedreqs;
-
     static const int MAX_COMMANDS = 10000;
 
 public:

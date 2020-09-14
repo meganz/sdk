@@ -41,7 +41,6 @@ void Command::cancel()
     canceled = true;
 }
 
-
 void Command::addToNodePendingCommands(handle h, MegaClient* client)
 {
     if (auto node = client->nodebyhandle(h))
