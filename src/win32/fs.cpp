@@ -22,6 +22,11 @@
 #include "mega.h"
 #include <wow64apiset.h>
 
+#if defined(_WIN32) || defined(WINDOWS_PHONE)
+#include <winsock2.h>
+#include <Windows.h>
+#endif
+
 namespace mega {
 
 std::string gWindowsSeparator((const char*)(const wchar_t*)L"\\", 2);
@@ -1646,6 +1651,64 @@ std::unique_ptr<FileAccess> WinFileSystemAccess::newfileaccess(bool followSymLin
     return std::unique_ptr<FileAccess>(new WinFileAccess(waiter));
 }
 
+bool WinFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType& type) const
+{
+    using std::string;
+    using std::wstring;
+
+    LocalPath tempPath(path);
+
+    // Ensure UTF16 null terminator is present.
+    string& tempStr = *tempPath.editStringDirect();
+    tempStr.append("", 1);
+
+    // Where is the volume containing our file mounted?
+    wstring mountPoint(MAX_PATH + 1, L'\0');
+
+    if (!GetVolumePathNameW(reinterpret_cast<LPCWSTR>(tempStr.c_str()),
+                            mountPoint.data(),
+                            MAX_PATH + 1))
+    {
+        return type = FS_UNKNOWN, false;
+    }
+
+    // Get the name of the volume's filesystem.
+    wstring filesystemName(MAX_PATH + 1, L'\0');
+    DWORD volumeFlags = 0;
+
+    // What kind of filesystem is the volume using?
+    if (GetVolumeInformationW(mountPoint.c_str(),
+                              nullptr,
+                              0,
+                              nullptr,
+                              nullptr,
+                              &volumeFlags,
+                              filesystemName.data(),
+                              MAX_PATH + 1))
+    {
+        // Assume we can't find a matching filesystem.
+        type = FS_UNKNOWN;
+
+        if (!wcscmp(filesystemName.c_str(), L"NTFS"))
+        {
+            type = FS_NTFS;
+        }
+        else if (!wcscmp(filesystemName.c_str(), L"FAT32"))
+        {        
+            type = FS_FAT32;
+        }
+        else if (!wcscmp(filesystemName.c_str(), L"exFAT"))
+        {
+            type = FS_EXFAT;
+        }
+
+        return true;
+    }
+
+    // We couldn't get any information on the volume.
+    return type = FS_UNKNOWN, false;
+}
+
 DirAccess* WinFileSystemAccess::newdiraccess()
 {
     return new WinDirAccess();
@@ -1656,7 +1719,7 @@ DirNotify* WinFileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& ig
     return new WinDirNotify(localpath, ignore, this, waiter);
 }
 
-bool WinFileSystemAccess::issyncsupported(LocalPath& localpathArg, bool *isnetwork)
+bool WinFileSystemAccess::issyncsupported(LocalPath& localpathArg, bool *isnetwork, SyncError *syncError)
 {
     string* localpath = localpathArg.editStringDirect();
 
@@ -1670,11 +1733,40 @@ bool WinFileSystemAccess::issyncsupported(LocalPath& localpathArg, bool *isnetwo
     fsname.resize(MAX_PATH * sizeof(WCHAR));
 
     if (GetVolumePathNameW((LPCWSTR)localpath->data(), (LPWSTR)path.data(), MAX_PATH)
-        && GetVolumeInformationW((LPCWSTR)path.data(), NULL, 0, NULL, NULL, NULL, (LPWSTR)fsname.data(), MAX_PATH)
-        && !memcmp(fsname.data(), VBoxSharedFolderFS, sizeof(VBoxSharedFolderFS)))
+        && GetVolumeInformationW((LPCWSTR)path.data(), NULL, 0, NULL, NULL, NULL, (LPWSTR)fsname.data(), MAX_PATH))
     {
-        LOG_warn << "VBoxSharedFolderFS is not supported because it doesn't provide ReadDirectoryChanges() nor unique file identifiers";
-        result = false;
+        if (!memcmp(fsname.data(), VBoxSharedFolderFS, sizeof(VBoxSharedFolderFS)))
+        {
+            LOG_warn << "VBoxSharedFolderFS is not supported because it doesn't provide ReadDirectoryChanges() nor unique file identifiers";
+            if (syncError)
+            {
+                *syncError = VBOXSHAREDFOLDER_UNSUPPORTED;
+            }
+            result = false;
+        }
+        else if ((!memcmp(fsname.data(), L"FAT", 6) || !memcmp(fsname.data(), L"exFAT", 10))) // TODO: have these checks for !windows too
+        {
+            LOG_warn << "You are syncing a local folder formatted with a FAT filesystem. "
+                        "That filesystem has deficiencies managing big files and modification times "
+                        "that can cause synchronization problems (e.g. when daylight saving changes), "
+                        "so it's strongly recommended that you only sync folders formatted with more "
+                        "reliable filesystems like NTFS (more information at https://help.mega.nz/megasync/syncing.html#can-i-sync-fat-fat32-partitions-under-windows.";
+            if (syncError)
+            {
+                *syncError = LOCAL_IS_FAT;
+            }
+
+        }
+        else if (!memcmp(fsname.data(), L"HGFS", 8))
+        {
+            LOG_warn << "You are syncing a local folder shared with VMWare. Those folders do not support filesystem notifications "
+            "so MEGAsync will have to be continuously scanning to detect changes in your files and folders. "
+            "Please use a different folder if possible to reduce the CPU usage.";
+            if (syncError)
+            {
+                *syncError = LOCAL_IS_HGFS;
+            }
+        }
     }
 
     if (GetDriveTypeW((LPCWSTR)path.data()) == DRIVE_REMOTE)

@@ -57,7 +57,7 @@ public:
 
 } // anonymous
 
-TEST(Commands, CommandGetRegisteredContacts_processResult_happyPath)
+/*TEST(Commands, CommandGetRegisteredContacts_processResult_happyPath)
 {
     MockApp_CommandGetRegisteredContacts app;
 
@@ -139,7 +139,7 @@ TEST(Commands, CommandGetRegisteredContacts_processResult_invalidResponse)
     ASSERT_EQ(API_EINTERNAL, app.mLastError);
     ASSERT_EQ(nullptr, app.mRegisteredContacts);
     ASSERT_EQ(ptrdiff_t(jsonLength), std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
-}
+}*/
 
 namespace {
 
@@ -169,7 +169,7 @@ public:
 
 } // anonymous
 
-TEST(Commands, CommandGetCountryCallingCodes_processResult_happyPath)
+/*TEST(Commands, CommandGetCountryCallingCodes_processResult_happyPath)
 {
     MockApp_CommandGetCountryCallingCodes app;
 
@@ -252,4 +252,4 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_invalidResponse)
     ASSERT_EQ(API_EINTERNAL, app.mLastError);
     ASSERT_EQ(nullptr, app.mCountryCallingCodes);
     ASSERT_EQ(ptrdiff_t(jsonLength), std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
-}
+}*/

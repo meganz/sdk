@@ -22,11 +22,6 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-import mega.privacy.android.app.MegaApplication;
-import mega.privacy.android.app.R;
-
-import static nz.mega.sdk.MegaError.*;
-
 /**
  * Java Application Programming Interface (API) to access MEGA SDK services on a MEGA account or shared public folder.
  * <p>
@@ -121,6 +116,7 @@ public class MegaApiJava {
     public final static int PAYMENT_METHOD_PAYPAL = MegaApi.PAYMENT_METHOD_PAYPAL;
     public final static int PAYMENT_METHOD_ITUNES = MegaApi.PAYMENT_METHOD_ITUNES;
     public final static int PAYMENT_METHOD_GOOGLE_WALLET = MegaApi.PAYMENT_METHOD_GOOGLE_WALLET;
+    public final static int PAYMENT_METHOD_HUAWEI_WALLET = MegaApi.PAYMENT_METHOD_HUAWEI_WALLET;
     public final static int PAYMENT_METHOD_BITCOIN = MegaApi.PAYMENT_METHOD_BITCOIN;
     public final static int PAYMENT_METHOD_UNIONPAY = MegaApi.PAYMENT_METHOD_UNIONPAY;
     public final static int PAYMENT_METHOD_FORTUMO = MegaApi.PAYMENT_METHOD_FORTUMO;
@@ -6156,6 +6152,57 @@ public class MegaApiJava {
     }
 
     /**
+     * Upload a file or a folder, putting the transfer on top of the upload queue
+     *
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath Local path of the file or folder
+     * @param parent Parent node for the file or folder in the MEGA account
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer. If a transfer is started with exactly the same data
+     * (local path and target parent) as another one in the transfer queue, the new transfer
+     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+     * the appData of the old transfer, using a '!' separator if the old transfer had already
+     * appData.
+     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+     * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+     * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+     * @param fileName Custom file name for the file or folder in MEGA
+     * @param listener MegaTransferListener to track this transfer
+     */
+    public void startUploadWithTopPriority(String localPath, MegaNode parent, String appData, boolean isSourceTemporary, String fileName, MegaTransferListenerInterface listener){
+        megaApi.startUploadWithTopPriority(localPath, parent, appData, isSourceTemporary, fileName, createDelegateTransferListener(listener));
+    }
+
+    /**
+     * Upload a file or a folder, putting the transfer on top of the upload queue
+     *
+     *If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath Local path of the file or folder
+     * @param parent Parent node for the file or folder in the MEGA account
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer. If a transfer is started with exactly the same data
+     * (local path and target parent) as another one in the transfer queue, the new transfer
+     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+     * the appData of the old transfer, using a '!' separator if the old transfer had already
+     * appData.
+     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+     * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+     * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+     * @param fileName Custom file name for the file or folder in MEGA
+     */
+    public void startUploadWithTopPriority(String localPath, MegaNode parent, String appData, boolean isSourceTemporary, String fileName){
+        megaApi.startUploadWithTopPriority(localPath, parent, appData, isSourceTemporary, fileName);
+    }
+
+    /**
      * Download a file or a folder from MEGA
      *
      *If the status of the business account is expired, onTransferFinish will be called with the error
@@ -9557,6 +9604,16 @@ public class MegaApiJava {
     }
 
     /**
+     * Returns whether notifications about a chat have to be generated.
+     *
+     * @param chatid MegaHandle that identifies the chat room.
+     * @return true if notification has to be created.
+     */
+    public boolean isChatNotifiable(long chatid) {
+        return megaApi.isChatNotifiable(chatid);
+    }
+
+    /**
      * Provide a phone number to get verification code.
      *
      * @param phoneNumber the phone number to receive the txt with verification code.
@@ -9643,112 +9700,5 @@ public class MegaApiJava {
      */
     public void cancelCreateAccount(MegaRequestListenerInterface listener){
         megaApi.cancelCreateAccount(createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Gets the translated string of an error received in a request.
-     *
-     * @param error MegaError received in the request
-     * @return The translated string
-     */
-    public static String getTranslatedErrorString(MegaError error) {
-        MegaApplication app = MegaApplication.getInstance();
-        if (app == null) {
-            return error.getErrorString();
-        }
-
-        if (error.getErrorCode() > 0) {
-            return app.getString(R.string.api_error_http);
-        }
-
-        switch (error.getErrorCode()) {
-            case API_OK:
-                return app.getString(R.string.api_ok);
-            case API_EINTERNAL:
-                return app.getString(R.string.api_einternal);
-            case API_EARGS:
-                return app.getString(R.string.api_eargs);
-            case API_EAGAIN:
-                return app.getString(R.string.api_eagain);
-            case API_ERATELIMIT:
-                return app.getString(R.string.api_eratelimit);
-            case API_EFAILED:
-                return app.getString(R.string.api_efailed);
-            case API_ETOOMANY:
-                if (error.getErrorString().equals("Terms of Service breached")) {
-                    return app.getString(R.string.api_etoomany_ec_download);
-                } else if (error.getErrorString().equals("Too many concurrent connections or transfers")){
-                    return app.getString(R.string.api_etoomay);
-                } else {
-                    return error.getErrorString();
-                }
-            case API_ERANGE:
-                return app.getString(R.string.api_erange);
-            case API_EEXPIRED:
-                return app.getString(R.string.api_eexpired);
-            case API_ENOENT:
-                return app.getString(R.string.api_enoent);
-            case API_ECIRCULAR:
-                if (error.getErrorString().equals("Upload produces recursivity")) {
-                    return app.getString(R.string.api_ecircular_ec_upload);
-                } else if (error.getErrorString().equals("Circular linkage detected")){
-                    return app.getString(R.string.api_ecircular);
-                } else {
-                    return error.getErrorString();
-                }
-            case API_EACCESS:
-                return app.getString(R.string.api_eaccess);
-            case API_EEXIST:
-                return app.getString(R.string.api_eexist);
-            case API_EINCOMPLETE:
-                return app.getString(R.string.api_eincomplete);
-            case API_EKEY:
-                return app.getString(R.string.api_ekey);
-            case API_ESID:
-                return app.getString(R.string.api_esid);
-            case API_EBLOCKED:
-                if (error.getErrorString().equals("Not accessible due to ToS/AUP violation")) {
-                    return app.getString(R.string.api_eblocked_ec_import_ec_download);
-                } else if (error.getErrorString().equals("Blocked")) {
-                    return app.getString(R.string.api_eblocked);
-                } else {
-                    return error.getErrorString();
-                }
-            case API_EOVERQUOTA:
-                return app.getString(R.string.api_eoverquota);
-            case API_ETEMPUNAVAIL:
-                return app.getString(R.string.api_etempunavail);
-            case API_ETOOMANYCONNECTIONS:
-                return app.getString(R.string.api_etoomanyconnections);
-            case API_EWRITE:
-                return app.getString(R.string.api_ewrite);
-            case API_EREAD:
-                return app.getString(R.string.api_eread);
-            case API_EAPPKEY:
-                return app.getString(R.string.api_eappkey);
-            case API_ESSL:
-                return app.getString(R.string.api_essl);
-            case API_EGOINGOVERQUOTA:
-                return app.getString(R.string.api_egoingoverquota);
-            case API_EMFAREQUIRED:
-                return app.getString(R.string.api_emfarequired);
-            case API_EMASTERONLY:
-                return app.getString(R.string.api_emasteronly);
-            case API_EBUSINESSPASTDUE:
-                return app.getString(R.string.api_ebusinesspastdue);
-            case PAYMENT_ECARD:
-                return app.getString(R.string.payment_ecard);
-            case PAYMENT_EBILLING:
-                return app.getString(R.string.payment_ebilling);
-            case PAYMENT_EFRAUD:
-                return app.getString(R.string.payment_efraud);
-            case PAYMENT_ETOOMANY:
-                return app.getString(R.string.payment_etoomay);
-            case PAYMENT_EBALANCE:
-                return app.getString(R.string.payment_ebalance);
-            case PAYMENT_EGENERIC:
-            default:
-                return app.getString(R.string.payment_egeneric_api_error_unknown);
-        }
     }
 }

@@ -39,6 +39,49 @@ extern JavaVM *MEGAjvm;
 #include <uuid/uuid.h>
 #endif
 
+#ifdef __linux__
+
+#ifndef __ANDROID__
+#include <linux/magic.h>
+#endif /* ! __ANDROID__ */
+
+#include <sys/vfs.h>
+
+#ifndef FUSEBLK_SUPER_MAGIC
+#define FUSEBLK_SUPER_MAGIC 0x65735546
+#endif /* ! FUSEBLK_SUPER_MAGIC */
+
+#ifndef FUSECTL_SUPER_MAGIC
+#define FUSECTL_SUPER_MAGIC 0x65735543
+#endif /* ! FUSECTL_SUPER_MAGIC */
+
+#ifndef HFS_SUPER_MAGIC
+#define HFS_SUPER_MAGIC 0x4244
+#endif /* ! HFS_SUPER_MAGIC */
+
+#ifndef NTFS_SB_MAGIC
+#define NTFS_SB_MAGIC 0x5346544E
+#endif /* ! NTFS_SB_MAGIC */
+
+#ifndef SDCARDFS_SUPER_MAGIC
+#define SDCARDFS_SUPER_MAGIC 0x5DCA2DF5
+#endif /* ! SDCARDFS_SUPER_MAGIC */
+
+#ifndef F2FS_SUPER_MAGIC
+#define F2FS_SUPER_MAGIC 0xF2F52010
+#endif /* ! F2FS_SUPER_MAGIC */
+
+#ifndef XFS_SUPER_MAGIC
+#define XFS_SUPER_MAGIC 0x58465342
+#endif /* ! XFS_SUPER_MAGIC */
+
+#endif /* __linux__ */
+
+#if defined(__APPLE__) || defined(USE_IOS)
+#include <sys/mount.h>
+#include <sys/param.h>
+#endif /* __APPLE__ || USE_IOS */
+
 namespace mega {
 using namespace std;
 
@@ -863,7 +906,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     // which we filter
     int pos, avail;
     int off;
-    int i, n, s;
+    int i, n;
     kfs_event* kfse;
     kfs_event_arg* kea;
     char buffer[131072];
@@ -872,10 +915,10 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     Sync* pathsync[2];
     sync_list::iterator it;
     fd_set rfds;
-    timeval tv = { 0 };
+    timeval tv = { 0, 0 };
     struct stat statbuf;
     static char rsrc[] = "/..namedfork/rsrc";
-    static unsigned int rsrcsize = sizeof(rsrc) - 1;
+    static size_t rsrcsize = sizeof(rsrc) - 1;
 
     for (;;)
     {
@@ -885,7 +928,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
         // ensure nonblocking behaviour
         if (select(notifyfd + 1, &rfds, NULL, NULL, &tv) <= 0) break;
 
-        if ((avail = read(notifyfd, buffer, sizeof buffer)) < 0)
+        if ((avail = read(notifyfd, buffer, int(sizeof buffer))) < 0)
         {
             notifyerr = true;
             break;
@@ -929,15 +972,15 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
             for (i = n; i--; )
             {
                 path = paths[i];
-                unsigned int psize = strlen(path);
+                size_t psize = strlen(path);
 
                 for (it = client->syncs.begin(); it != client->syncs.end(); it++)
                 {
                     std::string* ignore = (*it)->dirnotify->ignore.editStringDirect();
                     std::string* localname = (*it)->localroot->localname.editStringDirect();
 
-                    int rsize = (*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.size() : localname->size();
-                    int isize = ignore->size();
+                    size_t rsize = (*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.size() : localname->size();
+                    size_t isize = ignore->size();
 
                     if (psize >= rsize
                       && !memcmp((*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.c_str() : localname->c_str(), path, rsize)    // prefix match
@@ -1320,15 +1363,15 @@ bool PosixFileSystemAccess::getextension(const LocalPath& filename, char* extens
     const std::string* str = filename.editStringDirect();
     const char* ptr = str->data() + str->size();
     char c;
-    int i, j;
 
     size = std::min(size - 1, str->size());
 
-    for (i = 0; i < size; i++)
+    for (unsigned i = 0; i < size; i++)
     {
         if (*--ptr == '.')
         {
-            for (j = 0; j <= i; j++)
+            unsigned j = 0;
+            for (; j <= i; j++)
             {
                 if (*ptr < '.' || *ptr > 'z') return false;
 
@@ -1796,6 +1839,77 @@ DirNotify* PosixFileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& 
     dirnotify->fsaccess = this;
 
     return dirnotify;
+}
+
+bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType& type) const
+{
+#if defined(__linux__) || defined(__ANDROID__)
+    struct statfs statbuf;
+
+    if (!statfs(path.editStringDirect()->c_str(), &statbuf))
+    {
+        switch (statbuf.f_type)
+        {
+        case EXT2_SUPER_MAGIC:
+            type = FS_EXT;
+            break;
+        case MSDOS_SUPER_MAGIC:
+            type = FS_FAT32;
+            break;
+        case HFS_SUPER_MAGIC:
+            type = FS_HFS;
+            break;
+        case NTFS_SB_MAGIC:
+            type = FS_NTFS;
+            break;
+#if defined(__ANDROID__)
+        case F2FS_SUPER_MAGIC:
+            type = FS_F2FS;
+            break;
+        case FUSEBLK_SUPER_MAGIC:
+        case FUSECTL_SUPER_MAGIC:
+            type = FS_FUSE;
+            break;
+        case SDCARDFS_SUPER_MAGIC:
+            type = FS_SDCARDFS;
+            break;
+#endif /* __ANDROID__ */
+        case XFS_SUPER_MAGIC:
+            type = FS_XFS;
+            break;
+        default:
+            type = FS_UNKNOWN;
+            break;
+        }
+
+        return true;
+    }
+#endif /* __linux__ || __ANDROID__ */
+
+#if defined(__APPLE__) || defined(USE_IOS)
+    static const map<string, FileSystemType> filesystemTypes = {
+        {"apfs",  FS_APFS},
+        {"hfs",   FS_HFS},
+        {"msdos", FS_FAT32},
+        {"ntfs",  FS_NTFS}
+    }; /* filesystemTypes */
+
+    struct statfs statbuf;
+
+    if (!statfs(path.editStringDirect()->c_str(), &statbuf))
+    {
+        auto it = filesystemTypes.find(statbuf.f_fstypename);
+
+        if (it != filesystemTypes.end())
+        {
+            return type = it->second, true;
+        }
+
+        return type = FS_UNKNOWN, true;
+    }
+#endif /* __APPLE__ || USE_IOS */
+
+    return type = FS_UNKNOWN, false;
 }
 
 bool PosixDirAccess::dopen(LocalPath* path, FileAccess* f, bool doglob)
