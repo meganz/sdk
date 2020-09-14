@@ -16841,6 +16841,10 @@ std::function<bool (Node*, Node*)> MegaApiImpl::getComparatorFunction(int order,
         case MegaApi::ORDER_PHOTO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorPhotoDESC(i, j, mc); };
         case MegaApi::ORDER_VIDEO_ASC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoASC(i, j, mc); };
         case MegaApi::ORDER_VIDEO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoDESC(i, j, mc); };
+        case MegaApi::ORDER_LABEL_ASC: return MegaApiImpl::nodeComparatorLabelASC;
+        case MegaApi::ORDER_LABEL_DESC: return MegaApiImpl::nodeComparatorLabelDESC;
+        case MegaApi::ORDER_FAV_ASC: return MegaApiImpl::nodeComparatorFavASC;
+        case MegaApi::ORDER_FAV_DESC: return MegaApiImpl::nodeComparatorFavDESC;
     }
     assert(false);
     return nullptr;
@@ -17079,6 +17083,127 @@ bool MegaApiImpl::nodeComparatorPublicLinkCreationDESC(Node *i, Node *j)
         return 1;
     }
     return nodeNaturalComparatorDESC(i, j);
+}
+
+bool MegaApiImpl::nodeComparatorLabelASC(Node *i, Node *j)
+{
+    int i_lbl = MegaNode::NODE_LBL_UNKNOWN;
+    auto it = i->attrs.map.find(AttrMap::string2nameid("lbl"));
+    if (it != i->attrs.map.end())
+    {
+       i_lbl = std::atoi(it->second.c_str());
+    }
+
+    int j_lbl = MegaNode::NODE_LBL_UNKNOWN;
+    auto auxit = j->attrs.map.find(AttrMap::string2nameid("lbl"));
+    if (auxit != j->attrs.map.end())
+    {
+       j_lbl = std::atoi(auxit->second.c_str());
+    }
+
+    if (i_lbl == MegaNode::NODE_LBL_UNKNOWN && j_lbl ==  MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return nodeComparatorDefaultASC(i, j);
+    }
+    if (i_lbl == MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return 0;
+    }
+    if (j_lbl == MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return 1;
+    }
+
+    if (i_lbl < j_lbl)
+    {
+        return 1;
+    }
+    if (i_lbl > j_lbl)
+    {
+        return 0;
+    }
+    return nodeComparatorDefaultASC(i, j);
+}
+
+bool MegaApiImpl::nodeComparatorLabelDESC(Node *i, Node *j)
+{
+    int i_lbl = MegaNode::NODE_LBL_UNKNOWN;
+    auto it = i->attrs.map.find(AttrMap::string2nameid("lbl"));
+    if (it != i->attrs.map.end())
+    {
+       i_lbl = std::atoi(it->second.c_str());
+    }
+
+    int j_lbl = MegaNode::NODE_LBL_UNKNOWN;
+    auto auxit = j->attrs.map.find(AttrMap::string2nameid("lbl"));
+    if (auxit != j->attrs.map.end())
+    {
+       j_lbl = std::atoi(auxit->second.c_str());
+    }
+
+    if (i_lbl == MegaNode::NODE_LBL_UNKNOWN && j_lbl == MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return nodeComparatorDefaultASC(i, j);
+    }
+    if (i_lbl == MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return 0;
+    }
+    if (j_lbl == MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return 1;
+    }
+
+    if (i_lbl < j_lbl)
+    {
+        return 0;
+    }
+    if (i_lbl > j_lbl)
+    {
+        return 1;
+    }
+    return nodeComparatorDefaultASC(i, j);
+}
+
+
+bool MegaApiImpl::nodeComparatorFavASC(Node *i, Node *j)
+{
+    bool i_fav = (i->attrs.map.find(AttrMap::string2nameid("fav")) != i->attrs.map.end());
+    bool j_fav = (j->attrs.map.find(AttrMap::string2nameid("fav")) != j->attrs.map.end());
+
+    if (!(i_fav ^ j_fav))
+    {
+        // if both or none of them, have the same attribute value, order default ASC
+        return nodeComparatorDefaultASC(i, j);
+    }
+    else if (i_fav)
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+bool MegaApiImpl::nodeComparatorFavDESC(Node *i, Node *j)
+{
+    bool i_fav = (i->attrs.map.find(AttrMap::string2nameid("fav")) != i->attrs.map.end());
+    bool j_fav = (j->attrs.map.find(AttrMap::string2nameid("fav")) != j->attrs.map.end());
+
+    if (!(i_fav ^ j_fav))
+    {
+        // if both or none of them, have the same attribute value, order default ASC
+        return nodeComparatorDefaultASC(i, j);
+    }
+    else if (i_fav)
+    {
+        return 0;
+    }
+    else
+    {
+        return 1;
+    }
 }
 
 // Compare node types. Returns -1 if i==j, 0 if i goes first, +1 if j goes first.
