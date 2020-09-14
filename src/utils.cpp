@@ -2485,11 +2485,6 @@ bool SyncConfig::serialize(std::string& data) const
     return true;
 }
 
-bool operator==(const SyncConfig& lhs, const SyncConfig& rhs)
-{
-    return lhs.tie() == rhs.tie();
-}
-
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv)
 {
     FileInputStream isAccess(&ifAccess);
