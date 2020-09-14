@@ -7081,7 +7081,7 @@ error MegaClient::setattr(Node* n, const char *prevattr)
         return API_EPAYWALL;
     }
 
-    if (!checkaccess(n, FULL))
+    if (!mLoggedIntoWritableFolder && !checkaccess(n, FULL))
     {
         return API_EACCESS;
     }

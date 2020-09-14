@@ -19049,7 +19049,7 @@ void MegaApiImpl::sendPendingRequests()
             const char* newName = request->getName();
             if(!node || !newName || !(*newName)) { e = API_EARGS; break; }
 
-            if (!client->checkaccess(node,FULL)) { e = API_EACCESS; break; }
+            if (!client->mLoggedIntoWritableFolder && !client->checkaccess(node,FULL)) { e = API_EACCESS; break; }
 
             string sname = newName;
             fsAccess->normalize(&sname);
