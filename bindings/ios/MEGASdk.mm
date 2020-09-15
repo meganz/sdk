@@ -2429,7 +2429,7 @@ using namespace mega;
     self.megaApi->resetSmsVerifiedPhoneNumber([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)resetSmsVerifiedPhoneNumberWithDelegate {
+- (void)resetSmsVerifiedPhoneNumber {
     self.megaApi->resetSmsVerifiedPhoneNumber();
 }
 

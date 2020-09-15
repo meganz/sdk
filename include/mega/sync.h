@@ -49,11 +49,14 @@ public:
     // Adds a new sync config or updates if exists already
     void insert(const SyncConfig& syncConfig);
 
-    // Removes a sync config at the given local path
-    void remove(const std::string& localPath);
+    // Removes a sync config with a given tag
+    bool removeByTag(const int tag);
 
-    // Returns the sync config at the given local path
-    const SyncConfig* get(const std::string& localPath) const;
+    // Returns the sync config with a given tag
+    const SyncConfig* get(const int tag) const;
+
+    // Returns the first sync config found with a remote handle
+    const SyncConfig* getByNodeHandle(handle nodeHandle) const;
 
     // Removes all sync configs
     void clear();
@@ -63,7 +66,7 @@ public:
 
 private:
     std::unique_ptr<DbTable> mTable; // table for caching the sync configs
-    std::map<std::string, SyncConfig> mSyncConfigs; // map of local paths to sync configs
+    std::map<int, SyncConfig> mSyncConfigs; // map of tag to sync configs
 };
 
 class MEGA_API Sync
@@ -72,9 +75,6 @@ public:
 
     // returns the sync config
     const SyncConfig& getConfig() const;
-
-    // sets whether this sync is resumable (default is true)
-    void setResumable(bool isResumable);
 
     void* appData = nullptr;
 
@@ -101,7 +101,7 @@ public:
 
     // syncing to an inbound share?
     bool inshare = false;
-    
+
     // deletion queue
     set<uint32_t> deleteq;
 
@@ -116,12 +116,12 @@ public:
 
     // recursively add children
     void addstatecachechildren(uint32_t, idlocalnode_map*, LocalPath&, LocalNode*, int);
-    
+
     // Caches all synchronized LocalNode
     void cachenodes();
 
     // change state, signal to application
-    void changestate(syncstate_t);
+    void changestate(syncstate_t, SyncError newSyncError = NO_SYNC_ERROR);
 
     // skip duplicates and self-caused
     bool checkValidNotification(int q, Notification& notification);
@@ -179,7 +179,8 @@ public:
     bool fsstableids = false;
 
     // Error that causes a cancellation
-    error errorcode = API_OK;
+    SyncError errorCode = NO_SYNC_ERROR;
+    Error apiErrorCode; //in case a cancellation is caused by a regular error (unused)
 
     // true if the sync hasn't loaded cached LocalNodes yet
     bool initializing = true;
@@ -192,7 +193,9 @@ public:
     m_time_t updatedfilets = 0;
     m_time_t updatedfileinitialts = 0;
 
-    Sync(MegaClient*, SyncConfig, const char*, string*, Node*, bool, int, void*);
+    // flag to optimize destruction by skipping calls to treestate()
+    bool mDestructorRunning = false;
+    Sync(MegaClient*, SyncConfig &, const char*, string*, Node*, bool, int, void*);
     ~Sync();
 
     static const int SCANNING_DELAY_DS;

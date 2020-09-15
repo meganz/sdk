@@ -76,6 +76,7 @@ struct MEGA_API NewNode : public NodeCore
     std::unique_ptr<string> fileattributes;
 
     bool added = false;
+    handle mAddedHandle = UNDEF;
 };
 
 struct MEGA_API PublicLink
@@ -110,6 +111,49 @@ struct Fingerprints
 private:
     fingerprint_set mFingerprints;
     m_off_t mSumSizes = 0;
+};
+
+struct CommandChain
+{
+    // convenience functions, hides the unique_ptr aspect, removes it when empty
+    bool empty()
+    {
+        return !chain || chain->empty();
+    }
+
+    void push_back(Command* c)
+    {
+        if (!chain)
+        {
+            chain.reset(new std::list<Command*>);
+        }
+        chain->push_back(c);
+    }
+
+    void erase(Command* c)
+    {
+        if (chain)
+        {
+            for (auto i = chain->begin(); i != chain->end(); ++i)
+            {
+                if (*i == c)
+                {
+                    chain->erase(i);
+                    if (chain->empty())
+                    {
+                        chain.reset();
+                    }
+                    return;
+                }
+            }
+        }
+    }
+
+private:
+    friend class CommandSetAttr;
+
+    // most nodes don't have commands in progress so keep representation super small
+    std::unique_ptr<std::list<Command*>> chain;
 };
 
 
@@ -153,6 +197,9 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // node attributes
     AttrMap attrs;
+
+    // track upcoming attribute changes for this node, so we can reason about current vs future state
+    CommandChain mPendingChanges;
 
     // owner
     handle owner = mega::UNDEF;
@@ -204,7 +251,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         bool publiclink : 1;
         bool newnode : 1;
     } changed;
-    
+
     void setkey(const byte* = NULL);
 
     void setkeyfromjson(const char*);
@@ -245,7 +292,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     node_set::iterator tounlink_it;
 #endif
 
-    // source tag
+    // source tag.  The tag of the request or transfer that last modified this node (available in MegaApi)
     int tag = 0;
 
     // check if node is below this node
@@ -333,6 +380,12 @@ struct MEGA_API LocalNode : public File
     // global sync reference
     handle syncid = mega::UNDEF;
 
+    enum : unsigned
+    {
+        SYNCTREE_RESOLVED = 0,
+        SYNCTREE_DESCENDANT_FLAGGED = 1,
+        SYNCTREE_SCAN_HERE = 2 };  // scan here also implies checking immdiate children for synctree_descendantflagged
+
     struct
     {
         // was actively deleted
@@ -346,7 +399,19 @@ struct MEGA_API LocalNode : public File
 
         // checked for missing attributes
         bool checked : 1;
+
+        // needs another syncdown after pending changes
+        unsigned syncdownTargetedAction : 2;
+
+        // needs another syncup after pending changes
+        unsigned syncupTargetedAction : 2;
     };
+
+    // set the syncupTargetedAction for this, and parents
+    void needsFutureSyncup();
+
+    // set the syncdownTargetedAction for this, and parents
+    void needsFutureSyncdown();
 
     // current subtree sync state: current and displayed
     treestate_t ts = TREESTATE_NONE;

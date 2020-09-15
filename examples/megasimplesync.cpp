@@ -444,15 +444,20 @@ void SyncApp::fetchnodes_result(const Error &e)
             }
             else
             {
-                SyncConfig syncConfig{local_folder, n->nodehandle, 0};
-                error err = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL);
+                static int syncTag = 2027;
+
+                SyncConfig syncConfig{syncTag++, local_folder, local_folder, n->nodehandle, remote_folder, 0};
+                SyncError syncError;
+#ifdef ENABLE_SYNC
+                error err = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError);
                 if (err)
                 {
-                    LOG_err << "Sync could not be added! ";
+                    LOG_err << "Sync could not be added! " << err << " syncError = " << syncError;
                     exit(1);
                 }
 
                 LOG_info << "Sync started !";
+#endif
             }
         }
         else
