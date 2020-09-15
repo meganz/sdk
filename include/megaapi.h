@@ -13228,11 +13228,11 @@ class MegaApi
             ORDER_VIDEO_ASC, ORDER_VIDEO_DESC,
             ORDER_LINK_CREATION_ASC, ORDER_LINK_CREATION_DESC,};
 
-        typedef enum { NODE_UNKNOWN = 0, NODE_PHOTO, NODE_AUDIO,
-               NODE_VIDEO, NODE_DOCUMENT,} nodefiletype_t;
+        enum { NODE_UNKNOWN = 0, NODE_PHOTO, NODE_AUDIO,
+               NODE_VIDEO, NODE_DOCUMENT, };
 
-        typedef enum { TARGET_INSHARE = 0, TARGET_OUTSHARE, TARGET_PUBLICLINK,
-                       TARGET_ROOTNODE, TARGET_ALL } searchtarget_t;
+        enum { TARGET_INSHARE = 0, TARGET_OUTSHARE, TARGET_PUBLICLINK,
+                       TARGET_ROOTNODE, TARGET_ALL, };
 
         /**
          * @brief Get the number of child nodes
@@ -14702,7 +14702,7 @@ class MegaApi
          * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
          *
          * The search is case-insensitive. If the search string is not provided but type has any value
-         * defined at MegaApi::nodefiletype_t (except MegaApi::NODE_UNKNOWN),
+         * defined at nodefiletype_t (except NODE_UNKNOWN),
          * this method will return a list that contains nodes of the same type as provided.
          *
          * You take the ownership of the returned value.

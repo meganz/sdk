@@ -1882,14 +1882,14 @@ class TreeProcessor
 class SearchTreeProcessor : public TreeProcessor
 {
     public:
-        SearchTreeProcessor(MegaClient *client, const char *search, MegaApi::nodefiletype_t type);
+        SearchTreeProcessor(MegaClient *client, const char *search, nodefiletype_t type);
         virtual bool processNode(Node *node);
         bool isValidTypeNode(Node *node);
         virtual ~SearchTreeProcessor() {}
         vector<Node *> &getResults();
 
     protected:
-        MegaApi::nodefiletype_t mType;
+        nodefiletype_t mType;
         const char *mSearch;
         vector<Node *> mResults;
         MegaClient *mClient;

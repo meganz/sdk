@@ -271,6 +271,12 @@ typedef list<struct File*> file_list;
 // RUBBISH - rubbish bin
 typedef enum { TYPE_UNKNOWN = -1, FILENODE = 0, FOLDERNODE, ROOTNODE, INCOMINGNODE, RUBBISHNODE } nodetype_t;
 
+// node file types:
+typedef enum { NODE_UNKNOWN = 0, NODE_PHOTO, NODE_AUDIO, NODE_VIDEO, NODE_DOCUMENT, } nodefiletype_t;
+
+// search target types
+typedef enum { TARGET_INSHARE = 0, TARGET_OUTSHARE, TARGET_PUBLICLINK, TARGET_ROOTNODE, TARGET_ALL, } searchtarget_t;
+
 // node type key lengths
 const int FILENODEKEYLENGTH = 32;
 const int FOLDERNODEKEYLENGTH = 16;

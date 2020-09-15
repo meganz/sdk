@@ -10810,7 +10810,7 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *can
           && !(cancelToken && cancelToken->isCancelled()); i++)
     {
         node = client->nodebyhandle(client->rootnodes[i]);
-        SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
+        SearchTreeProcessor searchProcessor(client, searchString, static_cast<nodefiletype_t>(type));
         processTree(node, &searchProcessor, true, cancelToken);
         node_vector& vNodes = searchProcessor.getResults();
         result.insert(result.end(), vNodes.begin(), vNodes.end());
@@ -10822,7 +10822,7 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *can
     {
         node = client->nodebyhandle(shares->get(i)->getNodeHandle());
 
-        SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
+        SearchTreeProcessor searchProcessor(client, searchString, static_cast<nodefiletype_t>(type));
         processTree(node, &searchProcessor, true, cancelToken);
         vector<Node *>& vNodes  = searchProcessor.getResults();
 
@@ -11360,7 +11360,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         }
 
         // searchString and nodeType (if provided), are considered in search
-        SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
+        SearchTreeProcessor searchProcessor(client, searchString, static_cast<nodefiletype_t>(type));
         for (node_list::iterator it = node->children.begin(); it != node->children.end()
              && !(cancelToken && cancelToken->isCancelled()); )
         {
@@ -11387,7 +11387,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
             // Search on rootnode (cloud, excludes Inbox and Rubbish)
             node = client->nodebyhandle(client->rootnodes[0]);
 
-            SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
+            SearchTreeProcessor searchProcessor(client, searchString, static_cast<nodefiletype_t>(type));
             processTree(node, &searchProcessor, recursive, cancelToken);
             node_vector& vNodes = searchProcessor.getResults();
 
@@ -11402,7 +11402,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
             {
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
 
-                SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
+                SearchTreeProcessor searchProcessor(client, searchString, static_cast<nodefiletype_t>(type));
                 processTree(node, &searchProcessor, recursive, cancelToken);
                 vector<Node *>& vNodes  = searchProcessor.getResults();
 
@@ -11418,7 +11418,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
             {
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
 
-                SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
+                SearchTreeProcessor searchProcessor(client, searchString, static_cast<nodefiletype_t>(type));
                 processTree(node, &searchProcessor, recursive, cancelToken);
                 vector<Node *>& vNodes  = searchProcessor.getResults();
 
@@ -11433,7 +11433,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
                  && !(cancelToken && cancelToken->isCancelled()); it++)
             {
                 node = client->nodebyhandle(it->first);
-                SearchTreeProcessor searchProcessor(client, searchString, static_cast<MegaApi::nodefiletype_t>(type));
+                SearchTreeProcessor searchProcessor(client, searchString, static_cast<nodefiletype_t>(type));
                 processTree(node, &searchProcessor, true, cancelToken);
                 vector<Node *>& vNodes  = searchProcessor.getResults();
                 result.insert(result.end(), vNodes.begin(), vNodes.end());
@@ -11759,7 +11759,7 @@ MegaNode *MegaApiImpl::getNodeByCRC(const char *crc, MegaNode *parent)
     return NULL;
 }
 
-SearchTreeProcessor::SearchTreeProcessor(MegaClient *client, const char *search, MegaApi::nodefiletype_t type)
+SearchTreeProcessor::SearchTreeProcessor(MegaClient *client, const char *search, nodefiletype_t type)
 {
     mSearch = search;
     mType = type;
