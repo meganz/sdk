@@ -838,7 +838,9 @@ void LocalPath::ensureWinExtendedPathLenPrefix()
 {
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
     if (!PathIsRelativeW(localpath.c_str()) && ((localpath.size() < 2) || memcmp(localpath.data(), L"\\\\", 4)))
+    {
         localpath.insert(0, L"\\\\?\\", 4);
+    }
 #endif
 }
 
@@ -852,8 +854,6 @@ LocalPath LocalPath::subpathTo(size_t bytePos) const
 
 LocalPath LocalPath::insertFilenameCounter(unsigned counter, const FileSystemAccess& fsaccess)
 {
-    // the destination path isn't synced, save with a (x) suffix
-
     size_t dotindex = localpath.find_last_of('.');
     size_t sepindex = localpath.find_last_of(fsaccess.localseparator);
 
@@ -880,11 +880,7 @@ LocalPath LocalPath::insertFilenameCounter(unsigned counter, const FileSystemAcc
 string LocalPath::toPath(const FileSystemAccess& fsaccess) const
 {
     string path;
-#if defined(_WIN32)
-    fsaccess.local2path(const_cast<std::wstring*>(&localpath), &path);
-#else
-    fsaccess.local2path(const_cast<string*>(&localpath), &path);
-#endif
+    fsaccess.local2path(&localpath, &path);
     return path;
 }
 

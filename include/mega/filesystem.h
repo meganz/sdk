@@ -397,7 +397,7 @@ public:
     // base path
     LocalPath localbasepath;
 
-    virtual void addnotify(LocalNode*, LocalPath*) { }
+    virtual void addnotify(LocalNode*, const LocalPath&) { }
     virtual void delnotify(LocalNode*) { }
 
     void notify(notifyqueue, LocalNode *, LocalPath&&, bool = false);
@@ -506,12 +506,6 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // check if synchronization is supported for a specific path
     virtual bool issyncsupported(LocalPath&, bool* = NULL, SyncError* = nullptr) { return true; }
-
-    // add notification (has to be called for all directories in tree for full crossplatform support)
-    virtual void addnotify(LocalNode*, LocalPath*) { }
-
-    // delete notification
-    virtual void delnotify(LocalNode*) { }
 
     // get the absolute path corresponding to a path
     virtual bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) = 0;

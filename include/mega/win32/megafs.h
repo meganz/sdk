@@ -131,7 +131,7 @@ private:
 
 public:
 
-    void addnotify(LocalNode*, LocalPath*) override;
+    void addnotify(LocalNode*, const LocalPath&) override;
 
     fsfp_t fsfingerprint() const override;
     bool fsstableids() const override;

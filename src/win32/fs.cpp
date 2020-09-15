@@ -1215,7 +1215,7 @@ void WinFileSystemAccess::statsid(string *id) const
 }
 
 // set DirNotify's root LocalNode
-void WinDirNotify::addnotify(LocalNode* l, LocalPath*)
+void WinDirNotify::addnotify(LocalNode* l, const LocalPath&)
 {
 #ifdef ENABLE_SYNC
     if (!l->parent)
@@ -1618,7 +1618,7 @@ bool WinFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType& 
             type = FS_NTFS;
         }
         else if (!wcscmp(filesystemName.c_str(), L"FAT32"))
-        {        
+        {
             type = FS_FAT32;
         }
         else if (!wcscmp(filesystemName.c_str(), L"exFAT"))

@@ -5115,10 +5115,7 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     if (basePath)
     {
         LocalPath lp = LocalPath::fromPath(basePath, *fsAccess);
-        if (!lp.endsInSeparator(fsAccess->localseparator))
-        {
-            lp.appendWithSeparator(LocalPath(), true, fsAccess->localseparator);
-        }
+        lp.appendWithSeparator(LocalPath(), true, fsAccess->localseparator);
         string sBasePath = lp.toPath(*fsAccess);
         dbAccess = new MegaDbAccess(&sBasePath);
 

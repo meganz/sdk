@@ -81,7 +81,6 @@ namespace mega {
 
 // import these select types into the namespace directly, to avoid adding std::byte from c++17
 using std::string;
-using std::wstring;
 using std::map;
 using std::set;
 using std::list;
@@ -95,6 +94,10 @@ using std::streambuf;
 using std::tuple;
 using std::ostringstream;
 using std::unique_ptr;
+
+#ifdef WIN32
+using std::wstring;
+#endif
 
 // forward declaration
 struct AttrMap;

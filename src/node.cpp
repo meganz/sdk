@@ -1373,7 +1373,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     // enable folder notification
     if (type == FOLDERNODE)
     {
-        sync->dirnotify->addnotify(this, &cfullpath);
+        sync->dirnotify->addnotify(this, cfullpath);
     }
 
     sync->client->syncactivity = true;

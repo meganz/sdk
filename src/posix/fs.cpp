@@ -1738,13 +1738,13 @@ PosixDirNotify::PosixDirNotify(LocalPath& localbasepath, const LocalPath& ignore
     fsaccess = NULL;
 }
 
-void PosixDirNotify::addnotify(LocalNode* l, LocalPath* path)
+void PosixDirNotify::addnotify(LocalNode* l, const LocalPath& path)
 {
 #ifdef ENABLE_SYNC
 #ifdef USE_INOTIFY
     int wd;
 
-    wd = inotify_add_watch(fsaccess->notifyfd, path->localpath.c_str(),
+    wd = inotify_add_watch(fsaccess->notifyfd, path.localpath.c_str(),
                            IN_CREATE | IN_DELETE | IN_MOVED_FROM | IN_MOVED_TO
                            | IN_CLOSE_WRITE | IN_EXCL_UNLINK | IN_ONLYDIR);
 
@@ -1755,7 +1755,7 @@ void PosixDirNotify::addnotify(LocalNode* l, LocalPath* path)
     }
     else
     {
-        LOG_warn << "Unable to addnotify path: " <<  path->localpath.c_str() << ". Error code: " << errno;
+        LOG_warn << "Unable to addnotify path: " <<  path.localpath.c_str() << ". Error code: " << errno;
     }
 #endif
 #endif
