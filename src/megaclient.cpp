@@ -13562,6 +13562,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
     l->syncupTargetedAction = LocalNode::SYNCTREE_RESOLVED;
 
     bool insync = true;
+    bool success = true;
 
     list<string> strings;
     remotenode_map nchildren;
@@ -13860,12 +13861,12 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
                     }
 
                     // recurse into directories of equal name
-                    if (!syncup(ll, nds, numPending, scanWholeSubtree))
+                    success = syncup(ll, nds, numPending, scanWholeSubtree);
+                    if (!success)
                     {
-                        l->syncupTargetedAction = originalTargetedAction;
-                        parentPending += numPending;
-                        return false;
+                        break;
                     }
+
                     continue;
                 }
             }
@@ -13873,6 +13874,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
 
         if (!scanWholeSubtree)
         {
+            parentPending += numPending;
             return true;
         }
 
@@ -14071,11 +14073,11 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
             synccreate.push_back(ll);
             syncactivity = true;
 
-            if (synccreate.size() >= MAX_NEWNODES)
+            success = synccreate.size() < MAX_NEWNODES;
+            if (!success)
             {
                 LOG_warn << "Stopping syncup due to MAX_NEWNODES";
-                parentPending += numPending;
-                return false;
+                break;
             }
         }
         else
@@ -14088,23 +14090,31 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
 
         if (ll->type == FOLDERNODE)
         {
-            if (!syncup(ll, nds, numPending, true))
+            success = syncup(ll, nds, numPending, true);
+            if (!success)
             {
-                l->syncupTargetedAction = originalTargetedAction;
-                parentPending += numPending;
-                return false;
+                break;
             }
         }
     }
 
-    if (insync && l->node && numPending == 0)
+    if (success)
     {
-        l->treestate(TREESTATE_SYNCED);
+        if (scanWholeSubtree && insync && l->node && numPending == 0)
+        {
+            l->treestate(TREESTATE_SYNCED);
+        }
+    }
+    else
+    {
+        l->syncupTargetedAction =
+          std::max<unsigned>(originalTargetedAction,
+                             LocalNode::SYNCTREE_DESCENDANT_FLAGGED);
     }
 
     parentPending += numPending;
 
-    return true;
+    return success;
 }
 
 // execute updates stored in synccreate[]
