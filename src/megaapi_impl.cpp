@@ -10812,7 +10812,7 @@ MegaNodeList* MegaApiImpl::searchInAllShares(const char *searchString, MegaCance
     if (target == MegaApi::TARGET_INSHARE || target == MegaApi::TARGET_OUTSHARE)
     {
         // Search in inShares or outShares
-        ::mega::unique_ptr<MegaShareList> shares (target == MegaApi::TARGET_INSHARE
+        unique_ptr<MegaShareList> shares (target == MegaApi::TARGET_INSHARE
                                                   ? getInSharesList(MegaApi::ORDER_NONE)
                                                   : getOutShares(MegaApi::ORDER_NONE));
 
@@ -10885,7 +10885,7 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *can
     }
 
     // inshares
-    MegaShareList *shares = getInSharesList(MegaApi::ORDER_NONE);
+    unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
     for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
     {
         node = client->nodebyhandle(shares->get(i)->getNodeHandle());
@@ -10896,7 +10896,6 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *can
 
         result.insert(result.end(), vNodes.begin(), vNodes.end());
     }
-    delete shares;
 
     sortByComparatorFunction(result, order, *client);
     MegaNodeList *nodeList = new MegaNodeListPrivate(result.data(), int(result.size()));
@@ -11466,7 +11465,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         if (target == MegaApi::TARGET_INSHARE || target == MegaApi::TARGET_ALL)
         {
             // Search on inshares
-            MegaShareList *shares = getInSharesList(MegaApi::ORDER_NONE);
+            unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
             for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
             {
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
@@ -11477,13 +11476,12 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
 
                 result.insert(result.end(), vNodes.begin(), vNodes.end());
             }
-            delete shares;
         }
 
         if (target == MegaApi::TARGET_OUTSHARE || target == MegaApi::TARGET_ALL)
         {
             // Search on outshares
-            MegaShareList *shares = getOutShares(MegaApi::ORDER_NONE);
+            unique_ptr<MegaShareList>shares (getOutShares(MegaApi::ORDER_NONE));
             for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
             {
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
@@ -11494,7 +11492,6 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
 
                 result.insert(result.end(), vNodes.begin(), vNodes.end());
             }
-            delete shares;
         }
 
         if (target == MegaApi::TARGET_PUBLICLINK || target == MegaApi::TARGET_ALL)
