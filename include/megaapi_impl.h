@@ -2424,8 +2424,6 @@ class MegaApiImpl : public MegaApp
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
         MegaNodeList* search(const char* searchString, MegaCancelToken *cancelToken, int order = MegaApi::ORDER_NONE, int type = MegaApi::NODE_UNKNOWN);
 
-        MegaNodeList* searchInAllShares(const char *searchString, MegaCancelToken *cancelToken, int order, int target, int type = MegaApi::NODE_UNKNOWN);
-
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
                                        MegaHandle parentHandle, const char *privateauth, const char *publicauth, const char *chatauth);
         MegaNode *createForeignFolderNode(MegaHandle handle, const char *name, MegaHandle parentHandle,

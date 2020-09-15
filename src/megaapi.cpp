@@ -3760,17 +3760,17 @@ MegaNodeList *MegaApi::search(const char *searchString, MegaCancelToken *cancelT
 
 MegaNodeList* MegaApi::searchOnInShares(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApi::TARGET_INSHARE);
+    return pImpl->search(nullptr, searchString, cancelToken, true, order, MegaApi::NODE_UNKNOWN, MegaApi::TARGET_INSHARE);
 }
 
 MegaNodeList* MegaApi::searchOnOutShares(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApi::TARGET_OUTSHARE);
+    return pImpl->search(nullptr, searchString, cancelToken, true, order, MegaApi::NODE_UNKNOWN, MegaApi::TARGET_OUTSHARE);
 }
 
 MegaNodeList* MegaApi::searchOnPublicLinks(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApi::TARGET_PUBLICLINK);
+    return pImpl->search(nullptr, searchString, cancelToken, true, order, MegaApi::NODE_UNKNOWN, MegaApi::TARGET_PUBLICLINK);
 }
 
 MegaNodeList* MegaApi::searchByType(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order, int type, int target)
