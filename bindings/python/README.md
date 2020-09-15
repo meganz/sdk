@@ -44,7 +44,7 @@ Build Python Bindings
 Build Python Distribution Package
 ---------------------------------
 
-To use the Mega API from Python, you need to built the Python package as a platform specific "Wheel" package,
+To use the Mega API from Python, you need to build the Python package as a platform specific "Wheel" package,
 as it contains all native libraries (shared libraries, DLLs) required.  
 ```
     cd <SDK>/bindings/python/  
@@ -71,7 +71,7 @@ fashion, e. g.
 Test Installed Package
 ----------------------
 
-    import mega `(if you haven't done it yet)`
+    import mega #`(if you haven't done it yet)`
     api = mega.MegaApi('test')
     print(dir(api)))
 
