@@ -572,15 +572,15 @@ public:
     error removecontact(const char*, visibility_t = HIDDEN);
 
     // add/remove/update outgoing share
-    void setshare(Node*, const char*, accesslevel_t, const char* = NULL);
+    void setshare(Node*, const char*, accesslevel_t, const char*, int tag, std::function<void(Error)> completion);
 
     // Add/delete/remind outgoing pending contact request
     void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);
     void updatepcr(handle, ipcactions_t);
 
     // export node link or remove existing exported link for this node
-    error exportnode(Node*, int, m_time_t);
-    void getpubliclink(Node* n, int del, m_time_t ets); // auxiliar method to add req
+    error exportnode(Node*, int, m_time_t, int tag, std::function<void(Error, handle, handle)> completion);
+    void getpubliclink(Node* n, int del, m_time_t ets, int tag, std::function<void(Error, handle, handle)> completion); // auxiliar method to add req
 
     // add timer
     error addtimer(TimerWithBackoff *twb);

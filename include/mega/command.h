@@ -165,7 +165,7 @@ public:
     };
 
     virtual bool procresult(Result) = 0;
-    
+
     // json for the command is usually pre-generated but can be calculated just before sending, by overriding this function
     virtual const char* getJSON(MegaClient* client);
 
@@ -639,12 +639,14 @@ class MEGA_API CommandSetShare : public Command
     string msg;
     string personal_representation;
 
+    std::function<void(Error)> completion;
+
     bool procuserresult(MegaClient*);
 
 public:
     bool procresult(Result) override;
 
-    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, int, const char*, const char* = NULL);
+    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, int, const char*, const char*, int tag, std::function<void(Error)> f);
 };
 
 class MEGA_API CommandGetUserData : public Command
@@ -742,11 +744,12 @@ class MEGA_API CommandSetPH : public Command
 {
     handle h;
     m_time_t ets;
+    std::function<void(Error, handle, handle)> completion;
 
 public:
     bool procresult(Result) override;
 
-    CommandSetPH(MegaClient*, Node*, int, m_time_t);
+    CommandSetPH(MegaClient*, Node*, int, m_time_t, int ctag, std::function<void(Error, handle, handle)> f);
 };
 
 class MEGA_API CommandGetPH : public Command

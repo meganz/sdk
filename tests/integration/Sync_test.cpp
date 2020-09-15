@@ -706,7 +706,8 @@ struct StandardClient : public MegaApp
 
     handle basefolderhandle = UNDEF;
 
-    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE, CATCHUP, EXPORTNODE };
+    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE, CATCHUP,
+                          COMPLETION };  // use COMPLETION when we use a completion function, rather than trying to match tags on callbacks
 
     struct ResultProc
     {
@@ -726,6 +727,7 @@ struct StandardClient : public MegaApp
 
         void prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h = UNDEF)
         {
+            if (rpe != COMPLETION)
             {
                 lock_guard<recursive_mutex> g(mtx);
                 auto& entry = m[rpe];
@@ -1852,16 +1854,6 @@ struct StandardClient : public MegaApp
         resultproc.processresult(MOVENODE, e, h);
     }
 
-    void exportnode_result(error e) override
-    {
-        resultproc.processresult(EXPORTNODE, e, UNDEF);
-    }
-
-    void exportnode_result(handle h, handle) override
-    {
-        resultproc.processresult(EXPORTNODE, API_OK, h);
-    }
-
     void catchup_result() override
     {
         resultproc.processresult(CATCHUP, error(API_OK));
@@ -1946,22 +1938,21 @@ struct StandardClient : public MegaApp
 
     void exportnode(Node* n, int del, m_time_t expiry, promise<Error>& pb)
     {
-        resultproc.prepresult(EXPORTNODE, ++next_request_tag,
+        resultproc.prepresult(COMPLETION, ++next_request_tag,
             [&](){
-                error e = client.exportnode(n, del, expiry);
+                error e = client.exportnode(n, del, expiry, client.reqtag, [&](Error e, handle, handle){ pb.set_value(e); });
                 if (e)
                 {
                     pb.set_value(e);
                 }
-            },
-            [&pb](error e) { pb.set_value(e); return true; });
+            }, nullptr);  // no need to match callbacks with requests when we use completion functions
     }
 
     void getpubliclink(Node* n, int del, m_time_t expiry, promise<Error>& pb)
     {
-        resultproc.prepresult(EXPORTNODE, ++next_request_tag,
-            [&](){ client.getpubliclink(n, del, expiry); },
-            [&pb](error e) { pb.set_value(e); return true; });
+        resultproc.prepresult(COMPLETION, ++next_request_tag,
+            [&](){ client.getpubliclink(n, del, expiry, client.reqtag, [&](Error e, handle, handle){ pb.set_value(e); }); },
+            nullptr);
     }
 
 
@@ -3589,7 +3580,7 @@ GTEST_TEST(SdkCore, ExerciseCommands)
     // disallow or shortcut.
 
     // make sure it's a brand new folder
-    future<bool> p1 = standardclient.thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.makeCloudSubdirs("testlinkfolder_brandnew2", 1, 1, pb); });
+    future<bool> p1 = standardclient.thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.makeCloudSubdirs("testlinkfolder_brandnew3", 1, 1, pb); });
     ASSERT_TRUE(waitonresults(&p1));
 
     assert(standardclient.lastPutnodesResultFirstHandle != UNDEF);
@@ -3597,16 +3588,16 @@ GTEST_TEST(SdkCore, ExerciseCommands)
 
     out() << "Testing make public link for node: " << n2->displaypath();
 
-    Node* base = standardclient.client.nodebyhandle(standardclient.basefolderhandle);
-    Node* child = standardclient.client.childnodebyname(base, "testlinkfolder_brandnew2");
-    ASSERT_EQ(child, n2);
-
-    // create on existing node, no link yet
-    promise<Error> pe1, pe2, pe3, pe4;
+    // try to get a link on an existing unshared folder
+    promise<Error> pe1, pe1a, pe2, pe3, pe4;
     standardclient.getpubliclink(n2, 0, 0, pe1);
-    ASSERT_EQ(API_OK, pe1.get_future().get());
+    ASSERT_EQ(API_EACCESS, pe1.get_future().get());
 
-    // create on existing node, with link already  (different command response)
+    // create on existing node
+    standardclient.exportnode(n2, 0, 0, pe1a);
+    ASSERT_EQ(API_OK, pe1a.get_future().get());
+
+    // get link on existing shared folder node, with link already  (different command response)
     standardclient.getpubliclink(n2, 0, 0, pe2);
     ASSERT_EQ(API_OK, pe2.get_future().get());
 

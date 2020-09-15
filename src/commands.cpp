@@ -2046,18 +2046,20 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* 
 }
 
 // add/remove share; include node share keys if new share
-CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslevel_t a, int newshare, const char* msg, const char* personal_representation)
+CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslevel_t a, int newshare, const char* msg, const char* personal_representation, int ctag, std::function<void(Error)> f)
 {
     byte auth[SymmCipher::BLOCKSIZE];
     byte key[SymmCipher::KEYLENGTH];
     byte asymmkey[AsymmCipher::MAXKEYLENGTH];
     int t = 0;
 
-    tag = client->restag;
+    tag = ctag;
 
     sh = n->nodehandle;
     user = u;
     access = a;
+    completion = move(f);
+    assert(completion);
 
     mSeqtagArray = true;
     cmd("s2");
@@ -2172,7 +2174,7 @@ bool CommandSetShare::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->share_result(r.errorOrOK());
+        completion(r.errorOrOK());
         return true;
     }
 
@@ -2195,8 +2197,8 @@ bool CommandSetShare::procresult(Result r)
                         n->sharekey->setkey(key);
 
                         // repeat attempt with corrected share key
-                        client->restag = tag;
-                        client->reqs.add(new CommandSetShare(client, n, user, access, 0, msg.c_str(), personal_representation.c_str()));
+                        client->reqs.add(new CommandSetShare(client, n, user, access, 0, msg.c_str(), personal_representation.c_str(),
+                                         tag, move(completion)));
                         return false;
                     }
                 }
@@ -2219,6 +2221,7 @@ bool CommandSetShare::procresult(Result r)
 
                     while (client->json.isnumeric())
                     {
+                        // intermediate result updates, not final completion
                         client->app->share_result(i++, (error)client->json.getint());
                     }
 
@@ -2239,7 +2242,7 @@ bool CommandSetShare::procresult(Result r)
                 break;
 
             case EOO:
-                client->app->share_result(API_OK);
+                completion(API_OK);
                 return true;
 
             default:
@@ -4885,10 +4888,16 @@ bool CommandGetUserSessions::procresult(Result r)
     return true;
 }
 
-CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t ets)
+CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t cets, int ctag, std::function<void(Error, handle, handle)> f)
 {
     mStringIsNotSeqtag = true;
     mSeqtagArray = true;
+
+    h = n->nodehandle;
+    ets = cets;
+    tag = ctag;
+    completion = move(f);
+    assert(completion);
 
     cmd("l");
     arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);
@@ -4902,17 +4911,13 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t ets)
     {
         arg("ets", ets);
     }
-
-    this->h = n->nodehandle;
-    this->ets = ets;
-    this->tag = client->reqtag;
 }
 
 bool CommandSetPH::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->exportnode_result(r.errorOrOK());
+        completion(r.errorOrOK(), UNDEF, UNDEF);
         return true;
     }
 
@@ -4920,20 +4925,14 @@ bool CommandSetPH::procresult(Result r)
 
     if (ISUNDEF(ph))
     {
-        client->app->exportnode_result(API_EINTERNAL);
+        completion(API_EINTERNAL, UNDEF, UNDEF);
         return true;
     }
 
     Node *n = client->nodebyhandle(h);
     assert(n->plink);
-    //if (n)
-    //{
-    //    n->setpubliclink(ph, time(nullptr), ets, false);
-    //    n->changed.publiclink = true;
-    //    client->notifynode(n);
-    //}
 
-    client->app->exportnode_result(h, ph);
+    completion(API_OK, h, ph);
     return true;
 }
 
