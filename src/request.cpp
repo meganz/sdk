@@ -134,15 +134,7 @@ void Request::process(MegaClient* client)
             assert(cmd->mV3);
             if (client->json.isnumeric())
             {
-                if (error e = error(client->json.getint()))
-                {
-                    cmd->procresult(Command::Result(Command::CmdError, e));
-                    parsedOk = false; // skip any extra json delivered in the array
-                }
-                else
-                {
-                    parsedOk = processCmdJSON(cmd);
-                }
+                parsedOk = processCmdJSON(cmd);
             }
             else if (!processSeqTag(cmd, true, parsedOk))
             {

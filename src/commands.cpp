@@ -4923,14 +4923,10 @@ bool CommandSetPH::procresult(Result r)
         return true;
     }
 
+#ifdef DEBUG
     Node *n = client->nodebyhandle(h);
-    assert(n->plink);
-    //if (n)
-    //{
-    //    n->setpubliclink(ph, time(nullptr), ets, false);
-    //    n->changed.publiclink = true;
-    //    client->notifynode(n);
-    //}
+    assert(n && n->plink && n->plink->ph == ph);
+#endif
 
     client->app->exportnode_result(h, ph);
     return true;
