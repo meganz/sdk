@@ -4956,7 +4956,7 @@ TEST_F(SdkTest, DISABLED_RecursiveDownloadWithLogout)
 
 #ifdef ENABLE_SYNC
 
-void cleanUp(mega::MegaApi* megaApi, const fs::path &basePath)
+void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath)
 {
     std::error_code ignoredEc;
     fs::remove_all(basePath, ignoredEc);
@@ -4978,7 +4978,7 @@ void cleanUp(mega::MegaApi* megaApi, const fs::path &basePath)
     }
 }
 
-std::unique_ptr<mega::MegaSync> waitForSyncState(mega::MegaApi* megaApi, mega::MegaNode* remoteNode, int expectedState)
+std::unique_ptr<::mega::MegaSync> waitForSyncState(::mega::MegaApi* megaApi, ::mega::MegaNode* remoteNode, int expectedState)
 {
     std::unique_ptr<MegaSync> sync;
     WaitFor([&megaApi, &remoteNode, &sync, expectedState]() -> bool
@@ -4989,7 +4989,7 @@ std::unique_ptr<mega::MegaSync> waitForSyncState(mega::MegaApi* megaApi, mega::M
     return sync;
 }
 
-std::unique_ptr<mega::MegaSync> waitForSyncState(mega::MegaApi* megaApi, int tagID, int expectedState)
+std::unique_ptr<::mega::MegaSync> waitForSyncState(::mega::MegaApi* megaApi, int tagID, int expectedState)
 {
     std::unique_ptr<MegaSync> sync;
     WaitFor([&megaApi, tagID, &sync, expectedState]() -> bool
@@ -5034,9 +5034,9 @@ TEST_F(SdkTest, SyncBasicOperations)
 
     // Create local directory and a file.
     fs::create_directories(localPath1);
-    createFile(localPath1 / "fileTest1", false);
+    createFile((localPath1 / "fileTest1").u8string(), false);
     fs::create_directories(localPath2);
-    createFile(localPath2 / "fileTest2", false);
+    createFile((localPath2 / "fileTest2").u8string(), false);
     fs::create_directories(localPath3);
 
     LOG_verbose << "SyncBasicOperations :  Creating the remote folders to be synced to.";
@@ -5058,12 +5058,12 @@ TEST_F(SdkTest, SyncBasicOperations)
     LOG_verbose << "SyncRemoveRemoteNode :  Add syncs";
     // Sync 1
     ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, localPath1.u8string().c_str(), remoteBaseNode1.get())) << "API Error adding a new sync";
-    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode1.get(), mega::syncstate_t::SYNC_ACTIVE);
-    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_ACTIVE);
+    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode1.get(), ::mega::syncstate_t::SYNC_ACTIVE);
+    ASSERT_TRUE(sync && sync->getState() == ::mega::syncstate_t::SYNC_ACTIVE);
     // Sync2
     ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, localPath2.u8string().c_str(), remoteBaseNode2.get())) << "API Error adding a new sync";
-    std::unique_ptr<MegaSync> sync2 = waitForSyncState(megaApi[0].get(), remoteBaseNode2.get(), mega::syncstate_t::SYNC_ACTIVE);
-    ASSERT_TRUE(sync2 && sync2->getState() == mega::syncstate_t::SYNC_ACTIVE);
+    std::unique_ptr<MegaSync> sync2 = waitForSyncState(megaApi[0].get(), remoteBaseNode2.get(), ::mega::syncstate_t::SYNC_ACTIVE);
+    ASSERT_TRUE(sync2 && sync2->getState() == ::mega::syncstate_t::SYNC_ACTIVE);
 
     LOG_verbose << "SyncRemoveRemoteNode :  Add syncs that fails";
     ASSERT_EQ(MegaError::API_EEXIST, synchronousSyncFolder(0, localPath3.u8string().c_str(), remoteBaseNode1.get())); // Remote node is currently synced.
@@ -5074,12 +5074,12 @@ TEST_F(SdkTest, SyncBasicOperations)
     // Sync 1
     int syncTag = sync->getTag();
     ASSERT_EQ(MegaError::API_OK, synchronousDisableSync(0, syncTag));
-    sync = waitForSyncState(megaApi[0].get(), remoteBaseNode1.get(), mega::syncstate_t::SYNC_DISABLED);
-    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_DISABLED);
+    sync = waitForSyncState(megaApi[0].get(), remoteBaseNode1.get(), ::mega::syncstate_t::SYNC_DISABLED);
+    ASSERT_TRUE(sync && sync->getState() == ::mega::syncstate_t::SYNC_DISABLED);
     //  Sync 2
     ASSERT_EQ(MegaError::API_OK, synchronousDisableSync(0, sync2.get()));
-    sync2 = waitForSyncState(megaApi[0].get(), remoteBaseNode2.get(), mega::syncstate_t::SYNC_DISABLED);
-    ASSERT_TRUE(sync2 && sync2->getState() == mega::syncstate_t::SYNC_DISABLED);
+    sync2 = waitForSyncState(megaApi[0].get(), remoteBaseNode2.get(), ::mega::syncstate_t::SYNC_DISABLED);
+    ASSERT_TRUE(sync2 && sync2->getState() == ::mega::syncstate_t::SYNC_DISABLED);
 
     LOG_verbose << "SyncRemoveRemoteNode :  Disable disabled syncs";
     ASSERT_EQ(MegaError::API_OK, synchronousDisableSync(0, sync.get())); // Currently disabled.
@@ -5089,12 +5089,12 @@ TEST_F(SdkTest, SyncBasicOperations)
     LOG_verbose << "SyncRemoveRemoteNode :  Enable Syncs";
     // Sync 1
     ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, syncTag));
-    sync = waitForSyncState(megaApi[0].get(), remoteBaseNode1.get(), mega::syncstate_t::SYNC_ACTIVE);
-    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_ACTIVE);
+    sync = waitForSyncState(megaApi[0].get(), remoteBaseNode1.get(), ::mega::syncstate_t::SYNC_ACTIVE);
+    ASSERT_TRUE(sync && sync->getState() == ::mega::syncstate_t::SYNC_ACTIVE);
     // Sync 2
     ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, sync2.get()));
-    sync2 = waitForSyncState(megaApi[0].get(), remoteBaseNode2.get(), mega::syncstate_t::SYNC_ACTIVE);
-    ASSERT_TRUE(sync2 && sync2->getState() == mega::syncstate_t::SYNC_ACTIVE);
+    sync2 = waitForSyncState(megaApi[0].get(), remoteBaseNode2.get(), ::mega::syncstate_t::SYNC_ACTIVE);
+    ASSERT_TRUE(sync2 && sync2->getState() == ::mega::syncstate_t::SYNC_ACTIVE);
 
     LOG_verbose << "SyncRemoveRemoteNode :  Enable syncs that fails";
     ASSERT_EQ(MegaError::API_ENOENT, synchronousEnableSync(0, 999999)); // Hope it doesn't exist.
@@ -5356,7 +5356,7 @@ TEST_F(SdkTest, SyncRemoteNode)
 
     // Create local directory and file.
     fs::create_directories(localPath);
-    createFile(localPath / "fileTest1", false);
+    createFile((localPath / "fileTest1").u8string(), false);
 
     LOG_verbose << "SyncRemoteNode :  Creating remote folder";
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
@@ -5367,27 +5367,27 @@ TEST_F(SdkTest, SyncRemoteNode)
 
     LOG_verbose << "SyncRemoteNode :  Enabling sync";
     ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, localPath.u8string().c_str(), remoteBaseNode.get())) << "API Error adding a new sync";
-    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), mega::syncstate_t::SYNC_ACTIVE);
-    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_ACTIVE);
+    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), ::mega::syncstate_t::SYNC_ACTIVE);
+    ASSERT_TRUE(sync && sync->getState() == ::mega::syncstate_t::SYNC_ACTIVE);
     int tagID = sync->getTag();
 
     // Rename remote folder --> Sync fail
     LOG_verbose << "SyncRemoteNode :  Rename remote node with sync active.";
     std::string basePathRenamed = "SyncRemoteNodeRenamed";
     ASSERT_NO_FATAL_FAILURE(renameNode(0, remoteBaseNode.get(), basePathRenamed.c_str()));
-    sync = waitForSyncState(megaApi[0].get(), tagID, mega::syncstate_t::SYNC_FAILED);
-    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_FAILED);
+    sync = waitForSyncState(megaApi[0].get(), tagID, ::mega::syncstate_t::SYNC_FAILED);
+    ASSERT_TRUE(sync && sync->getState() == ::mega::syncstate_t::SYNC_FAILED);
 
     LOG_verbose << "SyncRemoteNode :  Restoring remote folder name.";
     ASSERT_NO_FATAL_FAILURE(renameNode(0, remoteBaseNode.get(), basePath.u8string().c_str()));
     ASSERT_NE(remoteBaseNode.get(), nullptr);
-    sync = waitForSyncState(megaApi[0].get(), tagID, mega::syncstate_t::SYNC_FAILED);
-    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_FAILED);
+    sync = waitForSyncState(megaApi[0].get(), tagID, ::mega::syncstate_t::SYNC_FAILED);
+    ASSERT_TRUE(sync && sync->getState() == ::mega::syncstate_t::SYNC_FAILED);
 
     LOG_verbose << "SyncRemoteNode :  Enabling sync again.";
     ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, tagID)) << "API Error enabling the sync";
-    sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), mega::syncstate_t::SYNC_ACTIVE);
-    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_ACTIVE);
+    sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), ::mega::syncstate_t::SYNC_ACTIVE);
+    ASSERT_TRUE(sync && sync->getState() == ::mega::syncstate_t::SYNC_ACTIVE);
 
     // Move remote folder --> Sync fail
     LOG_verbose << "SyncRemoteNode :  Creating secondary folder";
@@ -5398,43 +5398,43 @@ TEST_F(SdkTest, SyncRemoteNode)
 
     LOG_verbose << "SyncRemoteNode :  Move remote node with sync active to the secondary folder.";
     ASSERT_NO_FATAL_FAILURE(moveNode(0, remoteBaseNode.get(), remoteMoveNodeParent.get()));
-    sync = waitForSyncState(megaApi[0].get(), tagID, mega::syncstate_t::SYNC_FAILED);
-    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_FAILED);
+    sync = waitForSyncState(megaApi[0].get(), tagID, ::mega::syncstate_t::SYNC_FAILED);
+    ASSERT_TRUE(sync && sync->getState() == ::mega::syncstate_t::SYNC_FAILED);
 
     LOG_verbose << "SyncRemoteNode :  Moving back the remote node.";
     ASSERT_NO_FATAL_FAILURE(moveNode(0, remoteBaseNode.get(), remoteRootNode.get()));
     ASSERT_NE(remoteBaseNode.get(), nullptr);
-    sync = waitForSyncState(megaApi[0].get(), tagID, mega::syncstate_t::SYNC_FAILED);
-    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_FAILED);
+    sync = waitForSyncState(megaApi[0].get(), tagID, ::mega::syncstate_t::SYNC_FAILED);
+    ASSERT_TRUE(sync && sync->getState() == ::mega::syncstate_t::SYNC_FAILED);
 
     LOG_verbose << "SyncRemoteNode :  Enabling sync again.";
     ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, tagID)) << "API Error enabling the sync";
-    sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), mega::syncstate_t::SYNC_ACTIVE);
-    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_ACTIVE);
+    sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), ::mega::syncstate_t::SYNC_ACTIVE);
+    ASSERT_TRUE(sync && sync->getState() == ::mega::syncstate_t::SYNC_ACTIVE);
 
     // Remove remote folder --> Sync fail
     LOG_verbose << "SyncRemoteNode :  Removing remote node with sync active.";
     ASSERT_NO_FATAL_FAILURE(deleteNode(0, remoteBaseNode.get()));
-    sync = waitForSyncState(megaApi[0].get(), tagID, mega::syncstate_t::SYNC_FAILED);
-    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_FAILED);
+    sync = waitForSyncState(megaApi[0].get(), tagID, ::mega::syncstate_t::SYNC_FAILED);
+    ASSERT_TRUE(sync && sync->getState() == ::mega::syncstate_t::SYNC_FAILED);
 
     LOG_verbose << "SyncRemoteNode :  Recreating remote folder.";
     ASSERT_NO_FATAL_FAILURE(createFolder(0, basePath.u8string().c_str(), remoteRootNode.get())) << "Error creating remote basePath";
     remoteBaseNode.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
     ASSERT_NE(remoteBaseNode.get(), nullptr);
-    sync = waitForSyncState(megaApi[0].get(), tagID, mega::syncstate_t::SYNC_FAILED);
-    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_FAILED);
+    sync = waitForSyncState(megaApi[0].get(), tagID, ::mega::syncstate_t::SYNC_FAILED);
+    ASSERT_TRUE(sync && sync->getState() == ::mega::syncstate_t::SYNC_FAILED);
 
     LOG_verbose << "SyncRemoteNode :  Enabling sync again.";
     ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, tagID)) << "API Error enabling the sync";
-    sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), mega::syncstate_t::SYNC_ACTIVE);
-    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_ACTIVE);
+    sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), ::mega::syncstate_t::SYNC_ACTIVE);
+    ASSERT_TRUE(sync && sync->getState() == ::mega::syncstate_t::SYNC_ACTIVE);
 
     // Check if a locallogout keeps the sync configuration if the remote is removed.
     LOG_verbose << "SyncRemoteNode :  Removing remote node with sync active.";
     ASSERT_NO_FATAL_FAILURE(deleteNode(0, remoteBaseNode.get())) << "Error deleting remote basePath";;
-    sync = waitForSyncState(megaApi[0].get(), tagID, mega::syncstate_t::SYNC_FAILED);
-    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_FAILED);
+    sync = waitForSyncState(megaApi[0].get(), tagID, ::mega::syncstate_t::SYNC_FAILED);
+    ASSERT_TRUE(sync && sync->getState() == ::mega::syncstate_t::SYNC_FAILED);
 
     std::string session = dumpSession();
     ASSERT_NO_FATAL_FAILURE(locallogout());
@@ -5477,7 +5477,7 @@ TEST_F(SdkTest, SyncPersistence)
 
     // Create local directory and file.
     fs::create_directories(localPath);
-    createFile(localPath / "fileTest1", false);
+    createFile((localPath / "fileTest1").u8string(), false);
 
     LOG_verbose << "SyncPersistence :  Creating remote folder";
     std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
@@ -5488,8 +5488,8 @@ TEST_F(SdkTest, SyncPersistence)
 
     LOG_verbose << "SyncPersistence :  Enabling sync";
     ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, localPath.u8string().c_str(), remoteBaseNode.get())) << "API Error adding a new sync";
-    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), mega::syncstate_t::SYNC_ACTIVE);
-    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_ACTIVE);
+    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), ::mega::syncstate_t::SYNC_ACTIVE);
+    ASSERT_TRUE(sync && sync->getState() == ::mega::syncstate_t::SYNC_ACTIVE);
     int tagID = sync->getTag();
     std::string remoteFolder(sync->getMegaFolder());
 
@@ -5499,8 +5499,8 @@ TEST_F(SdkTest, SyncPersistence)
     auto trackerFastLogin = asyncRequestFastLogin(0, session.c_str());
     ASSERT_EQ(API_OK, trackerFastLogin->waitForResult()) << " Failed to establish a login/session for accout " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
-    sync = waitForSyncState(megaApi[0].get(), tagID, mega::syncstate_t::SYNC_ACTIVE);
-    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_ACTIVE);
+    sync = waitForSyncState(megaApi[0].get(), tagID, ::mega::syncstate_t::SYNC_ACTIVE);
+    ASSERT_TRUE(sync && sync->getState() == ::mega::syncstate_t::SYNC_ACTIVE);
     ASSERT_EQ(remoteFolder, string(sync->getMegaFolder()));
 
     // Check if a logout with setKeepSyncsAfterLogout(true) keeps the sync configured.
@@ -5509,8 +5509,8 @@ TEST_F(SdkTest, SyncPersistence)
     auto trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
     ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for accout " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
-    sync = waitForSyncState(megaApi[0].get(), tagID, mega::syncstate_t::SYNC_ACTIVE);
-    ASSERT_TRUE(sync && sync->getState() == mega::syncstate_t::SYNC_ACTIVE);
+    sync = waitForSyncState(megaApi[0].get(), tagID, ::mega::syncstate_t::SYNC_ACTIVE);
+    ASSERT_TRUE(sync && sync->getState() == ::mega::syncstate_t::SYNC_ACTIVE);
     ASSERT_EQ(remoteFolder, string(sync->getMegaFolder()));
 
     // Check if a logout with setKeepSyncsAfterLogout(false) doesn't keeps the sync configured.
