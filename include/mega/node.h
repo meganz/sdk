@@ -40,6 +40,9 @@ struct LocalPathPtrCmp
 typedef map<const LocalPath*, LocalNode*, LocalPathPtrCmp> localnode_map;
 typedef map<const string*, Node*, StringCmp> remotenode_map;
 
+using name_localnode_map = map<const string*, LocalNode*, NamePtrCmp>;
+using name_remotenode_map = map<const string*, Node*, NamePtrCmp>;
+
 struct MEGA_API NodeCore
 {
     // node's own handle
@@ -317,6 +320,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     string name() const;
 
 #ifdef ENABLE_SYNC
+
     // Detach this remote from it's local associate.
     void detach(const bool recreate = false);
 
@@ -328,6 +332,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // - Be named.
     // - Not be the debris folder.
     bool syncable(const LocalNode& parent) const;
+
 #endif /* ENABLE_SYNC */
 
 private:
@@ -439,11 +444,14 @@ struct MEGA_API LocalNode : public File
         // checked for missing attributes
         bool checked : 1;
 
+        // whether any name conflicts have been detected.
+        unsigned conflicts : 2;   // TREESTATE
+
         // needs another sync() at this level after pending changes
         unsigned syncAgain : 2;   // TREESTATE
 
         // needs another scan() (and sync() by implication) at this level after pending changes
-        unsigned scanAgain: 2;    // TREESTATE
+        unsigned scanAgain : 2;    // TREESTATE
 
     };
 
@@ -454,6 +462,12 @@ struct MEGA_API LocalNode : public File
     void setFutureSync(TREESTATE s);
     void setFutureScan(bool doHere, bool doBelow);
     void setFutureScan(TREESTATE s);
+
+    // True if this subtree requires scanning.
+    bool scanRequired() const;
+
+    // True if this subtree requires syncing.
+    bool syncRequired() const;
 
     // current subtree sync state: current and displayed
     treestate_t ts = TREESTATE_NONE;
@@ -507,6 +521,27 @@ struct MEGA_API LocalNode : public File
     static LocalNode* unserialize( Sync* sync, const string* sData );
 
     ~LocalNode();
+
+    // Update this node's conflict state.
+    void conflictDetected(const TREESTATE conflicts);
+
+    // Signal that a name conflict has been detected in this node.
+    void conflictDetected();
+
+    // Propagate our conflict state to our parents.
+    void conflictRefresh();
+
+    // True if any name conflicts have been detected in this subtree.
+    bool conflictsDetected() const;
+
+    // True if any conflicts have been detected in any of our children.
+    bool conflictsDetectedBelow() const;
+
+    // True if any conflicts have been detected by this node.
+    bool conflictsDetectedHere() const;
+
+    // Clears this node's conflict detection state.
+    void conflictsResolved();
 
     // Detach this node from it's remote associate.
     void detach(const bool recreate = false);

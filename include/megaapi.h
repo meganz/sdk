@@ -13625,6 +13625,39 @@ class MegaApi
          * @return Path of the file that is blocking the sync engine, or NULL if it isn't blocked
          */
         char *getBlockedPath();
+
+        /**
+         * @brief
+         * Retrieves information about any detected name conflicts.
+         *
+         * @param parentName
+         * The name of the directory containing the name conflicts.
+         *
+         * @param parentPath
+         * The path of the directory containing the name conflicts.
+         *
+         * @param names
+         * The names that have conflicted.
+         *
+         * @param remote
+         * Whether the name conflict was detected in the cloud.
+         *
+         * @return
+         * True if any name conflicts have been detected.
+         */
+        bool conflictsDetected(const char** parentName,
+                               const char** parentPath,
+                               MegaStringList** names,
+                               bool* remote);
+
+        /**
+         * @brief
+         * Query whether any name conflicts have been detected.
+         *
+         * @return
+         * True if any name conflicts have been detected.
+         */
+        bool conflictsDetected();
 #endif
 
         /**

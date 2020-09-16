@@ -1615,6 +1615,7 @@ class MegaStringListPrivate : public MegaStringList
 public:
     MegaStringListPrivate();
     MegaStringListPrivate(char **newlist, int size); // takes ownership
+    MegaStringListPrivate(const string_vector& strings);
     virtual ~MegaStringListPrivate();
     MEGA_DISABLE_COPY_MOVE(MegaStringListPrivate)
     MegaStringList *copy() const override;
@@ -2368,6 +2369,12 @@ class MegaApiImpl : public MegaApp
         MegaSync *getSyncByPath(const char * localPath);
         char *getBlockedPath();
         void setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
+
+        bool conflictsDetected(const char** parentName,
+                               const char** parentPath,
+                               MegaStringList** names,
+                               bool* remote);
+        bool conflictsDetected();
 #endif
 
         MegaBackup *getBackupByTag(int tag);

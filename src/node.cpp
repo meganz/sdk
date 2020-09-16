@@ -209,6 +209,18 @@ string Node::canonicalname() const
     return client->fsaccess->canonicalize(name());
 }
 
+string Node::name() const
+{
+    auto it = attrs.map.find('n');
+
+    if (it != attrs.map.end())
+    {
+        return it->second;
+    }
+
+    return "";
+}
+
 #ifdef ENABLE_SYNC
 
 void Node::detach(const bool recreate)
@@ -246,18 +258,6 @@ bool Node::syncable(const LocalNode& parent) const
 }
 
 #endif /* ENABLE_SYNC */
-
-string Node::name() const
-{
-    auto it = attrs.map.find('n');
-
-    if (it != attrs.map.end())
-    {
-        return it->second;
-    }
-
-    return "";
-}
 
 void Node::setkeyfromjson(const char* k)
 {
@@ -1376,6 +1376,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     deleted = false;
     created = false;
     reported = false;
+    conflicts = SYNCTREE_RESOLVED;
     scanAgain = SYNCTREE_RESOLVED;
     syncAgain = SYNCTREE_RESOLVED;
     syncxfer = true;
@@ -1457,6 +1458,15 @@ void LocalNode::setFutureSync(TREESTATE newNeed)
     }
 }
 
+bool LocalNode::scanRequired() const
+{
+    return scanAgain != SYNCTREE_RESOLVED;
+}
+
+bool LocalNode::syncRequired() const
+{
+    return syncAgain != SYNCTREE_RESOLVED;
+}
 
 // update treestates back to the root LocalNode, inform app about changes
 void LocalNode::treestate(treestate_t newts)
@@ -1687,6 +1697,56 @@ LocalNode::~LocalNode()
     }
 
     slocalname.reset();
+}
+
+void LocalNode::conflictDetected(const TREESTATE conflicts)
+{
+    this->conflicts = conflicts;
+    conflictRefresh();
+}
+
+void LocalNode::conflictDetected()
+{
+    conflicts |= SYNCTREE_ACTION_HERE_ONLY;
+    conflictRefresh();
+}
+
+void LocalNode::conflictRefresh()
+{
+    if (conflicts == SYNCTREE_RESOLVED)
+    {
+        return;
+    }
+
+    for (auto* node = parent; node; node = node->parent)
+    {
+        if (node->conflictsDetectedBelow())
+        {
+            return;
+        }
+
+        node->conflicts |= SYNCTREE_DESCENDANT_FLAGGED;
+    }
+}
+
+bool LocalNode::conflictsDetected() const
+{
+    return conflicts != SYNCTREE_RESOLVED;
+}
+
+bool LocalNode::conflictsDetectedBelow() const
+{
+    return conflicts & SYNCTREE_DESCENDANT_FLAGGED;
+}
+
+bool LocalNode::conflictsDetectedHere() const
+{
+    return conflicts & SYNCTREE_ACTION_HERE_ONLY;
+}
+
+void LocalNode::conflictsResolved() 
+{
+    conflicts = SYNCTREE_RESOLVED;
 }
 
 void LocalNode::detach(const bool recreate)

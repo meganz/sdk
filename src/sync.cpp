@@ -1955,21 +1955,24 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
     // Sentinel value used to signal that we've detected a name conflict.
     Node* const NAME_CONFLICT = reinterpret_cast<Node*>(~0ull);
 
-    // nothing to do for this subtree? Skip traversal
-    if (row.syncNode->syncAgain == LocalNode::SYNCTREE_RESOLVED && row.syncNode->scanAgain == LocalNode::SYNCTREE_RESOLVED)
-    {
-        return true;
-    }
-
     if (!row.syncNode)
     {
         // visit this node again later when we have a LocalNode at this level
         return true;
     }
 
+    // nothing to do for this subtree? Skip traversal
+    if (!(row.syncNode->scanRequired() || row.syncNode->syncRequired()))
+    {
+        // Make sure our parent knows about any conflicts we may have detected.
+        row.syncNode->conflictRefresh();
+        return true;
+    }
+
     if (row.cloudNode && !row.cloudNode->mPendingChanges.empty())
     {
         // visit this node again later when commands are complete
+        row.syncNode->conflictRefresh();
         return true;
     }
 
@@ -2006,6 +2009,9 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
     {
         if (Waiter::ds - row.syncNode->lastScanTime < 20)
         {
+            // Make sure our parent knows about any conflicts we may have detected.
+            row.syncNode->conflictRefresh();
+
             // Don't scan a particular folder more frequently than every 2 seconds.  Just revisit later
             return true;
         }
@@ -2046,7 +2052,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
     // get the LocalNode list - the sync as last known
     vector<LocalNode*> syncChildren;
     syncChildren.reserve(row.syncNode->children.size());
-    for (auto& c: row.syncNode->children)
+    for (auto& c : row.syncNode->children)
     {
         syncChildren.push_back(c.second);
     }
@@ -2100,7 +2106,16 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
 
             if (thisFS && fsEqualNodeCount > 1)
             {
-                // todo: alert user of multiple clashing local name issues to resolve
+                // We're pushing the sentinel NAME_CONFLICT here so that
+                // later code knows we've detected a name conflict.
+                //
+                // The sentinel is used by two pieces of code below.
+                //
+                // The first, the cloud-pairing logic, uses the sentinel to
+                // avoid downloading a file whose pair is ambiguous.
+                //
+                // The second, the sync loop, uses the sentinel to know when
+                // we should mark this node as having name conflicts.
                 childRows.emplace_back(NAME_CONFLICT, thisSY, thisFS);
             }
             else
@@ -2162,14 +2177,20 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
                 else if (relationship > 0) thisCl = nullptr;
             }
 
-            if (!thisCl && !thisRow) break;
+            if (!thisCl && !thisRow)
+            {
+                break;
+            }
 
+            // We've detected a remote name conflict.
             if (thisCl && cloudEqualNodeCount > 1)
             {
-                // todo: alert user of issues to resolve
+                thisCl = NAME_CONFLICT;
             }
-            else if (thisRow)
+
+            if (thisRow)
             {
+                // Don't forget whether we've detected a local name conflict.
                 if (thisRow->cloudNode != NAME_CONFLICT)
                 {
                     thisRow->cloudNode = thisCl;
@@ -2187,13 +2208,19 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
 
     row.syncNode->syncAgain = LocalNode::SYNCTREE_RESOLVED;
 
+    // Clear our conflict state.
+    // It'll be recomputed as we traverse this subtree.
+    row.syncNode->conflictsResolved();
+
     bool folderSynced = true;
     bool subfoldersSynced = true;
+
     for (auto& childRow : childRows)
     {
         // Skip rows that signal name conflicts.
         if (childRow.cloudNode == NAME_CONFLICT)
         {
+            row.syncNode->conflictDetected();
             continue;
         }
 

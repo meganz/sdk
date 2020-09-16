@@ -1363,6 +1363,173 @@ bool MegaClient::anySyncNeedsTargetedSync()
     return false;
 }
 
+bool MegaClient::conflictsDetected(string& parentName,
+                                   string& parentPath,
+                                   string_vector& names,
+                                   bool& remote) const
+{
+    // The node that contains the name conflicts.
+    LocalNode* parent = nullptr;
+
+    // What kind of filesystem contains the conflicts.
+    FileSystemType filesystemType;
+
+    // Find an initial root containing name conflicts.
+    for (auto* sync : syncs)
+    {
+        // Have any name conflicts been detected in this sync?
+        if (sync->localroot->conflictsDetected())
+        {
+            // Yes, queue its root for traversal.
+            filesystemType = sync->mFilesystemType;
+            parent = sync->localroot.get();
+            break;
+        }
+    }
+
+    // Were any conflicts detected?
+    if (!parent)
+    {
+        // No, so we have nothing to report.
+        return false;
+    }
+
+    // Find the first node that directly contains conflicts.
+    while (!parent->conflictsDetectedHere())
+    {
+        // Conflict must be contained in some child.
+        if (!parent->conflictsDetectedBelow())
+        {
+            return false;
+        }
+
+        // Queue a child for traversal.
+        for (auto& childIt : parent->children)
+        {
+            LocalNode* child = childIt.second;
+
+            // Does the child contain any conflicts?
+            if (child->conflictsDetected())
+            {
+                // Yes, so examine it.
+                parent = child;
+                break;
+            }
+        }
+    }
+    
+    // Who contains the conflicts?
+    parentName = parent->name;
+
+    // Where do they live?
+    parentPath = parent->localnodedisplaypath(*fsaccess);
+
+    // Ensure the output names vector is empty.
+    names.clear();
+
+    // Does the parent have a remote presence?
+    if (parent->node)
+    {
+        // Tracks the remote children we've seen.
+        name_remotenode_map children{NamePtrCmp(filesystemType)};
+
+        // Where does our parent live?
+        LocalPath parentPath = parent->getLocalPath(true);
+
+        // Temporary key storage for the above map.
+        string_vector strings;
+
+        // Do any of this node's remote children have conflicting names?
+        for (Node* child : parent->node->children)
+        {
+            ScopedLengthRestore restorer(parentPath);
+
+            // We only care about syncable children.
+            if (!child->syncable(*parent))
+            {
+                continue;
+            }
+
+            // What is this child's canonical name?
+            string name = child->canonicalname();
+
+            // Where would the child live?
+            parentPath.appendWithSeparator(
+              LocalPath::fromName(name, *fsaccess, filesystemType),
+              true,
+              fsaccess->localseparator);
+
+            // We only care about children that aren't excluded.
+            if (!app->sync_syncable(parent->sync, name.c_str(), parentPath, child))
+            {
+                continue;
+            }
+
+            auto childIt = children.find(&name);
+
+            // Have we already seen a child with this name?
+            if (childIt != children.end())
+            {
+                // Yep, record the names of the conflicting children.
+                names.emplace_back(childIt->second->displayname());
+                names.emplace_back(child->displayname());
+
+                // We've recorded a remote name conflict.
+                remote = true;
+                break;
+            }
+
+            // This is the first child with this name.
+            strings.emplace_back(std::move(name));
+            children[&strings.back()] = child;
+        }
+    }
+
+    // Only check for local conflicts if we haven't reported anything.
+    if (names.empty())
+    {
+        name_localnode_map children{NamePtrCmp(filesystemType)};
+
+        // Do any of this node's local children have conflicting names?
+        for (auto childIt : parent->children)
+        {
+            LocalNode& child = *childIt.second;
+
+            // Have we already seen a child with this name?
+            auto it = children.find(&child.name);
+
+            if (it != children.end())
+            {
+                // Yep, record the names of the conflicting children.
+                names.emplace_back(it->second->localname.toPath(*fsaccess));
+                names.emplace_back(child.localname.toPath(*fsaccess));
+
+                // We've recorded a local name conflict.
+                remote = false;
+                break;
+            }
+
+            // This is the first child with this name.
+            children.emplace(&child.name, &child);
+        }
+    }
+
+    return true;
+}
+
+bool MegaClient::conflictsDetected() const
+{
+    for (auto* sync : syncs)
+    {
+        if (sync->localroot->conflictsDetected())
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void MegaClient::setAllSyncsNeedFullSync()
 {
     for (Sync* sync : syncs)
