@@ -3302,6 +3302,19 @@ char *MegaApi::getBlockedPath()
     return pImpl->getBlockedPath();
 }
 
+bool MegaApi::conflictsDetected(const char** parentName,
+                                const char** parentPath,
+                                MegaStringList** names,
+                                bool* remote)
+{
+    return pImpl->conflictsDetected(parentName, parentPath, names, remote);
+}
+
+bool MegaApi::conflictsDetected()
+{
+    return pImpl->conflictsDetected();
+}
+
 MegaSync *MegaApi::getSyncByTag(int tag)
 {
     return pImpl->getSyncByTag(tag);

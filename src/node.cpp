@@ -204,12 +204,58 @@ Node::~Node()
 #endif
 }
 
+string Node::canonicalname() const
+{
+    assert(client);
+    assert(client->fsaccess);
+
+    return client->fsaccess->canonicalize(name());
+}
+
 void Node::detach(const bool recreate)
 {
     if (localnode)
     {
         localnode->detach(recreate);
     }
+}
+
+string Node::name() const
+{
+    auto it = attrs.map.find('n');
+
+    if (it != attrs.map.end())
+    {
+        return it->second;
+    }
+
+    return "";
+}
+
+bool Node::syncable(const LocalNode& parent) const
+{
+    // Not syncable if we're deleted.
+    if (syncdeleted != SYNCDEL_NONE)
+    {
+        return false;
+    }
+
+    // Not syncable if we aren't decrypted.
+    if (attrstring)
+    {
+        return false;
+    }
+
+    auto it = attrs.map.find('n');
+
+    // Not syncable if we don't have a valid name.
+    if (it == attrs.map.end() || it->second.empty())
+    {
+        return false;
+    }
+
+    // We're syncable if we're not the sync debris.
+    return parent.parent || parent.sync->debris != it->second;
 }
 
 void Node::setkeyfromjson(const char* k)
@@ -1388,6 +1434,9 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
 
     sync->client->totalLocalNodes++;
     sync->localnodes[type]++;
+
+    mConflictsDetected = false;
+    mConflictsDetectedInChild = false;
 }
 
 void LocalNode::needsFutureSyncup()
@@ -1414,6 +1463,16 @@ void LocalNode::needsFutureSyncdown()
         }
         p->syncdownTargetedAction = SYNCTREE_DESCENDANT_FLAGGED;
     }
+}
+
+bool LocalNode::syncdownRequired() const
+{
+    return syncdownTargetedAction != SYNCTREE_RESOLVED;
+}
+
+bool LocalNode::syncupRequired() const
+{
+    return syncupTargetedAction != SYNCTREE_RESOLVED;
 }
 
 // update treestates back to the root LocalNode, inform app about changes
@@ -1645,6 +1704,17 @@ LocalNode::~LocalNode()
     }
 
     slocalname.reset();
+}
+
+bool LocalNode::conflictsDetected() const
+{
+    return mConflictsDetected | mConflictsDetectedInChild;
+}
+
+void LocalNode::conflictsResolved() 
+{
+    mConflictsDetected = false;
+    mConflictsDetectedInChild = false;
 }
 
 void LocalNode::detach(const bool recreate)

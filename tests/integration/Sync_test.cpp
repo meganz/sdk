@@ -2051,6 +2051,35 @@ struct StandardClient : public MegaApp
 
     }
 
+    bool conflictsDetected(string& parentName,
+                           LocalPath& parentPath,
+                           string_vector& names,
+                           bool& remote)
+    {
+        auto result =
+          thread_do([&](StandardClient& client, promise<bool>& result)
+                    {
+                        result.set_value(
+                          client.client.conflictsDetected(parentName,
+                                                          parentPath,
+                                                          names,
+                                                          remote));
+                    });
+
+        return result.get();
+    }
+
+    bool conflictsDetected()
+    {
+        auto result =
+          thread_do([](StandardClient& client, promise<bool>& result)
+                    {
+                        result.set_value(client.client.conflictsDetected());
+                    });
+
+        return result.get();
+    }
+
     bool login_reset(const string& user, const string& pw)
     {
         future<bool> p1;
@@ -3816,6 +3845,115 @@ GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkUponSyncDown)
 }
 
 #endif
+
+TEST(Sync, DetectsAndReportsNameClashes)
+{
+    const auto TESTFOLDER = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    const auto TIMEOUT = chrono::seconds(4);
+
+    StandardClient client(TESTFOLDER, "c");
+    string parentName;
+    LocalPath parentPath;
+    string_vector names;
+    bool remote;
+
+    // Log in client.
+    ASSERT_TRUE(client.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
+
+    // Needed so that we can create files with the same name.
+    client.client.versions_disabled = true;
+
+    // Populate local filesystem.
+    const auto root = TESTFOLDER / "c" / "s";
+
+    fs::create_directories(root / "d" / "e");
+
+    createNameFile(root / "d", "f0");
+    createNameFile(root / "d", "f%30");
+    createNameFile(root / "d" / "e", "g0");
+    createNameFile(root / "d" / "e", "g%30");
+
+    // Start the sync.
+    ASSERT_TRUE(client.setupSync_mainthread("s", "x", 0));
+
+    // Give the client time to synchronize.
+    waitonsyncs(TIMEOUT, &client);
+
+    // Were any conflicts detected?
+    ASSERT_TRUE(client.conflictsDetected());
+    
+    // Can we obtain a list of the conflicts?
+    ASSERT_TRUE(client.conflictsDetected(parentName, parentPath, names, remote));
+    ASSERT_EQ(parentName, "d");
+    ASSERT_FALSE(parentPath.empty());
+    ASSERT_EQ(names.size(), 2);
+    ASSERT_EQ(names[0], "f%30");
+    ASSERT_EQ(names[1], "f0");
+    ASSERT_FALSE(remote);
+
+    // Resolve the f0 / f%30 conflict.
+    ASSERT_TRUE(fs::remove(root / "d" / "f%30"));
+
+    // Give the sync some time to think.
+    waitonsyncs(TIMEOUT, &client);
+
+    // We should still detect conflicts.
+    ASSERT_TRUE(client.conflictsDetected());
+
+    // Has the list of conflicts changed?
+    ASSERT_TRUE(client.conflictsDetected(parentName, parentPath, names, remote));
+    ASSERT_EQ(parentName, "e");
+    ASSERT_FALSE(parentPath.empty());
+    ASSERT_EQ(names.size(), 2);
+    ASSERT_EQ(names[0], "g%30");
+    ASSERT_EQ(names[1], "g0");
+    ASSERT_FALSE(remote);
+
+    // Resolve the g / g%30 conflict.
+    ASSERT_TRUE(fs::remove(root / "d" / "e" / "g%30"));
+
+    // Give the sync some time to think.
+    waitonsyncs(TIMEOUT, &client);
+
+    // No conflicts should be reported.
+    ASSERT_FALSE(client.conflictsDetected());
+
+    // Is the list of conflicts empty?
+    ASSERT_FALSE(client.conflictsDetected(parentName, parentPath, names, remote));
+
+    // Create a remote name clash.
+    auto* node = client.drillchildnodebyname(client.gettestbasenode(), "x/d");
+    ASSERT_TRUE(!!node);
+    ASSERT_TRUE(client.uploadFile(root / "d" / "f0", "h", node));
+    ASSERT_TRUE(client.uploadFile(root / "d" / "f0", "h", node));
+
+    // Let the client attempt to synchronize.
+    waitonsyncs(TIMEOUT, &client);
+
+    // Have we detected any conflicts?
+    ASSERT_TRUE(client.conflictsDetected());
+
+    // Does our list of conflicts include remotes?
+    ASSERT_TRUE(client.conflictsDetected(parentName, parentPath, names, remote));
+    ASSERT_EQ(parentName, "d");
+    ASSERT_FALSE(parentPath.empty());
+    ASSERT_EQ(names.size(), 2);
+    ASSERT_EQ(names[0], "h");
+    ASSERT_EQ(names[1], "h");
+    ASSERT_TRUE(remote);
+
+    // Resolve the remote conflict.
+    ASSERT_TRUE(client.deleteremote("x/d/h"));
+
+    // Wait for the client to process our changes.
+    waitonsyncs(TIMEOUT, &client);
+
+    // Conflicts should be resolved.
+    ASSERT_FALSE(client.conflictsDetected());
+
+    // List of conflicting names should be empty.
+    ASSERT_FALSE(client.conflictsDetected(parentName, parentPath, names, remote));
+}
 
 TEST(Sync, DoesntDownloadFilesWithClashingNames)
 {

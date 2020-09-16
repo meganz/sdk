@@ -1361,6 +1361,170 @@ bool MegaClient::anySyncNeedsTargetedSyncdown()
     return false;
 }
 
+bool MegaClient::conflictsDetected(string& parentName,
+                                   LocalPath& parentPath,
+                                   string_vector& names,
+                                   bool& remote) const
+{
+    // The node that contains the name conflicts.
+    LocalNode* parent = nullptr;
+
+    // What kind of filesystem contains the conflicts.
+    FileSystemType filesystemType;
+
+    // Find an initial root containing name conflicts.
+    for (auto* sync : syncs)
+    {
+        // Have any name conflicts been detected in this sync?
+        if (sync->localroot->conflictsDetected())
+        {
+            // Yes, queue its root for traversal.
+            filesystemType = sync->mFilesystemType;
+            parent = sync->localroot.get();
+            break;
+        }
+    }
+
+    // Were any conflicts detected?
+    if (!parent)
+    {
+        // No, so we have nothing to report.
+        return false;
+    }
+
+    // Find the first node that directly contains conflicts.
+    while (!parent->mConflictsDetected)
+    {
+        // Conflict must be contained in some child.
+        if (!parent->mConflictsDetectedInChild)
+        {
+            return false;
+        }
+
+        // Queue a child for traversal.
+        for (auto& childIt : parent->children)
+        {
+            LocalNode* child = childIt.second;
+
+            // Does the child contain any conflicts?
+            if (child->conflictsDetected())
+            {
+                // Yes, so examine it.
+                parent = child;
+                break;
+            }
+        }
+    }
+    
+    // Who contains the conflicts?
+    parentName = parent->name;
+
+    // Where do they live?
+    parentPath = parent->getLocalPath(true);
+
+    // Ensure the output names vector is empty.
+    names.clear();
+
+    // Does the parent have a remote presence?
+    if (parent->node)
+    {
+        // Tracks the remote children we've seen.
+        name_remotenode_map children{NamePtrCmp(filesystemType)};
+
+        // Temporary key storage for the above map.
+        string_list strings;
+
+        // Do any of this node's remote children have conflicting names?
+        for (Node* child : parent->node->children)
+        {
+            ScopedLengthRestore restorer(parentPath);
+
+            // We only care about syncable children.
+            if (!child->syncable(*parent))
+            {
+                continue;
+            }
+
+            // What is this child's canonical name?
+            string name = child->canonicalname();
+
+            // Where would the child live?
+            parentPath.appendWithSeparator(
+              LocalPath::fromName(name, *fsaccess, filesystemType),
+              true,
+              fsaccess->localseparator);
+
+            // We only care about children that aren't excluded.
+            if (!app->sync_syncable(parent->sync, name.c_str(), parentPath, child))
+            {
+                continue;
+            }
+
+            auto childIt = children.find(&name);
+
+            // Have we already seen a child with this name?
+            if (childIt != children.end())
+            {
+                // Yep, record the names of the conflicting children.
+                names.emplace_back(childIt->second->displayname());
+                names.emplace_back(child->displayname());
+
+                // We've recorded a remote name conflict.
+                remote = true;
+                break;
+            }
+
+            // This is the first child with this name.
+            strings.emplace_back(std::move(name));
+            children[&strings.back()] = child;
+        }
+    }
+
+    // Only check for local conflicts if we haven't reported anything.
+    if (names.empty())
+    {
+        name_localnode_map children{NamePtrCmp(filesystemType)};
+
+        // Do any of this node's local children have conflicting names?
+        for (auto childIt : parent->children)
+        {
+            LocalNode& child = *childIt.second;
+
+            // Have we already seen a child with this name?
+            auto it = children.find(&child.name);
+
+            if (it != children.end())
+            {
+                // Yep, record the names of the conflicting children.
+                names.emplace_back(it->second->localname.toPath(*fsaccess));
+                names.emplace_back(child.localname.toPath(*fsaccess));
+
+                // We've recorded a local name conflict.
+                remote = false;
+                break;
+            }
+
+            // This is the first child with this name.
+            children.emplace(&child.name, &child);
+        }
+    }
+
+    return true;
+}
+
+bool MegaClient::conflictsDetected() const
+{
+    for (auto* sync : syncs)
+    {
+        if (sync->localroot->conflictsDetected())
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void MegaClient::setAllSyncsNeedSyncdown()
 {
     for (Sync* sync : syncs)
@@ -13271,28 +13435,27 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWh
     // remote children by name
     string localname;
 
+    // Clear this node's conflict state.
+    l->conflictsResolved();
+
     // build child hash - nameclash resolution: use newest/largest version
     for (node_list::iterator it = l->node->children.begin(); it != l->node->children.end(); it++)
     {
-        attr_map::iterator ait;
-
-        // node must be syncable, alive, decrypted and have its name defined to
-        // be considered - also, prevent clashes with the local debris folder
-        if (((*it)->syncdeleted == SYNCDEL_NONE
-             && !(*it)->attrstring
-             && (ait = (*it)->attrs.map.find('n')) != (*it)->attrs.map.end()
-             && ait->second.size())
-             && (l->parent || l->sync->debris != ait->second))
+        if ((*it)->syncable(*l))
         {
             // Ensure the remote's name is correctly escaped.
-            strings.emplace_back(fsaccess->canonicalize(ait->second));
+            strings.emplace_back((*it)->canonicalname());
 
             ScopedLengthRestore restoreLen(localpath);
             localpath.appendWithSeparator(LocalPath::fromName(strings.back(), *fsaccess, l->sync->mFilesystemType), true, fsaccess->localseparator);
 
             if (app->sync_syncable(l->sync, strings.back().c_str(), localpath, *it))
             {
-                addRemoteChild(nchildren, strings.back(), *(*it));
+                if (!addRemoteChild(nchildren, strings.back(), *(*it)))
+                {
+                    // Detected remote name conflict.
+                    l->mConflictsDetected = true;
+                }
             }
             else
             {
@@ -13310,7 +13473,11 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWh
 
     for (auto& childIt : l->children)
     {
-        addLocalChild(*childIt.second, lchildren, nchildren);
+        if (!addLocalChild(*childIt.second, lchildren, nchildren))
+        {
+            // Detected local name conflict.
+            l->mConflictsDetected = true;
+        }
     }
 
     // remove remote items that exist locally from hash, recurse into existing folders
@@ -13407,7 +13574,12 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWh
                 }
 
                 // recurse into directories of equal name
-                if (!syncdown(ll, localpath, scanWholeSubtree))
+                bool result = syncdown(ll, localpath, scanWholeSubtree);
+
+                // Were any name conflicts detected in the child?
+                l->mConflictsDetectedInChild |= ll->conflictsDetected();
+
+                if (!result)
                 {
                     l->syncdownTargetedAction = std::max<unsigned>(originalTargetedAction, LocalNode::SYNCTREE_DESCENDANT_FLAGGED);
                     success = false;
@@ -13599,7 +13771,12 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWh
                         ll->setnode(rit->second);
                         ll->sync->statecacheadd(ll);
 
-                        if (!syncdown(ll, localpath, true))
+                        bool result = syncdown(ll, localpath, true);
+
+                        // Were any name conflicts detected in the new child?
+                        l->mConflictsDetectedInChild |= ll->conflictsDetected();
+
+                        if (!result)
                         {
                             if (success)
                             {
@@ -13666,6 +13843,13 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
     // Number of nodes waiting for their parent to be created.
     size_t numPending = 0;
 
+    // Remember whether any conflicts had been detected below this node.
+    const bool conflictsDetected = l->mConflictsDetected;
+    const bool conflictsDetectedInChild = l->mConflictsDetectedInChild;
+
+    // Clear this node's conflict detection state.
+    l->conflictsResolved();
+
     if (l->node)
     {
         // corresponding remote node present: build child hash - nameclash
@@ -13721,7 +13905,10 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
                 // Ensure the remote's name is correctly escaped.
                 strings.emplace_back(fsaccess->canonicalize(ait->second));
 
-                addRemoteChild(nchildren, strings.back(), *(*it));
+                if (!addRemoteChild(nchildren, strings.back(), *(*it)))
+                {
+                    l->mConflictsDetected = true;
+                }
             }
         }
     }
@@ -13731,7 +13918,16 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
 
     for (auto& childIt : l->children)
     {
-        addLocalChild(*childIt.second, lchildren, nchildren);
+        auto& child = *childIt.second;
+
+        if (!addLocalChild(child, lchildren, nchildren))
+        {
+            l->mConflictsDetected = true;
+        }
+        else if (!child.syncupRequired())
+        {
+            l->mConflictsDetectedInChild |= child.conflictsDetected();
+        }
     }
 
     // check for elements that need to be created, deleted or updated on the
@@ -13757,6 +13953,10 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
             // We are already doing something with this node, eg. moving it to this folder.
             // Wait until that is done and then re-evaluate
             ll->needsFutureSyncup();
+
+            // Let the parent know if this child contains any name conflicts.
+            l->mConflictsDetectedInChild |= ll->conflictsDetected();
+
             continue;
         }
 
@@ -13969,6 +14169,10 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
 
                     // recurse into directories of equal name
                     success = syncup(ll, nds, numPending, scanWholeSubtree);
+
+                    // Let the parent know if we detected any collisions in its child.
+                    l->mConflictsDetectedInChild |= ll->conflictsDetected();
+
                     if (!success)
                     {
                         break;
@@ -13981,8 +14185,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
 
         if (!scanWholeSubtree)
         {
-            parentPending += numPending;
-            return true;
+            continue;
         }
 
         if (isSymLink)
@@ -14180,7 +14383,12 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
             synccreate.push_back(ll);
             syncactivity = true;
 
+            // Can we upload any more nodes?
             success = synccreate.size() < MAX_NEWNODES;
+
+            // Did the child contain any name conflicts?
+            l->mConflictsDetectedInChild |= ll->conflictsDetected();
+
             if (!success)
             {
                 LOG_warn << "Stopping syncup due to MAX_NEWNODES";
@@ -14198,6 +14406,10 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
         if (ll->type == FOLDERNODE)
         {
             success = syncup(ll, nds, numPending, true);
+
+            // Did the child contain any name conflicts?
+            l->mConflictsDetectedInChild |= ll->conflictsDetected();
+
             if (!success)
             {
                 break;
@@ -14217,6 +14429,19 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
         l->syncupTargetedAction =
           std::max<unsigned>(originalTargetedAction,
                              LocalNode::SYNCTREE_DESCENDANT_FLAGGED);
+
+        const bool conflictsWereDetected =
+          conflictsDetected | conflictsDetectedInChild;
+
+        // Have we transitioned to having no conflicts?
+        if (conflictsWereDetected && !l->conflictsDetected())
+        {
+            // Then restore the node's prior conflict state as we can't be
+            // sure whether the transition is gneuine or whether it's an
+            // artifact of us escaping early.
+            l->mConflictsDetected = conflictsDetected;
+            l->mConflictsDetectedInChild = conflictsDetectedInChild;
+        }
     }
 
     parentPending += numPending;

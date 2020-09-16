@@ -1371,9 +1371,11 @@ bool MegaApiImpl::isSyncing()
     }
     SdkMutexGuard g(sdkMutex);
 
-    for (auto & sync : client->syncs)
+    for (auto& sync : client->syncs)
     {
-        if (sync->localroot->ts == TREESTATE_SYNCING || sync->localroot->ts == TREESTATE_PENDING)
+        if (sync->localroot->conflictsDetected()
+            || sync->localroot->ts == TREESTATE_PENDING
+            || sync->localroot->ts == TREESTATE_SYNCING)
         {
             return true;
         }
@@ -1452,6 +1454,51 @@ char *MegaApiImpl::getBlockedPath()
     sdkMutex.unlock();
     return path;
 }
+
+bool MegaApiImpl::conflictsDetected(const char* *outParentName,
+                                    const char** outParentPath,
+                                    MegaStringList** outNames,
+                                    bool* outRemote)
+{
+    assert(outParentName);
+    assert(outParentPath);
+    assert(outNames);
+    assert(outRemote);
+
+    SdkMutexGuard guard(sdkMutex);
+    string parentName;
+    LocalPath parentPath;
+    string_vector names;
+    bool remote;
+
+    // Ensure our outputs have sane values.
+    *outParentName = nullptr;
+    *outParentPath = nullptr;
+    *outNames = nullptr;
+
+    // Get the list of conflicts from the client.
+    if (!client->conflictsDetected(parentName, parentPath, names, remote))
+    {
+        // No conflicts have been detected.
+        return false;
+    }
+
+    // Translate the information into a form useful to the caller.
+    *outParentName = MegaApi::strdup(parentName.c_str());
+    *outParentPath = MegaApi::strdup(parentPath.toPath(*fsAccess).c_str());
+    *outNames = new MegaStringListPrivate(names);
+    *outRemote = remote;
+
+    return true;
+}
+
+bool MegaApiImpl::conflictsDetected()
+{
+    SdkMutexGuard guard(sdkMutex);
+
+    return client->conflictsDetected();
+}
+
 #endif
 
 MegaBackup *MegaApiImpl::getBackupByTag(int tag)
@@ -4035,6 +4082,23 @@ MegaStringListPrivate::MegaStringListPrivate(char **newlist, int size)
     list = new const char*[size];
     for (int i = 0; i < size; i++)
         list[i] = newlist[i];
+}
+
+MegaStringListPrivate::MegaStringListPrivate(const string_vector& strings)
+  : list(nullptr)
+  , s(static_cast<int>(strings.size()))
+{
+    if (!s)
+    {
+        return;
+    }
+
+    list = new const char*[s];
+
+    for (int i = 0; i < s; ++i)
+    {
+        list[i] = MegaApi::strdup(strings[i].c_str());
+    }
 }
 
 MegaStringListPrivate::~MegaStringListPrivate()

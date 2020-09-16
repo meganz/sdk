@@ -312,8 +312,23 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
 
+    // Returns the node's canonical name.
+    string canonicalname() const;
+
     // Detach this remote from it's local associate.
     void detach(const bool recreate = false);
+
+    // Returns the node's name.
+    string name() const;
+
+    // True if this node is syncable.
+    //
+    // That is, the node must:
+    // - Be alive.
+    // - Be decrypted.
+    // - Be named.
+    // - Not be the debris folder.
+    bool syncable(const LocalNode& parent) const;
 
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
@@ -419,6 +434,12 @@ struct MEGA_API LocalNode : public File
     // set the syncdownTargetedAction for this, and parents
     void needsFutureSyncdown();
 
+    // True if this node requires a future syncdown.
+    bool syncdownRequired() const;
+
+    // True if this node requires a future syncup.
+    bool syncupRequired() const;
+
     // current subtree sync state: current and displayed
     treestate_t ts = TREESTATE_NONE;
     treestate_t dts = TREESTATE_NONE;
@@ -471,8 +492,23 @@ struct MEGA_API LocalNode : public File
 
     ~LocalNode();
 
+    // Whether any name conflicts have been detected in this subtree.
+    bool conflictsDetected() const;
+
+    // Clears this node's conflict detection state.
+    void conflictsResolved();
+
     // Detach this node from it's remote associate.
     void detach(const bool recreate = false);
+
+    struct
+    {
+        // Whether we contain any name conflicts.
+        bool mConflictsDetected : 1;
+
+        // Whether any child contains name conflicts.
+        bool mConflictsDetectedInChild : 1;
+    };
 };
 
 template <> inline NewNode*& crossref_other_ptr_ref<LocalNode, NewNode>(LocalNode* p) { return p->newnode.ptr; }

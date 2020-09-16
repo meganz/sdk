@@ -499,6 +499,15 @@ public:
     // active syncs
     sync_list syncs;
 
+    // retrieves information about any detected name conflicts.
+    bool conflictsDetected(string& parentName,
+                           LocalPath& parentPath,
+                           string_vector& names,
+                           bool& remote) const;
+
+    // true if any name conflicts have been detected.
+    bool conflictsDetected() const;
+
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;
 
