@@ -7627,7 +7627,7 @@ class MegaApi
          *
          * @param listener Listener that will receive all events about requests
          */
-        void addRequestListener(MegaRequestListener* listener);
+        virtual void addRequestListener(MegaRequestListener* listener);
 
         /**
          * @brief Register a listener to receive all events about transfers
@@ -8242,7 +8242,7 @@ class MegaApi
          * @param password Password
          * @param listener MegaRequestListener to track this request
          */
-        void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
+        virtual void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Log in to a public folder using a folder link
