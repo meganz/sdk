@@ -27,10 +27,10 @@
 namespace mega {
 
 // maps attribute names to attribute values
-struct attr_map : map<nameid, string> 
+struct attr_map : map<nameid, string>
 {
     attr_map() {}
-    
+
     attr_map(nameid key, string value)
     {
         (*this)[key] = value;
@@ -39,15 +39,6 @@ struct attr_map : map<nameid, string>
     attr_map(map<nameid, string>&& m)
     {
         m.swap(*this);
-    }
-
-    void applyUpdates(const attr_map& updates)
-    {
-        for (auto& u : updates)
-        {
-            if (u.second.empty()) erase(u.first);
-            else operator[](u.first) = u.second;
-        }
     }
 };
 
@@ -72,6 +63,9 @@ struct MEGA_API AttrMap
 
     // import raw binary serialize
     const char* unserialize(const char*, const char*);
+
+    // overwrite entries in map (or remove them if the value is empty)
+    void applyUpdates(const attr_map& updates);
 };
 } // namespace
 

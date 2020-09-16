@@ -22522,7 +22522,7 @@ void MegaApiImpl::sendPendingRequests()
             {
                 break;
             }
-            attrs.map.applyUpdates(updates);
+            attrs.applyUpdates(updates);
 
             string tattrstring;
             attrs.getjson(&tattrstring);
