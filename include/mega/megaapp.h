@@ -125,8 +125,7 @@ struct MEGA_API MegaApp
     // node addition has failed
     virtual void putnodes_result(const Error&, targettype_t, vector<NewNode>&) { }
 
-    // share update result
-    virtual void share_result(error) { }
+    // share update changes (not the final callback though)
     virtual void share_result(int, error) { }
 
     // outgoing pending contact result
@@ -175,10 +174,6 @@ struct MEGA_API MegaApp
 #endif
 
     virtual void getuseremail_result(string *, error) { }
-
-    // file node export result
-    virtual void exportnode_result(error) { }
-    virtual void exportnode_result(handle, handle) { }
 
     // exported link access result
     virtual void openfilelink_result(const Error&) { }
