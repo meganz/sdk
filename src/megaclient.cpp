@@ -7608,6 +7608,12 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
         return e;
     }
 
+    if (p->firstancestor()->type == RUBBISHNODE)
+    {
+        // similar to the webclient, send `s2` along with `m` if the node is moving to the rubbish
+        removeOutSharesFromSubtree(n);
+    }
+
     Node *prevParent = NULL;
     if (!ISUNDEF(prevparent))
     {
@@ -7678,6 +7684,36 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
     }
 
     return API_OK;
+}
+
+void MegaClient::removeOutSharesFromSubtree(Node* n)
+{
+    if (n->pendingshares)
+    {
+        for (auto& it : *n->pendingshares)
+        {
+            if (it.second->pcr)
+            {
+                setshare(n, it.second->pcr->targetemail.c_str(), ACCESS_UNKNOWN, nullptr);
+            }
+        }
+    }
+
+    if (n->outshares)
+    {
+        for (auto& it : *n->outshares)
+        {
+            if (it.second->user)
+            {
+                setshare(n, it.second->user->email.c_str(), ACCESS_UNKNOWN, nullptr);
+            }
+        }
+    }
+
+    for (auto& c : n->children)
+    {
+        removeOutSharesFromSubtree(c);
+    }
 }
 
 // delete node tree
