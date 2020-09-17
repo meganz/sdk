@@ -3180,7 +3180,7 @@ int MegaApi::syncPathState(string* path)
 
 MegaNode *MegaApi::getSyncedNode(string *path)
 {
-    return pImpl->getSyncedNode(LocalPath::fromLocalname(*path));
+    return pImpl->getSyncedNode(LocalPath::fromPlatformEncoded(*path));
 }
 
 void MegaApi::syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRequestListener *listener)

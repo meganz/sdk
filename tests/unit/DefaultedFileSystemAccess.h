@@ -19,15 +19,18 @@
 #pragma once
 
 #include <mega/filesystem.h>
+#include <megaapi.h>
 
 #include "NotImplemented.h"
 
 namespace mt {
 
-class DefaultedFileSystemAccess : public mega::FileSystemAccess
+class DefaultedFileSystemAccess: public mega::FileSystemAccess
 {
 public:
-    DefaultedFileSystemAccess(const std::string &separator = "/")
+    using FileSystemAccess::getlocalfstype;
+
+    DefaultedFileSystemAccess(mega::LocalPath::separator_t separator = '/')
     {
         notifyerr = false;
         notifyfailed = true;
@@ -41,14 +44,42 @@ public:
     {
         throw NotImplemented{__func__};
     }
+    bool getlocalfstype(const mega::LocalPath&, mega::FileSystemType& type) const override
+    {
+        return type = mega::FS_UNKNOWN, false;
+    }
     void path2local(const std::string*, std::string*) const override
     {
         throw NotImplemented{__func__};
     }
+
+#if defined(_WIN32)
+    void path2local(const std::string*, std::wstring*) const
+    {
+        throw NotImplemented{ __func__ };
+    }
+#endif
+
     void local2path(const std::string* local, std::string* path) const override
     {
-        throw NotImplemented{__func__};
+        throw NotImplemented{ __func__ };
     }
+
+#if defined(_WIN32)
+    void local2path(const std::wstring* local, std::string* path) const override
+    {
+        path->resize((local->size() * sizeof(wchar_t) + 1) * 4 / sizeof(wchar_t) + 1);
+
+        path->resize(WideCharToMultiByte(CP_UTF8, 0, local->data(),
+            int(local->size()),
+            (char*)path->data(),
+            int(path->size()),
+            NULL, NULL));
+
+        normalize(path);
+    }
+#endif
+
     void tmpnamelocal(mega::LocalPath&) const override
     {
         throw NotImplemented{__func__};
@@ -82,10 +113,6 @@ public:
         throw NotImplemented{__func__};
     }
     bool chdirlocal(mega::LocalPath&) const override
-    {
-        throw NotImplemented{__func__};
-    }
-    size_t lastpartlocal(const std::string*) const override
     {
         throw NotImplemented{__func__};
     }

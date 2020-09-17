@@ -27,8 +27,8 @@
 #define PREFER_STDARG
 
 #ifndef NO_READLINE
-#include <readline/readline.h>
-#include <readline/history.h>
+    #include <readline/readline.h>
+    #include <readline/history.h>
 #endif
 
 #if (__cplusplus >= 201700L)
@@ -374,7 +374,7 @@ AppFilePut::~AppFilePut()
 
 void AppFilePut::displayname(string* dname)
 {
-    *dname = localname.toName(*transfer->client->fsaccess, client->fsaccess->getFilesystemType(localname));
+    *dname = localname.toName(*transfer->client->fsaccess, client->fsaccess->getlocalfstype(localname));
 }
 
 // transfer progress callback
@@ -677,7 +677,7 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time
         name = *cfilename;
     }
 
-    localname = LocalPath::fromName(name, *client->fsaccess, client->fsaccess->getFilesystemType(LocalPath::fromPath(name, *client->fsaccess)));
+    localname = LocalPath::fromName(name, *client->fsaccess, client->fsaccess->getlocalfstype(LocalPath::fromPath(name, *client->fsaccess)));
     if (!targetfolder.empty())
     {
         string s = targetfolder;
@@ -697,11 +697,9 @@ AppFilePut::AppFilePut(const LocalPath& clocalname, handle ch, const char* ctarg
     targetuser = ctargetuser;
 
     // erase path component
-    auto fileSystemType = client->fsaccess->getFilesystemType(clocalname);
+    auto fileSystemType = client->fsaccess->getlocalfstype(clocalname);
 
-    LocalPath p = clocalname;
-    p.erase(0, p.lastpartlocal(*client->fsaccess));
-    name = p.toName(*client->fsaccess, fileSystemType);
+    name = clocalname.leafName(client->fsaccess->localseparator).toName(*client->fsaccess, fileSystemType);
 }
 
 // user addition/update (users never get deleted)
@@ -1961,8 +1959,6 @@ static void nodepath(handle h, string* path)
 
 appfile_list appxferq[2];
 
-static char dynamicprompt[128];
-
 static const char* prompts[] =
 {
     "MEGAcli> ", "Password:", "Old Password:", "New Password:", "Retype New Password:", "Master Key (base64):", "Type 2FA pin:", "Type pin to enable 2FA:"
@@ -2512,7 +2508,7 @@ bool recursiveCompare(Node* mn, fs::path p)
     }
 
     std::string path = p.u8string();
-    auto fileSystemType = client->fsaccess->getFilesystemType(LocalPath::fromPath(path, *client->fsaccess));
+    auto fileSystemType = client->fsaccess->getlocalfstype(LocalPath::fromPath(path, *client->fsaccess));
     multimap<string, Node*> ms;
     multimap<string, fs::path> ps;
     for (auto& m : mn->children)
@@ -3947,10 +3943,7 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
 
 string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 {
-
-    size_t n = itemlocalname.lastpartlocal(*client->fsaccess);
-    LocalPath leaf = itemlocalname.subpathFrom(n);
-    return leaf.toPath(*client->fsaccess);
+    return itemlocalname.leafName(client->fsaccess->localseparator).toPath(*client->fsaccess);
 }
 
 void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder)
@@ -7738,10 +7731,12 @@ void megacli()
     {
         if (prompt == COMMAND)
         {
+            ostringstream  dynamicprompt;
+
             // display put/get transfer speed in the prompt
             if (client->tslots.size() || responseprogress >= 0)
             {
-                unsigned xferrate[2] = { 0 };
+                m_off_t xferrate[2] = { 0 };
                 Waiter::bumpds();
 
                 for (transferslot_list::iterator it = client->tslots.begin(); it != client->tslots.end(); it++)
@@ -7755,46 +7750,44 @@ void megacli()
                 xferrate[GET] /= 1024;
                 xferrate[PUT] /= 1024;
 
-                strcpy(dynamicprompt, "MEGA");
+                dynamicprompt << "MEGA";
 
                 if (xferrate[GET] || xferrate[PUT] || responseprogress >= 0)
                 {
-                    strcpy(dynamicprompt + 4, " (");
+                    dynamicprompt << " (";
 
                     if (xferrate[GET])
                     {
-                        sprintf(dynamicprompt + 6, "In: %u KB/s", xferrate[GET]);
+                        dynamicprompt << "In: " << xferrate[GET] << " KB/s";
 
                         if (xferrate[PUT])
                         {
-                            strcat(dynamicprompt + 9, "/");
+                            dynamicprompt << "/";
                         }
                     }
 
                     if (xferrate[PUT])
                     {
-                        sprintf(strchr(dynamicprompt, 0), "Out: %u KB/s", xferrate[PUT]);
+                        dynamicprompt << "Out: " << xferrate[PUT] << " KB/s";
                     }
 
                     if (responseprogress >= 0)
                     {
-                        sprintf(strchr(dynamicprompt, 0), "%d%%", responseprogress);
+                        dynamicprompt << responseprogress << "%";
                     }
 
-                    strcat(dynamicprompt + 6, ")");
+                    dynamicprompt  << ")";
                 }
 
-                strcat(dynamicprompt + 4, "> ");
-            }
-            else
-            {
-                *dynamicprompt = 0;
+                dynamicprompt  << "> ";
             }
 
+            string dynamicpromptstr = dynamicprompt.str();
+
 #if defined(WIN32) && defined(NO_READLINE)
-            static_cast<WinConsole*>(console)->updateInputPrompt(*dynamicprompt ? dynamicprompt : prompts[COMMAND]);
+            static_cast<WinConsole*>(console)->updateInputPrompt(!dynamicpromptstr.empty() ? dynamicpromptstr : prompts[COMMAND]);
 #else
-            rl_callback_handler_install(*dynamicprompt ? dynamicprompt : prompts[COMMAND], store_line);
+            rl_callback_handler_install(!dynamicpromptstr.empty() ? dynamicpromptstr.c_str() : prompts[COMMAND], store_line);
 
             // display prompt
             if (saved_line)
@@ -8054,7 +8047,7 @@ void exec_metamac(autocomplete::ACState& s)
 
     auto ifAccess = client->fsaccess->newfileaccess();
     {
-        auto localPath = LocalPath::fromName(s.words[1].s, *client->fsaccess, client->fsaccess->getFilesystemType(LocalPath::fromPath(s.words[1].s, *client->fsaccess)));
+        auto localPath = LocalPath::fromName(s.words[1].s, *client->fsaccess, client->fsaccess->getlocalfstype(LocalPath::fromPath(s.words[1].s, *client->fsaccess)));
         if (!ifAccess->fopen(localPath, 1, 0))
         {
             cerr << "Failed to open: " << s.words[1].s << endl;

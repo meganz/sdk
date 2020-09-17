@@ -251,8 +251,8 @@ struct DemoApp : public MegaApp
     void contactlinkquery_result(error, handle, string*, string*, string*, string*) override;
     void contactlinkdelete_result(error) override;
 
-    void smsverificationsend_result(error);
-    void smsverificationcheck_result(error, string*);
+    void smsverificationsend_result(error) override;
+    void smsverificationcheck_result(error, string*) override;
 
     void reload(const char*) override;
     void clearing() override;

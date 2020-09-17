@@ -63,6 +63,8 @@ struct MEGA_API PosixDirAccess : public DirAccess
 class MEGA_API PosixFileSystemAccess : public FileSystemAccess
 {
 public:
+    using FileSystemAccess::getlocalfstype;
+
     int notifyfd;
 
 #ifdef USE_INOTIFY
@@ -87,6 +89,8 @@ public:
     DirAccess* newdiraccess() override;
     DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*) override;
 
+    bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
+
     void tmpnamelocal(LocalPath&) const override;
 
     void local2path(const string*, string*) const override;
@@ -102,7 +106,6 @@ public:
     bool mkdirlocal(LocalPath&, bool) override;
     bool setmtimelocal(LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
-    size_t lastpartlocal(const string*) const override;
     bool getextension(const LocalPath&, char*, size_t) const override;
     bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) override;
 
@@ -150,7 +153,7 @@ public:
 
     bool fopen(LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false) override;
 
-    void updatelocalname(LocalPath&) override;
+    void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
     bool fwrite(const byte *, unsigned, m_off_t) override;
 
@@ -185,7 +188,7 @@ class MEGA_API PosixDirNotify : public DirNotify
 public:
     PosixFileSystemAccess* fsaccess;
 
-    void addnotify(LocalNode*, string*) override;
+    void addnotify(LocalNode*, const LocalPath&) override;
     void delnotify(LocalNode*) override;
 
     fsfp_t fsfingerprint() const override;

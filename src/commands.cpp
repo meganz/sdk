@@ -3052,6 +3052,8 @@ bool CommandGetUA::procresult(Result r)
             LOG_info << "File versioning is enabled";
             client->versions_disabled = false;
         }
+
+        return true;
     }
     else
     {

@@ -25,25 +25,28 @@
 #include "megaapi_impl.h"
 #include <algorithm>
 
-#ifdef WIN32
-#include <filesystem>
-namespace fs = ::std::filesystem;
-#else
-#include <experimental/filesystem>
-namespace fs = ::std::experimental::filesystem;
+#if (__cplusplus >= 201700L)
+    #include <filesystem>
+    namespace fs = std::filesystem;
+    #define USE_FILESYSTEM
+#elif (__clang_major__ >= 11)
+    #include <filesystem>
+    namespace fs = std::__fs::filesystem;
+    #define USE_FILESYSTEM
+#elif !defined(__MINGW32__) && !defined(__ANDROID__) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
+    #define USE_FILESYSTEM
+    #ifdef WIN32
+        #include <filesystem>
+        namespace fs = std::experimental::filesystem;
+    #else
+        #include <experimental/filesystem>
+        namespace fs = std::experimental::filesystem;
+    #endif
 #endif
 
 using namespace std;
 
 MegaFileSystemAccess fileSystemAccess;
-
-#ifdef _WIN32
-#if (__cplusplus >= 201700L)
-namespace fs = std::filesystem;
-#else
-namespace fs = std::experimental::filesystem;
-#endif
-#endif
 
 #ifdef _WIN32
 DWORD ThreadId()
@@ -2558,9 +2561,7 @@ TEST_F(SdkTest, SdkTestShareKeys)
 
 string localpathToUtf8Leaf(const LocalPath& itemlocalname, FSACCESS_CLASS& fsa)
 {
-    size_t lastpart = itemlocalname.lastpartlocal(fsa);
-    LocalPath name(itemlocalname.subpathFrom(lastpart));
-    return name.toPath(fsa);
+    return itemlocalname.leafName(fsa.localseparator).toPath(fsa);
 }
 
 LocalPath fspathToLocal(const fs::path& p, FSACCESS_CLASS& fsa)
@@ -4563,13 +4564,6 @@ TEST_F(SdkTest, SdkSimpleCommands)
     ASSERT_EQ(MegaError::API_OK, err) << "Fetch time zone failed (error: " << err << ")";
     ASSERT_TRUE(mApi[0].tzDetails && mApi[0].tzDetails->getNumTimeZones()) << "Invalid Time Zone details"; // some simple validation
 
-    // getUserEmail() test
-    std::unique_ptr<MegaUser> user(megaApi[0]->getMyUser());
-    ASSERT_TRUE(!!user); // some simple validation
-
-    err = synchronousGetUserEmail(0, user->getHandle());
-    ASSERT_EQ(MegaError::API_OK, err) << "Get user email failed (error: " << err << ")";
-    ASSERT_NE(mApi[0].email.find('@'), std::string::npos); // some simple validation
 
     // cleanRubbishBin() test (accept both success and already empty statuses)
     err = synchronousCleanRubbishBin(0);
@@ -4597,7 +4591,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
     }
 
     gTestingInvalidArgs = true;
-    err = synchronousKillSession(0, INVALID_HANDLE);
+    err = synchronousKillSession(0, INVALID_HANDLE + 1);  // INVALID_HANDLE is special and means kill all (in the intermediate layer) - so +1 for a (probably) really invalid handle
     ASSERT_EQ(MegaError::API_ESID, err) << "Kill session for unknown sessions shoud fail with API_ESID (error: " << err << ")";
     gTestingInvalidArgs = false;
 
@@ -5003,13 +4997,6 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         return std::unique_ptr<MegaNode>{megaApi[0]->getNodeByPath(path.c_str())};
     };
 
-    auto localFp = [this, &megaNode](const fs::path& p)
-    {
-        auto node = megaNode(p.filename().u8string());
-        auto sync = std::unique_ptr<MegaSync>{megaApi[0]->getSyncByNode(node.get())};
-        return sync->getLocalFingerprint();
-    };
-
     auto syncFolder = [this, &megaNode](const fs::path& p) -> int
     {
         RequestTracker syncTracker(megaApi[0].get());
@@ -5080,10 +5067,10 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     LOG_verbose << " SyncResumptionAfterFetchNodes : syncying folders";
 
-    int tag1 = syncFolder(sync1Path);  tag1;
+    int tag1 = syncFolder(sync1Path);  (void)tag1;
     int tag2 = syncFolder(sync2Path);
-    int tag3 = syncFolder(sync3Path);  tag3;
-    int tag4 = syncFolder(sync4Path);  tag4;
+    int tag3 = syncFolder(sync3Path);  (void)tag3;
+    int tag4 = syncFolder(sync4Path);  (void)tag4;
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_TRUE(checkSyncOK(sync2Path));
