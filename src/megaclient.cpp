@@ -7795,7 +7795,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
     if (p->firstancestor()->type == RUBBISHNODE)
     {
         // similar to the webclient, send `s2` along with `m` if the node is moving to the rubbish
-        removeOutSharesFromSubtree(n);
+        removeOutSharesFromSubtree(n, 0);
     }
 
     Node *prevParent = NULL;
@@ -7858,7 +7858,7 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
     return API_OK;
 }
 
-void MegaClient::removeOutSharesFromSubtree(Node* n)
+void MegaClient::removeOutSharesFromSubtree(Node* n, int tag)
 {
     if (n->pendingshares)
     {
@@ -7866,7 +7866,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n)
         {
             if (it.second->pcr)
             {
-                setshare(n, it.second->pcr->targetemail.c_str(), ACCESS_UNKNOWN, nullptr);
+                setshare(n, it.second->pcr->targetemail.c_str(), ACCESS_UNKNOWN, nullptr, tag, [](Error){});
             }
         }
     }
@@ -7877,14 +7877,14 @@ void MegaClient::removeOutSharesFromSubtree(Node* n)
         {
             if (it.second->user)
             {
-                setshare(n, it.second->user->email.c_str(), ACCESS_UNKNOWN, nullptr);
+                setshare(n, it.second->user->email.c_str(), ACCESS_UNKNOWN, nullptr, tag, [](Error){});
             }
         }
     }
 
     for (auto& c : n->children)
     {
-        removeOutSharesFromSubtree(c);
+        removeOutSharesFromSubtree(c, tag);
     }
 }
 
@@ -15449,7 +15449,7 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
     std::string localName =
       localNode->localname.toName(*fsaccess,
                                   localNode->sync->mFilesystemType);
-    
+
     // Only compare metamac if the node doesn't already exist.
     node_vector::const_iterator remoteNode =
       std::find_if(remoteNodes->begin(),

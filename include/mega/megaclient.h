@@ -470,7 +470,7 @@ public:
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF, const char *newName = nullptr);
 
     // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
-    void removeOutSharesFromSubtree(Node* n);
+    void removeOutSharesFromSubtree(Node* n, int tag);
 
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
