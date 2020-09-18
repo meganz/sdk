@@ -3148,6 +3148,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     folderInfo = NULL;
     settings = NULL;
     backgroundMediaUpload = NULL;
+    mNodeList = nullptr;
 }
 
 MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
@@ -3247,6 +3248,11 @@ AchievementsDetails *MegaRequestPrivate::getAchievementsDetails() const
 MegaTimeZoneDetails *MegaRequestPrivate::getMegaTimeZoneDetails() const
 {
     return timeZoneDetails;
+}
+
+MegaNodeList* MegaRequestPrivate::getNodeList() const
+{
+    return mNodeList;
 }
 
 #ifdef ENABLE_CHAT
@@ -3436,6 +3442,7 @@ MegaRequestPrivate::~MegaRequestPrivate()
     delete folderInfo;
     delete timeZoneDetails;
     delete settings;
+    delete mNodeList;
 
 #ifdef ENABLE_SYNC
     delete regExp;
@@ -3723,6 +3730,16 @@ void MegaRequestPrivate::setTimeZoneDetails(MegaTimeZoneDetails *timeZoneDetails
         delete this->timeZoneDetails;
     }
     this->timeZoneDetails = timeZoneDetails ? timeZoneDetails->copy() : NULL;
+}
+
+void MegaRequestPrivate::setNodeList(MegaNodeList *nodeList)
+{
+    if (mNodeList)
+    {
+        delete mNodeList;
+    }
+
+    mNodeList = nodeList;
 }
 
 void MegaRequestPrivate::setPublicNode(MegaNode *publicNode, bool copyChildren)

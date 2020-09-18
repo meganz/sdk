@@ -1116,6 +1116,7 @@ class MegaRequestPrivate : public MegaRequest
         void setProxy(Proxy *proxy);
         Proxy *getProxy();
         void setTimeZoneDetails(MegaTimeZoneDetails *timeZoneDetails);
+        void setNodeList(MegaNodeList *nodeList);
 
         int getType() const override;
         const char *getRequestString() const override;
@@ -1152,6 +1153,7 @@ class MegaRequestPrivate : public MegaRequest
         MegaAchievementsDetails *getMegaAchievementsDetails() const override;
         AchievementsDetails *getAchievementsDetails() const;
         MegaTimeZoneDetails *getMegaTimeZoneDetails () const override;
+        MegaNodeList* getNodeList() const override;
 
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *getMegaTextChatPeerList() const override;
@@ -1229,6 +1231,7 @@ protected:
         MegaFolderInfo *folderInfo;
         MegaPushNotificationSettings *settings;
         MegaBackgroundMediaUpload* backgroundMediaUpload;  // non-owned pointer
+        MegaNodeList* mNodeList = nullptr;
 };
 
 class MegaEventPrivate : public MegaEvent
