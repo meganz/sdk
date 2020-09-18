@@ -655,10 +655,14 @@ void EncryptByChunks::updateCRC(byte* data, unsigned size, unsigned offset)
 {
     uint32_t *intc = (uint32_t *)crc;
 
-    int ol = offset % CRCSIZE;
+    unsigned ol = offset % CRCSIZE;
     if (ol)
     {
-        int ll = CRCSIZE - ol;
+        unsigned ll = CRCSIZE - ol;
+        if (ll > size) //last chunks could be smaller than CRCSIZE!
+        {
+            ll = size;
+        }
         size -= ll;
         while (ll--)
         {
