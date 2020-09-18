@@ -3897,6 +3897,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_SEND_DEV_COMMAND: return "SEND_DEV_COMMAND";
         case TYPE_CHILDREN: return "CHILDREN";
         case TYPE_NUM_CHILDREN: return "NUM_CHILDREN";
+        case TYPE_GET_NODE_BY: return "GET_NODE_BY";
     }
     return "UNKNOWN";
 }
@@ -22201,6 +22202,101 @@ void MegaApiImpl::sendPendingRequests()
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }
+        case MegaRequest::TYPE_GET_NODE_BY:
+        {
+            if (request->getParamType() < MegaRequest::HANDLE || request->getParamType() > MegaRequest::EXTERNAL_FINGERPRINT)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            switch (request->getParamType())
+            {
+                case MegaRequest::HANDLE:
+                {
+                    if (request->getNodeHandle() == INVALID_HANDLE)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    std::unique_ptr<MegaNode> node(getNodeByHandle(request->getNodeHandle()));
+                    request->setPublicNode(node.get());
+                    break;
+                }
+                case MegaRequest::PATH:
+                {
+                    const char* path = request->getText();
+                    if (!path)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    std::unique_ptr<MegaNode> parent(getNodeByHandle(request->getNodeHandle()));
+                    std::unique_ptr<MegaNode> node(getNodeByPath(path, parent.get()));
+                    request->setPublicNode(node.get());
+                    break;
+                }
+                case MegaRequest::FINGERPRINT:
+                {
+                    const char* fingerprint = request->getText();
+                    if (!fingerprint)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    MegaHandle parentHandle = request->getNodeHandle();
+                    if (parentHandle == INVALID_HANDLE)
+                    {
+                        std::unique_ptr<MegaNode> node(getNodeByFingerprint(fingerprint));
+                        request->setPublicNode(node.get());
+                    }
+                    else
+                    {
+                        std::unique_ptr<MegaNode> parent(getNodeByHandle(request->getNodeHandle()));
+                        std::unique_ptr<MegaNode> node(getNodeByFingerprint(fingerprint, parent.get()));
+                        request->setPublicNode(node.get());
+                    }
+
+                    break;
+                }
+                case MegaRequest::CRC:
+                {
+                    const char* crc = request->getText();
+                    if (!crc)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    std::unique_ptr<MegaNode> parent(getNodeByHandle(request->getNodeHandle()));
+                    std::unique_ptr<MegaNode> node(getNodeByCRC(crc, parent.get()));
+                    request->setPublicNode(node.get());
+
+                    break;
+                }
+                case MegaRequest::EXTERNAL_FINGERPRINT:
+                {
+                    const char* fingerprint = request->getText();
+                    if (!fingerprint)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    const char* name = request->getName();
+                    std::unique_ptr<MegaNode> node(getExportableNodeByFingerprint(fingerprint, name));
+                    request->setPublicNode(node.get());
+                    break;
+                }
+            }
+
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+            break;
+
+        }
         default:
         {
             e = API_EINTERNAL;
@@ -22279,6 +22375,25 @@ void MegaApiImpl::getNumChildrenAsync(MegaHandle parentHandle, int type, MegaReq
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_NUM_CHILDREN, listener);
     request->setParamType(type);
     request->setNodeHandle(parentHandle);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getNodeByAsync(int type, MegaHandle handle, const char* path, const char* name, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_NODE_BY, listener);
+    request->setParamType(type);
+    request->setNodeHandle(handle);
+    if (path)
+    {
+        request->setText(path);
+    }
+
+    if (name)
+    {
+        request->setName(name);
+    }
+
     requestQueue.push(request);
     waiter->notify();
 }

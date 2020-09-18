@@ -2803,8 +2803,13 @@ class MegaRequest
             TYPE_GET_REGISTERED_CONTACTS, TYPE_GET_COUNTRY_CALLING_CODES,
             TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS, TYPE_RESEND_VERIFICATION_EMAIL,
             TYPE_SUPPORT_TICKET, TYPE_SET_RETENTION_TIME, TYPE_RESET_SMS_VERIFIED_NUMBER,
-            TYPE_SEND_DEV_COMMAND, TYPE_CHILDREN, TYPE_NUM_CHILDREN, TOTAL_OF_REQUEST_TYPES
+            TYPE_SEND_DEV_COMMAND, TYPE_CHILDREN, TYPE_NUM_CHILDREN, TYPE_GET_NODE_BY,
+            TOTAL_OF_REQUEST_TYPES
         };
+
+        enum
+        {
+            HANDLE = 0, PATH, FINGERPRINT, CRC, EXTERNAL_FINGERPRINT, ORIGINAL_FINGERPRINT,
         };
 
         virtual ~MegaRequest();
@@ -14668,6 +14673,8 @@ class MegaApi
 
         void getChildrenAsync(MegaHandle parentHandle, int orderer,  MegaRequestListener *listener = nullptr);
         void getNumChildrenAsync(MegaHandle parentHandle, int type,  MegaRequestListener *listener = nullptr);
+        void getNodeByHandleAsync(MegaHandle handle, MegaRequestListener *listener = nullptr);
+        void getNodeByPathAsync(const char *path, MegaRequestListener *listener = nullptr);
         /**
          * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
          *

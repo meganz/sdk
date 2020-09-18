@@ -3782,6 +3782,17 @@ void MegaApi::getNumChildrenAsync(MegaHandle parentHandle, int type, MegaRequest
 {
     pImpl->getNumChildrenAsync(parentHandle, type, listener);
 }
+
+void MegaApi::getNodeByHandleAsync(MegaHandle handle, MegaRequestListener *listener)
+{
+    pImpl->getNodeByAsync(MegaRequest::HANDLE, handle, nullptr, nullptr, listener);
+}
+
+void MegaApi::getNodeByPathAsync(const char* path, MegaRequestListener *listener)
+{
+    pImpl->getNodeByAsync(MegaRequest::PATH, INVALID_HANDLE, path, nullptr, listener);
+}
+
 long long MegaApi::getSize(MegaNode *n)
 {
     return pImpl->getSize(n);
