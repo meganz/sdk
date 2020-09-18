@@ -182,6 +182,9 @@ struct MEGA_API HttpIO : public EventTrigger
     // get alternative DNS servers
     void getMEGADNSservers(string* dnsservers, bool getfromnetwork);
 
+    // get DNS servers as configured in the system
+    void getDNSserversFromIos(string &dnsServers);
+
     // set max download speed
     virtual bool setmaxdownloadspeed(m_off_t bpslimit);
 
