@@ -26089,43 +26089,18 @@ void MegaFolderDownloadController::cancel()
 }
 
 
-void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, LocalPath& localpath, FileSystemType fsType)
+void MegaFolderDownloadController::scanFolderNode(MegaNode *node, LocalPath& localpath, FileSystemType fsType)
 {
     recursive++;
-
-    auto da = client->fsaccess->newfileaccess();
-    if (!da->fopen(localpath, true, false))
+    size_t index = 0;
+    if (node->getType() == FOLDERNODE)
     {
-        if (!client->fsaccess->mkdirlocal(localpath))
-        {
-            da.reset();
-            LOG_err << "Unable to create folder: " << localpath.toPath(*client->fsaccess);
-
-            recursive--;
-            mLastError = API_EWRITE;
-            mIncompleteTransfers++;
-            checkCompletion();
-            return;
-        }
+       // If node is a FOLDER, store it's localPath along with a vector with it's children
+       mLocalTree.emplace_back((std::make_pair(localpath, std::vector<unique_ptr<MegaNode>>())));
+       index = mLocalTree.size() - 1;
     }
-    else if (da->type != FILENODE)
-    {
-        LOG_debug << "Already existing folder detected: " << localpath.toPath(*client->fsaccess);
-    }
-    else
-    {
-        da.reset();
-        LOG_err << "Local file detected where there should be a folder: " << localpath.toPath(*client->fsaccess);
 
-        recursive--;
-        mLastError = API_EEXIST;
-        mIncompleteTransfers++;
-        checkCompletion();
-        return;
-    }
-    da.reset();
-
-    MegaNodeList *children = NULL;
+    MegaNodeList *children = nullptr;
     bool deleteChildren = false;
     if (node->isForeign())
     {
@@ -26143,32 +26118,27 @@ void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, LocalPath&
         recursive--;
         mLastError = API_ENOENT;
         mIncompleteTransfers++;
-        checkCompletion();
         return;
     }
 
     for (int i = 0; i < children->size(); i++)
     {
         MegaNode *child = children->get(i);
-
-        ScopedLengthRestore restoreLen(localpath);
-        localpath.appendWithSeparator(LocalPath::fromName(child->getName(), *client->fsaccess, fsType), true, client->fsaccess->localseparator);
-
-        string utf8path = localpath.toPath(*client->fsaccess);
-
         if (child->getType() == MegaNode::TYPE_FILE)
         {
-            pendingTransfers++;
-            megaApi->startDownload(false, child, utf8path.c_str(), tag, transfer->getAppData(), this);
+            // Add child node to vector in mLocalTree at index we have stored it's localPath
+            ::mega::unique_ptr<MegaNode> childNode (child->copy());
+            mLocalTree.at(index).second.push_back(std::move(childNode));
         }
         else
         {
-            downloadFolderNode(child, localpath, fsType);
+            ScopedLengthRestore restoreLen(localpath);
+            localpath.appendWithSeparator(LocalPath::fromName(child->getName(), *client->fsaccess, fsType), true, client->fsaccess->localseparator);
+            scanFolderNode(child, localpath, fsType);
         }
     }
 
     recursive--;
-    checkCompletion();
     if (deleteChildren)
     {
         delete children;

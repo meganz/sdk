@@ -221,6 +221,8 @@ protected:
     std::set<MegaTransferPrivate*> subTransfers;
     int mIncompleteTransfers = { 0 };
     MegaErrorPrivate mLastError = { API_OK };
+    typedef std::pair<LocalPath, std::vector<unique_ptr<MegaNode>>> FolderContent;
+    std::vector<FolderContent> mLocalTree;
 };
 
 class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveOperation
@@ -395,7 +397,7 @@ public:
     void cancel() override;
 
 protected:
-    void downloadFolderNode(MegaNode *node, LocalPath& path, FileSystemType fsType);
+    void scanFolderNode(MegaNode *node, LocalPath& path, FileSystemType fsType);
     void checkCompletion();
 
 public:
