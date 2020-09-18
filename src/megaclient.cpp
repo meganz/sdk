@@ -14611,15 +14611,14 @@ void MegaClient::nodesbyoriginalfingerprint(const char* originalfingerprint, Nod
     }
     else
     {
-        for (node_map::const_iterator i = mNodes.begin(); i != mNodes.end(); ++i)
+        std::map<handle, NodeSerialized> nodeMap;
+        if (sctable->getNodesByOrigFingerprint(originalfingerprint, nodeMap))
         {
-            if (i->second->type == FILENODE)
+            for (auto nodeIt : nodeMap)
             {
-                attr_map::const_iterator a = i->second->attrs.map.find(MAKENAMEID2('c', '0'));
-                if (a != i->second->attrs.map.end() && !a->second.compare(originalfingerprint))
-                {
-                    nv->push_back(i->second);
-                }
+                node_vector nodeVector;
+                Node* node = Node::unserialize(this, &nodeIt.second.mNode, &nodeVector, nodeIt.second.mDecrypted);
+                nv->push_back(node);
             }
         }
     }

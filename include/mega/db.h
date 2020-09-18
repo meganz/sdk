@@ -62,6 +62,7 @@ public:
     virtual bool getNode(handle nodehandle, NodeSerialized& nodeSerialized) = 0;
     virtual bool getNodes(std::vector<NodeSerialized>& nodes) = 0;
     virtual bool getNodesByFingerprint(const FileFingerprint& fingerprint, std::map<mega::handle, NodeSerialized>& nodes) = 0;
+    virtual bool getNodesByOrigFingerprint(const std::string& fingerprint, std::map<mega::handle, NodeSerialized>& nodes) = 0;
     virtual bool getNodeByFingerprint(const FileFingerprint& fingerprint, NodeSerialized& node) = 0;
     virtual bool getNodesWithoutParent(std::vector<NodeSerialized>& nodes) = 0;
     virtual bool getNodesWithShares(std::vector<NodeSerialized>& nodes) = 0;

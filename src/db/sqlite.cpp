@@ -129,7 +129,7 @@ DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess* fsaccess, string* n
         return NULL;
     }
 
-    sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, parenthandle int64, name text, fingerprint BLOB, type int, size int64, share int, decrypted int, node BLOB NOT NULL)";
+    sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, type int, size int64, share int, decrypted int, node BLOB NOT NULL)";
     rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
     if (rc)
     {
@@ -332,6 +332,41 @@ bool SqliteDbTable::getNodesByFingerprint(const FileFingerprint &fingerprint, st
         string fp;
         fingerprint.serializefingerprint(&fp);
         if (sqlite3_bind_blob(stmt, 1, fp.data(), fp.size(), SQLITE_STATIC) == SQLITE_OK)
+        {
+            while ((result = sqlite3_step(stmt) == SQLITE_ROW))
+            {
+                handle nodeHandle = sqlite3_column_int64(stmt, 0);
+                NodeSerialized node;
+                node.mDecrypted = sqlite3_column_int(stmt, 1);
+                const void* data = sqlite3_column_blob(stmt, 2);
+                int size = sqlite3_column_bytes(stmt, 2);
+                if (data && size)
+                {
+                    node.mNode = std::string(static_cast<const char*>(data), size);
+                    nodes[nodeHandle] = node;
+                }
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return result == SQLITE_DONE ? true : false;
+}
+
+bool SqliteDbTable::getNodesByOrigFingerprint(const std::string &fingerprint, std::map<mega::handle, NodeSerialized> &nodes)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    checkTransaction();
+
+    sqlite3_stmt *stmt;
+    int result = SQLITE_ERROR;
+    if (sqlite3_prepare(db, "SELECT nodehandle, decrypted, node FROM nodes WHERE origFingerprint = ?", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_bind_blob(stmt, 1, fingerprint.data(), fingerprint.size(), SQLITE_STATIC) == SQLITE_OK)
         {
             while ((result = sqlite3_step(stmt) == SQLITE_ROW))
             {
@@ -704,7 +739,7 @@ bool SqliteDbTable::put(Node *node)
     sqlite3_stmt *stmt;
     bool result = false;
 
-    int sqlResult = sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, name, fingerprint, type, size, share, decrypted, node) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
+    int sqlResult = sqlite3_prepare(db, "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, name, fingerprint, origFingerprint, type, size, share, decrypted, node) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
         string nodeSerialized;
@@ -716,17 +751,28 @@ bool SqliteDbTable::put(Node *node)
         string fp;
         node->serializefingerprint(&fp);
         sqlite3_bind_blob(stmt, 4, fp.data(), fp.size(), SQLITE_STATIC);
-        sqlite3_bind_int(stmt, 5, node->type);
-        sqlite3_bind_int64(stmt, 6, node->size);
+
+        attr_map::const_iterator a = node->attrs.map.find(MAKENAMEID2('c', '0'));
+        std::string origFingerprint;
+        if (a != node->attrs.map.end())
+        {
+           origFingerprint = a->second;
+        }
+
+        sqlite3_bind_blob(stmt, 5, origFingerprint.data(), origFingerprint.size(), SQLITE_STATIC);
+
+
+        sqlite3_bind_int(stmt, 6, node->type);
+        sqlite3_bind_int64(stmt, 7, node->size);
         int inshare = 0;
         if (node->inshare)
         {
             inshare = 1;
         }
 
-        sqlite3_bind_int(stmt, 7, inshare);
-        sqlite3_bind_int(stmt, 8, !node->attrstring);
-        sqlite3_bind_blob(stmt, 9, nodeSerialized.data(), nodeSerialized.size(), SQLITE_STATIC);
+        sqlite3_bind_int(stmt, 8, inshare);
+        sqlite3_bind_int(stmt, 9, !node->attrstring);
+        sqlite3_bind_blob(stmt, 10, nodeSerialized.data(), nodeSerialized.size(), SQLITE_STATIC);
 
         if (sqlite3_step(stmt) == SQLITE_DONE)
         {
