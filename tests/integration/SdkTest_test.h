@@ -153,6 +153,9 @@ public:
         bool accountUpdated;
 
         MegaHandle h;
+        std::unique_ptr<MegaNodeList> mMegaNodeList;
+        std::unique_ptr<MegaNode> mMegaNode;
+        int mNumber;
 
 #ifdef ENABLE_CHAT
         bool chatUpdated;        // flags to monitor the updates of chats due to actionpackets

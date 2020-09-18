@@ -474,6 +474,33 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         }
         break;
 
+    case MegaRequest::TYPE_SEARCH_NODES:
+        if (mApi[apiIndex].lastError == API_OK)
+        {
+            mApi[apiIndex].mMegaNodeList.reset(request->getNodeList()->copy());
+        }
+        break;
+
+    case MegaRequest::TYPE_GET_NODE_BY:
+        if (mApi[apiIndex].lastError == API_OK)
+        {
+            mApi[apiIndex].mMegaNode.reset(request->getPublicNode()->copy());
+        }
+        break;
+
+    case MegaRequest::TYPE_CHILDREN:
+        if (mApi[apiIndex].lastError == API_OK)
+        {
+            mApi[apiIndex].mMegaNodeList.reset(request->getNodeList()->copy());
+        }
+        break;
+
+    case MegaRequest::TYPE_NUM_CHILDREN:
+        if (mApi[apiIndex].lastError == API_OK)
+        {
+            mApi[apiIndex].mNumber = request->getNumber();
+        }
+        break;
     }
 }
 
@@ -4995,7 +5022,63 @@ TEST_F(SdkTest, SdkTestNodesOnDemand)
     ASSERT_TRUE( waitForResponse(&mApi[1].nodeUpdated));
     ASSERT_TRUE( waitForResponse(&mApi[0].nodeUpdated));
     std::unique_ptr<MegaNode> node1_2 = std::unique_ptr<MegaNode>(mApi[0].megaApi->getNodeByHandle(nodeHandles2_1_1.at(2)));
-    ASSERT_TRUE(strcmp(name.c_str(), node1_2->getName()) == 0);
+    ASSERT_STREQ(name.c_str(), node1_2->getName());
+
+    // Get node by handle
+    locallogout();
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    mApi[0].requestFlags[MegaRequest::TYPE_GET_NODE_BY] = false;
+    mApi[0].megaApi->getNodeByHandleAsync(node1_2->getHandle());
+    ASSERT_TRUE( waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_GET_NODE_BY]) )
+            << "Get node operation not finished after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Cannot get node " << files2_1_1.at(2)->getHandle() << "(error: " << mApi[0].lastError << ")";
+    ASSERT_STREQ(node1_2->getName(), mApi[0].mMegaNode->getName());
+
+    // Get node Children
+    locallogout();
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    mApi[0].requestFlags[MegaRequest::TYPE_CHILDREN] = false;
+    mApi[0].megaApi->getChildrenAsync(folder1_1->getHandle(), MegaApi::ORDER_NONE);
+    ASSERT_TRUE( waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_CHILDREN]))
+            << "Get node operation not finished after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Cannot get node child from node" << folder1_1->getName() << "(error: " << mApi[0].lastError << ")";
+    ASSERT_EQ(mApi[0].mMegaNodeList->size(), NUM_CHILDS);
+
+    // Get num Children files
+    locallogout();
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    mApi[0].requestFlags[MegaRequest::TYPE_NUM_CHILDREN] = false;
+    mApi[0].megaApi->getNumChildrenAsync(folder1_1->getHandle(), MegaNode::TYPE_FILE);
+    ASSERT_TRUE( waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_NUM_CHILDREN]))
+            << "Get num child operation not finished after 1" << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Cannot get number of childs from node" << folder1_1->getName() << "(error: " << mApi[0].lastError << ")";
+    ASSERT_EQ(mApi[0].mNumber, NUM_CHILDS);
+
+    // Get number of folders
+    locallogout();
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    rootNode1 = std::unique_ptr<MegaNode>(mApi[0].megaApi->getRootNode());
+    mApi[0].requestFlags[MegaRequest::TYPE_NUM_CHILDREN] = false;
+    mApi[0].megaApi->getNumChildrenAsync(rootNode1->getHandle(), MegaNode::TYPE_FOLDER);
+    ASSERT_TRUE( waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_NUM_CHILDREN]))
+            << "Get num child operation not finished after 2" << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Cannot get node child from rootnode (error: " << mApi[0].lastError << ")";
+    ASSERT_EQ(mApi[0].mNumber, 2);
+
+    // Search nodes
+    locallogout();
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    mApi[0].requestFlags[MegaRequest::TYPE_SEARCH_NODES] = false;
+    mApi[0].megaApi->searchAsync(INVALID_HANDLE, "name", true, MegaApi::ORDER_NONE);
+    ASSERT_TRUE( waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_SEARCH_NODES]) )
+            << "Search operation not finished after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Cannot search node (error: " << mApi[0].lastError << ")";
+    ASSERT_GT(mApi[0].mMegaNodeList->size(), 0);
 
     // Move node 1 to folder 3
     locallogout();
