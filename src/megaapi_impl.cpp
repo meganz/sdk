@@ -25995,12 +25995,76 @@ void MegaFolderDownloadController::start(MegaNode *node)
     path.ensureWinExtendedPathLenPrefix();
 
     transfer->setPath(path.toPath(*client->fsaccess).c_str());
-    downloadFolderNode(node, path, fsType);
+    scanFolderNode(node, path, fsType);
+    downloadFolderNode(fsType);
 
     if (deleteNode)
     {
         delete node;
     }
+}
+
+void MegaFolderDownloadController::downloadFolderNode(FileSystemType fsType)
+{
+    // Create all local directories in one shot
+    for (auto it = mLocalTree.begin(); it != mLocalTree.end();)
+    {
+        auto auxit = it++;
+        LocalPath localpath = auxit->first;
+        auto da = client->fsaccess->newfileaccess();
+        if (!da->fopen(localpath, true, false))
+        {
+            if (!client->fsaccess->mkdirlocal(localpath))
+            {
+                da.reset();
+                LOG_err << "Unable to create folder: " << localpath.toPath(*client->fsaccess);
+                mLastError = API_EWRITE;
+                mIncompleteTransfers++;
+
+                // Removing this element we also remove all it's children nodes
+                mLocalTree.erase(auxit);
+            }
+        }
+        else if (da->type == FILENODE)
+        {
+            da.reset();
+            LOG_err << "Local file detected where there should be a folder: " << localpath.toPath(*client->fsaccess);
+            mLastError = API_EEXIST;
+            mIncompleteTransfers++;
+
+            // Removing this element we also remove all it's children nodes
+            mLocalTree.erase(auxit);
+        }
+        else
+        {
+            LOG_debug << "Already existing folder detected: " << localpath.toPath(*client->fsaccess);
+        }
+        da.reset();
+    }
+
+
+    // Add all download transfers in one shot
+    for (auto it = mLocalTree.begin(); it != mLocalTree.end(); it++)
+    {
+        LocalPath localpath = it->first;
+        const std::vector<unique_ptr<MegaNode>> &nodeVector = it->second;
+
+        for (size_t i = 0; i < nodeVector.size(); i++)
+        {
+             pendingTransfers++;
+             MegaNode *node = nodeVector.at(i).get();
+             ScopedLengthRestore restoreLen(localpath);
+             localpath.appendWithSeparator(LocalPath::fromName(node->getName(), *client->fsaccess, fsType), true, client->fsaccess->localseparator);
+             string utf8path = localpath.toPath(*client->fsaccess);
+             megaApi->startDownload(false, node, utf8path.c_str(), tag, transfer->getAppData(), this);
+         }
+    }
+
+    // Clear mLocalTree
+    mLocalTree.clear();
+
+    // After create all local directories and start all transfers, check for completion
+    checkCompletion();
 }
 
 void MegaFolderDownloadController::cancel()

@@ -398,6 +398,7 @@ public:
 
 protected:
     void scanFolderNode(MegaNode *node, LocalPath& path, FileSystemType fsType);
+    void downloadFolderNode(FileSystemType fstype);
     void checkCompletion();
 
 public:
