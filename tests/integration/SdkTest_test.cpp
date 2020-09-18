@@ -817,7 +817,8 @@ int64_t SdkTest::getFilesize(string filename)
 void SdkTest::deleteFile(string filename)
 {
     fs::path p = fs::u8path(filename);
-    fs::remove(p);
+    std::error_code ignoredEc;
+    fs::remove(p,ignoredEc);
 }
 
 const char* envVarAccount[] = {"MEGA_EMAIL", "MEGA_EMAIL_AUX", "MEGA_EMAIL_AUX2"};
