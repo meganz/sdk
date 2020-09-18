@@ -180,7 +180,7 @@ struct MEGA_API HttpIO : public EventTrigger
     virtual Proxy *getautoproxy();
 
     // get alternative DNS servers
-    void getMEGADNSservers(string*, bool = true);
+    void getMEGADNSservers(string* dnsservers, bool getfromnetwork);
 
     // set max download speed
     virtual bool setmaxdownloadspeed(m_off_t bpslimit);

@@ -6213,44 +6213,8 @@ void MegaApiImpl::loop()
     {
     #ifdef WINDOWS_PHONE
         client->httpio->getMEGADNSservers(&servers, false);
-    #elif TARGET_OS_IPHONE
-        client->httpio->getMEGADNSservers(&servers);
     #else
-        __res_state res;
-        bool valid;
-        if (res_ninit(&res) == 0)
-        {
-            union res_sockaddr_union u[MAXNS];
-            int nscount = res_getservers(&res, u, MAXNS);
-
-            for(int i = 0; i < nscount; i++)
-            {
-                char straddr[INET6_ADDRSTRLEN];
-                straddr[0] = 0;
-                valid = false;
-
-                if (u[i].sin.sin_family == PF_INET)
-                {
-                    valid = mega_inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr)) == straddr;
-                }
-
-                if (u[i].sin6.sin6_family == PF_INET6)
-                {
-                    valid = mega_inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr)) == straddr;
-                }
-
-                if (valid && straddr[0])
-                {
-                    if (servers.size())
-                    {
-                        servers.append(",");
-                    }
-                    servers.append(straddr);
-                }
-            }
-
-            res_ndestroy(&res);
-        }
+        client->httpio->getMEGADNSservers(&servers, true);
     #endif
 
         if (servers.size())
