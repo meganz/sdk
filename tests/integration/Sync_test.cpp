@@ -855,6 +855,28 @@ struct StandardClient : public MegaApp
 
     void onCallback() { lastcb = chrono::steady_clock::now(); };
 
+    // Invoked when syncupdate_name_conflict(...) is called.
+    std::function<void(const LocalNode&)> onNameConflict;
+
+    void syncupdate_name_conflict(Sync* sync, LocalNode* node) override
+    {
+        onCallback();
+
+        if (logcb)
+        {
+            lock_guard<mutex> guard(om);
+
+            out() << clientname
+                  << " syncupdate_conflict() : "
+                  << node->localnodedisplaypath();
+        }
+
+        if (onNameConflict)
+        {
+            onNameConflict(*node);
+        }
+    }
+
     void syncupdate_state(int tag, syncstate_t state, SyncError syncError, bool fireDisableEvent = true) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << " syncupdate_state() " << state << " error :" << syncError << endl; } }
     void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b << endl; } }
     //void syncupdate_local_folder_addition(Sync* s, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_folder_addition() " << lp(ln) << " " << cp << endl; }}
@@ -3855,13 +3877,25 @@ TEST(Sync, DetectsAndReportsNameClashes)
     string parentName;
     LocalPath parentPath;
     string_vector names;
+    string_vector parentNames;
     bool remote;
+
+    // Log callbacks.
+    client.logcb = true;
 
     // Log in client.
     ASSERT_TRUE(client.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
 
     // Needed so that we can create files with the same name.
     client.client.versions_disabled = true;
+
+    // Needed so that we can handle syncupdate_conflict(...) events.
+    client.onNameConflict =
+      [&](const LocalNode& node)
+      {
+          auto name = node.localname.toPath(*node.sync->client->fsaccess);
+          parentNames.emplace_back(std::move(name));
+      };
 
     // Populate local filesystem.
     const auto root = TESTFOLDER / "c" / "s";
@@ -3885,11 +3919,20 @@ TEST(Sync, DetectsAndReportsNameClashes)
     // Can we obtain a list of the conflicts?
     ASSERT_TRUE(client.conflictsDetected(parentName, parentPath, names, remote));
     ASSERT_EQ(parentName, "d");
+    ASSERT_EQ(parentNames.size(), 2);
+    ASSERT_EQ(parentNames[0], "d");
+    ASSERT_EQ(parentNames[1], "e");
     ASSERT_FALSE(parentPath.empty());
     ASSERT_EQ(names.size(), 2);
     ASSERT_EQ(names[0], "f%30");
     ASSERT_EQ(names[1], "f0");
     ASSERT_FALSE(remote);
+
+    // Clear the parent name vector.
+    //
+    // The vector should remain clear until we detect a conflict in a node
+    // we haven't previously reported.
+    parentNames.clear();
 
     // Resolve the f0 / f%30 conflict.
     ASSERT_TRUE(fs::remove(root / "d" / "f%30"));
@@ -3903,6 +3946,7 @@ TEST(Sync, DetectsAndReportsNameClashes)
     // Has the list of conflicts changed?
     ASSERT_TRUE(client.conflictsDetected(parentName, parentPath, names, remote));
     ASSERT_EQ(parentName, "e");
+    ASSERT_TRUE(parentNames.empty());
     ASSERT_FALSE(parentPath.empty());
     ASSERT_EQ(names.size(), 2);
     ASSERT_EQ(names[0], "g%30");
@@ -3936,6 +3980,8 @@ TEST(Sync, DetectsAndReportsNameClashes)
     // Does our list of conflicts include remotes?
     ASSERT_TRUE(client.conflictsDetected(parentName, parentPath, names, remote));
     ASSERT_EQ(parentName, "d");
+    ASSERT_EQ(parentNames.size(), 1);
+    ASSERT_EQ(parentNames[0], "d");
     ASSERT_FALSE(parentPath.empty());
     ASSERT_EQ(names.size(), 2);
     ASSERT_EQ(names[0], "h");

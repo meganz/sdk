@@ -12902,6 +12902,7 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
 }
 
 #ifdef ENABLE_SYNC
+
 void MegaApiImpl::syncupdate_state(int tag, syncstate_t newstate, SyncError syncerror, bool fireDisableEvent)
 {
     auto syncpair = syncMap.find(tag);
@@ -13049,6 +13050,22 @@ void MegaApiImpl::syncupdate_get(Sync *sync, Node* node, const char *path)
     event->setNodeHandle(node->nodehandle);
     event->setPath(path);
     fireOnSyncEvent(megaSync, event);
+}
+
+void MegaApiImpl::syncupdate_name_conflict(Sync* sync, LocalNode* node)
+{
+    const auto path = node->localnodedisplaypath();
+
+    LOG_debug << "Sync - name conflict detected in: " << path;
+
+    auto it = syncMap.find(sync->tag);
+
+    if (it != syncMap.end())
+    {
+        auto* event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_NAME_CONFLICT);
+        event->setPath(path.c_str());
+        fireOnSyncEvent(it->second, event);
+    }
 }
 
 void MegaApiImpl::syncupdate_put(Sync *sync, LocalNode *, const char *path)
@@ -13315,6 +13332,7 @@ void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
 
     this->fireOnGlobalSyncStateChanged();
 }
+
 #endif
 
 void MegaApiImpl::backupput_result(const Error&, handle /*backupId*/)

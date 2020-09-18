@@ -13435,6 +13435,10 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWh
     // remote children by name
     string localname;
 
+    // Remember whether any name conflicts were detected directly by this node.
+    // We'll check against this later to decide whether we need to raise an event.
+    const bool conflictsDetected = l->mConflictsDetected;
+
     // Clear this node's conflict state.
     l->conflictsResolved();
 
@@ -13478,6 +13482,12 @@ bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWh
             // Detected local name conflict.
             l->mConflictsDetected = true;
         }
+    }
+
+    // Let the app know when we've detected a conflict in this node.
+    if (l->mConflictsDetected && l->mConflictsDetected != conflictsDetected)
+    {
+        app->syncupdate_name_conflict(l->sync, l);
     }
 
     // remove remote items that exist locally from hash, recurse into existing folders
@@ -13928,6 +13938,12 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
         {
             l->mConflictsDetectedInChild |= child.conflictsDetected();
         }
+    }
+
+    // Let the app know when we've detected a conflict in this node.
+    if (l->mConflictsDetected && l->mConflictsDetected != conflictsDetected)
+    {
+        app->syncupdate_name_conflict(l->sync, l);
     }
 
     // check for elements that need to be created, deleted or updated on the
