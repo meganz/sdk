@@ -2804,7 +2804,7 @@ class MegaRequest
             TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS, TYPE_RESEND_VERIFICATION_EMAIL,
             TYPE_SUPPORT_TICKET, TYPE_SET_RETENTION_TIME, TYPE_RESET_SMS_VERIFIED_NUMBER,
             TYPE_SEND_DEV_COMMAND, TYPE_CHILDREN, TYPE_NUM_CHILDREN, TYPE_GET_NODE_BY,
-            TYPE_GET_NODES, TOTAL_OF_REQUEST_TYPES
+            TYPE_GET_NODES, TYPE_SEARCH_NODES, TOTAL_OF_REQUEST_TYPES
         };
 
         enum
@@ -14676,6 +14676,8 @@ class MegaApi
         void getNodeByHandleAsync(MegaHandle handle, MegaRequestListener *listener = nullptr);
         void getNodeByPathAsync(const char *path, MegaRequestListener *listener = nullptr);
         void getNodesByFingerprintAsync(int type, const char* str, MegaRequestListener *listener = nullptr);
+        void searchAsync(MegaHandle handle, const char* pattern, bool recursive, int order, MegaRequestListener *listener = nullptr);
+
         /**
          * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
          *

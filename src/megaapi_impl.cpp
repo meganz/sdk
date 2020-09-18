@@ -3899,6 +3899,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_NUM_CHILDREN: return "NUM_CHILDREN";
         case TYPE_GET_NODE_BY: return "GET_NODE_BY";
         case TYPE_GET_NODES: return "GET_NODES";
+        case TYPE_SEARCH_NODES: return "SEARCH_NODES";
     }
     return "UNKNOWN";
 }
@@ -22319,6 +22320,35 @@ void MegaApiImpl::sendPendingRequests()
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }
+        case MegaRequest::TYPE_SEARCH_NODES:
+        {
+            MegaHandle parentHandle = request->getNodeHandle();
+            std::unique_ptr<MegaNode> parent;
+            if (parentHandle == INVALID_HANDLE)
+            {
+                parent = std::unique_ptr<MegaNode>(getRootNode());
+            }
+            else
+            {
+                parent = std::unique_ptr<MegaNode>(getNodeByHandle(parentHandle));
+            }
+
+            const char* searchString = request->getText();
+            bool recursive = request->getFlag();
+            int order = request->getNumber();
+            int target = request->getNumDetails();
+            if (target == MegaApiImpl::TARGET_ALL)
+            {
+                request->setNodeList(search(parent.get(), searchString, nullptr, recursive, order));
+            }
+            else
+            {
+                request->setNodeList(searchInAllShares(searchString, nullptr, order, target));
+            }
+
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+            break;
+        }
         default:
         {
             e = API_EINTERNAL;
@@ -22428,6 +22458,22 @@ void MegaApiImpl::getNodesAsync(int type, const char *fingerprint, MegaHandle ha
     if (fingerprint)
     {
         request->setText(fingerprint);
+    }
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::searchAsync(MegaHandle handle, const char *pattern, bool recursive, int order, int target, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SEARCH_NODES, listener);
+    request->setFlag(recursive);
+    request->setNumber(order);
+    request->setNumDetails(target);
+    request->setNodeHandle(handle);
+    if (pattern)
+    {
+        request->setText(pattern);
     }
 
     requestQueue.push(request);

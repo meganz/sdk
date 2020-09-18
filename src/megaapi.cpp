@@ -3798,6 +3798,11 @@ void MegaApi::getNodesByFingerprintAsync(int type, const char *str, MegaRequestL
     pImpl->getNodesAsync(type, str, INVALID_HANDLE, listener);
 }
 
+void MegaApi::searchAsync(MegaHandle handle, const char *pattern, bool recursive, int order, MegaRequestListener *listener)
+{
+    pImpl->searchAsync(handle, pattern, recursive, order, MegaApiImpl::TARGET_ALL, listener);
+}
+
 long long MegaApi::getSize(MegaNode *n)
 {
     return pImpl->getSize(n);

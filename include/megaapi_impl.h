@@ -2008,7 +2008,7 @@ class MegaApiImpl : public MegaApp
 
         static MegaApiImpl* ImplOf(MegaApi*);
 
-        enum { TARGET_INSHARE = 0, TARGET_OUTSHARE, TARGET_PUBLICLINK, };
+        enum { TARGET_INSHARE = 0, TARGET_OUTSHARE, TARGET_PUBLICLINK, TARGET_ALL};
 
         //Multiple listener management.
         void addListener(MegaListener* listener);
@@ -2349,6 +2349,8 @@ class MegaApiImpl : public MegaApp
         void getNumChildrenAsync(MegaHandle parentHandle, int type,  MegaRequestListener *listener = nullptr);
         void getNodeByAsync(int type, MegaHandle handle, const char* str, const char *name, MegaRequestListener *listener = nullptr);
         void getNodesAsync(int type, const char* str, MegaHandle handle, MegaRequestListener *listener = nullptr);
+        void searchAsync(MegaHandle handle, const char* pattern, bool recursive, int order, int target, MegaRequestListener *listener);
+
 		int getNumChildren(MegaNode* parent);
 		int getNumChildFiles(MegaNode* parent);
 		int getNumChildFolders(MegaNode* parent);
