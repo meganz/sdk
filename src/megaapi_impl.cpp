@@ -3895,6 +3895,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_SET_RETENTION_TIME: return "SET_RETENTION_TIME";
         case TYPE_RESET_SMS_VERIFIED_NUMBER: return "RESET_SMS_VERIFIED_NUMBER";
         case TYPE_SEND_DEV_COMMAND: return "SEND_DEV_COMMAND";
+        case TYPE_CHILDREN: return "CHILDREN";
     }
     return "UNKNOWN";
 }
@@ -22129,6 +22130,40 @@ void MegaApiImpl::sendPendingRequests()
             client->getmiscflags();
             break;
         }
+        case MegaRequest::TYPE_CHILDREN:
+        {
+            if (request->getParamType() < MegaApi::ORDER_NONE || request->getParamType() > MegaApi::ORDER_LINK_CREATION_DESC)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            MegaHandle nodeHandle = request->getNodeHandle();
+            if (nodeHandle == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            MegaNode *node = getNodeByHandle(nodeHandle);
+            if (!node)
+            {
+                e = API_EINTERNAL;
+                break;
+            }
+
+            if (node->getType() == MegaNode::TYPE_FILE)
+            {
+                request->setNodeList(getVersions(node));
+            }
+            else
+            {
+                request->setNodeList(getChildren(node, request->getParamType()));
+            }
+
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+            break;
+        }
         default:
         {
             e = API_EINTERNAL;
@@ -22191,6 +22226,15 @@ long long MegaApiImpl::getTotalDownloadBytes()
 long long MegaApiImpl::getTotalUploadBytes()
 {
     return totalUploadBytes;
+}
+
+void MegaApiImpl::getChildrenAsync(MegaHandle parentHandle, int orderer, MegaRequestListener* listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHILDREN, listener);
+    request->setParamType(orderer);
+    request->setNodeHandle(parentHandle);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::update()

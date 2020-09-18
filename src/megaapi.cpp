@@ -3773,6 +3773,10 @@ MegaNodeList* MegaApi::searchOnPublicLinks(const char *searchString, MegaCancelT
     return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApiImpl::TARGET_PUBLICLINK);
 }
 
+void MegaApi::getChildrenAsync(MegaHandle parentHandle, int orderer, MegaRequestListener *listener)
+{
+    pImpl->getChildrenAsync(parentHandle, orderer, listener);
+}
 long long MegaApi::getSize(MegaNode *n)
 {
     return pImpl->getSize(n);

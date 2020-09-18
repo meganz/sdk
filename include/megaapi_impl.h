@@ -2345,6 +2345,7 @@ class MegaApiImpl : public MegaApp
         long long getTotalUploadBytes();
 
         //Filesystem
+        void getChildrenAsync(MegaHandle parentHandle, int orderer,  MegaRequestListener *listener = nullptr);
 		int getNumChildren(MegaNode* parent);
 		int getNumChildFiles(MegaNode* parent);
 		int getNumChildFolders(MegaNode* parent);
