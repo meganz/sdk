@@ -3777,6 +3777,11 @@ void MegaApi::getChildrenAsync(MegaHandle parentHandle, int orderer, MegaRequest
 {
     pImpl->getChildrenAsync(parentHandle, orderer, listener);
 }
+
+void MegaApi::getNumChildrenAsync(MegaHandle parentHandle, int type, MegaRequestListener *listener)
+{
+    pImpl->getNumChildrenAsync(parentHandle, type, listener);
+}
 long long MegaApi::getSize(MegaNode *n)
 {
     return pImpl->getSize(n);

@@ -3896,6 +3896,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_RESET_SMS_VERIFIED_NUMBER: return "RESET_SMS_VERIFIED_NUMBER";
         case TYPE_SEND_DEV_COMMAND: return "SEND_DEV_COMMAND";
         case TYPE_CHILDREN: return "CHILDREN";
+        case TYPE_NUM_CHILDREN: return "NUM_CHILDREN";
     }
     return "UNKNOWN";
 }
@@ -22164,6 +22165,42 @@ void MegaApiImpl::sendPendingRequests()
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }
+        case MegaRequest::TYPE_NUM_CHILDREN:
+        {
+            if (request->getParamType() < MegaNode::TYPE_UNKNOWN || request->getParamType() > MegaNode::TYPE_FOLDER)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            MegaHandle nodeHandle = request->getNodeHandle();
+            if (nodeHandle == INVALID_HANDLE)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            std::unique_ptr<MegaNode> node(getNodeByHandle(nodeHandle));
+
+            switch (request->getParamType())
+            {
+                case MegaNode::TYPE_UNKNOWN:
+                    request->setNumber(getNumChildren(node.get()));
+                    break;
+
+                case MegaNode::TYPE_FILE:
+                    request->setNumber(getNumChildFiles(node.get()));
+                    break;
+
+                case MegaNode::TYPE_FOLDER:
+                    request->setNumber(getNumChildren(node.get()));
+                    break;
+
+            }
+
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+            break;
+        }
         default:
         {
             e = API_EINTERNAL;
@@ -22232,6 +22269,15 @@ void MegaApiImpl::getChildrenAsync(MegaHandle parentHandle, int orderer, MegaReq
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CHILDREN, listener);
     request->setParamType(orderer);
+    request->setNodeHandle(parentHandle);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getNumChildrenAsync(MegaHandle parentHandle, int type, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_NUM_CHILDREN, listener);
+    request->setParamType(type);
     request->setNodeHandle(parentHandle);
     requestQueue.push(request);
     waiter->notify();
