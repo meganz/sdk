@@ -2348,6 +2348,7 @@ class MegaApiImpl : public MegaApp
         void getChildrenAsync(MegaHandle parentHandle, int orderer,  MegaRequestListener *listener = nullptr);
         void getNumChildrenAsync(MegaHandle parentHandle, int type,  MegaRequestListener *listener = nullptr);
         void getNodeByAsync(int type, MegaHandle handle, const char* str, const char *name, MegaRequestListener *listener = nullptr);
+        void getNodesAsync(int type, const char* str, MegaHandle handle, MegaRequestListener *listener = nullptr);
 		int getNumChildren(MegaNode* parent);
 		int getNumChildFiles(MegaNode* parent);
 		int getNumChildFolders(MegaNode* parent);

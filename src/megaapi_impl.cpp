@@ -3898,6 +3898,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHILDREN: return "CHILDREN";
         case TYPE_NUM_CHILDREN: return "NUM_CHILDREN";
         case TYPE_GET_NODE_BY: return "GET_NODE_BY";
+        case TYPE_GET_NODES: return "GET_NODES";
     }
     return "UNKNOWN";
 }
@@ -22297,6 +22298,27 @@ void MegaApiImpl::sendPendingRequests()
             break;
 
         }
+        case MegaRequest::TYPE_GET_NODES:
+        {
+            const char* name = request->getName();
+            if (request->getParamType() == MegaRequest::FINGERPRINT)
+            {
+                request->setNodeList(getNodesByFingerprint(name));
+            }
+            else if (request->getParamType() == MegaRequest::ORIGINAL_FINGERPRINT)
+            {
+                std::unique_ptr<MegaNode> parent(getNodeByHandle(request->getNodeHandle()));
+                request->setNodeList(getNodesByOriginalFingerprint(name, parent.get()));
+            }
+            else
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+            break;
+        }
         default:
         {
             e = API_EINTERNAL;
@@ -22392,6 +22414,20 @@ void MegaApiImpl::getNodeByAsync(int type, MegaHandle handle, const char* path, 
     if (name)
     {
         request->setName(name);
+    }
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getNodesAsync(int type, const char *fingerprint, MegaHandle handle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_NODES, listener);
+    request->setParamType(type);
+    request->setNodeHandle(handle);
+    if (fingerprint)
+    {
+        request->setText(fingerprint);
     }
 
     requestQueue.push(request);

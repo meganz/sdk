@@ -3793,6 +3793,11 @@ void MegaApi::getNodeByPathAsync(const char* path, MegaRequestListener *listener
     pImpl->getNodeByAsync(MegaRequest::PATH, INVALID_HANDLE, path, nullptr, listener);
 }
 
+void MegaApi::getNodesByFingerprintAsync(int type, const char *str, MegaRequestListener *listener)
+{
+    pImpl->getNodesAsync(type, str, INVALID_HANDLE, listener);
+}
+
 long long MegaApi::getSize(MegaNode *n)
 {
     return pImpl->getSize(n);
