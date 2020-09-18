@@ -48,12 +48,6 @@
 #ifdef __APPLE__
     #include <xlocale.h>
     #include <strings.h>
-
-    #if TARGET_OS_IPHONE
-    #include <netdb.h>
-    #include <resolv.h>
-    #include <arpa/inet.h>
-    #endif
 #endif
 
 #ifdef _WIN32

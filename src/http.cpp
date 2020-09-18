@@ -34,6 +34,10 @@
 #include "mega/osx/osxutils.h"
 #endif
 
+#if TARGET_OS_IPHONE
+#include <resolv.h>
+#endif
+
 namespace mega {
 
 // interval to calculate the mean speed (ds)
