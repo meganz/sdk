@@ -2906,7 +2906,7 @@ protected:
         void getcountrycallingcodes_result(error, map<string, vector<string>>*) override;
 
         // get the current PSA
-        void getpsa_result (error, int, string*, string*, string*, string*, string*) override;
+        void getpsa_result (error, int, string*, string*, string*, string*, string*, string*) override;
 
         // account creation
         void sendsignuplink_result(error) override;

@@ -7667,6 +7667,7 @@ bool CommandMultiFactorAuthDisable::procresult(Result r)
 CommandGetPSA::CommandGetPSA(MegaClient *client)
 {
     cmd("gpsa");
+    arg("w", 1);
 
     tag = client->reqtag;
 }
@@ -7675,14 +7676,14 @@ bool CommandGetPSA::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->getpsa_result(r.errorOrOK(), 0, NULL, NULL, NULL, NULL, NULL);
+        client->app->getpsa_result(r.errorOrOK(), 0, NULL, NULL, NULL, NULL, NULL, NULL);
         return true;
     }
 
     int id = 0;
     string temp;
     string title, text, imagename, imagepath;
-    string buttonlink, buttontext;
+    string buttonlink, buttontext, url;
 
     for (;;)
     {
@@ -7705,6 +7706,9 @@ bool CommandGetPSA::procresult(Result r)
             case 'l':
                 client->json.storeobject(&buttonlink);
                 break;
+            case MAKENAMEID3('u', 'r', 'l'):
+                client->json.storeobject(&url);
+                break;
             case 'b':
                 client->json.storeobject(&temp);
                 Base64::atob(temp, buttontext);
@@ -7715,13 +7719,13 @@ bool CommandGetPSA::procresult(Result r)
             case EOO:
                 imagepath.append(imagename);
                 imagepath.append(".png");
-                client->app->getpsa_result(API_OK, id, &title, &text, &imagepath, &buttontext, &buttonlink);
+                client->app->getpsa_result(API_OK, id, &title, &text, &imagepath, &buttontext, &buttonlink, &url);
                 return true;
             default:
                 if (!client->json.storeobject())
                 {
                     LOG_err << "Failed to parse get PSA response";
-                    client->app->getpsa_result(API_EINTERNAL, 0, NULL, NULL, NULL, NULL, NULL);
+                    client->app->getpsa_result(API_EINTERNAL, 0, NULL, NULL, NULL, NULL, NULL, NULL);
                     return false;
                 }
                 break;
