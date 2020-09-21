@@ -2112,8 +2112,9 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
     {
         // Pair up the sorted cloud and syncrow lists
         auto cloudIter = cloudChildren.begin();
-        auto rowIter = childRows.begin();
-        auto rowLast = childRows.end();
+        size_t rowIter = 0;
+        size_t rowLast = childRows.size();
+
         for (;;)
         {
             auto nextCL = cloudIter;
@@ -2121,13 +2122,14 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
             auto cloudEqualNodeCount = std::distance(cloudIter, nextCL);
 
             auto nextRow = rowIter;
-            while (nextRow != rowLast && !localCmpRow(*rowIter, *nextRow)) ++nextRow;
-            auto rowDistance = std::distance(rowIter, nextRow);
+
+            while (nextRow != rowLast && !localCmpRow(childRows[rowIter], childRows[nextRow])) ++nextRow;
+            auto rowDistance = nextRow - rowIter;
 
             assert(rowDistance < 2);
 
             Node* thisCl = cloudIter == cloudChildren.end() ? nullptr : *cloudIter;
-            syncRow* thisRow = rowIter == rowLast ? nullptr : &*rowIter;
+            syncRow* thisRow = rowIter == rowLast ? nullptr : &childRows[rowIter];
 
             // any entry that is not equal to the lowest string is set to null
             // nonnulls are all equal and go in the same row
@@ -2150,7 +2152,6 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
             else
             {
                 childRows.push_back(syncRow{thisCl, nullptr, nullptr});
-                if (rowLast == childRows.end()) --rowLast;
             }
 
             if (thisRow) rowIter = nextRow;
