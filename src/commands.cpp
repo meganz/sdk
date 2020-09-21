@@ -1204,7 +1204,7 @@ bool CommandPutNodes::procresult(Result r)
         Node* n = client->nodebyhandle(targethandle);
         if (n && n->localnode)
         {
-            n->localnode->needsFutureSyncdown();
+            n->localnode->setFutureSync(LocalNode::SYNCTREE_ACTION_HERE_AND_BELOW);
         }
     }
 #endif
@@ -1497,7 +1497,7 @@ bool CommandDelNode::procresult(Result r)
                         Node* n = client->nodebyhandle(parent);
                         if (n && n->localnode)
                         {
-                            n->localnode->needsFutureSyncdown();
+                            n->localnode->setFutureSync(LocalNode::SYNCTREE_ACTION_HERE_ONLY);
                         }
                     }
 #endif

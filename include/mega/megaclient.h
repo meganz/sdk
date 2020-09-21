@@ -512,11 +512,9 @@ public:
     bool mKeepSyncsAfterLogout = false;
 
     // manage syncdown flags inside the syncs
-    void setAllSyncsNeedFullSyncdown();
-    void setAllSyncsNeedFullSyncup();
+    void setAllSyncsNeedFullSync();
 
-    bool anySyncNeedsFullSyncdown();
-    bool anySyncNeedsTargetedSyncdown();
+    bool anySyncNeedsTargetedSync();
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
@@ -1071,9 +1069,6 @@ private:
     // add node to vector and return index
     unsigned addnode(node_vector*, Node*) const;
 
-    // add child for consideration in syncup()/syncdown()
-    void addchild(remotenode_map*, string*, Node*, list<string>*, FileSystemType fsType) const;
-
     // crypto request response
     void cr_response(node_vector*, node_vector*, JSON*);
 
@@ -1422,10 +1417,12 @@ public:
     bool syncnagleretry;
     BackoffTimer syncnaglebt;
 
+    dstime filesystemNotificationsQuietTime = 0;
+
     // timer for extra notifications
     // (workaround for buggy network filesystems)
-    bool syncextraretry;
-    BackoffTimer syncextrabt;
+    //bool syncextraretry;
+    //BackoffTimer syncextrabt;
 
     // rescan timer if fs notification unavailable or broken
     bool syncscanfailed;
@@ -1457,14 +1454,12 @@ public:
     // in syncadded/syncdeleted/syncoverwritten to the remote tree
     void syncupdate();
 
-    // create missing folders, copy/start uploading missing files
-    bool syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool scanWholeSubtree);
-
     // sync putnodes() completion
     void putnodes_sync_result(error, vector<NewNode>&);
 
     // start downloading/copy missing files, create missing directories
-    bool syncdown(LocalNode * const, LocalPath&, bool scanWholeSubtree);
+    bool sync(const Node&, LocalNode&, LocalPath&);
+    bool syncItem(Node*, LocalNode*&, FSNode*&, LocalNode& localNodeParent, LocalPath& fullPath);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
     void movetosyncdebris(Node*, bool);

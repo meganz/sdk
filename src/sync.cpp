@@ -648,7 +648,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
     appData = cappdata;
     errorCode = NO_SYNC_ERROR;
     tmpfa = NULL;
-    initializing = true;
+    //initializing = true;
     updatedfilesize = ~0;
     updatedfilets = 0;
     updatedfileinitialts = 0;
@@ -1065,780 +1065,803 @@ bool Sync::assignfsids()
                                localdebris);
 }
 
-// scan localpath, add or update child nodes, call recursively for folder nodes
+// scan localpath, add or update child nodes, just for this folder.  No recursion.
 // localpath must be prefixed with Sync
-bool Sync::scan(LocalPath* localpath, FileAccess* fa)
+
+
+
+auto Sync::scanOne(LocalNode& localNodeFolder, LocalPath& localPath) -> vector<FSNode>
 {
-    if (fa)
+    if (localdebris.isContainingPathOf(localPath, client->fsaccess->localseparator))
     {
-        assert(fa->type == FOLDERNODE);
+        return {};
     }
-    if (!localdebris.isContainingPathOf(*localpath, client->fsaccess->localseparator))
+
+    auto fa = client->fsaccess->newfileaccess();
+
+    if (!fa->fopen(localPath, true, false))
     {
-        DirAccess* da;
-        LocalPath localname;
-        string name;
-        bool success;
+        // todo: error handling
+        return {};
+    }
 
-        if (SimpleLogger::logCurrentLevel >= logDebug)
+    if (fa->type != FOLDERNODE)
+    {
+        // todo: error handling
+        return {};
+    }
+
+    LOG_debug << "Scanning folder: " << localPath.toPath(*client->fsaccess);
+
+    unique_ptr<DirAccess> da(client->fsaccess->newdiraccess());
+
+    if (!da->dopen(&localPath, fa.get(), false))
+    {
+        // todo: error handling
+        return {};
+    }
+
+    // scan the dir, mark all items with a unique identifier
+
+    // todo: skip fingerprinting files if we already know it - name, size, mtime, fsid match
+
+    LocalPath localname;
+    vector<FSNode> results;
+    while (da->dnext(localPath, localname, client->followsymlinks))
+    {
+        string name = localname.toName(*client->fsaccess, mFilesystemType);
+
+        ScopedLengthRestore restoreLen(localPath);
+        localPath.appendWithSeparator(localname, false, client->fsaccess->localseparator);
+
+        // check if this record is to be ignored
+        if (client->app->sync_syncable(this, name.c_str(), localPath))
         {
-            LOG_debug << "Scanning folder: " << localpath->toPath(*client->fsaccess);
-        }
-
-        da = client->fsaccess->newdiraccess();
-
-        // scan the dir, mark all items with a unique identifier
-        if ((success = da->dopen(localpath, fa, false)))
-        {
-            while (da->dnext(*localpath, localname, client->followsymlinks))
+            // skip the sync's debris folder
+            if (!localdebris.isContainingPathOf(localPath, client->fsaccess->localseparator))
             {
-                name = localname.toName(*client->fsaccess, mFilesystemType);
-
-                ScopedLengthRestore restoreLen(*localpath);
-                localpath->appendWithSeparator(localname, false, client->fsaccess->localseparator);
-
-                // check if this record is to be ignored
-                if (client->app->sync_syncable(this, name.c_str(), *localpath))
-                {
-                    // skip the sync's debris folder
-                    if (!localdebris.isContainingPathOf(*localpath, client->fsaccess->localseparator))
-                    {
-                        LocalNode *l = NULL;
-                        if (initializing)
-                        {
-                            // preload all cached LocalNodes
-                            l = checkpath(NULL, localpath, nullptr, nullptr, false, da);
-                        }
-
-                        if (!l || l == (LocalNode*)~0)
-                        {
-                            // new record: place in notification queue
-                            dirnotify->notify(DirNotify::DIREVENTS, NULL, LocalPath(*localpath));
-                        }
-                    }
-                }
-                else
-                {
-                    LOG_debug << "Excluded: " << name;
-                }
-            }
-        }
-
-        delete da;
-
-        return success;
-    }
-    else return false;
-}
-
-// check local path - if !localname, localpath is relative to l, with l == NULL
-// being the root of the sync
-// if localname is set, localpath is absolute and localname its last component
-// path references a new FOLDERNODE: returns created node
-// path references a existing FILENODE: returns node
-// otherwise, returns NULL
-LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* const localname, dstime *backoffds, bool wejustcreatedthisfolder, DirAccess* iteratingDir)
-{
-    LocalNode* ll = l;
-    bool newnode = false, changed = false;
-    bool isroot;
-
-    LocalNode* parent;
-    string path;           // UTF-8 representation of tmppath
-    LocalPath tmppath;     // full path represented by l + localpath
-    LocalPath newname;     // portion of tmppath not covered by the existing
-                           // LocalNode structure (always the last path component
-                           // that does not have a corresponding LocalNode yet)
-
-    if (localname)
-    {
-        // shortcut case (from within syncdown())
-        isroot = false;
-        parent = l;
-        l = NULL;
-
-        path = input_localpath->toPath(*client->fsaccess);
-        assert(path.size());
-    }
-    else
-    {
-        // construct full filesystem path in tmppath
-        if (l)
-        {
-            tmppath = l->getLocalPath();
-        }
-
-        if (!input_localpath->empty())
-        {
-            tmppath.appendWithSeparator(*input_localpath, false, client->fsaccess->localseparator);
-        }
-
-        // look up deepest existing LocalNode by path, store remainder (if any)
-        // in newname
-        LocalNode *tmp = localnodebypath(l, *input_localpath, &parent, &newname);
-        size_t index = 0;
-
-        if (newname.findNextSeparator(index, client->fsaccess->localseparator))
-        {
-            LOG_warn << "Parent not detected yet. Unknown remainder: " << newname.toPath(*client->fsaccess);
-            if (parent)
-            {
-                LocalPath notifyPath = parent->getLocalPath(true);
-                notifyPath.appendWithSeparator(newname.subpathTo(index), true, client->fsaccess->localseparator);
-                dirnotify->notify(DirNotify::DIREVENTS, l, std::move(notifyPath), true);
-            }
-            return NULL;
-        }
-
-        l = tmp;
-
-        path = tmppath.toPath(*client->fsaccess);
-
-        // path invalid?
-        if ( ( !l && newname.empty() ) || !path.size())
-        {
-            LOG_warn << "Invalid path: " << path;
-            return NULL;
-        }
-
-        string name = !newname.empty() ? newname.toName(*client->fsaccess, mFilesystemType) : l->name;
-
-        if (!client->app->sync_syncable(this, name.c_str(), tmppath))
-        {
-            LOG_debug << "Excluded: " << path;
-            return NULL;
-        }
-
-        isroot = l == localroot.get() && newname.empty();
-    }
-
-    LOG_verbose << "Scanning: " << path << " in=" << initializing << " full=" << fullscan << " l=" << l;
-    LocalPath* localpathNew = localname ? input_localpath : &tmppath;
-
-    if (parent)
-    {
-        if (state != SYNC_INITIALSCAN && !parent->node)
-        {
-            LOG_warn << "Parent doesn't exist yet: " << path;
-            return (LocalNode*)~0;
-        }
-    }
-
-    // attempt to open/type this file
-    auto fa = client->fsaccess->newfileaccess(false);
-
-    if (initializing || fullscan)
-    {
-        // find corresponding LocalNode by file-/foldername
-        size_t lastpart = localpathNew->getLeafnameByteIndex(*client->fsaccess);
-
-        LocalPath fname(localpathNew->subpathFrom(lastpart));
-
-        LocalNode* cl = (parent ? parent : localroot.get())->childbyname(&fname);
-        if (initializing && cl)
-        {
-            // the file seems to be still in the folder
-            // mark as present to prevent deletions if the file is not accesible
-            // in that case, the file would be checked again after the initialization
-            cl->deleted = false;
-            cl->setnotseen(0);
-            l->scanseqno = scanseqno;
-        }
-
-        // match cached LocalNode state during initial/rescan to prevent costly re-fingerprinting
-        // (just compare the fsids, sizes and mtimes to detect changes)
-        if (fa->fopen(*localpathNew, false, false, iteratingDir))
-        {
-            if (cl && fa->fsidvalid && fa->fsid == cl->fsid)
-            {
-                // node found and same file
-                l = cl;
-                l->deleted = false;
-                l->setnotseen(0);
-
-                // if it's a file, size and mtime must match to qualify
-                if (l->type != FILENODE || (l->size == fa->size && l->mtime == fa->mtime))
-                {
-                    LOG_verbose << "Cached localnode is still valid. Type: " << l->type << "  Size: " << l->size << "  Mtime: " << l->mtime;
-                    l->scanseqno = scanseqno;
-
-                    if (l->type == FOLDERNODE)
-                    {
-                        scan(localpathNew, fa.get());
-                    }
-                    else
-                    {
-                        localbytes += l->size;
-                    }
-
-                    return l;
-                }
+                results.push_back(checkpathOne(localPath, localname, da.get()));
             }
         }
         else
         {
-            LOG_warn << "Error opening file during the initialization: " << path;
+            LOG_debug << "Excluded: " << name;
         }
-
-        if (initializing)
-        {
-            if (cl)
-            {
-                LOG_verbose << "Outdated localnode. Type: " << cl->type << "  Size: " << cl->size << "  Mtime: " << cl->mtime
-                            << "    FaType: " << fa->type << "  FaSize: " << fa->size << "  FaMtime: " << fa->mtime;
-            }
-            else
-            {
-                LOG_verbose << "New file. FaType: " << fa->type << "  FaSize: " << fa->size << "  FaMtime: " << fa->mtime;
-            }
-            return NULL;
-        }
-
-        fa = client->fsaccess->newfileaccess(false);
     }
+    return results;
+}
 
-    if (fa->fopen(*localpathNew, true, false))
+// new algorithm:  just make a LocalNode for this entry.  Caller will decide to keep it or not. No recursion
+
+// todo: be more efficient later, use existing localnode from parent if they match, and don't re-fingerprint if name, mtime, fsid match.  Mange lifetimes - maybe shared_ptr
+
+
+auto Sync::checkpathOne(LocalPath& localPath, const LocalPath& leafname, DirAccess* iteratingDir) -> FSNode
+{
+    // todo: skip fingerprinting files if we already know it - name, size, mtime, fsid match
+
+    FSNode result;
+    result.localname = leafname;
+
+    // attempt to open/type this file
+    auto fa = client->fsaccess->newfileaccess(false);
+
+    if (fa->fopen(localPath, true, false, iteratingDir))
     {
-        if (!isroot)
+        if (fa->mIsSymLink)
         {
-            if (l)
-            {
-                if (l->type == fa->type)
-                {
-                    // mark as present
-                    l->setnotseen(0);
-
-                    if (fa->type == FILENODE)
-                    {
-                        // has the file been overwritten or changed since the last scan?
-                        // or did the size or mtime change?
-                        if (fa->fsidvalid)
-                        {
-                            // if fsid has changed, the file was overwritten
-                            // (FIXME: handle type changes)
-                            if (l->fsid != fa->fsid)
-                            {
-                                handlelocalnode_map::iterator it;
-#ifdef _WIN32
-                                const char *colon;
-#endif
-                                fsfp_t fp1, fp2;
-
-                                // was the file overwritten by moving an existing file over it?
-                                if ((it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
-                                        && (l->sync == it->second->sync
-                                            || ((fp1 = l->sync->dirnotify->fsfingerprint())
-                                                && (fp2 = it->second->sync->dirnotify->fsfingerprint())
-                                                && (fp1 == fp2)
-                                            #ifdef _WIN32
-                                                // only consider fsid matches between different syncs for local drives with the
-                                                // same drive letter, to prevent problems with cloned Volume IDs
-                                                && (colon = strstr(parent->sync->localroot->name.c_str(), ":"))
-                                                && !memcmp(parent->sync->localroot->name.c_str(),
-                                                       it->second->sync->localroot->name.c_str(),
-                                                       colon - parent->sync->localroot->name.c_str())
-                                            #endif
-                                                )
-                                            )
-                                    )
-                                {
-                                    // catch the not so unlikely case of a false fsid match due to
-                                    // e.g. a file deletion/creation cycle that reuses the same inode
-                                    if (it->second->mtime != fa->mtime || it->second->size != fa->size)
-                                    {
-                                        l->mtime = -1;  // trigger change detection
-                                        delete it->second;   // delete old LocalNode
-                                    }
-                                    else
-                                    {
-                                        LOG_debug << "File move/overwrite detected";
-
-                                        // delete existing LocalNode...
-                                        delete l;
-
-                                        // ...move remote node out of the way...
-                                        client->execsyncdeletions();
-
-                                        // ...and atomically replace with moved one
-                                        client->app->syncupdate_local_move(this, it->second, path.c_str());
-
-                                        // (in case of a move, this synchronously updates l->parent and l->node->parent)
-                                        it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew), true);
-
-                                        // mark as seen / undo possible deletion
-                                        it->second->setnotseen(0);
-
-                                        statecacheadd(it->second);
-
-                                        return it->second;
-                                    }
-                                }
-                                else
-                                {
-                                    l->mtime = -1;  // trigger change detection
-                                }
-                            }
-                        }
-
-                        // no fsid change detected or overwrite with unknown file:
-                        if (fa->mtime != l->mtime || fa->size != l->size)
-                        {
-                            if (fa->fsidvalid && l->fsid != fa->fsid)
-                            {
-                                l->setfsid(fa->fsid, client->fsidnode);
-                            }
-
-                            m_off_t dsize = l->size > 0 ? l->size : 0;
-
-                            if (l->genfingerprint(fa.get()) && l->size >= 0)
-                            {
-                                localbytes -= dsize - l->size;
-                            }
-
-                            client->app->syncupdate_local_file_change(this, l, path.c_str());
-
-                            DBTableTransactionCommitter committer(client->tctable);
-                            client->stopxfer(l, &committer); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
-                            l->bumpnagleds();
-                            l->deleted = false;
-
-                            client->syncactivity = true;
-
-                            statecacheadd(l);
-
-                            fa.reset();
-
-                            if (isnetwork && l->type == FILENODE)
-                            {
-                                LOG_debug << "Queueing extra fs notification for modified file";
-                                dirnotify->notify(DirNotify::EXTRA, NULL, LocalPath(*localpathNew));
-                            }
-                            return l;
-                        }
-                    }
-                    else
-                    {
-                        // (we tolerate overwritten folders, because we do a
-                        // content scan anyway)
-                        if (fa->fsidvalid && fa->fsid != l->fsid)
-                        {
-                            l->setfsid(fa->fsid, client->fsidnode);
-                            newnode = true;
-                        }
-                    }
-                }
-                else
-                {
-                    LOG_debug << "node type changed: recreate";
-                    delete l;
-                    l = NULL;
-                }
-            }
-
-            // new node
-            if (!l)
-            {
-                // rename or move of existing node?
-                handlelocalnode_map::iterator it;
-#ifdef _WIN32
-                const char *colon;
-#endif
-                fsfp_t fp1, fp2;
-                if (fa->fsidvalid && (it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
-                    // additional checks to prevent wrong fsid matches
-                    && it->second->type == fa->type
-                    && (!parent
-                        || (it->second->sync == parent->sync)
-                        || ((fp1 = it->second->sync->dirnotify->fsfingerprint())
-                            && (fp2 = parent->sync->dirnotify->fsfingerprint())
-                            && (fp1 == fp2)
-                        #ifdef _WIN32
-                            // allow moves between different syncs only for local drives with the
-                            // same drive letter, to prevent problems with cloned Volume IDs
-                            && (colon = strstr(parent->sync->localroot->name.c_str(), ":"))
-                            && !memcmp(parent->sync->localroot->name.c_str(),
-                                   it->second->sync->localroot->name.c_str(),
-                                   colon - parent->sync->localroot->name.c_str())
-                        #endif
-                            )
-                       )
-                    && ((it->second->type != FILENODE && !wejustcreatedthisfolder)
-                        || (it->second->mtime == fa->mtime && it->second->size == fa->size)))
-                {
-                    LOG_debug << client->clientname << "Move detected by fsid in checkpath. Type: " << it->second->type << " new path: " << path << " old localnode: " << it->second->localnodedisplaypath(*client->fsaccess);
-
-                    if (fa->type == FILENODE && backoffds)
-                    {
-                        // logic to detect files being updated in the local computer moving the original file
-                        // to another location as a temporary backup
-
-                        m_time_t currentsecs = m_time();
-                        if (!updatedfileinitialts)
-                        {
-                            updatedfileinitialts = currentsecs;
-                        }
-
-                        if (currentsecs >= updatedfileinitialts)
-                        {
-                            if (currentsecs - updatedfileinitialts <= FILE_UPDATE_MAX_DELAY_SECS)
-                            {
-                                bool waitforupdate = false;
-                                auto local = it->second->getLocalPath(true);
-                                auto prevfa = client->fsaccess->newfileaccess(false);
-
-                                bool exists = prevfa->fopen(local);
-                                if (exists)
-                                {
-                                    LOG_debug << "File detected in the origin of a move";
-
-                                    if (currentsecs >= updatedfilets)
-                                    {
-                                        if ((currentsecs - updatedfilets) < (FILE_UPDATE_DELAY_DS / 10))
-                                        {
-                                            LOG_verbose << "currentsecs = " << currentsecs << "  lastcheck = " << updatedfilets
-                                                      << "  currentsize = " << prevfa->size << "  lastsize = " << updatedfilesize;
-                                            LOG_debug << "The file was checked too recently. Waiting...";
-                                            waitforupdate = true;
-                                        }
-                                        else if (updatedfilesize != prevfa->size)
-                                        {
-                                            LOG_verbose << "currentsecs = " << currentsecs << "  lastcheck = " << updatedfilets
-                                                      << "  currentsize = " << prevfa->size << "  lastsize = " << updatedfilesize;
-                                            LOG_debug << "The file size has changed since the last check. Waiting...";
-                                            updatedfilesize = prevfa->size;
-                                            updatedfilets = currentsecs;
-                                            waitforupdate = true;
-                                        }
-                                        else
-                                        {
-                                            LOG_debug << "The file size seems stable";
-                                        }
-                                    }
-                                    else
-                                    {
-                                        LOG_warn << "File checked in the future";
-                                    }
-
-                                    if (!waitforupdate)
-                                    {
-                                        if (currentsecs >= prevfa->mtime)
-                                        {
-                                            if (currentsecs - prevfa->mtime < (FILE_UPDATE_DELAY_DS / 10))
-                                            {
-                                                LOG_verbose << "currentsecs = " << currentsecs << "  mtime = " << prevfa->mtime;
-                                                LOG_debug << "File modified too recently. Waiting...";
-                                                waitforupdate = true;
-                                            }
-                                            else
-                                            {
-                                                LOG_debug << "The modification time seems stable.";
-                                            }
-                                        }
-                                        else
-                                        {
-                                            LOG_warn << "File modified in the future";
-                                        }
-                                    }
-                                }
-                                else
-                                {
-                                    if (prevfa->retry)
-                                    {
-                                        LOG_debug << "The file in the origin is temporarily blocked. Waiting...";
-                                        waitforupdate = true;
-                                    }
-                                    else
-                                    {
-                                        LOG_debug << "There isn't anything in the origin path";
-                                    }
-                                }
-
-                                if (waitforupdate)
-                                {
-                                    LOG_debug << "Possible file update detected.";
-                                    *backoffds = FILE_UPDATE_DELAY_DS;
-                                    return NULL;
-                                }
-                            }
-                            else
-                            {
-                                int creqtag = client->reqtag;
-                                client->reqtag = 0;
-                                client->sendevent(99438, "Timeout waiting for file update");
-                                client->reqtag = creqtag;
-                            }
-                        }
-                        else
-                        {
-                            LOG_warn << "File check started in the future";
-                        }
-                    }
-
-                    client->app->syncupdate_local_move(this, it->second, path.c_str());
-
-                    // (in case of a move, this synchronously updates l->parent
-                    // and l->node->parent)
-                    it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew), true);
-
-                    // make sure that active PUTs receive their updated filenames
-                    client->updateputs();
-
-                    statecacheadd(it->second);
-
-                    // unmark possible deletion
-                    it->second->setnotseen(0);
-
-                    // immediately scan folder to detect deviations from cached state
-                    if (fullscan && fa->type == FOLDERNODE)
-                    {
-                        scan(localpathNew, fa.get());
-                    }
-                }
-                else if (fa->mIsSymLink)
-                {
-                    LOG_debug << "checked path is a symlink.  Parent: " << (parent ? parent->name : "NO");
-                    //doing nothing for the moment
-                }
-                else
-                {
-                    // this is a new node: add
-                    LOG_debug << "New localnode.  Parent: " << (parent ? parent->name : "NO");
-                    l = new LocalNode;
-                    l->init(this, fa->type, parent, *localpathNew, client->fsaccess->fsShortname(*localpathNew));
-
-                    if (fa->fsidvalid)
-                    {
-                        l->setfsid(fa->fsid, client->fsidnode);
-                    }
-
-                    newnode = true;
-                }
-            }
+            // todo: make nodes for symlinks, but never sync them (until we do that as a future project)
+            LOG_debug << "checked path is a symlink: " << localPath.toPath(*client->fsaccess);
+            result.isSymlink = true;
         }
-
-        if (l)
+        result.type = fa->type;
+        result.shortname = client->fsaccess->fsShortname(localPath);
+        result.fsid = fa->fsidvalid ? fa->fsid : 0;  // todo: do we need logic for the non-valid case?
+        if (fa->type == FILENODE)
         {
-            // detect file changes or recurse into new subfolders
-            if (l->type == FOLDERNODE)
-            {
-                if (newnode)
-                {
-                    scan(localpathNew, fa.get());
-                    client->app->syncupdate_local_folder_addition(this, l, path.c_str());
-
-                    if (!isroot)
-                    {
-                        statecacheadd(l);
-                    }
-                }
-                else
-                {
-                    l = NULL;
-                }
-            }
-            else
-            {
-                if (isroot)
-                {
-                    // root node cannot be a file
-                    LOG_err << "The local root node is a file";
-                    changestate(SYNC_FAILED, INVALID_LOCAL_TYPE);
-                }
-                else
-                {
-                    if (fa->fsidvalid && l->fsid != fa->fsid)
-                    {
-                        l->setfsid(fa->fsid, client->fsidnode);
-                    }
-
-                    if (l->size > 0)
-                    {
-                        localbytes -= l->size;
-                    }
-
-                    if (l->genfingerprint(fa.get()))
-                    {
-                        changed = true;
-                        l->bumpnagleds();
-                        l->deleted = false;
-                    }
-
-                    if (l->size > 0)
-                    {
-                        localbytes += l->size;
-                    }
-
-                    if (newnode)
-                    {
-                        client->app->syncupdate_local_file_addition(this, l, path.c_str());
-                    }
-                    else if (changed)
-                    {
-                        client->app->syncupdate_local_file_change(this, l, path.c_str());
-                        DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
-                        client->stopxfer(l, &committer);
-                    }
-
-                    if (newnode || changed)
-                    {
-                        statecacheadd(l);
-                    }
-                }
-            }
-        }
-
-        if (changed || newnode)
-        {
-            if (isnetwork && l->type == FILENODE)
-            {
-                LOG_debug << "Queueing extra fs notification for new file";
-                dirnotify->notify(DirNotify::EXTRA, NULL, LocalPath(*localpathNew));
-            }
-
-            client->syncactivity = true;
+            result.fingerprint.genfingerprint(fa.get());
         }
     }
     else
     {
-        LOG_warn << "Error opening file";
+        LOG_warn << "Error opening file: ";
         if (fa->retry)
         {
             // fopen() signals that the failure is potentially transient - do
             // nothing and request a recheck
-            LOG_warn << "File blocked. Adding notification to the retry queue: " << path;
-            dirnotify->notify(DirNotify::RETRY, ll, LocalPath(*localpathNew));
+            LOG_warn << "File blocked. Adding notification to the retry queue: " << localPath.toPath(*client->fsaccess);
+            //dirnotify->notify(DirNotify::RETRY, ll, LocalPath(*localpathNew));
             client->syncfslockretry = true;
             client->syncfslockretrybt.backoff(SCANNING_DELAY_DS);
-            client->blockedfile = *localpathNew;
+            client->blockedfile = localPath;
         }
-        else if (l)
-        {
-            // immediately stop outgoing transfer, if any
-            if (l->transfer)
-            {
-                DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
-                client->stopxfer(l, &committer);
-            }
-
-            client->syncactivity = true;
-
-            // in fullscan mode, missing files are handled in bulk in deletemissing()
-            // rather than through setnotseen()
-            if (!fullscan)
-            {
-                l->setnotseen(1);
-            }
-        }
-
-        l = NULL;
     }
 
-    return l;
+    return result;
 }
 
-bool Sync::checkValidNotification(int q, Notification& notification)
+// todo: extract all the logic contained here, and apply to the steps in sync()
+
+//// check local path - if !localname, localpath is relative to l, with l == NULL
+//// being the root of the sync
+//// if localname is set, localpath is absolute and localname its last component
+//// path references a new FOLDERNODE: returns created node
+//// path references a existing FILENODE: returns node
+//// otherwise, returns NULL
+//LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* const localname, dstime *backoffds, bool wejustcreatedthisfolder, DirAccess* iteratingDir)
+//{
+//    LocalNode* ll = l;
+//    bool newnode = false, changed = false;
+//    bool isroot;
+//
+//    LocalNode* parent;
+//    string path;           // UTF-8 representation of tmppath
+//    LocalPath tmppath;     // full path represented by l + localpath
+//    LocalPath newname;     // portion of tmppath not covered by the existing
+//                           // LocalNode structure (always the last path component
+//                           // that does not have a corresponding LocalNode yet)
+//
+//    if (localname)
+//    {
+//        // shortcut case (from within syncdown())
+//        isroot = false;
+//        parent = l;
+//        l = NULL;
+//
+//        path = input_localpath->toPath(*client->fsaccess);
+//        assert(path.size());
+//    }
+//    else
+//    {
+//        // construct full filesystem path in tmppath
+//        if (l)
+//        {
+//            tmppath = l->getLocalPath();
+//        }
+//
+//        if (!input_localpath->empty())
+//        {
+//            tmppath.appendWithSeparator(*input_localpath, false, client->fsaccess->localseparator);
+//        }
+//
+//        // look up deepest existing LocalNode by path, store remainder (if any)
+//        // in newname
+//        LocalNode *tmp = localnodebypath(l, *input_localpath, &parent, &newname);
+//        size_t index = 0;
+//
+//        if (newname.findNextSeparator(index, client->fsaccess->localseparator))
+//        {
+//            LOG_warn << "Parent not detected yet. Unknown remainder: " << newname.toPath(*client->fsaccess);
+//            if (parent)
+//            {
+//                LocalPath notifyPath = parent->getLocalPath(true);
+//                notifyPath.appendWithSeparator(newname.subpathTo(index), true, client->fsaccess->localseparator);
+//                dirnotify->notify(DirNotify::DIREVENTS, l, std::move(notifyPath), true);
+//            }
+//            return NULL;
+//        }
+//
+//        l = tmp;
+//
+//        path = tmppath.toPath(*client->fsaccess);
+//
+//        // path invalid?
+//        if ( ( !l && newname.empty() ) || !path.size())
+//        {
+//            LOG_warn << "Invalid path: " << path;
+//            return NULL;
+//        }
+//
+//        string name = !newname.empty() ? newname.toName(*client->fsaccess, mFilesystemType) : l->name;
+//
+//        if (!client->app->sync_syncable(this, name.c_str(), tmppath))
+//        {
+//            LOG_debug << "Excluded: " << path;
+//            return NULL;
+//        }
+//
+//        isroot = l == localroot.get() && newname.empty();
+//    }
+//
+//    LOG_verbose << "Scanning: " << path << " in=" << initializing << " full=" << fullscan << " l=" << l;
+//    LocalPath* localpathNew = localname ? input_localpath : &tmppath;
+//
+//    if (parent)
+//    {
+//        if (state != SYNC_INITIALSCAN && !parent->node)
+//        {
+//            LOG_warn << "Parent doesn't exist yet: " << path;
+//            return (LocalNode*)~0;
+//        }
+//    }
+//
+//    // attempt to open/type this file
+//    auto fa = client->fsaccess->newfileaccess(false);
+//
+//    if (initializing || fullscan)
+//    {
+//        // find corresponding LocalNode by file-/foldername
+//        size_t lastpart = localpathNew->getLeafnameByteIndex(*client->fsaccess);
+//
+//        LocalPath fname(localpathNew->subpathFrom(lastpart));
+//
+//        LocalNode* cl = (parent ? parent : localroot.get())->childbyname(&fname);
+//        if (initializing && cl)
+//        {
+//            // the file seems to be still in the folder
+//            // mark as present to prevent deletions if the file is not accesible
+//            // in that case, the file would be checked again after the initialization
+//            cl->deleted = false;
+//            cl->setnotseen(0);
+//            l->scanseqno = scanseqno;
+//        }
+//
+//        // match cached LocalNode state during initial/rescan to prevent costly re-fingerprinting
+//        // (just compare the fsids, sizes and mtimes to detect changes)
+//        if (fa->fopen(*localpathNew, false, false, iteratingDir))
+//        {
+//            if (cl && fa->fsidvalid && fa->fsid == cl->fsid)
+//            {
+//                // node found and same file
+//                l = cl;
+//                l->deleted = false;
+//                l->setnotseen(0);
+//
+//                // if it's a file, size and mtime must match to qualify
+//                if (l->type != FILENODE || (l->size == fa->size && l->mtime == fa->mtime))
+//                {
+//                    LOG_verbose << "Cached localnode is still valid. Type: " << l->type << "  Size: " << l->size << "  Mtime: " << l->mtime;
+//                    l->scanseqno = scanseqno;
+//
+//                    if (l->type == FOLDERNODE)
+//                    {
+//                        scan(localpathNew, fa.get());
+//                    }
+//                    else
+//                    {
+//                        localbytes += l->size;
+//                    }
+//
+//                    return l;
+//                }
+//            }
+//        }
+//        else
+//        {
+//            LOG_warn << "Error opening file during the initialization: " << path;
+//        }
+//
+//        if (initializing)
+//        {
+//            if (cl)
+//            {
+//                LOG_verbose << "Outdated localnode. Type: " << cl->type << "  Size: " << cl->size << "  Mtime: " << cl->mtime
+//                            << "    FaType: " << fa->type << "  FaSize: " << fa->size << "  FaMtime: " << fa->mtime;
+//            }
+//            else
+//            {
+//                LOG_verbose << "New file. FaType: " << fa->type << "  FaSize: " << fa->size << "  FaMtime: " << fa->mtime;
+//            }
+//            return NULL;
+//        }
+//
+//        fa = client->fsaccess->newfileaccess(false);
+//    }
+//
+//    if (fa->fopen(*localpathNew, true, false))
+//    {
+//        if (!isroot)
+//        {
+//            if (l)
+//            {
+//                if (l->type == fa->type)
+//                {
+//                    // mark as present
+//                    l->setnotseen(0);
+//
+//                    if (fa->type == FILENODE)
+//                    {
+//                        // has the file been overwritten or changed since the last scan?
+//                        // or did the size or mtime change?
+//                        if (fa->fsidvalid)
+//                        {
+//                            // if fsid has changed, the file was overwritten
+//                            // (FIXME: handle type changes)
+//                            if (l->fsid != fa->fsid)
+//                            {
+//                                handlelocalnode_map::iterator it;
+//#ifdef _WIN32
+//                                const char *colon;
+//#endif
+//                                fsfp_t fp1, fp2;
+//
+//                                // was the file overwritten by moving an existing file over it?
+//                                if ((it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
+//                                        && (l->sync == it->second->sync
+//                                            || ((fp1 = l->sync->dirnotify->fsfingerprint())
+//                                                && (fp2 = it->second->sync->dirnotify->fsfingerprint())
+//                                                && (fp1 == fp2)
+//                                            #ifdef _WIN32
+//                                                // only consider fsid matches between different syncs for local drives with the
+//                                                // same drive letter, to prevent problems with cloned Volume IDs
+//                                                && (colon = strstr(parent->sync->localroot->name.c_str(), ":"))
+//                                                && !memcmp(parent->sync->localroot->name.c_str(),
+//                                                       it->second->sync->localroot->name.c_str(),
+//                                                       colon - parent->sync->localroot->name.c_str())
+//                                            #endif
+//                                                )
+//                                            )
+//                                    )
+//                                {
+//                                    // catch the not so unlikely case of a false fsid match due to
+//                                    // e.g. a file deletion/creation cycle that reuses the same inode
+//                                    if (it->second->mtime != fa->mtime || it->second->size != fa->size)
+//                                    {
+//                                        l->mtime = -1;  // trigger change detection
+//                                        delete it->second;   // delete old LocalNode
+//                                    }
+//                                    else
+//                                    {
+//                                        LOG_debug << "File move/overwrite detected";
+//
+//                                        // delete existing LocalNode...
+//                                        delete l;
+//
+//                                        // ...move remote node out of the way...
+//                                        client->execsyncdeletions();
+//
+//                                        // ...and atomically replace with moved one
+//                                        client->app->syncupdate_local_move(this, it->second, path.c_str());
+//
+//                                        // (in case of a move, this synchronously updates l->parent and l->node->parent)
+//                                        it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew), true);
+//
+//                                        // mark as seen / undo possible deletion
+//                                        it->second->setnotseen(0);
+//
+//                                        statecacheadd(it->second);
+//
+//                                        return it->second;
+//                                    }
+//                                }
+//                                else
+//                                {
+//                                    l->mtime = -1;  // trigger change detection
+//                                }
+//                            }
+//                        }
+//
+//                        // no fsid change detected or overwrite with unknown file:
+//                        if (fa->mtime != l->mtime || fa->size != l->size)
+//                        {
+//                            if (fa->fsidvalid && l->fsid != fa->fsid)
+//                            {
+//                                l->setfsid(fa->fsid, client->fsidnode);
+//                            }
+//
+//                            m_off_t dsize = l->size > 0 ? l->size : 0;
+//
+//                            if (l->genfingerprint(fa.get()) && l->size >= 0)
+//                            {
+//                                localbytes -= dsize - l->size;
+//                            }
+//
+//                            client->app->syncupdate_local_file_change(this, l, path.c_str());
+//
+//                            DBTableTransactionCommitter committer(client->tctable);
+//                            client->stopxfer(l, &committer); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
+//                            l->bumpnagleds();
+//                            l->deleted = false;
+//
+//                            client->syncactivity = true;
+//
+//                            statecacheadd(l);
+//
+//                            fa.reset();
+//
+//                            if (isnetwork && l->type == FILENODE)
+//                            {
+//                                LOG_debug << "Queueing extra fs notification for modified file";
+//                                dirnotify->notify(DirNotify::EXTRA, NULL, LocalPath(*localpathNew));
+//                            }
+//                            return l;
+//                        }
+//                    }
+//                    else
+//                    {
+//                        // (we tolerate overwritten folders, because we do a
+//                        // content scan anyway)
+//                        if (fa->fsidvalid && fa->fsid != l->fsid)
+//                        {
+//                            l->setfsid(fa->fsid, client->fsidnode);
+//                            newnode = true;
+//                        }
+//                    }
+//                }
+//                else
+//                {
+//                    LOG_debug << "node type changed: recreate";
+//                    delete l;
+//                    l = NULL;
+//                }
+//            }
+//
+//            // new node
+//            if (!l)
+//            {
+//                // rename or move of existing node?
+//                handlelocalnode_map::iterator it;
+//#ifdef _WIN32
+//                const char *colon;
+//#endif
+//                fsfp_t fp1, fp2;
+//                if (fa->fsidvalid && (it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
+//                    // additional checks to prevent wrong fsid matches
+//                    && it->second->type == fa->type
+//                    && (!parent
+//                        || (it->second->sync == parent->sync)
+//                        || ((fp1 = it->second->sync->dirnotify->fsfingerprint())
+//                            && (fp2 = parent->sync->dirnotify->fsfingerprint())
+//                            && (fp1 == fp2)
+//                        #ifdef _WIN32
+//                            // allow moves between different syncs only for local drives with the
+//                            // same drive letter, to prevent problems with cloned Volume IDs
+//                            && (colon = strstr(parent->sync->localroot->name.c_str(), ":"))
+//                            && !memcmp(parent->sync->localroot->name.c_str(),
+//                                   it->second->sync->localroot->name.c_str(),
+//                                   colon - parent->sync->localroot->name.c_str())
+//                        #endif
+//                            )
+//                       )
+//                    && ((it->second->type != FILENODE && !wejustcreatedthisfolder)
+//                        || (it->second->mtime == fa->mtime && it->second->size == fa->size)))
+//                {
+//                    LOG_debug << client->clientname << "Move detected by fsid in checkpath. Type: " << it->second->type << " new path: " << path << " old localnode: " << it->second->localnodedisplaypath(*client->fsaccess);
+//
+//                    if (fa->type == FILENODE && backoffds)
+//                    {
+//                        // logic to detect files being updated in the local computer moving the original file
+//                        // to another location as a temporary backup
+//
+//                        m_time_t currentsecs = m_time();
+//                        if (!updatedfileinitialts)
+//                        {
+//                            updatedfileinitialts = currentsecs;
+//                        }
+//
+//                        if (currentsecs >= updatedfileinitialts)
+//                        {
+//                            if (currentsecs - updatedfileinitialts <= FILE_UPDATE_MAX_DELAY_SECS)
+//                            {
+//                                bool waitforupdate = false;
+//                                auto local = it->second->getLocalPath(true);
+//                                auto prevfa = client->fsaccess->newfileaccess(false);
+//
+//                                bool exists = prevfa->fopen(local);
+//                                if (exists)
+//                                {
+//                                    LOG_debug << "File detected in the origin of a move";
+//
+//                                    if (currentsecs >= updatedfilets)
+//                                    {
+//                                        if ((currentsecs - updatedfilets) < (FILE_UPDATE_DELAY_DS / 10))
+//                                        {
+//                                            LOG_verbose << "currentsecs = " << currentsecs << "  lastcheck = " << updatedfilets
+//                                                      << "  currentsize = " << prevfa->size << "  lastsize = " << updatedfilesize;
+//                                            LOG_debug << "The file was checked too recently. Waiting...";
+//                                            waitforupdate = true;
+//                                        }
+//                                        else if (updatedfilesize != prevfa->size)
+//                                        {
+//                                            LOG_verbose << "currentsecs = " << currentsecs << "  lastcheck = " << updatedfilets
+//                                                      << "  currentsize = " << prevfa->size << "  lastsize = " << updatedfilesize;
+//                                            LOG_debug << "The file size has changed since the last check. Waiting...";
+//                                            updatedfilesize = prevfa->size;
+//                                            updatedfilets = currentsecs;
+//                                            waitforupdate = true;
+//                                        }
+//                                        else
+//                                        {
+//                                            LOG_debug << "The file size seems stable";
+//                                        }
+//                                    }
+//                                    else
+//                                    {
+//                                        LOG_warn << "File checked in the future";
+//                                    }
+//
+//                                    if (!waitforupdate)
+//                                    {
+//                                        if (currentsecs >= prevfa->mtime)
+//                                        {
+//                                            if (currentsecs - prevfa->mtime < (FILE_UPDATE_DELAY_DS / 10))
+//                                            {
+//                                                LOG_verbose << "currentsecs = " << currentsecs << "  mtime = " << prevfa->mtime;
+//                                                LOG_debug << "File modified too recently. Waiting...";
+//                                                waitforupdate = true;
+//                                            }
+//                                            else
+//                                            {
+//                                                LOG_debug << "The modification time seems stable.";
+//                                            }
+//                                        }
+//                                        else
+//                                        {
+//                                            LOG_warn << "File modified in the future";
+//                                        }
+//                                    }
+//                                }
+//                                else
+//                                {
+//                                    if (prevfa->retry)
+//                                    {
+//                                        LOG_debug << "The file in the origin is temporarily blocked. Waiting...";
+//                                        waitforupdate = true;
+//                                    }
+//                                    else
+//                                    {
+//                                        LOG_debug << "There isn't anything in the origin path";
+//                                    }
+//                                }
+//
+//                                if (waitforupdate)
+//                                {
+//                                    LOG_debug << "Possible file update detected.";
+//                                    *backoffds = FILE_UPDATE_DELAY_DS;
+//                                    return NULL;
+//                                }
+//                            }
+//                            else
+//                            {
+//                                int creqtag = client->reqtag;
+//                                client->reqtag = 0;
+//                                client->sendevent(99438, "Timeout waiting for file update");
+//                                client->reqtag = creqtag;
+//                            }
+//                        }
+//                        else
+//                        {
+//                            LOG_warn << "File check started in the future";
+//                        }
+//                    }
+//
+//                    client->app->syncupdate_local_move(this, it->second, path.c_str());
+//
+//                    // (in case of a move, this synchronously updates l->parent
+//                    // and l->node->parent)
+//                    it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew), true);
+//
+//                    // make sure that active PUTs receive their updated filenames
+//                    client->updateputs();
+//
+//                    statecacheadd(it->second);
+//
+//                    // unmark possible deletion
+//                    it->second->setnotseen(0);
+//
+//                    // immediately scan folder to detect deviations from cached state
+//                    if (fullscan && fa->type == FOLDERNODE)
+//                    {
+//                        scan(localpathNew, fa.get());
+//                    }
+//                }
+//                else if (fa->mIsSymLink)
+//                {
+//                    LOG_debug << "checked path is a symlink.  Parent: " << (parent ? parent->name : "NO");
+//                    //doing nothing for the moment
+//                }
+//                else
+//                {
+//                    // this is a new node: add
+//                    LOG_debug << "New localnode.  Parent: " << (parent ? parent->name : "NO");
+//                    l = new LocalNode;
+//                    l->init(this, fa->type, parent, *localpathNew, client->fsaccess->fsShortname(*localpathNew));
+//
+//                    if (fa->fsidvalid)
+//                    {
+//                        l->setfsid(fa->fsid, client->fsidnode);
+//                    }
+//
+//                    newnode = true;
+//                }
+//            }
+//        }
+//
+//        if (l)
+//        {
+//            // detect file changes or recurse into new subfolders
+//            if (l->type == FOLDERNODE)
+//            {
+//                if (newnode)
+//                {
+//                    scan(localpathNew, fa.get());
+//                    client->app->syncupdate_local_folder_addition(this, l, path.c_str());
+//
+//                    if (!isroot)
+//                    {
+//                        statecacheadd(l);
+//                    }
+//                }
+//                else
+//                {
+//                    l = NULL;
+//                }
+//            }
+//            else
+//            {
+//                if (isroot)
+//                {
+//                    // root node cannot be a file
+//                    LOG_err << "The local root node is a file";
+//                    changestate(SYNC_FAILED, INVALID_LOCAL_TYPE);
+//                }
+//                else
+//                {
+//                    if (fa->fsidvalid && l->fsid != fa->fsid)
+//                    {
+//                        l->setfsid(fa->fsid, client->fsidnode);
+//                    }
+//
+//                    if (l->size > 0)
+//                    {
+//                        localbytes -= l->size;
+//                    }
+//
+//                    if (l->genfingerprint(fa.get()))
+//                    {
+//                        changed = true;
+//                        l->bumpnagleds();
+//                        l->deleted = false;
+//                    }
+//
+//                    if (l->size > 0)
+//                    {
+//                        localbytes += l->size;
+//                    }
+//
+//                    if (newnode)
+//                    {
+//                        client->app->syncupdate_local_file_addition(this, l, path.c_str());
+//                    }
+//                    else if (changed)
+//                    {
+//                        client->app->syncupdate_local_file_change(this, l, path.c_str());
+//                        DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
+//                        client->stopxfer(l, &committer);
+//                    }
+//
+//                    if (newnode || changed)
+//                    {
+//                        statecacheadd(l);
+//                    }
+//                }
+//            }
+//        }
+//
+//        if (changed || newnode)
+//        {
+//            if (isnetwork && l->type == FILENODE)
+//            {
+//                LOG_debug << "Queueing extra fs notification for new file";
+//                dirnotify->notify(DirNotify::EXTRA, NULL, LocalPath(*localpathNew));
+//            }
+//
+//            client->syncactivity = true;
+//        }
+//    }
+//    else
+//    {
+//        LOG_warn << "Error opening file";
+//        if (fa->retry)
+//        {
+//            // fopen() signals that the failure is potentially transient - do
+//            // nothing and request a recheck
+//            LOG_warn << "File blocked. Adding notification to the retry queue: " << path;
+//            dirnotify->notify(DirNotify::RETRY, ll, LocalPath(*localpathNew));
+//            client->syncfslockretry = true;
+//            client->syncfslockretrybt.backoff(SCANNING_DELAY_DS);
+//            client->blockedfile = *localpathNew;
+//        }
+//        else if (l)
+//        {
+//            // immediately stop outgoing transfer, if any
+//            if (l->transfer)
+//            {
+//                DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
+//                client->stopxfer(l, &committer);
+//            }
+//
+//            client->syncactivity = true;
+//
+//            // in fullscan mode, missing files are handled in bulk in deletemissing()
+//            // rather than through setnotseen()
+//            if (!fullscan)
+//            {
+//                l->setnotseen(1);
+//            }
+//        }
+//
+//        l = NULL;
+//    }
+//
+//    return l;
+//}
+
+//bool Sync::checkValidNotification(int q, Notification& notification)
+//{
+//    // This code moved from filtering before going on notifyq, to filtering after when it's thread-safe to do so
+//
+//    if (q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
+//    {
+//        Notification next;
+//        while (dirnotify->notifyq[q].peekFront(next)
+//            && next.localnode == notification.localnode && next.path == notification.path)
+//        {
+//            dirnotify->notifyq[q].popFront(next);  // this is the only thread removing from the queue so it will be the same item
+//            if (!notification.timestamp || !next.timestamp)
+//            {
+//                notification.timestamp = 0;  // immediate
+//            }
+//            else
+//            {
+//                notification.timestamp = std::max(notification.timestamp, next.timestamp);
+//            }
+//            LOG_debug << "Next notification repeats, skipping duplicate";
+//        }
+//    }
+//
+//    if (notification.timestamp && /*!initializing &&*/ q == DirNotify::DIREVENTS)
+//    {
+//        LocalPath tmppath;
+//        if (notification.localnode)
+//        {
+//            tmppath = notification.localnode->getLocalPath(true);
+//        }
+//
+//        if (!notification.path.empty())
+//        {
+//            tmppath.appendWithSeparator(notification.path, false, client->fsaccess->localseparator);
+//        }
+//
+//        attr_map::iterator ait;
+//        auto fa = client->fsaccess->newfileaccess(false);
+//        bool success = fa->fopen(tmppath, false, false);
+//        LocalNode *ll = localnodebypath(notification.localnode, notification.path);
+//        if ((!ll && !success && !fa->retry) // deleted file
+//            || (ll && success && ll->node && ll->node->localnode == ll
+//                && (ll->type != FILENODE || (*(FileFingerprint *)ll) == (*(FileFingerprint *)ll->node))
+//                && (ait = ll->node->attrs.map.find('n')) != ll->node->attrs.map.end()
+//                && ait->second == ll->name
+//                && fa->fsidvalid && fa->fsid == ll->fsid && fa->type == ll->type
+//                && (ll->type != FILENODE || (ll->mtime == fa->mtime && ll->size == fa->size))))
+//        {
+//            LOG_debug << "Self filesystem notification skipped";
+//            return false;
+//        }
+//    }
+//    return true;
+//}
+
+
+//  Just mark the relative LocalNodes as needing to be rescanned.
+void Sync::procscanq(int q)
 {
-    // This code moved from filtering before going on notifyq, to filtering after when it's thread-safe to do so
+    if (dirnotify->notifyq[q].empty()) return;
 
-    if (q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
-    {
-        Notification next;
-        while (dirnotify->notifyq[q].peekFront(next)
-            && next.localnode == notification.localnode && next.path == notification.path)
-        {
-            dirnotify->notifyq[q].popFront(next);  // this is the only thread removing from the queue so it will be the same item
-            if (!notification.timestamp || !next.timestamp)
-            {
-                notification.timestamp = 0;  // immediate
-            }
-            else
-            {
-                notification.timestamp = std::max(notification.timestamp, next.timestamp);
-            }
-            LOG_debug << "Next notification repeats, skipping duplicate";
-        }
-    }
-
-    if (notification.timestamp && !initializing && q == DirNotify::DIREVENTS)
-    {
-        LocalPath tmppath;
-        if (notification.localnode)
-        {
-            tmppath = notification.localnode->getLocalPath(true);
-        }
-
-        if (!notification.path.empty())
-        {
-            tmppath.appendWithSeparator(notification.path, false, client->fsaccess->localseparator);
-        }
-
-        attr_map::iterator ait;
-        auto fa = client->fsaccess->newfileaccess(false);
-        bool success = fa->fopen(tmppath, false, false);
-        LocalNode *ll = localnodebypath(notification.localnode, notification.path);
-        if ((!ll && !success && !fa->retry) // deleted file
-            || (ll && success && ll->node && ll->node->localnode == ll
-                && (ll->type != FILENODE || (*(FileFingerprint *)ll) == (*(FileFingerprint *)ll->node))
-                && (ait = ll->node->attrs.map.find('n')) != ll->node->attrs.map.end()
-                && ait->second == ll->name
-                && fa->fsidvalid && fa->fsid == ll->fsid && fa->type == ll->type
-                && (ll->type != FILENODE || (ll->mtime == fa->mtime && ll->size == fa->size))))
-        {
-            LOG_debug << "Self filesystem notification skipped";
-            return false;
-        }
-    }
-    return true;
-}
-
-// add or refresh local filesystem item from scan stack, add items to scan stack
-// returns 0 if a parent node is missing, ~0 if control should be yielded, or the time
-// until a retry should be made (500 ms minimum latency).
-dstime Sync::procscanq(int q)
-{
-    dstime dsmin = Waiter::ds - SCANNING_DELAY_DS;
-    LocalNode* l;
+    LOG_verbose << "Marking sync tree with filesystem notifications: " << dirnotify->notifyq[q].size();
 
     Notification notification;
     while (dirnotify->notifyq[q].popFront(notification))
     {
-        if (!checkValidNotification(q, notification))
-        {
-            continue;
-        }
-
-        LOG_verbose << "Scanning... Remaining files: " << dirnotify->notifyq[q].size();
-
-        if (notification.timestamp > dsmin)
-        {
-            LOG_verbose << "Scanning postponed. Modification too recent";
-            dirnotify->notifyq[q].unpopFront(notification);
-            return notification.timestamp - dsmin;
-        }
-
+        LocalNode* l;
         if ((l = notification.localnode) != (LocalNode*)~0)
         {
-            dstime backoffds = 0;
-            LOG_verbose << "Checkpath: " << notification.path.toPath(*client->fsaccess);
-
-            l = checkpath(l, &notification.path, NULL, &backoffds, false, nullptr);
-            if (backoffds)
+            LocalPath remainder;
+            if (LocalNode *deepest = localnodebypath(l, notification.path, nullptr, &remainder))
             {
-                LOG_verbose << "Scanning deferred during " << backoffds << " ds";
-                notification.timestamp = Waiter::ds + backoffds - SCANNING_DELAY_DS;
-                dirnotify->notifyq[q].unpopFront(notification);
-                return backoffds;
-            }
-            updatedfilesize = ~0;
-            updatedfilets = 0;
-            updatedfileinitialts = 0;
-
-            // defer processing because of a missing parent node?
-            if (l == (LocalNode*)~0)
-            {
-                LOG_verbose << "Scanning deferred";
-                dirnotify->notifyq[q].unpopFront(notification);
-                return 0;
+                deepest->setFutureScan(remainder.empty() ? LocalNode::SYNCTREE_ACTION_HERE_ONLY : LocalNode::SYNCTREE_ACTION_HERE_AND_BELOW);
+                deepest->setFutureSync(remainder.empty() ? LocalNode::SYNCTREE_ACTION_HERE_ONLY : LocalNode::SYNCTREE_ACTION_HERE_AND_BELOW);
+                client->filesystemNotificationsQuietTime = Waiter::ds + (isnetwork && l->type == FILENODE ? Sync::EXTRA_SCANNING_DELAY_DS : SCANNING_DELAY_DS);
             }
         }
         else
@@ -1846,30 +1869,7 @@ dstime Sync::procscanq(int q)
             string utf8path = notification.path.toPath(*client->fsaccess);
             LOG_debug << "Notification skipped: " << utf8path;
         }
-
-        // we return control to the application in case a filenode was added
-        // (in order to avoid lengthy blocking episodes due to multiple
-        // consecutive fingerprint calculations)
-        // or if new nodes are being added due to a copy/delete operation
-        if ((l && l != (LocalNode*)~0 && l->type == FILENODE) || client->syncadding)
-        {
-            break;
-        }
     }
-
-    if (dirnotify->notifyq[q].empty())
-    {
-        if (q == DirNotify::DIREVENTS)
-        {
-            client->syncactivity = true;
-        }
-    }
-    else if (dirnotify->notifyq[!q].empty())
-    {
-        cachenodes();
-    }
-
-    return dstime(~0);
 }
 
 // delete all child LocalNodes that have been missing for two consecutive scans (*l must still exist)

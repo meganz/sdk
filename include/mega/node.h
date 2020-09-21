@@ -333,8 +333,22 @@ inline bool Node::keyApplied() const
     return nodekeydata.size() == size_t((type == FILENODE) ? FILENODEKEYLENGTH : FOLDERNODEKEYLENGTH);
 }
 
-
 #ifdef ENABLE_SYNC
+
+struct MEGA_API FSNode
+{
+    // A structure convenient for containing just the attributes of one item from the filesystem
+    LocalPath localname;
+    unique_ptr<LocalPath> shortname;
+    nodetype_t type = TYPE_UNKNOWN;
+    m_off_t size = 0;
+    m_time_t mtime = 0;
+    mega::handle fsid = mega::UNDEF;
+    bool isSymlink = false;
+    FileFingerprint fingerprint;
+};
+
+
 struct MEGA_API LocalNode : public File
 {
     class Sync* sync = nullptr;
@@ -381,11 +395,13 @@ struct MEGA_API LocalNode : public File
     // global sync reference
     handle syncid = mega::UNDEF;
 
-    enum : unsigned
+    enum TREESTATE : unsigned
     {
         SYNCTREE_RESOLVED = 0,
         SYNCTREE_DESCENDANT_FLAGGED = 1,
-        SYNCTREE_SCAN_HERE = 2 };  // scan here also implies checking immdiate children for synctree_descendantflagged
+        SYNCTREE_ACTION_HERE_ONLY = 2,       // but do check if any children have flags set
+        SYNCTREE_ACTION_HERE_AND_BELOW = 3   // overrides any children so the whole subtree is processed
+    };
 
     struct
     {
@@ -401,18 +417,19 @@ struct MEGA_API LocalNode : public File
         // checked for missing attributes
         bool checked : 1;
 
-        // needs another syncdown after pending changes
-        unsigned syncdownTargetedAction : 2;
+        // needs another sync() at this level after pending changes
+        unsigned syncAgain : 2;   // TREESTATE
 
-        // needs another syncup after pending changes
-        unsigned syncupTargetedAction : 2;
+        // needs another scan() (and sync() by implication) at this level after pending changes
+        unsigned scanAgain: 2;    // TREESTATE
+
     };
 
-    // set the syncupTargetedAction for this, and parents
-    void needsFutureSyncup();
+    dstime lastScanTime = 0;
 
-    // set the syncdownTargetedAction for this, and parents
-    void needsFutureSyncdown();
+    // set the syncupTargetedAction for this, and parents
+    void setFutureSync(TREESTATE s);
+    void setFutureScan(TREESTATE s);
 
     // current subtree sync state: current and displayed
     treestate_t ts = TREESTATE_NONE;
@@ -438,6 +455,8 @@ struct MEGA_API LocalNode : public File
 
     // return child node by name
     LocalNode* childbyname(LocalPath*);
+
+    FSNode getKnownFSDetails();
 
 #ifdef USE_INOTIFY
     // node-specific DirNotify tag

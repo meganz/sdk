@@ -122,17 +122,14 @@ public:
     // change state, signal to application
     void changestate(syncstate_t, SyncError newSyncError = NO_SYNC_ERROR);
 
-    // skip duplicates and self-caused
-    bool checkValidNotification(int q, Notification& notification);
+    //// skip duplicates and self-caused
+    //bool checkValidNotification(int q, Notification& notification);
 
-    // process and remove one directory notification queue item from *notify
-    dstime procscanq(int);
+    // process all outstanding filesystem notifications (mark sections of the sync tree to visit)
+    void procscanq(int);
 
     // recursively look for vanished child nodes and delete them
     void deletemissing(LocalNode*);
-
-    // scan specific path
-    LocalNode* checkpath(LocalNode*, LocalPath*, string* const, dstime*, bool wejustcreatedthisfolder, DirAccess* iteratingDir);
 
     m_off_t localbytes = 0;
     unsigned localnodes[2]{};
@@ -146,7 +143,10 @@ public:
 
     // scan items in specified path and add as children of the specified
     // LocalNode
-    bool scan(LocalPath*, FileAccess*);
+    vector<FSNode> scanOne(LocalNode&, LocalPath&);
+
+    // scan specific path
+    FSNode checkpathOne(LocalPath& localPath, const LocalPath& leafname, DirAccess* iteratingDir);
 
     // own position in session sync list
     sync_list::iterator sync_it{};
@@ -182,7 +182,7 @@ public:
     Error apiErrorCode; //in case a cancellation is caused by a regular error (unused)
 
     // true if the sync hasn't loaded cached LocalNodes yet
-    bool initializing = true;
+    //bool initializing = true;
 
     // true if the local synced folder is a network folder
     bool isnetwork = false;

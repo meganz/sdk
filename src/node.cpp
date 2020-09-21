@@ -1134,6 +1134,9 @@ bool PublicLink::isExpired()
 // no shortname allowed as the last path component.
 void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std::unique_ptr<LocalPath> newshortname, bool applyToCloud)
 {
+
+    assert(!applyToCloud);
+
     if (!sync)
     {
         LOG_err << "LocalNode::init() was never called";
@@ -1141,7 +1144,7 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
         return;
     }
 
-    bool newnode = localname.empty();
+    //bool newnode = localname.empty();
     Node* todelete = NULL;
     int nc = 0;
     Sync* oldsync = NULL;
@@ -1170,23 +1173,23 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
             localname = newlocalpath->subpathFrom(p);
             name = localname.toName(*sync->client->fsaccess, sync->mFilesystemType);
 
-            if (node && applyToCloud)
-            {
-                if (!node->hasName(name))
-                {
-                    if (node->type == FILENODE)
-                    {
-                        treestate(TREESTATE_SYNCING);
-                    }
-                    else
-                    {
-                        sync->client->app->syncupdate_treestate(this);
-                    }
+            //if (node && applyToCloud)
+            //{
+            //    if (!node->hasName(name))
+            //    {
+            //        if (node->type == FILENODE)
+            //        {
+            //            treestate(TREESTATE_SYNCING);
+            //        }
+            //        else
+            //        {
+            //            sync->client->app->syncupdate_treestate(this);
+            //        }
 
-                    // queue command to set new name
-                    sync->client->setattr(node, attr_map('n', name), sync->tag);
-                }
-            }
+            //        // queue command to set new name
+            //        sync->client->setattr(node, attr_map('n', name), sync->tag);
+            //    }
+            //}
         }
     }
 
@@ -1201,28 +1204,28 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
         {
             parent = newparent;
 
-            if (!newnode && node && applyToCloud)
-            {
-                assert(parent->node);
+            //if (!newnode && node && applyToCloud)
+            //{
+            //    assert(parent->node);
 
-                int creqtag = sync->client->reqtag;
-                sync->client->reqtag = sync->tag;
-                LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
-                if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) == API_EACCESS
-                        && sync != parent->sync)
-                {
-                    LOG_debug << "Rename not permitted. Using node copy/delete";
+            //    int creqtag = sync->client->reqtag;
+            //    sync->client->reqtag = sync->tag;
+            //    LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
+            //    if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) == API_EACCESS
+            //            && sync != parent->sync)
+            //    {
+            //        LOG_debug << "Rename not permitted. Using node copy/delete";
 
-                    // save for deletion
-                    todelete = node;
-                }
-                sync->client->reqtag = creqtag;
+            //        // save for deletion
+            //        todelete = node;
+            //    }
+            //    sync->client->reqtag = creqtag;
 
-                if (type == FILENODE)
-                {
-                    ts = TREESTATE_SYNCING;
-                }
-            }
+            //    if (type == FILENODE)
+            //    {
+            //        ts = TREESTATE_SYNCING;
+            //    }
+            //}
 
             if (sync != parent->sync)
             {
@@ -1254,22 +1257,22 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
 
         treestate(TREESTATE_NONE);
 
-        if (todelete)
-        {
-            // complete the copy/delete operation
-            dstime nds = NEVER;
-            size_t numPending = 0;
-            sync->client->syncup(parent, &nds, numPending, true);
+        //if (todelete)
+        //{
+        //    // complete the copy/delete operation
+        //    dstime nds = NEVER;
+        //    size_t numPending = 0;
+        //    sync->client->syncup(parent, &nds, numPending, true);
 
-            // check if nodes can be immediately created
-            bool immediatecreation = (int) sync->client->synccreate.size() == nc;
+        //    // check if nodes can be immediately created
+        //    bool immediatecreation = (int) sync->client->synccreate.size() == nc;
 
-            sync->client->syncupdate();
+        //    sync->client->syncupdate();
 
-            // try to keep nodes in syncdebris if they can't be immediately created
-            // to avoid uploads
-            sync->client->movetosyncdebris(todelete, immediatecreation || oldsync->inshare);
-        }
+        //    // try to keep nodes in syncdebris if they can't be immediately created
+        //    // to avoid uploads
+        //    sync->client->movetosyncdebris(todelete, immediatecreation || oldsync->inshare);
+        //}
 
         if (oldsync)
         {
@@ -1304,8 +1307,8 @@ LocalNode::LocalNode()
 , created{false}
 , reported{false}
 , checked{false}
-, syncdownTargetedAction(SYNCTREE_RESOLVED)
-, syncupTargetedAction(SYNCTREE_RESOLVED)
+, scanAgain(SYNCTREE_RESOLVED)
+, syncAgain(SYNCTREE_RESOLVED)
 {}
 
 // initialize fresh LocalNode object - must be called exactly once
@@ -1318,8 +1321,8 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     deleted = false;
     created = false;
     reported = false;
-    syncdownTargetedAction = SYNCTREE_RESOLVED;
-    syncupTargetedAction = SYNCTREE_RESOLVED;
+    scanAgain = SYNCTREE_RESOLVED;
+    syncAgain = SYNCTREE_RESOLVED;
     syncxfer = true;
     newnode.reset();
     parent_dbid = 0;
@@ -1361,31 +1364,24 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     sync->localnodes[type]++;
 }
 
-void LocalNode::needsFutureSyncup()
+void LocalNode::setFutureScan(TREESTATE newNeed)
 {
-    syncupTargetedAction = syncupTargetedAction < SYNCTREE_SCAN_HERE ? SYNCTREE_SCAN_HERE : syncupTargetedAction;
+    scanAgain = std::max<unsigned>(scanAgain, newNeed);
     for (auto p = parent; p != NULL; p = p->parent)
     {
-        if (p->syncupTargetedAction >= SYNCTREE_DESCENDANT_FLAGGED)
-        {
-            break;
-        }
-        p->syncupTargetedAction = SYNCTREE_DESCENDANT_FLAGGED;
+        p->scanAgain = std::max<unsigned>(p->scanAgain, SYNCTREE_DESCENDANT_FLAGGED);
     }
 }
 
-void LocalNode::needsFutureSyncdown()
+void LocalNode::setFutureSync(TREESTATE newNeed)
 {
-    syncdownTargetedAction = syncdownTargetedAction < SYNCTREE_SCAN_HERE ? SYNCTREE_SCAN_HERE : syncdownTargetedAction;
+    syncAgain = std::max<unsigned>(syncAgain, newNeed);
     for (auto p = parent; p != NULL; p = p->parent)
     {
-        if (p->syncdownTargetedAction >= SYNCTREE_DESCENDANT_FLAGGED)
-        {
-            break;
-        }
-        p->syncdownTargetedAction = SYNCTREE_DESCENDANT_FLAGGED;
+        p->syncAgain = std::max<unsigned>(p->syncAgain, SYNCTREE_DESCENDANT_FLAGGED);
     }
 }
+
 
 // update treestates back to the root LocalNode, inform app about changes
 void LocalNode::treestate(treestate_t newts)
@@ -1671,6 +1667,20 @@ LocalNode* LocalNode::childbyname(LocalPath* localname)
     }
 
     return it->second;
+}
+
+FSNode LocalNode::getKnownFSDetails()
+{
+    FSNode n;
+    n.localname = localname;
+    n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
+    n.type = type;
+    n.size = FileFingerprint::size;
+    n.mtime = FileFingerprint::mtime;
+    n.fsid = fsid;
+    n.isSymlink = false;  // todo: store localndoes for symlinks but don't use them?
+    n.fingerprint = *this;
+    return n;
 }
 
 void LocalNode::prepare()

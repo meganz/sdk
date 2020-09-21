@@ -574,18 +574,20 @@ void SyncFileGet::updatelocalname()
 }
 
 // add corresponding LocalNode (by path), then self-destruct
-void SyncFileGet::completed(Transfer*, LocalNode*)
+void SyncFileGet::completed(Transfer*, LocalNode* localNode)
 {
-    LocalNode *ll = sync->checkpath(NULL, &localname, nullptr, nullptr, false, nullptr);
-    if (ll && ll != (LocalNode*)~0 && n
-            && (*(FileFingerprint *)ll) == (*(FileFingerprint *)n))
-    {
-        LOG_debug << "LocalNode created, associating with remote Node";
-        ll->setnode(n);
-        ll->treestate(TREESTATE_SYNCED);
-        ll->sync->statecacheadd(ll);
-        ll->sync->cachenodes();
-    }
+    localNode->setFutureScan(LocalNode::SYNCTREE_ACTION_HERE_ONLY);
+
+    //LocalNode *ll = sync->checkpath(NULL, &localname, nullptr, nullptr, false, nullptr);
+    //if (ll && ll != (LocalNode*)~0 && n
+    //        && (*(FileFingerprint *)ll) == (*(FileFingerprint *)n))
+    //{
+    //    LOG_debug << "LocalNode created, associating with remote Node";
+    //    ll->setnode(n);
+    //    ll->treestate(TREESTATE_SYNCED);
+    //    ll->sync->statecacheadd(ll);
+    //    ll->sync->cachenodes();
+    //}
     delete this;
 }
 
