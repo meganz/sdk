@@ -2913,7 +2913,8 @@ void MegaClient::exec()
                         LocalPath localpath = sync->localroot->localname;
                         if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
                         {
-                            if (!this->sync(*sync->localroot->node, *sync->localroot, localpath))
+                            Sync::syncRow row{sync->localroot->node, sync->localroot.get(), nullptr};
+                            if (!sync->recursiveSync(row, localpath))
                             {
                                 // a local filesystem item was locked - schedule periodic retry
                                 // and force a full rescan afterwards as the local item may
@@ -7589,24 +7590,23 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 }
 
 // send new nodes to API for processing
-void MegaClient::putnodes(handle h, vector<NewNode>&& newnodes, const char *cauth)
+void MegaClient::putnodes(handle h, vector<NewNode>&& newnodes, const char *cauth, int tag)
 {
-    reqs.add(new CommandPutNodes(this, h, NULL, move(newnodes), reqtag, PUTNODES_APP, cauth));
+    reqs.add(new CommandPutNodes(this, h, NULL, move(newnodes), tag, PUTNODES_APP, cauth));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair)
-void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes)
+void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes, int tag)
 {
     User* u;
 
-    restag = reqtag;
-
     if (!(u = finduser(user, 0)) && !user)
     {
+        restag = tag;
         return app->putnodes_result(API_EARGS, USER_HANDLE, newnodes);
     }
 
-    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(move(newnodes), reqtag));
+    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionPutNodes>(move(newnodes), tag));
 }
 
 // returns 1 if node has accesslevel a or better, 0 otherwise
@@ -13324,311 +13324,6 @@ void MegaClient::stopxfers(LocalNode* l, DBTableTransactionCommitter& committer)
 //}
 
 
-bool MegaClient::sync(const Node& cloudNode, LocalNode& syncNode, LocalPath& localPath)
-{
-    // nothing to do for this subtree? Skip traversal
-    if (syncNode.syncAgain == LocalNode::SYNCTREE_RESOLVED && syncNode.scanAgain == LocalNode::SYNCTREE_RESOLVED)
-    {
-        return true;
-    }
-
-    // if there is scanning to do at this level, do it now and come back later for the comparison
-
-    // propagate full-scan flags to children
-    if (syncNode.scanAgain == LocalNode::SYNCTREE_ACTION_HERE_AND_BELOW)
-    {
-        for (auto& c : syncNode.children)
-        {
-            c.second->scanAgain = LocalNode::SYNCTREE_ACTION_HERE_AND_BELOW;
-        }
-
-        syncNode.scanAgain = LocalNode::SYNCTREE_ACTION_HERE_ONLY;
-    }
-
-    // propagate full-sync flags to children
-    if (syncNode.syncAgain == LocalNode::SYNCTREE_ACTION_HERE_AND_BELOW)
-    {
-        for (auto& c : syncNode.children)
-        {
-            c.second->syncAgain = LocalNode::SYNCTREE_ACTION_HERE_AND_BELOW;
-        }
-
-        syncNode.syncAgain = LocalNode::SYNCTREE_ACTION_HERE_ONLY;
-    }
-
-    // Build the 3 lists to compare same-name items (Node, LocalNode, filesystem item)
-
-    // Get the filesystem items list
-    vector<FSNode> fsChildren;
-    fsChildren.reserve(syncNode.children.size());
-    if (syncNode.scanAgain == LocalNode::SYNCTREE_ACTION_HERE_ONLY)
-    {
-        if (Waiter::ds - syncNode.lastScanTime < 20)
-        {
-            // Don't scan a particular folder more frequently than every 2 seconds.  Just revisit later
-            return true;
-        }
-
-        // If we need to scan at this level, do it now - just scan one folder then return from the stack to release the mutex.
-        // Sync actions can occur on the next run
-
-        fsChildren = syncNode.sync->scanOne(syncNode, localPath);
-        syncNode.lastScanTime = Waiter::ds;
-        syncNode.scanAgain = LocalNode::SYNCTREE_RESOLVED;
-        syncNode.syncAgain = LocalNode::SYNCTREE_ACTION_HERE_ONLY;
-    }
-    else
-    {
-        // no filesystem side changes so use our current records
-        for (auto& c: syncNode.children)
-        {
-            fsChildren.push_back(c.second->getKnownFSDetails());
-        }
-    }
-
-    // get the Node list
-    vector<Node*> cloudChildren;
-    cloudChildren.assign(cloudNode.children.begin(), cloudNode.children.end());
-
-    // get the LocalNode list - the sync as last known
-    vector<LocalNode*> syncChildren;
-    syncChildren.reserve(syncNode.children.size());
-    for (auto& c: syncNode.children)
-    {
-        syncChildren.push_back(c.second);
-    }
-
-    struct syncRow
-    {
-        Node* cloudNode;
-        LocalNode* syncNode;
-        FSNode* fsNode;
-    };
-
-    vector<syncRow> childRows;
-    childRows.reserve(fsChildren.size() + cloudChildren.size());
-
-    // sort sync and local (in cloud order) so we can pair them up
-    auto cloudCmpFS = [](FSNode& a, FSNode& b){ return a.localname < b.localname; };
-    auto cloudCmpSync = [](LocalNode* a, LocalNode* b){ return a->localname < b->localname; };
-    std::sort(fsChildren.begin(), fsChildren.end(), cloudCmpFS);
-    std::sort(syncChildren.begin(), syncChildren.end(), cloudCmpSync);
-
-    {
-        // Pair up the sorted local and sync lists
-        auto fsIter = fsChildren.begin();
-        auto syIter = syncChildren.begin();
-        for (;;)
-        {
-            auto nextFS = fsIter;
-            while (nextFS != fsChildren.end() && !cloudCmpFS(*fsIter, *nextFS)) ++nextFS;
-            auto fsEqualNodeCount = std::distance(fsIter, nextFS);
-
-            auto nextSY = syIter;
-            while (nextSY != syncChildren.end() && !cloudCmpSync(*syIter, *nextSY)) ++nextSY;
-            auto syEqualNodeCount = std::distance(syIter, nextSY);
-
-            assert(syEqualNodeCount < 2);
-
-            FSNode* thisFS = fsIter == fsChildren.end() ? nullptr : &*fsIter;
-            LocalNode* thisSY = syIter == syncChildren.end() ? nullptr : *syIter;
-
-            if (thisFS && thisSY)
-            {
-                if (thisFS->localname < thisSY->localname) thisSY = nullptr;
-                if (thisSY->localname < thisFS->localname) thisFS = nullptr;
-            }
-
-            if (!thisFS && !thisSY) break;
-
-            if (thisFS && fsEqualNodeCount > 1)
-            {
-                // todo: alert user of multiple clashing local name issues to resolve
-            }
-            else
-            {
-                childRows.push_back(syncRow{nullptr, thisSY, thisFS});
-            }
-
-            if (thisSY) syIter = nextSY;
-            if (thisFS) fsIter = nextFS;
-        }
-    }
-
-    // sort the cloud list and pair with the sync rows (in local order)
-    auto localCmpString = [](const string& a, const string& b){
-        return a < b;
-    };
-    auto localCmpNode = [=](Node* a, Node* b){
-        return localCmpString(a->displayname(), b->displayname());
-    };
-    auto localCmpRow = [this, &syncNode, localCmpString](syncRow& a, syncRow& b){
-        // if there is no LocalNode yet, compare against the FSNode
-        const string& stringA = a.syncNode ? a.syncNode->name : a.fsNode->localname.toName(*fsaccess, syncNode.sync->mFilesystemType);
-        const string& stringB = b.syncNode ? b.syncNode->name : b.fsNode->localname.toName(*fsaccess, syncNode.sync->mFilesystemType);
-        return localCmpString(stringA, stringB);
-    };
-
-    std::sort(cloudChildren.begin(), cloudChildren.end(), localCmpNode);
-    std::sort(childRows.begin(), childRows.end(), localCmpRow);
-
-    {
-        // Pair up the sorted cloud and syncrow lists
-        auto cloudIter = cloudChildren.begin();
-        auto rowIter = childRows.begin();
-        for (;;)
-        {
-            auto nextCL = cloudIter;
-            while (nextCL != cloudChildren.end() && !localCmpNode(*cloudIter, *nextCL)) ++nextCL;
-            auto cloudEqualNodeCount = std::distance(cloudIter, nextCL);
-
-            auto nextRow = rowIter;
-            while (nextRow != childRows.end() && !localCmpRow(*rowIter, *nextRow)) ++nextRow;
-            auto rowDistance = std::distance(rowIter, nextRow);
-
-            assert(rowDistance < 2);
-
-            Node* thisCl = cloudIter == cloudChildren.end() ? nullptr : *cloudIter;
-            syncRow* thisRow = rowIter == childRows.end() ? nullptr : &*rowIter;
-
-            if (thisCl && thisRow)
-            {
-                assert(thisRow->syncNode);
-                if (thisCl->displayname() < thisRow->syncNode->name) thisRow = nullptr;
-                if (thisRow->syncNode->name < thisCl->displayname()) thisCl = nullptr;
-            }
-
-            if (!thisCl && !thisRow) break;
-
-            if (cloudEqualNodeCount > 1)
-            {
-                // todo: alert user of issues to resolve
-            }
-            else if (thisRow)
-            {
-                thisRow->cloudNode = thisCl;
-            }
-            else
-            {
-                childRows.push_back(syncRow{thisCl, nullptr, nullptr});
-            }
-
-            if (thisRow) rowIter = nextRow;
-            if (thisCl) cloudIter = nextCL;
-        }
-    }
-
-    syncNode.scanAgain = LocalNode::SYNCTREE_RESOLVED;
-
-    for (auto& row : childRows)
-    {
-        ScopedLengthRestore restoreLen(localPath);
-        if (row.fsNode)
-        {
-            localPath.appendWithSeparator(row.fsNode->localname, true, fsaccess->localseparator);
-        }
-        else if (row.syncNode)
-        {
-            localPath.appendWithSeparator(row.syncNode->localname, true, fsaccess->localseparator);
-        }
-        else if (row.cloudNode)
-        {
-            localPath.appendWithSeparator(LocalPath::fromName(row.cloudNode->displayname(), *fsaccess, syncNode.sync->mFilesystemType), true, fsaccess->localseparator);
-        }
-
-        syncItem(row.cloudNode, row.syncNode, row.fsNode, syncNode, localPath);
-
-        if (row.cloudNode && row.syncNode && row.fsNode &&
-            row.syncNode->type != FILENODE)
-        {
-            if (!sync(*row.cloudNode, *row.syncNode, localPath))
-            {
-                syncNode.scanAgain = std::max<unsigned>(syncNode.scanAgain, LocalNode::SYNCTREE_ACTION_HERE_ONLY);
-                return false;
-            }
-        }
-    }
-    return true;
-}
-
-bool MegaClient::syncItem(Node* cloudItem, LocalNode*& syncItem, FSNode*& fsItem, LocalNode& localNodeParent, LocalPath& fullPath)
-{
-    if (syncItem)
-    {
-        if (fsItem)
-        {
-            if (cloudItem)
-            {
-                // all three exist; compare
-            }
-            else
-            {
-                // cloud item disappeared
-            }
-        }
-        else
-        {
-            if (cloudItem)
-            {
-                // local item disappeared
-            }
-            else
-            {
-                // local and cloud disappeared; remove sync item also
-                delete syncItem;
-                syncItem = nullptr;
-            }
-        }
-    }
-    else
-    {
-        if (fsItem)
-        {
-            if (cloudItem)
-            {
-                // item exists locally and remotely but we haven't synced them previously
-
-            }
-            else
-            {
-                // item existed locally only
-                LOG_debug << "New LocalNode at: " << fullPath.toPath(*fsaccess);
-                auto l = new LocalNode;
-                l->init(localNodeParent.sync, fsItem->type, &localNodeParent, fullPath, std::move(fsItem->shortname));
-
-                if (fsItem->fsid != UNDEF)
-                {
-                    l->setfsid(fsItem->fsid, localNodeParent.sync->client->fsidnode);
-                }
-
-                l->setnameparent(&localNodeParent, nullptr, nullptr, false);
-                l->treestate(TREESTATE_PENDING);
-
-                if (fsItem->type == FILENODE)
-                {
-                    nextreqtag();
-                    DBTableTransactionCommitter committer(tctable); // todo: move higher
-                    startxfer(PUT, l, committer);
-                    app->syncupdate_put(localNodeParent.sync, l, fullPath.toPath(*fsaccess).c_str());
-                }
-            }
-        }
-        else
-        {
-            if (cloudItem)
-            {
-                // item exists remotely only
-
-            }
-            else
-            {
-                // no entries
-                assert(false);
-            }
-        }
-    }
-    return true;
-}
 
 /*    list<string> strings;
     remotenode_map nchildren;

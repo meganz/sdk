@@ -532,10 +532,10 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, vector<NewNode>&&, const char * = NULL);
+    void putnodes(handle, vector<NewNode>&&, const char *, int tag);
 
     // send files/folders to user
-    void putnodes(const char*, vector<NewNode>&&);
+    void putnodes(const char*, vector<NewNode>&&, int tag);
 
     // attach file attribute to upload or node handle
     void putfa(handle, fatype, SymmCipher*, std::unique_ptr<string>, bool checkAccess = true);
@@ -1456,10 +1456,6 @@ public:
 
     // sync putnodes() completion
     void putnodes_sync_result(error, vector<NewNode>&);
-
-    // start downloading/copy missing files, create missing directories
-    bool sync(const Node&, LocalNode&, LocalPath&);
-    bool syncItem(Node*, LocalNode*&, FSNode*&, LocalNode& localNodeParent, LocalPath& fullPath);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
     void movetosyncdebris(Node*, bool);

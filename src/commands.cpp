@@ -1160,11 +1160,14 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     }
 
     tag = ctag;
+    addToNodePendingCommands(targethandle, client);
 }
 
 // add new nodes and handle->node handle mapping
 void CommandPutNodes::removePendingDBRecordsAndTempFiles()
 {
+    removeFromNodePendingCommands(targethandle, client);
+
     pendingdbid_map::iterator it = client->pendingtcids.find(tag);
     if (it != client->pendingtcids.end())
     {

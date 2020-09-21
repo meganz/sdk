@@ -1953,5 +1953,350 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
 
     return false;
 }
+
+
+bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
+{
+    // nothing to do for this subtree? Skip traversal
+    if (row.syncNode->syncAgain == LocalNode::SYNCTREE_RESOLVED && row.syncNode->scanAgain == LocalNode::SYNCTREE_RESOLVED)
+    {
+        return true;
+    }
+
+    if (!row.syncNode)
+    {
+        // visit this node again later when we have a LocalNode at this level
+        return true;
+    }
+    Sync* sync = row.syncNode->sync;
+
+    if (row.cloudNode && !row.cloudNode->mPendingChanges.empty())
+    {
+        // visit this node again later when commands are complete
+        return true;
+    }
+
+    // propagate full-scan flags to children
+    if (row.syncNode->scanAgain == LocalNode::SYNCTREE_ACTION_HERE_AND_BELOW)
+    {
+        for (auto& c : row.syncNode->children)
+        {
+            c.second->scanAgain = LocalNode::SYNCTREE_ACTION_HERE_AND_BELOW;
+        }
+
+        row.syncNode->scanAgain = LocalNode::SYNCTREE_ACTION_HERE_ONLY;
+    }
+
+    // propagate full-sync flags to children
+    if (row.syncNode->syncAgain == LocalNode::SYNCTREE_ACTION_HERE_AND_BELOW)
+    {
+        for (auto& c : row.syncNode->children)
+        {
+            c.second->syncAgain = LocalNode::SYNCTREE_ACTION_HERE_AND_BELOW;
+        }
+
+        row.syncNode->syncAgain = LocalNode::SYNCTREE_ACTION_HERE_ONLY;
+    }
+
+    // Build the 3 lists to compare same-name items (Node, LocalNode, filesystem item)
+
+    // Get the filesystem items list
+    vector<FSNode> fsChildren;
+    fsChildren.reserve(row.syncNode->children.size());
+    if (row.syncNode->scanAgain == LocalNode::SYNCTREE_ACTION_HERE_ONLY)
+    {
+        if (Waiter::ds - row.syncNode->lastScanTime < 20)
+        {
+            // Don't scan a particular folder more frequently than every 2 seconds.  Just revisit later
+            return true;
+        }
+
+        // If we need to scan at this level, do it now - just scan one folder then return from the stack to release the mutex.
+        // Sync actions can occur on the next run
+
+        fsChildren = sync->scanOne(*row.syncNode, localPath);
+        row.syncNode->lastScanTime = Waiter::ds;
+        row.syncNode->scanAgain = LocalNode::SYNCTREE_RESOLVED;
+        row.syncNode->syncAgain = LocalNode::SYNCTREE_ACTION_HERE_ONLY;
+    }
+    else
+    {
+        // no filesystem side changes so use our current records
+        for (auto& c: row.syncNode->children)
+        {
+            fsChildren.push_back(c.second->getKnownFSDetails());
+        }
+    }
+
+    // get the Node list
+    vector<Node*> cloudChildren;
+    cloudChildren.assign(row.cloudNode->children.begin(), row.cloudNode->children.end());
+
+    // get the LocalNode list - the sync as last known
+    vector<LocalNode*> syncChildren;
+    syncChildren.reserve(row.syncNode->children.size());
+    for (auto& c: row.syncNode->children)
+    {
+        syncChildren.push_back(c.second);
+    }
+
+    vector<syncRow> childRows;
+    childRows.reserve(fsChildren.size() + cloudChildren.size());
+
+    // sort sync and local (in cloud order) so we can pair them up
+    auto cloudCmpFS = [](FSNode& a, FSNode& b){ return a.localname < b.localname; };
+    auto cloudCmpSync = [](LocalNode* a, LocalNode* b){ return a->localname < b->localname; };
+    std::sort(fsChildren.begin(), fsChildren.end(), cloudCmpFS);
+    std::sort(syncChildren.begin(), syncChildren.end(), cloudCmpSync);
+
+    {
+        // Pair up the sorted local and sync lists
+        auto fsIter = fsChildren.begin();
+        auto syIter = syncChildren.begin();
+        for (;;)
+        {
+            auto nextFS = fsIter;
+            while (nextFS != fsChildren.end() && !cloudCmpFS(*fsIter, *nextFS)) ++nextFS;
+            auto fsEqualNodeCount = std::distance(fsIter, nextFS);
+
+            auto nextSY = syIter;
+            while (nextSY != syncChildren.end() && !cloudCmpSync(*syIter, *nextSY)) ++nextSY;
+            auto syEqualNodeCount = std::distance(syIter, nextSY);
+
+            assert(syEqualNodeCount < 2);
+
+            FSNode* thisFS = fsIter == fsChildren.end() ? nullptr : &*fsIter;
+            LocalNode* thisSY = syIter == syncChildren.end() ? nullptr : *syIter;
+
+            if (thisFS && thisSY)
+            {
+                // any entry that is not equal to the lowest string is set to null
+                // nonnulls are all equal and go in the same row
+                if      (thisFS->localname < thisSY->localname) thisSY = nullptr;
+                else if (thisSY->localname < thisFS->localname) thisFS = nullptr;
+            }
+
+            if (!thisFS && !thisSY) break;
+
+            if (thisFS && fsEqualNodeCount > 1)
+            {
+                // todo: alert user of multiple clashing local name issues to resolve
+            }
+            else
+            {
+                childRows.push_back(syncRow{nullptr, thisSY, thisFS});
+            }
+
+            if (thisSY) syIter = nextSY;
+            if (thisFS) fsIter = nextFS;
+        }
+    }
+
+    // sort the cloud list and pair with the sync rows (in local order)
+    auto localCmpString = [](const string& a, const string& b){
+        return a < b;
+    };
+    auto localCmpNode = [=](Node* a, Node* b){
+        return localCmpString(a->displayname(), b->displayname());
+    };
+    auto localCmpRow = [this, row, localCmpString, sync](syncRow& a, syncRow& b){
+        // if there is no LocalNode yet, compare against the FSNode
+        const string& stringA = a.syncNode ? a.syncNode->name : a.fsNode->localname.toName(*client->fsaccess, sync->mFilesystemType);
+        const string& stringB = b.syncNode ? b.syncNode->name : b.fsNode->localname.toName(*client->fsaccess, sync->mFilesystemType);
+        return localCmpString(stringA, stringB);
+    };
+
+    std::sort(cloudChildren.begin(), cloudChildren.end(), localCmpNode);
+    std::sort(childRows.begin(), childRows.end(), localCmpRow);
+
+    {
+        // Pair up the sorted cloud and syncrow lists
+        auto cloudIter = cloudChildren.begin();
+        auto rowIter = childRows.begin();
+        auto rowLast = childRows.end();
+        for (;;)
+        {
+            auto nextCL = cloudIter;
+            while (nextCL != cloudChildren.end() && !localCmpNode(*cloudIter, *nextCL)) ++nextCL;
+            auto cloudEqualNodeCount = std::distance(cloudIter, nextCL);
+
+            auto nextRow = rowIter;
+            while (nextRow != rowLast && !localCmpRow(*rowIter, *nextRow)) ++nextRow;
+            auto rowDistance = std::distance(rowIter, nextRow);
+
+            assert(rowDistance < 2);
+
+            Node* thisCl = cloudIter == cloudChildren.end() ? nullptr : *cloudIter;
+            syncRow* thisRow = rowIter == rowLast ? nullptr : &*rowIter;
+
+            // any entry that is not equal to the lowest string is set to null
+            // nonnulls are all equal and go in the same row
+            if (thisCl && thisRow && thisRow->syncNode)
+            {
+                if      (thisCl->displayname() < thisRow->syncNode->name) thisRow = nullptr;
+                else if (thisRow->syncNode->name < thisCl->displayname()) thisCl = nullptr;
+            }
+
+            if (!thisCl && !thisRow) break;
+
+            if (thisCl && cloudEqualNodeCount > 1)
+            {
+                // todo: alert user of issues to resolve
+            }
+            else if (thisRow)
+            {
+                thisRow->cloudNode = thisCl;
+            }
+            else
+            {
+                childRows.push_back(syncRow{thisCl, nullptr, nullptr});
+                if (rowLast == childRows.end()) --rowLast;
+            }
+
+            if (thisRow) rowIter = nextRow;
+            if (thisCl) cloudIter = nextCL;
+        }
+    }
+
+    row.syncNode->scanAgain = LocalNode::SYNCTREE_RESOLVED;
+
+    for (auto& childRow : childRows)
+    {
+        ScopedLengthRestore restoreLen(localPath);
+        if (childRow.fsNode)
+        {
+            localPath.appendWithSeparator(childRow.fsNode->localname, true, client->fsaccess->localseparator);
+        }
+        else if (childRow.syncNode)
+        {
+            localPath.appendWithSeparator(childRow.syncNode->localname, true, client->fsaccess->localseparator);
+        }
+        else if (childRow.cloudNode)
+        {
+            localPath.appendWithSeparator(LocalPath::fromName(childRow.cloudNode->displayname(), *client->fsaccess, row.syncNode->sync->mFilesystemType), true, client->fsaccess->localseparator);
+        }
+
+        syncItem(childRow, row, localPath);
+
+        if (row.cloudNode && row.syncNode && row.fsNode &&
+            row.syncNode->type != FILENODE)
+        {
+            if (!recursiveSync(childRow, localPath))
+            {
+                row.syncNode->scanAgain = std::max<unsigned>(row.syncNode->scanAgain, LocalNode::SYNCTREE_ACTION_HERE_ONLY);
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
+{
+    LOG_verbose << "Considering sync triplet:" <<
+        " " << (row.cloudNode ? row.cloudNode->displaypath() : "(null)") <<
+        " " << (row.syncNode ? row.syncNode->getLocalPath().toPath(*client->fsaccess) : "(null)") <<
+        " " << (row.fsNode ? fullPath.toPath(*client->fsaccess) : "(null)");
+
+    if (row.syncNode)
+    {
+        if (row.fsNode)
+        {
+            if (row.cloudNode)
+            {
+                // all three exist; compare
+            }
+            else
+            {
+                // cloud item absent
+                if (row.syncNode->syncedCloudNodeHandle == UNDEF)
+                {
+                    // cloud item did not exist before; create it
+                    if (row.fsNode->type == FILENODE)
+                    {
+                        // upload the file if we're not already uploading
+                        if (!row.syncNode->transfer)
+                        {
+                            client->nextreqtag();
+                            DBTableTransactionCommitter committer(client->tctable); // todo: move higher
+                            client->startxfer(PUT, row.syncNode, committer);
+                            client->app->syncupdate_put(row.syncNode->sync, row.syncNode, fullPath.toPath(*client->fsaccess).c_str());
+                        }
+                    }
+                    else
+                    {
+                        LOG_debug << "Uploading file " << fullPath.toPath(*client->fsaccess);
+                        // while the operation is in progress sync() will skip over the parent folder
+                        vector<NewNode> nn(1);
+                        client->putnodes_prepareOneFolder(&nn[0], row.syncNode->name);
+                        client->putnodes(parentRow.cloudNode->nodehandle, move(nn), nullptr, 0);
+                    }
+
+                }
+                else
+                {
+                    // cloud item disappeared - remove locally (or figure out if it was a move, etc)
+                }
+            }
+        }
+        else
+        {
+            if (row.cloudNode)
+            {
+                // local item disappeared
+            }
+            else
+            {
+                // local and cloud disappeared; remove sync item also
+                delete row.syncNode;
+                row.syncNode = nullptr;
+            }
+        }
+    }
+    else
+    {
+        if (row.fsNode)
+        {
+            if (row.cloudNode)
+            {
+                // item exists locally and remotely but we haven't synced them previously
+
+            }
+            else
+            {
+                // item existed locally only
+                LOG_debug << "New LocalNode at: " << fullPath.toPath(*client->fsaccess);
+                auto l = new LocalNode;
+                l->init(parentRow.syncNode->sync, row.fsNode->type, parentRow.syncNode, fullPath, std::move(row.fsNode->shortname));
+
+                if (row.fsNode->fsid != UNDEF)
+                {
+                    l->setfsid(row.fsNode->fsid, parentRow.syncNode->sync->client->fsidnode);
+                }
+
+                l->setnameparent(parentRow.syncNode, nullptr, nullptr, false);
+                l->treestate(TREESTATE_PENDING);
+                parentRow.syncNode->sync->statecacheadd(l);
+                // next run through will create it in the cloud
+            }
+        }
+        else
+        {
+            if (row.cloudNode)
+            {
+                // item exists remotely only
+
+            }
+            else
+            {
+                // no entries
+                assert(false);
+            }
+        }
+    }
+    return true;
+}
+
+
 } // namespace
 #endif

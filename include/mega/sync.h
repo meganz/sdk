@@ -141,6 +141,17 @@ public:
     // The fs IDs of unmatched nodes are invalidated.
     bool assignfsids();
 
+
+    struct syncRow
+    {
+        Node* cloudNode;
+        LocalNode* syncNode;
+        FSNode* fsNode;
+    };
+
+    bool recursiveSync(syncRow& row, LocalPath& fullPath);
+    bool syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
+
     // scan items in specified path and add as children of the specified
     // LocalNode
     vector<FSNode> scanOne(LocalNode&, LocalPath&);

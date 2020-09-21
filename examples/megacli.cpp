@@ -27,8 +27,8 @@
 #define PREFER_STDARG
 
 #ifndef NO_READLINE
-    #include <readline/readline.h>
-    #include <readline/history.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 #endif
 
 #if (__cplusplus >= 201700L)
@@ -1781,6 +1781,7 @@ void TreeProcListOutShares::proc(MegaClient*, Node* n)
 }
 
 bool handles_on = false;
+bool showattrs = false;
 
 static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstream* toFile)
 {
@@ -1823,7 +1824,18 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
                 const char* p;
                 if ((p = strchr(n->fileattrstring.c_str(), ':')))
                 {
-                    stream << ", has attributes " << p + 1;
+                    stream << ", has file attributes " << p + 1;
+                }
+
+                if (showattrs && n->attrs.map.size())
+                {
+                    stream << ", has attrs";
+                    for (auto& a : n->attrs.map)
+                    {
+                        char namebuf[100]{};
+                        AttrMap::nameid2string(a.first, namebuf);
+                        stream << " " << namebuf << "=" << a.second;
+                    }
                 }
 
                 if (n->plink)
@@ -1958,6 +1970,8 @@ static void nodepath(handle h, string* path)
 }
 
 appfile_list appxferq[2];
+
+static char dynamicprompt[128];
 
 static const char* prompts[] =
 {
@@ -2870,6 +2884,30 @@ void exec_fingerprint(autocomplete::ACState& s)
     }
 }
 
+void exec_showattrs(autocomplete::ACState& s)
+{
+    if (s.words.size() == 2)
+    {
+        if (s.words[1].s == "on")
+        {
+            showattrs = true;
+        }
+        else if (s.words[1].s == "off")
+        {
+            showattrs = false;
+        }
+        else
+        {
+            cout << "invalid showattrs setting" << endl;
+        }
+    }
+    else
+    {
+        cout << "      showattrs on|off " << endl;
+    }
+}
+
+
 MegaCLILogger gLogger;
 
 autocomplete::ACN autocompleteSyntax()
@@ -2991,6 +3029,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_setmaxuploadspeed, sequence(text("setmaxuploadspeed"), opt(wholenumber(10000))));
     p->Add(exec_handles, sequence(text("handles"), opt(either(text("on"), text("off")))));
     p->Add(exec_httpsonly, sequence(text("httpsonly"), opt(either(text("on"), text("off")))));
+    p->Add(exec_showattrs, sequence(text("showattrs"), opt(either(text("on"), text("off")))));
 
     p->Add(exec_mfac, sequence(text("mfac"), param("email")));
     p->Add(exec_mfae, sequence(text("mfae")));
@@ -3683,7 +3722,7 @@ void exec_cp(autocomplete::ACState& s)
             if (tn)
             {
                 // add the new nodes
-                client->putnodes(tn->nodehandle, move(tc.nn));
+                client->putnodes(tn->nodehandle, move(tc.nn), nullptr, gNextClientTag++);
             }
             else
             {
@@ -3691,7 +3730,7 @@ void exec_cp(autocomplete::ACState& s)
                 {
                     cout << "Attempting to drop into user " << targetuser << "'s inbox..." << endl;
 
-                    client->putnodes(targetuser.c_str(), move(tc.nn));
+                    client->putnodes(targetuser.c_str(), move(tc.nn), gNextClientTag++);
                 }
                 else
                 {
@@ -3933,9 +3972,7 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
                 uploadLocalFolderContent(tmp, parent);
             };
 
-            client->reqtag = gNextClientTag++;
-            client->putnodes(parent->nodehandle, move(nn));
-            client->reqtag = 0;
+            client->putnodes(parent->nodehandle, move(nn), nullptr, gNextClientTag++);
         }
     }
 }
@@ -4678,7 +4715,7 @@ void exec_mkdir(autocomplete::ACState& s)
             {
                 vector<NewNode> nn(1);
                 client->putnodes_prepareOneFolder(&nn[0], newname);
-                client->putnodes(n->nodehandle, move(nn));
+                client->putnodes(n->nodehandle, move(nn), nullptr, gNextClientTag++);
             }
             else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
             {
@@ -4688,7 +4725,7 @@ void exec_mkdir(autocomplete::ACState& s)
                 if (pos != string::npos) leafname.erase(0, pos + 1);
                 vector<NewNode> nn(1);
                 client->putnodes_prepareOneFolder(&nn[0], leafname);
-                client->putnodes(n->parent->nodehandle, move(nn));
+                client->putnodes(n->parent->nodehandle, move(nn), nullptr, gNextClientTag++);
             }
             else
             {
@@ -6205,7 +6242,6 @@ void exec_handles(autocomplete::ACState& s)
     }
 }
 
-
 #if defined(WIN32) && defined(NO_READLINE)
 void exec_codepage(autocomplete::ACState& s)
 {
@@ -7102,7 +7138,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
             }
         }
 
-        client->putnodes(n->nodehandle, move(nn));
+        client->putnodes(n->nodehandle, move(nn), nullptr, client->restag);
     }
     else
     {
@@ -7731,12 +7767,10 @@ void megacli()
     {
         if (prompt == COMMAND)
         {
-            ostringstream  dynamicprompt;
-
             // display put/get transfer speed in the prompt
             if (client->tslots.size() || responseprogress >= 0)
             {
-                m_off_t xferrate[2] = { 0 };
+                unsigned xferrate[2] = { 0 };
                 Waiter::bumpds();
 
                 for (transferslot_list::iterator it = client->tslots.begin(); it != client->tslots.end(); it++)
@@ -7750,44 +7784,46 @@ void megacli()
                 xferrate[GET] /= 1024;
                 xferrate[PUT] /= 1024;
 
-                dynamicprompt << "MEGA";
+                strcpy(dynamicprompt, "MEGA");
 
                 if (xferrate[GET] || xferrate[PUT] || responseprogress >= 0)
                 {
-                    dynamicprompt << " (";
+                    strcpy(dynamicprompt + 4, " (");
 
                     if (xferrate[GET])
                     {
-                        dynamicprompt << "In: " << xferrate[GET] << " KB/s";
+                        sprintf(dynamicprompt + 6, "In: %u KB/s", xferrate[GET]);
 
                         if (xferrate[PUT])
                         {
-                            dynamicprompt << "/";
+                            strcat(dynamicprompt + 9, "/");
                         }
                     }
 
                     if (xferrate[PUT])
                     {
-                        dynamicprompt << "Out: " << xferrate[PUT] << " KB/s";
+                        sprintf(strchr(dynamicprompt, 0), "Out: %u KB/s", xferrate[PUT]);
                     }
 
                     if (responseprogress >= 0)
                     {
-                        dynamicprompt << responseprogress << "%";
+                        sprintf(strchr(dynamicprompt, 0), "%d%%", responseprogress);
                     }
 
-                    dynamicprompt  << ")";
+                    strcat(dynamicprompt + 6, ")");
                 }
 
-                dynamicprompt  << "> ";
+                strcat(dynamicprompt + 4, "> ");
+            }
+            else
+            {
+                *dynamicprompt = 0;
             }
 
-            string dynamicpromptstr = dynamicprompt.str();
-
 #if defined(WIN32) && defined(NO_READLINE)
-            static_cast<WinConsole*>(console)->updateInputPrompt(!dynamicpromptstr.empty() ? dynamicpromptstr : prompts[COMMAND]);
+            static_cast<WinConsole*>(console)->updateInputPrompt(*dynamicprompt ? dynamicprompt : prompts[COMMAND]);
 #else
-            rl_callback_handler_install(!dynamicpromptstr.empty() ? dynamicpromptstr.c_str() : prompts[COMMAND], store_line);
+            rl_callback_handler_install(*dynamicprompt ? dynamicprompt : prompts[COMMAND], store_line);
 
             // display prompt
             if (saved_line)
