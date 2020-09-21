@@ -11410,7 +11410,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
             }
         }
 
-        if (target == MegaApi::TARGET_OUTSHARE || target == MegaApi::TARGET_ALL)
+        if (target == MegaApi::TARGET_OUTSHARE)
         {
             // Search on outshares
             unique_ptr<MegaShareList>shares (getOutShares(MegaApi::ORDER_NONE));
@@ -11426,7 +11426,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
             }
         }
 
-        if (target == MegaApi::TARGET_PUBLICLINK || target == MegaApi::TARGET_ALL)
+        if (target == MegaApi::TARGET_PUBLICLINK)
         {
             // Search on public links
             for (auto it = client->mPublicLinks.begin(); it != client->mPublicLinks.end()
