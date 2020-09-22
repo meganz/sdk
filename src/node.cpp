@@ -209,6 +209,18 @@ string Node::canonicalname() const
     return client->fsaccess->canonicalize(name());
 }
 
+#ifdef ENABLE_SYNC
+
+void Node::detach(const bool recreate)
+{
+    if (localnode)
+    {
+        localnode->detach(recreate);
+    }
+}
+
+#endif /* ENABLE_SYNC */
+
 string Node::name() const
 {
     auto it = attrs.map.find('n');
@@ -1629,6 +1641,19 @@ LocalNode::~LocalNode()
     }
 
     slocalname.reset();
+}
+
+void LocalNode::detach(const bool recreate)
+{
+    // Never detach the root node.
+    if (parent && node)
+    {
+        node->localnode = nullptr;
+        node->tag = sync->tag;
+        node = nullptr;
+
+        created &= !recreate;
+    }
 }
 
 LocalPath LocalNode::getLocalPath(bool sdisable) const

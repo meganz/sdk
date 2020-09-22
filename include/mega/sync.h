@@ -144,6 +144,13 @@ public:
 
     struct syncRow
     {
+        syncRow(Node* node, LocalNode* syncNode, FSNode* fsNode)
+          : cloudNode(node)
+          , syncNode(syncNode)
+          , fsNode(fsNode)
+        {
+        };
+
         Node* cloudNode;
         LocalNode* syncNode;
         FSNode* fsNode;

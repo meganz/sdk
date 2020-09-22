@@ -1959,6 +1959,9 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
 
 bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
 {
+    // Sentinel value used to signal that we've detected a name conflict.
+    Node* const NAME_CONFLICT = reinterpret_cast<Node*>(~0u);
+
     // nothing to do for this subtree? Skip traversal
     if (row.syncNode->syncAgain == LocalNode::SYNCTREE_RESOLVED && row.syncNode->scanAgain == LocalNode::SYNCTREE_RESOLVED)
     {
@@ -2046,8 +2049,9 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
     childRows.reserve(fsChildren.size() + cloudChildren.size());
 
     // sort sync and local (in cloud order) so we can pair them up
-    auto cloudCmpFS = [](FSNode& a, FSNode& b){ return a.name < b.name; };
-    auto cloudCmpSync = [](LocalNode* a, LocalNode* b){ return a->name < b->name; };
+    auto nameCmp = NameCmp(mFilesystemType);
+    auto cloudCmpFS = [&](FSNode& a, FSNode& b){ return nameCmp(a.name, b.name); };
+    auto cloudCmpSync = [&](LocalNode* a, LocalNode* b){ return nameCmp(a->name, b->name); };
     std::sort(fsChildren.begin(), fsChildren.end(), cloudCmpFS);
     std::sort(syncChildren.begin(), syncChildren.end(), cloudCmpSync);
 
@@ -2072,7 +2076,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
 
             if (thisFS && thisSY)
             {
-                int relationship = thisFS->name.compare(thisSY->name);
+                int relationship = nameCmp.compare(thisFS->name, thisSY->name);
 
                 // any entry that is not equal to the lowest string is set to null
                 // nonnulls are all equal and go in the same row
@@ -2085,10 +2089,11 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
             if (thisFS && fsEqualNodeCount > 1)
             {
                 // todo: alert user of multiple clashing local name issues to resolve
+                childRows.emplace_back(NAME_CONFLICT, thisSY, thisFS);
             }
             else
             {
-                childRows.push_back(syncRow{nullptr, thisSY, thisFS});
+                childRows.emplace_back(nullptr, thisSY, thisFS);
             }
 
             if (thisSY) syIter = nextSY;
@@ -2097,17 +2102,14 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
     }
 
     // sort the cloud list and pair with the sync rows (in local order)
-    auto localCmpString = [](const string& a, const string& b){
-        return a < b;
+    auto localCmpNode = [&](Node* a, Node* b){
+        return nameCmp(a->canonicalname(), b->canonicalname());
     };
-    auto localCmpNode = [=](Node* a, Node* b){
-        return localCmpString(a->canonicalname(), b->canonicalname());
-    };
-    auto localCmpRow = [this, row, localCmpString, sync](syncRow& a, syncRow& b){
+    auto localCmpRow = [&](syncRow& a, syncRow& b){
         // if there is no LocalNode yet, compare against the FSNode
         const string& stringA = a.syncNode ? a.syncNode->name : a.fsNode->name;
         const string& stringB = b.syncNode ? b.syncNode->name : b.fsNode->name;
-        return localCmpString(stringA, stringB);
+        return nameCmp(stringA, stringB);
     };
 
     std::sort(cloudChildren.begin(), cloudChildren.end(), localCmpNode);
@@ -2137,7 +2139,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
 
             if (thisCl && thisRow && thisRow->syncNode)
             {
-                int relationship = thisCl->canonicalname().compare(thisRow->syncNode->name);
+                int relationship = nameCmp(thisCl->canonicalname(), thisRow->syncNode->name);
 
                 // any entry that is not equal to the lowest string is set to null
                 // nonnulls are all equal and go in the same row
@@ -2153,11 +2155,14 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
             }
             else if (thisRow)
             {
-                thisRow->cloudNode = thisCl;
+                if (thisRow->cloudNode != NAME_CONFLICT)
+                {
+                    thisRow->cloudNode = thisCl;
+                }
             }
             else
             {
-                childRows.push_back(syncRow{thisCl, nullptr, nullptr});
+                childRows.emplace_back(thisCl, nullptr, nullptr);
             }
 
             if (thisRow) rowIter = nextRow;
@@ -2169,6 +2174,12 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
 
     for (auto& childRow : childRows)
     {
+        // Skip rows that signal name conflicts.
+        if (childRow.cloudNode == NAME_CONFLICT)
+        {
+            continue;
+        }
+
         ScopedLengthRestore restoreLen(localPath);
         if (childRow.fsNode)
         {
