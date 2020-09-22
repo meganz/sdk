@@ -1004,11 +1004,11 @@ string LocalPath::toPath(const FileSystemAccess& fsaccess) const
     return path;
 }
 
-string LocalPath::toName(const FileSystemAccess& fsaccess, FileSystemType) const
+string LocalPath::toName(const FileSystemAccess& fsaccess) const
 {
-    std::string path = toPath(fsaccess);
+    string name = localpath;
     fsaccess.unescapefsincompatible(&name);
-    return path;
+    return name;
 }
 
 LocalPath LocalPath::fromPath(const string& path, const FileSystemAccess& fsaccess)

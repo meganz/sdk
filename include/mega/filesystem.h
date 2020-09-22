@@ -144,7 +144,7 @@ public:
     // Return a utf8 representation of the LocalPath, taking into account that the LocalPath
     // may contain escaped characters that are disallowed for the filesystem.
     // Those characters are converted back (unescaped).  fsaccess is used to do the conversion.
-    std::string toName(const FileSystemAccess& fsaccess, FileSystemType fsType) const;
+    std::string toName(const FileSystemAccess& fsaccess) const;
 
     // Create a Localpath from a utf8 string where no character conversions or escaping is necessary.
     static LocalPath fromPath(const string& path, const FileSystemAccess& fsaccess);

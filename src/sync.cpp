@@ -117,7 +117,7 @@ set<LocalPath> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAcces
         localpath.appendWithSeparator(localname, false, fsaccess.localseparator);
 
         // check if this record is to be ignored
-        const auto name = localname.toName(fsaccess, sync.mFilesystemType);
+        const auto name = localname.toName(fsaccess);
         if (app.sync_syncable(&sync, name.c_str(), localpath))
         {
             // skip the sync's debris folder
@@ -1109,7 +1109,7 @@ auto Sync::scanOne(LocalNode& localNodeFolder, LocalPath& localPath) -> vector<F
     vector<FSNode> results;
     while (da->dnext(localPath, localname, client->followsymlinks))
     {
-        string name = localname.toName(*client->fsaccess, mFilesystemType);
+        string name = localname.toName(*client->fsaccess);
 
         ScopedLengthRestore restoreLen(localPath);
         localPath.appendWithSeparator(localname, false, client->fsaccess->localseparator);
@@ -2101,8 +2101,8 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
     };
     auto localCmpRow = [this, row, localCmpString, sync](syncRow& a, syncRow& b){
         // if there is no LocalNode yet, compare against the FSNode
-        const string& stringA = a.syncNode ? a.syncNode->name : a.fsNode->localname.toName(*client->fsaccess, sync->mFilesystemType);
-        const string& stringB = b.syncNode ? b.syncNode->name : b.fsNode->localname.toName(*client->fsaccess, sync->mFilesystemType);
+        const string& stringA = a.syncNode ? a.syncNode->name : a.fsNode->localname.toName(*client->fsaccess);
+        const string& stringB = b.syncNode ? b.syncNode->name : b.fsNode->localname.toName(*client->fsaccess);
         return localCmpString(stringA, stringB);
     };
 

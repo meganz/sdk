@@ -374,7 +374,7 @@ AppFilePut::~AppFilePut()
 
 void AppFilePut::displayname(string* dname)
 {
-    *dname = localname.toName(*transfer->client->fsaccess, client->fsaccess->getlocalfstype(localname));
+    *dname = localname.toName(*transfer->client->fsaccess);
 }
 
 // transfer progress callback
@@ -699,7 +699,7 @@ AppFilePut::AppFilePut(const LocalPath& clocalname, handle ch, const char* ctarg
     // erase path component
     auto fileSystemType = client->fsaccess->getlocalfstype(clocalname);
 
-    name = clocalname.leafName(client->fsaccess->localseparator).toName(*client->fsaccess, fileSystemType);
+    name = clocalname.leafName(client->fsaccess->localseparator).toName(*client->fsaccess);
 }
 
 // user addition/update (users never get deleted)
