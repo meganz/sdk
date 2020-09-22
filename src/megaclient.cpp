@@ -7113,7 +7113,7 @@ void MegaClient::notifypurge(void)
         }
 
 #ifdef ENABLE_SYNC
-        if (!loggedinfolderlink())  // otherwise, syncConfigs = nullptr
+        if (syncConfigs)  // otherwise, syncConfigs = nullptr
         {
             //update sync root node location and trigger failing cases
             handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
