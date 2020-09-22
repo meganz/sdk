@@ -11047,7 +11047,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
         nodes.clear();
 
-        sctable->getNodesWithShares(nodes);
+        sctable->getNodesWithShares(nodes, DbTable::shares_t::IN_SHARES);
         for (const NodeSerialized& node : nodes)
         {
             n = Node::unserialize(this, &node.mNode, &dp, node.mDecrypted);
