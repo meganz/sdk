@@ -14590,31 +14590,12 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount, m_time_t si
 
 void MegaClient::nodesbyoriginalfingerprint(const char* originalfingerprint, Node* parent, node_vector *nv)
 {
-    if (parent)
+    std::map<handle, NodeSerialized> nodeMap;
+    if (sctable->getNodesByOrigFingerprint(originalfingerprint, nodeMap))
     {
-        node_list nodeList = getChildrens(parent);
-        for (node_list::iterator i = nodeList.begin(); i != nodeList.end(); ++i)
+        for (auto nodeIt : nodeMap)
         {
-            if ((*i)->type == FILENODE)
-            {
-                attr_map::const_iterator a = (*i)->attrs.map.find(MAKENAMEID2('c', '0'));
-                if (a != (*i)->attrs.map.end() && !a->second.compare(originalfingerprint))
-                {
-                    nv->push_back(*i);
-                }
-            }
-            else
-            {
-                nodesbyoriginalfingerprint(originalfingerprint, *i, nv);
-            }
-        }
-    }
-    else
-    {
-        std::map<handle, NodeSerialized> nodeMap;
-        if (sctable->getNodesByOrigFingerprint(originalfingerprint, nodeMap))
-        {
-            for (auto nodeIt : nodeMap)
+            if (!parent || (parent && sctable->isAncestor(nodeIt.first, parent->nodehandle)))
             {
                 node_vector nodeVector;
                 Node* node = Node::unserialize(this, &nodeIt.second.mNode, &nodeVector, nodeIt.second.mDecrypted);
