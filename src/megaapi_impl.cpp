@@ -5015,15 +5015,6 @@ void MegaFilePut::terminated()
     delete this;
 }
 
-bool TreeProcessor::processNode(Node*)
-{
-    return false; /* Stops the processing */
-}
-
-TreeProcessor::~TreeProcessor()
-{ }
-
-
 //Entry point for the blocking thread
 void *MegaApiImpl::threadEntryPoint(void *param)
 {
@@ -11305,52 +11296,6 @@ void MegaApiImpl::resumeActionPackets()
     sdkMutex.unlock();
 }
 
-bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursive, MegaCancelToken *cancelToken)
-{
-    if (!node)
-    {
-        return 1;
-    }
-
-    if (!processor)
-    {
-        return 0;
-    }
-
-    if (cancelToken && cancelToken->isCancelled())
-    {
-        return 0;
-    }
-
-    SdkMutexGuard g(sdkMutex);
-
-    if (cancelToken && cancelToken->isCancelled()) // check before lock and after, in case it was cancelled while being locked
-    {
-        return 0;
-    }
-
-    node = client->nodebyhandle(node->nodehandle);
-    if (!node)
-    {
-        return 1;
-    }
-
-    if (recursive && node->type != FILENODE)
-    {
-        node_list nodeList = client->getChildrens(node);
-        for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); )
-        {
-            if (!processTree(*it++, processor, recursive, cancelToken))
-            {
-                return 0;
-            }
-        }
-    }
-
-    bool result = processor->processNode(node);
-    return result;
-}
-
 MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCancelToken *cancelToken, bool recursive, int order)
 {
     if (!n || !searchString)
@@ -11796,23 +11741,6 @@ char *strcasestr(const char *string, const char *substring)
 }
 
 #endif
-
-SizeProcessor::SizeProcessor()
-{
-    totalBytes=0;
-}
-
-bool SizeProcessor::processNode(Node *node)
-{
-    if(node->type == FILENODE)
-        totalBytes += node->size;
-    return true;
-}
-
-long long SizeProcessor::getTotalBytes()
-{
-    return totalBytes;
-}
 
 void MegaApiImpl::file_added(File *f)
 {

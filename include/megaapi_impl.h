@@ -1871,26 +1871,6 @@ private:
     MegaFilePut() {}
 };
 
-class TreeProcessor
-{
-    public:
-        virtual bool processNode(Node* node);
-        virtual ~TreeProcessor();
-};
-
-
-
-class SizeProcessor : public TreeProcessor
-{
-    protected:
-        long long totalBytes;
-
-    public:
-        SizeProcessor();
-        virtual bool processNode(Node* node);
-        long long getTotalBytes();
-};
-
 //Thread safe request queue
 class RequestQueue
 {
@@ -3033,7 +3013,6 @@ protected:
         Node* getNodeByFingerprintInternal(const char *fingerprint);
         Node *getNodeByFingerprintInternal(const char *fingerprint, Node *parent);
 
-        bool processTree(Node* node, TreeProcessor* processor, bool recursive = 1, MegaCancelToken* cancelToken = nullptr);
         void getNodeAttribute(MegaNode* node, int type, const char *dstFilePath, MegaRequestListener *listener = NULL);
 		    void cancelGetNodeAttribute(MegaNode *node, int type, MegaRequestListener *listener = NULL);
         void setNodeAttribute(MegaNode* node, int type, const char *srcFilePath, MegaHandle attributehandle, MegaRequestListener *listener = NULL);
