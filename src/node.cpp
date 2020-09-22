@@ -219,6 +219,32 @@ void Node::detach(const bool recreate)
     }
 }
 
+bool Node::syncable(const LocalNode& parent) const
+{
+    // Not syncable if we're deleted.
+    if (syncdeleted != SYNCDEL_NONE)
+    {
+        return false;
+    }
+
+    // Not syncable if we aren't decrypted.
+    if (attrstring)
+    {
+        return false;
+    }
+
+    auto it = attrs.map.find('n');
+
+    // Not syncable if we don't have a valid name.
+    if (it == attrs.map.end() || it->second.empty())
+    {
+        return false;
+    }
+
+    // We're syncable if we're not the sync debris.
+    return parent.parent || parent.sync->debris != it->second;
+}
+
 #endif /* ENABLE_SYNC */
 
 string Node::name() const

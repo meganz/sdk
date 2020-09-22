@@ -2035,7 +2035,16 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
 
     // get the Node list
     vector<Node*> cloudChildren;
-    cloudChildren.assign(row.cloudNode->children.begin(), row.cloudNode->children.end());
+
+    // Only synchronize nodes if they are:
+    // - Alive
+    // - Decrypted
+    // - Have a defined name
+    // - Are not the debris folder
+    std::copy_if(row.cloudNode->children.begin(),
+                 row.cloudNode->children.end(),
+                 std::back_inserter(cloudChildren),
+                 std::bind(&Node::syncable, std::placeholders::_1, std::ref(*row.syncNode)));
 
     // get the LocalNode list - the sync as last known
     vector<LocalNode*> syncChildren;

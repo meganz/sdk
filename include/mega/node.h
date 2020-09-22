@@ -319,6 +319,15 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 #ifdef ENABLE_SYNC
     // Detach this remote from it's local associate.
     void detach(const bool recreate = false);
+
+    // True if this node is syncable.
+    //
+    // That is, the node must:
+    // - Be alive.
+    // - Be decrypted.
+    // - Be named.
+    // - Not be the debris folder.
+    bool syncable(const LocalNode& parent) const;
 #endif /* ENABLE_SYNC */
 
 private:
