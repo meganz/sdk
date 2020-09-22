@@ -1879,34 +1879,6 @@ class TreeProcessor
 };
 
 
-class OutShareProcessor : public TreeProcessor
-{
-    public:
-        OutShareProcessor(MegaClient&);
-        virtual bool processNode(Node* node);
-        virtual ~OutShareProcessor() {}
-        vector<Share *> getShares();
-        vector<handle> getHandles();
-        void sortShares(int order);
-    protected:
-        vector<Share *> mShares;
-        node_vector mNodes;
-        MegaClient& mClient;
-};
-
-class PendingOutShareProcessor : public TreeProcessor
-{
-    public:
-        PendingOutShareProcessor();
-        virtual bool processNode(Node* node);
-        virtual ~PendingOutShareProcessor() {}
-        vector<Share *> &getShares();
-        vector<handle> &getHandles();
-
-    protected:
-        vector<Share *> shares;
-        vector<handle> handles;
-};
 
 class SizeProcessor : public TreeProcessor
 {
