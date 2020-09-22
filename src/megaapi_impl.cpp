@@ -10812,10 +10812,8 @@ MegaNodeList* MegaApiImpl::searchInAllShares(const char *searchString, MegaCance
         for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
         {
            node = client->nodebyhandle(shares->get(i)->getNodeHandle());
-           SearchTreeProcessor searchProcessor(searchString);
-           processTree(node, &searchProcessor, true, cancelToken);
-           vector<Node *>& vNodes  = searchProcessor.getResults();
-           result.insert(result.end(), vNodes.begin(), vNodes.end());
+           node_vector nodeVector = searchWithDB(node->nodehandle, searchString, cancelToken, MegaApi::ORDER_NONE);
+           result.insert(result.end(), nodeVector.begin(), nodeVector.end());
         }
     }
     else
@@ -10825,10 +10823,8 @@ MegaNodeList* MegaApiImpl::searchInAllShares(const char *searchString, MegaCance
              && !(cancelToken && cancelToken->isCancelled()); it++)
         {
             node = client->nodebyhandle(it->first);
-            SearchTreeProcessor searchProcessor(searchString);
-            processTree(node, &searchProcessor, true, cancelToken);
-            vector<Node *>& vNodes  = searchProcessor.getResults();
-            result.insert(result.end(), vNodes.begin(), vNodes.end());
+            node_vector nodeVector = searchWithDB(node->nodehandle, searchString, cancelToken, MegaApi::ORDER_NONE);
+            result.insert(result.end(), nodeVector.begin(), nodeVector.end());
         }
     }
 
@@ -10839,56 +10835,8 @@ MegaNodeList* MegaApiImpl::searchInAllShares(const char *searchString, MegaCance
 
 MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    if(!searchString)
-    {
-        return new MegaNodeListPrivate();
-    }
-
-    if (cancelToken && cancelToken->isCancelled())
-    {
-        return new MegaNodeListPrivate();
-    }
-
-    SdkMutexGuard g(sdkMutex);
-
-    if (cancelToken && cancelToken->isCancelled())
-    {
-        return new MegaNodeListPrivate();
-    }
-
-    node_vector result;
-    Node *node;
-
-    // rootnodes
-    for (unsigned int i = 0; i < (sizeof client->rootnodes / sizeof *client->rootnodes)
-          && !(cancelToken && cancelToken->isCancelled()); i++)
-    {
-        node = client->nodebyhandle(client->rootnodes[i]);
-
-        SearchTreeProcessor searchProcessor(searchString);
-        processTree(node, &searchProcessor, true, cancelToken);
-        node_vector& vNodes = searchProcessor.getResults();
-
-        result.insert(result.end(), vNodes.begin(), vNodes.end());
-    }
-
-    // inshares
-    MegaShareList *shares = getInSharesList(MegaApi::ORDER_NONE);
-    for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
-    {
-        node = client->nodebyhandle(shares->get(i)->getNodeHandle());
-
-        SearchTreeProcessor searchProcessor(searchString);
-        processTree(node, &searchProcessor, true, cancelToken);
-        vector<Node *>& vNodes  = searchProcessor.getResults();
-
-        result.insert(result.end(), vNodes.begin(), vNodes.end());
-    }
-    delete shares;
-
-    sortByComparatorFunction(result, order, *client);
-    MegaNodeList *nodeList = new MegaNodeListPrivate(result.data(), int(result.size()));
-    
+    node_vector nodeVector = searchWithDB(INVALID_HANDLE, searchString, cancelToken, order);
+    MegaNodeList *nodeList = new MegaNodeListPrivate(nodeVector.data(), int(nodeVector.size()));
     return nodeList;
 }
 
@@ -11406,18 +11354,27 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCan
         return new MegaNodeListPrivate();
     }
 
-    SearchTreeProcessor searchProcessor(searchString);
-    node_list list = client->getChildrens(node);
-    for (node_list::iterator it = list.begin(); it != list.end()
-         && !(cancelToken && cancelToken->isCancelled()); )
+    node_vector nodeVector;
+    if (recursive)
     {
-        processTree(*it++, &searchProcessor, recursive, cancelToken);
+        nodeVector = searchWithDB(n->getHandle(), searchString, cancelToken, order);
+    }
+    else
+    {
+        node_list list = client->getChildrens(node);
+        for (node_list::iterator it = list.begin(); it != list.end()
+             && !(cancelToken && cancelToken->isCancelled()); it++)
+        {
+            Node* node = *it;
+            if (node->type <= FOLDERNODE && strcasestr(node->displayname(), searchString) != NULL)
+            {
+                nodeVector.push_back(node);
+            }
+        }
+
     }
 
-    vector<Node *>& vNodes = searchProcessor.getResults();
-    sortByComparatorFunction(vNodes, order, *client);
-
-    MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), int(vNodes.size()));
+    MegaNodeList *nodeList = new MegaNodeListPrivate(nodeVector.data(), int(nodeVector.size()));
     return nodeList;
 }
 
