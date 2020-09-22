@@ -49,6 +49,8 @@ protected:
     void resetCommitter();
 
 public:
+    typedef enum { NO_SHARES = 0x0, IN_SHARES = 0x1, OUT_SHARES = 0x2, PENDING_SHARES = 0x4} shares_t;
+
     // for a full sequential get: rewind to first record
     virtual void rewind() = 0;
 
@@ -65,7 +67,7 @@ public:
     virtual bool getNodesByOrigFingerprint(const std::string& fingerprint, std::map<mega::handle, NodeSerialized>& nodes) = 0;
     virtual bool getNodeByFingerprint(const FileFingerprint& fingerprint, NodeSerialized& node) = 0;
     virtual bool getNodesWithoutParent(std::vector<NodeSerialized>& nodes) = 0;
-    virtual bool getNodesWithShares(std::vector<NodeSerialized>& nodes) = 0;
+    virtual bool getNodesWithShares(std::vector<NodeSerialized>& nodes, shares_t shareType) = 0;
     virtual bool getChildrenFromNode(handle node, std::map<handle, NodeSerialized>& nodes) = 0;
     virtual bool getChildrenHandlesFromNode(handle node, std::vector<handle>& nodes) = 0;
     virtual bool getNodesByName(const std::string& name, std::map<mega::handle, NodeSerialized>& nodes) = 0;

@@ -458,7 +458,7 @@ bool SqliteDbTable::getNodesWithoutParent(std::vector<NodeSerialized> &nodes)
     return result == SQLITE_DONE ? true : false;
 }
 
-bool SqliteDbTable::getNodesWithShares(std::vector<NodeSerialized> &nodes)
+bool SqliteDbTable::getNodesWithShares(std::vector<NodeSerialized> &nodes, shares_t shareType)
 {
     if (!db)
     {
@@ -469,18 +469,21 @@ bool SqliteDbTable::getNodesWithShares(std::vector<NodeSerialized> &nodes)
 
     sqlite3_stmt *stmt;
     int result = SQLITE_ERROR;
-    if (sqlite3_prepare(db, "SELECT decrypted, node FROM nodes WHERE share = 1", -1, &stmt, NULL) == SQLITE_OK)
+    if (sqlite3_prepare(db, "SELECT decrypted, node FROM nodes WHERE share & ? > 0", -1, &stmt, NULL) == SQLITE_OK)
     {
-        while ((result = sqlite3_step(stmt) == SQLITE_ROW))
+        if (sqlite3_bind_int(stmt, 1, static_cast<int>(shareType)) == SQLITE_OK)
         {
-            NodeSerialized node;
-            node.mDecrypted = sqlite3_column_int(stmt, 0);
-            const void* data = sqlite3_column_blob(stmt, 1);
-            int size = sqlite3_column_bytes(stmt, 1);
-            if (data && size)
+            while ((result = sqlite3_step(stmt) == SQLITE_ROW))
             {
-                node.mNode = std::string(static_cast<const char*>(data), size);
-                nodes.push_back(node);
+                NodeSerialized node;
+                node.mDecrypted = sqlite3_column_int(stmt, 0);
+                const void* data = sqlite3_column_blob(stmt, 1);
+                int size = sqlite3_column_bytes(stmt, 1);
+                if (data && size)
+                {
+                    node.mNode = std::string(static_cast<const char*>(data), size);
+                    nodes.push_back(node);
+                }
             }
         }
     }
@@ -835,13 +838,23 @@ bool SqliteDbTable::put(Node *node)
 
         sqlite3_bind_int(stmt, 6, node->type);
         sqlite3_bind_int64(stmt, 7, node->size);
-        int inshare = 0;
+        int share = 0;
         if (node->inshare)
         {
-            inshare = 1;
+            share |= shares_t::IN_SHARES;
         }
 
-        sqlite3_bind_int(stmt, 8, inshare);
+        if (node->outshares && node->outshares->size())
+        {
+            share |= shares_t::OUT_SHARES;
+        }
+
+        if (node->pendingshares && node->pendingshares->size())
+        {
+            share |= shares_t::PENDING_SHARES;
+        }
+
+        sqlite3_bind_int(stmt, 8, share);
         sqlite3_bind_int(stmt, 9, !node->attrstring);
         sqlite3_bind_blob(stmt, 10, nodeSerialized.data(), nodeSerialized.size(), SQLITE_STATIC);
 

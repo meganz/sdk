@@ -10389,6 +10389,9 @@ MegaNodeList* MegaApiImpl::getInShares(int order)
     {
         Node *n;
         User *user = &(it->second);
+        // TODO it can be implemented with a query to DB
+        // we can use method client->sctable->getNodesWithShares()
+        // This method returns all in-shares
         for (handle_set::iterator sit = user->sharing.begin(); sit != user->sharing.end(); sit++)
         {
             if ((n = client->nodebyhandle(*sit)) && !n->parent)
@@ -10483,17 +10486,43 @@ bool MegaApiImpl::isPendingShare(MegaNode *megaNode)
     return result;
 }
 
-MegaShareList *MegaApiImpl::getOutShares(int order)
+MegaShareList *MegaApiImpl::getOutSharesOrPending(int order, bool pending)
 {
     sdkMutex.lock();
 
-    OutShareProcessor shareProcessor(*client);
-    processTree(client->nodebyhandle(client->rootnodes[0]), &shareProcessor, true);
-    shareProcessor.sortShares(order);
-    MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), int(shareProcessor.getShares().size()));
+    vector<Share *> shares;
+    std::vector<NodeSerialized> nodesSerialized;
+    client->sctable->getNodesWithShares(nodesSerialized, pending ? DbTable::shares_t::PENDING_SHARES : DbTable::shares_t::OUT_SHARES);
+    node_vector dp;
+    node_vector nodes;
+    for (const NodeSerialized& node : nodesSerialized)
+    {
+        Node* n;
+        n = Node::unserialize(client, &node.mNode, &dp, node.mDecrypted);
+        assert(n->outshares);
+        for (auto it = n->outshares->begin(); it != n->outshares->end(); it++)
+        {
+            shares.push_back(it->second);
+            nodes.push_back(n);
+        }
+    }
+
+    MegaApiImpl::sortByComparatorFunction(nodes, order, *client);
+    vector<handle> handles;
+    for (Node *node: nodes)
+    {
+        handles.push_back(node->nodehandle);
+    }
+
+    MegaShareList *shareList = new MegaShareListPrivate(shares.data(), handles.data(), int(shares.size()));
 
     sdkMutex.unlock();
     return shareList;
+}
+
+MegaShareList *MegaApiImpl::getOutShares(int order)
+{
+    return getOutSharesOrPending(order, false);
 }
 
 MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
@@ -10546,14 +10575,7 @@ MegaShareList* MegaApiImpl::getOutShares(MegaNode *megaNode)
 
 MegaShareList *MegaApiImpl::getPendingOutShares()
 {
-    sdkMutex.lock();
-
-    PendingOutShareProcessor shareProcessor;
-    processTree(client->nodebyhandle(client->rootnodes[0]), &shareProcessor, true);
-    MegaShareList *shareList = new MegaShareListPrivate(shareProcessor.getShares().data(), shareProcessor.getHandles().data(), int(shareProcessor.getShares().size()));
-
-    sdkMutex.unlock();
-    return shareList;
+    return getOutSharesOrPending(MegaApi::ORDER_NONE, true);
 }
 
 MegaShareList *MegaApiImpl::getPendingOutShares(MegaNode *megaNode)

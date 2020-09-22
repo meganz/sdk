@@ -2355,6 +2355,7 @@ class MegaApiImpl : public MegaApp
         MegaShareList *getInSharesList(int order);
         MegaUser *getUserFromInShare(MegaNode *node, bool recurse = false);
         bool isPendingShare(MegaNode *node);
+        MegaShareList *getOutSharesOrPending(int order, bool pending);
         MegaShareList *getOutShares(int order);
         MegaShareList *getOutShares(MegaNode *node);
         MegaShareList *getPendingOutShares();
