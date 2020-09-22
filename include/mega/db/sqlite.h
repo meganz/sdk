@@ -57,9 +57,11 @@ public:
     bool getNodesWithShares(std::vector<NodeSerialized>& nodes) override;
     bool getChildrenFromNode(handle node, std::map<handle, NodeSerialized>& nodes) override;
     bool getChildrenHandlesFromNode(mega::handle, std::vector<handle>&) override;
+    bool getNodesByName(const std::string& name, std::map<mega::handle, NodeSerialized>& nodes) override;
     uint32_t getNumberOfChildrenFromNode(handle node) override;
     NodeCounter getNodeCounter(handle node) override;
     bool isNodesOnDemandDb() override;
+    bool isAncestor(handle node, handle ancestor) override;
     handle getFirstAncestor(handle node) override;
     bool isNodeInDB(handle node) override;
     bool put(uint32_t, char*, unsigned);

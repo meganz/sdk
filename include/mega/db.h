@@ -68,11 +68,13 @@ public:
     virtual bool getNodesWithShares(std::vector<NodeSerialized>& nodes) = 0;
     virtual bool getChildrenFromNode(handle node, std::map<handle, NodeSerialized>& nodes) = 0;
     virtual bool getChildrenHandlesFromNode(handle node, std::vector<handle>& nodes) = 0;
+    virtual bool getNodesByName(const std::string& name, std::map<mega::handle, NodeSerialized>& nodes) = 0;
     virtual NodeCounter getNodeCounter(handle node) = 0;
     virtual uint32_t getNumberOfChildrenFromNode(handle node) = 0;
     virtual bool isNodesOnDemandDb() = 0;
     virtual handle getFirstAncestor(handle node) = 0;
     virtual bool isNodeInDB(handle node) = 0;
+    virtual bool isAncestor(handle node, handle ancestror) = 0;
 
     // update or add specific record
     virtual bool put(uint32_t, char*, unsigned) = 0;

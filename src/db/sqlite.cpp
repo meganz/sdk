@@ -551,6 +551,47 @@ bool SqliteDbTable::getChildrenHandlesFromNode(mega::handle node, std::vector<ha
     return result == SQLITE_DONE ? true : false;
 }
 
+bool SqliteDbTable::getNodesByName(const std::string &name, std::map<mega::handle, NodeSerialized> &nodes)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    checkTransaction();
+    std::string regExp;
+    regExp.append("'%")
+            .append(name)
+            .append("%'");
+
+    std::string sqlQuery = "SELECT nodehandle, decrypted, node FROM nodes WHERE LOWER(name) LIKE LOWER(";
+    sqlQuery.append("'%")
+            .append(name)
+            .append("%')");
+
+    sqlite3_stmt *stmt;
+    int result = SQLITE_ERROR;
+    if (sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL) == SQLITE_OK)
+    {
+        while ((result = sqlite3_step(stmt) == SQLITE_ROW))
+        {
+            handle nodeHandle = sqlite3_column_int64(stmt, 0);
+            NodeSerialized node;
+            node.mDecrypted = sqlite3_column_int(stmt, 1);;
+            const void* data = sqlite3_column_blob(stmt, 2);
+            int size = sqlite3_column_bytes(stmt, 2);
+            if (data && size)
+            {
+                node.mNode = std::string(static_cast<const char*>(data), size);
+                nodes[nodeHandle] = node;
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return result == SQLITE_DONE ? true : false;
+}
+
 uint32_t SqliteDbTable::getNumberOfChildrenFromNode(handle node)
 {
     if (!db)
@@ -668,6 +709,36 @@ handle SqliteDbTable::getFirstAncestor(handle node)
 
     sqlite3_finalize(stmt);
     return ancestor;
+}
+
+bool SqliteDbTable::isAncestor(handle node, handle ancestor)
+{
+    if (!db)
+    {
+        return UNDEF;
+    }
+
+    checkTransaction();
+    bool result = false;
+    sqlite3_stmt *stmt;
+    std::string sqlQuery = "WITH nodesCTE(nodehandle, parenthandle) AS (SELECT nodehandle, parenthandle FROM nodes WHERE nodehandle = ? UNION ALL SELECT A.nodehandle, A.parenthandle FROM nodes AS A INNER JOIN nodesCTE AS E ON (A.nodehandle = E.parenthandle)) SELECT * FROM nodesCTE WHERE parenthandle = ?";
+    if (sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_bind_int64(stmt, 1, node) == SQLITE_OK)
+        {
+            if (sqlite3_bind_int64(stmt, 2, ancestor) == SQLITE_OK)
+            {
+                if (sqlite3_step(stmt) == SQLITE_ROW)
+                {
+                    result = true;
+                }
+            }
+        }
+    }
+
+
+    sqlite3_finalize(stmt);
+    return result;
 }
 
 bool SqliteDbTable::isNodeInDB(handle node)
