@@ -204,6 +204,20 @@ bool Transfer::serialize(string *d)
     d->append((const char*)&s, sizeof(s));
     d->append((const char*)&priority, sizeof(priority));
     d->append("", 1);
+
+#ifdef DEBUG
+    // very quick debug only double check
+    string tempstr = *d;
+    transfer_map tempmap[2];
+    unique_ptr<Transfer> t(unserialize(client, &tempstr, tempmap));
+    assert(t);
+    assert(t->localfilename == localfilename);
+    assert(t->state == (state == TRANSFERSTATE_PAUSED ? TRANSFERSTATE_PAUSED : TRANSFERSTATE_NONE));
+    assert(t->priority == priority);
+    assert(t->fingerprint() == fingerprint());
+#endif
+
+
     return true;
 }
 

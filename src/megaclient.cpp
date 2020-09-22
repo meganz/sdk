@@ -2902,26 +2902,26 @@ void MegaClient::exec()
             //    setAllSyncsNeedFullSyncdown();
             //}
 
-            if (anySyncNeedsTargetedSync())
-            {
                 if (!fetchingnodes)
                 {
                     LOG_verbose << "Running sync()";
-                    bool success = true;
+                    //bool success = true;
                     for (Sync* sync : syncs)
                     {
-                        LocalPath localpath = sync->localroot->localname;
                         if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
                         {
+                            sync->procscanq(DirNotify::DIREVENTS);
+
                             Sync::syncRow row{sync->localroot->node, sync->localroot.get(), nullptr};
-                            if (!sync->recursiveSync(row, localpath))
-                            {
-                                // a local filesystem item was locked - schedule periodic retry
-                                // and force a full rescan afterwards as the local item may
-                                // be subject to changes that are notified with obsolete paths
-                                success = false;
-                                sync->dirnotify->mErrorCount = true;
-                            }
+                            sync->recursiveSync(row, sync->localroot->localname);
+
+                            //{
+                            //    // a local filesystem item was locked - schedule periodic retry
+                            //    // and force a full rescan afterwards as the local item may
+                            //    // be subject to changes that are notified with obsolete paths
+                            //    success = false;
+                            //    sync->dirnotify->mErrorCount = true;
+                            //}
 
                             sync->cachenodes();
                         }
@@ -2956,7 +2956,6 @@ void MegaClient::exec()
                 //{
                 //    LOG_err << "Syncdown requested while fetchingnodes is set";
                 //}
-            }
         }
 #endif
 
@@ -15130,7 +15129,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
         else
         {
             it = cachedtransfers[d].find(f);
-            if (it != cachedtransfers[d].end())
+            if (it != cachedtransfers[d].end() && !it->second->localfilename.empty())
             {
                 LOG_debug << "Resumable transfer detected";
                 t = it->second;

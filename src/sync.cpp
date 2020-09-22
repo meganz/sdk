@@ -1851,10 +1851,11 @@ void Sync::procscanq(int q)
         if ((l = notification.localnode) != (LocalNode*)~0)
         {
             LocalPath remainder;
-            if (LocalNode *deepest = localnodebypath(l, notification.path, nullptr, &remainder))
+            LocalNode *deepestParent;
+            LocalNode *matching = localnodebypath(l, notification.path, &deepestParent, &remainder);
+            if (LocalNode *deepest = matching ? matching : deepestParent)
             {
-                deepest->setFutureScan(remainder.empty() ? LocalNode::SYNCTREE_ACTION_HERE_ONLY : LocalNode::SYNCTREE_ACTION_HERE_AND_BELOW);
-                deepest->setFutureSync(remainder.empty() ? LocalNode::SYNCTREE_ACTION_HERE_ONLY : LocalNode::SYNCTREE_ACTION_HERE_AND_BELOW);
+                deepest->setFutureScan(true, !remainder.empty());
                 client->filesystemNotificationsQuietTime = Waiter::ds + (isnetwork && l->type == FILENODE ? Sync::EXTRA_SCANNING_DELAY_DS : SCANNING_DELAY_DS);
             }
         }
@@ -2260,6 +2261,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
                 if (cloudEqual && fsEqual)
                 {
                     // success! this row is synced
+                    LOG_verbose << "Row is synced";
                     if (row.syncNode->fsid != row.fsNode->fsid ||
                         row.syncNode->syncedCloudNodeHandle != row.cloudNode->nodehandle)
                     {
@@ -2332,7 +2334,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
                 else if (row.fsNode->type != FILENODE ||
                          row.fsNode->fingerprint == *static_cast<FileFingerprint*>(row.cloudNode))
                 {
-                    resolve_makeSyncNode(row, parentRow, fullPath);
+                    resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
                 }
                 else
                 {
@@ -2342,7 +2344,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
             else
             {
                 // Item existed locally only.  Create LocalNode for it, next run through will upload it
-                resolve_makeSyncNode(row, parentRow, fullPath);
+                resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
             }
         }
         else
@@ -2350,7 +2352,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
             if (row.cloudNode)
             {
                 // item exists remotely only
-
+                resolve_makeSyncNode_fromCloud(row, parentRow, fullPath);
             }
             else
             {
@@ -2363,45 +2365,48 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 }
 
 
-void Sync::resolve_makeSyncNode(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
+void Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
-    LOG_debug << "New LocalNode at: " << fullPath.toPath(*client->fsaccess);
+    LOG_debug << "Creating LocalNode from FS at: " << fullPath.toPath(*client->fsaccess);
     auto l = new LocalNode;
 
-    if (row.fsNode)
+    if (row.fsNode->type == FILENODE)
     {
-        if (row.fsNode->type == FILENODE)
-        {
-            assert(row.fsNode->fingerprint.isvalid);
-            *static_cast<FileFingerprint*>(l) = row.fsNode->fingerprint;
-        }
-        l->init(this, row.fsNode->type, parentRow.syncNode, fullPath, std::move(row.fsNode->shortname));
-
-        if (row.fsNode->fsid != UNDEF)
-        {
-            l->setfsid(row.fsNode->fsid, client->fsidnode);
-        }
-
-        l->syncedCloudNodeHandle.set6byte(row.cloudNode ? row.cloudNode->nodehandle : UNDEF);
+        assert(row.fsNode->fingerprint.isvalid);
+        *static_cast<FileFingerprint*>(l) = row.fsNode->fingerprint;
     }
-    else if (row.cloudNode)
-    {
-        if (row.cloudNode->type == FILENODE)
-        {
-            assert(row.cloudNode->fingerprint().isvalid);
-            *static_cast<FileFingerprint*>(l) = row.cloudNode->fingerprint();
-        }
-        l->init(this, row.cloudNode->type, parentRow.syncNode, fullPath, nullptr);
-        l->syncedCloudNodeHandle.set6byte(row.cloudNode->nodehandle);
-    }
-
+    l->init(this, row.fsNode->type, parentRow.syncNode, fullPath, std::move(row.fsNode->shortname));
     l->treestate(TREESTATE_PENDING);
+    if (l->type != FILENODE)
+    {
+        l->scanAgain = LocalNode::SYNCTREE_ACTION_HERE_AND_BELOW;
+    }
+    statecacheadd(l);
+}
+
+void Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
+{
+    LOG_debug << "Creating LocalNode from Cloud at: " << fullPath.toPath(*client->fsaccess);
+    auto l = new LocalNode;
+
+    if (row.cloudNode->type == FILENODE)
+    {
+        assert(row.cloudNode->fingerprint().isvalid);
+        *static_cast<FileFingerprint*>(l) = row.cloudNode->fingerprint();
+    }
+    l->init(this, row.cloudNode->type, parentRow.syncNode, fullPath, nullptr);
+    l->treestate(TREESTATE_PENDING);
+    if (l->type != FILENODE)
+    {
+        l->scanAgain = LocalNode::SYNCTREE_ACTION_HERE_AND_BELOW;
+    }
     statecacheadd(l);
 }
 
 void Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
     // local and cloud disappeared; remove sync item also
+    LOG_verbose << "Marking Localnode for deletion";
     statecachedel(row.syncNode);
 }
 
@@ -2409,6 +2414,7 @@ void Sync::resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
     if (row.fsNode->type == FILENODE)
     {
+        LOG_verbose << "Creating cloud node for: " << fullPath.toPath(*client->fsaccess);
         // upload the file if we're not already uploading
         if (!row.syncNode->transfer && parentRow.cloudNode)
         {
@@ -2433,6 +2439,7 @@ void Sync::resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 
 void Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
+    LOG_verbose << "Downsyncing row (todo)";
     if (row.fsNode->type == FILENODE)
     {
     }

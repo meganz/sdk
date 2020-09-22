@@ -452,6 +452,7 @@ struct MEGA_API LocalNode : public File
     // set the syncupTargetedAction for this, and parents
     void setFutureSync(bool doHere, bool doBelow);
     void setFutureSync(TREESTATE s);
+    void setFutureScan(bool doHere, bool doBelow);
     void setFutureScan(TREESTATE s);
 
     // current subtree sync state: current and displayed

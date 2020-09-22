@@ -160,7 +160,8 @@ public:
     bool syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
 
     void resolve_userIntervention(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
-    void resolve_makeSyncNode(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
+    void resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
+    void resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
     void resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
     void resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
     void resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath);

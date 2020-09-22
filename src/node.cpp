@@ -1419,6 +1419,16 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     sync->localnodes[type]++;
 }
 
+void LocalNode::setFutureScan(bool doHere, bool doBelow)
+{
+    auto state = static_cast<TREESTATE>((doHere?1:0) << 1 | (doBelow?1:0));
+
+    if (state != SYNCTREE_RESOLVED)
+    {
+        setFutureScan(state);
+    }
+}
+
 void LocalNode::setFutureScan(TREESTATE newNeed)
 {
     scanAgain = std::max<unsigned>(scanAgain, newNeed);
@@ -1430,7 +1440,7 @@ void LocalNode::setFutureScan(TREESTATE newNeed)
 
 void LocalNode::setFutureSync(bool doHere, bool doBelow)
 {
-    auto state = static_cast<TREESTATE>(doHere << 1 | doBelow);
+    auto state = static_cast<TREESTATE>((doHere?1:0) << 1 | (doBelow?1:0));
 
     if (state != SYNCTREE_RESOLVED)
     {
