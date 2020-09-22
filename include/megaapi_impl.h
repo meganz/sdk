@@ -2418,6 +2418,7 @@ class MegaApiImpl : public MegaApp
 
         MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 10000);
 
+        node_vector searchWithDB(MegaHandle nodeHandle, const char* searchString, MegaCancelToken *cancelToken, int order = MegaApi::ORDER_NONE);
         MegaNodeList* search(MegaNode* node, const char* searchString, MegaCancelToken *cancelToken, bool recursive = 1, int order = MegaApi::ORDER_NONE);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
         MegaNodeList* search(const char* searchString, MegaCancelToken *cancelToken, int order = MegaApi::ORDER_NONE);

@@ -11421,6 +11421,64 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCan
     return nodeList;
 }
 
+node_vector MegaApiImpl::searchWithDB(MegaHandle nodeHandle, const char *searchString, MegaCancelToken *cancelToken, int order)
+{
+    node_vector nodeVector;
+    if (!searchString)
+    {
+        return nodeVector;
+    }
+
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return nodeVector;
+    }
+
+    SdkMutexGuard g(sdkMutex);
+
+    if (cancelToken && cancelToken->isCancelled())
+    {
+        return nodeVector;
+    }
+
+    std::map<mega::handle, NodeSerialized> nodeMap;
+    client->sctable->getNodesByName(searchString, nodeMap);
+    if (nodeHandle != INVALID_HANDLE)
+    {
+        for (auto it = nodeMap.begin(); it != nodeMap.end(); )
+        {
+            if (!client->sctable->isAncestor(it->first, nodeHandle))
+            {
+                nodeMap.erase(it);
+            }
+
+            it++;
+        }
+    }
+
+    node_vector dp;
+
+    for (const auto nodeMapIt : nodeMap)
+    {
+        Node* n;
+        auto nodeIt = client->mNodes.find(nodeMapIt.first);
+        if (nodeIt == client->mNodes.end())
+        {
+            n = Node::unserialize(client, &nodeMapIt.second.mNode, &dp, nodeMapIt.second.mDecrypted);
+        }
+        else
+        {
+            n = nodeIt->second;
+        }
+
+        nodeVector.push_back(n);
+    }
+
+    sortByComparatorFunction(nodeVector, order, *client);
+    return nodeVector;
+
+}
+
 long long MegaApiImpl::getSize(MegaNode *n)
 {
     if(!n) return 0;
