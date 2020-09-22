@@ -1878,18 +1878,6 @@ class TreeProcessor
         virtual ~TreeProcessor();
 };
 
-class SearchTreeProcessor : public TreeProcessor
-{
-    public:
-        SearchTreeProcessor(const char *search);
-        virtual bool processNode(Node* node);
-        virtual ~SearchTreeProcessor() {}
-        vector<Node *> &getResults();
-
-    protected:
-        const char *search;
-        vector<Node *> results;
-};
 
 class OutShareProcessor : public TreeProcessor
 {

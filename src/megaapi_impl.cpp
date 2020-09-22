@@ -11459,12 +11459,11 @@ long long MegaApiImpl::getSize(MegaNode *n)
         sdkMutex.unlock();
         return 0;
     }
-    SizeProcessor sizeProcessor;
-    processTree(node, &sizeProcessor);
-    long long result = sizeProcessor.getTotalBytes();
+
+    NodeCounter nodeCounter = client->getTreeInfoFromNode(n->getHandle());
     sdkMutex.unlock();
 
-    return result;
+    return nodeCounter.storage;
 }
 
 char *MegaApiImpl::getFingerprint(const char *filePath)
@@ -11750,8 +11749,6 @@ MegaNode *MegaApiImpl::getNodeByCRC(const char *crc, MegaNode *parent)
     return NULL;
 }
 
-SearchTreeProcessor::SearchTreeProcessor(const char *search) { this->search = search; }
-
 #if defined(_WIN32) || defined(__APPLE__)
 
 char *strcasestr(const char *string, const char *substring)
@@ -11777,31 +11774,6 @@ char *strcasestr(const char *string, const char *substring)
 }
 
 #endif
-
-bool SearchTreeProcessor::processNode(Node* node)
-{
-    if (!node)
-    {
-        return true;
-    }
-
-    if (!search)
-    {
-        return false;
-    }
-
-    if (node->type <= FOLDERNODE && strcasestr(node->displayname(), search) != NULL)
-    {
-        results.push_back(node);
-    }
-
-    return true;
-}
-
-vector<Node *> &SearchTreeProcessor::getResults()
-{
-    return results;
-}
 
 SizeProcessor::SizeProcessor()
 {
