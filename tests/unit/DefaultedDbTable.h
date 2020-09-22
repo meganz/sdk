@@ -28,61 +28,88 @@ class DefaultedDbTable: public mega::DbTable
 {
 public:
     using mega::DbTable::DbTable;
+    DefaultedDbTable(mega::PrnGen& gen)
+        : DbTable(gen, false)
+    {
+    }
     void rewind() override
     {
-        throw NotImplemented{__func__};
+        //throw NotImplemented{__func__};
     }
     bool next(uint32_t*, std::string*) override
     {
-        throw NotImplemented{__func__};
+        return false;
+        //throw NotImplemented{__func__};
     }
     bool get(uint32_t, std::string*) override
     {
-        throw NotImplemented{__func__};
+        return false;
+        //throw NotImplemented{__func__};
     }
     bool getNode(mega::handle, mega::NodeSerialized&) override
     {
-        throw NotImplemented{__func__};
+        return false;
+        //throw NotImplemented{__func__};
     }
     bool getNodes(std::vector<mega::NodeSerialized>&) override
     {
-        throw NotImplemented{__func__};
+        return false;
+        //throw NotImplemented{__func__};
     }
     bool getNodesByFingerprint(const mega::FileFingerprint&, std::map<mega::handle, mega::NodeSerialized>&) override
     {
-        throw NotImplemented{__func__};
+        return false;
+        //throw NotImplemented{__func__};
+    }
+    bool getNodesByOrigFingerprint(const std::string& , std::map<mega::handle, mega::NodeSerialized>&) override
+    {
+        return false;
     }
     bool getNodeByFingerprint(const mega::FileFingerprint&, mega::NodeSerialized&) override
     {
-        throw NotImplemented{__func__};
+        return false;
+        //throw NotImplemented{__func__};
     }
     bool getNodesWithoutParent(std::vector<mega::NodeSerialized>&) override
     {
-        throw NotImplemented(__func__);
+        return false;
+        //throw NotImplemented(__func__);
     }
-    bool getNodesWithShares(std::vector<mega::NodeSerialized>& nodes) override
+    bool getNodesWithShares(std::vector<mega::NodeSerialized>&, shares_t) override
     {
-        throw NotImplemented(__func__);
+        return false;
+        //throw NotImplemented(__func__);
     }
     bool getChildrenFromNode(mega::handle, std::map<mega::handle, mega::NodeSerialized>&) override
     {
-        throw NotImplemented(__func__);
+        return false;
+        //throw NotImplemented(__func__);
     }
     bool getChildrenHandlesFromNode(mega::handle, std::vector<mega::handle>&) override
     {
-        throw NotImplemented(__func__);
+        return false;
+        //throw NotImplemented(__func__);
+    }
+    bool getNodesByName(const std::string&, std::map<mega::handle, mega::NodeSerialized>&) override
+    {
+        return false;
+        //throw NotImplemented(__func__);
     }
     mega::NodeCounter getNodeCounter(mega::handle) override
     {
-        throw NotImplemented(__func__);
+        mega::NodeCounter nc;
+        return nc;
+        //throw NotImplemented(__func__);
     }
     uint32_t getNumberOfChildrenFromNode(mega::handle) override
     {
-        throw NotImplemented(__func__);
+        return 0;
+        //throw NotImplemented(__func__);
     }
     bool isNodesOnDemandDb() override
     {
-        throw NotImplemented{__func__};
+        return false;
+        //throw NotImplemented{__func__};
     }
     mega::handle getFirstAncestor(mega::handle) override
     {
@@ -90,55 +117,68 @@ public:
     }
     bool isNodeInDB(mega::handle) override
     {
-        throw NotImplemented{__func__};
+        return false;
+        //throw NotImplemented{__func__};
+    }
+    bool isAncestor(mega::handle, mega::handle) override
+    {
+        return false;
     }
     bool put(uint32_t, char*, unsigned) override
     {
-        throw NotImplemented{__func__};
+        return false;
+        //throw NotImplemented{__func__};
     }
     bool put(mega::Node *) override
     {
-        throw NotImplemented{__func__};
+        return false;
+        //throw NotImplemented{__func__};
     }
     bool del(uint32_t) override
     {
-        throw NotImplemented{__func__};
+        return false;
+        //throw NotImplemented{__func__};
     }
     bool del(mega::handle) override
     {
-        throw NotImplemented{__func__};
+        return false;
+        //throw NotImplemented{__func__};
     }
     bool removeNodes() override
     {
-        throw NotImplemented{__func__};
+        return false;
+        //throw NotImplemented{__func__};
     }
     void truncate() override
     {
-        throw NotImplemented{__func__};
+        //throw NotImplemented{__func__};
     }
     void begin() override
     {
-        throw NotImplemented{__func__};
+        //throw NotImplemented{__func__};
     }
     void commit() override
     {
-        throw NotImplemented{__func__};
+        //throw NotImplemented{__func__};
     }
     void abort() override
     {
-        throw NotImplemented{__func__};
+        //throw NotImplemented{__func__};
     }
     void remove() override
     {
-        throw NotImplemented{__func__};
+        //throw NotImplemented{__func__};
     }
     std::string getVar(const std::string&) override
     {
-        throw NotImplemented{__func__};
+        std::string s;
+        return s;
+        //throw NotImplemented{__func__};
     }
     bool setVar(const std::string&, const std::string&) override
     {
-        throw NotImplemented{__func__};
+        return false;
+        //throw NotImplemented{__func__};
     }
 };
 

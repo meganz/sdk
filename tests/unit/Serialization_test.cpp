@@ -27,6 +27,7 @@
 #include <megaapi.h>
 
 #include "DefaultedFileSystemAccess.h"
+#include "DefaultedDbTable.h"
 #include "utils.h"
 
 TEST(Serialization, JSON_storeobject)
@@ -335,6 +336,11 @@ struct MockClient
     mega::MegaApp app;
     ::mega::FSACCESS_CLASS fs;
     std::shared_ptr<mega::MegaClient> cli = mt::makeClient(app, fs);
+    MockClient()
+    {
+        mega::PrnGen gen;
+        cli->sctable = new mt::DefaultedDbTable(gen);
+    }
 };
 
 #ifdef ENABLE_SYNC
