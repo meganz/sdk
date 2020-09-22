@@ -259,6 +259,19 @@ typedef enum { NOTLOGGEDIN, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT } se
 // in a 64-bit int
 typedef uint64_t handle;
 
+class NodeHandle
+{
+    // Actual nodes are only 6 bytes.
+    // This class helps avoid issues when we don't save/restore the top 2 bytes when using an 8 byte uint64 to represent it
+    uint64_t h = 0xFFFFFFFFFFFFFFFF;
+public:
+    bool isUndef() { return (h & 0xFFFFFFFFFFFF) == 0xFFFFFFFFFFFF; }
+    void set6byte(uint64_t n) { h = n; }
+    bool operator==(handle b) { return (h & 0xFFFFFFFFFFFF) == (b & 0xFFFFFFFFFFFF); }
+    bool operator!=(handle b) { return (h & 0xFFFFFFFFFFFF) != (b & 0xFFFFFFFFFFFF); }
+    handle as8byte() { return isUndef() ? 0xFFFFFFFFFFFFFFFF : (h & 0xFFFFFFFFFFFF); }
+};
+
 // (can use unordered_set if available)
 typedef set<handle> handle_set;
 

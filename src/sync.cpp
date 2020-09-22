@@ -933,7 +933,7 @@ void Sync::statecacheadd(LocalNode* l)
 
 void Sync::cachenodes()
 {
-    if (statecachetable && (state == SYNC_ACTIVE || (state == SYNC_INITIALSCAN && insertq.size() > 100)) && (deleteq.size() || insertq.size()))
+    if (statecachetable && (state == SYNC_ACTIVE || (state == SYNC_INITIALSCAN /*&& insertq.size() > 100*/)) && (deleteq.size() || insertq.size()))
     {
         LOG_debug << "Saving LocalNode database with " << insertq.size() << " additions and " << deleteq.size() << " deletions";
         statecachetable->begin();
@@ -1952,7 +1952,7 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
 bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
 {
     // Sentinel value used to signal that we've detected a name conflict.
-    Node* const NAME_CONFLICT = reinterpret_cast<Node*>(~0u);
+    Node* const NAME_CONFLICT = reinterpret_cast<Node*>(~0ull);
 
     // nothing to do for this subtree? Skip traversal
     if (row.syncNode->syncAgain == LocalNode::SYNCTREE_RESOLVED && row.syncNode->scanAgain == LocalNode::SYNCTREE_RESOLVED)
@@ -1995,6 +1995,8 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
     }
 
     // Build the 3 lists to compare same-name items (Node, LocalNode, filesystem item)
+
+    LOG_verbose << "recursiveSync() at: " << localPath.toPath(*client->fsaccess);
 
     // Get the filesystem items list
     vector<FSNode> fsChildren;
@@ -2054,6 +2056,12 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
     auto cloudCmpSync = [&](LocalNode* a, LocalNode* b){ return nameCmp(a->name, b->name); };
     std::sort(fsChildren.begin(), fsChildren.end(), cloudCmpFS);
     std::sort(syncChildren.begin(), syncChildren.end(), cloudCmpSync);
+
+    ostringstream fsString, syString, clString;
+    for (auto& fsi : fsChildren) fsString << " " << fsi.localname.toPath(*client->fsaccess);
+    LOG_verbose << "Filesystem:" << fsString.str();
+    for (auto& syc : syncChildren) syString << " " << syc->name;
+    LOG_verbose << "SyncNodes:" << syString.str();
 
     {
         // Pair up the sorted local and sync lists
@@ -2115,6 +2123,9 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
     std::sort(cloudChildren.begin(), cloudChildren.end(), localCmpNode);
     std::sort(childRows.begin(), childRows.end(), localCmpRow);
 
+    for (auto& clc : cloudChildren) clString << " " << clc->displayname();
+    LOG_verbose << "CloudNodes:" << clString.str();
+
     {
         // Pair up the sorted cloud and syncrow lists
         auto cloudIter = cloudChildren.begin();
@@ -2139,7 +2150,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
 
             if (thisCl && thisRow && thisRow->syncNode)
             {
-                int relationship = nameCmp(thisCl->canonicalname(), thisRow->syncNode->name);
+                int relationship = nameCmp.compare(thisCl->canonicalname(), thisRow->syncNode->name);
 
                 // any entry that is not equal to the lowest string is set to null
                 // nonnulls are all equal and go in the same row
@@ -2170,8 +2181,10 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
         }
     }
 
-    row.syncNode->scanAgain = LocalNode::SYNCTREE_RESOLVED;
+    row.syncNode->syncAgain = LocalNode::SYNCTREE_RESOLVED;
 
+    bool folderSynced = true;
+    bool subfoldersSynced = true;
     for (auto& childRow : childRows)
     {
         // Skip rows that signal name conflicts.
@@ -2194,19 +2207,29 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
             localPath.appendWithSeparator(LocalPath::fromName(childRow.cloudNode->displayname(), *client->fsaccess, mFilesystemType), true, client->fsaccess->localseparator);
         }
 
-        syncItem(childRow, row, localPath);
+        if (!syncItem(childRow, row, localPath))
+        {
+            folderSynced = false;
+        }
 
-        if (row.cloudNode && row.syncNode && row.fsNode &&
-            row.syncNode->type != FILENODE)
+        if (childRow.cloudNode && childRow.syncNode && childRow.fsNode &&
+            childRow.syncNode->type != FILENODE)
         {
             if (!recursiveSync(childRow, localPath))
             {
-                row.syncNode->scanAgain = std::max<unsigned>(row.syncNode->scanAgain, LocalNode::SYNCTREE_ACTION_HERE_ONLY);
-                return false;
+                subfoldersSynced = false;
             }
         }
     }
-    return true;
+
+    if (!folderSynced || !subfoldersSynced)
+    {
+        row.syncNode->setFutureSync(
+            !folderSynced && !subfoldersSynced ? LocalNode::SYNCTREE_ACTION_HERE_AND_BELOW :
+            (!folderSynced ? LocalNode::SYNCTREE_ACTION_HERE_ONLY :
+                             LocalNode::SYNCTREE_DESCENDANT_FLAGGED));
+    }
+    return folderSynced && subfoldersSynced;
 }
 
 bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
@@ -2225,7 +2248,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 
     LOG_verbose << "Considering sync triplet:" <<
         " " << (row.cloudNode ? row.cloudNode->displaypath() : "(null)") <<
-        " " << (row.syncNode ? row.syncNode->getLocalPath().toPath(*client->fsaccess) : "(null)") <<
+        " " << (row.syncNode ? row.syncNode->getLocalPath(true).toPath(*client->fsaccess) : "(null)") <<
         " " << (row.fsNode ? fullPath.toPath(*client->fsaccess) : "(null)");
 
     if (row.syncNode)
@@ -2235,36 +2258,48 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
             if (row.cloudNode)
             {
                 // all three exist; compare
+                bool cloudEqual = syncEqual(*row.cloudNode, *row.syncNode);
+                bool fsEqual = syncEqual(*row.fsNode, *row.syncNode);
+                if (cloudEqual && fsEqual)
+                {
+                    // success! this row is synced
+                    if (row.syncNode->fsid != row.fsNode->fsid ||
+                        row.syncNode->syncedCloudNodeHandle != row.cloudNode->nodehandle)
+                    {
+                        row.syncNode->fsid = row.fsNode->fsid;
+                        row.syncNode->syncedCloudNodeHandle.set6byte(row.cloudNode->nodehandle);
+
+                        // todo: eventually remove pointers
+                        row.syncNode->node = client->nodebyhandle(row.syncNode->syncedCloudNodeHandle.as8byte());
+                        if (row.syncNode->node) row.syncNode->node->localnode = row.syncNode;
+
+                        statecacheadd(row.syncNode);
+                    }
+                    return true;
+                }
+                else if (cloudEqual)
+                {
+                    // filesystem changed, put the change
+                    resolve_upsync(row, parentRow, fullPath);
+                }
+                else if (fsEqual)
+                {
+                    // cloud has changed, get the change
+                    resolve_downsync(row, parentRow, fullPath);
+                }
+                else
+                {
+                    // both changed, so we can't decide without the user's help
+                    resolve_userIntervention(row, parentRow, fullPath);
+                }
             }
             else
             {
                 // cloud item absent
-                if (row.syncNode->syncedCloudNodeHandle == UNDEF)
+                if (row.syncNode->syncedCloudNodeHandle.isUndef())
                 {
                     // cloud item did not exist before; create it
-                    if (row.fsNode->type == FILENODE)
-                    {
-                        // upload the file if we're not already uploading
-                        if (!row.syncNode->transfer && parentRow.cloudNode)
-                        {
-                            assert(row.syncNode->isvalid); // LocalNodes for files always have a valid fingerprint
-                            DBTableTransactionCommitter committer(client->tctable); // todo: move higher
-
-                            row.syncNode->h = parentRow.cloudNode->nodehandle;
-                            client->nextreqtag();
-                            client->startxfer(PUT, row.syncNode, committer);  // full path will be calculated in the prepare() callback
-                            client->app->syncupdate_put(this, row.syncNode, fullPath.toPath(*client->fsaccess).c_str());
-                        }
-                    }
-                    else
-                    {
-                        LOG_debug << "Uploading file " << fullPath.toPath(*client->fsaccess);
-                        // while the operation is in progress sync() will skip over the parent folder
-                        vector<NewNode> nn(1);
-                        client->putnodes_prepareOneFolder(&nn[0], row.syncNode->name);
-                        client->putnodes(parentRow.cloudNode->nodehandle, move(nn), nullptr, 0);
-                    }
-
+                    resolve_upsync(row, parentRow, fullPath);
                 }
                 else
                 {
@@ -2281,8 +2316,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
             else
             {
                 // local and cloud disappeared; remove sync item also
-                delete row.syncNode;
-                row.syncNode = nullptr;
+                resolve_delSyncNode(row, parentRow, fullPath);
             }
         }
     }
@@ -2292,26 +2326,26 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
         {
             if (row.cloudNode)
             {
-                // item exists locally and remotely but we haven't synced them previously
-
+                // Item exists locally and remotely but we haven't synced them previously
+                // If they are equal then join them with a Localnode. Othewise report or choose greater mtime.
+                if (row.fsNode->type != row.cloudNode->type)
+                {
+                    resolve_userIntervention(row, parentRow, fullPath);
+                }
+                else if (row.fsNode->type != FILENODE ||
+                         row.fsNode->fingerprint == *static_cast<FileFingerprint*>(row.cloudNode))
+                {
+                    resolve_makeSyncNode(row, parentRow, fullPath);
+                }
+                else
+                {
+                    resolve_pickWinner(row, parentRow, fullPath);
+                }
             }
             else
             {
                 // Item existed locally only.  Create LocalNode for it, next run through will upload it
-                LOG_debug << "New LocalNode at: " << fullPath.toPath(*client->fsaccess);
-                assert(row.fsNode->fingerprint.isvalid);
-                auto l = new LocalNode;
-                *static_cast<FileFingerprint*>(l) = row.fsNode->fingerprint;
-                l->init(this, row.fsNode->type, parentRow.syncNode, fullPath, std::move(row.fsNode->shortname));
-
-                if (row.fsNode->fsid != UNDEF)
-                {
-                    l->setfsid(row.fsNode->fsid, client->fsidnode);
-                }
-
-                //l->setnameparent(parentRow.syncNode, nullptr, nullptr, false);
-                l->treestate(TREESTATE_PENDING);
-                statecacheadd(l);
+                resolve_makeSyncNode(row, parentRow, fullPath);
             }
         }
         else
@@ -2328,7 +2362,118 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
             }
         }
     }
-    return true;
+    return false;
+}
+
+
+void Sync::resolve_makeSyncNode(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
+{
+    LOG_debug << "New LocalNode at: " << fullPath.toPath(*client->fsaccess);
+    auto l = new LocalNode;
+
+    if (row.fsNode)
+    {
+        if (row.fsNode->type == FILENODE)
+        {
+            assert(row.fsNode->fingerprint.isvalid);
+            *static_cast<FileFingerprint*>(l) = row.fsNode->fingerprint;
+        }
+        l->init(this, row.fsNode->type, parentRow.syncNode, fullPath, std::move(row.fsNode->shortname));
+
+        if (row.fsNode->fsid != UNDEF)
+        {
+            l->setfsid(row.fsNode->fsid, client->fsidnode);
+        }
+
+        l->syncedCloudNodeHandle.set6byte(row.cloudNode ? row.cloudNode->nodehandle : UNDEF);
+    }
+    else if (row.cloudNode)
+    {
+        if (row.cloudNode->type == FILENODE)
+        {
+            assert(row.cloudNode->fingerprint().isvalid);
+            *static_cast<FileFingerprint*>(l) = row.cloudNode->fingerprint();
+        }
+        l->init(this, row.cloudNode->type, parentRow.syncNode, fullPath, nullptr);
+        l->syncedCloudNodeHandle.set6byte(row.cloudNode->nodehandle);
+    }
+
+    l->treestate(TREESTATE_PENDING);
+    statecacheadd(l);
+}
+
+void Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
+{
+    // local and cloud disappeared; remove sync item also
+    statecachedel(row.syncNode);
+}
+
+void Sync::resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
+{
+    if (row.fsNode->type == FILENODE)
+    {
+        // upload the file if we're not already uploading
+        if (!row.syncNode->transfer && parentRow.cloudNode)
+        {
+            assert(row.syncNode->isvalid); // LocalNodes for files always have a valid fingerprint
+            DBTableTransactionCommitter committer(client->tctable); // todo: move higher
+
+            row.syncNode->h = parentRow.cloudNode->nodehandle;
+            client->nextreqtag();
+            client->startxfer(PUT, row.syncNode, committer);  // full path will be calculated in the prepare() callback
+            client->app->syncupdate_put(this, row.syncNode, fullPath.toPath(*client->fsaccess).c_str());
+        }
+    }
+    else
+    {
+        LOG_debug << "Uploading file " << fullPath.toPath(*client->fsaccess);
+        // while the operation is in progress sync() will skip over the parent folder
+        vector<NewNode> nn(1);
+        client->putnodes_prepareOneFolder(&nn[0], row.syncNode->name);
+        client->putnodes(parentRow.cloudNode->nodehandle, move(nn), nullptr, 0);
+    }
+}
+
+void Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
+{
+    if (row.fsNode->type == FILENODE)
+    {
+    }
+    else
+    {
+    }
+}
+
+
+void Sync::resolve_userIntervention(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
+{
+    LOG_debug << "write me";
+}
+
+void Sync::resolve_pickWinner(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
+{
+    LOG_debug << "write me";
+}
+
+
+bool Sync::syncEqual(const Node& n, const LocalNode& ln)
+{
+    // Assuming names already match
+    // Not comparing nodehandle here.  If they all match we set syncedCloudNodeHandle
+    if (n.type != ln.type) return false;
+    if (n.type != FILENODE) return true;
+    assert(n.fingerprint().isvalid && ln.fingerprint().isvalid);
+    return n.fingerprint() == ln.fingerprint();  // size, mtime, crc
+}
+
+bool Sync::syncEqual(const FSNode& fsn, const LocalNode& ln)
+{
+    // Assuming names already match
+    // Not comparing fsid here. If they all match then we set LocalNode's fsid
+    if (fsn.type != ln.type) return false;
+    if (fsn.type != FILENODE) return true;
+    assert(fsn.fingerprint.isvalid && ln.fingerprint().isvalid);
+    return fsn.fingerprint == ln.fingerprint();  // size, mtime, crc
 }
 
 

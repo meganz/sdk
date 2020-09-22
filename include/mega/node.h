@@ -400,7 +400,7 @@ struct MEGA_API LocalNode : public File
 
     // related cloud node, if any
     Node* node = nullptr;
-    handle syncedCloudNodeHandle = UNDEF;
+    NodeHandle syncedCloudNodeHandle;
 
     // related pending node creation or NULL
     crossref_ptr<NewNode, LocalNode> newnode;

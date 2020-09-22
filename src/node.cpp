@@ -1896,6 +1896,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->mtime = mtime;
     l->isvalid = true;
 
+    l->syncedCloudNodeHandle.set6byte(h);
     l->node = sync->client->nodebyhandle(h);
     l->parent = nullptr;
     l->sync = sync;

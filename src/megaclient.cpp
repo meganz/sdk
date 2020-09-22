@@ -2602,52 +2602,52 @@ void MegaClient::exec()
                 //    syncextraretry = false;
                 //}
 
-                for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
-                {
-                    //if (!syncfsopsfailed)
-                    {
-                        syncfslockretry = false;
+                //for (int q = syncfslockretry ? DirNotify::RETRY : DirNotify::DIREVENTS; q >= DirNotify::DIREVENTS; q--)
+                //{
+                //    //if (!syncfsopsfailed)
+                //    {
+                //        syncfslockretry = false;
 
-                        // not retrying local operations: process pending notifyqs
-                        for (auto it = syncs.begin(); it != syncs.end(); )
-                        {
-                            Sync* sync = *it++;
+                //        // not retrying local operations: process pending notifyqs
+                //        for (auto it = syncs.begin(); it != syncs.end(); )
+                //        {
+                //            Sync* sync = *it++;
 
-                            if (sync->state == SYNC_CANCELED || sync->state == SYNC_FAILED || sync->state == SYNC_DISABLED)
-                            {
-                                delete sync;  // removes itself from the client's list that we are iterating
-                                continue;
-                            }
-                            else if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
-                            {
-                                // process items from the notifyq until depleted
-                                if (sync->dirnotify->notifyq[q].size())
-                                {
-                                    //dstime dsretry;
+                //            if (sync->state == SYNC_CANCELED || sync->state == SYNC_FAILED || sync->state == SYNC_DISABLED)
+                //            {
+                //                delete sync;  // removes itself from the client's list that we are iterating
+                //                continue;
+                //            }
+                //            else if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
+                //            {
+                //                // process items from the notifyq until depleted
+                //                if (sync->dirnotify->notifyq[q].size())
+                //                {
+                //                    //dstime dsretry;
 
-                                    syncops = true;
+                //                    syncops = true;
 
-                                    sync->procscanq(q);
-                                }
+                //                    sync->procscanq(q);
+                //                }
 
-                                if (sync->state == SYNC_INITIALSCAN && q == DirNotify::DIREVENTS && !sync->dirnotify->notifyq[q].size())
-                                {
-                                    sync->changestate(SYNC_ACTIVE);
+                //                if (sync->state == SYNC_INITIALSCAN && q == DirNotify::DIREVENTS && !sync->dirnotify->notifyq[q].size())
+                //                {
+                //                    sync->changestate(SYNC_ACTIVE);
 
-                                    // scan for items that were deleted while the sync was stopped
-                                    // FIXME: defer this until RETRY queue is processed
-                                    sync->scanseqno++;
-                                    sync->deletemissing(sync->localroot.get());
-                                }
-                            }
-                        }
+                //                    // scan for items that were deleted while the sync was stopped
+                //                    // FIXME: defer this until RETRY queue is processed
+                //                    sync->scanseqno++;
+                //                    sync->deletemissing(sync->localroot.get());
+                //                }
+                //            }
+                //        }
 
-                        if (syncadding)
-                        {
-                            break;
-                        }
-                    }
-                }
+                //        if (syncadding)
+                //        {
+                //            break;
+                //        }
+                //    }
+                //}
 
                 size_t totalpending = 0;
                 size_t scanningpending = 0;
@@ -3071,7 +3071,7 @@ int MegaClient::preparewait()
 #ifdef ENABLE_SYNC
     // sync directory scans in progress or still processing sc packet without having
     // encountered a locally locked item? don't wait.
-    if (syncactivity || (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownretry))
+    if (/*syncactivity ||*/ (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownretry))
     {
         nds = Waiter::ds;
     }
