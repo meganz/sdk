@@ -1141,7 +1141,9 @@ auto Sync::checkpathOne(LocalPath& localPath, const LocalPath& leafname, DirAcce
     // todo: skip fingerprinting files if we already know it - name, size, mtime, fsid match
 
     FSNode result;
+
     result.localname = leafname;
+    result.name = leafname.toName(*client->fsaccess);
 
     // attempt to open/type this file
     auto fa = client->fsaccess->newfileaccess(false);
@@ -2044,8 +2046,8 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
     childRows.reserve(fsChildren.size() + cloudChildren.size());
 
     // sort sync and local (in cloud order) so we can pair them up
-    auto cloudCmpFS = [](FSNode& a, FSNode& b){ return a.localname < b.localname; };
-    auto cloudCmpSync = [](LocalNode* a, LocalNode* b){ return a->localname < b->localname; };
+    auto cloudCmpFS = [](FSNode& a, FSNode& b){ return a.name < b.name; };
+    auto cloudCmpSync = [](LocalNode* a, LocalNode* b){ return a->name < b->name; };
     std::sort(fsChildren.begin(), fsChildren.end(), cloudCmpFS);
     std::sort(syncChildren.begin(), syncChildren.end(), cloudCmpSync);
 
@@ -2097,12 +2099,12 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
         return a < b;
     };
     auto localCmpNode = [=](Node* a, Node* b){
-        return localCmpString(a->displayname(), b->displayname());
+        return localCmpString(a->canonicalname(), b->canonicalname());
     };
     auto localCmpRow = [this, row, localCmpString, sync](syncRow& a, syncRow& b){
         // if there is no LocalNode yet, compare against the FSNode
-        const string& stringA = a.syncNode ? a.syncNode->name : a.fsNode->localname.toName(*client->fsaccess);
-        const string& stringB = b.syncNode ? b.syncNode->name : b.fsNode->localname.toName(*client->fsaccess);
+        const string& stringA = a.syncNode ? a.syncNode->name : a.fsNode->name;
+        const string& stringB = b.syncNode ? b.syncNode->name : b.fsNode->name;
         return localCmpString(stringA, stringB);
     };
 

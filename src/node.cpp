@@ -204,6 +204,23 @@ Node::~Node()
 #endif
 }
 
+string Node::canonicalname() const
+{
+    return client->fsaccess->canonicalize(name());
+}
+
+string Node::name() const
+{
+    auto it = attrs.map.find('n');
+
+    if (it != attrs.map.end())
+    {
+        return it->second;
+    }
+
+    return "";
+}
+
 void Node::setkeyfromjson(const char* k)
 {
     if (keyApplied()) --client->mAppliedKeyNodeCount;
@@ -1673,6 +1690,7 @@ FSNode LocalNode::getKnownFSDetails()
 {
     FSNode n;
     n.localname = localname;
+    n.name = name;
     n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
     n.type = type;
     n.size = FileFingerprint::size;

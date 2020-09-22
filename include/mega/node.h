@@ -310,6 +310,12 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
 
+    // Retrieve the node's canonical name.
+    string canonicalname() const;
+
+    // Retrieve the node's name.
+    string name() const;
+
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
     // node crypto keys (raw or cooked -
@@ -339,6 +345,7 @@ struct MEGA_API FSNode
 {
     // A structure convenient for containing just the attributes of one item from the filesystem
     LocalPath localname;
+    string name;
     unique_ptr<LocalPath> shortname;
     nodetype_t type = TYPE_UNKNOWN;
     m_off_t size = 0;
