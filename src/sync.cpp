@@ -2072,10 +2072,12 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
 
             if (thisFS && thisSY)
             {
+                int relationship = thisFS->name.compare(thisSY->name);
+
                 // any entry that is not equal to the lowest string is set to null
                 // nonnulls are all equal and go in the same row
-                if      (thisFS->localname < thisSY->localname) thisSY = nullptr;
-                else if (thisSY->localname < thisFS->localname) thisFS = nullptr;
+                if      (relationship < 0) thisSY = nullptr;
+                else if (relationship > 0) thisFS = nullptr;
             }
 
             if (!thisFS && !thisSY) break;
@@ -2133,12 +2135,14 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
             Node* thisCl = cloudIter == cloudChildren.end() ? nullptr : *cloudIter;
             syncRow* thisRow = rowIter == rowLast ? nullptr : &childRows[rowIter];
 
-            // any entry that is not equal to the lowest string is set to null
-            // nonnulls are all equal and go in the same row
             if (thisCl && thisRow && thisRow->syncNode)
             {
-                if      (thisCl->displayname() < thisRow->syncNode->name) thisRow = nullptr;
-                else if (thisRow->syncNode->name < thisCl->displayname()) thisCl = nullptr;
+                int relationship = thisCl->canonicalname().compare(thisRow->syncNode->name);
+
+                // any entry that is not equal to the lowest string is set to null
+                // nonnulls are all equal and go in the same row
+                if      (relationship < 0) thisRow = nullptr;
+                else if (relationship > 0) thisCl = nullptr;
             }
 
             if (!thisCl && !thisRow) break;
