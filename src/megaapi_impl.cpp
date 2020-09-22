@@ -21903,11 +21903,10 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            TreeProcFolderInfo folderProcessor;
-            client->proctree(node, &folderProcessor, false, false);
-            MegaFolderInfo *folderInfo = folderProcessor.getResult();
-            request->setMegaFolderInfo(folderInfo);
-            delete folderInfo;
+            NodeCounter nc = client->getTreeInfoFromNode(node->nodehandle);
+            // TODO Nodes on Demand: Calculate numVersion and size Versions in getNodeCounter
+            std::unique_ptr<MegaFolderInfo> folderInfo = make_unique<MegaFolderInfoPrivate>(nc.files, nc.folders - 1, 0, nc.storage, 0);
+            request->setMegaFolderInfo(folderInfo.get());
 
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
@@ -32101,41 +32100,6 @@ long long MegaFolderInfoPrivate::getCurrentSize() const
 long long MegaFolderInfoPrivate::getVersionsSize() const
 {
     return versionsSize;
-}
-
-TreeProcFolderInfo::TreeProcFolderInfo()
-{
-    numFiles = 0;
-    numFolders = 0;
-    numVersions = 0;
-    currentSize = 0;
-    versionsSize = 0;
-}
-
-void TreeProcFolderInfo::proc(MegaClient *, Node *node)
-{
-    if (node->parent && node->parent->type == FILENODE)
-    {
-        numVersions++;
-        versionsSize += node->size;
-    }
-    else
-    {
-        if (node->type == FILENODE)
-        {
-            numFiles++;
-            currentSize += node->size;
-        }
-        else
-        {
-            numFolders++;
-        }
-    }
-}
-
-MegaFolderInfo *TreeProcFolderInfo::getResult()
-{
-    return new MegaFolderInfoPrivate(numFiles, numFolders - 1, numVersions, currentSize, versionsSize);
 }
 
 MegaTimeZoneDetailsPrivate::MegaTimeZoneDetailsPrivate(vector<std::string> *timeZones, vector<int> *timeZoneOffsets, int defaultTimeZone)

@@ -1891,22 +1891,6 @@ class SizeProcessor : public TreeProcessor
         long long getTotalBytes();
 };
 
-class TreeProcFolderInfo : public TreeProc
-{
-    public:
-        TreeProcFolderInfo();
-        virtual void proc(MegaClient*, Node*);
-        virtual ~TreeProcFolderInfo() {}
-        MegaFolderInfo *getResult();
-
-    protected:
-        int numFiles;
-        int numFolders;
-        int numVersions;
-        long long currentSize;
-        long long versionsSize;
-};
-
 //Thread safe request queue
 class RequestQueue
 {
