@@ -11414,6 +11414,7 @@ long long MegaApiImpl::getSize(MegaNode *n)
 
     if (n->isForeign())
     {
+        // TODO Nodes on Demand: how we can improve calculation
         MegaSizeProcessor megaSizeProcessor;
         processMegaTree(n, &megaSizeProcessor);
         return megaSizeProcessor.getTotalBytes();
@@ -17097,6 +17098,7 @@ int MegaApiImpl::getNumChildFiles(MegaNode* p)
         return 0;
     }
 
+    // TODO Nodes on Demand: it can be implemented with a query to DB
     int numFiles = 0;
     node_list nodeList = client->getChildrens(parent);
     for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
@@ -17124,6 +17126,7 @@ int MegaApiImpl::getNumChildFolders(MegaNode* p)
         return 0;
     }
 
+    // TODO Nodes on Demand: it can be implemented with a query to DB
     int numFolders = 0;
     node_list nodeList = client->getChildrens(parent);
     for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
@@ -17219,6 +17222,7 @@ int MegaApiImpl::getNumVersions(MegaNode *node)
         return 0;
     }
 
+    // TODO Nodes on Demand: it can be implemented with a query to DB
     int numVersions = 1;
     bool looking = true;
     while (looking)
@@ -17248,6 +17252,7 @@ bool MegaApiImpl::hasVersions(MegaNode *node)
     }
 
     sdkMutex.lock();
+    // TODO Nodes on Demand: it can be implemented with a query to DB
     Node *current = client->nodebyhandle(node->getHandle());
     if (!current || current->type != FILENODE)
     {
@@ -17293,7 +17298,7 @@ MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
 
     node_vector files;
     node_vector folders;
-
+    // TODO Nodes on Demand: it can be implemented with a query to DB
     node_list nodeList = client->getChildrens(parent);
     for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); )
     {

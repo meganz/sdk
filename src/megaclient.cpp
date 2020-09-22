@@ -553,6 +553,7 @@ Node *MegaClient::getrootnode(Node *node)
         return NULL;
     }
 
+    // TODO it can be implemented with a query to DB
     Node *n = node;
     while (n->parent)
     {
@@ -1051,6 +1052,7 @@ Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
 
     fsaccess->normalize(&nname);
 
+    // TODO Nodes on Demand: it can be implemented with a query to DB
     node_list nodeList = getChildrens(p);
     for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
     {
@@ -1085,6 +1087,7 @@ vector<Node*> MegaClient::childnodesbyname(Node* p, const char* name, bool skipf
 
     fsaccess->normalize(&nname);
 
+    // TODO Nodes on Demand: it can be implemented with a query to DB
     node_list nodeList = getChildrens(p);
     for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
     {
