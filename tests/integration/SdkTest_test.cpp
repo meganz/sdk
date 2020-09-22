@@ -4872,9 +4872,11 @@ TEST_F(SdkTest, SdkTestNodesOnDemand)
     gTestingInvalidArgs = true;
     const int NUM_CHILDS = 5;
 
+     std::unique_ptr<MegaNode> rootNode1 = std::unique_ptr<MegaNode>(mApi[0].megaApi->getRootNode());
+    purgeTree(rootNode1.get());
+
     // Create Folders Folder1, Folder1_1, Folder2
     std::string folder1Name("Folder1");
-    std::unique_ptr<MegaNode> rootNode1 = std::unique_ptr<MegaNode>(mApi[0].megaApi->getRootNode());
     createFolder(0, folder1Name.c_str(), rootNode1.get());
     MegaHandle folder1Handle = mApi[0].h;
     std::unique_ptr<MegaNode> folder1 = std::unique_ptr<MegaNode>(mApi[0].megaApi->getNodeByHandle(folder1Handle));
@@ -4980,6 +4982,12 @@ TEST_F(SdkTest, SdkTestNodesOnDemand)
     ASSERT_NO_FATAL_FAILURE(resumeSession(session));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
+    std::unique_ptr<MegaNode> nodeApi0 = std::unique_ptr<MegaNode>(mApi[0].megaApi->getNodeByHandle(folder2_1Handle));
+    std::unique_ptr<MegaNode> nodeApi1 = std::unique_ptr<MegaNode>(mApi[1].megaApi->getNodeByHandle(folder2_1Handle));
+    ASSERT_STREQ(nodeApi0->getName(), nodeApi1->getName());
+    ASSERT_EQ(mApi[0].megaApi->getSize(nodeApi0.get()), mApi[1].megaApi->getSize(nodeApi1.get()));
+
+
     // Rename, move and revome nodes with Session2 and check behaviour with Session1
     // The operation are done with Session1 logged in and disconnected
 
@@ -4988,6 +4996,7 @@ TEST_F(SdkTest, SdkTestNodesOnDemand)
     mApi[1].requestFlags[MegaRequest::TYPE_RENAME] = false;
     mApi[1].nodeUpdated = false;
     mApi[0].nodeUpdated = false;
+    MegaHandle nodeWithNewName = files2_1_1.at(2)->getHandle();
     mApi[1].megaApi->renameNode(files2_1_1.at(2).get(), name.c_str());
     ASSERT_TRUE( waitForResponse(&mApi[1].requestFlags[MegaRequest::TYPE_RENAME]) )
             << "Move operation failed after " << maxTimeout << " seconds";
@@ -5012,6 +5021,13 @@ TEST_F(SdkTest, SdkTestNodesOnDemand)
     std::unique_ptr<MegaNode> node1Front = std::unique_ptr<MegaNode>(mApi[0].megaApi->getNodeByHandle(nodeHandles2_1_1.front()));
     ASSERT_NE(node1Last->getParentHandle(), node1Front->getParentHandle());
 
+    // search by name
+    locallogout();
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    std::unique_ptr<MegaNodeList> nodeList = std::unique_ptr<MegaNodeList>(mApi[0].megaApi->search(name.c_str()));
+    ASSERT_GT(nodeList->size(), 0);
+    ASSERT_EQ(nodeList->get(0)->getHandle(), nodeWithNewName);
     // Move node 5 to folder 3
     mApi[1].requestFlags[MegaRequest::TYPE_MOVE] = false;
     mApi[1].nodeUpdated = false;
