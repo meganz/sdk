@@ -1006,7 +1006,7 @@ string LocalPath::toPath(const FileSystemAccess& fsaccess) const
 
 string LocalPath::toName(const FileSystemAccess& fsaccess) const
 {
-    string name = localpath;
+    string name = toPath(fsaccess);
     fsaccess.unescapefsincompatible(&name);
     return name;
 }
