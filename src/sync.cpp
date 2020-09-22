@@ -1114,18 +1114,10 @@ auto Sync::scanOne(LocalNode& localNodeFolder, LocalPath& localPath) -> vector<F
         ScopedLengthRestore restoreLen(localPath);
         localPath.appendWithSeparator(localname, false, client->fsaccess->localseparator);
 
-        // check if this record is to be ignored
-        if (client->app->sync_syncable(this, name.c_str(), localPath))
+        // skip the sync's debris folder
+        if (!localdebris.isContainingPathOf(localPath, client->fsaccess->localseparator))
         {
-            // skip the sync's debris folder
-            if (!localdebris.isContainingPathOf(localPath, client->fsaccess->localseparator))
-            {
-                results.push_back(checkpathOne(localPath, localname, da.get()));
-            }
-        }
-        else
-        {
-            LOG_debug << "Excluded: " << name;
+            results.push_back(checkpathOne(localPath, localname, da.get()));
         }
     }
     return results;
@@ -1973,7 +1965,6 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
         // visit this node again later when we have a LocalNode at this level
         return true;
     }
-    Sync* sync = row.syncNode->sync;
 
     if (row.cloudNode && !row.cloudNode->mPendingChanges.empty())
     {
@@ -2019,7 +2010,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
         // If we need to scan at this level, do it now - just scan one folder then return from the stack to release the mutex.
         // Sync actions can occur on the next run
 
-        fsChildren = sync->scanOne(*row.syncNode, localPath);
+        fsChildren = scanOne(*row.syncNode, localPath);
         row.syncNode->lastScanTime = Waiter::ds;
         row.syncNode->scanAgain = LocalNode::SYNCTREE_RESOLVED;
         row.syncNode->syncAgain = LocalNode::SYNCTREE_ACTION_HERE_ONLY;
@@ -2200,7 +2191,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
         }
         else if (childRow.cloudNode)
         {
-            localPath.appendWithSeparator(LocalPath::fromName(childRow.cloudNode->displayname(), *client->fsaccess, row.syncNode->sync->mFilesystemType), true, client->fsaccess->localseparator);
+            localPath.appendWithSeparator(LocalPath::fromName(childRow.cloudNode->displayname(), *client->fsaccess, mFilesystemType), true, client->fsaccess->localseparator);
         }
 
         syncItem(childRow, row, localPath);
@@ -2220,6 +2211,18 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
 
 bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
+
+//todo: this used to be in scan().  But now we create LocalNodes for all - shall we check it in this function
+    //// check if this record is to be ignored
+    //if (client->app->sync_syncable(this, name.c_str(), localPath))
+    //{
+    //}
+    //else
+    //{
+    //    LOG_debug << "Excluded: " << name;
+    //}
+
+
     LOG_verbose << "Considering sync triplet:" <<
         " " << (row.cloudNode ? row.cloudNode->displaypath() : "(null)") <<
         " " << (row.syncNode ? row.syncNode->getLocalPath().toPath(*client->fsaccess) : "(null)") <<
@@ -2242,12 +2245,15 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
                     if (row.fsNode->type == FILENODE)
                     {
                         // upload the file if we're not already uploading
-                        if (!row.syncNode->transfer)
+                        if (!row.syncNode->transfer && parentRow.cloudNode)
                         {
-                            client->nextreqtag();
+                            assert(row.syncNode->isvalid); // LocalNodes for files always have a valid fingerprint
                             DBTableTransactionCommitter committer(client->tctable); // todo: move higher
-                            client->startxfer(PUT, row.syncNode, committer);
-                            client->app->syncupdate_put(row.syncNode->sync, row.syncNode, fullPath.toPath(*client->fsaccess).c_str());
+
+                            row.syncNode->h = parentRow.cloudNode->nodehandle;
+                            client->nextreqtag();
+                            client->startxfer(PUT, row.syncNode, committer);  // full path will be calculated in the prepare() callback
+                            client->app->syncupdate_put(this, row.syncNode, fullPath.toPath(*client->fsaccess).c_str());
                         }
                     }
                     else
@@ -2291,20 +2297,21 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
             }
             else
             {
-                // item existed locally only
+                // Item existed locally only.  Create LocalNode for it, next run through will upload it
                 LOG_debug << "New LocalNode at: " << fullPath.toPath(*client->fsaccess);
+                assert(row.fsNode->fingerprint.isvalid);
                 auto l = new LocalNode;
-                l->init(parentRow.syncNode->sync, row.fsNode->type, parentRow.syncNode, fullPath, std::move(row.fsNode->shortname));
+                *static_cast<FileFingerprint*>(l) = row.fsNode->fingerprint;
+                l->init(this, row.fsNode->type, parentRow.syncNode, fullPath, std::move(row.fsNode->shortname));
 
                 if (row.fsNode->fsid != UNDEF)
                 {
-                    l->setfsid(row.fsNode->fsid, parentRow.syncNode->sync->client->fsidnode);
+                    l->setfsid(row.fsNode->fsid, client->fsidnode);
                 }
 
-                l->setnameparent(parentRow.syncNode, nullptr, nullptr, false);
+                //l->setnameparent(parentRow.syncNode, nullptr, nullptr, false);
                 l->treestate(TREESTATE_PENDING);
-                parentRow.syncNode->sync->statecacheadd(l);
-                // next run through will create it in the cloud
+                statecacheadd(l);
             }
         }
         else

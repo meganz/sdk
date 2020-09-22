@@ -15046,7 +15046,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
     {
         if (d == PUT)
         {
-            if (!f->isvalid)    // (sync LocalNodes always have this set)
+            if (!f->isvalid)    // (sync LocalNodes always have this set - for them (except root) localname is only a leaf name)
             {
                 // missing FileFingerprint for local file - generate
                 auto fa = fsaccess->newfileaccess();
@@ -15359,7 +15359,7 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 
     std::string localName =
       localNode->localname.toName(*fsaccess);
-    
+
     // Only compare metamac if the node doesn't already exist.
     node_vector::const_iterator remoteNode =
       std::find_if(remoteNodes->begin(),

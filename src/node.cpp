@@ -1810,6 +1810,15 @@ bool LocalNode::serialize(string* d)
     auto tmpstr = slocalname ? slocalname->platformEncoded() : string();
     w.serializepstr(slocalname ? &tmpstr : nullptr);
 
+#ifdef DEBUG
+    // just check deserializing, real quick, only in debug
+    string testread = w.dest;
+    LocalNode* test = LocalNode::unserialize(sync, &testread);
+    assert(test->localname == localname);
+    assert((test->slocalname && slocalname) || (!test->slocalname && !slocalname));
+    assert(!test->slocalname || *test->slocalname == *slocalname);
+#endif
+
     return true;
 }
 
