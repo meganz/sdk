@@ -697,18 +697,17 @@ handle SqliteDbTable::getFirstAncestor(handle node)
     checkTransaction();
     handle ancestor = UNDEF;
     sqlite3_stmt *stmt;
-    std::string sqlQuery = "WITH nodesCTE(nodehandle, parenthandle) AS (SELECT nodehandle, parenthandle FROM nodes WHERE nodehandle = ? UNION ALL SELECT A.nodehandle, A.parenthandle FROM nodes AS A INNER JOIN nodesCTE AS E ON (A.nodehandle = E.parenthandle)) SELECT * FROM nodesCTE WHERE parenthandle = -1";
+    std::string sqlQuery = "WITH nodesCTE(nodehandle, parenthandle) AS (SELECT nodehandle, parenthandle FROM nodes WHERE nodehandle = ? UNION ALL SELECT A.nodehandle, A.parenthandle FROM nodes AS A INNER JOIN nodesCTE AS E ON (A.nodehandle = E.parenthandle)) SELECT * FROM nodesCTE";
     if (sqlite3_prepare(db, sqlQuery.c_str(), -1, &stmt, NULL) == SQLITE_OK)
     {
         if (sqlite3_bind_int64(stmt, 1, node) == SQLITE_OK)
         {
-            if (sqlite3_step(stmt) == SQLITE_ROW)
+            while (sqlite3_step(stmt) == SQLITE_ROW)
             {
                 ancestor = sqlite3_column_int64(stmt, 0);
             }
         }
     }
-
 
     sqlite3_finalize(stmt);
     return ancestor;
