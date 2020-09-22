@@ -1428,6 +1428,16 @@ void LocalNode::setFutureScan(TREESTATE newNeed)
     }
 }
 
+void LocalNode::setFutureSync(bool doHere, bool doBelow)
+{
+    auto state = static_cast<TREESTATE>(doHere << 1 | doBelow);
+
+    if (state != SYNCTREE_RESOLVED)
+    {
+        setFutureSync(state);
+    }
+}
+
 void LocalNode::setFutureSync(TREESTATE newNeed)
 {
     syncAgain = std::max<unsigned>(syncAgain, newNeed);

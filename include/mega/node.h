@@ -450,6 +450,7 @@ struct MEGA_API LocalNode : public File
     dstime lastScanTime = 0;
 
     // set the syncupTargetedAction for this, and parents
+    void setFutureSync(bool doHere, bool doBelow);
     void setFutureSync(TREESTATE s);
     void setFutureScan(TREESTATE s);
 

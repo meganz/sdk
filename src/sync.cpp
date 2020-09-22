@@ -2215,23 +2215,17 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
             folderSynced = false;
         }
 
-        if (childRow.cloudNode && childRow.syncNode && childRow.fsNode &&
-            childRow.syncNode->type != FILENODE)
+        if (childRow.syncNode && childRow.syncNode->type == FOLDERNODE)
         {
-            if (!recursiveSync(childRow, localPath))
+            if (childRow.cloudNode && childRow.fsNode)
             {
-                subfoldersSynced = false;
+                subfoldersSynced = recursiveSync(childRow, localPath);
             }
         }
     }
 
-    if (!folderSynced || !subfoldersSynced)
-    {
-        row.syncNode->setFutureSync(
-            !folderSynced && !subfoldersSynced ? LocalNode::SYNCTREE_ACTION_HERE_AND_BELOW :
-            (!folderSynced ? LocalNode::SYNCTREE_ACTION_HERE_ONLY :
-                             LocalNode::SYNCTREE_DESCENDANT_FLAGGED));
-    }
+    row.syncNode->setFutureSync(!folderSynced, !subfoldersSynced);
+
     return folderSynced && subfoldersSynced;
 }
 
