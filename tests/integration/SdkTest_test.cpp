@@ -4510,7 +4510,7 @@ TEST_F(SdkTest, SdkMediaUploadRequestURL)
     ASSERT_NE(0, *url.get()) << "Got empty media upload URL";
 }
 
-TEST_F(SdkTest, DISABLED_SdkGetBanners)
+TEST_F(SdkTest, SdkGetBanners)
 {
     getAccountsForTest(1);
     LOG_info << "___TEST GetBanners___";
