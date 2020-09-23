@@ -2157,7 +2157,7 @@ struct StandardClient : public MegaApp
     }
 
     bool conflictsDetected(string& parentName,
-                           string& parentPath,
+                           LocalPath& parentPath,
                            string_vector& names,
                            bool& remote)
     {
@@ -4004,7 +4004,7 @@ TEST(Sync, DetectsAndReportsNameClashes)
 
     StandardClient client(TESTFOLDER, "c");
     string parentName;
-    string parentPath;
+    LocalPath parentPath;
     string_vector names;
     bool remote;
 

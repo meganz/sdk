@@ -1364,7 +1364,7 @@ bool MegaClient::anySyncNeedsTargetedSync()
 }
 
 bool MegaClient::conflictsDetected(string& parentName,
-                                   string& parentPath,
+                                   LocalPath& parentPath,
                                    string_vector& names,
                                    bool& remote) const
 {
@@ -1422,7 +1422,7 @@ bool MegaClient::conflictsDetected(string& parentName,
     parentName = parent->name;
 
     // Where do they live?
-    parentPath = parent->localnodedisplaypath(*fsaccess);
+    parentPath = parent->getLocalPath(true);
 
     // Ensure the output names vector is empty.
     names.clear();
@@ -1433,11 +1433,8 @@ bool MegaClient::conflictsDetected(string& parentName,
         // Tracks the remote children we've seen.
         name_remotenode_map children{NamePtrCmp(filesystemType)};
 
-        // Where does our parent live?
-        LocalPath parentPath = parent->getLocalPath(true);
-
         // Temporary key storage for the above map.
-        string_vector strings;
+        string_list strings;
 
         // Do any of this node's remote children have conflicting names?
         for (Node* child : parent->node->children)

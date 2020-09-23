@@ -504,7 +504,7 @@ public:
 
     // retrieves information about any detected name conflicts.
     bool conflictsDetected(string& parentName,
-                           string& parentPath,
+                           LocalPath& parentPath,
                            string_vector& names,
                            bool& remote) const;
 

@@ -1465,7 +1465,7 @@ bool MegaApiImpl::conflictsDetected(const char* *outParentName,
 
     SdkMutexGuard guard(sdkMutex);
     string parentName;
-    string parentPath;
+    LocalPath parentPath;
     string_vector names;
     bool remote;
 
@@ -1483,7 +1483,7 @@ bool MegaApiImpl::conflictsDetected(const char* *outParentName,
 
     // Translate the information into a form useful to the caller.
     *outParentName = MegaApi::strdup(parentName.c_str());
-    *outParentPath = MegaApi::strdup(parentPath.c_str());
+    *outParentPath = MegaApi::strdup(parentPath.toPath(*fsAccess).c_str());
     *outNames = new MegaStringListPrivate(names);
     *outRemote = remote;
 

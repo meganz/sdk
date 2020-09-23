@@ -568,10 +568,10 @@ typedef list<HttpReqCommandPutFA*> putfa_list;
 typedef map<handle, PendingContactRequest*> handlepcr_map;
 
 // Type-Value (for user attributes)
+typedef list<string> string_list;
 typedef vector<string> string_vector;
 typedef map<string, string> string_map;
 typedef string_map TLV_map;
-
 
 // user attribute types
 typedef enum {
