@@ -1952,6 +1952,8 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
 
 bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
 {
+    LOG_verbose << "Entering folder with syncagain=" << row.syncNode->syncAgain << " scanagain=" << row.syncNode->scanAgain << " at " << localPath.toPath(*client->fsaccess);
+
     // Sentinel value used to signal that we've detected a name conflict.
     Node* const NAME_CONFLICT = reinterpret_cast<Node*>(~0ull);
 
@@ -2000,8 +2002,6 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
 
     // Build the 3 lists to compare same-name items (Node, LocalNode, filesystem item)
 
-    LOG_verbose << "recursiveSync() at: " << localPath.toPath(*client->fsaccess);
-
     // Get the filesystem items list
     vector<FSNode> fsChildren;
     fsChildren.reserve(row.syncNode->children.size());
@@ -2021,7 +2021,6 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
 
         fsChildren = scanOne(*row.syncNode, localPath);
         row.syncNode->lastScanTime = Waiter::ds;
-        row.syncNode->scanAgain = LocalNode::SYNCTREE_RESOLVED;
         row.syncNode->syncAgain = LocalNode::SYNCTREE_ACTION_HERE_ONLY;
     }
     else
@@ -2032,6 +2031,11 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
             fsChildren.push_back(c.second->getKnownFSDetails());
         }
     }
+
+    // clear scan flag, especially check-descendants.
+    row.syncNode->scanAgain = LocalNode::SYNCTREE_RESOLVED;
+
+    bool syncHere = row.syncNode->syncAgain == LocalNode::SYNCTREE_ACTION_HERE_ONLY;
 
     // get the Node list
     vector<Node*> cloudChildren;
@@ -2067,11 +2071,14 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
     std::sort(fsChildren.begin(), fsChildren.end(), cloudCmpFS);
     std::sort(syncChildren.begin(), syncChildren.end(), cloudCmpSync);
 
-    ostringstream fsString, syString, clString;
-    for (auto& fsi : fsChildren) fsString << " " << fsi.localname.toPath(*client->fsaccess);
-    LOG_verbose << "Filesystem:" << fsString.str();
-    for (auto& syc : syncChildren) syString << " " << syc->name;
-    LOG_verbose << "SyncNodes:" << syString.str();
+    if (syncHere)
+    {
+        ostringstream fsString, syString;
+        for (auto& fsi : fsChildren) fsString << " " << fsi.localname.toPath(*client->fsaccess);
+        LOG_verbose << "Filesystem:" << fsString.str();
+        for (auto& syc : syncChildren) syString << " " << syc->name;
+        LOG_verbose << "SyncNodes:" << syString.str();
+    }
 
     {
         // Pair up the sorted local and sync lists
@@ -2142,8 +2149,12 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
     std::sort(cloudChildren.begin(), cloudChildren.end(), localCmpNode);
     std::sort(childRows.begin(), childRows.end(), localCmpRow);
 
-    for (auto& clc : cloudChildren) clString << " " << clc->displayname();
-    LOG_verbose << "CloudNodes:" << clString.str();
+    if (syncHere)
+    {
+        ostringstream clString;
+        for (auto& clc : cloudChildren) clString << " " << clc->displayname();
+        LOG_verbose << "CloudNodes:" << clString.str();
+    }
 
     {
         // Pair up the sorted cloud and syncrow lists
@@ -2238,9 +2249,12 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
             localPath.appendWithSeparator(LocalPath::fromName(childRow.cloudNode->displayname(), *client->fsaccess, mFilesystemType), true, client->fsaccess->localseparator);
         }
 
-        if (!syncItem(childRow, row, localPath))
+        if (syncHere)
         {
-            folderSynced = false;
+            if (!syncItem(childRow, row, localPath))
+            {
+                folderSynced = false;
+            }
         }
 
         if (childRow.syncNode && childRow.syncNode->type == FOLDERNODE)
@@ -2254,6 +2268,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
 
     row.syncNode->setFutureSync(!folderSynced, !subfoldersSynced);
 
+    LOG_verbose << "Exiting folder with synced=" << folderSynced << " subsync= " << subfoldersSynced << " syncagain=" << row.syncNode->syncAgain << " scanagain=" << row.syncNode->scanAgain << " at " << localPath.toPath(*client->fsaccess);
     return folderSynced && subfoldersSynced;
 }
 
@@ -2288,10 +2303,11 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
                 if (cloudEqual && fsEqual)
                 {
                     // success! this row is synced
-                    LOG_verbose << "Row is synced";
                     if (row.syncNode->fsid != row.fsNode->fsid ||
                         row.syncNode->syncedCloudNodeHandle != row.cloudNode->nodehandle)
                     {
+                        LOG_verbose << "Row is synced, setting fsid and nodehandle";
+
                         row.syncNode->fsid = row.fsNode->fsid;
                         row.syncNode->syncedCloudNodeHandle.set6byte(row.cloudNode->nodehandle);
 
@@ -2300,6 +2316,10 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
                         if (row.syncNode->node) row.syncNode->node->localnode = row.syncNode;
 
                         statecacheadd(row.syncNode);
+                    }
+                    else
+                    {
+                        LOG_verbose << "Row was already synced";
                     }
                     return true;
                 }

@@ -697,8 +697,6 @@ AppFilePut::AppFilePut(const LocalPath& clocalname, handle ch, const char* ctarg
     targetuser = ctargetuser;
 
     // erase path component
-    auto fileSystemType = client->fsaccess->getlocalfstype(clocalname);
-
     name = clocalname.leafName(client->fsaccess->localseparator).toName(*client->fsaccess);
 }
 

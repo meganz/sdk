@@ -1119,7 +1119,6 @@ void MegaClient::init()
     syncdownretry = false;
     syncnagleretry = false;
     //syncextraretry = false;
-    syncsup = true;
 
     if (syncscanstate)
     {
@@ -1417,7 +1416,7 @@ bool MegaClient::conflictsDetected(string& parentName,
             }
         }
     }
-    
+
     // Who contains the conflicts?
     parentName = parent->name;
 
@@ -1525,6 +1524,19 @@ bool MegaClient::conflictsDetected() const
     }
 
     return false;
+}
+
+bool MegaClient::allSyncsIdle()
+{
+    for (Sync* sync : syncs)
+    {
+        if (sync->localroot->syncAgain != LocalNode::SYNCTREE_RESOLVED ||
+            sync->localroot->syncAgain != LocalNode::SYNCTREE_RESOLVED)
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 void MegaClient::setAllSyncsNeedFullSync()
@@ -2407,14 +2419,14 @@ void MegaClient::exec()
         }
         syncactivity = false;
 
-        if (scsn.stopped() || mBlocked || scpaused || !statecurrent || !syncsup)
+        if (scsn.stopped() || mBlocked || scpaused || !statecurrent || !allSyncsIdle())
         {
             LOG_verbose << " Megaclient exec is pending resolutions."
                         << " scpaused=" << scpaused
                         << " stopsc=" << scsn.stopped()
                         << " mBlocked=" << mBlocked
-                        << " jsonsc.pos=" << jsonsc.pos
-                        << " syncsup=" << syncsup
+                        << " jsonsc.pos=" << (jsonsc.pos ? "not null" : "null")  // could be many MB
+                        << " allSyncsIdle=" << allSyncsIdle()
                         << " statecurrent=" << statecurrent
                         << " syncadding=" << syncadding
                         << " syncactivity=" << syncactivity
@@ -2651,27 +2663,6 @@ void MegaClient::exec()
         //    }
         //}
 
-        if (!syncsup)
-        {
-            // set syncsup if there are no initializing syncs
-            // this will allow incoming server-client commands to trigger the filesystem
-            // actions that have occurred while the sync app was not running
-            bool anyscanning = false;
-            for (Sync* sync : syncs)
-            {
-                if (sync->state == SYNC_INITIALSCAN)
-                {
-                    anyscanning = true;
-                }
-            }
-
-            if (!anyscanning)
-            {
-                syncsup = true;
-                syncactivity = true;
-                setAllSyncsNeedFullSync();
-            }
-        }
 
         // process active syncs
         // sync timer: full rescan in case of filesystem notification failures
@@ -2857,25 +2848,6 @@ void MegaClient::exec()
                     syncupdate();
                 }
 
-                // notify the app of the length of the pending scan queue
-                if (scanningpending < 4)
-                {
-                    if (syncscanstate)
-                    {
-                        LOG_debug << "Scanning finished";
-                        app->syncupdate_scanning(false);
-                        syncscanstate = false;
-                    }
-                }
-                else if (scanningpending > 10)
-                {
-                    if (!syncscanstate)
-                    {
-                        LOG_debug << "Scanning started";
-                        app->syncupdate_scanning(true);
-                        syncscanstate = true;
-                    }
-                }
 
                 //if (prevpending && !totalpending)
                 //{
@@ -3069,7 +3041,7 @@ void MegaClient::exec()
                 if (!fetchingnodes)
                 {
                     LOG_verbose << "Running sync()";
-                    //bool success = true;
+                    bool scanning = false;
                     for (Sync* sync : syncs)
                     {
                         if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
@@ -3086,9 +3058,19 @@ void MegaClient::exec()
                             //    success = false;
                             //    sync->dirnotify->mErrorCount = true;
                             //}
-
                             sync->cachenodes();
+
+                            if (sync->localroot->scanAgain != LocalNode::SYNCTREE_RESOLVED)
+                            {
+                                scanning = false;
+                            }
                         }
+                    }
+
+                    if (scanning != syncscanstate)
+                    {
+                        app->syncupdate_scanning(scanning);
+                        syncscanstate = scanning;
                     }
 
                     //// notify the app if a lock is being retried
@@ -3231,22 +3213,16 @@ int MegaClient::preparewait()
     // get current dstime and clear wait events
     WAIT_CLASS::bumpds();
 
-#ifdef ENABLE_SYNC
-    // sync directory scans in progress or still processing sc packet without having
-    // encountered a locally locked item? don't wait.
-    if (/*syncactivity ||*/ (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownretry))
-    {
-        nds = Waiter::ds;
-    }
-    else if (anySyncNeedsTargetedSync())
-    {
-        nds = Waiter::ds + 1;
-    }
-    else
-#endif
     {
         // next retry of a failed transfer
         nds = NEVER;
+
+#ifdef ENABLE_SYNC
+        if (anySyncNeedsTargetedSync())
+        {
+            nds = Waiter::ds + 1;
+        }
+#endif
 
         if (httpio->success && chunkfailed)
         {
@@ -11828,7 +11804,7 @@ void MegaClient::purgeOrphanTransfers(bool remove)
 #ifdef ENABLE_SYNC
     if (purgeOrphanTransfers && !remove)
     {
-        if (!syncsup)
+        if (!statecurrent || !allSyncsIdle())
         {
             purgeOrphanTransfers = false;
         }
@@ -13394,7 +13370,6 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, LocalPath* 
 
                 //if (sync->scan(&rootpath, fa.get()))
                 {
-                    syncsup = false;
                     e = API_OK;
                     //sync->initializing = false;
                     //LOG_debug << "Initial scan finished. New / modified files: " << sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();

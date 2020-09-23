@@ -512,7 +512,7 @@ public:
     bool conflictsDetected() const;
 
     // indicates whether all startup syncs have been fully scanned
-    bool syncsup;
+    bool allSyncsIdle();
 
     // A collection of sync configs backed by a database table
     std::unique_ptr<SyncConfigBag> syncConfigs;
