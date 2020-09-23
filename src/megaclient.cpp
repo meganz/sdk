@@ -8323,6 +8323,7 @@ void MegaClient::procph(JSON *j)
                         if (n)
                         {
                             n->setpubliclink(ph, cts, ets, takendown);
+                            sctable->put(n);
                         }
                         else
                         {
