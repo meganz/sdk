@@ -8284,10 +8284,10 @@ bool CommandGetBanners::procresult(Result r)
     {
         int id = 0;
         string title, description, img, url, bimg, dsp;
-        bool read = true;
+        bool exit = false;
 
         // loop and read object members
-        while (read)
+        while (!exit)
         {
             switch (client->json.getnameid())
             {
@@ -8322,15 +8322,21 @@ bool CommandGetBanners::procresult(Result r)
             case EOO:
                 if (!id || title.empty() || description.empty())
                 {
+                    LOG_err << "Missing id, title or description in response to gban";
                     client->app->getbanners_result(API_EINTERNAL);
-                    return true;
+                    return false;
                 }
-
-                read = false;
+                exit = true;
                 break;
 
             default:
-                client->json.storeobject(); // skip unknown member
+                if (!client->json.storeobject()) // skip unknown member
+                {
+                    LOG_err << "Failed to parse banners response";
+                    client->app->getbanners_result(API_EINTERNAL);
+                    return false;
+                }
+                break;
             }
         }
 
