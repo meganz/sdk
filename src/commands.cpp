@@ -8006,6 +8006,7 @@ CommandGetCountryCallingCodes::CommandGetCountryCallingCodes(MegaClient* client)
 {
     cmd("smslc");
 
+    batchSeparately = true;
     tag = client->reqtag;
 }
 
