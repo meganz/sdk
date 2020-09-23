@@ -17087,38 +17087,39 @@ bool MegaApiImpl::nodeComparatorPublicLinkCreationDESC(Node *i, Node *j)
 
 bool MegaApiImpl::nodeComparatorLabelASC(Node *i, Node *j)
 {
-    int i_lbl = MegaNode::NODE_LBL_UNKNOWN;
-    auto it = i->attrs.map.find(AttrMap::string2nameid("lbl"));
-    if (it != i->attrs.map.end())
+    nameid labelId = AttrMap::string2nameid("lbl");
+    int iLabel = MegaNode::NODE_LBL_UNKNOWN;
+    auto iAttrIt = i->attrs.map.find(labelId);
+    if (iAttrIt != i->attrs.map.end())
     {
-       i_lbl = std::atoi(it->second.c_str());
+       iLabel = std::atoi(iAttrIt->second.c_str());
     }
 
-    int j_lbl = MegaNode::NODE_LBL_UNKNOWN;
-    auto auxit = j->attrs.map.find(AttrMap::string2nameid("lbl"));
-    if (auxit != j->attrs.map.end())
+    int jLabel = MegaNode::NODE_LBL_UNKNOWN;
+    auto jAttrIt = j->attrs.map.find(labelId);
+    if (jAttrIt != j->attrs.map.end())
     {
-       j_lbl = std::atoi(auxit->second.c_str());
+       jLabel = std::atoi(jAttrIt->second.c_str());
     }
 
-    if (i_lbl == MegaNode::NODE_LBL_UNKNOWN && j_lbl ==  MegaNode::NODE_LBL_UNKNOWN)
+    if (iLabel == MegaNode::NODE_LBL_UNKNOWN && jLabel ==  MegaNode::NODE_LBL_UNKNOWN)
     {
         return nodeComparatorDefaultASC(i, j);
     }
-    if (i_lbl == MegaNode::NODE_LBL_UNKNOWN)
+    if (iLabel == MegaNode::NODE_LBL_UNKNOWN)
     {
         return 0;
     }
-    if (j_lbl == MegaNode::NODE_LBL_UNKNOWN)
+    if (jLabel == MegaNode::NODE_LBL_UNKNOWN)
     {
         return 1;
     }
 
-    if (i_lbl < j_lbl)
+    if (iLabel < jLabel)
     {
         return 1;
     }
-    if (i_lbl > j_lbl)
+    if (iLabel > jLabel)
     {
         return 0;
     }
@@ -17127,38 +17128,39 @@ bool MegaApiImpl::nodeComparatorLabelASC(Node *i, Node *j)
 
 bool MegaApiImpl::nodeComparatorLabelDESC(Node *i, Node *j)
 {
-    int i_lbl = MegaNode::NODE_LBL_UNKNOWN;
-    auto it = i->attrs.map.find(AttrMap::string2nameid("lbl"));
-    if (it != i->attrs.map.end())
+    nameid labelId = AttrMap::string2nameid("lbl");
+    int iLabel = MegaNode::NODE_LBL_UNKNOWN;
+    auto iAttrIt = i->attrs.map.find(labelId);
+    if (iAttrIt != i->attrs.map.end())
     {
-       i_lbl = std::atoi(it->second.c_str());
+       iLabel = std::atoi(iAttrIt->second.c_str());
     }
 
-    int j_lbl = MegaNode::NODE_LBL_UNKNOWN;
-    auto auxit = j->attrs.map.find(AttrMap::string2nameid("lbl"));
-    if (auxit != j->attrs.map.end())
+    int jLabel = MegaNode::NODE_LBL_UNKNOWN;
+    auto jAttrIt = j->attrs.map.find(labelId);
+    if (jAttrIt != j->attrs.map.end())
     {
-       j_lbl = std::atoi(auxit->second.c_str());
+       jLabel = std::atoi(jAttrIt->second.c_str());
     }
 
-    if (i_lbl == MegaNode::NODE_LBL_UNKNOWN && j_lbl == MegaNode::NODE_LBL_UNKNOWN)
+    if (iLabel == MegaNode::NODE_LBL_UNKNOWN && jLabel == MegaNode::NODE_LBL_UNKNOWN)
     {
         return nodeComparatorDefaultASC(i, j);
     }
-    if (i_lbl == MegaNode::NODE_LBL_UNKNOWN)
+    if (iLabel == MegaNode::NODE_LBL_UNKNOWN)
     {
         return 0;
     }
-    if (j_lbl == MegaNode::NODE_LBL_UNKNOWN)
+    if (jLabel == MegaNode::NODE_LBL_UNKNOWN)
     {
         return 1;
     }
 
-    if (i_lbl < j_lbl)
+    if (iLabel < jLabel)
     {
         return 0;
     }
-    if (i_lbl > j_lbl)
+    if (iLabel > jLabel)
     {
         return 1;
     }
@@ -17168,15 +17170,16 @@ bool MegaApiImpl::nodeComparatorLabelDESC(Node *i, Node *j)
 
 bool MegaApiImpl::nodeComparatorFavASC(Node *i, Node *j)
 {
-    bool i_fav = (i->attrs.map.find(AttrMap::string2nameid("fav")) != i->attrs.map.end());
-    bool j_fav = (j->attrs.map.find(AttrMap::string2nameid("fav")) != j->attrs.map.end());
+    nameid favId = AttrMap::string2nameid("fav");
+    bool iFav = (i->attrs.map.find(favId) != i->attrs.map.end());
+    bool jFav = (j->attrs.map.find(favId) != j->attrs.map.end());
 
-    if (!(i_fav ^ j_fav))
+    if (!(iFav ^ jFav))
     {
         // if both or none of them, have the same attribute value, order default ASC
         return nodeComparatorDefaultASC(i, j);
     }
-    else if (i_fav)
+    else if (iFav)
     {
         return 1;
     }
@@ -17188,15 +17191,16 @@ bool MegaApiImpl::nodeComparatorFavASC(Node *i, Node *j)
 
 bool MegaApiImpl::nodeComparatorFavDESC(Node *i, Node *j)
 {
-    bool i_fav = (i->attrs.map.find(AttrMap::string2nameid("fav")) != i->attrs.map.end());
-    bool j_fav = (j->attrs.map.find(AttrMap::string2nameid("fav")) != j->attrs.map.end());
+    nameid favId = AttrMap::string2nameid("fav");
+    bool iFav = (i->attrs.map.find(favId) != i->attrs.map.end());
+    bool jFav = (j->attrs.map.find(favId) != j->attrs.map.end());
 
-    if (!(i_fav ^ j_fav))
+    if (!(iFav ^ jFav))
     {
         // if both or none of them, have the same attribute value, order default ASC
         return nodeComparatorDefaultASC(i, j);
     }
-    else if (i_fav)
+    else if (iFav)
     {
         return 0;
     }
