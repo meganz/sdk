@@ -1372,7 +1372,7 @@ bool MegaClient::conflictsDetected(string& parentName,
     LocalNode* parent = nullptr;
 
     // What kind of filesystem contains the conflicts.
-    FileSystemType filesystemType;
+    FileSystemType filesystemType = FS_UNKNOWN;
 
     // Find an initial root containing name conflicts.
     for (auto* sync : syncs)
