@@ -7707,6 +7707,10 @@ void MegaClient::removeOutSharesFromSubtree(Node* n)
             {
                 setshare(n, it.second->user->email.c_str(), ACCESS_UNKNOWN, nullptr);
             }
+            else // folder links are a shared folder without user
+            {
+                setshare(n, nullptr, ACCESS_UNKNOWN, nullptr);
+            }
         }
     }
 
@@ -15266,7 +15270,7 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
     std::string localName =
       localNode->localname.toName(*fsaccess,
                                   localNode->sync->mFilesystemType);
-    
+
     // Only compare metamac if the node doesn't already exist.
     node_vector::const_iterator remoteNode =
       std::find_if(remoteNodes->begin(),
