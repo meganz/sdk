@@ -4732,7 +4732,7 @@ bool MegaClient::procsc()
                     {
                         // The last actionpacket was a delete that may be part of a move.
                         // If it's not a move, we break out of this loop to process syncdown
-                        // If is is a move (because the next actionpacket is newnodes with a root of that deleted node)
+                        // If it's a move (because the next actionpacket is newnodes with a root of that deleted node)
                         // then exit this loop to process syncdown after the newnodes are processed.
 
                         if (name != 't')
@@ -4755,7 +4755,7 @@ bool MegaClient::procsc()
                     if (fetchingnodes || memcmp(jsonsc.pos, "\"i\":\"", 5)
                      || memcmp(jsonsc.pos + 5, sessionid, sizeof sessionid)
                      || jsonsc.pos[5 + sizeof sessionid] != '"'
-                     || name == 'd' || name == 't')  // we stil set 'i' on move commands to produce backward compatible actionpackets, so don't skip those here
+                     || name == 'd' || name == 't')  // we still set 'i' on move commands to produce backward compatible actionpackets, so don't skip those here
                     {
 #ifdef ENABLE_CHAT
                         bool readingPublicChat = false;
@@ -5527,15 +5527,15 @@ bool MegaClient::sc_checkActionPacket(Node* lastAPDeletedNode)
     {
         switch (jsonsc.getnameid())
         {
-        case 'a':
+        case 'a':   // action referred by the packet
             cmd = jsonsc.getnameid();
             break;
 
-        case 'i':
+        case 'i':   // id of the client who made the action triggering this packet
             jsonsc.storeobject();
             break;
 
-        case MAKENAMEID2('s', 't'):
+        case MAKENAMEID2('s', 't'): // sequence tag
             jsonsc.storeobject(&tag);
             return sc_checkSequenceTag(tag);
 
@@ -5544,8 +5544,8 @@ bool MegaClient::sc_checkActionPacket(Node* lastAPDeletedNode)
 
             if (cmd == 't' && lastAPDeletedNode && dynamic_cast<CommandMoveNode*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
             {
-                // special case for actionpackets from the move command - the d t sequence has the tag on d but not t.
-                // However we must process the t as part of the move, and only call the command completion after.
+                // special case for actionpackets from the move command - the 'd'+'t' sequence has the tag on 'd' but not 't'.
+                // However we must process the 't' as part of the move, and only call the command completion after.
                 LOG_verbose << clientname << "st tag implicity not changing for moves";
                 return true;
             }
