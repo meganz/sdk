@@ -2123,6 +2123,8 @@ void NodeCounter::operator += (const NodeCounter& o)
     storage += o.storage;
     files += o.files;
     folders += o.folders;
+    versions += o.versions;
+    versionStorage += o.versionStorage;
 }
 
 void NodeCounter::operator -= (const NodeCounter& o)
@@ -2130,6 +2132,8 @@ void NodeCounter::operator -= (const NodeCounter& o)
     storage -= o.storage;
     files -= o.files;
     folders -= o.folders;
+    versions -= o.versions;
+    versionStorage -= o.versionStorage;
 }
 
 SyncConfig::SyncConfig(std::string localPath,

@@ -775,7 +775,7 @@ public:
     size_t getNumberOfChildren(handle);
 
     // Get sub tree info (files, folders, size, version)
-    NodeCounter getTreeInfoFromNode(handle node);
+    NodeCounter getTreeInfoFromNode(handle node, bool isParentFileNode = false);
 
     // use HTTPS for all communications
     bool usehttps;

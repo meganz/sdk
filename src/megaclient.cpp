@@ -14742,32 +14742,40 @@ size_t MegaClient::getNumberOfChildren(handle node)
     return sctable->getNumberOfChildrenFromNode(node);
 }
 
-NodeCounter MegaClient::getTreeInfoFromNode(handle nodehandle)
+NodeCounter MegaClient::getTreeInfoFromNode(handle nodehandle, bool isParentFileNode)
 {
+    Node* node = nodebyhandleInRam(nodehandle);
+    bool isFileNode = node ? (node->type == FILENODE) : sctable->isFileNode(nodehandle);
     std::vector<handle> nodeHandles;
     sctable->getChildrenHandlesFromNode(nodehandle, nodeHandles);
     NodeCounter nc;
     for (handle &h : nodeHandles)
     {
-        nc += getTreeInfoFromNode(h);
+        nc += getTreeInfoFromNode(h, isFileNode);
     }
 
-    Node* node = nodebyhandleInRam(nodehandle);
+
     if (node)
     {
         if (node->type == FILENODE)
         {
             nc.files ++;
             nc.storage += node->size;
+            if (isParentFileNode)
+            {
+                nc.versions ++;
+                nc.versionStorage += node->size;
+            }
         }
-        else if (node->type == FOLDERNODE)
+        else
         {
             nc.folders ++;
+            assert(!isParentFileNode);
         }
     }
     else
     {
-        nc += sctable->getNodeCounter(nodehandle);
+        nc += sctable->getNodeCounter(nodehandle, isParentFileNode);
     }
 
     return nc;

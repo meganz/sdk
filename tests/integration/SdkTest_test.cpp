@@ -474,6 +474,13 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         }
         break;
 
+    case MegaRequest::TYPE_FOLDER_INFO:
+        if (mApi[apiIndex].lastError == API_OK)
+        {
+            mApi[apiIndex].mFolderInfo.reset(request->getMegaFolderInfo()->copy());
+        }
+        break;
+
     }
 }
 
@@ -4926,6 +4933,16 @@ TEST_F(SdkTest, SdkTestNodesOnDemand)
     ASSERT_NO_FATAL_FAILURE(resumeSession(session));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
+    mApi[0].megaApi->getFolderInfo(rootNode1.get());
+    mApi[0].requestFlags[MegaRequest::TYPE_FOLDER_INFO] = false;
+    ASSERT_TRUE( waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_FOLDER_INFO]) )
+            << "Get folder info failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Cannot get folder info : " << rootNode1->getName() << " (error: " << mApi[0].lastError << ")";
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), 3);
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), NUM_CHILDS * 2);
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumVersions(), 0);
+    ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), NUM_CHILDS * 10000 * 2);
+
     // Explore tree
     int folders1 = 0;
     int files1 = 0;
@@ -5123,6 +5140,16 @@ TEST_F(SdkTest, SdkTestNodesOnDemand)
     ASSERT_NO_FATAL_FAILURE(resumeSession(session));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
     ASSERT_EQ(mApi[0].megaApi->getNodeByHandle(nodeHandles1_1.at(3)), nullptr);
+
+    mApi[0].megaApi->getFolderInfo(rootNode1.get());
+    mApi[0].requestFlags[MegaRequest::TYPE_FOLDER_INFO] = false;
+    ASSERT_TRUE( waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_FOLDER_INFO]) )
+            << "Get folder info failed after " << maxTimeout << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[0].lastError) << "Cannot get folder info : " << rootNode1->getName() << " (error: " << mApi[0].lastError << ")";
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFolders(), 5);
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumFiles(), 6);
+    ASSERT_EQ(mApi[0].mFolderInfo->getNumVersions(), 0);
+    ASSERT_EQ(mApi[0].mFolderInfo->getCurrentSize(), 6 * 10000);
 
 
     // Explore tree with Session1 and Session2

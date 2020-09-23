@@ -95,7 +95,7 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
-    mega::NodeCounter getNodeCounter(mega::handle) override
+    mega::NodeCounter getNodeCounter(mega::handle, bool) override
     {
         mega::NodeCounter nc;
         return nc;
@@ -121,6 +121,10 @@ public:
         //throw NotImplemented{__func__};
     }
     bool isAncestor(mega::handle, mega::handle) override
+    {
+        return false;
+    }
+    bool isFileNode(mega::handle) override
     {
         return false;
     }

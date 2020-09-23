@@ -59,9 +59,10 @@ public:
     bool getChildrenHandlesFromNode(mega::handle, std::vector<handle>&) override;
     bool getNodesByName(const std::string& name, std::map<mega::handle, NodeSerialized>& nodes) override;
     uint32_t getNumberOfChildrenFromNode(handle node) override;
-    NodeCounter getNodeCounter(handle node) override;
+    NodeCounter getNodeCounter(handle node, bool isParentFile) override;
     bool isNodesOnDemandDb() override;
     bool isAncestor(handle node, handle ancestor) override;
+    bool isFileNode(handle node) override;
     handle getFirstAncestor(handle node) override;
     bool isNodeInDB(handle node) override;
     bool put(uint32_t, char*, unsigned);

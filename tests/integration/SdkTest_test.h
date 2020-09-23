@@ -153,6 +153,7 @@ public:
         bool accountUpdated;
 
         MegaHandle h;
+        std::unique_ptr<MegaFolderInfo> mFolderInfo;
 
 #ifdef ENABLE_CHAT
         bool chatUpdated;        // flags to monitor the updates of chats due to actionpackets

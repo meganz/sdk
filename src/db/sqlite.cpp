@@ -622,7 +622,7 @@ uint32_t SqliteDbTable::getNumberOfChildrenFromNode(handle node)
     return numChilds;
 }
 
-NodeCounter SqliteDbTable::getNodeCounter(handle node)
+NodeCounter SqliteDbTable::getNodeCounter(handle node, bool isParentFile)
 {
     NodeCounter nodeCounter;
     if (!db)
@@ -654,10 +654,16 @@ NodeCounter SqliteDbTable::getNodeCounter(handle node)
     {
         nodeCounter.files = 1;
         nodeCounter.storage = size;
+        if (isParentFile)
+        {
+            nodeCounter.versions = 1;
+            nodeCounter.versionStorage = size;
+        }
     }
-    else if (type == FOLDERNODE)
+    else
     {
         nodeCounter.folders = 1;
+        assert(!isParentFile);
     }
 
     return nodeCounter;
@@ -741,6 +747,32 @@ bool SqliteDbTable::isAncestor(handle node, handle ancestor)
 
     sqlite3_finalize(stmt);
     return result;
+}
+
+bool SqliteDbTable::isFileNode(handle node)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    checkTransaction();
+    bool isFileNode = false;
+    sqlite3_stmt *stmt;
+
+    if (sqlite3_prepare(db, "SELECT type FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_bind_int64(stmt, 1, node) == SQLITE_OK)
+        {
+            if (sqlite3_step(stmt) == SQLITE_ROW)
+            {
+               isFileNode = sqlite3_column_int(stmt, 0) == FILENODE;
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return isFileNode;
 }
 
 bool SqliteDbTable::isNodeInDB(handle node)

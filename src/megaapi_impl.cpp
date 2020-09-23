@@ -21836,9 +21836,8 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            NodeCounter nc = client->getTreeInfoFromNode(node->nodehandle);
-            // TODO Nodes on Demand: Calculate numVersion and size Versions in getNodeCounter
-            std::unique_ptr<MegaFolderInfo> folderInfo = make_unique<MegaFolderInfoPrivate>(nc.files, nc.folders - 1, 0, nc.storage, 0);
+            NodeCounter nc = client->getTreeInfoFromNode(node->nodehandle, false);
+            std::unique_ptr<MegaFolderInfo> folderInfo = make_unique<MegaFolderInfoPrivate>(nc.files, nc.folders - 1, nc.versions, nc.storage, nc.versionStorage);
             request->setMegaFolderInfo(folderInfo.get());
 
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
