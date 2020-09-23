@@ -1183,7 +1183,6 @@ public:
 
     // flag to skip removing nodes from mFingerprints when all nodes get deleted
     bool mOptimizePurgeNodes = false;
-    bool mPuttingNodes = false;
 
     // send updates to app when the storage size changes
     int64_t mNotifiedSumSize = 0;

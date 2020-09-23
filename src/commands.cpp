@@ -1220,7 +1220,6 @@ void CommandPutNodes::procresult()
 
     bool noexit = true;
     bool empty = false;
-    client->mPuttingNodes = true;
     while (noexit)
     {
         switch (client->json.getnameid())
@@ -1264,7 +1263,6 @@ void CommandPutNodes::procresult()
         }
     }
 
-    client->mPuttingNodes = false;
 
     client->sendkeyrewrites();
 
