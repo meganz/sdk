@@ -573,7 +573,7 @@ void SyncFileGet::updatelocalname()
 // add corresponding LocalNode (by path), then self-destruct
 void SyncFileGet::completed(Transfer*, LocalNode* localNode)
 {
-    localNode->setFutureScan(LocalNode::SYNCTREE_ACTION_HERE_ONLY);
+    localNode->setFutureScan(true, false);
 
     //LocalNode *ll = sync->checkpath(NULL, &localname, nullptr, nullptr, false, nullptr);
     //if (ll && ll != (LocalNode*)~0 && n

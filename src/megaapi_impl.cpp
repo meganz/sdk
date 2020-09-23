@@ -1443,13 +1443,15 @@ MegaSync *MegaApiImpl::getSyncByPath(const char *localPath)
 
 char *MegaApiImpl::getBlockedPath()
 {
+//todo: get all blocked
+
     char *path = NULL;
-    sdkMutex.lock();
-    if (!client->blockedfile.empty())
-    {
-        path = MegaApi::strdup(client->blockedfile.toPath(*fsAccess).c_str());
-    }
-    sdkMutex.unlock();
+    //sdkMutex.lock();
+    //if (!client->blockedfile.empty())
+    //{
+    //    path = MegaApi::strdup(client->blockedfile.toPath(*fsAccess).c_str());
+    //}
+    //sdkMutex.unlock();
     return path;
 }
 
@@ -22660,8 +22662,7 @@ void MegaApiImpl::update()
     LOG_debug << "PendingCS? " << (client->pendingcs != NULL);
     LOG_debug << "PendingFA? " << client->activefa.size() << " active, " << client->queuedfa.size() << " queued";
     LOG_debug << "FLAGS: " << client->syncactivity
-              << " " << client->anySyncNeedsTargetedSync() << " " << client->syncdownretry
-              << " " << client->syncfslockretry << " " << client->syncfsopsfailed
+              << " " << client->anySyncNeedsTargetedSync()
               << " " << client->syncnagleretry << " " << client->syncscanfailed
               << " " << client->syncops << " " << client->syncscanstate
               << " " << client->faputcompletion.size() << " " << client->synccreate.size()
@@ -22682,11 +22683,16 @@ void MegaApiImpl::update()
 int MegaApiImpl::isWaiting()
 {
 #ifdef ENABLE_SYNC
-    if (client->syncfslockretry || client->syncfsopsfailed)
+    sdkMutex.lock();
+    for (auto& sync : client->syncs)
     {
-        LOG_debug << "SDK waiting for a blocked file: " << client->blockedfile.toPath(*fsAccess);
-        return RETRY_LOCAL_LOCK;
+        if (sync->localroot->useBlocked || sync->localroot->scanBlocked)
+        {
+            LOG_debug << "SDK waiting for one or more a blocked files.";
+            return RETRY_LOCAL_LOCK;
+        }
     }
+    sdkMutex.unlock();
 #endif
 
     if (waitingRequest)

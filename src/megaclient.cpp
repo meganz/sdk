@@ -40,7 +40,7 @@ bool MegaClient::disablepkp = false;
 
 // root URL for API access
 // TODO: restore this before merging - needed for now for jenkins runs
-string MegaClient::APIURL = "https://lu1.api.mega.co.nz:444/";
+string MegaClient::APIURL = "https://bt1.api.mega.co.nz:444/";
 
 // root URL for GeLB requests
 string MegaClient::GELBURL = "https://gelb.karere.mega.nz/";
@@ -1114,9 +1114,6 @@ void MegaClient::init()
     syncdebrisadding = false;
     syncdebrisminute = 0;
     syncscanfailed = false;
-    syncfslockretry = false;
-    syncfsopsfailed = false;
-    syncdownretry = false;
     syncnagleretry = false;
     //syncextraretry = false;
 
@@ -1163,7 +1160,7 @@ void MegaClient::init()
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
     : useralerts(*this), btugexpiration(rng), btcs(rng), btbadhost(rng), btworkinglock(rng), btsc(rng), btpfa(rng)
 #ifdef ENABLE_SYNC
-    ,syncfslockretrybt(rng), syncdownbt(rng), syncnaglebt(rng), /*syncextrabt(rng),*/ syncscanbt(rng)
+    , syncnaglebt(rng), /*syncextrabt(rng),*/ syncscanbt(rng)
 #endif
     , mAsyncQueue(*w, workerThreadCount)
 {
@@ -2430,15 +2427,11 @@ void MegaClient::exec()
                         << " statecurrent=" << statecurrent
                         << " syncadding=" << syncadding
                         << " syncactivity=" << syncactivity
-                        << " anySyncNeedsTargetedSync=" << anySyncNeedsTargetedSync()
-                        << " syncdownretry=" << syncdownretry;
+                        << " anySyncNeedsTargetedSync=" << anySyncNeedsTargetedSync();
         }
-
-        // now we do need to process SC while syncs are doing their initial scan, so CS requests can complete
-        if (!scpaused && jsonsc.pos && !syncdownretry)
-#else
-        if (!scpaused && jsonsc.pos)
 #endif
+
+        if (!scpaused && jsonsc.pos)
         {
             // FIXME: reload in case of bad JSON
             if (procsc())
@@ -2685,12 +2678,6 @@ void MegaClient::exec()
         //    syncops = true;
         //}
 
-        // sync timer: read lock retry
-        if (syncfslockretry && syncfslockretrybt.armed())
-        {
-            syncfslockretrybt.backoff(Sync::SCANNING_DELAY_DS);
-        }
-
         // halt all syncing while the local filesystem is pending a lock-blocked operation
         // or while we are fetching nodes
 
@@ -2804,34 +2791,6 @@ void MegaClient::exec()
                 //    }
                 //}
 
-                size_t totalpending = 0;
-                size_t scanningpending = 0;
-                for (int q = DirNotify::RETRY; q >= DirNotify::DIREVENTS; q--)
-                {
-                    for (Sync* sync : syncs)
-                    {
-                        sync->cachenodes();
-
-                        totalpending += sync->dirnotify->notifyq[q].size();
-                        Notification notification;
-                        if (q == DirNotify::DIREVENTS)
-                        {
-                            scanningpending += sync->dirnotify->notifyq[q].size();
-                        }
-                        else if (!syncfslockretry && sync->dirnotify->notifyq[DirNotify::RETRY].peekFront(notification))
-                        {
-                            syncfslockretrybt.backoff(Sync::SCANNING_DELAY_DS);
-                            blockedfile = notification.path;
-                            syncfslockretry = true;
-                        }
-                    }
-                }
-
-                if (!syncfslockretry && !syncfsopsfailed)
-                {
-                    blockedfile.clear();
-                }
-
                 //if (syncadding)
                 //{
                 //    // do not continue processing syncs while adding nodes
@@ -2864,10 +2823,9 @@ void MegaClient::exec()
                     bool anyqueued = false;
                     for (Sync* sync : syncs)
                     {
-                        if (sync->dirnotify->notifyq[DirNotify::DIREVENTS].size()
-                          || sync->dirnotify->notifyq[DirNotify::RETRY].size())
+                        if (sync->dirnotify->notifyq[DirNotify::DIREVENTS].size())
                         {
-                            if (!syncnagleretry && !syncfslockretry)
+                            if (!syncnagleretry)
                             {
                                 syncactivity = true;
                             }
@@ -2897,10 +2855,10 @@ void MegaClient::exec()
 
                         // process filesystem notifications for active syncs unless we
                         // are retrying local fs writes
-                        if (!syncfsopsfailed)
+
                         {
                             LOG_verbose << "syncops: " << syncactivity << syncnagleretry
-                                        << syncfslockretry << synccreate.size();
+                                        << synccreate.size();
                             syncops = false;
 
                             //// FIXME: only syncup for subtrees that were actually
@@ -3040,7 +2998,6 @@ void MegaClient::exec()
 
                 if (!fetchingnodes)
                 {
-                    LOG_verbose << "Running sync()";
                     bool scanning = false;
                     for (Sync* sync : syncs)
                     {
@@ -3331,12 +3288,6 @@ int MegaClient::preparewait()
         //    LOG_debug << "Waiting for a temporary error checking filesystem notification";
         //    syncfslockretrybt.update(&nds);
         //}
-
-        // retrying of transiently failed syncdown() updates
-        if (syncdownretry)
-        {
-            syncdownbt.update(&nds);
-        }
 
         // triggering of Nagle-delayed sync PUTs
         if (syncnagleretry)
@@ -7630,7 +7581,7 @@ Node* MegaClient::sc_deltree()
 #ifdef ENABLE_SYNC
                     if (n->parent && n->parent->localnode)
                     {
-                        n->parent->localnode->setFutureSync(LocalNode::SYNCTREE_ACTION_HERE_ONLY);
+                        n->parent->localnode->setFutureSync(true, false);
                     }
 #endif
                     useralerts.convertNotedSharedNodes(false, originatingUser);
@@ -13721,88 +13672,11 @@ void MegaClient::stopxfers(LocalNode* l, DBTableTransactionCommitter& committer)
             // missing node is not associated with an existing LocalNode
             if (rit->second->type == FILENODE)
             {
-                if (!rit->second->syncget)
-                {
-                    bool download = true;
-                    auto f = fsaccess->newfileaccess(false);
-                    if (rit->second->localnode != (LocalNode*)~0
-                            && (f->fopen(localpath) || f->type == FOLDERNODE))
-                    {
-                        if (f->mIsSymLink && l->sync->movetolocaldebris(localpath))
-                        {
-                            LOG_debug << "Found a link in localpath " << localpath.toPath(*fsaccess);
-                        }
-                        else
-                        {
-                            LOG_debug << "Skipping download over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
-                            download = false;
-                        }
-                    }
-                    f.reset();
-                    rit->second->localnode = NULL;
-
-                    // start fetching this node, unless fetch is already in progress
-                    // FIXME: to cover renames that occur during the
-                    // download, reconstruct localname in complete()
-                    if (download)
-                    {
-                        LOG_debug << "Start fetching file node";
-                        app->syncupdate_get(l->sync, rit->second, localpath.toPath(*fsaccess).c_str());
-
-                        rit->second->syncget = new SyncFileGet(l->sync, rit->second, localpath);
-                        nextreqtag();
-                        DBTableTransactionCommitter committer(tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
-                        startxfer(GET, rit->second->syncget, committer);
-                        syncactivity = true;
-                    }
-                }
+// moved download to new system
             }
             else
             {
-                LOG_debug << "Creating local folder";
-                auto f = fsaccess->newfileaccess(false);
-                if (f->fopen(localpath) || f->type == FOLDERNODE)
-                {
-                    LOG_debug << "Skipping folder creation over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
-                }
-                // create local path, add to LocalNodes and recurse
-                else if (fsaccess->mkdirlocal(localpath))
-                {
-                    LocalNode* ll = l->sync->checkpath(l, &localpath, &localname, NULL, true, nullptr);
-
-                    if (ll && ll != (LocalNode*)~0)
-                    {
-                        LOG_debug << "Local folder created, continuing syncdown";
-
-                        ll->setnode(rit->second);
-                        ll->sync->statecacheadd(ll);
-
-                        if (!syncdown(ll, localpath, true))
-                        {
-                            if (success)
-                            {
-                                LOG_debug << "Syncdown not finished";
-                            }
-                            l->syncdownTargetedAction = std::max<unsigned>(originalTargetedAction, LocalNode::SYNCTREE_DESCENDANT_FLAGGED);
-                            success = false;
-                        }
-                    }
-                    else
-                    {
-                        LOG_debug << "Checkpath() failed " << (ll == NULL);
-                    }
-                }
-                else if (success && fsaccess->transient_error)
-                {
-                    blockedfile = localpath;
-                    LOG_debug << "Transient error creating folder " << blockedfile.toPath(*fsaccess);
-                    l->needsFutureSyncdown();
-                    success = false;
-                }
-                else if (!fsaccess->transient_error)
-                {
-                    LOG_debug << "Non transient error creating folder";
-                }
+// moved local folder creation code to new system
             }
         }
     }

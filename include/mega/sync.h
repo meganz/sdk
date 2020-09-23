@@ -159,13 +159,13 @@ public:
     bool recursiveSync(syncRow& row, LocalPath& fullPath);
     bool syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
 
-    void resolve_userIntervention(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
-    void resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
-    void resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
-    void resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
-    void resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
-    void resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
-    void resolve_pickWinner(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
+    bool resolve_userIntervention(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
+    bool resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
+    bool resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
+    bool resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
+    bool resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
+    bool resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
+    bool resolve_pickWinner(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
 
     bool syncEqual(const Node&, const LocalNode&);
     bool syncEqual(const FSNode&, const LocalNode&);

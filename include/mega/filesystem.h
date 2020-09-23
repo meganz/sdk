@@ -393,7 +393,7 @@ struct NotificationDeque : ThreadSafeDeque<Notification>
 // generic filesystem change notification
 struct MEGA_API DirNotify
 {
-    typedef enum { EXTRA, DIREVENTS, RETRY, NUMQUEUES } notifyqueue;
+    typedef enum { EXTRA, DIREVENTS, NUMQUEUES } notifyqueue;
 
     // notifyq[EXTRA] is like DIREVENTS, but delays its processing (for network filesystems)
     // notifyq[DIREVENTS] is fed with filesystem changes

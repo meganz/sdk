@@ -1165,9 +1165,9 @@ auto Sync::checkpathOne(LocalPath& localPath, const LocalPath& leafname, DirAcce
             // nothing and request a recheck
             LOG_warn << "File blocked. Adding notification to the retry queue: " << localPath.toPath(*client->fsaccess);
             //dirnotify->notify(DirNotify::RETRY, ll, LocalPath(*localpathNew));
-            client->syncfslockretry = true;
-            client->syncfslockretrybt.backoff(SCANNING_DELAY_DS);
-            client->blockedfile = localPath;
+
+            result.isBlocked = true;
+
         }
     }
 
@@ -2028,7 +2028,10 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
         // no filesystem side changes so use our current records
         for (auto& c: row.syncNode->children)
         {
-            fsChildren.push_back(c.second->getKnownFSDetails());
+            if (row.syncNode->fsid != UNDEF)
+            {
+                fsChildren.push_back(c.second->getKnownFSDetails());
+            }
         }
     }
 
@@ -2261,7 +2264,10 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
         {
             if (childRow.cloudNode && childRow.fsNode)
             {
-                subfoldersSynced = recursiveSync(childRow, localPath);
+                if (!recursiveSync(childRow, localPath))
+                {
+                    subfoldersSynced = false;
+                }
             }
         }
     }
@@ -2290,6 +2296,52 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
         " " << (row.cloudNode ? row.cloudNode->displaypath() : "(null)") <<
         " " << (row.syncNode ? row.syncNode->getLocalPath(true).toPath(*client->fsaccess) : "(null)") <<
         " " << (row.fsNode ? fullPath.toPath(*client->fsaccess) : "(null)");
+
+    if (row.syncNode && row.syncNode->useBlocked >= LocalNode::SYNCTREE_ACTION_HERE_ONLY)
+    {
+        if (!row.syncNode->rare().blockedTimer->armed())
+        {
+            LOG_verbose << "Waiting on use blocked timer, retry in ds: " << row.syncNode->rare().blockedTimer->retryin();
+            return false;
+        }
+    }
+
+    if (row.syncNode && row.syncNode->scanBlocked >= LocalNode::SYNCTREE_ACTION_HERE_ONLY)
+    {
+        if (row.syncNode->rare().blockedTimer->armed())
+        {
+            LOG_verbose << "Scan blocked timer elapsed, trigger parent rescan.";
+            parentRow.syncNode->setFutureScan(true, false);
+        }
+        else
+        {
+            LOG_verbose << "Waiting on scan blocked timer, retry in ds: " << row.syncNode->rare().blockedTimer->retryin();
+        }
+        return false;
+    }
+
+    if (row.syncNode && (
+        row.syncNode->useBlocked >= LocalNode::SYNCTREE_DESCENDANT_FLAGGED ||
+        row.syncNode->scanBlocked >= LocalNode::SYNCTREE_DESCENDANT_FLAGGED))
+    {
+        // reset the flag for this node. Anything still blocked here or in the tree below will set it again.
+        row.syncNode->scanBlocked = LocalNode::SYNCTREE_RESOLVED;
+        row.syncNode->rare().blockedTimer.reset();
+    }
+
+    if (row.fsNode && (row.fsNode->type == TYPE_UNKNOWN || row.fsNode->isBlocked))
+    {
+        // We were not able to get details of the filesystem item when scanning the directory.
+        // Consider it a blocked file, and we'll rescan the folder from time to time.
+        LOG_verbose << "File/folder was blocked when reading directory, retry later: " << fullPath.toPath(*client->fsaccess);
+        if (!row.syncNode) resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
+        row.syncNode->setScanBlocked();
+        return false;
+    }
+
+
+
+    bool rowSynced = false;
 
     if (row.syncNode)
     {
@@ -2321,22 +2373,22 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
                     {
                         LOG_verbose << "Row was already synced";
                     }
-                    return true;
+                    rowSynced = true;
                 }
                 else if (cloudEqual)
                 {
                     // filesystem changed, put the change
-                    resolve_upsync(row, parentRow, fullPath);
+                    rowSynced = resolve_upsync(row, parentRow, fullPath);
                 }
                 else if (fsEqual)
                 {
                     // cloud has changed, get the change
-                    resolve_downsync(row, parentRow, fullPath);
+                    rowSynced = resolve_downsync(row, parentRow, fullPath);
                 }
                 else
                 {
                     // both changed, so we can't decide without the user's help
-                    resolve_userIntervention(row, parentRow, fullPath);
+                    rowSynced = resolve_userIntervention(row, parentRow, fullPath);
                 }
             }
             else
@@ -2344,8 +2396,8 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
                 // cloud item absent
                 if (row.syncNode->syncedCloudNodeHandle.isUndef())
                 {
-                    // cloud item did not exist before; create it
-                    resolve_upsync(row, parentRow, fullPath);
+                    // cloud item did not exist before; upsync
+                    rowSynced = resolve_upsync(row, parentRow, fullPath);
                 }
                 else
                 {
@@ -2357,12 +2409,21 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
         {
             if (row.cloudNode)
             {
-                // local item disappeared
+                // local item not present
+                if (row.syncNode->fsid != UNDEF)
+                {
+                    // used to be synced - remove in the cloud (or detect move)
+                }
+                else
+                {
+                    // fs item did not exist before; downsync
+                    rowSynced = resolve_downsync(row, parentRow, fullPath);
+                }
             }
             else
             {
                 // local and cloud disappeared; remove sync item also
-                resolve_delSyncNode(row, parentRow, fullPath);
+                rowSynced = resolve_delSyncNode(row, parentRow, fullPath);
             }
         }
     }
@@ -2376,22 +2437,22 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
                 // If they are equal then join them with a Localnode. Othewise report or choose greater mtime.
                 if (row.fsNode->type != row.cloudNode->type)
                 {
-                    resolve_userIntervention(row, parentRow, fullPath);
+                    rowSynced = resolve_userIntervention(row, parentRow, fullPath);
                 }
                 else if (row.fsNode->type != FILENODE ||
                          row.fsNode->fingerprint == *static_cast<FileFingerprint*>(row.cloudNode))
                 {
-                    resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
+                    rowSynced = resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
                 }
                 else
                 {
-                    resolve_pickWinner(row, parentRow, fullPath);
+                    rowSynced = resolve_pickWinner(row, parentRow, fullPath);
                 }
             }
             else
             {
                 // Item existed locally only.  Create LocalNode for it, next run through will upload it
-                resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
+                rowSynced = resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
             }
         }
         else
@@ -2399,7 +2460,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
             if (row.cloudNode)
             {
                 // item exists remotely only
-                resolve_makeSyncNode_fromCloud(row, parentRow, fullPath);
+                rowSynced = resolve_makeSyncNode_fromCloud(row, parentRow, fullPath);
             }
             else
             {
@@ -2408,11 +2469,11 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
             }
         }
     }
-    return false;
+    return rowSynced;
 }
 
 
-void Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
+bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
     LOG_debug << "Creating LocalNode from FS at: " << fullPath.toPath(*client->fsaccess);
     auto l = new LocalNode;
@@ -2429,9 +2490,10 @@ void Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPa
         l->scanAgain = LocalNode::SYNCTREE_ACTION_HERE_AND_BELOW;
     }
     statecacheadd(l);
+    return false;
 }
 
-void Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
+bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
     LOG_debug << "Creating LocalNode from Cloud at: " << fullPath.toPath(*client->fsaccess);
     auto l = new LocalNode;
@@ -2448,62 +2510,139 @@ void Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Loca
         l->scanAgain = LocalNode::SYNCTREE_ACTION_HERE_AND_BELOW;
     }
     statecacheadd(l);
+    return false;
 }
 
-void Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
+bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
     // local and cloud disappeared; remove sync item also
     LOG_verbose << "Marking Localnode for deletion";
     statecachedel(row.syncNode);
+    return false;
 }
 
-void Sync::resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
+bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
     if (row.fsNode->type == FILENODE)
     {
-        LOG_verbose << "Creating cloud node for: " << fullPath.toPath(*client->fsaccess);
         // upload the file if we're not already uploading
-        if (!row.syncNode->transfer && parentRow.cloudNode)
+        if (!row.syncNode->transfer)
         {
-            assert(row.syncNode->isvalid); // LocalNodes for files always have a valid fingerprint
-            DBTableTransactionCommitter committer(client->tctable); // todo: move higher
+            if (parentRow.cloudNode)
+            {
+                LOG_debug << "Uploading file " << fullPath.toPath(*client->fsaccess);
+                assert(row.syncNode->isvalid); // LocalNodes for files always have a valid fingerprint
+                DBTableTransactionCommitter committer(client->tctable); // todo: move higher
 
-            row.syncNode->h = parentRow.cloudNode->nodehandle;
-            client->nextreqtag();
-            client->startxfer(PUT, row.syncNode, committer);  // full path will be calculated in the prepare() callback
-            client->app->syncupdate_put(this, row.syncNode, fullPath.toPath(*client->fsaccess).c_str());
+                row.syncNode->h = parentRow.cloudNode->nodehandle;
+                client->nextreqtag();
+                client->startxfer(PUT, row.syncNode, committer);  // full path will be calculated in the prepare() callback
+                client->app->syncupdate_put(this, row.syncNode, fullPath.toPath(*client->fsaccess).c_str());
+            }
+            else
+            {
+                LOG_verbose << "Parent cloud folder to upload to doesn't exist yet";
+            }
+        }
+        else
+        {
+            LOG_verbose << "Upload already in progress";
         }
     }
     else
     {
-        LOG_debug << "Uploading file " << fullPath.toPath(*client->fsaccess);
+        LOG_verbose << "Creating cloud node for: " << fullPath.toPath(*client->fsaccess);
         // while the operation is in progress sync() will skip over the parent folder
         vector<NewNode> nn(1);
         client->putnodes_prepareOneFolder(&nn[0], row.syncNode->name);
         client->putnodes(parentRow.cloudNode->nodehandle, move(nn), nullptr, 0);
     }
+    return false;
 }
 
-void Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
+bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
-    LOG_verbose << "Downsyncing row (todo)";
-    if (row.fsNode->type == FILENODE)
+    auto f = client->fsaccess->newfileaccess(false);
+    if (f->fopen(fullPath))
     {
+        if (f->type == FOLDERNODE)
+        {
+            if (!row.fsNode)
+            {
+                LOG_debug << "Folder already exists locally but hasn't been scanned yet, tagging parent for scan: " << fullPath.toPath(*client->fsaccess);
+                if (parentRow.syncNode)
+                {
+                    parentRow.syncNode->setFutureScan(true, true);
+                }
+                return false;
+            }
+            // can't open as a file and it's not a folder - nothing there, so go ahead with download or folder creation
+        }
+        else
+        {
+            LOG_debug << "File/folder is not to be synced (special attributes): " << fullPath.toPath(*client->fsaccess);
+            row.syncNode->setUseBlocked();
+            return false;
+        }
+    }
+
+
+    if (row.cloudNode->type == FILENODE)
+    {
+        // download the file if we're not already downloading
+        if (!row.cloudNode->syncget)
+        {
+            // FIXME: to cover renames that occur during the
+            // download, reconstruct localname in complete()
+            LOG_debug << "Start fetching file node";
+            client->app->syncupdate_get(this, row.cloudNode, fullPath.toPath(*client->fsaccess).c_str());
+
+            row.cloudNode->syncget = new SyncFileGet(this, row.cloudNode, fullPath);
+            DBTableTransactionCommitter committer(client->tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
+            client->nextreqtag();
+            client->startxfer(GET, row.cloudNode->syncget, committer);
+        }
+        else
+        {
+            LOG_verbose << "Download already in progress";
+        }
     }
     else
     {
+        LOG_verbose << "Creating local folder at: " << fullPath.toPath(*client->fsaccess);
+
+        if (client->fsaccess->mkdirlocal(fullPath))
+        {
+            assert(row.syncNode);
+        }
+        else if (client->fsaccess->transient_error)
+        {
+            LOG_debug << "Transient error creating folder, marking as blocked " << fullPath.toPath(*client->fsaccess);
+            assert(row.syncNode);
+            row.syncNode->setUseBlocked();
+        }
+        else // !transient_error
+        {
+            // let's consider this case as blocked too, alert the user
+            LOG_debug << "Non transient error creating folder, marking as blocked " << fullPath.toPath(*client->fsaccess);
+            assert(row.syncNode);
+            row.syncNode->setUseBlocked();
+        }
     }
+    return false;
 }
 
 
-void Sync::resolve_userIntervention(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
+bool Sync::resolve_userIntervention(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
     LOG_debug << "write me";
+    return false;
 }
 
-void Sync::resolve_pickWinner(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
+bool Sync::resolve_pickWinner(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
     LOG_debug << "write me";
+    return false;
 }
 
 

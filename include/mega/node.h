@@ -371,6 +371,7 @@ struct MEGA_API FSNode
     m_time_t mtime = 0;
     mega::handle fsid = mega::UNDEF;
     bool isSymlink = false;
+    bool isBlocked = false;
     FileFingerprint fingerprint;
 };
 
@@ -453,15 +454,31 @@ struct MEGA_API LocalNode : public File
         // needs another scan() (and sync() by implication) at this level after pending changes
         unsigned scanAgain : 2;    // TREESTATE
 
+        // whether this file/folder is blocked - now we can have many at once
+        unsigned useBlocked : 2;    // TREESTATE
+        unsigned scanBlocked : 2;    // TREESTATE
+
     };
+
+    // Fields which are hardly ever used.
+    // We keep the average memory use by only alloating these when used.
+    struct RareFields
+    {
+        unique_ptr<BackoffTimer> blockedTimer;
+    };
+
+private:
+    unique_ptr<RareFields> rareFields;
+public:
+    RareFields& rare();
 
     dstime lastScanTime = 0;
 
     // set the syncupTargetedAction for this, and parents
     void setFutureSync(bool doHere, bool doBelow);
-    void setFutureSync(TREESTATE s);
     void setFutureScan(bool doHere, bool doBelow);
-    void setFutureScan(TREESTATE s);
+    void setUseBlocked();
+    void setScanBlocked();
 
     // True if this subtree requires scanning.
     bool scanRequired() const;

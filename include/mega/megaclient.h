@@ -927,9 +927,6 @@ public:
     // account auth for public folders
     string accountauth;
 
-    // file that is blocking the sync engine
-    LocalPath blockedfile;
-
     // stats id
     static std::string statsid;
 
@@ -1410,17 +1407,6 @@ public:
 
     // app scanstate flag
     bool syncscanstate;
-
-    // block local fs updates processing while locked ops are in progress
-    bool syncfsopsfailed;
-
-    // retry accessing temporarily locked filesystem items
-    bool syncfslockretry;
-    BackoffTimer syncfslockretrybt;
-
-    // retry of transiently failed local filesystem ops
-    bool syncdownretry;
-    BackoffTimer syncdownbt;
 
     // sync PUT Nagle timer
     bool syncnagleretry;

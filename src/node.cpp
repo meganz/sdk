@@ -1379,6 +1379,8 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     conflicts = SYNCTREE_RESOLVED;
     scanAgain = SYNCTREE_RESOLVED;
     syncAgain = SYNCTREE_RESOLVED;
+    useBlocked = SYNCTREE_RESOLVED;
+    scanBlocked = SYNCTREE_RESOLVED;
     syncxfer = true;
     newnode.reset();
     parent_dbid = 0;
@@ -1420,19 +1422,20 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     sync->localnodes[type]++;
 }
 
-void LocalNode::setFutureScan(bool doHere, bool doBelow)
+auto LocalNode::rare() -> RareFields&
 {
-    auto state = static_cast<TREESTATE>((doHere?1:0) << 1 | (doBelow?1:0));
-
-    if (state != SYNCTREE_RESOLVED)
+    if (!rareFields)
     {
-        setFutureScan(state);
+        rareFields.reset(new RareFields);
     }
+    return *rareFields;
 }
 
-void LocalNode::setFutureScan(TREESTATE newNeed)
+void LocalNode::setFutureScan(bool doHere, bool doBelow)
 {
-    scanAgain = std::max<unsigned>(scanAgain, newNeed);
+    unsigned state = (doHere?1u:0u) << 1 | (doBelow?1u:0u);
+
+    scanAgain = std::max<unsigned>(scanAgain, state);
     for (auto p = parent; p != NULL; p = p->parent)
     {
         p->scanAgain = std::max<unsigned>(p->scanAgain, SYNCTREE_DESCENDANT_FLAGGED);
@@ -1441,22 +1444,53 @@ void LocalNode::setFutureScan(TREESTATE newNeed)
 
 void LocalNode::setFutureSync(bool doHere, bool doBelow)
 {
-    auto state = static_cast<TREESTATE>((doHere?1:0) << 1 | (doBelow?1:0));
+    unsigned state = (doHere?1u:0u) << 1 | (doBelow?1u:0u);
 
-    if (state != SYNCTREE_RESOLVED)
-    {
-        setFutureSync(state);
-    }
-}
-
-void LocalNode::setFutureSync(TREESTATE newNeed)
-{
-    syncAgain = std::max<unsigned>(syncAgain, newNeed);
+    syncAgain = std::max<unsigned>(syncAgain, state);
     for (auto p = parent; p != NULL; p = p->parent)
     {
         p->syncAgain = std::max<unsigned>(p->syncAgain, SYNCTREE_DESCENDANT_FLAGGED);
     }
 }
+
+void LocalNode::setUseBlocked()
+{
+    useBlocked = std::max<unsigned>(useBlocked, SYNCTREE_ACTION_HERE_ONLY);
+
+    if (!rare().blockedTimer)
+    {
+        rare().blockedTimer.reset(new BackoffTimer(sync->client->rng));
+    }
+    if (rare().blockedTimer->armed())
+    {
+        rare().blockedTimer->backoff(Sync::SCANNING_DELAY_DS);
+    }
+
+    for (auto p = parent; p != NULL; p = p->parent)
+    {
+        p->useBlocked = std::max<unsigned>(p->useBlocked, SYNCTREE_DESCENDANT_FLAGGED);
+    }
+}
+
+void LocalNode::setScanBlocked()
+{
+    scanBlocked = std::max<unsigned>(scanBlocked, SYNCTREE_ACTION_HERE_ONLY);
+
+    if (!rare().blockedTimer)
+    {
+        rare().blockedTimer.reset(new BackoffTimer(sync->client->rng));
+    }
+    if (rare().blockedTimer->armed())
+    {
+        rare().blockedTimer->backoff(Sync::SCANNING_DELAY_DS);
+    }
+
+    for (auto p = parent; p != NULL; p = p->parent)
+    {
+        p->scanBlocked = std::max<unsigned>(p->scanBlocked, SYNCTREE_DESCENDANT_FLAGGED);
+    }
+}
+
 
 bool LocalNode::scanRequired() const
 {
@@ -1643,7 +1677,7 @@ LocalNode::~LocalNode()
     if (sync->dirnotify.get())
     {
         // deactivate corresponding notifyq records
-        for (int q = DirNotify::RETRY; q >= DirNotify::EXTRA; q--)
+        for (int q = DirNotify::NUMQUEUES; q--; )
         {
             sync->dirnotify->notifyq[q].replaceLocalNodePointers(this, (LocalNode*)~0);
         }
@@ -1744,7 +1778,7 @@ bool LocalNode::conflictsDetectedHere() const
     return conflicts & SYNCTREE_ACTION_HERE_ONLY;
 }
 
-void LocalNode::conflictsResolved() 
+void LocalNode::conflictsResolved()
 {
     conflicts = SYNCTREE_RESOLVED;
 }
