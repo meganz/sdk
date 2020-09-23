@@ -1263,7 +1263,6 @@ void CommandPutNodes::procresult()
         }
     }
 
-
     client->sendkeyrewrites();
 
 #ifdef ENABLE_SYNC
@@ -5386,7 +5385,6 @@ void CommandFetchNodes::procresult()
             case MAKENAMEID2('s', 'r'):
                 // sharekey distribution request
                 client->procsr(&client->json);
-                client->cleanNodesFromBd();
                 break;
 
             case MAKENAMEID2('s', 'n'):
