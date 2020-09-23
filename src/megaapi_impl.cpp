@@ -7490,7 +7490,7 @@ bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &
     return canForceUpload && (isMedia || isPdf) && !(hasPreview && hasThumbnail);
 }
 
-void MegaApiImpl::platformSetRLimitNumFile(int newNumFileLimit) const
+bool MegaApiImpl::platformSetRLimitNumFile(int newNumFileLimit) const
 {
 #ifndef WIN32
     struct rlimit rl{0,0};
@@ -7498,6 +7498,7 @@ void MegaApiImpl::platformSetRLimitNumFile(int newNumFileLimit) const
     {
         auto e = errno;
         LOG_err << "Error calling getrlimit: " << e;
+        return false;
     }
     else
     {
@@ -7514,10 +7515,13 @@ void MegaApiImpl::platformSetRLimitNumFile(int newNumFileLimit) const
         {
             auto e = errno;
             LOG_err << "Error calling setrlimit: " << e;
+            return false;
         }
     }
+    return true;
 #else
     LOG_err << "Code for calling setrlimit is not available yet (or not relevant) on this platform";
+    return false;
 #endif
 }
 

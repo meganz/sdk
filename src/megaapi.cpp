@@ -4110,9 +4110,9 @@ MegaApiLock* MegaApi::getMegaApiLock(bool lockNow)
     return new MegaApiLock(pImpl, lockNow);
 }
 
-void MegaApi::platformSetRLimitNumFile(int newNumFileLimit)
+bool MegaApi::platformSetRLimitNumFile(int newNumFileLimit) const
 {
-    pImpl->platformSetRLimitNumFile(newNumFileLimit);
+    return pImpl->platformSetRLimitNumFile(newNumFileLimit);
 }
 
 void MegaApi::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener, bool reverifying_whitelisted)

@@ -16941,8 +16941,11 @@ class MegaApi
      * can make that call and set appropriate limits.
      *
      * @param newNumFileLimit The new limit of file and socket handles for the whole app.
+     *
+     * @return True when there were no errors setting the new limit (even when clipped to the maximum
+     * allowed value). It returns false when setting a new limit failed.
      */
-    void platformSetRLimitNumFile(int newNumFileLimit);
+    bool platformSetRLimitNumFile(int newNumFileLimit) const;
 
  private:
         MegaApiImpl *pImpl;
