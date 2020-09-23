@@ -2051,6 +2051,10 @@ class MegaApiImpl : public MegaApp
 
         enum { TARGET_INSHARE = 0, TARGET_OUTSHARE, TARGET_PUBLICLINK, };
 
+        // min and max timeout that sendPendingTransfers must not exceed when the transfer queue is being processed
+        const int minPendingTransfersTimeout = 100;
+        const int maxPendingTransfersTimeout = 10000;
+
         //Multiple listener management.
         void addListener(MegaListener* listener);
         void addRequestListener(MegaRequestListener* listener);
@@ -2815,6 +2819,7 @@ protected:
 
 #endif
 
+        bool mProcessingFolderTransfer;
         int pendingUploads;
         int pendingDownloads;
         int totalUploads;
