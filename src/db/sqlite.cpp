@@ -801,6 +801,28 @@ bool SqliteDbTable::isNodeInDB(handle node)
     return inDb;
 }
 
+uint64_t SqliteDbTable::getNumberOfNodes()
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    checkTransaction();
+    sqlite3_stmt *stmt;
+    uint64_t nodeNumber = 0;
+    if (sqlite3_prepare(db, "SELECT count(*) FROM nodes", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_step(stmt) == SQLITE_ROW)
+        {
+            nodeNumber = sqlite3_column_int64(stmt, 0);
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return nodeNumber;
+}
+
 // add/update record by index
 bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
 {

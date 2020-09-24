@@ -78,6 +78,7 @@ public:
     virtual bool isNodeInDB(handle node) = 0;
     virtual bool isAncestor(handle node, handle ancestror) = 0;
     virtual bool isFileNode(handle node) = 0;
+    virtual uint64_t getNumberOfNodes() = 0;
 
     // update or add specific record
     virtual bool put(uint32_t, char*, unsigned) = 0;

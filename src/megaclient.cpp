@@ -11396,7 +11396,7 @@ void MegaClient::fetchnodes(bool nocache)
         WAIT_CLASS::bumpds();
         fnstats.mode = FetchNodesStats::MODE_DB;
         fnstats.cache = FetchNodesStats::API_NO_CACHE;
-        fnstats.nodesCached = mNodes.size();
+        fnstats.nodesCached = sctable->getNumberOfNodes();
         fnstats.timeToCached = Waiter::ds - fnstats.startTime;
         fnstats.timeToResult = fnstats.timeToCached;
 

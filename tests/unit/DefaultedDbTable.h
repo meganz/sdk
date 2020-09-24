@@ -128,6 +128,10 @@ public:
     {
         return false;
     }
+    uint64_t getNumberOfNodes() override
+    {
+        return false;
+    }
     bool put(uint32_t, char*, unsigned) override
     {
         return false;
