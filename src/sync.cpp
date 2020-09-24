@@ -1957,18 +1957,22 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
 {
     LOG_verbose << "Entering folder with syncagain=" << row.syncNode->syncAgain << " scanagain=" << row.syncNode->scanAgain << " at " << localPath.toPath(*client->fsaccess);
 
+    assert(row.syncNode);
+
     // Sentinel value used to signal that we've detected a name conflict.
     Node* const NAME_CONFLICT = reinterpret_cast<Node*>(~0ull);
 
     if (!row.syncNode)
     {
         // visit this node again later when we have a LocalNode at this level
-        return true;
+        LOG_verbose << "No syncnode";
+        return false;
     }
 
     // nothing to do for this subtree? Skip traversal
     if (!(row.syncNode->scanRequired() || row.syncNode->syncRequired()))
     {
+        LOG_verbose << "No syncing or scanning needed";
         // Make sure our parent knows about any conflicts we may have detected.
         row.syncNode->conflictRefresh();
         return true;
@@ -1977,8 +1981,9 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
     if (row.cloudNode && !row.cloudNode->mPendingChanges.empty())
     {
         // visit this node again later when commands are complete
+        LOG_verbose << "Waitig for pending changes at this level to complete";
         row.syncNode->conflictRefresh();
-        return true;
+        return false;
     }
 
     // propagate full-scan flags to children
@@ -2016,7 +2021,8 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
             row.syncNode->conflictRefresh();
 
             // Don't scan a particular folder more frequently than every 2 seconds.  Just revisit later
-            return true;
+            LOG_verbose << "Can't scan again yet, too early";
+            return false;
         }
 
         // If we need to scan at this level, do it now - just scan one folder then return from the stack to release the mutex.
@@ -2031,7 +2037,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
         // no filesystem side changes so use our current records
         for (auto& c: row.syncNode->children)
         {
-            if (row.syncNode->fsid != UNDEF)
+            if (c.second->fsid != UNDEF)
             {
                 fsChildren.push_back(c.second->getKnownFSDetails());
             }
