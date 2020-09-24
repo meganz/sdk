@@ -128,6 +128,8 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->foreign = isForeign;
     this->children = NULL;
     this->owner = owner;
+    this->mFavourite = false;
+    this->mLabel = LBL_UNKNOWN;
 
     if (privateauth)
     {
@@ -162,6 +164,8 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
         this->height = np->height;
         this->shortformat = np->shortformat;
         this->videocodecid = np->videocodecid;
+        this->mFavourite = np->mFavourite;
+        this->mLabel = np->mLabel;
     }
     else
     {
@@ -170,6 +174,8 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
         this->height = node->getHeight();
         this->shortformat = node->getShortformat();
         this->videocodecid = node->getVideocodecid();
+        this->mFavourite = node->isFavourite();
+        this->mLabel = static_cast<nodelabel_t>(node->getLabel());
     }
 
     this->latitude = node->getLatitude();
@@ -281,6 +287,8 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->longitude = INVALID_COORDINATE;
     this->customAttrs = NULL;
     this->restorehandle = UNDEF;
+    this->mFavourite = false;
+    this->mLabel = LBL_UNKNOWN;
 
     char buf[10];
     for (attr_map::iterator it = node->attrs.map.begin(); it != node->attrs.map.end(); it++)
@@ -389,6 +397,30 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
             else if (it->first == AttrMap::string2nameid("c0"))
             {
                 originalfingerprint = MegaApi::strdup(it->second.c_str());
+            }
+            else if (it->first == AttrMap::string2nameid("fav"))
+            {
+                int fav = std::atoi(it->second.c_str());
+                if (fav != 1)
+                {
+                    LOG_err << "Invalid value for node attr fav: " << fav;
+                }
+                else
+                {
+                    mFavourite = fav;
+                }
+            }
+            else if (it->first == AttrMap::string2nameid("lbl"))
+            {
+                int lbl = std::atoi(it->second.c_str());
+                if (lbl < LBL_RED || lbl > LBL_GREY)
+                {
+                    LOG_err << "Invalid value for node attr lbl: " << lbl;
+                }
+                else
+                {
+                    mLabel = static_cast<nodelabel_t>(lbl);
+                }
             }
         }
     }
@@ -696,6 +728,16 @@ int MegaNodePrivate::getDuration()
     }
 
     return duration;
+}
+
+bool MegaNodePrivate::isFavourite()
+{
+    return mFavourite;
+}
+
+int MegaNodePrivate::getLabel()
+{
+    return mLabel;
 }
 
 int MegaNodePrivate::getWidth()
@@ -5007,7 +5049,8 @@ void MegaFileGet::terminated()
     delete this;
 }
 
-MegaFilePut::MegaFilePut(MegaClient *, LocalPath clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime, bool isSourceTemporary)
+MegaFilePut::MegaFilePut(MegaClient *, LocalPath clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime, bool isSourceTemporary, Node *pvNode)
+
     : MegaFile()
 {
     // full local path
@@ -5025,6 +5068,8 @@ MegaFilePut::MegaFilePut(MegaClient *, LocalPath clocalname, string *filename, h
     customMtime = mtime;
 
     temporaryfile = isSourceTemporary;
+
+    previousNode = pvNode;
 }
 
 bool MegaFilePut::serialize(string *d)
@@ -6797,7 +6842,7 @@ void MegaApiImpl::setCustomNodeAttribute(MegaNode *node, const char *attrName, c
     if(node) request->setNodeHandle(node->getHandle());
     request->setName(attrName);
     request->setText(value);
-    request->setFlag(false);     // is official attribute?
+    request->setFlag(false);     // is official attribute or not
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6808,7 +6853,29 @@ void MegaApiImpl::setNodeDuration(MegaNode *node, int secs, MegaRequestListener 
     if(node) request->setNodeHandle(node->getHandle());
     request->setParamType(MegaApi::NODE_ATTR_DURATION);
     request->setNumber(secs);
-    request->setFlag(true);     // is official attribute?
+    request->setFlag(true);     // is official attribute or not
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
+    if(node) request->setNodeHandle(node->getHandle());
+    request->setParamType(MegaApi::NODE_ATTR_LABEL);
+    request->setNumDetails(label);
+    request->setFlag(true);     // is official attribute or not
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
+    if(node) request->setNodeHandle(node->getHandle());
+    request->setParamType(MegaApi::NODE_ATTR_FAV);
+    request->setNumDetails(fav);
+    request->setFlag(true);     // is official attribute or not
     requestQueue.push(request);
     waiter->notify();
 }
@@ -12170,6 +12237,8 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
         const char *name = transfer->getFileName();
         if (parent && nodes && name)
         {
+            // Get previous node if any
+            file->previousNode = client->childnodebyname(parent, name, true);
             for (unsigned int i = 0; i < nodes->size(); i++)
             {
                 Node* node = nodes->at(i);
@@ -17163,6 +17232,10 @@ std::function<bool (Node*, Node*)> MegaApiImpl::getComparatorFunction(int order,
         case MegaApi::ORDER_PHOTO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorPhotoDESC(i, j, mc); };
         case MegaApi::ORDER_VIDEO_ASC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoASC(i, j, mc); };
         case MegaApi::ORDER_VIDEO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoDESC(i, j, mc); };
+        case MegaApi::ORDER_LABEL_ASC: return MegaApiImpl::nodeComparatorLabelASC;
+        case MegaApi::ORDER_LABEL_DESC: return MegaApiImpl::nodeComparatorLabelDESC;
+        case MegaApi::ORDER_FAV_ASC: return MegaApiImpl::nodeComparatorFavASC;
+        case MegaApi::ORDER_FAV_DESC: return MegaApiImpl::nodeComparatorFavDESC;
     }
     assert(false);
     return nullptr;
@@ -17401,6 +17474,131 @@ bool MegaApiImpl::nodeComparatorPublicLinkCreationDESC(Node *i, Node *j)
         return 1;
     }
     return nodeNaturalComparatorDESC(i, j);
+}
+
+bool MegaApiImpl::nodeComparatorLabelASC(Node *i, Node *j)
+{
+    nameid labelId = AttrMap::string2nameid("lbl");
+    int iLabel = MegaNode::NODE_LBL_UNKNOWN;
+    auto iAttrIt = i->attrs.map.find(labelId);
+    if (iAttrIt != i->attrs.map.end())
+    {
+       iLabel = std::atoi(iAttrIt->second.c_str());
+    }
+
+    int jLabel = MegaNode::NODE_LBL_UNKNOWN;
+    auto jAttrIt = j->attrs.map.find(labelId);
+    if (jAttrIt != j->attrs.map.end())
+    {
+       jLabel = std::atoi(jAttrIt->second.c_str());
+    }
+
+    if (iLabel == MegaNode::NODE_LBL_UNKNOWN && jLabel ==  MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return nodeComparatorDefaultASC(i, j);
+    }
+    if (iLabel == MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return 0;
+    }
+    if (jLabel == MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return 1;
+    }
+
+    if (iLabel < jLabel)
+    {
+        return 1;
+    }
+    if (iLabel > jLabel)
+    {
+        return 0;
+    }
+    return nodeComparatorDefaultASC(i, j);
+}
+
+bool MegaApiImpl::nodeComparatorLabelDESC(Node *i, Node *j)
+{
+    nameid labelId = AttrMap::string2nameid("lbl");
+    int iLabel = MegaNode::NODE_LBL_UNKNOWN;
+    auto iAttrIt = i->attrs.map.find(labelId);
+    if (iAttrIt != i->attrs.map.end())
+    {
+       iLabel = std::atoi(iAttrIt->second.c_str());
+    }
+
+    int jLabel = MegaNode::NODE_LBL_UNKNOWN;
+    auto jAttrIt = j->attrs.map.find(labelId);
+    if (jAttrIt != j->attrs.map.end())
+    {
+       jLabel = std::atoi(jAttrIt->second.c_str());
+    }
+
+    if (iLabel == MegaNode::NODE_LBL_UNKNOWN && jLabel == MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return nodeComparatorDefaultASC(i, j);
+    }
+    if (iLabel == MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return 0;
+    }
+    if (jLabel == MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return 1;
+    }
+
+    if (iLabel < jLabel)
+    {
+        return 0;
+    }
+    if (iLabel > jLabel)
+    {
+        return 1;
+    }
+    return nodeComparatorDefaultASC(i, j);
+}
+
+
+bool MegaApiImpl::nodeComparatorFavASC(Node *i, Node *j)
+{
+    nameid favId = AttrMap::string2nameid("fav");
+    bool iFav = (i->attrs.map.find(favId) != i->attrs.map.end());
+    bool jFav = (j->attrs.map.find(favId) != j->attrs.map.end());
+
+    if (!(iFav ^ jFav))
+    {
+        // if both or none of them, have the same attribute value, order default ASC
+        return nodeComparatorDefaultASC(i, j);
+    }
+    else if (iFav)
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+bool MegaApiImpl::nodeComparatorFavDESC(Node *i, Node *j)
+{
+    nameid favId = AttrMap::string2nameid("fav");
+    bool iFav = (i->attrs.map.find(favId) != i->attrs.map.end());
+    bool jFav = (j->attrs.map.find(favId) != j->attrs.map.end());
+
+    if (!(iFav ^ jFav))
+    {
+        // if both or none of them, have the same attribute value, order default ASC
+        return nodeComparatorDefaultASC(i, j);
+    }
+    else if (iFav)
+    {
+        return 0;
+    }
+    else
+    {
+        return 1;
+    }
 }
 
 // Compare node types. Returns -1 if i==j, 0 if i goes first, +1 if j goes first.
@@ -18347,7 +18545,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
 
                     currentTransfer = transfer;
                     string wFileName = fileName;
-                    MegaFilePut *f = new MegaFilePut(client, std::move(wLocalPath), &wFileName, transfer->getParentHandle(), uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary);
+                    MegaFilePut *f = new MegaFilePut(client, std::move(wLocalPath), &wFileName, transfer->getParentHandle(), uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary, previousNode);
                     *static_cast<FileFingerprint*>(f) = fp;  // deliberate slicing - startxfer would re-fingerprint if we don't supply this info
                     f->setTransfer(transfer);
                     bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer());
@@ -20149,6 +20347,57 @@ void MegaApiImpl::sendPendingRequests()
                     {
                         node->attrs.map[nid] = request->getText();
                     }
+                }
+                else if (type == MegaApi::NODE_ATTR_LABEL || type == MegaApi::NODE_ATTR_FAV)
+                {
+                    Node *current = node;
+                    bool remove = false;
+                    nameid nid = 0;
+                    int value = 0;
+                    if (type == MegaApi::NODE_ATTR_LABEL)
+                    {
+                        value = request->getNumDetails();
+                        if (value < LBL_UNKNOWN || value > LBL_GREY)
+                        {
+                            e = API_EARGS;
+                            break;
+                        }
+
+                        nid = AttrMap::string2nameid("lbl");
+                        remove = (value == LBL_UNKNOWN);
+                    }
+                    else
+                    {
+                        nid = AttrMap::string2nameid("fav");
+                        remove = !request->getNumDetails();
+                        value = 1;
+                    }
+
+                    do
+                    {
+                        if (remove)
+                        {
+                            current->attrs.map.erase(nid);
+                        }
+                        else
+                        {
+                           current->attrs.map[nid] = std::to_string(value);
+                        }
+
+                        e = client->setattr(current);
+
+                        if (current->type != FILENODE || !current->children.size())
+                        {
+                            // If node is a folder or doesn't have any versions
+                            break;
+                        }
+
+                        // Retrieve next node version (all versions must have the same lbl/fav value)
+                        assert(current->children.back()->parent == current);
+                        current = current->children.back();
+                    }
+                    while (current);
+                    break;
                 }
                 else
                 {
@@ -22623,6 +22872,8 @@ void MegaApiImpl::sendPendingRequests()
             }
 #endif
             AttrMap attrs;
+            Node *previousNode = client->childnodebyname(parentNode, utf8Name, true);
+            client->honorPreviousVersionAttrs(previousNode, attrs);
             attrs.map['n'] = utf8Name;
             attrs.map['c'] = megafingerprint.get();
             if (fingerprintOriginal)

@@ -404,6 +404,17 @@ class MegaNode
             TYPE_RUBBISH
 		};
 
+        enum {
+            NODE_LBL_UNKNOWN = 0,
+            NODE_LBL_RED,
+            NODE_LBL_ORANGE,
+            NODE_LBL_YELLOW,
+            NODE_LBL_GREEN,
+            NODE_LBL_BLUE,
+            NODE_LBL_PURPLE,
+            NODE_LBL_GREY,
+        };
+
         enum
         {
             CHANGE_TYPE_REMOVED         = 0x01,
@@ -577,6 +588,28 @@ class MegaNode
          * @return The videocodecid, or -1 if this attribute is not set.
          */
         virtual int getVideocodecid();
+
+        /**
+         * @brief Get the attribute of the node representing if node is marked as favourite.
+         *
+         * @return True if node is marked as favourite, otherwise return false (attribute is not set).
+         */
+        virtual bool isFavourite();
+
+        /**
+         * @brief Get the attribute of the node representing its label.
+         *
+         * @return The label of the node, valid values are:
+         *  - MegaNode::NODE_LBL_UNKNOWN = 0
+         *  - MegaNode::NODE_LBL_RED = 1
+         *  - MegaNode::NODE_LBL_ORANGE = 2
+         *  - MegaNode::NODE_LBL_YELLOW = 3
+         *  - MegaNode::NODE_LBL_GREEN = 4
+         *  - MegaNode::NODE_LBL_BLUE = 5
+         *  - MegaNode::NODE_LBL_PURPLE = 6
+         *  - MegaNode::NODE_LBL_GREY = 7
+         */
+        virtual int getLabel();
 
         /**
          * @brief Get the attribute of the node representing the latitude.
@@ -7590,7 +7623,9 @@ class MegaApi
         enum {
             NODE_ATTR_DURATION = 0,
             NODE_ATTR_COORDINATES = 1,
-            NODE_ATTR_ORIGINALFINGERPRINT = 2
+            NODE_ATTR_ORIGINALFINGERPRINT = 2,
+            NODE_ATTR_LABEL = 3,
+            NODE_ATTR_FAV = 4,
         };
 
         enum {
@@ -10820,6 +10855,60 @@ class MegaApi
         void setNodeDuration(MegaNode *node, int duration, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Set node label as a node attribute.
+         * Valid values for label attribute are:
+         *  - MegaNode::NODE_LBL_RED = 1
+         *  - MegaNode::NODE_LBL_ORANGE = 2
+         *  - MegaNode::NODE_LBL_YELLOW = 3
+         *  - MegaNode::NODE_LBL_GREEN = 4
+         *  - MegaNode::NODE_LBL_BLUE = 5
+         *  - MegaNode::NODE_LBL_PURPLE = 6
+         *  - MegaNode::NODE_LBL_GREY = 7
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+         * - MegaRequest::getNumDetails - Returns the label for the node
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_LABEL
+         *
+         * @param node Node that will receive the information.
+         * @param label Label of the node
+         * @param listener MegaRequestListener to track this request
+         */
+        void setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener =  NULL);
+
+        /**
+         * @brief Remove node label
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_LABEL
+         *
+         * @param node Node that will receive the information.
+         * @param listener MegaRequestListener to track this request
+         */
+        void resetNodeLabel(MegaNode *node, MegaRequestListener *listener =  NULL);
+
+        /**
+         * @brief Set node favourite as a node attribute.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+         * - MegaRequest::getNumDetails - Returns 1 if node is set as favourite, otherwise return 0
+         * - MegaRequest::getFlag - Returns true (official attribute)
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_FAV
+         *
+         * @param node Node that will receive the information.
+         * @param fav if true set node as favourite, otherwise remove the attribute
+         * @param listener MegaRequestListener to track this request
+         */
+        void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
+
+        /**
          * @brief Set the GPS coordinates of image files as a node attribute.
          *
          * To remove the existing coordinates, set both the latitude and longitude to
@@ -14026,7 +14115,8 @@ class MegaApi
             ORDER_ALPHABETICAL_ASC, ORDER_ALPHABETICAL_DESC,
             ORDER_PHOTO_ASC, ORDER_PHOTO_DESC,
             ORDER_VIDEO_ASC, ORDER_VIDEO_DESC,
-            ORDER_LINK_CREATION_ASC, ORDER_LINK_CREATION_DESC,};
+            ORDER_LINK_CREATION_ASC, ORDER_LINK_CREATION_DESC,
+            ORDER_LABEL_ASC, ORDER_LABEL_DESC, ORDER_FAV_ASC, ORDER_FAV_DESC,};
 
         /**
          * @brief Get the number of child nodes
@@ -14122,6 +14212,18 @@ class MegaApi
          *
          * - MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
+         *
+         * - MegaApi::ORDER_LABEL_ASC = 17
+         * Sort by color label, ascending
+         *
+         * - MegaApi::ORDER_LABEL_DESC = 18
+         * Sort by color label, descending
+         *
+         * - MegaApi::ORDER_FAV_ASC = 19
+         * Sort nodes with favourite attr first
+         *
+         * - MegaApi::ORDER_FAV_DESC = 20
+         * Sort nodes with favourite attr last
          *
          * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
@@ -14224,6 +14326,18 @@ class MegaApi
          *
          * - MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
+         *
+         * - MegaApi::ORDER_LABEL_ASC = 17
+         * Sort by color label, ascending
+         *
+         * - MegaApi::ORDER_LABEL_DESC = 18
+         * Sort by color label, descending
+         *
+         * - MegaApi::ORDER_FAV_ASC = 19
+         * Sort nodes with favourite attr first
+         *
+         * - MegaApi::ORDER_FAV_DESC = 20
+         * Sort nodes with favourite attr last
          *
          * @return Lists with files and folders child MegaNode objects
          */
@@ -15062,6 +15176,18 @@ class MegaApi
          * - MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
+         * - MegaApi::ORDER_LABEL_ASC = 17
+         * Sort by color label, ascending
+         *
+         * - MegaApi::ORDER_LABEL_DESC = 18
+         * Sort by color label, descending
+         *
+         * - MegaApi::ORDER_FAV_ASC = 19
+         * Sort nodes with favourite attr first
+         *
+         * - MegaApi::ORDER_FAV_DESC = 20
+         * Sort nodes with favourite attr last
+         *
          * @return List of nodes that contain the desired string in their name
          */
         MegaNodeList* search(MegaNode* node, const char* searchString, bool recursive = 1, int order = ORDER_NONE);
@@ -15133,6 +15259,18 @@ class MegaApi
          * - MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
+         * - MegaApi::ORDER_LABEL_ASC = 17
+         * Sort by color label, ascending
+         *
+         * - MegaApi::ORDER_LABEL_DESC = 18
+         * Sort by color label, descending
+         *
+         * - MegaApi::ORDER_FAV_ASC = 19
+         * Sort nodes with favourite attr first
+         *
+         * - MegaApi::ORDER_FAV_DESC = 20
+         * Sort nodes with favourite attr last
+         *
          * @return List of nodes that contain the desired string in their name
          */
         MegaNodeList* search(MegaNode* node, const char* searchString, MegaCancelToken *cancelToken, bool recursive = 1, int order = ORDER_NONE);
@@ -15201,6 +15339,18 @@ class MegaApi
          *
          * - MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
+         *
+         * - MegaApi::ORDER_LABEL_ASC = 17
+         * Sort by color label, ascending
+         *
+         * - MegaApi::ORDER_LABEL_DESC = 18
+         * Sort by color label, descending
+         *
+         * - MegaApi::ORDER_FAV_ASC = 19
+         * Sort nodes with favourite attr first
+         *
+         * - MegaApi::ORDER_FAV_DESC = 20
+         * Sort nodes with favourite attr last
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -15276,6 +15426,18 @@ class MegaApi
          * - MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
+         * - MegaApi::ORDER_LABEL_ASC = 17
+         * Sort by color label, ascending
+         *
+         * - MegaApi::ORDER_LABEL_DESC = 18
+         * Sort by color label, descending
+         *
+         * - MegaApi::ORDER_FAV_ASC = 19
+         * Sort nodes with favourite attr first
+         *
+         * - MegaApi::ORDER_FAV_DESC = 20
+         * Sort nodes with favourite attr last
+         *
          * @return List of nodes that contain the desired string in their name
          */
         MegaNodeList* search(const char* searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
@@ -15345,6 +15507,18 @@ class MegaApi
          *
          * - MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
+         *
+         * - MegaApi::ORDER_LABEL_ASC = 17
+         * Sort by color label, ascending
+         *
+         * - MegaApi::ORDER_LABEL_DESC = 18
+         * Sort by color label, descending
+         *
+         * - MegaApi::ORDER_FAV_ASC = 19
+         * Sort nodes with favourite attr first
+         *
+         * - MegaApi::ORDER_FAV_DESC = 20
+         * Sort nodes with favourite attr last
          *
          * @return List of nodes that contain the desired string in their name
          */
@@ -15416,6 +15590,18 @@ class MegaApi
          * - MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
+         * - MegaApi::ORDER_LABEL_ASC = 17
+         * Sort by color label, ascending
+         *
+         * - MegaApi::ORDER_LABEL_DESC = 18
+         * Sort by color label, descending
+         *
+         * - MegaApi::ORDER_FAV_ASC = 19
+         * Sort nodes with favourite attr first
+         *
+         * - MegaApi::ORDER_FAV_DESC = 20
+         * Sort nodes with favourite attr last
+         *
          * @return List of nodes that contain the desired string in their name
          */
         MegaNodeList* searchOnOutShares(const char *searchString, MegaCancelToken *cancelToken, int order = ORDER_NONE);
@@ -15485,6 +15671,18 @@ class MegaApi
          *
          * - MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
+         *
+         * - MegaApi::ORDER_LABEL_ASC = 17
+         * Sort by color label, ascending
+         *
+         * - MegaApi::ORDER_LABEL_DESC = 18
+         * Sort by color label, descending
+         *
+         * - MegaApi::ORDER_FAV_ASC = 19
+         * Sort nodes with favourite attr first
+         *
+         * - MegaApi::ORDER_FAV_DESC = 20
+         * Sort nodes with favourite attr last
          *
          * @return List of nodes that contain the desired string in their name
          */

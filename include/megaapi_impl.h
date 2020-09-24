@@ -424,6 +424,8 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         const char *getCustomAttr(const char* attrName) override;
         int getDuration() override;
         int getWidth() override;
+        bool isFavourite() override;
+        int getLabel() override;
         int getHeight() override;
         int getShortformat() override;
         int getVideocodecid() override;
@@ -528,6 +530,8 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         double longitude;
         MegaNodeList *children;
         MegaHandle owner;
+        bool mFavourite;
+        nodelabel_t mLabel;
 
 #ifdef ENABLE_SYNC
         bool syncdeleted;
@@ -1936,7 +1940,7 @@ struct MegaFilePut : public MegaFile
 {
     void completed(Transfer* t, LocalNode*) override;
     void terminated() override;
-    MegaFilePut(MegaClient *client, LocalPath clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false);
+    MegaFilePut(MegaClient *client, LocalPath clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false, Node *pvNode = nullptr);
     ~MegaFilePut() {}
 
     bool serialize(string*) override;
@@ -2268,6 +2272,8 @@ class MegaApiImpl : public MegaApp
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
+        void setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener = NULL);
+        void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
         void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
@@ -2581,6 +2587,10 @@ class MegaApiImpl : public MegaApp
         static bool nodeComparatorVideoDESC(Node *i, Node *j, MegaClient& mc);
         static bool nodeComparatorPublicLinkCreationASC(Node *i, Node *j);
         static bool nodeComparatorPublicLinkCreationDESC(Node *i, Node *j);
+        static bool nodeComparatorLabelASC(Node *i, Node *j);
+        static bool nodeComparatorLabelDESC(Node *i, Node *j);
+        static bool nodeComparatorFavASC(Node *i, Node *j);
+        static bool nodeComparatorFavDESC(Node *i, Node *j);
         static int typeComparator(Node *i, Node *j);
         static bool userComparatorDefaultASC (User *i, User *j);
 

@@ -402,6 +402,16 @@ int MegaNode::getDuration()
     return -1;
 }
 
+bool MegaNode::isFavourite()
+{
+    return false;
+}
+
+int MegaNode::getLabel()
+{
+    return 0;
+}
+
 int MegaNode::getWidth()
 {
     return -1;
@@ -2485,6 +2495,21 @@ void MegaApi::setCustomNodeAttribute(MegaNode *node, const char *attrName, const
 void MegaApi::setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener)
 {
     pImpl->setNodeDuration(node, secs, listener);
+}
+
+void MegaApi::setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener)
+{
+    pImpl->setNodeLabel(node, label, listener);
+}
+
+void MegaApi::resetNodeLabel(MegaNode *node, MegaRequestListener *listener)
+{
+    pImpl->setNodeLabel(node, MegaNode::NODE_LBL_UNKNOWN, listener);
+}
+
+void MegaApi::setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener)
+{
+    pImpl->setNodeFavourite(node, fav, listener);
 }
 
 void MegaApi::setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener)
