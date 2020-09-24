@@ -266,7 +266,7 @@ class NodeHandle
     uint64_t h = 0xFFFFFFFFFFFFFFFF;
 public:
     bool isUndef() { return (h & 0xFFFFFFFFFFFF) == 0xFFFFFFFFFFFF; }
-    void set6byte(uint64_t n) { h = n; }
+    void set6byte(uint64_t n) { h = n; assert((n & 0xFFFF000000000000) == 0); }
     bool operator==(handle b) { return (h & 0xFFFFFFFFFFFF) == (b & 0xFFFFFFFFFFFF); }
     bool operator!=(handle b) { return (h & 0xFFFFFFFFFFFF) != (b & 0xFFFFFFFFFFFF); }
     handle as8byte() { return isUndef() ? 0xFFFFFFFFFFFFFFFF : (h & 0xFFFFFFFFFFFF); }

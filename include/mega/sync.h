@@ -164,7 +164,7 @@ public:
     bool resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
     bool resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
     bool resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
-    bool resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
+    bool resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool alreadyExists);
     bool resolve_pickWinner(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
 
     bool syncEqual(const Node&, const LocalNode&);

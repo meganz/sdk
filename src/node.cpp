@@ -1405,6 +1405,18 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
         name = localname.toPath(*sync->client->fsaccess);
     }
 
+//#ifdef DEBUG
+//    // double check we were given the right shortname (if the file exists yet)
+//    auto fa = sync->client->fsaccess->newfileaccess(false);
+//    if (fa->fopen(cfullpath))  // exists, is file
+//    {
+//        auto sn = sync->client->fsaccess->fsShortname(cfullpath);
+//        assert(!localname.empty() &&
+//            ((!slocalname && (!sn || localname == *sn)) ||
+//                (slocalname && sn && !slocalname->empty() && *slocalname != localname && *slocalname == *sn)));
+//    }
+//#endif
+
     scanseqno = sync->scanseqno;
 
     // mark fsid as not valid
@@ -1908,6 +1920,22 @@ void LocalNode::completed(Transfer* t, LocalNode*)
 // - fingerprint crc/mtime (filenodes only)
 bool LocalNode::serialize(string* d)
 {
+
+#ifdef DEBUG
+    if (fsid != UNDEF)
+    {
+        LocalPath localpath = getLocalPath(true);
+        auto fa = sync->client->fsaccess->newfileaccess(false);
+        if (fa->fopen(localpath))  // exists, is file
+        {
+            auto sn = sync->client->fsaccess->fsShortname(localpath);
+            assert(!localname.empty() &&
+                ((!slocalname && (!sn || localname == *sn)) ||
+                    (slocalname && sn && !slocalname->empty() && *slocalname != localname && *slocalname == *sn)));
+        }
+    }
+#endif
+
     CacheableWriter w(*d);
     w.serializei64(type ? -type : size);
     w.serializehandle(fsid);

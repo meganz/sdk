@@ -2998,6 +2998,16 @@ void MegaClient::exec()
 
                 if (!fetchingnodes)
                 {
+
+                    for (auto it = syncs.begin(); it != syncs.end(); )
+                    {
+                        Sync* sync = *it++;
+                        if (sync->state == SYNC_CANCELED || sync->state == SYNC_FAILED || sync->state == SYNC_DISABLED)
+                        {
+                            delete sync;  // removes itself from the client's list that we are iterating
+                        }
+                    }
+
                     bool scanning = false;
                     for (Sync* sync : syncs)
                     {
@@ -3005,8 +3015,11 @@ void MegaClient::exec()
                         {
                             sync->procscanq(DirNotify::DIREVENTS);
 
+                            // pathBuffer will have leafnames appended as we recurse
+                            LocalPath pathBuffer = sync->localroot->localname;
+
                             Sync::syncRow row{sync->localroot->node, sync->localroot.get(), nullptr};
-                            sync->recursiveSync(row, sync->localroot->localname);
+                            sync->recursiveSync(row, pathBuffer);
 
                             //{
                             //    // a local filesystem item was locked - schedule periodic retry
@@ -3020,6 +3033,11 @@ void MegaClient::exec()
                             if (sync->localroot->scanAgain != LocalNode::SYNCTREE_RESOLVED)
                             {
                                 scanning = false;
+
+                                if (sync->state == SYNC_INITIALSCAN)
+                                {
+                                    sync->changestate(SYNC_ACTIVE);
+                                }
                             }
                         }
                     }

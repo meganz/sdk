@@ -774,7 +774,7 @@ bool WinFileSystemAccess::getsname(LocalPath& namePath, LocalPath& snamePath) co
     if (!rr)
     {
         DWORD e = GetLastError();
-        LOG_warn << "Unable to get short path name: " << namePath.localpath.c_str() << ". Error code: " << e;
+        LOG_warn << "Unable to get short path name: " << namePath.toPath(gWfsa).c_str() << ". Error code: " << e;
         sname.clear();
         return false;
     }
