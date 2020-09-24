@@ -506,7 +506,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
 
     // if there's only one share and it has no user --> public link
     this->outShares = (node->outshares) ? (node->outshares->size() > 1 || node->outshares->begin()->second->user) : false;
-    this->inShare = (node->inshare != NULL) && !node->parent;
+    this->inShare = node->inshare != nullptr;
     this->plink = node->plink ? new PublicLink(node->plink) : NULL;
     this->mNewLinkFormat = node->client->mNewLinkFormat;
     if (plink && type == FOLDERNODE && node->sharekey)
