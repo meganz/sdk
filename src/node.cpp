@@ -95,26 +95,27 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     }
     else
     {
-        handle firstValidAntecestor = client->sctable->getFirstAncestor(parenthandle);
+        handle firstValidAncestor = client->sctable->getFirstAncestor(parenthandle);
+        firstValidAncestor = (firstValidAncestor != UNDEF) ? firstValidAncestor : parenthandle;
 
-        if (firstValidAntecestor != UNDEF)
+        if (firstValidAncestor != UNDEF)
         {
             if (type == FILENODE)
             {
-                client->mNodeCounters[firstValidAntecestor].files++;
-                client->mNodeCounters[firstValidAntecestor].storage += size;
+                client->mNodeCounters[firstValidAncestor].files++;
+                client->mNodeCounters[firstValidAncestor].storage += size;
             }
             else if (type == FOLDERNODE)
             {
-                client->mNodeCounters[firstValidAntecestor].folders++;
+                client->mNodeCounters[firstValidAncestor].folders++;
             }
 
             auto it = client->mNodeCounters.find(nodehandle);
             if (it != client->mNodeCounters.end())
             {
-                client->mNodeCounters[firstValidAntecestor].files += it->second.files;
-                client->mNodeCounters[firstValidAntecestor].storage += it->second.storage;
-                client->mNodeCounters[firstValidAntecestor].folders += it->second.folders;
+                client->mNodeCounters[firstValidAncestor].files += it->second.files;
+                client->mNodeCounters[firstValidAncestor].storage += it->second.storage;
+                client->mNodeCounters[firstValidAncestor].folders += it->second.folders;
                 client->mNodeCounters.erase(it);
             }
         }
