@@ -7989,7 +7989,6 @@ void MegaClient::readokelement(JSON* j)
 // read outbound shares and pending shares
 void MegaClient::readoutshares(JSON* j)
 {
-    std::vector<handle> nodes;
     if (j->enterarray())
     {
         while (j->enterobject())
@@ -11066,14 +11065,16 @@ bool MegaClient::fetchsc(DbTable* sctable)
         {
             n = Node::unserialize(this, &node.mNode, &dp, node.mDecrypted);
         }
-#endif
 
+        //#ifdef ENABLE_SYNC, mNodeCounters is calculated inside setParent
         std::string storageString = sctable->getVar(STORAGE_NAME);
         std::string filesString = sctable->getVar(FILES_NAME);
         std::string foldersString = sctable->getVar(FOLDERS_NAME);
         mNodeCounters[rootnodes[ROOTNODE]].storage = atoll(storageString.c_str());
         mNodeCounters[rootnodes[ROOTNODE]].files = atoi(filesString.c_str());
         mNodeCounters[rootnodes[ROOTNODE]].folders = atoi(foldersString.c_str());
+#endif
+
     }
 
     bool hasNext = sctable->next(&id, &data, &key);
@@ -11151,6 +11152,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
         hasNext = sctable->next(&id, &data, &key);
     }
 
+    // Force commit in case of old cache has ben modified in new cache
     sctable->commit();
     WAIT_CLASS::bumpds();
     fnstats.timeToLastByte = Waiter::ds - fnstats.startTime;

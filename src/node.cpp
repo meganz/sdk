@@ -1030,14 +1030,14 @@ bool Node::applykey()
         setattr();
     }
 
-    /// TODO commented when in to avoid crash when A shares a folder 1 with B and, folder 1 has a subfolder
+    // TODO Nodes on Demand: commented to avoid crash when A shares a folder 1 with B and, folder 1 has a subfolder
     /// folder 1_1, A shares Folder 1_1 with C and C adds some files
     //assert(keyApplied());
     bool applied = keyApplied();
 
     if (applied)
     {
-        // TODO: if node in DB update if not we can wait until it will save in DB
+        // If node in DB update if not we can wait until it will save in DB
         if (client->sctable->isNodeInDB(nodehandle))
         {
             client->sctable->put(this);
