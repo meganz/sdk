@@ -16841,6 +16841,10 @@ std::function<bool (Node*, Node*)> MegaApiImpl::getComparatorFunction(int order,
         case MegaApi::ORDER_PHOTO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorPhotoDESC(i, j, mc); };
         case MegaApi::ORDER_VIDEO_ASC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoASC(i, j, mc); };
         case MegaApi::ORDER_VIDEO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoDESC(i, j, mc); };
+        case MegaApi::ORDER_LABEL_ASC: return MegaApiImpl::nodeComparatorLabelASC;
+        case MegaApi::ORDER_LABEL_DESC: return MegaApiImpl::nodeComparatorLabelDESC;
+        case MegaApi::ORDER_FAV_ASC: return MegaApiImpl::nodeComparatorFavASC;
+        case MegaApi::ORDER_FAV_DESC: return MegaApiImpl::nodeComparatorFavDESC;
     }
     assert(false);
     return nullptr;
@@ -17079,6 +17083,131 @@ bool MegaApiImpl::nodeComparatorPublicLinkCreationDESC(Node *i, Node *j)
         return 1;
     }
     return nodeNaturalComparatorDESC(i, j);
+}
+
+bool MegaApiImpl::nodeComparatorLabelASC(Node *i, Node *j)
+{
+    nameid labelId = AttrMap::string2nameid("lbl");
+    int iLabel = MegaNode::NODE_LBL_UNKNOWN;
+    auto iAttrIt = i->attrs.map.find(labelId);
+    if (iAttrIt != i->attrs.map.end())
+    {
+       iLabel = std::atoi(iAttrIt->second.c_str());
+    }
+
+    int jLabel = MegaNode::NODE_LBL_UNKNOWN;
+    auto jAttrIt = j->attrs.map.find(labelId);
+    if (jAttrIt != j->attrs.map.end())
+    {
+       jLabel = std::atoi(jAttrIt->second.c_str());
+    }
+
+    if (iLabel == MegaNode::NODE_LBL_UNKNOWN && jLabel ==  MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return nodeComparatorDefaultASC(i, j);
+    }
+    if (iLabel == MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return 0;
+    }
+    if (jLabel == MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return 1;
+    }
+
+    if (iLabel < jLabel)
+    {
+        return 1;
+    }
+    if (iLabel > jLabel)
+    {
+        return 0;
+    }
+    return nodeComparatorDefaultASC(i, j);
+}
+
+bool MegaApiImpl::nodeComparatorLabelDESC(Node *i, Node *j)
+{
+    nameid labelId = AttrMap::string2nameid("lbl");
+    int iLabel = MegaNode::NODE_LBL_UNKNOWN;
+    auto iAttrIt = i->attrs.map.find(labelId);
+    if (iAttrIt != i->attrs.map.end())
+    {
+       iLabel = std::atoi(iAttrIt->second.c_str());
+    }
+
+    int jLabel = MegaNode::NODE_LBL_UNKNOWN;
+    auto jAttrIt = j->attrs.map.find(labelId);
+    if (jAttrIt != j->attrs.map.end())
+    {
+       jLabel = std::atoi(jAttrIt->second.c_str());
+    }
+
+    if (iLabel == MegaNode::NODE_LBL_UNKNOWN && jLabel == MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return nodeComparatorDefaultASC(i, j);
+    }
+    if (iLabel == MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return 0;
+    }
+    if (jLabel == MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return 1;
+    }
+
+    if (iLabel < jLabel)
+    {
+        return 0;
+    }
+    if (iLabel > jLabel)
+    {
+        return 1;
+    }
+    return nodeComparatorDefaultASC(i, j);
+}
+
+
+bool MegaApiImpl::nodeComparatorFavASC(Node *i, Node *j)
+{
+    nameid favId = AttrMap::string2nameid("fav");
+    bool iFav = (i->attrs.map.find(favId) != i->attrs.map.end());
+    bool jFav = (j->attrs.map.find(favId) != j->attrs.map.end());
+
+    if (!(iFav ^ jFav))
+    {
+        // if both or none of them, have the same attribute value, order default ASC
+        return nodeComparatorDefaultASC(i, j);
+    }
+    else if (iFav)
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+bool MegaApiImpl::nodeComparatorFavDESC(Node *i, Node *j)
+{
+    nameid favId = AttrMap::string2nameid("fav");
+    bool iFav = (i->attrs.map.find(favId) != i->attrs.map.end());
+    bool jFav = (j->attrs.map.find(favId) != j->attrs.map.end());
+
+    if (!(iFav ^ jFav))
+    {
+        // if both or none of them, have the same attribute value, order default ASC
+        return nodeComparatorDefaultASC(i, j);
+    }
+    else if (iFav)
+    {
+        return 0;
+    }
+    else
+    {
+        return 1;
+    }
 }
 
 // Compare node types. Returns -1 if i==j, 0 if i goes first, +1 if j goes first.

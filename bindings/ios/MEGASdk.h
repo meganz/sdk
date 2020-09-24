@@ -68,7 +68,11 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeVideoAsc,
     MEGASortOrderTypeVideoDesc,
     MEGASortOrderTypeLinkCreationAsc,
-    MEGASortOrderTypeLinkCreationDesc
+    MEGASortOrderTypeLinkCreationDesc,
+    MEGASortOrderTypeLabelAsc,
+    MEGASortOrderTypeLabelDesc,
+    MEGASortOrderTypeFavouriteAsc,
+    MEGASortOrderTypeFavouriteDesc
 };
 
 typedef NS_ENUM (NSInteger, MEGAEventType) {
@@ -6555,6 +6559,22 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * - MEGASortOrderTypeVideoDesc = 14
  * Sort with videos first, then by date descending
  *
+ * - MEGASortOrderTypeLinkCreationAsc = 15
+ *
+ * - MEGASortOrderTypeLinkCreationDesc = 16
+ *
+ * - MEGASortOrderTypeLabelAsc = 17
+ * Sort by color label, ascending
+ *
+ * - MEGASortOrderTypeLabelDesc = 18
+ * Sort by color label, descending
+ *
+ * - MEGASortOrderTypeFavouriteAsc = 19
+ * Sort nodes with favourite attr first
+ *
+ * - MEGASortOrderTypeFavouriteDesc = 20
+ * Sort nodes with favourite attr last
+ *
  * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
  * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
  * They will be eventually removed.
@@ -6679,6 +6699,22 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *
  * - MEGASortOrderTypeVideoDesc = 14
  * Sort with videos first, then by date descending
+ *
+ * - MEGASortOrderTypeLinkCreationAsc = 15
+ *
+ * - MEGASortOrderTypeLinkCreationDesc = 16
+ *
+ * - MEGASortOrderTypeLabelAsc = 17
+ * Sort by color label, ascending
+ *
+ * - MEGASortOrderTypeLabelDesc = 18
+ * Sort by color label, descending
+ *
+ * - MEGASortOrderTypeFavouriteAsc = 19
+ * Sort nodes with favourite attr first
+ *
+ * - MEGASortOrderTypeFavouriteDesc = 20
+ * Sort nodes with favourite attr last
  *
  * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
  * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
@@ -7169,6 +7205,22 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *
  * - MEGASortOrderTypeVideoDesc = 14
  * Sort with videos first, then by date descending
+ *
+ * - MEGASortOrderTypeLinkCreationAsc = 15
+ *
+ * - MEGASortOrderTypeLinkCreationDesc = 16
+ *
+ * - MEGASortOrderTypeLabelAsc = 17
+ * Sort by color label, ascending
+ *
+ * - MEGASortOrderTypeLabelDesc = 18
+ * Sort by color label, descending
+ *
+ * - MEGASortOrderTypeFavouriteAsc = 19
+ * Sort nodes with favourite attr first
+ *
+ * - MEGASortOrderTypeFavouriteDesc = 20
+ * Sort nodes with favourite attr last
  *
  * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
  * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
