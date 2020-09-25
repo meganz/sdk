@@ -172,7 +172,9 @@ public:
         bool accountUpdated;
 
         MegaHandle h;
-
+#ifdef ENABLE_SYNC
+        int lastSyncError;
+#endif
 #ifdef ENABLE_CHAT
         bool chatUpdated;        // flags to monitor the updates of chats due to actionpackets
         map<handle, std::unique_ptr<MegaTextChat>> chats;   //  runtime cache of fetched/updated chats
@@ -285,10 +287,10 @@ public:
     template<typename ... requestArgs> int doRequestLogout(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->logout(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doRequestLocalLogout(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->localLogout(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doSetNodeDuration(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setNodeDuration(args..., &rt); return rt.waitForResult(); }
-    template<typename ... requestArgs> int synchronousSyncFolder(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->syncFolder(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousSyncFolder(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->syncFolder(args..., &rt); rt.waitForResult(); mApi[apiIndex].lastSyncError = rt.request->getNumDetails() ; return rt.result; }
     template<typename ... requestArgs> int synchronousRemoveSync(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeSync(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int synchronousDisableSync(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->disableSync(args..., &rt); return rt.waitForResult(); }
-    template<typename ... requestArgs> int synchronousEnableSync(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->enableSync(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousEnableSync(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->enableSync(args..., &rt); rt.waitForResult(); mApi[apiIndex].lastSyncError = rt.request->getNumDetails() ; return rt.result; }
 
 
     void createFile(string filename, bool largeFile = true);
