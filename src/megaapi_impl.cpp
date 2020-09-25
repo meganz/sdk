@@ -3881,6 +3881,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_RESET_SMS_VERIFIED_NUMBER: return "RESET_SMS_VERIFIED_NUMBER";
         case TYPE_SEND_DEV_COMMAND: return "SEND_DEV_COMMAND";
         case TYPE_BACKUP_PUT: return "BACKUP_PUT";
+        case TYPE_BACKUP_REMOVE: return "BACKUP_REMOVE";
     }
     return "UNKNOWN";
 }
@@ -22648,6 +22649,9 @@ void MegaApiImpl::sendPendingRequests()
             }
             break;
         }
+        case MegaRequest::TYPE_BACKUP_REMOVE:
+            client->reqs.add(new CommandBackupRemove(client, request->getNumber()));
+            break;
         default:
         {
             e = API_EINTERNAL;
@@ -22786,6 +22790,14 @@ void MegaApiImpl::putBackup(int backupType, MegaHandle targetNode, const char* l
     request->setText(extraData);
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener *listener)
+{
+}
+
+void MegaApiImpl::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
+{
 }
 
 void TreeProcCopy::allocnodes()

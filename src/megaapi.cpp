@@ -5274,6 +5274,11 @@ void MegaApi::updateBackup(MegaHandle backupId, int backupType, MegaHandle targe
     pImpl->updateBackup(backupId, backupType, targetNode, localFolder, state, subState, extraData, listener);
 }
 
+void MegaApi::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
+{
+    pImpl->removeBackup(backupId, listener);
+}
+
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
     pImpl = new MegaHashSignatureImpl(base64Key);
