@@ -67,6 +67,24 @@ typedef NS_ENUM(NSInteger, MEGAErrorContext) {
 };
 
 /**
+ * @brief User custom error details
+ */
+typedef NS_ENUM(NSInteger, MEGAUserErrorCode) {
+    MEGAUserErrorCodeETDUnknown = -1,    ///< Unknown state
+    MEGAUserErrorCodeETDSuspension = 7,  ///< Account suspend by an ETD/ToS 'severe'
+};
+
+/**
+ * @brief Link custom error details
+ */
+typedef NS_ENUM(NSInteger, MEGALinkErrorCode) {
+    MEGALinkErrorCodeUnknown = -1,      ///< Unknown state
+    MEGALinkErrorCodeUndeleted = 0,     ///< Link is undeleted
+    MEGALinkErrorCodeDeletedDown = 1,   ///< Link is deleted or down
+    MEGALinkErrorCodeDownETD = 2,       ///< Link is down due to an ETD specifically
+};
+
+/**
  * @brief Provides information about an error.
  */
 @interface MEGAError : NSObject
@@ -91,6 +109,47 @@ typedef NS_ENUM(NSInteger, MEGAErrorContext) {
  * In any other case, this value will be 0
  */
 @property (readonly, nonatomic) long long value;
+
+/**
+ * @brief Returns true if error has extra info
+ *
+ * @note This method can return true for:
+ *   - MEGARequestTypeFetchNodes with error MEGAErrorTypeApiENoent
+ *   - MEGARequestTypeGetPublicNode with error MEGAErrorTypeApiETooMany
+ *   - MEGARequestTypeImportLink with error MEGAErrorTypeApiETooMany
+ *   - MEGATransferDelegate:onTransferFinish with error MEGAErrorTypeApiETooMany
+ *
+ * @return True if error has extra info
+ */
+- (BOOL)hasExtraInfo;
+
+/**
+ * @brief Returns the user status
+ *
+ * This method only returns a valid value when hasExtraInfo is true
+ * Possible values:
+ *  MEGAError::MEGAUserErrorCodeETDSuspension
+ *
+ * Otherwise, it returns MEGAError::MEGAUserErrorCodeETDUnknown
+ *
+ * @return user status
+ */
+- (MEGAUserErrorCode)userStatus;
+
+/**
+ * @brief Returns the link status
+ *
+ * This method only returns a valid value when hasExtraInfo is true
+ * Possible values:
+ *  MEGAError::MEGALinkErrorCodeUndeleted
+ *  MEGAError::MEGALinkErrorCodeDeletedDown
+ *  MEGAError::MEGALinkErrorCodeDownETD
+ *
+ * Otherwise, it returns MEGAError::MEGALinkErrorCodeUnknown
+ *
+ * @return link status
+ */
+- (MEGALinkErrorCode)linkStatus;
 
 /**
  * @brief Creates a copy of this MEGAError object.

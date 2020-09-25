@@ -69,6 +69,18 @@ using namespace mega;
     return self.megaError ? self.megaError->getValue() : 0;
 }
 
+- (BOOL)hasExtraInfo {
+    return self.megaError ? self.megaError->hasExtraInfo() : false;
+}
+
+- (MEGAUserErrorCode)userStatus {
+    return self.megaError ? (MEGAUserErrorCode) self.megaError->getUserStatus() : MEGAUserErrorCodeETDUnknown;
+}
+
+- (MEGALinkErrorCode)linkStatus {
+    return self.megaError ? (MEGALinkErrorCode) self.megaError->getLinkStatus() : MEGALinkErrorCodeUnknown;
+}
+
 - (NSString *)nameWithErrorCode:(NSInteger)errorCode {
     return MegaError::getErrorString((int)errorCode) ? [[NSString alloc] initWithUTF8String:MegaError::getErrorString((int)errorCode)] : nil;
 }
