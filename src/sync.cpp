@@ -38,6 +38,7 @@ const int Sync::EXTRA_SCANNING_DELAY_DS = 150;
 const int Sync::FILE_UPDATE_DELAY_DS = 30;
 const int Sync::FILE_UPDATE_MAX_DELAY_SECS = 60;
 const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
+Node * const Sync::NAME_CONFLICT = reinterpret_cast<Node*>(~0ull);
 
 namespace {
 
@@ -1960,6 +1961,229 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
     return false;
 }
 
+auto Sync::computeSyncTriplets(const LocalNode& root, vector<FSNode>& fsNodes) const -> vector<syncRow>
+{
+    // One comparator to sort them all.
+    class Comparator
+    {
+    public:
+        Comparator(const FileSystemType filesystemType)
+          : mNameCmp(filesystemType)
+        {
+        }
+
+        int compare(const string& lhs, const string& rhs) const
+        {
+            return mNameCmp.compare(lhs, rhs);
+        }
+
+        bool operator()(const FSNode& lhs, const FSNode& rhs) const
+        {
+            return mNameCmp(lhs.name, rhs.name);
+        }
+
+        bool operator()(const LocalNode* lhs, const LocalNode* rhs) const
+        {
+            return mNameCmp(lhs->name, rhs->name);
+        }
+
+        bool operator()(const Node* lhs, const Node* rhs) const
+        {
+            return mNameCmp(lhs->canonicalname(), rhs->canonicalname());
+        }
+
+        bool operator()(const syncRow& lhs, const syncRow& rhs) const
+        {
+            return mNameCmp(name(lhs), name(rhs));
+        }
+
+    private:
+        const string& name(const syncRow& row) const
+        {
+            if (row.syncNode)
+            {
+                return row.syncNode->name;
+            }
+
+            return row.fsNode->name;
+        }
+
+        NameCmp mNameCmp;
+    }; // Comparator
+
+    Comparator comparator(mFilesystemType);
+    vector<LocalNode*> localNodes;
+    vector<Node*> remoteNodes;
+    vector<syncRow> triplets;
+
+    localNodes.reserve(root.children.size());
+    remoteNodes.reserve(root.node->children.size());
+
+    for (auto& child : root.children)
+    {
+        localNodes.emplace_back(child.second);
+    }
+
+    for (auto* child : root.node->children)
+    {
+        if (child->syncable(root))
+        {
+            remoteNodes.emplace_back(child);
+        }
+    }
+
+    std::sort(fsNodes.begin(), fsNodes.end(), comparator);
+    std::sort(localNodes.begin(), localNodes.end(), comparator);
+    std::sort(remoteNodes.begin(), remoteNodes.end(), comparator);
+
+    // Pair filesystem nodes with local nodes.
+    {
+        auto fCurr = fsNodes.begin();
+        auto fEnd  = fsNodes.end();
+        auto lCurr = localNodes.begin();
+        auto lEnd  = localNodes.end();
+
+        for ( ; ; )
+        {
+            // Determine the next filesystem node.
+            auto fNext = std::upper_bound(fCurr, fEnd, *fCurr, comparator);
+
+            // Determine the next local node.
+            auto lNext = std::upper_bound(lCurr, lEnd, *lCurr, comparator);
+
+            // By design, we should never have any conflicting local nodes.
+            assert(std::distance(lCurr, lNext) < 2);
+
+            auto *fsNode = fCurr != fEnd ? &*fCurr : nullptr;
+            auto *localNode = lCurr != lEnd ? *lCurr : nullptr;
+
+            // Bail, there's nothing left to pair.
+            if (!(fsNode || localNode)) break;
+
+            if (fsNode && localNode)
+            {
+                const auto relationship =
+                  comparator.compare(fsNode->name, localNode->name);
+
+                // Non-null entries are considered equivalent.
+                if (relationship < 0)
+                {
+                    // Process the filesystem node first.
+                    localNode = nullptr;
+                }
+                else if (relationship > 0)
+                {
+                    // Process the local node first.
+                    fsNode = nullptr;
+                }
+            }
+
+            // Add the pair.
+            triplets.emplace_back(nullptr, localNode, fsNode);
+
+            // Mark conflicts.
+            if (fsNode && std::distance(fCurr, fNext) > 1)
+            {
+                triplets.back().cloudNode = NAME_CONFLICT;
+            }
+
+            fCurr = fsNode ? fNext : fCurr;
+            lCurr = localNode ? lNext : lCurr;
+        }
+    }
+
+    // Link cloud nodes with triplets.
+    {
+        auto rCurr = remoteNodes.begin();
+        auto rEnd = remoteNodes.end();
+        size_t tCurr = 0;
+        size_t tEnd = triplets.size();
+
+        for ( ; ; )
+        {
+            auto rNext = std::upper_bound(rCurr, rEnd, *rCurr, comparator);
+            auto tNext = tCurr;
+
+            // Compute upper bound manually.
+            for ( ; tNext != tEnd; ++tNext)
+            {
+                if (comparator(triplets[tCurr], triplets[tNext]))
+                {
+                    break;
+                }
+            }
+
+            // There should never be any conflicting triplets.
+            assert(tNext - tCurr < 2);
+
+            auto* remoteNode = rCurr != rEnd ? *rCurr : nullptr;
+            auto* triplet = tCurr != tEnd ? &triplets[tCurr] : nullptr;
+
+            // Bail as there's nothing to pair.
+            if (!(remoteNode || triplet)) break;
+
+            if (remoteNode && triplet && triplet->syncNode)
+            {
+                const auto relationship =
+                  comparator.compare(remoteNode->canonicalname(),
+                                     triplet->syncNode->name);
+
+                // Non-null entries are considered equivalent.
+                if (relationship < 0)
+                {
+                    // Process remote node first.
+                    triplet = nullptr;
+                }
+                else if (relationship > 0)
+                {
+                    // Process triplet first.
+                    remoteNode = nullptr;
+                }
+            }
+
+            // Have we detected a remote name conflict?
+            if (remoteNode && std::distance(rCurr, rNext) > 1)
+            {
+                remoteNode = NAME_CONFLICT;
+            }
+
+            if (triplet)
+            {
+                // Only match the remote if we didn't detect a conflict earlier.
+                if (triplet->cloudNode != NAME_CONFLICT)
+                {
+                    triplet->cloudNode = remoteNode;
+                }
+            }
+            else
+            {
+                triplets.emplace_back(remoteNode, nullptr, nullptr);
+            }
+
+            if (triplet)    tCurr = tNext;
+            if (remoteNode) rCurr = rNext;
+        }
+    }
+
+    return triplets;
+}
+
+auto Sync::computeSyncTriplets(const LocalNode& root) const -> vector<syncRow>
+{
+    vector<FSNode> fsNodes;
+
+    fsNodes.reserve(root.children.size());
+
+    for (auto& child : root.children)
+    {
+        if (child.second->fsid != UNDEF)
+        {
+            fsNodes.emplace_back(child.second->getKnownFSDetails());
+        }
+    }
+
+    return computeSyncTriplets(root, fsNodes);
+}
 
 bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
 {
@@ -2016,8 +2240,6 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
         row.syncNode->syncAgain = LocalNode::SYNCTREE_ACTION_HERE_ONLY;
     }
 
-    // Build the 3 lists to compare same-name items (Node, LocalNode, filesystem item)
-
     // Get the filesystem items list
     vector<FSNode> fsChildren;
     fsChildren.reserve(row.syncNode->children.size());
@@ -2057,185 +2279,8 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
 
     bool syncHere = row.syncNode->syncAgain == LocalNode::SYNCTREE_ACTION_HERE_ONLY;
 
-    // get the Node list
-    vector<Node*> cloudChildren;
-
-    // Only synchronize nodes if they are:
-    // - Alive
-    // - Decrypted
-    // - Have a defined name
-    // - Are not the debris folder
-    for (auto* node : row.cloudNode->children)
-    {
-        if (node->syncable(*row.syncNode))
-        {
-            cloudChildren.emplace_back(node);
-        }
-    }
-
-    // get the LocalNode list - the sync as last known
-    vector<LocalNode*> syncChildren;
-    syncChildren.reserve(row.syncNode->children.size());
-    for (auto& c : row.syncNode->children)
-    {
-        syncChildren.push_back(c.second);
-    }
-
-    vector<syncRow> childRows;
-    childRows.reserve(fsChildren.size() + cloudChildren.size());
-
-    // sort sync and local (in cloud order) so we can pair them up
-    auto nameCmp = NameCmp(mFilesystemType);
-    auto cloudCmpFS = [&](FSNode& a, FSNode& b){ return nameCmp(a.name, b.name); };
-    auto cloudCmpSync = [&](LocalNode* a, LocalNode* b){ return nameCmp(a->name, b->name); };
-    std::sort(fsChildren.begin(), fsChildren.end(), cloudCmpFS);
-    std::sort(syncChildren.begin(), syncChildren.end(), cloudCmpSync);
-
-    if (syncHere)
-    {
-        ostringstream fsString, syString;
-        for (auto& fsi : fsChildren) fsString << " " << fsi.localname.toPath(*client->fsaccess);
-        LOG_verbose << "Filesystem:" << fsString.str();
-        for (auto& syc : syncChildren) syString << " " << syc->name;
-        LOG_verbose << "SyncNodes:" << syString.str();
-    }
-
-    {
-        // Pair up the sorted local and sync lists
-        auto fsIter = fsChildren.begin();
-        auto syIter = syncChildren.begin();
-        for (;;)
-        {
-            auto nextFS = fsIter;
-            while (nextFS != fsChildren.end() && !cloudCmpFS(*fsIter, *nextFS)) ++nextFS;
-            auto fsEqualNodeCount = std::distance(fsIter, nextFS);
-
-            auto nextSY = syIter;
-            while (nextSY != syncChildren.end() && !cloudCmpSync(*syIter, *nextSY)) ++nextSY;
-            auto syEqualNodeCount = std::distance(syIter, nextSY);
-
-            assert(syEqualNodeCount < 2);
-
-            FSNode* thisFS = fsIter == fsChildren.end() ? nullptr : &*fsIter;
-            LocalNode* thisSY = syIter == syncChildren.end() ? nullptr : *syIter;
-
-            if (thisFS && thisSY)
-            {
-                int relationship = nameCmp.compare(thisFS->name, thisSY->name);
-
-                // any entry that is not equal to the lowest string is set to null
-                // nonnulls are all equal and go in the same row
-                if      (relationship < 0) thisSY = nullptr;
-                else if (relationship > 0) thisFS = nullptr;
-            }
-
-            if (!thisFS && !thisSY) break;
-
-            if (thisFS && fsEqualNodeCount > 1)
-            {
-                // We're pushing the sentinel NAME_CONFLICT here so that
-                // later code knows we've detected a name conflict.
-                //
-                // The sentinel is used by two pieces of code below.
-                //
-                // The first, the cloud-pairing logic, uses the sentinel to
-                // avoid downloading a file whose pair is ambiguous.
-                //
-                // The second, the sync loop, uses the sentinel to know when
-                // we should mark this node as having name conflicts.
-                childRows.emplace_back(NAME_CONFLICT, thisSY, thisFS);
-            }
-            else
-            {
-                childRows.emplace_back(nullptr, thisSY, thisFS);
-            }
-
-            if (thisSY) syIter = nextSY;
-            if (thisFS) fsIter = nextFS;
-        }
-    }
-
-    // sort the cloud list and pair with the sync rows (in local order)
-    auto localCmpNode = [&](Node* a, Node* b){
-        return nameCmp(a->canonicalname(), b->canonicalname());
-    };
-    auto localCmpRow = [&](syncRow& a, syncRow& b){
-        // if there is no LocalNode yet, compare against the FSNode
-        const string& stringA = a.syncNode ? a.syncNode->name : a.fsNode->name;
-        const string& stringB = b.syncNode ? b.syncNode->name : b.fsNode->name;
-        return nameCmp(stringA, stringB);
-    };
-
-    std::sort(cloudChildren.begin(), cloudChildren.end(), localCmpNode);
-    std::sort(childRows.begin(), childRows.end(), localCmpRow);
-
-    if (syncHere)
-    {
-        ostringstream clString;
-        for (auto& clc : cloudChildren) clString << " " << clc->displayname();
-        LOG_verbose << "CloudNodes:" << clString.str();
-    }
-
-    {
-        // Pair up the sorted cloud and syncrow lists
-        auto cloudIter = cloudChildren.begin();
-        size_t rowIter = 0;
-        size_t rowLast = childRows.size();
-
-        for (;;)
-        {
-            auto nextCL = cloudIter;
-            while (nextCL != cloudChildren.end() && !localCmpNode(*cloudIter, *nextCL)) ++nextCL;
-            auto cloudEqualNodeCount = std::distance(cloudIter, nextCL);
-
-            auto nextRow = rowIter;
-
-            while (nextRow != rowLast && !localCmpRow(childRows[rowIter], childRows[nextRow])) ++nextRow;
-            auto rowDistance = nextRow - rowIter;
-
-            assert(rowDistance < 2);
-
-            Node* thisCl = cloudIter == cloudChildren.end() ? nullptr : *cloudIter;
-            syncRow* thisRow = rowIter == rowLast ? nullptr : &childRows[rowIter];
-
-            if (thisCl && thisRow && thisRow->syncNode)
-            {
-                int relationship = nameCmp.compare(thisCl->canonicalname(), thisRow->syncNode->name);
-
-                // any entry that is not equal to the lowest string is set to null
-                // nonnulls are all equal and go in the same row
-                if      (relationship < 0) thisRow = nullptr;
-                else if (relationship > 0) thisCl = nullptr;
-            }
-
-            if (!thisCl && !thisRow)
-            {
-                break;
-            }
-
-            // We've detected a remote name conflict.
-            if (thisCl && cloudEqualNodeCount > 1)
-            {
-                thisCl = NAME_CONFLICT;
-            }
-
-            if (thisRow)
-            {
-                // Don't forget whether we've detected a local name conflict.
-                if (thisRow->cloudNode != NAME_CONFLICT)
-                {
-                    thisRow->cloudNode = thisCl;
-                }
-            }
-            else
-            {
-                childRows.emplace_back(thisCl, nullptr, nullptr);
-            }
-
-            if (thisRow) rowIter = nextRow;
-            if (thisCl) cloudIter = nextCL;
-        }
-    }
+    // Get sync triplets.
+    auto childRows = computeSyncTriplets(*row.syncNode, fsChildren);
 
     row.syncNode->syncAgain = LocalNode::SYNCTREE_RESOLVED;
 

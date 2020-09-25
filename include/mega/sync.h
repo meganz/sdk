@@ -156,6 +156,11 @@ public:
         FSNode* fsNode;
     };
 
+    vector<syncRow> computeSyncTriplets(const LocalNode& root,
+                                        vector<FSNode>& fsNodes) const;
+
+    vector<syncRow> computeSyncTriplets(const LocalNode& root) const;
+
     bool recursiveSync(syncRow& row, LocalPath& fullPath);
     bool syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
 
@@ -239,6 +244,8 @@ protected :
 
 private:
     std::string mLocalPath;
+
+    static Node* const NAME_CONFLICT;
 };
 } // namespace
 
