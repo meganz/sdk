@@ -3882,6 +3882,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_SEND_DEV_COMMAND: return "SEND_DEV_COMMAND";
         case TYPE_BACKUP_PUT: return "BACKUP_PUT";
         case TYPE_BACKUP_REMOVE: return "BACKUP_REMOVE";
+        case TYPE_BACKUP_PUT_HEART_BEAT: return "BACKUP_PUT_HEART_BEAT";
     }
     return "UNKNOWN";
 }
@@ -22652,6 +22653,19 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_BACKUP_REMOVE:
             client->reqs.add(new CommandBackupRemove(client, request->getNumber()));
             break;
+        case MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT:
+        {
+            // dummy variables -- replace them with relevant ones
+            uint8_t status = 0;
+            uint8_t progress = 0;
+            uint32_t uploads = 0;
+            uint32_t downloads = 0;
+            m_time_t ts = 0;
+            handle lastNode = 0;
+
+            client->reqs.add(new CommandBackupPutHeartBeat(client, request->getNumber(), status, progress, uploads, downloads, ts, lastNode));
+            break;
+        }
         default:
         {
             e = API_EINTERNAL;
@@ -22797,6 +22811,10 @@ void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle t
 }
 
 void MegaApiImpl::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
+{
+}
+
+void MegaApiImpl::putBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode)
 {
 }
 
