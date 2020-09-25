@@ -1647,15 +1647,24 @@ void LocalNode::setfsid(handle newfsid, handlelocalnode_map& fsidnodes)
 
     fsid = newfsid;
 
-    pair<handlelocalnode_map::iterator, bool> r = fsidnodes.insert(std::make_pair(fsid, this));
-
-    fsid_it = r.first;
-
-    if (!r.second)
+    if (fsid == UNDEF)
     {
-        // remove previous fsid assignment (the node is likely about to be deleted)
-        fsid_it->second->fsid_it = fsidnodes.end();
-        fsid_it->second = this;
+        fsid_it = fsidnodes.end();
+    }
+    else
+    {
+        pair<handlelocalnode_map::iterator, bool> r = fsidnodes.insert(std::make_pair(fsid, this));
+
+        fsid_it = r.first;
+
+        if (!r.second)
+        {
+            assert(false); // analyse this case; can we be exact
+
+            // remove previous fsid assignment (the node is likely about to be deleted)
+            fsid_it->second->fsid_it = fsidnodes.end();
+            fsid_it->second = this;
+        }
     }
 }
 

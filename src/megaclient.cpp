@@ -3033,12 +3033,12 @@ void MegaClient::exec()
                             if (sync->localroot->scanAgain != LocalNode::SYNCTREE_RESOLVED)
                             {
                                 scanning = false;
-
-                                if (sync->state == SYNC_INITIALSCAN)
-                                {
-                                    sync->changestate(SYNC_ACTIVE);
-                                }
                             }
+                            else if (sync->state == SYNC_INITIALSCAN)
+                            {
+                                sync->changestate(SYNC_ACTIVE);
+                            }
+
                         }
                     }
 

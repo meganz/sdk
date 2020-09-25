@@ -1365,11 +1365,13 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     tag = client->reqtag;
 
     addToNodePendingCommands(n);
+    addToNodePendingCommands(t);
 }
 
 bool CommandMoveNode::procresult(Result r)
 {
     removeFromNodePendingCommands(h, client);
+    removeFromNodePendingCommands(np, client);
 
     if (r.wasErrorOrActionpacket())
     {

@@ -831,9 +831,17 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
             if (fa->fopen(localpath))  // exists, is file
             {
                 auto sn = client->fsaccess->fsShortname(localpath);
-                assert(!l->localname.empty() &&
+                if (!(!l->localname.empty() &&
                     ((!l->slocalname && (!sn || l->localname == *sn)) ||
-                    (l->slocalname && sn && !l->slocalname->empty() && *l->slocalname != l->localname && *l->slocalname == *sn)));
+                    (l->slocalname && sn && !l->slocalname->empty() && *l->slocalname != l->localname && *l->slocalname == *sn))))
+                {
+                    // This can happen if a file was moved elsewhere and moved back before the sync restarts.
+                    // We'll refresh slocalname while scanning.
+                    LOG_warn << "Shortname mismatch on LocalNode load!" <<
+                        " Was: " << (l->slocalname ? l->slocalname->toPath(*client->fsaccess) : "(null") <<
+                        " Now: " << (sn ? sn->toPath(*client->fsaccess) : "(null") <<
+                        " at " << localpath.toPath(*client->fsaccess);
+                }
             }
         }
 #endif
@@ -1856,7 +1864,7 @@ void Sync::procscanq(int q)
             LocalPath remainder;
             LocalNode *deepestParent;
             LocalNode *matching = localnodebypath(l, notification.path, &deepestParent, &remainder);
-            if (LocalNode *deepest = matching ? matching : deepestParent)
+            if (LocalNode *deepest = matching && matching->parent ? matching->parent : deepestParent)
             {
                 deepest->setFutureScan(true, !remainder.empty());
                 client->filesystemNotificationsQuietTime = Waiter::ds + (isnetwork && l->type == FILENODE ? Sync::EXTRA_SCANNING_DELAY_DS : SCANNING_DELAY_DS);
@@ -2308,6 +2316,19 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
         " " << (row.syncNode ? row.syncNode->getLocalPath(true).toPath(*client->fsaccess) : "(null)") <<
         " " << (row.fsNode ? fullPath.toPath(*client->fsaccess) : "(null)");
 
+    // Under some circumstances on sync startup, our shortname records can be out of date.
+    // If so, we adjust for that here, as the diretories are scanned
+    if (row.syncNode && row.fsNode && row.fsNode->shortname)
+    {
+        if (!row.syncNode->slocalname || *row.syncNode->slocalname != *row.fsNode->shortname)
+        {
+            LOG_warn << "Updating slocalname: " << row.fsNode->shortname->toPath(*client->fsaccess)
+                     << " at " << fullPath.toPath(*client->fsaccess)
+                     << " was " << (row.syncNode->slocalname ? row.syncNode->slocalname->toPath(*client->fsaccess) : "(null)");
+            row.syncNode->setnameparent(row.syncNode->parent, nullptr, move(row.fsNode->shortname), false);
+        }
+    }
+
     if (row.syncNode && row.syncNode->useBlocked >= LocalNode::SYNCTREE_ACTION_HERE_ONLY)
     {
         if (!row.syncNode->rare().blockedTimer->armed())
@@ -2419,6 +2440,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
                 else
                 {
                     // cloud item disappeared - remove locally (or figure out if it was a move, etc)
+                    rowSynced = resolve_cloudNodeGone(row, parentRow, fullPath);
                 }
             }
         }
@@ -2430,6 +2452,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
                 if (row.syncNode->fsid != UNDEF)
                 {
                     // used to be synced - remove in the cloud (or detect move)
+                    rowSynced = resolve_fsNodeGone(row, parentRow, fullPath);
                 }
                 else
                 {
@@ -2540,7 +2563,11 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& full
 {
     // local and cloud disappeared; remove sync item also
     LOG_verbose << "Marking Localnode for deletion";
-    statecachedel(row.syncNode);
+
+    // deletes itself and subtree, queues db record removal
+    delete row.syncNode;
+    row.syncNode = nullptr;
+
     return false;
 }
 
@@ -2647,6 +2674,30 @@ bool Sync::resolve_pickWinner(syncRow& row, syncRow& parentRow, LocalPath& fullP
     return false;
 }
 
+bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
+{
+    // todo: what about moves, renames, etc.
+    LOG_debug << "Moving local item to local sync debris: " << fullPath.toPath(*client->fsaccess);
+    if (movetolocaldebris(fullPath))
+    {
+        row.syncNode->setfsid(UNDEF, client->fsidnode);
+    }
+    return false;
+}
+
+bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
+{
+    // todo: what about moves, renames, etc.
+    LOG_debug << "Moving cloud item to cloud sync debris: " << row.cloudNode->displaypath();
+
+    // clear fsid so we don't assume it is present anymore in future passes
+    row.syncNode->setfsid(UNDEF, client->fsidnode);
+
+    // remove the cloud node (we won't be called back here again while there is a pending command on the node)
+    // todo: double check that is the case - what if the debris folder has to be created first, is there a gap?
+    client->movetosyncdebris(row.cloudNode, inshare);
+    return false;
+}
 
 bool Sync::syncEqual(const Node& n, const LocalNode& ln)
 {
