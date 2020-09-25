@@ -1796,6 +1796,24 @@ void LocalNode::detach(const bool recreate)
     }
 }
 
+bool LocalNode::isAbove(const LocalNode& other) const
+{
+    return other.isBelow(*this);
+}
+
+bool LocalNode::isBelow(const LocalNode& other) const
+{
+    for (auto* node = parent; node; node = node->parent)
+    {
+        if (node == &other)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 LocalPath LocalNode::getLocalPath(bool sdisable) const
 {
     LocalPath lp;

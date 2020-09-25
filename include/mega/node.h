@@ -566,6 +566,12 @@ public:
 
     // Detach this node from it's remote associate.
     void detach(const bool recreate = false);
+
+    // Are we above other?
+    bool isAbove(const LocalNode& other) const;
+
+    // Are we below other?
+    bool isBelow(const LocalNode& other) const;
 };
 
 template <> inline NewNode*& crossref_other_ptr_ref<LocalNode, NewNode>(LocalNode* p) { return p->newnode.ptr; }
