@@ -319,6 +319,7 @@ public:
     void deleteNode(unsigned int apiIndex, MegaNode *n, int timeout = maxTimeout);
     void renameNode(unsigned int apiIndex, MegaNode *n, std::string newFolderName, int timeout = maxTimeout);
     void moveNode(unsigned int apiIndex, MegaNode *n, MegaNode *newParent, int timeout = maxTimeout);
+    void copyNode(unsigned int apiIndex, MegaNode *n, MegaNode *newParent, const char* newName, int timeout = maxTimeout);
 
     void getRegisteredContacts(const std::map<std::string, std::string>& contacts);
 

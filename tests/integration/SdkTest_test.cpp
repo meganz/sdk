@@ -1077,6 +1077,16 @@ void SdkTest::moveNode(unsigned int apiIndex, MegaNode *n, MegaNode *newParent, 
     ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Cannot move a node (error: " << mApi[apiIndex].lastError << ")";
 }
 
+void SdkTest::copyNode(unsigned int apiIndex, MegaNode *n, MegaNode *newParent, const char* newName, int timeout)
+{
+    mApi[apiIndex].requestFlags[MegaRequest::TYPE_COPY] = false;
+    mApi[apiIndex].megaApi->copyNode(n, newParent, newName);
+
+    ASSERT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_COPY], timeout) )
+            << "Copying node failed after " << timeout  << " seconds";
+    ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Cannot copy a node (error: " << mApi[apiIndex].lastError << ")";
+}
+
 void SdkTest::getRegisteredContacts(const std::map<std::string, std::string>& contacts)
 {
     int apiIndex = 0;
@@ -5660,4 +5670,131 @@ TEST_F(SdkTest, SyncPaths)
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
 }
 
+/**
+ * @brief TEST_F SyncOQTransitions
+ *
+ * Testing OQ Transitions
+ */
+TEST_F(SdkTest, SyncOQTransitions)
+{
+
+    // What we are going to test here:
+    // - Online transitions: Sync is disabled when in OQ and enabled after OQ
+    // - Offline transitions: Sync is disabled when in OQ and enabled after OQ
+    // - Enabling a sync temporarily disabled.
+
+    LOG_info << "___TEST SyncOQTransitions___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    string fileNameStr = "fileTest";
+
+    fs::path basePath = "SyncOQTransitions";
+    fs::path fillPath = "OQFolder";
+
+    const auto localPath = fs::current_path() / basePath;
+    fs::path filePath = localPath / fs::u8path(fileNameStr.c_str());
+
+    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
+    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), fillPath));
+
+    // Create local directory and file.
+    fs::create_directories(localPath);
+
+    LOG_verbose << "SyncOQTransitions :  Creating remote folder";
+    std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
+    ASSERT_NE(remoteRootNode.get(), nullptr);
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, basePath.u8string().c_str(), remoteRootNode.get())) << "Error creating remote basePath";
+    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(mApi[0].h));
+    ASSERT_NE(remoteBaseNode.get(), nullptr);
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, fillPath.u8string().c_str(), remoteRootNode.get())) << "Error creating remote fillPath";
+    std::unique_ptr<MegaNode> remoteFillNode(megaApi[0]->getNodeByHandle(mApi[0].h));
+    ASSERT_NE(remoteFillNode.get(), nullptr);
+
+    LOG_verbose << "SyncOQTransitions :  Creating sync";
+    ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, localPath.u8string().c_str(), remoteBaseNode.get())) << "API Error adding a new sync";
+    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), MegaSync::SYNC_ACTIVE);
+    ASSERT_TRUE(sync && sync->getState() == MegaSync::SYNC_ACTIVE);
+    int tagID = sync->getTag();
+
+    LOG_verbose << "SyncOQTransitions :  Filling up storage space";
+    ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/file/D4AGlbqY#Ak-OW4MP7lhnQxP9nzBU1bOP45xr_7sXnIz8YYqOBUg", remoteFillNode.get()));
+    std::unique_ptr<MegaNode> remote1GBFile(megaApi[0]->getNodeByHandle(mApi[0].h));
+
+    ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Get account size.
+    ASSERT_NE(mApi[0].accountDetails, nullptr);
+    int filesNeeded = int(mApi[0].accountDetails->getStorageMax() / remote1GBFile->getSize());
+
+    for (int i=1; i < filesNeeded; i++)
+    {
+        ASSERT_NO_FATAL_FAILURE(copyNode(0, remote1GBFile.get(), remoteFillNode.get(), (remote1GBFile->getName() + to_string(i)).c_str()));
+    }
+    std::unique_ptr<MegaNode> last1GBFileNode(megaApi[0]->getChildNode(remoteFillNode.get(), (remote1GBFile->getName() + to_string(filesNeeded-1)).c_str()));
+
+    LOG_verbose << "SyncOQTransitions :  Check that Sync is disabled due to OQ.";
+    ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Needed to ensure we know we are in OQ
+    sync = waitForSyncState(megaApi[0].get(), tagID, MegaSync::SYNC_DISABLED);
+    ASSERT_TRUE(sync && sync->getState() == MegaSync::SYNC_DISABLED);
+    ASSERT_EQ(MegaSync::STORAGE_OVERQUOTA, sync->getError());
+
+    LOG_verbose << "SyncOQTransitions :  Check that Sync could not be enabled while disabled due to OQ.";
+    ASSERT_EQ(MegaError::API_EFAILED, synchronousEnableSync(0,tagID))  << "API Error enabling a sync";
+    ASSERT_EQ(MegaSync::STORAGE_OVERQUOTA, sync->getError());
+
+    LOG_verbose << "SyncOQTransitions :  Free up space and check that Sync is active again.";
+    ASSERT_EQ(MegaError::API_OK, synchronousRemove(0, last1GBFileNode.get()));
+    ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Needed to ensure we know we are not in OQ
+    sync = waitForSyncState(megaApi[0].get(), tagID, MegaSync::SYNC_ACTIVE);
+    ASSERT_TRUE(sync && sync->getState() == MegaSync::SYNC_ACTIVE);
+
+    LOG_verbose << "SyncOQTransitions :  Share big files folder with another account.";
+
+    ASSERT_EQ(MegaError::API_OK, synchronousInviteContact(0, mApi[1].email.c_str(), "SdkTestShareKeys contact request A to B", MegaContactRequest::INVITE_ACTION_ADD));
+    ASSERT_TRUE(WaitFor([this]()
+    {
+        return unique_ptr<MegaContactRequestList>(megaApi[1]->getIncomingContactRequests())->size() == 1;
+    }, 60*1000));
+    ASSERT_NO_FATAL_FAILURE(getContactRequest(1, false));
+    ASSERT_EQ(MegaError::API_OK, synchronousReplyContactRequest(1, mApi[1].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT));
+    ASSERT_EQ(MegaError::API_OK, synchronousShare(0, remoteFillNode.get(), mApi[1].email.c_str(), MegaShare::ACCESS_FULL)) << "Folder sharing failed";
+    ASSERT_TRUE(WaitFor([this]()
+    {
+        return unique_ptr<MegaShareList>(megaApi[1]->getInSharesList())->size() == 1;
+    }, 60*1000));
+
+    unique_ptr<MegaNodeList> nodeList(megaApi[1]->getInShares(megaApi[1]->getContact(mApi[0].email.c_str())));
+    ASSERT_EQ(nodeList->size(), 1);
+    MegaNode* inshareNode = nodeList->get(0);
+
+    LOG_verbose << "SyncOQTransitions :  Check for transition to OQ while offline.";
+    std::string session = dumpSession();
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+
+    std::unique_ptr<MegaNode> remote1GBFile2nd(megaApi[1]->getChildNode(inshareNode, remote1GBFile->getName()));
+    ASSERT_NO_FATAL_FAILURE(copyNode(1, remote1GBFile2nd.get(), inshareNode, (remote1GBFile2nd->getName() + to_string(filesNeeded-1)).c_str()));
+
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.c_str()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Needed to ensure we know we are in OQ
+    sync = waitForSyncState(megaApi[0].get(), tagID, MegaSync::SYNC_DISABLED);
+    ASSERT_TRUE(sync && sync->getState() == MegaSync::SYNC_DISABLED);
+    ASSERT_EQ(MegaSync::STORAGE_OVERQUOTA, sync->getError());
+
+    LOG_verbose << "SyncOQTransitions :  Check for transition form OQ while offline.";
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+
+    std::unique_ptr<MegaNode> toRemoveNode(megaApi[1]->getChildNode(inshareNode, (remote1GBFile->getName() + to_string(filesNeeded-1)).c_str()));
+    ASSERT_EQ(API_OK, synchronousRemove(1, toRemoveNode.get()));
+
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.c_str()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Needed to ensure we know we are in OQ
+    sync = waitForSyncState(megaApi[0].get(), tagID, MegaSync::SYNC_ACTIVE);
+    ASSERT_TRUE(sync && sync->getState() == MegaSync::SYNC_ACTIVE);
+
+    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
+    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), fillPath));
+
+}
+
 #endif
+
