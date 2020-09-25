@@ -2241,8 +2241,6 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
     }
 
     // Get the filesystem items list
-    vector<FSNode> fsChildren;
-    fsChildren.reserve(row.syncNode->children.size());
     if (row.syncNode->scanAgain == LocalNode::SYNCTREE_ACTION_HERE_ONLY)
     {
         if (Waiter::ds - row.syncNode->lastScanTime < 20)
@@ -2258,21 +2256,26 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
         // If we need to scan at this level, do it now - just scan one folder then return from the stack to release the mutex.
         // Sync actions can occur on the next run
 
-        fsChildren = scanOne(*row.syncNode, localPath);
+        row.syncNode->lastFolderScan.reset(new vector<FSNode>);
+        *row.syncNode->lastFolderScan = scanOne(*row.syncNode, localPath);
         row.syncNode->lastScanTime = Waiter::ds;
         row.syncNode->syncAgain = LocalNode::SYNCTREE_ACTION_HERE_ONLY;
     }
-    else
+
+    vector<FSNode> fsChildrenReconstructed;
+    if (!row.syncNode->lastFolderScan)
     {
-        // no filesystem side changes so use our current records
+        // LocalNodes are in sync with the filesystem so we can reconstruct lastFolderScan
+        fsChildrenReconstructed.reserve(row.syncNode->children.size());
         for (auto& c: row.syncNode->children)
         {
             if (c.second->fsid != UNDEF)
             {
-                fsChildren.push_back(c.second->getKnownFSDetails());
+                fsChildrenReconstructed.push_back(c.second->getKnownFSDetails());
             }
         }
     }
+    auto& fsChildren = row.syncNode->lastFolderScan? *row.syncNode->lastFolderScan : fsChildrenReconstructed;
 
     // clear scan flag, especially check-descendants.
     row.syncNode->scanAgain = LocalNode::SYNCTREE_RESOLVED;
@@ -2337,6 +2340,11 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
     }
 
     row.syncNode->setFutureSync(!folderSynced, !subfoldersSynced);
+
+    if (folderSynced)
+    {
+        row.syncNode->lastFolderScan.reset();
+    }
 
     LOG_verbose << "Exiting folder with synced=" << folderSynced << " subsync= " << subfoldersSynced << " syncagain=" << row.syncNode->syncAgain << " scanagain=" << row.syncNode->scanAgain << " at " << localPath.toPath(*client->fsaccess);
     return folderSynced && subfoldersSynced;
@@ -2657,50 +2665,89 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 
 bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool alreadyExists)
 {
-    if (row.cloudNode->type == FILENODE)
+    // First, figure out if this cloud node is different now because it was moved or renamed to this location
+
+    // look up LocalNode by cloud nodehandle eventually, probably.  But ptrs are useful for now
+
+    if (row.cloudNode->localnode && row.cloudNode->localnode->parent)
     {
-        // download the file if we're not already downloading
-        // if (alreadyExists), we will move the target to the trash when/if download completes //todo: check
-        if (!row.cloudNode->syncget)
-        {
-            // FIXME: to cover renames that occur during the
-            // download, reconstruct localname in complete()
-            LOG_debug << "Start fetching file node";
-            client->app->syncupdate_get(this, row.cloudNode, fullPath.toPath(*client->fsaccess).c_str());
+        // It's a move or rename
 
-            row.cloudNode->syncget = new SyncFileGet(this, row.cloudNode, fullPath);
-            DBTableTransactionCommitter committer(client->tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
-            client->nextreqtag();
-            client->startxfer(GET, row.cloudNode->syncget, committer);
-        }
-        else
-        {
-            LOG_verbose << "Download already in progress";
-        }
-    }
-    else
-    {
-        assert(!alreadyExists); // if it did we would have matched it
+        row.cloudNode->localnode->treestate(TREESTATE_SYNCING);
 
-        LOG_verbose << "Creating local folder at: " << fullPath.toPath(*client->fsaccess);
+        LocalPath sourcePath = row.cloudNode->localnode->getLocalPath(true);
+        LOG_verbose << "Renaming/moving from the previous location: " << sourcePath.toPath(*client->fsaccess);
 
-        if (client->fsaccess->mkdirlocal(fullPath))
+        if (client->fsaccess->renamelocal(sourcePath, fullPath))
         {
-            assert(row.syncNode);
-            parentRow.syncNode->setFutureScan(true, false);
+            // todo: move anything at this path to sync debris first?  Old algo didn't though
+
+            client->app->syncupdate_local_move(this, row.cloudNode->localnode, fullPath.toPath(*client->fsaccess).c_str());
+
+            // update LocalNode tree to reflect the move/rename
+            row.cloudNode->localnode->setnameparent(parentRow.syncNode, &fullPath, client->fsaccess->fsShortname(fullPath), false);
+            statecacheadd(row.cloudNode->localnode);
+
+            // update filenames so that PUT transfers can continue seamlessly
+            client->updateputs();
+            client->syncactivity = true;  // todo: prob don't need this?
+
+            row.cloudNode->localnode->treestate(TREESTATE_SYNCED);
         }
         else if (client->fsaccess->transient_error)
         {
-            LOG_debug << "Transient error creating folder, marking as blocked " << fullPath.toPath(*client->fsaccess);
-            assert(row.syncNode);
             row.syncNode->setUseBlocked();
         }
-        else // !transient_error
+
+    }
+    else
+    {
+
+        if (row.cloudNode->type == FILENODE)
         {
-            // let's consider this case as blocked too, alert the user
-            LOG_debug << "Non transient error creating folder, marking as blocked " << fullPath.toPath(*client->fsaccess);
-            assert(row.syncNode);
-            row.syncNode->setUseBlocked();
+            // download the file if we're not already downloading
+            // if (alreadyExists), we will move the target to the trash when/if download completes //todo: check
+            if (!row.cloudNode->syncget)
+            {
+                // FIXME: to cover renames that occur during the
+                // download, reconstruct localname in complete()
+                LOG_debug << "Start fetching file node";
+                client->app->syncupdate_get(this, row.cloudNode, fullPath.toPath(*client->fsaccess).c_str());
+
+                row.cloudNode->syncget = new SyncFileGet(this, row.cloudNode, fullPath);
+                DBTableTransactionCommitter committer(client->tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
+                client->nextreqtag();
+                client->startxfer(GET, row.cloudNode->syncget, committer);
+            }
+            else
+            {
+                LOG_verbose << "Download already in progress";
+            }
+        }
+        else
+        {
+            assert(!alreadyExists); // if it did we would have matched it
+
+            LOG_verbose << "Creating local folder at: " << fullPath.toPath(*client->fsaccess);
+
+            if (client->fsaccess->mkdirlocal(fullPath))
+            {
+                assert(row.syncNode);
+                parentRow.syncNode->setFutureScan(true, false);
+            }
+            else if (client->fsaccess->transient_error)
+            {
+                LOG_debug << "Transient error creating folder, marking as blocked " << fullPath.toPath(*client->fsaccess);
+                assert(row.syncNode);
+                row.syncNode->setUseBlocked();
+            }
+            else // !transient_error
+            {
+                // let's consider this case as blocked too, alert the user
+                LOG_debug << "Non transient error creating folder, marking as blocked " << fullPath.toPath(*client->fsaccess);
+                assert(row.syncNode);
+                row.syncNode->setUseBlocked();
+            }
         }
     }
     return false;
@@ -2721,11 +2768,33 @@ bool Sync::resolve_pickWinner(syncRow& row, syncRow& parentRow, LocalPath& fullP
 
 bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
-    // todo: what about moves, renames, etc.
-    LOG_debug << "Moving local item to local sync debris: " << fullPath.toPath(*client->fsaccess);
-    if (movetolocaldebris(fullPath))
+    // First, figure out if this is a rename or move or if we can even tell that yet.
+
+    if (Node* n = client->nodebyhandle(row.syncNode->syncedCloudNodeHandle.as8byte()))
     {
-        row.syncNode->setfsid(UNDEF, client->fsidnode);
+        if (n->parent && n->parent == parentRow.cloudNode)
+        {
+            // File has been renamed away from here (but is still in the same folder)
+            // Process renames in the receiving row - so just make sure we revisit.
+            LOG_debug << "Cloud node was renamed away from this row.";
+            return false;
+        }
+        else
+        {
+            // file has been moved (and possibly also renamed) to another folder
+            // Process moves in the receiving node and row - so just make sure we revisit both folders
+            LOG_debug << "Cloud node was moved away from this row.";
+            return false;
+        }
+    }
+    else
+    {
+        // node no longer exists anywhere  // todo:  what about debris & day folder creation - will we revisit here while that is going on?
+        LOG_debug << "Moving local item to local sync debris: " << fullPath.toPath(*client->fsaccess);
+        if (movetolocaldebris(fullPath))
+        {
+            row.syncNode->setfsid(UNDEF, client->fsidnode);
+        }
     }
     return false;
 }

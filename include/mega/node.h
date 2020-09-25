@@ -400,6 +400,10 @@ struct MEGA_API LocalNode : public File
     std::unique_ptr<LocalPath> slocalname;   // null means either the entry has no shortname or it's the same as the (normal) longname
     localnode_map schildren;
 
+    // The last scan of the folder (for folders).
+    // Removed again when the folder is fully synced.
+    std::unique_ptr<vector<FSNode>> lastFolderScan;
+
     // local filesystem node ID (inode...) for rename/move detection
     handle fsid = mega::UNDEF;
     handlelocalnode_map::iterator fsid_it{};
