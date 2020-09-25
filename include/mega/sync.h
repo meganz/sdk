@@ -68,6 +68,175 @@ private:
     std::map<int, SyncConfig> mSyncConfigs; // map of tag to sync configs
 };
 
+class MEGA_API ScanService
+{
+public:
+    // Represents an asynchronous scan request.
+    class Request
+    {
+    public:
+        virtual ~Request() = default;
+
+        MEGA_DISABLE_COPY_MOVE(Request);
+
+        // Whether the target of this scan is below node.
+        virtual bool below(const LocalNode& node) const = 0;
+
+        // Whether the request is complete.
+        virtual bool completed() const = 0;
+
+        // Whether this request is for the specified target.
+        virtual bool matches(const LocalNode& target) const = 0;
+
+        // Retrieves the results of the request.
+        virtual std::vector<FSNode> results() = 0;
+
+    protected:
+        Request() = default;
+    }; // Request
+
+    // For convenience.
+    using RequestPtr = std::shared_ptr<Request>;
+
+    ScanService(Waiter& waiter);
+    
+    ~ScanService();
+
+    // Issue a scan for the given target.
+    RequestPtr scan(const LocalNode& target, LocalPath targetPath);
+    RequestPtr scan(const LocalNode& target);
+
+private:
+    // State shared by the service and its requests.
+    class Cookie
+    {
+    public:
+        Cookie(Waiter& waiter)
+          : mWaiter(waiter)
+        {
+        }
+
+        MEGA_DISABLE_COPY_MOVE(Cookie);
+
+        // Inform our waiter that an operation has completed.
+        void completed()
+        {
+            mWaiter.notify();
+        }
+
+    private:
+        // Who should be notified when an operation completes.
+        Waiter& mWaiter;
+    }; // Cookie
+
+    // Concrete representation of a scan request.
+    class ScanRequest
+      : public Request
+    {
+    public:
+        ScanRequest(const std::shared_ptr<Cookie>& cookie,
+                    const LocalNode& target,
+                    LocalPath targetPath);
+
+        MEGA_DISABLE_COPY_MOVE(ScanRequest);
+
+        bool below(const LocalNode& node) const
+        {
+            return mTarget.isBelow(node);
+        }
+
+        bool completed() const override
+        {
+            return mComplete;
+        };
+
+        bool matches(const LocalNode& target) const override
+        {
+            return &target == &mTarget;
+        };
+
+        std::vector<FSNode> results() override
+        {
+            return std::move(mResults);
+        }
+
+        // Cookie from the originating service.
+        std::weak_ptr<Cookie> mCookie;
+
+        // Whether the scan request is complete.
+        std::atomic<bool> mComplete;
+
+        // Debris path of the sync containing the target.
+        const LocalPath mDebrisPath;
+
+        // Whether we should follow symbolic links.
+        const bool mFollowSymLinks;
+
+        // The results of the scan.
+        std::vector<FSNode> mResults;
+
+        // Target of the scan.
+        const LocalNode& mTarget;
+
+        // Path to the target.
+        const LocalPath mTargetPath;
+    }; // ScanRequest
+
+    // Convenience.
+    using ScanRequestPtr = std::shared_ptr<ScanRequest>;
+
+    // Processes scan requests.
+    class Worker
+    {
+    public:
+        Worker(size_t numThreads = 1);
+
+        ~Worker();
+
+        MEGA_DISABLE_COPY_MOVE(Worker);
+
+        // Queues a scan request for processing.
+        void queue(ScanRequestPtr request);
+
+    private:
+        // Thread entry point.
+        void loop();
+
+        // Learn everything we can about the specified path.
+        FSNode interrogate(DirAccess& iterator,
+                           const LocalPath& name,
+                           LocalPath& path);
+
+        // Processes a scan request.
+        void scan(ScanRequestPtr request);
+
+        // Filesystem access.
+        std::unique_ptr<FileSystemAccess> mFsAccess;
+
+        // Pending scan requests.
+        std::deque<ScanRequestPtr> mPending;
+
+        // Guards access to the above.
+        std::mutex mPendingLock;
+        std::condition_variable mPendingNotifier;
+
+        // Worker threads.
+        std::vector<std::thread> mThreads;
+    }; // Worker
+
+    // Cookie shared with requests.
+    std::shared_ptr<Cookie> mCookie;
+
+    // How many services are currently active.
+    static std::atomic<size_t> mNumServices;
+
+    // Worker shared by all services.
+    static std::unique_ptr<Worker> mWorker;
+
+    // Synchronizes access to the above.
+    static std::mutex mWorkerLock;
+}; // ScanService
+
 class MEGA_API Sync
 {
 public:
@@ -233,6 +402,9 @@ public:
     bool mDestructorRunning = false;
     Sync(MegaClient*, SyncConfig &, const char*, LocalPath*, Node*, bool, int, void*);
     ~Sync();
+
+    // Asynchronous scan request / result.
+    std::shared_ptr<ScanService::Request> mScanRequest;
 
     static const int SCANNING_DELAY_DS;
     static const int EXTRA_SCANNING_DELAY_DS;

@@ -41,6 +41,8 @@
 
 namespace mega {
 
+// Defined in sync.h.
+class ScanService;
 class SyncConfigBag;
 
 class MEGA_API FetchNodesStats
@@ -501,6 +503,9 @@ public:
 #ifdef ENABLE_SYNC
     // active syncs
     sync_list syncs;
+
+    // used to asynchronously perform scans.
+    unique_ptr<ScanService> mScanService;
 
     // retrieves information about any detected name conflicts.
     bool conflictsDetected(string& parentName,

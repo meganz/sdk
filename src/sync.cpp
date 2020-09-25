@@ -490,6 +490,323 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, f
     return success;
 }
 
+std::atomic<size_t> ScanService::mNumServices(0);
+std::unique_ptr<ScanService::Worker> ScanService::mWorker;
+std::mutex ScanService::mWorkerLock;
+
+ScanService::ScanService(Waiter& waiter)
+  : mCookie(std::make_shared<Cookie>(waiter))
+{
+    // Locking here, rather than in the if statement, ensures that the
+    // worker is fully constructed when control leaves the constructor.
+    std::lock_guard<std::mutex> lock(mWorkerLock);
+
+    if (++mNumServices == 1)
+    {
+        mWorker.reset(new Worker());
+    }
+}
+
+ScanService::~ScanService()
+{
+    if (--mNumServices == 0)
+    {
+        std::lock_guard<std::mutex> lock(mWorkerLock);
+        mWorker.reset();
+    }
+}
+
+auto ScanService::scan(const LocalNode& target, LocalPath targetPath) -> RequestPtr
+{
+    // For convenience.
+    const auto& debris = target.sync->localdebris;
+    const auto& separator = target.sync->client->fsaccess->localseparator;
+ 
+    // Create a request to represent the scan.
+    auto request = std::make_shared<ScanRequest>(mCookie, target, targetPath);
+
+    // Have we been asked to scan the debris?
+    request->mComplete = debris.isContainingPathOf(targetPath, separator);
+
+    // Don't bother scanning the debris.
+    if (!request->mComplete)
+    {
+        LOG_debug << "Queuing scan for: "
+                  << targetPath.toPath(*target.sync->client->fsaccess);
+
+        // Queue request for processing.
+        mWorker->queue(request);
+    }
+
+    return request;
+}
+
+auto ScanService::scan(const LocalNode& target) -> RequestPtr
+{
+    return scan(target, target.getLocalPath(true));
+}
+
+ScanService::ScanRequest::ScanRequest(const std::shared_ptr<Cookie>& cookie,
+                                      const LocalNode& target,
+                                      LocalPath targetPath)
+  : mCookie(cookie)
+  , mComplete(false)
+  , mDebrisPath(target.sync->localdebris)
+  , mFollowSymLinks(target.sync->client->followsymlinks)
+  , mResults()
+  , mTarget(target)
+  , mTargetPath(std::move(targetPath))
+{
+}
+
+ScanService::Worker::Worker(size_t numThreads)
+  : mFsAccess(new FSACCESS_CLASS())
+  , mPending()
+  , mPendingLock()
+  , mPendingNotifier()
+  , mThreads()
+{
+    // Always at least one thread.
+    assert(numThreads > 0);
+
+    LOG_debug << "Starting ScanService worker...";
+
+    // Start the threads.
+    while (numThreads--)
+    {
+        try
+        {
+            mThreads.emplace_back([this]() { loop(); });
+        }
+        catch (std::system_error& e)
+        {
+            LOG_err << "Failed to start worker thread: " << e.what();
+        }
+    }
+
+    LOG_debug << mThreads.size() << " worker thread(s) started.";
+    LOG_debug << "ScanService worker started.";
+}
+
+ScanService::Worker::~Worker()
+{
+    LOG_debug << "Stopping ScanService worker...";
+
+    // Queue the 'terminate' sentinel.
+    {
+        std::unique_lock<std::mutex> lock(mPendingLock);
+        mPending.emplace_back();
+    }
+
+    // Wake any sleeping threads.
+    mPendingNotifier.notify_all();
+
+    LOG_debug << "Waiting for worker thread(s) to terminate...";
+
+    // Wait for the threads to terminate.
+    for (auto& thread : mThreads)
+    {
+        thread.join();
+    }
+
+    LOG_debug << "ScanService worker stopped.";
+}
+
+void ScanService::Worker::queue(ScanRequestPtr request)
+{
+    // Queue the request.
+    {
+        std::unique_lock<std::mutex> lock(mPendingLock);
+        mPending.emplace_back(std::move(request));
+    }
+    
+    // Tell the lucky thread it has something to do.
+    mPendingNotifier.notify_one();
+}
+
+void ScanService::Worker::loop()
+{
+    // We're ready when we have some work to do.
+    auto ready = [this]() { return mPending.size(); };
+
+    for ( ; ; )
+    {
+        ScanRequestPtr request;
+
+        {
+            // Wait for something to do.
+            std::unique_lock<std::mutex> lock(mPendingLock);
+            mPendingNotifier.wait(lock, ready);
+
+            // Are we being told to terminate?
+            if (!mPending.front())
+            {
+                // Bail, don't deque the sentinel.
+                return;
+            }
+            
+            request = std::move(mPending.front());
+            mPending.pop_front();
+        }
+
+        const auto targetPath =
+          request->mTargetPath.toPath(*mFsAccess);
+
+        LOG_debug << "Scanning directory: " << targetPath;
+
+        // Process the request.
+        scan(request);
+
+        // Mark the request as complete.
+        request->mComplete = true;
+
+        LOG_debug << "Scan complete for: " << targetPath;
+
+        // Do we still have someone to notify?
+        auto cookie = request->mCookie.lock();
+
+        if (cookie)
+        {
+            LOG_debug << "Letting the waiter know it has "
+                      << request->mResults.size()
+                      << " scan result(s).";
+
+            // Yep, let them know the request is complete.
+            cookie->completed();
+        }
+        else
+        {
+            LOG_debug << "No waiter, discarding "
+                      << request->mResults.size()
+                      << " scan result(s).";
+        }
+    }
+}
+
+FSNode ScanService::Worker::interrogate(DirAccess& iterator,
+                                        const LocalPath& name,
+                                        LocalPath& path)
+{
+    FSNode result;
+
+    // Always record the name.
+    result.localname = name;
+    result.name = name.toName(*mFsAccess);
+
+    // Can we open the file?
+    auto fileAccess = mFsAccess->newfileaccess(false);
+
+    if (fileAccess->fopen(path, true, false, &iterator))
+    {
+        // Populate result.
+        result.fsid = 0;
+        result.isSymlink = fileAccess->mIsSymLink;
+        result.shortname = mFsAccess->fsShortname(path);
+        result.type = fileAccess->type;
+
+        // Record filesystem ID if it's valid.
+        if (fileAccess->fsidvalid)
+        {
+            result.fsid = fileAccess->fsid;
+        }
+
+        // Warn about symlinks.
+        if (result.isSymlink)
+        {
+            LOG_debug << "Interrogated path is a symlink: "
+                      << path.toPath(*mFsAccess);
+        }
+
+        // Fingerprint files.
+        if (result.type == FILENODE)
+        {
+            result.fingerprint.genfingerprint(fileAccess.get());
+        }
+
+        return result;
+    }
+
+    // Couldn't open the file.
+    LOG_warn << "Error opening file: " << path.toPath(*mFsAccess);
+
+    // File's blocked if the error is transient.
+    result.isBlocked = fileAccess->retry;
+
+    // Warn about the blocked file.
+    if (result.isBlocked)
+    {
+        LOG_warn << "File blocked: " << path.toPath(*mFsAccess);
+    }
+
+    return result;
+}
+
+void ScanService::Worker::scan(ScanRequestPtr request)
+{
+    // For convenience.
+    const auto& debris = request->mDebrisPath;
+    const auto& separator = mFsAccess->localseparator;
+
+    // Don't bother processing the debris directory.
+    if (debris.isContainingPathOf(request->mTargetPath, separator))
+    {
+        LOG_debug << "Skipping scan of debris directory.";
+        return;
+    }
+
+    // Have we been passed a valid target path?
+    auto fileAccess = mFsAccess->newfileaccess();
+    auto path = request->mTargetPath;
+
+    if (!fileAccess->fopen(path, true, false))
+    {
+        LOG_debug << "Scan target does not exist: "
+                  << path.toPath(*mFsAccess);
+        return;
+    }
+
+    // Does the path denote a directory?
+    if (fileAccess->type != FOLDERNODE)
+    {
+        LOG_debug << "Scan target is not a directory: "
+                  << path.toPath(*mFsAccess);
+        return;
+    }
+
+    std::unique_ptr<DirAccess> dirAccess(mFsAccess->newdiraccess());
+    LocalPath name;
+
+    // Can we open the directory?
+    if (!dirAccess->dopen(&path, fileAccess.get(), false))
+    {
+        LOG_debug << "Unable to iterate scan target: "
+                  << path.toPath(*mFsAccess);
+        return;
+    }
+
+    // Process each file in the target.
+    std::vector<FSNode> results;
+
+    while (dirAccess->dnext(path, name, request->mFollowSymLinks))
+    {
+        ScopedLengthRestore restorer(path);
+        path.appendWithSeparator(name, false, separator);
+
+        // Except the debris...
+        if (debris.isContainingPathOf(path, separator))
+        {
+            continue;
+        }
+
+        // Learn everything we can about the file.
+        auto info = interrogate(*dirAccess, name, path);
+        results.emplace_back(std::move(info));
+    }
+
+    // Publish the results.
+    request->mResults = std::move(results);
+}
+
 SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng, const std::string& id)
 {
     std::string dbname = "syncconfigsv2_" + id;

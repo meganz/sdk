@@ -1304,6 +1304,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     h->setuseragent(&useragent);
     h->setmaxdownloadspeed(0);
     h->setmaxuploadspeed(0);
+
+    mScanService.reset(new ScanService(*w));
 }
 
 MegaClient::~MegaClient()
