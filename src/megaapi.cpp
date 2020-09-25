@@ -5264,6 +5264,16 @@ void MegaApi::setOriginalFingerprint(MegaNode* node, const char* originalFingerp
     return pImpl->setOriginalFingerprint(node, originalFingerprint, listener);
 }
 
+void MegaApi::putBackup(int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener *listener)
+{
+    pImpl->putBackup(backupType, targetNode, localFolder, state, subState, extraData, listener);
+}
+
+void MegaApi::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener *listener)
+{
+    pImpl->updateBackup(backupId, backupType, targetNode, localFolder, state, subState, extraData, listener);
+}
+
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
     pImpl = new MegaHashSignatureImpl(base64Key);

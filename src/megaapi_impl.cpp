@@ -3880,6 +3880,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_SET_RETENTION_TIME: return "SET_RETENTION_TIME";
         case TYPE_RESET_SMS_VERIFIED_NUMBER: return "RESET_SMS_VERIFIED_NUMBER";
         case TYPE_SEND_DEV_COMMAND: return "SEND_DEV_COMMAND";
+        case TYPE_BACKUP_PUT: return "BACKUP_PUT";
     }
     return "UNKNOWN";
 }
@@ -22625,6 +22626,28 @@ void MegaApiImpl::sendPendingRequests()
             client->getmiscflags();
             break;
         }
+        case MegaRequest::TYPE_BACKUP_PUT:
+        {
+            BackupType bType = request->getTransferTag() < INVALID || request->getTransferTag() > CAMERA_UPLOAD ?
+                               INVALID : static_cast<BackupType>(request->getTransferTag());
+            if (!request->getNumber()) // Register a new sync
+            {
+                string localFolder(binaryToBase64(request->getFile(), strlen(request->getFile())));
+                string extraData(binaryToBase64(request->getText(), strlen(request->getText())));
+                client->reqs.add(new CommandBackupPut(client, bType, request->getNodeHandle(),
+                                                      localFolder, client->getDeviceid(),
+                                                      0 /*state:enabled*/, 0 /*substate:enabled*/, extraData));
+            }
+            else // update a backup
+            {
+                unique_ptr<char[]> localFolder(binaryToBase64(request->getFile(), strlen(request->getFile())));
+                unique_ptr<char[]> extraData(binaryToBase64(request->getText(), strlen(request->getText())));
+                string id = client->getDeviceid();
+                unique_ptr<char[]> deviceId(binaryToBase64(id.c_str(), id.size()));
+                client->reqs.add(new CommandBackupPut(client, request->getNumber(), bType, UNDEF, localFolder.get(), deviceId.get(), -1, -1, extraData.get()));
+            }
+            break;
+        }
         default:
         {
             e = API_EINTERNAL;
@@ -22750,6 +22773,19 @@ bool MegaApiImpl::tryLockMutexFor(long long time)
     {
         return sdkMutex.try_lock_for(std::chrono::milliseconds(time));
     }
+}
+
+void MegaApiImpl::putBackup(int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_PUT, listener);
+    request->setTransferTag(backupType);
+    request->setNodeHandle(targetNode);
+    request->setFile(localFolder);
+    request->setAccess(state);
+    request->setNumDetails(subState);
+    request->setText(extraData);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void TreeProcCopy::allocnodes()
