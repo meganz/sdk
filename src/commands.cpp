@@ -1687,6 +1687,7 @@ bool CommandPrelogin::procresult(Result r)
     if (r.wasErrorOrOK())
     {
         client->app->prelogin_result(0, NULL, NULL, r.errorOrOK());
+        return true;
     }
 
     assert(r.hasJsonObject());
