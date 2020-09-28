@@ -7134,57 +7134,60 @@ void MegaClient::notifypurge(void)
         }
 
 #ifdef ENABLE_SYNC
-        //update sync root node location and trigger failing cases
-        handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
-        // check for renamed/moved sync root folders
-        for (const auto& config : syncConfigs->all())
+        if (syncConfigs)  // otherwise, syncConfigs = nullptr
         {
-            Node *n = nodebyhandle(config.getRemoteNode());
-            if (n && (n->changed.attrs || n->changed.parent || n->changed.removed))
+            //update sync root node location and trigger failing cases
+            handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
+            // check for renamed/moved sync root folders
+            for (const auto& config : syncConfigs->all())
             {
-                bool removed = n->changed.removed;
-
-                // update path in sync configuration
-                bool pathChanged = updateSyncRemoteLocation(&config, removed ? nullptr : n);
-
-                // fail active syncs
-                for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+                Node *n = nodebyhandle(config.getRemoteNode());
+                if (n && (n->changed.attrs || n->changed.parent || n->changed.removed))
                 {
-                    if ((*it)->tag == config.getTag())
-                    {
-                        assert(n == (*it)->localroot->node);
-                        if(n->changed.parent) //moved
-                        {
-                            assert(pathChanged);
-                            // check if moved to rubbish
-                            auto p = n->parent;
-                            bool alreadyFailed = false;
-                            while (p)
-                            {
-                                if (p->nodehandle == rubbishHandle)
-                                {
-                                    failSync(*it, REMOTE_NODE_MOVED_TO_RUBBISH);
-                                    alreadyFailed = true;
-                                    break;
-                                }
-                                p = p->parent;
-                            }
+                    bool removed = n->changed.removed;
 
-                            if (!alreadyFailed)
+                    // update path in sync configuration
+                    bool pathChanged = updateSyncRemoteLocation(&config, removed ? nullptr : n);
+
+                    // fail active syncs
+                    for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+                    {
+                        if ((*it)->tag == config.getTag())
+                        {
+                            assert(n == (*it)->localroot->node);
+                            if(n->changed.parent) //moved
+                            {
+                                assert(pathChanged);
+                                // check if moved to rubbish
+                                auto p = n->parent;
+                                bool alreadyFailed = false;
+                                while (p)
+                                {
+                                    if (p->nodehandle == rubbishHandle)
+                                    {
+                                        failSync(*it, REMOTE_NODE_MOVED_TO_RUBBISH);
+                                        alreadyFailed = true;
+                                        break;
+                                    }
+                                    p = p->parent;
+                                }
+
+                                if (!alreadyFailed)
+                                {
+                                    failSync(*it, REMOTE_PATH_HAS_CHANGED);
+                                }
+                            }
+                            else if (removed)
+                            {
+                                failSync(*it, REMOTE_PATH_DELETED);
+                            }
+                            else if (pathChanged)
                             {
                                 failSync(*it, REMOTE_PATH_HAS_CHANGED);
                             }
-                        }
-                        else if (removed)
-                        {
-                            failSync(*it, REMOTE_PATH_DELETED);
-                        }
-                        else if (pathChanged)
-                        {
-                            failSync(*it, REMOTE_PATH_HAS_CHANGED);
-                        }
 
-                        break;
+                            break;
+                        }
                     }
                 }
             }
