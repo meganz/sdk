@@ -1463,48 +1463,7 @@ bool CommandMoveNode::procresult(Result r)
         }
 #endif
         // Movement of shares and pending shares into Rubbish should remove them
-        if (r.wasError(API_OK))
-        {
-            Node *n = client->nodebyhandle(h);
-            if (n && (n->pendingshares || n->outshares))
-            {
-                Node *rootnode = client->nodebyhandle(np);
-                while (rootnode)
-                {
-                    if (!rootnode->parent)
-                    {
-                        break;
-                    }
-                    rootnode = rootnode->parent;
-                }
-                if (rootnode && rootnode->type == RUBBISHNODE)
-                {
-                    share_map::iterator it;
-                    if (n->pendingshares)
-                    {
-                        for (it = n->pendingshares->begin(); it != n->pendingshares->end(); it++)
-                        {
-                            client->newshares.push_back(new NewShare(
-                                                            n->nodehandle, 1, n->owner, ACCESS_UNKNOWN,
-                                                            0, NULL, NULL, it->first, false));
-                        }
-                    }
-
-                    if (n->outshares)
-                    {
-                        for (it = n->outshares->begin(); it != n->outshares->end(); it++)
-                        {
-                            client->newshares.push_back(new NewShare(
-                                                            n->nodehandle, 1, it->first, ACCESS_UNKNOWN,
-                                                            0, NULL, NULL, UNDEF, false));
-                        }
-                    }
-
-                    client->mergenewshares(1);
-                }
-            }
-        }
-        else if (syncdel == SYNCDEL_NONE)
+        if (r.wasStrictlyError() && syncdel == SYNCDEL_NONE)
         {
             client->sendevent(99439, "Unexpected move error", 0);
         }
