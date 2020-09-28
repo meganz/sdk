@@ -15631,7 +15631,7 @@ void MegaApiImpl::keepmealive_result(error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::getpsa_result(error e, int id, string *title, string *text, string *image, string *buttontext, string *buttonlink, std::string *url)
+void MegaApiImpl::getpsa_result(error e, int id, string *title, string *text, string *image, string *buttontext, string *buttonlink)
 {
     if (requestMap.find(client->restag) == requestMap.end())
     {
@@ -15652,7 +15652,6 @@ void MegaApiImpl::getpsa_result(error e, int id, string *title, string *text, st
         request->setFile(image->c_str());
         request->setPassword(buttontext->c_str());
         request->setLink(buttonlink->c_str());
-        request->setEmail(url->c_str());
     }
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
