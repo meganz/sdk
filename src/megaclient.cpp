@@ -4796,18 +4796,18 @@ bool MegaClient::procsc()
                                     }
                                 }
 #endif
-                                bool isNotMoveOfLastAPDelete = false;
+                                bool isMoveOperation = false;
                                 // node addition
                                 {
                                     useralerts.beginNotingSharedNodes();
-                                    handle originatingUser = sc_newnodes(fetchingnodes ? nullptr : lastAPDeletedNode, isNotMoveOfLastAPDelete);
+                                    handle originatingUser = sc_newnodes(fetchingnodes ? nullptr : lastAPDeletedNode, isMoveOperation);
                                     mergenewshares(1);
                                     useralerts.convertNotedSharedNodes(true, originatingUser);
                                 }
 #ifdef ENABLE_SYNC
                                 if (!fetchingnodes)
                                 {
-                                    if (lastAPDeletedNode && isNotMoveOfLastAPDelete)
+                                    if (lastAPDeletedNode && isMoveOperation)
                                     {
                                         stop = true;
                                     }
@@ -5669,7 +5669,7 @@ void MegaClient::loadCacheableStatus(std::shared_ptr<CacheableStatus> status)
 }
 
 // read tree object (nodes and users)
-void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& firstHandleMatchedDelete)
+void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& firstHandleMatchesDelete)
 {
     if (j->enterobject())
     {
@@ -5681,12 +5681,11 @@ void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& fir
                     if (auto putnodesCmd = dynamic_cast<CommandPutNodes*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
                     {
                         putnodesCmd->emptyResponse = !memcmp(j->pos, "[]", 2);
-                        readnodes(j, 1, putnodesCmd->source, &putnodesCmd->nn, putnodesCmd->tag, true, priorActionpacketDeletedNode, &firstHandleMatchedDelete);  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
-                        if (firstHandleMatchedDelete) return;
+                        readnodes(j, 1, putnodesCmd->source, &putnodesCmd->nn, putnodesCmd->tag, true, priorActionpacketDeletedNode, &firstHandleMatchesDelete);
                     }
                     else
                     {
-                        readnodes(j, 1, PUTNODES_APP, nullptr, 0, false, nullptr, nullptr);
+                        readnodes(j, 1, PUTNODES_APP, nullptr, 0, false, priorActionpacketDeletedNode, &firstHandleMatchesDelete);
                     }
                     break;
 
@@ -5720,7 +5719,7 @@ void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& fir
 }
 
 // server-client newnodes processing
-handle MegaClient::sc_newnodes(Node* priorActionpacketDeletedNode, bool& firstHandleMismatchedDelete)
+handle MegaClient::sc_newnodes(Node* priorActionpacketDeletedNode, bool& firstHandleMatchesDelete)
 {
     handle originatingUser = UNDEF;
     for (;;)
@@ -5728,8 +5727,7 @@ handle MegaClient::sc_newnodes(Node* priorActionpacketDeletedNode, bool& firstHa
         switch (jsonsc.getnameid())
         {
             case 't':
-                readtree(&jsonsc, priorActionpacketDeletedNode, firstHandleMismatchedDelete);
-                if (priorActionpacketDeletedNode && firstHandleMismatchedDelete) return originatingUser;
+                readtree(&jsonsc, priorActionpacketDeletedNode, firstHandleMatchesDelete);
                 break;
 
             case 'u':
@@ -8046,7 +8044,7 @@ uint64_t MegaClient::stringhash64(string* s, SymmCipher* c)
 }
 
 // read and add/verify node array
-int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, int tag, bool applykeys, Node* priorActionpacketDeletedNode, bool* firstHandleMismatchedDelete)
+int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNode>* nn, int tag, bool applykeys, Node* priorActionpacketDeletedNode, bool* firstHandleMatchesDelete)
 {
     if (!j->enterarray())
     {
@@ -8077,10 +8075,9 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
             {
                 case 'h':   // new node: handle
                     h = j->gethandle();
-                    if (priorActionpacketDeletedNode && firstHandleMismatchedDelete)
+                    if (priorActionpacketDeletedNode && firstHandleMatchesDelete)
                     {
-                        *firstHandleMismatchedDelete = h == priorActionpacketDeletedNode->nodehandle;
-                        if (*firstHandleMismatchedDelete) return 0;
+                        *firstHandleMatchesDelete = h == priorActionpacketDeletedNode->nodehandle;
                         priorActionpacketDeletedNode = nullptr;
                     }
                     break;
