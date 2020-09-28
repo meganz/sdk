@@ -4679,7 +4679,7 @@ bool MegaClient::procsc()
 
                     if (pendingsccommit)
                     {
-                        LOG_debug << "Postponing DB commit until cs requests finish";
+                        LOG_debug << "Postponing DB commit until cs requests finish (spoonfeeding)";
                     }
 
                     return true;
