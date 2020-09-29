@@ -477,9 +477,6 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // True if s is an escape of the format %xy.
     bool isEscape(const char* s) const;
 
-    // check if character is lowercase hex ASCII
-    bool islchex(char) const;
-
     bool islocalfscompatible(const int character, const FileSystemType type) const;
     void escapefsincompatible(string*, FileSystemType fileSystemType) const;
 

@@ -659,11 +659,6 @@ int MegaClient::nextSyncTag(int increment)
     return ++mSyncTag;
 }
 
-int MegaClient::hexval(char c)
-{
-    return c > '9' ? c - 'a' + 10 : c - '0';
-}
-
 void MegaClient::exportDatabase(string filename)
 {
     FILE *fp = NULL;

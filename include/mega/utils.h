@@ -776,6 +776,10 @@ CodepointIterator<CharT> codepointIterator(const CharT* s)
     return CodepointIterator<CharT>(s);
 }
 
+int hexval(const int c);
+
+bool islchex(const int c);
+
 } // namespace
 
 #endif

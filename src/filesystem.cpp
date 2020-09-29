@@ -100,17 +100,14 @@ int FileSystemAccess::decodeEscape(const char *s) const
         return -1;
     }
 
-    return MegaClient::hexval(s[1]) << 4 | MegaClient::hexval(s[2]);
+    return hexval(s[1]) << 4 | hexval(s[2]);
 }
 
 bool FileSystemAccess::isEscape(const char* s) const
 {
-    return *s == '%' && islchex(s[1]) && islchex(s[2]);
-}
-
-bool FileSystemAccess::islchex(char c) const
-{
-    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+    return *s == '%'
+           && islchex(s[1])
+           && islchex(s[2]);
 }
 
 const char *FileSystemAccess::fstypetostring(FileSystemType type) const

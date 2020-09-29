@@ -2607,5 +2607,23 @@ void MegaClientAsyncQueue::asyncThreadLoop()
         mWaiter.notify();
     }
 }
+
+bool islchex(const int c)
+{
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+}
+
+int hexval(const int c)
+{
+    assert(islchex(c));
+
+    if (c > '9')
+    {
+        return c - 'a' + 10;
+    }
+
+    return c - '0';
+}
+
 } // namespace
 
