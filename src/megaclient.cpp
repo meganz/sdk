@@ -1216,6 +1216,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     syncscanstate = false;
     syncadding = 0;
     currsyncid = 0;
+    mCurrUploadId = 0;
     totalLocalNodes = 0;
     mKeepSyncsAfterLogout = false;
 #endif
@@ -13129,6 +13130,19 @@ handle MegaClient::nextsyncid()
     }
 
     return currsyncid;
+}
+
+// these method provides a temporal handle useful to indicate putnodes()-local parent linkage
+handle MegaClient::nextUploadId()
+{
+    byte* ptr = (byte*)&mCurrUploadId;
+
+    while (!++*ptr && ptr < (byte*)&mCurrUploadId + NODEHANDLE)
+    {
+        ptr++;
+    }
+
+    return mCurrUploadId;
 }
 
 // recursively stop all transfers

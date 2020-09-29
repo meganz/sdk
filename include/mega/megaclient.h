@@ -1436,6 +1436,10 @@ public:
     handle nextsyncid();
     handle currsyncid;
 
+    // app temp nodeHandle dispatch
+    handle mCurrUploadId;
+    handle nextUploadId();
+
     // SyncDebris folder addition result
     void putnodes_syncdebris_result(error, vector<NewNode>&);
 
