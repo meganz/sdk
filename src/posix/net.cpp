@@ -306,10 +306,8 @@ CurlHttpIO::CurlHttpIO()
     options.tries = 2;
     ares_init_options(&ares, &options, ARES_OPT_TRIES);
     arestimeout = -1;
-    
-#ifndef TARGET_OS_IPHONE
+
     filterDNSservers();
-#endif
 
     curl_multi_setopt(curlm[API], CURLMOPT_SOCKETFUNCTION, api_socket_callback);
     curl_multi_setopt(curlm[API], CURLMOPT_SOCKETDATA, this);
@@ -387,6 +385,11 @@ bool CurlHttpIO::ipv6available()
 
 void CurlHttpIO::filterDNSservers()
 {
+    // in iOS, DNS resolution is done by cUrl directly (c-ares is not involved at all)
+#ifdef TARGET_OS_IPHONE
+    return;
+#endif
+
     string newservers;
     string serverlist;
     set<string> serverset;
@@ -868,9 +871,7 @@ void CurlHttpIO::disconnect()
     }
     else
     {
-#ifndef TARGET_OS_IPHONE
         filterDNSservers();
-#endif
     }
 
     if (proxyurl.size() && !proxyip.size())
