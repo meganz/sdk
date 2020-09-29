@@ -91,10 +91,10 @@ namespace mega {
 #define APISSLEXPONENTSIZE "\x03"
 #define APISSLEXPONENT "\x01\x00\x01"
 
-#define MEGA_DNS_SERVERS "2001:2:0:1baa::592c:a98d,89.44.169.136," \
-                         "2001:2:0:1baa::42cb:7f0e,89.44.169.141," \
-                         "2001:2:0:1baa::42cb:7f10,66.203.127.16," \
-                         "2001:2:0:1baa::592c:a988,66.203.127.14"
+#define MEGA_DNS_SERVERS "2001:678:25c:2215::554,89.44.169.136," \
+                         "2001:678:25c:2215::559,89.44.169.141," \
+                         "2a0b:e40:3::14,66.203.127.16," \
+                         "2a0b:e40:3::16,66.203.127.14"
 
 class MEGA_API SpeedController
 {
