@@ -2851,7 +2851,7 @@ class MegaRequest
             TYPE_GET_REGISTERED_CONTACTS, TYPE_GET_COUNTRY_CALLING_CODES,
             TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS, TYPE_RESEND_VERIFICATION_EMAIL,
             TYPE_SUPPORT_TICKET, TYPE_SET_RETENTION_TIME, TYPE_RESET_SMS_VERIFIED_NUMBER,
-            TYPE_SEND_DEV_COMMAND,
+            TYPE_SEND_DEV_COMMAND, TYPE_CREATE_FOLDER_TREE,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -9626,6 +9626,11 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief TODO add documentation
+         */
+        void createFolderTree(MegaStringMapList *folderStructure, const char *rootName, MegaNode *parent, MegaRequestListener *listener);
 
         /**
          * @brief Create a new empty folder in your local file system

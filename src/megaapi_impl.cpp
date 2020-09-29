@@ -3898,6 +3898,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_SET_RETENTION_TIME: return "SET_RETENTION_TIME";
         case TYPE_RESET_SMS_VERIFIED_NUMBER: return "RESET_SMS_VERIFIED_NUMBER";
         case TYPE_SEND_DEV_COMMAND: return "SEND_DEV_COMMAND";
+        case TYPE_CREATE_FOLDER_TREE: return "CREATE_FOLDER_TREE";
     }
     return "UNKNOWN";
 }
@@ -6363,6 +6364,16 @@ void MegaApiImpl::createFolder(const char *name, MegaNode *parent, MegaRequestLi
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_FOLDER, listener);
     if(parent) request->setParentHandle(parent->getHandle());
     request->setName(name);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::createFolderTree(MegaStringMapList *folderStructure, MegaNode *parent, const char *rootName, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_FOLDER_TREE, listener);
+    if(parent) request->setParentHandle(parent->getHandle());
+    request->setName(rootName);
+    request->setMegaStringMapList(folderStructure);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -13655,7 +13666,8 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
                     (request->getType() != MegaRequest::TYPE_MOVE) &&
                     (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) &&
                     (request->getType() != MegaRequest::TYPE_RESTORE) &&
-                    (request->getType() != MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD))) return;
+                    (request->getType() != MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD) &&
+                    (request->getType() != MegaRequest::TYPE_CREATE_FOLDER_TREE))) return;
 
     if (request->getType() == MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD)
     {
@@ -18968,6 +18980,84 @@ void MegaApiImpl::sendPendingRequests()
             attrs.getjson(&attrstring);
             newnode->attrstring.reset(new string);
             client->makeattr(&key, newnode->attrstring, attrstring.c_str());
+
+            // add the newly generated folder node
+            client->putnodes(parent->nodehandle, move(newnodes));
+            break;
+        }
+        case MegaRequest::TYPE_CREATE_FOLDER_TREE:
+        {
+            const char *rootName = request->getName();
+            Node *parent = client->nodebyhandle(request->getParentHandle());
+            MegaStringMapList *folderStructure = request->getMegaStringMapList();
+            const MegaStringMap *folders = folderStructure->get(0);
+            const MegaStringMap *foldersHierarchy = folderStructure->get(1);
+
+            if (!parent || !rootName || !folderStructure || folderStructure->size()!= 2
+                    || !folders->size() || !foldersHierarchy->size())
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            // prevent to create a duplicate folder with same name in same path
+            Node *folder = client->childnodebyname(parent, rootName, false);
+            if (folder && folder->type == FOLDERNODE)
+            {
+                e = API_OK;
+                request->setNodeHandle(folder->nodehandle);
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                break;
+            }
+
+            unique_ptr<MegaStringList> folderHandles(folders->getKeys());
+            vector<NewNode> newnodes(static_cast<size_t>(folderHandles->size()));
+            for (int i = 0; i < folderHandles->size(); i++)
+            {
+                NewNode *newnode = &newnodes[i];
+                SymmCipher key;
+                string attrstring;
+                byte buf[FOLDERNODEKEYLENGTH];
+
+                // set up new node as folder node
+                newnode->source = NEW_NODE;
+                newnode->type = FOLDERNODE;
+                newnode->nodehandle = 0;
+                newnode->parenthandle = UNDEF;
+
+                // generate fresh random key for this folder node
+                client->rng.genblock(buf,FOLDERNODEKEYLENGTH);
+                newnode->nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
+                key.setkey(buf);
+
+                // generate fresh attribute object with the folder name
+                AttrMap attrs;
+                string sname = folders->get(folderHandles->get(i));
+                fsAccess->normalize(&sname);
+                attrs.map['n'] = sname;
+
+                // JSON-encode object and encrypt attribute string
+                attrs.getjson(&attrstring);
+                newnode->attrstring.reset(new string);
+                client->makeattr(&key, newnode->attrstring, attrstring.c_str());
+
+                // set temp nodeHandle
+                const char *nodeHandleB64 = folderHandles->get(i);
+                newnode->nodehandle = base64ToHandle(folderHandles->get(i));
+
+                // find it's parent node in foldersHierarchy string map
+                unique_ptr<MegaStringList> auxNodeHandles(foldersHierarchy->getKeys());
+                for (int j = 0; j < auxNodeHandles->size(); j++)
+                {
+                    MegaHandle auxNodeHandleBin = base64ToHandle(foldersHierarchy->get(auxNodeHandles->get(j)));
+                    if (!strcmp(nodeHandleB64, auxNodeHandles->get(j)) // both string maps nodeHandles match
+                            && auxNodeHandleBin != parent->nodehandle) // if parent is root node set as empty
+                    {
+                        // set parent handle to be able to generate the full tree, with the same structure as local
+                        newnode->parenthandle = base64ToHandle(foldersHierarchy->get(nodeHandleB64));
+                    }
+                }
+            }
 
             // add the newly generated folder node
             client->putnodes(parent->nodehandle, move(newnodes));

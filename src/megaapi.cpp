@@ -2227,6 +2227,11 @@ void MegaApi::createFolder(const char *name, MegaNode *parent, MegaRequestListen
     pImpl->createFolder(name, parent, listener);
 }
 
+void MegaApi::createFolderTree(MegaStringMapList *folderStructure, const char *rootName ,MegaNode *parent, MegaRequestListener *listener)
+{
+    pImpl->createFolderTree(folderStructure, parent, rootName, listener);
+}
+
 bool MegaApi::createLocalFolder(const char *localPath)
 {
     return pImpl->createLocalFolder(localPath);
