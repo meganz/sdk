@@ -22,12 +22,14 @@
 #ifndef MEGA_UTILS_H
 #define MEGA_UTILS_H 1
 
-#include <type_traits>
 #include <condition_variable>
-#include <thread>
+#include <cwchar>
 #include <mutex>
+#include <thread>
+#include <type_traits>
 
 #include "types.h"
+#include "mega/mega_utf8proc.h"
 #include "mega/logging.h"
 
 // Needed for Windows Phone (MSVS 2013 - C++ version 9.8)
@@ -404,6 +406,16 @@ public:
 
     static std::string stringToHex(const std::string& input);
     static std::string hexToString(const std::string& input);
+
+    static int32_t toLower(const int32_t c)
+    {
+        return utf8proc_tolower(c);
+    }
+
+    static int32_t toUpper(const int32_t c)
+    {
+        return utf8proc_toupper(c);
+    }
 };
 
 // for pre-c++11 where this version is not defined yet.
@@ -604,6 +616,165 @@ public:
     }
 
 };
+
+template<typename CharT>
+struct CodepointIteratorTraits;
+
+template<>
+struct CodepointIteratorTraits<char>
+{
+    static ptrdiff_t get(int32_t& codepoint, const char* m, const char* n)
+    {
+        assert(m && n && m < n);
+
+        return utf8proc_iterate(reinterpret_cast<const uint8_t*>(m),
+                                n - m,
+                                &codepoint);
+    }
+
+    static size_t length(const char* s)
+    {
+        assert(s);
+
+        return strlen(s);
+    }
+}; // CodepointIteratorTraits<char>
+
+template<>
+struct CodepointIteratorTraits<wchar_t>
+{
+    static ptrdiff_t get(int32_t& codepoint, const wchar_t* m, const wchar_t* n)
+    {
+        assert(m && n && m < n);
+
+        // Are we looking at a high surrogate?
+        if ((*m >> 10) == 0x36)
+        {
+            // Is it followed by a low surrogate?
+            if (n - m < 2 || (m[1] >> 10) != 0x37)
+            {
+                // Nope, the string is malformed.
+                return -1;
+            }
+
+            // Compute addend.
+            const int32_t lo = m[1] & 0x3ff;
+            const int32_t hi = *m & 0x3ff;
+            const int32_t addend = (hi << 10) | lo;
+
+            // Store effective code point.
+            codepoint = 0x10000 + addend;
+
+            return 2;
+        }
+
+        // Are we looking at a low surrogate?
+        if ((*m >> 10) == 0x37)
+        {
+            // Then the string is malformed.
+            return -1;
+        }
+
+        // Code point is encoded by a single code unit.
+        codepoint = *m;
+
+        return 1;
+    }
+
+    static size_t length(const wchar_t* s)
+    {
+        assert(s);
+
+        return wcslen(s);
+    }
+}; // CodepointIteratorTraits<wchar_t>
+
+template<typename CharT>
+class CodepointIterator
+{
+public:
+    using traits_type = CodepointIteratorTraits<CharT>;
+
+    CodepointIterator(const CharT* s, size_t length)
+      : mCurrent(s)
+      , mEnd(s + length)
+    {
+    }
+
+    explicit CodepointIterator(const std::basic_string<CharT>& s)
+      : CodepointIterator(s.data(), s.size())
+    {
+    }
+
+    explicit CodepointIterator(const CharT* s)
+      : CodepointIterator(s, traits_type::length(s))
+    {
+    }
+
+    CodepointIterator(const CodepointIterator& other)
+      : mCurrent(other.mCurrent)
+      , mEnd(other.mEnd)
+    {
+    }
+
+    CodepointIterator()
+      : mCurrent(nullptr)
+      , mEnd(nullptr)
+    {
+    }
+
+    CodepointIterator& operator=(const CodepointIterator& rhs)
+    {
+        if (this != &rhs)
+        {
+            mCurrent = rhs.mCurrent;
+            mEnd = rhs.mEnd;
+        }
+
+        return *this;
+    }
+
+    bool end() const
+    {
+        return mCurrent == mEnd;
+    }
+
+    int32_t get()
+    {
+        int32_t result = 0;
+
+        if (mCurrent < mEnd)
+        {
+            ptrdiff_t nConsumed = traits_type::get(result, mCurrent, mEnd);
+            assert(nConsumed > 0);
+            mCurrent += nConsumed;
+        }
+
+        return result;
+    }
+
+private:
+    const CharT* mCurrent;
+    const CharT* mEnd;
+}; // CodepointIterator<CharT>
+
+template<typename CharT>
+CodepointIterator<CharT> codepointIterator(const std::basic_string<CharT>& s)
+{
+    return CodepointIterator<CharT>(s);
+}
+
+template<typename CharT>
+CodepointIterator<CharT> codepointIterator(const CharT* s, size_t length)
+{
+    return CodepointIterator<CharT>(s, length);
+}
+
+template<typename CharT>
+CodepointIterator<CharT> codepointIterator(const CharT* s)
+{
+    return CodepointIterator<CharT>(s);
+}
 
 } // namespace
 

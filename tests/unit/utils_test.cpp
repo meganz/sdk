@@ -206,3 +206,61 @@ TEST(Filesystem, UnescapesEscapeWhenNotEncodingControlCharacter)
     ASSERT_EQ(name, "0%00");
 }
 
+TEST(CharacterSet, IterateUtf8)
+{
+    using mega::codepointIterator;
+
+    // Single code-unit.
+    {
+        auto it = codepointIterator("abc");
+
+        EXPECT_FALSE(it.end());
+        EXPECT_EQ(it.get(), 'a');
+        EXPECT_EQ(it.get(), 'b');
+        EXPECT_EQ(it.get(), 'c');
+        EXPECT_TRUE(it.end());
+        EXPECT_EQ(it.get(), '\0');
+    }
+
+    // Multiple code-unit.
+    {
+        auto it = codepointIterator("q\xf0\x90\x80\x80r");
+
+        EXPECT_FALSE(it.end());
+        EXPECT_EQ(it.get(), 'q');
+        EXPECT_EQ(it.get(), 0x10000);
+        EXPECT_EQ(it.get(), 'r');
+        EXPECT_TRUE(it.end());
+        EXPECT_EQ(it.get(), '\0');
+    }
+}
+
+TEST(CharacterSet, IterateUtf16)
+{
+    using mega::codepointIterator;
+
+    // Single code-unit.
+    {
+        auto it = codepointIterator(L"abc");
+
+        EXPECT_FALSE(it.end());
+        EXPECT_EQ(it.get(), L'a');
+        EXPECT_EQ(it.get(), L'b');
+        EXPECT_EQ(it.get(), L'c');
+        EXPECT_TRUE(it.end());
+        EXPECT_EQ(it.get(), L'\0');
+    }
+
+    // Multiple code-unit.
+    {
+        auto it = codepointIterator(L"q\xd800\xdc00r");
+
+        EXPECT_FALSE(it.end());
+        EXPECT_EQ(it.get(), L'q');
+        EXPECT_EQ(it.get(), 0x10000);
+        EXPECT_EQ(it.get(), L'r');
+        EXPECT_TRUE(it.end());
+        EXPECT_EQ(it.get(), L'\0');
+    }
+}
+
