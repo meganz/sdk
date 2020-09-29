@@ -7102,57 +7102,60 @@ void MegaClient::notifypurge(void)
         }
 
 #ifdef ENABLE_SYNC
-        //update sync root node location and trigger failing cases
-        handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
-        // check for renamed/moved sync root folders
-        for (const auto& config : syncConfigs->all())
+        if (syncConfigs)  // otherwise, syncConfigs = nullptr
         {
-            Node *n = nodebyhandle(config.getRemoteNode());
-            if (n && (n->changed.attrs || n->changed.parent || n->changed.removed))
+            //update sync root node location and trigger failing cases
+            handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
+            // check for renamed/moved sync root folders
+            for (const auto& config : syncConfigs->all())
             {
-                bool removed = n->changed.removed;
-
-                // update path in sync configuration
-                bool pathChanged = updateSyncRemoteLocation(&config, removed ? nullptr : n);
-
-                // fail active syncs
-                for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+                Node *n = nodebyhandle(config.getRemoteNode());
+                if (n && (n->changed.attrs || n->changed.parent || n->changed.removed))
                 {
-                    if ((*it)->tag == config.getTag())
-                    {
-                        assert(n == (*it)->localroot->node);
-                        if(n->changed.parent) //moved
-                        {
-                            assert(pathChanged);
-                            // check if moved to rubbish
-                            auto p = n->parent;
-                            bool alreadyFailed = false;
-                            while (p)
-                            {
-                                if (p->nodehandle == rubbishHandle)
-                                {
-                                    failSync(*it, REMOTE_NODE_MOVED_TO_RUBBISH);
-                                    alreadyFailed = true;
-                                    break;
-                                }
-                                p = p->parent;
-                            }
+                    bool removed = n->changed.removed;
 
-                            if (!alreadyFailed)
+                    // update path in sync configuration
+                    bool pathChanged = updateSyncRemoteLocation(&config, removed ? nullptr : n);
+
+                    // fail active syncs
+                    for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
+                    {
+                        if ((*it)->tag == config.getTag())
+                        {
+                            assert(n == (*it)->localroot->node);
+                            if(n->changed.parent) //moved
+                            {
+                                assert(pathChanged);
+                                // check if moved to rubbish
+                                auto p = n->parent;
+                                bool alreadyFailed = false;
+                                while (p)
+                                {
+                                    if (p->nodehandle == rubbishHandle)
+                                    {
+                                        failSync(*it, REMOTE_NODE_MOVED_TO_RUBBISH);
+                                        alreadyFailed = true;
+                                        break;
+                                    }
+                                    p = p->parent;
+                                }
+
+                                if (!alreadyFailed)
+                                {
+                                    failSync(*it, REMOTE_PATH_HAS_CHANGED);
+                                }
+                            }
+                            else if (removed)
+                            {
+                                failSync(*it, REMOTE_PATH_DELETED);
+                            }
+                            else if (pathChanged)
                             {
                                 failSync(*it, REMOTE_PATH_HAS_CHANGED);
                             }
-                        }
-                        else if (removed)
-                        {
-                            failSync(*it, REMOTE_PATH_DELETED);
-                        }
-                        else if (pathChanged)
-                        {
-                            failSync(*it, REMOTE_PATH_HAS_CHANGED);
-                        }
 
-                        break;
+                            break;
+                        }
                     }
                 }
             }
@@ -7592,6 +7595,12 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
         return e;
     }
 
+    if (p->firstancestor()->type == RUBBISHNODE)
+    {
+        // similar to the webclient, send `s2` along with `m` if the node is moving to the rubbish
+        removeOutSharesFromSubtree(n);
+    }
+
     Node *prevParent = NULL;
     if (!ISUNDEF(prevparent))
     {
@@ -7662,6 +7671,40 @@ error MegaClient::rename(Node* n, Node* p, syncdel_t syncdel, handle prevparent,
     }
 
     return API_OK;
+}
+
+void MegaClient::removeOutSharesFromSubtree(Node* n)
+{
+    if (n->pendingshares)
+    {
+        for (auto& it : *n->pendingshares)
+        {
+            if (it.second->pcr)
+            {
+                setshare(n, it.second->pcr->targetemail.c_str(), ACCESS_UNKNOWN, nullptr);
+            }
+        }
+    }
+
+    if (n->outshares)
+    {
+        for (auto& it : *n->outshares)
+        {
+            if (it.second->user)
+            {
+                setshare(n, it.second->user->email.c_str(), ACCESS_UNKNOWN, nullptr);
+            }
+            else // folder links are a shared folder without user
+            {
+                setshare(n, nullptr, ACCESS_UNKNOWN, nullptr);
+            }
+        }
+    }
+
+    for (auto& c : n->children)
+    {
+        removeOutSharesFromSubtree(c);
+    }
 }
 
 // delete node tree
@@ -15172,6 +15215,7 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
     std::string localName =
       localNode->localname.toName(*fsaccess,
                                   localNode->sync->mFilesystemType);
+  
     // Only compare metamac if the node doesn't already exist.
     node_vector::const_iterator remoteNode =
       std::find_if(remoteNodes->begin(),

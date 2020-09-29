@@ -1437,48 +1437,7 @@ bool CommandMoveNode::procresult(Result r)
         }
 #endif
         // Movement of shares and pending shares into Rubbish should remove them
-        if (r.wasError(API_OK))
-        {
-            Node *n = client->nodebyhandle(h);
-            if (n && (n->pendingshares || n->outshares))
-            {
-                Node *rootnode = client->nodebyhandle(np);
-                while (rootnode)
-                {
-                    if (!rootnode->parent)
-                    {
-                        break;
-                    }
-                    rootnode = rootnode->parent;
-                }
-                if (rootnode && rootnode->type == RUBBISHNODE)
-                {
-                    share_map::iterator it;
-                    if (n->pendingshares)
-                    {
-                        for (it = n->pendingshares->begin(); it != n->pendingshares->end(); it++)
-                        {
-                            client->newshares.push_back(new NewShare(
-                                                            n->nodehandle, 1, n->owner, ACCESS_UNKNOWN,
-                                                            0, NULL, NULL, it->first, false));
-                        }
-                    }
-
-                    if (n->outshares)
-                    {
-                        for (it = n->outshares->begin(); it != n->outshares->end(); it++)
-                        {
-                            client->newshares.push_back(new NewShare(
-                                                            n->nodehandle, 1, it->first, ACCESS_UNKNOWN,
-                                                            0, NULL, NULL, UNDEF, false));
-                        }
-                    }
-
-                    client->mergenewshares(1);
-                }
-            }
-        }
-        else if (syncdel == SYNCDEL_NONE)
+        if (r.wasStrictlyError() && syncdel == SYNCDEL_NONE)
         {
             client->sendevent(99439, "Unexpected move error", 0);
         }
@@ -1632,6 +1591,7 @@ bool CommandPrelogin::procresult(Result r)
     if (r.wasErrorOrOK())
     {
         client->app->prelogin_result(0, NULL, NULL, r.errorOrOK());
+        return true;
     }
 
     assert(r.hasJsonObject());
@@ -7612,7 +7572,6 @@ bool CommandMultiFactorAuthDisable::procresult(Result r)
 CommandGetPSA::CommandGetPSA(MegaClient *client)
 {
     cmd("gpsa");
-    arg("w", 1);
 
     tag = client->reqtag;
 }
@@ -7621,14 +7580,14 @@ bool CommandGetPSA::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->getpsa_result(r.errorOrOK(), 0, NULL, NULL, NULL, NULL, NULL, NULL);
+        client->app->getpsa_result(r.errorOrOK(), 0, NULL, NULL, NULL, NULL, NULL);
         return true;
     }
 
     int id = 0;
     string temp;
     string title, text, imagename, imagepath;
-    string buttonlink, buttontext, url;
+    string buttonlink, buttontext;
 
     for (;;)
     {
@@ -7651,9 +7610,6 @@ bool CommandGetPSA::procresult(Result r)
             case 'l':
                 client->json.storeobject(&buttonlink);
                 break;
-            case MAKENAMEID3('u', 'r', 'l'):
-                client->json.storeobject(&url);
-                break;
             case 'b':
                 client->json.storeobject(&temp);
                 Base64::atob(temp, buttontext);
@@ -7664,13 +7620,13 @@ bool CommandGetPSA::procresult(Result r)
             case EOO:
                 imagepath.append(imagename);
                 imagepath.append(".png");
-                client->app->getpsa_result(API_OK, id, &title, &text, &imagepath, &buttontext, &buttonlink, &url);
+                client->app->getpsa_result(API_OK, id, &title, &text, &imagepath, &buttontext, &buttonlink);
                 return true;
             default:
                 if (!client->json.storeobject())
                 {
                     LOG_err << "Failed to parse get PSA response";
-                    client->app->getpsa_result(API_EINTERNAL, 0, NULL, NULL, NULL, NULL, NULL, NULL);
+                    client->app->getpsa_result(API_EINTERNAL, 0, NULL, NULL, NULL, NULL, NULL);
                     return false;
                 }
                 break;

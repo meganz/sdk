@@ -2090,9 +2090,8 @@ public class MegaApiJava {
      * - MegaRequest::getName - Returns the title of the PSA
      * - MegaRequest::getText - Returns the text of the PSA
      * - MegaRequest::getFile - Returns the URL of the image of the PSA
-     * - MegaRequest::getPassword - Returns the text for the positive button (or an empty string)
-     * - MegaRequest::getLink - Returns the link for the positive button (or an empty string)
-     * - MegaRequest::getEmail - Returns the url that app need to open with in-app browser
+     * - MegaRequest::getPassword - Returns the text for the possitive button (or an empty string)
+     * - MegaRequest::getLink - Returns the link for the possitive button (or an empty string)
      *
      * If there isn't any new PSA to show, onRequestFinish will be called with the error
      * code MegaError::API_ENOENT
@@ -2100,7 +2099,7 @@ public class MegaApiJava {
      * @param listener MegaRequestListener to track this request
      * @see MegaApi::setPSA
      */
-    public void getPSA(MegaRequestListenerInterface listener){
+    void getPSA(MegaRequestListenerInterface listener){
         megaApi.getPSA(createDelegateRequestListener(listener));
     }
 
@@ -2127,7 +2126,7 @@ public class MegaApiJava {
      *
      * @see MegaApi::setPSA
      */
-    public void getPSA(){
+    void getPSA(){
         megaApi.getPSA();
     }
 
@@ -2145,7 +2144,7 @@ public class MegaApiJava {
      *
      * @see MegaApi::getPSA
      */
-    public void setPSA(int id, MegaRequestListenerInterface listener){
+    void setPSA(int id, MegaRequestListenerInterface listener){
         megaApi.setPSA(id, createDelegateRequestListener(listener));
     }
 
@@ -2162,7 +2161,7 @@ public class MegaApiJava {
      *
      * @see MegaApi::getPSA
      */
-    public void setPSA(int id){
+    void setPSA(int id){
         megaApi.setPSA(id);
     }
 
