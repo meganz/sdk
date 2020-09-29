@@ -1768,7 +1768,12 @@ void MegaApi::setPSA(int id, MegaRequestListener *listener)
 
 void MegaApi::getPSA(MegaRequestListener *listener)
 {
-    pImpl->getPSA(listener);
+    pImpl->getPSA(false, listener);
+}
+
+void MegaApi::getPSAWithUrl(MegaRequestListener *listener)
+{
+    pImpl->getPSA(true, listener);
 }
 
 void MegaApi::acknowledgeUserAlerts(MegaRequestListener *listener)

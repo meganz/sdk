@@ -7665,10 +7665,14 @@ bool CommandMultiFactorAuthDisable::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-CommandGetPSA::CommandGetPSA(MegaClient *client)
+CommandGetPSA::CommandGetPSA(bool urlSupport, MegaClient *client)
 {
     cmd("gpsa");
-    arg("w", 1);
+
+    if (urlSupport)
+    {
+        arg("w", 1);
+    }
 
     tag = client->reqtag;
 }

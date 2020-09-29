@@ -2545,7 +2545,7 @@ class MegaApiImpl : public MegaApp
         void keepMeAlive(int type, bool enable, MegaRequestListener *listener = NULL);
         void acknowledgeUserAlerts(MegaRequestListener *listener = NULL);
 
-        void getPSA(MegaRequestListener *listener = NULL);
+        void getPSA(bool urlSupported, MegaRequestListener *listener = NULL);
         void setPSA(int id, MegaRequestListener *listener = NULL);
 
         void disableGfxFeatures(bool disable);

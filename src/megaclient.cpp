@@ -955,9 +955,9 @@ void MegaClient::keepmealive(int type, bool enable)
     reqs.add(new CommandKeepMeAlive(this, type, enable));
 }
 
-void MegaClient::getpsa()
+void MegaClient::getpsa(bool urlSupport)
 {
-    reqs.add(new CommandGetPSA(this));
+    reqs.add(new CommandGetPSA(urlSupport, this));
 }
 
 void MegaClient::acknowledgeuseralerts()
