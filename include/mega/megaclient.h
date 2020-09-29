@@ -1504,6 +1504,9 @@ public:
     // upload handle -> node handle map (filled by upload completion)
     handlepair_set uhnh;
 
+    // maps temp nodeHandle to nodeHandle (filled by upload completion)
+    std::map<handle, handle> mTempHandleToNodeHandle;
+
     // transfer chunk failed
     void setchunkfailed(string*);
     string badhosts;
