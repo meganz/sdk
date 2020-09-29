@@ -11321,9 +11321,10 @@ void MegaApiImpl::keepMeAlive(int type, bool enable, MegaRequestListener *listen
     waiter->notify();
 }
 
-void MegaApiImpl::getPSA(MegaRequestListener *listener)
+void MegaApiImpl::getPSA(bool urlSupported, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PSA, listener);
+    request->setFlag(urlSupported);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -15631,7 +15632,7 @@ void MegaApiImpl::keepmealive_result(error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::getpsa_result(error e, int id, string *title, string *text, string *image, string *buttontext, string *buttonlink)
+void MegaApiImpl::getpsa_result(error e, int id, string *title, string *text, string *image, string *buttontext, string *buttonlink, std::string *url)
 {
     if (requestMap.find(client->restag) == requestMap.end())
     {
@@ -15647,11 +15648,19 @@ void MegaApiImpl::getpsa_result(error e, int id, string *title, string *text, st
     if (!e)
     {
         request->setNumber(id);
-        request->setName(title->c_str());
-        request->setText(text->c_str());
-        request->setFile(image->c_str());
-        request->setPassword(buttontext->c_str());
-        request->setLink(buttonlink->c_str());
+
+        if (request->getFlag()) // supports URL retrieval
+        {
+            request->setLink(url->c_str());
+        }
+        else
+        {
+            request->setName(title->c_str());
+            request->setText(text->c_str());
+            request->setFile(image->c_str());
+            request->setPassword(buttontext->c_str());
+            request->setLink(buttonlink->c_str());
+        }
     }
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -22728,7 +22737,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_GET_PSA:
         {
-            client->getpsa();
+            client->getpsa(request->getFlag());
             break;
         }
         case MegaRequest::TYPE_FOLDER_INFO:

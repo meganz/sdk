@@ -1734,7 +1734,7 @@ public:
 
     void keepmealive(int, bool enable = true);
 
-    void getpsa();
+    void getpsa(bool urlSupport);
 
     // tells the API the user has seen existing alerts
     void acknowledgeuseralerts();

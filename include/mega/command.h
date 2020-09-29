@@ -1233,7 +1233,7 @@ class MEGA_API CommandGetPSA : public Command
 public:
     bool procresult(Result) override;
 
-    CommandGetPSA(MegaClient*);
+    CommandGetPSA(bool urlSupport, MegaClient*);
 };
 
 class MEGA_API CommandFetchTimeZone : public Command

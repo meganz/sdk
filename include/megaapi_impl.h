@@ -2545,7 +2545,7 @@ class MegaApiImpl : public MegaApp
         void keepMeAlive(int type, bool enable, MegaRequestListener *listener = NULL);
         void acknowledgeUserAlerts(MegaRequestListener *listener = NULL);
 
-        void getPSA(MegaRequestListener *listener = NULL);
+        void getPSA(bool urlSupported, MegaRequestListener *listener = NULL);
         void setPSA(int id, MegaRequestListener *listener = NULL);
 
         void disableGfxFeatures(bool disable);
@@ -2956,7 +2956,7 @@ protected:
         void getcountrycallingcodes_result(error, map<string, vector<string>>*) override;
 
         // get the current PSA
-        void getpsa_result (error, int, string*, string*, string*, string*, string*) override;
+        void getpsa_result (error, int, string*, string*, string*, string*, string*, string*) override;
 
         // account creation
         void sendsignuplink_result(error) override;
