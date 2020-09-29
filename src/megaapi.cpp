@@ -1003,6 +1003,11 @@ MegaStringMap *MegaRequest::getMegaStringMap() const
     return NULL;
 }
 
+MegaStringMapList *MegaRequest::getMegaStringMapList() const
+{
+    return NULL;
+}
+
 MegaStringListMap* MegaRequest::getMegaStringListMap() const
 {
     return nullptr;
@@ -6360,6 +6365,41 @@ void MegaStringMap::set(const char *, const char *)
 }
 
 int MegaStringMap::size() const
+{
+    return 0;
+}
+
+MegaStringMapList *MegaStringMapList::createInstance()
+{
+    return new MegaStringMapListPrivate();
+}
+
+MegaStringMapList::MegaStringMapList()
+{
+
+}
+
+MegaStringMapList::~MegaStringMapList()
+{
+
+}
+
+MegaStringMapList *MegaStringMapList::copy() const
+{
+    return NULL;
+}
+
+const MegaStringMap *MegaStringMapList::get(int) const
+{
+    return NULL;
+}
+
+void MegaStringMapList::append(const MegaStringMap *)
+{
+
+}
+
+int MegaStringMapList::size() const
 {
     return 0;
 }

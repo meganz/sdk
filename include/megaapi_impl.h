@@ -1204,7 +1204,9 @@ class MegaRequestPrivate : public MegaRequest
         void setMegaTextChatList(MegaTextChatList *chatList);
 #endif
         MegaStringMap *getMegaStringMap() const override;
+        MegaStringMapList *getMegaStringMapList() const override;
         void setMegaStringMap(const MegaStringMap *);
+        void setMegaStringMapList(const MegaStringMapList *stringMapList);
         MegaStringListMap *getMegaStringListMap() const override;
         void setMegaStringListMap(const MegaStringListMap *stringListMap);
         MegaStringTable *getMegaStringTable() const override;
@@ -1273,6 +1275,7 @@ protected:
         MegaFolderInfo *folderInfo;
         MegaPushNotificationSettings *settings;
         MegaBackgroundMediaUpload* backgroundMediaUpload;  // non-owned pointer
+        MegaStringMapList *mStringMapList;
 };
 
 class MegaEventPrivate : public MegaEvent
@@ -1651,6 +1654,19 @@ protected:
     map<std::unique_ptr<const char[]>, std::unique_ptr<const MegaStringList>, Compare> mMap;
 };
 
+class MegaStringMapListPrivate : public MegaStringMapList
+{
+public:
+    MegaStringMapListPrivate() = default;
+    MEGA_DISABLE_COPY_MOVE(MegaStringMapListPrivate)
+    MegaStringMapList* copy() const override;
+    void append(const MegaStringMap* value) override; // takes ownership of value
+    const MegaStringMap* get(int i) const override;
+    int size() const override;
+protected:
+    vector<std::unique_ptr<const MegaStringMap>> mList;
+};
+
 class MegaStringTablePrivate : public MegaStringTable
 {
 public:
@@ -1661,7 +1677,7 @@ public:
     const MegaStringList* get(int i) const override;
     int size() const override;
 protected:
-    vector<std::unique_ptr<const MegaStringList>> mTable;
+    vector<std::unique_ptr<const MegaStringList>> mList;
 };
 
 class MegaNodeListPrivate : public MegaNodeList

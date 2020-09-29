@@ -2336,6 +2336,53 @@ public:
 };
 
 /**
+* @brief A list of string maps.
+*
+* Each element in MegaStringMapList is a MegaStringMap
+*
+* A MegaStringMapList takes owership of the MegaStringMap objects passed to it.
+*/
+class MegaStringMapList
+{
+protected:
+    MegaStringMapList();
+
+public:
+    virtual ~MegaStringMapList();
+
+    static MegaStringMapList *createInstance();
+
+    virtual MegaStringMapList* copy() const;
+
+    /**
+     * @brief Appends a MegaStringMap to the end of the list
+     *
+     * The list takes ownership of the passed value.
+     *
+     * @param value The string map to append
+     */
+    virtual void append(const MegaStringMap* value);
+
+    /**
+     * @brief Returns the string map at position i
+     *
+     * The list retains the ownership of the returned string map. It will be only valid until
+     * the list is deleted.
+     *
+     * The returned pointer is null if i is out of range.
+     *
+     * @return The string map at position i
+     */
+    virtual const MegaStringMap* get(int) const;
+
+    /**
+     * @brief Returns the number of string maps in the table
+     * @return Number of string maps in the table
+     */
+    virtual int size() const;
+};
+
+/**
  * @brief List of MegaNode objects
  *
  * A MegaNodeList has the ownership of the MegaNode objects that it contains, so they will be
@@ -3429,6 +3476,18 @@ class MegaRequest
          * @return String map including the key-value pairs of the attribute
          */
         virtual MegaStringMap* getMegaStringMap() const;
+
+        /**
+         * @brief Returns the list of string maps
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid in onRequestFinish, when the error code is MegaError::API_OK
+         *
+         * @return a list of string maps
+         */
+        virtual MegaStringMapList *getMegaStringMapList() const;
 
         /**
          * @brief Returns the string list map

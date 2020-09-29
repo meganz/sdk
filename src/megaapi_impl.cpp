@@ -3146,6 +3146,7 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     folderInfo = NULL;
     settings = NULL;
     backgroundMediaUpload = NULL;
+    mStringMapList = NULL;
 }
 
 MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
@@ -3221,6 +3222,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->folderInfo = request->getMegaFolderInfo() ? request->folderInfo->copy() : NULL;
     this->settings = request->getMegaPushNotificationSettings() ? request->settings->copy() : NULL;
     this->backgroundMediaUpload = NULL;
+    this->mStringMapList = request->getMegaStringMapList() ? request->mStringMapList->copy() : NULL;
 }
 
 AccountDetails *MegaRequestPrivate::getAccountDetails() const
@@ -3280,6 +3282,11 @@ MegaStringMap *MegaRequestPrivate::getMegaStringMap() const
     return stringMap;
 }
 
+MegaStringMapList *MegaRequestPrivate::getMegaStringMapList() const
+{
+    return mStringMapList;
+}
+
 void MegaRequestPrivate::setMegaStringMap(const MegaStringMap *stringMap)
 {
     if (this->stringMap)
@@ -3288,6 +3295,16 @@ void MegaRequestPrivate::setMegaStringMap(const MegaStringMap *stringMap)
     }
 
     this->stringMap = stringMap ? stringMap->copy() : NULL;
+}
+
+void MegaRequestPrivate::setMegaStringMapList(const MegaStringMapList *stringMapList)
+{
+    if (mStringMapList)
+    {
+        delete mStringMapList;
+    }
+
+    mStringMapList = stringMapList ? stringMapList->copy() : NULL;
 }
 
 MegaStringListMap *MegaRequestPrivate::getMegaStringListMap() const
@@ -3434,6 +3451,7 @@ MegaRequestPrivate::~MegaRequestPrivate()
     delete folderInfo;
     delete timeZoneDetails;
     delete settings;
+    delete mStringMapList;
 
 #ifdef ENABLE_SYNC
     delete regExp;
@@ -4131,11 +4149,39 @@ bool MegaStringListMapPrivate::Compare::operator()(const std::unique_ptr<const c
     return strcmp(rhs.get(), lhs.get()) < 0;
 }
 
+MegaStringMapList* MegaStringMapListPrivate::copy() const
+{
+    auto list = new MegaStringMapListPrivate;
+    for (const auto& value : mList)
+    {
+        list->append(value->copy());
+    }
+    return list;
+}
+
+void MegaStringMapListPrivate::append(const MegaStringMap* value)
+{
+    mList.emplace_back(value);
+}
+
+const MegaStringMap* MegaStringMapListPrivate::get(int i) const
+{
+    if (i >= 0 && i < size())
+    {
+        return mList[i].get();
+    }
+    return nullptr;
+}
+
+int MegaStringMapListPrivate::size() const
+{
+    return static_cast<int>(mList.size());
+}
 
 MegaStringTable* MegaStringTablePrivate::copy() const
 {
     auto table = new MegaStringTablePrivate;
-    for (const auto& value : mTable)
+    for (const auto& value : mList)
     {
         table->append(value->copy());
     }
@@ -4144,21 +4190,21 @@ MegaStringTable* MegaStringTablePrivate::copy() const
 
 void MegaStringTablePrivate::append(const MegaStringList* value)
 {
-    mTable.emplace_back(value);
+    mList.emplace_back(value);
 }
 
 const MegaStringList* MegaStringTablePrivate::get(int i) const
 {
     if (i >= 0 && i < size())
     {
-        return mTable[i].get();
+        return mList[i].get();
     }
     return nullptr;
 }
 
 int MegaStringTablePrivate::size() const
 {
-    return static_cast<int>(mTable.size());
+    return static_cast<int>(mList.size());
 }
 
 
