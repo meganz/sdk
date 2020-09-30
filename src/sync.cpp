@@ -1967,51 +1967,74 @@ auto Sync::computeSyncTriplets(const LocalNode& root, vector<FSNode>& fsNodes) c
     class Comparator
     {
     public:
-        Comparator(const FileSystemType filesystemType)
-          : mNameCmp(filesystemType)
+        explicit Comparator(const Sync& sync)
+          : mFsAccess(*sync.client->fsaccess)
+          , mFsType(sync.mFilesystemType)
         {
         }
 
-        int compare(const string& lhs, const string& rhs) const
+        int compare(const FSNode& lhs, const LocalNode& rhs) const
         {
-            return mNameCmp.compare(lhs, rhs);
+            // Cloud name, case sensitive.
+            return lhs.localname.compare(rhs.name);
+        }
+
+        int compare(const Node& lhs, const syncRow& rhs) const
+        {
+            // Local name, filesystem-dependent sensitivity.
+            auto a = LocalPath::fromName(lhs.displayname(), mFsAccess, mFsType);
+
+            return a.fsCompare(name(rhs), mFsType);
         }
 
         bool operator()(const FSNode& lhs, const FSNode& rhs) const
         {
-            return mNameCmp(lhs.name, rhs.name);
+            // Cloud name, case sensitive.
+            return lhs.localname.compare(rhs.localname) < 0;
         }
 
         bool operator()(const LocalNode* lhs, const LocalNode* rhs) const
         {
-            return mNameCmp(lhs->name, rhs->name);
+            assert(lhs && rhs);
+
+            // Cloud name, case sensitive.
+            return lhs->name < rhs->name;
         }
 
         bool operator()(const Node* lhs, const Node* rhs) const
         {
-            return mNameCmp(lhs->canonicalname(), rhs->canonicalname());
+            assert(lhs && rhs);
+
+            // Local name, filesystem-dependent sensitivity.
+            auto a = LocalPath::fromName(lhs->displayname(), mFsAccess, mFsType);
+
+            return a.fsCompare(rhs->displayname(), mFsType);
         }
 
         bool operator()(const syncRow& lhs, const syncRow& rhs) const
         {
-            return mNameCmp(name(lhs), name(rhs));
+            // Local name, filesystem-dependent sensitivity.
+            return name(lhs).fsCompare(name(rhs), mFsType);
         }
 
     private:
-        const string& name(const syncRow& row) const
+        const LocalPath& name(const syncRow& row) const
         {
+            assert(row.fsNode || row.syncNode);
+
             if (row.syncNode)
             {
-                return row.syncNode->name;
+                return row.syncNode->localname;
             }
 
-            return row.fsNode->name;
+            return row.fsNode->localname;
         }
 
-        NameCmp mNameCmp;
+        FileSystemAccess& mFsAccess;
+        FileSystemType mFsType;
     }; // Comparator
 
-    Comparator comparator(mFilesystemType);
+    Comparator comparator(*this);
     vector<LocalNode*> localNodes;
     vector<Node*> remoteNodes;
     vector<syncRow> triplets;
@@ -2034,7 +2057,6 @@ auto Sync::computeSyncTriplets(const LocalNode& root, vector<FSNode>& fsNodes) c
 
     std::sort(fsNodes.begin(), fsNodes.end(), comparator);
     std::sort(localNodes.begin(), localNodes.end(), comparator);
-    std::sort(remoteNodes.begin(), remoteNodes.end(), comparator);
 
     // Pair filesystem nodes with local nodes.
     {
@@ -2063,7 +2085,7 @@ auto Sync::computeSyncTriplets(const LocalNode& root, vector<FSNode>& fsNodes) c
             if (fsNode && localNode)
             {
                 const auto relationship =
-                  comparator.compare(fsNode->name, localNode->name);
+                  comparator.compare(*fsNode, *localNode);
 
                 // Non-null entries are considered equivalent.
                 if (relationship < 0)
@@ -2091,6 +2113,9 @@ auto Sync::computeSyncTriplets(const LocalNode& root, vector<FSNode>& fsNodes) c
             lCurr = localNode ? lNext : lCurr;
         }
     }
+
+    std::sort(remoteNodes.begin(), remoteNodes.end(), comparator);
+    std::sort(triplets.begin(), triplets.end(), comparator);
 
     // Link cloud nodes with triplets.
     {
@@ -2122,11 +2147,10 @@ auto Sync::computeSyncTriplets(const LocalNode& root, vector<FSNode>& fsNodes) c
             // Bail as there's nothing to pair.
             if (!(remoteNode || triplet)) break;
 
-            if (remoteNode && triplet && triplet->syncNode)
+            if (remoteNode && triplet)
             {
                 const auto relationship =
-                  comparator.compare(remoteNode->canonicalname(),
-                                     triplet->syncNode->name);
+                  comparator.compare(*remoteNode, *triplet);
 
                 // Non-null entries are considered equivalent.
                 if (relationship < 0)
