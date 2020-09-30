@@ -441,6 +441,10 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
         ++client->performanceStats.transferTempErrors;
     }
 
+#ifdef ENABLE_SYNC
+    bool alreadyDisabled = false;
+#endif
+
     for (file_list::iterator it = files.begin(); it != files.end();)
     {
         // Remove files with foreign targets, if transfer failed with a (foreign) storage overquota
@@ -449,6 +453,13 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
                 && client->isForeignNode((*it)->h))
         {
             File *f = (*it++);
+
+#ifdef ENABLE_SYNC
+            if (f->syncxfer)
+            {
+                client->disableSyncContainingNode(f->h, FOREIGN_TARGET_OVERSTORAGE);
+            }
+#endif
             removeTransferFile(API_EOVERQUOTA, f, &committer);
             continue;
         }
@@ -526,7 +537,14 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
             {
                 client->syncdownrequired = true;
             }
+
+            if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
+            {
+                client->disableSyncs(BUSINESS_EXPIRED);
+                alreadyDisabled = true;
+            }
 #endif
+
             client->app->file_removed(*it, e);
         }
         client->app->transfer_removed(this);

@@ -68,7 +68,11 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeVideoAsc,
     MEGASortOrderTypeVideoDesc,
     MEGASortOrderTypeLinkCreationAsc,
-    MEGASortOrderTypeLinkCreationDesc
+    MEGASortOrderTypeLinkCreationDesc,
+    MEGASortOrderTypeLabelAsc,
+    MEGASortOrderTypeLabelDesc,
+    MEGASortOrderTypeFavouriteAsc,
+    MEGASortOrderTypeFavouriteDesc
 };
 
 typedef NS_ENUM (NSInteger, MEGAEventType) {
@@ -119,7 +123,10 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
     MEGANodeAttributeDuration       = 0,
-    MEGANodeAttributeCoordinates    = 1
+    MEGANodeAttributeCoordinates    = 1,
+    MEGANodeAttributeOriginalFingerprint = 2,
+    MEGANodeAttributeLabel = 3,
+    MEGANodeAttributeFav = 4
 };
 
 typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
@@ -3167,6 +3174,111 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 * @return The public link for the provided data
 */
 - (NSString *)buildPublicLinkForHandle:(NSString *)publicHandle key:(NSString *)key isFolder:(BOOL)isFolder;
+
+/**
+ * @brief Set node label as a node attribute.
+ * Valid values for label attribute are:
+ *  - MEGANodeLabelRed = 1
+ *  - MEGANodeLabelOrange = 2
+ *  - MEGANodeLabelYellow = 3
+ *  - MEGANodeLabelGreen = 4
+ *  - MEGANodeLabelBlue = 5
+ *  - MEGANodeLabelPurple = 6
+ *  - MEGANodeLabelGrey = 7
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns the label for the node
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeLabel
+ *
+ * @param node Node that will receive the information.
+ * @param label Label of the node
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setNodeLabel:(MEGANode *)node label:(MEGANodeLabel)label delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set node label as a node attribute.
+ * Valid values for label attribute are:
+ *  - MEGANodeLabelRed = 1
+ *  - MEGANodeLabelOrange = 2
+ *  - MEGANodeLabelYellow = 3
+ *  - MEGANodeLabelGreen = 4
+ *  - MEGANodeLabelBlue = 5
+ *  - MEGANodeLabelPurple = 6
+ *  - MEGANodeLabelGrey = 7
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns the label for the node
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeLabel
+ *
+ * @param node Node that will receive the information.
+ * @param label Label of the node
+ */
+- (void)setNodeLabel:(MEGANode *)node label:(MEGANodeLabel)label;
+
+/**
+ * @brief Remove node label
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeLabel
+ *
+ * @param node Node that will receive the information.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)resetNodeLabel:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Remove node label
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeLabel
+ *
+ * @param node Node that will receive the information.
+ */
+- (void)resetNodeLabel:(MEGANode *)node;
+
+/**
+ * @brief Set node favourite as a node attribute.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns 1 if node is set as favourite, otherwise return 0
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeFav
+ *
+ * @param node Node that will receive the information.
+ * @param favourite if YES set node as favourite, otherwise remove the attribute
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set node favourite as a node attribute.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns 1 if node is set as favourite, otherwise return 0
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeFav
+ *
+ * @param node Node that will receive the information.
+ * @param favourite if YES set node as favourite, otherwise remove the attribute
+ */
+- (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite;
 
 /**
  * @brief Set the GPS coordinates of image files as a node attribute.
@@ -6447,6 +6559,22 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * - MEGASortOrderTypeVideoDesc = 14
  * Sort with videos first, then by date descending
  *
+ * - MEGASortOrderTypeLinkCreationAsc = 15
+ *
+ * - MEGASortOrderTypeLinkCreationDesc = 16
+ *
+ * - MEGASortOrderTypeLabelAsc = 17
+ * Sort by color label, ascending
+ *
+ * - MEGASortOrderTypeLabelDesc = 18
+ * Sort by color label, descending
+ *
+ * - MEGASortOrderTypeFavouriteAsc = 19
+ * Sort nodes with favourite attr first
+ *
+ * - MEGASortOrderTypeFavouriteDesc = 20
+ * Sort nodes with favourite attr last
+ *
  * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
  * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
  * They will be eventually removed.
@@ -6571,6 +6699,22 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *
  * - MEGASortOrderTypeVideoDesc = 14
  * Sort with videos first, then by date descending
+ *
+ * - MEGASortOrderTypeLinkCreationAsc = 15
+ *
+ * - MEGASortOrderTypeLinkCreationDesc = 16
+ *
+ * - MEGASortOrderTypeLabelAsc = 17
+ * Sort by color label, ascending
+ *
+ * - MEGASortOrderTypeLabelDesc = 18
+ * Sort by color label, descending
+ *
+ * - MEGASortOrderTypeFavouriteAsc = 19
+ * Sort nodes with favourite attr first
+ *
+ * - MEGASortOrderTypeFavouriteDesc = 20
+ * Sort nodes with favourite attr last
  *
  * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
  * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
@@ -7061,6 +7205,22 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *
  * - MEGASortOrderTypeVideoDesc = 14
  * Sort with videos first, then by date descending
+ *
+ * - MEGASortOrderTypeLinkCreationAsc = 15
+ *
+ * - MEGASortOrderTypeLinkCreationDesc = 16
+ *
+ * - MEGASortOrderTypeLabelAsc = 17
+ * Sort by color label, ascending
+ *
+ * - MEGASortOrderTypeLabelDesc = 18
+ * Sort by color label, descending
+ *
+ * - MEGASortOrderTypeFavouriteAsc = 19
+ * Sort nodes with favourite attr first
+ *
+ * - MEGASortOrderTypeFavouriteDesc = 20
+ * Sort nodes with favourite attr last
  *
  * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
  * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.

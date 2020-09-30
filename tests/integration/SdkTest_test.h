@@ -105,10 +105,18 @@ struct RequestTracker : public ::mega::MegaRequestListener
     std::promise<int> promiseResult;
     MegaApi *mApi;
 
+    MegaRequest *request = nullptr;
+
     RequestTracker(MegaApi *api): mApi(api)
     {
 
     }
+
+    ~RequestTracker() override
+    {
+        delete request;
+    }
+
     void onRequestStart(MegaApi* api, MegaRequest *request) override
     {
         started = true;
@@ -116,6 +124,7 @@ struct RequestTracker : public ::mega::MegaRequestListener
     void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError* e) override
     {
         result = e->getErrorCode();
+        this->request = request->copy();
         finished = true;
         promiseResult.set_value(result);
     }
@@ -227,7 +236,7 @@ protected:
 public:
     //void login(unsigned int apiIndex, int timeout = maxTimeout);
     //void loginBySessionId(unsigned int apiIndex, const std::string& sessionId, int timeout = maxTimeout);
-    void fetchnodes(unsigned int apiIndex, int timeout = maxTimeout, bool resumeSyncs = false);
+    void fetchnodes(unsigned int apiIndex, int timeout = maxTimeout);
     void logout(unsigned int apiIndex, int timeout = maxTimeout);
     char* dumpSession();
     void locallogout(int timeout = maxTimeout);
@@ -267,6 +276,7 @@ public:
     template<typename ... Args> int synchronousCleanRubbishBin(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_CLEAN_RUBBISH_BIN, [this, apiIndex, args...]() { megaApi[apiIndex]->cleanRubbishBin(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetExtendedAccountDetails(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_ACCOUNT_DETAILS, [this, apiIndex, args...]() { megaApi[apiIndex]->getExtendedAccountDetails(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousKillSession(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_KILL_SESSION, [this, apiIndex, args...]() { megaApi[apiIndex]->killSession(args...); }); return mApi[apiIndex].lastError; }
+    template<typename ... Args> int synchronousGetBanners(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_BANNERS, [this, apiIndex, args...]() { megaApi[apiIndex]->getBanners(args...); }); return mApi[apiIndex].lastError; }
 
 
     // convenience functions - make a request and wait for the result via listener, return the result code.  To add new functions to call, just copy the line

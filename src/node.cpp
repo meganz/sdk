@@ -1183,7 +1183,7 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
         {
             // set new name
             localname = newlocalpath->subpathFrom(p);
-            name = localname.toName(*sync->client->fsaccess);
+            name = localname.toName(*sync->client->fsaccess, sync->mFilesystemType);
 
             if (node)
             {
@@ -1790,7 +1790,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->localname = LocalPath(std::move(localname));
     l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(std::move(shortname)));
     l->slocalname_in_db = 0 != expansionflags[0];
-    l->name = l->localname.toName(*sync->client->fsaccess);
+    l->name = l->localname.toName(*sync->client->fsaccess, sync->mFilesystemType);
 
     memcpy(l->crc.data(), crc, sizeof crc);
     l->mtime = mtime;
