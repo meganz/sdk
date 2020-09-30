@@ -5179,8 +5179,11 @@ TEST_F(SdkTest, SdkTestNodesOnDemand)
     const char *secondAccountEmail = getenv("MEGA_EMAIL_AUX");
     const char* secondAccountPwd = getenv("MEGA_PWD_AUX");
 
-    setenv("MEGA_EMAIL_AUX", mApi[0].email.c_str(), 1);
-    setenv("MEGA_PWD_AUX", mApi[0].pwd.c_str(), 1);
+    const char *primaryAccountEmail = getenv("MEGA_EMAIL");
+    const char* primaryAccountPwd = getenv("MEGA_PWD");
+
+    setenv("MEGA_EMAIL_AUX", primaryAccountEmail, 1);
+    setenv("MEGA_PWD_AUX", primaryAccountPwd, 1);
 
 
     getAccountsForTest(2);
