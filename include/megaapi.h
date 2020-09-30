@@ -3545,7 +3545,7 @@ public:
      * @brief Returns a number relative to this event
      *
      * For event EVENT_STORAGE_SUM_CHANGED, this number is the new storage sum.
-     * 
+     *
      * @return Number relative to this event
      */
     virtual int64_t getNumber() const;
@@ -4216,7 +4216,7 @@ public:
 
     /**
      * @brief Returns whether Do-Not-Disturb mode for chats is enabled or not
-     
+
      * @return True if enabled, false otherwise
      */
     virtual bool isGlobalChatsDndEnabled() const;
@@ -6760,7 +6760,7 @@ public:
      * @brief Retrieves the value of the uploadURL once it has been successfully requested via MegaApi::backgroundMediaUploadRequestUploadURL
      *
      * You take ownership of the returned value.
-     * 
+     *
      * @return The URL to upload to (after appending the suffix), if one has been received. Otherwise NULL.
      */
     virtual char *getUploadURL();
@@ -6808,7 +6808,7 @@ public:
      * The object can then be recreated via MegaBackgroundMediaUpload::unserialize and supplying the returned string.
      *
      * You take ownership of the returned value.
-     * 
+     *
      * @return serialized version of this object (including URL, mediainfo attributes, and internal data suitable to resume uploading with in future)
      */
     virtual char *serialize();
@@ -6992,6 +6992,7 @@ class MegaApi
             PAYMENT_METHOD_PAYPAL = 1,
             PAYMENT_METHOD_ITUNES = 2,
             PAYMENT_METHOD_GOOGLE_WALLET = 3,
+            PAYMENT_METHOD_HUAWEI_WALLET = 18,
             PAYMENT_METHOD_BITCOIN = 4,
             PAYMENT_METHOD_UNIONPAY = 5,
             PAYMENT_METHOD_FORTUMO = 6,
@@ -7450,8 +7451,8 @@ class MegaApi
          * You take ownership of the pointer assigned to *binary.
          *
          * @param base64string The base 64 encoded string to decode.
-         * @param binary A pointer to a pointer to assign with a `new unsigned char[]` 
-         *        allocated buffer containing the decoded binary data.  
+         * @param binary A pointer to a pointer to assign with a `new unsigned char[]`
+         *        allocated buffer containing the decoded binary data.
          * @param size A pointer to a variable that will be assigned the size of the buffer allocated.
          */
         static void base64ToBinary(const char *base64string, unsigned char **binary, size_t* binarysize);
@@ -7604,7 +7605,7 @@ class MegaApi
          * and MegaApi::checkSMSVerificationCode.
          *
          * You take the ownership of the returned value.
-         * 
+         *
          * @return NULL if there is no verified number, otherwise a string containing that phone number.
          */
         char* smsVerifiedPhoneNumber();
@@ -7934,16 +7935,6 @@ class MegaApi
         /**
          * @brief Trigger special account state changes for own accounts, for testing
          *
-         * Because the dev API command allows a wide variety of state changes including suspension and unsuspension,
-         * it has restrictions on which accounts you can target, and where it can be called from.
-         *
-         * Your client must be on a company VPN IP address.
-         *
-         * The target account must be an @mega email address. The target account must either be the calling account,
-         * OR a related account via a prefix and + character. For example if the calling account is name1+test@mega.co.nz
-         * then it can perform a dev command on itself or on name1@mega.co.nz, name1+bob@mega.co.nz etc, but NOT on
-         * name2@mega.co.nz or name2+test@meg.co.nz.
-         *
          * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getName - Returns the first parameter
@@ -7970,8 +7961,126 @@ class MegaApi
          * @param command The subcommand for the specific operation
          * @param email Optional email of the target email's account. If null, it will use the logged-in account
          * @param listener MegaRequestListener to track this request
+         * @deprecated Use MegaApi::sendOdqDevCommand instead, for new API dev commands, a new public method will
+         * be created for each one
          */
         void sendDevCommand(const char *command, const char *email = nullptr, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Send dev API command, Advance ODQ Warning State for own accounts (for testing purposes)
+         *
+         * If called, this will advance your ODQ warning state until the final warning state,
+         * at which point it will turn on the ODQ paywall for your account. It requires an account lock on the target account.
+         * This subcommand will return the 'step' of the warning flow you have advanced to - 1, 2, 3 or 4
+         * (the paywall is turned on at step 4)
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the API dev command ("aodq")
+         * - MegaRequest::getEmail - Returns the target email account, or NULL if target is the logged-in account
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code is MegaError::API_OK:
+         * - MegaRequest::getNumber - Returns the number of warnings (1, 2, 3 or 4).
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         *  - EACCESS if the calling account is not allowed to perform this method (not a mega email account, not the right IP, etc).
+         *  - EARGS if the subcommand is not present or is invalid
+         *  - EBLOCKED if the target account is not allowed (this could also happen if the target account does not exist)
+         *  - EFAILED - your account is not in the RED stoplight state
+         *
+         * @param email Optional email of the target email's account. If null, it will use the logged-in account
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendOdqDevCommand(const char *email = nullptr, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Send dev API command, Set used transfer quota for own accounts (for testing purposes)
+         *
+         * Sets the amount of transfer quota the target user has used from their PRO allocation.
+         * This subcommand can only be run with PRO users.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the API dev command ("tq")
+         * - MegaRequest::getEmail - Returns the target email account, or NULL if target is the logged-in account
+         * - MegaRequest::getTotalBytes - Returns the amount of transfer quota the target has used, in bytes
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         *  - EACCESS if the calling account is not allowed to perform this method (not a mega email account, not the right IP, etc).
+         *  - EARGS if the subcommand is not present or is invalid, or if target account is not PRO
+         *  - EBLOCKED if the target account is not allowed (this could also happen if the target account does not exist)
+         *  - EMASTERONLY - if the target is the business internal account as they don't login
+         *
+         * @param quota The amount of transfer quota the target has used, in bytes
+         * @param email Optional email of the target email's account. If null, it will use the logged-in account
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendUsedTransferQuotaDevCommand(long long quota, const char *email = nullptr, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Send dev API command, Set business status for own accounts (for testing purposes)
+         *
+         * Sets the status of the business account. The target user can be the business internal account,
+         * or a master or sub-user in the business. The status set by this method is permanent until removed,
+         * it does not transition to grace period and expired over time.
+         *
+         * The following values are valid for business status:
+         *  - set the business expired = -1
+         *  - clear the status override and set the business back to status of their payments = 0
+         *  - set the business active = 1
+         *  - set the business in grace period = 2
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the API dev command ("bs")
+         * - MegaRequest::getEmail - Returns the target email account, or NULL if target is the logged-in account
+         * - MegaRequest::getAccess - Returns the business status
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         *  - EACCESS if the calling account is not allowed to perform this method (not a mega email account, not the right IP, etc).
+         *  - EARGS if the subcommand is not present or is invalid, or if target account is not part of a business account
+         *  - EBLOCKED if the target account is not allowed (this could also happen if the target account does not exist)
+         *
+         * @param businessStatus The business status
+         * @param email Optional email of the target email's account. If null, it will use the logged-in account
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendBusinessStatusDevCommand(int businessStatus, const char *email = nullptr, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Send dev API command, Set user status for own accounts (for testing purposes)
+         *
+         * Sets the status of a user.
+         *
+         * The following values are valid for user status:
+         * - Enabled = 0
+         * - Suspended (generic) = 2
+         * - Suspended (for payment, but not used) = 3
+         * - Suspended (copyright complaint) = 4
+         * - Suspended (admin full disable) = 5
+         * - Suspended (admin partial disable) = 6
+         * - Suspended (Emergency Takedown) = 7
+         * - Suspended until SMS verified = 8
+         * - Suspended until Email verified = 9
+         *
+         * Note that Action packets are not sent for a suspended user, but next command or action packet request will give a EBLOCKED error.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SEND_DEV_COMMAND.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the API dev command ("us")
+         * - MegaRequest::getEmail - Returns the target email account, or NULL if target is the logged-in account
+         * - MegaRequest::getNumDetails - Returns the user status
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         *  - EACCESS if the calling account is not allowed to perform this method (not a mega email account, not the right IP, etc).
+         *  - EARGS if the subcommand is not present or is invalid, if the status is out of range or the target is a business internal account
+         *  - EBLOCKED if the target account is not allowed (this could also happen if the target account does not exist)
+         *
+         * @param userStatus The user status
+         * @param email Optional email of the target email's account. If null, it will use the logged-in account
+         * @param listener MegaRequestListener to track this request
+         */
+        void sendUserStatusDevCommand(int userStatus, const char *email = nullptr, MegaRequestListener *listener = nullptr);
 
         /**
          * @brief Returns the current session key
@@ -9533,7 +9642,7 @@ class MegaApi
          * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
          */
         static char *getUserAvatarColor(const char *userhandle);
-    
+
         /**
          * @brief Get the secondary color for the avatar.
          *
@@ -9873,7 +9982,7 @@ class MegaApi
          * - MegaRequest::getMegaBackgroundMediaUploadPtr - Returns the background upload object
          * - MegaRequest::getFile - Returns the source path
          * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_THUMBNAIL
-         * 
+         *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - The handle of the uploaded file attribute.
@@ -9925,7 +10034,7 @@ class MegaApi
          * - MegaRequest::getMegaBackgroundMediaUploadPtr - Returns the background upload object
          * - MegaRequest::getFile - Returns the source path
          * - MegaRequest::getParamType - Returns MegaApi::ATTR_TYPE_THUMBNAIL
-         * 
+         *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - The handle of the uploaded file attribute.
@@ -10251,7 +10360,7 @@ class MegaApi
          *
          * The SDK keeps a running total of the sum of the sizes of all the files stored in the cloud.
          * This function retrieves that sum, via listener in order to avoid any blocking when called
-         * from a GUI thread. Provided the local state is caught up, the number will match the 
+         * from a GUI thread. Provided the local state is caught up, the number will match the
          * storageUsed from MegaApi::getAccountDetails which requests data from the servers, and is much
          * quicker to retrieve.
          *
@@ -11453,6 +11562,30 @@ class MegaApi
         void startUploadWithTopPriority(const char* localPath, MegaNode *parent, const char* appData, bool isSourceTemporary, MegaTransferListener *listener=NULL);
 
         /**
+         * @brief Upload a file or a folder, putting the transfer on top of the upload queue
+         *
+         *If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
+         *
+         * @param localPath Local path of the file or folder
+         * @param parent Parent node for the file or folder in the MEGA account
+         * @param appData Custom app data to save in the MegaTransfer object
+         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+         * related to the transfer. If a transfer is started with exactly the same data
+         * (local path and target parent) as another one in the transfer queue, the new transfer
+         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+         * the appData of the old transfer, using a '!' separator if the old transfer had already
+         * appData.
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+         * @param fileName Custom file name for the file or folder in MEGA
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void startUploadWithTopPriority(const char* localPath, MegaNode *parent, const char* appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener=NULL);
+
+        /**
          * @brief Upload a file or a folder with a custom modification time
          *
          *If the status of the business account is expired, onTransferFinish will be called with the error
@@ -11652,7 +11785,7 @@ class MegaApi
          * @brief Set the miniumum acceptable streaming speed for streaming transfers
          *
          * When streaming a file with startStreaming(), the SDK monitors the transfer rate.
-         * After a few seconds grace period, the monitoring starts. If the average rate is below 
+         * After a few seconds grace period, the monitoring starts. If the average rate is below
          * the minimum rate specified (determined by this function, or by default a reasonable rate
          * for audio/video, then the streaming operation will fail with MegaError::API_EAGAIN.
          *
@@ -16654,7 +16787,7 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getMegaAchievements(MegaRequestListener *listener = NULL);
-       
+
        /**
          * @brief Catch up with API for pending actionpackets
          *
@@ -16698,7 +16831,7 @@ class MegaApi
          * @param reverifying_whitelisted debug usage only.  May be removed in future.
          */
         void sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener = NULL, bool reverifying_whitelisted = false);
- 
+
         /**
          * @brief Check a verification code that the user should have received via txt
          *
@@ -16809,16 +16942,16 @@ class MegaApi
         /**
          * @brief Get an object that can lock the MegaApi, allowing multiple quick synchronous calls.
          *
-         * This object must be used very carefully.  It is meant to be used  when the application is about 
+         * This object must be used very carefully.  It is meant to be used  when the application is about
          * to make a burst of synchronous calls (that return data immediately, without using a listener)
          * to the API over a very short time period, which could otherwise be blocked multiple times
          * interrupted by the MegaApi's operation.
          *
          * The MegaApiLock usual use is to request it already locked, and the caller must destroy it
          * when its sequence of operations are complete, which will allow the MegaApi to continue again.
-         * However explicit lock and unlock calls can also be made on it, which are protected from 
+         * However explicit lock and unlock calls can also be made on it, which are protected from
          * making more than one lock, and the destructor will make sure the lock is released.
-         * 
+         *
          * You take ownership of the returned value, and you must delete it when the sequence is complete.
          */
         MegaApiLock* getMegaApiLock(bool lockNow);

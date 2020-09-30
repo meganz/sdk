@@ -276,7 +276,7 @@ void GfxProc::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 
         px = (w - rw) / 2;
         py = (h - rw) / 3;
-        
+
         rh = rw;
     }
 }
@@ -311,9 +311,12 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, string* localfilename, handl
         return 0;
     }
 
+    // get the count before it might be popped off and processed already
+    auto count = int(job->imagetypes.size());
+
     requests.push(job);
     waiter.notify();
-    return int(job->imagetypes.size());
+    return count;
 }
 
 bool GfxProc::savefa(string *localfilepath, int width, int height, string *localdstpath)

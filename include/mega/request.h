@@ -27,7 +27,6 @@
 
 namespace mega {
 
-
 // API request
 class MEGA_API Request
 {
@@ -36,7 +35,6 @@ private:
     string jsonresponse;
     JSON json;
     size_t processindex = 0;
-
 
 public:
     void add(Command*);
@@ -49,11 +47,11 @@ public:
     void servererror(const std::string &e, MegaClient* client);
 
     void process(MegaClient* client);
+    bool processCmdJSON(Command* cmd);
 
     void clear();
-    bool empty() const; 
+    bool empty() const;
     void swap(Request&);
-
     bool stopProcessing = false;
 
     // if contains only one command and that command is FetchNodes

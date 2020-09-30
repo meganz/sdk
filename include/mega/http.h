@@ -104,18 +104,28 @@ public:
     m_off_t getMeanSpeed();
 
     // interval to calculate the mean speed (ds)
-    static const int SPEED_MEAN_INTERVAL_DS;
+    static const int SPEED_MEAN_MAX_INTERVAL_DS = 50;
 
-    // max values to calculate the mean speed
-    static const int SPEED_MAX_VALUES;
+    void requestStarted();
+    m_off_t requestProgressed(m_off_t newPos);
+    m_off_t lastRequestSpeed();
+    dstime requestElapsedDs();
 
 protected:
-    map<dstime, m_off_t> transferBytes;
-    m_off_t partialBytes;
+    // a circular buffer of bytes received/transmitted per decisecond
+    std::array<m_off_t, SPEED_MEAN_MAX_INTERVAL_DS> mCircularBuf;
+    unsigned mCircularCurrentIndex = 0;
+    unsigned mCircularCurrentTime = 0;
+    m_off_t mCircularCurrentSum = 0;
 
-    m_off_t meanSpeed;
-    dstime lastUpdate;
-    int speedCounter;
+    m_off_t mMeanSpeed = 0;
+    m_off_t mMeanSpeedSum = 0;
+    dstime mMeanSpeedStart = 0;
+    dstime mLastCalcTime = 0;
+
+    m_off_t mRequestPos = 0;
+    dstime mRequestStart = 0;
+    dstime mLastRequestUpdate = 0;
 };
 
 // generic host HTTP I/O interface
@@ -150,7 +160,7 @@ struct MEGA_API HttpIO : public EventTrigger
 
     // timestamp of last data received (across all connections)
     dstime lastdata;
-    
+
     // download speed
     SpeedController downloadSpeedController;
     m_off_t downloadSpeed;
@@ -172,7 +182,7 @@ struct MEGA_API HttpIO : public EventTrigger
 
     // connection timeout (ds)
     static const int CONNECTTIMEOUT;
-    
+
     // set useragent (must be called exactly once)
     virtual void setuseragent(string*) = 0;
 
@@ -273,8 +283,8 @@ struct MEGA_API HttpReq
     size_t size();
 
     // a buffer that the HttpReq filled in.   This struct owns the buffer (so HttpReq no longer has it).
-    struct http_buf_t 
-    { 
+    struct http_buf_t
+    {
         byte* datastart();
         size_t datalen();
 
@@ -286,10 +296,10 @@ struct MEGA_API HttpReq
         void swap(http_buf_t& other);
         bool isNull();
 
-    private: 
+    private:
         byte* buf;
     };
-    
+
     // give up ownership of the buffer for client to use.  The caller is the new owner of the http_buf_t, and the HttpReq no longer has the buffer or any info about it.
     http_buf_t* release_buf();
 
@@ -298,7 +308,7 @@ struct MEGA_API HttpReq
 
     // set response content length
     void setcontentlength(m_off_t);
-    
+
     // reserve space for incoming data
     byte* reserveput(unsigned* len);
 
@@ -345,8 +355,8 @@ struct MEGA_API GenericHttpReq : public HttpReq
 
 class MEGA_API EncryptByChunks
 {
-    // this class allows encrypting a large buffer chunk by chunk, 
-    // or alternatively encrypting consecutive data by feeding it a piece at a time, 
+    // this class allows encrypting a large buffer chunk by chunk,
+    // or alternatively encrypting consecutive data by feeding it a piece at a time,
     // from separate buffers (the algorithm chooses the size though)
 
 public:
