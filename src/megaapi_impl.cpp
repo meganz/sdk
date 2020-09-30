@@ -24919,6 +24919,46 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
             checkCompletion();
         }
     }
+    else if (type == MegaRequest::TYPE_CREATE_FOLDER_TREE)
+    {
+        if (!errorCode)
+        {
+            // All folder structure has been created in a single put nodes, now add all transfers for every file
+            for (size_t i = 0; i < mPendingFiles.size(); i++)
+            {
+               handle parentHandleTemp = megaApi->base64ToHandle(mPendingFiles.at(i).second.c_str());
+               auto it = client->mTempHandleToNodeHandle.find(parentHandleTemp);
+               if (it != client->mTempHandleToNodeHandle.end())
+               {
+                    handle parentHandle =  it->second;
+                    MegaNode *parentNode = megaApi->getNodeByHandle(parentHandle);
+                    if (parentNode != nullptr)
+                    {
+                        pendingTransfers++;
+                        auto localpath = mPendingFiles.at(i).first;
+                        FileSystemType fsType = client->fsaccess->getlocalfstype(localpath);
+                        megaApi->startUpload(false, localpath.toPath(*client->fsaccess).c_str(), parentNode, (const char *)NULL, -1, tag, false, NULL, false, false, fsType, this);
+                        continue;
+                    }
+               }
+               mIncompleteTransfers++;
+            }
+        }
+        else
+        {
+            assert(request->getMegaStringListMap());
+            MegaStringMapList *mapList = request->getMegaStringMapList();
+            int incomplete = mapList ? mapList->get(0)->size() : 0;
+            mIncompleteTransfers += incomplete;
+            mLastError = *e;
+            checkCompletion();
+            return;
+        }
+    }
+
+    // At this point we don't need folders structure, so free resources
+    delete mFolders;
+    delete mFoldersHierarchy;
 }
 
 void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
