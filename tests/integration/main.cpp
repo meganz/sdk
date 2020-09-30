@@ -5,8 +5,18 @@
 #include <fstream>
 
 bool gRunningInCI = false;
+bool gResumeSessions = false;
 bool gTestingInvalidArgs = false;
+bool gOutputToCout = false;
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
+
+std::ofstream gUnopenedOfstream;
+
+std::ostream& out()
+{
+    if (gOutputToCout) return std::cout;
+    else return gUnopenedOfstream;
+}
 
 namespace {
 
@@ -44,10 +54,8 @@ public:
         {
             os << message;
         }
-        else
-        {
-            for (unsigned i = 0; i < numberMessages; ++i) os.write(directMessages[i], directMessagesSizes[i]);
-        }
+        // we can have the message AND the direct messages
+        for (unsigned i = 0; i < numberMessages; ++i) os.write(directMessages[i], directMessagesSizes[i]);
 #else
         os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": " << message;
 #endif
@@ -97,6 +105,11 @@ int main (int argc, char *argv[])
         return 1;
     }
 
+    // delete old test folders, created during previous runs
+    TestFS testFS;
+    testFS.DeleteTestFolder();
+    testFS.DeleteTrashFolder();
+
     std::vector<char*> myargv1(argv, argv + argc);
     std::vector<char*> myargv2;
 
@@ -112,9 +125,19 @@ int main (int argc, char *argv[])
             USER_AGENT = std::string(*it).substr(12);
             argc -= 1;
         }
+        else if (std::string(*it).substr(0, 12) == "--COUT")
+        {
+            gOutputToCout = true;
+            argc -= 1;
+        }
         else if (std::string(*it).substr(0, 9) == "--APIURL:")
         {
             mega::MegaClient::APIURL = std::string(*it).substr(9);
+            argc -= 1;
+        }
+        else if (std::string(*it) == "--RESUMESESSIONS")
+        {
+            gResumeSessions = true;
             argc -= 1;
         }
         else

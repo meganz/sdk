@@ -144,7 +144,7 @@ bool ACState::extractflagparam(const string& flag, string& param)
     return false;
 }
 
-void ACState::addCompletion(const std::string& s, bool caseInsensitive, bool couldextend) 
+void ACState::addCompletion(const std::string& s, bool caseInsensitive, bool couldextend)
 {
     // add if it matches the prefix. Doing the check here keeps subclasses simple
     assert(atCursor());
@@ -269,7 +269,7 @@ bool Repeat::match(ACState& s) const
     {
         if (s.i >= s.words.size())
             break;
-        
+
         auto i = s.i;
         if (!subnode->match(s))
         {
@@ -363,7 +363,7 @@ bool ExportedLink::isLink(const string& s, bool file, bool folder)
     return filestr || folderstr;
 }
 
-ExportedLink::ExportedLink(bool file, bool folder) 
+ExportedLink::ExportedLink(bool file, bool folder)
     : filelink(file), folderlink(folder)
 {
 }
@@ -722,7 +722,7 @@ Node* addShareRootCompletions(ACState& s, MegaClient* client, string& pathprefix
 }
 
 bool MegaFS::addCompletions(ACState& s)
-{ 
+{
     if (s.atCursor())
     {
         if (client && cwd)
@@ -775,7 +775,6 @@ bool MegaFS::addCompletions(ACState& s)
                 pathprefix += folderName + "/";
                 if (folderName == ".")
                 {
-                    n = n;
                 }
                 else if (folderName == "..")
                 {
@@ -1097,7 +1096,7 @@ bool autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixSty
     return true;
 }
 
-unsigned utf8GlyphCount(const string &str) 
+unsigned utf8GlyphCount(const string &str)
 {
     int c, i, ix, q;
     for (q = 0, i = 0, ix = int(str.length()); i < ix; i++, q++)

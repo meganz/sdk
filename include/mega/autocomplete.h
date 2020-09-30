@@ -242,8 +242,8 @@ namespace autocomplete {
 
     // get a list of possible strings at the current cursor position
     CompletionState autoComplete(const std::string line, size_t insertPos, ACN syntax, bool unixStyle);
-    
-    // put the next possible string or unambiguous portion thereof at the cursor position, or indicate options to the user 
+
+    // put the next possible string or unambiguous portion thereof at the cursor position, or indicate options to the user
     struct CompletionTextOut { vector<vector<string>> stringgrid; vector<int> columnwidths; };
     void applyCompletion(CompletionState& s, bool forwards, unsigned consoleWidth, CompletionTextOut& consoleOutput);
 

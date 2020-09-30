@@ -84,7 +84,7 @@ bool User::serialize(string* d)
     d->reserve(d->size() + 100 + attrmap.storagesize(10));
 
     d->append((char*)&userhandle, sizeof userhandle);
-    
+
     // FIXME: use m_time_t & Serialize64 instead
     ts = ctime;
     d->append((char*)&ts, sizeof ts);
@@ -418,7 +418,7 @@ string User::attr2string(attr_t type)
 
     // Special second character (optional)
     // ! only store a single copy and do not keep a history of changes
-    // ~ only store one time (ignore subsequent updates, and no history of course) 
+    // ~ only store one time (ignore subsequent updates, and no history of course)
 
     switch(type)
     {
@@ -658,7 +658,7 @@ string User::attr2longname(attr_t type)
     case ATTR_GEOLOCATION:
         longname = "GEOLOCATION";
         break;
-            
+
     case ATTR_UNSHAREABLE_KEY:
         longname = "UNSHAREABLE_KEY";
         break;
@@ -678,7 +678,7 @@ string User::attr2longname(attr_t type)
     case ATTR_PUSH_SETTINGS:
         longname = "PUSH_SETTINGS";
         break;
-            
+
     case ATTR_ALIAS:
         longname = "ALIAS";
         break;
