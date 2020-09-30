@@ -237,6 +237,9 @@ protected:
     void checkCompletion();
 
     std::list<LocalPath> pendingFolders;
+    MegaStringMap *mFolders;
+    MegaStringMap *mFoldersHierarchy;
+    std::vector<std::pair<LocalPath, std::string>> mPendingFiles;
 
 public:
     void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e) override;
@@ -2202,6 +2205,7 @@ class MegaApiImpl : public MegaApp
         void setLoggingName(const char* loggingName);
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
+        void createFolderTree(MegaStringMapList *folderStructure, MegaNode *parent, const char *rootName, MegaRequestListener *listener);
         bool createLocalFolder(const char *path);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
         void moveNode(MegaNode* node, MegaNode* newParent, const char *newName, MegaRequestListener *listener = NULL);

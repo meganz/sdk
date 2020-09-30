@@ -24714,6 +24714,8 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->recursive = 0;
     this->pendingTransfers = 0;
     this->tag = transfer->getTag();
+    this->mFolders = MegaStringMap::createInstance();
+    this->mFoldersHierarchy = MegaStringMap::createInstance();
 }
 
 void MegaFolderUploadController::start(MegaNode*)
@@ -24893,6 +24895,9 @@ void MegaFolderUploadController::checkCompletion()
     if (!cancelled && !recursive && !pendingFolders.size() && !pendingTransfers)
     {
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
+        delete mFolders;
+        delete mFoldersHierarchy;
+        mPendingFiles.clear();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
         transfer->setLastError(&mLastError);
         DBTableTransactionCommitter committer(client->tctable);
@@ -25017,7 +25022,9 @@ MegaFolderUploadController::~MegaFolderUploadController()
 {
     //we dettach this as request listener: could be pending create folder req finish
     megaApi->removeRequestListener(this);
-
+    delete mFolders;
+    delete mFoldersHierarchy;
+    mPendingFiles.clear();
     //we shouldn't need to dettach as transfer listener: all listened transfer should have been cancelled/completed
 }
 
