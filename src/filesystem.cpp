@@ -31,10 +31,10 @@ namespace mega {
 namespace detail {
 
 template<typename CharT>
-bool isEscape(CodepointIterator<CharT> it);
+bool isEscape(UnicodeCodepointIterator<CharT> it);
 
 template<typename CharT>
-int decodeEscape(CodepointIterator<CharT>& it)
+int decodeEscape(UnicodeCodepointIterator<CharT>& it)
 {
     assert(isEscape(it));
 
@@ -50,7 +50,7 @@ int identity(const int c)
 }
 
 template<typename CharT>
-bool isControlEscape(CodepointIterator<CharT> it)
+bool isControlEscape(UnicodeCodepointIterator<CharT> it)
 {
     if (isEscape(it))
     {
@@ -63,7 +63,7 @@ bool isControlEscape(CodepointIterator<CharT> it)
 }
 
 template<typename CharT>
-bool isEscape(CodepointIterator<CharT> it)
+bool isEscape(UnicodeCodepointIterator<CharT> it)
 {
     return it.get() == '%'
            && islchex(it.get())
@@ -71,8 +71,8 @@ bool isEscape(CodepointIterator<CharT> it)
 }
 
 template<typename CharT, typename CharU, typename UnaryOperation>
-int localCompare(CodepointIterator<CharT> first1,
-                 CodepointIterator<CharU> first2,
+int localCompare(UnicodeCodepointIterator<CharT> first1,
+                 UnicodeCodepointIterator<CharU> first2,
                  UnaryOperation transform)
 {
     while (!(first1.end() || first2.end()))
@@ -121,8 +121,8 @@ int localCompare(CodepointIterator<CharT> first1,
 }
 
 template<typename CharT, typename CharU, typename UnaryOperation>
-int remoteCompare(CodepointIterator<CharT> first1,
-                  CodepointIterator<CharU> first2,
+int remoteCompare(UnicodeCodepointIterator<CharT> first1,
+                  UnicodeCodepointIterator<CharU> first2,
                   UnaryOperation transform)
 {
     while (!(first1.end() || first2.end()))
@@ -194,8 +194,8 @@ bool NamePtrCmp::operator()(const string* lhs, const string* rhs) const
                                : detail::identity;
 
     return detail::remoteCompare(
-             codepointIterator(*lhs),
-             codepointIterator(*rhs),
+             unicodeCodepointIterator(*lhs),
+             unicodeCodepointIterator(*rhs),
              transform);
 }
 
@@ -1234,32 +1234,32 @@ LocalPath LocalPath::tmpNameLocal(const FileSystemAccess& fsaccess)
 int LocalPath::compare(const LocalPath& rhs) const
 {
     return detail::localCompare(
-             codepointIterator(localpath),
-             codepointIterator(rhs.localpath),
+             unicodeCodepointIterator(localpath),
+             unicodeCodepointIterator(rhs.localpath),
              detail::identity);
 }
 
 int LocalPath::compare(const string& rhs) const
 {
     return detail::remoteCompare(
-             codepointIterator(localpath),
-             codepointIterator(rhs),
+             unicodeCodepointIterator(localpath),
+             unicodeCodepointIterator(rhs),
              detail::identity);
 }
 
 int LocalPath::ciCompare(const LocalPath& rhs) const
 {
     return detail::localCompare(
-             codepointIterator(localpath),
-             codepointIterator(rhs.localpath),
+             unicodeCodepointIterator(localpath),
+             unicodeCodepointIterator(rhs.localpath),
              Utils::toUpper);
 }
 
 int LocalPath::ciCompare(const string& rhs) const
 {
     return detail::remoteCompare(
-             codepointIterator(localpath),
-             codepointIterator(rhs),
+             unicodeCodepointIterator(localpath),
+             unicodeCodepointIterator(rhs),
              Utils::toUpper);
 }
 

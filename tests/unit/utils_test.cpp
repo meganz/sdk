@@ -208,11 +208,11 @@ TEST(Filesystem, UnescapesEscapeWhenNotEncodingControlCharacter)
 
 TEST(CharacterSet, IterateUtf8)
 {
-    using mega::codepointIterator;
+    using mega::unicodeCodepointIterator;
 
     // Single code-unit.
     {
-        auto it = codepointIterator("abc");
+        auto it = unicodeCodepointIterator("abc");
 
         EXPECT_FALSE(it.end());
         EXPECT_EQ(it.get(), 'a');
@@ -224,7 +224,7 @@ TEST(CharacterSet, IterateUtf8)
 
     // Multiple code-unit.
     {
-        auto it = codepointIterator("q\xf0\x90\x80\x80r");
+        auto it = unicodeCodepointIterator("q\xf0\x90\x80\x80r");
 
         EXPECT_FALSE(it.end());
         EXPECT_EQ(it.get(), 'q');
@@ -237,11 +237,11 @@ TEST(CharacterSet, IterateUtf8)
 
 TEST(CharacterSet, IterateUtf16)
 {
-    using mega::codepointIterator;
+    using mega::unicodeCodepointIterator;
 
     // Single code-unit.
     {
-        auto it = codepointIterator(L"abc");
+        auto it = unicodeCodepointIterator(L"abc");
 
         EXPECT_FALSE(it.end());
         EXPECT_EQ(it.get(), L'a');
@@ -253,7 +253,7 @@ TEST(CharacterSet, IterateUtf16)
 
     // Multiple code-unit.
     {
-        auto it = codepointIterator(L"q\xd800\xdc00r");
+        auto it = unicodeCodepointIterator(L"q\xd800\xdc00r");
 
         EXPECT_FALSE(it.end());
         EXPECT_EQ(it.get(), L'q');

@@ -618,10 +618,10 @@ public:
 };
 
 template<typename CharT>
-struct CodepointIteratorTraits;
+struct UnicodeCodepointIteratorTraits;
 
 template<>
-struct CodepointIteratorTraits<char>
+struct UnicodeCodepointIteratorTraits<char>
 {
     static ptrdiff_t get(int32_t& codepoint, const char* m, const char* n)
     {
@@ -638,10 +638,10 @@ struct CodepointIteratorTraits<char>
 
         return strlen(s);
     }
-}; // CodepointIteratorTraits<char>
+}; // UnicodeCodepointIteratorTraits<char>
 
 template<>
-struct CodepointIteratorTraits<wchar_t>
+struct UnicodeCodepointIteratorTraits<wchar_t>
 {
     static ptrdiff_t get(int32_t& codepoint, const wchar_t* m, const wchar_t* n)
     {
@@ -687,43 +687,43 @@ struct CodepointIteratorTraits<wchar_t>
 
         return wcslen(s);
     }
-}; // CodepointIteratorTraits<wchar_t>
+}; // UnicodeCodepointIteratorTraits<wchar_t>
 
 template<typename CharT>
-class CodepointIterator
+class UnicodeCodepointIterator
 {
 public:
-    using traits_type = CodepointIteratorTraits<CharT>;
+    using traits_type = UnicodeCodepointIteratorTraits<CharT>;
 
-    CodepointIterator(const CharT* s, size_t length)
+    UnicodeCodepointIterator(const CharT* s, size_t length)
       : mCurrent(s)
       , mEnd(s + length)
     {
     }
 
-    explicit CodepointIterator(const std::basic_string<CharT>& s)
-      : CodepointIterator(s.data(), s.size())
+    explicit UnicodeCodepointIterator(const std::basic_string<CharT>& s)
+      : UnicodeCodepointIterator(s.data(), s.size())
     {
     }
 
-    explicit CodepointIterator(const CharT* s)
-      : CodepointIterator(s, traits_type::length(s))
+    explicit UnicodeCodepointIterator(const CharT* s)
+      : UnicodeCodepointIterator(s, traits_type::length(s))
     {
     }
 
-    CodepointIterator(const CodepointIterator& other)
+    UnicodeCodepointIterator(const UnicodeCodepointIterator& other)
       : mCurrent(other.mCurrent)
       , mEnd(other.mEnd)
     {
     }
 
-    CodepointIterator()
+    UnicodeCodepointIterator()
       : mCurrent(nullptr)
       , mEnd(nullptr)
     {
     }
 
-    CodepointIterator& operator=(const CodepointIterator& rhs)
+    UnicodeCodepointIterator& operator=(const UnicodeCodepointIterator& rhs)
     {
         if (this != &rhs)
         {
@@ -756,24 +756,24 @@ public:
 private:
     const CharT* mCurrent;
     const CharT* mEnd;
-}; // CodepointIterator<CharT>
+}; // UnicodeCodepointIterator<CharT>
 
 template<typename CharT>
-CodepointIterator<CharT> codepointIterator(const std::basic_string<CharT>& s)
+UnicodeCodepointIterator<CharT> unicodeCodepointIterator(const std::basic_string<CharT>& s)
 {
-    return CodepointIterator<CharT>(s);
+    return UnicodeCodepointIterator<CharT>(s);
 }
 
 template<typename CharT>
-CodepointIterator<CharT> codepointIterator(const CharT* s, size_t length)
+UnicodeCodepointIterator<CharT> unicodeCodepointIterator(const CharT* s, size_t length)
 {
-    return CodepointIterator<CharT>(s, length);
+    return UnicodeCodepointIterator<CharT>(s, length);
 }
 
 template<typename CharT>
-CodepointIterator<CharT> codepointIterator(const CharT* s)
+UnicodeCodepointIterator<CharT> unicodeCodepointIterator(const CharT* s)
 {
-    return CodepointIterator<CharT>(s);
+    return UnicodeCodepointIterator<CharT>(s);
 }
 
 int hexval(const int c);
