@@ -241,7 +241,7 @@ struct Fixture
     std::map<mega::LocalPath, const mt::FsNode*> mFsNodes;
     MockFileSystemAccess mFsAccess{mFsNodes};
     std::shared_ptr<mega::MegaClient> mClient = mt::makeClient(mApp, mFsAccess);
-    mega::fsid_localnode_map& mLocalNodes = mClient->fsidnode;
+    mega::fsid_localnode_map& mLocalNodes = mClient->localnodeByFsid;
     std::unique_ptr<mega::Sync> mSync;
 
     bool iteratorsCorrect(mega::LocalNode& l) const

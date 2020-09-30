@@ -377,7 +377,7 @@ TEST(Serialization, LocalNode_forFolder_withoutParent_withoutNode)
     auto sync = mt::makeSync(*client.cli, "wicked");
     auto& l = *sync->localroot;
     l.mSyncable = false;
-    l.setfsid(10, client.cli->fsidnode);
+    l.setfsid(10, client.cli->localnodeByFsid);
     std::string data;
     ASSERT_TRUE(l.serialize(&data));
 #ifndef WIN32    
@@ -394,7 +394,7 @@ TEST(Serialization, LocalNode_forFile_withoutNode)
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FILENODE, "sweet");
     l->mSyncable = false;
     l->size = 124;
-    l->setfsid(10, client.cli->fsidnode);
+    l->setfsid(10, client.cli->localnodeByFsid);
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
     l->mtime = 124124124;
@@ -414,7 +414,7 @@ TEST(Serialization, LocalNode_forFile_withoutNode_withMaxMtime)
     auto sync = mt::makeSync(*client.cli, "wicked");
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FILENODE, "sweet");
     l->size = 124;
-    l->setfsid(10, client.cli->fsidnode);
+    l->setfsid(10, client.cli->localnodeByFsid);
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
     l->mtime = std::numeric_limits<decltype(l->mtime)>::max();
@@ -433,7 +433,7 @@ TEST(Serialization, LocalNode_forFolder_withoutParent)
     MockClient client;
     auto sync = mt::makeSync(*client.cli, "wicked");
     auto& l = *sync->localroot;
-    l.setfsid(10, client.cli->fsidnode);
+    l.setfsid(10, client.cli->localnodeByFsid);
     std::string data;
     ASSERT_TRUE(l.serialize(&data));
 #ifndef WIN32
@@ -452,7 +452,7 @@ TEST(Serialization, LocalNode_forFolder)
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
     auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42);
-    l->setfsid(10, client.cli->fsidnode);
+    l->setfsid(10, client.cli->localnodeByFsid);
     l->node = &n;
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
@@ -473,7 +473,7 @@ TEST(Serialization, LocalNode_forFolder_32bit)
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
     auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42);
-    l->setfsid(10, client.cli->fsidnode);
+    l->setfsid(10, client.cli->localnodeByFsid);
     l->node = &n;
 
     // This is the result of serialization on 32bit Windows
@@ -499,7 +499,7 @@ TEST(Serialization, LocalNode_forFolder_oldLocalNodeWithoutSyncable)
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
     auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42);
-    l->setfsid(10, client.cli->fsidnode);
+    l->setfsid(10, client.cli->localnodeByFsid);
     l->node = &n;
 
     // This array represents an old LocalNode without extension bytes
@@ -525,7 +525,7 @@ TEST(Serialization, LocalNode_forFile)
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
     l->node = &n;
     l->size = 1;
-    l->setfsid(10, client.cli->fsidnode);
+    l->setfsid(10, client.cli->localnodeByFsid);
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
     l->mtime = 0;
@@ -545,7 +545,7 @@ TEST(Serialization, LocalNode_forFiles_oldLocalNodeWithoutSyncable)
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
     l->node = &n;
     l->size = 1;
-    l->setfsid(10, client.cli->fsidnode);
+    l->setfsid(10, client.cli->localnodeByFsid);
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
     l->mtime = 0;
@@ -574,7 +574,7 @@ TEST(Serialization, LocalNode_forFile_32bit)
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
     l->node = &n;
     l->size = 1;
-    l->setfsid(10, client.cli->fsidnode);
+    l->setfsid(10, client.cli->localnodeByFsid);
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
     l->mtime = 0;
