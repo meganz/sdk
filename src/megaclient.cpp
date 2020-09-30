@@ -173,11 +173,13 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n, bool updateDb)
 {
     bool skreceived = false;
 
-    if (!n && !(n = nodebyhandle(s->h)))
+    n = n ? n : nodebyhandle(s->h);
+    if (!n)
     {
         return;
     }
 
+    Node* originalNode = n;
     if (s->have_key && (!n->sharekey || memcmp(s->key, n->sharekey->key, SymmCipher::KEYLENGTH)))
     {
         // setting an outbound sharekey requires node authentication
@@ -450,6 +452,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n, bool updateDb)
             }
         }
 
+
 #ifdef ENABLE_SYNC
         if (n->inshare && s->access != FULL)
         {
@@ -476,9 +479,9 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, Node *n, bool updateDb)
 #endif
     }
 
-    if (sctable->isNodeInDB(n->nodehandle) && updateDb)
+    if (sctable->isNodeInDB(originalNode->nodehandle) && updateDb)
     {
-        sctable->put(n);
+        sctable->put(originalNode);
     }
 }
 
@@ -7731,6 +7734,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n)
         }
     }
 
+    // TODO Nodes on Demand: Review if it's possible this method with DB method
     for (auto& c : getChildrens(n))
     {
         removeOutSharesFromSubtree(c);
