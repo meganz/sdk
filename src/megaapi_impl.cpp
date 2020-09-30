@@ -24725,33 +24725,29 @@ void MegaFolderUploadController::start(MegaNode*)
     transfer->setState(MegaTransfer::STATE_QUEUED);
     megaApi->fireOnTransferStart(transfer);
 
+    // Root node of folder structure
     const char *name = transfer->getFileName();
     MegaNode *parent = megaApi->getNodeByHandle(transfer->getParentHandle());
-    if(!parent)
+    if (!parent)
     {
         transfer->setState(MegaTransfer::STATE_FAILED);
         DBTableTransactionCommitter committer(client->tctable);
         megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EARGS), committer);
+        return;
     }
-    else
-    {
-        auto localpath = LocalPath::fromPath(transfer->getPath(), *client->fsaccess);
-        MegaNode *child = megaApi->getChildNode(parent, name);
 
-        if(!child || !child->isFolder())
-        {
-            pendingFolders.push_back(localpath);
-            megaApi->createFolder(name, parent, this);
-        }
-        else
-        {
-            pendingFolders.push_front(localpath);
-            onFolderAvailable(child->getHandle());
-        }
+    auto localpath = LocalPath::fromPath(transfer->getPath(), *client->fsaccess);
+    scanFolderNode(parent->getHandle(), localpath, name); // we don't need to specify parent node for root node of the new tree
 
-        delete child;
-        delete parent;
-    }
+    // Create a MegaStringMapList with folders and folders structure
+    MegaStringMapList *folderStructure = MegaStringMapList::createInstance();
+    folderStructure->append(mFolders);
+    folderStructure->append(mFoldersHierarchy);
+
+    // Create entire folder tree in one shot
+    megaApi->createFolderTree(folderStructure, parent, name, this);
+    checkCompletion();
+    delete parent;
 }
 
 void MegaFolderUploadController::cancel()
