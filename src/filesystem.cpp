@@ -348,7 +348,7 @@ bool FileSystemAccess::islocalfscompatible(const int character, const FileSystem
     {
         return false;
     }
-    
+
     // Escape '%' if it is not encoding a control character.
     if (character == '%')
     {
@@ -1242,6 +1242,12 @@ LocalPath LocalPath::fromPlatformEncoded(wstring&& wpath)
     LocalPath p;
     p.localpath = std::move(wpath);
     return p;
+}
+
+wchar_t LocalPath::driveLetter()
+{
+    auto drivepos = localpath.find(L':');
+    return drivepos == wstring::npos || drivepos < 1 ? 0 : localpath[drivepos-1];
 }
 #endif
 

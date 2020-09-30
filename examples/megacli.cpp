@@ -467,8 +467,8 @@ void DemoApp::transfer_prepare(Transfer* t)
 #ifdef ENABLE_SYNC
 static void syncstat(Sync* sync)
 {
-    cout << ", local data in this sync: " << sync->localbytes << " byte(s) in " << sync->localnodes[FILENODE]
-         << " file(s) and " << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
+    cout << ", " << sync->localnodes[FILENODE] << " file(s) and "
+         << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
 }
 
 void DemoApp::syncupdate_state(int tag, syncstate_t newstate, SyncError syncError, bool fireDisableEvent)
@@ -4324,8 +4324,8 @@ void exec_sync(autocomplete::ACState& s)
                         localpath = (*it)->localroot->localname.toPath(*client->fsaccess);
 
                         cout << i++ << " (" << syncConfigToString((*it)->getConfig()) << "): " << localpath << " to " << remotepath << " - "
-                                << syncstatenames[(*it)->state] << ", " << (*it)->localbytes
-                                << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and "
+                                << syncstatenames[(*it)->state] << ", "
+                                << (*it)->localnodes[FILENODE] << " file(s) and "
                                 << (*it)->localnodes[FOLDERNODE] << " folder(s)" << endl;
                     }
                 }

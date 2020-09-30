@@ -34,7 +34,7 @@ int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2,
 
 // Recursively iterates through the filesystem tree starting at the sync root and assigns
 // fs IDs to those local nodes that match the fingerprint retrieved from disk.
-bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
+bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, fsid_localnode_map& fsidnodes,
                          LocalPath& localdebris);
 
 // A collection of sync configs backed by a database table
@@ -101,6 +101,9 @@ public:
     // syncing to an inbound share?
     bool inshare = false;
 
+    // whether we are up to date with the filesystem.  Analagous wth client->statecurrent.
+    bool fsStateCurrent = false;
+
     // deletion queue
     set<uint32_t> deleteq;
 
@@ -131,7 +134,6 @@ public:
     // recursively look for vanished child nodes and delete them
     void deletemissing(LocalNode*);
 
-    m_off_t localbytes = 0;
     unsigned localnodes[2]{};
 
     // look up LocalNode relative to localroot
@@ -184,6 +186,10 @@ public:
     // scan specific path
     FSNode checkpathOne(LocalPath& localPath, const LocalPath& leafname, DirAccess* iteratingDir);
 
+    // scan specific path
+    bool checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool& rowResult);
+    bool checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool& rowResult);
+
     // own position in session sync list
     sync_list::iterator sync_it{};
 
@@ -222,11 +228,6 @@ public:
 
     // true if the local synced folder is a network folder
     bool isnetwork = false;
-
-    // values related to possible files being updated
-    m_off_t updatedfilesize = ~0;
-    m_time_t updatedfilets = 0;
-    m_time_t updatedfileinitialts = 0;
 
     // flag to optimize destruction by skipping calls to treestate()
     bool mDestructorRunning = false;

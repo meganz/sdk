@@ -231,7 +231,7 @@ bool computeFingerprint(LightFileFingerprint& ffp, FileSystemAccess& fsaccess,
 // Invalidates the fs IDs of all local nodes.
 // Stores all fingerprints in `fingerprints` for later reference.
 void collectAllLocalNodes(FingerprintCache& fingerprints, FingerprintLocalNodeMap& localnodes,
-                          LocalNode& l, handlelocalnode_map& fsidnodes)
+                          LocalNode& l, fsid_localnode_map& fsidnodes)
 {
     // invalidate fsid of `l`
     l.fsid = mega::UNDEF;
@@ -319,7 +319,7 @@ void collectAllFiles(bool& success, FingerprintCache& fingerprints, FingerprintF
 // Assigns fs IDs from `files` to those `localnodes` that match the fingerprints found in `files`.
 // If there are multiple matches we apply a best-path heuristic.
 size_t assignFilesystemIdsImpl(const FingerprintCache& fingerprints, FingerprintLocalNodeMap& localnodes,
-                               FingerprintFileMap& files, handlelocalnode_map& fsidnodes, FileSystemAccess& fsaccess)
+                               FingerprintFileMap& files, fsid_localnode_map& fsidnodes, FileSystemAccess& fsaccess)
 {
     LocalPath nodePath;
     size_t assignmentCount = 0;
@@ -440,7 +440,7 @@ int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2,
     }
 }
 
-bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
+bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, fsid_localnode_map& fsidnodes,
                          LocalPath& localdebris)
 {
     auto& rootpath = sync.localroot->localname;
@@ -650,11 +650,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
     errorCode = NO_SYNC_ERROR;
     tmpfa = NULL;
     //initializing = true;
-    updatedfilesize = ~0;
-    updatedfilets = 0;
-    updatedfileinitialts = 0;
 
-    localbytes = 0;
     localnodes[FILENODE] = 0;
     localnodes[FOLDERNODE] = 0;
 
@@ -849,7 +845,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
 
         l->parent_dbid = parent_dbid;
         l->size = size;
-        l->setfsid(fsid, client->fsidnode);
+        l->setfsid(fsid, client->localnodeByFsid);
         l->setnode(node);
 
         if (!l->slocalname_in_db)
@@ -1073,7 +1069,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
 
 bool Sync::assignfsids()
 {
-    return assignFilesystemIds(*this, *client->app, *client->fsaccess, client->fsidnode,
+    return assignFilesystemIds(*this, *client->app, *client->fsaccess, client->localnodeByFsid,
                                localdebris);
 }
 
@@ -1186,560 +1182,83 @@ auto Sync::checkpathOne(LocalPath& localPath, const LocalPath& leafname, DirAcce
     return result;
 }
 
-// todo: extract all the logic contained here, and apply to the steps in sync()
 
-//// check local path - if !localname, localpath is relative to l, with l == NULL
-//// being the root of the sync
-//// if localname is set, localpath is absolute and localname its last component
-//// path references a new FOLDERNODE: returns created node
-//// path references a existing FILENODE: returns node
-//// otherwise, returns NULL
-//LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* const localname, dstime *backoffds, bool wejustcreatedthisfolder, DirAccess* iteratingDir)
+/// todo:   things to figure out where to put them in new system:
+///
+// no fsid change detected or overwrite with unknown file:
+//if (fa->mtime != l->mtime || fa->size != l->size)
 //{
-//    LocalNode* ll = l;
-//    bool newnode = false, changed = false;
-//    bool isroot;
-//
-//    LocalNode* parent;
-//    string path;           // UTF-8 representation of tmppath
-//    LocalPath tmppath;     // full path represented by l + localpath
-//    LocalPath newname;     // portion of tmppath not covered by the existing
-//                           // LocalNode structure (always the last path component
-//                           // that does not have a corresponding LocalNode yet)
-//
-//    if (localname)
+//    if (fa->fsidvalid && l->fsid != fa->fsid)
 //    {
-//        // shortcut case (from within syncdown())
-//        isroot = false;
-//        parent = l;
-//        l = NULL;
+//        l->setfsid(fa->fsid, client->fsidnode);
+//    }
 //
-//        path = input_localpath->toPath(*client->fsaccess);
-//        assert(path.size());
+//    m_off_t dsize = l->size > 0 ? l->size : 0;
+//
+//    l->genfingerprint(fa.get());
+//
+//    client->app->syncupdate_local_file_change(this, l, path.c_str());
+//
+//    DBTableTransactionCommitter committer(client->tctable);
+//    client->stopxfer(l, &committer); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
+//    l->bumpnagleds();
+//    l->deleted = false;
+//
+//    client->syncactivity = true;
+//
+//    statecacheadd(l);
+//
+//    fa.reset();
+//
+//    if (isnetwork && l->type == FILENODE)
+//    {
+//        LOG_debug << "Queueing extra fs notification for modified file";
+//        dirnotify->notify(DirNotify::EXTRA, NULL, LocalPath(*localpathNew));
+//    }
+//    return l;
+//}
 //    }
 //    else
 //    {
-//        // construct full filesystem path in tmppath
-//        if (l)
-//        {
-//            tmppath = l->getLocalPath();
-//        }
-//
-//        if (!input_localpath->empty())
-//        {
-//            tmppath.appendWithSeparator(*input_localpath, false, client->fsaccess->localseparator);
-//        }
-//
-//        // look up deepest existing LocalNode by path, store remainder (if any)
-//        // in newname
-//        LocalNode *tmp = localnodebypath(l, *input_localpath, &parent, &newname);
-//        size_t index = 0;
-//
-//        if (newname.findNextSeparator(index, client->fsaccess->localseparator))
-//        {
-//            LOG_warn << "Parent not detected yet. Unknown remainder: " << newname.toPath(*client->fsaccess);
-//            if (parent)
-//            {
-//                LocalPath notifyPath = parent->getLocalPath(true);
-//                notifyPath.appendWithSeparator(newname.subpathTo(index), true, client->fsaccess->localseparator);
-//                dirnotify->notify(DirNotify::DIREVENTS, l, std::move(notifyPath), true);
-//            }
-//            return NULL;
-//        }
-//
-//        l = tmp;
-//
-//        path = tmppath.toPath(*client->fsaccess);
-//
-//        // path invalid?
-//        if ( ( !l && newname.empty() ) || !path.size())
-//        {
-//            LOG_warn << "Invalid path: " << path;
-//            return NULL;
-//        }
-//
-//        string name = !newname.empty() ? newname.toName(*client->fsaccess, mFilesystemType) : l->name;
-//
-//        if (!client->app->sync_syncable(this, name.c_str(), tmppath))
-//        {
-//            LOG_debug << "Excluded: " << path;
-//            return NULL;
-//        }
-//
-//        isroot = l == localroot.get() && newname.empty();
-//    }
-//
-//    LOG_verbose << "Scanning: " << path << " in=" << initializing << " full=" << fullscan << " l=" << l;
-//    LocalPath* localpathNew = localname ? input_localpath : &tmppath;
-//
-//    if (parent)
+//    // (we tolerate overwritten folders, because we do a
+//    // content scan anyway)
+//    if (fa->fsidvalid && fa->fsid != l->fsid)
 //    {
-//        if (state != SYNC_INITIALSCAN && !parent->node)
-//        {
-//            LOG_warn << "Parent doesn't exist yet: " << path;
-//            return (LocalNode*)~0;
-//        }
+//        l->setfsid(fa->fsid, client->fsidnode);
+//        newnode = true;
 //    }
-//
-//    // attempt to open/type this file
-//    auto fa = client->fsaccess->newfileaccess(false);
-//
-//    if (initializing || fullscan)
-//    {
-//        // find corresponding LocalNode by file-/foldername
-//        size_t lastpart = localpathNew->getLeafnameByteIndex(*client->fsaccess);
-//
-//        LocalPath fname(localpathNew->subpathFrom(lastpart));
-//
-//        LocalNode* cl = (parent ? parent : localroot.get())->childbyname(&fname);
-//        if (initializing && cl)
-//        {
-//            // the file seems to be still in the folder
-//            // mark as present to prevent deletions if the file is not accesible
-//            // in that case, the file would be checked again after the initialization
-//            cl->deleted = false;
-//            cl->setnotseen(0);
-//            l->scanseqno = scanseqno;
-//        }
-//
-//        // match cached LocalNode state during initial/rescan to prevent costly re-fingerprinting
-//        // (just compare the fsids, sizes and mtimes to detect changes)
-//        if (fa->fopen(*localpathNew, false, false, iteratingDir))
-//        {
-//            if (cl && fa->fsidvalid && fa->fsid == cl->fsid)
-//            {
-//                // node found and same file
-//                l = cl;
-//                l->deleted = false;
-//                l->setnotseen(0);
-//
-//                // if it's a file, size and mtime must match to qualify
-//                if (l->type != FILENODE || (l->size == fa->size && l->mtime == fa->mtime))
-//                {
-//                    LOG_verbose << "Cached localnode is still valid. Type: " << l->type << "  Size: " << l->size << "  Mtime: " << l->mtime;
-//                    l->scanseqno = scanseqno;
-//
-//                    if (l->type == FOLDERNODE)
-//                    {
-//                        scan(localpathNew, fa.get());
-//                    }
-//                    else
-//                    {
-//                        localbytes += l->size;
-//                    }
-//
-//                    return l;
-//                }
-//            }
-//        }
-//        else
-//        {
-//            LOG_warn << "Error opening file during the initialization: " << path;
-//        }
-//
-//        if (initializing)
-//        {
-//            if (cl)
-//            {
-//                LOG_verbose << "Outdated localnode. Type: " << cl->type << "  Size: " << cl->size << "  Mtime: " << cl->mtime
-//                            << "    FaType: " << fa->type << "  FaSize: " << fa->size << "  FaMtime: " << fa->mtime;
-//            }
-//            else
-//            {
-//                LOG_verbose << "New file. FaType: " << fa->type << "  FaSize: " << fa->size << "  FaMtime: " << fa->mtime;
-//            }
-//            return NULL;
-//        }
-//
-//        fa = client->fsaccess->newfileaccess(false);
 //    }
-//
-//    if (fa->fopen(*localpathNew, true, false))
-//    {
-//        if (!isroot)
-//        {
-//            if (l)
-//            {
-//                if (l->type == fa->type)
-//                {
-//                    // mark as present
-//                    l->setnotseen(0);
-//
-//                    if (fa->type == FILENODE)
-//                    {
-//                        // has the file been overwritten or changed since the last scan?
-//                        // or did the size or mtime change?
-//                        if (fa->fsidvalid)
-//                        {
-//                            // if fsid has changed, the file was overwritten
-//                            // (FIXME: handle type changes)
-//                            if (l->fsid != fa->fsid)
-//                            {
-//                                handlelocalnode_map::iterator it;
-//#ifdef _WIN32
-//                                const char *colon;
-//#endif
-//                                fsfp_t fp1, fp2;
-//
-//                                // was the file overwritten by moving an existing file over it?
-//                                if ((it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
-//                                        && (l->sync == it->second->sync
-//                                            || ((fp1 = l->sync->dirnotify->fsfingerprint())
-//                                                && (fp2 = it->second->sync->dirnotify->fsfingerprint())
-//                                                && (fp1 == fp2)
-//                                            #ifdef _WIN32
-//                                                // only consider fsid matches between different syncs for local drives with the
-//                                                // same drive letter, to prevent problems with cloned Volume IDs
-//                                                && (colon = strstr(parent->sync->localroot->name.c_str(), ":"))
-//                                                && !memcmp(parent->sync->localroot->name.c_str(),
-//                                                       it->second->sync->localroot->name.c_str(),
-//                                                       colon - parent->sync->localroot->name.c_str())
-//                                            #endif
-//                                                )
-//                                            )
-//                                    )
-//                                {
-//                                    // catch the not so unlikely case of a false fsid match due to
-//                                    // e.g. a file deletion/creation cycle that reuses the same inode
-//                                    if (it->second->mtime != fa->mtime || it->second->size != fa->size)
-//                                    {
-//                                        l->mtime = -1;  // trigger change detection
-//                                        delete it->second;   // delete old LocalNode
-//                                    }
-//                                    else
-//                                    {
-//                                        LOG_debug << "File move/overwrite detected";
-//
-//                                        // delete existing LocalNode...
-//                                        delete l;
-//
-//                                        // ...move remote node out of the way...
-//                                        client->execsyncdeletions();
-//
-//                                        // ...and atomically replace with moved one
-//                                        client->app->syncupdate_local_move(this, it->second, path.c_str());
-//
-//                                        // (in case of a move, this synchronously updates l->parent and l->node->parent)
-//                                        it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew), true);
-//
-//                                        // mark as seen / undo possible deletion
-//                                        it->second->setnotseen(0);
-//
-//                                        statecacheadd(it->second);
-//
-//                                        return it->second;
-//                                    }
-//                                }
-//                                else
-//                                {
-//                                    l->mtime = -1;  // trigger change detection
-//                                }
-//                            }
-//                        }
-//
-//                        // no fsid change detected or overwrite with unknown file:
-//                        if (fa->mtime != l->mtime || fa->size != l->size)
-//                        {
-//                            if (fa->fsidvalid && l->fsid != fa->fsid)
-//                            {
-//                                l->setfsid(fa->fsid, client->fsidnode);
-//                            }
-//
-//                            m_off_t dsize = l->size > 0 ? l->size : 0;
-//
-//                            if (l->genfingerprint(fa.get()) && l->size >= 0)
-//                            {
-//                                localbytes -= dsize - l->size;
-//                            }
-//
-//                            client->app->syncupdate_local_file_change(this, l, path.c_str());
-//
-//                            DBTableTransactionCommitter committer(client->tctable);
-//                            client->stopxfer(l, &committer); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
-//                            l->bumpnagleds();
-//                            l->deleted = false;
-//
-//                            client->syncactivity = true;
-//
-//                            statecacheadd(l);
-//
-//                            fa.reset();
-//
-//                            if (isnetwork && l->type == FILENODE)
-//                            {
-//                                LOG_debug << "Queueing extra fs notification for modified file";
-//                                dirnotify->notify(DirNotify::EXTRA, NULL, LocalPath(*localpathNew));
-//                            }
-//                            return l;
-//                        }
-//                    }
-//                    else
-//                    {
-//                        // (we tolerate overwritten folders, because we do a
-//                        // content scan anyway)
-//                        if (fa->fsidvalid && fa->fsid != l->fsid)
-//                        {
-//                            l->setfsid(fa->fsid, client->fsidnode);
-//                            newnode = true;
-//                        }
-//                    }
-//                }
+
+//client->app->syncupdate_local_folder_addition(this, l, path.c_str());
 //                else
 //                {
-//                    LOG_debug << "node type changed: recreate";
-//                    delete l;
-//                    l = NULL;
-//                }
-//            }
-//
-//            // new node
-//            if (!l)
-//            {
-//                // rename or move of existing node?
-//                handlelocalnode_map::iterator it;
-//#ifdef _WIN32
-//                const char *colon;
-//#endif
-//                fsfp_t fp1, fp2;
-//                if (fa->fsidvalid && (it = client->fsidnode.find(fa->fsid)) != client->fsidnode.end()
-//                    // additional checks to prevent wrong fsid matches
-//                    && it->second->type == fa->type
-//                    && (!parent
-//                        || (it->second->sync == parent->sync)
-//                        || ((fp1 = it->second->sync->dirnotify->fsfingerprint())
-//                            && (fp2 = parent->sync->dirnotify->fsfingerprint())
-//                            && (fp1 == fp2)
-//                        #ifdef _WIN32
-//                            // allow moves between different syncs only for local drives with the
-//                            // same drive letter, to prevent problems with cloned Volume IDs
-//                            && (colon = strstr(parent->sync->localroot->name.c_str(), ":"))
-//                            && !memcmp(parent->sync->localroot->name.c_str(),
-//                                   it->second->sync->localroot->name.c_str(),
-//                                   colon - parent->sync->localroot->name.c_str())
-//                        #endif
-//                            )
-//                       )
-//                    && ((it->second->type != FILENODE && !wejustcreatedthisfolder)
-//                        || (it->second->mtime == fa->mtime && it->second->size == fa->size)))
+//                if (fa->fsidvalid && l->fsid != fa->fsid)
 //                {
-//                    LOG_debug << client->clientname << "Move detected by fsid in checkpath. Type: " << it->second->type << " new path: " << path << " old localnode: " << it->second->localnodedisplaypath(*client->fsaccess);
-//
-//                    if (fa->type == FILENODE && backoffds)
-//                    {
-//                        // logic to detect files being updated in the local computer moving the original file
-//                        // to another location as a temporary backup
-//
-//                        m_time_t currentsecs = m_time();
-//                        if (!updatedfileinitialts)
-//                        {
-//                            updatedfileinitialts = currentsecs;
-//                        }
-//
-//                        if (currentsecs >= updatedfileinitialts)
-//                        {
-//                            if (currentsecs - updatedfileinitialts <= FILE_UPDATE_MAX_DELAY_SECS)
-//                            {
-//                                bool waitforupdate = false;
-//                                auto local = it->second->getLocalPath(true);
-//                                auto prevfa = client->fsaccess->newfileaccess(false);
-//
-//                                bool exists = prevfa->fopen(local);
-//                                if (exists)
-//                                {
-//                                    LOG_debug << "File detected in the origin of a move";
-//
-//                                    if (currentsecs >= updatedfilets)
-//                                    {
-//                                        if ((currentsecs - updatedfilets) < (FILE_UPDATE_DELAY_DS / 10))
-//                                        {
-//                                            LOG_verbose << "currentsecs = " << currentsecs << "  lastcheck = " << updatedfilets
-//                                                      << "  currentsize = " << prevfa->size << "  lastsize = " << updatedfilesize;
-//                                            LOG_debug << "The file was checked too recently. Waiting...";
-//                                            waitforupdate = true;
-//                                        }
-//                                        else if (updatedfilesize != prevfa->size)
-//                                        {
-//                                            LOG_verbose << "currentsecs = " << currentsecs << "  lastcheck = " << updatedfilets
-//                                                      << "  currentsize = " << prevfa->size << "  lastsize = " << updatedfilesize;
-//                                            LOG_debug << "The file size has changed since the last check. Waiting...";
-//                                            updatedfilesize = prevfa->size;
-//                                            updatedfilets = currentsecs;
-//                                            waitforupdate = true;
-//                                        }
-//                                        else
-//                                        {
-//                                            LOG_debug << "The file size seems stable";
-//                                        }
-//                                    }
-//                                    else
-//                                    {
-//                                        LOG_warn << "File checked in the future";
-//                                    }
-//
-//                                    if (!waitforupdate)
-//                                    {
-//                                        if (currentsecs >= prevfa->mtime)
-//                                        {
-//                                            if (currentsecs - prevfa->mtime < (FILE_UPDATE_DELAY_DS / 10))
-//                                            {
-//                                                LOG_verbose << "currentsecs = " << currentsecs << "  mtime = " << prevfa->mtime;
-//                                                LOG_debug << "File modified too recently. Waiting...";
-//                                                waitforupdate = true;
-//                                            }
-//                                            else
-//                                            {
-//                                                LOG_debug << "The modification time seems stable.";
-//                                            }
-//                                        }
-//                                        else
-//                                        {
-//                                            LOG_warn << "File modified in the future";
-//                                        }
-//                                    }
-//                                }
-//                                else
-//                                {
-//                                    if (prevfa->retry)
-//                                    {
-//                                        LOG_debug << "The file in the origin is temporarily blocked. Waiting...";
-//                                        waitforupdate = true;
-//                                    }
-//                                    else
-//                                    {
-//                                        LOG_debug << "There isn't anything in the origin path";
-//                                    }
-//                                }
-//
-//                                if (waitforupdate)
-//                                {
-//                                    LOG_debug << "Possible file update detected.";
-//                                    *backoffds = FILE_UPDATE_DELAY_DS;
-//                                    return NULL;
-//                                }
-//                            }
-//                            else
-//                            {
-//                                int creqtag = client->reqtag;
-//                                client->reqtag = 0;
-//                                client->sendevent(99438, "Timeout waiting for file update");
-//                                client->reqtag = creqtag;
-//                            }
-//                        }
-//                        else
-//                        {
-//                            LOG_warn << "File check started in the future";
-//                        }
-//                    }
-//
-//                    client->app->syncupdate_local_move(this, it->second, path.c_str());
-//
-//                    // (in case of a move, this synchronously updates l->parent
-//                    // and l->node->parent)
-//                    it->second->setnameparent(parent, localpathNew, client->fsaccess->fsShortname(*localpathNew), true);
-//
-//                    // make sure that active PUTs receive their updated filenames
-//                    client->updateputs();
-//
-//                    statecacheadd(it->second);
-//
-//                    // unmark possible deletion
-//                    it->second->setnotseen(0);
-//
-//                    // immediately scan folder to detect deviations from cached state
-//                    if (fullscan && fa->type == FOLDERNODE)
-//                    {
-//                        scan(localpathNew, fa.get());
-//                    }
+//                    l->setfsid(fa->fsid, client->fsidnode);
 //                }
-//                else if (fa->mIsSymLink)
+//
+//                if (l->genfingerprint(fa.get()))
 //                {
-//                    LOG_debug << "checked path is a symlink.  Parent: " << (parent ? parent->name : "NO");
-//                    //doing nothing for the moment
+//                    changed = true;
+//                    l->bumpnagleds();
+//                    l->deleted = false;
 //                }
-//                else
-//                {
-//                    // this is a new node: add
-//                    LOG_debug << "New localnode.  Parent: " << (parent ? parent->name : "NO");
-//                    l = new LocalNode;
-//                    l->init(this, fa->type, parent, *localpathNew, client->fsaccess->fsShortname(*localpathNew));
 //
-//                    if (fa->fsidvalid)
-//                    {
-//                        l->setfsid(fa->fsid, client->fsidnode);
-//                    }
-//
-//                    newnode = true;
-//                }
-//            }
-//        }
-//
-//        if (l)
-//        {
-//            // detect file changes or recurse into new subfolders
-//            if (l->type == FOLDERNODE)
-//            {
 //                if (newnode)
 //                {
-//                    scan(localpathNew, fa.get());
-//                    client->app->syncupdate_local_folder_addition(this, l, path.c_str());
-//
-//                    if (!isroot)
-//                    {
-//                        statecacheadd(l);
-//                    }
+//                    client->app->syncupdate_local_file_addition(this, l, path.c_str());
 //                }
-//                else
+//                else if (changed)
 //                {
-//                    l = NULL;
+//                    client->app->syncupdate_local_file_change(this, l, path.c_str());
+//                    DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
+//                    client->stopxfer(l, &committer);
 //                }
-//            }
-//            else
-//            {
-//                if (isroot)
+//
+//                if (newnode || changed)
 //                {
-//                    // root node cannot be a file
-//                    LOG_err << "The local root node is a file";
-//                    changestate(SYNC_FAILED, INVALID_LOCAL_TYPE);
+//                    statecacheadd(l);
 //                }
-//                else
-//                {
-//                    if (fa->fsidvalid && l->fsid != fa->fsid)
-//                    {
-//                        l->setfsid(fa->fsid, client->fsidnode);
-//                    }
-//
-//                    if (l->size > 0)
-//                    {
-//                        localbytes -= l->size;
-//                    }
-//
-//                    if (l->genfingerprint(fa.get()))
-//                    {
-//                        changed = true;
-//                        l->bumpnagleds();
-//                        l->deleted = false;
-//                    }
-//
-//                    if (l->size > 0)
-//                    {
-//                        localbytes += l->size;
-//                    }
-//
-//                    if (newnode)
-//                    {
-//                        client->app->syncupdate_local_file_addition(this, l, path.c_str());
-//                    }
-//                    else if (changed)
-//                    {
-//                        client->app->syncupdate_local_file_change(this, l, path.c_str());
-//                        DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
-//                        client->stopxfer(l, &committer);
-//                    }
-//
-//                    if (newnode || changed)
-//                    {
-//                        statecacheadd(l);
-//                    }
 //                }
 //            }
 //        }
@@ -1757,41 +1276,185 @@ auto Sync::checkpathOne(LocalPath& localPath, const LocalPath& leafname, DirAcce
 //    }
 //    else
 //    {
-//        LOG_warn << "Error opening file";
-//        if (fa->retry)
-//        {
-//            // fopen() signals that the failure is potentially transient - do
-//            // nothing and request a recheck
-//            LOG_warn << "File blocked. Adding notification to the retry queue: " << path;
-//            dirnotify->notify(DirNotify::RETRY, ll, LocalPath(*localpathNew));
-//            client->syncfslockretry = true;
-//            client->syncfslockretrybt.backoff(SCANNING_DELAY_DS);
-//            client->blockedfile = *localpathNew;
-//        }
-//        else if (l)
-//        {
-//            // immediately stop outgoing transfer, if any
-//            if (l->transfer)
-//            {
-//                DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
-//                client->stopxfer(l, &committer);
-//            }
-//
-//            client->syncactivity = true;
-//
-//            // in fullscan mode, missing files are handled in bulk in deletemissing()
-//            // rather than through setnotseen()
-//            if (!fullscan)
-//            {
-//                l->setnotseen(1);
-//            }
-//        }
-//
-//        l = NULL;
+//    LOG_warn << "Error opening file";
+//    if (fa->retry)
+//    {
+//        // fopen() signals that the failure is potentially transient - do
+//        // nothing and request a recheck
+//        LOG_warn << "File blocked. Adding notification to the retry queue: " << path;
+//        dirnotify->notify(DirNotify::RETRY, ll, LocalPath(*localpathNew));
+//        client->syncfslockretry = true;
+//        client->syncfslockretrybt.backoff(SCANNING_DELAY_DS);
+//        client->blockedfile = *localpathNew;
 //    }
+//    else if (l)
+//    {
+//        // immediately stop outgoing transfer, if any
+//        if (l->transfer)
+//        {
+//            DBTableTransactionCommitter committer(client->tctable); // TODO:  can we use one committer for all the files in the folder?  Or for the whole recursion?
+//            client->stopxfer(l, &committer);
+//        }
 //
-//    return l;
-//}
+//        client->syncactivity = true;
+//
+//        // in fullscan mode, missing files are handled in bulk in deletemissing()
+//        // rather than through setnotseen()
+//        if (!fullscan)
+//        {
+//            l->setnotseen(1);
+//        }
+//    }
+
+
+bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool& rowResult)
+{
+    if (row.syncNode)
+    {
+        // (FIXME: handle type changes)
+        if (row.syncNode->type == row.fsNode->type)
+        {
+            // mark as present
+            row.syncNode->setnotseen(0); // todo: do we need this - prob not always right now
+
+            if (row.syncNode->type == FILENODE)
+            {
+                // we already checked fsid differs before calling
+
+                // was the file overwritten by moving an existing file over it?
+                if (LocalNode* sourceLocalNode = client->findLocalNodeByFsid(*row.fsNode, *this))
+                {
+                    // catch the not so unlikely case of a false fsid match due to
+                    // e.g. a file deletion/creation cycle that reuses the same inode
+                    if (sourceLocalNode->mtime != row.fsNode->mtime || sourceLocalNode->size != row.fsNode->size)
+                    {
+                        // This location's file can't be useing that fsid then.
+                        // Clear our fsid, and let normal comparison run
+                        row.fsNode->fsid = UNDEF;
+
+                        return false;
+                    }
+                    else
+                    {
+                        LOG_debug << "File move/overwrite detected";
+
+                        // delete existing LocalNode...
+                        delete row.syncNode;      // todo:  CAUTION:  this will queue commands to remove the cloud node
+                        row.syncNode = nullptr;
+
+                        // ...move remote node out of the way...
+                        client->execsyncdeletions();   // todo:  CAUTION:  this will send commands to remove the cloud node
+
+                        // ...and atomically replace with moved one
+                        client->app->syncupdate_local_move(this, sourceLocalNode, fullPath.toPath(*client->fsaccess).c_str());
+
+                        // (in case of a move, this synchronously updates l->parent and l->node->parent)
+                        sourceLocalNode->setnameparent(parentRow.syncNode, &fullPath, client->fsaccess->fsShortname(fullPath), true);
+
+                        // mark as seen / undo possible deletion
+                        sourceLocalNode->setnotseen(0);  // todo: do we still need this?
+
+                        statecacheadd(sourceLocalNode);
+
+                        rowResult = false;
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    else
+    {
+        // !row.syncNode
+
+        // rename or move of existing node?
+        if (row.fsNode->isSymlink)
+        {
+            LOG_debug << "checked path is a symlink, blocked: " << fullPath.toPath(*client->fsaccess);
+            row.syncNode->setUseBlocked();    // todo:   move earlier?  no syncnode here
+            rowResult = false;
+            return true;
+        }
+        else if (LocalNode* sourceLocalNode = client->findLocalNodeByFsid(*row.fsNode, *this))
+        {
+            LOG_debug << client->clientname << "Move detected by fsid. Type: " << sourceLocalNode->type << " new path: " << fullPath.toPath(*client->fsaccess) << " old localnode: " << sourceLocalNode->localnodedisplaypath(*client->fsaccess);
+
+            // logic to detect files being updated in the local computer moving the original file
+            // to another location as a temporary backup
+            if (sourceLocalNode->type == FILENODE &&
+                client->checkIfFileIsChanging(*row.fsNode, sourceLocalNode->getLocalPath(true)))
+            {
+                // if we revist here and the file is still the same after enough time, we'll move it
+                rowResult = false;
+                return true;
+            }
+
+            client->app->syncupdate_local_move(this, sourceLocalNode, fullPath.toPath(*client->fsaccess).c_str());
+
+            // (in case of a move, this synchronously updates l->parent
+            // and l->node->parent)
+            sourceLocalNode->setnameparent(parentRow.syncNode, &fullPath, client->fsaccess->fsShortname(fullPath), false);
+
+            // make sure that active PUTs receive their updated filenames
+            client->updateputs();
+
+            statecacheadd(sourceLocalNode);
+
+            // unmark possible deletion
+            sourceLocalNode->setnotseen(0);    // todo: do we still need this?
+
+            // immediately scan folder to detect deviations from cached state
+            if (fullscan && sourceLocalNode->type == FOLDERNODE)
+            {
+                sourceLocalNode->setFutureScan(true, true);
+            }
+        }
+    }
+    return false;
+ }
+
+bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool& rowResult)
+{
+
+    // First, figure out if this cloud node is different now because it was moved or renamed to this location
+
+    // look up LocalNode by cloud nodehandle eventually, probably.  But ptrs are useful for now
+
+    if (row.cloudNode->localnode && row.cloudNode->localnode->parent)
+    {
+        // It's a move or rename
+
+        row.cloudNode->localnode->treestate(TREESTATE_SYNCING);
+
+        LocalPath sourcePath = row.cloudNode->localnode->getLocalPath(true);
+        LOG_verbose << "Renaming/moving from the previous location: " << sourcePath.toPath(*client->fsaccess);
+
+        if (client->fsaccess->renamelocal(sourcePath, fullPath))
+        {
+            // todo: move anything at this path to sync debris first?  Old algo didn't though
+
+            client->app->syncupdate_local_move(this, row.cloudNode->localnode, fullPath.toPath(*client->fsaccess).c_str());
+
+            // update LocalNode tree to reflect the move/rename
+            row.cloudNode->localnode->setnameparent(parentRow.syncNode, &fullPath, client->fsaccess->fsShortname(fullPath), false);
+            statecacheadd(row.cloudNode->localnode);
+
+            // update filenames so that PUT transfers can continue seamlessly
+            client->updateputs();
+            client->syncactivity = true;  // todo: prob don't need this?
+
+            row.cloudNode->localnode->treestate(TREESTATE_SYNCED);
+        }
+        else if (client->fsaccess->transient_error)
+        {
+            row.syncNode->setUseBlocked();
+        }
+
+    }
+    return false;
+}
+
+
 
 //bool Sync::checkValidNotification(int q, Notification& notification)
 //{
@@ -2448,10 +2111,34 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
         return false;
     }
 
-
-
     bool rowSynced = false;
 
+    // First deal with detecting local moves/renames and propagating correspondingly
+    // Independent of the 8 combos below so we don't have duplicate checks in those.
+
+    if (row.fsNode && (!row.syncNode || (row.syncNode->fsid != UNDEF &&
+                                         row.syncNode->fsid != row.fsNode->fsid)))
+    {
+        bool rowResult;
+        if (checkLocalPathForMovesRenames(row, parentRow, fullPath, rowResult))
+        {
+            return rowResult;
+        }
+    }
+
+    if (row.cloudNode && (!row.syncNode || (!row.syncNode->syncedCloudNodeHandle.isUndef() &&
+        row.syncNode->syncedCloudNodeHandle.as8byte() != row.cloudNode->nodehandle)))
+    {
+        bool rowResult;
+        if (checkCloudPathForMovesRenames(row, parentRow, fullPath, rowResult))
+        {
+            return rowResult;
+        }
+    }
+
+
+
+    // each of the 8 possible cases of present/absent for this row
     if (row.syncNode)
     {
         if (row.fsNode)
@@ -2471,12 +2158,6 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 
                         row.syncNode->fsid = row.fsNode->fsid;
                         row.syncNode->syncedCloudNodeHandle.set6byte(row.cloudNode->nodehandle);
-
-                        if (row.fsNode->shortname)
-                        {
-                            // keep localnode's shortname up to date too
-                            row.syncNode->slocalname = move(row.fsNode->shortname);
-                        }
 
                         // todo: eventually remove pointers
                         row.syncNode->node = client->nodebyhandle(row.syncNode->syncedCloudNodeHandle.as8byte());
@@ -2544,6 +2225,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
             }
         }
     }
+
     else
     {
         if (row.fsNode)
@@ -2568,7 +2250,8 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
             }
             else
             {
-                // Item existed locally only.  Create LocalNode for it, next run through will upload it
+                // Item exists locally only. Check if it was moved/renamed here, or Create
+                // If creating, next run through will upload it
                 rowSynced = resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
             }
         }
@@ -2592,6 +2275,15 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 
 bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
+
+    if (!fsStateCurrent)
+    {
+        // We can't be sure the file hasn't been moved to some not-yet-scanned folder, so wait
+        LOG_verbose << "We must wait until scanning finishes to know if this is a move or not.";
+        return false;
+    }
+
+    // this really is a new node: add
     LOG_debug << "Creating LocalNode from FS at: " << fullPath.toPath(*client->fsaccess);
     auto l = new LocalNode;
 
@@ -2602,7 +2294,7 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPa
     }
     l->init(this, row.fsNode->type, parentRow.syncNode, fullPath, std::move(row.fsNode->shortname));
     assert(row.fsNode->fsid != UNDEF);
-    l->setfsid(row.fsNode->fsid, client->fsidnode);
+    l->setfsid(row.fsNode->fsid, client->localnodeByFsid);
     l->treestate(TREESTATE_PENDING);
     if (l->type != FILENODE)
     {
@@ -2689,89 +2381,50 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 
 bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool alreadyExists)
 {
-    // First, figure out if this cloud node is different now because it was moved or renamed to this location
-
-    // look up LocalNode by cloud nodehandle eventually, probably.  But ptrs are useful for now
-
-    if (row.cloudNode->localnode && row.cloudNode->localnode->parent)
+    if (row.cloudNode->type == FILENODE)
     {
-        // It's a move or rename
-
-        row.cloudNode->localnode->treestate(TREESTATE_SYNCING);
-
-        LocalPath sourcePath = row.cloudNode->localnode->getLocalPath(true);
-        LOG_verbose << "Renaming/moving from the previous location: " << sourcePath.toPath(*client->fsaccess);
-
-        if (client->fsaccess->renamelocal(sourcePath, fullPath))
+        // download the file if we're not already downloading
+        // if (alreadyExists), we will move the target to the trash when/if download completes //todo: check
+        if (!row.cloudNode->syncget)
         {
-            // todo: move anything at this path to sync debris first?  Old algo didn't though
+            // FIXME: to cover renames that occur during the
+            // download, reconstruct localname in complete()
+            LOG_debug << "Start fetching file node";
+            client->app->syncupdate_get(this, row.cloudNode, fullPath.toPath(*client->fsaccess).c_str());
 
-            client->app->syncupdate_local_move(this, row.cloudNode->localnode, fullPath.toPath(*client->fsaccess).c_str());
-
-            // update LocalNode tree to reflect the move/rename
-            row.cloudNode->localnode->setnameparent(parentRow.syncNode, &fullPath, client->fsaccess->fsShortname(fullPath), false);
-            statecacheadd(row.cloudNode->localnode);
-
-            // update filenames so that PUT transfers can continue seamlessly
-            client->updateputs();
-            client->syncactivity = true;  // todo: prob don't need this?
-
-            row.cloudNode->localnode->treestate(TREESTATE_SYNCED);
-        }
-        else if (client->fsaccess->transient_error)
-        {
-            row.syncNode->setUseBlocked();
-        }
-
-    }
-    else
-    {
-
-        if (row.cloudNode->type == FILENODE)
-        {
-            // download the file if we're not already downloading
-            // if (alreadyExists), we will move the target to the trash when/if download completes //todo: check
-            if (!row.cloudNode->syncget)
-            {
-                // FIXME: to cover renames that occur during the
-                // download, reconstruct localname in complete()
-                LOG_debug << "Start fetching file node";
-                client->app->syncupdate_get(this, row.cloudNode, fullPath.toPath(*client->fsaccess).c_str());
-
-                row.cloudNode->syncget = new SyncFileGet(this, row.cloudNode, fullPath);
-                DBTableTransactionCommitter committer(client->tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
-                client->nextreqtag();
-                client->startxfer(GET, row.cloudNode->syncget, committer);
-            }
-            else
-            {
-                LOG_verbose << "Download already in progress";
-            }
+            row.cloudNode->syncget = new SyncFileGet(this, row.cloudNode, fullPath);
+            DBTableTransactionCommitter committer(client->tctable); // TODO: use one committer for all files in the loop, without calling syncdown() recursively
+            client->nextreqtag();
+            client->startxfer(GET, row.cloudNode->syncget, committer);
         }
         else
         {
-            assert(!alreadyExists); // if it did we would have matched it
+            LOG_verbose << "Download already in progress";
+        }
+    }
+    else
+    {
+        assert(!alreadyExists); // if it did we would have matched it
 
-            LOG_verbose << "Creating local folder at: " << fullPath.toPath(*client->fsaccess);
+        LOG_verbose << "Creating local folder at: " << fullPath.toPath(*client->fsaccess);
 
-            if (client->fsaccess->mkdirlocal(fullPath))
-            {
-                assert(row.syncNode);
-                parentRow.syncNode->setFutureScan(true, false);
-            }
-            else if (client->fsaccess->transient_error)
-            {
-                LOG_debug << "Transient error creating folder, marking as blocked " << fullPath.toPath(*client->fsaccess);
-                assert(row.syncNode);
-                row.syncNode->setUseBlocked();
-            }
-            else // !transient_error
-            {
-                // let's consider this case as blocked too, alert the user
-                LOG_debug << "Non transient error creating folder, marking as blocked " << fullPath.toPath(*client->fsaccess);
-                assert(row.syncNode);
-                row.syncNode->setUseBlocked();
-            }
+        if (client->fsaccess->mkdirlocal(fullPath))
+        {
+            assert(row.syncNode);
+            parentRow.syncNode->setFutureScan(true, false);
+        }
+        else if (client->fsaccess->transient_error)
+        {
+            LOG_debug << "Transient error creating folder, marking as blocked " << fullPath.toPath(*client->fsaccess);
+            assert(row.syncNode);
+            row.syncNode->setUseBlocked();
+        }
+        else // !transient_error
+        {
+            // let's consider this case as blocked too, alert the user
+            LOG_debug << "Non transient error creating folder, marking as blocked " << fullPath.toPath(*client->fsaccess);
+            assert(row.syncNode);
+            row.syncNode->setUseBlocked();
         }
     }
     return false;
@@ -2794,6 +2447,14 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fu
 {
     // First, figure out if this is a rename or move or if we can even tell that yet.
 
+    if (!client->statecurrent)
+    {
+        // We could still be catching up on actionpackets during startup.
+        // Wait until that settles down, this node may reappear or be moved again
+        LOG_verbose << "Cloud node missing but we are not up to date with the cloud yet.";
+        return false;
+    }
+
     if (Node* n = client->nodebyhandle(row.syncNode->syncedCloudNodeHandle.as8byte()))
     {
         if (n->parent && n->parent == parentRow.cloudNode)
@@ -2811,25 +2472,197 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fu
             return false;
         }
     }
-    else
+
+    // node no longer exists anywhere  // todo:  what about debris & day folder creation - will we revisit here while that is going on?
+    LOG_debug << "Moving local item to local sync debris: " << fullPath.toPath(*client->fsaccess);
+    if (movetolocaldebris(fullPath))
     {
-        // node no longer exists anywhere  // todo:  what about debris & day folder creation - will we revisit here while that is going on?
-        LOG_debug << "Moving local item to local sync debris: " << fullPath.toPath(*client->fsaccess);
-        if (movetolocaldebris(fullPath))
+        // Let's still have another run of sync() on this folder afterward to ensure we are up to date
+        row.syncNode->setfsid(UNDEF, client->localnodeByFsid);
+    }
+
+    return false;
+}
+
+LocalNode* MegaClient::findLocalNodeByFsid(FSNode& fsNode, Sync& filesystemSync)
+{
+    if (fsNode.fsid == UNDEF) return nullptr;
+
+    auto range = localnodeByFsid.equal_range(fsNode.fsid);
+
+    for (auto it = range.first; it != range.second; ++it)
+    {
+        if (it->second->type != fsNode.type) continue;
+
+        // make sure we are in the same filesystem (fsid comparison is not valid in other filesystems)
+        if (it->second->sync != &filesystemSync)
         {
-            row.syncNode->setfsid(UNDEF, client->fsidnode);
+            auto fp1 = it->second->sync->dirnotify->fsfingerprint();
+            auto fp2 = filesystemSync.dirnotify->fsfingerprint();
+            if (!fp1 || !fp2 || fp1 != fp2)
+            {
+                continue;
+            }
+
+#ifdef _WIN32
+            // (from original sync code) Additionally for windows, check drive letter
+            // only consider fsid matches between different syncs for local drives with the
+            // same drive letter, to prevent problems with cloned Volume IDs
+            if (it->second->sync->localroot->localname.driveLetter() !=
+                filesystemSync.localroot->localname.driveLetter())
+            {
+                continue;
+            }
+#endif
+            if (fsNode.type == FILENODE &&
+                (fsNode.mtime != it->second->mtime ||
+                    fsNode.size != it->second->size))
+            {
+                // fsid match, but size or mtime mismatch
+                // treat as different
+                continue;
+            }
+
+            // If we got this far, it's a good enough match to use
+            // todo: come back for other matches?
+            return it->second;
         }
     }
-    return false;
+    return nullptr;
+}
+
+
+bool MegaClient::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath)
+{
+    // logic to prevent moving files that may still be being updated
+
+    // (original sync code comment:)
+    // detect files being updated in the local computer moving the original file
+    // to another location as a temporary backup
+
+    assert(fsNode.type == FILENODE);
+
+    bool waitforupdate = false;
+    FileChangingState& state = mFileChangingCheckState[fullPath];
+
+    m_time_t currentsecs = m_time();
+    if (!state.updatedfileinitialts)
+    {
+        state.updatedfileinitialts = currentsecs;
+    }
+
+    if (currentsecs >= state.updatedfileinitialts)
+    {
+        if (currentsecs - state.updatedfileinitialts <= Sync::FILE_UPDATE_MAX_DELAY_SECS)
+        {
+            auto prevfa = fsaccess->newfileaccess(false);
+
+            bool exists = prevfa->fopen(fullPath);
+            if (exists)
+            {
+                LOG_debug << "File detected in the origin of a move";
+
+                if (currentsecs >= state.updatedfilets)
+                {
+                    if ((currentsecs - state.updatedfilets) < (Sync::FILE_UPDATE_DELAY_DS / 10))
+                    {
+                        LOG_verbose << "currentsecs = " << currentsecs << "  lastcheck = " << state.updatedfilets
+                            << "  currentsize = " << prevfa->size << "  lastsize = " << state.updatedfilesize;
+                        LOG_debug << "The file was checked too recently. Waiting...";
+                        waitforupdate = true;
+                    }
+                    else if (state.updatedfilesize != prevfa->size)
+                    {
+                        LOG_verbose << "currentsecs = " << currentsecs << "  lastcheck = " << state.updatedfilets
+                            << "  currentsize = " << prevfa->size << "  lastsize = " << state.updatedfilesize;
+                        LOG_debug << "The file size has changed since the last check. Waiting...";
+                        state.updatedfilesize = prevfa->size;
+                        state.updatedfilets = currentsecs;
+                        waitforupdate = true;
+                    }
+                    else
+                    {
+                        LOG_debug << "The file size seems stable";
+                    }
+                }
+                else
+                {
+                    LOG_warn << "File checked in the future";
+                }
+
+                if (!waitforupdate)
+                {
+                    if (currentsecs >= prevfa->mtime)
+                    {
+                        if (currentsecs - prevfa->mtime < (Sync::FILE_UPDATE_DELAY_DS / 10))
+                        {
+                            LOG_verbose << "currentsecs = " << currentsecs << "  mtime = " << prevfa->mtime;
+                            LOG_debug << "File modified too recently. Waiting...";
+                            waitforupdate = true;
+                        }
+                        else
+                        {
+                            LOG_debug << "The modification time seems stable.";
+                        }
+                    }
+                    else
+                    {
+                        LOG_warn << "File modified in the future";
+                    }
+                }
+            }
+            else
+            {
+                if (prevfa->retry)
+                {
+                    LOG_debug << "The file in the origin is temporarily blocked. Waiting...";
+                    waitforupdate = true;
+                }
+                else
+                {
+                    LOG_debug << "There isn't anything in the origin path";
+                }
+            }
+
+            if (waitforupdate)
+            {
+                LOG_debug << "Possible file update detected.";
+                return NULL;
+            }
+        }
+        else
+        {
+            sendevent(99438, "Timeout waiting for file update", 0);
+        }
+    }
+    else
+    {
+        LOG_warn << "File check started in the future";
+    }
+
+    if (!waitforupdate)
+    {
+        mFileChangingCheckState.erase(fullPath);
+    }
+    return waitforupdate;
 }
 
 bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
+    if (!fsStateCurrent)
+    {
+        // We can't be sure the file hasn't been moved to some not-yet-scanned folder, so wait
+        LOG_verbose << "Local file/folder missing but we have not finished scanning yet.";
+        return false;
+    }
+
+
+
     // todo: what about moves, renames, etc.
     LOG_debug << "Moving cloud item to cloud sync debris: " << row.cloudNode->displaypath();
 
     // clear fsid so we don't assume it is present anymore in future passes
-    row.syncNode->setfsid(UNDEF, client->fsidnode);
+    row.syncNode->setfsid(UNDEF, client->localnodeByFsid);
 
     // remove the cloud node (we won't be called back here again while there is a pending command on the node)
     // todo: double check that is the case - what if the debris folder has to be created first, is there a gap?

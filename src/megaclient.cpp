@@ -3003,12 +3003,18 @@ void MegaClient::exec()
                         }
                     }
 
-                    bool scanning = false;
+                    bool anySyncScanning = false;
                     for (Sync* sync : syncs)
                     {
                         if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
                         {
                             sync->procscanq(DirNotify::DIREVENTS);
+
+                            // If no nodes still need scanning, then we are up to date with the filesystem
+                            // Make sure this flag is up to date before recursiveSync()
+                            // Even if other changes are notified in the meantime, we are processing a self-consistent state.
+                            // todo: add a small delay before considering this true?
+                            sync->fsStateCurrent = sync->localroot->scanAgain == LocalNode::SYNCTREE_RESOLVED;
 
                             // pathBuffer will have leafnames appended as we recurse
                             LocalPath pathBuffer = sync->localroot->localname;
@@ -3025,9 +3031,10 @@ void MegaClient::exec()
                             //}
                             sync->cachenodes();
 
-                            if (sync->localroot->scanAgain != LocalNode::SYNCTREE_RESOLVED)
+                            sync->fsStateCurrent = sync->localroot->scanAgain == LocalNode::SYNCTREE_RESOLVED;
+                            if (!sync->fsStateCurrent)
                             {
-                                scanning = false;
+                                anySyncScanning = true;
                             }
                             else if (sync->state == SYNC_INITIALSCAN)
                             {
@@ -3037,10 +3044,10 @@ void MegaClient::exec()
                         }
                     }
 
-                    if (scanning != syncscanstate)
+                    if (anySyncScanning != syncscanstate)
                     {
-                        app->syncupdate_scanning(scanning);
-                        syncscanstate = scanning;
+                        app->syncupdate_scanning(anySyncScanning);
+                        syncscanstate = anySyncScanning;
                     }
 
                     //// notify the app if a lock is being retried
@@ -14143,9 +14150,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
                 {
                     if (t)
                     {
-                        ll->sync->localbytes -= ll->size;
                         ll->genfingerprint(fa.get());
-                        ll->sync->localbytes += ll->size;
 
                         ll->sync->statecacheadd(ll);
                     }

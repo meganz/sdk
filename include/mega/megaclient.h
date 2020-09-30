@@ -1427,7 +1427,19 @@ public:
     localnode_set localsyncnotseen;
 
     // maps local fsid to corresponding LocalNode*
-    handlelocalnode_map fsidnode;
+    fsid_localnode_map localnodeByFsid;
+    LocalNode* findLocalNodeByFsid(FSNode& fsNode, Sync&);
+
+    // Keep track of files that we can't move yet because they are changing
+    struct FileChangingState
+    {
+        // values related to possible files being updated
+        m_off_t updatedfilesize = ~0;
+        m_time_t updatedfilets = 0;
+        m_time_t updatedfileinitialts = 0;
+    };
+    std::map<LocalPath, FileChangingState> mFileChangingCheckState;
+    bool checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath);
 
     // local nodes that need to be added remotely
     localnode_vector synccreate;

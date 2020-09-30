@@ -1420,7 +1420,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     scanseqno = sync->scanseqno;
 
     // mark fsid as not valid
-    fsid_it = sync->client->fsidnode.end();
+    fsid_it = sync->client->localnodeByFsid.end();
 
     // enable folder notification
     if (type == FOLDERNODE)
@@ -1626,14 +1626,9 @@ void LocalNode::setnotseen(int newnotseen)
 }
 
 // set fsid - assume that an existing assignment of the same fsid is no longer current and revoke
-void LocalNode::setfsid(handle newfsid, handlelocalnode_map& fsidnodes)
+void LocalNode::setfsid(handle newfsid, fsid_localnode_map& fsidnodes)
 {
-    if (!sync)
-    {
-        LOG_err << "LocalNode::init() was never called";
-        assert(false);
-        return;
-    }
+    assert(sync);
 
     if (fsid_it != fsidnodes.end())
     {
@@ -1653,18 +1648,7 @@ void LocalNode::setfsid(handle newfsid, handlelocalnode_map& fsidnodes)
     }
     else
     {
-        pair<handlelocalnode_map::iterator, bool> r = fsidnodes.insert(std::make_pair(fsid, this));
-
-        fsid_it = r.first;
-
-        if (!r.second)
-        {
-            assert(false); // analyse this case; can we be exact
-
-            // remove previous fsid assignment (the node is likely about to be deleted)
-            fsid_it->second->fsid_it = fsidnodes.end();
-            fsid_it->second = this;
-        }
+        fsid_it = fsidnodes.insert(std::make_pair(fsid, this));
     }
 }
 
@@ -1705,18 +1689,13 @@ LocalNode::~LocalNode()
     }
 
     // remove from fsidnode map, if present
-    if (fsid_it != sync->client->fsidnode.end())
+    if (fsid_it != sync->client->localnodeByFsid.end())
     {
-        sync->client->fsidnode.erase(fsid_it);
+        sync->client->localnodeByFsid.erase(fsid_it);
     }
 
     sync->client->totalLocalNodes--;
     sync->localnodes[type]--;
-
-    if (type == FILENODE && size > 0)
-    {
-        sync->localbytes -= size;
-    }
 
     if (type == FOLDERNODE)
     {
@@ -2036,7 +2015,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->parent_dbid = parent_dbid;
 
     l->fsid = fsid;
-    l->fsid_it = sync->client->fsidnode.end();
+    l->fsid_it = sync->client->localnodeByFsid.end();
 
     l->localname = LocalPath::fromPlatformEncoded(localname);
     l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromPlatformEncoded(shortname)));

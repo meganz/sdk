@@ -412,7 +412,9 @@ typedef enum { SYNCDEL_NONE, SYNCDEL_DELETED, SYNCDEL_INFLIGHT, SYNCDEL_BIN,
 
 typedef vector<LocalNode*> localnode_vector;
 
-typedef map<handle, LocalNode*> handlelocalnode_map;
+// fsid is not necessarily unique becuase multiple filesystems may be involved
+// Hence, we use a multimap and check other parameters too when looking for a match.
+typedef multimap<handle, LocalNode*> fsid_localnode_map;
 
 typedef set<LocalNode*> localnode_set;
 

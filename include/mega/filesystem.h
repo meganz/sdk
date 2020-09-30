@@ -183,6 +183,7 @@ public:
     static LocalPath fromPlatformEncoded(string localname);
 #ifdef WIN32
     static LocalPath fromPlatformEncoded(wstring&& localname);
+    wchar_t driveLetter();
 #endif
 
     // Generates a name for a temporary file

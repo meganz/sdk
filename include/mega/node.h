@@ -406,7 +406,7 @@ struct MEGA_API LocalNode : public File
 
     // local filesystem node ID (inode...) for rename/move detection
     handle fsid = mega::UNDEF;
-    handlelocalnode_map::iterator fsid_it{};
+    fsid_localnode_map::iterator fsid_it;
 
     // related cloud node, if any
     Node* node = nullptr;
@@ -531,7 +531,7 @@ public:
 
     // set fsid - assume that an existing assignment of the same fsid is no longer current and revoke.
     // fsidnodes is a map from fsid to LocalNode, keeping track of all fs ids.
-    void setfsid(handle newfsid, handlelocalnode_map& fsidnodes);
+    void setfsid(handle newfsid, fsid_localnode_map& fsidnodes);
 
     void setnameparent(LocalNode*, LocalPath* newlocalpath, std::unique_ptr<LocalPath>, bool applyToCloud);
 
