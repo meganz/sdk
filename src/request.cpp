@@ -249,10 +249,13 @@ void Request::swap(Request& r)
 {
     // we use swap to move between queues, but process only after it gets completed
     cmds.swap(r.cmds);
+    std::swap(mV3, r.mV3);
+
+    // Although swap would usually swap all fields, these must be empty anyway
+    // If swap was used when these were active, we would be moving needed info out of the request-in-progress
     assert(jsonresponse.empty() && r.jsonresponse.empty());
     assert(json.pos == NULL && r.json.pos == NULL);
     assert(processindex == 0 && r.processindex == 0);
-    std::swap(mV3, r.mV3);
 }
 
 RequestDispatcher::RequestDispatcher()
