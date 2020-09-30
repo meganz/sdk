@@ -15792,6 +15792,18 @@ class MegaApi
          * - MegaApi::ORDER_VIDEO_DESC = 14
          * Sort with videos first, then by date descending
          *
+         * - MegaApi::ORDER_LABEL_ASC = 17
+         * Sort by color label, ascending
+         *
+         * - MegaApi::ORDER_LABEL_DESC = 18
+         * Sort by color label, descending
+         *
+         * - MegaApi::ORDER_FAV_ASC = 19
+         * Sort nodes with favourite attr first
+         *
+         * - MegaApi::ORDER_FAV_DESC = 20
+         * Sort nodes with favourite attr last
+         *
          * @param type Type of nodes requested in the search
          * Valid values for this parameter are:
          * - MegaApi::NODE_UNKNOWN = 0  --> all types
