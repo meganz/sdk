@@ -306,6 +306,7 @@ CurlHttpIO::CurlHttpIO()
     options.tries = 2;
     ares_init_options(&ares, &options, ARES_OPT_TRIES);
     arestimeout = -1;
+
     filterDNSservers();
 
     curl_multi_setopt(curlm[API], CURLMOPT_SOCKETFUNCTION, api_socket_callback);
@@ -384,6 +385,11 @@ bool CurlHttpIO::ipv6available()
 
 void CurlHttpIO::filterDNSservers()
 {
+    // in iOS, DNS resolution is done by cUrl directly (c-ares is not involved at all)
+#ifdef TARGET_OS_IPHONE
+    return;
+#endif
+
     string newservers;
     string serverlist;
     set<string> serverset;
@@ -1399,6 +1405,8 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         httpctx->posturl.replace(httpctx->posturl.find(httpctx->hostname), httpctx->hostname.size(), httpctx->hostip);
         httpctx->headers = curl_slist_append(httpctx->headers, httpctx->hostheader.c_str());
     }
+    
+#ifndef TARGET_OS_IPHONE
     else
     {
         LOG_err << "No IP nor proxy available";
@@ -1414,6 +1422,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         httpio->statechange = true;
         return;
     }
+#endif
     
     CURL* curl;
     if ((curl = curl_easy_init()))
@@ -1590,7 +1599,11 @@ void CurlHttpIO::request_proxy_ip()
     httpctx->httpio = this;
     httpctx->hostname = proxyhost;
     httpctx->ares_pending = 1;
+    
 
+#if TARGET_OS_IPHONE
+    send_request(httpctx);
+#else
     if (ipv6proxyenabled)
     {
         httpctx->ares_pending++;
@@ -1600,6 +1613,7 @@ void CurlHttpIO::request_proxy_ip()
 
     LOG_debug << "Resolving IPv4 address for proxy: " << proxyhost;
     ares_gethostbyname(ares, proxyhost.c_str(), PF_INET, proxy_ready_callback, httpctx);
+#endif
 }
 
 bool CurlHttpIO::crackurl(string* url, string* scheme, string* hostname, int* port)
@@ -1907,6 +1921,9 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         return;
     }
 
+#if TARGET_OS_IPHONE
+    send_request(httpctx);
+#else
     if (ipv6requestsenabled)
     {
         httpctx->ares_pending++;
@@ -1916,6 +1933,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     LOG_debug << "Resolving IPv4 address for " << httpctx->hostname;
     ares_gethostbyname(ares, httpctx->hostname.c_str(), PF_INET, ares_completed_callback, httpctx);
+#endif
 }
 
 void CurlHttpIO::setproxy(Proxy* proxy)
@@ -2614,6 +2632,11 @@ int CurlHttpIO::sockopt_callback(void *clientp, curl_socket_t, curlsocktype)
     {
         httpio->dnscache[httpctx->hostname].mNeedsResolvingAgain = false;
         httpctx->ares_pending = 1;
+        
+
+#if TARGET_OS_IPHONE
+        send_request(httpctx);
+#else
         if (httpio->ipv6requestsenabled)
         {
             httpctx->ares_pending++;
@@ -2623,6 +2646,7 @@ int CurlHttpIO::sockopt_callback(void *clientp, curl_socket_t, curlsocktype)
 
         LOG_debug << "Resolving IPv4 address for " << httpctx->hostname << " during connection";
         ares_gethostbyname(httpio->ares, httpctx->hostname.c_str(), PF_INET, ares_completed_callback, httpctx);
+#endif
     }
 
     return CURL_SOCKOPT_OK;
