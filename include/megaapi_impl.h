@@ -234,12 +234,13 @@ public:
 
 protected:
     void onFolderAvailable(MegaHandle handle);
+    void scanFolderNode(MegaHandle parentHandle, LocalPath& localPath, std::string folderName);
     void checkCompletion();
 
     std::list<LocalPath> pendingFolders;
     MegaStringMap *mFolders;
     MegaStringMap *mFoldersHierarchy;
-    std::vector<std::pair<LocalPath, std::string>> mPendingFiles;
+    std::vector<std::pair<LocalPath, handle>> mPendingFiles;
 
 public:
     void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e) override;

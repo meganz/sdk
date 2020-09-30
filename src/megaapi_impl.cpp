@@ -24834,6 +24834,51 @@ void MegaFolderUploadController::cancel()
     transfer = nullptr;  // no final callback for this one since it is being destroyed now
 }
 
+void MegaFolderUploadController::scanFolderNode(MegaHandle parentHandle, LocalPath& localPath, std::string folderName)
+{
+    recursive++;
+    unique_ptr<DirAccess> da(client->fsaccess->newdiraccess());
+    assert(parentHandle != UNDEF);
+    if (!da->dopen(&localPath, nullptr, false))
+    {
+        LOG_err << "Can't open local directory" << localPath.toPath(*client->fsaccess);
+        recursive--;
+        mLastError = API_EACCESS;
+        mIncompleteTransfers++;
+        return;
+    }
+
+    // generate a temp node handle
+    MegaHandle newNodeHandle = client->nextUploadId();
+    const unique_ptr<char[]> nhB64(megaApi->handleToBase64(newNodeHandle));
+    const unique_ptr<char[]> phB64(megaApi->handleToBase64(parentHandle));
+
+    // map nodeHandle to folderName
+    mFolders->set(nhB64.get(), folderName.c_str());
+    // map nodeHandle to parentHandle
+    mFoldersHierarchy->set(nhB64.get(), phB64.get());
+
+    LocalPath localname;
+    nodetype_t dirEntryType;
+    FileSystemType fsType = client->fsaccess->getlocalfstype(localPath);
+    while (da->dnext(localPath, localname, client->followsymlinks, &dirEntryType))
+    {
+        ScopedLengthRestore restoreLen(localPath);
+        localPath.appendWithSeparator(localname, false, client->fsaccess->localseparator);
+
+        if (dirEntryType == FILENODE)
+        {
+            pendingTransfers++;
+            mPendingFiles.emplace_back(std::make_pair(localPath, newNodeHandle));
+        }
+        else if (dirEntryType == FOLDERNODE)
+        {
+            scanFolderNode(newNodeHandle ,localPath, localname.toName(*client->fsaccess, fsType));
+        }
+    }
+    recursive--;
+}
+
 void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
 {
     recursive++;
@@ -24927,7 +24972,7 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
             // All folder structure has been created in a single put nodes, now add all transfers for every file
             for (size_t i = 0; i < mPendingFiles.size(); i++)
             {
-               handle parentHandleTemp = megaApi->base64ToHandle(mPendingFiles.at(i).second.c_str());
+               handle parentHandleTemp = mPendingFiles.at(i).second;
                auto it = client->mTempHandleToNodeHandle.find(parentHandleTemp);
                if (it != client->mTempHandleToNodeHandle.end())
                {
