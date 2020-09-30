@@ -2462,7 +2462,7 @@ void MegaClient::exec()
 
                         if (sync->scan(&localPath, fa.get()))
                         {
-                            //syncsup = false; These syncs should not delay action packets
+                            syncsup = false;
                             sync->initializing = false;
                             LOG_debug << "Initial delayed scan finished. New / modified files: " << sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
                             saveAndUpdateSyncConfig(&sync->getConfig(), sync->state, NO_SYNC_ERROR);
