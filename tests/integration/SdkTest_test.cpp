@@ -269,8 +269,26 @@ void SdkTest::Cleanup()
     deleteFile(PUBLICFILE);
     deleteFile(AVATARDST);
 
+    std::vector<std::unique_ptr<RequestTracker>> delSyncTrackers;
+
+    for (auto &m : megaApi)
+    {
+        auto syncs = unique_ptr<MegaSyncList>(m->getSyncs());
+        for (int i = syncs->size(); i--; )
+        {
+            delSyncTrackers.push_back(std::unique_ptr<RequestTracker>(new RequestTracker(m.get())));
+            m->removeSync(syncs->get(i), delSyncTrackers.back().get());
+        }
+    }
+
+    // wait for delsyncs to complete:
+    for (auto& d : delSyncTrackers) d->waitForResult();
+    WaitMillisec(5000);
+
+
     if (megaApi[0])
     {
+
         // Remove nodes in Cloud & Rubbish
         purgeTree(std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), false);
         purgeTree(std::unique_ptr<MegaNode>{megaApi[0]->getRubbishNode()}.get(), false);
@@ -631,17 +649,11 @@ void SdkTest::onEvent(MegaApi*, MegaEvent *event)
 }
 
 
-void SdkTest::fetchnodes(unsigned int apiIndex, int timeout, bool resumeSyncs)
+void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_FETCH_NODES] = false;
-    if (resumeSyncs)
-    {
-        mApi[apiIndex].megaApi->fetchNodesAndResumeSyncs();
-    }
-    else
-    {
-        mApi[apiIndex].megaApi->fetchNodes();
-    }
+
+    mApi[apiIndex].megaApi->fetchNodes();
 
     ASSERT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_FETCH_NODES], timeout) )
             << "Fetchnodes failed after " << timeout  << " seconds";
@@ -829,7 +841,7 @@ void SdkTest::getAccountsForTest(unsigned howMany)
         megaApi[index]->setLoggingName(to_string(index).c_str());
         megaApi[index]->addListener(this);    // TODO: really should be per api
 
-        if (!gResumeSessions || gSessionIDs[index].empty())
+        if (!gResumeSessions || gSessionIDs[index].empty() || gSessionIDs[index] == "invalid")
         {
             out() << logTime() << "Logging into account " << index << endl;
             trackers[index] = asyncRequestLogin(index, mApi[index].email.c_str(), mApi[index].pwd.c_str());
@@ -4516,6 +4528,15 @@ TEST_F(SdkTest, SdkMediaUploadRequestURL)
     ASSERT_NE(0, *url.get()) << "Got empty media upload URL";
 }
 
+TEST_F(SdkTest, SdkGetBanners)
+{
+    getAccountsForTest(1);
+    LOG_info << "___TEST GetBanners___";
+
+    auto err = synchronousGetBanners(0);
+    ASSERT_TRUE(err == MegaError::API_OK || err == MegaError::API_ENOENT) << "Get banners failed (error: " << err << ")";
+}
+
 TEST_F(SdkTest, SdkSimpleCommands)
 {
     getAccountsForTest(1);
@@ -4550,6 +4571,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
     ASSERT_TRUE(!!mApi[0].accountDetails) << "Invalid accout details"; // some simple validation
 
     // killSession()
+    gSessionIDs[0] = "invalid";
     int numSessions = mApi[0].accountDetails->getNumSessions();
     for (int i = 0; i < numSessions; ++i)
     {
@@ -4971,12 +4993,14 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         return sync->getLocalFingerprint();
     };
 
-    auto syncFolder = [this, &megaNode](const fs::path& p)
+    auto syncFolder = [this, &megaNode](const fs::path& p) -> int
     {
         RequestTracker syncTracker(megaApi[0].get());
         auto node = megaNode(p.filename().u8string());
         megaApi[0]->syncFolder(p.u8string().c_str(), node.get(), &syncTracker);
-        ASSERT_EQ(API_OK, syncTracker.waitForResult());
+        EXPECT_EQ(API_OK, syncTracker.waitForResult());
+
+        return syncTracker.request->getTransferTag();
     };
 
     auto disableSync = [this, &megaNode](const fs::path& p)
@@ -4987,11 +5011,17 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
     };
 
-    auto resumeSync = [this, &megaNode](const fs::path& p, const long long localfp)
+    auto disableSyncByTag = [this](int tag)
     {
         RequestTracker syncTracker(megaApi[0].get());
-        auto node = megaNode(p.filename().u8string());
-        megaApi[0]->resumeSync(p.u8string().c_str(), node.get(), localfp, &syncTracker);
+        megaApi[0]->disableSync(tag, &syncTracker);
+        ASSERT_EQ(API_OK, syncTracker.waitForResult());
+    };
+
+    auto resumeSync = [this](int tag)
+    {
+        RequestTracker syncTracker(megaApi[0].get());
+        megaApi[0]->enableSync(tag, &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
     };
 
@@ -5006,8 +5036,21 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     auto checkSyncOK = [this, &megaNode](const fs::path& p)
     {
         auto node = megaNode(p.filename().u8string());
-        return std::unique_ptr<MegaSync>{megaApi[0]->getSyncByNode(node.get())} != nullptr;
+        //return std::unique_ptr<MegaSync>{megaApi[0]->getSyncByNode(node.get())} != nullptr; //disabled syncs are not OK but foundable
+        std::unique_ptr<MegaSync> sync{megaApi[0]->getSyncByNode(node.get())};
+        if (!sync) return false;
+        return sync->isEnabled();
+
     };
+
+    auto checkSyncDisabled = [this, &megaNode](const fs::path& p)
+    {
+        auto node = megaNode(p.filename().u8string());
+        std::unique_ptr<MegaSync> sync{megaApi[0]->getSyncByNode(node.get())};
+        if (!sync) return false;
+        return !sync->isEnabled();
+    };
+
 
     auto reloginViaSession = [this, &session]()
     {
@@ -5018,27 +5061,32 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for accout " << 0;
     };
 
-    syncFolder(sync1Path);
-    syncFolder(sync2Path);
-    syncFolder(sync3Path);
-    syncFolder(sync4Path);
+    LOG_verbose << " SyncResumptionAfterFetchNodes : syncying folders";
+
+    int tag1 = syncFolder(sync1Path);  tag1;
+    int tag2 = syncFolder(sync2Path);
+    int tag3 = syncFolder(sync3Path);  tag3;
+    int tag4 = syncFolder(sync4Path);  tag4;
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_TRUE(checkSyncOK(sync2Path));
     ASSERT_TRUE(checkSyncOK(sync3Path));
     ASSERT_TRUE(checkSyncOK(sync4Path));
-    const auto sync2LocalFp = localFp(sync2Path); // need this for manual resume
 
+    LOG_verbose << " SyncResumptionAfterFetchNodes : disabling sync by path";
     disableSync(sync2Path);
+    LOG_verbose << " SyncResumptionAfterFetchNodes : disabling sync by tag";
+    disableSyncByTag(tag4);
+    LOG_verbose << " SyncResumptionAfterFetchNodes : removing sync";
     removeSync(sync3Path);
 
     // wait for the sync removals to actually take place
     std::this_thread::sleep_for(std::chrono::seconds{20});
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
-    ASSERT_FALSE(checkSyncOK(sync2Path));
+    ASSERT_TRUE(checkSyncDisabled(sync2Path));
     ASSERT_FALSE(checkSyncOK(sync3Path));
-    ASSERT_TRUE(checkSyncOK(sync4Path));
+    ASSERT_TRUE(checkSyncDisabled(sync4Path));
 
     reloginViaSession();
 
@@ -5047,15 +5095,19 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_FALSE(checkSyncOK(sync3Path));
     ASSERT_FALSE(checkSyncOK(sync4Path));
 
-    fetchnodes(0, maxTimeout, true); // auto-resumes two active syncs
+    fetchnodes(0, maxTimeout); // auto-resumes two active syncs
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_FALSE(checkSyncOK(sync2Path));
+    ASSERT_TRUE(checkSyncDisabled(sync2Path));
     ASSERT_FALSE(checkSyncOK(sync3Path));
-    ASSERT_TRUE(checkSyncOK(sync4Path));
+    ASSERT_FALSE(checkSyncOK(sync4Path));
+    ASSERT_TRUE(checkSyncDisabled(sync4Path));
 
     // check if we can still resume manually
-    resumeSync(sync2Path, sync2LocalFp);
+    LOG_verbose << " SyncResumptionAfterFetchNodes : resuming syncs";
+    resumeSync(tag2);
+    resumeSync(tag4);
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_TRUE(checkSyncOK(sync2Path));
@@ -5070,19 +5122,20 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     ASSERT_FALSE(checkSyncOK(sync3Path));
     ASSERT_FALSE(checkSyncOK(sync4Path));
 
-    fetchnodes(0, maxTimeout, true); // auto-resumes three active syncs
+    fetchnodes(0, maxTimeout); // auto-resumes three active syncs
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_TRUE(checkSyncOK(sync2Path));
     ASSERT_FALSE(checkSyncOK(sync3Path));
     ASSERT_TRUE(checkSyncOK(sync4Path));
 
+    LOG_verbose << " SyncResumptionAfterFetchNodes : removing syncs";
     removeSync(sync1Path);
     removeSync(sync2Path);
     removeSync(sync4Path);
 
     // wait for the sync removals to actually take place
-    std::this_thread::sleep_for(std::chrono::seconds{20});
+    std::this_thread::sleep_for(std::chrono::seconds{5});
 
     cleanUp();
 }

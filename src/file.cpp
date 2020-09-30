@@ -312,6 +312,7 @@ void File::completed(Transfer* t, LocalNode* l)
         }
 #endif
         AttrMap attrs;
+        t->client->honorPreviousVersionAttrs(previousNode, attrs);
 
         // store filename
         attrs.map['n'] = name;
@@ -343,7 +344,7 @@ void File::completed(Transfer* t, LocalNode* l)
             {
                 th = t->client->rootnodes[RUBBISHNODE - ROOTNODE];
             }
-#ifdef ENABLE_SYNC            
+#ifdef ENABLE_SYNC
             if (l)
             {
                 // tag the previous version in the synced folder (if any) or move to SyncDebris

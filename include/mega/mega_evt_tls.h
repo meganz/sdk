@@ -83,7 +83,7 @@ struct evt_tls_s {
     //Our BIO, all IO should be through this
     BIO     *app_bio;
     SSL     *ssl;
-    
+
     //this can be changed per connections
     net_wrtr writer;
     net_rdr reader;
@@ -210,7 +210,7 @@ return 1 if the stream is TLS and 0 otherwise
 */
 int evt_is_tls_stream(const char *bfr, const ssize_t nrd);
 
-#ifdef __cplusplus 
+#ifdef __cplusplus
 }
 #endif
 

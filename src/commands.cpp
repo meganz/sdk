@@ -1437,48 +1437,7 @@ bool CommandMoveNode::procresult(Result r)
         }
 #endif
         // Movement of shares and pending shares into Rubbish should remove them
-        if (r.wasError(API_OK))
-        {
-            Node *n = client->nodebyhandle(h);
-            if (n && (n->pendingshares || n->outshares))
-            {
-                Node *rootnode = client->nodebyhandle(np);
-                while (rootnode)
-                {
-                    if (!rootnode->parent)
-                    {
-                        break;
-                    }
-                    rootnode = rootnode->parent;
-                }
-                if (rootnode && rootnode->type == RUBBISHNODE)
-                {
-                    share_map::iterator it;
-                    if (n->pendingshares)
-                    {
-                        for (it = n->pendingshares->begin(); it != n->pendingshares->end(); it++)
-                        {
-                            client->newshares.push_back(new NewShare(
-                                                            n->nodehandle, 1, n->owner, ACCESS_UNKNOWN,
-                                                            0, NULL, NULL, it->first, false));
-                        }
-                    }
-
-                    if (n->outshares)
-                    {
-                        for (it = n->outshares->begin(); it != n->outshares->end(); it++)
-                        {
-                            client->newshares.push_back(new NewShare(
-                                                            n->nodehandle, 1, it->first, ACCESS_UNKNOWN,
-                                                            0, NULL, NULL, UNDEF, false));
-                        }
-                    }
-
-                    client->mergenewshares(1);
-                }
-            }
-        }
-        else if (syncdel == SYNCDEL_NONE)
+        if (r.wasStrictlyError() && syncdel == SYNCDEL_NONE)
         {
             client->sendevent(99439, "Unexpected move error", 0);
         }
@@ -1632,6 +1591,7 @@ bool CommandPrelogin::procresult(Result r)
     if (r.wasErrorOrOK())
     {
         client->app->prelogin_result(0, NULL, NULL, r.errorOrOK());
+        return true;
     }
 
     assert(r.hasJsonObject());
@@ -3059,6 +3019,8 @@ bool CommandGetUA::procresult(Result r)
             LOG_info << "File versioning is enabled";
             client->versions_disabled = false;
         }
+
+        return true;
     }
     else
     {
@@ -4142,11 +4104,9 @@ bool CommandGetUserData::procresult(Result r)
                     std::string err = "GetUserData: invalid business status / account mode";
                     LOG_err << err;
                     client->sendevent(99450, err.c_str(), 0);
-
-                    client->mBizStatus = BIZ_STATUS_EXPIRED;
                     client->mBizMode = BIZ_MODE_SUBUSER;
                     client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
-                    client->app->notify_business_status(client->mBizStatus);
+                    client->setBusinessStatus(BIZ_STATUS_EXPIRED);
                 }
                 else
                 {
@@ -4173,11 +4133,7 @@ bool CommandGetUserData::procresult(Result r)
                     assert(m != BIZ_MODE_SUBUSER || !masters.empty());
                     client->mBizMasters = masters;
 
-                    if (client->mBizStatus != s)
-                    {
-                        client->mBizStatus = s;
-                        client->app->notify_business_status(s);
-                    }
+                    client->setBusinessStatus(s);
 
                     // if current business status will expire sooner than the scheduled `ug`, update the
                     // backoff to a shorter one in order to refresh the business status asap
@@ -4205,16 +4161,10 @@ bool CommandGetUserData::procresult(Result r)
             }
             else
             {
-                BizStatus oldStatus = client->mBizStatus;
-                client->mBizStatus = BIZ_STATUS_INACTIVE;
                 client->mBizMode = BIZ_MODE_UNKNOWN;
                 client->mBizMasters.clear();
                 client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
-
-                if (client->mBizStatus != oldStatus)
-                {
-                    client->app->notify_business_status(client->mBizStatus);
-                }
+                client->setBusinessStatus(BIZ_STATUS_INACTIVE);
             }
 
             if (uspw)
@@ -5451,6 +5401,7 @@ bool CommandFetchNodes::procresult(Result r)
 
                 client->mergenewshares(0);
                 client->applykeys();
+                client->initStatusTable();
                 client->initsc();
                 client->pendingsccommit = false;
                 client->fetchnodestag = tag;
@@ -7618,9 +7569,14 @@ bool CommandMultiFactorAuthDisable::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-CommandGetPSA::CommandGetPSA(MegaClient *client)
+CommandGetPSA::CommandGetPSA(bool urlSupport, MegaClient *client)
 {
     cmd("gpsa");
+
+    if (urlSupport)
+    {
+        arg("w", 1);
+    }
 
     tag = client->reqtag;
 }
@@ -7629,14 +7585,14 @@ bool CommandGetPSA::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->getpsa_result(r.errorOrOK(), 0, NULL, NULL, NULL, NULL, NULL);
+        client->app->getpsa_result(r.errorOrOK(), 0, NULL, NULL, NULL, NULL, NULL, NULL);
         return true;
     }
 
     int id = 0;
     string temp;
     string title, text, imagename, imagepath;
-    string buttonlink, buttontext;
+    string buttonlink, buttontext, url;
 
     for (;;)
     {
@@ -7659,6 +7615,9 @@ bool CommandGetPSA::procresult(Result r)
             case 'l':
                 client->json.storeobject(&buttonlink);
                 break;
+            case MAKENAMEID3('u', 'r', 'l'):
+                client->json.storeobject(&url);
+                break;
             case 'b':
                 client->json.storeobject(&temp);
                 Base64::atob(temp, buttontext);
@@ -7669,13 +7628,13 @@ bool CommandGetPSA::procresult(Result r)
             case EOO:
                 imagepath.append(imagename);
                 imagepath.append(".png");
-                client->app->getpsa_result(API_OK, id, &title, &text, &imagepath, &buttontext, &buttonlink);
+                client->app->getpsa_result(API_OK, id, &title, &text, &imagepath, &buttontext, &buttonlink, &url);
                 return true;
             default:
                 if (!client->json.storeobject())
                 {
                     LOG_err << "Failed to parse get PSA response";
-                    client->app->getpsa_result(API_EINTERNAL, 0, NULL, NULL, NULL, NULL, NULL);
+                    client->app->getpsa_result(API_EINTERNAL, 0, NULL, NULL, NULL, NULL, NULL, NULL);
                     return false;
                 }
                 break;
@@ -7960,6 +7919,7 @@ CommandGetCountryCallingCodes::CommandGetCountryCallingCodes(MegaClient* client)
 {
     cmd("smslc");
 
+    batchSeparately = true;
     tag = client->reqtag;
 }
 
@@ -8258,6 +8218,121 @@ CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId)
 bool CommandBackupRemove::procresult(Result r)
 {
     client->app->backupremove_result(r.errorOrOK(), id);
+    return r.wasErrorOrOK();
+}
+
+CommandGetBanners::CommandGetBanners(MegaClient* client)
+{
+    cmd("gban");
+
+    tag = client->reqtag;
+}
+
+bool CommandGetBanners::procresult(Result r)
+{
+    if (r.wasErrorOrOK())
+    {
+        client->app->getbanners_result(r.errorOrOK());
+        return true; // because parsing didn't fail
+    }
+
+    /*
+        {
+            "id": 2, ///The banner id
+            "t": "R2V0IFZlcmlmaWVk", ///Banner title
+            "d": "TWFrZSBpdCBlYXNpZXIgZm9yIHlvdXIgY29udGFjdHMgdG8gZmluZCB5b3Ugb24gTUVHQS4", ///Banner description.
+            "img": "Verified_image.png", ///Image name.
+            "l": "", ///URL
+            "bimg": "Verified_BG.png", ///background image name.
+            "dsp": "https://domain/path" ///Where to get the image.
+        }, {"id":3, ...}, ... ]
+    */
+
+    vector< tuple<int, string, string, string, string, string, string> > banners;
+
+    // loop array elements
+    while (client->json.enterobject())
+    {
+        int id = 0;
+        string title, description, img, url, bimg, dsp;
+        bool exit = false;
+
+        // loop and read object members
+        while (!exit)
+        {
+            switch (client->json.getnameid())
+            {
+            case MAKENAMEID2('i', 'd'):
+                id = client->json.getint32();
+                break;
+
+            case MAKENAMEID1('t'):
+                client->json.storeobject(&title);
+                break;
+
+            case MAKENAMEID1('d'):
+                client->json.storeobject(&description);
+                break;
+
+            case MAKENAMEID3('i', 'm', 'g'):
+                client->json.storeobject(&img);
+                break;
+
+            case MAKENAMEID1('l'):
+                client->json.storeobject(&url);
+                break;
+
+            case MAKENAMEID4('b', 'i', 'm', 'g'):
+                client->json.storeobject(&bimg);
+                break;
+
+            case MAKENAMEID3('d', 's', 'p'):
+                client->json.storeobject(&dsp);
+                break;
+
+            case EOO:
+                if (!id || title.empty() || description.empty())
+                {
+                    LOG_err << "Missing id, title or description in response to gban";
+                    client->app->getbanners_result(API_EINTERNAL);
+                    return false;
+                }
+                exit = true;
+                break;
+
+            default:
+                if (!client->json.storeobject()) // skip unknown member
+                {
+                    LOG_err << "Failed to parse banners response";
+                    client->app->getbanners_result(API_EINTERNAL);
+                    return false;
+                }
+                break;
+            }
+        }
+
+        banners.emplace_back(make_tuple(id, move(title), move(description), move(img), move(url), move(bimg), move(dsp)));
+
+        client->json.leaveobject();
+    }
+
+    client->app->getbanners_result(move(banners));
+
+    return true;
+}
+
+CommandDismissBanner::CommandDismissBanner(MegaClient* client, int id, m_time_t timestamp)
+{
+    cmd("dban");
+    arg("id", id); // id of the Smart Banner
+    arg("ts", timestamp);
+
+    tag = client->reqtag;
+}
+
+bool CommandDismissBanner::procresult(Result r)
+{
+    client->app->dismissbanner_result(r.errorOrOK());
     return r.wasErrorOrOK();
 }
 

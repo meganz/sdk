@@ -50,11 +50,16 @@ struct MEGA_API WinDirNotify;
 class MEGA_API WinFileSystemAccess : public FileSystemAccess
 {
 public:
+    using FileSystemAccess::getlocalfstype;
+
     std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
+    
+    bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
+
     DirAccess* newdiraccess() override;
     DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*) override;
 
-    bool issyncsupported(LocalPath&, bool* = NULL) override;
+    bool issyncsupported(LocalPath&, bool* = NULL, SyncError* = nullptr) override;
 
     void tmpnamelocal(LocalPath&) const override;
 

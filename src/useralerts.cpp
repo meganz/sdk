@@ -173,10 +173,10 @@ UserAlert::Base::Base(UserAlertRaw& un, unsigned int cid)
     m_time_t timeDelta = un.getint64(MAKENAMEID2('t', 'd'), 0);
     timestamp = m_time() - timeDelta;
     userHandle = un.gethandle('u', MegaClient::USERHANDLE, UNDEF);
-    userEmail = un.getstring('m', "");   
+    userEmail = un.getstring('m', "");
 
     seen = false; // to be updated on EOO
-    relevant = true;  
+    relevant = true;
     tag = -1;
 }
 
@@ -187,8 +187,8 @@ UserAlert::Base::Base(nameid t, handle uh, const string& email, m_time_t ts, uns
     userHandle = uh;
     userEmail = email;
     timestamp = ts;
-    seen = false; 
-    relevant = true;  
+    seen = false;
+    relevant = true;
     tag = -1;
 }
 
@@ -215,7 +215,7 @@ void UserAlert::Base::text(string& header, string& title, MegaClient* mc)
     updateEmail(mc);
     ostringstream s;
     s << "notification: type " << type << " time " << timestamp << " user " << userHandle << " seen " << seen;
-    title =  s.str();  
+    title =  s.str();
     header = userEmail;
 }
 
@@ -231,12 +231,12 @@ UserAlert::IncomingPendingContact::IncomingPendingContact(m_time_t dts, m_time_t
 {
     requestWasDeleted = dts != 0;
     requestWasReminded = rts != 0;
-    
+
     if (requestWasDeleted)
     {
         this->timestamp = dts;
     }
-    
+
     if (requestWasReminded)
     {
         this->timestamp = rts;
@@ -372,7 +372,7 @@ UserAlert::NewShare::NewShare(UserAlertRaw& un, unsigned int id)
 UserAlert::NewShare::NewShare(handle h, handle uh, const string& email, m_time_t timestamp, unsigned int id)
     : Base(type_share, uh, email, timestamp, id)
 {
-    folderhandle = h; 
+    folderhandle = h;
 }
 
 void UserAlert::NewShare::text(string& header, string& title, MegaClient* mc)
@@ -436,7 +436,7 @@ void UserAlert::DeletedShare::text(string& header, string& title, MegaClient* mc
        {
            s << "User " << userEmail << " has left the shared folder " << folderName;  //19153
        }
-       else 
+       else
        {
            s << "A user has left the shared folder " << folderName;  //19154
        }
@@ -738,7 +738,7 @@ bool UserAlerts::isUnwantedAlert(nameid type, int action)
     {
         return !flags.contacts_fcrin;
     }
-    else if (type == type_c)  
+    else if (type == type_c)
     {
         return (action == -1 || action == 0) && !flags.contacts_fcrdel;
     }
@@ -793,7 +793,7 @@ void UserAlerts::add(UserAlertRaw& un)
     default:
         unb = NULL;   // If it's a notification type we do not recognise yet
     }
-    
+
     if (unb)
     {
         add(unb);
@@ -813,7 +813,7 @@ void UserAlerts::add(UserAlert::Base* unb)
 
     if (!catchupdone && unb->timestamp > catchup_last_timestamp)
     {
-        catchup_last_timestamp = unb->timestamp;  
+        catchup_last_timestamp = unb->timestamp;
     }
     else if (catchupdone && unb->timestamp < catchup_last_timestamp)
     {
@@ -830,7 +830,7 @@ void UserAlerts::add(UserAlert::Base* unb)
         UserAlert::NewSharedNodes* op = dynamic_cast<UserAlert::NewSharedNodes*>(alerts.back());
         if (np && op)
         {
-            if (np->userHandle == op->userHandle && np->timestamp - op->timestamp < 300 && 
+            if (np->userHandle == op->userHandle && np->timestamp - op->timestamp < 300 &&
                 np->parentHandle == op->parentHandle && !ISUNDEF(np->parentHandle))
             {
                 op->fileCount += np->fileCount;
@@ -1097,8 +1097,8 @@ bool UserAlerts::procsc_useralert(JSON& jsonsc)
                             switch (nid)
                             {
 
-                            case 't': 
-                                un.t = jsonsc.getnameid(); 
+                            case 't':
+                                un.t = jsonsc.getnameid();
                                 break;
 
                             case EOO:
@@ -1106,7 +1106,7 @@ bool UserAlerts::procsc_useralert(JSON& jsonsc)
                                 break;
 
                             default:
-                                // gather up the fields to interpret later as we don't know what type some are 
+                                // gather up the fields to interpret later as we don't know what type some are
                                 // until we get the 't' field which is late in the packet
                                 jsonsc.storeobject(&un.fields[nid]);
                             }

@@ -323,7 +323,7 @@ bool JSON::ishandle(int size)
                 return false;
             }
         }
-    
+
         return pos[i] == '"';
     }
 
