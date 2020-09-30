@@ -10,7 +10,7 @@ extern bool gOutputToCout;
 std::ostream& out();
 enum { THREADS_PER_MEGACLIENT = 3 };
 
-
+#ifdef ENABLE_SYNC
 class TestFS
 {
 public:
@@ -28,3 +28,4 @@ private:
 
     std::vector<std::thread> m_cleaners;
 };
+#endif

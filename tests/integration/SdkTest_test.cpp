@@ -269,6 +269,7 @@ void SdkTest::Cleanup()
     deleteFile(PUBLICFILE);
     deleteFile(AVATARDST);
 
+#ifdef ENABLE_SYNC
     std::vector<std::unique_ptr<RequestTracker>> delSyncTrackers;
 
     for (auto &m : megaApi)
@@ -283,8 +284,8 @@ void SdkTest::Cleanup()
 
     // wait for delsyncs to complete:
     for (auto& d : delSyncTrackers) d->waitForResult();
+#endif
     WaitMillisec(5000);
-
 
     if (megaApi[0])
     {
@@ -841,8 +842,12 @@ void SdkTest::getAccountsForTest(unsigned howMany)
             mApi[index].pwd.assign(buf);
         }
         ASSERT_LT((size_t) 0, mApi[index].pwd.length()) << "Set test account " << index << " password at the environment variable $" << envVarPass[index];
-
+#ifdef ENABLE_SYNC
         megaApi[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), int(0), unsigned(THREADS_PER_MEGACLIENT)));
+#else
+        megaApi[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+#endif
+
         mApi[index].megaApi = megaApi[index].get();
 
         megaApi[index]->setLoggingName(to_string(index).c_str());
@@ -3933,7 +3938,11 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                 exitresumecount += 1;
                 WaitMillisec(100);
 
+#ifdef ENABLE_SYNC
                 megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), int(0), unsigned(THREADS_PER_MEGACLIENT)));
+#else
+                megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+#endif
                 mApi[0].megaApi = megaApi[0].get();
                 megaApi[0]->addListener(this);
                 megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 30); // should take 30 seconds, not counting exit/resume session

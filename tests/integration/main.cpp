@@ -105,10 +105,12 @@ int main (int argc, char *argv[])
         return 1;
     }
 
+#ifdef ENABLE_SYNC
     // delete old test folders, created during previous runs
     TestFS testFS;
     testFS.DeleteTestFolder();
     testFS.DeleteTrashFolder();
+#endif
 
     std::vector<char*> myargv1(argv, argv + argc);
     std::vector<char*> myargv2;
