@@ -1988,13 +1988,13 @@ auto Sync::computeSyncTriplets(const LocalNode& root, vector<FSNode>& fsNodes) c
             // Local name, filesystem-dependent sensitivity.
             auto a = LocalPath::fromName(lhs->displayname(), mFsAccess, mFsType);
 
-            return a.fsCompare(rhs->displayname(), mFsType);
+            return a.fsCompare(rhs->displayname(), mFsType) < 0;
         }
 
         bool operator()(const syncRow& lhs, const syncRow& rhs) const
         {
             // Local name, filesystem-dependent sensitivity.
-            return name(lhs).fsCompare(name(rhs), mFsType);
+            return name(lhs).fsCompare(name(rhs), mFsType) < 0;
         }
 
     private:
