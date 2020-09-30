@@ -28,6 +28,150 @@
 
 namespace mega {
 
+namespace detail {
+
+template<typename CharT>
+bool isEscape(CodepointIterator<CharT> it);
+
+template<typename CharT>
+int decodeEscape(CodepointIterator<CharT>& it)
+{
+    assert(isEscape(it));
+
+    // Skip the leading %.
+    (void)it.get();
+
+    return hexval(it.get()) << 4 | hexval(it.get());
+}
+
+int identity(const int c)
+{
+    return c;
+}
+
+template<typename CharT>
+bool isControlEscape(CodepointIterator<CharT> it)
+{
+    if (isEscape(it))
+    {
+        const int32_t c = decodeEscape(it);
+
+        return c < 0x20 || c == 0x7f;
+    }
+
+    return false;
+}
+
+template<typename CharT>
+bool isEscape(CodepointIterator<CharT> it)
+{
+    return it.get() == '%'
+           && islchex(it.get())
+           && islchex(it.get());
+}
+
+template<typename CharT, typename CharU, typename UnaryOperation>
+int localCompare(CodepointIterator<CharT> first1,
+                 CodepointIterator<CharU> first2,
+                 UnaryOperation transform)
+{
+    while (!(first1.end() || first2.end()))
+    {
+        int c1;
+        int c2;
+
+        if (isEscape(first1))
+        {
+            c1 = decodeEscape(first1);
+        }
+        else
+        {
+            c1 = first1.get();
+        }
+
+        if (isEscape(first2))
+        {
+            c2 = decodeEscape(first2);
+        }
+        else
+        {
+            c2 = first2.get();
+        }
+
+        c1 = transform(c1);
+        c2 = transform(c2);
+
+        if (c1 != c2)
+        {
+            return c1 - c2;
+        }
+    }
+
+    if (first1.end() && first2.end())
+    {
+        return 0;
+    }
+
+    if (first1.end())
+    {
+        return -1;
+    }
+
+    return 1;
+}
+
+template<typename CharT, typename CharU, typename UnaryOperation>
+int remoteCompare(CodepointIterator<CharT> first1,
+                  CodepointIterator<CharU> first2,
+                  UnaryOperation transform)
+{
+    while (!(first1.end() || first2.end()))
+    {
+        int c1;
+        int c2;
+
+        if (isEscape(first1))
+        {
+            c1 = decodeEscape(first1);
+        }
+        else
+        {
+            c1 = first1.get();
+        }
+
+        if (isControlEscape(first2))
+        {
+            c2 = decodeEscape(first2);
+        }
+        else
+        {
+            c2 = first2.get();
+        }
+
+        c1 = transform(c1);
+        c2 = transform(c2);
+
+        if (c1 != c2)
+        {
+            return c1 - c2;
+        }
+    }
+
+    if (first1.end() && first2.end())
+    {
+        return 0;
+    }
+
+    if (first1.end())
+    {
+        return -1;
+    }
+
+    return 1;
+}
+
+} // detail
+
 NameCmp::NameCmp(const FileSystemType type)
   : mType(type)
 {
@@ -53,6 +197,14 @@ int NameCmp::compare(const string& lhs, const string& rhs) const
 #ifdef _WIN32
 #undef strcasecmp
 #endif /* _WIN32 */
+}
+
+static bool isCaseInsensitive(const FileSystemType type)
+{
+    return type == FS_EXFAT
+           || type == FS_FAT32
+           || type == FS_NTFS
+           || type == FS_UNKNOWN;
 }
 
 bool NameCmp::operator()(const string& lhs, const string& rhs) const
@@ -1099,6 +1251,58 @@ LocalPath LocalPath::tmpNameLocal(const FileSystemAccess& fsaccess)
     LocalPath lp;
     fsaccess.tmpnamelocal(lp);
     return lp;
+}
+
+int LocalPath::compare(const LocalPath& rhs) const
+{
+    return detail::localCompare(
+             codepointIterator(localpath),
+             codepointIterator(rhs.localpath),
+             detail::identity);
+}
+
+int LocalPath::compare(const string& rhs) const
+{
+    return detail::remoteCompare(
+             codepointIterator(localpath),
+             codepointIterator(rhs),
+             detail::identity);
+}
+
+int LocalPath::ciCompare(const LocalPath& rhs) const
+{
+    return detail::localCompare(
+             codepointIterator(localpath),
+             codepointIterator(rhs.localpath),
+             Utils::toUpper);
+}
+
+int LocalPath::ciCompare(const string& rhs) const
+{
+    return detail::remoteCompare(
+             codepointIterator(localpath),
+             codepointIterator(rhs),
+             Utils::toUpper);
+}
+
+int LocalPath::fsCompare(const LocalPath& rhs, FileSystemType fsType) const
+{
+    if (isCaseInsensitive(fsType))
+    {
+        return ciCompare(rhs);
+    }
+
+    return compare(rhs);
+}
+
+int LocalPath::fsCompare(const string& rhs, FileSystemType fsType) const
+{
+    if (isCaseInsensitive(fsType))
+    {
+        return ciCompare(rhs);
+    }
+
+    return compare(rhs);
 }
 
 bool LocalPath::isContainingPathOf(const LocalPath& path, separator_t localseparator, size_t* subpathIndex) const

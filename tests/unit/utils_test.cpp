@@ -264,3 +264,216 @@ TEST(CharacterSet, IterateUtf16)
     }
 }
 
+TEST(LocalPath, Comparator)
+{
+    using namespace mega;
+    using namespace std;
+
+    FSACCESS_CLASS fsAccess;
+    LocalPath lhs;
+
+    auto fromPath =
+      [&](const string& s)
+      {
+          return LocalPath::fromPath(s, fsAccess);
+      };
+
+    // Local <-> Local
+    {
+        LocalPath rhs;
+
+        // Case insensitive
+        {
+            // Make sure basic characters are uppercased.
+            lhs = fromPath("abc");
+            rhs = fromPath("ABC");
+
+            EXPECT_EQ(lhs.ciCompare(rhs), 0);
+            EXPECT_EQ(rhs.ciCompare(lhs), 0);
+
+            // Make sure comparison invariants are not violated.
+            lhs = fromPath("abc");
+            rhs = fromPath("ABCD");
+
+            EXPECT_LT(lhs.ciCompare(rhs), 0);
+            EXPECT_GT(rhs.ciCompare(lhs), 0);
+
+            // Make sure escapes are decoded.
+            lhs = fromPath("a%30b");
+            rhs = fromPath("A0B");
+
+            EXPECT_EQ(lhs.ciCompare(rhs), 0);
+            EXPECT_EQ(rhs.ciCompare(lhs), 0);
+
+            // Make sure decoded characters are uppercased.
+            lhs = fromPath("%61%62%63");
+            rhs = fromPath("ABC");
+
+            EXPECT_EQ(lhs.ciCompare(rhs), 0);
+            EXPECT_EQ(rhs.ciCompare(lhs), 0);
+
+            // Invalid escapes are left as-is.
+            lhs = fromPath("a%qb%");
+            rhs = fromPath("A%qB%");
+
+            EXPECT_EQ(lhs.ciCompare(rhs), 0);
+            EXPECT_EQ(rhs.ciCompare(lhs), 0);
+        }
+
+        // Case sensitive
+        {
+            // Basic comparison.
+            lhs = fromPath("abc");
+
+            EXPECT_EQ(lhs.compare(lhs), 0);
+
+            // Make sure characters are not uppercased.
+            rhs = fromPath("ABC");
+
+            EXPECT_NE(lhs.compare(rhs), 0);
+            EXPECT_NE(rhs.compare(lhs), 0);
+
+            // Make sure comparison invariants are not violated.
+            lhs = fromPath("abc");
+            rhs = fromPath("abcd");
+
+            EXPECT_LT(lhs.compare(rhs), 0);
+            EXPECT_GT(rhs.compare(lhs), 0);
+
+            // Make sure escapes are decoded.
+            lhs = fromPath("a%30b");
+            rhs = fromPath("a0b");
+
+            EXPECT_EQ(lhs.compare(rhs), 0);
+            EXPECT_EQ(rhs.compare(lhs), 0);
+
+            // Invalid escapes are left as-is.
+            lhs = fromPath("a%qb%");
+
+            EXPECT_EQ(lhs.compare(lhs), 0);
+        }
+
+        // Filesystem-specific
+        {
+            lhs = fromPath("a\7%30b%31c");
+            rhs = fromPath("A%070B1C");
+
+            // exFAT, FAT32, NTFS and UNKNOWN are case-insensitive.
+            EXPECT_EQ(lhs.fsCompare(rhs, FS_EXFAT), 0);
+            EXPECT_EQ(lhs.fsCompare(rhs, FS_FAT32), 0);
+            EXPECT_EQ(lhs.fsCompare(rhs, FS_NTFS), 0);
+            EXPECT_EQ(lhs.fsCompare(rhs, FS_UNKNOWN), 0);
+
+            // Everything else is case-sensitive.
+            EXPECT_NE(lhs.fsCompare(rhs, FS_EXT), 0);
+
+            rhs = fromPath("a%070b1c");
+            EXPECT_EQ(lhs.fsCompare(rhs, FS_EXT), 0);
+        }
+    }
+
+    // Local <-> Remote
+    {
+        string rhs;
+
+        // Case insensitive
+        {
+            // Simple comparison.
+            lhs = fromPath("abc");
+            rhs = "ABC";
+
+            EXPECT_EQ(lhs.ciCompare(rhs), 0);
+
+            // Invariants.
+            lhs = fromPath("abc");
+            rhs = "abcd";
+
+            EXPECT_LT(lhs.ciCompare(rhs), 0);
+
+            lhs = fromPath("abcd");
+            rhs = "abc";
+
+            EXPECT_GT(lhs.ciCompare(rhs), 0);
+
+            // All local escapes are decoded.
+            lhs = fromPath("a%30b%31c");
+            rhs = "A0b1C";
+
+            EXPECT_EQ(lhs.ciCompare(rhs), 0);
+
+            // Escapes are uppercased.
+            lhs = fromPath("%61%62%63");
+            rhs = "ABC";
+
+            EXPECT_EQ(lhs.ciCompare(rhs), 0);
+
+            // Only remote control escapes are decoded.
+            lhs = fromPath("a\7%2530");
+            rhs = "a%07%30";
+
+            EXPECT_EQ(lhs.ciCompare(rhs), 0);
+
+            // Invalid escapes are left as-is.
+            lhs = fromPath("a%qb%");
+            rhs = "A%QB%";
+
+            EXPECT_EQ(lhs.ciCompare(rhs), 0);
+        }
+
+        // Case sensitive
+        {
+            // Simple comparison.
+            lhs = fromPath("abc");
+            rhs = "abc";
+
+            EXPECT_EQ(lhs.compare(rhs), 0);
+
+            // Invariants.
+            rhs = "abcd";
+
+            EXPECT_LT(lhs.compare(rhs), 0);
+
+            lhs = fromPath("abcd");
+            rhs = "abc";
+
+            EXPECT_GT(lhs.compare(rhs), 0);
+
+            // All local escapes are decoded.
+            lhs = fromPath("a%30b%31c");
+            rhs = "a0b1c";
+
+            EXPECT_EQ(lhs.compare(rhs), 0);
+
+            // Only remote control escapes are decoded.
+            lhs = fromPath("a\7%2530");
+            rhs = "a%07%30";
+
+            EXPECT_EQ(lhs.compare(rhs), 0);
+
+            // Invalid escapes left as-is.
+            lhs = fromPath("a%qb%r");
+            rhs = "a%qb%r";
+
+            EXPECT_EQ(lhs.compare(rhs), 0);
+        }
+
+        // Filesystem-specific
+        {
+            lhs = fromPath("a\7%30b%31c");
+            rhs = "A%070B1C";
+
+            // exFAT, FAT32, NTFS and UNKNOWN are case-insensitive.
+            EXPECT_EQ(lhs.fsCompare(rhs, FS_EXFAT), 0);
+            EXPECT_EQ(lhs.fsCompare(rhs, FS_FAT32), 0);
+            EXPECT_EQ(lhs.fsCompare(rhs, FS_NTFS), 0);
+            EXPECT_EQ(lhs.fsCompare(rhs, FS_UNKNOWN), 0);
+
+            // Everything else is case-sensitive.
+            EXPECT_NE(lhs.fsCompare(rhs, FS_EXT), 0);
+
+            rhs = "a%070b1c";
+            EXPECT_EQ(lhs.fsCompare(rhs, FS_EXT), 0);
+        }
+    }
+}
+

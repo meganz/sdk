@@ -191,6 +191,17 @@ public:
     bool operator==(const LocalPath& p) const { return localpath == p.localpath; }
     bool operator!=(const LocalPath& p) const { return localpath != p.localpath; }
     bool operator<(const LocalPath& p) const { return localpath < p.localpath; }
+
+    // Escape-aware comparators.
+    int compare(const LocalPath& rhs) const;
+    int compare(const string& rhs) const;
+
+    int ciCompare(const LocalPath& rhs) const;
+    int ciCompare(const string& rhs) const;
+
+    // Escape and filesystem-aware comparators.
+    int fsCompare(const LocalPath& rhs, FileSystemType fsType) const;
+    int fsCompare(const string& rhs, FileSystemType fsType) const;
 };
 
 void AddHiddenFileAttribute(mega::LocalPath& path);
