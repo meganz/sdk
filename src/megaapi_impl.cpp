@@ -128,6 +128,8 @@ MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64
     this->foreign = isForeign;
     this->children = NULL;
     this->owner = owner;
+    this->mFavourite = false;
+    this->mLabel = LBL_UNKNOWN;
 
     if (privateauth)
     {
@@ -162,6 +164,8 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
         this->height = np->height;
         this->shortformat = np->shortformat;
         this->videocodecid = np->videocodecid;
+        this->mFavourite = np->mFavourite;
+        this->mLabel = np->mLabel;
     }
     else
     {
@@ -170,6 +174,8 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
         this->height = node->getHeight();
         this->shortformat = node->getShortformat();
         this->videocodecid = node->getVideocodecid();
+        this->mFavourite = node->isFavourite();
+        this->mLabel = static_cast<nodelabel_t>(node->getLabel());
     }
 
     this->latitude = node->getLatitude();
@@ -281,6 +287,8 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->longitude = INVALID_COORDINATE;
     this->customAttrs = NULL;
     this->restorehandle = UNDEF;
+    this->mFavourite = false;
+    this->mLabel = LBL_UNKNOWN;
 
     char buf[10];
     for (attr_map::iterator it = node->attrs.map.begin(); it != node->attrs.map.end(); it++)
@@ -390,6 +398,30 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
             {
                 originalfingerprint = MegaApi::strdup(it->second.c_str());
             }
+            else if (it->first == AttrMap::string2nameid("fav"))
+            {
+                int fav = std::atoi(it->second.c_str());
+                if (fav != 1)
+                {
+                    LOG_err << "Invalid value for node attr fav: " << fav;
+                }
+                else
+                {
+                    mFavourite = fav;
+                }
+            }
+            else if (it->first == AttrMap::string2nameid("lbl"))
+            {
+                int lbl = std::atoi(it->second.c_str());
+                if (lbl < LBL_RED || lbl > LBL_GREY)
+                {
+                    LOG_err << "Invalid value for node attr lbl: " << lbl;
+                }
+                else
+                {
+                    mLabel = static_cast<nodelabel_t>(lbl);
+                }
+            }
         }
     }
 
@@ -474,7 +506,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
 
     // if there's only one share and it has no user --> public link
     this->outShares = (node->outshares) ? (node->outshares->size() > 1 || node->outshares->begin()->second->user) : false;
-    this->inShare = (node->inshare != NULL) && !node->parent;
+    this->inShare = node->inshare != nullptr;
     this->plink = node->plink ? new PublicLink(node->plink) : NULL;
     this->mNewLinkFormat = node->client->mNewLinkFormat;
     if (plink && type == FOLDERNODE && node->sharekey)
@@ -696,6 +728,16 @@ int MegaNodePrivate::getDuration()
     }
 
     return duration;
+}
+
+bool MegaNodePrivate::isFavourite()
+{
+    return mFavourite;
+}
+
+int MegaNodePrivate::getLabel()
+{
+    return mLabel;
 }
 
 int MegaNodePrivate::getWidth()
@@ -3764,6 +3806,21 @@ void MegaRequestPrivate::setPublicNode(MegaNode *publicNode, bool copyChildren)
     }
 }
 
+MegaBannerList* MegaRequestPrivate::getMegaBannerList() const
+{
+    return mBannerList.get();
+}
+
+void MegaRequestPrivate::setBanners(vector< tuple<int, string, string, string, string, string, string> >&& banners)
+{
+    mBannerList = make_unique<MegaBannerListPrivate>();
+
+    for (auto&& b : banners)
+    {
+        mBannerList->add(MegaBannerPrivate(move(b)));
+    }
+}
+
 const char *MegaRequestPrivate::getRequestString() const
 {
     switch(type)
@@ -3898,6 +3955,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_SET_RETENTION_TIME: return "SET_RETENTION_TIME";
         case TYPE_RESET_SMS_VERIFIED_NUMBER: return "RESET_SMS_VERIFIED_NUMBER";
         case TYPE_SEND_DEV_COMMAND: return "SEND_DEV_COMMAND";
+        case TYPE_GET_BANNERS: return "GET_BANNERS";
+        case TYPE_DISMISS_BANNER: return "DISMISS_BANNER";
         case TYPE_CREATE_FOLDER_TREE: return "CREATE_FOLDER_TREE";
     }
     return "UNKNOWN";
@@ -3926,6 +3985,71 @@ const char *MegaRequestPrivate::__str__() const
 const char *MegaRequestPrivate::__toString() const
 {
     return getRequestString();
+}
+
+MegaBannerPrivate::MegaBannerPrivate(std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string>&& details)
+                  :mDetails(move(details))
+{
+}
+
+MegaBanner* MegaBannerPrivate::copy() const
+{
+    return new MegaBannerPrivate(*this);
+}
+
+int MegaBannerPrivate::getId() const
+{
+    return std::get<0>(mDetails);
+}
+
+const char* MegaBannerPrivate::getTitle() const
+{
+    return std::get<1>(mDetails).c_str();
+}
+
+const char* MegaBannerPrivate::getDescription() const
+{
+    return std::get<2>(mDetails).c_str();
+}
+
+const char* MegaBannerPrivate::getImage() const
+{
+    return std::get<3>(mDetails).c_str();
+}
+
+const char* MegaBannerPrivate::getUrl() const
+{
+    return std::get<4>(mDetails).c_str();
+}
+
+const char* MegaBannerPrivate::getBackgroundImage() const
+{
+    return std::get<5>(mDetails).c_str();
+}
+
+const char* MegaBannerPrivate::getImageLocation() const
+{
+    return std::get<6>(mDetails).c_str();
+}
+
+MegaBannerList* MegaBannerListPrivate::copy() const
+{
+    return new MegaBannerListPrivate(*this);
+}
+
+const MegaBanner* MegaBannerListPrivate::get(int i) const
+{
+    return (i >= 0 && i < mVector.size()) ? &(mVector[i]) : nullptr;
+}
+
+int MegaBannerListPrivate::size() const
+{
+    return int(mVector.size());
+}
+
+void MegaBannerListPrivate::add(MegaBannerPrivate&& banner)
+{
+    mVector.emplace_back(std::move(banner));
 }
 
 MegaStringMapPrivate::MegaStringMapPrivate()
@@ -4972,7 +5096,8 @@ void MegaFileGet::terminated()
     delete this;
 }
 
-MegaFilePut::MegaFilePut(MegaClient *, LocalPath clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime, bool isSourceTemporary)
+MegaFilePut::MegaFilePut(MegaClient *, LocalPath clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime, bool isSourceTemporary, Node *pvNode)
+
     : MegaFile()
 {
     // full local path
@@ -4990,6 +5115,8 @@ MegaFilePut::MegaFilePut(MegaClient *, LocalPath clocalname, string *filename, h
     customMtime = mtime;
 
     temporaryfile = isSourceTemporary;
+
+    previousNode = pvNode;
 }
 
 bool MegaFilePut::serialize(string *d)
@@ -6772,7 +6899,7 @@ void MegaApiImpl::setCustomNodeAttribute(MegaNode *node, const char *attrName, c
     if(node) request->setNodeHandle(node->getHandle());
     request->setName(attrName);
     request->setText(value);
-    request->setFlag(false);     // is official attribute?
+    request->setFlag(false);     // is official attribute or not
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6783,7 +6910,29 @@ void MegaApiImpl::setNodeDuration(MegaNode *node, int secs, MegaRequestListener 
     if(node) request->setNodeHandle(node->getHandle());
     request->setParamType(MegaApi::NODE_ATTR_DURATION);
     request->setNumber(secs);
-    request->setFlag(true);     // is official attribute?
+    request->setFlag(true);     // is official attribute or not
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
+    if(node) request->setNodeHandle(node->getHandle());
+    request->setParamType(MegaApi::NODE_ATTR_LABEL);
+    request->setNumDetails(label);
+    request->setFlag(true);     // is official attribute or not
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_NODE, listener);
+    if(node) request->setNodeHandle(node->getHandle());
+    request->setParamType(MegaApi::NODE_ATTR_FAV);
+    request->setNumDetails(fav);
+    request->setFlag(true);     // is official attribute or not
     requestQueue.push(request);
     waiter->notify();
 }
@@ -11229,9 +11378,10 @@ void MegaApiImpl::keepMeAlive(int type, bool enable, MegaRequestListener *listen
     waiter->notify();
 }
 
-void MegaApiImpl::getPSA(MegaRequestListener *listener)
+void MegaApiImpl::getPSA(bool urlSupported, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_PSA, listener);
+    request->setFlag(urlSupported);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -12145,6 +12295,8 @@ File *MegaApiImpl::file_resume(string *d, direction_t *type)
         const char *name = transfer->getFileName();
         if (parent && nodes && name)
         {
+            // Get previous node if any
+            file->previousNode = client->childnodebyname(parent, name, true);
             for (unsigned int i = 0; i < nodes->size(); i++)
             {
                 Node* node = nodes->at(i);
@@ -13413,6 +13565,10 @@ void MegaApiImpl::rename_result(handle h, error e)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if(!request || (request->getType() != MegaRequest::TYPE_MOVE)) return;
 
+#ifdef ENABLE_SYNC
+    client->syncdownrequired = true;
+#endif
+
     request->setNodeHandle(h);
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
@@ -13426,6 +13582,10 @@ void MegaApiImpl::unlink_result(handle h, error e)
     {
         return;
     }
+
+#ifdef ENABLE_SYNC
+    client->syncdownrequired = true;
+#endif
 
     if (request->getType() != MegaRequest::TYPE_MOVE)
     {
@@ -13668,6 +13828,10 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
                     (request->getType() != MegaRequest::TYPE_RESTORE) &&
                     (request->getType() != MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD) &&
                     (request->getType() != MegaRequest::TYPE_CREATE_FOLDER_TREE))) return;
+
+#ifdef ENABLE_SYNC
+    client->syncdownrequired = true;
+#endif
 
     if (request->getType() == MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD)
     {
@@ -15538,7 +15702,7 @@ void MegaApiImpl::keepmealive_result(error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::getpsa_result(error e, int id, string *title, string *text, string *image, string *buttontext, string *buttonlink)
+void MegaApiImpl::getpsa_result(error e, int id, string *title, string *text, string *image, string *buttontext, string *buttonlink, std::string *url)
 {
     if (requestMap.find(client->restag) == requestMap.end())
     {
@@ -15554,11 +15718,19 @@ void MegaApiImpl::getpsa_result(error e, int id, string *title, string *text, st
     if (!e)
     {
         request->setNumber(id);
-        request->setName(title->c_str());
-        request->setText(text->c_str());
-        request->setFile(image->c_str());
-        request->setPassword(buttontext->c_str());
-        request->setLink(buttonlink->c_str());
+
+        if (request->getFlag()) // supports URL retrieval
+        {
+            request->setLink(url->c_str());
+        }
+        else
+        {
+            request->setName(title->c_str());
+            request->setText(text->c_str());
+            request->setFile(image->c_str());
+            request->setPassword(buttontext->c_str());
+            request->setLink(buttonlink->c_str());
+        }
     }
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -15913,6 +16085,38 @@ void MegaApiImpl::checkfile_result(handle h, error e, byte*, m_off_t, m_time_t, 
                 fireOnTransferTemporaryError(transfer, std::move(megaError));
             }
         }
+    }
+}
+
+void MegaApiImpl::getbanners_result(error e)
+{
+    auto it = requestMap.find(client->restag);
+
+    if (it != requestMap.end() && it->second && (it->second->getType() == MegaRequest::TYPE_GET_BANNERS))
+    {
+        fireOnRequestFinish(it->second, make_unique<MegaErrorPrivate>(e));
+    }
+}
+
+void MegaApiImpl::getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners)
+{
+    auto it = requestMap.find(client->restag);
+    if (it == requestMap.end()) return;
+    MegaRequestPrivate* request = it->second;
+    if (!request || (request->getType() != MegaRequest::TYPE_GET_BANNERS)) return;
+
+    request->setBanners(move(banners));
+
+    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+}
+
+void MegaApiImpl::dismissbanner_result(error e)
+{
+    auto itReq = requestMap.find(client->restag);
+
+    if (itReq != requestMap.end() && itReq->second && (itReq->second->getType() == MegaRequest::TYPE_DISMISS_BANNER))
+    {
+        fireOnRequestFinish(itReq->second, make_unique<MegaErrorPrivate>(e));
     }
 }
 
@@ -17107,6 +17311,10 @@ std::function<bool (Node*, Node*)> MegaApiImpl::getComparatorFunction(int order,
         case MegaApi::ORDER_PHOTO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorPhotoDESC(i, j, mc); };
         case MegaApi::ORDER_VIDEO_ASC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoASC(i, j, mc); };
         case MegaApi::ORDER_VIDEO_DESC: return [&mc](Node* i, Node*j) { return MegaApiImpl::nodeComparatorVideoDESC(i, j, mc); };
+        case MegaApi::ORDER_LABEL_ASC: return MegaApiImpl::nodeComparatorLabelASC;
+        case MegaApi::ORDER_LABEL_DESC: return MegaApiImpl::nodeComparatorLabelDESC;
+        case MegaApi::ORDER_FAV_ASC: return MegaApiImpl::nodeComparatorFavASC;
+        case MegaApi::ORDER_FAV_DESC: return MegaApiImpl::nodeComparatorFavDESC;
     }
     assert(false);
     return nullptr;
@@ -17345,6 +17553,131 @@ bool MegaApiImpl::nodeComparatorPublicLinkCreationDESC(Node *i, Node *j)
         return 1;
     }
     return nodeNaturalComparatorDESC(i, j);
+}
+
+bool MegaApiImpl::nodeComparatorLabelASC(Node *i, Node *j)
+{
+    nameid labelId = AttrMap::string2nameid("lbl");
+    int iLabel = MegaNode::NODE_LBL_UNKNOWN;
+    auto iAttrIt = i->attrs.map.find(labelId);
+    if (iAttrIt != i->attrs.map.end())
+    {
+       iLabel = std::atoi(iAttrIt->second.c_str());
+    }
+
+    int jLabel = MegaNode::NODE_LBL_UNKNOWN;
+    auto jAttrIt = j->attrs.map.find(labelId);
+    if (jAttrIt != j->attrs.map.end())
+    {
+       jLabel = std::atoi(jAttrIt->second.c_str());
+    }
+
+    if (iLabel == MegaNode::NODE_LBL_UNKNOWN && jLabel ==  MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return nodeComparatorDefaultASC(i, j);
+    }
+    if (iLabel == MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return 0;
+    }
+    if (jLabel == MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return 1;
+    }
+
+    if (iLabel < jLabel)
+    {
+        return 1;
+    }
+    if (iLabel > jLabel)
+    {
+        return 0;
+    }
+    return nodeComparatorDefaultASC(i, j);
+}
+
+bool MegaApiImpl::nodeComparatorLabelDESC(Node *i, Node *j)
+{
+    nameid labelId = AttrMap::string2nameid("lbl");
+    int iLabel = MegaNode::NODE_LBL_UNKNOWN;
+    auto iAttrIt = i->attrs.map.find(labelId);
+    if (iAttrIt != i->attrs.map.end())
+    {
+       iLabel = std::atoi(iAttrIt->second.c_str());
+    }
+
+    int jLabel = MegaNode::NODE_LBL_UNKNOWN;
+    auto jAttrIt = j->attrs.map.find(labelId);
+    if (jAttrIt != j->attrs.map.end())
+    {
+       jLabel = std::atoi(jAttrIt->second.c_str());
+    }
+
+    if (iLabel == MegaNode::NODE_LBL_UNKNOWN && jLabel == MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return nodeComparatorDefaultASC(i, j);
+    }
+    if (iLabel == MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return 0;
+    }
+    if (jLabel == MegaNode::NODE_LBL_UNKNOWN)
+    {
+        return 1;
+    }
+
+    if (iLabel < jLabel)
+    {
+        return 0;
+    }
+    if (iLabel > jLabel)
+    {
+        return 1;
+    }
+    return nodeComparatorDefaultASC(i, j);
+}
+
+
+bool MegaApiImpl::nodeComparatorFavASC(Node *i, Node *j)
+{
+    nameid favId = AttrMap::string2nameid("fav");
+    bool iFav = (i->attrs.map.find(favId) != i->attrs.map.end());
+    bool jFav = (j->attrs.map.find(favId) != j->attrs.map.end());
+
+    if (!(iFav ^ jFav))
+    {
+        // if both or none of them, have the same attribute value, order default ASC
+        return nodeComparatorDefaultASC(i, j);
+    }
+    else if (iFav)
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
+bool MegaApiImpl::nodeComparatorFavDESC(Node *i, Node *j)
+{
+    nameid favId = AttrMap::string2nameid("fav");
+    bool iFav = (i->attrs.map.find(favId) != i->attrs.map.end());
+    bool jFav = (j->attrs.map.find(favId) != j->attrs.map.end());
+
+    if (!(iFav ^ jFav))
+    {
+        // if both or none of them, have the same attribute value, order default ASC
+        return nodeComparatorDefaultASC(i, j);
+    }
+    else if (iFav)
+    {
+        return 0;
+    }
+    else
+    {
+        return 1;
+    }
 }
 
 // Compare node types. Returns -1 if i==j, 0 if i goes first, +1 if j goes first.
@@ -18291,7 +18624,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
 
                     currentTransfer = transfer;
                     string wFileName = fileName;
-                    MegaFilePut *f = new MegaFilePut(client, std::move(wLocalPath), &wFileName, transfer->getParentHandle(), uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary);
+                    MegaFilePut *f = new MegaFilePut(client, std::move(wLocalPath), &wFileName, transfer->getParentHandle(), uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary, previousNode);
                     *static_cast<FileFingerprint*>(f) = fp;  // deliberate slicing - startxfer would re-fingerprint if we don't supply this info
                     f->setTransfer(transfer);
                     bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer());
@@ -20180,6 +20513,57 @@ void MegaApiImpl::sendPendingRequests()
                     {
                         node->attrs.map[nid] = request->getText();
                     }
+                }
+                else if (type == MegaApi::NODE_ATTR_LABEL || type == MegaApi::NODE_ATTR_FAV)
+                {
+                    Node *current = node;
+                    bool remove = false;
+                    nameid nid = 0;
+                    int value = 0;
+                    if (type == MegaApi::NODE_ATTR_LABEL)
+                    {
+                        value = request->getNumDetails();
+                        if (value < LBL_UNKNOWN || value > LBL_GREY)
+                        {
+                            e = API_EARGS;
+                            break;
+                        }
+
+                        nid = AttrMap::string2nameid("lbl");
+                        remove = (value == LBL_UNKNOWN);
+                    }
+                    else
+                    {
+                        nid = AttrMap::string2nameid("fav");
+                        remove = !request->getNumDetails();
+                        value = 1;
+                    }
+
+                    do
+                    {
+                        if (remove)
+                        {
+                            current->attrs.map.erase(nid);
+                        }
+                        else
+                        {
+                           current->attrs.map[nid] = std::to_string(value);
+                        }
+
+                        e = client->setattr(current);
+
+                        if (current->type != FILENODE || !current->children.size())
+                        {
+                            // If node is a folder or doesn't have any versions
+                            break;
+                        }
+
+                        // Retrieve next node version (all versions must have the same lbl/fav value)
+                        assert(current->children.back()->parent == current);
+                        current = current->children.back();
+                    }
+                    while (current);
+                    break;
                 }
                 else
                 {
@@ -22510,7 +22894,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_GET_PSA:
         {
-            client->getpsa();
+            client->getpsa(request->getFlag());
             break;
         }
         case MegaRequest::TYPE_FOLDER_INFO:
@@ -22654,6 +23038,8 @@ void MegaApiImpl::sendPendingRequests()
             }
 #endif
             AttrMap attrs;
+            Node *previousNode = client->childnodebyname(parentNode, utf8Name, true);
+            client->honorPreviousVersionAttrs(previousNode, attrs);
             attrs.map['n'] = utf8Name;
             attrs.map['c'] = megafingerprint.get();
             if (fingerprintOriginal)
@@ -22754,6 +23140,16 @@ void MegaApiImpl::sendPendingRequests()
             client->getmiscflags();
             break;
         }
+        case MegaRequest::TYPE_GET_BANNERS:
+        {
+            client->reqs.add(new CommandGetBanners(client));
+            break;
+        }
+        case MegaRequest::TYPE_DISMISS_BANNER:
+        {
+            client->reqs.add(new CommandDismissBanner(client, request->getParamType(), request->getNumber()));
+            break;
+        }
         default:
         {
             e = API_EINTERNAL;
@@ -22818,7 +23214,7 @@ void MegaApiImpl::update()
     LOG_debug << "PendingCS? " << (client->pendingcs != NULL);
     LOG_debug << "PendingFA? " << client->activefa.size() << " active, " << client->queuedfa.size() << " queued";
     LOG_debug << "FLAGS: " << client->syncactivity
-              << " " << client->anySyncNeedsTargetedSyncdown() << " " << client->syncdownretry
+              << " " << client->syncdownrequired << " " << client->syncdownretry
               << " " << client->syncfslockretry << " " << client->syncfsopsfailed
               << " " << client->syncnagleretry << " " << client->syncscanfailed
               << " " << client->syncops << " " << client->syncscanstate
@@ -22879,6 +23275,22 @@ bool MegaApiImpl::tryLockMutexFor(long long time)
     {
         return sdkMutex.try_lock_for(std::chrono::milliseconds(time));
     }
+}
+
+void MegaApiImpl::getBanners(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_BANNERS, listener);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::dismissBanner(int id, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DISMISS_BANNER, listener);
+    request->setParamType(id); // banner id
+    request->setNumber(m_time(nullptr)); // timestamp
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void TreeProcCopy::allocnodes()

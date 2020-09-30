@@ -535,7 +535,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
                 && e != API_EOVERQUOTA
                 && e != API_EPAYWALL)
             {
-                client->setAllSyncsNeedSyncdown();
+                client->syncdownrequired = true;
             }
 
             if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
@@ -949,7 +949,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 #ifdef ENABLE_SYNC
                             if (f->syncxfer)
                             {
-                                client->setAllSyncsNeedSyncdown();
+                                client->syncdownrequired = true;
                             }
 #endif
                             client->app->file_removed(f, API_EWRITE);
@@ -1056,7 +1056,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 #ifdef ENABLE_SYNC
                 if (f->syncxfer)
                 {
-                    client->setAllSyncsNeedSyncdown();
+                    client->syncdownrequired = true;
                 }
 #endif
                 it++; // the next line will remove the current item and invalidate that iterator
