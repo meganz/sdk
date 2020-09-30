@@ -172,33 +172,6 @@ int remoteCompare(CodepointIterator<CharT> first1,
 
 } // detail
 
-NameCmp::NameCmp(const FileSystemType type)
-  : mType(type)
-{
-}
-
-int NameCmp::compare(const string& lhs, const string& rhs) const
-{
-#ifdef _WIN32
-#define strcasecmp _stricmp
-#endif /* _WIN32 */
-
-    switch (mType)
-    {
-    case FS_EXFAT:
-    case FS_NTFS:
-    case FS_FAT32:
-    case FS_UNKNOWN:
-        return strcasecmp(lhs.c_str(), rhs.c_str());
-    default:
-        return lhs.compare(rhs);
-    }
-
-#ifdef _WIN32
-#undef strcasecmp
-#endif /* _WIN32 */
-}
-
 static bool isCaseInsensitive(const FileSystemType type)
 {
     return type == FS_EXFAT
@@ -207,24 +180,23 @@ static bool isCaseInsensitive(const FileSystemType type)
            || type == FS_UNKNOWN;
 }
 
-bool NameCmp::operator()(const string& lhs, const string& rhs) const
+NamePtrCmp::NamePtrCmp(FileSystemType type)
+  : mType(type)
 {
-    return compare(lhs, rhs) < 0;
-}
-
-NamePtrCmp::NamePtrCmp(const FileSystemType type)
-  : NameCmp(type)
-{
-}
-
-int NamePtrCmp::compare(const string* lhs, const string* rhs) const
-{
-    return NameCmp::compare(*lhs, *rhs);
 }
 
 bool NamePtrCmp::operator()(const string* lhs, const string* rhs) const
 {
-    return NameCmp::operator()(*lhs, *rhs);
+    assert(lhs && rhs);
+
+    auto transform =
+      isCaseInsensitive(mType) ? Utils::toUpper
+                               : detail::identity;
+
+    return detail::remoteCompare(
+             codepointIterator(*lhs),
+             codepointIterator(*rhs),
+             transform);
 }
 
 FileSystemAccess::FileSystemAccess()

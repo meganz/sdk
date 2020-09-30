@@ -1424,9 +1424,6 @@ bool MegaClient::conflictsDetected(string& parentName,
         // Tracks the remote children we've seen.
         name_remotenode_map children{NamePtrCmp(filesystemType)};
 
-        // Temporary key storage for the above map.
-        string_list strings;
-
         // Do any of this node's remote children have conflicting names?
         for (Node* child : parent->node->children)
         {
@@ -1438,22 +1435,25 @@ bool MegaClient::conflictsDetected(string& parentName,
                 continue;
             }
 
-            // What is this child's canonical name?
-            string name = child->canonicalname();
+            // What's the child's name?
+            auto nameIt = child->attrs.map.find('n');
 
             // Where would the child live?
             parentPath.appendWithSeparator(
-              LocalPath::fromName(name, *fsaccess, filesystemType),
+              LocalPath::fromName(nameIt->second, *fsaccess, filesystemType),
               true,
               fsaccess->localseparator);
 
             // We only care about children that aren't excluded.
-            if (!app->sync_syncable(parent->sync, name.c_str(), parentPath, child))
+            if (!app->sync_syncable(parent->sync,
+                                    nameIt->second.c_str(),
+                                    parentPath,
+                                    child))
             {
                 continue;
             }
 
-            auto childIt = children.find(&name);
+            auto childIt = children.find(&nameIt->second);
 
             // Have we already seen a child with this name?
             if (childIt != children.end())
@@ -1468,8 +1468,7 @@ bool MegaClient::conflictsDetected(string& parentName,
             }
 
             // This is the first child with this name.
-            strings.emplace_back(std::move(name));
-            children[&strings.back()] = child;
+            children[&nameIt->second] = child;
         }
     }
 
