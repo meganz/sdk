@@ -513,6 +513,10 @@ using namespace mega;
     self.megaApi->login((email != nil) ? [email UTF8String] : NULL, (password != nil) ? [password UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
+- (void)sendDevCommand:(NSString *)command email:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->sendDevCommand(command.UTF8String, email.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
 - (NSString *)dumpSession {
     const char *val = self.megaApi->dumpSession();
     if (!val) return nil;
@@ -1007,6 +1011,30 @@ using namespace mega;
     return stringLink;
 }
 
+- (void)setNodeLabel:(MEGANode *)node label:(MEGANodeLabel)label delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setNodeLabel(node.getCPtr, (int)label, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setNodeLabel:(MEGANode *)node label:(MEGANodeLabel)label {
+    self.megaApi->setNodeLabel(node.getCPtr, (int)label);
+}
+
+- (void)resetNodeLabel:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->resetNodeLabel(node.getCPtr, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)resetNodeLabel:(MEGANode *)node {
+    self.megaApi->resetNodeLabel(node.getCPtr);
+}
+
+- (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setNodeFavourite(node.getCPtr, favourite, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite {
+    self.megaApi->setNodeFavourite(node.getCPtr, favourite);
+}
+
 - (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setNodeCoordinates(node ? [node getCPtr] : NULL, (latitude ? latitude.doubleValue : MegaNode::INVALID_COORDINATE), (longitude ? longitude.doubleValue : MegaNode::INVALID_COORDINATE), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -1121,6 +1149,26 @@ using namespace mega;
 
 + (NSString *)avatarColorForBase64UserHandle:(NSString *)base64UserHandle {
     const char *val = MegaApi::getUserAvatarColor((base64UserHandle != nil) ? [base64UserHandle UTF8String] : NULL);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
++ (NSString *)avatarSecondaryColorForUser:(MEGAUser *)user {
+    const char *val = MegaApi::getUserAvatarSecondaryColor((user != nil) ? [user getCPtr] : NULL);
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
++ (NSString *)avatarSecondaryColorForBase64UserHandle:(NSString *)base64UserHandle {
+    const char *val = MegaApi::getUserAvatarSecondaryColor((base64UserHandle != nil) ? [base64UserHandle UTF8String] : NULL);
     if (!val) return nil;
     
     NSString *ret = [[NSString alloc] initWithUTF8String:val];
@@ -1495,6 +1543,22 @@ using namespace mega;
 
 - (void)killSession:(uint64_t)sessionHandle {
     self.megaApi->killSession(sessionHandle);
+}
+
+- (NSDate *)overquotaDeadlineDate {
+    return [[NSDate alloc] initWithTimeIntervalSince1970:self.megaApi->getOverquotaDeadlineTs()];
+}
+
+- (NSArray<NSDate *> *)overquotaWarningDateList {
+    MegaIntegerList *warningTimeIntervalList = self.megaApi->getOverquotaWarningsTs();
+    int sizeOfWarningTimestamps = warningTimeIntervalList->size();
+    NSMutableArray *warningDateList = [[NSMutableArray alloc] initWithCapacity:sizeOfWarningTimestamps];
+
+    for (int i = 0; i < sizeOfWarningTimestamps; i++) {
+        NSDate *warningDate = [[NSDate alloc] initWithTimeIntervalSince1970:warningTimeIntervalList->get(i)];
+        [warningDateList addObject:warningDate];
+    }
+    return [warningDateList copy];
 }
 
 #pragma mark - Transfer
@@ -2391,6 +2455,14 @@ using namespace mega;
 
 - (void)checkSMSVerificationCode:(NSString *)verificationCode delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->checkSMSVerificationCode([verificationCode UTF8String], [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)resetSmsVerifiedPhoneNumberWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->resetSmsVerifiedPhoneNumber([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)resetSmsVerifiedPhoneNumber {
+    self.megaApi->resetSmsVerifiedPhoneNumber();
 }
 
 #pragma mark - Push Notification Settings

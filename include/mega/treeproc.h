@@ -52,14 +52,13 @@ public:
 class MEGA_API TreeProcCopy : public TreeProc
 {
 public:
-    NewNode* nn;
-    unsigned nc;
+    vector<NewNode> nn;
+    unsigned nc = 0;
+    bool allocated = false;
 
     void allocnodes(void);
 
     void proc(MegaClient*, Node*);
-    TreeProcCopy();
-    ~TreeProcCopy();
 };
 
 class MEGA_API TreeProcDU : public TreeProc

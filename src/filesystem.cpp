@@ -70,6 +70,8 @@ const char *FileSystemAccess::fstypetostring(FileSystemType type) const
             return "SDCARDFS";
         case FS_F2FS:
             return "F2FS";
+        case FS_XFS:
+            return "XFS";
         case FS_UNKNOWN:    // fall through
             return "UNKNOWN FS";
     }
@@ -77,106 +79,51 @@ const char *FileSystemAccess::fstypetostring(FileSystemType type) const
     return "UNKNOWN FS";
 }
 
-FileSystemType FileSystemAccess::getlocalfstype(const string *dstPath) const
+FileSystemType FileSystemAccess::getlocalfstype(const LocalPath& path) const
 {
-    if (!dstPath || dstPath->empty())
+    // Not enough information to determine path.
+    if (path.empty())
     {
         return FS_UNKNOWN;
     }
 
-#if defined (__linux__) && !defined (__ANDROID__)
-    // Filesystem detection for Linux
-    struct statfs fileStat;
-    if (!statfs(dstPath->c_str(), &fileStat))
-    {
-        switch (fileStat.f_type)
-        {
-            case EXT2_SUPER_MAGIC:
-                return FS_EXT;
-            case MSDOS_SUPER_MAGIC:
-                return FS_FAT32;
-            case HFS_SUPER_MAGIC:
-                return FS_HFS;
-            case NTFS_SB_MAGIC:
-                return FS_NTFS;
-            default:
-                return FS_UNKNOWN;
-        }
-    }
-#elif defined (__ANDROID__)
-    // Filesystem detection for Android
-    struct statfs fileStat;
-    if (!statfs(dstPath->c_str(), &fileStat))
-    {
-        switch (fileStat.f_type)
-        {
-            case EXT2_SUPER_MAGIC:
-                return FS_EXT;
-            case MSDOS_SUPER_MAGIC:
-                return FS_FAT32;
-            case HFS_SUPER_MAGIC:
-                return FS_HFS;
-            case NTFS_SB_MAGIC:
-                return FS_NTFS;
-            case SDCARDFS_SUPER_MAGIC:
-                return FS_SDCARDFS;
-            case FUSEBLK_SUPER_MAGIC:
-            case FUSECTL_SUPER_MAGIC:
-                return FS_FUSE;
-            case F2FS_SUPER_MAGIC:
-                return FS_F2FS;
-            default:
-                return FS_UNKNOWN;
-        }
-    }
-#elif defined  (__APPLE__) || defined (USE_IOS)
-    // Filesystem detection for Apple and iOS
-    struct statfs fileStat;
-    if (!statfs(dstPath->c_str(), &fileStat))
-    {
-        if (!strcmp(fileStat.f_fstypename, "apfs"))
-        {
-            return FS_APFS;
-        }
-        if (!strcmp(fileStat.f_fstypename, "hfs"))
-        {
-            return FS_HFS;
-        }
-        if (!strcmp(fileStat.f_fstypename, "ntfs"))
-        {
-            return FS_NTFS;
-        }
-        if (!strcmp(fileStat.f_fstypename, "msdos"))
-        {
-            return FS_FAT32;
-        }
-    }
-#elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
-    // Filesystem detection for Windows
-    CHAR volumeName[MAX_PATH + 1] = { 0 };
-    CHAR fileSystemName[MAX_PATH + 1] = { 0 };
-    DWORD serialNumber = 0;
-    DWORD maxComponentLen = 0;
-    DWORD fileSystemFlags = 0;
+    FileSystemType type;
 
-    if (GetVolumeInformationA(dstPath->c_str(), volumeName, sizeof(volumeName),
-                             &serialNumber, &maxComponentLen, &fileSystemFlags,
-                             fileSystemName, sizeof(fileSystemName)))
+    // Try and get the type from the path we were given.
+    if (getlocalfstype(path, type))
     {
-        if (!strcmp(fileSystemName, "NTFS"))
+        // Path exists.
+        return type;
+    }
+
+    // Try and get the type based on our parent's path.
+    LocalPath parentPath(path);
+
+    // Remove trailing separator, if any.
+    parentPath.trimNonDriveTrailingSeparator(*this);
+
+    // Did the path consist solely of that separator?
+    if (parentPath.empty())
+    {
+        return FS_UNKNOWN;
+    }
+
+    // Where does our name begin?
+    auto index = parentPath.getLeafnameByteIndex(*this);
+
+    // We have a parent.
+    if (index)
+    {
+        // Remove the current leaf name.
+        parentPath.truncate(index);
+
+        // Try and get our parent's filesystem type.
+        if (getlocalfstype(parentPath, type))
         {
-            return FS_NTFS;
-        }
-        if (!strcmp(fileSystemName, "exFAT"))
-        {
-            return FS_EXFAT;
-        }
-        if (!strcmp(fileSystemName, "FAT32"))
-        {
-            return FS_FAT32;
+            return type;
         }
     }
-#endif
+
     return FS_UNKNOWN;
 }
 
@@ -186,67 +133,13 @@ bool FileSystemAccess::isControlChar(unsigned char c) const
 }
 
 // Group different filesystems types in families, according to its restricted charsets
-bool FileSystemAccess::islocalfscompatible(unsigned char c, bool isEscape, FileSystemType fileSystemType) const
+bool FileSystemAccess::islocalfscompatible(unsigned char c, bool, FileSystemType) const
 {
-    switch (fileSystemType)
-    {
-        case FS_APFS:
-        case FS_HFS:
-            // APFS, HFS, HFS+ restricted characters => : /
-            return c != '\x3A' && c != '\x2F';
-        case FS_F2FS:
-        case FS_EXT:
-            // f2fs and ext2/ext3/ext4 restricted characters =>  / NULL
-            return c != '\x00' && c != '\x2F';
-        case FS_FAT32:
-            // Control characters will be escaped but not unescaped
-            // FAT32 restricted characters => " * / : < > ? \ | + , ; = [ ]
-            return (isControlChar(c) && isEscape)
-                        ? false
-                        : !strchr("\\/:?\"<>|*+,;=[]", c);
-        case FS_EXFAT:
-        case FS_NTFS:
-            // Control characters will be escaped but not unescaped
-            // ExFAT, NTFS restricted characters => " * / : < > ? \ |
-            return (isControlChar(c) && isEscape)
-                        ? false
-                        : !strchr("\\/:?\"<>|*", c);
-        case FS_FUSE:
-        case FS_SDCARDFS:
-        case FS_UNKNOWN:
-        default:
-            // FUSE and SDCARDFS are Android filesystem wrappers used to mount traditional filesystems
-            // as ext4, Fat32, extFAT...
-            // So we will consider that restricted characters for these wrappers are the same
-            // as for Android => " * / : < > ? \ |
-
-            // If filesystem couldn't be detected we'll use a restrictive charset to avoid issues.
-            return !strchr("\\/:?\"<>|*", c);
-    }
-}
-
-bool FileSystemAccess::getValidPath(const string *originalPath, string &tempPath) const
-{
-    if (!originalPath || originalPath->empty())
-    {
-        return false;
-    }
-
-    string separator = getPathSeparator();
-    for (size_t i = 0; i < separator.size(); i++)
-    {
-        size_t pos = originalPath->rfind(separator[i]);
-        if (pos != std::string::npos && pos != originalPath->size() - 1)
-        {
-            tempPath = originalPath->substr(0, pos + 1);
-            return true;
-        }
-    }
-    return false;
+    return c >= ' ' && !strchr("\\/:?\"<>|*", c);
 }
 
 // replace characters that are not allowed in local fs names with a %xx escape sequence
-void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath) const
+void FileSystemAccess::escapefsincompatible(string* name, FileSystemType fileSystemType) const
 {
     if (!name->compare(".."))
     {
@@ -259,16 +152,7 @@ void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath)
         return;
     }
 
-    string tempPath;
-    const string *validPath = &tempPath;
-    if (!getValidPath(dstPath, tempPath) && dstPath)
-    {
-        // if getValidPath returns false and dstPath is not null, dstPath is valid
-        validPath = dstPath;
-    }
-
     char buf[4];
-    FileSystemType fileSystemType = getlocalfstype(validPath);
     size_t utf8seqsize = 0;
     size_t i = 0;
     unsigned char c = '0';
@@ -284,13 +168,13 @@ void FileSystemAccess::escapefsincompatible(string* name, const string *dstPath)
             name->replace(i, 1, buf);
             LOG_debug << "Escape incompatible character for filesystem type "
                       << fstypetostring(fileSystemType)
-                      << ", replace '" << std::string(&incompatibleChar, 1) << "' by '" << buf << "'\n";
+                      << ", replace '" << incompatibleChar << "' by '" << buf << "'\n";
         }
         i += utf8seqsize;
     }
 }
 
-void FileSystemAccess::unescapefsincompatible(string *name, const string *localPath) const
+void FileSystemAccess::unescapefsincompatible(string *name, FileSystemType fileSystemType) const
 {
     if (!name->compare("%2e%2e"))
     {
@@ -303,15 +187,6 @@ void FileSystemAccess::unescapefsincompatible(string *name, const string *localP
         return;
     }
 
-    string tempPath;
-    const string *validPath = &tempPath;
-    if (!getValidPath(localPath, tempPath) && localPath)
-    {
-        // if getValidPath returns false and localPath is not null, localPath is valid
-        validPath = localPath;
-    }
-
-    FileSystemType fileSystemType = getlocalfstype(validPath);
     for (int i = int(name->size()) - 2; i-- > 0; )
     {
         // conditions for unescaping: %xx must be well-formed
@@ -334,22 +209,22 @@ void FileSystemAccess::unescapefsincompatible(string *name, const string *localP
 const char *FileSystemAccess::getPathSeparator()
 {
 #if defined (__linux__) || defined (__ANDROID__) || defined  (__APPLE__) || defined (USE_IOS)
-return "/";
-#elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
-return "\\";
-#elif
-// Default case
-LOG_warn << "No path separator found";
-return "\\/";
+    return "/";
+#elif defined(_WIN32) || defined(WINDOWS_PHONE)
+    return "\\";
+#else
+    // Default case
+    LOG_warn << "No path separator found";
+    return "\\/";
 #endif
 }
 
 // escape forbidden characters, then convert to local encoding
-void FileSystemAccess::name2local(string* filename, const string *dstPath) const
+void FileSystemAccess::name2local(string* filename, FileSystemType fsType) const
 {
     assert(filename);
 
-    escapefsincompatible(filename, dstPath);
+    escapefsincompatible(filename, fsType);
 
     string t = *filename;
 
@@ -393,7 +268,7 @@ void FileSystemAccess::normalize(string* filename) const
 }
 
 // convert from local encoding, then unescape escaped forbidden characters
-void FileSystemAccess::local2name(string *filename, const string *localPath) const
+void FileSystemAccess::local2name(string *filename, FileSystemType fsType) const
 {
     assert(filename);
 
@@ -401,24 +276,24 @@ void FileSystemAccess::local2name(string *filename, const string *localPath) con
 
     local2path(&t, filename);
 
-    unescapefsincompatible(filename, localPath);
+    unescapefsincompatible(filename, fsType);
 }
 
-std::unique_ptr<string> FileSystemAccess::fsShortname(string& localname)
+std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(LocalPath& localname)
 {
-    string s;
-    if (getsname(&localname, &s))
+    LocalPath s;
+    if (getsname(localname, s))
     {
-        return ::mega::make_unique<string>(std::move(s));
+        return ::mega::make_unique<LocalPath>(std::move(s));
     }
     return nullptr;
 }
 
 // default DirNotify: no notification available
-DirNotify::DirNotify(string* clocalbasepath, string* cignore)
+DirNotify::DirNotify(const LocalPath& clocalbasepath, const LocalPath& cignore)
 {
-    localbasepath = *clocalbasepath;
-    ignore = *cignore;
+    localbasepath = clocalbasepath;
+    ignore = cignore;
 
     mFailed = 1;
     mFailReason = "Not initialized";
@@ -436,7 +311,7 @@ void DirNotify::setFailed(int errCode, const string& reason)
 
 int DirNotify::getFailed(string& reason)
 {
-    if (mFailed) 
+    if (mFailed)
     {
         reason = mFailReason;
     }
@@ -445,12 +320,9 @@ int DirNotify::getFailed(string& reason)
 
 
 // notify base LocalNode + relative path/filename
-void DirNotify::notify(notifyqueue q, LocalNode* l, const char* localpath, size_t len, bool immediate)
+void DirNotify::notify(notifyqueue q, LocalNode* l, LocalPath&& path, bool immediate)
 {
-    string path;
-    path.assign(localpath, len);
-
-    // We may be executing on a thread here so we can't access the LocalNode data structures.  Queue everything, and   
+    // We may be executing on a thread here so we can't access the LocalNode data structures.  Queue everything, and
     // filter when the notifications are processed.  Also, queueing it here is faster than logging the decision anyway.
 
     Notification n;
@@ -479,7 +351,7 @@ bool DirNotify::fsstableids() const
     return true;
 }
 
-DirNotify* FileSystemAccess::newdirnotify(string* localpath, string* ignore, Waiter*)
+DirNotify* FileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& ignore, Waiter*)
 {
     return new DirNotify(localpath, ignore);
 }
@@ -498,15 +370,15 @@ FileAccess::~FileAccess()
 }
 
 // open file for reading
-bool FileAccess::fopen(string* name)
+bool FileAccess::fopen(LocalPath& name)
 {
-    nonblocking_localname.resize(1);
+    nonblocking_localname.editStringDirect()->resize(1);
     updatelocalname(name);
 
     return sysstat(&mtime, &size);
 }
 
-bool FileAccess::isfolder(string *name)
+bool FileAccess::isfolder(LocalPath& name)
 {
     fopen(name);
     return (type == FOLDERNODE);
@@ -515,7 +387,7 @@ bool FileAccess::isfolder(string *name)
 // check if size and mtime are unchanged, then open for reading
 bool FileAccess::openf()
 {
-    if (!nonblocking_localname.size())
+    if (nonblocking_localname.empty())
     {
         // file was not opened in nonblocking mode
         return true;
@@ -544,7 +416,7 @@ bool FileAccess::openf()
 
 void FileAccess::closef()
 {
-    if (nonblocking_localname.size())
+    if (!nonblocking_localname.empty())
     {
         sysclose();
     }
@@ -559,9 +431,9 @@ void FileAccess::asyncopfinished(void *param)
     }
 }
 
-AsyncIOContext *FileAccess::asyncfopen(string *f)
+AsyncIOContext *FileAccess::asyncfopen(LocalPath& f)
 {
-    nonblocking_localname.resize(1);
+    nonblocking_localname.editStringDirect()->resize(1);
     updatelocalname(f);
 
     LOG_verbose << "Async open start";
@@ -569,8 +441,8 @@ AsyncIOContext *FileAccess::asyncfopen(string *f)
     context->op = AsyncIOContext::OPEN;
     context->access = AsyncIOContext::ACCESS_READ;
 
-    context->buffer = (byte *)f->data();
-    context->len = static_cast<unsigned>(f->size());
+    context->buffer = (byte *)f.editStringDirect()->data();
+    context->len = static_cast<unsigned>(f.editStringDirect()->size());
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
     context->userData = waiter;
@@ -587,7 +459,7 @@ AsyncIOContext *FileAccess::asyncfopen(string *f)
 bool FileAccess::asyncopenf()
 {
     numAsyncReads++;
-    if (!nonblocking_localname.size())
+    if (nonblocking_localname.empty())
     {
         return true;
     }
@@ -639,7 +511,7 @@ void FileAccess::asyncclosef()
     }
 }
 
-AsyncIOContext *FileAccess::asyncfopen(string *f, bool read, bool write, m_off_t pos)
+AsyncIOContext *FileAccess::asyncfopen(LocalPath& f, bool read, bool write, m_off_t pos)
 {
     LOG_verbose << "Async open start";
     AsyncIOContext *context = newasynccontext();
@@ -648,8 +520,8 @@ AsyncIOContext *FileAccess::asyncfopen(string *f, bool read, bool write, m_off_t
             | (read ? AsyncIOContext::ACCESS_READ : 0)
             | (write ? AsyncIOContext::ACCESS_WRITE : 0);
 
-    context->buffer = (byte *)f->data();
-    context->len = static_cast<unsigned>(f->size());
+    context->buffer = (byte *)f.editStringDirect()->data();
+    context->len = static_cast<unsigned>(f.editStringDirect()->size());
     context->waiter = waiter;
     context->userCallback = asyncopfinished;
     context->userData = waiter;
@@ -861,5 +733,214 @@ bool FileInputStream::read(byte *buffer, unsigned size)
     LOG_warn << "Invalid read on FileInputStream";
     return false;
 }
+
+const std::string* LocalPath::editStringDirect() const
+{
+    // this function for compatibiltiy while converting to use LocalPath class.  TODO: phase out this function
+    return const_cast<std::string*>(&localpath);
+}
+
+std::string* LocalPath::editStringDirect()
+{
+    // this function for compatibiltiy while converting to use LocalPath class.  TODO: phase out this function
+    return const_cast<std::string*>(&localpath);
+}
+
+bool LocalPath::empty() const
+{
+    return localpath.empty();
+}
+
+size_t LocalPath::lastpartlocal(const FileSystemAccess& fsaccess) const
+{
+    return fsaccess.lastpartlocal(&localpath);
+}
+
+void LocalPath::append(const LocalPath& additionalPath)
+{
+    localpath.append(additionalPath.localpath);
+}
+
+void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways, const string& localseparator)
+{
+    if (separatorAlways || localpath.size())
+    {
+        // still have to be careful about appending a \ to F:\ for example, on windows, which produces an invalid path
+        if ( localpath.size() < localseparator.size() ||
+             memcmp(localpath.data() + localpath.size() - localseparator.size(),
+                    localseparator.data(), localseparator.size()) )
+        {
+            localpath.append(localseparator);
+        }
+    }
+
+    localpath.append(additionalPath.localpath);
+}
+
+void LocalPath::prependWithSeparator(const LocalPath& additionalPath, const string& localseparator)
+{
+    // no additional separator if there is already one after
+    if (localpath.size() >= localseparator.size() && memcmp(localpath.data(), localseparator.data(), localseparator.size()))
+    {
+        // no additional separator if there is already one before
+        if (additionalPath.editStringDirect()->size() < localseparator.size() ||
+            memcmp(additionalPath.editStringDirect()->data() + additionalPath.editStringDirect()->size() - localseparator.size(), localseparator.data(), localseparator.size()))
+        {
+            localpath.insert(0, localseparator);
+        }
+    }
+    localpath.insert(0, additionalPath.localpath);
+}
+
+void LocalPath::trimNonDriveTrailingSeparator(const FileSystemAccess& fsaccess)
+{
+    if (endsInSeparator(fsaccess))
+    {
+        // ok so the last character is a directory separator.  But don't remove it for eg. F:\ on windows
+        #ifdef WIN32
+        if (localpath.size() > 2 * fsaccess.localseparator.size() && !memcmp(localpath.data() + localpath.size() - 2 * fsaccess.localseparator.size(), L":", fsaccess.localseparator.size()))
+        {
+            return;
+        }
+        #endif
+
+        localpath.resize((int(localpath.size()) & -int(fsaccess.localseparator.size())) - fsaccess.localseparator.size());
+    }
+}
+
+bool LocalPath::findNextSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const
+{
+    for (;;)
+    {
+        separatorBytePos = localpath.find(fsaccess.localseparator, separatorBytePos);
+        if (separatorBytePos == string::npos) return false;
+        if (separatorBytePos % fsaccess.localseparator.size() == 0) return true;
+        separatorBytePos++;
+    }
+}
+
+bool LocalPath::findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const
+{
+    for (;;)
+    {
+        separatorBytePos = localpath.rfind(fsaccess.localseparator, separatorBytePos);
+        if (separatorBytePos == string::npos) return false;
+        if (separatorBytePos % fsaccess.localseparator.size() == 0) return true;
+        separatorBytePos--;
+    }
+}
+
+bool LocalPath::endsInSeparator(const FileSystemAccess& fsaccess) const
+{
+    return localpath.size() >= fsaccess.localseparator.size()
+        && !memcmp(localpath.data() + (int(localpath.size()) & -int(fsaccess.localseparator.size())) - fsaccess.localseparator.size(),
+            fsaccess.localseparator.data(),
+            fsaccess.localseparator.size());
+}
+
+size_t LocalPath::getLeafnameByteIndex(const FileSystemAccess& fsaccess) const
+{
+    // todo: take utf8 two byte characters into account
+    size_t p = localpath.size();
+    p -= localpath.size() % fsaccess.localseparator.size(); // just in case on windows
+    while (p && (p -= fsaccess.localseparator.size()))
+    {
+        if (!memcmp(localpath.data() + p, fsaccess.localseparator.data(), fsaccess.localseparator.size()))
+        {
+            p += fsaccess.localseparator.size();
+            break;
+        }
+    }
+    return p;
+}
+
+bool LocalPath::backEqual(size_t bytePos, const LocalPath& compareTo) const
+{
+    auto n = compareTo.localpath.size();
+    return bytePos + n == localpath.size() && !memcmp(compareTo.localpath.data(), localpath.data() + bytePos, n);
+}
+
+LocalPath LocalPath::subpathFrom(size_t bytePos) const
+{
+    return LocalPath::fromLocalname(localpath.substr(bytePos));
+}
+
+
+void LocalPath::ensureWinExtendedPathLenPrefix()
+{
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+    localpath.append("", 1);
+    if (!PathIsRelativeW((LPWSTR)localpath.c_str()) && ((localpath.size() < 4) || memcmp(localpath.data(), L"\\\\", 4)))
+        localpath.insert(0, (const char*)(const wchar_t*)L"\\\\?\\", 8);
+    localpath.resize(localpath.size() - 1);
+#endif
+}
+
+string LocalPath::substrTo(size_t bytePos) const
+{
+    return localpath.substr(0, bytePos);
+}
+
+string LocalPath::toPath(const FileSystemAccess& fsaccess) const
+{
+    string path;
+    fsaccess.local2path(const_cast<string*>(&localpath), &path); // todo: const correctness for local2path etc
+    return path;
+}
+
+string LocalPath::toName(const FileSystemAccess& fsaccess, FileSystemType fsType) const
+{
+    string name = localpath;
+    fsaccess.local2name(&name, fsType);
+    return name;
+}
+
+
+LocalPath LocalPath::fromPath(const string& path, const FileSystemAccess& fsaccess)
+{
+    LocalPath p;
+    fsaccess.path2local(&path, &p.localpath);
+    return p;
+}
+
+LocalPath LocalPath::fromName(string path, const FileSystemAccess& fsaccess, FileSystemType fsType)
+{
+    fsaccess.name2local(&path, fsType);
+    return fromLocalname(path);
+}
+
+LocalPath LocalPath::fromLocalname(string path)
+{
+    LocalPath p;
+    p.localpath = std::move(path);
+    return p;
+}
+
+LocalPath LocalPath::tmpNameLocal(const FileSystemAccess& fsaccess)
+{
+    LocalPath lp;
+    fsaccess.tmpnamelocal(lp);
+    return lp;
+}
+
+bool LocalPath::isContainingPathOf(const LocalPath& path, const FileSystemAccess& fsaccess)
+{
+    return path.localpath.size() >= localpath.size()
+        && !memcmp(path.localpath.data(), localpath.data(), localpath.size())
+        && (path.localpath.size() == localpath.size() ||
+           !memcmp(path.localpath.data() + localpath.size(), fsaccess.localseparator.data(), fsaccess.localseparator.size()) ||
+           (localpath.size() >= fsaccess.localseparator.size() &&
+           !memcmp(path.localpath.data() + localpath.size() - fsaccess.localseparator.size(), fsaccess.localseparator.data(), fsaccess.localseparator.size())));
+}
+
+ScopedLengthRestore::ScopedLengthRestore(LocalPath& p)
+    : path(p)
+    , length(path.getLength())
+{
+}
+ScopedLengthRestore::~ScopedLengthRestore()
+{
+    path.setLength(length);
+};
 
 } // namespace

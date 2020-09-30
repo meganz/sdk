@@ -27,11 +27,13 @@ namespace mt {
 class DefaultedFileSystemAccess : public mega::FileSystemAccess
 {
 public:
-    DefaultedFileSystemAccess()
+    using FileSystemAccess::getlocalfstype;
+
+    DefaultedFileSystemAccess(const std::string &separator = "/")
     {
         notifyerr = false;
         notifyfailed = true;
-        localseparator = "/";
+        localseparator = separator;
     }
     std::unique_ptr<mega::FileAccess> newfileaccess(bool followSymLinks = true) override
     {
@@ -41,59 +43,63 @@ public:
     {
         throw NotImplemented{__func__};
     }
-    void path2local(std::string*, std::string*) const override
+    bool getlocalfstype(const mega::LocalPath&, mega::FileSystemType& type) const override
+    {
+        return type = mega::FS_UNKNOWN, false;
+    }
+    void path2local(const std::string*, std::string*) const override
     {
         throw NotImplemented{__func__};
     }
-    void local2path(std::string* local, std::string* path) const override
+    void local2path(const std::string* local, std::string* path) const override
     {
         throw NotImplemented{__func__};
     }
-    void tmpnamelocal(std::string*) const override
+    void tmpnamelocal(mega::LocalPath&) const override
     {
         throw NotImplemented{__func__};
     }
-    bool getsname(std::string*, std::string*) const override
+    bool getsname(mega::LocalPath&, mega::LocalPath&) const override
     {
         throw NotImplemented{__func__};
     }
-    bool renamelocal(std::string*, std::string*, bool = true) override
+    bool renamelocal(mega::LocalPath&, mega::LocalPath&, bool = true) override
     {
         throw NotImplemented{__func__};
     }
-    bool copylocal(std::string*, std::string*, mega::m_time_t) override
+    bool copylocal(mega::LocalPath&, mega::LocalPath&, mega::m_time_t) override
     {
         throw NotImplemented{__func__};
     }
-    bool unlinklocal(std::string*) override
+    bool unlinklocal(mega::LocalPath&) override
     {
         throw NotImplemented{__func__};
     }
-    bool rmdirlocal(std::string*) override
+    bool rmdirlocal(mega::LocalPath&) override
     {
         throw NotImplemented{__func__};
     }
-    bool mkdirlocal(std::string*, bool = false) override
+    bool mkdirlocal(mega::LocalPath&, bool = false) override
     {
         throw NotImplemented{__func__};
     }
-    bool setmtimelocal(std::string *, mega::m_time_t) override
+    bool setmtimelocal(mega::LocalPath&, mega::m_time_t) override
     {
         throw NotImplemented{__func__};
     }
-    bool chdirlocal(std::string*) const override
+    bool chdirlocal(mega::LocalPath&) const override
     {
         throw NotImplemented{__func__};
     }
-    size_t lastpartlocal(std::string*) const override
+    size_t lastpartlocal(const std::string*) const override
     {
         throw NotImplemented{__func__};
     }
-    bool getextension(std::string*, char*, size_t) const override
+    bool getextension(const mega::LocalPath&, char*, size_t) const override
     {
         throw NotImplemented{__func__};
     }
-    bool expanselocalpath(std::string *path, std::string *absolutepath) override
+    bool expanselocalpath(mega::LocalPath& path, mega::LocalPath& absolutepath) override
     {
         throw NotImplemented{__func__};
     }

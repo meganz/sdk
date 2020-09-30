@@ -123,7 +123,7 @@ struct MEGA_API MegaApp
     virtual void key_modified(handle, attr_t) { }
 
     // node addition has failed
-    virtual void putnodes_result(error, targettype_t, NewNode*) { }
+    virtual void putnodes_result(const Error&, targettype_t, vector<NewNode>&) { }
 
     // share update result
     virtual void share_result(error) { }
@@ -143,7 +143,6 @@ struct MEGA_API MegaApp
 
     // file attribute modification result
     virtual void putfa_result(handle, fatype, error) { }
-    virtual void putfa_result(handle, fatype, const char*) { }
 
     // purchase transactions
     virtual void enumeratequotaitems_result(unsigned, handle, unsigned, int, int, unsigned, unsigned, unsigned, const char*, const char*, const char*, const char*) { }
@@ -170,6 +169,9 @@ struct MEGA_API MegaApp
     virtual void getua_result(TLVstore *, attr_t) { }
 #ifdef DEBUG
     virtual void delua_result(error) { }
+
+    // result of send dev subcommand's command
+    virtual void senddevcommand_result(int) { }
 #endif
 
     virtual void getuseremail_result(string *, error) { }
@@ -224,6 +226,9 @@ struct MEGA_API MegaApp
     // resend verification email
     virtual void resendverificationemail_result(error) {};
 
+    // reset the verified phone number
+    virtual void resetSmsVerifiedPhoneNumber_result(error) {};
+
     // confirm change email link result
     virtual void confirmemaillink_result(error) {}
 
@@ -247,6 +252,7 @@ struct MEGA_API MegaApp
     virtual void chatpresenceurl_result(string*, error) { }
     virtual void registerpushnotification_result(error) { }
     virtual void archivechat_result(error) { }
+    virtual void setchatretentiontime_result(error){ }
 
     virtual void chats_updated(textchat_map *, int) { }
     virtual void richlinkrequest_result(string*, error) { }
@@ -282,7 +288,7 @@ struct MEGA_API MegaApp
     virtual void transfer_complete(Transfer*) { }
 
     // sync status updates and events
-    virtual void syncupdate_state(Sync*, syncstate_t) { }
+    virtual void syncupdate_state(int tag, syncstate_t, SyncError, bool = true) { }
     virtual void syncupdate_scanning(bool) { }
     virtual void syncupdate_local_folder_addition(Sync*, LocalNode*, const char*) { }
     virtual void syncupdate_local_folder_deletion(Sync*, LocalNode*) { }
@@ -303,17 +309,33 @@ struct MEGA_API MegaApp
     virtual void syncupdate_treestate(LocalNode*) { }
 
     // sync filename filter
-    virtual bool sync_syncable(Sync*, const char*, string*, Node*)
+    virtual bool sync_syncable(Sync*, const char*, LocalPath&, Node*)
     {
         return true;
     }
 
-    virtual bool sync_syncable(Sync*, const char*, string*)
+    virtual bool sync_syncable(Sync*, const char*, LocalPath&)
     {
         return true;
     }
 
-    virtual void sync_auto_resumed(const string&, handle, long long, const vector<string>&) { }
+    // after a root node of a sync changed its path
+    virtual void syncupdate_remote_root_changed(const SyncConfig &) { }
+
+    // after all syncs have been restored
+    virtual void syncs_restored() { }
+
+    // after all syncs have been disabled
+    virtual void syncs_disabled(SyncError) { }
+
+    // before attempting a sync resume
+    virtual void syncs_about_to_be_resumed() { }
+
+    // after an attempt to auto-resume a cache sync
+    virtual void sync_auto_resume_result(const SyncConfig &, const syncstate_t &, const SyncError &) { }
+
+    // after a sync has been removed
+    virtual void sync_removed(int tag) { }
 
     // suggest reload due to possible race condition with other clients
     virtual void reload(const char*) { }
@@ -369,7 +391,7 @@ struct MEGA_API MegaApp
     virtual void keepmealive_result (error) { }
 
     // get the current PSA
-    virtual void getpsa_result (error, int, string*, string*, string*, string*, string*) { }
+    virtual void getpsa_result (error, int, string*, string*, string*, string*, string*, string*) { }
 
     // result of the user alert acknowledge request
     virtual void acknowledgeuseralerts_result(error) { }
@@ -388,6 +410,16 @@ struct MEGA_API MegaApp
     virtual void getcountrycallingcodes_result(error, map<string, vector<string>>*) { }
 
     virtual void getmiscflags_result(error) { }
+
+    virtual void backupput_result(const Error&, handle /*backup id*/) { }
+    virtual void backupupdate_result(const Error&, handle /*backup id*/) { }
+    virtual void backupputheartbeat_result(const Error&) { }
+    virtual void backupremove_result(const Error&, handle /*backup id*/) { }
+
+    virtual void getbanners_result(error) { }
+    virtual void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) { }
+
+    virtual void dismissbanner_result(error) { }
 
     virtual ~MegaApp() { }
 };

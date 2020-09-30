@@ -21,6 +21,7 @@
 #include <random>
 
 #include <mega/megaapp.h>
+#include <mega.h>
 
 #include "constants.h"
 #include "DefaultedFileSystemAccess.h"
@@ -82,8 +83,8 @@ std::unique_ptr<mega::Sync> makeSync(mega::MegaClient& client, const std::string
 {
     std::string localdebris = gLocalDebris;
     auto& n = makeNode(client, mega::FOLDERNODE, std::hash<std::string>{}(localname));
-    mega::SyncConfig config{localname, n.nodehandle, 0};
-    auto sync = new mega::Sync{&client, std::move(config),
+    mega::SyncConfig config{127, localname, localname, n.nodehandle, std::string(), 0};
+    auto sync = new mega::Sync{&client, config,
                                nullptr, &localdebris, &n, false, 0, nullptr};
     sync->state = mega::SYNC_CANCELED; // to avoid the assertion in Sync::~Sync()
     return std::unique_ptr<mega::Sync>{sync};
@@ -93,18 +94,19 @@ std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode
                                                mega::nodetype_t type, const std::string& name,
                                                const mega::FileFingerprint& ffp)
 {
+    std::string tmpname = name;
+    mega::FSACCESS_CLASS fsaccess;
     auto l = std::unique_ptr<mega::LocalNode>{new mega::LocalNode};
-    std::string path;
-    parent.getlocalpath(&path);
-    path += sync.client->fsaccess->localseparator + name;
-    l->init(&sync, type, &parent, &path, sync.client->fsaccess->fsShortname(path));
+    auto path = parent.getLocalPath();
+    path.appendWithSeparator(::mega::LocalPath::fromPath(tmpname, fsaccess), true, fsaccess.localseparator);
+    l->init(&sync, type, &parent, path, sync.client->fsaccess->fsShortname(path));
     l->setfsid(nextFsId(), sync.client->fsidnode);
     static_cast<mega::FileFingerprint&>(*l) = ffp;
     return l;
 }
 #endif
 
-void collectAllFsNodes(std::map<std::string, const mt::FsNode*>& nodes, const mt::FsNode& node)
+void collectAllFsNodes(std::map<mega::LocalPath, const mt::FsNode*>& nodes, const mt::FsNode& node)
 {
     const auto path = node.getPath();
     assert(nodes.find(path) == nodes.end());

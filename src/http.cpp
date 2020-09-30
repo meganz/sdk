@@ -34,13 +34,11 @@
 #include "mega/osx/osxutils.h"
 #endif
 
+#if TARGET_OS_IPHONE
+#include <resolv.h>
+#endif
+
 namespace mega {
-
-// interval to calculate the mean speed (ds)
-const int SpeedController::SPEED_MEAN_INTERVAL_DS = 50;
-
-// max time to calculate the mean speed
-const int SpeedController::SPEED_MAX_VALUES = 10000;
 
 // data receive timeout (ds)
 const int HttpIO::NETWORKTIMEOUT = 6000;
@@ -241,7 +239,7 @@ Proxy *HttpIO::getautoproxy()
     if (ieProxyConfig.lpszAutoConfigUrl)
     {
         GlobalFree(ieProxyConfig.lpszAutoConfigUrl);
-    }    
+    }
 #endif
 
 #if defined(__APPLE__) && !(TARGET_OS_IPHONE)
@@ -316,6 +314,56 @@ void HttpIO::getMEGADNSservers(string *dnsservers, bool getfromnetwork)
     }
 }
 
+// this method allows to retrieve DNS servers as configured in the system. Note that, under Wifi connections,
+// it usually returns the gateway (192.168.1.1 or similar), so the DNS requests done by c-ares represent a
+// an access to the local network, which we aim to avoid since iOS 14 requires explicit permission given by the user.
+void HttpIO::getDNSserversFromIos(string& dnsServers)
+{
+#if TARGET_OS_IPHONE
+    // Workaround to get the IP of valid DNS servers on iOS
+     __res_state res;
+     bool valid;
+     if (res_ninit(&res) == 0)
+     {
+         union res_sockaddr_union u[MAXNS];
+         int nscount = res_getservers(&res, u, MAXNS);
+
+         for (int i = 0; i < nscount; i++)
+         {
+             char straddr[INET6_ADDRSTRLEN];
+             straddr[0] = 0;
+             valid = false;
+
+             if (u[i].sin.sin_family == PF_INET)
+             {
+                 valid = mega_inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr)) == straddr;
+             }
+
+             if (u[i].sin6.sin6_family == PF_INET6)
+             {
+                 valid = mega_inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr)) == straddr;
+             }
+
+             if (valid && straddr[0])
+             {
+                 if (dnsServers.size())
+                 {
+                     dnsServers.append(",");
+                 }
+                 dnsServers.append(straddr);
+             }
+         }
+
+         res_ndestroy(&res);
+     }
+
+     if (!dnsServers.size())
+     {
+         LOG_warn << "Failed to get DNS servers from OS";
+     }
+#endif
+}
+
 bool HttpIO::setmaxdownloadspeed(m_off_t)
 {
     return false;
@@ -388,7 +436,7 @@ void HttpReq::dns(MegaClient *client)
         httpio->cancel(this);
         init();
     }
-    
+
     httpio = client->httpio;
     bufpos = 0;
     outpos = 0;
@@ -397,7 +445,7 @@ void HttpReq::dns(MegaClient *client)
     method = METHOD_NONE;
     contentlength = -1;
     lastdata = Waiter::ds;
-    
+
     httpio->post(this);
 }
 
@@ -486,7 +534,7 @@ void HttpReq::put(void* data, unsigned len, bool purge)
 
         in.append((char*)data, len);
     }
-    
+
     bufpos += len;
 }
 
@@ -514,17 +562,17 @@ bool HttpReq::http_buf_t::isNull()
 }
 
 byte* HttpReq::http_buf_t::datastart()
-{ 
-    return buf + start; 
+{
+    return buf + start;
 }
 
-size_t HttpReq::http_buf_t::datalen() 
-{ 
-    return end - start; 
+size_t HttpReq::http_buf_t::datalen()
+{
+    return end - start;
 }
 
 
-// give up ownership of the buffer for client to use.  
+// give up ownership of the buffer for client to use.
 struct HttpReq::http_buf_t* HttpReq::release_buf()
 {
     HttpReq::http_buf_t* result = new HttpReq::http_buf_t(buf, inpurge, (size_t)bufpos);
@@ -661,10 +709,14 @@ void EncryptByChunks::updateCRC(byte* data, unsigned size, unsigned offset)
 {
     uint32_t *intc = (uint32_t *)crc;
 
-    int ol = offset % CRCSIZE;
+    unsigned ol = offset % CRCSIZE;
     if (ol)
     {
-        int ll = CRCSIZE - ol;
+        unsigned ll = CRCSIZE - ol;
+        if (ll > size) //last chunks could be smaller than CRCSIZE!
+        {
+            ll = size;
+        }
         size -= ll;
         while (ll--)
         {
@@ -773,57 +825,84 @@ m_off_t HttpReqUL::transferred(MegaClient* client)
 
 SpeedController::SpeedController()
 {
-    partialBytes = 0;
-    meanSpeed = 0;
-    lastUpdate = 0;
-    speedCounter = 0;
+    memset(mCircularBuf.data(), 0, sizeof(mCircularBuf));
+}
+
+void SpeedController::requestStarted()
+{
+    mRequestPos = 0;
+    mRequestStart = mLastRequestUpdate = Waiter::ds;
+}
+
+m_off_t SpeedController::requestProgressed(m_off_t newPos)
+{
+    if (newPos > mRequestPos)
+    {
+        m_off_t delta = newPos - mRequestPos;
+        calculateSpeed(delta);
+        mRequestPos = newPos;
+        mLastRequestUpdate = Waiter::ds;
+        return delta;
+    }
+    return 0;
+}
+
+m_off_t SpeedController::lastRequestSpeed()
+{
+    dstime deltaDs = mLastRequestUpdate - mRequestStart;
+    return mRequestPos * 10 / (deltaDs ? deltaDs : 1);
+}
+
+dstime SpeedController::requestElapsedDs()
+{
+    return Waiter::ds - mRequestStart;
 }
 
 m_off_t SpeedController::calculateSpeed(long long numBytes)
 {
+    assert(numBytes >= 0);
     dstime currentTime = Waiter::ds;
-    if (numBytes <= 0 && lastUpdate == currentTime)
+    if (numBytes <= 0 && mLastCalcTime == currentTime)
     {
-        return (partialBytes * 10) / SPEED_MEAN_INTERVAL_DS;
+        return (mCircularCurrentSum * 10) / SPEED_MEAN_MAX_INTERVAL_DS;
     }
 
-    while (transferBytes.size())
+    for (int i = SPEED_MEAN_MAX_INTERVAL_DS; i--; )
     {
-        map<dstime, m_off_t>::iterator it = transferBytes.begin();
-        dstime deltaTime = currentTime - it->first;
-        if (deltaTime < SPEED_MEAN_INTERVAL_DS)
+        if (mCircularCurrentTime < currentTime)
         {
-            break;
+            ++mCircularCurrentTime;
+            if (++mCircularCurrentIndex == SPEED_MEAN_MAX_INTERVAL_DS)
+                mCircularCurrentIndex = 0;
+            mCircularCurrentSum -= mCircularBuf[mCircularCurrentIndex];
+            mCircularBuf[mCircularCurrentIndex] = 0;
         }
-
-        partialBytes -= it->second;
-        transferBytes.erase(it);
+        else
+            break;
     }
 
-    if (numBytes > 0)
-    {
-        transferBytes[currentTime] += numBytes;
-        partialBytes += numBytes;
-    }
+    mCircularCurrentTime = currentTime;
+    mCircularBuf[mCircularCurrentIndex] += numBytes;
+    mCircularCurrentSum += numBytes;
 
-    m_off_t speed = (partialBytes * 10) / SPEED_MEAN_INTERVAL_DS;
+    m_off_t speed = (mCircularCurrentSum * 10) / SPEED_MEAN_MAX_INTERVAL_DS;
+
     if (numBytes)
     {
-        meanSpeed = meanSpeed * speedCounter + speed;
-        speedCounter++;
-        meanSpeed /= speedCounter;
-        if (speedCounter > SPEED_MAX_VALUES)
-        {
-            speedCounter = SPEED_MAX_VALUES;
-        }
+        if (!mMeanSpeedStart)
+            mMeanSpeedStart = currentTime;
+        dstime delta = currentTime - mMeanSpeedStart;
+        mMeanSpeedSum += numBytes;
+        mMeanSpeed = delta ? (mMeanSpeedSum * 10 / delta) : mMeanSpeedSum;
     }
-    lastUpdate = currentTime;
+    mLastCalcTime = currentTime;
+
     return speed;
 }
 
 m_off_t SpeedController::getMeanSpeed()
 {
-    return meanSpeed;
+    return mMeanSpeed;
 }
 
 GenericHttpReq::GenericHttpReq(PrnGen &rng, bool binary)

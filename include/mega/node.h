@@ -28,6 +28,18 @@
 #include "attrmap.h"
 
 namespace mega {
+
+struct LocalPathPtrCmp
+{
+    bool operator()(const LocalPath* a, const LocalPath* b) const
+    {
+        return *a < *b;
+    }
+};
+
+typedef map<const LocalPath*, LocalNode*, LocalPathPtrCmp> localnode_map;
+typedef map<const string*, Node*, StringCmp> remotenode_map;
+
 struct MEGA_API NodeCore
 {
     // node's own handle
@@ -64,6 +76,7 @@ struct MEGA_API NewNode : public NodeCore
     std::unique_ptr<string> fileattributes;
 
     bool added = false;
+    handle mAddedHandle = UNDEF;
 };
 
 struct MEGA_API PublicLink
@@ -192,7 +205,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         bool publiclink : 1;
         bool newnode : 1;
     } changed;
-    
+
     void setkey(const byte* = NULL);
 
     void setkeyfromjson(const char*);
@@ -233,7 +246,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     node_set::iterator tounlink_it;
 #endif
 
-    // source tag
+    // source tag.  The tag of the request or transfer that last modified this node (available in MegaApi)
     int tag = 0;
 
     // check if node is below this node
@@ -296,7 +309,7 @@ struct MEGA_API LocalNode : public File
 
     // for botched filesystems with legacy secondary ("short") names
     // Filesystem notifications could arrive with long or short names, and we need to recognise which LocalNode corresponds.
-    std::unique_ptr<string> slocalname;   // null means either the entry has no shortname or it's the same as the (normal) longname
+    std::unique_ptr<LocalPath> slocalname;   // null means either the entry has no shortname or it's the same as the (normal) longname
     localnode_map schildren;
 
     // local filesystem node ID (inode...) for rename/move detection
@@ -354,12 +367,12 @@ struct MEGA_API LocalNode : public File
     localnode_set::iterator notseen_it{};
 
     // build full local path to this node
-    void getlocalpath(string*, bool sdisable = false, const std::string* localseparator = nullptr) const;
-    void getlocalsubpath(string*) const;
+    void getlocalpath(LocalPath&, bool sdisable = false, const std::string* localseparator = nullptr) const;
+    LocalPath getLocalPath(bool sdisable = false) const;
     string localnodedisplaypath(FileSystemAccess& fsa) const;
 
     // return child node by name
-    LocalNode* childbyname(string*);
+    LocalNode* childbyname(LocalPath*);
 
 #ifdef USE_INOTIFY
     // node-specific DirNotify tag
@@ -377,10 +390,10 @@ struct MEGA_API LocalNode : public File
     // fsidnodes is a map from fsid to LocalNode, keeping track of all fs ids.
     void setfsid(handle newfsid, handlelocalnode_map& fsidnodes);
 
-    void setnameparent(LocalNode*, string*, std::unique_ptr<string>);
+    void setnameparent(LocalNode*, LocalPath* newlocalpath, std::unique_ptr<LocalPath>);
 
     LocalNode();
-    void init(Sync*, nodetype_t, LocalNode*, string*, std::unique_ptr<string>);
+    void init(Sync*, nodetype_t, LocalNode*, LocalPath&, std::unique_ptr<LocalPath>);
 
     bool serialize(string*) override;
     static LocalNode* unserialize( Sync* sync, const string* sData );

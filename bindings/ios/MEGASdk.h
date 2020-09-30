@@ -68,7 +68,11 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeVideoAsc,
     MEGASortOrderTypeVideoDesc,
     MEGASortOrderTypeLinkCreationAsc,
-    MEGASortOrderTypeLinkCreationDesc
+    MEGASortOrderTypeLinkCreationDesc,
+    MEGASortOrderTypeLabelAsc,
+    MEGASortOrderTypeLabelDesc,
+    MEGASortOrderTypeFavouriteAsc,
+    MEGASortOrderTypeFavouriteDesc
 };
 
 typedef NS_ENUM (NSInteger, MEGAEventType) {
@@ -119,7 +123,10 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
     MEGANodeAttributeDuration       = 0,
-    MEGANodeAttributeCoordinates    = 1
+    MEGANodeAttributeCoordinates    = 1,
+    MEGANodeAttributeOriginalFingerprint = 2,
+    MEGANodeAttributeLabel = 3,
+    MEGANodeAttributeFav = 4
 };
 
 typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
@@ -174,7 +181,8 @@ typedef NS_ENUM(NSUInteger, StorageState) {
     StorageStateGreen = 0,
     StorageStateOrange = 1,
     StorageStateRed = 2,
-    StorageStateChange = 3
+    StorageStateChange = 3,
+    StorageStatePaywall = 4
 };
 
 typedef NS_ENUM(NSInteger, SMSState) {
@@ -1123,6 +1131,48 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * @param folderLink Link to a folder in MEGA.
  */
 - (void)loginToFolderLink:(NSString *)folderLink;
+
+/**
+ * @brief Trigger special account state changes for own accounts, for testing
+ *
+ * Because the dev API command allows a wide variety of state changes including suspension and unsuspension,
+ * it has restrictions on which accounts you can target, and where it can be called from.
+ *
+ * Your client must be on a company VPN IP address.
+ *
+ * The target account must be an @mega email address. The target account must either be the calling account,
+ * OR a related account via a prefix and + character. For example if the calling account is name1+test@mega.co.nz
+ * then it can perform a dev command on itself or on name1@mega.co.nz, name1+bob@mega.co.nz etc, but NOT on
+ * name2@mega.co.nz or name2+test@meg.co.nz.
+ *
+ * The associated request type with this request is MEGARequestTypeSendDevCommand.
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest name] - Returns the first parameter
+ * - [MEGARequest email] - Returns the second parameter
+ *
+ * Possible errors are:
+ *  - MEGAErrorTypeApiEAccess if the calling account is not allowed to perform this method (not a mega email account, not the right IP, etc).
+ *  - MEGAErrorTypeApiEArgs if the subcommand is not present or is invalid
+ *  - MEGAErrorTypeApiEBlocked if the target account is not allowed (this could also happen if the target account does not exist)
+ *
+ * Possible commands:
+ *  - "aodq" - Advance ODQ Warning State
+ *      If called, this will advance your ODQ warning state until the final warning state,
+ *      at which point it will turn on the ODQ paywall for your account. It requires an account lock on the target account.
+ *      This subcommand will return the 'step' of the warning flow you have advanced to - 1, 2, 3 or 4
+ *      (the paywall is turned on at step 4)
+ *
+ *      Valid data in the MEGARequest object received in onRequestFinish when the error code is MEGAErrorTypeApiOk:
+ *       + [MEGARequest number] - Returns the number of warnings (1, 2, 3 or 4).
+ *
+ *      Possible errors in addition to the standard dev ones are:
+ *       + MEGAErrorTypeApiEFailed - your account is not in the RED stoplight state
+ *
+ * @param command The subcommand for the specific operation
+ * @param email Optional email of the target email's account. If nil, it will use the logged-in account
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)sendDevCommand:(NSString *)command email:(NSString *)email delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Returns the current session key.
@@ -3126,6 +3176,111 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (NSString *)buildPublicLinkForHandle:(NSString *)publicHandle key:(NSString *)key isFolder:(BOOL)isFolder;
 
 /**
+ * @brief Set node label as a node attribute.
+ * Valid values for label attribute are:
+ *  - MEGANodeLabelRed = 1
+ *  - MEGANodeLabelOrange = 2
+ *  - MEGANodeLabelYellow = 3
+ *  - MEGANodeLabelGreen = 4
+ *  - MEGANodeLabelBlue = 5
+ *  - MEGANodeLabelPurple = 6
+ *  - MEGANodeLabelGrey = 7
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns the label for the node
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeLabel
+ *
+ * @param node Node that will receive the information.
+ * @param label Label of the node
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setNodeLabel:(MEGANode *)node label:(MEGANodeLabel)label delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set node label as a node attribute.
+ * Valid values for label attribute are:
+ *  - MEGANodeLabelRed = 1
+ *  - MEGANodeLabelOrange = 2
+ *  - MEGANodeLabelYellow = 3
+ *  - MEGANodeLabelGreen = 4
+ *  - MEGANodeLabelBlue = 5
+ *  - MEGANodeLabelPurple = 6
+ *  - MEGANodeLabelGrey = 7
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns the label for the node
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeLabel
+ *
+ * @param node Node that will receive the information.
+ * @param label Label of the node
+ */
+- (void)setNodeLabel:(MEGANode *)node label:(MEGANodeLabel)label;
+
+/**
+ * @brief Remove node label
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeLabel
+ *
+ * @param node Node that will receive the information.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)resetNodeLabel:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Remove node label
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeLabel
+ *
+ * @param node Node that will receive the information.
+ */
+- (void)resetNodeLabel:(MEGANode *)node;
+
+/**
+ * @brief Set node favourite as a node attribute.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns 1 if node is set as favourite, otherwise return 0
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeFav
+ *
+ * @param node Node that will receive the information.
+ * @param favourite if YES set node as favourite, otherwise remove the attribute
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set node favourite as a node attribute.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns 1 if node is set as favourite, otherwise return 0
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeFav
+ *
+ * @param node Node that will receive the information.
+ * @param favourite if YES set node as favourite, otherwise remove the attribute
+ */
+- (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite;
+
+/**
  * @brief Set the GPS coordinates of image files as a node attribute.
  *
  * To remove the existing coordinates, set both the latitude and longitude to nil.
@@ -3603,6 +3758,32 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * If the user is not found, this function always returns the same color.
  */
 + (nullable NSString *)avatarColorForBase64UserHandle:(nullable NSString *)base64UserHandle;
+
+/**
+ * @brief Get the secondary color for the avatar.
+ *
+ * This color should be used only when the user doesn't have an avatar, making a
+ * gradient in combination with the color returned from avatarColorForUser.
+ *
+ * @param user MEGAUser to get the color of the avatar. If this parameter is set to nil, the color
+ * is obtained for the active account.
+ * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+ * If the user is not found, this function always returns the same color.
+ */
++ (nullable NSString *)avatarSecondaryColorForUser:(nullable MEGAUser *)user;
+
+/**
+ * @brief Get the secondary color for the avatar.
+ *
+ * This color should be used only when the user doesn't have an avatar, making a
+ * gradient in combination with the color returned from avatarColorForBase64UserHandle.
+ *
+ * @param base64UserHandle User handle (Base64 encoded) to get the avatar. If this parameter is
+ * set to nil, the avatar is obtained for the active account.
+ * @return The RGB color as a string with 3 components in hex: #RGB. Ie. "#FF6A19"
+ * If the user is not found, this function always returns the same color.
+ */
++ (nullable NSString *)avatarSecondaryColorForBase64UserHandle:(nullable NSString *)base64UserHandle;
 
 /**
  * @brief Set the avatar of the MEGA account.
@@ -5400,6 +5581,32 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  */
 - (void)killSession:(uint64_t)sessionHandle;
 
+/**
+ * @brief Returns the deadline to remedy the storage overquota situation
+ *
+ * This value is valid only when [MEGASdk getUserData] has been called after
+ * receiving a callback [MEGAGlobalDelegate onEvent:event] of type
+ * EventStorage, reporting StorageStatePaywall.
+ * The value will become invalid once the state of storage changes.
+ *
+ * @return `NSDate` instance representing the deadline to remedy the overquota
+*/
+- (NSDate *)overquotaDeadlineDate;
+
+/**
+ * @brief Returns when the user was warned about overquota state
+ *
+ * This value is valid only when [MEGASdk getUserData] has been called after
+ * receiving a callback [MEGAGlobalDelegate onEvent:event] of type
+ * EventStorage, reporting StorageStatePaywall.
+ * The value will become invalid once the state of storage changes.
+ *
+ * You take the ownership of the returned value.
+ *
+ * @return An array of `NSDate` with the timestamp corresponding to each warning
+*/
+-(NSArray<NSDate *> *)overquotaWarningDateList;
+
 #pragma mark - Transfers
 
 /**
@@ -6352,6 +6559,22 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * - MEGASortOrderTypeVideoDesc = 14
  * Sort with videos first, then by date descending
  *
+ * - MEGASortOrderTypeLinkCreationAsc = 15
+ *
+ * - MEGASortOrderTypeLinkCreationDesc = 16
+ *
+ * - MEGASortOrderTypeLabelAsc = 17
+ * Sort by color label, ascending
+ *
+ * - MEGASortOrderTypeLabelDesc = 18
+ * Sort by color label, descending
+ *
+ * - MEGASortOrderTypeFavouriteAsc = 19
+ * Sort nodes with favourite attr first
+ *
+ * - MEGASortOrderTypeFavouriteDesc = 20
+ * Sort nodes with favourite attr last
+ *
  * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
  * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
  * They will be eventually removed.
@@ -6476,6 +6699,22 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *
  * - MEGASortOrderTypeVideoDesc = 14
  * Sort with videos first, then by date descending
+ *
+ * - MEGASortOrderTypeLinkCreationAsc = 15
+ *
+ * - MEGASortOrderTypeLinkCreationDesc = 16
+ *
+ * - MEGASortOrderTypeLabelAsc = 17
+ * Sort by color label, ascending
+ *
+ * - MEGASortOrderTypeLabelDesc = 18
+ * Sort by color label, descending
+ *
+ * - MEGASortOrderTypeFavouriteAsc = 19
+ * Sort nodes with favourite attr first
+ *
+ * - MEGASortOrderTypeFavouriteDesc = 20
+ * Sort nodes with favourite attr last
  *
  * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
  * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
@@ -7006,6 +7245,22 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *
  * - MEGASortOrderTypeVideoDesc = 14
  * Sort with videos first, then by date descending
+ *
+ * - MEGASortOrderTypeLinkCreationAsc = 15
+ *
+ * - MEGASortOrderTypeLinkCreationDesc = 16
+ *
+ * - MEGASortOrderTypeLabelAsc = 17
+ * Sort by color label, ascending
+ *
+ * - MEGASortOrderTypeLabelDesc = 18
+ * Sort by color label, descending
+ *
+ * - MEGASortOrderTypeFavouriteAsc = 19
+ * Sort nodes with favourite attr first
+ *
+ * - MEGASortOrderTypeFavouriteDesc = 20
+ * Sort nodes with favourite attr last
  *
  * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
  * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
@@ -8058,6 +8313,27 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * @param listener MEGARequestDelegate to track this request
  */
 - (void)getRegisteredContacts:(NSArray<NSDictionary *> *)contacts delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Reset the verified phone number for the account logged in.
+ *
+ * The associated request type with this request is MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER
+ * If there's no verified phone number associated for the account logged in, the error code
+ * provided in onRequestFinish is MegaError::API_ENOENT.
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)resetSmsVerifiedPhoneNumberWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Reset the verified phone number for the account logged in.
+ *
+ * The associated request type with this request is MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER
+ * If there's no verified phone number associated for the account logged in, the error code
+ * provided in onRequestFinish is MegaError::API_ENOENT.
+ *
+ */
+- (void)resetSmsVerifiedPhoneNumber;
 
 #pragma mark - Push Notification Settings
 

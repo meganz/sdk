@@ -62,7 +62,7 @@ struct MEGA_API Transfer : public FileFingerprint
     BackoffTimerTracked bt;
 
     // representative local filename for this transfer
-    string localfilename;
+    LocalPath localfilename;
 
     // progress completed
     m_off_t progresscompleted;
@@ -88,13 +88,13 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // minimum number of file attributes that need to be posted before a PUT transfer can complete
     int minfa;
-    
+
     // position in transfers[type]
     transfer_map::iterator transfers_it;
 
     // position in faputcompletion[uploadhandle]
     handletransfer_map::iterator faputcompletion_it;
-    
+
     // upload result
     byte *ultoken;
 
@@ -107,7 +107,7 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // signal completion
     void complete(DBTableTransactionCommitter&);
-    
+
     // execute completion
     void completefiles();
 
@@ -138,7 +138,7 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // context of the async fopen operation
     AsyncIOContext* asyncopencontext;
-   
+
     // timestamp of the start of the transfer
     m_time_t lastaccesstime;
 
@@ -160,7 +160,7 @@ struct MEGA_API Transfer : public FileFingerprint
     static Transfer* unserialize(MegaClient *, string*, transfer_map *);
 
     // examine a file on disk for video/audio attributes to attach to the file, on upload/download
-    void addAnyMissingMediaFileAttributes(Node* node, std::string& localpath);
+    void addAnyMissingMediaFileAttributes(Node* node, LocalPath& localpath);
 
     // whether the Transfer needs to remove itself from the list it's in (for quick shutdown we can skip)
     bool mOptimizedDelete = false;
@@ -306,13 +306,13 @@ struct MEGA_API DirectReadNode
 
     // API command result
     void cmdresult(const Error&, dstime = 0);
-    
+
     // enqueue new read
     void enqueue(m_off_t, m_off_t, int, void*);
 
     // dispatch all reads
     void dispatch();
-    
+
     // schedule next event
     void schedule(dstime);
 

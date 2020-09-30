@@ -50,6 +50,10 @@ class SyncTestMegaSyncApp(SyncTestApp):
         self.local_mount_out = os.path.join(work_dir, "sync_out")
 
         self.work_dir = os.path.join(work_dir, "tmp")
+
+        self.work_dir_in = os.path.join(work_dir, "tmp/in")
+        self.work_dir_out = os.path.join(work_dir, "tmp/out")
+
         self.remote_folder = remote_folder
 
         # init base class
@@ -70,6 +74,17 @@ class SyncTestMegaSyncApp(SyncTestApp):
         except OSError:
             pass
 
+        try:
+            os.makedirs(self.work_dir_in)
+        except OSError:
+            pass
+
+        try:
+            os.makedirs(self.work_dir_out)
+        except OSError:
+            pass
+
+
         if not os.access(self.local_mount_in, os.W_OK | os.X_OK):
             raise Exception("Not enough permissions to create / write to directory")
 
@@ -79,13 +94,13 @@ class SyncTestMegaSyncApp(SyncTestApp):
         if not os.access(self.work_dir, os.W_OK | os.X_OK):
             raise Exception("Not enough permissions to create / write to directory")
 
-    def start_megasync(self, local_folder, type_str):
+    def start_megasync(self, local_folder, app_wkd, type_str):
         """
         fork and launch "megasimplesync" application
         local_folder: local folder to sync
         """
         # launch megasimplesync
-        base_path = os.path.join(os.path.dirname(__file__), '..')
+        base_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '../..')
 
         # the app is either in examples/ or in the project's root
         if platform.system() == "Windows":
@@ -104,10 +119,10 @@ class SyncTestMegaSyncApp(SyncTestApp):
         output_fname = os.path.join(self.work_dir, "megasimplesync" + "_" + type_str + "_" + get_random_str() + ".log")
         output_log = open(output_fname, "w")
 
-        logging.info("Launching cmd: \"%s\", log: \"%s\"" % (" ".join(pargs), output_fname))
+        logging.info("Launching on: \"%s\", cmd: \"%s\", log: \"%s\"" % (app_wkd," ".join(pargs), output_fname))
 
         try:
-            ch = subprocess.Popen(pargs, universal_newlines=True, stdout=output_log, stderr=subprocess.STDOUT, bufsize=1, shell=False, env=os.environ)
+            ch = subprocess.Popen(pargs, cwd=app_wkd, universal_newlines=True, stdout=output_log, stderr=subprocess.STDOUT, bufsize=1, shell=False, env=os.environ)
         except OSError, e:
             logging.error("Failed to launch megasimplesync process: %s" % e)
             return None
@@ -134,11 +149,11 @@ class SyncTestMegaSyncApp(SyncTestApp):
             return False
 
         # start "in" instance
-        self.megasync_ch_in = self.start_megasync(self.local_mount_in, "in")
+        self.megasync_ch_in = self.start_megasync(self.local_mount_in, self.work_dir_in, "in")
         # pause
         time.sleep(5)
         # start "out" instance
-        self.megasync_ch_out = self.start_megasync(self.local_mount_out, "out")
+        self.megasync_ch_out = self.start_megasync(self.local_mount_out, self.work_dir_out, "out")
         # check both instances
         if self.megasync_ch_in is None or self.megasync_ch_out is None:
             return False

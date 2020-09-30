@@ -84,7 +84,7 @@ bool User::serialize(string* d)
     d->reserve(d->size() + 100 + attrmap.storagesize(10));
 
     d->append((char*)&userhandle, sizeof userhandle);
-    
+
     // FIXME: use m_time_t & Serialize64 instead
     ts = ctime;
     d->append((char*)&ts, sizeof ts);
@@ -99,7 +99,7 @@ bool User::serialize(string* d)
     char bizMode = 0;
     if (mBizMode != BIZ_MODE_UNKNOWN) // convert number to ascii
     {
-        bizMode = '0' + mBizMode;
+        bizMode = static_cast<char>('0' + mBizMode);
     }
 
     d->append((char*)&bizMode, 1);
@@ -418,7 +418,7 @@ string User::attr2string(attr_t type)
 
     // Special second character (optional)
     // ! only store a single copy and do not keep a history of changes
-    // ~ only store one time (ignore subsequent updates, and no history of course) 
+    // ~ only store one time (ignore subsequent updates, and no history of course)
 
     switch(type)
     {
@@ -542,6 +542,10 @@ string User::attr2string(attr_t type)
             attrname =  "*!>alias";
             break;
 
+        case ATTR_DEVICE_NAMES:
+            attrname =  "*!dn";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -654,7 +658,7 @@ string User::attr2longname(attr_t type)
     case ATTR_GEOLOCATION:
         longname = "GEOLOCATION";
         break;
-            
+
     case ATTR_UNSHAREABLE_KEY:
         longname = "UNSHAREABLE_KEY";
         break;
@@ -674,9 +678,13 @@ string User::attr2longname(attr_t type)
     case ATTR_PUSH_SETTINGS:
         longname = "PUSH_SETTINGS";
         break;
-            
+
     case ATTR_ALIAS:
         longname = "ALIAS";
+        break;
+
+    case ATTR_DEVICE_NAMES:
+        longname = "DEVICE_NAMES";
         break;
     }
 
@@ -806,6 +814,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_ALIAS;
     }
+    else if (!strcmp(name, "*!dn"))
+    {
+        return ATTR_DEVICE_NAMES;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -847,6 +859,7 @@ int User::needversioning(attr_t at)
         case ATTR_ALIAS:
         case ATTR_CAMERA_UPLOADS_FOLDER:
         case ATTR_UNSHAREABLE_KEY:
+        case ATTR_DEVICE_NAMES:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
@@ -870,6 +883,7 @@ char User::scope(attr_t at)
         case ATTR_MY_CHAT_FILES_FOLDER:
         case ATTR_UNSHAREABLE_KEY:
         case ATTR_ALIAS:
+        case ATTR_DEVICE_NAMES:
             return '*';
 
         case ATTR_AVATAR:
@@ -1294,6 +1308,10 @@ bool User::setChanged(attr_t at)
 
         case ATTR_UNSHAREABLE_KEY:
             changed.unshareablekey = true;
+            break;
+
+        case ATTR_DEVICE_NAMES:
+            changed.devicenames = true;
             break;
 
         default:

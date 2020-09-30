@@ -42,7 +42,7 @@ bool GfxProc::isgfx(string* localfilename)
         return true;
     }
 
-    if (client->fsaccess->getextension(localfilename, ext, sizeof ext))
+    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localfilename), ext, sizeof ext))
     {
         const char* ptr;
 
@@ -66,7 +66,7 @@ bool GfxProc::isvideo(string *localfilename)
         return false;
     }
 
-    if (client->fsaccess->getextension(localfilename, ext, sizeof ext))
+    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localfilename), ext, sizeof ext))
     {
         const char* ptr;
 
@@ -125,9 +125,9 @@ void GfxProc::loop()
                     int w = dimensions[job->imagetypes[i]][0];
                     int h = dimensions[job->imagetypes[i]][1];
 
-                    if (job->imagetypes[i] == PREVIEW && this->w < w && this->h < h )
+                    if (this->w < w && this->h < h)
                     {
-                        LOG_debug << "Skipping upsizing of preview";
+                        LOG_debug << "Skipping upsizing of preview or thumbnail";
                         w = this->w;
                         h = this->h;
                     }
@@ -276,7 +276,7 @@ void GfxProc::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 
         px = (w - rw) / 2;
         py = (h - rw) / 3;
-        
+
         rh = rw;
     }
 }
@@ -311,9 +311,12 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, string* localfilename, handl
         return 0;
     }
 
+    // get the count before it might be popped off and processed already
+    auto count = int(job->imagetypes.size());
+
     requests.push(job);
     waiter.notify();
-    return int(job->imagetypes.size());
+    return count;
 }
 
 bool GfxProc::savefa(string *localfilepath, int width, int height, string *localdstpath)
@@ -350,8 +353,9 @@ bool GfxProc::savefa(string *localfilepath, int width, int height, string *local
     }
 
     auto f = client->fsaccess->newfileaccess();
-    client->fsaccess->unlinklocal(localdstpath);
-    if (!f->fopen(localdstpath, false, true))
+    auto localpath = LocalPath::fromLocalname(*localdstpath);
+    client->fsaccess->unlinklocal(localpath);
+    if (!f->fopen(localpath, false, true))
     {
         return false;
     }

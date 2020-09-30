@@ -43,7 +43,7 @@ std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode
                                                const mega::FileFingerprint& ffp = {});
 #endif
 
-void collectAllFsNodes(std::map<std::string, const mt::FsNode*>& nodes, const mt::FsNode& node);
+void collectAllFsNodes(std::map<mega::LocalPath, const mt::FsNode*>& nodes, const mt::FsNode& node);
 
 std::uint16_t nextRandomInt();
 

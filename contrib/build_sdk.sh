@@ -142,7 +142,7 @@ package_download() {
         cp /tmp/megasdkbuild/$3 $file 
     else
         echo "Downloading $name to get $3"
-        wget --secure-protocol=TLSv1 --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
+        wget --secure-protocol=TLSv1_2 --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
         curl -k $url > $file || exit 1
     fi
     
@@ -1377,7 +1377,10 @@ main() {
         # Check if backup exists on persistent path and restore previous status.
         if [ -d $persistent_path/sdk/ ];then
             echo "Recovering previous libs and staus, if any."
-            [ -d $persistent_path/sdk/3rdparty ] && cp --preserve=timestamps -r $persistent_path/sdk/3rdparty/* $install_dir/
+            if [ -d $persistent_path/sdk/3rdparty ]; then
+                cp --preserve=timestamps -r $persistent_path/sdk/3rdparty/* $install_dir/
+                sed -i "s#/[^ ]*/lib\([^[:alnum:]]\)#$install_dir/lib\1#g" $install_dir/lib*/*.la
+            fi
             [ -d $persistent_path/sdk/3rdparty_status ] && cp --preserve=timestamps $persistent_path/sdk/3rdparty_status/* $status_dir/
         fi
     fi
