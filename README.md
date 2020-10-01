@@ -7,7 +7,7 @@ or UCE, and all our clients automatically manage it.
 All files stored on MEGA are encrypted. All data transfers from and to MEGA are encrypted. And while
 most cloud storage providers can and do claim the same, MEGA is different – unlike the industry norm
 where the cloud storage provider holds the decryption key, with MEGA, you control the encryption,
-you hold the keys, and you decide who you grant or deny access to your files.
+you hold the keys, and you decide who you grant or deny the access to your files.
 
 This SDK brings you all the power of our client applications and let you create
 your own or analyze the security of our products. Are you ready to start? Please continue reading.
