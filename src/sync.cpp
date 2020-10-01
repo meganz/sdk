@@ -2248,58 +2248,107 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
         row.syncNode->syncAgain = LocalNode::SYNCTREE_ACTION_HERE_ONLY;
     }
 
-    // Get the filesystem items list
-    if (row.syncNode->scanAgain == LocalNode::SYNCTREE_ACTION_HERE_ONLY)
-    {
-        if (Waiter::ds - row.syncNode->lastScanTime < 20)
-        {
-            // Make sure our parent knows about any conflicts we may have detected.
-            row.syncNode->conflictRefresh();
+    // Whether we should perform sync actions.
+    bool syncHere = false;
 
-            // Don't scan a particular folder more frequently than every 2 seconds.  Just revisit later
-            LOG_verbose << "Can't scan again yet, too early";
-            return false;
+    vector<FSNode>* effectiveFsChildren;
+    vector<FSNode> fsChildren;
+
+    {
+        // For convenience.
+        LocalNode& node = *row.syncNode;
+
+        // Do we have an outstanding scan request?
+        if (mScanRequest && mScanRequest->matches(node))
+        {
+            // Has the scan completed?
+            if (!mScanRequest->completed())
+            {
+                // Let our parent know about any conflicts downstream.
+                node.conflictRefresh();
+
+                // Revisit this subtree later.
+                return false;
+            }
+
+            // Yep, apply the results and release the request.
+            node.lastFolderScan.reset(
+              new vector<FSNode>(mScanRequest->results()));
+
+            mScanRequest.reset();
         }
 
-        // If we need to scan at this level, do it now - just scan one folder then return from the stack to release the mutex.
-        // Sync actions can occur on the next run
-
-        row.syncNode->lastFolderScan.reset(new vector<FSNode>);
-        *row.syncNode->lastFolderScan = scanOne(*row.syncNode, localPath);
-        row.syncNode->lastScanTime = Waiter::ds;
-        row.syncNode->syncAgain = LocalNode::SYNCTREE_ACTION_HERE_ONLY;
-    }
-
-    vector<FSNode> fsChildrenReconstructed;
-    if (!row.syncNode->lastFolderScan)
-    {
-        // LocalNodes are in sync with the filesystem so we can reconstruct lastFolderScan
-        fsChildrenReconstructed.reserve(row.syncNode->children.size());
-        for (auto& c: row.syncNode->children)
+        // Do we need to scan this node?
+        if (node.scanAgain == LocalNode::SYNCTREE_ACTION_HERE_ONLY)
         {
-            if (c.second->fsid != UNDEF)
+            auto elapsed = Waiter::ds - node.lastScanTime;
+
+            // Can we perform a scan?
+            if (elapsed >= 20 && mScanRequest == nullptr)
             {
-                fsChildrenReconstructed.push_back(c.second->getKnownFSDetails());
+                // Yep, queue a scan request.
+                mScanRequest = client->mScanService->scan(node, localPath);
+
+                // Let our parent know about any conflicts downstream.
+                node.conflictRefresh();
+
+                node.lastScanTime = Waiter::ds;
+
+                node.scanAgain &= LocalNode::SYNCTREE_DESCENDANT_FLAGGED;
+                node.syncAgain |= LocalNode::SYNCTREE_ACTION_HERE_ONLY;
+
+                // Revisit this subtree later.
+                return false;
+            }
+
+            // Are any of our children waiting on a scan?
+            if (!(mScanRequest && mScanRequest->below(node)))
+            {
+                // Nope, revisit this subtree later.
+                node.conflictRefresh();
+                return false;
             }
         }
+
+        // Effective children are from the last scan, if present.
+        effectiveFsChildren = node.lastFolderScan.get();
+
+        // Otherwise, effective children are computed from the node itself.
+        if (!effectiveFsChildren)
+        {
+            fsChildren.reserve(node.children.size());
+
+            for (auto &childIt : node.children)
+            {
+                if (childIt.second->fsid != UNDEF)
+                {
+                    fsChildren.emplace_back(childIt.second->getKnownFSDetails());
+                }
+            }
+
+            effectiveFsChildren = &fsChildren;
+        }
+
+        // Clear descendent scan and sync state.
+        // We'll recompute their state as we recurse.
+        node.scanAgain &= LocalNode::SYNCTREE_ACTION_HERE_ONLY;
+        node.syncAgain &= LocalNode::SYNCTREE_ACTION_HERE_ONLY;
+
+        // Don't sync if we're collecting scan results.
+        if (!(mScanRequest && mScanRequest->below(node)))
+        {
+            syncHere = node.syncAgain == LocalNode::SYNCTREE_ACTION_HERE_ONLY;
+        }
     }
-    auto& fsChildren = row.syncNode->lastFolderScan? *row.syncNode->lastFolderScan : fsChildrenReconstructed;
-
-    // clear scan flag, especially check-descendants.
-    row.syncNode->scanAgain = LocalNode::SYNCTREE_RESOLVED;
-
-    bool syncHere = row.syncNode->syncAgain == LocalNode::SYNCTREE_ACTION_HERE_ONLY;
 
     // Get sync triplets.
-    auto childRows = computeSyncTriplets(*row.syncNode, fsChildren);
-
-    row.syncNode->syncAgain = LocalNode::SYNCTREE_RESOLVED;
+    auto childRows = computeSyncTriplets(*row.syncNode, *effectiveFsChildren);
 
     // Clear our conflict state.
     // It'll be recomputed as we traverse this subtree.
     row.syncNode->conflictsResolved();
 
-    bool folderSynced = true;
+    bool folderSynced = syncHere;
     bool subfoldersSynced = true;
 
     for (auto& childRow : childRows)
@@ -2344,17 +2393,44 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
                     subfoldersSynced = false;
                 }
             }
+
+            if (childRow.syncNode->scanAgain != LocalNode::SYNCTREE_RESOLVED)
+            {
+                row.syncNode->scanAgain |= LocalNode::SYNCTREE_DESCENDANT_FLAGGED;
+            }
+
+            if (childRow.syncNode->syncAgain != LocalNode::SYNCTREE_RESOLVED)
+            {
+                row.syncNode->syncAgain |= LocalNode::SYNCTREE_DESCENDANT_FLAGGED;
+            }
         }
     }
 
-    row.syncNode->setFutureSync(!folderSynced, !subfoldersSynced);
-
     if (folderSynced)
     {
+        // Local node's now consistent with the last scan.
         row.syncNode->lastFolderScan.reset();
+
+        // Mark our sync as having completed.
+        row.syncNode->syncAgain &= LocalNode::SYNCTREE_DESCENDANT_FLAGGED;
     }
 
-    LOG_verbose << "Exiting folder with synced=" << folderSynced << " subsync= " << subfoldersSynced << " syncagain=" << row.syncNode->syncAgain << " scanagain=" << row.syncNode->scanAgain << " at " << localPath.toPath(*client->fsaccess);
+    if (subfoldersSynced)
+    {
+        row.syncNode->syncAgain &= LocalNode::SYNCTREE_ACTION_HERE_ONLY;
+    }
+
+    LOG_verbose << "Exiting folder with synced="
+                << folderSynced
+                << " subsync= "
+                << subfoldersSynced
+                << " syncagain="
+                << row.syncNode->syncAgain
+                << " scanagain="
+                << row.syncNode->scanAgain
+                << " at "
+                << localPath.toPath(*client->fsaccess);
+
     return folderSynced && subfoldersSynced;
 }
 
