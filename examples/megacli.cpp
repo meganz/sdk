@@ -2957,6 +2957,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_cp, sequence(text("cp"), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 #ifdef ENABLE_SYNC
+    p->Add(exec_rescan, sequence(text("rescan"), param("id")));
     p->Add(exec_sync, sequence(text("sync"), opt(either(sequence(localFSPath(), remoteFSPath(client, &cwd, "dst")), param("cancelslot")))));
     p->Add(exec_syncconfig, sequence(text("syncconfig"), opt(sequence(param("type (TWOWAY/UP/DOWN)"), opt(sequence(param("syncDeletions (ON/OFF)"), param("forceOverwrite (ON/OFF)")))))));
 #endif
@@ -4252,6 +4253,41 @@ void exec_open(autocomplete::ACState& s)
 }
 
 #ifdef ENABLE_SYNC
+
+void exec_rescan(autocomplete::ACState& s)
+{
+    auto id = atoi(s.words[1].s.c_str());
+
+    // Have we been passed a valid sync id?
+    if (id < 0 || id >= client->syncs.size())
+    {
+        cout << "Invalid sync id: " << id << endl;
+        return;
+    }
+
+    // Get our hands on the sync.
+    auto it = std::next(client->syncs.begin(), id);
+
+    // Is the sync disabled?
+    if ((*it)->state < SYNC_INITIALSCAN)
+    {
+        cout << "Can't rescan sync " << id << " as it's disabled: " << (*it)->state << endl;
+        return;
+    }
+
+    auto tag = (*it)->tag;
+
+    // Ask the client to issue a complete rescan of the sync.
+    if (client->rescan(*it) == API_OK)
+    {
+        cout << "Sync " << id << " (" << tag << ") rescanning." << endl;
+    }
+    else
+    {
+        cout << "Error rescanning sync " << id << " (" << tag << ")" << endl;
+    }
+}
+
 void exec_sync(autocomplete::ACState& s)
 {
     if (s.words.size() == 3)

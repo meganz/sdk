@@ -628,7 +628,6 @@ public:
      */
     error addsync(SyncConfig, const char*, LocalPath*, SyncError &syncError, bool delayInitialScan = false, void* = NULL);
 
-
     // removes an active sync (transition to pre-removal state).
     // This will entail the removal of the sync cache & configuration cache (see removeSyncConfig)
     void delsync(Sync*);
@@ -636,6 +635,27 @@ public:
     // remove sync configuration. It will remove sync configuration cache & call app's callback sync_removed
     error removeSyncConfig(int tag);
     error removeSyncConfigByNodeHandle(handle nodeHandle);
+
+    /**
+     * @brief
+     * Ask the client to rescan all syncs.
+     *
+     * @return
+     * API_OK if we could issue the scan.
+     */
+    error rescan();
+
+    /**
+     * @brief
+     * Ask the client to rescan the specified sync.
+     *
+     * @param sync
+     * The sync that should be rescanned.
+     *
+     * @return
+     * API_OK if we could issue the scan.
+     */
+    error rescan(Sync* sync);
 
     //// sync config updating & persisting ////
     // updates in state & error

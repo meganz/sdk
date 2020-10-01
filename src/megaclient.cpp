@@ -14769,6 +14769,52 @@ error MegaClient::removeSyncConfigByNodeHandle(mega::handle nodeHandle)
     return API_ENOENT;
 }
 
+error MegaClient::rescan()
+{
+    error e = API_OK;
+
+    for (auto* sync : syncs)
+    {
+        if (sync->state >= SYNC_INITIALSCAN)
+        {
+            e = std::max(e, rescan(sync));
+        }
+    }
+
+    return e;
+}
+
+error MegaClient::rescan(Sync* sync)
+{
+    const SyncConfig* it;
+
+    assert(sync);
+
+    // Can't re-add the sync if we can't get its configuration.
+    if (!syncConfigs || !(it = syncConfigs->get(sync->tag)))
+    {
+        return API_ENOENT;
+    }
+
+    // Remember the sync's configuration.
+    SyncConfig config = *it;
+    string debris = sync->debris;
+    void* appData = sync->appData;
+
+    // Remove the sync.
+    delsync(sync);
+
+    // Re-add the sync.
+    SyncError error;
+
+    return addsync(std::move(config),
+                   debris.c_str(),
+                   nullptr,
+                   error,
+                   false,
+                   appData);
+}
+
 error MegaClient::saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, SyncError newSyncError)
 {
     if (syncConfigs)
