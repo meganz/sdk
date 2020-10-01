@@ -701,6 +701,8 @@ FSNode ScanService::Worker::interrogate(DirAccess& iterator,
         // Populate result.
         result.fsid = 0;
         result.isSymlink = fileAccess->mIsSymLink;
+        result.mtime = fileAccess->mtime;
+        result.size = fileAccess->size;
         result.shortname = mFsAccess->fsShortname(path);
         result.type = fileAccess->type;
 
@@ -1476,6 +1478,8 @@ auto Sync::checkpathOne(LocalPath& localPath, const LocalPath& leafname, DirAcce
         result.type = fa->type;
         result.shortname = client->fsaccess->fsShortname(localPath);
         result.fsid = fa->fsidvalid ? fa->fsid : 0;  // todo: do we need logic for the non-valid case?
+        result.size = fa->size;
+        result.mtime = fa->mtime;
         if (fa->type == FILENODE)
         {
             result.fingerprint.genfingerprint(fa.get());
