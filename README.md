@@ -3,7 +3,7 @@
 MEGA --- _The Privacy Company_ --- is a Secure Cloud Storage
 provider that protects your data thanks to end-to-end encryption. We call it User Controlled Encryption,
 or UCE, and all our clients automatically manage it.
-
+Kindly take a look at it
 All files stored on MEGA are encrypted. All data transfers from and to MEGA are encrypted. And while
 most cloud storage providers can and do claim the same, MEGA is different – unlike the industry norm
 where the cloud storage provider holds the decryption key, with MEGA, you control the encryption,
