@@ -375,6 +375,25 @@ struct MEGA_API FSNode
     FileFingerprint fingerprint;
 };
 
+enum TREESTATE : unsigned
+{
+    TREE_RESOLVED = 0,
+    TREE_DESCENDANT_FLAGGED = 1,
+    TREE_ACTION_HERE = 2,       // but do check if any children have flags set
+    TREE_ACTION_SUBTREE = 3   // overrides any children so the whole subtree is processed
+};
+
+inline unsigned upateTreestateFromChild(unsigned oldFlag, unsigned childFlag)
+{
+    return oldFlag == TREE_RESOLVED && childFlag != TREE_RESOLVED ? TREE_DESCENDANT_FLAGGED : oldFlag;
+}
+
+inline unsigned propagateSubtreeFlag(unsigned nodeFlag, unsigned childFlag)
+{
+    return nodeFlag == TREE_ACTION_SUBTREE ? TREE_ACTION_SUBTREE : childFlag;
+}
+
+
 
 struct MEGA_API LocalNode : public File
 {
@@ -426,14 +445,6 @@ struct MEGA_API LocalNode : public File
 
     // global sync reference
     handle syncid = mega::UNDEF;
-
-    enum TREESTATE : unsigned
-    {
-        SYNCTREE_RESOLVED = 0,
-        SYNCTREE_DESCENDANT_FLAGGED = 1,
-        SYNCTREE_ACTION_HERE_ONLY = 2,       // but do check if any children have flags set
-        SYNCTREE_ACTION_HERE_AND_BELOW = 3   // overrides any children so the whole subtree is processed
-    };
 
     struct
     {

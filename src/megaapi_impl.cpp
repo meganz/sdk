@@ -22662,7 +22662,7 @@ void MegaApiImpl::update()
     LOG_debug << "PendingCS? " << (client->pendingcs != NULL);
     LOG_debug << "PendingFA? " << client->activefa.size() << " active, " << client->queuedfa.size() << " queued";
     LOG_debug << "FLAGS: " << client->syncactivity
-              << " " << client->anySyncNeedsTargetedSync()
+              << " " << client->isAnySyncSyncing()
               << " " << client->syncnagleretry << " " << client->syncscanfailed
               << " " << client->syncops << " " << client->syncscanstate
               << " " << client->faputcompletion.size() << " " << client->synccreate.size()

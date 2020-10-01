@@ -1362,8 +1362,8 @@ LocalNode::LocalNode()
 , created{false}
 , reported{false}
 , checked{false}
-, scanAgain(SYNCTREE_RESOLVED)
-, syncAgain(SYNCTREE_RESOLVED)
+, scanAgain(TREE_RESOLVED)
+, syncAgain(TREE_RESOLVED)
 {}
 
 // initialize fresh LocalNode object - must be called exactly once
@@ -1376,11 +1376,11 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     deleted = false;
     created = false;
     reported = false;
-    conflicts = SYNCTREE_RESOLVED;
-    scanAgain = SYNCTREE_RESOLVED;
-    syncAgain = SYNCTREE_RESOLVED;
-    useBlocked = SYNCTREE_RESOLVED;
-    scanBlocked = SYNCTREE_RESOLVED;
+    conflicts = TREE_RESOLVED;
+    scanAgain = TREE_RESOLVED;
+    syncAgain = TREE_RESOLVED;
+    useBlocked = TREE_RESOLVED;
+    scanBlocked = TREE_RESOLVED;
     syncxfer = true;
     newnode.reset();
     parent_dbid = 0;
@@ -1450,7 +1450,7 @@ void LocalNode::setFutureScan(bool doHere, bool doBelow)
     scanAgain = std::max<unsigned>(scanAgain, state);
     for (auto p = parent; p != NULL; p = p->parent)
     {
-        p->scanAgain = std::max<unsigned>(p->scanAgain, SYNCTREE_DESCENDANT_FLAGGED);
+        p->scanAgain = std::max<unsigned>(p->scanAgain, TREE_DESCENDANT_FLAGGED);
     }
 }
 
@@ -1461,13 +1461,13 @@ void LocalNode::setFutureSync(bool doHere, bool doBelow)
     syncAgain = std::max<unsigned>(syncAgain, state);
     for (auto p = parent; p != NULL; p = p->parent)
     {
-        p->syncAgain = std::max<unsigned>(p->syncAgain, SYNCTREE_DESCENDANT_FLAGGED);
+        p->syncAgain = std::max<unsigned>(p->syncAgain, TREE_DESCENDANT_FLAGGED);
     }
 }
 
 void LocalNode::setUseBlocked()
 {
-    useBlocked = std::max<unsigned>(useBlocked, SYNCTREE_ACTION_HERE_ONLY);
+    useBlocked = std::max<unsigned>(useBlocked, TREE_ACTION_HERE);
 
     if (!rare().blockedTimer)
     {
@@ -1480,13 +1480,13 @@ void LocalNode::setUseBlocked()
 
     for (auto p = parent; p != NULL; p = p->parent)
     {
-        p->useBlocked = std::max<unsigned>(p->useBlocked, SYNCTREE_DESCENDANT_FLAGGED);
+        p->useBlocked = std::max<unsigned>(p->useBlocked, TREE_DESCENDANT_FLAGGED);
     }
 }
 
 void LocalNode::setScanBlocked()
 {
-    scanBlocked = std::max<unsigned>(scanBlocked, SYNCTREE_ACTION_HERE_ONLY);
+    scanBlocked = std::max<unsigned>(scanBlocked, TREE_ACTION_HERE);
 
     if (!rare().blockedTimer)
     {
@@ -1499,19 +1499,19 @@ void LocalNode::setScanBlocked()
 
     for (auto p = parent; p != NULL; p = p->parent)
     {
-        p->scanBlocked = std::max<unsigned>(p->scanBlocked, SYNCTREE_DESCENDANT_FLAGGED);
+        p->scanBlocked = std::max<unsigned>(p->scanBlocked, TREE_DESCENDANT_FLAGGED);
     }
 }
 
 
 bool LocalNode::scanRequired() const
 {
-    return scanAgain != SYNCTREE_RESOLVED;
+    return scanAgain != TREE_RESOLVED;
 }
 
 bool LocalNode::syncRequired() const
 {
-    return syncAgain != SYNCTREE_RESOLVED;
+    return syncAgain != TREE_RESOLVED;
 }
 
 // update treestates back to the root LocalNode, inform app about changes
@@ -1720,17 +1720,11 @@ LocalNode::~LocalNode()
     {
         // move associated node to SyncDebris unless the sync is currently
         // shutting down
-        if (sync->state < SYNC_INITIALSCAN)
+        if (node->localnode == this)
         {
             node->localnode = NULL;
         }
-        else
-        {
-            sync->client->movetosyncdebris(node, sync->inshare);
-        }
     }
-
-    slocalname.reset();
 }
 
 void LocalNode::conflictDetected(const TREESTATE conflicts)
@@ -1741,13 +1735,13 @@ void LocalNode::conflictDetected(const TREESTATE conflicts)
 
 void LocalNode::conflictDetected()
 {
-    conflicts |= SYNCTREE_ACTION_HERE_ONLY;
+    conflicts |= TREE_ACTION_HERE;
     conflictRefresh();
 }
 
 void LocalNode::conflictRefresh()
 {
-    if (conflicts == SYNCTREE_RESOLVED)
+    if (conflicts == TREE_RESOLVED)
     {
         return;
     }
@@ -1759,28 +1753,28 @@ void LocalNode::conflictRefresh()
             return;
         }
 
-        node->conflicts |= SYNCTREE_DESCENDANT_FLAGGED;
+        node->conflicts |= TREE_DESCENDANT_FLAGGED;
     }
 }
 
 bool LocalNode::conflictsDetected() const
 {
-    return conflicts != SYNCTREE_RESOLVED;
+    return conflicts != TREE_RESOLVED;
 }
 
 bool LocalNode::conflictsDetectedBelow() const
 {
-    return conflicts & SYNCTREE_DESCENDANT_FLAGGED;
+    return conflicts & TREE_DESCENDANT_FLAGGED;
 }
 
 bool LocalNode::conflictsDetectedHere() const
 {
-    return conflicts & SYNCTREE_ACTION_HERE_ONLY;
+    return conflicts & TREE_ACTION_HERE;
 }
 
 void LocalNode::conflictsResolved()
 {
-    conflicts = SYNCTREE_RESOLVED;
+    conflicts = TREE_RESOLVED;
 }
 
 void LocalNode::detach(const bool recreate)

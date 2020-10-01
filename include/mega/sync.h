@@ -99,7 +99,7 @@ public:
     using RequestPtr = std::shared_ptr<Request>;
 
     ScanService(Waiter& waiter);
-    
+
     ~ScanService();
 
     // Issue a scan for the given target.
@@ -269,9 +269,6 @@ public:
 
     // syncing to an inbound share?
     bool inshare = false;
-
-    // whether we are up to date with the filesystem.  Analagous wth client->statecurrent.
-    bool fsStateCurrent = false;
 
     // deletion queue
     set<uint32_t> deleteq;

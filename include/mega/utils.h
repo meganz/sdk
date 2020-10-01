@@ -29,7 +29,11 @@
 #include <type_traits>
 
 #include "types.h"
+
+#undef SSIZE_MAX
 #include "mega/mega_utf8proc.h"
+#undef SSIZE_MAX
+
 #include "mega/logging.h"
 
 // Needed for Windows Phone (MSVS 2013 - C++ version 9.8)

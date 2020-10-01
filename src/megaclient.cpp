@@ -1341,20 +1341,33 @@ void MegaClient::setKeepSyncsAfterLogout(bool keepSyncsAfterLogout)
     mKeepSyncsAfterLogout = keepSyncsAfterLogout;
 }
 
-bool MegaClient::anySyncNeedsTargetedSync()
+bool MegaClient::isAnySyncSyncing()
 {
     for (Sync* sync : syncs)
     {
         if (sync->state != SYNC_CANCELED &&
             sync->state != SYNC_FAILED &&
-            (sync->localroot->scanAgain != LocalNode::SYNCTREE_RESOLVED ||
-             sync->localroot->syncAgain != LocalNode::SYNCTREE_RESOLVED))
+            (sync->localroot->scanAgain != TREE_RESOLVED ||
+             sync->localroot->syncAgain != TREE_RESOLVED))
         {
             return true;
         }
     }
     return false;
 }
+
+bool MegaClient::isAnySyncScanning()
+{
+    for (Sync* sync : syncs)
+    {
+        if (sync->localroot->scanAgain != TREE_RESOLVED)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
 
 bool MegaClient::conflictsDetected(string& parentName,
                                    LocalPath& parentPath,
@@ -1523,8 +1536,8 @@ bool MegaClient::allSyncsIdle()
 {
     for (Sync* sync : syncs)
     {
-        if (sync->localroot->syncAgain != LocalNode::SYNCTREE_RESOLVED ||
-            sync->localroot->syncAgain != LocalNode::SYNCTREE_RESOLVED)
+        if (sync->localroot->syncAgain != TREE_RESOLVED ||
+            sync->localroot->syncAgain != TREE_RESOLVED)
         {
             return false;
         }
@@ -1536,7 +1549,7 @@ void MegaClient::setAllSyncsNeedFullSync()
 {
     for (Sync* sync : syncs)
     {
-        sync->localroot->syncAgain = LocalNode::SYNCTREE_ACTION_HERE_AND_BELOW;
+        sync->localroot->syncAgain = TREE_ACTION_SUBTREE;
     }
 }
 
@@ -2423,7 +2436,7 @@ void MegaClient::exec()
                         << " statecurrent=" << statecurrent
                         << " syncadding=" << syncadding
                         << " syncactivity=" << syncactivity
-                        << " anySyncNeedsTargetedSync=" << anySyncNeedsTargetedSync();
+                        << " isAnySyncSyncing=" << isAnySyncSyncing();
         }
 #endif
 
@@ -2864,7 +2877,7 @@ void MegaClient::exec()
                             //for (Sync* sync : syncs)
                             //{
                             //    if ((sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
-                            //     && !syncadding && (sync->localroot->syncAgain != LocalNode::SYNCTREE_RESOLVED) && !syncnagleretry)
+                            //     && !syncadding && (sync->localroot->syncAgain != TREE_RESOLVED) && !syncnagleretry)
                             //    {
                             //        LOG_debug << "Running syncup on demand";
                             //        size_t numPending = 0;
@@ -2992,31 +3005,32 @@ void MegaClient::exec()
             //    setAllSyncsNeedFullSyncdown();
             //}
 
-                if (!fetchingnodes)
+            for (auto it = syncs.begin(); it != syncs.end(); )
+            {
+                Sync* sync = *it++;
+                if (sync->state == SYNC_CANCELED || sync->state == SYNC_FAILED || sync->state == SYNC_DISABLED)
+                {
+                    delete sync;  // removes itself from the client's list that we are iterating
+                }
+                else
+                {
+                    sync->procscanq(DirNotify::DIREVENTS);
+                }
+            }
+
+            if (isAnySyncSyncing())
+            {
+                // Flags across all syncs, referred to in recursiveSync().
+                // Start with them all false
+                mSyncFlags = SyncFlags();
+
+                for (int c = 2; c--;)
                 {
 
-                    for (auto it = syncs.begin(); it != syncs.end(); )
-                    {
-                        Sync* sync = *it++;
-                        if (sync->state == SYNC_CANCELED || sync->state == SYNC_FAILED || sync->state == SYNC_DISABLED)
-                        {
-                            delete sync;  // removes itself from the client's list that we are iterating
-                        }
-                    }
-
-                    bool anySyncScanning = false;
                     for (Sync* sync : syncs)
                     {
                         if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
                         {
-                            sync->procscanq(DirNotify::DIREVENTS);
-
-                            // If no nodes still need scanning, then we are up to date with the filesystem
-                            // Make sure this flag is up to date before recursiveSync()
-                            // Even if other changes are notified in the meantime, we are processing a self-consistent state.
-                            // todo: add a small delay before considering this true?
-                            sync->fsStateCurrent = sync->localroot->scanAgain == LocalNode::SYNCTREE_RESOLVED;
-
                             // pathBuffer will have leafnames appended as we recurse
                             LocalPath pathBuffer = sync->localroot->localname;
 
@@ -3032,12 +3046,8 @@ void MegaClient::exec()
                             //}
                             sync->cachenodes();
 
-                            sync->fsStateCurrent = sync->localroot->scanAgain == LocalNode::SYNCTREE_RESOLVED;
-                            if (!sync->fsStateCurrent)
-                            {
-                                anySyncScanning = true;
-                            }
-                            else if (sync->state == SYNC_INITIALSCAN)
+                            bool doneScanning = sync->localroot->scanAgain == TREE_RESOLVED;
+                            if (doneScanning && sync->state == SYNC_INITIALSCAN)
                             {
                                 sync->changestate(SYNC_ACTIVE);
                             }
@@ -3045,11 +3055,23 @@ void MegaClient::exec()
                         }
                     }
 
-                    if (anySyncScanning != syncscanstate)
+                    if (!mSyncFlags.actionedMovesRenames &&
+                        !isAnySyncScanning())
                     {
-                        app->syncupdate_scanning(anySyncScanning);
-                        syncscanstate = anySyncScanning;
+                        LOG_debug << "Re-calling recursiveSync() for add/remove";
+                        mSyncFlags.scansAndMovesComplete = true;
+                        continue;
                     }
+                    break;
+                }
+            }
+
+            bool anySyncScanning = isAnySyncScanning();
+            if (anySyncScanning != syncscanstate)
+            {
+                app->syncupdate_scanning(anySyncScanning);
+                syncscanstate = anySyncScanning;
+            }
 
                     //// notify the app if a lock is being retried
                     //if (success)
@@ -3075,7 +3097,7 @@ void MegaClient::exec()
                     //    syncdownretry = true;
                     //    syncdownbt.backoff(50);
                     //}
-                }
+                //}
                 //else
                 //{
                 //    LOG_err << "Syncdown requested while fetchingnodes is set";
@@ -3196,7 +3218,7 @@ int MegaClient::preparewait()
         nds = NEVER;
 
 #ifdef ENABLE_SYNC
-        if (anySyncNeedsTargetedSync())
+        if (isAnySyncSyncing())
         {
             nds = Waiter::ds + 1;
         }
@@ -13338,7 +13360,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, LocalPath* 
             else
             {
                 LOG_debug << "Initial scan sync: " << syncConfig.getLocalPath();
-                sync->localroot->scanAgain = LocalNode::SYNCTREE_ACTION_HERE_AND_BELOW;
+                sync->localroot->scanAgain = TREE_ACTION_SUBTREE;
 
                 //if (sync->scan(&rootpath, fa.get()))
                 {
@@ -13565,7 +13587,7 @@ void MegaClient::stopxfers(LocalNode* l, DBTableTransactionCommitter& committer)
                 // recurse into directories of equal name
                 if (!syncdown(ll, localpath, scanWholeSubtree))
                 {
-                    l->syncdownTargetedAction = std::max<unsigned>(originalTargetedAction, LocalNode::SYNCTREE_DESCENDANT_FLAGGED);
+                    l->syncdownTargetedAction = std::max<unsigned>(originalTargetedAction, TREE_DESCENDANT_FLAGGED);
                     success = false;
                 }
 
@@ -13715,15 +13737,15 @@ void MegaClient::stopxfers(LocalNode* l, DBTableTransactionCommitter& committer)
 // for creation
 bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool scanWholeSubtree)
 {
-    if (!scanWholeSubtree && l->syncupTargetedAction == LocalNode::SYNCTREE_RESOLVED)
+    if (!scanWholeSubtree && l->syncupTargetedAction == TREE_RESOLVED)
     {
         return true;
     }
 
-    scanWholeSubtree = scanWholeSubtree || l->syncupTargetedAction == LocalNode::SYNCTREE_SCAN_HERE;
+    scanWholeSubtree = scanWholeSubtree || l->syncupTargetedAction == TREE_SCAN_HERE;
 
     auto originalTargetedAction = l->syncupTargetedAction;
-    l->syncupTargetedAction = LocalNode::SYNCTREE_RESOLVED;
+    l->syncupTargetedAction = TREE_RESOLVED;
 
     bool insync = true;
 

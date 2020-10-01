@@ -504,6 +504,18 @@ public:
     // active syncs
     sync_list syncs;
 
+    struct SyncFlags
+    {
+        // this gets set if we start any moves/renames
+        bool actionedMovesRenames = false;
+
+        // we can only add/remove upload/download nodes (deleting moved-from LocalNodes in particular)
+        bool scansAndMovesComplete = false;
+
+    };
+
+    SyncFlags mSyncFlags;
+
     // used to asynchronously perform scans.
     unique_ptr<ScanService> mScanService;
 
@@ -528,7 +540,9 @@ public:
     // manage syncdown flags inside the syncs
     void setAllSyncsNeedFullSync();
 
-    bool anySyncNeedsTargetedSync();
+    bool isAnySyncSyncing();
+    bool isAnySyncScanning();
+
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
