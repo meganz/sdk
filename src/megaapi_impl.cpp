@@ -25291,61 +25291,9 @@ void MegaFolderUploadController::scanFolderNode(MegaHandle parentHandle, LocalPa
     recursive--;
 }
 
-void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
-{
-    recursive++;
-    auto localPath = pendingFolders.front();
-    pendingFolders.pop_front();
-
-    MegaNode *parent = megaApi->getNodeByHandle(handle);
-
-    LocalPath localname;
-    DirAccess* da;
-    da = client->fsaccess->newdiraccess();
-    if (da->dopen(&localPath, NULL, false))
-    {
-        FileSystemType fsType = client->fsaccess->getlocalfstype(localPath);
-
-        nodetype_t dirEntryType;
-        while (da->dnext(localPath, localname, client->followsymlinks, &dirEntryType))
-        {
-            ScopedLengthRestore restoreLen(localPath);
-            localPath.appendWithSeparator(localname, false, client->fsaccess->localseparator);
-
-            string name = localname.toName(*client->fsaccess, fsType);
-            if (dirEntryType == FILENODE)
-            {
-                pendingTransfers++;
-                megaApi->startUpload(false, localPath.toPath(*client->fsaccess).c_str(), parent, (const char *)NULL, -1, tag, false, NULL, false, false, fsType, this);
-            }
-            else if (dirEntryType == FOLDERNODE)
-            {
-                MegaNode *child = megaApi->getChildNode(parent, name.c_str());
-                if(!child || !child->isFolder())
-                {
-                    pendingFolders.push_back(localPath);
-                    megaApi->createFolder(name.c_str(), parent, this);
-                }
-                else
-                {
-                    pendingFolders.push_front(localPath);
-                    onFolderAvailable(child->getHandle());
-                }
-                delete child;
-            }
-        }
-    }
-
-    delete da;
-    delete parent;
-    recursive--;
-
-    checkCompletion();
-}
-
 void MegaFolderUploadController::checkCompletion()
 {
-    if (!cancelled && !recursive && !pendingFolders.size() && !pendingTransfers)
+    if (!cancelled && !recursive && !pendingTransfers)
     {
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         delete mFolders;
@@ -25363,21 +25311,7 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
     int type = request->getType();
     int errorCode = e->getErrorCode();
 
-    if (type == MegaRequest::TYPE_CREATE_FOLDER)
-    {
-        if (!errorCode)
-        {
-            onFolderAvailable(request->getNodeHandle());
-        }
-        else
-        {
-            pendingFolders.pop_front();
-            mLastError = *e;
-            mIncompleteTransfers++;
-            checkCompletion();
-        }
-    }
-    else if (type == MegaRequest::TYPE_CREATE_FOLDER_TREE)
+    if (type == MegaRequest::TYPE_CREATE_FOLDER_TREE)
     {
         if (!errorCode)
         {
