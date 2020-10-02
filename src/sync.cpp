@@ -2463,10 +2463,10 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
     {
         if (row.syncNode->conflicts < TREE_ACTION_HERE)
         {
-            row.syncNode->scanAgain = upateTreestateFromChild(row.syncNode->scanAgain, child.second->scanAgain);
-            row.syncNode->syncAgain = upateTreestateFromChild(row.syncNode->syncAgain, child.second->syncAgain);
+            row.syncNode->scanAgain = updateTreestateFromChild(row.syncNode->scanAgain, child.second->scanAgain);
+            row.syncNode->syncAgain = updateTreestateFromChild(row.syncNode->syncAgain, child.second->syncAgain);
         }
-        row.syncNode->conflicts = upateTreestateFromChild(row.syncNode->conflicts, child.second->conflicts);
+        row.syncNode->conflicts = updateTreestateFromChild(row.syncNode->conflicts, child.second->conflicts);
     }
 
     //LOG_verbose << "Exiting folder with synced="

@@ -383,7 +383,7 @@ enum TREESTATE : unsigned
     TREE_ACTION_SUBTREE = 3   // overrides any children so the whole subtree is processed
 };
 
-inline unsigned upateTreestateFromChild(unsigned oldFlag, unsigned childFlag)
+inline unsigned updateTreestateFromChild(unsigned oldFlag, unsigned childFlag)
 {
     return oldFlag == TREE_RESOLVED && childFlag != TREE_RESOLVED ? TREE_DESCENDANT_FLAGGED : oldFlag;
 }
