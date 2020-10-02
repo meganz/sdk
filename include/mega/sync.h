@@ -130,6 +130,7 @@ private:
     }; // Cookie
 
     // Concrete representation of a scan request.
+    friend class Sync; // prob a tidier way to do this
     class ScanRequest
       : public Request
     {
@@ -324,13 +325,13 @@ public:
         FSNode* fsNode;
     };
 
-    vector<syncRow> computeSyncTriplets(const LocalNode& root,
+    vector<syncRow> computeSyncTriplets(Node* cloudNode,
+                                        const LocalNode& root,
                                         vector<FSNode>& fsNodes) const;
-
-    vector<syncRow> computeSyncTriplets(const LocalNode& root) const;
 
     bool recursiveSync(syncRow& row, LocalPath& fullPath);
     bool syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
+    string logTriplet(syncRow& row, LocalPath& fullPath);
 
     bool resolve_userIntervention(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
     bool resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPath& fullPath);

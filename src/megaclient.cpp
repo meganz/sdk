@@ -3018,7 +3018,8 @@ void MegaClient::exec()
                 }
             }
 
-            if (isAnySyncSyncing())
+            // We must have statecurrent so that any LocalNode created can straight away indicate if it matched a Node
+            if (statecurrent && isAnySyncSyncing())
             {
                 // Flags across all syncs, referred to in recursiveSync().
                 // Start with them all false
@@ -3026,7 +3027,6 @@ void MegaClient::exec()
 
                 for (int c = 2; c--;)
                 {
-
                     for (Sync* sync : syncs)
                     {
                         if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
@@ -3058,7 +3058,7 @@ void MegaClient::exec()
                     if (!mSyncFlags.actionedMovesRenames &&
                         !isAnySyncScanning())
                     {
-                        LOG_debug << "Re-calling recursiveSync() for add/remove";
+                        LOG_debug << "Re-calling recursiveSync() for post-move cases";
                         mSyncFlags.scansAndMovesComplete = true;
                         continue;
                     }
@@ -5797,8 +5797,11 @@ handle MegaClient::sc_newnodes(Node* priorActionpacketDeletedNode, bool& firstHa
         switch (jsonsc.getnameid())
         {
             case 't':
-                readtree(&jsonsc, priorActionpacketDeletedNode, firstHandleMismatchedDelete);
-                if (priorActionpacketDeletedNode && firstHandleMismatchedDelete) return originatingUser;
+                {
+                    DBTableTransactionCommitter committer(tctable); // transfers may be cancelled
+                    readtree(&jsonsc, priorActionpacketDeletedNode, firstHandleMismatchedDelete);
+                    if (priorActionpacketDeletedNode && firstHandleMismatchedDelete) return originatingUser;
+                }
                 break;
 
             case 'u':
