@@ -22646,7 +22646,7 @@ void MegaApiImpl::sendPendingRequests()
                 unique_ptr<char[]> extraData(binaryToBase64(request->getText(), strlen(request->getText())));
                 string id = client->getDeviceid();
                 unique_ptr<char[]> deviceId(binaryToBase64(id.c_str(), id.size()));
-                client->reqs.add(new CommandBackupPut(client, request->getNumber(), bType, UNDEF, localFolder.get(), deviceId.get(), -1, -1, extraData.get()));
+                client->reqs.add(new CommandBackupPut(client, request->getNumber(), bType, UNDEF, localFolder.get(), deviceId.get(), -1 /*state*/, -1/*substate*/, extraData.get()));
             }
             break;
         }
@@ -22793,7 +22793,7 @@ bool MegaApiImpl::tryLockMutexFor(long long time)
     }
 }
 
-void MegaApiImpl::putBackup(int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener *listener)
+void MegaApiImpl::setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_PUT, listener);
     request->setTransferTag(backupType);
@@ -22806,16 +22806,31 @@ void MegaApiImpl::putBackup(int backupType, MegaHandle targetNode, const char* l
     waiter->notify();
 }
 
-void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener *listener)
-{
-}
-
 void MegaApiImpl::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
 {
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_REMOVE, listener);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
-void MegaApiImpl::putBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode)
+void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener)
 {
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_PUT, listener);
+    request->setTransferTag(backupType);
+    request->setNodeHandle(targetNode);
+    request->setFile(localFolder);
+    request->setAccess(state);
+    request->setNumDetails(subState);
+    request->setText(extraData);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT);
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void TreeProcCopy::allocnodes()

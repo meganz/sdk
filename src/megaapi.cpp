@@ -5264,14 +5264,14 @@ void MegaApi::setOriginalFingerprint(MegaNode* node, const char* originalFingerp
     return pImpl->setOriginalFingerprint(node, originalFingerprint, listener);
 }
 
-void MegaApi::putBackup(int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener *listener)
+void MegaApi::setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener)
 {
-    pImpl->putBackup(backupType, targetNode, localFolder, state, subState, extraData, listener);
+    pImpl->setBackup(backupType, targetNode, localFolder, backupName, state, subState, extraData, listener);
 }
 
-void MegaApi::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener *listener)
+void MegaApi::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener)
 {
-    pImpl->updateBackup(backupId, backupType, targetNode, localFolder, state, subState, extraData, listener);
+    pImpl->updateBackup(backupId, backupType, targetNode, localFolder, backupName, state, subState, extraData, listener);
 }
 
 void MegaApi::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
@@ -5279,9 +5279,9 @@ void MegaApi::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
     pImpl->removeBackup(backupId, listener);
 }
 
-void MegaApi::putBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode)
+void MegaApi::sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode)
 {
-    pImpl->putBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode);
+    pImpl->sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode);
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)

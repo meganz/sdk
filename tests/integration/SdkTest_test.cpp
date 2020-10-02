@@ -40,8 +40,10 @@ MegaFileSystemAccess fileSystemAccess;
 #ifdef _WIN32
 #if (__cplusplus >= 201700L)
 namespace fs = std::filesystem;
+#define LOCAL_TEST_FOLDER "c:\\tmp\\synctests"
 #else
 namespace fs = std::experimental::filesystem;
+#define LOCAL_TEST_FOLDER (string(getenv("HOME"))+"/synctests_mega_auto")
 #endif
 #endif
 
@@ -85,6 +87,32 @@ bool fileexists(const std::string& fn)
     struct stat   buffer;
     return (stat(fn.c_str(), &buffer) == 0);
 #endif
+}
+
+void moveToTrash(const fs::path& p)
+{
+    fs::path trashpath(TestFS::GetTrashFolder());
+    fs::create_directory(trashpath);
+    fs::path newpath = trashpath / p.filename();
+    for (int i = 2; fs::exists(newpath); ++i)
+    {
+        newpath = trashpath / fs::u8path(p.filename().stem().u8string() + "_" + to_string(i) + p.extension().u8string());
+    }
+    fs::rename(p, newpath);
+}
+
+fs::path makeNewTestRoot(fs::path p)
+{
+    if (fs::exists(p))
+    {
+        moveToTrash(p);
+    }
+#ifndef NDEBUG
+    bool b =
+#endif
+        fs::create_directories(p);
+    assert(b);
+    return p;
 }
 
 void copyFile(std::string& from, std::string& to)
@@ -4586,6 +4614,36 @@ TEST_F(SdkTest, SdkSimpleCommands)
     logout(0);
     err = synchronousGetMiscFlags(0);
     ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
+}
+
+TEST_F(SdkTest, SdkHeartbeatCommands)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST HeartbeatCommands___";
+
+    // setbackup test
+    int backupType = BackupType::CAMERA_UPLOAD;
+    
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    auto localtestfolder = localtestroot.string();
+    const char* backup = "/CommandBackupPutTest";
+    const char* extra = "Test SetBackup Camera Upload Test";
+    unique_ptr<char[]> localFolder(MegaApiImpl::binaryToBase64(localtestfolder.c_str(), localtestfolder.length()));
+    unique_ptr<char[]> backupName(MegaApiImpl::binaryToBase64(backup, strlen(backup)));
+    unique_ptr<char[]> extraData(MegaApiImpl::binaryToBase64(extra, strlen(extra)));
+
+    
+    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+    char foldername[64] = "CommandBackupPutTest";
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, foldername, rootnode.get()));
+        
+    MegaHandle targetNode = mApi[0].h;
+    int state = 0;
+    int subState = 0;
+    MegaRequestListener* listener;
+
+    auto err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
+    ASSERT_EQ(MegaError::API_OK, err) << "Set Backup failed error: " << err << ")";
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
