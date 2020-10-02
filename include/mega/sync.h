@@ -314,16 +314,16 @@ public:
                                         const LocalNode& root,
                                         vector<FSNode>& fsNodes) const;
 
-    bool recursiveSync(syncRow& row, LocalPath& fullPath);
-    bool syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
+    bool recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCommitter& committer);
+    bool syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTableTransactionCommitter& committer);
     string logTriplet(syncRow& row, LocalPath& fullPath);
 
     bool resolve_userIntervention(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
     bool resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
     bool resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
     bool resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
-    bool resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
-    bool resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool alreadyExists);
+    bool resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTableTransactionCommitter& committer);
+    bool resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTableTransactionCommitter& committer, bool alreadyExists);
     bool resolve_pickWinner(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
     bool resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
     bool resolve_fsNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullPath);

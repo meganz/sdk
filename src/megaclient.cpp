@@ -3034,8 +3034,9 @@ void MegaClient::exec()
                             // pathBuffer will have leafnames appended as we recurse
                             LocalPath pathBuffer = sync->localroot->localname;
 
+                            DBTableTransactionCommitter committer(tctable);
                             Sync::syncRow row{sync->localroot->node, sync->localroot.get(), nullptr};
-                            sync->recursiveSync(row, pathBuffer);
+                            sync->recursiveSync(row, pathBuffer, committer);
 
                             //{
                             //    // a local filesystem item was locked - schedule periodic retry
@@ -3055,8 +3056,8 @@ void MegaClient::exec()
                         }
                     }
 
-                    if (!mSyncFlags.actionedMovesRenames &&
-                        !isAnySyncScanning())
+                    if (!mSyncFlags.performedScans &&
+                        !mSyncFlags.actionedMovesRenames)
                     {
                         LOG_debug << "Re-calling recursiveSync() for post-move cases";
                         mSyncFlags.scansAndMovesComplete = true;

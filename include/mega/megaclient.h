@@ -506,6 +506,9 @@ public:
 
     struct SyncFlags
     {
+        // this gets set if any scanning occurred
+        bool performedScans = false;
+
         // this gets set if we start any moves/renames
         bool actionedMovesRenames = false;
 

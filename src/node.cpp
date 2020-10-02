@@ -1631,6 +1631,8 @@ void LocalNode::setfsid(handle newfsid, fsid_localnode_map& fsidnodes)
 {
     assert(sync);
 
+LOG_debug << "node " << name << " was fsid " << fsid << " now " << newfsid;
+
     if (fsid_it != fsidnodes.end())
     {
         if (newfsid == fsid)
