@@ -43,456 +43,6 @@ Node * const Sync::NAME_CONFLICT = reinterpret_cast<Node*>(~0ull);
 bool gLogsync = false;
 #define SYNC_verbose if (gLogsync) LOG_verbose
 
-namespace {
-
-// Need this to store `LightFileFingerprint` by-value in `FingerprintSet`
-struct LightFileFingerprintComparator
-{
-    bool operator()(const LightFileFingerprint& lhs, const LightFileFingerprint& rhs) const
-    {
-        return LightFileFingerprintCmp{}(&lhs, &rhs);
-    }
-};
-
-// Represents a file/folder for use in assigning fs IDs
-struct FsFile
-{
-    handle fsid;
-    LocalPath path;
-};
-
-// Caches fingerprints
-class FingerprintCache
-{
-public:
-    using FingerprintSet = std::set<LightFileFingerprint, LightFileFingerprintComparator>;
-
-    // Adds a new fingerprint
-    template<typename T, typename = typename std::enable_if<std::is_same<LightFileFingerprint, typename std::decay<T>::type>::value>::type>
-    const LightFileFingerprint* add(T&& ffp)
-    {
-         const auto insertPair = mFingerprints.insert(std::forward<T>(ffp));
-         return &*insertPair.first;
-    }
-
-    // Returns the set of all fingerprints
-    const FingerprintSet& all() const
-    {
-        return mFingerprints;
-    }
-
-private:
-    FingerprintSet mFingerprints;
-};
-
-using FingerprintLocalNodeMap = std::multimap<const LightFileFingerprint*, LocalNode*, LightFileFingerprintCmp>;
-using FingerprintFileMap = std::multimap<const LightFileFingerprint*, FsFile, LightFileFingerprintCmp>;
-
-// Collects all syncable filesystem paths in the given folder under `localpath`
-set<LocalPath> collectAllPathsInFolder(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, LocalPath& localpath,
-                                    LocalPath& localdebris)
-{
-    auto fa = fsaccess.newfileaccess(false);
-    if (!fa->fopen(localpath, true, false))
-    {
-        LOG_err << "Unable to open path: " << localpath.toPath(fsaccess);
-        return {};
-    }
-    if (fa->mIsSymLink)
-    {
-        LOG_debug << "Ignoring symlink: " << localpath.toPath(fsaccess);
-        return {};
-    }
-    assert(fa->type == FOLDERNODE);
-
-    auto da = std::unique_ptr<DirAccess>{fsaccess.newdiraccess()};
-    if (!da->dopen(&localpath, fa.get(), false))
-    {
-        LOG_err << "Unable to open directory: " << localpath.toPath(fsaccess);
-        return {};
-    }
-
-    set<LocalPath> paths; // has to be a std::set to enforce same sorting as `children` of `LocalNode`
-
-    LocalPath localname;
-    while (da->dnext(localpath, localname, false))
-    {
-        ScopedLengthRestore restoreLength(localpath);
-        localpath.appendWithSeparator(localname, false, fsaccess.localseparator);
-
-        // check if this record is to be ignored
-        const auto name = localname.toName(fsaccess);
-        if (app.sync_syncable(&sync, name.c_str(), localpath))
-        {
-            // skip the sync's debris folder
-            if (!localdebris.isContainingPathOf(localpath, fsaccess.localseparator))
-            {
-                paths.insert(localpath);
-            }
-        }
-    }
-
-    return paths;
-}
-
-// Combines another fingerprint into `ffp`
-void hashCombineFingerprint(LightFileFingerprint& ffp, const LightFileFingerprint& other)
-{
-    hashCombine(ffp.size, other.size);
-    hashCombine(ffp.mtime, other.mtime);
-}
-
-// Combines the fingerprints of all file nodes in the given map
-bool combinedFingerprint(LightFileFingerprint& ffp, const localnode_map& nodeMap)
-{
-    bool success = false;
-    for (const auto& nodePair : nodeMap)
-    {
-        const LocalNode& l = *nodePair.second;
-        if (l.type == FILENODE)
-        {
-            LightFileFingerprint lFfp;
-            lFfp.genfingerprint(l.size, l.mtime);
-            hashCombineFingerprint(ffp, lFfp);
-            success = true;
-        }
-    }
-    return success;
-}
-
-// Combines the fingerprints of all files in the given paths
-bool combinedFingerprint(LightFileFingerprint& ffp, FileSystemAccess& fsaccess, const set<LocalPath>& paths)
-{
-    bool success = false;
-    for (auto& path : paths)
-    {
-        auto fa = fsaccess.newfileaccess(false);
-        auto pathArg = path; // todo: sort out const
-        if (!fa->fopen(pathArg, true, false))
-        {
-            LOG_err << "Unable to open path: " << path.toPath(fsaccess);
-            success = false;
-            break;
-        }
-        if (fa->mIsSymLink)
-        {
-            LOG_debug << "Ignoring symlink: " << path.toPath(fsaccess);
-            continue;
-        }
-        if (fa->type == FILENODE)
-        {
-            LightFileFingerprint faFfp;
-            faFfp.genfingerprint(fa->size, fa->mtime);
-            hashCombineFingerprint(ffp, faFfp);
-            success = true;
-        }
-    }
-    return success;
-}
-
-// Computes the fingerprint of the given `l` (file or folder) and stores it in `ffp`
-bool computeFingerprint(LightFileFingerprint& ffp, const LocalNode& l)
-{
-    if (l.type == FILENODE)
-    {
-        ffp.genfingerprint(l.size, l.mtime);
-        return true;
-    }
-    else if (l.type == FOLDERNODE)
-    {
-        return combinedFingerprint(ffp, l.children);
-    }
-    else
-    {
-        assert(false && "Invalid node type");
-        return false;
-    }
-}
-
-// Computes the fingerprint of the given `fa` (file or folder) and stores it in `ffp`
-bool computeFingerprint(LightFileFingerprint& ffp, FileSystemAccess& fsaccess,
-                        FileAccess& fa, LocalPath& path, const set<LocalPath>& paths)
-{
-    if (fa.type == FILENODE)
-    {
-        assert(paths.empty());
-        ffp.genfingerprint(fa.size, fa.mtime);
-        return true;
-    }
-    else if (fa.type == FOLDERNODE)
-    {
-        return combinedFingerprint(ffp, fsaccess, paths);
-    }
-    else
-    {
-        assert(false && "Invalid node type");
-        return false;
-    }
-}
-
-// Collects all `LocalNode`s by storing them in `localnodes`, keyed by LightFileFingerprint.
-// Invalidates the fs IDs of all local nodes.
-// Stores all fingerprints in `fingerprints` for later reference.
-void collectAllLocalNodes(FingerprintCache& fingerprints, FingerprintLocalNodeMap& localnodes,
-                          LocalNode& l, fsid_localnode_map& fsidnodes)
-{
-    // invalidate fsid of `l`
-    l.fsid = mega::UNDEF;
-    if (l.fsid_it != fsidnodes.end())
-    {
-        fsidnodes.erase(l.fsid_it);
-        l.fsid_it = fsidnodes.end();
-    }
-    // collect fingerprint
-    LightFileFingerprint ffp;
-    if (computeFingerprint(ffp, l))
-    {
-        const auto ffpPtr = fingerprints.add(std::move(ffp));
-        localnodes.insert(std::make_pair(ffpPtr, &l));
-    }
-    if (l.type == FILENODE)
-    {
-        return;
-    }
-    for (auto& childPair : l.children)
-    {
-        collectAllLocalNodes(fingerprints, localnodes, *childPair.second, fsidnodes);
-    }
-}
-
-// Collects all `File`s by storing them in `files`, keyed by FileFingerprint.
-// Stores all fingerprints in `fingerprints` for later reference.
-void collectAllFiles(bool& success, FingerprintCache& fingerprints, FingerprintFileMap& files,
-                     Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, LocalPath& localpath,
-                     LocalPath& localdebris)
-{
-    auto insertFingerprint = [&files, &fingerprints](FileSystemAccess& fsaccess, FileAccess& fa,
-                                                     LocalPath& path, const set<LocalPath>& paths)
-    {
-        LightFileFingerprint ffp;
-        if (computeFingerprint(ffp, fsaccess, fa, path, paths))
-        {
-            const auto ffpPtr = fingerprints.add(std::move(ffp));
-            files.insert(std::make_pair(ffpPtr, FsFile{fa.fsid, path}));
-        }
-    };
-
-    auto fa = fsaccess.newfileaccess(false);
-    if (!fa->fopen(localpath, true, false))
-    {
-        LOG_err << "Unable to open path: " << localpath.toPath(fsaccess);
-        success = false;
-        return;
-    }
-    if (fa->mIsSymLink)
-    {
-        LOG_debug << "Ignoring symlink: " << localpath.toPath(fsaccess);
-        return;
-    }
-    if (!fa->fsidvalid)
-    {
-        LOG_err << "Invalid fs id for: " << localpath.toPath(fsaccess);
-        success = false;
-        return;
-    }
-
-    if (fa->type == FILENODE)
-    {
-        insertFingerprint(fsaccess, *fa, localpath, {});
-    }
-    else if (fa->type == FOLDERNODE)
-    {
-        const auto paths = collectAllPathsInFolder(sync, app, fsaccess, localpath, localdebris);
-        insertFingerprint(fsaccess, *fa, localpath, paths);
-        fa.reset();
-        for (const auto& path : paths)
-        {
-            LocalPath tmpPath = path;
-            collectAllFiles(success, fingerprints, files, sync, app, fsaccess, tmpPath, localdebris);
-        }
-    }
-    else
-    {
-        assert(false && "Invalid file type");
-        success = false;
-        return;
-    }
-}
-
-// Assigns fs IDs from `files` to those `localnodes` that match the fingerprints found in `files`.
-// If there are multiple matches we apply a best-path heuristic.
-size_t assignFilesystemIdsImpl(const FingerprintCache& fingerprints, FingerprintLocalNodeMap& localnodes,
-                               FingerprintFileMap& files, fsid_localnode_map& fsidnodes, FileSystemAccess& fsaccess)
-{
-    LocalPath nodePath;
-    size_t assignmentCount = 0;
-    for (const auto& fp : fingerprints.all())
-    {
-        const auto nodeRange = localnodes.equal_range(&fp);
-        const auto nodeCount = std::distance(nodeRange.first, nodeRange.second);
-        if (nodeCount <= 0)
-        {
-            continue;
-        }
-
-        const auto fileRange = files.equal_range(&fp);
-        const auto fileCount = std::distance(fileRange.first, fileRange.second);
-        if (fileCount <= 0)
-        {
-            // without files we cannot assign fs IDs to these localnodes, so no need to keep them
-            localnodes.erase(nodeRange.first, nodeRange.second);
-            continue;
-        }
-
-        struct Element
-        {
-            int score;
-            handle fsid;
-            LocalNode* l;
-        };
-        std::vector<Element> elements;
-        elements.reserve(nodeCount * fileCount);
-
-        for (auto nodeIt = nodeRange.first; nodeIt != nodeRange.second; ++nodeIt)
-        {
-            auto l = nodeIt->second;
-            if (l != l->sync->localroot.get()) // never assign fs ID to the root localnode
-            {
-                nodePath = l->getLocalPath(false);
-                for (auto fileIt = fileRange.first; fileIt != fileRange.second; ++fileIt)
-                {
-                    auto& filePath = fileIt->second.path;
-                    const auto score = computeReversePathMatchScore(nodePath, filePath, fsaccess);
-                    if (score > 0) // leaf name must match
-                    {
-                        elements.push_back({score, fileIt->second.fsid, l});
-                    }
-                }
-            }
-        }
-
-        // Sort in descending order by score. Elements with highest score come first
-        std::sort(elements.begin(), elements.end(), [](const Element& e1, const Element& e2)
-                                                    {
-                                                        return e1.score > e2.score;
-                                                    });
-
-        std::unordered_set<handle> usedFsIds;
-        for (const auto& e : elements)
-        {
-            if (e.l->fsid == mega::UNDEF // node not assigned
-                && usedFsIds.find(e.fsid) == usedFsIds.end()) // fsid not used
-            {
-                e.l->setfsid(e.fsid, fsidnodes);
-                usedFsIds.insert(e.fsid);
-                ++assignmentCount;
-            }
-        }
-
-        // the fingerprint that these files and localnodes correspond to has now finished processing
-        files.erase(fileRange.first, fileRange.second);
-        localnodes.erase(nodeRange.first, nodeRange.second);
-    }
-    return assignmentCount;
-}
-
-} // anonymous
-
-int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2, const FileSystemAccess& fsaccess)
-{
-    if (path1.empty() || path2.empty())
-    {
-        return 0;
-    }
-
-    const auto path1End = path1.localpath.size() - 1;
-    const auto path2End = path2.localpath.size() - 1;
-
-    size_t index = 0;
-    size_t separatorBias = 0;
-    LocalPath accumulated;
-    while (index <= path1End && index <= path2End)
-    {
-        const auto value1 = path1.localpath[path1End - index];
-        const auto value2 = path2.localpath[path2End - index];
-        if (value1 != value2)
-        {
-            break;
-        }
-        accumulated.localpath.push_back(value1);
-
-        ++index;
-
-        if (!accumulated.localpath.empty())
-        {
-            if (accumulated.localpath.back() == fsaccess.localseparator)
-            {
-                ++separatorBias;
-                accumulated.clear();
-            }
-        }
-    }
-
-    if (index > path1End && index > path2End) // we got to the beginning of both paths (full score)
-    {
-        return static_cast<int>(index - separatorBias);
-    }
-    else // the paths only partly match
-    {
-        return static_cast<int>(index - separatorBias - accumulated.localpath.size());
-    }
-}
-
-bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, fsid_localnode_map& fsidnodes,
-                         LocalPath& localdebris)
-{
-    auto& rootpath = sync.localroot->localname;
-    LOG_info << "Assigning fs IDs at rootpath: " << rootpath.toPath(fsaccess);
-
-    auto fa = fsaccess.newfileaccess(false);
-    if (!fa->fopen(rootpath, true, false))
-    {
-        LOG_err << "Unable to open rootpath";
-        return false;
-    }
-    if (fa->type != FOLDERNODE)
-    {
-        LOG_err << "rootpath not a folder";
-        assert(false);
-        return false;
-    }
-    if (fa->mIsSymLink)
-    {
-        LOG_err << "rootpath is a symlink";
-        assert(false);
-        return false;
-    }
-    fa.reset();
-
-    bool success = true;
-
-    FingerprintCache fingerprints;
-
-    FingerprintLocalNodeMap localnodes;
-    collectAllLocalNodes(fingerprints, localnodes, *sync.localroot, fsidnodes);
-    LOG_info << "Number of localnodes: " << localnodes.size();
-
-    if (localnodes.empty())
-    {
-        return success;
-    }
-
-    FingerprintFileMap files;
-    collectAllFiles(success, fingerprints, files, sync, app, fsaccess, rootpath, localdebris);
-    LOG_info << "Number of files: " << files.size();
-
-    LOG_info << "Number of fingerprints: " << fingerprints.all().size();
-    const auto assignmentCount = assignFilesystemIdsImpl(fingerprints, localnodes, files, fsidnodes, fsaccess);
-    LOG_info << "Number of fsid assignments: " << assignmentCount;
-
-    return success;
-}
-
 std::atomic<size_t> ScanService::mNumServices(0);
 std::unique_ptr<ScanService::Worker> ScanService::mWorker;
 std::mutex ScanService::mWorkerLock;
@@ -1123,7 +673,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
 
         LocalNode* l = it->second;
         Node* node = l->node;
-        handle fsid = l->fsid;
+        handle fsid = fsstableids ? l->fsid : UNDEF;
         m_off_t size = l->size;
 
         // clear localname to force newnode = true in setnameparent
@@ -1169,6 +719,8 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         l->size = size;
         l->setfsid(fsid, client->localnodeByFsid);
         l->setnode(node);
+
+        p->assigned &= fsid != UNDEF;
 
         if (!l->slocalname_in_db)
         {
@@ -1389,17 +941,8 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
     return l;
 }
 
-bool Sync::assignfsids()
-{
-    return assignFilesystemIds(*this, *client->app, *client->fsaccess, client->localnodeByFsid,
-                               localdebris);
-}
-
 // scan localpath, add or update child nodes, just for this folder.  No recursion.
 // localpath must be prefixed with Sync
-
-
-
 auto Sync::scanOne(LocalNode& localNodeFolder, LocalPath& localPath) -> vector<FSNode>
 {
     if (localdebris.isContainingPathOf(localPath, client->fsaccess->localseparator))
@@ -2396,8 +1939,10 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
     auto childRows = computeSyncTriplets(row.cloudNode, *row.syncNode, *effectiveFsChildren);
 
     bool folderSynced = syncHere;
+    bool fsidsAssigned = false;
     bool subfoldersSynced = true;
     bool nameConflictsHere = false;
+
     row.syncNode->conflicts = TREE_RESOLVED;
 
     for (auto& childRow : childRows)
@@ -2429,6 +1974,26 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
 
         assert(!childRow.syncNode || childRow.syncNode->getLocalPath(true) == localPath);
 
+        // Are we scanning the tree for the first time?
+        if (state == SYNC_INITIALSCAN && !row.syncNode->assigned)
+        {
+            FSNode* fsnode = childRow.fsNode;
+            LocalNode* localnode = childRow.syncNode;
+
+            // Does this local node have a missing FSID?
+            if (localnode && localnode->fsid == UNDEF)
+            {
+                // Can we assign it from the paired fsnode?
+                if (fsnode && syncEqual(*fsnode, *localnode))
+                {
+                    localnode->setfsid(fsnode->fsid, client->localnodeByFsid);
+                    statecacheadd(localnode);
+
+                    fsidsAssigned = true;
+                }
+            }
+        }
+
         if (syncHere)
         {
             if (!syncItem(childRow, row, localPath))
@@ -2445,6 +2010,9 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath)
             }
         }
     }
+
+    // Record whether we performed any FSID assignments.
+    row.syncNode->assigned |= fsidsAssigned;
 
     if (folderSynced)
     {

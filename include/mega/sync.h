@@ -27,16 +27,6 @@
 
 namespace mega {
 
-// Searching from the back, this function compares path1 and path2 character by character and
-// returns the number of consecutive character matches (excluding separators) but only including whole node names.
-// It's assumed that the paths are normalized (e.g. not contain ..) and separated with the given `localseparator`.
-int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2, const FileSystemAccess&);
-
-// Recursively iterates through the filesystem tree starting at the sync root and assigns
-// fs IDs to those local nodes that match the fingerprint retrieved from disk.
-bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, fsid_localnode_map& fsidnodes,
-                         LocalPath& localdebris);
-
 // A collection of sync configs backed by a database table
 class MEGA_API SyncConfigBag
 {
@@ -305,11 +295,6 @@ public:
 
     // look up LocalNode relative to localroot
     LocalNode* localnodebypath(LocalNode*, const LocalPath&, LocalNode** = nullptr, LocalPath* outpath = nullptr);
-
-    // Assigns fs IDs to those local nodes that match the fingerprint retrieved from disk.
-    // The fs IDs of unmatched nodes are invalidated.
-    bool assignfsids();
-
 
     struct syncRow
     {

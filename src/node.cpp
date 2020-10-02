@@ -1373,6 +1373,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     parent = NULL;
     node = NULL;
     notseen = 0;
+    assigned = true;
     deleted = false;
     created = false;
     reported = false;

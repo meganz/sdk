@@ -448,6 +448,9 @@ struct MEGA_API LocalNode : public File
 
     struct
     {
+        // fsids have been assigned in this node.
+        bool assigned : 1;
+
         // was actively deleted
         bool deleted : 1;
 
