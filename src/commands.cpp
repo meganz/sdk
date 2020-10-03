@@ -7936,13 +7936,12 @@ bool CommandGetCountryCallingCodes::procresult(Result r)
 
     map<string, vector<string>> countryCallingCodes;
 
-    string countryCode;
-    vector<string> callingCodes;
-
     bool success = true;
     while (client->json.enterobject())
     {
         bool exit = false;
+        string countryCode;
+        vector<string> callingCodes;
         while (!exit)
         {
             switch (client->json.getnameid())
