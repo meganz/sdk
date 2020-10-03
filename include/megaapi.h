@@ -2898,6 +2898,7 @@ class MegaRequest
          * - MegaApi::getUrlChat - Returns the handle of the chat
          * - MegaApi::grantAccessInChat - Returns the handle of the node
          * - MegaApi::removeAccessInChat - Returns the handle of the node
+         * - MegaApi::sendBackupHeartbeat - Returns the handle of the node
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -2978,6 +2979,8 @@ class MegaRequest
          * - MegaApi::renameNode - Returns the new name for the node
          * - MegaApi::syncFolder - Returns the name for the sync
          * - MegaApi::copySyncDataToCache - Returns the name for the sync
+         * - MegaApi::setBackup - Returns the name of the backup
+         * - MegaApi::updateBackup - Returns the name of the backup
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3083,6 +3086,8 @@ class MegaRequest
          * - MegaApi::exportNode - Returns true
          * - MegaApi::disableExport - Returns false
          * - MegaApi::inviteToChat - Returns the privilege level wanted for the user
+         * - MegaApi::setBackup - Returns the backup state
+         * - MegaApi::updateBackup - Returns the backup state
          *
          * @return Access level related to the request
          */
@@ -3103,6 +3108,7 @@ class MegaRequest
          * - MegaApi::setAvatar - Returns the source path for the avatar
          * - MegaApi::syncFolder - Returns the path of the local folder
          * - MegaApi::setBackup - Returns the path of the local folder
+         * - MegaApi::updateBackup - Returns the path of the local folder
          *
          * @return Path of a file related to the request
          */
@@ -3166,6 +3172,8 @@ class MegaRequest
          * - MegaApi::setUserAttribute - Returns the attribute type
          * - MegaApi::getUserAttribute - Returns the attribute type
          * - MegaApi::setMaxConnections - Returns the direction of transfers
+         * - MegaApi::setBackup - Returns the backup type
+         * - MegaApi::updateBackup - Returns the backup type
          *
          * @return Type of parameter related to the request
          */
@@ -3185,6 +3193,8 @@ class MegaRequest
          * - MegaApi::sendEvent - Returns the event message
          * - MegaApi::createAccount - Returns the lastname for the new account
          * - MegaApi::setBackup - Returns the cron like time string to define period
+         * - MegaApi::setBackup - Returns the extraData associated with the request
+         * - MegaApi::updateBackup - Returns the extraData associated with the request
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3220,6 +3230,7 @@ class MegaRequest
          * - MegaApi::removeBackup - Returns the tag of the deleted backup
          * - MegaApi::startTimer - Returns the selected period
          * - MegaApi::sendChatStats - Returns the connection port
+         * - MegaApi::sendBackupHeartbeat - Returns the time associated with the request
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3374,6 +3385,9 @@ class MegaRequest
          *  - MegaApi::removeSync
          *  - MegaApi::enableSync
          *  - MegaApi::syncFolder
+         *  - MegaApi::setBackup
+         *  - MegaApi::updateBackup
+         *  - MegaApi::sendBackupHeartbeat
          *
          * @return Number of details related to this request
          */
@@ -3491,6 +3505,38 @@ class MegaRequest
          * @return Object with information about the contents of a folder
          */
         virtual MegaBackgroundMediaUpload* getMegaBackgroundMediaUploadPtr() const;
+
+        /**
+         * @brief Returns backup id
+         *
+         * This value is valid for these requests:
+         *  - MegaApi::setBackup
+         *  - MegaApi::updateBackup
+         *  - MegaApi::sendBackupHeartbeat
+         *
+         * @return backup id
+        */
+        virtual MegaHandle getBackupId();
+
+        /**
+         * @brief Returns number of backup files uploaded
+         *
+         * This value is valid for these requests:
+         *  - MegaApi::sendBackupHeartbeat
+         *
+         * @return number of backup files uploaded
+        */
+        virtual int getBackupUploads();
+        
+        /**
+         * @brief Returns number of backup files downloaded
+         *
+         * This value is valid for these requests:
+         *  - MegaApi::sendBackupHeartbeat
+         *
+         * @return number of backup files downloaded
+        */
+        virtual int getBackupDownloads();
 };
 
 /**

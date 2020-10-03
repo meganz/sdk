@@ -1195,6 +1195,9 @@ class MegaRequestPrivate : public MegaRequest
         MegaAchievementsDetails *getMegaAchievementsDetails() const override;
         AchievementsDetails *getAchievementsDetails() const;
         MegaTimeZoneDetails *getMegaTimeZoneDetails () const override;
+        int getBackupUploads() override;
+        int getBackupDownloads() override;
+        MegaHandle getBackupId() override;
 
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *getMegaTextChatPeerList() const override;
@@ -1224,6 +1227,9 @@ class MegaRequestPrivate : public MegaRequest
 
         MegaBackupListener *getBackupListener() const;
         void setBackupListener(MegaBackupListener *value);
+        void setBackupId(MegaHandle backupId);
+        void setBackupUploads(int ups);
+        void setBackupDownloads(int downs);
 
 protected:
         AccountDetails *accountDetails;
@@ -1248,6 +1254,7 @@ protected:
         bool flag;
         long long totalBytes;
         long long transferredBytes;
+        long long time;
         MegaRequestListener *listener;
 #ifdef ENABLE_SYNC
         MegaSyncListener *syncListener;
@@ -1272,6 +1279,9 @@ protected:
         MegaFolderInfo *folderInfo;
         MegaPushNotificationSettings *settings;
         MegaBackgroundMediaUpload* backgroundMediaUpload;  // non-owned pointer
+        MegaHandle backupId;
+        int backupUploads;
+        int backupDownloads;
 };
 
 class MegaEventPrivate : public MegaEvent
