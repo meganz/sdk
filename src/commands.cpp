@@ -566,8 +566,11 @@ bool CommandDirectRead::procresult(Result r)
                     }
                     if (tempurls.size() == 1 || tempurls.size() == RAIDPARTS)
                     {
-                        drn->tempurls.swap(tempurls);
-                        e.setErrorCode(API_OK);
+                        if (drn)
+                        {
+                            drn->tempurls.swap(tempurls);
+                            e.setErrorCode(API_OK);
+                        }
                     }
                     else
                     {
