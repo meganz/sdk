@@ -3092,6 +3092,9 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     this->transferredBytes = 0;
     this->number = 0;
     this->timeZoneDetails = NULL;
+    this->backupId = 0;
+    this->backupUploads = 0;
+    this->backupDownloads = 0;
 
     if (type == MegaRequest::TYPE_ACCOUNT_DETAILS)
     {
@@ -13298,11 +13301,12 @@ void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
 
 void MegaApiImpl::backupput_result(const Error& e, handle backupId)
 {
-    mHeartBeatMonitor->digestPutResult(backupId);
     if (requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || (request->getType() != MegaRequest::TYPE_BACKUP_PUT)) return;
 
+    request->setBackupId(backupId);
+    mHeartBeatMonitor->digestPutResult(backupId);
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 

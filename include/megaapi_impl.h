@@ -1254,7 +1254,6 @@ protected:
         bool flag;
         long long totalBytes;
         long long transferredBytes;
-        long long time;
         MegaRequestListener *listener;
 #ifdef ENABLE_SYNC
         MegaSyncListener *syncListener;
