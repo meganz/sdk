@@ -308,6 +308,9 @@ public:
         Node* cloudNode;
         LocalNode* syncNode;
         FSNode* fsNode;
+
+        vector<Node*> cloudClashingNames;
+        vector<FSNode*> fsClashingNames;
     };
 
     vector<syncRow> computeSyncTriplets(Node* cloudNode,
@@ -400,8 +403,6 @@ protected :
 
 private:
     std::string mLocalPath;
-
-    static Node* const NAME_CONFLICT;
 };
 } // namespace
 

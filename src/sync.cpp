@@ -38,7 +38,6 @@ const int Sync::EXTRA_SCANNING_DELAY_DS = 150;
 const int Sync::FILE_UPDATE_DELAY_DS = 30;
 const int Sync::FILE_UPDATE_MAX_DELAY_SECS = 60;
 const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
-Node * const Sync::NAME_CONFLICT = reinterpret_cast<Node*>(~0ull);
 
 bool gLogsync = false;
 #define SYNC_verbose if (gLogsync) LOG_verbose
@@ -1736,11 +1735,23 @@ auto Sync::computeSyncTriplets(Node* cloudParent, const LocalNode& syncParent, v
             // Mark conflicts.
             if (fsNode && std::distance(fCurr, fNext) > 1)
             {
-                LOG_debug << "Conflicting filesystem names: "
-                          << fCurr->localname.toPath(*client->fsaccess) << " and "
-                          << (fCurr + 1)->localname.toPath(*client->fsaccess)
-                          << "(total " << std::distance(fCurr, fNext) << ")";
-                triplets.back().cloudNode = NAME_CONFLICT;
+                triplets.back().fsNode = nullptr;
+
+                for (auto i = fCurr; i != fNext; ++i)
+                {
+                    LOG_debug << "Conflicting filesystem name: "
+                        << i->localname.toPath(*client->fsaccess);
+
+                    triplets.back().fsClashingNames.push_back(&*i);
+
+                    if (i->fsid != UNDEF && i->fsid == localNode->fsid)
+                    {
+                        // In case of a name clash, it might be new.
+                        // Do sync the subtree we were already syncing.
+                        // But also complain about the clash
+                        triplets.back().fsNode = &*i;
+                    }
+                }
             }
 
             fCurr = fsNode ? fNext : fCurr;
@@ -1802,21 +1813,29 @@ auto Sync::computeSyncTriplets(Node* cloudParent, const LocalNode& syncParent, v
             // Have we detected a remote name conflict?
             if (remoteNode && std::distance(rCurr, rNext) > 1)
             {
-                LOG_debug << "Conflicting cloud names: "
-                    << (*rCurr)->displaypath() << " and "
-                    << (*(rCurr + 1))->displaypath()
-                    << "(total " << std::distance(rCurr, rNext) << ")";
-
-                remoteNode = NAME_CONFLICT;
-            }
-
-            if (triplet)
-            {
-                // Only match the remote if we didn't detect a conflict earlier.
-                if (triplet->cloudNode != NAME_CONFLICT)
+                for (auto i = rCurr; i != rNext; ++i)
                 {
-                    triplet->cloudNode = remoteNode;
+                    LOG_debug << "Conflicting cloud name: "
+                        << (*i)->displaypath();
+
+                    if (triplet)
+                    {
+                        triplet->cloudClashingNames.push_back(*i);
+
+                        if ((*i)->nodehandle != UNDEF &&
+                            triplet->syncNode->syncedCloudNodeHandle == (*i)->nodehandle)
+                        {
+                            // In case of a name clash, it might be new.
+                            // Do sync the subtree we were already syncing.
+                            // But also complain about the clash
+                            triplet->cloudNode = *i;
+                        }
+                    }
                 }
+            }
+            else if (triplet)
+            {
+                triplet->cloudNode = remoteNode;
             }
             else
             {
@@ -1851,9 +1870,6 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath, DBTableTransactionC
             return true;
         }
     }
-
-    // Sentinel value used to signal that we've detected a name conflict.
-    Node* const NAME_CONFLICT = reinterpret_cast<Node*>(~0ull);
 
     // make sure any subtree flags are passed to child nodes, so we can clear the flag at this level
     for (auto& child : row.syncNode->children)
@@ -1939,7 +1955,6 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath, DBTableTransactionC
     bool folderSynced = syncHere;
     bool fsidsAssigned = false;
     bool subfoldersSynced = true;
-    bool nameConflictsHere = false;
 
     row.syncNode->conflicts = TREE_RESOLVED;
 
@@ -1948,14 +1963,18 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath, DBTableTransactionC
         for (auto& childRow : childRows)
         {
             // Skip rows that signal name conflicts.
-            if (childRow.cloudNode == NAME_CONFLICT)
+            // Unless we were previously syncing it (ie, name clash is new)
+            if (!childRow.cloudClashingNames.empty() ||
+                !childRow.fsClashingNames.empty())
             {
-                nameConflictsHere = true;
                 if (row.syncNode)
                 {
                     row.syncNode->conflictDetected();
                 }
-                continue;
+                else
+                {
+                    continue;
+                }
             }
 
             ScopedLengthRestore restoreLen(localPath);
