@@ -1,4 +1,4 @@
-/**
+.cricleci.vml/**
  * @file MEGAEvent.h
  * @brief Provides information about an event
  *
