@@ -130,19 +130,11 @@ void Request::process(MegaClient* client)
         if (cmd->mSeqtagArray && client->json.enterarray())
         {
             // Some commands need to return not just a seqtag but also some JSON, in which case they are in an array
-            // These can also return 0 instead of a seqtag instead if no actionpacket was produced.  Coding for any error in that field
+            // These can also return 0 instead of a seqtag if no actionpacket was produced. Coding for any error in that field
             assert(cmd->mV3);
             if (client->json.isnumeric())
             {
-                if (error e = error(client->json.getint()))
-                {
-                    cmd->procresult(Command::Result(Command::CmdError, e));
-                    parsedOk = false; // skip any extra json delivered in the array
-                }
-                else
-                {
-                    parsedOk = processCmdJSON(cmd);
-                }
+                parsedOk = processCmdJSON(cmd);
             }
             else if (!processSeqTag(cmd, true, parsedOk))
             {
@@ -255,12 +247,15 @@ bool Request::empty() const
 
 void Request::swap(Request& r)
 {
-    // we use swap to move between queues, but process only after it gets into the completedreqs
+    // we use swap to move between queues, but process only after it gets completed
     cmds.swap(r.cmds);
+    std::swap(mV3, r.mV3);
+
+    // Although swap would usually swap all fields, these must be empty anyway
+    // If swap was used when these were active, we would be moving needed info out of the request-in-progress
     assert(jsonresponse.empty() && r.jsonresponse.empty());
     assert(json.pos == NULL && r.json.pos == NULL);
     assert(processindex == 0 && r.processindex == 0);
-    std::swap(mV3, r.mV3);
 }
 
 RequestDispatcher::RequestDispatcher()

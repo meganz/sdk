@@ -293,7 +293,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     node_set::iterator tounlink_it;
 #endif
 
-    // source tag.  The tag of the request or transfer that last modified this node (availble in MegaApi)
+    // source tag.  The tag of the request or transfer that last modified this node (available in MegaApi)
     int tag = 0;
 
     // check if node is below this node

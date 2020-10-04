@@ -280,15 +280,13 @@ bool CommandAttachFA::procresult(Result r)
     else
     {
         string fa;
-
         if (client->json.storeobject(&fa))
         {
+#ifdef DEBUG
             Node* n = client->nodebyhandle(h);
-            if (n)
-            {
-                assert(n->fileattrstring == fa);
-            }
-            client->app->putfa_result(h, type, API_OK); // todo: double check we don't need to pass the attribute string here - should we ask if the value even needs to be returned
+            assert(!n || n->fileattrstring == fa);
+#endif
+            client->app->putfa_result(h, type, API_OK);
             return true;
         }
     }
@@ -990,12 +988,12 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
                 if (cmd == this) break;
                 if (auto attrCmd = dynamic_cast<CommandSetAttr*>(cmd))
                 {
-                    m.map.applyUpdates(attrCmd->mAttrMapUpdates);
+                    m.applyUpdates(attrCmd->mAttrMapUpdates);
                 }
             }
         }
 
-        m.map.applyUpdates(mAttrMapUpdates);
+        m.applyUpdates(mAttrMapUpdates);
 
         if (SymmCipher* cipher = n->nodecipher())
         {
@@ -1213,8 +1211,6 @@ bool CommandPutNodes::procresult(Result r)
 
     if (r.hasJsonArray() || r.hasJsonObject())
     {
-        client->sendkeyrewrites();
-
         // The response is a sparse array indicating the nodes that failed, and the corresponding error code.
         // If the first three nodes failed, the response would be e.g. [-9,-9,-9].  Success is []
         // If the second and third node failed, the response would change to {"1":-9,"2":-9}.
@@ -1224,25 +1220,45 @@ bool CommandPutNodes::procresult(Result r)
         {
             if (r.hasJsonArray())
             {
-                if (!client->json.isnumeric())
+                if (*client->json.pos == ']')
                 {
                     break;
                 }
+
+                if (!client->json.isnumeric())
+                {
+                    client->app->putnodes_result(API_EINTERNAL, type, nn);
+                    return false;
+                }
+
                 assert(arrayIndex < nn.size());
                 if (arrayIndex < nn.size())
                 {
-                    nn[arrayIndex].mError = error(client->json.getint());
+                    nn[arrayIndex++].mError = error(client->json.getint());
                 }
             }
             else
             {
                 string index, errorCode;
-                if (client->json.storeobject(&index) && !client->json.storeobject(&errorCode))
+                if (client->json.storeobject(&index) && *client->json.pos == ':')
                 {
-                    arrayIndex = unsigned(atoi(index.c_str()));
-                    nn[arrayIndex].mError = error(atoi(errorCode.c_str()));
+                    ++client->json.pos;
+                    if (client->json.storeobject(&errorCode))
+                    {
+                        arrayIndex = unsigned(atoi(index.c_str()));
+                        if (arrayIndex < nn.size())
+                        {
+                            nn[arrayIndex].mError = error(atoi(errorCode.c_str()));
+                            continue;
+                        }
+                    }
                 }
-                else break;
+                if (*client->json.pos != '}')
+                {
+                    client->app->putnodes_result(API_EINTERNAL, type, nn);
+                    return false;
+                }
+                break;
             }
         }
 
@@ -1268,20 +1284,6 @@ bool CommandPutNodes::procresult(Result r)
 #endif
         if (source == PUTNODES_APP)
         {
-//#ifdef ENABLE_SYNC        // should be done by actionpacket code
-//            if (!ISUNDEF(targethandle))
-//            {
-//                Node *parent = client->nodebyhandle(targethandle);
-//                if (parent && parent->localnode)
-//                {
-//                    // A node has been added by a regular (non sync) putnodes
-//                    // inside a synced folder, so force a syncdown to detect
-//                    // and sync the changes.
-//                    client->syncdownrequired = true;
-//                }
-//            }
-//#endif
-            assert(!emptyResponse);  // todo: can this emptyResponse case occur now that we use actionpackets?
             client->app->putnodes_result(emptyResponse ? API_ENOENT : API_OK, type, nn);
         }
 #ifdef ENABLE_SYNC
@@ -1366,11 +1368,9 @@ bool CommandMoveNode::procresult(Result r)
 {
     removeFromNodePendingCommands(h, client);
 
-    error e = r.errorResultOrActionpacket();
-
     if (r.wasErrorOrActionpacket())
     {
-        if (e == API_EOVERQUOTA)
+        if (r.wasError(API_EOVERQUOTA))
         {
             client->activateoverquota(0, false);
         }
@@ -1394,31 +1394,6 @@ bool CommandMoveNode::procresult(Result r)
                         do {
                             if (n == syncn)
                             {
-                                //if (syncop)
-                                //{
-                                //    Sync* sync = NULL;
-                                //    for (sync_list::iterator its = client->syncs.begin(); its != client->syncs.end(); its++)
-                                //    {
-                                //        if ((*its)->tag == tag)
-                                //        {
-                                //            sync = (*its);
-                                //            break;
-                                //        }
-                                //    }
-
-                                //    if (sync)
-                                //    {
-                                //        if ((*it)->type == FOLDERNODE)
-                                //        {
-                                //            sync->client->app->syncupdate_remote_folder_deletion(sync, (*it));
-                                //        }
-                                //        else
-                                //        {
-                                //            sync->client->app->syncupdate_remote_file_deletion(sync, (*it));
-                                //        }
-                                //    }
-                                //}
-
                                 (*it)->syncdeleted = syncdel;
                                 break;
                             }
@@ -1447,74 +1422,9 @@ bool CommandMoveNode::procresult(Result r)
                 }
             }
         }
-        else if(syncop)
-        {
-            Node *n = client->nodebyhandle(h);
-            if(n)
-            {
-                Sync *sync = NULL;
-                for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-                {
-                    if((*it)->tag == tag)
-                    {
-                        sync = (*it);
-                        break;
-                    }
-                }
-
-                if(sync)
-                {
-                    // todo: is this already done by the actionpackets.  And should we have checked the error code
-                    client->app->syncupdate_remote_move(sync, n, client->nodebyhandle(pp));
-                }
-            }
-        }
 #endif
         // Movement of shares and pending shares into Rubbish should remove them
-        if (!e)
-        {
-            // todo: is this really done by the actinpacket code
-
-            //Node *n = client->nodebyhandle(h);
-            //if (n && (n->pendingshares || n->outshares))
-            //{
-            //    Node *rootnode = client->nodebyhandle(np);
-            //    while (rootnode)
-            //    {
-            //        if (!rootnode->parent)
-            //        {
-            //            break;
-            //        }
-            //        rootnode = rootnode->parent;
-            //    }
-            //    if (rootnode && rootnode->type == RUBBISHNODE)
-            //    {
-            //        share_map::iterator it;
-            //        if (n->pendingshares)
-            //        {
-            //            for (it = n->pendingshares->begin(); it != n->pendingshares->end(); it++)
-            //            {
-            //                client->newshares.push_back(new NewShare(
-            //                                                n->nodehandle, 1, n->owner, ACCESS_UNKNOWN,
-            //                                                0, NULL, NULL, it->first, false));
-            //            }
-            //        }
-
-            //        if (n->outshares)
-            //        {
-            //            for (it = n->outshares->begin(); it != n->outshares->end(); it++)
-            //            {
-            //                client->newshares.push_back(new NewShare(
-            //                                                n->nodehandle, 1, it->first, ACCESS_UNKNOWN,
-            //                                                0, NULL, NULL, UNDEF, false));
-            //            }
-            //        }
-
-            //        client->mergenewshares(1);
-            //    }
-            //}
-        }
-        else if (syncdel == SYNCDEL_NONE)
+        if (r.wasStrictlyError() && syncdel == SYNCDEL_NONE)
         {
             client->sendevent(99439, "Unexpected move error", 0);
         }
@@ -1525,7 +1435,7 @@ bool CommandMoveNode::procresult(Result r)
         client->rewriteforeignkeys(n);
     }
 
-    client->app->rename_result(h, e);
+    client->app->rename_result(h, r.errorResultOrActionpacket());
     return r.wasErrorOrActionpacket();
 }
 
@@ -1543,7 +1453,6 @@ CommandDelNode::CommandDelNode(MegaClient* client, handle th, bool keepversions,
 
     h = th;
     tag = cmdtag;
-    tag = client->reqtag;
     const Node* n = client->nodebyhandle(h);
     parent = (n && n->parent) ? n->parent->nodehandle : UNDEF;
 }
@@ -2756,7 +2665,7 @@ bool CommandRemoveContact::procresult(Result r)
 
         if (User *u = client->finduser(email.c_str()))
         {
-            u->show = HIDDEN;
+            u->show = v;
         }
 
         client->app->removecontact_result(API_OK);
@@ -2766,6 +2675,7 @@ bool CommandRemoveContact::procresult(Result r)
     client->app->removecontact_result(r.errorOrOK());
     return r.wasErrorOrOK();
 }
+
 CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const userattr_map *attrs, int ctag)
 {
     mV3 = false;
@@ -4929,8 +4839,10 @@ bool CommandSetPH::procresult(Result r)
         return true;
     }
 
+#ifdef DEBUG
     Node *n = client->nodebyhandle(h);
-    assert(n->plink);
+    assert(n && n->plink && n->plink->ph == ph);
+#endif
 
     completion(API_OK, h, ph);
     return true;
