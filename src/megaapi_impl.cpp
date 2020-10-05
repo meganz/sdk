@@ -25153,8 +25153,8 @@ void MegaFolderUploadController::start(MegaNode*)
 
     // Create a MegaStringMapList with folders and folders structure
     unique_ptr<MegaStringMapList> folderStructure(MegaStringMapList::createInstance());
-    folderStructure->append(mFolders);
-    folderStructure->append(mFoldersHierarchy);
+    folderStructure->append(mFolders->copy());
+    folderStructure->append(mFoldersHierarchy->copy());
 
     // Create entire folder tree in one shot
     megaApi->createFolderTree(folderStructure.get(), parent.get(), name, this);
