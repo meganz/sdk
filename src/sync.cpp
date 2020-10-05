@@ -874,7 +874,11 @@ void Sync::cachenodes()
 
             for (set<LocalNode*>::iterator it = insertq.begin(); it != insertq.end(); )
             {
-                if ((*it)->parent->dbid || (*it)->parent == localroot.get())
+                if ((*it)->type == TYPE_UNKNOWN)
+                {
+                    insertq.erase(it++);
+                }
+                else if ((*it)->parent->dbid || (*it)->parent == localroot.get())
                 {
                     statecachetable->put(MegaClient::CACHEDLOCALNODE, *it, &client->key);
                     insertq.erase(it++);
