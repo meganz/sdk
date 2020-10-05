@@ -13301,7 +13301,7 @@ void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
 
 void MegaApiImpl::backupput_result(const Error& e, handle backupId)
 {
-    if (e || backupId != UNDEF)
+    if (e || backupId == UNDEF)
     {
         LOG_err << "backupput_result failed: " << MegaError::getErrorString(e);
     }
