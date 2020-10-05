@@ -453,7 +453,7 @@ TEST(Serialization, LocalNode_forFolder)
     l->parent_dbid = l->parent->dbid;
     auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42);
     l->setfsid(10, client.cli->localnodeByFsid);
-    l->node = &n;
+    l->syncedCloudNodeHandle.set6byte(n.nodehandle);
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
 #ifndef WIN32
@@ -474,7 +474,7 @@ TEST(Serialization, LocalNode_forFolder_32bit)
     l->parent_dbid = l->parent->dbid;
     auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42);
     l->setfsid(10, client.cli->localnodeByFsid);
-    l->node = &n;
+    l->syncedCloudNodeHandle.set6byte(n.nodehandle);
 
     // This is the result of serialization on 32bit Windows
     const std::array<unsigned char, 42> rawData = {
@@ -500,7 +500,7 @@ TEST(Serialization, LocalNode_forFolder_oldLocalNodeWithoutSyncable)
     l->parent_dbid = l->parent->dbid;
     auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42);
     l->setfsid(10, client.cli->localnodeByFsid);
-    l->node = &n;
+    l->syncedCloudNodeHandle.set6byte(n.nodehandle);
 
     // This array represents an old LocalNode without extension bytes
     const std::array<unsigned char, 33> rawData = {
@@ -523,7 +523,7 @@ TEST(Serialization, LocalNode_forFile)
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FILENODE, "sweet");
     l->mSyncable = false;
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
-    l->node = &n;
+    l->syncedCloudNodeHandle.set6byte(n.nodehandle);
     l->size = 1;
     l->setfsid(10, client.cli->localnodeByFsid);
     l->parent->dbid = 13;
@@ -543,7 +543,7 @@ TEST(Serialization, LocalNode_forFiles_oldLocalNodeWithoutSyncable)
     auto sync = mt::makeSync(*client.cli, "wicked");
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FILENODE, "sweet");
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
-    l->node = &n;
+    l->syncedCloudNodeHandle.set6byte(n.nodehandle);
     l->size = 1;
     l->setfsid(10, client.cli->localnodeByFsid);
     l->parent->dbid = 13;
@@ -572,7 +572,7 @@ TEST(Serialization, LocalNode_forFile_32bit)
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FILENODE, "sweet");
     l->mSyncable = false;
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
-    l->node = &n;
+    l->syncedCloudNodeHandle.set6byte(n.nodehandle);
     l->size = 1;
     l->setfsid(10, client.cli->localnodeByFsid);
     l->parent->dbid = 13;
