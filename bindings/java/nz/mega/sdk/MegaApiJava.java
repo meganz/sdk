@@ -9445,6 +9445,62 @@ public class MegaApiJava {
     public void getPublicLinkInformation(String megaFolderLink) {
         megaApi.getPublicLinkInformation(megaFolderLink);
     }
+
+    /**
+     * Requests a list of all Smart Banners available for current user.
+     *
+     * The response value is stored as a MegaBannerList.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_BANNERS
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaBannerList: the list of banners
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EACCESS - If called with no user being logged in.
+     * - MegaError::API_EINTERNAL - If the internally used user attribute exists but can't be decoded.
+     * - MegaError::API_ENOENT if there are no banners to return to the user.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getBanners(MegaRequestListenerInterface listener) {
+        megaApi.getBanners(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Requests a list of all Smart Banners available for current user.
+     *
+     * The response value is stored as a MegaBannerList.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_BANNERS
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaBannerList: the list of banners
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EACCESS - If called with no user being logged in.
+     * - MegaError::API_EINTERNAL - If the internally used user attribute exists but can't be decoded.
+     * - MegaError::API_ENOENT if there are no banners to return to the user.
+     */
+    public void getBanners() {
+        megaApi.getBanners();
+    }
+
+    /**
+     * No longer show the Smart Banner with the specified id to the current user.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void dismissBanner(int id, MegaRequestListenerInterface listener) {
+        megaApi.dismissBanner(id, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * No longer show the Smart Banner with the specified id to the current user.
+     */
+    public void dismissBanner(int id) {
+        megaApi.dismissBanner(id);
+    }
     
     /****************************************************************************************************/
     // INTERNAL METHODS
