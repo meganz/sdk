@@ -4632,14 +4632,13 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     unique_ptr<char[]> backupName(MegaApiImpl::binaryToBase64(backup, strlen(backup)));
     unique_ptr<char[]> extraData(MegaApiImpl::binaryToBase64(extra, strlen(extra)));
 
-    
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
     char foldername[64] = "CommandBackupPutTest";
     ASSERT_NO_FATAL_FAILURE(createFolder(0, foldername, rootnode.get()));
-        
+    
     MegaHandle targetNode = mApi[0].h;
-    int state = 0;
-    int subState = 0;
+    int state = 1;
+    int subState = 1;
     MegaRequestListener* listener;
 
     auto err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
