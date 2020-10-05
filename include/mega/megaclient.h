@@ -715,6 +715,8 @@ public:
     error changeSyncState(int tag, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent = true);
     error changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent);
 
+    void cancelSyncgetsOutsideSync(Node* n);
+    Sync *getSyncContainingNodeHandle(mega::handle nodeHandle);
 
 #endif
 
@@ -1058,9 +1060,6 @@ private:
 #ifdef ENABLE_SYNC
     // Resumes all resumable syncs
     void resumeResumableSyncs();
-
-    Sync *getSyncContainingNodeHandle(mega::handle nodeHandle);
-
 #endif
 
     // update time at which next deferred transfer retry kicks in
@@ -1080,6 +1079,9 @@ private:
 
     // close the local transfer cache
     void closetc(bool remove = false);
+
+    // avoid many ifdefs by testing inside
+    void triggerSync(handle nodehandle);
 
     // server-client command processing
     bool sc_checkSequenceTag(const string& tag);
@@ -1407,6 +1409,7 @@ public:
     // remove node subtree
     void deltree(handle);
 
+    Node* nodeByHandle(NodeHandle);
     Node* nodebyhandle(handle);
     Node* nodebyfingerprint(FileFingerprint*);
 #ifdef ENABLE_SYNC
@@ -1474,7 +1477,7 @@ public:
 
     // maps nodehanlde to corresponding LocalNode* (s)
     nodehandle_localnode_map localnodeByNodeHandle;
-    LocalNode* findLocalNodeByNodeHandle(NodeHandle h, Sync&);
+    LocalNode* findLocalNodeByNodeHandle(NodeHandle h);
 
     // Keep track of files that we can't move yet because they are changing
     struct FileChangingState
@@ -1488,7 +1491,7 @@ public:
     bool checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath);
 
     // local nodes that need to be added remotely
-    localnode_vector synccreate;
+//    localnode_vector synccreate;
 
     // number of sync-initiated putnodes() in progress
     int syncadding;

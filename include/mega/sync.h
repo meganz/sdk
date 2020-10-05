@@ -249,6 +249,9 @@ public:
     // root of local filesystem tree, holding the sync's root folder.  Never null except briefly in the destructor (to ensure efficient db usage)
     unique_ptr<LocalNode> localroot;
 
+    NodeHandle cloudRootHandle;
+    Node* cloudRoot();
+
     FileSystemType mFilesystemType = FS_UNKNOWN;
 
     // Path used to normalize sync locaroot name when using prefix /System/Volumes/Data needed by fsevents, due to notification paths
@@ -338,14 +341,6 @@ public:
     bool syncEqual(const Node&, const LocalNode&);
     bool syncEqual(const FSNode&, const LocalNode&);
 
-    // scan items in specified path and add as children of the specified
-    // LocalNode
-    vector<FSNode> scanOne(LocalNode&, LocalPath&);
-
-    // scan specific path
-    FSNode checkpathOne(LocalPath& localPath, const LocalPath& leafname, DirAccess* iteratingDir);
-
-    // scan specific path
     bool checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool& rowResult);
     bool checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool& rowResult);
 

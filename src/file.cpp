@@ -344,20 +344,25 @@ void File::completed(Transfer* t, LocalNode* l)
 #ifdef ENABLE_SYNC
             if (l)
             {
-                // tag the previous version in the synced folder (if any) or move to SyncDebris
-                if (l->node && l->node->parent && l->node->parent->localnode)
+                if (l->parent)
                 {
-                    if (t->client->versions_disabled)
+                    // tag the previous version in the synced folder (if any) or move to SyncDebris
+                    Node* prevSyncedNode = t->client->nodeByHandle(l->syncedCloudNodeHandle);
+                    Node* parentPrevSyncedNode = t->client->nodeByHandle(l->parent->syncedCloudNodeHandle);
+                    if (prevSyncedNode && parentPrevSyncedNode &&
+                        prevSyncedNode->parent == parentPrevSyncedNode)
                     {
-                        t->client->movetosyncdebris(l->node, l->sync->inshare);
-                        t->client->execsyncdeletions();
-                    }
-                    else
-                    {
-                        newnode->ovhandle = l->node->nodehandle;
+                        if (t->client->versions_disabled)
+                        {
+                            t->client->movetosyncdebris(prevSyncedNode, l->sync->inshare);
+                            t->client->execsyncdeletions();
+                        }
+                        else
+                        {
+                            newnode->ovhandle = prevSyncedNode->nodehandle;
+                        }
                     }
                 }
-
                 t->client->syncadding++;
             }
 #endif
@@ -515,31 +520,23 @@ void SyncFileGet::prepare()
         sync->client->fsaccess->tmpnamelocal(tmpfilename);
         transfer->localfilename.appendWithSeparator(tmpfilename, true, sync->client->fsaccess->localseparator);
     }
-
-    if (n->parent && n->parent->localnode)
-    {
-        n->parent->localnode->treestate(TREESTATE_SYNCING);
-    }
 }
 
 bool SyncFileGet::failed(error e)
 {
     bool retry = File::failed(e);
 
-    if (n->parent && n->parent->localnode)
+    //if (n->parent && n->parent->localnode)
     {
-        n->parent->localnode->treestate(TREESTATE_PENDING);
+        //n->parent->localnode->treestate(TREESTATE_PENDING);
 
         if (!retry && (e == API_EBLOCKED || e == API_EKEY))
         {
             if (e == API_EKEY)
             {
-                int creqtag = n->parent->client->reqtag;
-                n->parent->client->reqtag = 0;
-                n->parent->client->sendevent(99433, "Undecryptable file");
-                n->parent->client->reqtag = creqtag;
+                n->parent->client->sendevent(99433, "Undecryptable file", 0);
             }
-            n->parent->client->movetosyncdebris(n, n->parent->localnode->sync->inshare);
+            n->parent->client->movetosyncdebris(n, sync->inshare);
         }
     }
 
@@ -549,10 +546,10 @@ bool SyncFileGet::failed(error e)
 void SyncFileGet::progress()
 {
     File::progress();
-    if (n->parent && n->parent->localnode && n->parent->localnode->ts != TREESTATE_SYNCING)
-    {
-        n->parent->localnode->treestate(TREESTATE_SYNCING);
-    }
+    //if (n->parent && n->parent->localnode && n->parent->localnode->ts != TREESTATE_SYNCING)
+    //{
+    //    n->parent->localnode->treestate(TREESTATE_SYNCING);
+    //}
 }
 
 // update localname (parent's localnode)
@@ -562,10 +559,13 @@ void SyncFileGet::updatelocalname()
 
     if ((ait = n->attrs.map.find('n')) != n->attrs.map.end())
     {
-        if (n->parent && n->parent->localnode)
+        if (n->parent)
         {
-            localname = n->parent->localnode->getLocalPath();
-            localname.appendWithSeparator(LocalPath::fromName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true, sync->client->fsaccess->localseparator);
+            if (LocalNode* lnParent = sync->client->findLocalNodeByNodeHandle(NodeHandle().set6byte(n->parent->nodehandle)))
+            {
+                localname = lnParent->getLocalPath();
+                localname.appendWithSeparator(LocalPath::fromName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true, sync->client->fsaccess->localseparator);
+            }
         }
     }
 }

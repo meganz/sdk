@@ -47,7 +47,7 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     parent = NULL;
 
 #ifdef ENABLE_SYNC
-    localnode = NULL;
+    //localnode = NULL;
     syncget = NULL;
 
     syncdeleted = SYNCDEL_NONE;
@@ -193,11 +193,11 @@ Node::~Node()
 
 #ifdef ENABLE_SYNC
     // sync: remove reference from local filesystem node
-    if (localnode)
-    {
-        localnode->deleted = true;
-        localnode->node = NULL;
-    }
+    //if (localnode)
+    //{
+    //    localnode->deleted = true;
+    //    localnode->node = NULL;
+    //}
 
     // in case this node is currently being transferred for syncing: abort transfer
     delete syncget;
@@ -223,13 +223,13 @@ string Node::name() const
 
 #ifdef ENABLE_SYNC
 
-void Node::detach(const bool recreate)
-{
-    if (localnode)
-    {
-        localnode->detach(recreate);
-    }
-}
+//void Node::detach(const bool recreate)
+//{
+//    if (localnode)
+//    {
+//        localnode->detach(recreate);
+//    }
+//}
 
 bool Node::syncable(const LocalNode& parent) const
 {
@@ -809,12 +809,6 @@ const char* Node::displayname() const
     if (attrstring)
     {
         LOG_debug << "NO_KEY " << type << " " << size << " " << Base64Str<MegaClient::NODEHANDLE>(nodehandle);
-#ifdef ENABLE_SYNC
-        if (localnode)
-        {
-            LOG_debug << "Local name: " << localnode->name;
-        }
-#endif
         return "NO_KEY";
     }
 
@@ -827,12 +821,6 @@ const char* Node::displayname() const
         if (type < ROOTNODE || type > RUBBISHNODE)
         {
             LOG_debug << "CRYPTO_ERROR " << type << " " << size << " " << nodehandle;
-#ifdef ENABLE_SYNC
-            if (localnode)
-            {
-                LOG_debug << "Local name: " << localnode->name;
-            }
-#endif
         }
         return "CRYPTO_ERROR";
     }
@@ -840,12 +828,6 @@ const char* Node::displayname() const
     if (!it->second.size())
     {
         LOG_debug << "BLANK " << type << " " << size << " " << nodehandle;
-#ifdef ENABLE_SYNC
-        if (localnode)
-        {
-            LOG_debug << "Local name: " << localnode->name;
-        }
-#endif
         return "BLANK";
     }
 
@@ -1054,10 +1036,6 @@ bool Node::setparent(Node* p)
         parent->children.erase(child_it);
     }
 
-#ifdef ENABLE_SYNC
-    Node *oldparent = parent;
-#endif
-
     parent = p;
 
     if (parent)
@@ -1079,31 +1057,7 @@ bool Node::setparent(Node* p)
     }
 
 #ifdef ENABLE_SYNC
-    // if we are moving an entire sync, don't cancel GET transfers
-    if (!localnode || localnode->parent)
-    {
-        // if the new location is not synced, cancel all GET transfers
-        while (p)
-        {
-            if (p->localnode)
-            {
-                break;
-            }
-
-            p = p->parent;
-        }
-
-        if (!p || p->type == FILENODE)
-        {
-            TreeProcDelSyncGet tdsg;
-            client->proctree(this, &tdsg);
-        }
-    }
-
-    if (oldparent && oldparent->localnode)
-    {
-        oldparent->localnode->treestate(oldparent->localnode->checkstate());
-    }
+    client->cancelSyncgetsOutsideSync(this);
 #endif
 
     return true;
@@ -1371,7 +1325,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
 {
     sync = csync;
     parent = NULL;
-    node = NULL;
+    //node = NULL;
     notseen = 0;
     assigned = true;
     deleted = false;
@@ -1580,22 +1534,22 @@ treestate_t LocalNode::checkstate()
     return state;
 }
 
-void LocalNode::setnode(Node* cnode)
-{
-    if (node && (node != cnode) && node->localnode)
-    {
-        node->localnode = NULL;
-    }
-
-    deleted = false;
-
-    node = cnode;
-
-    if (node)
-    {
-        node->localnode = this;
-    }
-}
+//void LocalNode::setnode(Node* cnode)
+//{
+//    if (node && (node != cnode) && node->localnode)
+//    {
+//        node->localnode = NULL;
+//    }
+//
+//    deleted = false;
+//
+//    node = cnode;
+//
+//    if (node)
+//    {
+//        node->localnode = this;
+//    }
+//}
 
 void LocalNode::setnotseen(int newnotseen)
 {
@@ -1748,15 +1702,15 @@ LocalNode::~LocalNode()
         delete it++->second;
     }
 
-    if (node)
-    {
-        // move associated node to SyncDebris unless the sync is currently
-        // shutting down
-        if (node->localnode == this)
-        {
-            node->localnode = NULL;
-        }
-    }
+    //if (node)
+    //{
+    //    // move associated node to SyncDebris unless the sync is currently
+    //    // shutting down
+    //    if (node->localnode == this)
+    //    {
+    //        node->localnode = NULL;
+    //    }
+    //}
 }
 
 void LocalNode::conflictDetected(const TREESTATE conflicts)
@@ -1809,18 +1763,18 @@ void LocalNode::conflictsResolved()
     conflicts = TREE_RESOLVED;
 }
 
-void LocalNode::detach(const bool recreate)
-{
-    // Never detach the root node.
-    if (parent && node)
-    {
-        node->localnode = nullptr;
-        node->tag = sync->tag;
-        node = nullptr;
-
-        created &= !recreate;
-    }
-}
+//void LocalNode::detach(const bool recreate)
+//{
+//    // Never detach the root node.
+//    if (parent && node)
+//    {
+//        node->localnode = nullptr;
+//        node->tag = sync->tag;
+//        node = nullptr;
+//
+//        created &= !recreate;
+//    }
+//}
 
 bool LocalNode::isAbove(const LocalNode& other) const
 {
@@ -1927,17 +1881,20 @@ void LocalNode::prepare()
 // would have been caused by a race condition)
 void LocalNode::completed(Transfer* t, LocalNode*)
 {
-    // complete to rubbish for later retrieval if the parent node does not
-    // exist or is newer
-    if (!parent || !parent->node || (node && mtime < node->mtime))
+    // in case this LocalNode was moved around (todo: since we don't actually move, make sure to copy internals such as upload transfers)
+
+    h = UNDEF;
+    if (parent && !parent->syncedCloudNodeHandle.isUndef())
+    {
+        if (Node* p = sync->client->nodeByHandle(parent->syncedCloudNodeHandle))
+        {
+            h = p->nodehandle;
+        }
+    }
+
+    if (h == UNDEF)
     {
         h = t->client->rootnodes[RUBBISHNODE - ROOTNODE];
-    }
-    else
-    {
-        // otherwise, overwrite node if it already exists and complete in its
-        // place
-        h = parent->node->nodehandle;
     }
 
     File::completed(t, this);
@@ -1973,7 +1930,7 @@ bool LocalNode::serialize(string* d)
     w.serializei64(type ? -type : size);
     w.serializehandle(fsid);
     w.serializeu32(parent ? parent->dbid : 0);
-    w.serializenodehandle(node ? node->nodehandle : UNDEF);
+    w.serializenodehandle(syncedCloudNodeHandle.as8byte());
     w.serializestring(localname.platformEncoded());
     if (type == FILENODE)
     {
@@ -2074,7 +2031,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->syncedCloudNodeHandle.set6byte(h);
     l->syncedCloudNodeHandle_it = sync->client->localnodeByNodeHandle.end();
 
-    l->node = sync->client->nodebyhandle(h);
+//    l->node = sync->client->nodebyhandle(h);
     l->parent = nullptr;
     l->sync = sync;
     l->mSyncable = syncable == 1;

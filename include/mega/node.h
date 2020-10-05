@@ -280,7 +280,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
 #ifdef ENABLE_SYNC
     // related synced item or NULL
-    LocalNode* localnode = nullptr;
+    //LocalNode* localnode = nullptr;
 
     // active sync get
     struct SyncFileGet* syncget = nullptr;
@@ -321,8 +321,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
 #ifdef ENABLE_SYNC
 
-    // Detach this remote from it's local associate.
-    void detach(const bool recreate = false);
+    //// Detach this remote from it's local associate.
+    //void detach(const bool recreate = false);
 
     // True if this node is syncable.
     //
@@ -428,7 +428,7 @@ struct MEGA_API LocalNode : public File
     fsid_localnode_map::iterator fsid_it;
 
     // related cloud node, if any
-    Node* node = nullptr;
+    //Node* node = nullptr;
     NodeHandle syncedCloudNodeHandle;
     nodehandle_localnode_map::iterator syncedCloudNodeHandle_it;
 
@@ -453,7 +453,7 @@ struct MEGA_API LocalNode : public File
         bool assigned : 1;
 
         // was actively deleted
-        bool deleted : 1;
+        bool deleted : 1;                // todo: do we stil need this (not cleared by node/localnode ptr anymore)
 
         // has been created remotely
         bool created : 1;
@@ -540,7 +540,7 @@ public:
     void prepare() override;
     void completed(Transfer*, LocalNode*) override;
 
-    void setnode(Node*);
+    //void setnode(Node*);
 
     void setnotseen(int);
 
@@ -579,8 +579,8 @@ public:
     // Clears this node's conflict detection state.
     void conflictsResolved();
 
-    // Detach this node from it's remote associate.
-    void detach(const bool recreate = false);
+    //// Detach this node from it's remote associate.
+    //void detach(const bool recreate = false);
 
     // Are we above other?
     bool isAbove(const LocalNode& other) const;

@@ -4354,9 +4354,9 @@ void exec_sync(autocomplete::ACState& s)
                     static const char* syncstatenames[] =
                     { "Initial scan, please wait", "Active", "Failed" };
 
-                    if ((*it)->localroot->node)
+                    if ((*it)->cloudRoot())
                     {
-                        nodepath((*it)->localroot->node->nodehandle, &remotepath);
+                        nodepath((*it)->cloudRoot()->nodehandle, &remotepath);
                         localpath = (*it)->localroot->localname.toPath(*client->fsaccess);
 
                         cout << i++ << " (" << syncConfigToString((*it)->getConfig()) << "): " << localpath << " to " << remotepath << " - "

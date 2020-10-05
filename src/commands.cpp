@@ -1201,17 +1201,6 @@ bool CommandPutNodes::procresult(Result r)
 {
     removePendingDBRecordsAndTempFiles();
 
-#ifdef ENABLE_SYNC
-    if (targethandle != UNDEF)
-    {
-        Node* n = client->nodebyhandle(targethandle);
-        if (n && n->localnode)
-        {
-            n->localnode->setFutureSync(true, true);
-        }
-    }
-#endif
-
     if (r.hasJsonArray() || r.hasJsonObject())
     {
         // The response is a sparse array indicating the nodes that failed, and the corresponding error code.
@@ -1496,16 +1485,6 @@ bool CommandDelNode::procresult(Result r)
                     if (mResultFunction)    mResultFunction(h, e);
                     else         client->app->unlink_result(h, e);
 
-#ifdef ENABLE_SYNC
-                    if (parent != UNDEF)
-                    {
-                        Node* n = client->nodebyhandle(parent);
-                        if (n && n->localnode)
-                        {
-                            n->localnode->setFutureSync(true, false);
-                        }
-                    }
-#endif
                     return true;
 
                 default:

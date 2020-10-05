@@ -604,7 +604,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
     mFilesystemType = client->fsaccess->getlocalfstype(crootpath);
 
     localroot->init(this, FOLDERNODE, NULL, crootpath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
-    localroot->setnode(remotenode);
+    cloudRootHandle.set6byte(remotenode->nodehandle);
 
 #ifdef __APPLE__
     if (macOSmajorVersion() >= 19) //macOS catalina+
@@ -672,13 +672,13 @@ Sync::~Sync()
     tmpfa.reset();
 
     // stop all active and pending downloads
-    if (localroot->node)
+    if (Node* cr = cloudRoot())
     {
         TreeProcDelSyncGet tdsg;
         // Create a committer to ensure we update the transfer database in an efficient single commit,
         // if there are transactions in progress.
         DBTableTransactionCommitter committer(client->tctable);
-        client->proctree(localroot->node, &tdsg);
+        client->proctree(cr, &tdsg);
     }
 
     delete statecachetable;
@@ -694,6 +694,11 @@ Sync::~Sync()
     }
 }
 
+Node* Sync::cloudRoot()
+{
+    return client->nodeByHandle(cloudRootHandle);
+}
+
 void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, LocalPath& localpath, LocalNode *p, int maxdepth)
 {
     auto range = tmap->equal_range(parent_dbid);
@@ -705,7 +710,6 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         localpath.appendWithSeparator(it->second->localname, true, client->fsaccess->localseparator);
 
         LocalNode* l = it->second;
-        Node* node = l->node;
         handle fsid = fsstableids ? l->fsid : UNDEF;
         m_off_t size = l->size;
 
@@ -752,7 +756,6 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         l->size = size;
         l->setfsid(fsid, client->localnodeByFsid);
         l->setSyncedNodeHandle(l->syncedCloudNodeHandle);
-        l->setnode(node);
 
         p->assigned &= fsid != UNDEF;
 
@@ -975,113 +978,6 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
     return l;
 }
 
-// scan localpath, add or update child nodes, just for this folder.  No recursion.
-// localpath must be prefixed with Sync
-auto Sync::scanOne(LocalNode& localNodeFolder, LocalPath& localPath) -> vector<FSNode>
-{
-    if (localdebris.isContainingPathOf(localPath, client->fsaccess->localseparator))
-    {
-        return {};
-    }
-
-    auto fa = client->fsaccess->newfileaccess();
-
-    if (!fa->fopen(localPath, true, false))
-    {
-        // todo: error handling
-        return {};
-    }
-
-    if (fa->type != FOLDERNODE)
-    {
-        // todo: error handling
-        return {};
-    }
-
-    LOG_debug << "Scanning folder: " << localPath.toPath(*client->fsaccess);
-
-    unique_ptr<DirAccess> da(client->fsaccess->newdiraccess());
-
-    if (!da->dopen(&localPath, fa.get(), false))
-    {
-        // todo: error handling
-        return {};
-    }
-
-    // scan the dir, mark all items with a unique identifier
-
-    // todo: skip fingerprinting files if we already know it - name, size, mtime, fsid match
-
-    LocalPath localname;
-    vector<FSNode> results;
-    while (da->dnext(localPath, localname, client->followsymlinks))
-    {
-        string name = localname.toName(*client->fsaccess);
-
-        ScopedLengthRestore restoreLen(localPath);
-        localPath.appendWithSeparator(localname, false, client->fsaccess->localseparator);
-
-        // skip the sync's debris folder
-        if (!localdebris.isContainingPathOf(localPath, client->fsaccess->localseparator))
-        {
-            results.push_back(checkpathOne(localPath, localname, da.get()));
-        }
-    }
-    return results;
-}
-
-// new algorithm:  just make a LocalNode for this entry.  Caller will decide to keep it or not. No recursion
-
-// todo: be more efficient later, use existing localnode from parent if they match, and don't re-fingerprint if name, mtime, fsid match.  Mange lifetimes - maybe shared_ptr
-
-
-auto Sync::checkpathOne(LocalPath& localPath, const LocalPath& leafname, DirAccess* iteratingDir) -> FSNode
-{
-    // todo: skip fingerprinting files if we already know it - name, size, mtime, fsid match
-
-    FSNode result;
-
-    result.localname = leafname;
-    result.name = leafname.toName(*client->fsaccess);
-
-    // attempt to open/type this file
-    auto fa = client->fsaccess->newfileaccess(false);
-
-    if (fa->fopen(localPath, true, false, iteratingDir))
-    {
-        if (fa->mIsSymLink)
-        {
-            // todo: make nodes for symlinks, but never sync them (until we do that as a future project)
-            LOG_debug << "checked path is a symlink: " << localPath.toPath(*client->fsaccess);
-            result.isSymlink = true;
-        }
-        result.type = fa->type;
-        result.shortname = client->fsaccess->fsShortname(localPath);
-        result.fsid = fa->fsidvalid ? fa->fsid : 0;  // todo: do we need logic for the non-valid case?
-        result.size = fa->size;
-        result.mtime = fa->mtime;
-        if (fa->type == FILENODE)
-        {
-            result.fingerprint.genfingerprint(fa.get());
-        }
-    }
-    else
-    {
-        LOG_warn << "Error opening file: ";
-        if (fa->retry)
-        {
-            // fopen() signals that the failure is potentially transient - do
-            // nothing and request a recheck
-            LOG_warn << "File blocked. Adding notification to the retry queue: " << localPath.toPath(*client->fsaccess);
-            //dirnotify->notify(DirNotify::RETRY, ll, LocalPath(*localpathNew));
-
-            result.isBlocked = true;
-
-        }
-    }
-
-    return result;
-}
 
 
 /// todo:   things to figure out where to put them in new system:
@@ -1262,8 +1158,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
             else
             {
                 // for now, these pointers are quite handy
-                Node* sourceCloudNode = sourceLocalNode->node;
-                Node* targetCloudNode = parentRow.syncNode->node;
+                Node* sourceCloudNode = client->nodeByHandle(sourceLocalNode->syncedCloudNodeHandle);
+                Node* targetCloudNode = client->nodeByHandle(parentRow.syncNode->syncedCloudNodeHandle);
 
                 if (sourceCloudNode && !sourceCloudNode->mPendingChanges.empty())
                 {
@@ -1286,8 +1182,6 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
                     if (sourceCloudNode->parent == targetCloudNode && newName.empty())
                     {
                         LOG_debug << client->clientname << "Move/rename has completed: " << sourceCloudNode->displaypath();
-                        if (sourceCloudNode->localnode) sourceCloudNode->localnode->node = nullptr;
-                        sourceCloudNode->localnode = nullptr;
                         return false;
                     }
 
@@ -1422,7 +1316,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
         rowResult = false;
         return true;
     }
-    else if (LocalNode* sourceLocalNode = client->findLocalNodeByNodeHandle(NodeHandle().set6byte(row.cloudNode->nodehandle), *this))
+    else if (LocalNode* sourceLocalNode = client->findLocalNodeByNodeHandle(NodeHandle().set6byte(row.cloudNode->nodehandle)))
     {
         if (sourceLocalNode == row.syncNode) return false;
 
@@ -1451,9 +1345,6 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
             // make sure we don't come back to this folder again until we've rescanned it
             if (sourceLocalNode->parent) sourceLocalNode->parent->setFutureScan(true, false);
             if (parentRow.syncNode->parent) parentRow.syncNode->parent->setFutureScan(true, true);
-
-            sourceLocalNode->node = nullptr;
-            sourceLocalNode = nullptr;
 
             rowResult = false;
             return true;
@@ -1557,6 +1448,7 @@ void Sync::procscanq(int q)
     }
 }
 
+// todo: do we still need this?
 // delete all child LocalNodes that have been missing for two consecutive scans (*l must still exist)
 void Sync::deletemissing(LocalNode* l)
 {
@@ -2261,10 +2153,6 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTab
                         row.syncNode->setfsid(row.fsNode->fsid, client->localnodeByFsid);
                         row.syncNode->setSyncedNodeHandle(NodeHandle().set6byte(row.cloudNode->nodehandle));
 
-                        // todo: eventually remove pointers
-                        row.syncNode->node = client->nodebyhandle(row.syncNode->syncedCloudNodeHandle.as8byte());
-                        if (row.syncNode->node) row.syncNode->node->localnode = row.syncNode;
-
                         statecacheadd(row.syncNode);
                     }
                     else
@@ -2493,6 +2381,9 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPat
             row.cloudNode->syncget = new SyncFileGet(this, row.cloudNode, fullPath);
             client->nextreqtag();
             client->startxfer(GET, row.cloudNode->syncget, committer);
+
+            if (row.syncNode) row.syncNode->treestate(TREESTATE_SYNCING);
+            else if (parentRow.syncNode) parentRow.syncNode->treestate(TREESTATE_SYNCING);
         }
         else
         {
@@ -2604,7 +2495,7 @@ LocalNode* MegaClient::findLocalNodeByFsid(FSNode& fsNode, Sync& filesystemSync)
     return nullptr;
 }
 
-LocalNode* MegaClient::findLocalNodeByNodeHandle(NodeHandle h, Sync& filesystemSync)
+LocalNode* MegaClient::findLocalNodeByNodeHandle(NodeHandle h)
 {
     if (h.isUndef()) return nullptr;
 

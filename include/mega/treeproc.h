@@ -122,11 +122,11 @@ public:
     void proc(MegaClient*, LocalNode*);
 };
 
-class MEGA_API LocalTreeProcUnlinkNodes : public LocalTreeProc
-{
-public:
-    void proc(MegaClient*, LocalNode*);
-};
+//class MEGA_API LocalTreeProcUnlinkNodes : public LocalTreeProc
+//{
+//public:
+//    void proc(MegaClient*, LocalNode*);
+//};
 
 #endif
 } // namespace
