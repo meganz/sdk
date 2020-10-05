@@ -2339,6 +2339,9 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPa
     LOG_debug << "Creating LocalNode from FS at: " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
     auto l = new LocalNode;
 
+    assert(row.syncNode == nullptr);
+    row.syncNode = l;
+
     if (row.fsNode->type == FILENODE)
     {
         assert(row.fsNode->fingerprint.isvalid);
