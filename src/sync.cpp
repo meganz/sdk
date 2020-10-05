@@ -2007,6 +2007,8 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath, DBTableTransactionC
 
     row.syncNode->conflicts = TREE_RESOLVED;
 
+    syncHere &= !row.cloudNode || row.cloudNode->mPendingChanges.empty();
+
     for (unsigned firstPass = 2; firstPass--; )
     {
         for (auto& childRow : childRows)
