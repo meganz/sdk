@@ -1952,7 +1952,6 @@ void LocalNode::completed(Transfer* t, LocalNode*)
 // - fingerprint crc/mtime (filenodes only)
 bool LocalNode::serialize(string* d)
 {
-
 #ifdef DEBUG
     if (fsid != UNDEF)
     {
@@ -1967,6 +1966,8 @@ bool LocalNode::serialize(string* d)
         }
     }
 #endif
+
+    assert(type != TYPE_UNKNOWN);
 
     CacheableWriter w(*d);
     w.serializei64(type ? -type : size);
