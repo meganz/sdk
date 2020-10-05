@@ -604,7 +604,8 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
     mFilesystemType = client->fsaccess->getlocalfstype(crootpath);
 
     localroot->init(this, FOLDERNODE, NULL, crootpath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
-    cloudRootHandle.set6byte(remotenode->nodehandle);
+    localroot->syncedCloudNodeHandle.set6byte(remotenode->nodehandle);
+    cloudRootHandle = localroot->syncedCloudNodeHandle;
 
 #ifdef __APPLE__
     if (macOSmajorVersion() >= 19) //macOS catalina+
