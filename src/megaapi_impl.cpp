@@ -26623,8 +26623,8 @@ void MegaFolderDownloadController::downloadFolderNode(FileSystemType fsType)
              MegaNode &node = *(nodeVector.at(i).get());
              ScopedLengthRestore restoreLen(localpath);
              localpath.appendWithSeparator(LocalPath::fromName(node.getName(), *client->fsaccess, fsType), true, client->fsaccess->localseparator);
-             const char *utf8path = localpath.toPath(*client->fsaccess).c_str();
-             megaApi->startDownload(false, &node, utf8path, tag, transfer->getAppData(), this);
+             string utf8path = localpath.toPath(*client->fsaccess);
+             megaApi->startDownload(false, &node, utf8path.c_str(), tag, transfer->getAppData(), this);
          }
     }
 
