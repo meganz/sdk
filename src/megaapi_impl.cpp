@@ -25282,7 +25282,7 @@ void MegaFolderUploadController::scanFolderNode(MegaHandle parentHandle, LocalPa
         }
         else if (dirEntryType == FOLDERNODE)
         {
-            scanFolderNode(newNodeHandle ,localPath, localname.toName(*client->fsaccess, fsType));
+            scanFolderNode(newNodeHandle, localPath, localname.toName(*client->fsaccess, fsType));
         }
     }
     recursive--;
@@ -26563,7 +26563,6 @@ void MegaFolderDownloadController::start(MegaNode *node)
 
     path.appendWithSeparator(name, true, client->fsaccess->localseparator);
     path.ensureWinExtendedPathLenPrefix();
-
     transfer->setPath(path.toPath(*client->fsaccess).c_str());
     scanFolderNode(node, path, fsType);
     downloadFolderNode(fsType);
@@ -26591,7 +26590,7 @@ void MegaFolderDownloadController::downloadFolderNode(FileSystemType fsType)
                 mLastError = API_EWRITE;
                 mIncompleteTransfers++;
 
-                // Removing this element we also remove all it's children nodes
+                // By removing this element we also remove all it's children nodes
                 mLocalTree.erase(auxit);
             }
         }
@@ -26602,7 +26601,7 @@ void MegaFolderDownloadController::downloadFolderNode(FileSystemType fsType)
             mLastError = API_EEXIST;
             mIncompleteTransfers++;
 
-            // Removing this element we also remove all it's children nodes
+            // By removing this element we also remove all it's children nodes
             mLocalTree.erase(auxit);
         }
         else
@@ -26611,7 +26610,6 @@ void MegaFolderDownloadController::downloadFolderNode(FileSystemType fsType)
         }
         da.reset();
     }
-
 
     // Add all download transfers in one shot
     for (auto it = mLocalTree.begin(); it != mLocalTree.end(); it++)
@@ -26729,7 +26727,7 @@ void MegaFolderDownloadController::scanFolderNode(MegaNode *node, LocalPath& loc
     size_t index = 0;
     if (node->getType() == FOLDERNODE)
     {
-       // If node is a FOLDER, store it's localPath along with a vector with it's children
+       // If node is a folder, store it's localPath along with a vector with it's children
        mLocalTree.emplace_back((std::make_pair(localpath, std::vector<unique_ptr<MegaNode>>())));
        index = mLocalTree.size() - 1;
     }

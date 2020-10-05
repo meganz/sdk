@@ -2115,8 +2115,10 @@ class MegaApiImpl : public MegaApp
 
         enum { TARGET_INSHARE = 0, TARGET_OUTSHARE, TARGET_PUBLICLINK, };
 
-        // min and max timeout that sendPendingTransfers must not exceed when the transfer queue is being processed
+        // timeout that must not be exceeded while processing transfers queue
         const int minPendingTransfersTimeout = 100;
+
+        // timeout that must not be exceeded while processing transfers queue and we are processing a folder tree
         const int maxPendingTransfersTimeout = 10000;
 
         //Multiple listener management.
