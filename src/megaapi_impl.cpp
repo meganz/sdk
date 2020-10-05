@@ -25158,7 +25158,6 @@ void MegaFolderUploadController::start(MegaNode*)
 
     // Create entire folder tree in one shot
     megaApi->createFolderTree(folderStructure, parent, name, this);
-    checkCompletion();
     delete parent;
 }
 
@@ -25280,7 +25279,6 @@ void MegaFolderUploadController::scanFolderNode(MegaHandle parentHandle, LocalPa
 
         if (dirEntryType == FILENODE)
         {
-            pendingTransfers++;
             mPendingFiles.emplace_back(std::make_pair(localPath, newNodeHandle));
         }
         else if (dirEntryType == FOLDERNODE)
@@ -25297,7 +25295,9 @@ void MegaFolderUploadController::checkCompletion()
     {
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         delete mFolders;
+        mFolders = nullptr; // set pointer null to avoid crash in dtor
         delete mFoldersHierarchy;
+        mFoldersHierarchy = nullptr; // set pointer null to avoid crash in dtor
         mPendingFiles.clear();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
         transfer->setLastError(&mLastError);
@@ -25327,7 +25327,7 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
                     if (parentNode != nullptr)
                     {
                         pendingTransfers++;
-                        auto localpath = mPendingFiles.at(i).first;
+                        const LocalPath &localpath = mPendingFiles.at(i).first;
                         FileSystemType fsType = client->fsaccess->getlocalfstype(localpath);
                         megaApi->startUpload(false, localpath.toPath(*client->fsaccess).c_str(), parentNode, (const char *)NULL, -1, tag, false, NULL, false, false, fsType, this);
                         continue;
@@ -25348,9 +25348,7 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
         }
     }
 
-    // At this point we don't need folders structure, so free resources
-    delete mFolders;
-    delete mFoldersHierarchy;
+    checkCompletion();
 }
 
 void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
@@ -25409,8 +25407,14 @@ MegaFolderUploadController::~MegaFolderUploadController()
 {
     //we dettach this as request listener: could be pending create folder req finish
     megaApi->removeRequestListener(this);
-    delete mFolders;
-    delete mFoldersHierarchy;
+    if (mFolders)
+    {
+        delete mFolders;
+    }
+    if (mFoldersHierarchy)
+    {
+        delete mFoldersHierarchy;
+    }
     mPendingFiles.clear();
     //we shouldn't need to dettach as transfer listener: all listened transfer should have been cancelled/completed
 }
