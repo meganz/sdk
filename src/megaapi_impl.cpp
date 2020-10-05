@@ -13301,6 +13301,11 @@ void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
 
 void MegaApiImpl::backupput_result(const Error& e, handle backupId)
 {
+    if (e || backupId != UNDEF)
+    {
+        LOG_err << "backupput_result failed: " << MegaError::getErrorString(e);
+    }
+
     if (requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || (request->getType() != MegaRequest::TYPE_BACKUP_PUT)) return;
@@ -13333,7 +13338,6 @@ void MegaApiImpl::backupremove_result(const Error& e, handle backupId)
     if (e || backupId != UNDEF)
     {
         LOG_err << "backupremove_result failed: " << MegaError::getErrorString(e);
-        return;
     }
     if (requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -22691,7 +22695,7 @@ void MegaApiImpl::sendPendingRequests()
                 string localFolder(binaryToBase64(request->getFile(), strlen(request->getFile())));
                 string extraData(binaryToBase64(request->getText(), strlen(request->getText())));
                 client->reqs.add(new CommandBackupPut(client, bType, request->getNodeHandle(),
-                                                      localFolder, client->getDeviceid(),
+                                                      localFolder, client->getDeviceidHash(),
                                                       request->getAccess(), request->getNumDetails(), extraData));
             }
             else // update a backup
