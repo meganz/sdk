@@ -2148,8 +2148,8 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTab
         else
         {
             LOG_verbose << "Waiting on scan blocked timer, retry in ds: " << row.syncNode->rare().blockedTimer->retryin() << logTriplet(row, fullPath);
+            return false;
         }
-        return false;
     }
 
     if (row.syncNode && (
