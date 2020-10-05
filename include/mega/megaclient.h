@@ -1440,8 +1440,10 @@ public:
     handle nextsyncid();
     handle currsyncid;
 
-    // app temp nodeHandle dispatch
+    // temporal nodeHandle for uploads
     handle mCurrUploadId;
+
+    // generates a temporal nodeHandle for uploads
     handle nextUploadId();
 
     // SyncDebris folder addition result
@@ -1509,7 +1511,7 @@ public:
     // upload handle -> node handle map (filled by upload completion)
     handlepair_set uhnh;
 
-    // maps temp nodeHandle to nodeHandle (filled by upload completion)
+    // maps temporal nodeHandle (used for uploads) to definitive nodeHandle (filled by upload completion)
     std::map<handle, handle> mTempHandleToNodeHandle;
 
     // transfer chunk failed
