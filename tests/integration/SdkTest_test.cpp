@@ -4638,7 +4638,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     
     MegaHandle targetNode = mApi[0].h;
     int state = 1;
-    int subState = 1;
+    int subState = 0;
     MegaRequestListener* listener;
 
     auto err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
