@@ -25139,7 +25139,7 @@ void MegaFolderUploadController::start(MegaNode*)
 
     // Root node of folder structure
     const char *name = transfer->getFileName();
-    MegaNode *parent = megaApi->getNodeByHandle(transfer->getParentHandle());
+    unique_ptr<MegaNode> parent(megaApi->getNodeByHandle(transfer->getParentHandle()));
     if (!parent)
     {
         transfer->setState(MegaTransfer::STATE_FAILED);
@@ -25152,13 +25152,12 @@ void MegaFolderUploadController::start(MegaNode*)
     scanFolderNode(parent->getHandle(), localpath, name); // we don't need to specify parent node for root node of the new tree
 
     // Create a MegaStringMapList with folders and folders structure
-    MegaStringMapList *folderStructure = MegaStringMapList::createInstance();
+    unique_ptr<MegaStringMapList> folderStructure(MegaStringMapList::createInstance());
     folderStructure->append(mFolders);
     folderStructure->append(mFoldersHierarchy);
 
     // Create entire folder tree in one shot
-    megaApi->createFolderTree(folderStructure, parent, name, this);
-    delete parent;
+    megaApi->createFolderTree(folderStructure.get(), parent.get(), name, this);
 }
 
 void MegaFolderUploadController::cancel()
@@ -26532,10 +26531,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
     transfer->setState(MegaTransfer::STATE_QUEUED);
     megaApi->fireOnTransferStart(transfer);
 
-    const char *parentPath = transfer->getParentPath();
-    const char *fileName = transfer->getFileName();
     bool deleteNode = false;
-
     if (!node)
     {
         node = megaApi->getNodeByHandle(transfer->getNodeHandle());
@@ -26549,12 +26545,10 @@ void MegaFolderDownloadController::start(MegaNode *node)
         deleteNode = true;
     }
 
-    LocalPath name;
     LocalPath path;
-
-    if (parentPath)
+    if (transfer->getParentPath())
     {
-        path = LocalPath::fromPath(parentPath, *client->fsaccess);
+        path = LocalPath::fromPath(transfer->getParentPath(), *client->fsaccess);
     }
     else
     {
@@ -26563,18 +26557,11 @@ void MegaFolderDownloadController::start(MegaNode *node)
     }
 
     FileSystemType fsType = client->fsaccess->getlocalfstype(path);
-
-    if (!fileName)
-    {
-        name = LocalPath::fromName(node->getName(), *client->fsaccess, fsType);
-    }
-    else
-    {
-        name = LocalPath::fromName(fileName, *client->fsaccess, fsType);
-    }
+    const LocalPath &name = (!transfer->getFileName())
+            ? LocalPath::fromName(node->getName(), *client->fsaccess, fsType)
+            : LocalPath::fromName(transfer->getFileName(), *client->fsaccess, fsType);
 
     path.appendWithSeparator(name, true, client->fsaccess->localseparator);
-
     path.ensureWinExtendedPathLenPrefix();
 
     transfer->setPath(path.toPath(*client->fsaccess).c_str());
@@ -26593,7 +26580,7 @@ void MegaFolderDownloadController::downloadFolderNode(FileSystemType fsType)
     for (auto it = mLocalTree.begin(); it != mLocalTree.end();)
     {
         auto auxit = it++;
-        LocalPath localpath = auxit->first;
+        LocalPath &localpath = auxit->first;
         auto da = client->fsaccess->newfileaccess();
         if (!da->fopen(localpath, true, false))
         {
@@ -26629,17 +26616,17 @@ void MegaFolderDownloadController::downloadFolderNode(FileSystemType fsType)
     // Add all download transfers in one shot
     for (auto it = mLocalTree.begin(); it != mLocalTree.end(); it++)
     {
-        LocalPath localpath = it->first;
+        LocalPath &localpath = it->first;
         const std::vector<unique_ptr<MegaNode>> &nodeVector = it->second;
 
         for (size_t i = 0; i < nodeVector.size(); i++)
         {
              pendingTransfers++;
-             MegaNode *node = nodeVector.at(i).get();
+             MegaNode &node = *(nodeVector.at(i).get());
              ScopedLengthRestore restoreLen(localpath);
-             localpath.appendWithSeparator(LocalPath::fromName(node->getName(), *client->fsaccess, fsType), true, client->fsaccess->localseparator);
-             string utf8path = localpath.toPath(*client->fsaccess);
-             megaApi->startDownload(false, node, utf8path.c_str(), tag, transfer->getAppData(), this);
+             localpath.appendWithSeparator(LocalPath::fromName(node.getName(), *client->fsaccess, fsType), true, client->fsaccess->localseparator);
+             const char *utf8path = localpath.toPath(*client->fsaccess).c_str();
+             megaApi->startDownload(false, &node, utf8path, tag, transfer->getAppData(), this);
          }
     }
 
