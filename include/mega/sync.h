@@ -163,8 +163,11 @@ private:
         // Whether we should follow symbolic links.
         const bool mFollowSymLinks;
 
-        // The results of the scan.
-        std::vector<FSNode> mResults;
+        // Details the known children of mTarget.
+        map<LocalPath, FSNode> mKnown;
+
+        // Results of the scan.
+        vector<FSNode> mResults;
 
         // Target of the scan.
         const LocalNode& mTarget;
@@ -196,7 +199,8 @@ private:
         // Learn everything we can about the specified path.
         FSNode interrogate(DirAccess& iterator,
                            const LocalPath& name,
-                           LocalPath& path);
+                           LocalPath& path,
+                           ScanRequest& request);
 
         // Processes a scan request.
         void scan(ScanRequestPtr request);

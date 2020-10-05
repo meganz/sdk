@@ -105,10 +105,21 @@ ScanService::ScanRequest::ScanRequest(const std::shared_ptr<Cookie>& cookie,
   , mComplete(false)
   , mDebrisPath(target.sync->localdebris)
   , mFollowSymLinks(target.sync->client->followsymlinks)
+  , mKnown()
   , mResults()
   , mTarget(target)
   , mTargetPath(std::move(targetPath))
 {
+    // Track details about mTarget's current children.
+    for (auto& childIt : mTarget.children)
+    {
+        LocalNode& child = *childIt.second;
+
+        if (child.fsid != UNDEF)
+        {
+            mKnown.emplace(child.localname, child.getKnownFSDetails());
+        }
+    }
 }
 
 ScanService::Worker::Worker(size_t numThreads)
@@ -237,9 +248,20 @@ void ScanService::Worker::loop()
 
 FSNode ScanService::Worker::interrogate(DirAccess& iterator,
                                         const LocalPath& name,
-                                        LocalPath& path)
+                                        LocalPath& path,
+                                        ScanRequest& request)
 {
+    auto reuseFingerprint =
+      [](const FSNode& lhs, const FSNode& rhs)
+      {
+          return lhs.type == rhs.type
+                 && lhs.fsid == rhs.fsid
+                 && lhs.mtime == rhs.mtime
+                 && rhs.size == rhs.size;
+      };
+
     FSNode result;
+    auto& known = request.mKnown;
 
     // Always record the name.
     result.localname = name;
@@ -265,9 +287,24 @@ FSNode ScanService::Worker::interrogate(DirAccess& iterator,
                       << path.toPath(*mFsAccess);
         }
 
-        // Fingerprint files.
-        if (result.type == FILENODE)
+        // No need to fingerprint directories.
+        if (result.type == FOLDERNODE)
         {
+            return result;
+        }
+
+        // Do we already know about this child?
+        auto it = known.find(name);
+
+        // Can we reuse an existing fingerprint?
+        if (it != known.end() && reuseFingerprint(it->second, result))
+        {
+            // Yep as fsid/mtime/size/type match.
+            result.fingerprint = std::move(it->second.fingerprint);
+        }
+        else
+        {
+            // Child has changed, need a new fingerprint.
             result.fingerprint.genfingerprint(fileAccess.get());
         }
 
@@ -347,9 +384,12 @@ void ScanService::Worker::scan(ScanRequestPtr request)
         }
 
         // Learn everything we can about the file.
-        auto info = interrogate(*dirAccess, name, path);
+        auto info = interrogate(*dirAccess, name, path, *request);
         results.emplace_back(std::move(info));
     }
+
+    // No need to keep this data around anymore.
+    request->mKnown.clear();
 
     // Publish the results.
     request->mResults = std::move(results);
