@@ -1468,9 +1468,13 @@ public:
     // vanished from a local synced folder
     localnode_set localsyncnotseen;
 
-    // maps local fsid to corresponding LocalNode*
+    // maps local fsid to corresponding LocalNode* (s)
     fsid_localnode_map localnodeByFsid;
     LocalNode* findLocalNodeByFsid(FSNode& fsNode, Sync&);
+
+    // maps nodehanlde to corresponding LocalNode* (s)
+    nodehandle_localnode_map localnodeByNodeHandle;
+    LocalNode* findLocalNodeByNodeHandle(NodeHandle h, Sync&);
 
     // Keep track of files that we can't move yet because they are changing
     struct FileChangingState

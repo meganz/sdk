@@ -1422,6 +1422,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
 
     // mark fsid as not valid
     fsid_it = sync->client->localnodeByFsid.end();
+    syncedCloudNodeHandle_it = sync->client->localnodeByNodeHandle.end();
 
     // enable folder notification
     if (type == FOLDERNODE)
@@ -1629,9 +1630,7 @@ void LocalNode::setnotseen(int newnotseen)
 // set fsid - assume that an existing assignment of the same fsid is no longer current and revoke
 void LocalNode::setfsid(handle newfsid, fsid_localnode_map& fsidnodes)
 {
-    assert(sync);
-
-LOG_debug << "node " << name << " was fsid " << fsid << " now " << newfsid;
+    assert(sync && sync->client);
 
     if (fsid_it != fsidnodes.end())
     {
@@ -1652,6 +1651,32 @@ LOG_debug << "node " << name << " was fsid " << fsid << " now " << newfsid;
     else
     {
         fsid_it = fsidnodes.insert(std::make_pair(fsid, this));
+    }
+}
+
+void LocalNode::setSyncedNodeHandle(NodeHandle h)
+{
+    assert(sync && sync->client);
+
+    if (syncedCloudNodeHandle_it != sync->client->localnodeByNodeHandle.end())
+    {
+        if (h == syncedCloudNodeHandle)
+        {
+            return;
+        }
+
+        sync->client->localnodeByNodeHandle.erase(syncedCloudNodeHandle_it);
+    }
+
+    syncedCloudNodeHandle = h;
+
+    if (syncedCloudNodeHandle == UNDEF)
+    {
+        syncedCloudNodeHandle_it = sync->client->localnodeByNodeHandle.end();
+    }
+    else
+    {
+        syncedCloudNodeHandle_it = sync->client->localnodeByNodeHandle.insert(std::make_pair(syncedCloudNodeHandle, this));
     }
 }
 
@@ -1695,6 +1720,10 @@ LocalNode::~LocalNode()
     if (fsid_it != sync->client->localnodeByFsid.end())
     {
         sync->client->localnodeByFsid.erase(fsid_it);
+    }
+    if (syncedCloudNodeHandle_it != sync->client->localnodeByNodeHandle.end())
+    {
+        sync->client->localnodeByNodeHandle.erase(syncedCloudNodeHandle_it);
     }
 
     sync->client->totalLocalNodes--;
@@ -2042,6 +2071,8 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->isvalid = true;
 
     l->syncedCloudNodeHandle.set6byte(h);
+    l->syncedCloudNodeHandle_it = sync->client->localnodeByNodeHandle.end();
+
     l->node = sync->client->nodebyhandle(h);
     l->parent = nullptr;
     l->sync = sync;

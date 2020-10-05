@@ -430,6 +430,7 @@ struct MEGA_API LocalNode : public File
     // related cloud node, if any
     Node* node = nullptr;
     NodeHandle syncedCloudNodeHandle;
+    nodehandle_localnode_map::iterator syncedCloudNodeHandle_it;
 
     // related pending node creation or NULL
     crossref_ptr<NewNode, LocalNode> newnode;
@@ -543,9 +544,9 @@ public:
 
     void setnotseen(int);
 
-    // set fsid - assume that an existing assignment of the same fsid is no longer current and revoke.
-    // fsidnodes is a map from fsid to LocalNode, keeping track of all fs ids.
     void setfsid(handle newfsid, fsid_localnode_map& fsidnodes);
+
+    void setSyncedNodeHandle(NodeHandle h);
 
     void setnameparent(LocalNode*, LocalPath* newlocalpath, std::unique_ptr<LocalPath>, bool applyToCloud);
 

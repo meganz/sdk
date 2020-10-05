@@ -266,9 +266,11 @@ class NodeHandle
     uint64_t h = 0xFFFFFFFFFFFFFFFF;
 public:
     bool isUndef() { return (h & 0xFFFFFFFFFFFF) == 0xFFFFFFFFFFFF; }
-    void set6byte(uint64_t n) { h = n; assert((n & 0xFFFF000000000000) == 0); }
+    NodeHandle& set6byte(uint64_t n) { h = n; assert((n & 0xFFFF000000000000) == 0); return *this; }
+    bool operator==(NodeHandle b) { return (h & 0xFFFFFFFFFFFF) == (b.h & 0xFFFFFFFFFFFF); }
     bool operator==(handle b) { return (h & 0xFFFFFFFFFFFF) == (b & 0xFFFFFFFFFFFF); }
     bool operator!=(handle b) { return (h & 0xFFFFFFFFFFFF) != (b & 0xFFFFFFFFFFFF); }
+    bool operator<(const NodeHandle& rhs) const { return h < rhs.h; }
     handle as8byte() { return isUndef() ? 0xFFFFFFFFFFFFFFFF : (h & 0xFFFFFFFFFFFF); }
 };
 
@@ -415,6 +417,10 @@ typedef vector<LocalNode*> localnode_vector;
 // fsid is not necessarily unique becuase multiple filesystems may be involved
 // Hence, we use a multimap and check other parameters too when looking for a match.
 typedef multimap<handle, LocalNode*> fsid_localnode_map;
+
+// A similar type for looking up LocalNode by node handle, analagously
+// Keep the type separate by inheriting
+typedef multimap<NodeHandle, LocalNode*> nodehandle_localnode_map;
 
 typedef set<LocalNode*> localnode_set;
 

@@ -711,6 +711,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         l->parent_dbid = parent_dbid;
         l->size = size;
         l->setfsid(fsid, client->localnodeByFsid);
+        l->setSyncedNodeHandle(l->syncedCloudNodeHandle);
         l->setnode(node);
 
         p->assigned &= fsid != UNDEF;
@@ -1374,20 +1375,23 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
 
 bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool& rowResult)
 {
-
-    // First, figure out if this cloud node is different now because it was moved or renamed to this location
-
-    // look up LocalNode by cloud nodehandle eventually, probably.  But ptrs are useful for now
-
-    if (row.cloudNode->localnode &&
-        row.cloudNode->localnode->parent &&
-        row.cloudNode->localnode->parent != row.cloudNode->parent->localnode)
+    if (row.syncNode && row.syncNode->type != row.cloudNode->type)
     {
+        LOG_debug << "checked node does not have the same type, blocked: " << fullPath.toPath(*client->fsaccess);
+        row.syncNode->setUseBlocked();
+        rowResult = false;
+        return true;
+    }
+    else if (LocalNode* sourceLocalNode = client->findLocalNodeByNodeHandle(NodeHandle().set6byte(row.cloudNode->nodehandle), *this))
+    {
+        if (sourceLocalNode == row.syncNode) return false;
+
         // It's a move or rename
 
-        row.cloudNode->localnode->treestate(TREESTATE_SYNCING);
+        sourceLocalNode->treestate(TREESTATE_SYNCING);
+        if (row.syncNode) row.syncNode->treestate(TREESTATE_SYNCING);
 
-        LocalPath sourcePath = row.cloudNode->localnode->getLocalPath(true);
+        LocalPath sourcePath = sourceLocalNode->getLocalPath(true);
         LOG_verbose << "Renaming/moving from the previous location: " << sourcePath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
 
         if (client->fsaccess->renamelocal(sourcePath, fullPath))
@@ -1396,7 +1400,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
 
             client->mSyncFlags.actionedMovesRenames = true;
 
-            client->app->syncupdate_local_move(this, row.cloudNode->localnode, fullPath.toPath(*client->fsaccess).c_str());
+            client->app->syncupdate_local_move(this, sourceLocalNode, fullPath.toPath(*client->fsaccess).c_str());
 
             // let the Localnodes be created at the new location, and removed at the old
 
@@ -1404,17 +1408,22 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
             // todo: client->updateputs();
             // client->syncactivity = true;  // todo: prob don't need this?
 
-            //row.cloudNode->localnode->treestate(TREESTATE_SYNCED);
+            // make sure we don't come back to this folder again until we've rescanned it
+            if (sourceLocalNode->parent) sourceLocalNode->parent->setFutureScan(true, false);
+            if (parentRow.syncNode->parent) parentRow.syncNode->parent->setFutureScan(true, true);
 
-            row.cloudNode->localnode->node = nullptr;
-            row.cloudNode->localnode = nullptr;
+            sourceLocalNode->node = nullptr;
+            sourceLocalNode = nullptr;
 
+            rowResult = false;
+            return true;
         }
         else if (client->fsaccess->transient_error)
         {
             row.syncNode->setUseBlocked();
+            rowResult = false;
+            return true;
         }
-
     }
     return false;
 }
@@ -2055,12 +2064,15 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath, DBTableTransactionC
     // recompute our LocalNode flags from children
     for (auto& child : row.syncNode->children)
     {
-        if (row.syncNode->conflicts < TREE_ACTION_HERE)
+        if (child.second->type != FILENODE)
         {
-            row.syncNode->scanAgain = updateTreestateFromChild(row.syncNode->scanAgain, child.second->scanAgain);
-            row.syncNode->syncAgain = updateTreestateFromChild(row.syncNode->syncAgain, child.second->syncAgain);
+            if (row.syncNode->conflicts < TREE_ACTION_HERE)
+            {
+                row.syncNode->scanAgain = updateTreestateFromChild(row.syncNode->scanAgain, child.second->scanAgain);
+                row.syncNode->syncAgain = updateTreestateFromChild(row.syncNode->syncAgain, child.second->syncAgain);
+            }
+            row.syncNode->conflicts = updateTreestateFromChild(row.syncNode->conflicts, child.second->conflicts);
         }
-        row.syncNode->conflicts = updateTreestateFromChild(row.syncNode->conflicts, child.second->conflicts);
     }
 
     //LOG_verbose << "Exiting folder with synced="
@@ -2204,8 +2216,8 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTab
                     {
                         LOG_verbose << "Row is synced, setting fsid and nodehandle" << logTriplet(row, fullPath);
 
-                        row.syncNode->fsid = row.fsNode->fsid;
-                        row.syncNode->syncedCloudNodeHandle.set6byte(row.cloudNode->nodehandle);
+                        row.syncNode->setfsid(row.fsNode->fsid, client->localnodeByFsid);
+                        row.syncNode->setSyncedNodeHandle(NodeHandle().set6byte(row.cloudNode->nodehandle));
 
                         // todo: eventually remove pointers
                         row.syncNode->node = client->nodebyhandle(row.syncNode->syncedCloudNodeHandle.as8byte());
@@ -2333,12 +2345,9 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPa
         *static_cast<FileFingerprint*>(l) = row.fsNode->fingerprint;
     }
     l->init(this, row.fsNode->type, parentRow.syncNode, fullPath, std::move(row.fsNode->shortname));
-    if (l->type == FILENODE)
-    {
-        assert(row.fsNode->fsid != UNDEF);
-        l->setfsid(row.fsNode->fsid, client->localnodeByFsid);
-    }
-    else
+    assert(row.fsNode->fsid != UNDEF);
+    l->setfsid(row.fsNode->fsid, client->localnodeByFsid);
+    if (l->type != FILENODE)
     {
         l->setFutureScan(true, true);
     }
@@ -2361,7 +2370,7 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Loca
         *static_cast<FileFingerprint*>(l) = row.cloudNode->fingerprint();
     }
     l->init(this, row.cloudNode->type, parentRow.syncNode, fullPath, nullptr);
-    l->syncedCloudNodeHandle.set6byte(row.cloudNode->nodehandle);
+    l->setSyncedNodeHandle(NodeHandle().set6byte(row.cloudNode->nodehandle));
     l->treestate(TREESTATE_PENDING);
     if (l->type != FILENODE)
     {
@@ -2549,6 +2558,28 @@ LocalNode* MegaClient::findLocalNodeByFsid(FSNode& fsNode, Sync& filesystemSync)
     }
     return nullptr;
 }
+
+LocalNode* MegaClient::findLocalNodeByNodeHandle(NodeHandle h, Sync& filesystemSync)
+{
+    if (h.isUndef()) return nullptr;
+
+    auto range = localnodeByNodeHandle.equal_range(h);
+
+    for (auto it = range.first; it != range.second; ++it)
+    {
+        // check the file/folder actually exists on disk for this LocalNode
+        LocalPath lp = it->second->getLocalPath(true);
+
+        auto prevfa = fsaccess->newfileaccess(false);
+        bool exists = prevfa->fopen(lp);
+        if (exists || prevfa->type == FOLDERNODE)
+        {
+            return it->second;
+        }
+    }
+    return nullptr;
+}
+
 
 
 bool MegaClient::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath)
