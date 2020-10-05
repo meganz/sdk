@@ -114,7 +114,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
     if (avformat_open_input(&formatContext, imagePath->data(), NULL, NULL))
     {
         LOG_warn << "Error opening video: " << imagePath;
-        return NULL;
+        return false;
     }
 
     // Get stream information
@@ -122,7 +122,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
     {
         LOG_warn << "Stream info not found: " << imagePath;
         avformat_close_input(&formatContext);
-        return NULL;
+        return false;
     }
 
     // Find first video stream type
@@ -142,7 +142,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
     {
         LOG_warn << "Video stream not found: " << imagePath;
         avformat_close_input(&formatContext);
-        return NULL;
+        return false;
     }
 
     // Get codec context to determine video frame dimensions
@@ -153,14 +153,14 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
     {
         LOG_warn << "Invalid video dimensions: " << width << ", " << height;
         avformat_close_input(&formatContext);
-        return NULL;
+        return false;
     }
 
     if (codecContext.pix_fmt == AV_PIX_FMT_NONE)
     {
         LOG_warn << "Invalid pixel format: " << codecContext.pix_fmt;
         avformat_close_input(&formatContext);
-        return NULL;
+        return false;
     }
 
     AVPixelFormat sourcePixelFormat = codecContext.pix_fmt;
@@ -172,7 +172,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
     {
         LOG_warn << "SWS Context not found: " << sourcePixelFormat;
         avformat_close_input(&formatContext);
-        return NULL;
+        return false;
     }
 
     // Find decoder for video stream
@@ -183,7 +183,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
         LOG_warn << "Codec not found: " << codecId;
         sws_freeContext(swsContext);
         avformat_close_input(&formatContext);
-        return NULL;
+        return false;
     }
 
     // Force seeking to key frames
@@ -200,7 +200,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
         LOG_warn << "Error opening codec: " << codecId;
         sws_freeContext(swsContext);
         avformat_close_input(&formatContext);
-        return NULL;
+        return false;
     }
 
     //Allocate video frames
@@ -219,7 +219,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
         }
         sws_freeContext(swsContext);
         avformat_close_input(&formatContext);
-        return NULL;
+        return false;
     }
 
     targetFrame->format = targetPixelFormat;
@@ -233,7 +233,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
         avcodec_close(&codecContext);
         sws_freeContext(swsContext);
         avformat_close_input(&formatContext);
-        return NULL;
+        return false;
     }
 
     // Calculation of seeking point. We need to rescale time units (seconds) to AVStream.time_base units to perform the seeking
@@ -263,7 +263,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
         avcodec_close(&codecContext);
         sws_freeContext(swsContext);
         avformat_close_input(&formatContext);
-        return NULL;
+        return false;
     }
 
     AVPacket packet;
@@ -294,7 +294,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
                     av_frame_free(&targetFrame);
                     sws_freeContext(swsContext);
                     avformat_close_input(&formatContext);
-                    return NULL;
+                    return false;
                 }
 
                 scalingResult = sws_scale(swsContext, videoFrame->data, videoFrame->linesize,
@@ -319,7 +319,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
                         sws_freeContext(swsContext);
                         avformat_close_input(&formatContext);
                         free (fmemory.data);
-                        return NULL;
+                        return false;
                     }
 
                     //int pitch = imagesize/height;
@@ -375,7 +375,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
     av_frame_free(&targetFrame);
     sws_freeContext(swsContext);
     avformat_close_input(&formatContext);
-    return NULL;
+    return false;
 }
 
 #endif
