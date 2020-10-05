@@ -163,25 +163,12 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
         return false;
     }
 
-    AVPixelFormat sourcePixelFormat = codecContext.pix_fmt;
-    AVPixelFormat targetPixelFormat = AV_PIX_FMT_BGR24; //raw data expected by freeimage is in this format
-    SwsContext* swsContext = sws_getContext(width, height, sourcePixelFormat,
-                                            width, height, targetPixelFormat,
-                                            SWS_FAST_BILINEAR, NULL, NULL, NULL);
-    if (!swsContext)
-    {
-        LOG_warn << "SWS Context not found: " << sourcePixelFormat;
-        avformat_close_input(&formatContext);
-        return false;
-    }
-
     // Find decoder for video stream
     AVCodecID codecId = codecContext.codec_id;
     AVCodec* decoder = avcodec_find_decoder(codecId);
     if (!decoder)
     {
         LOG_warn << "Codec not found: " << codecId;
-        sws_freeContext(swsContext);
         avformat_close_input(&formatContext);
         return false;
     }
@@ -192,6 +179,18 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
     if (decoder->capabilities & CAP_TRUNCATED)
     {
         codecContext.flags |= CAP_TRUNCATED;
+    }
+
+    AVPixelFormat sourcePixelFormat = codecContext.pix_fmt;
+    AVPixelFormat targetPixelFormat = AV_PIX_FMT_BGR24; //raw data expected by freeimage is in this format
+    SwsContext* swsContext = sws_getContext(width, height, sourcePixelFormat,
+                                            width, height, targetPixelFormat,
+                                            SWS_FAST_BILINEAR, NULL, NULL, NULL);
+    if (!swsContext)
+    {
+        LOG_warn << "SWS Context not found: " << sourcePixelFormat;
+        avformat_close_input(&formatContext);
+        return false;
     }
 
     // Open codec
