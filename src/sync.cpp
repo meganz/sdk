@@ -2091,6 +2091,17 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTab
         }
     }
 
+    // Was this sn representing a blocked file?
+    if (row.syncNode && row.syncNode->type == TYPE_UNKNOWN)
+    {
+        // Have we been able to complete a scan for the sn?
+        if (row.fsNode && row.fsNode->type != TYPE_UNKNOWN)
+        {
+            // Complete initialization of the sn.
+            row.syncNode->init(*row.fsNode);
+        }
+    }
+
     if (row.syncNode && (
         row.syncNode->useBlocked >= TREE_DESCENDANT_FLAGGED ||
         row.syncNode->scanBlocked >= TREE_DESCENDANT_FLAGGED))
@@ -2282,13 +2293,15 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPa
         assert(row.fsNode->fingerprint.isvalid);
         *static_cast<FileFingerprint*>(l) = row.fsNode->fingerprint;
     }
+
     l->init(this, row.fsNode->type, parentRow.syncNode, fullPath, std::move(row.fsNode->shortname));
-    assert(row.fsNode->fsid != UNDEF);
     l->setfsid(row.fsNode->fsid, client->localnodeByFsid);
+
     if (l->type != FILENODE)
     {
         l->setFutureScan(true, true);
     }
+
     l->treestate(TREESTATE_PENDING);
     statecacheadd(l);
 

@@ -553,6 +553,9 @@ public:
     LocalNode();
     void init(Sync*, nodetype_t, LocalNode*, LocalPath&, std::unique_ptr<LocalPath>);
 
+    // Reinitialize an UNKNOWN node.
+    void init(const FSNode& fsNode);
+
     bool serialize(string*) override;
     static LocalNode* unserialize( Sync* sync, const string* sData );
 

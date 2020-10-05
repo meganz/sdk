@@ -1387,7 +1387,57 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     sync->client->syncactivity = true;
 
     sync->client->totalLocalNodes++;
-    sync->localnodes[type]++;
+
+    if (type != TYPE_UNKNOWN)
+    {
+        sync->localnodes[type]++;
+    }
+}
+
+void LocalNode::init(const FSNode& fsNode)
+{
+    // Must have been previously initialized.
+    assert(sync);
+
+    // Node we're initializing from must not be unknown.
+    assert(fsNode.type != TYPE_UNKNOWN);
+
+    // Must have been created to represent a blocked node.
+    assert(type == TYPE_UNKNOWN);
+
+    // Have we gained a shortname?
+    if (fsNode.shortname && fsNode.localname != *fsNode.shortname)
+    {
+        // Unknown nodes shouldn't have a prior shortname.
+        assert(!slocalname);
+
+        slocalname.reset(new LocalPath(*fsNode.shortname));
+
+        // Unknown nodes should never be the root.
+        assert(parent);
+
+        // Link us to our parent.
+        parent->schildren[slocalname.get()] = this;
+    }
+
+    // Update our fingerprint.
+    static_cast<FileFingerprint&>(*this) = fsNode.fingerprint;
+
+    // Update our FSID.
+    setfsid(fsNode.fsid, sync->client->localnodeByFsid);
+
+    // Update our type.
+    type = fsNode.type;
+
+    // Update node counts.
+    ++sync->localnodes[type];
+
+    // Make sure directories get change notifications.
+    if (type == FOLDERNODE)
+    {
+        const auto path = getLocalPath(true);
+        sync->dirnotify->addnotify(this, path);
+    }
 }
 
 auto LocalNode::rare() -> RareFields&
@@ -1681,7 +1731,11 @@ LocalNode::~LocalNode()
     }
 
     sync->client->totalLocalNodes--;
-    sync->localnodes[type]--;
+
+    if (type != TYPE_UNKNOWN)
+    {
+        sync->localnodes[type]--;
+    }
 
     if (type == FOLDERNODE)
     {
