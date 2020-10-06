@@ -4815,18 +4815,18 @@ bool MegaClient::procsc()
                         // If is is a move (because the next actionpacket is newnodes with a root of that deleted node)
                         // then exit this loop to process syncdown after the newnodes are processed.
 
-                        if (name != 't')
-                        {
-                            // run syncdown() to process the deletion before continuing
-                            applykeys();
+                        //if (name != 't')
+                        //{
+                        //    // run syncdown() to process the deletion before continuing
+                        //    applykeys();
 
-                            // remote changes require immediate attention of syncdown()
-                            setAllSyncsNeedFullSync();
-                            syncactivity = true;
+                        //    // remote changes require immediate attention of syncdown()
+                        //    setAllSyncsNeedFullSync();
+                        //    syncactivity = true;
 
-                            jsonsc.pos = actionpacketStart;
-                            return false;
-                        }
+                        //    jsonsc.pos = actionpacketStart;
+                        //    return false;
+                        //}
                     }
 
                     // only process server-client request if not marked as
@@ -4846,17 +4846,17 @@ bool MegaClient::procsc()
                                 // node update
                                 sc_updatenode();
 #ifdef ENABLE_SYNC
-                                if (!fetchingnodes)
-                                {
-                                    // run syncdown() before continuing
-                                    applykeys();
+                                //if (!fetchingnodes)
+                                //{
+                                //    // run syncdown() before continuing
+                                //    applykeys();
 
-                                    // remote changes require immediate attention of syncdown()
-                                    setAllSyncsNeedFullSync();
-                                    syncactivity = true;
+                                //    // remote changes require immediate attention of syncdown()
+                                //    setAllSyncsNeedFullSync();
+                                //    syncactivity = true;
 
-                                    return false;
-                                }
+                                //    return false;
+                                //}
 #endif
                                 break;
 
@@ -4892,18 +4892,18 @@ bool MegaClient::procsc()
                                         stop = true;
                                     }
 
-                                    if (stop)
-                                    {
-                                        // run syncdown() before continuing
-                                        applykeys();
+                                    //if (stop)
+                                    //{
+                                    //    // run syncdown() before continuing
+                                    //    applykeys();
 
-                                        // remote changes require immediate attention of syncdown()
-                                        setAllSyncsNeedFullSync();
-                                        syncactivity = true;
+                                    //    // remote changes require immediate attention of syncdown()
+                                    //    setAllSyncsNeedFullSync();
+                                    //    syncactivity = true;
 
-                                        return false;
-                                    }
-                                    else
+                                    //    return false;
+                                    //}
+                                    //else
                                     {
                                         newnodes = true;
                                     }
@@ -5041,18 +5041,18 @@ bool MegaClient::procsc()
                 jsonsc.leavearray();
                 insca = false;
 
-#ifdef ENABLE_SYNC
-                if (!fetchingnodes && newnodes)
-                {
-                    applykeys();
-
-                    // remote changes require immediate attention of syncdown()
-                    setAllSyncsNeedFullSync();
-                    syncactivity = true;
-
-                    return false;
-                }
-#endif
+//#ifdef ENABLE_SYNC
+//                if (!fetchingnodes && newnodes)
+//                {
+//                    applykeys();
+//
+//                    // remote changes require immediate attention of syncdown()
+//                    setAllSyncsNeedFullSync();
+//                    syncactivity = true;
+//
+//                    return false;
+//                }
+//#endif
             }
         }
     }
