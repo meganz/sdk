@@ -13659,8 +13659,8 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
 
     if (!e && t != USER_HANDLE)
     {
-        assert(!nn.empty() && nn.back().added && nn.back().mAddedHandle != UNDEF);
-        n = client->nodebyhandle(nn.back().mAddedHandle);
+        assert(!nn.empty() && nn.front().added && nn.front().mAddedHandle != UNDEF);
+        n = client->nodebyhandle(nn.front().mAddedHandle);
 
         if(n)
         {
