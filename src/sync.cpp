@@ -2069,26 +2069,34 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTab
         }
     }
 
-    if (row.syncNode && row.syncNode->useBlocked >= TREE_ACTION_HERE)
+    if (row.syncNode)
     {
-        if (!row.syncNode->rare().blockedTimer->armed())
+        if (row.syncNode->useBlocked >= TREE_ACTION_HERE)
         {
-            LOG_verbose << "Waiting on use blocked timer, retry in ds: " << row.syncNode->rare().blockedTimer->retryin() << logTriplet(row, fullPath);
-            return false;
+            if (!row.syncNode->rare().useBlockedTimer->armed())
+            {
+                LOG_verbose << "Waiting on use blocked timer, retry in ds: "
+                            << row.syncNode->rare().useBlockedTimer->retryin()
+                            << logTriplet(row, fullPath);
+                return false;
+            }
         }
-    }
 
-    if (row.syncNode && row.syncNode->scanBlocked >= TREE_ACTION_HERE)
-    {
-        if (row.syncNode->rare().blockedTimer->armed())
+        if (row.syncNode->scanBlocked >= TREE_ACTION_HERE)
         {
-            LOG_verbose << "Scan blocked timer elapsed, trigger parent rescan." << logTriplet(row, fullPath);
-            parentRow.syncNode->setFutureScan(true, false);
-        }
-        else
-        {
-            LOG_verbose << "Waiting on scan blocked timer, retry in ds: " << row.syncNode->rare().blockedTimer->retryin() << logTriplet(row, fullPath);
-            return false;
+            if (row.syncNode->rare().scanBlockedTimer->armed())
+            {
+                LOG_verbose << "Scan blocked timer elapsed, trigger parent rescan."
+                            << logTriplet(row, fullPath);
+                parentRow.syncNode->setFutureScan(true, false);
+            }
+            else
+            {
+                LOG_verbose << "Waiting on scan blocked timer, retry in ds: "
+                            << row.syncNode->rare().scanBlockedTimer->retryin()
+                            << logTriplet(row, fullPath);
+                return false;
+            }
         }
     }
 
@@ -2103,13 +2111,20 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTab
         }
     }
 
-    if (row.syncNode && (
-        row.syncNode->useBlocked >= TREE_DESCENDANT_FLAGGED ||
-        row.syncNode->scanBlocked >= TREE_DESCENDANT_FLAGGED))
+    // reset the flag for this node. Anything still blocked here or in the tree below will set it again.
+    if (row.syncNode)
     {
-        // reset the flag for this node. Anything still blocked here or in the tree below will set it again.
-        row.syncNode->scanBlocked = TREE_RESOLVED;
-        row.syncNode->rare().blockedTimer.reset();
+        if (row.syncNode->useBlocked >= TREE_DESCENDANT_FLAGGED)
+        {
+            row.syncNode->useBlocked = TREE_RESOLVED;
+            row.syncNode->rare().useBlockedTimer.reset();
+        }
+
+        if (row.syncNode->scanBlocked >= TREE_DESCENDANT_FLAGGED)
+        {
+            row.syncNode->scanBlocked = TREE_RESOLVED;
+            row.syncNode->rare().scanBlockedTimer.reset();
+        }
     }
 
     if (row.fsNode && (row.fsNode->type == TYPE_UNKNOWN || row.fsNode->isBlocked))

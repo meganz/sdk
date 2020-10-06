@@ -483,7 +483,8 @@ struct MEGA_API LocalNode : public File
     // We keep the average memory use by only alloating these when used.
     struct RareFields
     {
-        unique_ptr<BackoffTimer> blockedTimer;
+        unique_ptr<BackoffTimer> useBlockedTimer;
+        unique_ptr<BackoffTimer> scanBlockedTimer;
     };
 
 private:

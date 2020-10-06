@@ -1475,13 +1475,13 @@ void LocalNode::setUseBlocked()
 {
     useBlocked = std::max<unsigned>(useBlocked, TREE_ACTION_HERE);
 
-    if (!rare().blockedTimer)
+    if (!rare().useBlockedTimer)
     {
-        rare().blockedTimer.reset(new BackoffTimer(sync->client->rng));
+        rare().useBlockedTimer.reset(new BackoffTimer(sync->client->rng));
     }
-    if (rare().blockedTimer->armed())
+    if (rare().useBlockedTimer->armed())
     {
-        rare().blockedTimer->backoff(Sync::SCANNING_DELAY_DS);
+        rare().useBlockedTimer->backoff(Sync::SCANNING_DELAY_DS);
     }
 
     for (auto p = parent; p != NULL; p = p->parent)
@@ -1494,13 +1494,13 @@ void LocalNode::setScanBlocked()
 {
     scanBlocked = std::max<unsigned>(scanBlocked, TREE_ACTION_HERE);
 
-    if (!rare().blockedTimer)
+    if (!rare().scanBlockedTimer)
     {
-        rare().blockedTimer.reset(new BackoffTimer(sync->client->rng));
+        rare().scanBlockedTimer.reset(new BackoffTimer(sync->client->rng));
     }
-    if (rare().blockedTimer->armed())
+    if (rare().scanBlockedTimer->armed())
     {
-        rare().blockedTimer->backoff(Sync::SCANNING_DELAY_DS);
+        rare().scanBlockedTimer->backoff(Sync::SCANNING_DELAY_DS);
     }
 
     for (auto p = parent; p != NULL; p = p->parent)
