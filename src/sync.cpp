@@ -1804,17 +1804,8 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath, DBTableTransactionC
     // nothing to do for this subtree? Skip traversal
     if (!(row.syncNode->scanRequired() || row.syncNode->syncRequired()))
     {
-        if (mScanRequest &&
-            localPath.isContainingPathOf(static_cast<ScanService::ScanRequest*>(mScanRequest.get())->mTargetPath, client->fsaccess->localseparator))
-        {
-            // this can happen if, eg, we start scanning a folder, and later (but before scan completes) discover a new name clash in a parent folder
-            LOG_debug << "recursiveSync recursing anyway to get to scanning folder, at " << localPath.toPath(*client->fsaccess);
-        }
-        else
-        {
-            SYNC_verbose << "No syncing or scanning needed";
-            return true;
-        }
+        SYNC_verbose << "No syncing or scanning needed";
+        return true;
     }
 
     // make sure any subtree flags are passed to child nodes, so we can clear the flag at this level
@@ -1894,6 +1885,9 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath, DBTableTransactionC
             effectiveFsChildren = &fsChildren;
         }
     }
+
+    // Have we encountered the scan target?
+    client->mSyncFlags.scanTargetReachable |= mScanRequest && mScanRequest->matches(*row.syncNode);
 
     // Get sync triplets.
     auto childRows = computeSyncTriplets(row.cloudNode, *row.syncNode, *effectiveFsChildren);

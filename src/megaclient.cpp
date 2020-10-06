@@ -3036,7 +3036,17 @@ void MegaClient::exec()
 
                             DBTableTransactionCommitter committer(tctable);
                             Sync::syncRow row{sync->cloudRoot(), sync->localroot.get(), nullptr};
+
+                            // Will be re-set if we can reach the scan target.
+                            mSyncFlags.scanTargetReachable = false;
+
                             sync->recursiveSync(row, pathBuffer, committer);
+
+                            // Cancel the scan request if we couldn't reach the scan target.
+                            if (!mSyncFlags.scanTargetReachable)
+                            {
+                                sync->mScanRequest.reset();
+                            }
 
                             //{
                             //    // a local filesystem item was locked - schedule periodic retry

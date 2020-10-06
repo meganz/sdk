@@ -512,9 +512,11 @@ public:
         // this gets set if we start any moves/renames
         bool actionedMovesRenames = false;
 
+        // whether the target of an asynchronous scan request is reachable.
+        bool scanTargetReachable = false;
+
         // we can only add/remove upload/download nodes (deleting moved-from LocalNodes in particular)
         bool scansAndMovesComplete = false;
-
     };
 
     SyncFlags mSyncFlags;
