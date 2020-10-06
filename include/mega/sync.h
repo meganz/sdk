@@ -69,9 +69,6 @@ public:
 
         MEGA_DISABLE_COPY_MOVE(Request);
 
-        // Whether the target of this scan is below node.
-        virtual bool below(const LocalNode& node) const = 0;
-
         // Whether the request is complete.
         virtual bool completed() const = 0;
 
@@ -130,11 +127,6 @@ private:
                     LocalPath targetPath);
 
         MEGA_DISABLE_COPY_MOVE(ScanRequest);
-
-        bool below(const LocalNode& node) const
-        {
-            return mTarget.isBelow(node);
-        }
 
         bool completed() const override
         {
