@@ -27,6 +27,7 @@
 #define PREFER_STDARG
 
 #ifndef NO_READLINE
+#include <signal.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #endif
@@ -7967,8 +7968,52 @@ void megacli()
     }
 }
 
+#ifndef NO_READLINE
+
+static void onFatalSignal(int signum)
+{
+    // Restore the terminal's settings.
+    rl_callback_handler_remove();
+
+    // Re-trigger the signal.
+    raise(signum);
+}
+
+static void registerSignalHandlers()
+{
+    std::vector<int> signals = {
+        SIGABRT,
+        SIGBUS,
+        SIGILL,
+        SIGKILL,
+        SIGSEGV,
+        SIGTERM
+    }; // signals
+
+    struct sigaction action;
+
+    action.sa_handler = &onFatalSignal;
+
+    // Restore default signal handler after invoking our own.
+    action.sa_flags = SA_NODEFER | SA_RESETHAND;
+
+    // Don't ignore any signals.
+    sigemptyset(&action.sa_mask);
+
+    for (int signal : signals)
+    {
+        (void)sigaction(signal, &action, nullptr);
+    }
+}
+
+#endif // ! NO_READLINE
+
 int main()
 {
+#ifndef NO_READLINE
+    registerSignalHandlers();
+#endif // NO_READLINE
+
 #ifdef _WIN32
     SimpleLogger::setLogLevel(logMax);  // warning and stronger to console; info and weaker to VS output window
     SimpleLogger::setOutputClass(&gLogger);
