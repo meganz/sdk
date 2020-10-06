@@ -1546,7 +1546,7 @@ struct StandardClient : public MegaApp
         const auto handle = syncSet.at(syncId).h;
         const auto node = client.nodebyhandle(handle);
         EXPECT_TRUE(node);
-        client.delsync(node->localnode->sync);
+        client.delsync(syncByTag(syncId));
         return true;
     }
 
@@ -1676,11 +1676,13 @@ struct StandardClient : public MegaApp
         }
         if (localNodesMustHaveNodes)
         {
-            EXPECT_TRUE(n->node != nullptr);
+            EXPECT_TRUE(!n->syncedCloudNodeHandle.isUndef());
+            EXPECT_TRUE(!!client.nodeByHandle(n->syncedCloudNodeHandle));
         }
-        if (depth && n->node)
+        Node* syncedNode = client.nodeByHandle(n->syncedCloudNodeHandle);
+        if (depth && syncedNode)
         {
-            string name = client.fsaccess->canonicalize(n->node->displayname());
+            string name = client.fsaccess->canonicalize(syncedNode->displayname());
             EXPECT_EQ(name, n->name);
         }
         if (depth && mn->parent)
@@ -1691,12 +1693,13 @@ struct StandardClient : public MegaApp
             string parentpath = n->parent->getLocalPath(false).toName(*client.fsaccess);
             EXPECT_EQ(localpath.substr(0, parentpath.size()), parentpath);
         }
-        if (n->node && n->parent && n->parent->node)
+        Node* parentSyncedNode = n->parent ? client.nodeByHandle(n->parent->syncedCloudNodeHandle) : nullptr;
+        if (syncedNode && n->parent && parentSyncedNode)
         {
-            string p = n->node->displaypath();
-            string pp = n->parent->node->displaypath();
+            string p = syncedNode->displaypath();
+            string pp = parentSyncedNode->displaypath();
             EXPECT_EQ(p.substr(0, pp.size()), pp);
-            EXPECT_EQ(n->parent->node, n->node->parent);
+            EXPECT_EQ(parentSyncedNode, syncedNode->parent);
         }
 
         multimap<string, Model::ModelNode*> ms;
@@ -1816,7 +1819,7 @@ struct StandardClient : public MegaApp
             ms.emplace(std::move(name), m.get());
         }
 
-        for (fs::directory_iterator pi(p); pi != fs::directory_iterator(); ++pi) 
+        for (fs::directory_iterator pi(p); pi != fs::directory_iterator(); ++pi)
         {
             string name = pi->path().filename().u8string();
 
@@ -2120,7 +2123,7 @@ struct StandardClient : public MegaApp
                     if (sync->deleteq.size() || sync->insertq.size())
                         any_add_del = true;
                 }
-                if (!(client.todebris.empty() && client.tounlink.empty() && client.synccreate.empty()))
+                if (!(client.todebris.empty() && client.tounlink.empty()) )// && client.synccreate.empty()))
                 {
                     any_add_del = true;
                 }
@@ -2157,7 +2160,7 @@ struct StandardClient : public MegaApp
     }
 
     bool conflictsDetected(string& parentName,
-                           string& parentPath,
+                           LocalPath& parentPath,
                            string_vector& names,
                            bool& remote)
     {
@@ -2330,7 +2333,7 @@ void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1
                     if (sync->deleteq.size() || sync->insertq.size())
                         any_add_del = true;
                 }
-                if (!(mc.client.todebris.empty() && mc.client.tounlink.empty() && mc.client.synccreate.empty()
+                if (!(mc.client.todebris.empty() && mc.client.tounlink.empty() //&& mc.client.synccreate.empty()
                     && mc.client.transferlist.transfers[GET].empty() && mc.client.transferlist.transfers[PUT].empty()))
                 {
                     any_add_del = true;
@@ -4004,7 +4007,7 @@ TEST(Sync, DetectsAndReportsNameClashes)
 
     StandardClient client(TESTFOLDER, "c");
     string parentName;
-    string parentPath;
+    LocalPath parentPath;
     string_vector names;
     bool remote;
 
@@ -4032,7 +4035,7 @@ TEST(Sync, DetectsAndReportsNameClashes)
 
     // Were any conflicts detected?
     ASSERT_TRUE(client.conflictsDetected());
-    
+
     // Can we obtain a list of the conflicts?
     ASSERT_TRUE(client.conflictsDetected(parentName, parentPath, names, remote));
     ASSERT_EQ(parentName, "d");
