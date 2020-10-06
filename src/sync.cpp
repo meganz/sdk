@@ -1438,8 +1438,8 @@ void Sync::procscanq(int q)
             LocalPath remainder;
             LocalNode *deepestParent;
             LocalNode *matching = localnodebypath(l, notification.path, &deepestParent, &remainder);
-            if (LocalNode *deepest = matching && remainder.empty() ? matching :
-                (matching && matching->parent ? matching->parent : deepestParent))
+
+            if (LocalNode* deepest = matching && matching->parent ? matching->parent : deepestParent)
             {
                 deepest->setFutureScan(true, !remainder.empty());
                 client->filesystemNotificationsQuietTime = Waiter::ds + (isnetwork && l->type == FILENODE ? Sync::EXTRA_SCANNING_DELAY_DS : SCANNING_DELAY_DS);
