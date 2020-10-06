@@ -4179,22 +4179,22 @@ public class MegaApiJava {
 
     /**
      * Set node label as a node attribute.
-     * 
      * Valid values for label attribute are:
-     * - MegaNode::NODE_LBL_UNKNOWN = 0
-     * - MegaNode::NODE_LBL_RED = 1
-     * - MegaNode::NODE_LBL_ORANGE = 2
-     * - MegaNode::NODE_LBL_YELLOW = 3
-     * - MegaNode::NODE_LBL_GREEN = 4
-     * - MegaNode::NODE_LBL_BLUE = 5
-     * - MegaNode::NODE_LBL_PURPLE = 6
-     * - MegaNode::NODE_LBL_GREY = 7
+     *  - MegaNode::NODE_LBL_UNKNOWN = 0
+     *  - MegaNode::NODE_LBL_RED = 1
+     *  - MegaNode::NODE_LBL_ORANGE = 2
+     *  - MegaNode::NODE_LBL_YELLOW = 3
+     *  - MegaNode::NODE_LBL_GREEN = 4
+     *  - MegaNode::NODE_LBL_BLUE = 5
+     *  - MegaNode::NODE_LBL_PURPLE = 6
+     *  - MegaNode::NODE_LBL_GREY = 7
      *
-     * Valid data in the MEGARequest object received on callbacks:
-     * - MegaRequest::getNodeHandle() - Returns the handle of the node that receive the attribute
-     * - MegaRequest::getNumDetails() - Returns the label for the node
-     * - MegaRequest::getFlag() - Returns YES (official attribute)
-     * - MegaRequest::getParamType() - Returns MEGANode Label attribute
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumDetails - Returns the label for the node
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_LABEL
      *
      * @param node Node that will receive the information.
      * @param label Label of the node
@@ -4206,22 +4206,22 @@ public class MegaApiJava {
 
     /**
      * Set node label as a node attribute.
-     * 
      * Valid values for label attribute are:
-     * - MegaNode::NODE_LBL_UNKNOWN = 0
-     * - MegaNode::NODE_LBL_RED = 1
-     * - MegaNode::NODE_LBL_ORANGE = 2
-     * - MegaNode::NODE_LBL_YELLOW = 3
-     * - MegaNode::NODE_LBL_GREEN = 4
-     * - MegaNode::NODE_LBL_BLUE = 5
-     * - MegaNode::NODE_LBL_PURPLE = 6
-     * - MegaNode::NODE_LBL_GREY = 7
+     *  - MegaNode::NODE_LBL_UNKNOWN = 0
+     *  - MegaNode::NODE_LBL_RED = 1
+     *  - MegaNode::NODE_LBL_ORANGE = 2
+     *  - MegaNode::NODE_LBL_YELLOW = 3
+     *  - MegaNode::NODE_LBL_GREEN = 4
+     *  - MegaNode::NODE_LBL_BLUE = 5
+     *  - MegaNode::NODE_LBL_PURPLE = 6
+     *  - MegaNode::NODE_LBL_GREY = 7
      *
-     * Valid data in the MEGARequest object received on callbacks:
-     * - MegaRequest::getNodeHandle() - Returns the handle of the node that receive the attribute
-     * - MegaRequest::getNumDetails() - Returns the label for the node
-     * - MegaRequest::getFlag() - Returns YES (official attribute)
-     * - MegaRequest::getParamType() - Returns MEGANode Label attribute
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumDetails - Returns the label for the node
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_LABEL
      *
      * @param node Node that will receive the information.
      * @param label Label of the node
@@ -4233,10 +4233,11 @@ public class MegaApiJava {
     /**
      * Remove node label
      *
-     * Valid data in the MEGARequest object received on callbacks:
-     * - MegaRequest::getNodeHandle() - Returns the handle of the node that receive the attribute
-     * - MegaRequest::getFlag() - Returns YES (official attribute)
-     * - MegaRequest::getParamType() - Returns MEGANode Label attribute
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_LABEL
      *
      * @param node Node that will receive the information.
      * @param listener MegaRequestListener to track this request
@@ -4248,10 +4249,11 @@ public class MegaApiJava {
     /**
      * Remove node label
      *
-     * Valid data in the MEGARequest object received on callbacks:
-     * - MegaRequest::getNodeHandle() - Returns the handle of the node that receive the attribute
-     * - MegaRequest::getFlag() - Returns YES (official attribute)
-     * - MegaRequest::getParamType() - Returns MEGANode Label attribute
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_LABEL
      *
      * @param node Node that will receive the information.
      */
@@ -4262,14 +4264,15 @@ public class MegaApiJava {
     /**
      * Set node favourite as a node attribute.
      *
-     * Valid data in the MEGARequest object received on callbacks:
-     * - MegaRequest::getNodeHandle() - Returns the handle of the node that receive the attribute
-     * - MegaRequest::getNumDetails() - Returns 1 if node is set as favourite, otherwise return 0
-     * - MegaRequest::getFlag() - Returns YES (official attribute)
-     * - MegaRequest::getParamType() - Returns MEGANode Favourite attribute
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumDetails - Returns 1 if node is set as favourite, otherwise return 0
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_FAV
      *
      * @param node Node that will receive the information.
-     * @param favourite if YES set node as favourite, otherwise remove the attribute
+     * @param favourite if true set node as favourite, otherwise remove the attribute
      * @param listener MegaRequestListener to track this request
      */
     public void setNodeFavourite(MegaNode node, boolean favourite, MegaRequestListenerInterface listener){
@@ -4279,14 +4282,15 @@ public class MegaApiJava {
     /**
      * Set node favourite as a node attribute.
      *
-     * Valid data in the MEGARequest object received on callbacks:
-     * - MegaRequest::getNodeHandle() - Returns the handle of the node that receive the attribute
-     * - MegaRequest::getNumDetails() - Returns 1 if node is set as favourite, otherwise return 0
-     * - MegaRequest::getFlag() - Returns YES (official attribute)
-     * - MegaRequest::getParamType() - Returns MEGANode Favourite attribute
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumDetails - Returns 1 if node is set as favourite, otherwise return 0
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_FAV
      *
      * @param node Node that will receive the information.
-     * @param favourite if YES set node as favourite, otherwise remove the attribute
+     * @param favourite if true set node as favourite, otherwise remove the attribute
      */
     public void setNodeFavourite(MegaNode node, boolean favourite){
         megaApi.setNodeFavourite(node, favourite);
