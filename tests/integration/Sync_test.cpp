@@ -1711,7 +1711,7 @@ struct StandardClient : public MegaApp
         }
         for (auto& n2 : n->children)
         {
-            if (!n2.second->deleted) ns.emplace(n2.second->name, n2.second); // todo: should LocalNodes marked as deleted actually have been removed by now?
+            ns.emplace(n2.second->name, n2.second); // todo: should LocalNodes marked as deleted actually have been removed by now?
         }
 
         int matched = 0;
@@ -2338,6 +2338,10 @@ void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1
                 {
                     any_add_del = true;
                 }
+                if (mc.client.isAnySyncSyncing())
+                {
+                    any_add_del = true;
+                }
                 if (mc.client.reqs.cmdsInflight())
                 {
                     // helps with waiting for 500s to pass
@@ -2730,7 +2734,7 @@ GTEST_TEST(Sync, BasicSync_DelRemoteFolder)
     // delete something remotely and let sync catch up
     future<bool> fb = clientA1.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.deleteremote("f/f_2/f_2_1", pb); });
     ASSERT_TRUE(waitonresults(&fb));
-    waitonsyncs(std::chrono::seconds(60), &clientA1, &clientA2);
+    waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
 
     // check everything matches in both syncs (model has expected state of remote and local)
     ASSERT_TRUE(model.movetosynctrash("f/f_2/f_2_1", "f"));
@@ -2766,7 +2770,7 @@ GTEST_TEST(Sync, BasicSync_DelLocalFolder)
     ASSERT_TRUE(fs::remove_all(clientA1.syncSet[1].localpath / "f_2" / "f_2_1", e) != static_cast<std::uintmax_t>(-1)) << e;
 
     // let them catch up
-    waitonsyncs(std::chrono::seconds(60), &clientA1, &clientA2);
+    waitonsyncs(std::chrono::seconds(4), &clientA1, &clientA2);
 
     // check everything matches (model has expected state of remote and local)
     ASSERT_TRUE(model.movetosynctrash("f/f_2/f_2_1", "f"));

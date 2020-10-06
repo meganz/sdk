@@ -3018,8 +3018,14 @@ void MegaClient::exec()
                 }
             }
 
+            bool tooSoon = filesystemNotificationsQuietTime &&
+                           filesystemNotificationsQuietTime > Waiter::ds;
+
+
+            LOG_debug << clientname << "tooSoon: " << tooSoon << "syncing: " << isAnySyncSyncing() << " current: " << statecurrent;
+
             // We must have statecurrent so that any LocalNode created can straight away indicate if it matched a Node
-            if (statecurrent && isAnySyncSyncing())
+            if (statecurrent && isAnySyncSyncing() && !tooSoon)
             {
                 // Flags across all syncs, referred to in recursiveSync().
                 // Start with them all false

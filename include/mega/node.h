@@ -452,8 +452,8 @@ struct MEGA_API LocalNode : public File
         // fsids have been assigned in this node.
         bool assigned : 1;
 
-        // was actively deleted
-        bool deleted : 1;                // todo: do we stil need this (not cleared by node/localnode ptr anymore)
+        // disappeared from local FS; we are moving the cloud node to the trash.
+        bool deleting : 1;
 
         // has been created remotely
         bool created : 1;

@@ -318,6 +318,8 @@ public:
 
         vector<Node*> cloudClashingNames;
         vector<FSNode*> fsClashingNames;
+
+        bool suppressRecursion = false;
     };
 
     vector<syncRow> computeSyncTriplets(Node* cloudNode,

@@ -1312,7 +1312,7 @@ void LocalNode::bumpnagleds()
 }
 
 LocalNode::LocalNode()
-: deleted{false}
+: deleting{false}
 , created{false}
 , reported{false}
 , checked{false}
@@ -1328,7 +1328,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     //node = NULL;
     notseen = 0;
     assigned = true;
-    deleted = false;
+    deleting = false;
     created = false;
     reported = false;
     conflicts = TREE_RESOLVED;

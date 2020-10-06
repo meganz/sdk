@@ -20,6 +20,25 @@ std::ostream& out()
 
 namespace {
 
+std::string getCurrentTimestamp()
+{
+    using std::chrono::system_clock;
+    auto currentTime = std::chrono::system_clock::now();
+    char buffer[80];
+
+    auto transformed = currentTime.time_since_epoch().count() / 1000000;
+
+    auto millis = transformed % 1000;
+
+    std::time_t tt;
+    tt = system_clock::to_time_t ( currentTime );
+    auto timeinfo = localtime (&tt);
+    strftime (buffer,80,"%H:%M:%S",timeinfo);
+    sprintf(buffer, "%s:%03d",buffer,(int)millis);
+
+    return std::string(buffer);
+}
+
 class MegaLogger : public mega::Logger
 {
 public:
@@ -32,22 +51,7 @@ public:
         std::ostringstream os;
 
         os << "[";
-        if (time)
-        {
-            os << time;
-        }
-        else
-        {
-            auto t = std::time(NULL);
-            char ts[50];
-            struct tm dt;
-            mega::m_gmtime(t, &dt);
-            if (!std::strftime(ts, sizeof(ts), "%H:%M:%S", &dt))
-            {
-                ts[0] = '\0';
-            }
-            os << ts;
-        }
+        os << getCurrentTimestamp();
 #ifdef ENABLE_LOG_PERFORMANCE
         os << "] " << mega::SimpleLogger::toStr(static_cast<mega::LogLevel>(loglevel)) << ": ";
         if (message)

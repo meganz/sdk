@@ -1162,7 +1162,6 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
             }
             else
             {
-                // for now, these pointers are quite handy
                 Node* sourceCloudNode = client->nodeByHandle(sourceLocalNode->syncedCloudNodeHandle);
                 Node* targetCloudNode = client->nodeByHandle(parentRow.syncNode->syncedCloudNodeHandle);
 
@@ -1442,6 +1441,9 @@ void Sync::procscanq(int q)
             if (LocalNode* deepest = matching && matching->parent ? matching->parent : deepestParent)
             {
                 deepest->setFutureScan(true, !remainder.empty());
+
+                // todo:  for Sync::EXTRA_SCANNING_DELAY_DS, we should scan now but also scan again in 15 seconds
+
                 client->filesystemNotificationsQuietTime = Waiter::ds + (isnetwork && l->type == FILENODE ? Sync::EXTRA_SCANNING_DELAY_DS : SCANNING_DELAY_DS);
             }
         }
@@ -1799,7 +1801,7 @@ auto Sync::computeSyncTriplets(Node* cloudParent, const LocalNode& syncParent, v
 bool Sync::recursiveSync(syncRow& row, LocalPath& localPath, DBTableTransactionCommitter& committer)
 {
     assert(row.syncNode);
-    SYNC_verbose << "Entering folder with syncagain=" << row.syncNode->syncAgain << " scanagain=" << row.syncNode->scanAgain << " at " << localPath.toPath(*client->fsaccess);
+    SYNC_verbose << client->clientname << "Entering folder with syncagain=" << row.syncNode->syncAgain << " scanagain=" << row.syncNode->scanAgain << " at " << localPath.toPath(*client->fsaccess);
 
     // nothing to do for this subtree? Skip traversal
     if (!(row.syncNode->scanRequired() || row.syncNode->syncRequired()))
@@ -1853,6 +1855,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath, DBTableTransactionC
                 node.lastScanTime = Waiter::ds;
                 mScanRequest.reset();
                 row.syncNode->scanAgain = TREE_RESOLVED;
+                row.syncNode->setFutureSync(true, false);
                 syncHere = true;
             }
             else
@@ -1968,7 +1971,9 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath, DBTableTransactionC
             else
             {
                 // recurse after dealing with all items, so any renames within the folder have been completed
-                if (childRow.syncNode && childRow.syncNode->type == FOLDERNODE)
+                if (childRow.syncNode &&
+                    childRow.syncNode->type == FOLDERNODE &&
+                    !childRow.suppressRecursion)
                 {
                     if (!recursiveSync(childRow, localPath, committer))
                     {
@@ -1988,8 +1993,9 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath, DBTableTransactionC
         row.syncNode->lastFolderScan.reset();
     }
 
-    if ((syncHere && folderSynced) ||
-        (!syncHere && wasSynced))
+    if (client->mSyncFlags.scansAndMovesComplete &&
+        ((syncHere && folderSynced) ||
+        (!syncHere && wasSynced)))
     {
         row.syncNode->syncAgain = TREE_RESOLVED;
     }
@@ -2008,16 +2014,17 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath, DBTableTransactionC
         }
     }
 
-    //LOG_verbose << "Exiting folder with synced="
-    //            << folderSynced
-    //            << " subsync= "
-    //            << subfoldersSynced
-    //            << " syncagain="
-    //            << row.syncNode->syncAgain
-    //            << " scanagain="
-    //            << row.syncNode->scanAgain
-    //            << " at "
-    //            << localPath.toPath(*client->fsaccess);
+    SYNC_verbose << client->clientname
+                << "Exiting folder with synced="
+                << folderSynced
+                << " subsync= "
+                << subfoldersSynced
+                << " syncagain="
+                << row.syncNode->syncAgain
+                << " scanagain="
+                << row.syncNode->scanAgain
+                << " at "
+                << localPath.toPath(*client->fsaccess);
 
     return folderSynced && subfoldersSynced;
 }
@@ -2448,11 +2455,15 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fu
     if (client->mSyncFlags.scansAndMovesComplete)
     {
         // If the cloud node was moved to somewhere we can see it, we would have already made the corresponding fs move
-        LOG_debug << "Moving local item to local sync debris: " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
-        if (!movetolocaldebris(fullPath))
+        LOG_debug << client->clientname << "Moving local item to local sync debris: " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
+        if (movetolocaldebris(fullPath))
+        {
+            row.suppressRecursion = true;
+            parentRow.syncNode->setFutureScan(true, false);
+        }
+        else
         {
             LOG_err << "Failed to move to local debris:  " << fullPath.toPath(*client->fsaccess);
-
         }
     }
     return false;
@@ -2649,16 +2660,19 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullP
 {
     if (client->mSyncFlags.scansAndMovesComplete)
     {
-        // todo: what about moves, renames, etc.
-        LOG_debug << "Moving cloud item to cloud sync debris: " << row.cloudNode->displaypath() << logTriplet(row, fullPath);
-
-        // clear fsid so we don't assume it is present anymore in future passes
-        row.syncNode->setfsid(UNDEF, client->localnodeByFsid);
-
-        // remove the cloud node (we won't be called back here again while there is a pending command on the node)
-        // todo: double check that is the case - what if the debris folder has to be created first, is there a gap?
-        client->movetosyncdebris(row.cloudNode, inshare);
+        if (!row.syncNode->deleting)
+        {
+            LOG_debug << "Moving cloud item to cloud sync debris: " << row.cloudNode->displaypath() << logTriplet(row, fullPath);
+            client->movetosyncdebris(row.cloudNode, inshare);
+            row.syncNode->deleting = true;
+        }
     }
+
+    if (row.syncNode->deleting)
+    {
+        row.suppressRecursion = true;
+    }
+
     return false;
 }
 
