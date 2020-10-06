@@ -13276,18 +13276,22 @@ void MegaApiImpl::backupput_result(const Error& e, handle backupId)
     if (requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || (request->getType() != MegaRequest::TYPE_BACKUP_PUT)) return;
-
     request->setParentHandle(backupId);
     mHeartBeatMonitor->digestPutResult(backupId);
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::backupupdate_result(const Error& e, handle /*backupId*/)
+void MegaApiImpl::backupupdate_result(const Error& e, handle backupId)
 {
+    if (e || backupId == UNDEF)
+    {
+        LOG_err << "backupupdate_result failed: " << MegaError::getErrorString(e);
+    }
+
     if (requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || (request->getType() != MegaRequest::TYPE_BACKUP_PUT)) return;
-
+    request->setParentHandle(backupId);
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
@@ -22654,20 +22658,33 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_BACKUP_PUT:
         {
-            BackupType bType = request->getParamType() < INVALID || request->getParamType() > CAMERA_UPLOAD ?
-                               INVALID : static_cast<BackupType>(request->getParamType());
-            
+            BackupType bType = request->getTotalBytes() < INVALID || request->getTotalBytes() > CAMERA_UPLOAD ?
+                               INVALID : static_cast<BackupType>(request->getTotalBytes());
+            string id = client->getDeviceidHash();
             if (request->getParentHandle() == UNDEF) // Register a new sync
             {
                 string localFolder(binaryToBase64(request->getFile(), strlen(request->getFile())));
                 string extraData(binaryToBase64(request->getText(), strlen(request->getText())));
                 client->reqs.add(new CommandBackupPut(client, bType, request->getNodeHandle(),
-                                                      localFolder, client->getDeviceidHash(),
+                                                      localFolder, id,
                                                       request->getAccess(), request->getNumDetails(), extraData));
             }
             else // update a backup
             {
-                client->reqs.add(new CommandBackupPut(client, UNDEF, INVALID, request->getNodeHandle(), nullptr, nullptr, -1 /*state*/, -1/*substate*/, nullptr));
+                const char* file = request->getFile();
+                unique_ptr<char[]> localFolder(file ? binaryToBase64(file, strlen(file)) : nullptr);
+                const char* extra = request->getText();
+                unique_ptr<char[]> extraData(extra ? binaryToBase64(extra, strlen(extra)) : nullptr);
+                unique_ptr<char[]> deviceId(binaryToBase64(id.c_str(), id.size()));
+                client->reqs.add(new CommandBackupPut(client,
+                                                      (MegaHandle)request->getParentHandle(), 
+                                                      bType,
+                                                      request->getNodeHandle(), 
+                                                      localFolder.get(), 
+                                                      deviceId.get(), 
+                                                      (uint8_t)request->getAccess(),
+                                                      (uint8_t)request->getNumDetails(),
+                                                      extraData.get()));
             }
             break;
         }
@@ -22816,7 +22833,7 @@ bool MegaApiImpl::tryLockMutexFor(long long time)
 void MegaApiImpl::setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_PUT, listener);
-    request->setParamType(backupType);
+    request->setTotalBytes(backupType);
     request->setNodeHandle(targetNode);
     request->setFile(localFolder);
     request->setName(backupName);
@@ -22837,17 +22854,46 @@ void MegaApiImpl::removeBackup(MegaHandle backupId, MegaRequestListener *listene
     waiter->notify();
 }
 
-void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener)
+void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_PUT, listener);
     request->setParentHandle(backupId);
-    request->setParamType(backupType);
-    request->setNodeHandle(targetNode);
-    request->setFile(localFolder);
-    request->setName(backupName);
-    request->setAccess(state);
-    request->setNumDetails(subState);
-    request->setText(extraData);
+
+    if (backupType != BackupType::INVALID)
+    {
+        request->setTotalBytes(backupType);
+    }
+
+    if (targetNode != UNDEF)
+    {
+        request->setNodeHandle(targetNode);
+    }
+
+    if (localFolder)
+    {
+        request->setFile(localFolder);
+    }
+
+    if (deviceId)
+    {
+        request->setName(deviceId);
+    }
+
+    if (state > 0)
+    {
+        request->setAccess(state);
+    }
+
+    if (subState > 0)
+    {
+        request->setNumDetails(subState);
+    }
+
+    if (extraData)
+    {
+        request->setText(extraData);
+    }
+
     request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();

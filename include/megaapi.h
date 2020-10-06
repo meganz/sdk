@@ -3180,8 +3180,6 @@ class MegaRequest
          * - MegaApi::setUserAttribute - Returns the attribute type
          * - MegaApi::getUserAttribute - Returns the attribute type
          * - MegaApi::setMaxConnections - Returns the direction of transfers
-         * - MegaApi::setBackup - Returns the backup type
-         * - MegaApi::updateBackup - Returns the backup type
          * - MegaApi::sendBackupHeartbeat - number of backup files uploaded
          *
          * @return Type of parameter related to the request
@@ -3290,6 +3288,11 @@ class MegaRequest
 
         /**
          * @brief Returns the number of bytes that the SDK will have to transfer to finish the request
+         *
+         * In addition, this value is also valid for these requests:
+         * - MegaApi::setBackup - Returns the backup type
+         * - MegaApi::updateBackup - Returns the backup type
+         *
          * @return Number of bytes that the SDK will have to transfer to finish the request
          */
         virtual long long getTotalBytes() const;
@@ -17633,8 +17636,8 @@ class MegaApi
          */
         MegaApiLock* getMegaApiLock(bool lockNow);
 
-        void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
-        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode);
 

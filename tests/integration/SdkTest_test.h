@@ -198,6 +198,8 @@ public:
     std::mutex lastEventMutex;
     std::unique_ptr<MegaEvent> lastEvent;
 
+    MegaHandle mBackupId = UNDEF;
+
 protected:
     void SetUp() override;
     void TearDown() override;
