@@ -1028,21 +1028,6 @@ MegaBackgroundMediaUpload* MegaRequest::getMegaBackgroundMediaUploadPtr() const
     return NULL;
 }
 
-MegaHandle MegaRequest::getBackupId()
-{
-    return 0;
-}
-
-int MegaRequest::getBackupUploads()
-{
-    return 0;
-}
-
-int MegaRequest::getBackupDownloads()
-{
-    return 0;
-}
-
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()

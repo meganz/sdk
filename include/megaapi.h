@@ -2898,7 +2898,9 @@ class MegaRequest
          * - MegaApi::getUrlChat - Returns the handle of the chat
          * - MegaApi::grantAccessInChat - Returns the handle of the node
          * - MegaApi::removeAccessInChat - Returns the handle of the node
-         * - MegaApi::sendBackupHeartbeat - Returns the handle of the node
+         * - MegaApi::setBackup - Returns the target node of the backup
+         * - MegaApi::updateBackup - Returns the target node of the backup
+         * - MegaApi::sendBackupHeartbeat - Returns the last node backed up
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -2948,6 +2950,9 @@ class MegaRequest
          * - MegaApi::removeFromChat - Returns the handle of the user to be removed
          * - MegaApi::grantAccessInchat - Returns the chat identifier
          * - MegaApi::removeAccessInchat - Returns the chat identifier
+         * - MegaApi::removeBackup - Returns the backupId
+         * - MegaApi::updateBackup - Returns the backupId
+         * - MegaApi::sendBackupHeartbeat - Returns the backupId
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -2988,6 +2993,8 @@ class MegaRequest
          * - MegaApi::confirmAccount - Returns the name of the user
          * - MegaApi::fastConfirmAccount - Returns the name of the user
          * - MegaApi::getUserData - Returns the name of the user
+         * - MegaApi::setBackup - Returns the backup name
+         * - MegaApi::updateBackup - Returns the backup name
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -3088,6 +3095,7 @@ class MegaRequest
          * - MegaApi::inviteToChat - Returns the privilege level wanted for the user
          * - MegaApi::setBackup - Returns the backup state
          * - MegaApi::updateBackup - Returns the backup state
+         * - MegaApi::sendBackupHeartbeat - Returns the backup state
          *
          * @return Access level related to the request
          */
@@ -3174,6 +3182,7 @@ class MegaRequest
          * - MegaApi::setMaxConnections - Returns the direction of transfers
          * - MegaApi::setBackup - Returns the backup type
          * - MegaApi::updateBackup - Returns the backup type
+         * - MegaApi::sendBackupHeartbeat - number of backup files uploaded
          *
          * @return Type of parameter related to the request
          */
@@ -3369,6 +3378,7 @@ class MegaRequest
          * - MegaApi::setBackup - Returns the tag asociated with the backup
          * - MegaApi::syncFolder - Returns the tag asociated with the sync
          * - MegaApi::copySyncDataToCache - Returns the tag asociated with the sync
+         * - MegaApi::sendBackupHeartbeat - number of backup files downloaded
          *
          * @return Tag of a transfer related to the request
          */
@@ -3505,38 +3515,6 @@ class MegaRequest
          * @return Object with information about the contents of a folder
          */
         virtual MegaBackgroundMediaUpload* getMegaBackgroundMediaUploadPtr() const;
-
-        /**
-         * @brief Returns backup id
-         *
-         * This value is valid for these requests:
-         *  - MegaApi::setBackup
-         *  - MegaApi::updateBackup
-         *  - MegaApi::sendBackupHeartbeat
-         *
-         * @return backup id
-        */
-        virtual MegaHandle getBackupId();
-
-        /**
-         * @brief Returns number of backup files uploaded
-         *
-         * This value is valid for these requests:
-         *  - MegaApi::sendBackupHeartbeat
-         *
-         * @return number of backup files uploaded
-        */
-        virtual int getBackupUploads();
-        
-        /**
-         * @brief Returns number of backup files downloaded
-         *
-         * This value is valid for these requests:
-         *  - MegaApi::sendBackupHeartbeat
-         *
-         * @return number of backup files downloaded
-        */
-        virtual int getBackupDownloads();
 };
 
 /**
