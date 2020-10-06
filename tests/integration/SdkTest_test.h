@@ -156,11 +156,11 @@ public:
         string pwd;
         int lastError;
         int lastTransferError;
-        
+
         // flags to monitor the completion of requests/transfers
         bool requestFlags[MegaRequest::TOTAL_OF_REQUEST_TYPES];
         bool transferFlags[MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD];
-        
+
         std::unique_ptr<MegaContactRequest> cr;
         std::unique_ptr<MegaTimeZoneDetails> tzDetails;
         std::unique_ptr<MegaAccountDetails> accountDetails;
@@ -286,6 +286,10 @@ public:
     template<typename ... requestArgs> int doRequestLogout(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->logout(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doRequestLocalLogout(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->localLogout(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doSetNodeDuration(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setNodeDuration(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int doStartUpload(unsigned apiIndex, requestArgs... args) { TransferTracker tt(megaApi[apiIndex].get()); megaApi[apiIndex]->startUpload(args..., &tt); return tt.waitForResult(); }
+    template<typename ... requestArgs> int doSetFileVersionsOption(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setFileVersionsOption(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int doMoveNode(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->moveNode(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int doCopyNode(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->copyNode(args..., &rt); return rt.waitForResult(); }
 
     void createFile(string filename, bool largeFile = true);
     int64_t getFilesize(string filename);
