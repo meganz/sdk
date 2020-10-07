@@ -4668,15 +4668,20 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     ASSERT_EQ(MegaError::API_OK, err) << "sendBackupHeartbeat failed (error: " << err << ")";
 
     //// negative test cases
-    //// register the same backup twice: should report an error
+    //// register the same backup twice: should work fine
     //err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
+    //ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
+
+    //// create a backup with a big status: should report an error
+    //err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), 255/*state*/, subState, extraData.get());
     //ASSERT_NE(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
 
-    //remove backup and create a new one with a big status: should report an error
+    //// update a removed backup: should throw an error
     //err = synchronousRemoveBackup(0, mBackupId, nullptr);
     //ASSERT_EQ(MegaError::API_OK, err) << "removeBackup failed (error: " << err << ")";
-    //err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), 100/*state*/, subState, extraData.get());
-    //ASSERT_NE(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
+    //// update the removed backup
+    //err = synchronousUpdateBackup(0, mBackupId, BackupType::INVALID, UNDEF, nullptr, nullptr, -1, -1, extraData2.get());
+    //ASSERT_NE(MegaError::API_OK, err) << "updateBackup failed (error: " << err << ")";
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
