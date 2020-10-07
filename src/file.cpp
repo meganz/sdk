@@ -36,7 +36,6 @@ File::File()
     hforeign = false;
     syncxfer = false;
     temporaryfile = false;
-    h = UNDEF;
     tag = 0;
 }
 
@@ -212,7 +211,7 @@ File *File::unserialize(string *d)
     file->privauth.assign(privauth, privauthlen);
     file->pubauth.assign(pubauth, pubauthlen);
 
-    file->h = MemAccess::get<handle>(ptr);
+    file->h.set6byte(MemAccess::get<handle>(ptr));
     ptr += sizeof(handle);
 
     memcpy(file->filekey, ptr, FILENODEKEYLENGTH);
@@ -334,7 +333,7 @@ void File::completed(Transfer* t, LocalNode* l)
         }
         else
         {
-            handle th = h;
+            handle th = h.as8byte();
 
             // inaccessible target folder - use //bin instead
             if (!t->client->nodebyhandle(th))
@@ -434,7 +433,7 @@ void File::displayname(string* dname)
     {
         Node* n;
 
-        if ((n = transfer->client->nodebyhandle(h)))
+        if ((n = transfer->client->nodeByHandle(h)))
         {
             *dname = n->displayname();
         }
@@ -446,25 +445,14 @@ void File::displayname(string* dname)
 }
 
 #ifdef ENABLE_SYNC
-SyncFileGet::SyncFileGet(Sync* csync, Node* cn, const LocalPath& clocalname)
+SyncFileGet::SyncFileGet(LocalNode& ln, Node& n, const LocalPath& clocalname)
+    : localNode(ln)
 {
-    sync = csync;
-
-    n = cn;
-    h = n->nodehandle;
-    *(FileFingerprint*)this = *n;
+    h = n.nodeHandle();
+    *(FileFingerprint*)this = n;
     localname = clocalname;
 
     syncxfer = true;
-    n->syncget = this;
-}
-
-SyncFileGet::~SyncFileGet()
-{
-    if (n)
-    {
-        n->syncget = NULL;
-    }
 }
 
 // create sync-specific temp download directory and set unique filename
@@ -472,25 +460,28 @@ void SyncFileGet::prepare()
 {
     if (transfer->localfilename.empty())
     {
-        LocalPath tmpname = LocalPath::fromName("tmp", *sync->client->fsaccess, sync->mFilesystemType);
+        auto sync = localNode.sync;
+        auto client = sync->client;
+
+        LocalPath tmpname = LocalPath::fromName("tmp", *client->fsaccess, localNode.sync->mFilesystemType);
 
         if (!sync->tmpfa)
         {
-            sync->tmpfa = sync->client->fsaccess->newfileaccess();
+            sync->tmpfa = client->fsaccess->newfileaccess();
 
             int i = 3;
             while (i--)
             {
                 LOG_verbose << "Creating tmp folder";
                 transfer->localfilename = sync->localdebris;
-                sync->client->fsaccess->mkdirlocal(transfer->localfilename, true);
+                client->fsaccess->mkdirlocal(transfer->localfilename, true);
 
-                transfer->localfilename.appendWithSeparator(tmpname, true, sync->client->fsaccess->localseparator);
-                sync->client->fsaccess->mkdirlocal(transfer->localfilename);
+                transfer->localfilename.appendWithSeparator(tmpname, true, client->fsaccess->localseparator);
+                client->fsaccess->mkdirlocal(transfer->localfilename);
 
                 // lock it
-                LocalPath lockname = LocalPath::fromName("lock", *sync->client->fsaccess, sync->mFilesystemType);
-                transfer->localfilename.appendWithSeparator(lockname, true, sync->client->fsaccess->localseparator);
+                LocalPath lockname = LocalPath::fromName("lock", *client->fsaccess, sync->mFilesystemType);
+                transfer->localfilename.appendWithSeparator(lockname, true, client->fsaccess->localseparator);
 
                 if (sync->tmpfa->fopen(transfer->localfilename, false, true))
                 {
@@ -509,7 +500,7 @@ void SyncFileGet::prepare()
         if (sync->tmpfa)
         {
             transfer->localfilename = sync->localdebris;
-            transfer->localfilename.appendWithSeparator(tmpname, true, sync->client->fsaccess->localseparator);
+            transfer->localfilename.appendWithSeparator(tmpname, true, client->fsaccess->localseparator);
         }
         else
         {
@@ -517,8 +508,8 @@ void SyncFileGet::prepare()
         }
 
         LocalPath tmpfilename;
-        sync->client->fsaccess->tmpnamelocal(tmpfilename);
-        transfer->localfilename.appendWithSeparator(tmpfilename, true, sync->client->fsaccess->localseparator);
+        client->fsaccess->tmpnamelocal(tmpfilename);
+        transfer->localfilename.appendWithSeparator(tmpfilename, true, client->fsaccess->localseparator);
     }
 }
 
@@ -526,10 +517,11 @@ bool SyncFileGet::failed(error e)
 {
     bool retry = File::failed(e);
 
-    //if (n->parent && n->parent->localnode)
-    {
-        //n->parent->localnode->treestate(TREESTATE_PENDING);
+    auto sync = localNode.sync;
+    auto client = sync->client;
 
+    if (Node* n = client->nodeByHandle(h))
+    {
         if (!retry && (e == API_EBLOCKED || e == API_EKEY))
         {
             if (e == API_EKEY)
@@ -546,55 +538,45 @@ bool SyncFileGet::failed(error e)
 void SyncFileGet::progress()
 {
     File::progress();
-    //if (n->parent && n->parent->localnode && n->parent->localnode->ts != TREESTATE_SYNCING)
-    //{
-    //    n->parent->localnode->treestate(TREESTATE_SYNCING);
-    //}
+    localNode.treestate(TREESTATE_SYNCING);
 }
 
 // update localname (parent's localnode)
 void SyncFileGet::updatelocalname()
 {
-    attr_map::iterator ait;
+    auto sync = localNode.sync;
+    auto client = sync->client;
 
-    if ((ait = n->attrs.map.find('n')) != n->attrs.map.end())
+    if (Node* n = client->nodeByHandle(h))
     {
-        if (n->parent)
+        attr_map::iterator ait;
+        if ((ait = n->attrs.map.find('n')) != n->attrs.map.end())
         {
-            if (LocalNode* lnParent = sync->client->findLocalNodeByNodeHandle(n->parent->nodeHandle()))
+            if (n->parent)
             {
-                localname = lnParent->getLocalPath();
-                localname.appendWithSeparator(LocalPath::fromName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true, sync->client->fsaccess->localseparator);
+                if (LocalNode* lnParent = sync->client->findLocalNodeByNodeHandle(n->parent->nodeHandle()))
+                {
+                    localname = lnParent->getLocalPath();
+                    localname.appendWithSeparator(LocalPath::fromName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true, sync->client->fsaccess->localseparator);
+                }
             }
         }
     }
 }
 
 // add corresponding LocalNode (by path), then self-destruct
-void SyncFileGet::completed(Transfer*, LocalNode* localNode)
+void SyncFileGet::completed(Transfer*, LocalNode* )
 {
-
-    LocalPath remainder;
-    LocalNode* parent = nullptr;
-    LocalNode *ll = sync->localnodebypath(nullptr, localname, &parent, &remainder);
-    if (ll && parent) parent->setFutureScan(true, false);
-
-    //LocalNode *ll = sync->checkpath(NULL, &localname, nullptr, nullptr, false, nullptr);
-    //if (ll && ll != (LocalNode*)~0 && n
-    //        && (*(FileFingerprint *)ll) == (*(FileFingerprint *)n))
-    //{
-    //    LOG_debug << "LocalNode created, associating with remote Node";
-    //    ll->setnode(n);
-    //    ll->treestate(TREESTATE_SYNCED);
-    //    ll->sync->statecacheadd(ll);
-    //    ll->sync->cachenodes();
-    //}
-    delete this;
+    if (localNode.parent)
+    {
+        localNode.parent->setFutureScan(true, false);
+    }
+    localNode.download.reset(); // deletes this;
 }
 
 void SyncFileGet::terminated()
 {
-    delete this;
+    localNode.download.reset(); // deletes this;
 }
 #endif
 } // namespace

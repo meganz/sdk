@@ -549,9 +549,9 @@ Node *MegaClient::getrootnode(Node *node)
     return n;
 }
 
-bool MegaClient::isPrivateNode(handle h)
+bool MegaClient::isPrivateNode(NodeHandle h)
 {
-    Node *node = nodebyhandle(h);
+    Node *node = nodeByHandle(h);
     if (!node)
     {
         return false;
@@ -3738,7 +3738,7 @@ void MegaClient::dispatchTransfers()
                         if ((*it)->hprivate && !(*it)->hforeign)
                         {
                             // Make sure we have the size field
-                            Node* n = nodebyhandle((*it)->h);
+                            Node* n = nodeByHandle((*it)->h);
                             if (!n)
                             {
                                 missingPrivateNode = true;
@@ -3933,9 +3933,9 @@ void MegaClient::dispatchTransfers()
                         for (file_list::iterator it = nexttransfer->files.begin();
                             it != nexttransfer->files.end(); it++)
                         {
-                            if (!(*it)->hprivate || (*it)->hforeign || nodebyhandle((*it)->h))
+                            if (!(*it)->hprivate || (*it)->hforeign || nodeByHandle((*it)->h))
                             {
-                                h = (*it)->h;
+                                h = (*it)->h.as8byte();
                                 hprivate = (*it)->hprivate;
                                 privauth = (*it)->privauth.size() ? (*it)->privauth.c_str() : NULL;
                                 pubauth = (*it)->pubauth.size() ? (*it)->pubauth.c_str() : NULL;
@@ -15036,16 +15036,16 @@ Sync * MegaClient::getSyncContainingNodeHandle(mega::handle nodeHandle)
     return nullptr;
 }
 
-void MegaClient::cancelSyncgetsOutsideSync(Node* n)
-{
-    // if the new location is not synced, cancel all GET transfers
-    Sync* sync = getSyncContainingNodeHandle(n->nodehandle);
-    if (!sync)
-    {
-        TreeProcDelSyncGet tdsg;
-        proctree(n, &tdsg);
-    }
-}
+//void MegaClient::cancelSyncgetsOutsideSync(Node* n)
+//{
+//    // if the new location is not synced, cancel all GET transfers
+//    Sync* sync = getSyncContainingNodeHandle(n->nodehandle);
+//    if (!sync)
+//    {
+//        TreeProcDelSyncGet tdsg;
+//        proctree(n, &tdsg);
+//    }
+//}
 
 void MegaClient::failSyncs(SyncError syncError)
 {
@@ -15382,8 +15382,8 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             }
         }
 
-        assert( (ISUNDEF(f->h) && f->targetuser.size() && (f->targetuser.size() == 11 || f->targetuser.find("@")!=string::npos) ) // <- uploading to inbox
-                || (!ISUNDEF(f->h) && (nodebyhandle(f->h) || d == GET) )); // target handle for the upload should be known at this time (except for inbox uploads)
+        assert( (f->h.isUndef() && f->targetuser.size() && (f->targetuser.size() == 11 || f->targetuser.find("@")!=string::npos) ) // <- uploading to inbox
+                || (!f->h.isUndef() && (nodeByHandle(f->h) || d == GET) )); // target handle for the upload should be known at this time (except for inbox uploads)
     }
 
     return true;

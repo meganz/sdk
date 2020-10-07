@@ -655,7 +655,7 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time
 {
     if (n)
     {
-        h = n->nodehandle;
+        h = n->nodeHandle();
         hprivate = true;
 
         *(FileFingerprint*) this = *n;
@@ -663,7 +663,7 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time
     }
     else
     {
-        h = ch;
+        h.set6byte(ch);
         memcpy(filekey, cfilekey, sizeof filekey);
         hprivate = false;
 
@@ -692,7 +692,7 @@ AppFilePut::AppFilePut(const LocalPath& clocalname, handle ch, const char* ctarg
     localname = clocalname;
 
     // target parent node
-    h = ch;
+    h.set6byte(ch);
 
     // target user
     targetuser = ctargetuser;
@@ -2122,7 +2122,7 @@ void xferq(direction_t d, int cancel, bool showActive, bool showAll, bool showCo
                     else
                     {
                         string path;
-                        nodepath(f->h, &path);
+                        nodepath(f->h.as8byte(), &path);
                         cout << path;
                     }
                 }

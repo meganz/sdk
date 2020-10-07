@@ -45,6 +45,14 @@ string toNodeHandle(handle nodeHandle)
     return string(base64Handle);
 }
 
+string toNodeHandle(NodeHandle nodeHandle)
+{
+    char base64Handle[12];
+    handle h = nodeHandle.as8byte();
+    Base64::btoa((byte*)&(h), MegaClient::NODEHANDLE, base64Handle);
+    return string(base64Handle);
+}
+
 string toHandle(handle h)
 {
     char base64Handle[14];

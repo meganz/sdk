@@ -91,11 +91,11 @@ public:
 };
 
 #ifdef ENABLE_SYNC
-class MEGA_API TreeProcDelSyncGet : public TreeProc
-{
-public:
-    void proc(MegaClient*, Node*);
-};
+//class MEGA_API TreeProcDelSyncGet : public TreeProc
+//{
+//public:
+//    void proc(MegaClient*, Node*);
+//};
 
 class MEGA_API LocalTreeProc
 {

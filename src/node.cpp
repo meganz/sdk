@@ -47,9 +47,6 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     parent = NULL;
 
 #ifdef ENABLE_SYNC
-    //localnode = NULL;
-    syncget = NULL;
-
     syncdeleted = SYNCDEL_NONE;
     todebris_it = client->todebris.end();
     tounlink_it = client->tounlink.end();
@@ -190,18 +187,6 @@ Node::~Node()
     delete plink;
     delete inshare;
     delete sharekey;
-
-#ifdef ENABLE_SYNC
-    // sync: remove reference from local filesystem node
-    //if (localnode)
-    //{
-    //    localnode->deleted = true;
-    //    localnode->node = NULL;
-    //}
-
-    // in case this node is currently being transferred for syncing: abort transfer
-    delete syncget;
-#endif
 }
 
 string Node::canonicalname() const
@@ -1056,9 +1041,9 @@ bool Node::setparent(Node* p)
         client->mNodeCounters[nah] += nc;
     }
 
-#ifdef ENABLE_SYNC
-    client->cancelSyncgetsOutsideSync(this);
-#endif
+//#ifdef ENABLE_SYNC
+//    client->cancelSyncgetsOutsideSync(this);
+//#endif
 
     return true;
 }
@@ -1929,7 +1914,7 @@ LocalNode::Upload::Upload(LocalNode& ln, FSNode& details, NodeHandle targetFolde
     // setting the full path means it works like a normal non-sync transfer
     localname = fullPath;
 
-    h = targetFolder.as8byte();
+    h = targetFolder;
 
     hprivate = false;
     hforeign = false;
@@ -1959,18 +1944,19 @@ void LocalNode::Upload::completed(Transfer* t, LocalNode*)
 {
     // in case this LocalNode was moved around (todo: since we don't actually move, make sure to copy internals such as upload transfers)
 
-    h = UNDEF;
+    h = NodeHandle();
+
     if (localNode.parent && !localNode.parent->syncedCloudNodeHandle.isUndef())
     {
         if (Node* p = localNode.sync->client->nodeByHandle(localNode.parent->syncedCloudNodeHandle))
         {
-            h = p->nodehandle;
+            h = p->nodeHandle();
         }
     }
 
-    if (h == UNDEF)
+    if (h.isUndef())
     {
-        h = t->client->rootnodes[RUBBISHNODE - ROOTNODE];
+        h.set6byte(t->client->rootnodes[RUBBISHNODE - ROOTNODE]);
     }
 
     File::completed(t, &localNode);

@@ -282,11 +282,6 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     Fingerprints::iterator fingerprint_it;
 
 #ifdef ENABLE_SYNC
-    // related synced item or NULL
-    //LocalNode* localnode = nullptr;
-
-    // active sync get
-    struct SyncFileGet* syncget = nullptr;
 
     // state of removal to //bin / SyncDebris
     syncdel_t syncdeleted = SYNCDEL_NONE;
@@ -559,8 +554,7 @@ public:
     };
 
     unique_ptr<Upload> upload;
-
-    //void setnode(Node*);
+    unique_ptr<SyncFileGet> download;
 
     void setnotseen(int);
 

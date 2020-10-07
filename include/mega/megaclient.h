@@ -717,7 +717,7 @@ public:
     error changeSyncState(int tag, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent = true);
     error changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent);
 
-    void cancelSyncgetsOutsideSync(Node* n);
+    //void cancelSyncgetsOutsideSync(Node* n);
     Sync *getSyncContainingNodeHandle(mega::handle nodeHandle);
 
 #endif
@@ -1725,7 +1725,7 @@ public:
     Node *getrootnode(Node*);
 
     //returns true if the node referenced by the handle belongs to the logged-in account
-    bool isPrivateNode(handle h);
+    bool isPrivateNode(NodeHandle h);
 
     //returns true if the node referenced by the handle belongs to other account than the logged-in account
     bool isForeignNode(handle h);

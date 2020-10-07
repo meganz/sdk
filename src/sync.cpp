@@ -672,16 +672,6 @@ Sync::~Sync()
     // unlock tmp lock
     tmpfa.reset();
 
-    // stop all active and pending downloads
-    if (Node* cr = cloudRoot())
-    {
-        TreeProcDelSyncGet tdsg;
-        // Create a committer to ensure we update the transfer database in an efficient single commit,
-        // if there are transactions in progress.
-        DBTableTransactionCommitter committer(client->tctable);
-        client->proctree(cr, &tdsg);
-    }
-
     delete statecachetable;
 
     client->syncs.erase(sync_it);
@@ -2446,16 +2436,16 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPat
     {
         // download the file if we're not already downloading
         // if (alreadyExists), we will move the target to the trash when/if download completes //todo: check
-        if (!row.cloudNode->syncget)
+        if (!row.syncNode->download)
         {
             // FIXME: to cover renames that occur during the
             // download, reconstruct localname in complete()
             LOG_debug << "Start fetching file node";
             client->app->syncupdate_get(this, row.cloudNode, fullPath.toPath(*client->fsaccess).c_str());
 
-            row.cloudNode->syncget = new SyncFileGet(this, row.cloudNode, fullPath);
+            row.syncNode->download.reset(new SyncFileGet(*row.syncNode, *row.cloudNode, fullPath));
             client->nextreqtag();
-            client->startxfer(GET, row.cloudNode->syncget, committer);
+            client->startxfer(GET, row.syncNode->download.get(), committer);
 
             if (row.syncNode) row.syncNode->treestate(TREESTATE_SYNCING);
             else if (parentRow.syncNode) parentRow.syncNode->treestate(TREESTATE_SYNCING);

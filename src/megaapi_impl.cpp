@@ -4801,7 +4801,7 @@ MegaFile *MegaFile::unserialize(string *d)
 
 MegaFileGet::MegaFileGet(MegaClient *client, Node *n, const LocalPath& dstPath, FileSystemType fsType) : MegaFile()
 {
-    h = n->nodehandle;
+    h = n->nodeHandle();
     *(FileFingerprint*)this = *n;
 
     LocalPath lpName = LocalPath::fromName(n->displayname(), *client->fsaccess, fsType);
@@ -4833,7 +4833,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, Node *n, const LocalPath& dstPath, 
 
 MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, const LocalPath& dstPath) : MegaFile()
 {
-    h = n->getHandle();
+    h.set6byte(n->getHandle());
 
     FileSystemType fsType = client->fsaccess->getlocalfstype(dstPath);
 
@@ -4988,7 +4988,7 @@ MegaFilePut::MegaFilePut(MegaClient *, LocalPath clocalname, string *filename, h
     localname = std::move(clocalname);
 
     // target parent node
-    h = ch;
+    h.set6byte(ch);
 
     // target user
     targetuser = ctargetuser;
@@ -11949,7 +11949,7 @@ void MegaApiImpl::file_added(File *f)
 
         if (t->type == GET)
         {
-            transfer->setNodeHandle(f->h);
+            transfer->setNodeHandle(f->h.as8byte());
         }
         else
         {
@@ -11963,7 +11963,7 @@ void MegaApiImpl::file_added(File *f)
             else
 #endif
             {
-                transfer->setParentHandle(f->h);
+                transfer->setParentHandle(f->h.as8byte());
             }
         }
 

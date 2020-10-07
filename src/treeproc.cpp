@@ -98,14 +98,14 @@ void TreeProcApplyKey::proc(MegaClient *client, Node *n)
 
 #ifdef ENABLE_SYNC
 // stop sync get
-void TreeProcDelSyncGet::proc(MegaClient*, Node* n)
-{
-    if (n->syncget)
-    {
-        delete n->syncget;
-        n->syncget = NULL;
-    }
-}
+//void TreeProcDelSyncGet::proc(MegaClient*, Node* n)
+//{
+//    if (n->syncget)
+//    {
+//        delete n->syncget;
+//        n->syncget = NULL;
+//    }
+//}
 
 LocalTreeProcMove::LocalTreeProcMove(Sync* sync, bool recreate)
 {

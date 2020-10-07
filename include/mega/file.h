@@ -60,7 +60,7 @@ struct MEGA_API File: public FileFingerprint
     LocalPath localname;
 
     // source/target node handle
-    handle h;
+    NodeHandle h;
 
     struct
     {
@@ -110,8 +110,7 @@ struct MEGA_API File: public FileFingerprint
 
 struct MEGA_API SyncFileGet: public File
 {
-    Sync* sync;
-    Node* n;
+    //Node* n;
 
     // set sync-specific temp filename, update treestate
     void prepare();
@@ -126,8 +125,9 @@ struct MEGA_API SyncFileGet: public File
 
     void terminated();
 
-    SyncFileGet(Sync*, Node*, const LocalPath&);
-    ~SyncFileGet();
+    LocalNode& localNode;
+
+    SyncFileGet(LocalNode& ln, Node& n, const LocalPath&);
 };
 
 } // namespace
