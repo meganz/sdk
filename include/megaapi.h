@@ -9850,7 +9850,7 @@ class MegaApi
         /**
          * @brief TODO add documentation
          */
-        void createFolderTree(MegaStringMapList *folderStructure, const char *rootName, MegaNode *parent, MegaRequestListener *listener);
+        void createFolderTree(MegaStringMultivector *folderStructure, const char *rootName, MegaNode *parent, MegaRequestListener *listener);
 
         /**
          * @brief Create a new empty folder in your local file system
