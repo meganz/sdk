@@ -6496,11 +6496,10 @@ void MegaApiImpl::createFolder(const char *name, MegaNode *parent, MegaRequestLi
     waiter->notify();
 }
 
-void MegaApiImpl::createFolderTree(MegaStringMultivector *folderStructure, MegaNode *parent, const char *rootName, MegaRequestListener *listener)
+void MegaApiImpl::createFolderTree(const MegaStringMultivector *folderStructure, MegaHandle target, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_FOLDER_TREE, listener);
-    if(parent) request->setParentHandle(parent->getHandle());
-    request->setName(rootName);
+    request->setParentHandle(target);
     request->setMegaStringMultiVector(folderStructure);
     requestQueue.push(request);
     waiter->notify();
