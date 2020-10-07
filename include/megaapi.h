@@ -2984,8 +2984,8 @@ class MegaRequest
          * - MegaApi::renameNode - Returns the new name for the node
          * - MegaApi::syncFolder - Returns the name for the sync
          * - MegaApi::copySyncDataToCache - Returns the name for the sync
-         * - MegaApi::setBackup - Returns the name of the backup
-         * - MegaApi::updateBackup - Returns the name of the backup
+         * - MegaApi::setBackup - Returns the device id hash of the backup source device
+         * - MegaApi::updateBackup - Returns the device id hash of the backup source device
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -2993,8 +2993,6 @@ class MegaRequest
          * - MegaApi::confirmAccount - Returns the name of the user
          * - MegaApi::fastConfirmAccount - Returns the name of the user
          * - MegaApi::getUserData - Returns the name of the user
-         * - MegaApi::setBackup - Returns the backup name
-         * - MegaApi::updateBackup - Returns the backup name
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.
@@ -3180,7 +3178,7 @@ class MegaRequest
          * - MegaApi::setUserAttribute - Returns the attribute type
          * - MegaApi::getUserAttribute - Returns the attribute type
          * - MegaApi::setMaxConnections - Returns the direction of transfers
-         * - MegaApi::sendBackupHeartbeat - number of backup files uploaded
+         * - MegaApi::sendBackupHeartbeat - Returns the number of backup files uploaded
          *
          * @return Type of parameter related to the request
          */
@@ -3381,7 +3379,7 @@ class MegaRequest
          * - MegaApi::setBackup - Returns the tag asociated with the backup
          * - MegaApi::syncFolder - Returns the tag asociated with the sync
          * - MegaApi::copySyncDataToCache - Returns the tag asociated with the sync
-         * - MegaApi::sendBackupHeartbeat - number of backup files downloaded
+         * - MegaApi::sendBackupHeartbeat - Returns the number of backup files downloaded
          *
          * @return Tag of a transfer related to the request
          */
@@ -17636,9 +17634,106 @@ class MegaApi
          */
         MegaApiLock* getMegaApiLock(bool lockNow);
 
+        /**
+         * @brief Starts a backup of a local folder into a remote location
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the target node of the backup
+         * - MegaRequest::getName - Returns the device id hash of the backup source device
+         * - MegaRequest::getAccess - Returns the backup state
+         * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getText - Returns the extraData associated with the request
+         * - MegaRequest::getTotalBytes - Returns the backup type
+         * - MegaRequest::getNumDetails - Returns the backup substate
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * @param backupType back up type requested for the service
+         * @param targetNode MEGA folder to hold the backups
+         * @param localFolder Local path of the folder
+         * @param deviceId device id hash of source device
+         * @param state state
+         * @param subState subState
+         * @param extraData extraData
+         * @param listener MegaRequestListener to track this request
+         *
+        */
         void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Update an existing backup
+         *
+         *  Params that keep the same value are passed with invalid value to avoid to send to the server
+         *    Invalid values:
+         *    - type: BackupType::INVALID
+         *    - nodeHandle: UNDEF
+         *    - localFolder: nullptr
+         *    - deviceId: nullptr
+         *    - state: -1
+         *    - subState: -1
+         *    - extraData: nullptr
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the backupId
+         * - MegaRequest::getTotalBytes - Returns the backup type
+         * - MegaRequest::getNodeHandle - Returns the target node of the backup
+         * - MegaRequest::getName - Returns the device id hash of the backup source device
+         * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getAccess - Returns the backup state
+         * - MegaRequest::getNumDetails - Returns the backup substate
+         * - MegaRequest::getText - Returns the extraData associated with the request
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * @param backupId backup id identifying the backup to be updated
+         * @param backupType Local path of the folder
+         * @param targetNode MEGA folder to hold the backups
+         * @param localFolder Local path of the folder
+         * @param deviceId device id hash of source device
+         * @param state backup state 
+         * @param subState backup subState
+         * @param extraData extraData for the backup
+         * @param listener MegaRequestListener to track this request
+         *
+        */
         void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        
+        /**
+         * @brief Remove a backup
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_REMOVE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the backupId
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * @param backupId backup id identifying the backup to be removed
+         * @param listener MegaRequestListener to track this request
+         *
+        */
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
+        
+        /**
+         * @brief Get heartbeat associated with an existing backup
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the backupId
+         * - MegaRequest::getAccess - Returns the backup state
+         * - MegaRequest::getNumDetails - Returns the backup substate
+         * - MegaRequest::getParamType - Returns the number of backup files uploaded
+         * - MegaRequest::getTransferTag - Returns the number of backup files downloaded
+         * - MegaRequest::getNumber - Returns the time associated with the request
+         * - MegaRequest::getNodeHandle - Returns the last target node handled
+         *
+         * @param backupId backup id identifying the backup
+         * @param state backup state
+         * @param progress backup progress 
+         * @param ups uploads performed for the backup
+         * @param downs downloads performed for the backup
+         * @param ts time
+         * @param listener MegaRequestListener to track this request
+         *
+        */
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode);
 
  private:
