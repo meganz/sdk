@@ -28,9 +28,11 @@
 #ifdef WIN32
 #include <filesystem>
 namespace fs = ::std::filesystem;
+#define LOCAL_TEST_FOLDER "c:\\tmp\\synctests"
 #else
 #include <experimental/filesystem>
 namespace fs = ::std::experimental::filesystem;
+#define LOCAL_TEST_FOLDER (string(getenv("HOME"))+"/synctests_mega_auto")
 #endif
 
 using namespace std;
@@ -40,10 +42,8 @@ MegaFileSystemAccess fileSystemAccess;
 #ifdef _WIN32
 #if (__cplusplus >= 201700L)
 namespace fs = std::filesystem;
-#define LOCAL_TEST_FOLDER "c:\\tmp\\synctests"
 #else
 namespace fs = std::experimental::filesystem;
-#define LOCAL_TEST_FOLDER (string(getenv("HOME"))+"/synctests_mega_auto")
 #endif
 #endif
 
