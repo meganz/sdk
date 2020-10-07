@@ -1013,7 +1013,7 @@ MegaStringMap *MegaRequest::getMegaStringMap() const
     return NULL;
 }
 
-MegaStringMapList *MegaRequest::getMegaStringMapList() const
+MegaStringMultivector *MegaRequest::getMegaStringMultiVector() const
 {
     return NULL;
 }
@@ -6419,37 +6419,37 @@ int MegaStringMap::size() const
     return 0;
 }
 
-MegaStringMapList *MegaStringMapList::createInstance()
+MegaStringMultivector *MegaStringMultivector::createInstance()
 {
-    return new MegaStringMapListPrivate();
+    return new MegaStringMultivectorPrivate();
 }
 
-MegaStringMapList::MegaStringMapList()
-{
-
-}
-
-MegaStringMapList::~MegaStringMapList()
+MegaStringMultivector::MegaStringMultivector()
 {
 
 }
 
-MegaStringMapList *MegaStringMapList::copy() const
+MegaStringMultivector::~MegaStringMultivector()
 {
-    return NULL;
+
 }
 
-const MegaStringMap *MegaStringMapList::get(int) const
+MegaStringMultivector *MegaStringMultivector::copy() const
 {
     return NULL;
 }
 
-void MegaStringMapList::append(const MegaStringMap *)
+const string_vector *MegaStringMultivector::get(int) const
+{
+    return NULL;
+}
+
+void MegaStringMultivector::append(string_vector *)
 {
 
 }
 
-int MegaStringMapList::size() const
+int MegaStringMultivector::size() const
 {
     return 0;
 }

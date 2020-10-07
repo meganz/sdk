@@ -1218,9 +1218,9 @@ class MegaRequestPrivate : public MegaRequest
         void setMegaTextChatList(MegaTextChatList *chatList);
 #endif
         MegaStringMap *getMegaStringMap() const override;
-        MegaStringMapList *getMegaStringMapList() const override;
+        MegaStringMultivector *getMegaStringMultiVector() const override;
         void setMegaStringMap(const MegaStringMap *);
-        void setMegaStringMapList(const MegaStringMapList *stringMapList);
+        void setMegaStringMultiVector(const MegaStringMultivector *stringMapList);
         MegaStringListMap *getMegaStringListMap() const override;
         void setMegaStringListMap(const MegaStringListMap *stringListMap);
         MegaStringTable *getMegaStringTable() const override;
@@ -1292,7 +1292,7 @@ protected:
         MegaFolderInfo *folderInfo;
         MegaPushNotificationSettings *settings;
         MegaBackgroundMediaUpload* backgroundMediaUpload;  // non-owned pointer
-        MegaStringMapList *mStringMapList;
+        MegaStringMultivector *mStringMultiVector;
         unique_ptr<MegaBannerListPrivate> mBannerList;
 };
 
@@ -1702,17 +1702,18 @@ protected:
     map<std::unique_ptr<const char[]>, std::unique_ptr<const MegaStringList>, Compare> mMap;
 };
 
-class MegaStringMapListPrivate : public MegaStringMapList
+class MegaStringMultivectorPrivate : public MegaStringMultivector
 {
 public:
-    MegaStringMapListPrivate() = default;
-    MEGA_DISABLE_COPY_MOVE(MegaStringMapListPrivate)
-    MegaStringMapList* copy() const override;
-    void append(const MegaStringMap* value) override; // takes ownership of value
-    const MegaStringMap* get(int i) const override;
+    MegaStringMultivectorPrivate() = default;
+    MEGA_DISABLE_COPY_MOVE(MegaStringMultivectorPrivate)
+    MegaStringMultivector* copy() const override;
+    void append(string_vector *value) override; // takes ownership of value
+    const string_vector* get(int i) const override;
     int size() const override;
 protected:
-    vector<std::unique_ptr<const MegaStringMap>> mList;
+
+    vector<std::unique_ptr<const string_vector>> mVector;
 };
 
 class MegaStringTablePrivate : public MegaStringTable

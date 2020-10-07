@@ -33,6 +33,7 @@
 namespace mega
 {
 typedef uint64_t MegaHandle;
+typedef std::vector<std::string> string_vector;
 
 #ifdef WIN32
     const char MEGA_DEBRIS_FOLDER[] = "Rubbish";
@@ -2369,48 +2370,48 @@ public:
 };
 
 /**
-* @brief A list of string maps.
+* @brief A vector of string maps.
 *
-* Each element in MegaStringMapList is a MegaStringMap
+* Each element in MegaStringMultivector is a vector of strings
 *
-* A MegaStringMapList takes owership of the MegaStringMap objects passed to it.
+* A MegaStringMultivector takes owership of the string_vector objects passed to it.
 */
-class MegaStringMapList
+class MegaStringMultivector
 {
 protected:
-    MegaStringMapList();
+    MegaStringMultivector();
 
 public:
-    virtual ~MegaStringMapList();
+    virtual ~MegaStringMultivector();
 
-    static MegaStringMapList *createInstance();
+    static MegaStringMultivector *createInstance();
 
-    virtual MegaStringMapList* copy() const;
+    virtual MegaStringMultivector* copy() const;
 
     /**
-     * @brief Appends a MegaStringMap to the end of the list
+     * @brief Appends a string_vector to the end of the list
      *
-     * The list takes ownership of the passed value.
+     * The vector takes ownership of the passed value.
      *
-     * @param value The string map to append
+     * @param value The vector of strings to append
      */
-    virtual void append(const MegaStringMap* value);
+    virtual void append(string_vector *value);
 
     /**
-     * @brief Returns the string map at position i
+     * @brief Returns the string_vector at position i
      *
-     * The list retains the ownership of the returned string map. It will be only valid until
-     * the list is deleted.
+     * The vector retains the ownership of the returned string_vector. It will be only valid until
+     * the vector is deleted.
      *
      * The returned pointer is null if i is out of range.
      *
-     * @return The string map at position i
+     * @return The string_vector at position i
      */
-    virtual const MegaStringMap* get(int) const;
+    virtual const string_vector* get(int) const;
 
     /**
-     * @brief Returns the number of string maps in the table
-     * @return Number of string maps in the table
+     * @brief Returns the number of string_vector in the vector
+     * @return Number of string_vector in the vector
      */
     virtual int size() const;
 };
@@ -3667,7 +3668,7 @@ class MegaRequest
          *
          * @return a list of string maps
          */
-        virtual MegaStringMapList *getMegaStringMapList() const;
+        virtual MegaStringMultivector *getMegaStringMultiVector() const;
 
         /**
          * @brief Returns the string list map
