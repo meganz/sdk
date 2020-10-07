@@ -89,7 +89,7 @@ class SyncApp : public MegaApp, public Logger
     void request_error(error e);
 
 #ifdef ENABLE_SYNC
-    void syncupdate_state(Sync *, syncstate_t, SyncError, bool) override;
+    void syncupdate_state(int, syncstate_t, SyncError, bool) override;
     void syncupdate_local_folder_addition(Sync*, LocalNode*, const char *) override;
     void syncupdate_local_folder_deletion(Sync*, LocalNode*) override;
     void syncupdate_local_file_addition(Sync*, LocalNode*, const char *) override;
@@ -476,7 +476,7 @@ void SyncApp::request_error(error e)
 }
 
 #ifdef ENABLE_SYNC
-void SyncApp::syncupdate_state(Sync*, syncstate_t state)
+void SyncApp::syncupdate_state(int, syncstate_t state, SyncError, bool)
 {
     if (( state == SYNC_CANCELED ) || ( state == SYNC_FAILED ))
     {
