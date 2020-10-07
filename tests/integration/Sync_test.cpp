@@ -1207,7 +1207,7 @@ struct StandardClient : public MegaApp
     {
         unique_ptr<File> file(new File());
 
-        file->h = parent->nodehandle;
+        file->h = parent->nodeHandle();
         file->localname = LocalPath::fromPath(path.u8string(), *client.fsaccess);
         file->name = name;
 

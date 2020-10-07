@@ -402,7 +402,7 @@ inline unsigned propagateSubtreeFlag(unsigned nodeFlag, unsigned childFlag)
 
 
 
-struct MEGA_API LocalNode : public File
+struct MEGA_API LocalNode : public Cacheable
 {
     class Sync* sync = nullptr;
 
@@ -429,6 +429,16 @@ struct MEGA_API LocalNode : public File
     // The last scan of the folder (for folders).
     // Removed again when the folder is fully synced.
     std::unique_ptr<vector<FSNode>> lastFolderScan;
+
+
+    // The name of the node that we are synced with
+    string name; //cloudLeafname;
+
+    // The name of the file we are synced with
+    LocalPath localname;  //fsLeafName;
+
+    // The fingerprint of the node and/or file we are synced with
+    FileFingerprint syncedFingerprint;
 
     // local filesystem node ID (inode...) for rename/move detection
     handle fsid = mega::UNDEF;

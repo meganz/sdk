@@ -702,7 +702,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
 
         LocalNode* l = it->second;
         handle fsid = fsstableids ? l->fsid : UNDEF;
-        m_off_t size = l->size;
+        m_off_t size = l->syncedFingerprint.size;
 
         // clear localname to force newnode = true in setnameparent
         l->localname.clear();
@@ -744,7 +744,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
 #endif
 
         l->parent_dbid = parent_dbid;
-        l->size = size;
+        l->syncedFingerprint.size = size;
         l->setfsid(fsid, client->localnodeByFsid);
         l->setSyncedNodeHandle(l->syncedCloudNodeHandle);
 
@@ -1141,8 +1141,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
             // catch the not so unlikely case of a false fsid match due to
             // e.g. a file deletion/creation cycle that reuses the same inode
             if (sourceLocalNode->type == FILENODE &&
-                (sourceLocalNode->mtime != row.fsNode->fingerprint.mtime ||
-                 sourceLocalNode->size != row.fsNode->fingerprint.size))
+                (sourceLocalNode->syncedFingerprint.mtime != row.fsNode->fingerprint.mtime ||
+                 sourceLocalNode->syncedFingerprint.size != row.fsNode->fingerprint.size))
             {
                 // This location's file can't be using that fsid then.
                 // Clear our fsid, and let normal comparison run
@@ -2197,7 +2197,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTab
 
                     if (!cloudEqual || !fsEqual)
                     {
-                        *static_cast<FileFingerprint*>(row.syncNode) = row.fsNode->fingerprint;
+                        row.syncNode->syncedFingerprint = row.fsNode->fingerprint;
                     }
 
                     if (row.syncNode->fsid != row.fsNode->fsid ||
@@ -2330,7 +2330,7 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPa
     if (row.fsNode->type == FILENODE)
     {
         assert(row.fsNode->fingerprint.isvalid);
-        *static_cast<FileFingerprint*>(l) = row.fsNode->fingerprint;
+        l->syncedFingerprint = row.fsNode->fingerprint;
     }
 
     l->init(this, row.fsNode->type, parentRow.syncNode, fullPath, std::move(row.fsNode->shortname));
@@ -2357,7 +2357,7 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Loca
     if (row.cloudNode->type == FILENODE)
     {
         assert(row.cloudNode->fingerprint().isvalid);
-        *static_cast<FileFingerprint*>(l) = row.cloudNode->fingerprint();
+        l->syncedFingerprint = row.cloudNode->fingerprint();
     }
     l->init(this, row.cloudNode->type, parentRow.syncNode, fullPath, nullptr);
     l->setSyncedNodeHandle(row.cloudNode->nodeHandle());
@@ -2403,7 +2403,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath,
             if (parentRow.cloudNode)
             {
                 LOG_debug << "Uploading file " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
-                assert(row.syncNode->isvalid); // LocalNodes for files always have a valid fingerprint
+                assert(row.syncNode->syncedFingerprint.isvalid); // LocalNodes for files always have a valid fingerprint
                 client->nextreqtag();
                 row.syncNode->upload.reset(new LocalNode::Upload(*row.syncNode, *row.fsNode, parentRow.cloudNode->nodeHandle(), fullPath));
                 client->startxfer(PUT, row.syncNode->upload.get(), committer);  // full path will be calculated in the prepare() callback
@@ -2549,8 +2549,8 @@ LocalNode* MegaClient::findLocalNodeByFsid(FSNode& fsNode, Sync& filesystemSync)
         }
 #endif
         if (fsNode.type == FILENODE &&
-            (fsNode.fingerprint.mtime != it->second->mtime ||
-                fsNode.fingerprint.size != it->second->size))
+            (fsNode.fingerprint.mtime != it->second->syncedFingerprint.mtime ||
+                fsNode.fingerprint.size != it->second->syncedFingerprint.size))
         {
             // fsid match, but size or mtime mismatch
             // treat as different
@@ -2738,8 +2738,8 @@ bool Sync::syncEqual(const Node& n, const LocalNode& ln)
     // Not comparing nodehandle here.  If they all match we set syncedCloudNodeHandle
     if (n.type != ln.type) return false;
     if (n.type != FILENODE) return true;
-    assert(n.fingerprint().isvalid && ln.fingerprint().isvalid);
-    return n.fingerprint() == ln.fingerprint();  // size, mtime, crc
+    assert(n.fingerprint().isvalid && ln.syncedFingerprint.isvalid);
+    return n.fingerprint() == ln.syncedFingerprint;  // size, mtime, crc
 }
 
 bool Sync::syncEqual(const FSNode& fsn, const LocalNode& ln)
@@ -2748,8 +2748,8 @@ bool Sync::syncEqual(const FSNode& fsn, const LocalNode& ln)
     // Not comparing fsid here. If they all match then we set LocalNode's fsid
     if (fsn.type != ln.type) return false;
     if (fsn.type != FILENODE) return true;
-    assert(fsn.fingerprint.isvalid && ln.fingerprint().isvalid);
-    return fsn.fingerprint == ln.fingerprint();  // size, mtime, crc
+    assert(fsn.fingerprint.isvalid && ln.syncedFingerprint.isvalid);
+    return fsn.fingerprint == ln.syncedFingerprint;  // size, mtime, crc
 }
 
 

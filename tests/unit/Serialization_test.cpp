@@ -341,15 +341,15 @@ struct MockClient
 void checkDeserializedLocalNode(const mega::LocalNode& dl, const mega::LocalNode& ref)
 {
     ASSERT_EQ(ref.type, dl.type);
-    ASSERT_EQ(ref.size < 0 ? 0 : ref.size, dl.size);
+    ASSERT_EQ(ref.syncedFingerprint.size < 0 ? 0 : ref.syncedFingerprint.size, dl.syncedFingerprint.size);
     ASSERT_EQ(ref.parent_dbid, dl.parent_dbid);
     ASSERT_EQ(ref.fsid, dl.fsid);
     ASSERT_EQ(ref.localname, dl.localname);
     ASSERT_EQ(nullptr, dl.slocalname);
     ASSERT_EQ(ref.name, dl.name);
-    ASSERT_EQ(ref.crc, dl.crc);
-    ASSERT_EQ(ref.mtime, dl.mtime);
-    ASSERT_EQ(true, dl.isvalid);
+    ASSERT_EQ(ref.syncedFingerprint.crc, dl.syncedFingerprint.crc);
+    ASSERT_EQ(ref.syncedFingerprint.mtime, dl.syncedFingerprint.mtime);
+    ASSERT_EQ(true, dl.syncedFingerprint.isvalid);
     ASSERT_EQ(nullptr, dl.parent);
     ASSERT_EQ(ref.sync, dl.sync);
     ASSERT_EQ(ref.mSyncable, dl.mSyncable);
@@ -393,12 +393,12 @@ TEST(Serialization, LocalNode_forFile_withoutNode)
     auto sync = mt::makeSync(*client.cli, "wicked");
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FILENODE, "sweet");
     l->mSyncable = false;
-    l->size = 124;
+    l->syncedFingerprint.size = 124;
     l->setfsid(10, client.cli->localnodeByFsid);
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
-    l->mtime = 124124124;
-    std::iota(l->crc.begin(), l->crc.end(), 1);
+    l->syncedFingerprint.mtime = 124124124;
+    std::iota(l->syncedFingerprint.crc.begin(), l->syncedFingerprint.crc.end(), 1);
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
 #ifndef WIN32
@@ -413,12 +413,12 @@ TEST(Serialization, LocalNode_forFile_withoutNode_withMaxMtime)
     MockClient client;
     auto sync = mt::makeSync(*client.cli, "wicked");
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FILENODE, "sweet");
-    l->size = 124;
+    l->syncedFingerprint.size = 124;
     l->setfsid(10, client.cli->localnodeByFsid);
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
-    l->mtime = std::numeric_limits<decltype(l->mtime)>::max();
-    std::iota(l->crc.begin(), l->crc.end(), 1);
+    l->syncedFingerprint.mtime = std::numeric_limits<decltype(l->syncedFingerprint.mtime)>::max();
+    std::iota(l->syncedFingerprint.crc.begin(), l->syncedFingerprint.crc.end(), 1);
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
 #ifndef WIN32

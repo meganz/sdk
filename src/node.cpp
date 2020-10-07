@@ -1321,7 +1321,6 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     syncAgain = TREE_RESOLVED;
     useBlocked = TREE_RESOLVED;
     scanBlocked = TREE_RESOLVED;
-    syncxfer = true;
     newnode.reset();
     parent_dbid = 0;
     slocalname = NULL;
@@ -1406,7 +1405,7 @@ void LocalNode::init(const FSNode& fsNode)
     }
 
     // Update our fingerprint.
-    static_cast<FileFingerprint&>(*this) = fsNode.fingerprint;
+    syncedFingerprint = fsNode.fingerprint;
 
     // Update our FSID.
     setfsid(fsNode.fsid, sync->client->localnodeByFsid);
@@ -1897,7 +1896,7 @@ FSNode LocalNode::getKnownFSDetails()
     n.type = type;
     n.fsid = fsid;
     n.isSymlink = false;  // todo: store localndoes for symlinks but don't use them?
-    n.fingerprint = *this;
+    n.fingerprint = syncedFingerprint;
     return n;
 }
 
@@ -1990,15 +1989,15 @@ bool LocalNode::serialize(string* d)
     assert(type != TYPE_UNKNOWN);
 
     CacheableWriter w(*d);
-    w.serializei64(type ? -type : size);
+    w.serializei64(type ? -type : syncedFingerprint.size);
     w.serializehandle(fsid);
     w.serializeu32(parent ? parent->dbid : 0);
     w.serializenodehandle(syncedCloudNodeHandle.as8byte());
     w.serializestring(localname.platformEncoded());
     if (type == FILENODE)
     {
-        w.serializebinary((byte*)crc.data(), sizeof(crc));
-        w.serializecompressed64(mtime);
+        w.serializebinary((byte*)syncedFingerprint.crc.data(), sizeof(syncedFingerprint.crc));
+        w.serializecompressed64(syncedFingerprint.mtime);
     }
     w.serializebyte(mSyncable);
     w.serializeexpansionflags(1);  // first flag indicates we are storing slocalname.  Storing it is much, much faster than looking it up on startup.
@@ -2075,7 +2074,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     LocalNode* l = new LocalNode();
 
     l->type = type;
-    l->size = size;
+    l->syncedFingerprint.size = size;
 
     l->parent_dbid = parent_dbid;
 
@@ -2087,9 +2086,9 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->slocalname_in_db = 0 != expansionflags[0];
     l->name = l->localname.toName(*sync->client->fsaccess);
 
-    memcpy(l->crc.data(), crc, sizeof crc);
-    l->mtime = mtime;
-    l->isvalid = true;
+    memcpy(l->syncedFingerprint.crc.data(), crc, sizeof crc);
+    l->syncedFingerprint.mtime = mtime;
+    l->syncedFingerprint.isvalid = true;
 
     l->syncedCloudNodeHandle.set6byte(h);
     l->syncedCloudNodeHandle_it = sync->client->localnodeByNodeHandle.end();

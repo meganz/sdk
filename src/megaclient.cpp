@@ -13441,17 +13441,18 @@ handle MegaClient::nextsyncid()
 }
 
 // recursively stop all transfers
-void MegaClient::stopxfers(LocalNode* l, DBTableTransactionCommitter& committer)
+void MegaClient::stopSyncXfers(LocalNode* l, DBTableTransactionCommitter& committer)
 {
     if (l->type != FILENODE)
     {
         for (localnode_map::iterator it = l->children.begin(); it != l->children.end(); it++)
         {
-            stopxfers(it->second, committer);
+            stopSyncXfers(it->second, committer);
         }
     }
 
-    stopxfer(l, &committer);
+    if (l->upload) stopxfer(l->upload.get(), &committer);
+    if (l->download) stopxfer(l->download.get(), &committer);
 }
 
 // add child to nchildren hash (deterministically prefer newer/larger versions
@@ -15491,7 +15492,7 @@ Node* MegaClient::nodebyfingerprint(FileFingerprint* fingerprint)
 Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
 {
     std::unique_ptr<const node_vector>
-      remoteNodes(mFingerprints.nodesbyfingerprint(localNode));
+      remoteNodes(mFingerprints.nodesbyfingerprint(&localNode->syncedFingerprint));
 
     if (remoteNodes->empty())
         return nullptr;
