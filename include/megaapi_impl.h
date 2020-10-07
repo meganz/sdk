@@ -231,17 +231,10 @@ public:
     void cancel() override;
 
 protected:
-    void scanFolderNode(MegaHandle parentHandle, LocalPath& localPath, std::string folderName);
+    void scanFolderNode(int parentIndex, LocalPath& localPath, std::string folderName);
     void checkCompletion();
-
-    // maps temp nodeHandle to folderName
-    MegaStringMap *mFolders;
-
-    // maps temp nodeHandle to parent nodeHandle
-    MegaStringMap *mFoldersHierarchy;
-
-    // each element is a pair formed by the folder LocalPath and the parent nodeHandle
-    std::vector<std::pair<LocalPath, handle>> mPendingFiles;
+    std::vector<std::pair<LocalPath, int>> mPendingFiles;
+    MegaStringMultivector *mFoldersStructure;
 
 public:
     void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e) override;

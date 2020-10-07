@@ -25127,8 +25127,7 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->recursive = 0;
     this->pendingTransfers = 0;
     this->tag = transfer->getTag();
-    this->mFolders = MegaStringMap::createInstance();
-    this->mFoldersHierarchy = MegaStringMap::createInstance();
+    this->mFoldersStructure = MegaStringMultivector::createInstance();
 }
 
 void MegaFolderUploadController::start(MegaNode*)
@@ -25407,15 +25406,10 @@ MegaFolderUploadController::~MegaFolderUploadController()
 {
     //we dettach this as request listener: could be pending create folder req finish
     megaApi->removeRequestListener(this);
-    if (mFolders)
+    if (mFoldersStructure)
     {
-        delete mFolders;
+        delete mFoldersStructure;
     }
-    if (mFoldersHierarchy)
-    {
-        delete mFoldersHierarchy;
-    }
-    mPendingFiles.clear();
     //we shouldn't need to dettach as transfer listener: all listened transfer should have been cancelled/completed
 }
 
