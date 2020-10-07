@@ -22660,13 +22660,13 @@ void MegaApiImpl::sendPendingRequests()
         {
             BackupType bType = request->getTotalBytes() < INVALID || request->getTotalBytes() > CAMERA_UPLOAD ?
                                INVALID : static_cast<BackupType>(request->getTotalBytes());
-            string id = client->getDeviceidHash();
+            
             if (request->getParentHandle() == UNDEF) // Register a new sync
             {
                 string localFolder(binaryToBase64(request->getFile(), strlen(request->getFile())));
                 string extraData(binaryToBase64(request->getText(), strlen(request->getText())));
                 client->reqs.add(new CommandBackupPut(client, bType, request->getNodeHandle(),
-                                                      localFolder, id,
+                                                      localFolder, client->getDeviceidHash(),
                                                       request->getAccess(), request->getNumDetails(), extraData));
             }
             else // update a backup
@@ -22675,15 +22675,14 @@ void MegaApiImpl::sendPendingRequests()
                 unique_ptr<char[]> localFolder(file ? binaryToBase64(file, strlen(file)) : nullptr);
                 const char* extra = request->getText();
                 unique_ptr<char[]> extraData(extra ? binaryToBase64(extra, strlen(extra)) : nullptr);
-                unique_ptr<char[]> deviceId(binaryToBase64(id.c_str(), id.size()));
                 client->reqs.add(new CommandBackupPut(client,
                                                       (MegaHandle)request->getParentHandle(), 
                                                       bType,
                                                       request->getNodeHandle(), 
                                                       localFolder.get(), 
-                                                      deviceId.get(), 
-                                                      (uint8_t)request->getAccess(),
-                                                      (uint8_t)request->getNumDetails(),
+                                                      client->getDeviceidHash().c_str(),
+                                                      request->getAccess(),
+                                                      request->getNumDetails(),
                                                       extraData.get()));
             }
             break;
