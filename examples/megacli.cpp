@@ -8018,6 +8018,7 @@ int main()
     SimpleLogger::setLogLevel(logMax);  // warning and stronger to console; info and weaker to VS output window
     SimpleLogger::setOutputClass(&gLogger);
 #else
+    SimpleLogger::setLogLevel(logMax);  // warning and stronger to console; info and weaker to VS output window
     SimpleLogger::setOutputClass(&gLogger);
 #endif
 
