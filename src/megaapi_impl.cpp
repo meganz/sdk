@@ -25308,31 +25308,28 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
     {
         if (!errorCode)
         {
-            // All folder structure has been created in a single put nodes, now add all transfers for every file
             for (size_t i = 0; i < mPendingFiles.size(); i++)
             {
-               handle parentHandleTemp = mPendingFiles.at(i).second;
-               auto it = client->mTempHandleToNodeHandle.find(parentHandleTemp);
-               if (it != client->mTempHandleToNodeHandle.end())
+               handle parentHandle = mPendingFiles.at(i).second;
+               auto it = client->mTempHandleToNodeHandle.find(parentHandle);
+               MegaNode *parentNode = (it != client->mTempHandleToNodeHandle.end())
+                       ? megaApi->getNodeByHandle(it->second)    // new node has been created, so we need to retrieve it's handle
+                       : megaApi->getNodeByHandle(parentHandle); // node already existed, so get it's handle from mPendingFiles
+
+               if (parentNode != nullptr)
                {
-                    handle parentHandle =  it->second;
-                    MegaNode *parentNode = megaApi->getNodeByHandle(parentHandle);
-                    if (parentNode != nullptr)
-                    {
-                        pendingTransfers++;
-                        const LocalPath &localpath = mPendingFiles.at(i).first;
-                        FileSystemType fsType = client->fsaccess->getlocalfstype(localpath);
-                        megaApi->startUpload(false, localpath.toPath(*client->fsaccess).c_str(), parentNode, (const char *)NULL, -1, tag, false, NULL, false, false, fsType, this);
-                        continue;
-                    }
+                    pendingTransfers++;
+                    const LocalPath &localpath = mPendingFiles.at(i).first;
+                    FileSystemType fsType = client->fsaccess->getlocalfstype(localpath);
+                    megaApi->startUpload(false, localpath.toPath(*client->fsaccess).c_str(), parentNode, (const char *)NULL, -1, tag, false, NULL, false, false, fsType, this);
+                    continue;
                }
-               mIncompleteTransfers++;
             }
         }
         else
         {
             assert(request->getMegaStringListMap());
-            MegaStringMapList *mapList = request->getMegaStringMapList();
+            MegaStringMultivector *mapList = request->getMegaStringMultiVector();
             int incomplete = mapList ? mapList->get(0)->size() : 0;
             mIncompleteTransfers += incomplete;
             mLastError = *e;
