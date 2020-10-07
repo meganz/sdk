@@ -1538,6 +1538,7 @@ struct StandardClient : public MegaApp
                 }
             }
         }
+        assert(false);
         return false;
     }
 
@@ -2901,13 +2902,15 @@ GTEST_TEST(Sync, BasicSync_RenameLocalFile)
     waitonsyncs(TIMEOUT, &client0, &client1);
 
     // Confirm model.
-    Model model;
+    Model model1, model2;
+    model1.root->addkid(model1.makeModelSubfolder("x"));
+    model1.findnode("x")->addkid(model1.makeModelSubfile("f"));
+    model2.root->addkid(model2.makeModelSubfolder("x"));
+    model2.findnode("x")->addkid(model2.makeModelSubfile("f"));
+    model2.ensureLocalDebrisTmpLock("x"); // since it downloaded f (uploaded by sync 1)
 
-    model.root->addkid(model.makeModelSubfolder("x"));
-    model.findnode("x")->addkid(model.makeModelSubfile("f"));
-
-    ASSERT_TRUE(client0.confirmModel_mainthread(model.findnode("x"), 0));
-    ASSERT_TRUE(client1.confirmModel_mainthread(model.findnode("x"), 1, true));
+    ASSERT_TRUE(client0.confirmModel_mainthread(model1.findnode("x"), 0));
+    ASSERT_TRUE(client1.confirmModel_mainthread(model2.findnode("x"), 1));
 
     // Rename x/f to x/g.
     fs::rename(client0.syncSet[0].localpath / "f",
@@ -2917,10 +2920,11 @@ GTEST_TEST(Sync, BasicSync_RenameLocalFile)
     waitonsyncs(TIMEOUT, &client0, &client1);
 
     // Update and confirm model.
-    model.findnode("x/f")->name = "g";
+    model1.findnode("x/f")->name = "g";
+    model2.findnode("x/f")->name = "g";
 
-    ASSERT_TRUE(client0.confirmModel_mainthread(model.findnode("x"), 0));
-    ASSERT_TRUE(client1.confirmModel_mainthread(model.findnode("x"), 1, true));
+    ASSERT_TRUE(client0.confirmModel_mainthread(model1.findnode("x"), 0));
+    ASSERT_TRUE(client1.confirmModel_mainthread(model2.findnode("x"), 1));
 }
 
 GTEST_TEST(Sync, BasicSync_AddLocalFolder)
@@ -2934,8 +2938,9 @@ GTEST_TEST(Sync, BasicSync_AddLocalFolder)
     ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
     ASSERT_EQ(clientA1.basefolderhandle, clientA2.basefolderhandle);
 
-    Model model;
-    model.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
+    Model model1, model2;
+    model1.root->addkid(model1.buildModelSubdirs("f", 3, 3, 0));
+    model2.root->addkid(model2.buildModelSubdirs("f", 3, 3, 0));
 
     // set up sync for A1, it should build matching local folders
     ASSERT_TRUE(clientA1.setupSync_mainthread("sync1", "f", 1));
@@ -2944,8 +2949,8 @@ GTEST_TEST(Sync, BasicSync_AddLocalFolder)
     clientA1.logcb = clientA2.logcb = true;
 
     // check everything matches (model has expected state of remote and local)
-    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
-    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model1.findnode("f"), 1));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model2.findnode("f"), 2));
 
     // make new folders (and files) in the local filesystem and see if we catch up in A1 and A2 (adder and observer syncs)
     ASSERT_TRUE(buildLocalFolders(clientA1.syncSet[1].localpath / "f_2", "newkid", 2, 2, 2));
@@ -2954,10 +2959,12 @@ GTEST_TEST(Sync, BasicSync_AddLocalFolder)
     waitonsyncs(std::chrono::seconds(30), &clientA1, &clientA2);  // two minutes should be long enough to get past API_ETEMPUNAVAIL == -18 for sync2 downloading the files uploaded by sync1
 
     // check everything matches (model has expected state of remote and local)
-    model.findnode("f/f_2")->addkid(model.buildModelSubdirs("newkid", 2, 2, 2));
-    ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), 1));
-    model.ensureLocalDebrisTmpLock("f"); // since we downloaded files
-    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+    model1.findnode("f/f_2")->addkid(model1.buildModelSubdirs("newkid", 2, 2, 2));
+    model2.findnode("f/f_2")->addkid(model2.buildModelSubdirs("newkid", 2, 2, 2));
+    model2.ensureLocalDebrisTmpLock("f"); // since we downloaded files
+
+    ASSERT_TRUE(clientA1.confirmModel_mainthread(model1.findnode("f"), 1));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(model2.findnode("f"), 2));
 }
 
 

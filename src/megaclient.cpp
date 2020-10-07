@@ -8331,7 +8331,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
         }
 
 #ifdef ENABLE_SYNC
-        if (ph != UNDEF)
+        if (ph != UNDEF && !syncs.empty())
         {
             allParents.insert(NodeHandle().set6byte(ph));
         }

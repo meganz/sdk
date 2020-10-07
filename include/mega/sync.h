@@ -240,8 +240,6 @@ public:
 
     // root of local filesystem tree, holding the sync's root folder.  Never null except briefly in the destructor (to ensure efficient db usage)
     unique_ptr<LocalNode> localroot;
-
-    NodeHandle cloudRootHandle;
     Node* cloudRoot();
 
     FileSystemType mFilesystemType = FS_UNKNOWN;
