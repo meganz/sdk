@@ -4642,8 +4642,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     MegaHandle targetNode = mApi[0].h;
     int state = 1;
     int subState = 3;
-    MegaRequestListener* listener = nullptr;
-
+    
     // setup a backup
     int backupType = BackupType::CAMERA_UPLOAD;
     auto err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
@@ -4667,21 +4666,25 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     err = synchronousSendBackupHeartbeat(0, mBackupId, 1, 10, 1, 1, 0, targetNode);
     ASSERT_EQ(MegaError::API_OK, err) << "sendBackupHeartbeat failed (error: " << err << ")";
 
-    //// negative test cases
-    //// register the same backup twice: should work fine
-    //err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
-    //ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
+    // negative test cases
+    gTestingInvalidArgs = true;
+    
+    // register the same backup twice: should work fine
+    err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
+    ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
 
-    //// create a backup with a big status: should report an error
-    //err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), 255/*state*/, subState, extraData.get());
-    //ASSERT_NE(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
+    // update a removed backup: should throw an error
+    err = synchronousRemoveBackup(0, mBackupId, nullptr);
+    ASSERT_EQ(MegaError::API_OK, err) << "removeBackup failed (error: " << err << ")";
+    // update the removed backup
+    err = synchronousUpdateBackup(0, mBackupId, BackupType::INVALID, UNDEF, nullptr, nullptr, -1, -1, extraData2.get());
+    ASSERT_NE(MegaError::API_OK, err) << "updateBackup failed (error: " << err << ")";
 
-    //// update a removed backup: should throw an error
-    //err = synchronousRemoveBackup(0, mBackupId, nullptr);
-    //ASSERT_EQ(MegaError::API_OK, err) << "removeBackup failed (error: " << err << ")";
-    //// update the removed backup
-    //err = synchronousUpdateBackup(0, mBackupId, BackupType::INVALID, UNDEF, nullptr, nullptr, -1, -1, extraData2.get());
-    //ASSERT_NE(MegaError::API_OK, err) << "updateBackup failed (error: " << err << ")";
+    // create a backup with a big status: should report an error
+    err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), 255/*state*/, subState, extraData.get());
+    ASSERT_NE(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
+
+    gTestingInvalidArgs = false;
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
