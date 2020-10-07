@@ -524,12 +524,12 @@ TEST(Serialization, LocalNode_forFile)
     l->mSyncable = false;
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
     l->syncedCloudNodeHandle.set6byte(n.nodehandle);
-    l->size = 1;
+    l->syncedFingerprint.size = 1;
+    l->syncedFingerprint.mtime = 0;
     l->setfsid(10, client.cli->localnodeByFsid);
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
-    l->mtime = 0;
-    std::iota(l->crc.begin(), l->crc.end(), 1);
+    std::iota(l->syncedFingerprint.crc.begin(), l->syncedFingerprint.crc.end(), 1);
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
     ASSERT_EQ(61u, data.size());
@@ -544,12 +544,12 @@ TEST(Serialization, LocalNode_forFiles_oldLocalNodeWithoutSyncable)
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FILENODE, "sweet");
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
     l->syncedCloudNodeHandle.set6byte(n.nodehandle);
-    l->size = 1;
+    l->syncedFingerprint.size = 1;
     l->setfsid(10, client.cli->localnodeByFsid);
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
-    l->mtime = 0;
-    std::iota(l->crc.begin(), l->crc.end(), 1);
+    l->syncedFingerprint.mtime = 0;
+    std::iota(l->syncedFingerprint.crc.begin(), l->syncedFingerprint.crc.end(), 1);
 
     // This array represents an old LocalNode without syncable flag
     const std::array<char, 50> rawData = {
@@ -573,12 +573,12 @@ TEST(Serialization, LocalNode_forFile_32bit)
     l->mSyncable = false;
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
     l->syncedCloudNodeHandle.set6byte(n.nodehandle);
-    l->size = 1;
+    l->syncedFingerprint.size = 1;
     l->setfsid(10, client.cli->localnodeByFsid);
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
-    l->mtime = 0;
-    std::iota(l->crc.begin(), l->crc.end(), 1);
+    l->syncedFingerprint.mtime = 0;
+    std::iota(l->syncedFingerprint.crc.begin(), l->syncedFingerprint.crc.end(), 1);
 
     // This is the result of serialization on 32bit Windows
     const std::array<char, 59> rawData = {
