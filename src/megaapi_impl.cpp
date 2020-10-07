@@ -25119,7 +25119,6 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->recursive = 0;
     this->pendingTransfers = 0;
     this->tag = transfer->getTag();
-    this->mFoldersStructure = MegaStringMultivector::createInstance();
 }
 
 void MegaFolderUploadController::start(MegaNode*)
@@ -25285,10 +25284,7 @@ void MegaFolderUploadController::checkCompletion()
     if (!cancelled && !recursive && !pendingTransfers)
     {
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
-        delete mFolders;
-        mFolders = nullptr; // set pointer null to avoid crash in dtor
-        delete mFoldersHierarchy;
-        mFoldersHierarchy = nullptr; // set pointer null to avoid crash in dtor
+        mFolderStructure.clear();
         mPendingFiles.clear();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
         transfer->setLastError(&mLastError);
@@ -25301,7 +25297,6 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
 {
     int type = request->getType();
     int errorCode = e->getErrorCode();
-
     if (type == MegaRequest::TYPE_CREATE_FOLDER_TREE)
     {
         if (!errorCode)
@@ -25398,10 +25393,7 @@ MegaFolderUploadController::~MegaFolderUploadController()
 {
     //we dettach this as request listener: could be pending create folder req finish
     megaApi->removeRequestListener(this);
-    if (mFoldersStructure)
-    {
-        delete mFoldersStructure;
-    }
+    mFolderStructure.clear();
     //we shouldn't need to dettach as transfer listener: all listened transfer should have been cancelled/completed
 }
 
