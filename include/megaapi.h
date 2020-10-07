@@ -2382,6 +2382,7 @@ protected:
     MegaStringMultivector();
 
 public:
+    enum {INDEX_NODEHANDLE = 0, INDEX_PARENTINDEX, INDEX_NODENAME,};
     virtual ~MegaStringMultivector();
 
     static MegaStringMultivector *createInstance();

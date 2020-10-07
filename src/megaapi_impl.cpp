@@ -19320,80 +19320,73 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_CREATE_FOLDER_TREE:
         {
-            const char *rootName = request->getName();
-            Node *parent = client->nodebyhandle(request->getParentHandle());
-            MegaStringMapList *folderStructure = request->getMegaStringMapList();
-            const MegaStringMap *folders = folderStructure->get(0);
-            const MegaStringMap *foldersHierarchy = folderStructure->get(1);
-
-            if (!parent || !rootName || !folderStructure || folderStructure->size()!= 2
-                    || !folders->size() || !foldersHierarchy->size())
+            Node *target = client->nodebyhandle(request->getParentHandle());
+            const MegaStringMultivector *folderStructure = request->getMegaStringMultiVector();
+            if (!target || !folderStructure)
             {
                 e = API_EARGS;
                 break;
             }
 
-            // prevent to create a duplicate folder with same name in same path
-            Node *folder = client->childnodebyname(parent, rootName, false);
-            if (folder && folder->type == FOLDERNODE)
+            vector<NewNode> newnodes;
+            for (int i = 0; i < folderStructure->size(); i++)
             {
-                e = API_OK;
-                request->setNodeHandle(folder->nodehandle);
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-                break;
-            }
+                handle newNodeHandle = base64ToHandle(folderStructure->get(i)->at(MegaStringMultivector::INDEX_NODEHANDLE).c_str());
+                string newFolderName = folderStructure->get(i)->at(MegaStringMultivector::INDEX_NODENAME);
+                int parentIndex = std::atoi(folderStructure->get(i)->at(MegaStringMultivector::INDEX_PARENTINDEX).c_str());
+                handle newParentHandle = (parentIndex == -1)
+                    ? request->getParentHandle()
+                    : base64ToHandle(folderStructure->get(parentIndex)->at(MegaStringMultivector::INDEX_NODEHANDLE).c_str());
 
-            unique_ptr<MegaStringList> folderHandles(folders->getKeys());
-            vector<NewNode> newnodes(static_cast<size_t>(folderHandles->size()));
-            for (int i = 0; i < folderHandles->size(); i++)
-            {
-                NewNode *newnode = &newnodes[i];
+                NewNode newnode;
                 SymmCipher key;
                 string attrstring;
                 byte buf[FOLDERNODEKEYLENGTH];
 
                 // set up new node as folder node
-                newnode->source = NEW_NODE;
-                newnode->type = FOLDERNODE;
-                newnode->nodehandle = 0;
-                newnode->parenthandle = UNDEF;
+                newnode.source = NEW_NODE;
+                newnode.type = FOLDERNODE;
+                newnode.nodehandle = 0;
+                newnode.parenthandle = UNDEF;
 
                 // generate fresh random key for this folder node
                 client->rng.genblock(buf,FOLDERNODEKEYLENGTH);
-                newnode->nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
+                newnode.nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
                 key.setkey(buf);
 
                 // generate fresh attribute object with the folder name
                 AttrMap attrs;
-                string sname = folders->get(folderHandles->get(i));
+                string sname = newFolderName;
                 fsAccess->normalize(&sname);
                 attrs.map['n'] = sname;
 
                 // JSON-encode object and encrypt attribute string
                 attrs.getjson(&attrstring);
-                newnode->attrstring.reset(new string);
-                client->makeattr(&key, newnode->attrstring, attrstring.c_str());
+                newnode.attrstring.reset(new string);
+                client->makeattr(&key, newnode.attrstring, attrstring.c_str());
 
-                // set temp nodeHandle
-                const char *nodeHandleB64 = folderHandles->get(i);
-                newnode->nodehandle = base64ToHandle(folderHandles->get(i));
-
-                // find it's parent node in foldersHierarchy string map
-                unique_ptr<MegaStringList> auxNodeHandles(foldersHierarchy->getKeys());
-                for (int j = 0; j < auxNodeHandles->size(); j++)
+                // set nodeHandle and parentHandle
+                newnode.nodehandle = newNodeHandle;
+                if (newParentHandle != request->getParentHandle())
                 {
-                    MegaHandle auxNodeHandleBin = base64ToHandle(foldersHierarchy->get(auxNodeHandles->get(j)));
-                    if (!strcmp(nodeHandleB64, auxNodeHandles->get(j)) // both string maps nodeHandles match
-                            && auxNodeHandleBin != parent->nodehandle) // if parent is root node set as empty
-                    {
-                        // set parent handle to be able to generate the full tree, with the same structure as local
-                        newnode->parenthandle = base64ToHandle(foldersHierarchy->get(nodeHandleB64));
-                    }
+                    newnode.parenthandle = newParentHandle;
                 }
+
+                // add node to newnodes vector
+                newnodes.emplace_back(std::move(newnode));
             }
 
-            // add the newly generated folder node
-            client->putnodes(parent->nodehandle, move(newnodes));
+            if (!newnodes.size())
+            {
+               // TODO: store in the request the node handle of the root node of the tree
+               // All folder tree structure already exists in the cloud drive
+               e = API_OK;
+               newnodes.clear();
+               fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+               break;
+            }
+
+            client->putnodes(target->nodehandle, move(newnodes));
             break;
         }
         case MegaRequest::TYPE_MOVE:
