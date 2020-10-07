@@ -3004,7 +3004,6 @@ void MegaClient::exec()
             //    syncdownretry = false;
             //    setAllSyncsNeedFullSyncdown();
             //}
-
             for (auto it = syncs.begin(); it != syncs.end(); )
             {
                 Sync* sync = *it++;
@@ -3014,13 +3013,19 @@ void MegaClient::exec()
                 }
                 else
                 {
-                    sync->procscanq(DirNotify::DIREVENTS);
+                    dstime extradelay = sync->procextraq();
+                    dstime scandelay  = sync->procscanq(DirNotify::DIREVENTS);
+                    dstime delay = std::min(extradelay, scandelay);
+
+                    if (EVER(delay))
+                    {
+                        filesystemNotificationsQuietTime = Waiter::ds + delay;
+                    }
                 }
             }
 
-            bool tooSoon = filesystemNotificationsQuietTime &&
-                           filesystemNotificationsQuietTime > Waiter::ds;
-
+            bool tooSoon = filesystemNotificationsQuietTime
+                           && filesystemNotificationsQuietTime > Waiter::ds;
 
             LOG_debug << clientname << "tooSoon: " << tooSoon << "syncing: " << isAnySyncSyncing() << " current: " << statecurrent;
 

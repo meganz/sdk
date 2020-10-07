@@ -1411,39 +1411,134 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
 //    return true;
 //}
 
+dstime Sync::procextraq()
+{
+    Notification notification;
+    NotificationDeque& queue = dirnotify->notifyq[DirNotify::EXTRA];
+    dstime delay = NEVER;
+
+    while (queue.popFront(notification))
+    {
+        LocalNode* node = notification.localnode;
+
+        // Ignore notifications for nodes that no longer exist.
+        if (node == (LocalNode*)~0)
+        {
+            LOG_debug << "Notification skipped: "
+                      << notification.path.toPath(*client->fsaccess);
+            continue;
+        }
+
+        // How long has it been since the notification was queued?
+        auto elapsed = Waiter::ds - notification.timestamp;
+
+        // Is it ready to be processed?
+        if (elapsed < EXTRA_SCANNING_DELAY_DS)
+        {
+            // We'll process the notification later.
+            queue.unpopFront(notification);
+
+            return delay;
+        }
+
+        LOG_verbose << "Processing extra fs notification: "
+                    << notification.path.toPath(*client->fsaccess);
+
+        LocalPath remainder;
+        LocalNode* match;
+        LocalNode* nearest;
+
+        match = localnodebypath(node, notification.path, &nearest, &remainder);
+
+        // If the node is reachable, notify its parent.
+        if (match && match->parent)
+        {
+            nearest = match->parent;
+        }
+
+        // Make sure some parent in the chain actually exists.
+        if (!nearest)
+        {
+            // Should this notification be rescheduled?
+            continue;
+        }
+
+        // Let the parent know it needs a scan.
+        nearest->setFutureScan(true, !remainder.empty());
+
+        // How long the caller should wait before syncing.
+        delay = SCANNING_DELAY_DS;
+    }
+
+    return delay;
+}
 
 //  Just mark the relative LocalNodes as needing to be rescanned.
-void Sync::procscanq(int q)
+dstime Sync::procscanq(int q)
 {
-    if (dirnotify->notifyq[q].empty()) return;
+    NotificationDeque& queue = dirnotify->notifyq[q];
 
-    LOG_verbose << "Marking sync tree with filesystem notifications: " << dirnotify->notifyq[q].size();
+    if (queue.empty())
+    {
+        return NEVER;
+    }
+
+    LOG_verbose << "Marking sync tree with filesystem notifications: "
+                << queue.size();
 
     Notification notification;
-    while (dirnotify->notifyq[q].popFront(notification))
+    dstime delay = NEVER;
+
+    while (queue.popFront(notification))
     {
-        LocalNode* l;
-        if ((l = notification.localnode) != (LocalNode*)~0)
+        LocalNode* node = notification.localnode;
+
+        // Skip canceled notifications.
+        if (node == (LocalNode*)~0)
         {
-            LocalPath remainder;
-            LocalNode *deepestParent;
-            LocalNode *matching = localnodebypath(l, notification.path, &deepestParent, &remainder);
-
-            if (LocalNode* deepest = matching && matching->parent ? matching->parent : deepestParent)
-            {
-                deepest->setFutureScan(true, !remainder.empty());
-
-                // todo:  for Sync::EXTRA_SCANNING_DELAY_DS, we should scan now but also scan again in 15 seconds
-
-                client->filesystemNotificationsQuietTime = Waiter::ds + (isnetwork && l->type == FILENODE ? Sync::EXTRA_SCANNING_DELAY_DS : SCANNING_DELAY_DS);
-            }
+            LOG_debug << "Notification skipped: "
+                      << notification.path.toPath(*client->fsaccess);
+            continue;
         }
-        else
+
+        LocalPath remainder;
+        LocalNode* match;
+        LocalNode* nearest;
+
+        match = localnodebypath(node, notification.path, &nearest, &remainder);
+
+        // Notify the parent of reachable nodes.
+        if (match && match->parent)
         {
-            string utf8path = notification.path.toPath(*client->fsaccess);
-            LOG_debug << "Notification skipped: " << utf8path;
+            nearest = match->parent;
         }
+
+        // Make sure we actually have someone to notify.
+        if (!nearest)
+        {
+            // Should we reschedule this notification?
+            continue;
+        }
+
+        // Let the parent know it needs to perform a scan.
+        nearest->setFutureScan(true, !remainder.empty());
+
+        // Queue an extra notification if we're a network sync.
+        if (isnetwork)
+        {
+            LOG_verbose << "Queuing extra notification for: "
+                        << notification.path.toPath(*client->fsaccess);
+
+            dirnotify->notify(DirNotify::EXTRA,
+                              node,
+                              std::move(notification.path));
+        }
+
+        // How long the caller should wait before syncing.
+        delay = SCANNING_DELAY_DS;
     }
+
+    return delay;
 }
 
 // todo: do we still need this?
