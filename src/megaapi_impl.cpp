@@ -25128,7 +25128,7 @@ void MegaFolderUploadController::start(MegaNode*)
     transfer->setState(MegaTransfer::STATE_QUEUED);
     megaApi->fireOnTransferStart(transfer);
 
-    // Root node of folder structure
+    // Root folder of the new tree
     const char *name = transfer->getFileName();
     unique_ptr<MegaNode> parent(megaApi->getNodeByHandle(transfer->getParentHandle()));
     if (!parent)
@@ -25140,15 +25140,22 @@ void MegaFolderUploadController::start(MegaNode*)
     }
 
     auto localpath = LocalPath::fromPath(transfer->getPath(), *client->fsaccess);
-    scanFolderNode(parent->getHandle(), localpath, name); // we don't need to specify parent node for root node of the new tree
-
-    // Create a MegaStringMapList with folders and folders structure
-    unique_ptr<MegaStringMapList> folderStructure(MegaStringMapList::createInstance());
-    folderStructure->append(mFolders->copy());
-    folderStructure->append(mFoldersHierarchy->copy());
-
-    // Create entire folder tree in one shot
-    megaApi->createFolderTree(folderStructure.get(), parent.get(), name, this);
+    scanFolderNode(parent->getHandle(), parent->getHandle(), -1, localpath, name); // we don't need to specify parent node for root node of the new tree
+    if (mFolderStructure.empty())
+    {
+        // Provide an empty MegaStringMultivector to make request finish with API_OK
+        unique_ptr <MegaStringMultivector> aux (MegaStringMultivector::createInstance());
+        megaApi->createFolderTree(aux.get(), transfer->getParentHandle(), this);
+    }
+    else
+    {
+        for (auto it = mFolderStructure.begin(); it != mFolderStructure.end(); it++)
+        {
+            const MegaStringMultivector *mv = it->second.get();
+            MegaNode *parentSubtree = megaApi->getNodeByHandle(it->first);
+            megaApi->createFolderTree(mv, parentSubtree->getHandle(), this);
+        }
+    }
 }
 
 void MegaFolderUploadController::cancel()
