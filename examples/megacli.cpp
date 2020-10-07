@@ -4289,6 +4289,27 @@ void exec_rescan(autocomplete::ACState& s)
     }
 }
 
+static string toString(const syncstate_t state)
+{
+    switch (state)
+    {
+    case SYNC_ACTIVE:
+        return "ACTIVE";
+    case SYNC_CANCELED:
+        return "CANCELED";
+    case SYNC_DISABLED:
+        return "DISABLED";
+    case SYNC_FAILED:
+        return "FAILED";
+    case SYNC_INITIALSCAN:
+        return "INITIALSCAN";
+    default:
+        break;
+    }
+
+    return "UNKNOWN";
+}
+
 void exec_sync(autocomplete::ACState& s)
 {
     if (s.words.size() == 3)
@@ -4352,16 +4373,13 @@ void exec_sync(autocomplete::ACState& s)
             {
                 if ((*it)->state > SYNC_CANCELED)
                 {
-                    static const char* syncstatenames[] =
-                    { "Initial scan, please wait", "Active", "Failed" };
-
                     if ((*it)->cloudRoot())
                     {
                         nodepath((*it)->cloudRoot()->nodehandle, &remotepath);
                         localpath = (*it)->localroot->localname.toPath(*client->fsaccess);
 
                         cout << i++ << " (" << syncConfigToString((*it)->getConfig()) << "): " << localpath << " to " << remotepath << " - "
-                                << syncstatenames[(*it)->state] << ", "
+                                << toString((*it)->state) << ", "
                                 << (*it)->localnodes[FILENODE] << " file(s) and "
                                 << (*it)->localnodes[FOLDERNODE] << " folder(s)" << endl;
                     }
