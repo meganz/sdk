@@ -332,6 +332,7 @@ public:
     bool resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
     bool resolve_fsNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
 
+    bool syncEqual(const Node&, const FSNode&);
     bool syncEqual(const Node&, const LocalNode&);
     bool syncEqual(const FSNode&, const LocalNode&);
 

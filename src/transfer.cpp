@@ -1000,20 +1000,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             File *f = (*it);
             LocalPath *localpath = &f->localname;
 
-#ifdef ENABLE_SYNC
-            LocalPath synclocalpath;
-            LocalNode *ll = dynamic_cast<LocalNode *>(f);
-            if (ll)
-            {
-                LOG_debug << "Verifying sync upload";
-                synclocalpath = ll->getLocalPath(true);
-                localpath = &synclocalpath;
-            }
-            else
-            {
-                LOG_debug << "Verifying regular upload";
-            }
-#endif
+            LOG_debug << "Verifying upload";
 
             auto fa = client->fsaccess->newfileaccess();
             bool isOpen = fa->fopen(*localpath);
@@ -1042,7 +1029,13 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 #ifdef ENABLE_SYNC
                 if (f->syncxfer)
                 {
-                    client->setAllSyncsNeedFullSync();
+                    if (LocalNode::Upload *syncUpload = dynamic_cast<LocalNode::Upload*>(f))
+                    {
+                        if (syncUpload->localNode.parent)
+                        {
+                            syncUpload->localNode.parent->setFutureScan(true, false);
+                        }
+                    }
                 }
 #endif
                 it++; // the next line will remove the current item and invalidate that iterator

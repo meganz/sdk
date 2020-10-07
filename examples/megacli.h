@@ -220,7 +220,7 @@ struct DemoApp : public MegaApp
     void syncupdate_local_move(Sync*, LocalNode*, const char*) override;
     void syncupdate_local_lockretry(bool) override;
     void syncupdate_get(Sync*, Node*, const char*) override;
-    void syncupdate_put(Sync*, LocalNode*, const char*) override;
+    void syncupdate_put(Sync*, const char*) override;
     void syncupdate_remote_file_addition(Sync*, Node*) override;
     void syncupdate_remote_file_deletion(Sync*, Node*) override;
     void syncupdate_remote_folder_addition(Sync*, Node*) override;

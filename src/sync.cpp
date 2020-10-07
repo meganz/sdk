@@ -39,7 +39,7 @@ const int Sync::FILE_UPDATE_DELAY_DS = 30;
 const int Sync::FILE_UPDATE_MAX_DELAY_SECS = 60;
 const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
 
-bool gLogsync = false;
+bool gLogsync = true;
 #define SYNC_verbose if (gLogsync) LOG_verbose
 
 std::atomic<size_t> ScanService::mNumServices(0);
@@ -256,8 +256,8 @@ FSNode ScanService::Worker::interrogate(DirAccess& iterator,
       {
           return lhs.type == rhs.type
                  && lhs.fsid == rhs.fsid
-                 && lhs.mtime == rhs.mtime
-                 && rhs.size == rhs.size;
+                 && lhs.fingerprint.mtime == rhs.fingerprint.mtime
+                 && rhs.fingerprint.size == rhs.fingerprint.size;
       };
 
     FSNode result;
@@ -275,8 +275,8 @@ FSNode ScanService::Worker::interrogate(DirAccess& iterator,
         // Populate result.
         result.fsid = fileAccess->fsidvalid ? fileAccess->fsid : UNDEF;
         result.isSymlink = fileAccess->mIsSymLink;
-        result.mtime = fileAccess->mtime;
-        result.size = fileAccess->size;
+        result.fingerprint.mtime = fileAccess->mtime;
+        result.fingerprint.size = fileAccess->size;
         result.shortname = mFsAccess->fsShortname(path);
         result.type = fileAccess->type;
 
@@ -604,7 +604,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
     mFilesystemType = client->fsaccess->getlocalfstype(crootpath);
 
     localroot->init(this, FOLDERNODE, NULL, crootpath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
-    localroot->syncedCloudNodeHandle.set6byte(remotenode->nodehandle);
+    localroot->syncedCloudNodeHandle = remotenode->nodeHandle();
     cloudRootHandle = localroot->syncedCloudNodeHandle;
 
 #ifdef __APPLE__
@@ -1151,7 +1151,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
             // catch the not so unlikely case of a false fsid match due to
             // e.g. a file deletion/creation cycle that reuses the same inode
             if (sourceLocalNode->type == FILENODE &&
-                (sourceLocalNode->mtime != row.fsNode->mtime || sourceLocalNode->size != row.fsNode->size))
+                (sourceLocalNode->mtime != row.fsNode->fingerprint.mtime ||
+                 sourceLocalNode->size != row.fsNode->fingerprint.size))
             {
                 // This location's file can't be using that fsid then.
                 // Clear our fsid, and let normal comparison run
@@ -1320,7 +1321,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
         rowResult = false;
         return true;
     }
-    else if (LocalNode* sourceLocalNode = client->findLocalNodeByNodeHandle(NodeHandle().set6byte(row.cloudNode->nodehandle)))
+    else if (LocalNode* sourceLocalNode = client->findLocalNodeByNodeHandle(row.cloudNode->nodeHandle()))
     {
         if (sourceLocalNode == row.syncNode) return false;
 
@@ -1895,13 +1896,13 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath, DBTableTransactionC
     // Get sync triplets.
     auto childRows = computeSyncTriplets(row.cloudNode, *row.syncNode, *effectiveFsChildren);
 
+    syncHere &= !row.cloudNode || row.cloudNode->mPendingChanges.empty();
+
     bool folderSynced = syncHere;
     bool fsidsAssigned = false;
     bool subfoldersSynced = true;
 
     row.syncNode->conflicts = TREE_RESOLVED;
-
-    syncHere &= !row.cloudNode || row.cloudNode->mPendingChanges.empty();
 
     for (unsigned firstPass = 2; firstPass--; )
     {
@@ -1987,9 +1988,34 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& localPath, DBTableTransactionC
     // Record whether we performed any FSID assignments.
     row.syncNode->assigned |= fsidsAssigned;
 
-    if (folderSynced)
+    if (syncHere && folderSynced && row.syncNode->lastFolderScan)
     {
+#ifdef DEBUG
+        // Double check we really can recreate the filesystem entries correctly
+        vector<FSNode> generated;
+        for (auto &childIt : row.syncNode->children)
+        {
+            if (childIt.second->fsid != UNDEF)
+            {
+                generated.emplace_back(childIt.second->getKnownFSDetails());
+            }
+        }
+        assert(generated.size() == row.syncNode->lastFolderScan->size());
+        sort(generated.begin(), generated.end(), [](FSNode& a, FSNode& b){ return a.localname < b.localname; });
+        sort(row.syncNode->lastFolderScan->begin(), row.syncNode->lastFolderScan->end(), [](FSNode& a, FSNode& b){ return a.localname < b.localname; });
+        for (size_t i = generated.size(); i--; )
+        {
+            assert(generated[i].type == (*row.syncNode->lastFolderScan)[i].type);
+            if (generated[i].type == FILENODE)
+            {
+                assert(generated[i] == (*row.syncNode->lastFolderScan)[i]);
+            }
+        }
+#endif
+
+
         // LocalNodes are now consistent with the last scan.
+        LOG_debug << "Clearing folder scan records at " << localPath.toPath(*client->fsaccess);
         row.syncNode->lastFolderScan.reset();
     }
 
@@ -2172,18 +2198,25 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTab
             if (row.cloudNode)
             {
                 // all three exist; compare
+                bool fsCloudEqual = syncEqual(*row.cloudNode, *row.fsNode);
                 bool cloudEqual = syncEqual(*row.cloudNode, *row.syncNode);
                 bool fsEqual = syncEqual(*row.fsNode, *row.syncNode);
-                if (cloudEqual && fsEqual)
+                if (fsCloudEqual)
                 {
                     // success! this row is synced
+
+                    if (!cloudEqual || !fsEqual)
+                    {
+                        *static_cast<FileFingerprint*>(row.syncNode) = row.fsNode->fingerprint;
+                    }
+
                     if (row.syncNode->fsid != row.fsNode->fsid ||
                         row.syncNode->syncedCloudNodeHandle != row.cloudNode->nodehandle)
                     {
                         LOG_verbose << "Row is synced, setting fsid and nodehandle" << logTriplet(row, fullPath);
 
                         row.syncNode->setfsid(row.fsNode->fsid, client->localnodeByFsid);
-                        row.syncNode->setSyncedNodeHandle(NodeHandle().set6byte(row.cloudNode->nodehandle));
+                        row.syncNode->setSyncedNodeHandle(row.cloudNode->nodeHandle());
 
                         statecacheadd(row.syncNode);
                     }
@@ -2337,7 +2370,7 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Loca
         *static_cast<FileFingerprint*>(l) = row.cloudNode->fingerprint();
     }
     l->init(this, row.cloudNode->type, parentRow.syncNode, fullPath, nullptr);
-    l->setSyncedNodeHandle(NodeHandle().set6byte(row.cloudNode->nodehandle));
+    l->setSyncedNodeHandle(row.cloudNode->nodeHandle());
     l->treestate(TREESTATE_PENDING);
     if (l->type != FILENODE)
     {
@@ -2367,16 +2400,24 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath,
     if (row.fsNode->type == FILENODE)
     {
         // upload the file if we're not already uploading
-        if (!row.syncNode->transfer)
+
+        if (row.syncNode->upload &&
+          !(row.syncNode->upload->fingerprint() == row.fsNode->fingerprint))
+        {
+            LOG_debug << "An older version of this file was already uploading, cancelling." << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
+            row.syncNode->upload.reset();
+        }
+
+        if (!row.syncNode->upload)
         {
             if (parentRow.cloudNode)
             {
                 LOG_debug << "Uploading file " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
                 assert(row.syncNode->isvalid); // LocalNodes for files always have a valid fingerprint
-                row.syncNode->h = parentRow.cloudNode->nodehandle;
                 client->nextreqtag();
-                client->startxfer(PUT, row.syncNode, committer);  // full path will be calculated in the prepare() callback
-                client->app->syncupdate_put(this, row.syncNode, fullPath.toPath(*client->fsaccess).c_str());
+                row.syncNode->upload.reset(new LocalNode::Upload(*row.syncNode, *row.fsNode, parentRow.cloudNode->nodeHandle(), fullPath));
+                client->startxfer(PUT, row.syncNode->upload.get(), committer);  // full path will be calculated in the prepare() callback
+                client->app->syncupdate_put(this, fullPath.toPath(*client->fsaccess).c_str());
             }
             else
             {
@@ -2518,8 +2559,8 @@ LocalNode* MegaClient::findLocalNodeByFsid(FSNode& fsNode, Sync& filesystemSync)
         }
 #endif
         if (fsNode.type == FILENODE &&
-            (fsNode.mtime != it->second->mtime ||
-                fsNode.size != it->second->size))
+            (fsNode.fingerprint.mtime != it->second->mtime ||
+                fsNode.fingerprint.size != it->second->size))
         {
             // fsid match, but size or mtime mismatch
             // treat as different
@@ -2689,6 +2730,16 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullP
     }
 
     return false;
+}
+
+bool Sync::syncEqual(const Node& n, const FSNode& fs)
+{
+    // Assuming names already match
+    // Not comparing nodehandle here.  If they all match we set syncedCloudNodeHandle
+    if (n.type != fs.type) return false;
+    if (n.type != FILENODE) return true;
+    assert(n.fingerprint().isvalid && fs.fingerprint.isvalid);
+    return n.fingerprint() == fs.fingerprint;  // size, mtime, crc
 }
 
 bool Sync::syncEqual(const Node& n, const LocalNode& ln)

@@ -598,7 +598,7 @@ void DemoApp::syncupdate_get(Sync*, Node *, const char* path)
     cout << "Sync - requesting file " << path << endl;
 }
 
-void DemoApp::syncupdate_put(Sync*, LocalNode *, const char* path)
+void DemoApp::syncupdate_put(Sync*, const char* path)
 {
     cout << "Sync - sending file " << path << endl;
 }

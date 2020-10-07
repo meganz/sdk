@@ -3107,7 +3107,7 @@ protected:
         void syncupdate_local_file_change(Sync* sync, LocalNode* localNode, const char *path) override;
         void syncupdate_local_move(Sync* sync, LocalNode* localNode, const char* path) override;
         void syncupdate_get(Sync* sync, Node *node, const char* path) override;
-        void syncupdate_put(Sync* sync, LocalNode *localNode, const char*) override;
+        void syncupdate_put(Sync* sync, const char*) override;
         void syncupdate_remote_file_addition(Sync *sync, Node* n) override;
         void syncupdate_remote_file_deletion(Sync *sync, Node* n) override;
         void syncupdate_remote_folder_addition(Sync *sync, Node* n) override;

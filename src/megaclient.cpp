@@ -7647,7 +7647,7 @@ Node* MegaClient::sc_deltree()
                     proctree(n, &td);
                     reqtag = creqtag;
 
-                    if (n->parent) triggerSync(n->parent->nodehandle);
+                    if (n->parent) triggerSync(n->parent->nodeHandle());
 
                     useralerts.convertNotedSharedNodes(false, originatingUser);
                 }
@@ -7662,10 +7662,10 @@ Node* MegaClient::sc_deltree()
     }
 }
 
-void MegaClient::triggerSync(handle h)
+void MegaClient::triggerSync(NodeHandle h)
 {
 #ifdef ENABLE_SYNC
-    auto range = localnodeByNodeHandle.equal_range(NodeHandle().set6byte(h));
+    auto range = localnodeByNodeHandle.equal_range(h);
 
     for (auto it = range.first; it != range.second; ++it)
     {
@@ -8195,7 +8195,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
     Node* n;
 
 #ifdef ENABLE_SYNC
-    set<handle> allParents;
+    set<NodeHandle> allParents;
 #endif
 
     while (j->enterobject())
@@ -8328,7 +8328,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 #ifdef ENABLE_SYNC
         if (ph != UNDEF)
         {
-            allParents.insert(ph);
+            allParents.insert(NodeHandle().set6byte(ph));
         }
 #endif
 
@@ -8500,7 +8500,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
     }
 
 #ifdef ENABLE_SYNC
-    for (handle p : allParents)
+    for (NodeHandle p : allParents)
     {
         triggerSync(p);
     }
@@ -14436,7 +14436,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool s
 //                startxfer(PUT, l, committer);
 //
 //                tmppath = l->getLocalPath(true).toPath(*fsaccess);
-//                app->syncupdate_put(l->sync, l, tmppath.c_str());
+//                app->syncupdate_put(l->sync, tmppath.c_str());
 //            }
 //        }
 //

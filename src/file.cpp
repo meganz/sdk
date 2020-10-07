@@ -561,7 +561,7 @@ void SyncFileGet::updatelocalname()
     {
         if (n->parent)
         {
-            if (LocalNode* lnParent = sync->client->findLocalNodeByNodeHandle(NodeHandle().set6byte(n->parent->nodehandle)))
+            if (LocalNode* lnParent = sync->client->findLocalNodeByNodeHandle(n->parent->nodeHandle()))
             {
                 localname = lnParent->getLocalPath();
                 localname.appendWithSeparator(LocalPath::fromName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true, sync->client->fsaccess->localseparator);

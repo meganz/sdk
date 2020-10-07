@@ -1910,17 +1910,39 @@ FSNode LocalNode::getKnownFSDetails()
     n.name = name;
     n.shortname = slocalname ? make_unique<LocalPath>(*slocalname): nullptr;
     n.type = type;
-    n.size = FileFingerprint::size;
-    n.mtime = FileFingerprint::mtime;
     n.fsid = fsid;
     n.isSymlink = false;  // todo: store localndoes for symlinks but don't use them?
     n.fingerprint = *this;
     return n;
 }
 
-void LocalNode::prepare()
+
+LocalNode::Upload::Upload(LocalNode& ln, FSNode& details, NodeHandle targetFolder, const LocalPath& fullPath)
+    : localNode(ln)
 {
-    getlocalpath(transfer->localfilename, true);
+    *static_cast<FileFingerprint*>(this) = details.fingerprint;
+
+    // normalized name (UTF-8 with unescaped special chars)
+    // todo: we did unescape them though?
+    name = details.name;
+
+    // setting the full path means it works like a normal non-sync transfer
+    localname = fullPath;
+
+    h = targetFolder.as8byte();
+
+    hprivate = false;
+    hforeign = false;
+    syncxfer = true;
+    temporaryfile = false;
+    chatauth = nullptr;
+    transfer = nullptr;
+    tag = 0;
+}
+
+void LocalNode::Upload::prepare()
+{
+    localNode.getlocalpath(transfer->localfilename, true);
 
     // is this transfer in progress? update file's filename.
     if (transfer->slot && transfer->slot->fa && !transfer->slot->fa->nonblocking_localname.empty())
@@ -1928,19 +1950,19 @@ void LocalNode::prepare()
         transfer->slot->fa->updatelocalname(transfer->localfilename, false);
     }
 
-    treestate(TREESTATE_SYNCING);
+    localNode.treestate(TREESTATE_SYNCING);
 }
 
 // complete a sync upload: complete to //bin if a newer node exists (which
 // would have been caused by a race condition)
-void LocalNode::completed(Transfer* t, LocalNode*)
+void LocalNode::Upload::completed(Transfer* t, LocalNode*)
 {
     // in case this LocalNode was moved around (todo: since we don't actually move, make sure to copy internals such as upload transfers)
 
     h = UNDEF;
-    if (parent && !parent->syncedCloudNodeHandle.isUndef())
+    if (localNode.parent && !localNode.parent->syncedCloudNodeHandle.isUndef())
     {
-        if (Node* p = sync->client->nodeByHandle(parent->syncedCloudNodeHandle))
+        if (Node* p = localNode.sync->client->nodeByHandle(localNode.parent->syncedCloudNodeHandle))
         {
             h = p->nodehandle;
         }
@@ -1951,7 +1973,8 @@ void LocalNode::completed(Transfer* t, LocalNode*)
         h = t->client->rootnodes[RUBBISHNODE - ROOTNODE];
     }
 
-    File::completed(t, this);
+    File::completed(t, &localNode);
+    localNode.upload.reset(); // deletes this object!
 }
 
 // serialize/unserialize the following LocalNode properties:

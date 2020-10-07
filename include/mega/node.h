@@ -48,6 +48,9 @@ struct MEGA_API NodeCore
     // node's own handle
     handle nodehandle = UNDEF;
 
+    // inline convenience function to get a typed version that ensures we use the 6 bytes of a node handle, and not 8
+    NodeHandle nodeHandle() { return NodeHandle().set6byte(nodehandle); }
+
     // parent node handle (in a Node context, temporary placeholder until parent is set)
     handle parenthandle = UNDEF;
 
@@ -367,12 +370,21 @@ struct MEGA_API FSNode
     string name;
     unique_ptr<LocalPath> shortname;
     nodetype_t type = TYPE_UNKNOWN;
-    m_off_t size = 0;
-    m_time_t mtime = 0;
     mega::handle fsid = mega::UNDEF;
     bool isSymlink = false;
     bool isBlocked = false;
-    FileFingerprint fingerprint;
+    FileFingerprint fingerprint; // includes size, mtime
+
+    bool operator==(const FSNode& n) {
+        return localname == n.localname &&
+            name == n.name &&
+            !!shortname == !!n.shortname &&
+            (!shortname || *shortname == *n.shortname) &&
+            type == n.type &&
+            fsid == n.fsid &&
+            isSymlink == n.isSymlink &&
+            fingerprint == n.fingerprint;
+    }
 };
 
 enum TREESTATE : unsigned
@@ -538,8 +550,15 @@ public:
     handle dirnotifytag = mega::UNDEF;
 #endif
 
-    void prepare() override;
-    void completed(Transfer*, LocalNode*) override;
+    struct Upload : File
+    {
+        Upload(LocalNode& ln, FSNode& details, NodeHandle targetFolder, const LocalPath& fullPath);
+        LocalNode& localNode;
+        void prepare() override;
+        void completed(Transfer*, LocalNode*) override;
+    };
+
+    unique_ptr<Upload> upload;
 
     //void setnode(Node*);
 

@@ -457,7 +457,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
 
 #ifdef ENABLE_SYNC
     this->syncdeleted = (node->syncdeleted != SYNCDEL_NONE);
-    if (LocalNode* ln = node->client->findLocalNodeByNodeHandle(NodeHandle().set6byte(node->nodehandle)))
+    if (LocalNode* ln = node->client->findLocalNodeByNodeHandle(node->nodeHandle()))
     {
         localPath = ln->getLocalPath(true).platformEncoded();
         localPath.append("", 1);
@@ -8677,7 +8677,7 @@ bool MegaApiImpl::isSynced(MegaNode *n)
     SdkMutexGuard g(sdkMutex);
     if (Node *node = client->nodebyhandle(n->getHandle()))
     {
-        if (node->client->findLocalNodeByNodeHandle(NodeHandle().set6byte(node->nodehandle)))
+        if (node->client->findLocalNodeByNodeHandle(node->nodeHandle()))
         {
             return true;
         }
@@ -8783,7 +8783,7 @@ string MegaApiImpl::getLocalPath(MegaNode *n)
 
     if (Node *node = client->nodebyhandle(n->getHandle()))
     {
-        if (LocalNode* ln = node->client->findLocalNodeByNodeHandle(NodeHandle().set6byte(node->nodehandle)))
+        if (LocalNode* ln = node->client->findLocalNodeByNodeHandle(node->nodeHandle()))
         {
             string result = ln->getLocalPath(true).platformEncoded();
             result.append("", 1);
@@ -13031,7 +13031,7 @@ void MegaApiImpl::syncupdate_get(Sync *sync, Node* node, const char *path)
     fireOnSyncEvent(megaSync, event);
 }
 
-void MegaApiImpl::syncupdate_put(Sync *sync, LocalNode *, const char *path)
+void MegaApiImpl::syncupdate_put(Sync *sync, const char *path)
 {
     LOG_debug << "Sync - sending file " << path;
 
