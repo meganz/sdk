@@ -569,7 +569,7 @@ void SyncFileGet::completed(Transfer*, LocalNode* )
 {
     if (localNode.parent)
     {
-        localNode.parent->setFutureScan(true, false);
+        localNode.parent->setScanAgain(true, false);
     }
     localNode.download.reset(); // deletes this;
 }

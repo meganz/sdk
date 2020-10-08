@@ -1297,12 +1297,14 @@ void LocalNode::bumpnagleds()
 }
 
 LocalNode::LocalNode()
-: deleting{false}
-, created{false}
-, reported{false}
-, checked{false}
+: unstableFsidAssigned(false)
+, deleting{false}
+, wasLocalMoveSource(false)
+, conflicts(TREE_RESOLVED)
 , scanAgain(TREE_RESOLVED)
 , syncAgain(TREE_RESOLVED)
+, useBlocked(TREE_RESOLVED)
+, scanBlocked(TREE_RESOLVED)
 {}
 
 // initialize fresh LocalNode object - must be called exactly once
@@ -1310,12 +1312,10 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
 {
     sync = csync;
     parent = NULL;
-    //node = NULL;
     notseen = 0;
-    assigned = true;
+    unstableFsidAssigned = false;
     deleting = false;
-    created = false;
-    reported = false;
+    wasLocalMoveSource = false;
     conflicts = TREE_RESOLVED;
     scanAgain = TREE_RESOLVED;
     syncAgain = TREE_RESOLVED;
@@ -1433,7 +1433,7 @@ auto LocalNode::rare() -> RareFields&
     return *rareFields;
 }
 
-void LocalNode::setFutureScan(bool doHere, bool doBelow)
+void LocalNode::setScanAgain(bool doHere, bool doBelow)
 {
     unsigned state = (doHere?1u:0u) << 1 | (doBelow?1u:0u);
 
@@ -1444,7 +1444,7 @@ void LocalNode::setFutureScan(bool doHere, bool doBelow)
     }
 }
 
-void LocalNode::setFutureSync(bool doHere, bool doBelow)
+void LocalNode::setSyncAgain(bool doHere, bool doBelow)
 {
     unsigned state = (doHere?1u:0u) << 1 | (doBelow?1u:0u);
 
@@ -1653,6 +1653,10 @@ void LocalNode::setSyncedNodeHandle(NodeHandle h)
             return;
         }
 
+        assert(syncedCloudNodeHandle_it->first == syncedCloudNodeHandle);
+
+        LOG_verbose << sync->client->clientname << "removing syned handle " << syncedCloudNodeHandle << " for " << localnodedisplaypath(*sync->client->fsaccess);
+
         sync->client->localnodeByNodeHandle.erase(syncedCloudNodeHandle_it);
     }
 
@@ -1664,6 +1668,8 @@ void LocalNode::setSyncedNodeHandle(NodeHandle h)
     }
     else
     {
+        LOG_verbose << sync->client->clientname << "adding syned handle " << syncedCloudNodeHandle << " for " << localnodedisplaypath(*sync->client->fsaccess);
+
         syncedCloudNodeHandle_it = sync->client->localnodeByNodeHandle.insert(std::make_pair(syncedCloudNodeHandle, this));
     }
 }
@@ -1680,15 +1686,6 @@ LocalNode::~LocalNode()
     if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
     {
         sync->statecachedel(this);
-
-        if (type == FOLDERNODE)
-        {
-            sync->client->app->syncupdate_local_folder_deletion(sync, this);
-        }
-        else
-        {
-            sync->client->app->syncupdate_local_file_deletion(sync, this);
-        }
     }
 
     setnotseen(0);
@@ -1698,10 +1695,8 @@ LocalNode::~LocalNode()
     if (sync->dirnotify.get())
     {
         // deactivate corresponding notifyq records
-        for (int q = DirNotify::NUMQUEUES; q--; )
-        {
-            sync->dirnotify->notifyq[q].replaceLocalNodePointers(this, (LocalNode*)~0);
-        }
+        sync->dirnotify->fsEventq.replaceLocalNodePointers(this, (LocalNode*)~0);
+        sync->dirnotify->fsDelayedNetworkEventq.replaceLocalNodePointers(this, (LocalNode*)~0);
     }
 
     // remove from fsidnode map, if present
@@ -2097,11 +2092,6 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->parent = nullptr;
     l->sync = sync;
     l->mSyncable = syncable == 1;
-
-    // FIXME: serialize/unserialize
-    l->created = false;
-    l->reported = false;
-    l->checked = h != UNDEF; // TODO: Is this a bug? h will never be UNDEF
 
     return l;
 }

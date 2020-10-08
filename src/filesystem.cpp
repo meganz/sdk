@@ -585,7 +585,7 @@ int DirNotify::getFailed(string& reason)
 
 
 // notify base LocalNode + relative path/filename
-void DirNotify::notify(notifyqueue q, LocalNode* l, LocalPath&& path, bool immediate)
+void DirNotify::notify(NotificationDeque& q, LocalNode* l, LocalPath&& path, bool immediate)
 {
     // We may be executing on a thread here so we can't access the LocalNode data structures.  Queue everything, and
     // filter when the notifications are processed.  Also, queueing it here is faster than logging the decision anyway.
@@ -594,15 +594,7 @@ void DirNotify::notify(notifyqueue q, LocalNode* l, LocalPath&& path, bool immed
     n.timestamp = immediate ? 0 : Waiter::ds;
     n.localnode = l;
     n.path = std::move(path);
-    notifyq[q].pushBack(std::move(n));
-
-#ifdef ENABLE_SYNC
-    if (q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
-    {
-        sync->client->syncactivity = true;
-    }
-#endif
-
+    q.pushBack(std::move(n));
 }
 
 // default: no fingerprint

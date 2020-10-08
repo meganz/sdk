@@ -1033,7 +1033,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     {
                         if (syncUpload->localNode.parent)
                         {
-                            syncUpload->localNode.parent->setFutureScan(true, false);
+                            syncUpload->localNode.parent->setScanAgain(true, false);
                         }
                     }
                 }

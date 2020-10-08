@@ -12932,8 +12932,9 @@ void MegaApiImpl::syncupdate_scanning(bool scanning)
     fireOnGlobalSyncStateChanged();
 }
 
-void MegaApiImpl::syncupdate_local_folder_addition(Sync *sync, LocalNode *, const char* path)
+void MegaApiImpl::syncupdate_local_folder_addition(Sync *sync, const LocalPath& lp)
 {
+    string path = lp.toPath(*fsAccess);
     LOG_debug << "Sync - local folder addition detected: " << path;
     client->abortbackoff(false);
 
@@ -12941,15 +12942,15 @@ void MegaApiImpl::syncupdate_local_folder_addition(Sync *sync, LocalNode *, cons
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
 
     MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FOLDER_ADITION);
-    event->setPath(path);
+    event->setPath(path.c_str());
     fireOnSyncEvent(megaSync, event);
 }
 
-void MegaApiImpl::syncupdate_local_folder_deletion(Sync *sync, LocalNode *localNode)
+void MegaApiImpl::syncupdate_local_folder_deletion(Sync *sync, const LocalPath& lp)
 {
+    string path = lp.toPath(*fsAccess);
     client->abortbackoff(false);
 
-    string path = localNode->getLocalPath(true).toPath(*fsAccess);
     LOG_debug << "Sync - local folder deletion detected: " << path.c_str();
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
@@ -12961,8 +12962,9 @@ void MegaApiImpl::syncupdate_local_folder_deletion(Sync *sync, LocalNode *localN
     fireOnSyncEvent(megaSync, event);
 }
 
-void MegaApiImpl::syncupdate_local_file_addition(Sync *sync, LocalNode *, const char* path)
+void MegaApiImpl::syncupdate_local_file_addition(Sync *sync, const LocalPath& lp)
 {
+    string path = lp.toPath(*fsAccess);
     LOG_debug << "Sync - local file addition detected: " << path;
     client->abortbackoff(false);
 
@@ -12970,15 +12972,15 @@ void MegaApiImpl::syncupdate_local_file_addition(Sync *sync, LocalNode *, const 
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
 
     MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FILE_ADDITION);
-    event->setPath(path);
+    event->setPath(path.c_str());
     fireOnSyncEvent(megaSync, event);
 }
 
-void MegaApiImpl::syncupdate_local_file_deletion(Sync *sync, LocalNode *localNode)
+void MegaApiImpl::syncupdate_local_file_deletion(Sync *sync, const LocalPath& lp)
 {
     client->abortbackoff(false);
 
-    string path = localNode->getLocalPath(true).toPath(*fsAccess);
+    string path = lp.toPath(*fsAccess);
     LOG_debug << "Sync - local file deletion detected: " << path.c_str();
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;

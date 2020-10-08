@@ -125,7 +125,7 @@ void LocalTreeProcMove::proc(MegaClient*, LocalNode* localnode)
 
     if (recreate)
     {
-        localnode->created = false;
+        //localnode->created = false;
         //localnode->node = NULL;
     }
 

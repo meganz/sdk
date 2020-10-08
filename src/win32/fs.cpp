@@ -1295,7 +1295,7 @@ void WinDirNotify::process(DWORD dwBytes)
         LOG_err << "Empty filesystem notification: " << (localrootnode ? localrootnode->name.c_str() : "NULL")
                 << " errors: " << errCount;
         readchanges();
-        notify(DIREVENTS, localrootnode, LocalPath());
+        notify(fsEventq, localrootnode, LocalPath());
 #endif
     }
     else
@@ -1331,46 +1331,10 @@ void WinDirNotify::process(DWORD dwBytes)
                     || (fni->FileNameLength > ignore.localpath.size()
                         && fni->FileName[ignore.localpath.size() - 1] == L'\\')))
             {
-                if (SimpleLogger::logCurrentLevel >= logDebug)
-                {
 #ifdef ENABLE_SYNC
-                    // Outputting this logging on the notification thread slows it down considerably, risking missing notifications.
-                    // Let's skip it and log the ones received on the notify queue
-
-                    //string local, path;
-                    //local.assign((char*)fni->FileName, fni->FileNameLength);
-                    //path.resize((local.size() + 1) * 4 / sizeof(wchar_t));
-                    //path.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)local.data(),
-                    //                                 int(local.size() / sizeof(wchar_t)),
-                    //                                 (char*)path.data(),
-                    //                                 int(path.size() + 1),
-                    //                                 NULL, NULL));
-
-                    //LOG_debug << "Filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
-#endif
-                }
-#ifdef ENABLE_SYNC
-                notify(DIREVENTS, localrootnode, LocalPath::fromPlatformEncoded(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))));
+                notify(fsEventq, localrootnode, LocalPath::fromPlatformEncoded(std::wstring(fni->FileName, fni->FileNameLength / sizeof(fni->FileName[0]))));
 #endif
             }
-            else if (SimpleLogger::logCurrentLevel >= logDebug)
-            {
-#ifdef ENABLE_SYNC
-                // Outputting this logging on the notification thread slows it down considerably, risking missing notifications.
-                // Let's skip it and log the ones received on the notify queue
-
-                //string local, path;
-                //local.assign((char*)fni->FileName, fni->FileNameLength);
-                //path.resize((local.size() + 1) * 4 / sizeof(wchar_t));
-                //path.resize(WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)local.data(),
-                //                                 int(local.size() / sizeof(wchar_t)),
-                //                                 (char*)path.data(),
-                //                                 int(path.size() + 1),
-                //                                 NULL, NULL));
-                //LOG_debug << "Skipped filesystem notification. Root: " << (localrootnode ? localrootnode->name.c_str() : "NULL") << "   Path: " << path;
-#endif
-            }
-
 
             if (!fni->NextEntryOffset)
             {

@@ -2828,22 +2828,22 @@ void MegaClient::exec()
                 if (!syncadding && (syncactivity || syncops))
                 {
 
-                    // perform aggregate ops that require all scanqs to be fully processed
-                    bool anyqueued = false;
-                    for (Sync* sync : syncs)
-                    {
-                        if (sync->dirnotify->notifyq[DirNotify::DIREVENTS].size())
-                        {
-                            if (!syncnagleretry)
-                            {
-                                syncactivity = true;
-                            }
+                    //// perform aggregate ops that require all scanqs to be fully processed
+                    //bool anyqueued = false;
+                    //for (Sync* sync : syncs)
+                    //{
+                    //    if (sync->dirnotify->fsEventq.size())
+                    //    {
+                    //        if (!syncnagleretry)
+                    //        {
+                    //            syncactivity = true;
+                    //        }
 
-                            anyqueued = true;
-                        }
-                    }
+                    //        anyqueued = true;
+                    //    }
+                    //}
 
-                    if (!anyqueued)
+//                    if (!anyqueued)
                     {
                         //// execution of notified deletions - these are held in localsyncnotseen and
                         //// kept pending until all creations (that might reference them for the purpose of
@@ -2866,9 +2866,9 @@ void MegaClient::exec()
                         // are retrying local fs writes
 
                         {
-                            LOG_verbose << "syncops: " << syncactivity << syncnagleretry;
-                                        //<< synccreate.size();
-                            syncops = false;
+                            //LOG_verbose << "syncops: " << syncactivity << syncnagleretry;
+                            //            //<< synccreate.size();
+                            //syncops = false;
 
                             //// FIXME: only syncup for subtrees that were actually
                             //// updated to reduce CPU load
@@ -2903,7 +2903,7 @@ void MegaClient::exec()
                             //}
 
                             // delete files that were overwritten by folders in syncup()
-                            execsyncdeletions();
+//                            execsyncdeletions();
 
                             //if (synccreate.size())
                             //{
@@ -2986,7 +2986,7 @@ void MegaClient::exec()
                             //    fsaccess->notifyerr = false;
                             //}
 
-                            execsyncdeletions();
+                            //execsyncdeletions();
                         }
                     }
                 }
@@ -3014,7 +3014,7 @@ void MegaClient::exec()
                 else
                 {
                     dstime extradelay = sync->procextraq();
-                    dstime scandelay  = sync->procscanq(DirNotify::DIREVENTS);
+                    dstime scandelay  = sync->procscanq();
                     dstime delay = std::min(extradelay, scandelay);
 
                     if (EVER(delay))
@@ -3046,7 +3046,8 @@ void MegaClient::exec()
                             LocalPath pathBuffer = sync->localroot->localname;
 
                             DBTableTransactionCommitter committer(tctable);
-                            Sync::syncRow row{sync->cloudRoot(), sync->localroot.get(), nullptr};
+                            FSNode rootFsNode(sync->localroot->getKnownFSDetails());
+                            Sync::syncRow row{sync->cloudRoot(), sync->localroot.get(), &rootFsNode};
 
                             // Will be re-set if we can reach the scan target.
                             mSyncFlags.scanTargetReachable = false;
@@ -3086,6 +3087,8 @@ void MegaClient::exec()
                     }
                     break;
                 }
+
+                execsyncdeletions();
             }
 
             bool anySyncScanning = isAnySyncScanning();
@@ -5196,7 +5199,7 @@ void MegaClient::updatesc()
                 {
                     if ((*it)->dbid)
                     {
-                        LOG_verbose << "Removing inactive user from database: " << (Base64::btoa((byte*)&((*it)->userhandle),MegaClient::USERHANDLE,base64) ? base64 : "");
+                        LOG_verbose << clientname << "Removing inactive user from database: " << (Base64::btoa((byte*)&((*it)->userhandle),MegaClient::USERHANDLE,base64) ? base64 : "");
                         if (!(complete = sctable->del((*it)->dbid)))
                         {
                             break;
@@ -5205,7 +5208,7 @@ void MegaClient::updatesc()
                 }
                 else
                 {
-                    LOG_verbose << "Adding/updating user to database: " << (Base64::btoa((byte*)&((*it)->userhandle),MegaClient::USERHANDLE,base64) ? base64 : "");
+                    LOG_verbose << clientname << "Adding/updating user to database: " << (Base64::btoa((byte*)&((*it)->userhandle),MegaClient::USERHANDLE,base64) ? base64 : "");
                     if (!(complete = sctable->put(CACHEDUSER, *it, &key)))
                     {
                         break;
@@ -5224,7 +5227,7 @@ void MegaClient::updatesc()
                 {
                     if ((*it)->dbid)
                     {
-                        LOG_verbose << "Removing node from database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
+                        LOG_verbose << clientname << "Removing node from database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
                         if (!(complete = sctable->del((*it)->dbid)))
                         {
                             break;
@@ -5233,7 +5236,7 @@ void MegaClient::updatesc()
                 }
                 else
                 {
-                    LOG_verbose << "Adding node to database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
+                    LOG_verbose << clientname << "Adding node to database: " << (Base64::btoa((byte*)&((*it)->nodehandle),MegaClient::NODEHANDLE,base64) ? base64 : "");
                     if (!(complete = sctable->put(CACHEDNODE, *it, &key)))
                     {
                         break;
@@ -5703,6 +5706,12 @@ void MegaClient::sc_updatenode()
                             JSON::copystring(n->attrstring.get(), a);
                             n->changed.attrs = true;
                             notify = true;
+
+                            if (n->parent && !syncs.empty())
+                            {
+                                // possible node name change; sync parent
+                                triggerSync(n->parent->nodeHandle());
+                            }
                         }
 
                         if (ts != -1 && n->ctime != ts)
@@ -7615,6 +7624,7 @@ Node* MegaClient::nodebyhandle(handle h)
 
 Node* MegaClient::nodeByHandle(NodeHandle h)
 {
+    if (h.isUndef()) return nullptr;
     return nodebyhandle(h.as8byte());
 }
 
@@ -7652,7 +7662,10 @@ Node* MegaClient::sc_deltree()
                     proctree(n, &td);
                     reqtag = creqtag;
 
-                    if (n->parent) triggerSync(n->parent->nodeHandle());
+                    if (n->parent && !syncs.empty())
+                    {
+                        triggerSync(n->parent->nodeHandle());
+                    }
 
                     useralerts.convertNotedSharedNodes(false, originatingUser);
                 }
@@ -7674,7 +7687,7 @@ void MegaClient::triggerSync(NodeHandle h)
 
     for (auto it = range.first; it != range.second; ++it)
     {
-        it->second->setFutureSync(true, false);
+        it->second->setSyncAgain(true, false);
     }
 #endif
 }
