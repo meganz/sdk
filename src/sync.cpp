@@ -738,7 +738,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         localpath.appendWithSeparator(it->second->localname, true, client->fsaccess->localseparator);
 
         LocalNode* l = it->second;
-        handle fsid = fsstableids ? l->fsid : UNDEF;
+        handle fsid = l->fsid;
         m_off_t size = l->syncedFingerprint.size;
 
         // clear localname to force newnode = true in setnameparent
