@@ -3228,6 +3228,9 @@ protected:
         // failed request retry notification
         void notify_retry(dstime, retryreason_t) override;
 
+        // check if putnodes has failed because remote node not exist anymore
+        bool checkPutNodesNoentError() override;
+
         // notify about db commit
         void notify_dbcommit() override;
 

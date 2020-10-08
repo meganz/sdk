@@ -1994,6 +1994,47 @@ void MegaClient::exec()
                             }
                         }
 
+                        if (app->checkPutNodesNoentError())
+                        {
+                            if (csretrying)
+                            {
+                                app->notify_retry(0, RETRY_NONE);
+                                csretrying = false;
+                            }
+
+                            // request succeeded, process result array
+                            reqs.serverresponse(std::move("[-11]"), this);
+
+                            WAIT_CLASS::bumpds();
+
+                            delete pendingcs;
+                            pendingcs = NULL;
+
+                            notifypurge();
+                            if (sctable && pendingsccommit && !reqs.cmdspending())
+                            {
+                                LOG_debug << "Executing postponed DB commit";
+                                sctable->commit();
+                                sctable->begin();
+                                app->notify_dbcommit();
+                                pendingsccommit = false;
+                            }
+
+                            // increment unique request ID
+                            for (int i = sizeof reqid; i--; )
+                            {
+                                if (reqid[i]++ < 'z')
+                                {
+                                    break;
+                                }
+                                else
+                                {
+                                    reqid[i] = 'a';
+                                }
+                            }
+                            break;
+                        }
+
                         // failure, repeat with capped exponential backoff
                         app->request_response_progress(pendingcs->bufpos, -1);
 

@@ -14274,6 +14274,24 @@ void MegaApiImpl::clearing()
 #endif
 }
 
+bool MegaApiImpl::checkPutNodesNoentError()
+{
+    if(requestMap.find(client->reqtag) != requestMap.end())
+    {
+        MegaRequestPrivate* request = requestMap.at(client->reqtag);
+        if (request->getType() == MegaRequest::TYPE_CREATE_FOLDER_TREE)
+        {
+            Node *target = client->nodebyhandle(request->getParentHandle());
+            if (!target)
+            {
+                LOG_err << "Putnodes target not exists anymore";
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 void MegaApiImpl::notify_retry(dstime dsdelta, retryreason_t reason)
 {
 #ifdef ENABLE_SYNC
