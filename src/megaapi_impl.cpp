@@ -25352,7 +25352,7 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
         }
         else
         {
-            assert(request->getMegaStringListMap());
+            assert(request->getMegaStringMultiVector());
             MegaStringMultivector *mapList = request->getMegaStringMultiVector();
             int incomplete = mapList ? mapList->get(0)->size() : 0;
             mIncompleteTransfers += incomplete;
