@@ -7096,6 +7096,8 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 /**
  * @brief Check if a node has an access level.
  *
+ * @deprecated Use checkAccessErrorExtendedForNode
+ *
  * @param node Node to check.
  * @param level Access level to check.
  * Valid values for this parameter are:
@@ -7114,7 +7116,30 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (MEGAError *)checkAccessForNode:(MEGANode *)node level:(MEGAShareType)level;
 
 /**
+ * @brief Check if a node has an access level
+ *
+ * @param node Node to check
+ * @param level Access level to check
+ * Valid values for this parameter are:
+ * - MEGAShareTypeAccessOwner
+ * - MEGAShareTypeAccessFull
+ * - MEGAShareTypeAccessReadWrite
+ * - MEGAShareTypeAccessRead
+ *
+ * @return Error with the result.
+ * Valid values for the error code are:
+ * - MEGAErrorTypeApiOk - The node has the required access level
+ * - MEGAErrorTypeApiEAccess - The node doesn't have the required access level
+ * - MEGAErrorTypeApiENoent - The node doesn't exist in the account
+ * - MEGAErrorTypeApiEArgs - Invalid parameters
+ */
+- (MEGAError *)checkAccessErrorExtendedForNode:(MEGANode *)node level:(MEGAShareType)level;
+
+/**
  * @brief Check if a node can be moved to a target node.
+ *
+ * @deprecated User checkMoveErrorExtendedForNode
+ *
  * @param node Node to check.
  * @param target Target for the move operation.
  * @return MEGAError object with the result:
@@ -7126,6 +7151,21 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * - MEGAErrorTypeApiEArgs - Invalid parameters
  */
 - (MEGAError *)checkMoveForNode:(MEGANode *)node target:(MEGANode *)target;
+
+/**
+ * @brief Check if a node can be moved to a target node.
+ *
+ * @param node Node to check.
+ * @param target Target for the move operation.
+ * @return MEGAError object with the result:
+ * Valid values for the error code are:
+ * - MEGAErrorTypeApiOk - The node can be moved to the target
+ * - MEGAErrorTypeApiEAccess - The node can't be moved because of permissions problems
+ * - MEGAErrorTypeApiECircular - The node can't be moved because that would create a circular linkage
+ * - MEGAErrorTypeApiENoent - The node or the target doesn't exist in the account
+ * - MEGAErrorTypeApiEArgs - Invalid parameters
+ */
+- (MEGAError *)checkMoveErrorExtendedForNode:(MEGANode *)node target:(MEGANode *)target;
 
 /**
  * @brief Check if a node is in the Rubbish bin tree
