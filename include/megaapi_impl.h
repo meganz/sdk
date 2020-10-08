@@ -231,7 +231,10 @@ public:
     void cancel() override;
 
 protected:
-    void scanFolderNode(int parentIndex, LocalPath& localPath, std::string folderName);
+    /* Scan entire tree recursively, and retrieve folders structure, and files to be uploaded.
+     * A putnodes command can only add subtrees under same target, so in case we need to add
+     * subtrees under different targets, this method will generate a subtree for each one */
+    void scanFolderNode(handle targetHandle, handle parentHandle, int parentIndex, LocalPath& localPath, std::string folderName);
     void checkCompletion();
     // Each element is a pair formed by the localpath of the folder, and the handle of the parent node
     std::vector<std::pair<LocalPath, handle>> mPendingFiles;

@@ -25242,11 +25242,10 @@ void MegaFolderUploadController::cancel()
     transfer = nullptr;  // no final callback for this one since it is being destroyed now
 }
 
-void MegaFolderUploadController::scanFolderNode(MegaHandle parentHandle, LocalPath& localPath, std::string folderName)
+void MegaFolderUploadController::scanFolderNode(handle targetHandle, handle parentHandle, int parentIndex, LocalPath& localPath, std::string folderName)
 {
     recursive++;
     unique_ptr<DirAccess> da(client->fsaccess->newdiraccess());
-    assert(parentHandle != UNDEF);
     if (!da->dopen(&localPath, nullptr, false))
     {
         LOG_err << "Can't open local directory" << localPath.toPath(*client->fsaccess);
@@ -25256,15 +25255,36 @@ void MegaFolderUploadController::scanFolderNode(MegaHandle parentHandle, LocalPa
         return;
     }
 
-    // generate a temp node handle
-    MegaHandle newNodeHandle = client->nextUploadId();
-    const unique_ptr<char[]> nhB64(megaApi->handleToBase64(newNodeHandle));
-    const unique_ptr<char[]> phB64(megaApi->handleToBase64(parentHandle));
+    Node *parentNode = client->nodebyhandle(parentHandle);
+    Node *folder = client->childnodebyname(parentNode, folderName.c_str(), false);
+    bool folderExists = folder && folder->type == FOLDERNODE;
 
-    // map nodeHandle to folderName
-    mFolders->set(nhB64.get(), folderName.c_str());
-    // map nodeHandle to parentHandle
-    mFoldersHierarchy->set(nhB64.get(), phB64.get());
+    int nodeIndex = - 1;
+    MegaHandle newNodeHandle = UNDEF;
+    if (!folderExists)
+    {
+        // generate a temporal node handle for the new node
+        newNodeHandle = client->nextUploadId();
+        const unique_ptr<char[]> nhB64(megaApi->handleToBase64(newNodeHandle));
+
+        // get subtree or create a new one in case it doesn't exists
+        std::shared_ptr <MegaStringMultivector> subtree;
+        auto it = mFolderStructure.find(targetHandle);
+        if (it == mFolderStructure.end())
+        {
+            std::shared_ptr <MegaStringMultivector> newSubtree (MegaStringMultivector::createInstance());
+            mFolderStructure[targetHandle] = std::move(newSubtree);
+        }
+        subtree = mFolderStructure[targetHandle];
+
+        // Add new item to subtree vector <tempNodeHandle, parentIndex, FolderName>
+        string_vector *folderNode = new string_vector();
+        folderNode->emplace_back(nhB64.get());
+        folderNode->emplace_back(std::to_string(parentIndex));
+        folderNode->emplace_back(folderName.c_str());
+        subtree->append(folderNode); //subtree takes ownership of folderNode
+        nodeIndex = subtree->size() - 1;
+    }
 
     LocalPath localname;
     nodetype_t dirEntryType;
@@ -25273,14 +25293,18 @@ void MegaFolderUploadController::scanFolderNode(MegaHandle parentHandle, LocalPa
     {
         ScopedLengthRestore restoreLen(localPath);
         localPath.appendWithSeparator(localname, false, client->fsaccess->localseparator);
-
         if (dirEntryType == FILENODE)
         {
-            mPendingFiles.emplace_back(std::make_pair(localPath, newNodeHandle));
+            (folderExists)
+                ? mPendingFiles.emplace_back(std::make_pair(localPath, folder->nodehandle)) // found folder handle
+                : mPendingFiles.emplace_back(std::make_pair(localPath, newNodeHandle));     // temp handle
         }
         else if (dirEntryType == FOLDERNODE)
         {
-            scanFolderNode(newNodeHandle, localPath, localname.toName(*client->fsaccess, fsType));
+            // if folder exists, call scanFolderNode with parent handle as new target for each child
+            (folderExists)
+                ? scanFolderNode(folder->nodehandle, folder->nodehandle, -1, localPath, localname.toName(*client->fsaccess, fsType))
+                : scanFolderNode(targetHandle, newNodeHandle, nodeIndex, localPath, localname.toName(*client->fsaccess, fsType));
         }
     }
     recursive--;
