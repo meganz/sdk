@@ -801,9 +801,12 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                     // previous IN_MOVED_FROM is not followed by the
                                     // corresponding IN_MOVED_TO, so was actually a deletion
                                     LOG_debug << "Filesystem notification (deletion). Root: " << lastlocalnode->name << "   Path: " << lastname;
-                                    lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
-                                                                           lastlocalnode,
-                                                                           LocalPath::fromPlatformEncoded(lastname));
+
+                                    auto& dirnotify = *lastlocalnode->sync->dirnotify;
+
+                                    dirnotify.notify(dirnotify.fsEventq,
+                                                     lastlocalnode,
+                                                     LocalPath::fromPlatformEncoded(lastname));
 
                                     r |= Waiter::NEEDEXEC;
                                 }
@@ -830,9 +833,12 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                   && in->name[ignore->size()] != localseparator))
                                 {
                                     LOG_debug << "Filesystem notification. Root: " << it->second->name << "   Path: " << in->name;
-                                    it->second->sync->dirnotify->notify(DirNotify::DIREVENTS,
-                                                                        it->second,
-                                                                        LocalPath::fromPlatformEncoded(std::string(in->name, insize)));
+
+                                    auto& dirnotify = *it->second->sync->dirnotify;
+
+                                    dirnotify.notify(dirnotify.fsEventq,
+                                                     it->second,
+                                                     LocalPath::fromPlatformEncoded(std::string(in->name, insize)));
 
                                     r |= Waiter::NEEDEXEC;
                                 }
@@ -854,9 +860,12 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
               && lastname[ignore->size()] != localseparator))
             {
                 LOG_debug << "Filesystem notification. Root: " << lastlocalnode->name << "   Path: " << lastname;
-                lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
-                                                       lastlocalnode,
-                                                       LocalPath::fromPlatformEncoded(lastname));
+
+                auto& dirnotify = *it->second->sync->dirnotify;
+
+                dirnotify.notify(dirnotify.fsEventq,
+                                 lastlocalnode,
+                                 LocalPath::fromPlatformEncoded(lastname));
 
                 r |= Waiter::NEEDEXEC;
             }
@@ -1019,10 +1028,13 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 if (paths[i])
                 {
                     LOG_debug << "Filesystem notification. Root: " << pathsync[i]->localroot->name << "   Path: " << paths[i];
-                    pathsync[i]->dirnotify->notify(DirNotify::DIREVENTS,
-                                                   pathsync[i]->localroot.get(),
-                                                   LocalPath::fromPlatformEncoded(paths[i]),
-                                                   strlen(paths[i]));
+
+                    auto& dirnotify = *pathsync[i]->dirnotify;
+
+                    dirnotify.notify(dirnotify.fsEventq,
+                                     pathsync[i]->localroot.get(),
+                                     LocalPath::fromPlatformEncoded(paths[i]),
+                                     strlen(paths[i]));
 
                     r |= Waiter::NEEDEXEC;
                 }
