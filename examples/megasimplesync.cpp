@@ -90,8 +90,8 @@ class SyncApp : public MegaApp, public Logger
 
 #ifdef ENABLE_SYNC
     void syncupdate_state(int, syncstate_t, SyncError, bool) override;
-    void syncupdate_local_folder_addition(Sync*, LocalNode*, const char *) override;
-    void syncupdate_local_folder_deletion(Sync*, LocalNode*) override;
+    void syncupdate_local_folder_addition(Sync*, const LocalPath& path) override;
+    void syncupdate_local_folder_deletion(Sync*, const LocalPath& path) override;
     void syncupdate_local_file_addition(Sync*, const LocalPath& path) override;
     void syncupdate_local_file_deletion(Sync*, const LocalPath& path) override;
     void syncupdate_local_file_change(Sync*, LocalNode*, const char *) override;
@@ -491,24 +491,36 @@ void SyncApp::syncupdate_state(int, syncstate_t state, SyncError, bool)
 
 // sync update callbacks are for informational purposes only and must not
 // change or delete the sync itself
-void SyncApp::syncupdate_local_folder_addition(Sync*, LocalNode *, const char* path)
+void SyncApp::syncupdate_local_folder_addition(Sync*, const LocalPath& path) 
 {
-    LOG_info << "Sync - local folder addition detected: " << path;
+    assert(client && !!client->fsaccess);
+
+    LOG_info << "Sync - local folder addition detected: "
+             << path.toPath(*client->fsaccess);
 }
 
-void SyncApp::syncupdate_local_folder_deletion(Sync*, LocalNode *localNode)
+void SyncApp::syncupdate_local_folder_deletion(Sync*, const LocalPath& path)
 {
-    LOG_info << "Sync - local folder deletion detected: " << localNode->name;
+    assert(client && !!client->fsaccess);
+
+    LOG_info << "Sync - local folder deletion detected: "
+             << path.toPath(*client->fsaccess);
 }
 
 void SyncApp::syncupdate_local_file_addition(Sync*, const LocalPath& path)
 {
-    LOG_info << "Sync - local file addition detected: " << path;
+    assert(client && !!client->fsaccess);
+
+    LOG_info << "Sync - local file addition detected: "
+             << path.toPath(*client->fsaccess);
 }
 
 void SyncApp::syncupdate_local_file_deletion(Sync*, const LocalPath& path)
 {
-    LOG_info << "Sync - local file deletion detected: " << localNode->name;
+    assert(client && !!client->fsaccess);
+
+    LOG_info << "Sync - local file deletion detected: "
+             << path.toPath(*client->fsaccess);
 }
 
 void SyncApp::syncupdate_local_file_change(Sync*, LocalNode *, const char* path)
