@@ -515,27 +515,27 @@ void DemoApp::syncupdate_scanning(bool active)
 }
 
 // sync update callbacks are for informational purposes only and must not change or delete the sync itself
-void DemoApp::syncupdate_local_folder_addition(Sync* sync, LocalNode *, const char* path)
+void DemoApp::syncupdate_local_folder_addition(Sync* sync, const LocalPath& path)
 {
-    cout << "Sync - local folder addition detected: " << path;
+    cout << "Sync - local folder addition detected: " << path.toPath(*client->fsaccess);
     syncstat(sync);
 }
 
-void DemoApp::syncupdate_local_folder_deletion(Sync* sync, LocalNode *localNode)
+void DemoApp::syncupdate_local_folder_deletion(Sync* sync, const LocalPath& path)
 {
-    cout << "Sync - local folder deletion detected: " << localNode->name;
+    cout << "Sync - local folder deletion detected: " << path.toPath(*client->fsaccess);
     syncstat(sync);
 }
 
-void DemoApp::syncupdate_local_file_addition(Sync* sync, LocalNode *, const char* path)
+void DemoApp::syncupdate_local_file_addition(Sync* sync, const LocalPath& path)
 {
-    cout << "Sync - local file addition detected: " << path;
+    cout << "Sync - local file addition detected: " << path.toPath(*client->fsaccess);
     syncstat(sync);
 }
 
-void DemoApp::syncupdate_local_file_deletion(Sync* sync, LocalNode *localNode)
+void DemoApp::syncupdate_local_file_deletion(Sync* sync, const LocalPath& path)
 {
-    cout << "Sync - local file deletion detected: " << localNode->name;
+    cout << "Sync - local file deletion detected: " << path.toPath(*client->fsaccess);
     syncstat(sync);
 }
 

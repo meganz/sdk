@@ -380,6 +380,14 @@ struct MEGA_API FSNode
             isSymlink == n.isSymlink &&
             fingerprint == n.fingerprint;
     }
+
+    unique_ptr<LocalPath> cloneShortname()
+    {
+        return unique_ptr<LocalPath>(
+            shortname
+            ? new LocalPath(*shortname)
+            : nullptr);
+    }
 };
 
 enum TREESTATE : unsigned
@@ -467,19 +475,13 @@ struct MEGA_API LocalNode : public Cacheable
     struct
     {
         // fsids have been assigned in this node.
-        bool assigned : 1;
+        bool unstableFsidAssigned : 1;
 
         // disappeared from local FS; we are moving the cloud node to the trash.
         bool deleting : 1;
 
-        // has been created remotely
-        bool created : 1;
-
-        // an issue has been reported
-        bool reported : 1;
-
-        // checked for missing attributes
-        bool checked : 1;
+        // this node has been moved in the local FS
+        bool wasLocalMoveSource : 1;
 
         // whether any name conflicts have been detected.
         unsigned conflicts : 2;   // TREESTATE
@@ -512,8 +514,8 @@ public:
     dstime lastScanTime = 0;
 
     // set the syncupTargetedAction for this, and parents
-    void setFutureSync(bool doHere, bool doBelow);
-    void setFutureScan(bool doHere, bool doBelow);
+    void setSyncAgain(bool doHere, bool doBelow);
+    void setScanAgain(bool doHere, bool doBelow);
     void setUseBlocked();
     void setScanBlocked();
 

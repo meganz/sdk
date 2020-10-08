@@ -92,8 +92,8 @@ class SyncApp : public MegaApp, public Logger
     void syncupdate_state(int, syncstate_t, SyncError, bool) override;
     void syncupdate_local_folder_addition(Sync*, LocalNode*, const char *) override;
     void syncupdate_local_folder_deletion(Sync*, LocalNode*) override;
-    void syncupdate_local_file_addition(Sync*, LocalNode*, const char *) override;
-    void syncupdate_local_file_deletion(Sync*, LocalNode*) override;
+    void syncupdate_local_file_addition(Sync*, const LocalPath& path) override;
+    void syncupdate_local_file_deletion(Sync*, const LocalPath& path) override;
     void syncupdate_local_file_change(Sync*, LocalNode*, const char *) override;
     void syncupdate_local_move(Sync*, LocalNode*, const char*) override;
     void syncupdate_get(Sync*, Node*, const char*) override;
@@ -501,12 +501,12 @@ void SyncApp::syncupdate_local_folder_deletion(Sync*, LocalNode *localNode)
     LOG_info << "Sync - local folder deletion detected: " << localNode->name;
 }
 
-void SyncApp::syncupdate_local_file_addition(Sync*, LocalNode *, const char* path)
+void SyncApp::syncupdate_local_file_addition(Sync*, const LocalPath& path)
 {
     LOG_info << "Sync - local file addition detected: " << path;
 }
 
-void SyncApp::syncupdate_local_file_deletion(Sync*, LocalNode *localNode)
+void SyncApp::syncupdate_local_file_deletion(Sync*, const LocalPath& path)
 {
     LOG_info << "Sync - local file deletion detected: " << localNode->name;
 }

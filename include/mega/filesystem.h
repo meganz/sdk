@@ -390,13 +390,9 @@ struct NotificationDeque : ThreadSafeDeque<Notification>
 // generic filesystem change notification
 struct MEGA_API DirNotify
 {
-    typedef enum { EXTRA, DIREVENTS, NUMQUEUES } notifyqueue;
-
-    // notifyq[EXTRA] is like DIREVENTS, but delays its processing (for network filesystems)
-    // notifyq[DIREVENTS] is fed with filesystem changes
-    // notifyq[RETRY] receives transient errors that need to be retried
     // Thread safe so that a separate thread can listen for filesystem notifications (for windows for now, maybe more platforms later)
-    NotificationDeque notifyq[NUMQUEUES];
+    NotificationDeque fsEventq;
+    NotificationDeque fsDelayedNetworkEventq;
 
 private:
     // these next few fields may be updated by notification-reading threads
@@ -423,7 +419,7 @@ public:
     virtual void addnotify(LocalNode*, const LocalPath&) { }
     virtual void delnotify(LocalNode*) { }
 
-    void notify(notifyqueue, LocalNode *, LocalPath&&, bool = false);
+    void notify(NotificationDeque&, LocalNode *, LocalPath&&, bool = false);
 
     // filesystem fingerprint
     virtual fsfp_t fsfingerprint() const;

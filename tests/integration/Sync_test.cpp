@@ -790,13 +790,15 @@ struct StandardClient : public MegaApp
 
             if (entry.empty())
             {
-                out() << "received notification of operation type " << rpe << " completion but we don't have a record of it.  tag: " << tag << endl;
+                out() << client.client.clientname
+                      << "received notification of operation type " << rpe << " completion but we don't have a record of it.  tag: " << tag << endl;
                 return;
             }
 
             if (tag != entry.front().request_tag)
             {
-                out() << "tag mismatch for operation completion of " << rpe << " tag " << tag << ", we expected " << entry.front().request_tag << endl;
+                out() << client.client.clientname
+                      << "tag mismatch for operation completion of " << rpe << " tag " << tag << ", we expected " << entry.front().request_tag << endl;
                 return;
             }
 
@@ -892,10 +894,10 @@ struct StandardClient : public MegaApp
     void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b << endl; } }
     //void syncupdate_local_folder_addition(Sync* s, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_folder_addition() " << lp(ln) << " " << cp << endl; }}
     //void syncupdate_local_folder_deletion(Sync*, LocalNode* ln) override { if (logcb) { onCallback(); lock_guard<mutex> g(om);  out() << clientname << " syncupdate_local_folder_deletion() " << lp(ln) << endl; }}
-    void syncupdate_local_folder_addition(Sync*, LocalNode* ln, const char* cp) override { onCallback(); }
-    void syncupdate_local_folder_deletion(Sync*, LocalNode* ln) override { onCallback(); }
-    void syncupdate_local_file_addition(Sync*, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_addition() " << lp(ln) << " " << cp << endl; }}
-    void syncupdate_local_file_deletion(Sync*, LocalNode* ln) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_deletion() " << lp(ln) << endl; }}
+    void syncupdate_local_folder_addition(Sync*, const LocalPath& path) override { onCallback(); }
+    void syncupdate_local_folder_deletion(Sync*, const LocalPath& path) override { onCallback(); }
+    void syncupdate_local_file_addition(Sync*, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_addition() " << path.toPath(*client.fsaccess) << " " << endl; }}
+    void syncupdate_local_file_deletion(Sync*, const LocalPath& path) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_deletion() " << path.toPath(*client.fsaccess) << endl; }}
     void syncupdate_local_file_change(Sync*, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_change() " << lp(ln) << " " << cp << endl; }}
     void syncupdate_local_move(Sync*, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) {
         lock_guard<mutex> g(om);
@@ -3005,10 +3007,8 @@ GTEST_TEST(Sync, BasicSync_MassNotifyFromLocalFolderTree)
         {
             for (auto& s : sc.client.syncs)
             {
-                for (int q = DirNotify::NUMQUEUES; q--; )
-                {
-                    remaining += s->dirnotify->notifyq[q].size();
-                }
+                remaining += s->dirnotify->fsEventq.size();
+                remaining += s->dirnotify->fsDelayedNetworkEventq.size();
             }
             p.set_value(true);
         });
@@ -3024,6 +3024,8 @@ GTEST_TEST(Sync, BasicSync_MassNotifyFromLocalFolderTree)
     clientA1.localNodesMustHaveNodes = false;
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.root.get(), 1, false, StandardClient::CONFIRM_LOCAL));
     //ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+
+    WaitMillisec(20000);  // give it a chance to rescan the folder.  todo:  why so long tho
 
     ASSERT_GT(clientA1.transfersAdded.load(), 0u);
     clientA1.transfersAdded = 0;

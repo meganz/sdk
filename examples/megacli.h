@@ -212,10 +212,10 @@ struct DemoApp : public MegaApp
     void sync_removed(int tag) override;
 
     void syncupdate_scanning(bool) override;
-    void syncupdate_local_folder_addition(Sync*, LocalNode*, const char*) override;
-    void syncupdate_local_folder_deletion(Sync* , LocalNode*) override;
-    void syncupdate_local_file_addition(Sync*, LocalNode*, const char*) override;
-    void syncupdate_local_file_deletion(Sync*, LocalNode*) override;
+    void syncupdate_local_folder_addition(Sync*, const LocalPath& path) override;
+    void syncupdate_local_folder_deletion(Sync* , const LocalPath& path) override;
+    void syncupdate_local_file_addition(Sync*, const LocalPath& path) override;
+    void syncupdate_local_file_deletion(Sync*, const LocalPath& path) override;
     void syncupdate_local_file_change(Sync*, LocalNode*, const char*) override;
     void syncupdate_local_move(Sync*, LocalNode*, const char*) override;
     void syncupdate_local_lockretry(bool) override;

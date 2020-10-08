@@ -3100,10 +3100,10 @@ protected:
         void sync_removed(int tag) override;
 
         void syncupdate_scanning(bool scanning) override;
-        void syncupdate_local_folder_addition(Sync* sync, LocalNode *localNode, const char *path) override;
-        void syncupdate_local_folder_deletion(Sync* sync, LocalNode *localNode) override;
-        void syncupdate_local_file_addition(Sync* sync, LocalNode* localNode, const char *path) override;
-        void syncupdate_local_file_deletion(Sync* sync, LocalNode* localNode) override;
+        void syncupdate_local_folder_addition(Sync* sync, const LocalPath& path) override;
+        void syncupdate_local_folder_deletion(Sync* sync, const LocalPath& path) override;
+        void syncupdate_local_file_addition(Sync* sync, const LocalPath& path) override;
+        void syncupdate_local_file_deletion(Sync* sync, const LocalPath& path) override;
         void syncupdate_local_file_change(Sync* sync, LocalNode* localNode, const char *path) override;
         void syncupdate_local_move(Sync* sync, LocalNode* localNode, const char* path) override;
         void syncupdate_get(Sync* sync, Node *node, const char* path) override;

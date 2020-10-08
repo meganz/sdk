@@ -286,7 +286,7 @@ public:
     dstime procextraq();
 
     // process all outstanding filesystem notifications (mark sections of the sync tree to visit)
-    dstime procscanq(int);
+    dstime procscanq();
 
     // recursively look for vanished child nodes and delete them
     void deletemissing(LocalNode*);

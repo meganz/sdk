@@ -353,9 +353,6 @@ void checkDeserializedLocalNode(const mega::LocalNode& dl, const mega::LocalNode
     ASSERT_EQ(nullptr, dl.parent);
     ASSERT_EQ(ref.sync, dl.sync);
     ASSERT_EQ(ref.mSyncable, dl.mSyncable);
-    ASSERT_EQ(false, dl.created);
-    ASSERT_EQ(false, dl.reported);
-    ASSERT_EQ(true, dl.checked);
 }
 #endif
 
