@@ -309,6 +309,8 @@ void exec_du(autocomplete::ACState& s);
 void exec_rescan(autocomplete::ACState& s);
 void exec_sync(autocomplete::ACState& s);
 void exec_syncconfig(autocomplete::ACState& s);
+void exec_syncpause(autocomplete::ACState& s);
+void exec_syncresume(autocomplete::ACState& s);
 void exec_export(autocomplete::ACState& s);
 void exec_share(autocomplete::ACState& s);
 void exec_invite(autocomplete::ACState& s);

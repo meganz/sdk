@@ -384,6 +384,15 @@ public:
     Sync(MegaClient*, SyncConfig &, const char*, LocalPath*, Node*, bool, int, void*);
     ~Sync();
 
+    // Should we synchronize this sync?
+    bool active() const;
+
+    // Is this sync paused?
+    bool paused() const;
+
+    // Should we remove this sync?
+    bool purgeable() const;
+
     // Asynchronous scan request / result.
     std::shared_ptr<ScanService::Request> mScanRequest;
 

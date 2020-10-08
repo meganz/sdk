@@ -2961,6 +2961,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_rescan, sequence(text("rescan"), param("id")));
     p->Add(exec_sync, sequence(text("sync"), opt(either(sequence(localFSPath(), remoteFSPath(client, &cwd, "dst")), param("cancelslot")))));
     p->Add(exec_syncconfig, sequence(text("syncconfig"), opt(sequence(param("type (TWOWAY/UP/DOWN)"), opt(sequence(param("syncDeletions (ON/OFF)"), param("forceOverwrite (ON/OFF)")))))));
+    p->Add(exec_syncpause, sequence(text("syncpause"), param("id")));
+    p->Add(exec_syncresume, sequence(text("syncresume"), param("id")));
 #endif
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(param("expiretime"), text("del")))));
     p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
@@ -4255,6 +4257,27 @@ void exec_open(autocomplete::ACState& s)
 
 #ifdef ENABLE_SYNC
 
+static string toString(const syncstate_t state)
+{
+    switch (state)
+    {
+    case SYNC_ACTIVE:
+        return "ACTIVE";
+    case SYNC_CANCELED:
+        return "CANCELED";
+    case SYNC_DISABLED:
+        return "DISABLED";
+    case SYNC_FAILED:
+        return "FAILED";
+    case SYNC_INITIALSCAN:
+        return "INITIALSCAN";
+    default:
+        break;
+    }
+
+    return "UNKNOWN";
+}
+
 void exec_rescan(autocomplete::ACState& s)
 {
     auto id = atoi(s.words[1].s.c_str());
@@ -4287,27 +4310,6 @@ void exec_rescan(autocomplete::ACState& s)
     {
         cout << "Error rescanning sync " << id << " (" << tag << ")" << endl;
     }
-}
-
-static string toString(const syncstate_t state)
-{
-    switch (state)
-    {
-    case SYNC_ACTIVE:
-        return "ACTIVE";
-    case SYNC_CANCELED:
-        return "CANCELED";
-    case SYNC_DISABLED:
-        return "DISABLED";
-    case SYNC_FAILED:
-        return "FAILED";
-    case SYNC_INITIALSCAN:
-        return "INITIALSCAN";
-    default:
-        break;
-    }
-
-    return "UNKNOWN";
 }
 
 void exec_sync(autocomplete::ACState& s)
@@ -4371,7 +4373,7 @@ void exec_sync(autocomplete::ACState& s)
 
             for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
             {
-                if ((*it)->state > SYNC_CANCELED)
+                if ((*it)->state != SYNC_CANCELED)
                 {
                     if ((*it)->cloudRoot())
                     {
@@ -4420,6 +4422,73 @@ void exec_syncconfig(autocomplete::ACState& s)
         assert(false);
     }
 }
+
+void exec_syncpause(autocomplete::ACState& s)
+{
+    auto id = atoi(s.words[1].s.c_str());
+
+    // Valid id?
+    if (id < 0 || id >= client->syncs.size())
+    {
+        cout << "Invalid sync id: " << id << endl;
+        return;
+    }
+
+    // Is the sync in a pausable state?
+    auto it = std::next(client->syncs.begin(), id);
+
+    if (!(*it)->active())
+    {
+        cout << "Sync " << id << " isn't in a pausable state." << endl;
+        return;
+    }
+
+    if (error e = client->pauseSync(*(*it)))
+    {
+        cout << "Error encountered while pausing sync "
+             << id
+             << ": "
+             << errorstring(e)
+             << endl;
+        return;
+    }
+
+    cout << "Sync " << id << " paused." << endl;
+}
+
+void exec_syncresume(autocomplete::ACState& s)
+{
+    auto id = atoi(s.words[1].s.c_str());
+
+    // Valid id?
+    if (id < 0 || id >= client->syncs.size())
+    {
+        cout << "Invalid sync id: " << id << endl;
+        return;
+    }
+
+    // Is the sync in a resumable state?
+    auto it = std::next(client->syncs.begin(), id);
+
+    if (!(*it)->paused())
+    {
+        cout << "Sync " << id << " is not paused." << endl;
+        return;
+    }
+
+    if (error e = client->resumeSync(*(*it)))
+    {
+        cout << "Error encountered while resuming sync "
+             << id
+             << ": "
+             << errorstring(e)
+             << endl;
+        return;
+    }
+
+    cout << "Sync " << id << " resumed." << endl;
+}
+
 #endif
 
 #ifdef USE_FILESYSTEM

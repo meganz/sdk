@@ -383,6 +383,7 @@ enum SyncError {
     UNKNOWN_TEMPORARY_ERROR = 26,           // Unknown temporary error
     TOO_MANY_ACTION_PACKETS = 27,           // Too many changes in account, local state discarded
     LOGGED_OUT = 28,                        // Logged out
+    PAUSED = 29                             // Paused
 };
 
 inline bool isSyncErrorPermanent(SyncError e)
@@ -398,6 +399,7 @@ inline bool isSyncErrorPermanent(SyncError e)
     case ACCOUNT_BLOCKED:
     case LOCAL_IS_FAT:
     case LOCAL_IS_HGFS:
+    case PAUSED:
         return false;
     default:
         return true;
@@ -411,6 +413,7 @@ inline bool isAnError(SyncError e)
     case NO_SYNC_ERROR:
     case LOCAL_IS_FAT:
     case LOCAL_IS_HGFS:
+    case PAUSED:
         return false;
     default:
         return true;

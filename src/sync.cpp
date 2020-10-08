@@ -687,6 +687,41 @@ Sync::~Sync()
     }
 }
 
+bool Sync::active() const
+{
+    switch (state)
+    {
+    case SYNC_ACTIVE:
+    case SYNC_INITIALSCAN:
+        return true;
+    default:
+        break;
+    }
+
+    return false;
+}
+
+bool Sync::paused() const
+{
+    return state == SYNC_DISABLED && errorCode == PAUSED;
+}
+
+bool Sync::purgeable() const
+{
+    switch (state)
+    {
+    case SYNC_CANCELED:
+    case SYNC_FAILED:
+        return true;
+    case SYNC_DISABLED:
+        return errorCode != PAUSED;
+    default:
+        break;
+    }
+
+    return false;
+}
+
 Node* Sync::cloudRoot()
 {
     return client->nodeByHandle(localroot->syncedCloudNodeHandle);

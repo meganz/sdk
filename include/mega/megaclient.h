@@ -690,6 +690,12 @@ public:
     void disableSync(Sync*, SyncError syncError =  NO_SYNC_ERROR);
     bool disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError);
 
+    // pause synchronization.
+    error pauseSync(Sync& sync);
+
+    // resume synchronization.
+    error resumeSync(Sync& sync);
+
     // fail all active syncs
     void failSyncs(SyncError syncError =  NO_SYNC_ERROR);
 
