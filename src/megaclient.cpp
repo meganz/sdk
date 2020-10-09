@@ -2003,7 +2003,8 @@ void MegaClient::exec()
                             }
 
                             // request succeeded, process result array
-                            reqs.serverresponse(std::move("[-11]"), this);
+                            std::string errStr = "["+std::to_string(API_EACCESS)+"]";
+                            reqs.serverresponse(std::move(errStr), this);
 
                             WAIT_CLASS::bumpds();
 
