@@ -597,19 +597,6 @@ void MegaBackupMonitor::onSyncStateChanged(MegaApi* /*api*/, MegaSync *sync)
     updateOrRegisterSync(sync);
 }
 
-void MegaBackupMonitor::onPauseStateChanged(MegaApi *api)
-{
-    //loop on active syncs to update
-    for (auto &sync : mClient->syncs)
-    {
-        std::unique_ptr<MegaSync> megaSync{ api->getSyncByTag(sync->tag) };
-        if (megaSync)
-        {
-            updateOrRegisterSync(megaSync.get());
-        }
-    }
-}
-
 void MegaBackupMonitor::onSyncDeleted(MegaApi *api, MegaSync *sync)
 {
     auto hBPair = mHeartBeatedSyncs.find(sync->getTag());
@@ -623,6 +610,22 @@ void MegaBackupMonitor::onSyncDeleted(MegaApi *api, MegaSync *sync)
     }
 }
 #endif
+
+
+void MegaBackupMonitor::onPauseStateChanged(MegaApi *api)
+{
+#ifdef ENABLE_SYNC
+    //loop on active syncs to update
+    for (auto &sync : mClient->syncs)
+    {
+        std::unique_ptr<MegaSync> megaSync{ api->getSyncByTag(sync->tag) };
+        if (megaSync)
+        {
+            updateOrRegisterSync(megaSync.get());
+        }
+    }
+#endif
+}
 
 std::shared_ptr<HeartBeatTransferProgressedInfo> MegaBackupMonitor::getHeartBeatBackupInfoByTransfer(MegaApi *api, MegaTransfer *transfer)
 {
