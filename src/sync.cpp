@@ -1171,7 +1171,14 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
                 return true;
             }
 
-            LOG_debug << client->clientname << "Move detected by fsid. Type: " << sourceLocalNode->type << " new path: " << fullPath.toPath(*client->fsaccess) << " old localnode: " << sourceLocalNode->localnodedisplaypath(*client->fsaccess);
+            if (!sourceLocalNode->localMovePropagating)
+            {
+                LOG_debug << client->clientname << "Move detected by fsid. Type: " << sourceLocalNode->type
+                    << " new path: " << fullPath.toPath(*client->fsaccess)
+                    << " old localnode: " << sourceLocalNode->localnodedisplaypath(*client->fsaccess)
+                    << logTriplet(row, fullPath);
+                sourceLocalNode->localMovePropagating = true;
+            }
 
             // catch the not so unlikely case of a false fsid match due to
             // e.g. a file deletion/creation cycle that reuses the same inode
@@ -1194,60 +1201,94 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
                 if (sourceCloudNode && !sourceCloudNode->mPendingChanges.empty())
                 {
                     // come back again later when there isn't already a command in progress
-                    LOG_debug << client->clientname << "Actions are already in progress for " << sourceCloudNode->displaypath();
-                    client->mSyncFlags.actionedMovesRenames = true;
+                    SYNC_verbose << client->clientname << "Actions are already in progress for " << sourceCloudNode->displaypath() << logTriplet(row, fullPath);
+                    client->mSyncFlags.ongoingMovesRenames = true;
                     rowResult = false;
                     return true;
                 }
 
                 if (sourceCloudNode && targetCloudNode)
                 {
+                    client->mSyncFlags.ongoingMovesRenames = true;
 
                     string newName = row.fsNode->localname.toName(*client->fsaccess);
-                    if (newName == sourceCloudNode->displayname())
+                    if (newName == sourceCloudNode->displayname() ||
+                        sourceLocalNode->localname == row.fsNode->localname)
                     {
+                        // if it wasn't renamed locally, or matches the target anyway
+                        // then don't change the name
                         newName.clear();
                     }
 
                     if (sourceCloudNode->parent == targetCloudNode && newName.empty())
                     {
-                        LOG_debug << client->clientname << "Move/rename has completed: " << sourceCloudNode->displaypath();
+                        LOG_debug << client->clientname << "Move/rename has completed: " << sourceCloudNode->displaypath() << logTriplet(row, fullPath);;
+
+                        // Move all the LocalNodes under the source node to the new location
+                        // We can't move the source node itself as the recursive callers may be using it
+
+                        if (!row.syncNode)
+                        {
+                            resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
+                            assert(row.syncNode);
+                        }
+
+                        sourceLocalNode->moveContentTo(row.syncNode, fullPath);
+
+                        // Mark the source node as moved from, it can be removed when visited
+                        sourceLocalNode->localMovePropagated = true;
+
+                        parentRow.syncNode->setScanAgain(true, false);
+                        if (sourceLocalNode->parent) sourceLocalNode->parent->setScanAgain(true, false);
+
                         return false;
                     }
 
                     if (row.cloudNode && row.cloudNode != sourceCloudNode)
                     {
-                        LOG_debug << client->clientname << "Moving node to debris for replacement: " << row.cloudNode->displaypath();
+                        LOG_debug << client->clientname << "Moving node to debris for replacement: " << row.cloudNode->displaypath() << logTriplet(row, fullPath);;
                         client->movetosyncdebris(row.cloudNode, false);
                         client->execsyncdeletions();
                     }
 
                     if (sourceCloudNode->parent == targetCloudNode && !newName.empty())
                     {
-                        LOG_debug << client->clientname << "Renaming node: " << sourceCloudNode->displaypath() << " to " << newName;
+                        LOG_debug << client->clientname
+                                  << "Renaming node: " << sourceCloudNode->displaypath()
+                                  << " to " << newName  << logTriplet(row, fullPath);
                         client->setattr(sourceCloudNode, attr_map('n', newName), 0);
                         client->app->syncupdate_local_move(this, sourceLocalNode, fullPath.toPath(*client->fsaccess).c_str());
-                        client->mSyncFlags.actionedMovesRenames = true;
                         rowResult = false;
                         return true;
                     }
                     else
                     {
-                        LOG_debug << client->clientname << "Moving node: " << sourceCloudNode->displaypath() << " to " << targetCloudNode->displaypath() << (newName.empty() ? "" : (" as " + newName).c_str());
+                        LOG_debug << client->clientname << "Moving node: " << sourceCloudNode->displaypath()
+                                  << " to " << targetCloudNode->displaypath()
+                                  << (newName.empty() ? "" : (" as " + newName).c_str()) << logTriplet(row, fullPath);
                         auto err = client->rename(sourceCloudNode, targetCloudNode,
                                                 SYNCDEL_NONE,
                                                 sourceCloudNode->parent ? sourceCloudNode->parent->nodehandle : UNDEF,
                                                 newName.empty() ? nullptr : newName.c_str());
+
                         if (err == API_EACCESS)
                         {
-                            LOG_debug << client->clientname << "Rename not permitted: " << err;
+                            LOG_warn << client->clientname << "Rename not permitted: " << sourceCloudNode->displaypath()
+                                << " to " << targetCloudNode->displaypath()
+                                << (newName.empty() ? "" : (" as " + newName).c_str()) << logTriplet(row, fullPath);
+
+                            // todo: figure out if the problem could be overcome by copying and later deleting the source
+                            // but for now, mark the sync as disabled
+                            // todo: work out the right sync error code
+                            changestate(SYNC_FAILED, COULD_NOT_MOVE_CLOUD_NODES);
                         }
                         else
                         {
                             // command sent, now we wait for the actinpacket updates, later we will recognise
                             // the row as synced from fsNode, cloudNode and update the syncNode from those
-                            client->mSyncFlags.actionedMovesRenames = true;
                             client->app->syncupdate_local_move(this, sourceLocalNode, fullPath.toPath(*client->fsaccess).c_str());
+                            sourceLocalNode->localMovePropagating = true;
+                            row.suppressRecursion = true;
                             rowResult = false;
                             return true;
                         }
@@ -1255,7 +1296,13 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
                 }
                 else
                 {
-                    LOG_debug << client->clientname << "Source/Target unavaliable for move";
+                    // eg. cloud parent folder not synced yet (maybe Localnode is created, but not handle matched yet)
+                    SYNC_verbose << client->clientname << "Source/Target unavaliable for move" << logTriplet(row, fullPath);
+
+                    client->mSyncFlags.ongoingMovesRenames = true;
+                    row.suppressRecursion = true;
+                    rowResult = false;
+                    return true;
                 }
 
 
@@ -1343,6 +1390,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
     {
         LOG_debug << client->clientname << "checked node does not have the same type, blocked: " << fullPath.toPath(*client->fsaccess);
         row.syncNode->setUseBlocked();
+        row.suppressRecursion = true;
         rowResult = false;
         return true;
     }
@@ -1356,40 +1404,54 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
         if (row.syncNode) row.syncNode->treestate(TREESTATE_SYNCING);
 
         LocalPath sourcePath = sourceLocalNode->getLocalPath(true);
-        LOG_verbose << "Renaming/moving from the previous location: " << sourcePath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
-
         Node* oldCloudParent = sourceLocalNode->parent ?
                                client->nodeByHandle(sourceLocalNode->parent->syncedCloudNodeHandle) :
                                nullptr;
-        client->app->syncupdate_remote_move(this, row.cloudNode, oldCloudParent);
+
+        if (!sourceLocalNode->localMovePropagating)
+        {
+            LOG_verbose << "Renaming/moving from the previous location: " << sourcePath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
+            client->app->syncupdate_remote_move(this, row.cloudNode, oldCloudParent);
+            sourceLocalNode->localMovePropagating = true;
+        }
 
         if (client->fsaccess->renamelocal(sourcePath, fullPath))
         {
             // todo: move anything at this path to sync debris first?  Old algo didn't though
 
-            client->mSyncFlags.actionedMovesRenames = true;
+            client->mSyncFlags.ongoingMovesRenames = true;
 
             client->app->syncupdate_local_move(this, sourceLocalNode, fullPath.toPath(*client->fsaccess).c_str());
-
-            // let the Localnodes be created at the new location, and removed at the old
-
-            // update filenames so that PUT transfers can continue seamlessly
-            // todo: client->updateputs();
-            // client->syncactivity = true;  // todo: prob don't need this?
 
             // make sure we don't come back to this folder again until we've rescanned it
             if (sourceLocalNode->parent) sourceLocalNode->parent->setScanAgain(true, false);
             if (parentRow.syncNode->parent) parentRow.syncNode->parent->setScanAgain(true, true);
 
-            row.suppressRecursion = true;
-            sourceLocalNode->wasLocalMoveSource = true;
+            if (!row.syncNode)
+            {
+                resolve_makeSyncNode_fromCloud(row, parentRow, fullPath);
+                assert(row.syncNode);
+            }
+
+            sourceLocalNode->moveContentTo(row.syncNode, fullPath);
+            sourceLocalNode->localMovePropagated = true;
 
             rowResult = false;
             return true;
         }
         else if (client->fsaccess->transient_error)
         {
+            LOG_warn << "transient error moving folder: " << sourcePath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
             row.syncNode->setUseBlocked();
+            rowResult = false;
+            row.suppressRecursion = true;
+            return true;
+        }
+        else
+        {
+            // target folder does not exist yet
+            SYNC_verbose << "Renaming/moving from the previous location: " << sourcePath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
+            sourceLocalNode->localMovePropagating = true;
             rowResult = false;
             return true;
         }
@@ -2119,7 +2181,8 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
                 // recurse after dealing with all items, so any renames within the folder have been completed
                 if (childRow.syncNode &&
                     childRow.syncNode->type == FOLDERNODE &&
-                    !childRow.suppressRecursion)
+                    !childRow.suppressRecursion &&
+                    !childRow.syncNode->localMovePropagating)
                 {
 
 #ifdef DEBUG
@@ -2173,7 +2236,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
         row.syncNode->lastFolderScan.reset();
     }
 
-    if (client->mSyncFlags.scansAndMovesComplete &&
+    if (//client->mSyncFlags.scansAndMovesComplete &&
         ((syncHere && folderSynced) ||
         (!syncHere && wasSynced)))
     {
@@ -2192,6 +2255,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
             }
             row.syncNode->conflicts = updateTreestateFromChild(row.syncNode->conflicts, child.second->conflicts);
         }
+        row.syncNode->scanBlocked = updateTreestateFromChild(row.syncNode->scanBlocked, child.second->scanBlocked);
     }
 
     SYNC_verbose << client->clientname
@@ -2252,71 +2316,21 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTab
         }
     }
 
-    if (row.syncNode)
+    // Check blocked status.  Todo:  figure out use blocked flag clearing
+    if (!row.syncNode && row.fsNode && (
+        row.fsNode->isBlocked || row.fsNode->type == TYPE_UNKNOWN))
     {
-        if (row.syncNode->useBlocked >= TREE_ACTION_HERE)
+        resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
+        if (row.syncNode->checkForScanBlocked(row.fsNode))
         {
-            if (!row.syncNode->rare().useBlockedTimer->armed())
-            {
-                LOG_verbose << "Waiting on use blocked timer, retry in ds: "
-                            << row.syncNode->rare().useBlockedTimer->retryin()
-                            << logTriplet(row, fullPath);
-                return false;
-            }
-        }
-
-        if (row.syncNode->scanBlocked >= TREE_ACTION_HERE)
-        {
-            if (row.syncNode->rare().scanBlockedTimer->armed())
-            {
-                LOG_verbose << "Scan blocked timer elapsed, trigger parent rescan."
-                            << logTriplet(row, fullPath);
-                parentRow.syncNode->setScanAgain(true, false);
-            }
-            else
-            {
-                LOG_verbose << "Waiting on scan blocked timer, retry in ds: "
-                            << row.syncNode->rare().scanBlockedTimer->retryin()
-                            << logTriplet(row, fullPath);
-                return false;
-            }
+            row.suppressRecursion = true;
+            return false;
         }
     }
-
-    // Was this sn representing a blocked file?
-    if (row.syncNode && row.syncNode->type == TYPE_UNKNOWN)
+    else if (row.syncNode &&
+             row.syncNode->checkForScanBlocked(row.fsNode))
     {
-        // Have we been able to complete a scan for the sn?
-        if (row.fsNode && row.fsNode->type != TYPE_UNKNOWN)
-        {
-            // Complete initialization of the sn.
-            row.syncNode->init(*row.fsNode);
-        }
-    }
-
-    // reset the flag for this node. Anything still blocked here or in the tree below will set it again.
-    if (row.syncNode)
-    {
-        if (row.syncNode->useBlocked >= TREE_DESCENDANT_FLAGGED)
-        {
-            row.syncNode->useBlocked = TREE_RESOLVED;
-            row.syncNode->rare().useBlockedTimer.reset();
-        }
-
-        if (row.syncNode->scanBlocked >= TREE_DESCENDANT_FLAGGED)
-        {
-            row.syncNode->scanBlocked = TREE_RESOLVED;
-            row.syncNode->rare().scanBlockedTimer.reset();
-        }
-    }
-
-    if (row.fsNode && (row.fsNode->type == TYPE_UNKNOWN || row.fsNode->isBlocked))
-    {
-        // We were not able to get details of the filesystem item when scanning the directory.
-        // Consider it a blocked file, and we'll rescan the folder from time to time.
-        LOG_verbose << "File/folder was blocked when reading directory, retry later: " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
-        if (!row.syncNode) resolve_makeSyncNode_fromFS(row, parentRow, fullPath);
-        row.syncNode->setScanBlocked();
+        row.suppressRecursion = true;
         return false;
     }
 
@@ -2535,6 +2549,9 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Loca
     LOG_debug << client->clientname << "Creating LocalNode from Cloud at: " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
     auto l = new LocalNode;
 
+    assert(row.syncNode == nullptr);
+    row.syncNode = l;
+
     if (row.cloudNode->type == FILENODE)
     {
         assert(row.cloudNode->fingerprint().isvalid);
@@ -2554,7 +2571,8 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Loca
 
 bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
-    if (client->mSyncFlags.scansAndMovesComplete)
+    if (client->mSyncFlags.scansAndMovesComplete ||
+        row.syncNode->localMovePropagated)
     {
         // local and cloud disappeared; remove sync item also
         LOG_verbose << "Marking Localnode for deletion" << logTriplet(row, fullPath);
@@ -2568,11 +2586,14 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& full
             client->app->syncupdate_local_file_deletion(this, fullPath);
         }
 
-
-
         // deletes itself and subtree, queues db record removal
         delete row.syncNode;
         row.syncNode = nullptr;
+    }
+    else if (row.syncNode->localMovePropagating)
+    {
+        // wait for the move from the node to complete in the cloud
+        row.suppressRecursion = true;
     }
     return false;
 }
@@ -2629,7 +2650,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath,
         }
 
         // we may not see some moves/renames until the entire folder structure is created.
-        client->mSyncFlags.actionedMovesRenames = true;
+        client->mSyncFlags.ongoingMovesRenames = true;
     }
     return false;
 }
@@ -2718,7 +2739,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPat
         }
 
         // we may not see some moves/renames until the entire folder structure is created.
-        client->mSyncFlags.actionedMovesRenames = true;
+        client->mSyncFlags.ongoingMovesRenames = true;
 
     }
     return false;
@@ -2739,9 +2760,27 @@ bool Sync::resolve_pickWinner(syncRow& row, syncRow& parentRow, LocalPath& fullP
 
 bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
-    if (client->mSyncFlags.scansAndMovesComplete)
+    if (!row.syncNode->syncedCloudNodeHandle.isUndef() &&
+        client->nodeIsInActiveSync(client->nodeByHandle(row.syncNode->syncedCloudNodeHandle)))
     {
-        // If the cloud node was moved to somewhere we can see it, we would have already made the corresponding fs move
+        client->mSyncFlags.ongoingMovesRenames = true;
+
+        if (row.syncNode->localMovePropagated)
+        {
+            SYNC_verbose << client->clientname << "Node was a cloud move source, it will be removed next pass: " << logTriplet(row, fullPath);
+        }
+        else if (row.syncNode->localMovePropagated)
+        {
+            SYNC_verbose << client->clientname << "Node was a cloud move source, move is propagating: " << logTriplet(row, fullPath);
+        }
+        else
+        {
+            SYNC_verbose << client->clientname << "Letting move destination node process this first: " << logTriplet(row, fullPath);
+        }
+        row.suppressRecursion = true;
+    }
+    else if (client->mSyncFlags.scansAndMovesComplete)
+    {
         LOG_debug << client->clientname << "Moving local item to local sync debris: " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
         if (movetolocaldebris(fullPath))
         {

@@ -480,8 +480,11 @@ struct MEGA_API LocalNode : public Cacheable
         // disappeared from local FS; we are moving the cloud node to the trash.
         bool deleting : 1;
 
-        // this node has been moved in the local FS
-        bool wasLocalMoveSource : 1;
+        // we saw this node moved/renamed locally, cloud move is underway
+        bool localMovePropagating : 1;
+
+        // we saw this node moved/renamed locally, cloud move is finished
+        bool localMovePropagated : 1;
 
         // whether any name conflicts have been detected.
         unsigned conflicts : 2;   // TREESTATE
@@ -518,6 +521,8 @@ public:
     void setScanAgain(bool doHere, bool doBelow);
     void setUseBlocked();
     void setScanBlocked();
+
+    bool checkForScanBlocked(FSNode* fsnode);
 
     // True if this subtree requires scanning.
     bool scanRequired() const;
@@ -575,6 +580,7 @@ public:
     void setSyncedNodeHandle(NodeHandle h);
 
     void setnameparent(LocalNode*, LocalPath* newlocalpath, std::unique_ptr<LocalPath>, bool applyToCloud);
+    void moveContentTo(LocalNode*, LocalPath&);
 
     LocalNode();
     void init(Sync*, nodetype_t, LocalNode*, LocalPath&, std::unique_ptr<LocalPath>);

@@ -1283,6 +1283,25 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
     }
 }
 
+void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath)
+{
+    vector<LocalNode*> workingList;
+    workingList.reserve(children.size());
+    for (auto& c : children) workingList.push_back(c.second);
+    for (auto& c : workingList)
+    {
+        ScopedLengthRestore restoreLen(fullPath);
+        fullPath.appendWithSeparator(c->localname, true, sync->client->fsaccess->localseparator);
+        c->setnameparent(ln, &fullPath, sync->client->fsaccess->fsShortname(fullPath), false);
+    }
+
+    ln->upload = move(upload);
+    ln->download = move(download);
+
+    LocalTreeProcUpdateTransfers tput;
+    tput.proc(sync->client, ln);
+}
+
 // delay uploads by 1.1 s to prevent server flooding while a file is still being written
 void LocalNode::bumpnagleds()
 {
@@ -1299,7 +1318,8 @@ void LocalNode::bumpnagleds()
 LocalNode::LocalNode()
 : unstableFsidAssigned(false)
 , deleting{false}
-, wasLocalMoveSource(false)
+, localMovePropagating(false)
+, localMovePropagated(false)
 , conflicts(TREE_RESOLVED)
 , scanAgain(TREE_RESOLVED)
 , syncAgain(TREE_RESOLVED)
@@ -1315,7 +1335,8 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     notseen = 0;
     unstableFsidAssigned = false;
     deleting = false;
-    wasLocalMoveSource = false;
+    localMovePropagating = false;
+    localMovePropagated = false;
     conflicts = TREE_RESOLVED;
     scanAgain = TREE_RESOLVED;
     syncAgain = TREE_RESOLVED;
@@ -1478,19 +1499,54 @@ void LocalNode::setScanBlocked()
 {
     scanBlocked = std::max<unsigned>(scanBlocked, TREE_ACTION_HERE);
 
-    if (!rare().scanBlockedTimer)
-    {
-        rare().scanBlockedTimer.reset(new BackoffTimer(sync->client->rng));
-    }
-    if (rare().scanBlockedTimer->armed())
-    {
-        rare().scanBlockedTimer->backoff(Sync::SCANNING_DELAY_DS);
-    }
-
     for (auto p = parent; p != NULL; p = p->parent)
     {
         p->scanBlocked = std::max<unsigned>(p->scanBlocked, TREE_DESCENDANT_FLAGGED);
     }
+}
+
+bool LocalNode::checkForScanBlocked(FSNode* fsNode)
+{
+    if (scanBlocked >= TREE_ACTION_HERE)
+    {
+        // Have we recovered?
+        if (type == TYPE_UNKNOWN && fsNode && fsNode->type != TYPE_UNKNOWN)
+        {
+            LOG_verbose << "Recovered from being scan blocked: " << localnodedisplaypath(*sync->client->fsaccess);
+            init(*fsNode);
+            scanBlocked = TREE_RESOLVED;
+            rare().scanBlockedTimer->reset();
+            return false;
+        }
+
+        // rescan if the timer is up
+        if (rare().scanBlockedTimer->armed())
+        {
+            LOG_verbose << "Scan blocked timer elapsed, trigger parent rescan: "  << localnodedisplaypath(*sync->client->fsaccess);;
+            if (parent) parent->setScanAgain(true, false);
+            rare().scanBlockedTimer->backoff(); // wait increases exponentially
+            return true;
+        }
+        else
+        {
+            LOG_verbose << "Waiting on scan blocked timer, retry in ds: "
+                << rare().scanBlockedTimer->retryin();
+            return true;
+        }
+    }
+
+    if (fsNode && (fsNode->type == TYPE_UNKNOWN || fsNode->isBlocked))
+    {
+        // We were not able to get details of the filesystem item when scanning the directory.
+        // Consider it a blocked file, and we'll rescan the folder from time to time.
+        LOG_verbose << "File/folder was blocked when reading directory, retry later: " << localnodedisplaypath(*sync->client->fsaccess);
+        setScanBlocked();
+        rare().scanBlockedTimer.reset(new BackoffTimer(sync->client->rng));
+        rare().scanBlockedTimer->backoff(Sync::SCANNING_DELAY_DS);
+        return true;
+    }
+
+    return false;
 }
 
 

@@ -383,7 +383,8 @@ enum SyncError {
     UNKNOWN_TEMPORARY_ERROR = 26,           // Unknown temporary error
     TOO_MANY_ACTION_PACKETS = 27,           // Too many changes in account, local state discarded
     LOGGED_OUT = 28,                        // Logged out
-    PAUSED = 29                             // Paused
+    PAUSED = 29,                            // Paused
+    COULD_NOT_MOVE_CLOUD_NODES = 30,        // rename() failed
 };
 
 inline bool isSyncErrorPermanent(SyncError e)

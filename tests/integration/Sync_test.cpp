@@ -790,8 +790,8 @@ struct StandardClient : public MegaApp
 
             if (entry.empty())
             {
-                out() << client.client.clientname
-                      << "received notification of operation type " << rpe << " completion but we don't have a record of it.  tag: " << tag << endl;
+                //out() << client.client.clientname
+                //      << "received notification of operation type " << rpe << " completion but we don't have a record of it.  tag: " << tag << endl;
                 return;
             }
 
@@ -894,9 +894,9 @@ struct StandardClient : public MegaApp
     void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b << endl; } }
     //void syncupdate_local_folder_addition(Sync* s, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_folder_addition() " << lp(ln) << " " << cp << endl; }}
     //void syncupdate_local_folder_deletion(Sync*, LocalNode* ln) override { if (logcb) { onCallback(); lock_guard<mutex> g(om);  out() << clientname << " syncupdate_local_folder_deletion() " << lp(ln) << endl; }}
-    void syncupdate_local_folder_addition(Sync*, const LocalPath& path) override { onCallback(); }
+//    void syncupdate_local_folder_addition(Sync*, const LocalPath& path) override { onCallback(); }
     void syncupdate_local_folder_deletion(Sync*, const LocalPath& path) override { onCallback(); }
-    void syncupdate_local_file_addition(Sync*, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_addition() " << path.toPath(*client.fsaccess) << " " << endl; }}
+//    void syncupdate_local_file_addition(Sync*, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_addition() " << path.toPath(*client.fsaccess) << " " << endl; }}
     void syncupdate_local_file_deletion(Sync*, const LocalPath& path) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_deletion() " << path.toPath(*client.fsaccess) << endl; }}
     void syncupdate_local_file_change(Sync*, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_change() " << lp(ln) << " " << cp << endl; }}
     void syncupdate_local_move(Sync*, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) {
@@ -905,8 +905,8 @@ struct StandardClient : public MegaApp
     }}
     void syncupdate_local_lockretry(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_lockretry() " << b << endl; }}
     //void syncupdate_get(Sync*, Node* n, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_get()" << n->displaypath() << " " << cp << endl; }}
-    void syncupdate_put(Sync*, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_put()" << cp << endl; }}
-    void syncupdate_remote_file_addition(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_file_addition() " << n->displaypath() << endl; }}
+//    void syncupdate_put(Sync*, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_put()" << cp << endl; }}
+//    void syncupdate_remote_file_addition(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_file_addition() " << n->displaypath() << endl; }}
     void syncupdate_remote_file_deletion(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_file_deletion() " << n->displaypath() << endl; }}
     //void syncupdate_remote_folder_addition(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_folder_addition() " << n->displaypath() << endl; }}
     //void syncupdate_remote_folder_deletion(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_folder_deletion() " << n->displaypath() << endl; }}
@@ -916,7 +916,7 @@ struct StandardClient : public MegaApp
     void syncupdate_remote_move(Sync*, Node* n1, Node* n2) override { onCallback();
     if (logcb) {
         lock_guard<mutex> g(om);
-        out() << clientname << " syncupdate_remote_move() " << n1->displaypath() << " " << n2->displaypath() << endl;
+        out() << clientname << " syncupdate_remote_move() to:" << n1->displaypath() << " from:" << n2->displaypath() << endl;
     } }
     void syncupdate_remote_rename(Sync*, Node* n, const char* cp) override { onCallback(); if (logcb) {
         lock_guard<mutex> g(om);
@@ -3175,7 +3175,7 @@ GTEST_TEST(Sync, BasicSync_MoveExistingIntoNewLocalFolder)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 }
 
-GTEST_TEST(Sync, DISABLED_BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
+GTEST_TEST(Sync, BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
 {
     // historic case:  in the local filesystem, create a new folder then move an existing file/folder into it
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
@@ -3212,7 +3212,7 @@ GTEST_TEST(Sync, DISABLED_BasicSync_MoveSeveralExistingIntoDeepNewLocalFolders)
     ASSERT_TRUE(!rename_error) << rename_error;
 
     // let them catch up
-    waitonsyncs(std::chrono::seconds(30), &clientA1, &clientA2);
+    waitonsyncs(std::chrono::seconds(7), &clientA1, &clientA2);
 
     // check everything matches (model has expected state of remote and local)
     model.findnode("f")->addkid(model.buildModelSubdirs("new", 3, 3, 3));

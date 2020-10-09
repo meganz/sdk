@@ -510,7 +510,7 @@ public:
         bool performedScans = false;
 
         // this gets set if we start any moves/renames
-        bool actionedMovesRenames = false;
+        bool ongoingMovesRenames = false;
 
         // whether the target of an asynchronous scan request is reachable.
         bool scanTargetReachable = false;
@@ -547,6 +547,8 @@ public:
 
     bool isAnySyncSyncing();
     bool isAnySyncScanning();
+
+    bool nodeIsInActiveSync(Node* n);
 
 #endif
 
