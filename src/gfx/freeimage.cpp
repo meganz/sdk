@@ -63,10 +63,6 @@ extern "C" {
 
 namespace mega {
 
-#ifdef HAVE_FFMPEG
-std::mutex GfxProcFreeImage::gfxMutex;
-#endif
-
 GfxProcFreeImage::GfxProcFreeImage()
 {
     dib = NULL;
@@ -77,11 +73,7 @@ GfxProcFreeImage::GfxProcFreeImage()
 	FreeImage_Initialise(TRUE);
 #endif
 #ifdef HAVE_FFMPEG
-    gfxMutex.lock();
-    av_register_all();
-    avcodec_register_all();
 //    av_log_set_level(AV_LOG_VERBOSE);
-    gfxMutex.unlock();
 #endif
 }
 
@@ -130,7 +122,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
     int videoStreamIdx = 0;
     for (unsigned i = 0; i < formatContext->nb_streams; i++)
     {
-        if (formatContext->streams[i]->codec && formatContext->streams[i]->codec->codec_type == AVMEDIA_TYPE_VIDEO)
+        if (formatContext->streams[i]->codecpar && formatContext->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_VIDEO)
         {
             videoStream = formatContext->streams[i];
             videoStreamIdx = i;
@@ -145,10 +137,10 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
         return false;
     }
 
-    // Get codec context to determine video frame dimensions
-    AVCodecContext codecContext = *(videoStream->codec);
-    int width = codecContext.width;
-    int height = codecContext.height;
+    // Get codec params to determine video frame dimensions
+    AVCodecParameters *codecParm = videoStream->codecpar;
+    int width = codecParm->width;
+    int height = codecParm->height;
     if (width <= 0 || height <= 0)
     {
         LOG_warn << "Invalid video dimensions: " << width << ", " << height;
@@ -156,19 +148,27 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
         return false;
     }
 
-    if (codecContext.pix_fmt == AV_PIX_FMT_NONE)
+    if (codecParm->format == AV_PIX_FMT_NONE)
     {
-        LOG_warn << "Invalid pixel format: " << codecContext.pix_fmt;
+        LOG_warn << "Invalid pixel format: " << codecParm->format;
         avformat_close_input(&formatContext);
         return false;
     }
 
     // Find decoder for video stream
-    AVCodecID codecId = codecContext.codec_id;
+    AVCodecID codecId = codecParm->codec_id;
     AVCodec* decoder = avcodec_find_decoder(codecId);
     if (!decoder)
     {
         LOG_warn << "Codec not found: " << codecId;
+        avformat_close_input(&formatContext);
+        return false;
+    }
+
+    AVCodecContext *codecContext = avcodec_alloc_context3(decoder);
+    if (avcodec_parameters_to_context(codecContext, codecParm) < 0)
+    {
+        LOG_warn << "Could not copy codec parameters to context";
         avformat_close_input(&formatContext);
         return false;
     }
@@ -178,10 +178,10 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
     videoStream->skip_to_keyframe = true;
     if (decoder->capabilities & CAP_TRUNCATED)
     {
-        codecContext.flags |= CAP_TRUNCATED;
+        codecContext->flags |= CAP_TRUNCATED;
     }
 
-    AVPixelFormat sourcePixelFormat = codecContext.pix_fmt;
+    AVPixelFormat sourcePixelFormat = static_cast<AVPixelFormat>(codecParm->format);
     AVPixelFormat targetPixelFormat = AV_PIX_FMT_BGR24; //raw data expected by freeimage is in this format
     SwsContext* swsContext = sws_getContext(width, height, sourcePixelFormat,
                                             width, height, targetPixelFormat,
@@ -189,14 +189,16 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
     if (!swsContext)
     {
         LOG_warn << "SWS Context not found: " << sourcePixelFormat;
+        avcodec_free_context(&codecContext);
         avformat_close_input(&formatContext);
         return false;
     }
 
     // Open codec
-    if (avcodec_open2(&codecContext, decoder, NULL) < 0)
+    if (avcodec_open2(codecContext, decoder, NULL) < 0)
     {
         LOG_warn << "Error opening codec: " << codecId;
+        avcodec_free_context(&codecContext);
         sws_freeContext(swsContext);
         avformat_close_input(&formatContext);
         return false;
@@ -216,6 +218,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
         {
             av_frame_free(&targetFrame);
         }
+        avcodec_free_context(&codecContext);
         sws_freeContext(swsContext);
         avformat_close_input(&formatContext);
         return false;
@@ -229,7 +232,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
         LOG_warn << "Error allocating frame";
         av_frame_free(&videoFrame);
         av_frame_free(&targetFrame);
-        avcodec_close(&codecContext);
+        avcodec_free_context(&codecContext);
         sws_freeContext(swsContext);
         avformat_close_input(&formatContext);
         return false;
@@ -259,7 +262,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
         av_frame_free(&videoFrame);
         av_freep(&targetFrame->data[0]);
         av_frame_free(&targetFrame);
-        avcodec_close(&codecContext);
+        avcodec_free_context(&codecContext);
         sws_freeContext(swsContext);
         avformat_close_input(&formatContext);
         return false;
@@ -270,25 +273,28 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
     packet.data = NULL;
     packet.size = 0;
 
-    int decodedBytes;
     int scalingResult;
     int actualNumFrames = 0;
-    int frameExtracted  = 0;
 
     // Read frames until succesfull decodification or reach limit of 220 frames
     while (actualNumFrames < 220 && av_read_frame(formatContext, &packet) >= 0)
     {
        if (packet.stream_index == videoStream->index)
        {
-           decodedBytes = avcodec_decode_video2(&codecContext, videoFrame, &frameExtracted, &packet);
-           if (frameExtracted && decodedBytes >= 0)
+           int ret = avcodec_send_packet(codecContext, &packet);
+           if (ret < 0 && ret != AVERROR(EAGAIN) && ret != AVERROR_EOF)
            {
-                if (sourcePixelFormat != codecContext.pix_fmt)
+               break;
+           }
+
+           while (avcodec_receive_frame(codecContext, videoFrame) >= 0)
+           {
+                if (sourcePixelFormat != codecContext->pix_fmt)
                 {
-                    LOG_warn << "Error: pixel format changed from " << sourcePixelFormat << " to " << codecContext.pix_fmt;
+                    LOG_warn << "Error: pixel format changed from " << sourcePixelFormat << " to " << codecContext->pix_fmt;
                     av_packet_unref(&packet);
                     av_frame_free(&videoFrame);
-                    avcodec_close(&codecContext);
+                    avcodec_free_context(&codecContext);
                     av_freep(&targetFrame->data[0]);
                     av_frame_free(&targetFrame);
                     sws_freeContext(swsContext);
@@ -297,22 +303,23 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
                 }
 
                 scalingResult = sws_scale(swsContext, videoFrame->data, videoFrame->linesize,
-                                     0, codecContext.height, targetFrame->data, targetFrame->linesize);
+                                          0, codecParm->height, targetFrame->data, targetFrame->linesize);
 
                 if (scalingResult > 0)
                 {
-                    int fav = targetPixelFormat;
-                    int imagesize = avpicture_get_size((enum AVPixelFormat)fav, width, height);
+                    const int legacy_align = 1;
+                    int imagesize = av_image_get_buffer_size(targetPixelFormat, width, height, legacy_align);
                     FIMEMORY fmemory;
                     fmemory.data = malloc(imagesize);
 
-                    if (avpicture_layout((AVPicture *)targetFrame, (enum AVPixelFormat)fav,
-                                    width, height, (unsigned char*)fmemory.data, imagesize) <= 0)
+                    if (av_image_copy_to_buffer((uint8_t *)fmemory.data, imagesize,
+                                targetFrame->data, targetFrame->linesize,
+                                targetPixelFormat, width, height, legacy_align) <= 0)
                     {
                         LOG_warn << "Error copying frame";
                         av_packet_unref(&packet);
                         av_frame_free(&videoFrame);
-                        avcodec_close(&codecContext);
+                        avcodec_free_context(&codecContext);
                         av_freep(&targetFrame->data[0]);
                         av_frame_free(&targetFrame);
                         sws_freeContext(swsContext);
@@ -341,7 +348,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
 
                     av_packet_unref(&packet);
                     av_frame_free(&videoFrame);
-                    avcodec_close(&codecContext);
+                    avcodec_free_context(&codecContext);
                     av_freep(&targetFrame->data[0]);
                     av_frame_free(&targetFrame);
                     sws_freeContext(swsContext);
@@ -369,7 +376,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
     LOG_warn << "Error reading frame";
     av_packet_unref(&packet);
     av_frame_free(&videoFrame);
-    avcodec_close(&codecContext);
+    avcodec_free_context(&codecContext);
     av_freep(&targetFrame->data[0]);
     av_frame_free(&targetFrame);
     sws_freeContext(swsContext);
