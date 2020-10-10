@@ -95,7 +95,7 @@ const char *GfxProcFreeImage::supportedformatsFfmpeg()
             ".qt.sls.tmf.trp.ts.ty.vc1.vob.vr.webm.wmv.";
 }
 
-bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int size)
+bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* /*fa*/, string* imagePath, int /*size*/)
 {
 #ifndef DEBUG
     av_log_set_level(AV_LOG_PANIC);
@@ -357,12 +357,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
                     w = FreeImage_GetWidth(dib);
                     h = FreeImage_GetHeight(dib);
 
-                    if (!w || !h)
-                    {
-                        return false;
-                    }
-
-                    return true;
+                    return w > 0 && h > 0;
                 }
            }
 
@@ -389,7 +384,7 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
 
 const char* GfxProcFreeImage::supportedformats()
 {
-    if (!sformats.size())
+    if (sformats.empty())
     {
         sformats+=".jpg.png.bmp.tif.tiff.jpeg.cut.dds.exr.g3.gif.hdr.ico.iff.ilbm"
            ".jbig.jng.jif.koala.pcd.mng.pcx.pbm.pgm.ppm.pfm.pict.pic.pct.pds.raw.3fr.ari"
@@ -483,18 +478,11 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
     w = FreeImage_GetWidth(dib);
     h = FreeImage_GetHeight(dib);
 
-    if (!w || !h)
-    {
 #ifdef _WIN32
             localname->resize(localname->size()-1);
 #endif
-        return false;
-    }
 
-#ifdef _WIN32
-            localname->resize(localname->size()-1);
-#endif
-    return true;
+    return w > 0 && h > 0;
 }
 
 bool GfxProcFreeImage::resizebitmap(int rw, int rh, string* jpegout)
@@ -556,7 +544,7 @@ bool GfxProcFreeImage::resizebitmap(int rw, int rh, string* jpegout)
         }
     }
 
-    return !!jpegout->size();
+    return !jpegout->empty();
 }
 
 void GfxProcFreeImage::freebitmap()
