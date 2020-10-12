@@ -281,6 +281,137 @@ std::string comErrMsgFromHRESULT(HRESULT hr)
 }
 
 
+class CostEventListener : public INetworkCostManagerEvents
+{
+public:
+    // This will block in a message loop, until the current thread receives WM_QUIT
+    void run(std::function<void(DWORD)> f);
+
+    //
+    // INetworkCostManagerEvents members -- mandatory implementations
+    HRESULT __stdcall CostChanged(_In_ DWORD cost, _In_opt_ NLM_SOCKADDR*) override;
+    HRESULT __stdcall DataPlanStatusChanged(_In_opt_ NLM_SOCKADDR*) override;
+
+    //
+    // IUnknown members -- mandatory implementations
+    HRESULT __stdcall QueryInterface(_In_ REFIID riid, _Out_ VOID** ppv) override;
+    ULONG __stdcall AddRef() override;
+    ULONG __stdcall Release() override;
+
+private:
+    LONG mRefCount = 1;
+    std::function<void(DWORD)> mCallback;
+};
+
+
+void CostEventListener::run(std::function<void(DWORD)> f)
+{
+    // This can only be started once
+    if (mCallback)
+        return;
+
+    mCallback = f;
+
+    // Perform Windows COM incantations
+    ComPtr<INetworkCostManager>       costManager;
+    ComPtr<IConnectionPointContainer> connPointContainer;
+    ComPtr<IConnectionPoint>          connPoint;
+    ComPtr<IUnknown>                  evtSink;
+    DWORD                             evtCookie = 0;
+
+    // Access Network Cost Manager
+    HRESULT hr = ::CoCreateInstance(CLSID_NetworkListManager, nullptr,
+        CLSCTX_ALL, __uuidof(INetworkCostManager), &costManager);
+
+    if (SUCCEEDED(hr))
+    {
+        // get connection points of connectable objects
+        hr = costManager->QueryInterface(IID_IConnectionPointContainer, &connPointContainer);
+    }
+    if (SUCCEEDED(hr))
+    {
+        // get connection point for Cost Manager events
+        hr = connPointContainer->FindConnectionPoint(IID_INetworkCostManagerEvents, &connPoint);
+    }
+    if (SUCCEEDED(hr))
+    {
+        hr = this->QueryInterface(IID_IUnknown, &evtSink);
+    }
+    if (SUCCEEDED(hr))
+    {
+        // send events to the event sink
+        hr = connPoint->Advise(evtSink.Get(), &evtCookie);
+    }
+    if (SUCCEEDED(hr))
+    {
+        // loop here for messages
+        MSG msg;
+        BOOL bRet;
+        while ((bRet = ::GetMessage(&msg, nullptr, 0, 0)) != 0) // blocking call
+        {
+            if (bRet == -1)
+            {
+                break;
+            }
+            ::DispatchMessage(&msg);
+        }
+
+        // stop sending events to the event sink
+        connPoint->Unadvise(evtCookie);
+    }
+    else // failed
+    {
+        const std::string& errMsg = comErrMsgFromHRESULT(hr);
+        LOG_err << "Failed to register for listening to Cost events (" << errMsg << ").";
+    }
+}
+
+
+HRESULT CostEventListener::CostChanged(DWORD cost, NLM_SOCKADDR*)
+{
+    if (mCallback)
+        mCallback(cost);
+
+    return S_OK;
+}
+
+
+HRESULT CostEventListener::DataPlanStatusChanged(NLM_SOCKADDR*)
+{
+    // We don't care about such change.
+    return S_OK;
+}
+
+
+HRESULT CostEventListener::QueryInterface(REFIID riid, VOID** ppv)
+{
+    static const QITAB rgqit[] =
+    {
+        QITABENT(CostEventListener, INetworkCostManagerEvents),
+        { 0 }
+    };
+    return ::QISearch(this, rgqit, riid, ppv);
+}
+
+
+ULONG CostEventListener::AddRef()
+{
+    return ::InterlockedIncrement(&mRefCount);
+}
+
+
+ULONG CostEventListener::Release()
+{
+    ULONG  uCount = ::InterlockedDecrement(&mRefCount);
+
+    if (!uCount)
+    {
+        delete this;
+    }
+
+    return uCount;
+}
+
 
 
 class ConnectionInfo
@@ -325,7 +456,9 @@ private:
     bool initCom();
 
     bool mInitOk = false;
+    std::thread mEventThread;
 };
+
 
 ConnectionInfo::ConnectionInfo()
 {
@@ -350,6 +483,8 @@ ConnectionInfo::~ConnectionInfo()
 {
     if (mInitOk)
     {
+        unbindSystemEvents();
+
         // Release COM resources
         ::CoUninitialize();
 
@@ -553,6 +688,70 @@ DWORD ConnectionInfo::getCost(SOCKADDR_STORAGE* address) const
     }
 
     return cost;
+}
+
+
+bool ConnectionInfo::bindSystemEvents(std::function<void(bool)> f)
+{
+    if (!mInitOk || mEventThread.joinable())
+        return false;
+
+    // Create a function that will be the actual callback, and will call the user function
+    // with the meaning of the new Cost value.
+    std::function<void(DWORD)> costChangeCallback = [this, f](DWORD newCostValue) { f(isCostRestrictive(newCostValue)); };
+
+    // A separate thread will register and wait for Cost events
+    mEventThread = std::thread([this, costChangeCallback]()
+        {
+            // Init COM from the secondary thread
+            if (initCom())
+            {
+                std::unique_ptr<CostEventListener> evtListener = std::make_unique<CostEventListener>();
+                evtListener->run(costChangeCallback);
+
+                // Uninit COM
+                ::CoUninitialize();
+            }
+        });
+
+    return true;
+}
+
+
+bool ConnectionInfo::unbindSystemEvents()
+{
+    if (!mEventThread.joinable())
+        return false;
+
+    // identify the native thread
+    auto thHandle = mEventThread.native_handle();
+    DWORD thId = ::GetThreadId(thHandle);
+
+    // tell the thread to stop
+    BOOL msgPosted = ::PostThreadMessage(thId, WM_QUIT, 0, 0);
+
+    // In case this failed (because we called it too soon and the thread message queue was not ready), retry a few times.
+    // Retry count and interval can be changed later, but so far this was robust enough.
+    for (auto i = 3; !msgPosted && i; --i)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        msgPosted = ::PostThreadMessage(thId, WM_QUIT, 0, 0);
+    }
+
+    if (!msgPosted)
+    {
+        DWORD err = ::GetLastError();
+        // some error occurred, log it
+        HRESULT hr = HRESULT_FROM_WIN32(err);
+        const std::string& errMsg = comErrMsgFromHRESULT(hr);
+        LOG_warn << "Failed to unbind from system cost events (err " << err << ": " << errMsg << ')';
+        return false;
+    }
+
+    // wait for the thread
+    mEventThread.join();
+
+    return true;
 }
 
 
