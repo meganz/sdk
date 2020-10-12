@@ -3257,6 +3257,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->folderInfo = request->getMegaFolderInfo() ? request->folderInfo->copy() : NULL;
     this->settings = request->getMegaPushNotificationSettings() ? request->settings->copy() : NULL;
     this->backgroundMediaUpload = NULL;
+    this->mBannerList.reset(request->mBannerList ? request->mBannerList->copy() : nullptr);
 }
 
 AccountDetails *MegaRequestPrivate::getAccountDetails() const
@@ -4007,7 +4008,7 @@ const char* MegaBannerPrivate::getImageLocation() const
     return std::get<6>(mDetails).c_str();
 }
 
-MegaBannerList* MegaBannerListPrivate::copy() const
+MegaBannerListPrivate* MegaBannerListPrivate::copy() const
 {
     return new MegaBannerListPrivate(*this);
 }
