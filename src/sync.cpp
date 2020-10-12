@@ -1410,7 +1410,11 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
 
         if (!sourceLocalNode->localMovePropagating)
         {
-            LOG_verbose << "Renaming/moving from the previous location: " << sourcePath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
+            LOG_debug << client->clientname << "Move detected by nodehandle. Type: " << sourceLocalNode->type
+                << " moved node: " << row.cloudNode->displaypath()
+                << " old parent: " << oldCloudParent->displaypath()
+                << logTriplet(row, fullPath);
+
             client->app->syncupdate_remote_move(this, row.cloudNode, oldCloudParent);
             sourceLocalNode->localMovePropagating = true;
         }
@@ -1435,6 +1439,9 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
 
             sourceLocalNode->moveContentTo(row.syncNode, fullPath);
             sourceLocalNode->localMovePropagated = true;
+
+            row.syncNode->setScanAgain(true, true);
+            row.syncNode->setSyncAgain(true, true);
 
             rowResult = false;
             return true;
@@ -2015,6 +2022,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
     // Whether we should perform sync actions at this level.
     bool wasSynced = row.syncNode->syncAgain < TREE_ACTION_HERE;
     bool syncHere = !wasSynced;
+    bool recurseHere = true;
 
     vector<FSNode>* effectiveFsChildren;
     vector<FSNode> fsChildren;
@@ -2026,32 +2034,40 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
         // Do we need to scan this node?
         if (node.scanAgain >= TREE_ACTION_HERE)
         {
-            client->mSyncFlags.performedScans = true;
-
-            auto elapsed = Waiter::ds - node.lastScanTime;
-            if (!mScanRequest && elapsed >= 20)
+            if (row.fsNode)
             {
-                LOG_verbose << "Requesting scan for: " << fullPath.toPath(*client->fsaccess);
-                mScanRequest = client->mScanService->scan(node, fullPath);
-                syncHere = false;
-            }
-            else if (mScanRequest &&
-                     mScanRequest->matches(node) &&
-                     mScanRequest->completed())
-            {
-                LOG_verbose << "Received scan results for: " << fullPath.toPath(*client->fsaccess);
-                node.lastFolderScan.reset(
-                    new vector<FSNode>(mScanRequest->results()));
+                client->mSyncFlags.performedScans = true;
 
-                node.lastScanTime = Waiter::ds;
-                mScanRequest.reset();
-                row.syncNode->scanAgain = TREE_RESOLVED;
-                row.syncNode->setSyncAgain(true, false);
-                syncHere = true;
+                auto elapsed = Waiter::ds - node.lastScanTime;
+                if (!mScanRequest && elapsed >= 20)
+                {
+                    LOG_verbose << "Requesting scan for: " << fullPath.toPath(*client->fsaccess);
+                    mScanRequest = client->mScanService->scan(node, fullPath);
+                    syncHere = false;
+                }
+                else if (mScanRequest &&
+                         mScanRequest->matches(node) &&
+                         mScanRequest->completed())
+                {
+                    LOG_verbose << "Received scan results for: " << fullPath.toPath(*client->fsaccess);
+                    node.lastFolderScan.reset(
+                        new vector<FSNode>(mScanRequest->results()));
+
+                    node.lastScanTime = Waiter::ds;
+                    mScanRequest.reset();
+                    row.syncNode->scanAgain = TREE_RESOLVED;
+                    row.syncNode->setSyncAgain(true, false);
+                    syncHere = true;
+                }
+                else
+                {
+                    syncHere = false;
+                }
             }
             else
             {
                 syncHere = false;
+                recurseHere = false;  // If we need to scan, we need the parent folder to exist first - revisit later
             }
         }
         else
@@ -2179,7 +2195,8 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
             else
             {
                 // recurse after dealing with all items, so any renames within the folder have been completed
-                if (childRow.syncNode &&
+                if (recurseHere &&
+                    childRow.syncNode &&
                     childRow.syncNode->type == FOLDERNODE &&
                     !childRow.suppressRecursion &&
                     !childRow.syncNode->localMovePropagating)
@@ -2222,9 +2239,9 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
             assert(generated[i].type == (*row.syncNode->lastFolderScan)[i].type);
             if (generated[i].type == FILENODE)
             {
-                if (!(generated[i] == (*row.syncNode->lastFolderScan)[i]))
+                if (!(generated[i].equivalentTo((*row.syncNode->lastFolderScan)[i])))
                 {
-                    assert(generated[i] == (*row.syncNode->lastFolderScan)[i]);
+                    assert(generated[i].equivalentTo((*row.syncNode->lastFolderScan)[i]));
                 }
             }
         }

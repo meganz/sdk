@@ -370,11 +370,11 @@ struct MEGA_API FSNode
     bool isBlocked = false;
     FileFingerprint fingerprint; // includes size, mtime
 
-    bool operator==(const FSNode& n) {
+    bool equivalentTo(const FSNode& n) {
         return localname == n.localname &&
             name == n.name &&
-            !!shortname == !!n.shortname &&
-            (!shortname || *shortname == *n.shortname) &&
+            (!shortname && (!n.shortname || localname == *n.shortname) ||
+            (shortname && n.shortname && *shortname == *n.shortname)) &&
             type == n.type &&
             fsid == n.fsid &&
             isSymlink == n.isSymlink &&
