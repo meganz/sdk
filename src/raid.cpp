@@ -791,11 +791,37 @@ bool ConnectionInfo::initCom()
 
 
 
+
+
+
+
+ConnectionInfo ci;
+
+
 const std::string& RaidBufferManager::tempURL(unsigned connectionNum)
 {
     if (isRaid())
     {
         assert(connectionNum < tempurls.size());
+
+        auto f = [](bool restricted) { LOG_info << "CONN_COST, S-W event: system-wide restricted is now: " << restricted; };
+
+        ci.bindSystemEvents(f);
+
+        // quickly unbind, to make sure it works fine even if the thread does not have a message queue yet
+        ci.unbindSystemEvents();
+
+        // bind again, to really test cost changes
+        ci.bindSystemEvents(f);
+
+        const string& url = tempurls[connectionNum];
+        bool restrictedDest = ci.isDestinationRestricted(url);
+        bool restrictedSys = ci.isSystemRestricted();
+
+        LOG_info << "CONN_COST: url:\n\t" << url;
+        LOG_info << "CONN_COST: url restricted: " << restrictedDest;
+        LOG_info << "CONN_COST: system-wide restricted: " << restrictedSys;
+
         return tempurls[connectionNum];
     }
     else if (!tempurls.empty())
