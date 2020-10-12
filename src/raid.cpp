@@ -19,7 +19,15 @@
  * program.
  */
 
+#include <codecvt>
+
+#include <netlistmgr.h>
+#include <comdef.h>
+#include <wrl/client.h> // for ComPtr
+
 #include "mega/raid.h"
+
+#include <Mstcpip.h>
 
 #include "mega/transfer.h"
 #include "mega/testhooks.h"
@@ -250,9 +258,39 @@ bool RaidBufferManager::isRaidConnectionProgressBlocked(unsigned connectionNum) 
 }
 
 
+
+
+
+
+using Microsoft::WRL::ComPtr;
+
+
+std::string comErrMsgFromHRESULT(HRESULT hr)
+{
+    _com_error ce(hr);
+    const wchar_t* errMsg = ce.ErrorMessage();
+
+    // Convert to narrow string, to cope with LOG_xxx limitations
+#pragma warning(push)
+#pragma warning(disable: 4996) // codecvt_utf8_utf16 was declared deprecated, but keep it until C++20 is adopted
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+    const std::string& u8str = converter.to_bytes(errMsg); // keep this reference for debugging
+#pragma warning(pop)
+
+    return u8str;
+}
+
+
+
+
 class ConnectionInfo
 {
 public:
+    // Perform resource initialization
+    ConnectionInfo();
+    // Perform resource cleanup
+    ~ConnectionInfo();
+
     // Return true if system-wide cost restrictions are enabled.
     bool isSystemRestricted() const;
 
@@ -271,7 +309,287 @@ public:
     // Return true if there are cost restrictions for the given url
     // This is a bonus feature, it reuses isSystemRestricted(), and adds only little extra code.
     bool isDestinationRestricted(const std::string& url) const;
+
+private:
+    bool getAddressForUrl(const std::string& url, SOCKADDR_STORAGE* addr) const;
+    bool getPreferredAddress(const std::vector<SOCKADDR_IN6>& sockAddr6Vector, SOCKADDR_STORAGE* preferredAddress) const;
+    DWORD getCost(SOCKADDR_STORAGE* address = nullptr) const;
+
+    bool isCostRestrictive(DWORD cost) const
+    {
+        return (cost != NLM_CONNECTION_COST_UNKNOWN)
+                && !(cost & NLM_CONNECTION_COST_UNRESTRICTED);
+    }
+
+    bool initWinsock();
+    bool initCom();
+
+    bool mInitOk = false;
 };
+
+ConnectionInfo::ConnectionInfo()
+{
+    // init Winsock
+    mInitOk = initWinsock();
+
+    if (mInitOk)
+    {
+        // init COM
+        mInitOk = initCom();
+
+        // if COM init failed, Winsock resources would be useless
+        if (!mInitOk)
+        {
+            ::WSACleanup();
+        }
+    }
+}
+
+
+ConnectionInfo::~ConnectionInfo()
+{
+    if (mInitOk)
+    {
+        // Release COM resources
+        ::CoUninitialize();
+
+        // Release Winsock resources
+        ::WSACleanup();
+    }
+}
+
+
+bool ConnectionInfo::isSystemRestricted() const
+{
+    if (!mInitOk)
+    {
+        return false; // not sure? don't consider it restricted
+    }
+
+    // get system-wide connectivity cost
+    DWORD cost = getCost();
+
+    bool restricted = isCostRestrictive(cost);
+
+    return restricted;
+}
+
+
+bool ConnectionInfo::isDestinationRestricted(const std::string& url) const
+{
+    if (!mInitOk)
+    {
+        return false; // not sure? don't consider it restricted
+    }
+
+    // get sockaddr for destination
+    SOCKADDR_STORAGE sockAddr;
+    if (!getAddressForUrl(url, &sockAddr))
+    {
+        return false; // not sure? don't consider it restricted
+    }
+
+    // get per-destination cost
+    DWORD cost = getCost(&sockAddr);
+
+    bool restricted = isCostRestrictive(cost);
+
+    return restricted;
+}
+
+
+bool ConnectionInfo::getAddressForUrl(const std::string& url, SOCKADDR_STORAGE* addr) const
+{
+    // skip protocol prefix
+    size_t start = url.find("://");
+    start = (start == std::string::npos) ? 0 : start + 3;
+
+    // stop after host name
+    size_t len = url.find('/', start);
+    len = (len == std::string::npos) ? url.length() - start : len - start;
+
+    const std::string& trimmedUrl = (len == url.length()) ? url : url.substr(0, len);
+
+    // Unicode functions use wchar_t, so convert url to wide string
+#pragma warning(push)
+#pragma warning(disable: 4996) // codecvt_utf8_utf16 was declared deprecated, but keep it until C++20 is adopted
+    std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+    std::wstring wUrl = converter.from_bytes(trimmedUrl);
+#pragma warning(pop)
+
+    // get all possible addresses for the given url
+    ADDRINFOW* addrInfoArray = nullptr; // array of IPv4 and IPv6 address information instances
+    INT err = ::GetAddrInfo(wUrl.c_str(), nullptr, nullptr, &addrInfoArray);
+
+    if (err)
+    {
+        // some error occurred, log it
+        HRESULT hr = HRESULT_FROM_WIN32(err);
+        const std::string& errMsg = comErrMsgFromHRESULT(hr);
+        LOG_warn << "Failed to get address(-es) (err " << err << ": " << errMsg << ") for url: " << trimmedUrl;
+
+        if (addrInfoArray) { ::FreeAddrInfo(addrInfoArray); }
+
+        return false; // not sure? don't consider it restricted
+    }
+
+    // map everything to v6 structures
+    std::vector<SOCKADDR_IN6> allAddr6;
+
+    for (ADDRINFOW* addrInfo = addrInfoArray; addrInfo; addrInfo = addrInfo->ai_next)
+    {
+        if (addrInfo->ai_family == AF_INET)
+        {
+            // Map IPv4 to IPV6 to sort consistent IPv6 list
+            SOCKADDR_IN* ipv4AddrInfo = reinterpret_cast<SOCKADDR_IN*>(addrInfo->ai_addr);
+            IN6ADDR_SETV4MAPPED(&(allAddr6.emplace_back()), &(ipv4AddrInfo->sin_addr),
+                IN4ADDR_SCOPE_ID(ipv4AddrInfo), ipv4AddrInfo->sin_port);
+        }
+
+        else if (addrInfo->ai_family == AF_INET6)
+        {
+            SOCKADDR_IN6* ipv6AddrInfo = reinterpret_cast<SOCKADDR_IN6*>(addrInfo->ai_addr);
+            allAddr6.emplace_back(*ipv6AddrInfo);
+        }
+
+        else // unsupported IP family, ignore this entry;
+        {
+            // some logging
+            LOG_warn << "Unsupported IP family [" << addrInfo->ai_family << "], ignoring url: " << trimmedUrl;
+        }
+    }
+
+    ::FreeAddrInfo(addrInfoArray);
+
+    // find the "preferred" address
+    return getPreferredAddress(allAddr6, addr);
+}
+
+
+bool ConnectionInfo::getPreferredAddress(const std::vector<SOCKADDR_IN6>& sockAddr6Vector, SOCKADDR_STORAGE* preferredAddress) const
+{
+    // create a socket
+    SOCKET socketIoctl = ::WSASocket(AF_INET6, SOCK_DGRAM, 0, nullptr, 0, WSA_FLAG_OVERLAPPED);
+
+    if (socketIoctl == INVALID_SOCKET)
+    {
+        int err = ::WSAGetLastError(); // keep this for debugging
+        LOG_err << "Failed to create socket. err = " << err;
+        return false;
+    }
+
+    // create socket address list
+    DWORD size = SIZEOF_SOCKET_ADDRESS_LIST((DWORD)sockAddr6Vector.size());
+    std::unique_ptr<BYTE[]> byteBuffer = std::make_unique<BYTE[]>(size);
+    SOCKET_ADDRESS_LIST* socketAddrList = reinterpret_cast<SOCKET_ADDRESS_LIST*>(byteBuffer.get());
+
+    for (auto i = 0; i != sockAddr6Vector.size(); ++i)
+    {
+        socketAddrList->Address[i].lpSockaddr = (LPSOCKADDR) &(sockAddr6Vector[i]);
+        socketAddrList->Address[i].iSockaddrLength = sizeof(SOCKADDR_IN6);
+    }
+    socketAddrList->iAddressCount = (INT)sockAddr6Vector.size();
+
+    // sort addresses
+    DWORD bytes = 0;
+    int err = ::WSAIoctl(socketIoctl, SIO_ADDRESS_LIST_SORT,
+                         socketAddrList, size,
+                         socketAddrList, size,
+                         &bytes, nullptr, nullptr);
+
+    if (err)
+    {
+        err = ::WSAGetLastError();
+        LOG_err << "Failed to sort socket addresses (err " << err << ").";
+        ::closesocket(socketIoctl);
+        return false;
+    }
+
+    ::closesocket(socketIoctl);
+
+    // hold onto the best address
+    SOCKADDR_IN6* bestAddress = reinterpret_cast<SOCKADDR_IN6*>(socketAddrList->Address[0].lpSockaddr);
+
+    // retrieve the original IPv4 dest address, if mapped to IPv6
+    if (IN6ADDR_ISV4MAPPED(bestAddress))
+    {
+        preferredAddress->ss_family = AF_INET;
+        (reinterpret_cast<SOCKADDR_IN*> (preferredAddress))->sin_addr = *((PIN_ADDR)IN6_GET_ADDR_V4MAPPED(&(bestAddress->sin6_addr)));
+        (reinterpret_cast<SOCKADDR_IN*> (preferredAddress))->sin_port = bestAddress->sin6_port;
+    }
+    else
+    {
+        preferredAddress->ss_family = AF_INET6;
+        (reinterpret_cast<SOCKADDR_IN6*> (preferredAddress))->sin6_addr = bestAddress->sin6_addr;
+        (reinterpret_cast<SOCKADDR_IN6*> (preferredAddress))->sin6_scope_id = bestAddress->sin6_scope_id;
+        (reinterpret_cast<SOCKADDR_IN6*> (preferredAddress))->sin6_port = bestAddress->sin6_port;
+    }
+
+    return true;
+}
+
+
+DWORD ConnectionInfo::getCost(SOCKADDR_STORAGE* address) const
+{
+    // Access Network Cost Manager
+    ComPtr<INetworkCostManager> costManager;
+    HRESULT hr = ::CoCreateInstance(CLSID_NetworkListManager, nullptr,
+        CLSCTX_ALL, __uuidof(INetworkCostManager), (LPVOID*)(&costManager));
+
+    if (hr != S_OK || !costManager)
+    {
+        const std::string& errMsg = comErrMsgFromHRESULT(hr);
+        LOG_warn << "Failed to access Cost Manager. " << errMsg;
+        return NLM_CONNECTION_COST_UNKNOWN;
+    }
+
+    // Get cost restrictions for the given connection, or the entire system
+    DWORD cost = NLM_CONNECTION_COST_UNKNOWN;
+    hr = costManager->GetCost(&cost, reinterpret_cast<NLM_SOCKADDR*>(address));
+    if (hr != S_OK)
+    {
+        const std::string& errMsg = comErrMsgFromHRESULT(hr);
+        LOG_warn << "Failed to get cost. " << errMsg;
+    }
+
+    return cost;
+}
+
+
+bool ConnectionInfo::initWinsock()
+{
+    WORD socketVersionRequested = MAKEWORD(2, 2); // winsock version (2.2 is latest)
+
+    // init use of Winsock DLL
+    WSADATA wsaData;
+    int err = ::WSAStartup(socketVersionRequested, &wsaData); // needs corresponding call to WSACleanup() (multiple calls increment internal counter)
+
+    if (err)
+    {
+        LOG_err << "Could not find a usable Winsock DLL (err " << err << ").";
+        return false;
+    }
+
+    return true;
+}
+
+
+bool ConnectionInfo::initCom()
+{
+    HRESULT hr = ::CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    if ((hr != S_OK) && (hr != S_FALSE))
+    {
+        const std::string& errMsg = comErrMsgFromHRESULT(hr);
+        LOG_err << "Could not initialize COM. " << errMsg;
+        return false;
+    }
+
+    return true;
+}
+
+
+
+
 
 
 const std::string& RaidBufferManager::tempURL(unsigned connectionNum)
