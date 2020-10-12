@@ -250,6 +250,30 @@ bool RaidBufferManager::isRaidConnectionProgressBlocked(unsigned connectionNum) 
 }
 
 
+class ConnectionInfo
+{
+public:
+    // Return true if system-wide cost restrictions are enabled.
+    bool isSystemRestricted() const;
+
+    // Start listening for system-wide cost change events.
+    // f, user function to be executed when a cost change has occured. Its argument will
+    //    be `true` when the system has become restricted, and `false` when unrestricted.
+    //
+    // Return true if there were no errors, and if it was not already called earlier.
+    bool bindSystemEvents(std::function<void(bool)> f);
+
+    // Stop listening for cost change events.
+    //
+    // Return true if there were no errors stopping it (i.e. listening for events was succesfully started).
+    bool unbindSystemEvents();
+
+    // Return true if there are cost restrictions for the given url
+    // This is a bonus feature, it reuses isSystemRestricted(), and adds only little extra code.
+    bool isDestinationRestricted(const std::string& url) const;
+};
+
+
 const std::string& RaidBufferManager::tempURL(unsigned connectionNum)
 {
     if (isRaid())
