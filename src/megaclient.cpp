@@ -1994,7 +1994,7 @@ void MegaClient::exec()
                             }
                         }
 
-                        if (app->checkPutNodesTarget())
+                        if (!app->checkPutNodesTargetExists())
                         {
                             if (csretrying)
                             {
@@ -8255,7 +8255,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
 
                     if (nn_nni.source == NEW_NODE && nn_nni.type == FOLDERNODE)
                     {
-                        // maps temp nodeHandle provided in putnodes to definitive nodeHandle
+                        // maps temp nodeHandle provided in putnodes, to definitive nodeHandle
                         mTempHandleToNodeHandle.insert(pair<handle, handle>(nn_nni.nodehandle, h));
                     }
                 }
@@ -13207,7 +13207,7 @@ handle MegaClient::nextsyncid()
     return currsyncid;
 }
 
-// these method provides a temporal handle useful to indicate putnodes()-local parent linkage
+// this method provides a temporal handle useful to indicate putnodes()-local parent linkage
 handle MegaClient::nextUploadId()
 {
     byte* ptr = (byte*)&mCurrUploadId;

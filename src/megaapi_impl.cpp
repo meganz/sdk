@@ -14226,7 +14226,7 @@ void MegaApiImpl::clearing()
 #endif
 }
 
-bool MegaApiImpl::checkPutNodesTarget()
+bool MegaApiImpl::checkPutNodesTargetExists()
 {
     if(requestMap.find(client->reqtag) != requestMap.end())
     {
@@ -14237,11 +14237,11 @@ bool MegaApiImpl::checkPutNodesTarget()
             if (!target)
             {
                 LOG_err << "Putnodes target does not exists anymore";
-                return true;
+                return false;
             }
         }
     }
-    return false;
+    return true;
 }
 
 void MegaApiImpl::notify_retry(dstime dsdelta, retryreason_t reason)
