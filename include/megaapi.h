@@ -2370,7 +2370,7 @@ public:
 };
 
 /**
-* @brief A vector of string maps.
+* @brief A vector of string vectors.
 *
 * Each element in MegaStringMultivector is a vector of strings
 *
@@ -3660,7 +3660,7 @@ class MegaRequest
         virtual MegaStringMap* getMegaStringMap() const;
 
         /**
-         * @brief Returns the list of string maps
+         * @brief Returns the vector of string vectors
          *
          * The SDK retains the ownership of the returned value. It will be valid until
          * the MegaRequest object is deleted.

@@ -2118,7 +2118,7 @@ class MegaApiImpl : public MegaApp
         const int minPendingTransfersTimeout = 100;
 
         // timeout that must not be exceeded while processing transfers queue and we are processing a folder tree
-        const int maxPendingTransfersTimeout = 10000;
+        const int maxPendingTransfersTimeout = 3000;
 
         //Multiple listener management.
         void addListener(MegaListener* listener);

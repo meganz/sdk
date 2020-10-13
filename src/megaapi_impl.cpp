@@ -18927,9 +18927,9 @@ unsigned MegaApiImpl::sendPendingTransfers()
         if (elapsedTime > maxPendingTransfersTimeout
                 || (!mProcessingFolderTransfer && (++count > 100 || elapsedTime > minPendingTransfersTimeout)))
         {
-            // if elapsed time exceeds 100 ms
-            // or we're not processing a folder transfer
-            // and processed transfers exceed 100 or elapsed time exceeds 1000 ms
+            // if elapsed time exceeds 3000 ms, and we are processing a folder transfer
+            // or we're not processing a folder transfer, and processed transfers exceed 100
+            // or elapsed time exceeds 1000 ms
             break;
         }
     }
