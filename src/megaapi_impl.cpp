@@ -19302,7 +19302,7 @@ void MegaApiImpl::sendPendingRequests()
             for (int i = 0; i < folderStructure->size(); i++)
             {
                 handle newNodeHandle = base64ToHandle(folderStructure->get(i)->at(MegaStringMultivector::INDEX_NODEHANDLE).c_str());
-                string newFolderName = folderStructure->get(i)->at(MegaStringMultivector::INDEX_NODENAME);
+                const string &newFolderName = folderStructure->get(i)->at(MegaStringMultivector::INDEX_NODENAME);
                 int parentIndex = std::atoi(folderStructure->get(i)->at(MegaStringMultivector::INDEX_PARENTINDEX).c_str());
                 handle newParentHandle = (parentIndex == -1)
                     ? request->getParentHandle()
@@ -19344,16 +19344,6 @@ void MegaApiImpl::sendPendingRequests()
 
                 // add node to newnodes vector
                 newnodes.emplace_back(std::move(newnode));
-            }
-
-            if (!newnodes.size())
-            {
-               // TODO: store in the request the node handle of the root node of the tree
-               // All folder tree structure already exists in the cloud drive
-               e = API_OK;
-               newnodes.clear();
-               fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-               break;
             }
 
             client->putnodes(target->nodehandle, move(newnodes));
