@@ -125,8 +125,8 @@ struct MEGA_API MegaApp
     // node addition has failed
     virtual void putnodes_result(const Error&, targettype_t, vector<NewNode>&) { }
 
-    // check if putnodes has failed because remote node not exist anymore
-    virtual bool checkPutNodesNoentError()
+    // check if putnodes has failed because remote node does not exist anymore
+    virtual bool checkPutNodesTarget()
     {
         return false;
     }

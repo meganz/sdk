@@ -14226,7 +14226,7 @@ void MegaApiImpl::clearing()
 #endif
 }
 
-bool MegaApiImpl::checkPutNodesNoentError()
+bool MegaApiImpl::checkPutNodesTarget()
 {
     if(requestMap.find(client->reqtag) != requestMap.end())
     {
@@ -14236,7 +14236,7 @@ bool MegaApiImpl::checkPutNodesNoentError()
             Node *target = client->nodebyhandle(request->getParentHandle());
             if (!target)
             {
-                LOG_err << "Putnodes target not exists anymore";
+                LOG_err << "Putnodes target does not exists anymore";
                 return true;
             }
         }

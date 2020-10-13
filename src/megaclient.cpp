@@ -1994,7 +1994,7 @@ void MegaClient::exec()
                             }
                         }
 
-                        if (app->checkPutNodesNoentError())
+                        if (app->checkPutNodesTarget())
                         {
                             if (csretrying)
                             {
