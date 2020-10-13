@@ -19346,6 +19346,15 @@ void MegaApiImpl::sendPendingRequests()
                 newnodes.emplace_back(std::move(newnode));
             }
 
+            if (!newnodes.size())
+            {
+                // All folder tree structure already exists in the cloud drive
+                e = API_OK;
+                newnodes.clear();
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                break;
+            }
+
             client->putnodes(target->nodehandle, move(newnodes));
             break;
         }
@@ -25244,9 +25253,10 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
     {
         if (!errorCode)
         {
-            for (size_t i = 0; i < mPendingFiles.size(); i++)
+            auto itFiles = mPendingFiles.begin();
+            while (itFiles != mPendingFiles.end())
             {
-               handle parentHandle = mPendingFiles.at(i).second;
+               handle parentHandle = itFiles->second;
                auto it = client->mTempHandleToNodeHandle.find(parentHandle);
                MegaNode *parentNode = (it != client->mTempHandleToNodeHandle.end())
                        ? megaApi->getNodeByHandle(it->second)    // new node has been created, so we need to retrieve it's handle
@@ -25255,10 +25265,14 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
                if (parentNode != nullptr)
                {
                     pendingTransfers++;
-                    const LocalPath &localpath = mPendingFiles.at(i).first;
+                    const LocalPath &localpath = itFiles->first;
                     FileSystemType fsType = client->fsaccess->getlocalfstype(localpath);
                     megaApi->startUpload(false, localpath.toPath(*client->fsaccess).c_str(), parentNode, (const char *)NULL, -1, tag, false, NULL, false, false, fsType, this);
-                    continue;
+                    itFiles = mPendingFiles.erase(itFiles);
+               }
+               else
+               {
+                   ++itFiles;
                }
             }
         }
