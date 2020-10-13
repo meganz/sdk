@@ -15617,14 +15617,12 @@ void MegaApiImpl::getpsa_result(error e, int id, string *title, string *text, st
         {
             request->setLink(url->c_str());
         }
-        else
-        {
-            request->setName(title->c_str());
-            request->setText(text->c_str());
-            request->setFile(image->c_str());
-            request->setPassword(buttontext->c_str());
-            request->setLink(buttonlink->c_str());
-        }
+        //else -> when `w` is provided, it's still possible to receive the old format
+        request->setName(title->c_str());
+        request->setText(text->c_str());
+        request->setFile(image->c_str());
+        request->setPassword(buttontext->c_str());
+        request->setLink(buttonlink->c_str());
     }
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
