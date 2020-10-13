@@ -2093,12 +2093,14 @@ public class MegaApiJava {
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
      * - MegaRequest::getNumber - Returns the id of the PSA (useful to call MegaApi::setPSA later)
+     * Depending on the format of the PSA, the request may additionally return, for the new format:
+     * - MegaRequest::getEmail - Returns the URL (or an empty string)
+     * ...or for the old format:
      * - MegaRequest::getName - Returns the title of the PSA
      * - MegaRequest::getText - Returns the text of the PSA
      * - MegaRequest::getFile - Returns the URL of the image of the PSA
      * - MegaRequest::getPassword - Returns the text for the positive button (or an empty string)
      * - MegaRequest::getLink - Returns the link for the positive button (or an empty string)
-     * - MegaRequest::getEmail - Returns the url that app need to open with in-app browser
      *
      * If there isn't any new PSA to show, onRequestFinish will be called with the error
      * code MegaError::API_ENOENT
@@ -2106,35 +2108,8 @@ public class MegaApiJava {
      * @param listener MegaRequestListener to track this request
      * @see MegaApi::setPSA
      */
-    public void getPSA(MegaRequestListenerInterface listener){
-        megaApi.getPSA(createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Get the next PSA (Public Service Announcement) that should be shown to the user
-     *
-     * After the PSA has been accepted or dismissed by the user, app should
-     * use MegaApi::setPSA to notify API servers about this event and
-     * do not get the same PSA again in the next call to this function.
-     *
-     * The associated request type with this request is MegaRequest::TYPE_GET_PSA.
-     *
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getNumber - Returns the id of the PSA (useful to call MegaApi::setPSA later)
-     * - MegaRequest::getName - Returns the title of the PSA
-     * - MegaRequest::getText - Returns the text of the PSA
-     * - MegaRequest::getFile - Returns the URL of the image of the PSA
-     * - MegaRequest::getPassword - Returns the text for the possitive button (or an empty string)
-     * - MegaRequest::getLink - Returns the link for the possitive button (or an empty string)
-     *
-     * If there isn't any new PSA to show, onRequestFinish will be called with the error
-     * code MegaError::API_ENOENT
-     *
-     * @see MegaApi::setPSA
-     */
-    public void getPSA(){
-        megaApi.getPSA();
+    public void getPSAWithUrl(MegaRequestListenerInterface listener){
+        megaApi.getPSAWithUrl(createDelegateRequestListener(listener));
     }
 
     /**
