@@ -194,7 +194,7 @@ class SCSN
     // sc inconsistency: stop querying for action packets
     bool stopsc = false;
 
-public: 
+public:
 
     bool setScsn(JSON*);
     void setScsn(handle);
@@ -211,6 +211,8 @@ public:
     SCSN();
     void clear();
 };
+
+std::ostream& operator<<(std::ostream &os, const SCSN &scsn);
 
 class MEGA_API MegaClient
 {
@@ -263,7 +265,7 @@ public:
 
     // the verified account phone number, filled in from 'ug'
     string mSmsVerifiedPhone;
-	
+
     // pseudo-random number generator
     PrnGen rng;
 
@@ -456,7 +458,7 @@ public:
     error checkmove(Node*, Node*);
 
     // delete node
-    error unlink(Node*, bool = false);
+    error unlink(Node*, bool keepversions, int tag, std::function<void(handle, error)> resultFunction = nullptr);
 
     // delete all versions
     void unlinkversions();
@@ -513,17 +515,17 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, NewNode*, int, const char * = NULL);
+    void putnodes(handle, vector<NewNode>&&, const char * = NULL);
 
     // send files/folders to user
-    void putnodes(const char*, NewNode*, int);
+    void putnodes(const char*, vector<NewNode>&&);
 
     // attach file attribute to upload or node handle
     void putfa(handle, fatype, SymmCipher*, std::unique_ptr<string>, bool checkAccess = true);
 
     // queue file attribute retrieval
     error getfa(handle h, string *fileattrstring, const string &nodekey, fatype, int = 0);
-    
+
     // notify delayed upload completion subsystem about new file attribute
     void checkfacompletion(handle, Transfer* = NULL);
 
@@ -547,7 +549,7 @@ public:
     void delua(const char* an);
 
     // send dev command for testing
-    void senddevcommand(const char *command, const char *email);
+    void senddevcommand(const char *command, const char *email, long long q = 0, int bs = 0, int us = 0);
 #endif
 
     // delete or block an existing contact
@@ -770,7 +772,7 @@ public:
 
     // use HTTPS for all communications
     bool usehttps;
-    
+
     // use an alternative port for downloads (8080)
     bool usealtdownport;
 
@@ -862,7 +864,7 @@ private:
     HttpReq* badhostcs;
 
     // Working lock
-    HttpReq* workinglockcs;
+    unique_ptr<HttpReq> workinglockcs;
 
     // notify URL for new server-client commands
     string scnotifyurl;
@@ -920,7 +922,7 @@ private:
 
     // a TransferSlot chunk failed
     bool chunkfailed;
-    
+
     // fetch state serialize from local cache
     bool fetchsc(DbTable*);
 
@@ -984,10 +986,10 @@ private:
     // encode/query handle type
     void encodehandletype(handle*, bool);
     bool isprivatehandle(handle*);
-    
+
     // add direct read
     void queueread(handle, bool, SymmCipher*, int64_t, m_off_t, m_off_t, void*, const char* = NULL, const char* = NULL, const char* = NULL);
-    
+
     // execute pending direct reads
     bool execdirectreads();
 
@@ -1020,7 +1022,7 @@ public:
 
     // enable / disable the gfx layer
     bool gfxdisabled;
-    
+
     // DB access
     DbAccess* dbaccess = nullptr;
 
@@ -1039,7 +1041,7 @@ public:
     // scsn as read from sctable
     handle cachedscsn;
 
-    // initial state load in progress?  initial state can come from the database cache or via an 'f' command to the API.  
+    // initial state load in progress?  initial state can come from the database cache or via an 'f' command to the API.
     // Either way there can still be a lot of historic actionpackets to follow since that snaphot, especially if the user has not been online for a long time.
     bool fetchingnodes;
     int fetchnodestag;
@@ -1057,6 +1059,10 @@ public:
     // reqs[r] is open for adding commands
     // reqs[r^1] is being processed on the API server
     HttpReq* pendingcs;
+
+    // Only queue the "Server busy" event once, until the current cs completes, otherwise we may DDOS
+    // ourselves in cases where many clients get 500s for a while and then recover at the same time
+    bool pendingcs_serverBusySent = false;
 
     // pending HTTP requests
     pendinghttp_map pendinghttp;
@@ -1112,7 +1118,7 @@ public:
     fa_map pendingfa;
 
     // upload waiting for file attributes
-    handletransfer_map faputcompletion;    
+    handletransfer_map faputcompletion;
 
     // file attribute fetch channels
     fafc_map fafcs;
@@ -1122,7 +1128,7 @@ public:
 
     // active/pending direct reads
     handledrn_map hdrns;   // DirectReadNodes, main ownership.  One per file, each with one DirectRead per client request.
-    dsdrn_map dsdrns;      // indicates the time at which DRNs should be retried 
+    dsdrn_map dsdrns;      // indicates the time at which DRNs should be retried
     dr_list drq;           // DirectReads that are in DirectReadNodes which have fectched URLs
     drs_list drss;         // DirectReadSlot for each DR in drq, up to Max
 
@@ -1256,7 +1262,7 @@ public:
     // maps node handle to public handle
     std::map<handle, handle> mPublicLinks;
 
-#ifdef ENABLE_SYNC    
+#ifdef ENABLE_SYNC
     // sync debris folder name in //bin
     static const char* const SYNCDEBRISFOLDERNAME;
 
@@ -1324,17 +1330,18 @@ public:
     handle currsyncid;
 
     // SyncDebris folder addition result
-    void putnodes_syncdebris_result(error, NewNode*);
+    void putnodes_syncdebris_result(error, vector<NewNode>&);
 
     // if no sync putnodes operation is in progress, apply the updates stored
     // in syncadded/syncdeleted/syncoverwritten to the remote tree
     void syncupdate();
 
     // create missing folders, copy/start uploading missing files
-    bool syncup(LocalNode*, dstime*);
+    bool syncup(LocalNode* l, dstime* nds, size_t& parentPending);
+    bool syncup(LocalNode* l, dstime* nds);
 
     // sync putnodes() completion
-    void putnodes_sync_result(error, NewNode*, int);
+    void putnodes_sync_result(error, vector<NewNode>&);
 
     // start downloading/copy missing files, create missing directories
     bool syncdown(LocalNode*, LocalPath&, bool);
@@ -1349,7 +1356,7 @@ public:
     // unlink queued nodes directly (for inbound share syncing)
     void execsyncunlink();
     node_set tounlink;
-    
+
     // commit all queueud deletions
     void execsyncdeletions();
 
@@ -1396,7 +1403,7 @@ public:
     dstime lastDispatchTransfersDs = 0;
 
     // process object arrays by the API server
-    int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0, bool applykeys = false);
+    int readnodes(JSON*, int, putsource_t, vector<NewNode>*, int, bool applykeys);
 
     void readok(JSON*);
     void readokelement(JSON*);
@@ -1660,7 +1667,7 @@ public:
 
     // whether the destructor has started running yet
     bool destructorRunning = false;
-  
+
     MegaClientAsyncQueue mAsyncQueue;
 
     // Keep track of high level operation counts and times, for performance analysis

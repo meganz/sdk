@@ -762,6 +762,7 @@ Sync::~Sync()
 {
     // must be set to prevent remote mass deletion while rootlocal destructor runs
     assert(state == SYNC_CANCELED || state == SYNC_FAILED);
+    mDestructorRunning = true;
 
     if (!statecachetable && client->syncConfigs)
     {
@@ -802,7 +803,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
     for (auto it = range.first; it != range.second; it++)
     {
         ScopedLengthRestore restoreLen(localpath);
-        
+
         localpath.appendWithSeparator(it->second->localname, true, client->fsaccess->localseparator);
 
         LocalNode* l = it->second;
@@ -832,8 +833,8 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         if (fa->fopen(localpath))  // exists, is file
         {
             auto sn = client->fsaccess->fsShortname(localpath);
-            assert(!l->localname.empty() && 
-                (!l->slocalname && (!sn || l->localname == *sn) ||
+            assert(!l->localname.empty() &&
+                ((!l->slocalname && (!sn || l->localname == *sn)) ||
                 (l->slocalname && sn && !l->slocalname->empty() && *l->slocalname != l->localname && *l->slocalname == *sn)));
         }
 #endif
@@ -1266,11 +1267,13 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
     LOG_verbose << "Scanning: " << path << " in=" << initializing << " full=" << fullscan << " l=" << l;
     LocalPath* localpathNew = localname ? input_localpath : &tmppath;
 
-    // postpone moving nodes into nonexistent parents
-    if (parent && !parent->node)
+    if (parent)
     {
-        LOG_warn << "Parent doesn't exist yet: " << path;
-        return (LocalNode*)~0;
+        if (state != SYNC_INITIALSCAN && !parent->node)
+        {
+            LOG_warn << "Parent doesn't exist yet: " << path;
+            return (LocalNode*)~0;
+        }
     }
 
     // attempt to open/type this file
@@ -1788,7 +1791,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
 
 bool Sync::checkValidNotification(int q, Notification& notification)
 {
-    // This code moved from filtering before going on notifyq, to filtering after when it's thread-safe to do so 
+    // This code moved from filtering before going on notifyq, to filtering after when it's thread-safe to do so
 
     if (q == DirNotify::DIREVENTS || q == DirNotify::EXTRA)
     {

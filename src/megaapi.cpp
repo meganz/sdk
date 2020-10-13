@@ -291,7 +291,6 @@ MegaRecentActionBucket* MegaRecentActionBucket::copy() const
     return NULL;
 }
 
- 
 int64_t MegaRecentActionBucket::getTimestamp() const
 {
     return 0;
@@ -1241,8 +1240,8 @@ MegaError* MegaError::copy() const
     return new MegaError(*this);
 }
 
-int MegaError::getErrorCode() const 
-{ 
+int MegaError::getErrorCode() const
+{
     return errorCode;
 }
 
@@ -1377,13 +1376,13 @@ const char* MegaError::getErrorString(int errorCode, ErrorContexts context)
     return "HTTP Error";
 }
 
-const char* MegaError::toString() const 
-{ 
+const char* MegaError::toString() const
+{
     return getErrorString();
 }
 
-const char* MegaError::__str__() const 
-{ 
+const char* MegaError::__str__() const
+{
     return getErrorString();
 }
 
@@ -2057,7 +2056,27 @@ void MegaApi::getMiscFlags(MegaRequestListener *listener)
 
 void MegaApi::sendDevCommand(const char *command, const char *email, MegaRequestListener *listener)
 {
-    pImpl->sendDevCommand(command, email, listener);
+    pImpl->sendDevCommand(command, email, 0, 0, 0, listener);
+}
+
+void MegaApi::sendOdqDevCommand(const char *email, MegaRequestListener *listener)
+{
+    pImpl->sendDevCommand("aodq", email, 0, 0, 0, listener);
+}
+
+void MegaApi::sendUsedTransferQuotaDevCommand(long long quota, const char *email, MegaRequestListener *listener)
+{
+    pImpl->sendDevCommand("tq", email, quota, 0, 0, listener);
+}
+
+void MegaApi::sendBusinessStatusDevCommand(int businessStatus, const char *email, MegaRequestListener *listener)
+{
+    pImpl->sendDevCommand("bs", email, 0, businessStatus, 0, listener);
+}
+
+void MegaApi::sendUserStatusDevCommand(int userStatus, const char *email, MegaRequestListener *listener)
+{
+    pImpl->sendDevCommand("us", email, 0, 0, userStatus, listener);
 }
 
 void MegaApi::login(const char *login, const char *password, MegaRequestListener *listener)
@@ -3013,6 +3032,11 @@ void MegaApi::startUploadWithTopPriority(const char *localPath, MegaNode *parent
     pImpl->startUpload(true, localPath, parent, (const char *)NULL, -1, 0, false, appData, isSourceTemporary, false, FS_UNKNOWN, listener);
 }
 
+void MegaApi::startUploadWithTopPriority(const char* localPath, MegaNode* parent, const char* appData, bool isSourceTemporary, const char* fileName, MegaTransferListener* listener)
+{
+    pImpl->startUpload(true, localPath, parent, fileName, -1, 0, false, appData, isSourceTemporary, false, FS_UNKNOWN, listener);
+}
+
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, int64_t mtime, MegaTransferListener *listener)
 {
     pImpl->startUpload(localPath, parent, mtime, FS_UNKNOWN, listener);
@@ -3754,7 +3778,7 @@ long long MegaApi::getSize(MegaNode *n)
 }
 
 char *MegaApi::getFingerprint(const char *filePath)
-{   
+{
     return pImpl->getFingerprint(filePath);
 }
 
@@ -5167,7 +5191,7 @@ bool MegaApi::createAvatar(const char *imagePath, const char *dstPath)
 
 void MegaApi::backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener)
 {
-    return pImpl->backgroundMediaUploadRequestUploadURL(fullFileSize, state, listener); 
+    return pImpl->backgroundMediaUploadRequestUploadURL(fullFileSize, state, listener);
 }
 
 void MegaApi::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
