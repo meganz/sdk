@@ -48,12 +48,6 @@
 #ifdef __APPLE__
     #include <xlocale.h>
     #include <strings.h>
-
-    #if TARGET_OS_IPHONE
-    #include <netdb.h>
-    #include <resolv.h>
-    #include <arpa/inet.h>
-    #endif
 #endif
 
 #ifdef _WIN32
@@ -3264,6 +3258,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->folderInfo = request->getMegaFolderInfo() ? request->folderInfo->copy() : NULL;
     this->settings = request->getMegaPushNotificationSettings() ? request->settings->copy() : NULL;
     this->backgroundMediaUpload = NULL;
+    this->mBannerList.reset(request->mBannerList ? request->mBannerList->copy() : nullptr);
     this->mStringMultiVector = request->getMegaStringMultiVector() ? request->mStringMultiVector->copy() : NULL;
 }
 
@@ -4032,7 +4027,7 @@ const char* MegaBannerPrivate::getImageLocation() const
     return std::get<6>(mDetails).c_str();
 }
 
-MegaBannerList* MegaBannerListPrivate::copy() const
+MegaBannerListPrivate* MegaBannerListPrivate::copy() const
 {
     return new MegaBannerListPrivate(*this);
 }
@@ -6383,60 +6378,17 @@ MegaProxy *MegaApiImpl::getAutoProxySettings()
 
 void MegaApiImpl::loop()
 {
-#if defined(WINDOWS_PHONE) || TARGET_OS_IPHONE
+#if defined(WINDOWS_PHONE)
     // Workaround to get the IP of valid DNS servers on Windows Phone/iOS
     string servers;
 
     while (true)
     {
-    #ifdef WINDOWS_PHONE
         client->httpio->getMEGADNSservers(&servers, false);
-    #else
-        __res_state res;
-        bool valid;
-        if (res_ninit(&res) == 0)
-        {
-            union res_sockaddr_union u[MAXNS];
-            int nscount = res_getservers(&res, u, MAXNS);
-
-            for(int i = 0; i < nscount; i++)
-            {
-                char straddr[INET6_ADDRSTRLEN];
-                straddr[0] = 0;
-                valid = false;
-
-                if (u[i].sin.sin_family == PF_INET)
-                {
-                    valid = mega_inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr)) == straddr;
-                }
-
-                if (u[i].sin6.sin6_family == PF_INET6)
-                {
-                    valid = mega_inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr)) == straddr;
-                }
-
-                if (valid && straddr[0])
-                {
-                    if (servers.size())
-                    {
-                        servers.append(",");
-                    }
-                    servers.append(straddr);
-                }
-            }
-
-            res_ndestroy(&res);
-        }
-    #endif
 
         if (servers.size())
             break;
-
-    #ifdef WINDOWS_PHONE
         std::this_thread::sleep_for(std::chrono::seconds(1));
-    #else
-        sleep(1);
-    #endif
     }
 
     LOG_debug << "Using DNS servers " << servers;
@@ -13765,8 +13717,8 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
 
     if (!e && t != USER_HANDLE)
     {
-        assert(!nn.empty() && nn.back().added && nn.back().mAddedHandle != UNDEF);
-        n = client->nodebyhandle(nn.back().mAddedHandle);
+        assert(!nn.empty() && nn.front().added && nn.front().mAddedHandle != UNDEF);
+        n = client->nodebyhandle(nn.front().mAddedHandle);
 
         if(n)
         {
@@ -20668,54 +20620,6 @@ void MegaApiImpl::sendPendingRequests()
                 {
                     servers = dnsservers;
                 }
-#if TARGET_OS_IPHONE
-                else
-                {
-                    // Workaround to get the IP of valid DNS servers on iOS
-                    __res_state res;
-                    bool valid;
-                    if (res_ninit(&res) == 0)
-                    {
-                        union res_sockaddr_union u[MAXNS];
-                        int nscount = res_getservers(&res, u, MAXNS);
-
-                        for (int i = 0; i < nscount; i++)
-                        {
-                            char straddr[INET6_ADDRSTRLEN];
-                            straddr[0] = 0;
-                            valid = false;
-
-                            if (u[i].sin.sin_family == PF_INET)
-                            {
-                                valid = mega_inet_ntop(PF_INET, &u[i].sin.sin_addr, straddr, sizeof(straddr)) == straddr;
-                            }
-
-                            if (u[i].sin6.sin6_family == PF_INET6)
-                            {
-                                valid = mega_inet_ntop(PF_INET6, &u[i].sin6.sin6_addr, straddr, sizeof(straddr)) == straddr;
-                            }
-
-                            if (valid && straddr[0])
-                            {
-                                if (servers.size())
-                                {
-                                    servers.append(",");
-                                }
-                                servers.append(straddr);
-                            }
-                        }
-
-                        res_ndestroy(&res);
-                    }
-
-                    if (!servers.size())
-                    {
-                        LOG_warn << "Failed to get DNS servers at Retry Pending Connections";
-                        e = API_EACCESS;    // ie. when iOS has no Internet connection at all
-                        break;
-                    }
-                }
-#endif
 #ifndef __MINGW32__
                 if (servers.size())
                 {

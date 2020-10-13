@@ -20,6 +20,7 @@
  */
 #import <Foundation/Foundation.h>
 #import "MEGANode.h"
+#import "MEGAError.h"
 
 typedef NS_ENUM (NSInteger, MEGATransferType) {
     MEGATransferTypeDownload,
@@ -190,6 +191,12 @@ typedef NS_ENUM (NSInteger, MEGATransferState) {
  * @see [MEGASdk startStreamingNode:startPos:size:];
  */
 @property (readonly, nonatomic) BOOL isStreamingTransfer;
+
+/**
+ * @brief The last error related to the transfer with extra info
+ *
+ */
+@property (readonly, nonatomic) MEGAError *lastErrorExtended;
 
 /**
  * @brief YES if it's a folder transfer, otherwise (file transfer) it returns NO
