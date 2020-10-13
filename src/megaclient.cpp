@@ -9778,8 +9778,10 @@ void MegaClient::rewriteforeignkeys(Node* n)
 
 // if user has a known public key, complete instantly
 // otherwise, queue and request public key if not already pending
-void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, const char* personal_representation)
+void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, const char* personal_representation, int tag, std::function<void(Error)> completion)
 {
+    assert(completion);
+
     size_t total = n->outshares ? n->outshares->size() : 0;
     total += n->pendingshares ? n->pendingshares->size() : 0;
     if (a == ACCESS_UNKNOWN && total == 1)
@@ -9789,7 +9791,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, const char
         rewriteforeignkeys(n);
     }
 
-    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionCreateShare>(n->nodehandle, a, reqtag, personal_representation));
+    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionCreateShare>(n->nodehandle, a, tag, personal_representation, move(completion)));
 }
 
 // Add/delete/remind outgoing pending contact request
@@ -10971,7 +10973,7 @@ void MegaClient::querytransferquota(m_off_t size)
 }
 
 // export node link
-error MegaClient::exportnode(Node* n, int del, m_time_t ets)
+error MegaClient::exportnode(Node* n, int del, m_time_t ets, int tag, std::function<void(Error, handle, handle)> completion)
 {
     if (n->plink && !del && !n->plink->takendown
             && (ets == n->plink->ets) && !n->plink->isExpired())
@@ -10981,8 +10983,8 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
             LOG_warn << "Rejecting public link request when ODQ paywall";
             return API_EPAYWALL;
         }
-        restag = reqtag;
-        app->exportnode_result(n->nodehandle, n->plink->ph);
+        restag = tag;
+        completion(API_OK, n->nodehandle, n->plink->ph);
         return API_OK;
     }
 
@@ -10995,7 +10997,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
     switch (n->type)
     {
     case FILENODE:
-        getpubliclink(n, del, ets);
+        getpubliclink(n, del, ets, tag, move(completion));
         break;
 
     case FOLDERNODE:
@@ -11003,16 +11005,32 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
         {
             // deletion of outgoing share also deletes the link automatically
             // need to first remove the link and then the share
-            getpubliclink(n, del, ets);
-            setshare(n, NULL, ACCESS_UNKNOWN);
+            getpubliclink(n, del, ets, tag, nullptr);
+            setshare(n, NULL, ACCESS_UNKNOWN, nullptr, tag, [completion](Error e){
+                completion(e, UNDEF, UNDEF);
+            });
         }
         else
         {
             // exporting folder - need to create share first
-            setshare(n, NULL, RDONLY);
-            // getpubliclink() is called as _result() of the share
-        }
 
+            handle h = n->nodehandle;
+
+            setshare(n, NULL, RDONLY, nullptr, tag, [this, h, ets, tag, completion](Error e){
+                if (e)
+                {
+                    completion(e, UNDEF, UNDEF);
+                }
+                else if (Node* node = nodebyhandle(h))
+                {
+                    getpubliclink(node, false, ets, tag, completion);
+                }
+                else
+                {
+                    completion(API_ENOENT, UNDEF, UNDEF);
+                }
+            });
+        }
         break;
 
     default:
@@ -11022,9 +11040,9 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
     return API_OK;
 }
 
-void MegaClient::getpubliclink(Node* n, int del, m_time_t ets)
+void MegaClient::getpubliclink(Node* n, int del, m_time_t ets, int tag, std::function<void(Error, handle, handle)> f)
 {
-    reqs.add(new CommandSetPH(this, n, del, ets));
+    reqs.add(new CommandSetPH(this, n, del, ets, tag, move(f)));
 }
 
 // open exported file link
