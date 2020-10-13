@@ -1344,15 +1344,21 @@ void MegaClient::setKeepSyncsAfterLogout(bool keepSyncsAfterLogout)
 
 bool MegaClient::nodeIsInActiveSync(Node* n)
 {
-    if (!n) return false;
+    if (!n)
+    {
+        LOG_verbose << "Node did not exist";
+        return false;
+    }
     for (Sync* sync : syncs)
     {
         if (sync->active() &&
             n->isbelow(sync->cloudRoot()))
         {
+            LOG_verbose << "Node is in active sync: " << n->displaypath();
             return true;
         }
     }
+    LOG_verbose << "Node was not in active sync: " << n->displaypath();
     return false;
 }
 
@@ -3058,8 +3064,9 @@ void MegaClient::exec()
                 // Flags across all syncs, referred to in recursiveSync().
                 // Start with them all false
                 mSyncFlags = SyncFlags();
+                mSyncFlags.scanningWasComplete = !isAnySyncScanning();
 
-                for (int c = 2; c--;)
+                //for (int c = 2; c--;)
                 {
                     for (Sync* sync : syncs)
                     {
@@ -3101,14 +3108,14 @@ void MegaClient::exec()
                         }
                     }
 
-                    if (!mSyncFlags.performedScans &&
-                        !mSyncFlags.ongoingMovesRenames)
-                    {
-                        LOG_debug << clientname << "Re-calling recursiveSync() for post-move cases";
-                        mSyncFlags.scansAndMovesComplete = true;
-                        continue;
-                    }
-                    break;
+                    //if (!mSyncFlags.performedScans &&
+                    //    !mSyncFlags.ongoingMovesRenames)
+                    //{
+                    //    LOG_debug << clientname << "Re-calling recursiveSync() for post-move cases";
+                    //    mSyncFlags.scansAndMovesComplete = true;
+                    //    continue;
+                    //}
+                    //break;
                 }
 
                 execsyncdeletions();

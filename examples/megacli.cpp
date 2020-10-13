@@ -545,7 +545,7 @@ void DemoApp::syncupdate_local_file_change(Sync* sync, LocalNode *, const char* 
     syncstat(sync);
 }
 
-void DemoApp::syncupdate_local_move(Sync*, LocalNode *localNode, const char* path)
+void DemoApp::syncupdate_local_move(Sync*, const LocalPath& oldPath, const LocalPath& newPath)
 {
     cout << "Sync - local rename/move " << localNode->name << " -> " << path << endl;
 }

@@ -116,7 +116,7 @@ void GfxProc::loop()
             LOG_debug << "Processing media file: " << job->h;
 
             // (this assumes that the width of the largest dimension is max)
-            if (readbitmap(NULL, LocalPath::fromPlatformEncoded(job->localfilename), dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
+            if (readbitmap(NULL, job->localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
             {
                 for (unsigned i = 0; i < job->imagetypes.size(); i++)
                 {
@@ -294,7 +294,7 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilena
     job->h = th;
     job->flag = checkAccess;
     memcpy(job->key, key->key, SymmCipher::KEYLENGTH);
-    job->localfilename = localfilename.toPath(*client->fsaccess);
+    job->localfilename = localfilename;
     for (fatype i = sizeof dimensions/sizeof dimensions[0]; i--; )
     {
         if (missing & (1 << i))

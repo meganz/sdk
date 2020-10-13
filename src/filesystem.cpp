@@ -1188,7 +1188,12 @@ LocalPath LocalPath::fromName(string path, const FileSystemAccess& fsaccess, Fil
 LocalPath LocalPath::fromPlatformEncoded(string path)
 {
 #if defined(_WIN32)
-    assert(!(path.size() % 2));
+#ifdef DEBUG
+    if (path.size() % 2)
+    {
+        assert(!(path.size() % 2));
+    }
+#endif
     LocalPath p;
     p.localpath.resize(path.size() / sizeof(wchar_t));
     memcpy(p.localpath.data(), path.data(), p.localpath.size() * sizeof(wchar_t));

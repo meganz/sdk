@@ -1159,7 +1159,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
         // we already checked fsid differs before calling
 
         // was the file overwritten by moving an existing file over it?
-        if (LocalNode* sourceLocalNode = client->findLocalNodeByFsid(*row.fsNode, *this))
+        if (LocalNode* sourceLocalNode = client->findLocalNodeByFsid(row.fsNode->fsid, row.fsNode->type, row.fsNode->fingerprint, *this, nullptr))
         {
             // logic to detect files being updated in the local computer moving the original file
             // to another location as a temporary backup
@@ -1171,13 +1171,13 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
                 return true;
             }
 
-            if (!sourceLocalNode->localMovePropagating)
+            if (!sourceLocalNode->moveApplyingToCloud)
             {
                 LOG_debug << client->clientname << "Move detected by fsid. Type: " << sourceLocalNode->type
                     << " new path: " << fullPath.toPath(*client->fsaccess)
                     << " old localnode: " << sourceLocalNode->localnodedisplaypath(*client->fsaccess)
                     << logTriplet(row, fullPath);
-                sourceLocalNode->localMovePropagating = true;
+                sourceLocalNode->moveApplyingToCloud = true;
             }
 
             // catch the not so unlikely case of a false fsid match due to
@@ -1236,7 +1236,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
                         sourceLocalNode->moveContentTo(row.syncNode, fullPath);
 
                         // Mark the source node as moved from, it can be removed when visited
-                        sourceLocalNode->localMovePropagated = true;
+                        sourceLocalNode->moveAppliedToCloud = true;
 
                         parentRow.syncNode->setScanAgain(true, false);
                         if (sourceLocalNode->parent) sourceLocalNode->parent->setScanAgain(true, false);
@@ -1257,7 +1257,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
                                   << "Renaming node: " << sourceCloudNode->displaypath()
                                   << " to " << newName  << logTriplet(row, fullPath);
                         client->setattr(sourceCloudNode, attr_map('n', newName), 0);
-                        client->app->syncupdate_local_move(this, sourceLocalNode, fullPath.toPath(*client->fsaccess).c_str());
+                        client->app->syncupdate_local_move(this, sourceLocalNode->getLocalPath(true), fullPath);
                         rowResult = false;
                         return true;
                     }
@@ -1286,8 +1286,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
                         {
                             // command sent, now we wait for the actinpacket updates, later we will recognise
                             // the row as synced from fsNode, cloudNode and update the syncNode from those
-                            client->app->syncupdate_local_move(this, sourceLocalNode, fullPath.toPath(*client->fsaccess).c_str());
-                            sourceLocalNode->localMovePropagating = true;
+                            client->app->syncupdate_local_move(this, sourceLocalNode->getLocalPath(true), fullPath);
+                            sourceLocalNode->moveApplyingToCloud = true;
                             row.suppressRecursion = true;
                             rowResult = false;
                             return true;
@@ -1408,7 +1408,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
                                client->nodeByHandle(sourceLocalNode->parent->syncedCloudNodeHandle) :
                                nullptr;
 
-        if (!sourceLocalNode->localMovePropagating)
+        if (!sourceLocalNode->moveApplyingToCloud)
         {
             LOG_debug << client->clientname << "Move detected by nodehandle. Type: " << sourceLocalNode->type
                 << " moved node: " << row.cloudNode->displaypath()
@@ -1416,7 +1416,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
                 << logTriplet(row, fullPath);
 
             client->app->syncupdate_remote_move(this, row.cloudNode, oldCloudParent);
-            sourceLocalNode->localMovePropagating = true;
+            sourceLocalNode->moveApplyingToCloud = true;
         }
 
         if (client->fsaccess->renamelocal(sourcePath, fullPath))
@@ -1425,7 +1425,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
 
             client->mSyncFlags.ongoingMovesRenames = true;
 
-            client->app->syncupdate_local_move(this, sourceLocalNode, fullPath.toPath(*client->fsaccess).c_str());
+            client->app->syncupdate_local_move(this, sourceLocalNode->getLocalPath(true), fullPath);
 
             // make sure we don't come back to this folder again until we've rescanned it
             if (sourceLocalNode->parent) sourceLocalNode->parent->setScanAgain(true, false);
@@ -1438,7 +1438,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
             }
 
             sourceLocalNode->moveContentTo(row.syncNode, fullPath);
-            sourceLocalNode->localMovePropagated = true;
+            sourceLocalNode->moveAppliedToCloud = true;
 
             row.syncNode->setScanAgain(true, true);
             row.syncNode->setSyncAgain(true, true);
@@ -1458,7 +1458,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
         {
             // target folder does not exist yet
             SYNC_verbose << "Renaming/moving from the previous location: " << sourcePath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
-            sourceLocalNode->localMovePropagating = true;
+            sourceLocalNode->moveApplyingToCloud = true;
             rowResult = false;
             return true;
         }
@@ -1890,7 +1890,7 @@ auto Sync::computeSyncTriplets(Node* cloudParent, const LocalNode& syncParent, v
 
                     triplets.back().fsClashingNames.push_back(&*i);
 
-                    if (i->fsid != UNDEF && i->fsid == localNode->fsid)
+                    if (localNode && i->fsid != UNDEF && i->fsid == localNode->fsid)
                     {
                         // In case of a name clash, it might be new.
                         // Do sync the subtree we were already syncing.
@@ -2018,6 +2018,8 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
             // todo: similar for conflicts?
         }
     }
+    if (row.syncNode->scanAgain == TREE_ACTION_SUBTREE) row.syncNode->scanAgain = TREE_ACTION_HERE;
+    if (row.syncNode->syncAgain == TREE_ACTION_SUBTREE) row.syncNode->syncAgain = TREE_ACTION_HERE;
 
     // Whether we should perform sync actions at this level.
     bool wasSynced = row.syncNode->syncAgain < TREE_ACTION_HERE;
@@ -2199,7 +2201,9 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
                     childRow.syncNode &&
                     childRow.syncNode->type == FOLDERNODE &&
                     !childRow.suppressRecursion &&
-                    !childRow.syncNode->localMovePropagating)
+                    !childRow.syncNode->moveApplyingToCloud &&
+                    !childRow.syncNode->deletingFS &&   // we may not have visited syncItem if !syncHere, but skip these if we determine they are being moved from or deleted already
+                    !childRow.syncNode->deletingCloud)
                 {
 
 #ifdef DEBUG
@@ -2588,8 +2592,9 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Loca
 
 bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
-    if (client->mSyncFlags.scansAndMovesComplete ||
-        row.syncNode->localMovePropagated)
+    if (client->mSyncFlags.scanningWasComplete ||
+        //client->mSyncFlags.scansAndMovesComplete ||
+        row.syncNode->moveAppliedToCloud)
     {
         // local and cloud disappeared; remove sync item also
         LOG_verbose << "Marking Localnode for deletion" << logTriplet(row, fullPath);
@@ -2607,7 +2612,7 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& full
         delete row.syncNode;
         row.syncNode = nullptr;
     }
-    else if (row.syncNode->localMovePropagating)
+    else if (row.syncNode->moveApplyingToCloud)
     {
         // wait for the move from the node to complete in the cloud
         row.suppressRecursion = true;
@@ -2682,7 +2687,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPat
         if (row.syncNode->download &&
             !(row.syncNode->download->fingerprint() == row.cloudNode->fingerprint()))
         {
-            LOG_debug << client->clientname << "An older version of this file was already download, cancelling." << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
+            LOG_debug << client->clientname << "An older version of this file was already downloading, cancelling." << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
             row.syncNode->download.reset();
         }
 
@@ -2694,7 +2699,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPat
 
                 // FIXME: to cover renames that occur during the
                 // download, reconstruct localname in complete()
-                LOG_debug << client->clientname << "Start fetching file node";
+                LOG_debug << client->clientname << "Start sync download: " << logTriplet(row, fullPath);
                 client->app->syncupdate_get(this, row.cloudNode, fullPath.toPath(*client->fsaccess).c_str());
 
                 row.syncNode->download.reset(new SyncFileGet(*row.syncNode, *row.cloudNode, fullPath));
@@ -2782,11 +2787,11 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fu
     {
         client->mSyncFlags.ongoingMovesRenames = true;
 
-        if (row.syncNode->localMovePropagated)
+        if (row.syncNode->moveAppliedToCloud)
         {
             SYNC_verbose << client->clientname << "Node was a cloud move source, it will be removed next pass: " << logTriplet(row, fullPath);
         }
-        else if (row.syncNode->localMovePropagated)
+        else if (row.syncNode->moveApplyingToCloud)
         {
             SYNC_verbose << client->clientname << "Node was a cloud move source, move is propagating: " << logTriplet(row, fullPath);
         }
@@ -2796,31 +2801,45 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fu
         }
         row.suppressRecursion = true;
     }
-    else if (client->mSyncFlags.scansAndMovesComplete)
+    else if (row.syncNode->deletingFS)
+    {
+        SYNC_verbose << client->clientname << "FS item already removed: " << logTriplet(row, fullPath);
+        row.suppressRecursion = true;
+    }
+    else if (client->mSyncFlags.scanningWasComplete)//if (client->mSyncFlags.scansAndMovesComplete)
     {
         LOG_debug << client->clientname << "Moving local item to local sync debris: " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
         if (movetolocaldebris(fullPath))
         {
-            row.suppressRecursion = true;
             parentRow.syncNode->setScanAgain(true, false);
+            row.syncNode->scanAgain = TREE_RESOLVED;
+
+            // don't let revisits do anything until the tree is cleaned up
+            row.syncNode->deletingFS = true;
+            row.suppressRecursion = true;
         }
         else
         {
             LOG_err << client->clientname << "Failed to move to local debris:  " << fullPath.toPath(*client->fsaccess);
         }
     }
+    else
+    {
+        // todo: but, nodes are always current before we call recursiveSync - shortcut this case for nodes?
+        SYNC_verbose << client->clientname << "Wait for scanning to finish before removing cloud node: " << logTriplet(row, fullPath);
+    }
     return false;
 }
 
-LocalNode* MegaClient::findLocalNodeByFsid(FSNode& fsNode, Sync& filesystemSync)
+LocalNode* MegaClient::findLocalNodeByFsid(mega::handle fsid, nodetype_t type, const FileFingerprint& fingerprint, Sync& filesystemSync, std::function<bool(LocalNode* ln)> extraCheck)
 {
-    if (fsNode.fsid == UNDEF) return nullptr;
+    if (fsid == UNDEF) return nullptr;
 
-    auto range = localnodeByFsid.equal_range(fsNode.fsid);
+    auto range = localnodeByFsid.equal_range(fsid);
 
     for (auto it = range.first; it != range.second; ++it)
     {
-        if (it->second->type != fsNode.type) continue;
+        if (it->second->type != type) continue;
 
         //todo: actually we do want to support moving files/folders between syncs
         // in the same filesystem so, commented this
@@ -2848,9 +2867,9 @@ LocalNode* MegaClient::findLocalNodeByFsid(FSNode& fsNode, Sync& filesystemSync)
             continue;
         }
 #endif
-        if (fsNode.type == FILENODE &&
-            (fsNode.fingerprint.mtime != it->second->syncedFingerprint.mtime ||
-                fsNode.fingerprint.size != it->second->syncedFingerprint.size))
+        if (type == FILENODE &&
+            (fingerprint.mtime != it->second->syncedFingerprint.mtime ||
+                fingerprint.size != it->second->syncedFingerprint.size))
         {
             // fsid match, but size or mtime mismatch
             // treat as different
@@ -2859,7 +2878,10 @@ LocalNode* MegaClient::findLocalNodeByFsid(FSNode& fsNode, Sync& filesystemSync)
 
         // If we got this far, it's a good enough match to use
         // todo: come back for other matches?
-        return it->second;
+        if (extraCheck && extraCheck(it->second))
+        {
+            return it->second;
+        }
     }
     return nullptr;
 }
@@ -3004,17 +3026,47 @@ bool MegaClient::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath
 
 bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
-    if (client->mSyncFlags.scansAndMovesComplete)
+    bool inProgress = row.syncNode->deletingCloud || row.syncNode->moveApplyingToLocal;
+
+    if (!inProgress)
     {
-        if (!row.syncNode->deleting)
+        if (LocalNode* movedLocalNode = client->findLocalNodeByFsid(row.syncNode->fsid, row.syncNode->type, row.syncNode->syncedFingerprint, *this, [&row](LocalNode* ln){ return ln != row.syncNode; }))
+        {
+            // if we can find the place it moved to, we don't need to wait for scanning be complete
+            client->mSyncFlags.ongoingMovesRenames = true;
+
+            if (row.syncNode->moveAppliedToLocal)
+            {
+                SYNC_verbose << client->clientname << "This file/folder was moved, it will be removed next pass: " << logTriplet(row, fullPath);
+            }
+            else if (row.syncNode->moveApplyingToLocal)
+            {
+                SYNC_verbose << client->clientname << "Node was a cloud move source, move is propagating: " << logTriplet(row, fullPath);
+            }
+            else
+            {
+                SYNC_verbose << client->clientname << "This file/folder was moved, letting destination node process this first: " << logTriplet(row, fullPath);
+            }
+            inProgress = true;
+        }
+        else if (client->mSyncFlags.scanningWasComplete)
         {
             LOG_debug << client->clientname << "Moving cloud item to cloud sync debris: " << row.cloudNode->displaypath() << logTriplet(row, fullPath);
             client->movetosyncdebris(row.cloudNode, inshare);
-            row.syncNode->deleting = true;
+            row.syncNode->deletingCloud = true;
+            inProgress = true;
+        }
+        else
+        {
+            // in case it's actually a move and we just haven't seen the fsid yet
+            SYNC_verbose << client->clientname << "Wait for scanning to finish before moving to local debris: " << logTriplet(row, fullPath);
         }
     }
 
-    if (row.syncNode->deleting)
+    // there's no folder so clear the flag so we don't stall
+    row.syncNode->scanAgain = TREE_RESOLVED;
+
+    if (inProgress)
     {
         row.suppressRecursion = true;
     }

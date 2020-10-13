@@ -13004,19 +13004,20 @@ void MegaApiImpl::syncupdate_local_file_change(Sync *sync, LocalNode *, const ch
     fireOnSyncEvent(megaSync, event);
 }
 
-void MegaApiImpl::syncupdate_local_move(Sync *sync, LocalNode *localNode, const char *to)
+void MegaApiImpl::syncupdate_local_move(Sync *sync, const LocalPath& oldPath, const LocalPath& newPath)
 {
     client->abortbackoff(false);
 
-    string path = localNode->getLocalPath(true).toPath(*fsAccess);
-    LOG_debug << "Sync - local rename/move " << path.c_str() << " -> " << to;
+    string path = oldPath.toPath(*fsAccess);
+    string npath = newPath.toPath(*fsAccess);
+    LOG_debug << "Sync - local rename/move " << path << " -> " << npath;
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
 
     MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_MOVE);
     event->setPath(path.c_str());
-    event->setNewPath(to);
+    event->setNewPath(npath.c_str());
     fireOnSyncEvent(megaSync, event);
 }
 

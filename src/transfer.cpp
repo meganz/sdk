@@ -778,14 +778,12 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         #ifdef ENABLE_SYNC
                         if((*it)->syncxfer)
                         {
-                            sync_list::iterator it2;
-                            for (it2 = client->syncs.begin(); it2 != client->syncs.end(); it2++)
+                            bool foundSync = false;
+                            for (Sync* sync : client->syncs)
                             {
-                                Sync *sync = (*it2);
-                                LocalNode *localNode = sync->localnodebypath(NULL, localname);
-                                if (localNode)
+                                if (sync->localroot->localname.isContainingPathOf(localname, client->fsaccess->localseparator))
                                 {
-                                    LOG_debug << "Overwriting a local synced file. Moving the previous one to debris";
+                                    LOG_debug << "Overwriting a local synced file. Moving the previous one to debris: " << localname.toPath(*client->fsaccess);
 
                                     // try to move to local debris
                                     if(!sync->movetolocaldebris(localname))
@@ -793,13 +791,14 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                                         transient_error = client->fsaccess->transient_error;
                                     }
 
+                                    foundSync = true;
                                     break;
                                 }
                             }
 
-                            if(it2 == client->syncs.end())
+                            if (!foundSync)
                             {
-                                LOG_err << "LocalNode for destination file not found";
+                                LOG_err << "Sync for destination file not found: " << localname.toPath(*client->fsaccess);
 
                                 if(client->syncs.size())
                                 {

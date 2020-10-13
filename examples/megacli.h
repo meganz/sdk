@@ -217,7 +217,7 @@ struct DemoApp : public MegaApp
     void syncupdate_local_file_addition(Sync*, const LocalPath& path) override;
     void syncupdate_local_file_deletion(Sync*, const LocalPath& path) override;
     void syncupdate_local_file_change(Sync*, LocalNode*, const char*) override;
-    void syncupdate_local_move(Sync*, LocalNode*, const char*) override;
+    void syncupdate_local_move(Sync*, const LocalPath& oldPath, const LocalPath& newPath) override;
     void syncupdate_local_lockretry(bool) override;
     void syncupdate_get(Sync*, Node*, const char*) override;
     void syncupdate_put(Sync*, const char*) override;

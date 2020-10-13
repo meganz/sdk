@@ -394,8 +394,8 @@ enum TREESTATE : unsigned
 {
     TREE_RESOLVED = 0,
     TREE_DESCENDANT_FLAGGED = 1,
-    TREE_ACTION_HERE = 2,       // but do check if any children have flags set
-    TREE_ACTION_SUBTREE = 3   // overrides any children so the whole subtree is processed
+    TREE_ACTION_HERE = 2,           // And also check if any children have flags set (ie, implicitly TREE_DESCENDANT_FLAGGED)
+    TREE_ACTION_SUBTREE = 3         // overrides any children so the whole subtree is processed
 };
 
 inline unsigned updateTreestateFromChild(unsigned oldFlag, unsigned childFlag)
@@ -478,13 +478,16 @@ struct MEGA_API LocalNode : public Cacheable
         bool unstableFsidAssigned : 1;
 
         // disappeared from local FS; we are moving the cloud node to the trash.
-        bool deleting : 1;
+        bool deletingCloud : 1;
+        bool deletingFS : 1;
 
-        // we saw this node moved/renamed locally, cloud move is underway
-        bool localMovePropagating : 1;
+        // we saw this node moved/renamed locally, cloud move is underway or complete
+        bool moveApplyingToCloud : 1;
+        bool moveAppliedToCloud : 1;
 
-        // we saw this node moved/renamed locally, cloud move is finished
-        bool localMovePropagated : 1;
+        // we saw this node moved/renamed in the cloud, local move expected (or active)
+        bool moveApplyingToLocal : 1;
+        bool moveAppliedToLocal : 1;
 
         // whether any name conflicts have been detected.
         unsigned conflicts : 2;   // TREESTATE

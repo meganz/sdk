@@ -290,7 +290,7 @@ struct MEGA_API MegaApp
     virtual void syncupdate_local_file_addition(Sync*, const LocalPath& path) { }
     virtual void syncupdate_local_file_deletion(Sync*, const LocalPath& path) { }
     virtual void syncupdate_local_file_change(Sync*, LocalNode*, const char*) { }
-    virtual void syncupdate_local_move(Sync*, LocalNode*, const char*) { }
+    virtual void syncupdate_local_move(Sync*, const LocalPath& oldPath, const LocalPath& newPath) { }
     virtual void syncupdate_local_lockretry(bool) { }
     virtual void syncupdate_get(Sync*, Node*, const char*) { }
     virtual void syncupdate_put(Sync*, const char*) { }

@@ -516,7 +516,8 @@ public:
         bool scanTargetReachable = false;
 
         // we can only add/remove upload/download nodes (deleting moved-from LocalNodes in particular)
-        bool scansAndMovesComplete = false;
+        //bool scansAndMovesComplete = false;
+        bool scanningWasComplete = false;
     };
 
     SyncFlags mSyncFlags;
@@ -1483,7 +1484,7 @@ public:
 
     // maps local fsid to corresponding LocalNode* (s)
     fsid_localnode_map localnodeByFsid;
-    LocalNode* findLocalNodeByFsid(FSNode& fsNode, Sync&);
+    LocalNode* findLocalNodeByFsid(mega::handle fsid, nodetype_t type, const FileFingerprint& fp, Sync& filesystemSync, std::function<bool(LocalNode* ln)> extraCheck);
 
     // maps nodehanlde to corresponding LocalNode* (s)
     nodehandle_localnode_map localnodeByNodeHandle;

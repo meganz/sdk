@@ -1317,9 +1317,12 @@ void LocalNode::bumpnagleds()
 
 LocalNode::LocalNode()
 : unstableFsidAssigned(false)
-, deleting{false}
-, localMovePropagating(false)
-, localMovePropagated(false)
+, deletingCloud{false}
+, deletingFS{false}
+, moveAppliedToCloud(false)
+, moveApplyingToCloud(false)
+, moveAppliedToLocal(false)
+, moveApplyingToLocal(false)
 , conflicts(TREE_RESOLVED)
 , scanAgain(TREE_RESOLVED)
 , syncAgain(TREE_RESOLVED)
@@ -1334,9 +1337,12 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     parent = NULL;
     notseen = 0;
     unstableFsidAssigned = false;
-    deleting = false;
-    localMovePropagating = false;
-    localMovePropagated = false;
+    deletingCloud = false;
+    deletingFS = false;
+    moveAppliedToCloud = false;
+    moveApplyingToCloud = false;
+    moveAppliedToLocal = false;
+    moveApplyingToLocal = false;
     conflicts = TREE_RESOLVED;
     scanAgain = TREE_RESOLVED;
     syncAgain = TREE_RESOLVED;

@@ -899,9 +899,9 @@ struct StandardClient : public MegaApp
 //    void syncupdate_local_file_addition(Sync*, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_addition() " << path.toPath(*client.fsaccess) << " " << endl; }}
     void syncupdate_local_file_deletion(Sync*, const LocalPath& path) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_deletion() " << path.toPath(*client.fsaccess) << endl; }}
     void syncupdate_local_file_change(Sync*, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_change() " << lp(ln) << " " << cp << endl; }}
-    void syncupdate_local_move(Sync*, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) {
+    void syncupdate_local_move(Sync*, const LocalPath& oldPath, const LocalPath& newPath) override { onCallback(); if (logcb) {
         lock_guard<mutex> g(om);
-        out() << clientname << " syncupdate_local_move() " << lp(ln) << " " << cp << endl;
+        out() << clientname << " syncupdate_local_move() from:" << oldPath.toPath(*client.fsaccess) << " to:" << newPath.toPath(*client.fsaccess) << endl;
     }}
     void syncupdate_local_lockretry(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_lockretry() " << b << endl; }}
     //void syncupdate_get(Sync*, Node* n, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_get()" << n->displaypath() << " " << cp << endl; }}
@@ -3600,7 +3600,7 @@ GTEST_TEST(Sync, BasicSync_SpecialCreateFile)
 }
 #endif
 
-GTEST_TEST(Sync, DISABLED_BasicSync_moveAndDeleteLocalFile)
+GTEST_TEST(Sync, BasicSync_moveAndDeleteLocalFile)
 {
     // confirm change is synced to remote, and also seen and applied in a second client that syncs the same folder
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
