@@ -1466,30 +1466,37 @@ bool MegaApiImpl::conflictsDetected(const char* *outParentName,
     assert(outRemote);
 
     SdkMutexGuard guard(sdkMutex);
-    string parentName;
-    LocalPath parentPath;
-    string_vector names;
-    bool remote;
-
-    // Ensure our outputs have sane values.
-    *outParentName = nullptr;
-    *outParentPath = nullptr;
-    *outNames = nullptr;
 
     // Get the list of conflicts from the client.
-    if (!client->conflictsDetected(parentName, parentPath, names, remote))
-    {
-        // No conflicts have been detected.
-        return false;
-    }
+    list<NameConflict> conflicts;
+    client->conflictsDetected(conflicts);
 
     // Translate the information into a form useful to the caller.
-    *outParentName = MegaApi::strdup(parentName.c_str());
-    *outParentPath = MegaApi::strdup(parentPath.toPath(*fsAccess).c_str());
-    *outNames = new MegaStringListPrivate(names);
-    *outRemote = remote;
+    // For now, just supply the first conflict.  TODO: maybe the caller would like everything?
+    for (auto& c : conflicts)
+    {
+        if (!c.cloudPath.empty() && !c.clashingCloudNames.empty())
+        {
+            // todo: do we need both? *outParentName = MegaApi::strdup(parentName.c_str());
+            *outParentPath = MegaApi::strdup(c.cloudPath.c_str());
+            string_vector v;
+            for (auto& n : c.clashingCloudNames) v.push_back(n);
+            *outNames = new MegaStringListPrivate(v);
+            *outRemote = true;
+        }
+        if (!c.localPath.empty() && !c.clashingLocalNames.empty())
+        {
+            // todo: do we need both? *outParentName = MegaApi::strdup(parentName.c_str());
+            *outParentPath = MegaApi::strdup(c.localPath.toPath(*fsAccess).c_str());
+            string_vector v;
+            for (auto& n : c.clashingLocalNames) v.push_back(n.toPath(*fsAccess));
+            *outNames = new MegaStringListPrivate(v);
+            *outRemote = false;
+        }
+    }
 
-    return true;
+    // got nothing after all
+    return false;
 }
 
 bool MegaApiImpl::conflictsDetected()
@@ -12991,8 +12998,9 @@ void MegaApiImpl::syncupdate_local_file_deletion(Sync *sync, const LocalPath& lp
     fireOnSyncEvent(megaSync, event);
 }
 
-void MegaApiImpl::syncupdate_local_file_change(Sync *sync, LocalNode *, const char* path)
+void MegaApiImpl::syncupdate_local_file_change(Sync *sync, const LocalPath& lp)
 {
+    string path = lp.toPath(*fsAccess);
     LOG_debug << "Sync - local file change detected: " << path;
     client->abortbackoff(false);
 
@@ -13000,7 +13008,7 @@ void MegaApiImpl::syncupdate_local_file_change(Sync *sync, LocalNode *, const ch
     MegaSyncPrivate* megaSync = syncMap.at(sync->tag);
 
     MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FILE_CHANGED);
-    event->setPath(path);
+    event->setPath(path.c_str());
     fireOnSyncEvent(megaSync, event);
 }
 

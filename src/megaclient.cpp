@@ -1390,155 +1390,18 @@ bool MegaClient::isAnySyncScanning()
 }
 
 
-bool MegaClient::conflictsDetected(string& parentName,
-                                   LocalPath& parentPath,
-                                   string_vector& names,
-                                   bool& remote) const
+
+bool MegaClient::conflictsDetected(list<NameConflict>& conflicts) const
 {
-    // The node that contains the name conflicts.
-    LocalNode* parent = nullptr;
-
-    // What kind of filesystem contains the conflicts.
-    FileSystemType filesystemType = FS_UNKNOWN;
-
-    // Find an initial root containing name conflicts.
     for (auto* sync : syncs)
     {
-        // Have any name conflicts been detected in this sync?
-        if (sync->localroot->conflictsDetected())
-        {
-            // Yes, queue its root for traversal.
-            filesystemType = sync->mFilesystemType;
-            parent = sync->localroot.get();
-            break;
-        }
+
+        FSNode rootFsNode(sync->localroot->getKnownFSDetails());
+        Sync::syncRow row{sync->cloudRoot(), sync->localroot.get(), &rootFsNode};
+        sync->recursiveCollectNameConflicts(row, conflicts);
     }
 
-    // Were any conflicts detected?
-    if (!parent)
-    {
-        // No, so we have nothing to report.
-        return false;
-    }
-
-    // Find the first node that directly contains conflicts.
-    while (!parent->conflictsDetectedHere())
-    {
-        // Conflict must be contained in some child.
-        if (!parent->conflictsDetectedBelow())
-        {
-            return false;
-        }
-
-        // Queue a child for traversal.
-        for (auto& childIt : parent->children)
-        {
-            LocalNode* child = childIt.second;
-
-            // Does the child contain any conflicts?
-            if (child->conflictsDetected())
-            {
-                // Yes, so examine it.
-                parent = child;
-                break;
-            }
-        }
-    }
-
-    // Who contains the conflicts?
-    parentName = parent->name;
-
-    // Where do they live?
-    parentPath = parent->getLocalPath(true);
-
-    // Ensure the output names vector is empty.
-    names.clear();
-
-//todo: is this still relevant, as we may use the triplet matching function?
-    //// Does the parent have a remote presence?
-    //if (parent->node)
-    //{
-    //    // Tracks the remote children we've seen.
-    //    name_remotenode_map children{NamePtrCmp(filesystemType)};
-
-    //    // Do any of this node's remote children have conflicting names?
-    //    for (Node* child : parent->node->children)
-    //    {
-    //        ScopedLengthRestore restorer(parentPath);
-
-    //        // We only care about syncable children.
-    //        if (!child->syncable(*parent))
-    //        {
-    //            continue;
-    //        }
-
-    //        // What's the child's name?
-    //        auto nameIt = child->attrs.map.find('n');
-
-    //        // Where would the child live?
-    //        parentPath.appendWithSeparator(
-    //          LocalPath::fromName(nameIt->second, *fsaccess, filesystemType),
-    //          true,
-    //          fsaccess->localseparator);
-
-    //        // We only care about children that aren't excluded.
-    //        if (!app->sync_syncable(parent->sync,
-    //                                nameIt->second.c_str(),
-    //                                parentPath,
-    //                                child))
-    //        {
-    //            continue;
-    //        }
-
-    //        auto childIt = children.find(&nameIt->second);
-
-    //        // Have we already seen a child with this name?
-    //        if (childIt != children.end())
-    //        {
-    //            // Yep, record the names of the conflicting children.
-    //            names.emplace_back(childIt->second->displayname());
-    //            names.emplace_back(child->displayname());
-
-    //            // We've recorded a remote name conflict.
-    //            remote = true;
-    //            break;
-    //        }
-
-    //        // This is the first child with this name.
-    //        children[&nameIt->second] = child;
-    //    }
-    //}
-
-    // Only check for local conflicts if we haven't reported anything.
-    if (names.empty())
-    {
-        name_localnode_map children{NamePtrCmp(filesystemType)};
-
-        // Do any of this node's local children have conflicting names?
-        for (auto childIt : parent->children)
-        {
-            LocalNode& child = *childIt.second;
-
-            // Have we already seen a child with this name?
-            auto it = children.find(&child.name);
-
-            if (it != children.end())
-            {
-                // Yep, record the names of the conflicting children.
-                names.emplace_back(it->second->localname.toPath(*fsaccess));
-                names.emplace_back(child.localname.toPath(*fsaccess));
-
-                // We've recorded a local name conflict.
-                remote = false;
-                break;
-            }
-
-            // This is the first child with this name.
-            children.emplace(&child.name, &child);
-        }
-    }
-
-    return true;
+    return !conflicts.empty();
 }
 
 bool MegaClient::conflictsDetected() const
@@ -1556,15 +1419,7 @@ bool MegaClient::conflictsDetected() const
 
 bool MegaClient::allSyncsIdle()
 {
-    for (Sync* sync : syncs)
-    {
-        if (sync->localroot->syncAgain != TREE_RESOLVED ||
-            sync->localroot->syncAgain != TREE_RESOLVED)
-        {
-            return false;
-        }
-    }
-    return true;
+    return !isAnySyncSyncing();
 }
 
 void MegaClient::setAllSyncsNeedFullSync()
@@ -4179,7 +4034,18 @@ void MegaClient::resumeResumableSyncs()
             if (!e) //enabled fine
             {
                 Sync *s = syncs.back();
-                newstate = s->state; //override state with the actual one from the sync
+
+                if (newstate == SYNC_DISABLED && config.getError() == PAUSED)
+                {
+                    // Paused syncs remain paused on startup.
+                    s->changestate(SYNC_DISABLED, PAUSED);
+                    syncError = PAUSED;
+                }
+                else
+                {
+                    // Otherwise, state reflects the sync.
+                    newstate = s->state;
+                }
             }
 
             // update config entry with the error, if any. otherwise addsync would have updated it
@@ -13175,7 +13041,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
     // any active syncs below?
     for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
     {
-        if ((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
+        if ((*it)->active() || (*it)->paused())
         {
             n = (*it)->cloudRoot();
 
@@ -13198,8 +13064,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
     do {
         for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
         {
-            if (((*it)->state == SYNC_ACTIVE || (*it)->state == SYNC_INITIALSCAN)
-             && n == (*it)->cloudRoot())
+            if (((*it)->active() || (*it)->paused()) && n == (*it)->cloudRoot())
             {
                 if(syncError)
                 {
@@ -13300,10 +13165,10 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, SyncError 
         LocalPath otherLocallyEncodedAbsolutePath;
         fsaccess->expanselocalpath(otherLocallyEncodedPath, otherLocallyEncodedAbsolutePath);
 
-        if (config.getEnabled() && !isAnError(config.getError()) &&
-                ( newLocallyEncodedAbsolutePath.isContainingPathOf(otherLocallyEncodedAbsolutePath, fsaccess->localseparator)
-                  || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath, fsaccess->localseparator)
-                ) )
+        if (config.getEnabled()
+            && !isAnError(config.getError())
+            && (newLocallyEncodedAbsolutePath.isContainingPathOf(otherLocallyEncodedAbsolutePath, fsaccess->localseparator)
+                || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath, fsaccess->localseparator)))
         {
 
             if (syncError)
@@ -14987,8 +14852,10 @@ error MegaClient::changeSyncState(const SyncConfig *config, syncstate_t newstate
     assert(config);
     if (config)
     {
-        if ( (config->getError() != newSyncError) || (config->getEnabled() != SyncConfig::isEnabled(newstate, newSyncError)) ) //has changed
+        if ((config->getError() != newSyncError)
+            || (config->getEnabled() != SyncConfig::isEnabled(newstate, newSyncError)))
         {
+            // Has changed.
             e = saveAndUpdateSyncConfig(config, newstate, newSyncError);
         }
     }
@@ -15053,6 +14920,30 @@ void MegaClient::disableSync(Sync* sync, SyncError syncError)
     sync->changestate(SYNC_DISABLED, syncError); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
 
     syncactivity = true;
+}
+
+error MegaClient::pauseSync(Sync& sync)
+{
+    if (!sync.active())
+    {
+        return API_EFAILED;
+    }
+
+    sync.changestate(SYNC_DISABLED, PAUSED);
+
+    return API_OK;
+}
+
+error MegaClient::resumeSync(Sync& sync)
+{
+    if (!sync.paused())
+    {
+        return API_EFAILED;
+    }
+
+    sync.changestate(SYNC_INITIALSCAN, NO_SYNC_ERROR);
+
+    return API_OK;
 }
 
 bool MegaClient::disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError)

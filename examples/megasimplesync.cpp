@@ -94,7 +94,7 @@ class SyncApp : public MegaApp, public Logger
     void syncupdate_local_folder_deletion(Sync*, const LocalPath& path) override;
     void syncupdate_local_file_addition(Sync*, const LocalPath& path) override;
     void syncupdate_local_file_deletion(Sync*, const LocalPath& path) override;
-    void syncupdate_local_file_change(Sync*, LocalNode*, const char *) override;
+    void syncupdate_local_file_change(Sync*, const LocalPath& path) override;
     void syncupdate_local_move(Sync*, const LocalPath& oldPath, const LocalPath& newPath) override;
     void syncupdate_get(Sync*, Node*, const char*) override;
     void syncupdate_put(Sync*, const char*) override;
@@ -523,7 +523,7 @@ void SyncApp::syncupdate_local_file_deletion(Sync*, const LocalPath& path)
              << path.toPath(*client->fsaccess);
 }
 
-void SyncApp::syncupdate_local_file_change(Sync*, LocalNode *, const char* path)
+void SyncApp::syncupdate_local_file_change(Sync*, const LocalPath& path)
 {
     LOG_info << "Sync - local file change detected: " << path;
 }

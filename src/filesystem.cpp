@@ -1048,6 +1048,13 @@ void LocalPath::prependWithSeparator(const LocalPath& additionalPath, separator_
     localpath.insert(0, additionalPath.localpath);
 }
 
+LocalPath LocalPath::prependNewWithSeparator(const LocalPath& additionalPath, separator_t localseparator) const
+{
+    LocalPath lp = *this;
+    lp.prependWithSeparator(additionalPath, localseparator);
+    return lp;
+}
+
 void LocalPath::trimNonDriveTrailingSeparator(separator_t localseparator)
 {
     if (endsInSeparator(localseparator))

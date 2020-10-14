@@ -539,7 +539,7 @@ void DemoApp::syncupdate_local_file_deletion(Sync* sync, const LocalPath& path)
     syncstat(sync);
 }
 
-void DemoApp::syncupdate_local_file_change(Sync* sync, LocalNode *, const char* path)
+void DemoApp::syncupdate_local_file_change(Sync* sync, const LocalPath& path)
 {
     cout << "Sync - local file change detected: " << path;
     syncstat(sync);
@@ -547,7 +547,7 @@ void DemoApp::syncupdate_local_file_change(Sync* sync, LocalNode *, const char* 
 
 void DemoApp::syncupdate_local_move(Sync*, const LocalPath& oldPath, const LocalPath& newPath)
 {
-    cout << "Sync - local rename/move " << localNode->name << " -> " << path << endl;
+    cout << "Sync - local rename/move " << oldPath.toPath(*client->fsaccess) << " -> " << newPath.toPath(*client->fsaccess) << endl;
 }
 
 void DemoApp::syncupdate_local_lockretry(bool locked)

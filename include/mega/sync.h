@@ -324,8 +324,8 @@ public:
     string logTriplet(syncRow& row, LocalPath& fullPath);
 
     bool resolve_userIntervention(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
-    bool resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
-    bool resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
+    bool resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool considerSynced);
+    bool resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool considerSynced);
     bool resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& fullPath);
     bool resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTableTransactionCommitter& committer);
     bool resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTableTransactionCommitter& committer, bool alreadyExists);
@@ -339,6 +339,8 @@ public:
 
     bool checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool& rowResult);
     bool checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool& rowResult);
+
+    void recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& nc);
 
     // own position in session sync list
     sync_list::iterator sync_it{};

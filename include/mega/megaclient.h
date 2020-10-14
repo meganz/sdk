@@ -526,10 +526,7 @@ public:
     unique_ptr<ScanService> mScanService;
 
     // retrieves information about any detected name conflicts.
-    bool conflictsDetected(string& parentName,
-                           LocalPath& parentPath,
-                           string_vector& names,
-                           bool& remote) const;
+    bool conflictsDetected(list<NameConflict>& conflicts) const;
 
     // true if any name conflicts have been detected.
     bool conflictsDetected() const;

@@ -128,6 +128,7 @@ public:
     void append(const LocalPath& additionalPath);
     void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways, separator_t localseparator);
     void prependWithSeparator(const LocalPath& additionalPath, separator_t localseparator);
+    LocalPath prependNewWithSeparator(const LocalPath& additionalPath, separator_t localseparator) const;
     void trimNonDriveTrailingSeparator(separator_t);
     bool findNextSeparator(size_t& separatorBytePos, separator_t localseparator) const;
     bool findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
@@ -189,6 +190,14 @@ public:
     int fsCompare(const LocalPath& rhs, FileSystemType fsType) const;
     int fsCompare(const string& rhs, FileSystemType fsType) const;
 };
+
+struct NameConflict {
+    string cloudPath;
+    vector<string> clashingCloudNames;
+    LocalPath localPath;
+    vector<LocalPath> clashingLocalNames;
+};
+
 
 void AddHiddenFileAttribute(mega::LocalPath& path);
 void RemoveHiddenFileAttribute(mega::LocalPath& path);

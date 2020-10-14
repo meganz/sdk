@@ -892,32 +892,35 @@ struct StandardClient : public MegaApp
 
     void syncupdate_state(int tag, syncstate_t state, SyncError syncError, bool fireDisableEvent = true) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << " syncupdate_state() " << state << " error :" << syncError << endl; } }
     void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b << endl; } }
-    //void syncupdate_local_folder_addition(Sync* s, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_folder_addition() " << lp(ln) << " " << cp << endl; }}
-    //void syncupdate_local_folder_deletion(Sync*, LocalNode* ln) override { if (logcb) { onCallback(); lock_guard<mutex> g(om);  out() << clientname << " syncupdate_local_folder_deletion() " << lp(ln) << endl; }}
-//    void syncupdate_local_folder_addition(Sync*, const LocalPath& path) override { onCallback(); }
-    void syncupdate_local_folder_deletion(Sync*, const LocalPath& path) override { onCallback(); }
-//    void syncupdate_local_file_addition(Sync*, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_addition() " << path.toPath(*client.fsaccess) << " " << endl; }}
+    void syncupdate_local_folder_addition(Sync* s, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_folder_addition() " << path.toPath(*client.fsaccess) << endl; }}
+    void syncupdate_local_folder_deletion(Sync*, const LocalPath& path) override { if (logcb) { onCallback(); lock_guard<mutex> g(om);  out() << clientname << " syncupdate_local_folder_deletion() " << path.toPath(*client.fsaccess) << endl; }}
+    void syncupdate_local_file_addition(Sync*, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_addition() " << path.toPath(*client.fsaccess) << " " << endl; }}
     void syncupdate_local_file_deletion(Sync*, const LocalPath& path) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_deletion() " << path.toPath(*client.fsaccess) << endl; }}
-    void syncupdate_local_file_change(Sync*, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_change() " << lp(ln) << " " << cp << endl; }}
-    void syncupdate_local_move(Sync*, const LocalPath& oldPath, const LocalPath& newPath) override { onCallback(); if (logcb) {
-        lock_guard<mutex> g(om);
-        out() << clientname << " syncupdate_local_move() from:" << oldPath.toPath(*client.fsaccess) << " to:" << newPath.toPath(*client.fsaccess) << endl;
-    }}
+    void syncupdate_local_file_change(Sync*, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_file_change() " << path.toPath(*client.fsaccess) << endl; }}
+    void syncupdate_local_move(Sync*, const LocalPath& oldPath, const LocalPath& newPath) override
+    {
+        onCallback();
+        if (logcb) {
+            lock_guard<mutex> g(om);
+            out() << clientname << " syncupdate_local_move() from:" << oldPath.toPath(*client.fsaccess) << " to:" << newPath.toPath(*client.fsaccess) << endl;
+        }
+    }
     void syncupdate_local_lockretry(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_lockretry() " << b << endl; }}
-    //void syncupdate_get(Sync*, Node* n, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_get()" << n->displaypath() << " " << cp << endl; }}
-//    void syncupdate_put(Sync*, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_put()" << cp << endl; }}
-//    void syncupdate_remote_file_addition(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_file_addition() " << n->displaypath() << endl; }}
+    void syncupdate_get(Sync*, Node* n, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_get()" << n->displaypath() << " " << cp << endl; }}
+    void syncupdate_put(Sync*, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_put()" << cp << endl; }}
+    void syncupdate_remote_file_addition(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_file_addition() " << n->displaypath() << endl; }}
     void syncupdate_remote_file_deletion(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_file_deletion() " << n->displaypath() << endl; }}
-    //void syncupdate_remote_folder_addition(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_folder_addition() " << n->displaypath() << endl; }}
-    //void syncupdate_remote_folder_deletion(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_folder_deletion() " << n->displaypath() << endl; }}
-    void syncupdate_remote_folder_addition(Sync*, Node* n) override { onCallback(); }
-    void syncupdate_remote_folder_deletion(Sync*, Node* n) override { onCallback(); }
+    void syncupdate_remote_folder_addition(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_folder_addition() " << n->displaypath() << endl; }}
+    void syncupdate_remote_folder_deletion(Sync*, Node* n) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_folder_deletion() " << n->displaypath() << endl; }}
     void syncupdate_remote_copy(Sync*, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_remote_copy() " << cp << endl; }}
-    void syncupdate_remote_move(Sync*, Node* n1, Node* n2) override { onCallback();
-    if (logcb) {
-        lock_guard<mutex> g(om);
-        out() << clientname << " syncupdate_remote_move() to:" << n1->displaypath() << " from:" << n2->displaypath() << endl;
-    } }
+    void syncupdate_remote_move(Sync*, Node* n1, Node* n2) override
+    {
+        onCallback();
+        if (logcb) {
+            lock_guard<mutex> g(om);
+            out() << clientname << " syncupdate_remote_move() to:" << n1->displaypath() << " from:" << n2->displaypath() << endl;
+        }
+    }
     void syncupdate_remote_rename(Sync*, Node* n, const char* cp) override { onCallback(); if (logcb) {
         lock_guard<mutex> g(om);
         out() << clientname << " syncupdate_remote_rename() new: " << n->displaypath() << " old: " << cp << endl;
@@ -2162,19 +2165,13 @@ struct StandardClient : public MegaApp
 
     }
 
-    bool conflictsDetected(string& parentName,
-                           LocalPath& parentPath,
-                           string_vector& names,
-                           bool& remote)
+    bool conflictsDetected(list<NameConflict>& conflicts)
     {
         auto result =
           thread_do([&](StandardClient& client, promise<bool>& result)
                     {
                         result.set_value(
-                          client.client.conflictsDetected(parentName,
-                                                          parentPath,
-                                                          names,
-                                                          remote));
+                          client.client.conflictsDetected(conflicts));
                     });
 
         return result.get();
@@ -4019,10 +4016,6 @@ TEST(Sync, DetectsAndReportsNameClashes)
     const auto TIMEOUT = chrono::seconds(4);
 
     StandardClient client(TESTFOLDER, "c");
-    string parentName;
-    LocalPath parentPath;
-    string_vector names;
-    bool remote;
 
     // Log in client.
     ASSERT_TRUE(client.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
@@ -4050,13 +4043,14 @@ TEST(Sync, DetectsAndReportsNameClashes)
     ASSERT_TRUE(client.conflictsDetected());
 
     // Can we obtain a list of the conflicts?
-    ASSERT_TRUE(client.conflictsDetected(parentName, parentPath, names, remote));
-    ASSERT_EQ(parentName, "d");
-    ASSERT_FALSE(parentPath.empty());
-    ASSERT_EQ(names.size(), 2);
-    ASSERT_EQ(names[0], "f%30");
-    ASSERT_EQ(names[1], "f0");
-    ASSERT_FALSE(remote);
+    list<NameConflict> conflicts;
+    ASSERT_TRUE(client.conflictsDetected(conflicts));
+    ASSERT_EQ(conflicts.size(), 2u);
+    ASSERT_EQ(conflicts.back().localPath, LocalPath::fromPath("d", *client.fsaccess).prependNewWithSeparator(client.syncByTag(0)->localroot->localname, client.fsaccess->localseparator));
+    ASSERT_EQ(conflicts.back().clashingLocalNames.size(), 2u);
+    ASSERT_EQ(conflicts.back().clashingLocalNames[0], LocalPath::fromPath("f%30", *client.fsaccess));
+    ASSERT_EQ(conflicts.back().clashingLocalNames[1], LocalPath::fromPath("f0", *client.fsaccess));
+    ASSERT_EQ(conflicts.back().clashingCloudNames.size(), 0u);
 
     // Resolve the f0 / f%30 conflict.
     ASSERT_TRUE(fs::remove(root / "d" / "f%30"));
@@ -4068,13 +4062,16 @@ TEST(Sync, DetectsAndReportsNameClashes)
     ASSERT_TRUE(client.conflictsDetected());
 
     // Has the list of conflicts changed?
-    ASSERT_TRUE(client.conflictsDetected(parentName, parentPath, names, remote));
-    ASSERT_EQ(parentName, "e");
-    ASSERT_FALSE(parentPath.empty());
-    ASSERT_EQ(names.size(), 2);
-    ASSERT_EQ(names[0], "g%30");
-    ASSERT_EQ(names[1], "g0");
-    ASSERT_FALSE(remote);
+    conflicts.clear();
+    ASSERT_TRUE(client.conflictsDetected(conflicts));
+    ASSERT_GE(conflicts.size(), 1u);
+    ASSERT_EQ(conflicts.front().localPath, LocalPath::fromPath("e", *client.fsaccess)
+        .prependNewWithSeparator(LocalPath::fromPath("d", *client.fsaccess), client.fsaccess->localseparator)
+        .prependNewWithSeparator(client.syncByTag(0)->localroot->localname, client.fsaccess->localseparator));
+    ASSERT_EQ(conflicts.front().clashingLocalNames.size(), 2u);
+    ASSERT_EQ(conflicts.front().clashingLocalNames[0], LocalPath::fromPath("g%30", *client.fsaccess));
+    ASSERT_EQ(conflicts.front().clashingLocalNames[1], LocalPath::fromPath("g0", *client.fsaccess));
+    ASSERT_EQ(conflicts.front().clashingCloudNames.size(), 0u);
 
     // Resolve the g / g%30 conflict.
     ASSERT_TRUE(fs::remove(root / "d" / "e" / "g%30"));
@@ -4086,7 +4083,9 @@ TEST(Sync, DetectsAndReportsNameClashes)
     ASSERT_FALSE(client.conflictsDetected());
 
     // Is the list of conflicts empty?
-    ASSERT_FALSE(client.conflictsDetected(parentName, parentPath, names, remote));
+    conflicts.clear();
+    ASSERT_FALSE(client.conflictsDetected(conflicts));
+    ASSERT_EQ(conflicts.size(), 0u);
 
     // Create a remote name clash.
     auto* node = client.drillchildnodebyname(client.gettestbasenode(), "x/d");
@@ -4098,16 +4097,16 @@ TEST(Sync, DetectsAndReportsNameClashes)
     waitonsyncs(TIMEOUT, &client);
 
     // Have we detected any conflicts?
-    ASSERT_TRUE(client.conflictsDetected());
+    conflicts.clear();
+    ASSERT_TRUE(client.conflictsDetected(conflicts));
 
     // Does our list of conflicts include remotes?
-    ASSERT_TRUE(client.conflictsDetected(parentName, parentPath, names, remote));
-    ASSERT_EQ(parentName, "d");
-    ASSERT_FALSE(parentPath.empty());
-    ASSERT_EQ(names.size(), 2);
-    ASSERT_EQ(names[0], "h");
-    ASSERT_EQ(names[1], "h");
-    ASSERT_TRUE(remote);
+    ASSERT_GE(conflicts.size(), 1u);
+    ASSERT_EQ(conflicts.front().cloudPath, string("/mega_test_sync/x/d"));
+    ASSERT_EQ(conflicts.front().clashingCloudNames.size(), 2u);
+    ASSERT_EQ(conflicts.front().clashingCloudNames[0], string("h"));
+    ASSERT_EQ(conflicts.front().clashingCloudNames[1], string("h"));
+    ASSERT_EQ(conflicts.front().clashingLocalNames.size(), 0u);
 
     // Resolve the remote conflict.
     ASSERT_TRUE(client.deleteremote("x/d/h"));
@@ -4117,9 +4116,6 @@ TEST(Sync, DetectsAndReportsNameClashes)
 
     // Conflicts should be resolved.
     ASSERT_FALSE(client.conflictsDetected());
-
-    // List of conflicting names should be empty.
-    ASSERT_FALSE(client.conflictsDetected(parentName, parentPath, names, remote));
 }
 
 TEST(Sync, DoesntDownloadFilesWithClashingNames)

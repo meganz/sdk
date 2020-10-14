@@ -583,7 +583,7 @@ public:
     void setSyncedNodeHandle(NodeHandle h);
 
     void setnameparent(LocalNode*, LocalPath* newlocalpath, std::unique_ptr<LocalPath>, bool applyToCloud);
-    void moveContentTo(LocalNode*, LocalPath&);
+    void moveContentTo(LocalNode*, LocalPath&, bool setScanAgain);
 
     LocalNode();
     void init(Sync*, nodetype_t, LocalNode*, LocalPath&, std::unique_ptr<LocalPath>);

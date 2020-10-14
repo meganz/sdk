@@ -1283,7 +1283,7 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
     }
 }
 
-void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath)
+void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAgain)
 {
     vector<LocalNode*> workingList;
     workingList.reserve(children.size());
@@ -1293,6 +1293,10 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath)
         ScopedLengthRestore restoreLen(fullPath);
         fullPath.appendWithSeparator(c->localname, true, sync->client->fsaccess->localseparator);
         c->setnameparent(ln, &fullPath, sync->client->fsaccess->fsShortname(fullPath), false);
+        if (setScanAgain)
+        {
+            c->setScanAgain(true, true);
+        }
     }
 
     ln->upload = move(upload);
