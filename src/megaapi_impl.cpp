@@ -19301,12 +19301,12 @@ void MegaApiImpl::sendPendingRequests()
             vector<NewNode> newnodes;
             for (int i = 0; i < folderStructure->size(); i++)
             {
-                handle newNodeHandle = base64ToHandle(folderStructure->get(i)->at(MegaStringMultivector::INDEX_NODEHANDLE).c_str());
-                const string &newFolderName = folderStructure->get(i)->at(MegaStringMultivector::INDEX_NODENAME);
-                int parentIndex = std::atoi(folderStructure->get(i)->at(MegaStringMultivector::INDEX_PARENTINDEX).c_str());
+                handle newNodeHandle = base64ToHandle(folderStructure->get(i)->at(INDEX_NODEHANDLE).c_str());
+                const string &newFolderName = folderStructure->get(i)->at(INDEX_NODENAME);
+                int parentIndex = std::atoi(folderStructure->get(i)->at(INDEX_PARENTINDEX).c_str());
                 handle newParentHandle = (parentIndex == -1)
                     ? request->getParentHandle()
-                    : base64ToHandle(folderStructure->get(parentIndex)->at(MegaStringMultivector::INDEX_NODEHANDLE).c_str());
+                    : base64ToHandle(folderStructure->get(parentIndex)->at(INDEX_NODEHANDLE).c_str());
 
                 NewNode newnode;
                 SymmCipher key;

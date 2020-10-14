@@ -2382,7 +2382,6 @@ protected:
     MegaStringMultivector();
 
 public:
-    enum {INDEX_NODEHANDLE = 0, INDEX_PARENTINDEX, INDEX_NODENAME,};
     virtual ~MegaStringMultivector();
 
     static MegaStringMultivector *createInstance();
@@ -7774,6 +7773,8 @@ class MegaApi
             ACCOUNT_BLOCKED_VERIFICATION_EMAIL = 700,       // temporary blocked, require email verification
         };
 
+        enum {INDEX_NODEHANDLE = 0, INDEX_PARENTINDEX, INDEX_NODENAME,};
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -9857,10 +9858,10 @@ class MegaApi
          * where we want to create the tree.
          * - MegaRequest::getMegaStringMultiVector - Returns the folder structure in a vector, where each
          * element is a string_vector that represents a folder, and contains the following data:
-         * + string_vector[MegaStringMultivector::INDEX_NODEHANDLE]:  handle of the folder
-         * + string_vector[MegaStringMultivector::INDEX_PARENTINDEX]: index in MegaStringMultiVector
+         * + string_vector[INDEX_NODEHANDLE]:  handle of the folder
+         * + string_vector[INDEX_PARENTINDEX]: index in MegaStringMultiVector
          * that contains the record for parent node
-         * + string_vector[MegaStringMultivector::INDEX_NODENAME]: Name of the folder in UTF-8
+         * + string_vector[INDEX_NODENAME]: Name of the folder in UTF-8
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
