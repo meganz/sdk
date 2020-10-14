@@ -26506,10 +26506,10 @@ void MegaFolderDownloadController::start(MegaNode *node)
 void MegaFolderDownloadController::downloadFolderNode(FileSystemType fsType)
 {
     // Create all local directories in one shot
-    for (auto it = mLocalTree.begin(); it != mLocalTree.end();)
+    auto it = mLocalTree.begin();
+    while (it != mLocalTree.end())
     {
-        auto auxit = it++;
-        LocalPath &localpath = auxit->first;
+        LocalPath &localpath = it->first;
         auto da = client->fsaccess->newfileaccess();
         if (!da->fopen(localpath, true, false))
         {
@@ -26521,7 +26521,8 @@ void MegaFolderDownloadController::downloadFolderNode(FileSystemType fsType)
                 mIncompleteTransfers++;
 
                 // By removing this element we also remove all it's children nodes
-                mLocalTree.erase(auxit);
+                it = mLocalTree.erase(it);
+                continue;
             }
         }
         else if (da->type == FILENODE)
@@ -26532,13 +26533,15 @@ void MegaFolderDownloadController::downloadFolderNode(FileSystemType fsType)
             mIncompleteTransfers++;
 
             // By removing this element we also remove all it's children nodes
-            mLocalTree.erase(auxit);
+            it = mLocalTree.erase(it);
+            continue;
         }
         else
         {
             LOG_debug << "Already existing folder detected: " << localpath.toPath(*client->fsaccess);
         }
         da.reset();
+        ++it;
     }
 
     // Add all download transfers in one shot
