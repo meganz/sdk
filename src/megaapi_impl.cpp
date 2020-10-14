@@ -25040,6 +25040,7 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->recursive = 0;
     this->pendingTransfers = 0;
     this->tag = transfer->getTag();
+    mPendingFolders = 0;
 }
 
 void MegaFolderUploadController::start(MegaNode*)
@@ -25184,6 +25185,7 @@ void MegaFolderUploadController::scanFolderNode(handle targetHandle, handle pare
     MegaHandle newNodeHandle = UNDEF;
     if (!folderExists)
     {
+        mPendingFolders++;
         // generate a temporal node handle for the new node
         newNodeHandle = client->nextUploadId();
         const unique_ptr<char[]> nhB64(megaApi->handleToBase64(newNodeHandle));
@@ -25233,7 +25235,7 @@ void MegaFolderUploadController::scanFolderNode(handle targetHandle, handle pare
 
 void MegaFolderUploadController::checkCompletion()
 {
-    if (!cancelled && !recursive && !pendingTransfers)
+    if (!cancelled && !recursive && !pendingTransfers && !mPendingFolders)
     {
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         mFolderStructure.clear();
@@ -25251,6 +25253,12 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
     int errorCode = e->getErrorCode();
     if (type == MegaRequest::TYPE_CREATE_FOLDER_TREE)
     {
+        assert(request->getMegaStringMultiVector());
+        mPendingFolders -= request->getMegaStringMultiVector()
+                ? request->getMegaStringMultiVector()->size()
+                : 0;
+        mLastError = *e;
+
         if (!errorCode)
         {
             auto itFiles = mPendingFiles.begin();
@@ -25276,18 +25284,7 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
                }
             }
         }
-        else
-        {
-            assert(request->getMegaStringMultiVector());
-            MegaStringMultivector *mapList = request->getMegaStringMultiVector();
-            int incomplete = mapList ? mapList->get(0)->size() : 0;
-            mIncompleteTransfers += incomplete;
-            mLastError = *e;
-            checkCompletion();
-            return;
-        }
     }
-
     checkCompletion();
 }
 

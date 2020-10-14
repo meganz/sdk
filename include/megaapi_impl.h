@@ -236,11 +236,14 @@ protected:
      * subtrees under different targets, this method will generate a subtree for each one */
     void scanFolderNode(handle targetHandle, handle parentHandle, int parentIndex, LocalPath& localPath, std::string folderName);
     void checkCompletion();
+    int mPendingFolders;
+
     // Each element is a pair formed by the localpath of the folder, and the handle of the parent node
     std::vector<std::pair<LocalPath, handle>> mPendingFiles;
 
     // maps targetHandle of the subtree to MegaStringMultivector to store the structure of the subtree
     map<handle, std::shared_ptr <MegaStringMultivector>> mFolderStructure;
+
 public:
     void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e) override;
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
