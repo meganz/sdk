@@ -9849,7 +9849,25 @@ class MegaApi
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief TODO add documentation
+         * @brief Create a folder tree in the MEGA account
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREATE_FOLDER_TREE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the handle of the target folder,
+         * where we want to create the tree.
+         * - MegaRequest::getMegaStringMultiVector - Returns the folder structure in a vector, where each
+         * element is a string_vector that represents a folder, and contains the following data:
+         * + string_vector[MegaStringMultivector::INDEX_NODEHANDLE]:  handle of the folder
+         * + string_vector[MegaStringMultivector::INDEX_PARENTINDEX]: index in MegaStringMultiVector
+         * that contains the record for parent node
+         * + string_vector[MegaStringMultivector::INDEX_NODENAME]: Name of the folder in UTF-8
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param folderStructure Folder structure
+         * @param target Target handle
+         * @param listener MegaRequestListener to track this request
          */
         void createFolderTree(const MegaStringMultivector *folderStructure, MegaHandle target, MegaRequestListener *listener = NULL);
 
