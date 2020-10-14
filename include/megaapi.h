@@ -2386,10 +2386,10 @@ public:
 
     static MegaStringMultivector *createInstance();
 
-    virtual MegaStringMultivector* copy() const;
+    virtual MegaStringMultivector *copy() const;
 
     /**
-     * @brief Appends a string_vector to the end of the list
+     * @brief Appends a string_vector to the end of the vector
      *
      * The vector takes ownership of the passed value.
      *
@@ -2407,7 +2407,7 @@ public:
      *
      * @return The string_vector at position i
      */
-    virtual const string_vector* get(int) const;
+    virtual const string_vector *get(int) const;
 
     /**
      * @brief Returns the number of string_vector in the vector
@@ -3666,7 +3666,7 @@ class MegaRequest
          *
          * This value is valid in onRequestFinish, when the error code is MegaError::API_OK
          *
-         * @return a list of string maps
+         * @return a vector of string vectors
          */
         virtual MegaStringMultivector *getMegaStringMultiVector() const;
 

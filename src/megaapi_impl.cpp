@@ -4269,7 +4269,7 @@ bool MegaStringListMapPrivate::Compare::operator()(const std::unique_ptr<const c
     return strcmp(rhs.get(), lhs.get()) < 0;
 }
 
-MegaStringMultivector* MegaStringMultivectorPrivate::copy() const
+MegaStringMultivector *MegaStringMultivectorPrivate::copy() const
 {
     auto auxVector = new MegaStringMultivectorPrivate;
     for (const auto& value : mVector)
@@ -4285,7 +4285,7 @@ void MegaStringMultivectorPrivate::append(string_vector* value)
     mVector.emplace_back(std::move(element));
 }
 
-const vector<string>* MegaStringMultivectorPrivate::get(int i) const
+const vector<string> *MegaStringMultivectorPrivate::get(int i) const
 {
     if (i >= 0 && i < size())
     {
@@ -13808,7 +13808,11 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
 
     if (request->getType() != MegaRequest::TYPE_MOVE)
     {
-        request->setNodeHandle(h);
+        if (request->getType() != MegaRequest::TYPE_CREATE_FOLDER_TREE)
+        {
+            request->setNodeHandle(h);
+        }
+
         if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
         {
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));    // even if import fails, notify account was successfuly created anyway
@@ -14230,7 +14234,7 @@ bool MegaApiImpl::checkPutNodesTargetExists()
 {
     if(requestMap.find(client->reqtag) != requestMap.end())
     {
-        MegaRequestPrivate* request = requestMap.at(client->reqtag);
+        MegaRequestPrivate *request = requestMap.at(client->reqtag);
         if (request->getType() == MegaRequest::TYPE_CREATE_FOLDER_TREE)
         {
             Node *target = client->nodebyhandle(request->getParentHandle());

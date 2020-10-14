@@ -1708,9 +1708,9 @@ class MegaStringMultivectorPrivate : public MegaStringMultivector
 public:
     MegaStringMultivectorPrivate() = default;
     MEGA_DISABLE_COPY_MOVE(MegaStringMultivectorPrivate)
-    MegaStringMultivector* copy() const override;
+    MegaStringMultivector *copy() const override;
     void append(string_vector *value) override; // takes ownership of value
-    const string_vector* get(int i) const override;
+    const string_vector *get(int i) const override;
     int size() const override;
 protected:
 
