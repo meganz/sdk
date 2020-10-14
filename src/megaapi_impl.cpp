@@ -25073,9 +25073,7 @@ void MegaFolderUploadController::start(MegaNode*)
     {
         for (auto it = mFolderStructure.begin(); it != mFolderStructure.end(); it++)
         {
-            const MegaStringMultivector *mv = it->second.get();
-            MegaNode *parentSubtree = megaApi->getNodeByHandle(it->first);
-            megaApi->createFolderTree(mv, parentSubtree->getHandle(), this);
+            megaApi->createFolderTree(it->second.get(), it->first, this);
         }
     }
 }
@@ -25205,7 +25203,7 @@ void MegaFolderUploadController::scanFolderNode(handle targetHandle, handle pare
         folderNode->emplace_back(nhB64.get());
         folderNode->emplace_back(std::to_string(parentIndex));
         folderNode->emplace_back(folderName.c_str());
-        subtree->append(folderNode); //subtree takes ownership of folderNode
+        subtree->append(std::move(folderNode)); //subtree takes ownership of folderNode
         nodeIndex = subtree->size() - 1;
     }
 
@@ -25266,16 +25264,16 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
             {
                handle parentHandle = itFiles->second;
                auto it = client->mTempHandleToNodeHandle.find(parentHandle);
-               MegaNode *parentNode = (it != client->mTempHandleToNodeHandle.end())
+               unique_ptr <MegaNode> parentNode((it != client->mTempHandleToNodeHandle.end())
                        ? megaApi->getNodeByHandle(it->second)    // new node has been created, so we need to retrieve it's handle
-                       : megaApi->getNodeByHandle(parentHandle); // node already existed, so get it's handle from mPendingFiles
+                       : megaApi->getNodeByHandle(parentHandle)); // node already existed, so get it's handle from mPendingFiles
 
                if (parentNode != nullptr)
                {
                     pendingTransfers++;
                     const LocalPath &localpath = itFiles->first;
                     FileSystemType fsType = client->fsaccess->getlocalfstype(localpath);
-                    megaApi->startUpload(false, localpath.toPath(*client->fsaccess).c_str(), parentNode, (const char *)NULL, -1, tag, false, NULL, false, false, fsType, this);
+                    megaApi->startUpload(false, localpath.toPath(*client->fsaccess).c_str(), parentNode.get(), (const char *)NULL, -1, tag, false, NULL, false, false, fsType, this);
                     itFiles = mPendingFiles.erase(itFiles);
                }
                else
