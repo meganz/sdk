@@ -25284,6 +25284,10 @@ void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request
                }
             }
         }
+        else
+        {
+            mIncompleteTransfers++;
+        }
     }
     checkCompletion();
 }
