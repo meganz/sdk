@@ -1013,7 +1013,8 @@ bool CommandSetAttr::procresult(Result r)
 // (the result is not processed directly - we rely on the server-client
 // response)
 CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
-                                 const char* userhandle, vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth)
+                                 const char* userhandle, vector<NewNode>&& newnodes, int ctag, putsource_t csource, const char *cauth,
+                                 std::function<void(const Error&, targettype_t , vector<NewNode>&)> completion)
 {
     byte key[FILENODEKEYLENGTH];
 
@@ -1021,7 +1022,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     nn = std::move(newnodes);
     type = userhandle ? USER_HANDLE : NODE_HANDLE;
     source = csource;
-
+    mCompletion = move(completion);
     cmd("p");
     notself(client);
 
@@ -1213,7 +1214,10 @@ bool CommandPutNodes::procresult(Result r)
 #endif
             if (source == PUTNODES_APP)
             {
-                client->app->putnodes_result(r.errorOrOK(), type, nn);
+                (mCompletion)
+                    ? mCompletion(r.errorOrOK(), type, nn)
+                    : client->app->putnodes_result(r.errorOrOK(), type, nn);
+
                 return true;
             }
 #ifdef ENABLE_SYNC
@@ -1297,7 +1301,9 @@ bool CommandPutNodes::procresult(Result r)
             }
         }
 #endif
-        client->app->putnodes_result((!e && empty) ? API_ENOENT : static_cast<error>(e), type, nn);
+        (mCompletion)
+            ? mCompletion((!e && empty) ? API_ENOENT : static_cast<error>(e), type, nn)
+            : client->app->putnodes_result((!e && empty) ? API_ENOENT : static_cast<error>(e), type, nn);
     }
 #ifdef ENABLE_SYNC
     else

@@ -573,13 +573,14 @@ class MEGA_API CommandPutNodes : public Command
     putsource_t source;
     bool emptyResponse = false;
     handle targethandle;
+    std::function<void(const Error&, targettype_t , vector<NewNode>&)> mCompletion;
 
     void removePendingDBRecordsAndTempFiles();
 
 public:
     bool procresult(Result) override;
 
-    CommandPutNodes(MegaClient*, handle, const char*, vector<NewNode>&&, int, putsource_t = PUTNODES_APP, const char *cauth = NULL);
+    CommandPutNodes(MegaClient*, handle, const char*, vector<NewNode>&&, int, putsource_t = PUTNODES_APP, const char *cauth = NULL, std::function<void(const Error&, targettype_t , vector<NewNode>&)> = NULLPTR);
 };
 
 class MEGA_API CommandSetAttr : public Command
