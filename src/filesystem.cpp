@@ -424,31 +424,10 @@ void FileSystemAccess::unescapefsincompatible(string *name) const
         // Are we looking at a raw control character?
         int character = static_cast<uint8_t>(*s);
 
-        // If so, escape it.
-        if (std::iscntrl(character))
-        {
-            char buffer[4];
-
-            sprintf(buffer, "%%%02x", character);
-            name->replace(i, 1, buffer);
-
-            // Skip over the encoded sequence.
-            i += 2;
-            continue;
-        }
-
         // Are we processing an escape sequence?
         if ((character = decodeEscape(s)) < 0)
         {
             // Nope, continue.
-            continue;
-        }
-
-        // Is the escape encoding a control character?
-        if (std::iscntrl(character))
-        {
-            // Yup, skip the sequence.
-            i += 2;
             continue;
         }
 
