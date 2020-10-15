@@ -113,49 +113,6 @@ private:
     m_off_t mSumSizes = 0;
 };
 
-struct CommandChain
-{
-    // convenience functions, hides the unique_ptr aspect, removes it when empty
-    bool empty()
-    {
-        return !chain || chain->empty();
-    }
-
-    void push_back(Command* c)
-    {
-        if (!chain)
-        {
-            chain.reset(new std::list<Command*>);
-        }
-        chain->push_back(c);
-    }
-
-    void erase(Command* c)
-    {
-        if (chain)
-        {
-            for (auto i = chain->begin(); i != chain->end(); ++i)
-            {
-                if (*i == c)
-                {
-                    chain->erase(i);
-                    if (chain->empty())
-                    {
-                        chain.reset();
-                    }
-                    return;
-                }
-            }
-        }
-    }
-
-private:
-    friend class CommandSetAttr;
-
-    // most nodes don't have commands in progress so keep representation super small
-    std::unique_ptr<std::list<Command*>> chain;
-};
-
 
 // filesystem node
 struct MEGA_API Node : public NodeCore, FileFingerprint
@@ -197,9 +154,6 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     // node attributes
     AttrMap attrs;
-
-    // track upcoming attribute changes for this node, so we can reason about current vs future state
-    CommandChain mPendingChanges;
 
     // owner
     handle owner = mega::UNDEF;
@@ -380,12 +334,6 @@ struct MEGA_API LocalNode : public File
     // global sync reference
     handle syncid = mega::UNDEF;
 
-    enum : unsigned
-    {
-        SYNCTREE_RESOLVED = 0,
-        SYNCTREE_DESCENDANT_FLAGGED = 1,
-        SYNCTREE_SCAN_HERE = 2 };  // scan here also implies checking immdiate children for synctree_descendantflagged
-
     struct
     {
         // was actively deleted
@@ -399,19 +347,7 @@ struct MEGA_API LocalNode : public File
 
         // checked for missing attributes
         bool checked : 1;
-
-        // needs another syncdown after pending changes
-        unsigned syncdownTargetedAction : 2;
-
-        // needs another syncup after pending changes
-        unsigned syncupTargetedAction : 2;
     };
-
-    // set the syncupTargetedAction for this, and parents
-    void needsFutureSyncup();
-
-    // set the syncdownTargetedAction for this, and parents
-    void needsFutureSyncdown();
 
     // current subtree sync state: current and displayed
     treestate_t ts = TREESTATE_NONE;

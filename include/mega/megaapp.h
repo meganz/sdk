@@ -391,7 +391,7 @@ struct MEGA_API MegaApp
     virtual void keepmealive_result (error) { }
 
     // get the current PSA
-    virtual void getpsa_result (error, int, string*, string*, string*, string*, string*) { }
+    virtual void getpsa_result (error, int, string*, string*, string*, string*, string*, string*) { }
 
     // result of the user alert acknowledge request
     virtual void acknowledgeuseralerts_result(error) { }

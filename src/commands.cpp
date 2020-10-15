@@ -979,12 +979,10 @@ CommandSetAttr::CommandSetAttr(MegaClient* client, Node* n, SymmCipher* cipher, 
     {
         pa = prevattr;
     }
-    addToNodePendingCommands(n);
 }
 
 bool CommandSetAttr::procresult(Result r)
 {
-    removeFromNodePendingCommands(h, client);
 #ifdef ENABLE_SYNC
     if(r.wasError(API_OK) && syncop)
     {
@@ -1005,15 +1003,6 @@ bool CommandSetAttr::procresult(Result r)
             {
                 client->app->syncupdate_remote_rename(sync, node, pa.c_str());
             }
-        }
-    }
-
-    if (Node* n = client->nodebyhandle(h))
-    {
-        // in case the name of the file/folder changed
-        if (n->parent && n->parent->localnode)
-        {
-            n->parent->localnode->needsFutureSyncdown();
         }
     }
 #endif
@@ -1193,17 +1182,6 @@ bool CommandPutNodes::procresult(Result r)
 {
     removePendingDBRecordsAndTempFiles();
 
-#ifdef ENABLE_SYNC
-    if (targethandle != UNDEF)
-    {
-        Node* n = client->nodebyhandle(targethandle);
-        if (n && n->localnode)
-        {
-            n->localnode->needsFutureSyncdown();
-        }
-    }
-#endif
-
     if (r.wasErrorOrOK())
     {
         LOG_debug << "Putnodes error " << r.errorOrOK();
@@ -1315,7 +1293,7 @@ bool CommandPutNodes::procresult(Result r)
                 // A node has been added by a regular (non sync) putnodes
                 // inside a synced folder, so force a syncdown to detect
                 // and sync the changes.
-                client->setAllSyncsNeedSyncdown();
+                client->syncdownrequired = true;
             }
         }
 #endif
@@ -1353,14 +1331,10 @@ CommandMoveNode::CommandMoveNode(MegaClient* client, Node* n, Node* t, syncdel_t
     tpsk.get(this);
 
     tag = client->reqtag;
-
-    addToNodePendingCommands(n);
 }
 
 bool CommandMoveNode::procresult(Result r)
 {
-    removeFromNodePendingCommands(h, client);
-
     if (r.wasErrorOrOK())
     {
         if (r.wasError(API_EOVERQUOTA))
@@ -1487,30 +1461,12 @@ CommandDelNode::CommandDelNode(MegaClient* client, handle th, bool keepversions,
 
     h = th;
     tag = cmdtag;
-
-    const Node* n = client->nodebyhandle(h);
-    parent = (n && n->parent) ? n->parent->nodehandle : UNDEF;
 }
 
 bool CommandDelNode::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-
-#ifdef ENABLE_SYNC
-        if (r.wasError(API_OK))
-        {
-            if (parent != UNDEF)
-            {
-                Node* n = client->nodebyhandle(parent);
-                if (n && n->localnode)
-                {
-                    n->localnode->needsFutureSyncdown();
-                }
-            }
-        }
-#endif
-
         if (mResultFunction)    mResultFunction(h, r.errorOrOK());
         else         client->app->unlink_result(h, r.errorOrOK());
         return true;
@@ -1538,17 +1494,6 @@ bool CommandDelNode::procresult(Result r)
                 case EOO:
                     if (mResultFunction)    mResultFunction(h, e);
                     else         client->app->unlink_result(h, e);
-
-#ifdef ENABLE_SYNC
-                    if (parent != UNDEF)
-                    {
-                        Node* n = client->nodebyhandle(parent);
-                        if (n && n->localnode)
-                        {
-                            n->localnode->needsFutureSyncdown();
-                        }
-                    }
-#endif
                     return true;
 
                 default:
@@ -7624,9 +7569,14 @@ bool CommandMultiFactorAuthDisable::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-CommandGetPSA::CommandGetPSA(MegaClient *client)
+CommandGetPSA::CommandGetPSA(bool urlSupport, MegaClient *client)
 {
     cmd("gpsa");
+
+    if (urlSupport)
+    {
+        arg("w", 1);
+    }
 
     tag = client->reqtag;
 }
@@ -7635,14 +7585,14 @@ bool CommandGetPSA::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->getpsa_result(r.errorOrOK(), 0, NULL, NULL, NULL, NULL, NULL);
+        client->app->getpsa_result(r.errorOrOK(), 0, NULL, NULL, NULL, NULL, NULL, NULL);
         return true;
     }
 
     int id = 0;
     string temp;
     string title, text, imagename, imagepath;
-    string buttonlink, buttontext;
+    string buttonlink, buttontext, url;
 
     for (;;)
     {
@@ -7665,6 +7615,9 @@ bool CommandGetPSA::procresult(Result r)
             case 'l':
                 client->json.storeobject(&buttonlink);
                 break;
+            case MAKENAMEID3('u', 'r', 'l'):
+                client->json.storeobject(&url);
+                break;
             case 'b':
                 client->json.storeobject(&temp);
                 Base64::atob(temp, buttontext);
@@ -7675,13 +7628,13 @@ bool CommandGetPSA::procresult(Result r)
             case EOO:
                 imagepath.append(imagename);
                 imagepath.append(".png");
-                client->app->getpsa_result(API_OK, id, &title, &text, &imagepath, &buttontext, &buttonlink);
+                client->app->getpsa_result(API_OK, id, &title, &text, &imagepath, &buttontext, &buttonlink, &url);
                 return true;
             default:
                 if (!client->json.storeobject())
                 {
                     LOG_err << "Failed to parse get PSA response";
-                    client->app->getpsa_result(API_EINTERNAL, 0, NULL, NULL, NULL, NULL, NULL);
+                    client->app->getpsa_result(API_EINTERNAL, 0, NULL, NULL, NULL, NULL, NULL, NULL);
                     return false;
                 }
                 break;
