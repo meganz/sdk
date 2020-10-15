@@ -541,7 +541,7 @@ void DemoApp::syncupdate_local_file_deletion(Sync* sync, const LocalPath& path)
 
 void DemoApp::syncupdate_local_file_change(Sync* sync, const LocalPath& path)
 {
-    cout << "Sync - local file change detected: " << path;
+    cout << "Sync - local file change detected: " << path.toPath(*client->fsaccess);
     syncstat(sync);
 }
 

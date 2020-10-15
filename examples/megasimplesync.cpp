@@ -525,12 +525,12 @@ void SyncApp::syncupdate_local_file_deletion(Sync*, const LocalPath& path)
 
 void SyncApp::syncupdate_local_file_change(Sync*, const LocalPath& path)
 {
-    LOG_info << "Sync - local file change detected: " << path;
+    LOG_info << "Sync - local file change detected: " << path.toPath(*client->fsaccess);
 }
 
 void SyncApp::syncupdate_local_move(Sync*, const LocalPath& oldPath, const LocalPath& newPath)
 {
-    LOG_info << "Sync - local rename/move " << localNode->name << " -> " << path;
+    LOG_info << "Sync - local rename/move " << oldPath.toPath(*client->fsaccess) << " -> " << newPath.toPath(*client->fsaccess);
 }
 
 void SyncApp::syncupdate_remote_move(Sync *, Node *n, Node *prevparent)
