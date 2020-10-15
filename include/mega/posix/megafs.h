@@ -63,6 +63,8 @@ struct MEGA_API PosixDirAccess : public DirAccess
 class MEGA_API PosixFileSystemAccess : public FileSystemAccess
 {
 public:
+    using FileSystemAccess::getlocalfstype;
+
     int notifyfd;
 
 #ifdef USE_INOTIFY
@@ -86,6 +88,8 @@ public:
     std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
     DirAccess* newdiraccess() override;
     DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*) override;
+
+    bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
 
     void tmpnamelocal(LocalPath&) const override;
 
@@ -148,7 +152,7 @@ public:
     DIR* dp;
 #endif
 
-    bool fopen(LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr) override;
+    bool fopen(LocalPath&, bool read, bool write, DirAccess* iteratingDir = nullptr, bool ignoreAttributes = false) override;
 
     void updatelocalname(LocalPath&) override;
     bool fread(string *, unsigned, unsigned, m_off_t);

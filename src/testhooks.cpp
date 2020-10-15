@@ -29,7 +29,7 @@ namespace mega
 
     MegaTestHooks::MegaTestHooks()
         : onHttpReqPost(NULL)
-        , onSetIsRaid(NULL) 
+        , onSetIsRaid(NULL)
     {
     }
 #endif

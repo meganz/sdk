@@ -408,7 +408,7 @@ void xxteaDecrypt(uint32_t* v, uint32_t vlen, uint32_t key[4], bool endianConv)
     }
 }
 
-std::string formatfileattr(uint32_t id, byte* data, unsigned datalen, uint32_t fakey[4]) 
+std::string formatfileattr(uint32_t id, byte* data, unsigned datalen, uint32_t fakey[4])
 {
     assert(datalen % 4 == 0);
     xxteaEncrypt((uint32_t*)data, datalen/4, fakey);
@@ -481,7 +481,7 @@ bool MediaProperties::isIdentified()
 }
 
 bool MediaProperties::operator==(const MediaProperties& o) const
-{ 
+{
     return shortformat == o.shortformat && width == o.width && height == o.height && fps == o.fps && playtime == o.playtime &&
         (shortformat || (containerid == o.containerid && videocodecid == o.videocodecid && audiocodecid == o.audiocodecid));
 }
@@ -587,7 +587,7 @@ MediaProperties MediaProperties::decodeMediaPropertiesAttributes(const std::stri
 
 bool MediaProperties::isMediaFilenameExt(const std::string& ext)
 {
-    static const char* supportedformats = 
+    static const char* supportedformats =
         ".264.265.3g2.3ga.3gp.3gpa.3gpp.3gpp2.aac.aacp.ac3.act.adts.aif.aifc.aiff.als.apl.at3.avc"
         ".avi.dd+.dde.divx.dts.dtshd.eac3.ec3.evo.f4a.f4b.f4v.flac.gvi.h261.h263.h264.h265.hevc.isma"
         ".ismt.ismv.ivf.jpm.k3g.m1a.m1v.m2a.m2p.m2s.m2t.m2v.m4a.m4b.m4p.m4s.m4t.m4v.m4v.mac.mkv.mk3d"
@@ -620,7 +620,7 @@ bool MediaFileInfo::timeToRetryMediaPropertyExtraction(const std::string& fileat
             LOG_debug << "Media extraction retry needed with a newer build. Old: "
                       << vp.fps << "  New: " << MEDIA_INFO_BUILD;
             return true;
-        } 
+        }
         if (vp.width < GetMediaInfoVersion())
         {
             LOG_debug << "Media extraction retry needed with a newer MediaInfo version. Old: "
@@ -645,12 +645,14 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filenam
         return false;
     }
 
-    m_off_t filesize = fa->size; 
+    m_off_t filesize = fa->size;
     size_t totalBytesRead = 0, jumps = 0;
     mi.Open_Buffer_Init(filesize, 0);
     m_off_t readpos = 0;
     m_time_t startTime = 0;
 
+    bool hasVideo = false;
+    bool vidDuration = false;
     for (;;)
     {
         byte buf[30 * 1024];
@@ -661,8 +663,13 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filenam
             break;
         }
 
-        if (totalBytesRead > maxBytesToRead || (startTime != 0 && ((m_time() - startTime) > maxSeconds)))
+        if (totalBytesRead > maxBytesToRead || (startTime != 0 && ((m_time() - startTime) > maxSeconds))) 
         {
+            if (hasVideo && vidDuration)
+            {
+                break;
+            }
+
             LOG_warn << "could not extract mediainfo data within reasonable limits";
             mi.Open_Buffer_Finalize();
             fa->closef();
@@ -695,10 +702,10 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filenam
 
         if (accepted)
         {
-            bool hasVideo = 0 < mi.Count_Get(MediaInfoLib::Stream_Video, 0);
+            hasVideo = 0 < mi.Count_Get(MediaInfoLib::Stream_Video, 0);
             bool hasAudio = 0 < mi.Count_Get(MediaInfoLib::Stream_Audio, 0);
 
-            bool vidDuration = !mi.Get(MediaInfoLib::Stream_Video, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
+            vidDuration = !mi.Get(MediaInfoLib::Stream_Video, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
             bool audDuration = !mi.Get(MediaInfoLib::Stream_Audio, 0, __T("Duration"), MediaInfoLib::Info_Text).empty();
 
             if (hasVideo && hasAudio && vidDuration && audDuration)
@@ -770,14 +777,14 @@ void MediaProperties::extractMediaPropertyFileAttributes(LocalPath& localFilenam
                     width = vw.To_int32u();
                     height = vh.To_int32u();
                 }
-                
+
                 fps = vfr.To_int32u();
                 playtime = (coalesce(gd.To_int32u(), coalesce(vd.To_int32u(), ad.To_int32u()))) / 1000;
                 videocodecNames = vci.To_Local();
                 videocodecFormat = vcf.To_Local();
                 audiocodecNames = aci.To_Local();
                 audiocodecFormat = acf.To_Local();
-                containerName = gci.To_Local(); 
+                containerName = gci.To_Local();
                 containerFormat = gf.To_Local();
                 is_VFR = vrm.To_Local() == "VFR"; // variable frame rate - send through as 0 in fps field
                 if (!fps)
@@ -833,8 +840,8 @@ std::string MediaProperties::convertMediaPropertyFileAttributes(uint32_t fakey[4
     }
 
     if (!(containerid && (
-            (videocodecid && width && height && /*(fps || is_VFR) &&*/ (audiocodecid || no_audio)) || 
-            (audiocodecid && !videocodecid)))) 
+            (videocodecid && width && height && /*(fps || is_VFR) &&*/ (audiocodecid || no_audio)) ||
+            (audiocodecid && !videocodecid))))
     {
         LOG_warn << "mediainfo failed to extract media information for this file";
         shortformat = NOT_IDENTIFIED_FORMAT;                // mediaInfo could not fully identify this file.  Maybe a later version can.

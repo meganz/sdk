@@ -116,6 +116,7 @@ public class MegaApiJava {
     public final static int PAYMENT_METHOD_PAYPAL = MegaApi.PAYMENT_METHOD_PAYPAL;
     public final static int PAYMENT_METHOD_ITUNES = MegaApi.PAYMENT_METHOD_ITUNES;
     public final static int PAYMENT_METHOD_GOOGLE_WALLET = MegaApi.PAYMENT_METHOD_GOOGLE_WALLET;
+    public final static int PAYMENT_METHOD_HUAWEI_WALLET = MegaApi.PAYMENT_METHOD_HUAWEI_WALLET;
     public final static int PAYMENT_METHOD_BITCOIN = MegaApi.PAYMENT_METHOD_BITCOIN;
     public final static int PAYMENT_METHOD_UNIONPAY = MegaApi.PAYMENT_METHOD_UNIONPAY;
     public final static int PAYMENT_METHOD_FORTUMO = MegaApi.PAYMENT_METHOD_FORTUMO;
@@ -195,7 +196,12 @@ public class MegaApiJava {
     public final static int HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = MegaApi.HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
     public final static int HTTP_SERVER_ALLOW_LAST_LOCAL_LINK = MegaApi.HTTP_SERVER_ALLOW_LAST_LOCAL_LINK;
 
-
+    public final static int TARGET_ROOTNODES = 3;
+    public final static int NODE_UNKNOWN = 0;
+    public final static int NODE_PHOTO = 1;
+    public final static int NODE_AUDIO = 2;
+    public final static int NODE_VIDEO = 3;
+    public final static int NODE_DOCUMENT = 4;
 
     MegaApi getMegaApi()
     {
@@ -2089,8 +2095,9 @@ public class MegaApiJava {
      * - MegaRequest::getName - Returns the title of the PSA
      * - MegaRequest::getText - Returns the text of the PSA
      * - MegaRequest::getFile - Returns the URL of the image of the PSA
-     * - MegaRequest::getPassword - Returns the text for the possitive button (or an empty string)
-     * - MegaRequest::getLink - Returns the link for the possitive button (or an empty string)
+     * - MegaRequest::getPassword - Returns the text for the positive button (or an empty string)
+     * - MegaRequest::getLink - Returns the link for the positive button (or an empty string)
+     * - MegaRequest::getEmail - Returns the url that app need to open with in-app browser
      *
      * If there isn't any new PSA to show, onRequestFinish will be called with the error
      * code MegaError::API_ENOENT
@@ -2098,7 +2105,7 @@ public class MegaApiJava {
      * @param listener MegaRequestListener to track this request
      * @see MegaApi::setPSA
      */
-    void getPSA(MegaRequestListenerInterface listener){
+    public void getPSA(MegaRequestListenerInterface listener){
         megaApi.getPSA(createDelegateRequestListener(listener));
     }
 
@@ -2125,7 +2132,7 @@ public class MegaApiJava {
      *
      * @see MegaApi::setPSA
      */
-    void getPSA(){
+    public void getPSA(){
         megaApi.getPSA();
     }
 
@@ -2143,7 +2150,7 @@ public class MegaApiJava {
      *
      * @see MegaApi::getPSA
      */
-    void setPSA(int id, MegaRequestListenerInterface listener){
+    public void setPSA(int id, MegaRequestListenerInterface listener){
         megaApi.setPSA(id, createDelegateRequestListener(listener));
     }
 
@@ -2160,7 +2167,7 @@ public class MegaApiJava {
      *
      * @see MegaApi::getPSA
      */
-    void setPSA(int id){
+    public void setPSA(int id){
         megaApi.setPSA(id);
     }
 
@@ -6151,6 +6158,57 @@ public class MegaApiJava {
     }
 
     /**
+     * Upload a file or a folder, putting the transfer on top of the upload queue
+     *
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath Local path of the file or folder
+     * @param parent Parent node for the file or folder in the MEGA account
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer. If a transfer is started with exactly the same data
+     * (local path and target parent) as another one in the transfer queue, the new transfer
+     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+     * the appData of the old transfer, using a '!' separator if the old transfer had already
+     * appData.
+     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+     * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+     * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+     * @param fileName Custom file name for the file or folder in MEGA
+     * @param listener MegaTransferListener to track this transfer
+     */
+    public void startUploadWithTopPriority(String localPath, MegaNode parent, String appData, boolean isSourceTemporary, String fileName, MegaTransferListenerInterface listener){
+        megaApi.startUploadWithTopPriority(localPath, parent, appData, isSourceTemporary, fileName, createDelegateTransferListener(listener));
+    }
+
+    /**
+     * Upload a file or a folder, putting the transfer on top of the upload queue
+     *
+     *If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath Local path of the file or folder
+     * @param parent Parent node for the file or folder in the MEGA account
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer. If a transfer is started with exactly the same data
+     * (local path and target parent) as another one in the transfer queue, the new transfer
+     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+     * the appData of the old transfer, using a '!' separator if the old transfer had already
+     * appData.
+     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+     * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+     * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+     * @param fileName Custom file name for the file or folder in MEGA
+     */
+    public void startUploadWithTopPriority(String localPath, MegaNode parent, String appData, boolean isSourceTemporary, String fileName){
+        megaApi.startUploadWithTopPriority(localPath, parent, appData, isSourceTemporary, fileName);
+    }
+
+    /**
      * Download a file or a folder from MEGA
      *
      *If the status of the business account is expired, onTransferFinish will be called with the error
@@ -9648,5 +9706,16 @@ public class MegaApiJava {
      */
     public void cancelCreateAccount(MegaRequestListenerInterface listener){
         megaApi.cancelCreateAccount(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Search nodes by type.
+     *
+     * TODO: add parameter descriptions
+     */
+    public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
+            MegaCancelToken cancelToken, boolean recursive, int order, int type, int target) {
+        return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive,
+                order, type, target));
     }
 }

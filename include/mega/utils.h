@@ -406,7 +406,7 @@ public:
     static std::string hexToString(const std::string& input);
 };
 
-// for pre-c++11 where this version is not defined yet.  
+// for pre-c++11 where this version is not defined yet.
 long long abs(long long n);
 
 extern m_time_t m_time(m_time_t* tt = NULL);
@@ -512,7 +512,7 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
 
 // Helper class for MegaClient.  Suitable for expansion/templatizing for other use caes.
 // Maintains a small thread pool for executing independent operations such as encrypt/decrypt a block of data
-// The number of threads can be 0 (eg. for helper MegaApi that deals with public folder links) in which case something queued is 
+// The number of threads can be 0 (eg. for helper MegaApi that deals with public folder links) in which case something queued is
 // immediately executed synchronously on the caller's thread
 struct MegaClientAsyncQueue
 {
@@ -526,7 +526,7 @@ private:
     Waiter& mWaiter;
     std::mutex mMutex;
     std::condition_variable mConditionVariable;
-    
+
     struct Entry
     {
         bool discardable = false;
@@ -548,7 +548,7 @@ struct ThreadSafeDeque
 {
     // Just like a deque, but thread safe so that a separate thread can receive filesystem notifications as soon as they are available.
     // When we try to do that on the same thread, the processing of queued notifications is too slow so more notifications bulid up than
-    // have been processed, so each time we get the outstanding ones from the buffer we gave to the OS, we need to give it an even 
+    // have been processed, so each time we get the outstanding ones from the buffer we gave to the OS, we need to give it an even
     // larger buffer to write into, otherwise it runs out of space before this thread is idle and can get the next batch from the buffer.
 protected:
     std::deque<T> mNotifications;
@@ -556,51 +556,51 @@ protected:
 
 public:
 
-    bool peekFront(T& t) 
-    { 
+    bool peekFront(T& t)
+    {
         std::lock_guard<std::mutex> g(m);
         if (!mNotifications.empty())
         {
             t = mNotifications.front();
-            return true; 
+            return true;
         }
         return false;
     }
 
-    bool popFront(T& t) 
-    { 
+    bool popFront(T& t)
+    {
         std::lock_guard<std::mutex> g(m);
         if (!mNotifications.empty())
         {
             t = std::move(mNotifications.front());
-            mNotifications.pop_front(); 
-            return true; 
+            mNotifications.pop_front();
+            return true;
         }
         return false;
     }
 
-    void unpopFront(const T& t) 
-    { 
+    void unpopFront(const T& t)
+    {
         std::lock_guard<std::mutex> g(m);
-        mNotifications.push_front(t); 
+        mNotifications.push_front(t);
     }
 
-    void pushBack(T&& t) 
-    { 
+    void pushBack(T&& t)
+    {
         std::lock_guard<std::mutex> g(m);
-        mNotifications.push_back(t); 
+        mNotifications.push_back(t);
     }
 
-    bool empty() 
-    { 
+    bool empty()
+    {
         std::lock_guard<std::mutex> g(m);
-        return mNotifications.empty(); 
+        return mNotifications.empty();
     }
 
-    bool size() 
-    { 
+    bool size()
+    {
         std::lock_guard<std::mutex> g(m);
-        return mNotifications.size(); 
+        return mNotifications.size();
     }
 
 };

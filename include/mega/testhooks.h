@@ -29,7 +29,7 @@
 namespace mega {
 
     // These hooks allow the sdk_test project to simulate some error / retry conditions, or cause smaller download block sizes for quicker tests
-    // However they do require some (minimal) extra code in the SDK.  
+    // However they do require some (minimal) extra code in the SDK.
     // The preprocessor is used to ensure that code is not present for release builds, so it can't cause problems.
     // Additionally the hooks use std::function so a suitable compiler and library are needed to leverage those tests.
 
