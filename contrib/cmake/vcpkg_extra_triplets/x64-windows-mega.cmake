@@ -9,6 +9,7 @@ set(VCPKG_CRT_LINKAGE dynamic)
 if(PORT MATCHES "ffmpeg" OR 
    PORT MATCHES "openssl" OR 
    PORT MATCHES "curl" OR 
+   PORT MATCHES "sdl1" OR 
    PORT MATCHES "c-ares")
     # build this library as DLL (usually because it is LGPL licensed)
     set(VCPKG_LIBRARY_LINKAGE dynamic)
