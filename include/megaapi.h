@@ -14141,11 +14141,18 @@ class MegaApi
             ORDER_LINK_CREATION_ASC, ORDER_LINK_CREATION_DESC,
             ORDER_LABEL_ASC, ORDER_LABEL_DESC, ORDER_FAV_ASC, ORDER_FAV_DESC,};
 
-        enum { NODE_UNKNOWN = 0, NODE_PHOTO, NODE_AUDIO,
-               NODE_VIDEO, NODE_DOCUMENT, };
+        enum { FILE_TYPE_UNKNOWN = 0,
+               FILE_TYPE_PHOTO,
+               FILE_TYPE_AUDIO,
+               FILE_TYPE_VIDEO,
+               FILE_TYPE_DOCUMENT,
+             };
 
-        enum { TARGET_INSHARE = 0, TARGET_OUTSHARE, TARGET_PUBLICLINK,
-                       TARGET_ROOTNODE, TARGET_ALL, };
+        enum { SEARCH_TARGET_INSHARE = 0,
+               SEARCH_TARGET_OUTSHARE,
+               SEARCH_TARGET_PUBLICLINK,
+               SEARCH_TARGET_ROOTNODE,
+               SEARCH_TARGET_ALL, };
 
         /**
          * @brief Get the number of child nodes
@@ -15822,7 +15829,7 @@ class MegaApi
          *
          * @return List of nodes that match with the search parameters
          */
-        MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int type = NODE_UNKNOWN, int target = TARGET_ALL);
+        MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int type = FILE_TYPE_UNKNOWN, int target = SEARCH_TARGET_ALL);
 
         /**
          * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes

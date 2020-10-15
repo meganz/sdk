@@ -272,12 +272,6 @@ typedef list<struct File*> file_list;
 // RUBBISH - rubbish bin
 typedef enum { TYPE_UNKNOWN = -1, FILENODE = 0, FOLDERNODE, ROOTNODE, INCOMINGNODE, RUBBISHNODE } nodetype_t;
 
-// node file types:
-typedef enum { NODE_UNKNOWN = 0, NODE_PHOTO, NODE_AUDIO, NODE_VIDEO, NODE_DOCUMENT, } nodefiletype_t;
-
-// search target types
-typedef enum { TARGET_INSHARE = 0, TARGET_OUTSHARE, TARGET_PUBLICLINK, TARGET_ROOTNODE, TARGET_ALL, } searchtarget_t;
-
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
                LBL_BLUE = 5, LBL_PURPLE = 6, LBL_GREY = 7, } nodelabel_t;
 
