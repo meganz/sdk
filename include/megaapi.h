@@ -2983,7 +2983,7 @@ class MegaRequest
             TYPE_VERIFY_CREDENTIALS, TYPE_GET_MISC_FLAGS, TYPE_RESEND_VERIFICATION_EMAIL,
             TYPE_SUPPORT_TICKET, TYPE_SET_RETENTION_TIME, TYPE_RESET_SMS_VERIFIED_NUMBER,
             TYPE_SEND_DEV_COMMAND,
-            TYPE_GET_BANNERS, TYPE_DISMISS_BANNER,
+            TYPE_GET_BANNERS, TYPE_DISMISS_BANNER, TYPE_CREATE_EPHEMERAL_ACCOUNT_PLUSPLUS,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -7714,6 +7714,14 @@ class MegaApi
             ACCOUNT_BLOCKED_VERIFICATION_EMAIL = 700,       // temporary blocked, require email verification
         };
 
+        enum {
+            SESSION_TYPE_NOTLOGGEDIN = 0,
+            SESSION_TYPE_EPHEMERALACCOUNT = 1,
+            SESSION_TYPE_CONFIRMEDACCOUNT = 2,
+            SESSION_TYPE_FULLACCOUNT = 3,
+            SESSION_TYPE_EPHEMERALACCOUNTPLUSPLUS = 4,
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -8808,6 +8816,40 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Create ephemeral account plus plus
+         *
+         * This kind account allows join to chat link and keeps the session in the device
+         * where it was created
+         *
+         * The associated request type with this request is MegaRequest::TYPE_CREATE_EPHEMERAL_ACCOUNT_PLUSPLUS.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getName - Returns the firstname of the user
+         * - MegaRequest::getText - Returns the lastname of the user
+         *
+         * @note This account should be confirmed in same device it was created
+         *
+         * @param firstname Firstname of the user
+         * @param lastname Lastname of the user
+         * @param listener MegaRequestListener to track this request
+         */
+        void createEphemeralAccountPlusPlus(const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
+
+
+        /**
+         * @brief Returns Session Type
+         *
+         * Valid values are:
+         *   - SESSION_TYPE_NOTLOGGEDIN = 0
+         *   - SESSION_TYPE_EPHEMERALACCOUNT = 1
+         *   - SESSION_TYPE_CONFIRMEDACCOUNT = 2
+         *   - SESSION_TYPE_FULLACCOUNT = 3
+         *   - SESSION_TYPE_EPHEMERALACCOUNTPLUSPLUS = 4
+         *
+         * @return The session type
+         */
+        int getSessionType();
 
 
         /**

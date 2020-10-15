@@ -1219,6 +1219,8 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     cachedug = false;
     minstreamingrate = -1;
     ephemeralSession = false;
+    ephemeralSessionPlusPlus = false;
+    convertToFullAccountInProgress = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -4213,6 +4215,9 @@ void MegaClient::locallogout(bool removecaches)
     cachedug = false;
     minstreamingrate = -1;
     ephemeralSession = false;
+    ephemeralSessionPlusPlus = false;
+    // This is commented because at intermediate layer we are forcing a locallogout in login process
+    //convertToFullAccountInProgress = false;
 #ifdef USE_MEDIAINFO
     mediaFileInfo = MediaFileInfo();
 #endif
@@ -8834,6 +8839,59 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                     }
                 }
 
+                if (ephemeralSessionPlusPlus)
+                {
+                    string puEd255;
+                    string puCu255;
+                    string sigCu255;
+                    string sigPubk;
+
+                    // generate keypairs
+                    // MegaClient::signkey & chatkey are created on putua::procresult()
+                    std::unique_ptr<EdDSA> signkey = make_unique<EdDSA>(rng);
+                    std::unique_ptr<ECDH> chatkey = make_unique<ECDH>();
+
+                    if (!chatkey->initializationOK || !signkey->initializationOK)
+                    {
+                        LOG_err << "Initialization of keys Cu25519 and/or Ed25519 failed";
+                        clearKeys();
+                    }
+                    else
+                    {
+                        // prepare the TLV for private keys
+                        TLVstore tlvRecords;
+                        tlvRecords.set(EdDSA::TLV_KEY, string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
+                        tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
+                        string *tlvContainer = tlvRecords.tlvRecordsToContainer(rng, &key);
+
+                        // store keys into user attributes (skipping the procresult() <-- reqtag=0)
+                        userattr_map attrs;
+                        string buf;
+
+                        User* u = finduser(uh, 0);
+                        if (u || (u = finduser(uh, 1)))
+                        {
+                            buf.assign(tlvContainer->data(), tlvContainer->size());
+                            std::string version = "";
+                            u->setattr(ATTR_KEYRING, &buf, &version);
+                        }
+
+                        buf.assign((const char *) signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
+                        attrs[ATTR_ED25519_PUBK] = buf;
+
+                        buf.assign((const char *) chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
+                        attrs[ATTR_CU25519_PUBK] = buf;
+
+                        LOG_debug << "Send keys attributes";
+
+                        putua(&attrs, 0);
+
+                        delete tlvContainer;
+                        LOG_info << "Creating new keypairs and signatures";
+                    }
+
+                }
+
                 if (notify)
                 {
                     notifyuser(u);
@@ -9238,6 +9296,31 @@ void MegaClient::openStatusTable()
 
             statusTable = dbaccess->open(rng, fsaccess, &dbname, false, false);
         }
+    }
+}
+
+void MegaClient::readSessionType()
+{
+    int sessionType = sctable->readSessionType();
+    if (sessionType == -1 && ephemeralSession == true)
+    {
+        return;
+    }
+
+    if (sessionType == EPHEMERALACCOUNT)
+    {
+        ephemeralSession = true;
+        ephemeralSessionPlusPlus = false;
+    }
+    else if (sessionType == EPHEMERALACCOUNTPLUSPLUS)
+    {
+        ephemeralSession = true;
+        ephemeralSessionPlusPlus = true;
+    }
+    else
+    {
+        ephemeralSession = false;
+        ephemeralSessionPlusPlus = false;
     }
 }
 
@@ -11134,9 +11217,13 @@ sessiontype_t MegaClient::loggedin()
         return NOTLOGGEDIN;
     }
 
-    if (ephemeralSession)
+    if (ephemeralSession && !ephemeralSessionPlusPlus)
     {
         return EPHEMERALACCOUNT;
+    }
+    else if (ephemeralSessionPlusPlus && ephemeralSession)
+    {
+        return EPHEMERALACCOUNTPLUSPLUS;
     }
 
     if (!asymkey.isvalid())
@@ -11297,6 +11384,12 @@ void MegaClient::resumeephemeral(handle uh, const byte* pw, int ctag)
 void MegaClient::cancelsignup()
 {
     reqs.add(new CommandCancelSignup(this));
+}
+
+void MegaClient::createephemeralPlusPlus()
+{
+    ephemeralSessionPlusPlus = true;
+    createephemeral();
 }
 
 void MegaClient::sendsignuplink(const char* email, const char* name, const byte* pwhash)
@@ -11759,6 +11852,8 @@ void MegaClient::fetchnodes(bool nocache)
 
     openStatusTable();
 
+    readSessionType();
+
     // only initial load from local cache
     if (loggedin() == FULLACCOUNT && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable) && fetchStatusTable(statusTable))
     {
@@ -11957,6 +12052,18 @@ void MegaClient::initializekeys()
 
         // Verify signature for RSA public key
         string sigPubk = (u->isattrvalid(ATTR_SIG_RSA_PUBK)) ? *u->getattr(ATTR_SIG_RSA_PUBK) : "";
+        if (pubk.isvalid() && sigPubk.empty())
+        {
+            string pubkStr;
+            std::string buf;
+            userattr_map attrs;
+            pubk.serializekeyforjs(pubkStr);
+            signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
+            buf.assign(sigPubk.data(), sigPubk.size());
+            attrs[ATTR_SIG_RSA_PUBK] = buf;
+            putua(&attrs, 0);
+        }
+
         string pubkstr;
         if (pubk.isvalid())
         {
@@ -12084,6 +12191,20 @@ void MegaClient::initializekeys()
         clearKeys();
         return;
     }
+}
+
+void MegaClient::storeKeyring()
+{
+    userattr_map attrs;
+    string buf;
+
+    User *u = finduser(me);
+    assert(u);
+    assert(u->isattrvalid(ATTR_KEYRING));
+
+    std::unique_ptr<TLVstore> tlv = std::unique_ptr<TLVstore>(TLVstore::containerToTLVrecords(u->getattr(ATTR_KEYRING), &key));
+    mPrEd255 = tlv->get(EdDSA::TLV_KEY);
+    mPrCu255 = tlv->get(ECDH::TLV_KEY);
 }
 
 void MegaClient::loadAuthrings()

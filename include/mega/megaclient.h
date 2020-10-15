@@ -270,6 +270,8 @@ public:
     PrnGen rng;
 
     bool ephemeralSession = false;
+    bool ephemeralSessionPlusPlus = false;
+    bool convertToFullAccountInProgress = false;
 
     static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
@@ -303,6 +305,7 @@ public:
 
     // ephemeral session support
     void createephemeral();
+    void createephemeralPlusPlus();
     void resumeephemeral(handle, const byte*, int = 0);
     void cancelsignup();
 
@@ -414,6 +417,8 @@ public:
 
     // check existence and integrity of keys and signatures, initialize if missing
     void initializekeys();
+
+    void storeKeyring();
 
     // to be called after resumption from cache (user attributes loaded)
     void loadAuthrings();
@@ -932,6 +937,10 @@ public:
     // backoff for the expiration of cached user data
     BackoffTimer btugexpiration;
 
+    //only take values when ephemeral account++ past to full account at storeKeyring method
+    std::string mPrEd255;
+    std::string mPrCu255;
+
 private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
@@ -1178,6 +1187,8 @@ public:
 
     // open/create status database table
     void openStatusTable();
+
+    void readSessionType();
 
     // initialize/update state cache referenced sctable
     void initsc();
