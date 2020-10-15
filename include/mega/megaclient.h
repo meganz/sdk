@@ -1379,6 +1379,9 @@ public:
     // generates a temporal nodeHandle for uploads from App
     handle nextUploadId();
 
+    // maps temporal nodeHandle (used for uploads from App) to definitive nodeHandle (filled by upload completion)
+    std::map<handle, handle> mTempHandleToNodeHandle;
+
 #ifdef ENABLE_SYNC
     // sync debris folder name in //bin
     static const char* const SYNCDEBRISFOLDERNAME;
