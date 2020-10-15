@@ -1219,6 +1219,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     cachedug = false;
     minstreamingrate = -1;
     ephemeralSession = false;
+    mCurrUploadId = 0;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -13156,6 +13157,19 @@ handle MegaClient::nextsyncid()
     }
 
     return currsyncid;
+}
+
+// this method provides a temporal handle useful to indicate putnodes()-local parent linkage
+handle MegaClient::nextUploadId()
+{
+    byte* ptr = (byte*)&mCurrUploadId;
+
+    while (!++*ptr && ptr < (byte*)&mCurrUploadId + NODEHANDLE)
+    {
+        ptr++;
+    }
+
+    return mCurrUploadId;
 }
 
 // recursively stop all transfers

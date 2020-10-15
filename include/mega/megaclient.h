@@ -1373,6 +1373,12 @@ public:
     // maps node handle to public handle
     std::map<handle, handle> mPublicLinks;
 
+    // temporal nodeHandle for uploads from App
+    handle mCurrUploadId;
+
+    // generates a temporal nodeHandle for uploads from App
+    handle nextUploadId();
+
 #ifdef ENABLE_SYNC
     // sync debris folder name in //bin
     static const char* const SYNCDEBRISFOLDERNAME;
