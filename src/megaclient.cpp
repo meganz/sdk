@@ -1366,9 +1366,10 @@ bool MegaClient::isAnySyncSyncing()
 {
     for (Sync* sync : syncs)
     {
-        if (sync->active()
-            && (sync->localroot->scanRequired()
-                || sync->localroot->syncRequired()))
+        if (sync->active() &&
+            (sync->localroot->scanRequired()
+            || sync->localroot->mightHaveMoves()
+            || sync->localroot->syncRequired()))
         {
             return true;
         }
@@ -1380,8 +1381,8 @@ bool MegaClient::isAnySyncScanning()
 {
     for (Sync* sync : syncs)
     {
-        if ((sync->active() || sync->paused())
-            && sync->localroot->scanRequired())
+        if (sync->active() &&
+            sync->localroot->scanRequired())
         {
             return true;
         }
@@ -1390,6 +1391,19 @@ bool MegaClient::isAnySyncScanning()
 }
 
 
+bool MegaClient::mightAnySyncsHaveMoves()
+{
+    for (Sync* sync : syncs)
+    {
+        if (sync->active() &&
+            (sync->localroot->mightHaveMoves()
+            || sync->localroot->scanRequired()))
+        {
+            return true;
+        }
+    }
+    return false;
+}
 
 bool MegaClient::conflictsDetected(list<NameConflict>& conflicts) const
 {
@@ -2920,6 +2934,7 @@ void MegaClient::exec()
                 // Start with them all false
                 mSyncFlags = SyncFlags();
                 mSyncFlags.scanningWasComplete = !isAnySyncScanning();
+                mSyncFlags.movesWereComplete = !mightAnySyncsHaveMoves();
 
                 //for (int c = 2; c--;)
                 {

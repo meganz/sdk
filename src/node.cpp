@@ -1475,6 +1475,17 @@ void LocalNode::setScanAgain(bool doHere, bool doBelow)
     }
 }
 
+void LocalNode::setCheckMovesAgain(bool doHere, bool doBelow)
+{
+    unsigned state = (doHere?1u:0u) << 1 | (doBelow?1u:0u);
+
+    checkMovesAgain = std::max<unsigned>(checkMovesAgain, state);
+    for (auto p = parent; p != NULL; p = p->parent)
+    {
+        p->checkMovesAgain = std::max<unsigned>(p->checkMovesAgain, TREE_DESCENDANT_FLAGGED);
+    }
+}
+
 void LocalNode::setSyncAgain(bool doHere, bool doBelow)
 {
     unsigned state = (doHere?1u:0u) << 1 | (doBelow?1u:0u);
@@ -1563,6 +1574,11 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
 bool LocalNode::scanRequired() const
 {
     return scanAgain != TREE_RESOLVED;
+}
+
+bool LocalNode::mightHaveMoves() const
+{
+    return checkMovesAgain != TREE_RESOLVED;
 }
 
 bool LocalNode::syncRequired() const

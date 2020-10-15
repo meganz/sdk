@@ -438,9 +438,9 @@ struct MEGA_API LocalNode : public Cacheable
     // Removed again when the folder is fully synced.
     std::unique_ptr<vector<FSNode>> lastFolderScan;
 
-
-    // The name of the node that we are synced with
-    string name; //cloudLeafname;
+    // The name of the node that we are (or will be) synced with
+    // It may not be an exact match due to escaping considerations?  // todo: check this
+    string name;
 
     // The name of the file we are synced with
     LocalPath localname;  //fsLeafName;
@@ -492,10 +492,15 @@ struct MEGA_API LocalNode : public Cacheable
         // whether any name conflicts have been detected.
         unsigned conflicts : 2;   // TREESTATE
 
-        // needs another sync() at this level after pending changes
+        // needs another recursiveSync() for deletes/uploads/downloads at this level after pending changes
+        // (can only be cleared if all checkMoveAgain flags are clear)
         unsigned syncAgain : 2;   // TREESTATE
 
-        // needs another scan() (and sync() by implication) at this level after pending changes
+        // needs another recursiveSync() to check moves at this level after pending changes
+        // (can only be cleared if all scanAgain flags are clear)
+        unsigned checkMovesAgain : 2;   // TREESTATE
+
+        // needs another recursiveSync for scanning at this level after pending changes
         unsigned scanAgain : 2;    // TREESTATE
 
         // whether this file/folder is blocked - now we can have many at once
@@ -520,8 +525,10 @@ public:
     dstime lastScanTime = 0;
 
     // set the syncupTargetedAction for this, and parents
-    void setSyncAgain(bool doHere, bool doBelow);
     void setScanAgain(bool doHere, bool doBelow);
+    void setCheckMovesAgain(bool doHere, bool doBelow);
+    void setSyncAgain(bool doHere, bool doBelow);
+
     void setUseBlocked();
     void setScanBlocked();
 
@@ -529,6 +536,9 @@ public:
 
     // True if this subtree requires scanning.
     bool scanRequired() const;
+
+    // True if this subtree could contain move sources or targets
+    bool mightHaveMoves() const;
 
     // True if this subtree requires syncing.
     bool syncRequired() const;

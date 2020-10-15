@@ -4286,7 +4286,7 @@ TEST(Sync, DoesntUploadFilesWithClashingNames)
     ASSERT_TRUE(cd.confirmModel_mainthread(model.findnode("root"), 0));
 }
 
-TEST(Sync, RemotesWithControlCharactersSynchronizeCorrectly)
+TEST(Sync, DISABLED_RemotesWithControlCharactersSynchronizeCorrectly)
 {
     const auto TESTROOT = makeNewTestRoot(LOCAL_TEST_FOLDER);
     const auto TIMEOUT = chrono::seconds(4);

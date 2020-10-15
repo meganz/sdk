@@ -509,15 +509,15 @@ public:
         // this gets set if any scanning occurred
         bool performedScans = false;
 
-        // this gets set if we start any moves/renames
-        bool ongoingMovesRenames = false;
-
         // whether the target of an asynchronous scan request is reachable.
         bool scanTargetReachable = false;
 
-        // we can only add/remove upload/download nodes (deleting moved-from LocalNodes in particular)
-        //bool scansAndMovesComplete = false;
+        // we can only perform moves after scanning is complete
         bool scanningWasComplete = false;
+
+        // we can only delete/upload/download after moves are complete
+        bool movesWereComplete = false;
+
     };
 
     SyncFlags mSyncFlags;
@@ -545,6 +545,7 @@ public:
 
     bool isAnySyncSyncing();
     bool isAnySyncScanning();
+    bool mightAnySyncsHaveMoves();
 
     bool nodeIsInActiveSync(Node* n);
 
