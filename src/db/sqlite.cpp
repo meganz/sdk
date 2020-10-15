@@ -353,6 +353,15 @@ void SqliteDbTable::remove()
     auto localpath = LocalPath::fromPath(dbfile, *fsaccess);
     fsaccess->unlinklocal(localpath);
 }
+
+int SqliteDbTable::readSessionType()
+{
+    std::string sessionType;
+    if (get(mega::MegaClient::CACHEDSESSIONTYPE, &sessionType))
+        return atoi(sessionType.c_str());
+    else
+        return -1;
+}
 } // namespace
 
 #endif

@@ -55,6 +55,7 @@ public:
     void commit();
     void abort();
     void remove();
+    int readSessionType() override;
 
     SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess *fs, string *filepath, bool checkAlwaysTransacted);
     ~SqliteDbTable();

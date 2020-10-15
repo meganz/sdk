@@ -68,6 +68,10 @@ public:
     {
         throw NotImplemented{__func__};
     }
+    int readSessionType() override
+    {
+        throw NotImplemented{__func__};
+    }
 };
 
 } // mt

@@ -75,6 +75,8 @@ public:
     // permanantly remove all database info
     virtual void remove() = 0;
 
+    virtual int readSessionType() = 0;
+
     void checkCommitter(DBTableTransactionCommitter*);
 
     // autoincrement
