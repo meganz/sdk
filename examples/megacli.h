@@ -288,6 +288,7 @@ struct DemoAppFolder : public DemoApp
 void exec_apiurl(autocomplete::ACState& s);
 void exec_login(autocomplete::ACState& s);
 void exec_begin(autocomplete::ACState& s);
+void exec_beginEphemalAccountPlusPlus(autocomplete::ACState& s);
 void exec_signup(autocomplete::ACState& s);
 void exec_cancelsignup(autocomplete::ACState& s);
 void exec_confirm(autocomplete::ACState& s);

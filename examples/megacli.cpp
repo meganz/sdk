@@ -3002,6 +3002,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_apiurl, sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
     p->Add(exec_login, sequence(text("login"), either(sequence(param("email"), opt(param("password"))), exportedLink(false, true), param("session"), sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
+    p->Add(exec_beginEphemalAccountPlusPlus, sequence(text("beginEphemalAccountPlusPlus")));
     p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name")), param("confirmationlink"))));
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
     p->Add(exec_confirm, sequence(text("confirm")));
@@ -5598,6 +5599,7 @@ void exec_signup(autocomplete::ACState& s)
             cout << "Current account already confirmed." << endl;
             break;
 
+        case EPHEMERALACCOUNTPLUSPLUS:
         case EPHEMERALACCOUNT:
             if (s.words[1].s.find('@') + 1 && s.words[1].s.find('.') + 1)
             {
@@ -8278,4 +8280,11 @@ void exec_banner(autocomplete::ACState& s)
 
         client->reqs.add(new CommandDismissBanner(client, stoi(s.words[2].s), m_time(nullptr)));
     }
+}
+
+void exec_beginEphemalAccountPlusPlus(autocomplete::ACState &s)
+{
+    cout << "Creating ephemeral session plus plus..." << endl;
+    pdf_to_import = true;
+    client->createephemeralPlusPlus();
 }
