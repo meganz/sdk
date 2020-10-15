@@ -312,6 +312,7 @@ void File::completed(Transfer* t, LocalNode* l)
         }
 #endif
         AttrMap attrs;
+        t->client->honorPreviousVersionAttrs(previousNode, attrs);
 
         // store filename
         attrs.map['n'] = name;

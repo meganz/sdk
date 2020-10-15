@@ -119,6 +119,22 @@ int attempts = 0;
 
 #ifdef ENABLE_SYNC
 
+struct NewSyncConfig
+{
+    SyncConfig::Type type = SyncConfig::Type::TYPE_TWOWAY;
+    bool syncDeletions = true;
+    bool forceOverwrite = false;
+
+    static NewSyncConfig from(const SyncConfig& config)
+    {
+        return NewSyncConfig{config.getType(), config.syncDeletions(), config.forceOverwrite()};
+    }
+
+    NewSyncConfig(SyncConfig::Type t = SyncConfig::TYPE_TWOWAY, bool s = true, bool f = false)
+        : type(t), syncDeletions(s), forceOverwrite(f)
+    {}
+};
+
 // converts the given sync configuration to a string
 static std::string syncConfigToString(const SyncConfig& config)
 {
@@ -154,6 +170,7 @@ static std::string syncConfigToString(const SyncConfig& config)
 // returns a pair where `first` is success and `second` is the sync config.
 static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {})
 {
+    static int syncTag = 13217;
     auto toLower = [](std::string& s)
     {
         for (char& c : s) { c = static_cast<char>(tolower(c)); };
@@ -178,7 +195,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
     }
     else
     {
-        return std::make_pair(false, SyncConfig("", UNDEF, 0));
+        return std::make_pair(false, SyncConfig(syncTag++, "", "", UNDEF, "", 0));
     }
 
     bool syncDeletions = false;
@@ -196,7 +213,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig("", UNDEF, 0));
+            return std::make_pair(false, SyncConfig(syncTag++, "", "", UNDEF, "", 0));
         }
 
         if (overwrite == "on")
@@ -209,11 +226,11 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig("", UNDEF, 0));
+            return std::make_pair(false, SyncConfig(syncTag++, "", "", UNDEF, "", 0));
         }
     }
 
-    return std::make_pair(true, SyncConfig("", UNDEF, 0, {}, syncType, syncDeletions, forceOverwrite));
+    return std::make_pair(true, SyncConfig(syncTag++, "", "", UNDEF, "", 0, {}, true, syncType, syncDeletions, forceOverwrite));
 }
 
 // sync configuration used when creating a new sync
@@ -362,7 +379,7 @@ AppFilePut::~AppFilePut()
 
 void AppFilePut::displayname(string* dname)
 {
-    *dname = localname.toName(*transfer->client->fsaccess, client->fsaccess->getFilesystemType(localname));
+    *dname = localname.toName(*transfer->client->fsaccess, client->fsaccess->getlocalfstype(localname));
 }
 
 // transfer progress callback
@@ -459,8 +476,10 @@ static void syncstat(Sync* sync)
          << " file(s) and " << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
 }
 
-void DemoApp::syncupdate_state(Sync*, syncstate_t newstate)
+void DemoApp::syncupdate_state(int tag, syncstate_t newstate, SyncError syncError, bool fireDisableEvent)
 {
+    cout << "Sync state updated: " << tag << " newstate: " << newstate << " error: " << syncError << endl;
+
     switch (newstate)
     {
         case SYNC_ACTIVE:
@@ -473,6 +492,18 @@ void DemoApp::syncupdate_state(Sync*, syncstate_t newstate)
         default:
             ;
     }
+}
+
+void DemoApp::sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const SyncError &error)
+{
+    cout << "Sync - auresumed " <<config.getTag() << " " << config.getLocalPath()  << " enabled: "
+         << config.getEnabled()  << " state: " << state << " syncError: " << error << endl;
+}
+
+void DemoApp::sync_removed(int tag)
+{
+    cout << "Sync - removed: " << tag << endl;
+
 }
 
 void DemoApp::syncupdate_scanning(bool active)
@@ -651,7 +682,7 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time
         name = *cfilename;
     }
 
-    localname = LocalPath::fromName(name, *client->fsaccess, client->fsaccess->getFilesystemType(LocalPath::fromPath(name, *client->fsaccess)));
+    localname = LocalPath::fromName(name, *client->fsaccess, client->fsaccess->getlocalfstype(LocalPath::fromPath(name, *client->fsaccess)));
     if (!targetfolder.empty())
     {
         string s = targetfolder;
@@ -671,7 +702,7 @@ AppFilePut::AppFilePut(const LocalPath& clocalname, handle ch, const char* ctarg
     targetuser = ctargetuser;
 
     // erase path component
-    auto fileSystemType = client->fsaccess->getFilesystemType(clocalname);
+    auto fileSystemType = client->fsaccess->getlocalfstype(clocalname);
 
     LocalPath p = clocalname;
     p.erase(0, p.lastpartlocal(*client->fsaccess));
@@ -2531,7 +2562,7 @@ bool recursiveCompare(Node* mn, fs::path p)
     }
 
     std::string path = p.u8string();
-    auto fileSystemType = client->fsaccess->getFilesystemType(LocalPath::fromPath(path, *client->fsaccess));
+    auto fileSystemType = client->fsaccess->getlocalfstype(LocalPath::fromPath(path, *client->fsaccess));
     multimap<string, Node*> ms;
     multimap<string, fs::path> ps;
     for (auto& m : mn->children)
@@ -3052,6 +3083,7 @@ autocomplete::ACN autocompleteSyntax()
 
     p->Add(exec_setmaxconnections, sequence(text("setmaxconnections"), either(text("put"), text("get")), opt(wholenumber(4))));
     p->Add(exec_metamac, sequence(text("metamac"), localFSPath(), remoteFSPath(client, &cwd)));
+    p->Add(exec_banner, sequence(text("banner"), either(text("get"), sequence(text("dismiss"), param("id")))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -4262,9 +4294,11 @@ void exec_sync(autocomplete::ACState& s)
             }
             else
             {
-                SyncConfig syncConfig{s.words[1].s, n->nodehandle, 0, {}, newSyncConfig.getType(),
+                static int syncTag = 2027;
+                SyncConfig syncConfig{syncTag++, s.words[1].s, s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.getType(),
                             newSyncConfig.syncDeletions(), newSyncConfig.forceOverwrite()};
-                error e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL);
+                SyncError syncError;
+                error e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError);
 
                 if (e)
                 {
@@ -4285,9 +4319,10 @@ void exec_sync(autocomplete::ACState& s)
         {
             if ((*it)->state > SYNC_CANCELED && i++ == cancel)
             {
+                auto tag = (*it)->tag;
                 client->delsync(*it);
 
-                cout << "Sync " << cancel << " deactivated and removed." << endl;
+                cout << "Sync " << cancel << " deactivated and removed. tag: " << tag << endl;
                 break;
             }
         }
@@ -7679,6 +7714,38 @@ void DemoApp::resetSmsVerifiedPhoneNumber_result(error e)
     }
 }
 
+void DemoApp::getbanners_result(error e)
+{
+    cout << "Getting Smart Banners failed: " << e << endl;
+}
+
+void DemoApp::getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners)
+{
+    for (auto& b : banners)
+    {
+        cout << "Smart Banner:" << endl
+             << "\tid         : " << std::get<0>(b) << endl
+             << "\ttitle      : " << std::get<1>(b) << endl
+             << "\tdescription: " << std::get<2>(b) << endl
+             << "\timage      : " << std::get<3>(b) << endl
+             << "\turl        : " << std::get<4>(b) << endl
+             << "\tbkgr image : " << std::get<5>(b) << endl
+             << "\tdsp        : " << std::get<6>(b) << endl;
+    }
+}
+
+void DemoApp::dismissbanner_result(error e)
+{
+    if (e)
+    {
+        cout << "Dismissing Smart Banner failed: " << e << endl;
+    }
+    else
+    {
+        cout << "Dismissing Smart Banner succeeded" << endl;
+    }
+}
+
 #ifndef NO_READLINE
 char* longestCommonPrefix(ac::CompletionState& acs)
 {
@@ -8077,7 +8144,7 @@ void exec_metamac(autocomplete::ACState& s)
 
     auto ifAccess = client->fsaccess->newfileaccess();
     {
-        auto localPath = LocalPath::fromName(s.words[1].s, *client->fsaccess, client->fsaccess->getFilesystemType(LocalPath::fromPath(s.words[1].s, *client->fsaccess)));
+        auto localPath = LocalPath::fromName(s.words[1].s, *client->fsaccess, client->fsaccess->getlocalfstype(LocalPath::fromPath(s.words[1].s, *client->fsaccess)));
         if (!ifAccess->fopen(localPath, 1, 0))
         {
             cerr << "Failed to open: " << s.words[1].s << endl;
@@ -8126,4 +8193,20 @@ void exec_metamac(autocomplete::ACState& s)
 void exec_resetverifiedphonenumber(autocomplete::ACState& s)
 {
     client->resetSmsVerifiedPhoneNumber();
+}
+
+void exec_banner(autocomplete::ACState& s)
+{
+    if (s.words.size() == 2 && s.words[1].s == "get")
+    {
+        cout << "Retrieving banner info..." << endl;
+
+        client->reqs.add(new CommandGetBanners(client));
+    }
+    else if (s.words.size() == 3 && s.words[1].s == "dismiss")
+    {
+        cout << "Dismissing banner with id " << s.words[2].s << "..." << endl;
+
+        client->reqs.add(new CommandDismissBanner(client, stoi(s.words[2].s), m_time(nullptr)));
+    }
 }

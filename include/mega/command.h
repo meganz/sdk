@@ -1227,7 +1227,7 @@ class MEGA_API CommandGetPSA : public Command
 public:
     bool procresult(Result) override;
 
-    CommandGetPSA(MegaClient*);
+    CommandGetPSA(bool urlSupport, MegaClient*);
 };
 
 class MEGA_API CommandFetchTimeZone : public Command
@@ -1335,6 +1335,22 @@ public:
     bool procresult(Result) override;
 
     CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, uint32_t ts, handle lastNode);
+};
+
+class MEGA_API CommandGetBanners : public Command
+{
+public:
+    bool procresult(Result) override;
+
+    CommandGetBanners(MegaClient*);
+};
+
+class MEGA_API CommandDismissBanner : public Command
+{
+public:
+    bool procresult(Result) override;
+
+    CommandDismissBanner(MegaClient*, int id, m_time_t ts);
 };
 
 } // namespace

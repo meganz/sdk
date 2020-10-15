@@ -2090,8 +2090,9 @@ public class MegaApiJava {
      * - MegaRequest::getName - Returns the title of the PSA
      * - MegaRequest::getText - Returns the text of the PSA
      * - MegaRequest::getFile - Returns the URL of the image of the PSA
-     * - MegaRequest::getPassword - Returns the text for the possitive button (or an empty string)
-     * - MegaRequest::getLink - Returns the link for the possitive button (or an empty string)
+     * - MegaRequest::getPassword - Returns the text for the positive button (or an empty string)
+     * - MegaRequest::getLink - Returns the link for the positive button (or an empty string)
+     * - MegaRequest::getEmail - Returns the url that app need to open with in-app browser
      *
      * If there isn't any new PSA to show, onRequestFinish will be called with the error
      * code MegaError::API_ENOENT
@@ -2099,7 +2100,7 @@ public class MegaApiJava {
      * @param listener MegaRequestListener to track this request
      * @see MegaApi::setPSA
      */
-    void getPSA(MegaRequestListenerInterface listener){
+    public void getPSA(MegaRequestListenerInterface listener){
         megaApi.getPSA(createDelegateRequestListener(listener));
     }
 
@@ -2126,7 +2127,7 @@ public class MegaApiJava {
      *
      * @see MegaApi::setPSA
      */
-    void getPSA(){
+    public void getPSA(){
         megaApi.getPSA();
     }
 
@@ -2144,7 +2145,7 @@ public class MegaApiJava {
      *
      * @see MegaApi::getPSA
      */
-    void setPSA(int id, MegaRequestListenerInterface listener){
+    public void setPSA(int id, MegaRequestListenerInterface listener){
         megaApi.setPSA(id, createDelegateRequestListener(listener));
     }
 
@@ -2161,7 +2162,7 @@ public class MegaApiJava {
      *
      * @see MegaApi::getPSA
      */
-    void setPSA(int id){
+    public void setPSA(int id){
         megaApi.setPSA(id);
     }
 
@@ -9443,6 +9444,62 @@ public class MegaApiJava {
      */
     public void getPublicLinkInformation(String megaFolderLink) {
         megaApi.getPublicLinkInformation(megaFolderLink);
+    }
+
+    /**
+     * Requests a list of all Smart Banners available for current user.
+     *
+     * The response value is stored as a MegaBannerList.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_BANNERS
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaBannerList: the list of banners
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EACCESS - If called with no user being logged in.
+     * - MegaError::API_EINTERNAL - If the internally used user attribute exists but can't be decoded.
+     * - MegaError::API_ENOENT if there are no banners to return to the user.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getBanners(MegaRequestListenerInterface listener) {
+        megaApi.getBanners(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Requests a list of all Smart Banners available for current user.
+     *
+     * The response value is stored as a MegaBannerList.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_BANNERS
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaBannerList: the list of banners
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EACCESS - If called with no user being logged in.
+     * - MegaError::API_EINTERNAL - If the internally used user attribute exists but can't be decoded.
+     * - MegaError::API_ENOENT if there are no banners to return to the user.
+     */
+    public void getBanners() {
+        megaApi.getBanners();
+    }
+
+    /**
+     * No longer show the Smart Banner with the specified id to the current user.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void dismissBanner(int id, MegaRequestListenerInterface listener) {
+        megaApi.dismissBanner(id, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * No longer show the Smart Banner with the specified id to the current user.
+     */
+    public void dismissBanner(int id) {
+        megaApi.dismissBanner(id);
     }
     
     /****************************************************************************************************/

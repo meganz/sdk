@@ -855,7 +855,7 @@ struct StandardClient : public MegaApp
 
     void onCallback() { lastcb = chrono::steady_clock::now(); };
 
-    void syncupdate_state(Sync*, syncstate_t state) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << " syncupdate_state() " << state << endl; } }
+    void syncupdate_state(int tag, syncstate_t state, SyncError syncError, bool fireDisableEvent = true) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << " syncupdate_state() " << state << " error :" << syncError << endl; } }
     void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b << endl; } }
     //void syncupdate_local_folder_addition(Sync* s, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_folder_addition() " << lp(ln) << " " << cp << endl; }}
     //void syncupdate_local_folder_deletion(Sync*, LocalNode* ln) override { if (logcb) { onCallback(); lock_guard<mutex> g(om);  out() << clientname << " syncupdate_local_folder_deletion() " << lp(ln) << endl; }}
@@ -1373,17 +1373,18 @@ struct StandardClient : public MegaApp
         }
     }
 
-    bool setupSync_inthread(int syncid, const string& subfoldername, const fs::path& localpath)
+    bool setupSync_inthread(int syncTag, const string& subfoldername, const fs::path& localpath)
     {
         if (Node* n = client.nodebyhandle(basefolderhandle))
         {
             if (Node* m = drillchildnodebyname(n, subfoldername))
             {
-                SyncConfig config(localpath.u8string(), m->nodehandle, 0, {}, (SyncConfig::TYPE_TWOWAY), false, false);
-                error e = client.addsync(std::move(config), DEBRISFOLDER, NULL, syncid);  // use syncid as tag
+                SyncConfig syncConfig{syncTag, localpath.u8string(), localpath.u8string(), m->nodehandle, subfoldername, 0};
+                SyncError syncError;
+                error e = client.addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError);  // use syncid as tag
                 if (!e)
                 {
-                    syncSet[syncid] = SyncInfo{ m->nodehandle, localpath };
+                    syncSet[syncTag] = SyncInfo{ m->nodehandle, localpath };
                     return true;
                 }
             }
@@ -1396,7 +1397,7 @@ struct StandardClient : public MegaApp
         const auto handle = syncSet.at(syncId).h;
         const auto node = client.nodebyhandle(handle);
         EXPECT_TRUE(node);
-        client.delsync(node->localnode->sync, keepCache);
+        client.delsync(node->localnode->sync);
         return true;
     }
 
@@ -2018,17 +2019,17 @@ struct StandardClient : public MegaApp
     //    return setupSync_mainthread(localsyncrootfolder, remotesyncrootfolder, syncid);
     //}
 
-    bool setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, int syncid)
+    bool setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, int syncTag)
     {
         fs::path syncdir = fsBasePath / fs::u8path(localsyncrootfolder);
         fs::create_directory(syncdir);
-        future<bool> fb = thread_do([=](StandardClient& mc, promise<bool>& pb) { pb.set_value(mc.setupSync_inthread(syncid, remotesyncrootfolder, syncdir)); });
+        future<bool> fb = thread_do([=](StandardClient& mc, promise<bool>& pb) { pb.set_value(mc.setupSync_inthread(syncTag, remotesyncrootfolder, syncdir)); });
         return fb.get();
     }
 
-    bool delSync_mainthread(int syncId, bool keepCache = false)
+    bool delSync_mainthread(int syncTag, bool keepCache = false)
     {
-        future<bool> fb = thread_do([=](StandardClient& mc, promise<bool>& pb) { pb.set_value(mc.delSync_inthread(syncId, keepCache)); });
+        future<bool> fb = thread_do([=](StandardClient& mc, promise<bool>& pb) { pb.set_value(mc.delSync_inthread(syncTag, keepCache)); });
         return fb.get();
     }
 
@@ -4505,8 +4506,8 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     waitonsyncs(std::chrono::seconds(20), &clientA1Steady, &clientA1Resume);
 
     out() << "Stopping full-sync" << endl;
-    future<bool> fb1 = clientA1Steady.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.client.delsync(sc.syncByTag(1), true); pb.set_value(true); });
-    future<bool> fb2 = clientA1Resume.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.client.delsync(sc.syncByTag(2), true); pb.set_value(true); });
+    future<bool> fb1 = clientA1Steady.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.client.delsync(sc.syncByTag(1)); pb.set_value(true); });
+    future<bool> fb2 = clientA1Resume.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.client.delsync(sc.syncByTag(2)); pb.set_value(true); });
     ASSERT_TRUE(waitonresults(&fb1, &fb2));
 
     out() << "Setting up each sub-test's Two-way sync of 'f'" << endl;
