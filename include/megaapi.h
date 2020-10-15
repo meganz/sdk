@@ -15739,12 +15739,12 @@ class MegaApi
          * If node and searchString are not provided, and node type is not valid, this method will
          * return an empty list.
          *
-         * If parameter type is different of MegaApi::NODE_UNKNOWN, the following values for parameter
+         * If parameter type is different of MegaApi::FILE_TYPE_UNKNOWN, the following values for parameter
          * order are invalid: MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
          * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
          *
          * The search is case-insensitive. If the search string is not provided but type has any value
-         * defined at nodefiletype_t (except NODE_UNKNOWN),
+         * defined at nodefiletype_t (except FILE_TYPE_UNKNOWN),
          * this method will return a list that contains nodes of the same type as provided.
          *
          * You take the ownership of the returned value.
@@ -15813,19 +15813,19 @@ class MegaApi
          *
          * @param type Type of nodes requested in the search
          * Valid values for this parameter are:
-         * - MegaApi::NODE_UNKNOWN = 0  --> all types
-         * - MegaApi::NODE_PHOTO = 1
-         * - MegaApi::NODE_AUDIO = 2
-         * - MegaApi::NODE_VIDEO = 3
-         * - MegaApi::NODE_DOCUMENT = 4
+         * - MegaApi::FILE_TYPE_UNKNOWN = 0  --> all types
+         * - MegaApi::FILE_TYPE_PHOTO = 1
+         * - MegaApi::FILE_TYPE_AUDIO = 2
+         * - MegaApi::FILE_TYPE_VIDEO = 3
+         * - MegaApi::FILE_TYPE_DOCUMENT = 4
          *
          * @param target Target type where this method will search
          * Valid values for this parameter are
-         * - TARGET_INSHARE = 0
-         * - TARGET_OUTSHARE = 1
-         * - TARGET_PUBLICLINK = 2
-         * - TARGET_ROOTNODE = 3
-         * - TARGET_ALL = 4
+         * - SEARCH_TARGET_INSHARE = 0
+         * - SEARCH_TARGET_OUTSHARE = 1
+         * - SEARCH_TARGET_PUBLICLINK = 2
+         * - SEARCH_TARGET_ROOTNODE = 3
+         * - SEARCH_TARGET_ALL = 4
          *
          * @return List of nodes that match with the search parameters
          */
