@@ -214,6 +214,19 @@ public:
 
 std::ostream& operator<<(std::ostream &os, const SCSN &scsn);
 
+class SyncdownContext
+{
+public:
+    SyncdownContext()
+      : mActionsPerformed(false)
+      , mRubbish(false)
+    {
+    }
+
+    bool mActionsPerformed;
+    bool mRubbish;
+}; // SyncdownContext
+
 class MEGA_API MegaClient
 {
 public:
@@ -1487,6 +1500,7 @@ public:
     void putnodes_sync_result(error, vector<NewNode>&);
 
     // start downloading/copy missing files, create missing directories
+    bool syncdown(LocalNode*, LocalPath&, SyncdownContext& cxt);
     bool syncdown(LocalNode*, LocalPath&, bool);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly

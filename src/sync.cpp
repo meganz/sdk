@@ -666,6 +666,16 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
     mLocalPath = config.getLocalPath();
     LocalPath crootpath = LocalPath::fromPath(mLocalPath, *client->fsaccess);
 
+    // dgw: TODO: Use SyncConfig when available.
+    bool isBackup = false;
+
+    isBackup |= mLocalPath.find("cls0") != mLocalPath.npos;
+    isBackup |= mLocalPath.find("synca") != mLocalPath.npos;
+
+    mBackupState =
+      isBackup ? SYNC_BACKUP_MIRROR
+               : SYNC_BACKUP_NONE;
+
     if (cdebris)
     {
         debris = cdebris;
@@ -790,6 +800,34 @@ Sync::~Sync()
         DBTableTransactionCommitter committer(client->tctable);
         localroot.reset();
     }
+}
+
+bool Sync::backupModified()
+{
+    changestate(SYNC_DISABLED, BACKUP_MODIFIED);
+    return false;
+}
+
+bool Sync::isBackup() const
+{
+    return mBackupState != SYNC_BACKUP_NONE;
+}
+
+bool Sync::isMirroring() const
+{
+    return mBackupState == SYNC_BACKUP_MIRROR;
+}
+
+bool Sync::isMonitoring() const
+{
+    return mBackupState == SYNC_BACKUP_MONITOR;
+}
+
+void Sync::monitor()
+{
+    assert(mBackupState == SYNC_BACKUP_MIRROR);
+
+    mBackupState = SYNC_BACKUP_MONITOR;
 }
 
 void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, LocalPath& localpath, LocalNode *p, int maxdepth)
