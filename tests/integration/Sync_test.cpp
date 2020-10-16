@@ -879,7 +879,17 @@ struct StandardClient : public MegaApp
 
     void onCallback() { lastcb = chrono::steady_clock::now(); };
 
-    void syncupdate_state(int tag, syncstate_t state, SyncError syncError, bool fireDisableEvent = true) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << " syncupdate_state() " << state << " error :" << syncError << endl; } }
+    void syncupdate_state(int tag, syncstate_t state, SyncError syncError, bool fireDisableEvent = true) override
+    {
+        onCallback();
+
+        if (logcb)
+        {
+            lock_guard<mutex> g(om);
+            out() << clientname << " syncupdate_state() " << state << " error :" << syncError << endl;
+        }
+    }
+
     void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b << endl; } }
     //void syncupdate_local_folder_addition(Sync* s, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_folder_addition() " << lp(ln) << " " << cp << endl; }}
     //void syncupdate_local_folder_deletion(Sync*, LocalNode* ln) override { if (logcb) { onCallback(); lock_guard<mutex> g(om);  out() << clientname << " syncupdate_local_folder_deletion() " << lp(ln) << endl; }}
@@ -3725,6 +3735,778 @@ GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkUponSyncDown)
 }
 
 #endif
+
+class BackupClient
+  : public StandardClient
+{
+public:
+    BackupClient(const fs::path& basePath, const string& name)
+      : StandardClient(basePath, name)
+      , mSyncError(NO_SYNC_ERROR)
+      , mSyncState()
+    {
+    }
+
+    void syncupdate_state(int tag, syncstate_t state, SyncError error, bool fireDisableEvent) override
+    {
+        StandardClient::syncupdate_state(tag, state, error, fireDisableEvent);
+
+        if (mSyncError == NO_SYNC_ERROR)
+        {
+            mSyncError = error;
+            mSyncState = state;
+        }
+    }
+
+    SyncError mSyncError;
+    syncstate_t mSyncState;
+}; /* BackupClient */
+
+TEST(BackupOnly, LocalAddMirrored)
+{
+    const auto TESTROOT = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    const auto TIMEOUT = chrono::seconds(4);
+
+    // Backup client.
+    BackupClient cl(TESTROOT, "cl");
+
+    // Remote client.
+    StandardClient cr(TESTROOT, "cr");
+
+    // Log in clients.
+    ASSERT_TRUE(cl.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
+    ASSERT_TRUE(cr.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(cl.basefolderhandle, cr.basefolderhandle);
+
+    // Start backup sync.
+    ASSERT_TRUE(cl.setupSync_mainthread("cls0", "x", 0));
+
+    // Populate and upload initial hierarchy.
+    Model m;
+
+    m.addfile("d/f");
+    m.addfile("f");
+
+    m.generate(cl.syncSet[0].localpath);
+
+    // Wait for the sync to complete.
+    waitonsyncs(TIMEOUT, &cl);
+
+    // Ensure the files have been uploaded.
+    EXPECT_TRUE(cl.confirmModel_mainthread(m.root.get(), 0));
+
+    // Remove the sync, taking care to clear the caches.
+    ASSERT_TRUE(cl.delSync_inthread(0, false));
+
+    // Add a couple new nodes to the now inactive sync.
+    {
+        m.addfile("d/ff", "ff");
+        m.addfile("ff", "ff");
+
+        const auto clRoot = TESTROOT / "cl" / "cls0";
+
+        ASSERT_TRUE(createDataFile(clRoot / "d" / "ff", "ff"));
+        ASSERT_TRUE(createDataFile(clRoot / "ff", "ff"));
+    }
+
+    // Re-add the sync.
+    ASSERT_TRUE(cl.setupSync_mainthread("cls0", "x", 0));
+
+    // Add the remote sync.
+    ASSERT_TRUE(cr.setupSync_mainthread("crs0", "x", 0));
+
+    // Wait for the syncs to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+    
+    // Check that the files were synchronized correctly.
+    EXPECT_TRUE(cl.confirmModel_mainthread(m.root.get(), 0));
+    
+    // Necessary as cr has downloaded files.
+    m.ensureLocalDebrisTmpLock("");
+
+    EXPECT_TRUE(cr.confirmModel_mainthread(m.root.get(), 0));
+}
+
+TEST(BackupOnly, LocalChangeMirrored)
+{
+    const auto TESTROOT = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    const auto TIMEOUT = chrono::seconds(4);
+
+    // Backup client.
+    BackupClient cl(TESTROOT, "cl");
+
+    // Remote client.
+    StandardClient cr(TESTROOT, "cr");
+
+    // Log in the clients.
+    ASSERT_TRUE(cl.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
+    ASSERT_TRUE(cr.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(cl.basefolderhandle, cr.basefolderhandle);
+
+    // Add and start the syncs.
+    ASSERT_TRUE(cl.setupSync_mainthread("cls0", "x", 0));
+    ASSERT_TRUE(cr.setupSync_mainthread("crs0", "x", 0));
+
+    // Set up the initial filesystem.
+    Model ml;
+    Model mr;
+
+    ml.addfile("d/f", "df");
+    ml.addfile("f", "f");
+
+    ml.generate(cl.syncSet[0].localpath);
+
+    mr = ml;
+    mr.ensureLocalDebrisTmpLock("");
+
+    // Wait for the sync to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Did the files upload properly?
+    EXPECT_TRUE(cl.confirmModel_mainthread(ml.root.get(), 0));
+    EXPECT_TRUE(cr.confirmModel_mainthread(mr.root.get(), 0));
+
+    // Kill the sync and respective cache.
+    ASSERT_TRUE(cl.delSync_mainthread(0, false));
+
+    // Modify the files.
+    {
+        const auto clRoot = TESTROOT / "cl" / "cls0";
+
+        ml.removenode("d/f");
+        ml.removenode("f");
+        ml.addfile("d/f", "ddff");
+        ml.addfile("f", "ff");
+
+        mr = ml;
+
+        ASSERT_TRUE(createDataFile(clRoot / "d" / "f", "ddff"));
+        ASSERT_TRUE(createDataFile(clRoot / "f", "ff"));
+    }
+
+    // Re-add the sync.
+    ASSERT_TRUE(cl.setupSync_mainthread("cls0", "x", 0));
+
+    // Wait for the sync to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Were the changes synchronized?
+    EXPECT_TRUE(cl.confirmModel_mainthread(ml.root.get(), 0));
+    EXPECT_TRUE(cr.confirmModel_mainthread(mr.root.get(), 0, true));
+}
+
+TEST(BackupOnly, LocalDeleteMirrored)
+{
+    const auto TESTROOT = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    const auto TIMEOUT = chrono::seconds(4);
+
+    // Backup client.
+    BackupClient cl(TESTROOT, "cl");
+
+    // Remote client.
+    StandardClient cr(TESTROOT, "cr");
+
+    // Log in the clients.
+    ASSERT_TRUE(cl.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
+    ASSERT_TRUE(cr.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(cl.basefolderhandle, cr.basefolderhandle);
+
+    // Add and start the syncs.
+    ASSERT_TRUE(cl.setupSync_mainthread("cls0", "x", 0));
+    ASSERT_TRUE(cr.setupSync_mainthread("crs0", "x", 0));
+
+    // Populate initial filesystem.
+    Model ml;
+    Model mr;
+
+    ml.addfile("d/h");
+    ml.addfile("d/g");
+    ml.addfile("f");
+    ml.addfile("g");
+
+    ml.generate(cl.syncSet[0].localpath);
+
+    mr = ml;
+    mr.ensureLocalDebrisTmpLock("");
+
+    // Wait for the syncs to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Did everything synchronize correctly?
+    EXPECT_TRUE(cl.confirmModel_mainthread(ml.root.get(), 0));
+    EXPECT_TRUE(cr.confirmModel_mainthread(mr.root.get(), 0));
+
+    // Kill the backup sync, making sure to clear the caches.
+    EXPECT_TRUE(cl.delSync_mainthread(0, false));
+
+    // Remove a few nodes.
+    {
+        const auto clRoot = TESTROOT / "cl" / "cls0";
+
+        ml.removenode("d/h");
+        ml.removenode("f");
+        mr.movetosynctrash("d/h", "");
+        mr.movetosynctrash("f", "");
+
+        EXPECT_TRUE(fs::remove(clRoot / "d" / "h"));
+        EXPECT_TRUE(fs::remove(clRoot / "f"));
+    }
+
+    // Re-add the sync.
+    ASSERT_TRUE(cl.setupSync_mainthread("cls0", "x", 0));
+
+    // Wait for the sync to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Were the nodes removed rather than redownloaded?
+    EXPECT_TRUE(cl.confirmModel_mainthread(ml.root.get(), 0));
+    EXPECT_TRUE(cr.confirmModel_mainthread(mr.root.get(), 0));
+}
+
+TEST(BackupOnly, LocalMoveMirrored)
+{
+    const auto TESTROOT = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    const auto TIMEOUT = chrono::seconds(4);
+
+    // Backup client.
+    BackupClient cl(TESTROOT, "cl");
+
+    // Remote client.
+    StandardClient cr(TESTROOT, "cr");
+
+    // Log in the clients.
+    ASSERT_TRUE(cl.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
+    ASSERT_TRUE(cr.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(cl.basefolderhandle, cr.basefolderhandle);
+
+    // Add and start the syncs.
+    ASSERT_TRUE(cl.setupSync_mainthread("cls0", "x", 0));
+    ASSERT_TRUE(cr.setupSync_mainthread("crs0", "x", 0));
+
+    // Populate initial filesystem.
+    Model ml;
+    Model mr;
+
+    ml.addfile("d/g");
+    ml.addfile("f");
+
+    ml.generate(cl.syncSet[0].localpath);
+
+    mr = ml;
+    mr.ensureLocalDebrisTmpLock("");
+
+    // Wait for the syncs to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Did everything synchronize correctly?
+    EXPECT_TRUE(cl.confirmModel_mainthread(ml.root.get(), 0));
+    EXPECT_TRUE(cr.confirmModel_mainthread(mr.root.get(), 0));
+
+    // Kill the backup sync, making sure to clear the caches.
+    EXPECT_TRUE(cl.delSync_mainthread(0, false));
+
+    // Move a few nodes.
+    {
+        const auto clRoot = TESTROOT / "cl" / "cls0";
+
+        ml.copynode("d/g", "g");
+        ml.copynode("f", "d/f");
+
+        mr = ml;
+        mr.movetosynctrash("d/g", "");
+        mr.movetosynctrash("f", "");
+        mr.ensureLocalDebrisTmpLock("");
+
+        ml.removenode("d/g");
+        ml.removenode("f");
+
+        fs::rename(clRoot / "d" / "g", clRoot / "g");
+        fs::rename(clRoot / "f", clRoot / "d" / "f");
+    }
+
+    // Re-add the sync.
+    ASSERT_TRUE(cl.setupSync_mainthread("cls0", "x", 0));
+
+    // Wait for the sync to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Were the nodes renamed rather than redownloaded?
+    EXPECT_TRUE(cl.confirmModel_mainthread(ml.root.get(), 0));
+    EXPECT_TRUE(cr.confirmModel_mainthread(mr.root.get(), 0));
+}
+
+TEST(BackupOnly, LocalRenameMirrored)
+{
+    const auto TESTROOT = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    const auto TIMEOUT = chrono::seconds(4);
+
+    // Backup client.
+    BackupClient cl(TESTROOT, "cl");
+
+    // Remote client.
+    StandardClient cr(TESTROOT, "cr");
+
+    // Log in the clients.
+    ASSERT_TRUE(cl.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
+    ASSERT_TRUE(cr.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(cl.basefolderhandle, cr.basefolderhandle);
+
+    // Add and start the syncs.
+    ASSERT_TRUE(cl.setupSync_mainthread("cls0", "x", 0));
+    ASSERT_TRUE(cr.setupSync_mainthread("crs0", "x", 0));
+
+    // Populate initial filesystem.
+    Model ml;
+    Model mr;
+
+    ml.addfile("d/f");
+    ml.addfile("f");
+
+    ml.generate(cl.syncSet[0].localpath);
+
+    mr = ml;
+    mr.ensureLocalDebrisTmpLock("");
+
+    // Wait for the syncs to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Did everything synchronize correctly?
+    EXPECT_TRUE(cl.confirmModel_mainthread(ml.root.get(), 0));
+    EXPECT_TRUE(cr.confirmModel_mainthread(mr.root.get(), 0));
+
+    // Kill the backup sync, making sure to clear the caches.
+    EXPECT_TRUE(cl.delSync_mainthread(0, false));
+
+    // Rename a couple nodes.
+    {
+        const auto clRoot = TESTROOT / "cl" / "cls0";
+
+        ml.copynode("d", "e");
+        ml.copynode("f", "ff");
+
+        mr = ml;
+        mr.movetosynctrash("d", "");
+        mr.movetosynctrash("f", "");
+        mr.ensureLocalDebrisTmpLock("");
+
+        ml.removenode("d");
+        ml.removenode("f");
+
+        fs::rename(clRoot / "d", clRoot / "e");
+        fs::rename(clRoot / "f", clRoot / "ff");
+    }
+
+    // Re-add the sync.
+    ASSERT_TRUE(cl.setupSync_mainthread("cls0", "x", 0));
+
+    // Wait for the sync to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Were the nodes renamed rather than redownloaded?
+    EXPECT_TRUE(cl.confirmModel_mainthread(ml.root.get(), 0));
+    EXPECT_TRUE(cr.confirmModel_mainthread(mr.root.get(), 0));
+}
+
+TEST(BackupOnly, RemoteAddCancelsSync)
+{
+    const auto TESTROOT = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    const auto TIMEOUT = chrono::seconds(4);
+
+    // Local client
+    BackupClient cl(TESTROOT, "cl");
+    // Remote client.
+    StandardClient cr(TESTROOT, "cr");
+
+    // Log clients in.
+    cl.logcb = true;
+    cr.logcb = true;
+
+    ASSERT_TRUE(cl.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
+    ASSERT_TRUE(cr.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(cl.basefolderhandle, cr.basefolderhandle);
+
+    // Set up syncs.
+    ASSERT_TRUE(cl.setupSync_mainthread("cls0", "x", 0));
+    ASSERT_TRUE(cr.setupSync_mainthread("crs0", "x", 0));
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Create local filesystem hierarchy.
+    Model ml;
+    Model mr;
+
+    ml.addfile("d/f");
+    ml.addfile("f");
+    ml.generate(cl.syncSet[0].localpath);
+
+    mr = ml;
+    mr.ensureLocalDebrisTmpLock("");
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Make sure our hierarchy was uploaded.
+    EXPECT_TRUE(cl.confirmModel_mainthread(ml.root.get(), 0));
+    EXPECT_TRUE(cr.confirmModel_mainthread(mr.root.get(), 0));
+
+    // Add a couple nodes on the remote end.
+    {
+        auto crRoot = cr.syncSet[0].localpath;
+
+        fs::create_directories(crRoot / "e");
+
+        ASSERT_TRUE(createDataFile(crRoot / "d" / "g", "g"));
+        ASSERT_TRUE(createDataFile(crRoot / "g", "g"));
+    }
+
+    // Wait for remote sync to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Was a 'backup externally modified' error signalled?
+    EXPECT_EQ(cl.mSyncError, BACKUP_MODIFIED);
+    EXPECT_EQ(cl.mSyncState, SYNC_DISABLED);
+
+    // Update and confirm models.
+    mr.addfile("d/g", "g");
+    mr.addfile("g", "g");
+    mr.addfolder("e");
+
+    // Local client (fs and lnt) should remain unchanged.
+    EXPECT_TRUE(cl.confirmModel_mainthread(
+                  ml.root.get(),
+                  0,
+                  false,
+                  StandardClient::CONFIRM_LOCAL));
+
+    // Local client (rnt) should match cloud.
+    EXPECT_TRUE(cl.confirmModel_mainthread(
+                  mr.root.get(),
+                  0,
+                  false,
+                  StandardClient::CONFIRM_REMOTE));
+
+    // Remote client (and cloud) should match mr.
+    EXPECT_TRUE(cr.confirmModel_mainthread(mr.root.get(), 0));
+}
+
+TEST(BackupOnly, RemoteChangeCancelsSync)
+{
+    const auto TESTROOT = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    const auto TIMEOUT = chrono::seconds(4);
+
+    // Local client
+    BackupClient cl(TESTROOT, "cl");
+    // Remote client.
+    StandardClient cr(TESTROOT, "cr");
+
+    // Log clients in.
+    cl.logcb = true;
+    cr.logcb = true;
+
+    ASSERT_TRUE(cl.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
+    ASSERT_TRUE(cr.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(cl.basefolderhandle, cr.basefolderhandle);
+
+    // Set up syncs.
+    ASSERT_TRUE(cl.setupSync_mainthread("cls0", "x", 0));
+    ASSERT_TRUE(cr.setupSync_mainthread("crs0", "x", 0));
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Create local filesystem hierarchy.
+    Model ml;
+    Model mr;
+
+    ml.addfile("f", "f");
+    ml.generate(cl.syncSet[0].localpath);
+
+    mr = ml;
+    mr.ensureLocalDebrisTmpLock("");
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Make sure our hierarchy was uploaded.
+    EXPECT_TRUE(cl.confirmModel_mainthread(ml.root.get(), 0));
+    EXPECT_TRUE(cr.confirmModel_mainthread(mr.root.get(), 0));
+
+    // Alter the node's contents.
+    {
+        const auto crRoot = cr.syncSet[0].localpath;
+
+        ASSERT_TRUE(createDataFile(crRoot / "f", "g"));
+    }
+
+    // Wait for remote sync to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Was a 'backup externally modified' error signalled?
+    EXPECT_EQ(cl.mSyncError, BACKUP_MODIFIED);
+    EXPECT_EQ(cl.mSyncState, SYNC_DISABLED);
+
+    // Update and confirm models.
+    mr.removenode("f");
+    mr.addfile("f", "g");
+
+    // Local client (fs and lnt) should remain unchanged.
+    EXPECT_TRUE(cl.confirmModel_mainthread(
+                  ml.root.get(),
+                  0,
+                  false,
+                  StandardClient::CONFIRM_LOCAL));
+
+    // Local client (rnt) should match cloud.
+    EXPECT_TRUE(cl.confirmModel_mainthread(
+                  mr.root.get(),
+                  0,
+                  false,
+                  StandardClient::CONFIRM_REMOTE));
+
+    // Remote client (and cloud) should match mr.
+    EXPECT_TRUE(cr.confirmModel_mainthread(mr.root.get(), 0));
+}
+
+TEST(BackupOnly, RemoteDeleteCancelsSync)
+{
+    const auto TESTROOT = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    const auto TIMEOUT = chrono::seconds(4);
+
+    // Local client
+    BackupClient cl(TESTROOT, "cl");
+    // Remote client.
+    StandardClient cr(TESTROOT, "cr");
+
+    // Log clients in.
+    cl.logcb = true;
+    cr.logcb = true;
+
+    ASSERT_TRUE(cl.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
+    ASSERT_TRUE(cr.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(cl.basefolderhandle, cr.basefolderhandle);
+
+    // Set up syncs.
+    ASSERT_TRUE(cl.setupSync_mainthread("cls0", "x", 0));
+    ASSERT_TRUE(cr.setupSync_mainthread("crs0", "x", 0));
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Create local filesystem hierarchy.
+    Model ml;
+    Model mr;
+
+    ml.addfile("d/f");
+    ml.addfile("f");
+    ml.generate(cl.syncSet[0].localpath);
+
+    mr = ml;
+    mr.ensureLocalDebrisTmpLock("");
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Make sure our hierarchy was uploaded.
+    EXPECT_TRUE(cl.confirmModel_mainthread(ml.root.get(), 0));
+    EXPECT_TRUE(cr.confirmModel_mainthread(mr.root.get(), 0));
+
+    // Delete a couple nodes on the remote end.
+    {
+        const auto crRoot = cr.syncSet[0].localpath;
+
+        fs::remove_all(crRoot / "d");
+    }
+
+    // Wait for remote sync to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Was a 'backup externally modified' error signalled?
+    EXPECT_EQ(cl.mSyncError, BACKUP_MODIFIED);
+    EXPECT_EQ(cl.mSyncState, SYNC_DISABLED);
+
+    // Update and confirm models.
+    mr.removenode("d");
+
+    // Local client (fs and lnt) should remain unchanged.
+    EXPECT_TRUE(cl.confirmModel_mainthread(
+                  ml.root.get(),
+                  0,
+                  false,
+                  StandardClient::CONFIRM_LOCAL));
+
+    // Local client (rnt) should match cloud.
+    EXPECT_TRUE(cl.confirmModel_mainthread(
+                  mr.root.get(),
+                  0,
+                  false,
+                  StandardClient::CONFIRM_REMOTE));
+
+    // Remote client (and cloud) should match mr.
+    EXPECT_TRUE(cr.confirmModel_mainthread(mr.root.get(), 0));
+}
+
+TEST(BackupOnly, RemoteMoveCancelsSync)
+{
+    const auto TESTROOT = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    const auto TIMEOUT = chrono::seconds(4);
+
+    // Local client
+    BackupClient cl(TESTROOT, "cl");
+    // Remote client.
+    StandardClient cr(TESTROOT, "cr");
+
+    // Log clients in.
+    cl.logcb = true;
+    cr.logcb = true;
+
+    ASSERT_TRUE(cl.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
+    ASSERT_TRUE(cr.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(cl.basefolderhandle, cr.basefolderhandle);
+
+    // Set up syncs.
+    ASSERT_TRUE(cl.setupSync_mainthread("cls0", "x", 0));
+    ASSERT_TRUE(cr.setupSync_mainthread("crs0", "x", 0));
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Create local filesystem hierarchy.
+    Model ml;
+    Model mr;
+
+    ml.addfile("d/f");
+    ml.addfile("g");
+    ml.generate(cl.syncSet[0].localpath);
+
+    mr = ml;
+    mr.ensureLocalDebrisTmpLock("");
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Make sure our hierarchy was uploaded.
+    EXPECT_TRUE(cl.confirmModel_mainthread(ml.root.get(), 0));
+    EXPECT_TRUE(cr.confirmModel_mainthread(mr.root.get(), 0));
+
+    // Move a few nodes.
+    {
+        const auto crRoot = cr.syncSet[0].localpath;
+
+        fs::rename(crRoot / "d" / "f", crRoot / "f");
+        fs::rename(crRoot / "g", crRoot / "d" / "g");
+    }
+
+    // Wait for remote sync to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Was a 'backup externally modified' error signalled?
+    EXPECT_EQ(cl.mSyncError, BACKUP_MODIFIED);
+    EXPECT_EQ(cl.mSyncState, SYNC_DISABLED);
+
+    // Update and confirm models.
+    mr.movenode("d/f", "");
+    mr.movenode("g", "d");
+
+    // Local client (fs and lnt) should remain unchanged.
+    EXPECT_TRUE(cl.confirmModel_mainthread(
+                  ml.root.get(),
+                  0,
+                  false,
+                  StandardClient::CONFIRM_LOCAL));
+
+    // Local client (rnt) should match cloud.
+    EXPECT_TRUE(cl.confirmModel_mainthread(
+                  mr.root.get(),
+                  0,
+                  false,
+                  StandardClient::CONFIRM_REMOTE));
+
+    // Remote client (and cloud) should match mr.
+    EXPECT_TRUE(cr.confirmModel_mainthread(mr.root.get(), 0));
+}
+
+TEST(BackupOnly, RemoteRenameCancelsSync)
+{
+    const auto TESTROOT = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    const auto TIMEOUT = chrono::seconds(4);
+
+    // Local client
+    BackupClient cl(TESTROOT, "cl");
+    // Remote client.
+    StandardClient cr(TESTROOT, "cr");
+
+    // Log clients in.
+    cl.logcb = true;
+    cr.logcb = true;
+
+    ASSERT_TRUE(cl.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "x", 0, 0));
+    ASSERT_TRUE(cr.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_EQ(cl.basefolderhandle, cr.basefolderhandle);
+
+    // Set up syncs.
+    ASSERT_TRUE(cl.setupSync_mainthread("cls0", "x", 0));
+    ASSERT_TRUE(cr.setupSync_mainthread("crs0", "x", 0));
+
+    // Wait for initial sync to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Create local filesystem hierarchy.
+    Model ml;
+    Model mr;
+
+    ml.addfile("d/f");
+    ml.addfile("f");
+    ml.generate(cl.syncSet[0].localpath);
+
+    mr = ml;
+    mr.ensureLocalDebrisTmpLock("");
+
+    // Wait for sync to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Make sure our hierarchy was uploaded.
+    EXPECT_TRUE(cl.confirmModel_mainthread(ml.root.get(), 0));
+    EXPECT_TRUE(cr.confirmModel_mainthread(mr.root.get(), 0));
+
+    // Rename a few nodes.
+    {
+        const auto crRoot = cr.syncSet[0].localpath;
+
+        fs::rename(crRoot / "d", crRoot / "e");
+        fs::rename(crRoot / "f", crRoot / "ff");
+    }
+
+    // Wait for remote sync to complete.
+    waitonsyncs(TIMEOUT, &cl, &cr);
+
+    // Was a 'backup externally modified' error signalled?
+    EXPECT_EQ(cl.mSyncError, BACKUP_MODIFIED);
+    EXPECT_EQ(cl.mSyncState, SYNC_DISABLED);
+
+    // Update and confirm models.
+    mr.copynode("d", "e");
+    mr.copynode("f", "ff");
+    mr.removenode("d");
+    mr.removenode("f");
+
+    // Local client (fs and lnt) should remain unchanged.
+    EXPECT_TRUE(cl.confirmModel_mainthread(
+                  ml.root.get(),
+                  0,
+                  false,
+                  StandardClient::CONFIRM_LOCAL));
+
+    // Local client (rnt) should match cloud.
+    EXPECT_TRUE(cl.confirmModel_mainthread(
+                  mr.root.get(),
+                  0,
+                  false,
+                  StandardClient::CONFIRM_REMOTE));
+
+    // Remote client (and cloud) should match mr.
+    EXPECT_TRUE(cr.confirmModel_mainthread(mr.root.get(), 0));
+}
 
 struct TwoWaySyncSymmetryCase
 {
