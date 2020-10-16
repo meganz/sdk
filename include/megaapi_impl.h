@@ -426,6 +426,8 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         const char *getCustomAttr(const char* attrName) override;
         int getDuration() override;
         int getWidth() override;
+        bool isFavourite() override;
+        int getLabel() override;
         int getHeight() override;
         int getShortformat() override;
         int getVideocodecid() override;
@@ -530,6 +532,8 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         double longitude;
         MegaNodeList *children;
         MegaHandle owner;
+        bool mFavourite;
+        nodelabel_t mLabel;
 
 #ifdef ENABLE_SYNC
         bool syncdeleted;
@@ -1122,6 +1126,7 @@ class MegaSyncListPrivate : public MegaSyncList
 
 
 class MegaPricingPrivate;
+class MegaBannerListPrivate;
 class MegaRequestPrivate : public MegaRequest
 {
 	public:
@@ -1225,6 +1230,9 @@ class MegaRequestPrivate : public MegaRequest
         MegaBackupListener *getBackupListener() const;
         void setBackupListener(MegaBackupListener *value);
 
+        MegaBannerList* getMegaBannerList() const override;
+        void setBanners(vector< tuple<int, string, string, string, string, string, string> >&& banners);
+
 protected:
         AccountDetails *accountDetails;
         MegaPricingPrivate *megaPricing;
@@ -1272,6 +1280,9 @@ protected:
         MegaFolderInfo *folderInfo;
         MegaPushNotificationSettings *settings;
         MegaBackgroundMediaUpload* backgroundMediaUpload;  // non-owned pointer
+
+    private:
+        unique_ptr<MegaBannerListPrivate> mBannerList;
 };
 
 class MegaEventPrivate : public MegaEvent
@@ -1593,6 +1604,36 @@ private:
 
 #endif
 
+class MegaBannerPrivate : public MegaBanner
+{
+public:
+    MegaBannerPrivate(std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string>&& details);
+    MegaBanner* copy() const override;
+
+    int getId() const override;
+    const char* getTitle() const override;
+    const char* getDescription() const override;
+    const char* getImage() const override;
+    const char* getUrl() const override;
+    const char* getBackgroundImage() const override;
+    const char* getImageLocation() const override;
+
+private:
+    std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string> mDetails;
+};
+
+class MegaBannerListPrivate : public MegaBannerList
+{
+public:
+    MegaBannerListPrivate* copy() const override; // "different" return type is Covariant
+    const MegaBanner* get(int i) const override;
+    int size() const override;
+    void add(MegaBannerPrivate&&);
+
+private:
+    std::vector<MegaBannerPrivate> mVector;
+};
+
 class MegaStringMapPrivate : public MegaStringMap
 {
 public:
@@ -1901,7 +1942,7 @@ struct MegaFilePut : public MegaFile
 {
     void completed(Transfer* t, LocalNode*) override;
     void terminated() override;
-    MegaFilePut(MegaClient *client, LocalPath clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false);
+    MegaFilePut(MegaClient *client, LocalPath clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false, Node *pvNode = nullptr);
     ~MegaFilePut() {}
 
     bool serialize(string*) override;
@@ -2234,6 +2275,8 @@ class MegaApiImpl : public MegaApp
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
         void setCustomNodeAttribute(MegaNode *node, const char *attrName, const char *value, MegaRequestListener *listener = NULL);
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
+        void setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener = NULL);
+        void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
         void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
@@ -2505,7 +2548,7 @@ class MegaApiImpl : public MegaApp
         void keepMeAlive(int type, bool enable, MegaRequestListener *listener = NULL);
         void acknowledgeUserAlerts(MegaRequestListener *listener = NULL);
 
-        void getPSA(MegaRequestListener *listener = NULL);
+        void getPSA(bool urlSupported, MegaRequestListener *listener = NULL);
         void setPSA(int id, MegaRequestListener *listener = NULL);
 
         void disableGfxFeatures(bool disable);
@@ -2547,6 +2590,10 @@ class MegaApiImpl : public MegaApp
         static bool nodeComparatorVideoDESC(Node *i, Node *j, MegaClient& mc);
         static bool nodeComparatorPublicLinkCreationASC(Node *i, Node *j);
         static bool nodeComparatorPublicLinkCreationDESC(Node *i, Node *j);
+        static bool nodeComparatorLabelASC(Node *i, Node *j);
+        static bool nodeComparatorLabelDESC(Node *i, Node *j);
+        static bool nodeComparatorFavASC(Node *i, Node *j);
+        static bool nodeComparatorFavDESC(Node *i, Node *j);
         static int typeComparator(Node *i, Node *j);
         static bool userComparatorDefaultASC (User *i, User *j);
 
@@ -2695,6 +2742,9 @@ class MegaApiImpl : public MegaApp
         void getRegisteredContacts(const MegaStringMap* contacts, MegaRequestListener *listener = NULL);
 
         void getCountryCallingCodes(MegaRequestListener *listener = NULL);
+
+        void getBanners(MegaRequestListener *listener);
+        void dismissBanner(int id, MegaRequestListener *listener);
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e, DBTableTransactionCommitter& committer);
@@ -2910,7 +2960,7 @@ protected:
         void getcountrycallingcodes_result(error, map<string, vector<string>>*) override;
 
         // get the current PSA
-        void getpsa_result (error, int, string*, string*, string*, string*, string*) override;
+        void getpsa_result (error, int, string*, string*, string*, string*, string*, string*) override;
 
         // account creation
         void sendsignuplink_result(error) override;
@@ -3047,6 +3097,9 @@ protected:
         void mediadetection_ready() override;
         void storagesum_changed(int64_t newsum) override;
         void getmiscflags_result(error) override;
+        void getbanners_result(error e) override;
+        void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;
+        void dismissbanner_result(error e) override;
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult

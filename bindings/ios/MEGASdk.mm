@@ -1011,6 +1011,30 @@ using namespace mega;
     return stringLink;
 }
 
+- (void)setNodeLabel:(MEGANode *)node label:(MEGANodeLabel)label delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setNodeLabel(node.getCPtr, (int)label, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setNodeLabel:(MEGANode *)node label:(MEGANodeLabel)label {
+    self.megaApi->setNodeLabel(node.getCPtr, (int)label);
+}
+
+- (void)resetNodeLabel:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->resetNodeLabel(node.getCPtr, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)resetNodeLabel:(MEGANode *)node {
+    self.megaApi->resetNodeLabel(node.getCPtr);
+}
+
+- (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setNodeFavourite(node.getCPtr, favourite, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite {
+    self.megaApi->setNodeFavourite(node.getCPtr, favourite);
+}
+
 - (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setNodeCoordinates(node ? [node getCPtr] : NULL, (latitude ? latitude.doubleValue : MegaNode::INVALID_COORDINATE), (longitude ? longitude.doubleValue : MegaNode::INVALID_COORDINATE), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -2050,12 +2074,20 @@ using namespace mega;
     return [[MEGAError alloc] initWithMegaError:self.megaApi->checkAccess((node != nil) ? [node getCPtr] : NULL, (int) level).copy() cMemoryOwn:YES];
 }
 
+- (MEGAError *)checkAccessErrorExtendedForNode:(MEGANode *)node level:(MEGAShareType)level {
+    return [[MEGAError alloc] initWithMegaError:self.megaApi->checkAccessErrorExtended(node.getCPtr, (int)level) cMemoryOwn:YES];
+}
+
 - (BOOL)isNodeInRubbish:(MEGANode *)node {
     return self.megaApi->isInRubbish(node ? [node getCPtr] : NULL);
 }
 
 - (MEGAError *)checkMoveForNode:(MEGANode *)node target:(MEGANode *)target {
     return [[MEGAError alloc] initWithMegaError:self.megaApi->checkMove((node != nil) ? [node getCPtr] : NULL, (target != nil) ? [target getCPtr] : NULL).copy() cMemoryOwn:YES];
+}
+
+- (MEGAError *)checkMoveErrorExtendedForNode:(MEGANode *)node target:(MEGANode *)target {
+    return [[MEGAError alloc] initWithMegaError:self.megaApi->checkMoveErrorExtended(node.getCPtr, target.getCPtr) cMemoryOwn:YES];
 }
 
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString recursive:(BOOL)recursive {

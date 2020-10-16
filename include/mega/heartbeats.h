@@ -111,7 +111,7 @@ public:
     virtual void setTotalBytes(long long value);
     virtual void setTransferredBytes(long long value);
 
-    virtual double progress() const override;
+    double progress() const override;
 
 private:
 

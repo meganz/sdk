@@ -8,7 +8,7 @@ AndroidStudio project for developing a MEGA app for Android
 
 * [Android SDK Tools](http://developer.android.com/intl/es/sdk/index.html#Other)
 
-* [Android NDK](http://developer.android.com/intl/es/ndk/downloads/index.html): this is only required if you want to build the native libraries and Java bindings by yourself. **Required version of NDK**: r14b or newer.
+* [Android NDK](http://developer.android.com/intl/es/ndk/downloads/index.html): this is only required if you want to build the native libraries and Java bindings by yourself. **Required version of NDK**: r16b or newer.
 
 ## Build & Run the example:
 

@@ -469,6 +469,9 @@ public:
     // move node to new parent folder
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF, const char *newName = nullptr);
 
+    // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
+    void removeOutSharesFromSubtree(Node* n);
+
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
     void stopxfer(File* f, DBTableTransactionCommitter* committer);
@@ -508,10 +511,6 @@ public:
     // keep sync configuration after logout
     bool mKeepSyncsAfterLogout = false;
 
-    // manage syncdown flags inside the syncs
-    void setAllSyncsNeedSyncdown();
-    bool anySyncNeedsTargetedSyncdown();
-    void setAllSyncsNeedSyncup();
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
@@ -1406,6 +1405,11 @@ public:
     // app scanstate flag
     bool syncscanstate;
 
+    // scan required flag
+    bool syncdownrequired;
+
+    bool syncuprequired;
+
     // block local fs updates processing while locked ops are in progress
     bool syncfsopsfailed;
 
@@ -1457,13 +1461,14 @@ public:
     void syncupdate();
 
     // create missing folders, copy/start uploading missing files
-    bool syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool scanWholeSubtree);
+    bool syncup(LocalNode* l, dstime* nds, size_t& parentPending);
+    bool syncup(LocalNode* l, dstime* nds);
 
     // sync putnodes() completion
     void putnodes_sync_result(error, vector<NewNode>&);
 
     // start downloading/copy missing files, create missing directories
-    bool syncdown(LocalNode * const, LocalPath&, bool scanWholeSubtree);
+    bool syncdown(LocalNode*, LocalPath&, bool);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
     void movetosyncdebris(Node*, bool);
@@ -1557,6 +1562,7 @@ public:
     bool warnlevel();
 
     Node* childnodebyname(Node*, const char*, bool = false);
+    void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection
@@ -1743,7 +1749,7 @@ public:
 
     void keepmealive(int, bool enable = true);
 
-    void getpsa();
+    void getpsa(bool urlSupport);
 
     // tells the API the user has seen existing alerts
     void acknowledgeuseralerts();

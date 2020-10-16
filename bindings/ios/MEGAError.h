@@ -67,6 +67,24 @@ typedef NS_ENUM(NSInteger, MEGAErrorContext) {
 };
 
 /**
+ * @brief User custom error details
+ */
+typedef NS_ENUM(NSInteger, MEGAUserErrorCode) {
+    MEGAUserErrorCodeETDUnknown = -1,   ///< Unknown state
+    MEGAUserErrorCodeETDSuspension = 7  ///< Account suspend by an ETD/ToS 'severe'
+};
+
+/**
+ * @brief Link custom error details
+ */
+typedef NS_ENUM(NSInteger, MEGALinkErrorCode) {
+    MEGALinkErrorCodeUnknown = -1,      ///< Unknown state
+    MEGALinkErrorCodeUndeleted = 0,     ///< Link is undeleted
+    MEGALinkErrorCodeUndeletedDown = 1, ///< Link is deleted or down
+    MEGALinkErrorCodeDownETD = 2        ///< Link is down due to an ETD specifically
+};
+
+/**
  * @brief Provides information about an error.
  */
 @interface MEGAError : NSObject
@@ -91,6 +109,43 @@ typedef NS_ENUM(NSInteger, MEGAErrorContext) {
  * In any other case, this value will be 0
  */
 @property (readonly, nonatomic) long long value;
+
+/**
+ * @brief YES if error has extra info
+ *
+ * @note Can return YES for:
+ *   - MEGARequestTypeFetchnodes with error MEGAErrorTypeApiENoent
+ *   - MEGARequestTypeGetPublicNode with error MEGAErrorTypeApiETooMany
+ *   - MEGARequestTypeImportLink with error MEGAErrorTypeApiETooMany
+ *   - [MEGATransferDelegate onTransferFinish:transfer:error:] with error MEGAErrorTypeApiETooMany
+ */
+@property (readonly, nonatomic, getter=hasExtraInfo) BOOL extraInfo;
+
+/**
+ * @brief The user status
+ *
+ * This property contains valid value when extraInfo is YES
+ * Possible values:
+ *  MEGAUserErrorCodeETDSuspension
+ *
+ * Otherwise, it value is MEGAUserErrorCodeETDUnknown
+ *
+ */
+@property (readonly, nonatomic) MEGAUserErrorCode userStatus;
+
+/**
+ * @brief The link status
+ *
+ * This property contains valid value when extraInfo is YES
+ * Possible values:
+ *  MEGALinkErrorCodeUndeleted
+ *  MEGALinkErrorCodeUndeletedDown
+ *  MEGALinkErrorCodeDownETD
+ *
+ * Otherwise, it value is MEGALinkErrorCodeUnknown
+ *
+ */
+@property (readonly, nonatomic) MEGALinkErrorCode linkStatus;
 
 /**
  * @brief Creates a copy of this MEGAError object.
