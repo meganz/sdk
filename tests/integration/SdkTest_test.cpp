@@ -5491,6 +5491,9 @@ TEST_F(SdkTest, SyncRemoteNode)
     sync.reset(megaApi[0]->getSyncByTag(tagID));
     ASSERT_EQ(nullptr, sync.get());
 
+    // Wait for sync to be effectively removed.
+    std::this_thread::sleep_for(std::chrono::seconds{5});
+
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
 }
 
