@@ -223,25 +223,35 @@ protected:
     MegaErrorPrivate mLastError = { API_OK };
 };
 
-class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveOperation
+class MegaFolderUploadController : public MegaTransferListener, public MegaRecursiveOperation
 {
 public:
     MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
     void start(MegaNode* node) override;
     void cancel() override;
-
-protected:
-    void onFolderAvailable(MegaHandle handle);
-    void checkCompletion();
-
-    std::list<LocalPath> pendingFolders;
-
-public:
-    void onRequestFinish(MegaApi* api, MegaRequest *request, MegaError *e) override;
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
     ~MegaFolderUploadController();
+
+protected:
+    int mPendingFolders;
+
+    // Each element is a pair formed by the localpath of the folder, and the handle of it's parent node
+    std::vector<std::pair<LocalPath, handle>> mPendingFiles;
+
+    // maps targetHandle of the subtree to a vector of NewNodes
+    map<handle, vector<NewNode>> mFolderStructure;
+
+    /* Scan entire tree recursively, and retrieve folder structure and files to be uploaded.
+     * A putnodes command can only add subtrees under same target, so in case we need to add
+     * subtrees under different targets, this method will generate a subtree for each one
+     */
+    void scanFolder(handle targetHandle, handle parentHandle, LocalPath& localPath, std::string folderName);
+    void createFolder();
+    void startFileUploads();
+    void checkCompletion();
+    handle addNewNodeToVector(handle targetHandle, handle parentHandle, const char * folderName);
 };
 
 

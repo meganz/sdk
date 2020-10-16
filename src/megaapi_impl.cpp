@@ -24893,6 +24893,7 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->recursive = 0;
     this->pendingTransfers = 0;
     this->tag = transfer->getTag();
+    this->mPendingFolders = 0;
 }
 
 void MegaFolderUploadController::start(MegaNode*)
@@ -24902,33 +24903,20 @@ void MegaFolderUploadController::start(MegaNode*)
     transfer->setState(MegaTransfer::STATE_QUEUED);
     megaApi->fireOnTransferStart(transfer);
 
-    const char *name = transfer->getFileName();
-    MegaNode *parent = megaApi->getNodeByHandle(transfer->getParentHandle());
-    if(!parent)
+    // Root folder of the new tree
+    const char *folderName = transfer->getFileName();
+    unique_ptr<MegaNode> parent(megaApi->getNodeByHandle(transfer->getParentHandle()));
+    if (!parent)
     {
         transfer->setState(MegaTransfer::STATE_FAILED);
         DBTableTransactionCommitter committer(client->tctable);
         megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EARGS), committer);
+        return;
     }
-    else
-    {
-        auto localpath = LocalPath::fromPath(transfer->getPath(), *client->fsaccess);
-        MegaNode *child = megaApi->getChildNode(parent, name);
 
-        if(!child || !child->isFolder())
-        {
-            pendingFolders.push_back(localpath);
-            megaApi->createFolder(name, parent, this);
-        }
-        else
-        {
-            pendingFolders.push_front(localpath);
-            onFolderAvailable(child->getHandle());
-        }
-
-        delete child;
-        delete parent;
-    }
+    auto localpath = LocalPath::fromPath(transfer->getPath(), *client->fsaccess);
+    scanFolder(parent->getHandle(), parent->getHandle(), localpath, folderName);
+    createFolder();
 }
 
 void MegaFolderUploadController::cancel()
@@ -25015,91 +25003,6 @@ void MegaFolderUploadController::cancel()
     transfer = nullptr;  // no final callback for this one since it is being destroyed now
 }
 
-void MegaFolderUploadController::onFolderAvailable(MegaHandle handle)
-{
-    recursive++;
-    auto localPath = pendingFolders.front();
-    pendingFolders.pop_front();
-
-    MegaNode *parent = megaApi->getNodeByHandle(handle);
-
-    LocalPath localname;
-    DirAccess* da;
-    da = client->fsaccess->newdiraccess();
-    if (da->dopen(&localPath, NULL, false))
-    {
-        FileSystemType fsType = client->fsaccess->getlocalfstype(localPath);
-
-        nodetype_t dirEntryType;
-        while (da->dnext(localPath, localname, client->followsymlinks, &dirEntryType))
-        {
-            ScopedLengthRestore restoreLen(localPath);
-            localPath.appendWithSeparator(localname, false, client->fsaccess->localseparator);
-
-            string name = localname.toName(*client->fsaccess, fsType);
-            if (dirEntryType == FILENODE)
-            {
-                pendingTransfers++;
-                megaApi->startUpload(false, localPath.toPath(*client->fsaccess).c_str(), parent, (const char *)NULL, -1, tag, false, NULL, false, false, fsType, this);
-            }
-            else if (dirEntryType == FOLDERNODE)
-            {
-                MegaNode *child = megaApi->getChildNode(parent, name.c_str());
-                if(!child || !child->isFolder())
-                {
-                    pendingFolders.push_back(localPath);
-                    megaApi->createFolder(name.c_str(), parent, this);
-                }
-                else
-                {
-                    pendingFolders.push_front(localPath);
-                    onFolderAvailable(child->getHandle());
-                }
-                delete child;
-            }
-        }
-    }
-
-    delete da;
-    delete parent;
-    recursive--;
-
-    checkCompletion();
-}
-
-void MegaFolderUploadController::checkCompletion()
-{
-    if (!cancelled && !recursive && !pendingFolders.size() && !pendingTransfers)
-    {
-        LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
-        transfer->setState(MegaTransfer::STATE_COMPLETED);
-        transfer->setLastError(&mLastError);
-        DBTableTransactionCommitter committer(client->tctable);
-        megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(!mIncompleteTransfers ? API_OK : API_EINCOMPLETE), committer);
-    }
-}
-
-void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
-{
-    int type = request->getType();
-    int errorCode = e->getErrorCode();
-
-    if (type == MegaRequest::TYPE_CREATE_FOLDER)
-    {
-        if (!errorCode)
-        {
-            onFolderAvailable(request->getNodeHandle());
-        }
-        else
-        {
-            pendingFolders.pop_front();
-            mLastError = *e;
-            mIncompleteTransfers++;
-            checkCompletion();
-        }
-    }
-}
-
 void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
     subTransfers.insert(static_cast<MegaTransferPrivate*>(t));
@@ -25154,10 +25057,174 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
 
 MegaFolderUploadController::~MegaFolderUploadController()
 {
-    //we dettach this as request listener: could be pending create folder req finish
-    megaApi->removeRequestListener(this);
-
     //we shouldn't need to dettach as transfer listener: all listened transfer should have been cancelled/completed
+}
+
+void MegaFolderUploadController::scanFolder(handle targetHandle, handle parentHandle, LocalPath& localPath, std::string folderName)
+{
+    recursive++;
+    unique_ptr<DirAccess> da(client->fsaccess->newdiraccess());
+    if (!da->dopen(&localPath, nullptr, false))
+    {
+        LOG_err << "Can't open local directory" << localPath.toPath(*client->fsaccess);
+        recursive--;
+        mLastError = API_EACCESS;
+        mIncompleteTransfers++;
+        return;
+    }
+
+    Node *parentNode = client->nodebyhandle(parentHandle);
+    Node *folder = client->childnodebyname(parentNode, folderName.c_str(), false);
+    bool folderExists = folder && folder->type == FOLDERNODE;
+
+    // if folder doesn't exists in cloud drive, create a new node and add to vector of new nodes
+    MegaHandle newNodeHandle = !folderExists
+            ? addNewNodeToVector(targetHandle, parentHandle, folderName.c_str())
+            : UNDEF;
+
+    assert(folderExists || (newNodeHandle != UNDEF));
+    LocalPath localname;
+    nodetype_t dirEntryType;
+    FileSystemType fsType = client->fsaccess->getlocalfstype(localPath);
+    while (da->dnext(localPath, localname, client->followsymlinks, &dirEntryType))
+    {
+        ScopedLengthRestore restoreLen(localPath);
+        localPath.appendWithSeparator(localname, false, client->fsaccess->localseparator);
+        if (dirEntryType == FILENODE)
+        {
+            (folderExists)
+                ? mPendingFiles.emplace_back(std::make_pair(localPath, folder->nodehandle)) // found folder handle
+                : mPendingFiles.emplace_back(std::make_pair(localPath, newNodeHandle));     // temp handle
+        }
+        else if (dirEntryType == FOLDERNODE)
+        {
+            // if folder exists, call scanFolderNode with parent handle as new target for each child
+            (folderExists)
+                ? scanFolder(folder->nodehandle, folder->nodehandle, localPath, localname.toName(*client->fsaccess, fsType))
+                : scanFolder(targetHandle, newNodeHandle, localPath, localname.toName(*client->fsaccess, fsType));
+        }
+    }
+    recursive--;
+}
+
+void MegaFolderUploadController::createFolder()
+{
+    if (mFolderStructure.empty())
+    {
+        // if all folder structure already exists in cloud drive, only add transfers
+        startFileUploads();
+        checkCompletion();
+        return;
+    }
+
+    for (auto it = mFolderStructure.begin(); it != mFolderStructure.end(); it++)
+    {
+        assert(it->second.size());
+        handle targetHandle = it->first;
+        vector<NewNode> &newnodes = it->second;
+        client->putnodes(targetHandle, move(newnodes), "NULL", [this](const Error& e, targettype_t t, vector<NewNode>& nn)
+        {
+            // lambda function that will be executed as completion function in putnodes procresult
+            mLastError = e;
+            mPendingFolders -= nn.size();
+
+            if (!e)
+            {
+                startFileUploads();
+            }
+            else
+            {
+                mIncompleteTransfers++;
+            }
+            checkCompletion();
+        });
+    }
+}
+
+void MegaFolderUploadController::startFileUploads()
+{
+    auto itFiles = mPendingFiles.begin();
+    while (itFiles != mPendingFiles.end())
+    {
+       handle parentHandle = itFiles->second;
+       auto it = client->mTempHandleToNodeHandle.find(parentHandle);
+       unique_ptr <MegaNode> parentNode((it != client->mTempHandleToNodeHandle.end())
+               ? megaApi->getNodeByHandle(it->second)     // new node has been created, so we need to retrieve it's handle
+               : megaApi->getNodeByHandle(parentHandle)); // node already existed, so get it's handle from mPendingFiles
+
+       if (parentNode != nullptr)
+       {
+            pendingTransfers++;
+            const LocalPath &localpath = itFiles->first;
+            FileSystemType fsType = client->fsaccess->getlocalfstype(localpath);
+            megaApi->startUpload(false, localpath.toPath(*client->fsaccess).c_str(), parentNode.get(), (const char *)NULL, -1, tag, false, NULL, false, false, fsType, this);
+            itFiles = mPendingFiles.erase(itFiles);
+       }
+       else
+       {
+           ++itFiles;
+       }
+    }
+}
+
+void MegaFolderUploadController::checkCompletion()
+{
+    if (!cancelled && !recursive && !pendingTransfers && !mPendingFolders)
+    {
+        LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
+        mFolderStructure.clear();
+        mPendingFiles.clear();
+        transfer->setState(MegaTransfer::STATE_COMPLETED);
+        transfer->setLastError(&mLastError);
+        DBTableTransactionCommitter committer(client->tctable);
+        megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(!mIncompleteTransfers ? API_OK : API_EINCOMPLETE), committer);
+    }
+}
+
+handle MegaFolderUploadController::addNewNodeToVector(handle targetHandle, handle parentHandle, const char * folderName)
+{
+    handle newNodeHandle;
+    NewNode newnode;
+    SymmCipher key;
+    string attrstring;
+    byte buf[FOLDERNODEKEYLENGTH];
+
+    // set up new node as folder node
+    newnode.source = NEW_NODE;
+    newnode.type = FOLDERNODE;
+    newnode.nodehandle = 0;
+    newnode.parenthandle = UNDEF;
+
+    // generate fresh random key for this folder node
+    client->rng.genblock(buf,FOLDERNODEKEYLENGTH);
+    newnode.nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
+    key.setkey(buf);
+
+    // generate fresh attribute object with the folder name
+    AttrMap attrs;
+    string sname = folderName;
+    client->fsaccess->normalize(&sname);
+    attrs.map['n'] = sname;
+
+    // JSON-encode object and encrypt attribute string
+    attrs.getjson(&attrstring);
+    newnode.attrstring.reset(new string);
+    client->makeattr(&key, newnode.attrstring, attrstring.c_str());
+
+    // set nodeHandle
+    newnode.nodehandle = newNodeHandle = client->nextUploadId();
+
+    // set parent handle if different from target handle of the subtree
+    newnode.parenthandle = (targetHandle != parentHandle)
+            ? parentHandle
+            : UNDEF;
+
+    // add node to vector of new nodes in mFolderStructure map, for the target handle
+    // if not exists a node vector for the target handle in map, this sentence create it
+    vector<NewNode> &newNodesVector = mFolderStructure[targetHandle];
+    newNodesVector.emplace_back(std::move(newnode));
+    mPendingFolders++;
+    return newNodeHandle;
 }
 
 MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char* filename, bool attendPastBackups, const char *speriod, int64_t period, int maxBackups)
