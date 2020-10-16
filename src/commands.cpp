@@ -8224,12 +8224,12 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupTy
         arg("d", deviceId);
     }
 
-    if (state > 0)
+    if (state >= 0)
     {
         arg("s", state);
     }
 
-    if (subState > 0)
+    if (subState >= 0)
     {
         arg("ss", subState);
     }
