@@ -22878,12 +22878,12 @@ void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle t
         request->setName(deviceId);
     }
 
-    if (state > 0)
+    if (state >= 0)
     {
         request->setAccess(state);
     }
 
-    if (subState > 0)
+    if (subState >= 0)
     {
         request->setNumDetails(subState);
     }
