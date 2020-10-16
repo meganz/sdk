@@ -402,6 +402,16 @@ int MegaNode::getDuration()
     return -1;
 }
 
+bool MegaNode::isFavourite()
+{
+    return false;
+}
+
+int MegaNode::getLabel()
+{
+    return 0;
+}
+
 int MegaNode::getWidth()
 {
     return -1;
@@ -1026,6 +1036,11 @@ const MegaPushNotificationSettings *MegaRequest::getMegaPushNotificationSettings
 MegaBackgroundMediaUpload* MegaRequest::getMegaBackgroundMediaUploadPtr() const
 {
     return NULL;
+}
+
+MegaBannerList* MegaRequest::getMegaBannerList() const
+{
+    return nullptr;
 }
 
 MegaTransfer::~MegaTransfer() { }
@@ -1753,7 +1768,12 @@ void MegaApi::setPSA(int id, MegaRequestListener *listener)
 
 void MegaApi::getPSA(MegaRequestListener *listener)
 {
-    pImpl->getPSA(listener);
+    pImpl->getPSA(false, listener);
+}
+
+void MegaApi::getPSAWithUrl(MegaRequestListener *listener)
+{
+    pImpl->getPSA(true, listener);
 }
 
 void MegaApi::acknowledgeUserAlerts(MegaRequestListener *listener)
@@ -2480,6 +2500,21 @@ void MegaApi::setCustomNodeAttribute(MegaNode *node, const char *attrName, const
 void MegaApi::setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener)
 {
     pImpl->setNodeDuration(node, secs, listener);
+}
+
+void MegaApi::setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener)
+{
+    pImpl->setNodeLabel(node, label, listener);
+}
+
+void MegaApi::resetNodeLabel(MegaNode *node, MegaRequestListener *listener)
+{
+    pImpl->setNodeLabel(node, MegaNode::NODE_LBL_UNKNOWN, listener);
+}
+
+void MegaApi::setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener)
+{
+    pImpl->setNodeFavourite(node, fav, listener);
 }
 
 void MegaApi::setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener)
@@ -5264,6 +5299,16 @@ void MegaApi::setOriginalFingerprint(MegaNode* node, const char* originalFingerp
     return pImpl->setOriginalFingerprint(node, originalFingerprint, listener);
 }
 
+void MegaApi::getBanners(MegaRequestListener *listener)
+{
+    pImpl->getBanners(listener);
+}
+
+void MegaApi::dismissBanner(int id, MegaRequestListener *listener)
+{
+    pImpl->dismissBanner(id, listener);
+}
+
 void MegaApi::setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener)
 {
     pImpl->setBackup(backupType, targetNode, localFolder, backupName, state, subState, extraData, listener);
@@ -6896,6 +6941,79 @@ int64_t MegaIntegerList::get(int /*i*/) const
 }
 
 int MegaIntegerList::size() const
+{
+    return 0;
+}
+
+
+MegaBanner::MegaBanner()
+{
+}
+
+MegaBanner::~MegaBanner()
+{
+}
+
+MegaBanner* MegaBanner::copy() const
+{
+    return nullptr;
+}
+
+int MegaBanner::getId() const
+{
+    return 0;
+}
+
+const char* MegaBanner::getTitle() const
+{
+    return nullptr;
+}
+
+const char* MegaBanner::getDescription() const
+{
+    return nullptr;
+}
+
+const char* MegaBanner::getImage() const
+{
+    return nullptr;
+}
+
+const char* MegaBanner::getUrl() const
+{
+    return nullptr;
+}
+
+const char* MegaBanner::getBackgroundImage() const
+{
+    return nullptr;
+}
+
+const char* MegaBanner::getImageLocation() const
+{
+    return nullptr;
+}
+
+
+MegaBannerList::MegaBannerList()
+{
+}
+
+MegaBannerList::~MegaBannerList()
+{
+}
+
+MegaBannerList* MegaBannerList::copy() const
+{
+    return nullptr;
+}
+
+const MegaBanner* MegaBannerList::get(int i) const
+{
+    return nullptr;
+}
+
+int MegaBannerList::size() const
 {
     return 0;
 }

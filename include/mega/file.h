@@ -62,6 +62,9 @@ struct MEGA_API File: public FileFingerprint
     // source/target node handle
     handle h;
 
+    // previous node, if any
+    Node *previousNode = nullptr;
+
     struct
     {
         // source handle private?

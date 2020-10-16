@@ -887,14 +887,10 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     }
 
     // wait for logins to complete:
-    bool anyLoginFailed = false;
     for (unsigned index = 0; index < howMany; ++index)
     {
-        auto loginResult = trackers[index]->waitForResult();
-        EXPECT_EQ(API_OK, loginResult) << " Failed to establish a login/session for accout " << index;
-        if (loginResult != API_OK) anyLoginFailed = true;
+        ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to establish a login/session for accout " << index;
     }
-    ASSERT_FALSE(anyLoginFailed);
 
     // perform parallel fetchnodes for each
     for (unsigned index = 0; index < howMany; ++index)
@@ -904,14 +900,10 @@ void SdkTest::getAccountsForTest(unsigned howMany)
     }
 
     // wait for fetchnodes to complete:
-    bool anyFetchnodesFailed = false;
     for (unsigned index = 0; index < howMany; ++index)
     {
-        auto fetchnodesResult = trackers[index]->waitForResult();
-        EXPECT_EQ(API_OK, fetchnodesResult) << " Failed to fetchnodes for accout " << index;
-        anyFetchnodesFailed = anyFetchnodesFailed || (fetchnodesResult != API_OK);
+        ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to fetchnodes for accout " << index;
     }
-    ASSERT_FALSE(anyFetchnodesFailed);
 
     // In case the last test exited without cleaning up (eg, debugging etc)
     out() << logTime() << "Cleaning up account 0" << endl;
@@ -1133,7 +1125,7 @@ void SdkTest::getUserAttribute(MegaUser *u, int type, int timeout, int apiIndex)
  */
 TEST_F(SdkTest, DISABLED_SdkTestCreateAccount)
 {
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     string email1 = "user@domain.com";
     string pwd = "pwd";
@@ -1185,7 +1177,7 @@ bool veryclose(double a, double b)
 TEST_F(SdkTest, SdkTestNodeAttributes)
 {
     LOG_info << "___TEST Node attributes___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
 
@@ -1408,7 +1400,7 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
 TEST_F(SdkTest, SdkTestExerciseOtherCommands)
 {
     LOG_info << "___TEST SdkTestExerciseOtherCommands___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     /*bool HttpReqCommandPutFA::procresult(Result r)
     bool CommandGetFA::procresult(Result r)
@@ -1505,7 +1497,7 @@ TEST_F(SdkTest, SdkTestExerciseOtherCommands)
 TEST_F(SdkTest, SdkTestResumeSession)
 {
     LOG_info << "___TEST Resume session___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     unique_ptr<char[]> session(dumpSession());
 
@@ -1534,7 +1526,7 @@ TEST_F(SdkTest, SdkTestResumeSession)
 TEST_F(SdkTest, SdkTestNodeOperations)
 {
     LOG_info <<  "___TEST Node operations___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     // --- Create a new folder ---
 
@@ -1668,7 +1660,7 @@ TEST_F(SdkTest, SdkTestNodeOperations)
 TEST_F(SdkTest, SdkTestTransfers)
 {
     LOG_info << "___TEST Transfers___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     LOG_info << cwd();
 
@@ -1727,6 +1719,34 @@ TEST_F(SdkTest, SdkTestTransfers)
     ASSERT_FALSE(null_pointer) << "Cannot upload file (error: " << mApi[0].lastError << ")";
     ASSERT_STREQ(filename1.data(), n1->getName()) << "Uploaded file with wrong name (error: " << mApi[0].lastError << ")";
 
+
+    ASSERT_EQ(API_OK, doSetFileVersionsOption(0, false));  // false = not disabled
+
+    // Upload a file over an existing one to make a version
+    {
+        ofstream f(filename1);
+        f << "edited";
+    }
+
+    ASSERT_EQ(API_OK, doStartUpload(0, filename1.c_str(), rootnode));
+
+    // Upload a file over an existing one to make a version
+    {
+        ofstream f(filename1);
+        f << "edited2";
+    }
+
+    ASSERT_EQ(API_OK, doStartUpload(0, filename1.c_str(), rootnode));
+
+    // copy a node with versions to a new name (exercises the multi node putndoes_result)
+    MegaNode* nodeToCopy1 = megaApi[0]->getNodeByPath(("/" + filename1).c_str());
+    ASSERT_EQ(API_OK, doCopyNode(0, nodeToCopy1, rootnode, "some_other_name"));
+
+    // put original filename1 back
+    fs::remove(filename1);
+    createFile(filename1);
+    ASSERT_EQ(API_OK, doStartUpload(0, filename1.c_str(), rootnode));
+    n1 = megaApi[0]->getNodeByPath(("/" + filename1).c_str());
 
     // --- Get node by fingerprint (needs to be a file, not a folder) ---
 
@@ -1834,7 +1854,7 @@ TEST_F(SdkTest, SdkTestTransfers)
 TEST_F(SdkTest, SdkTestContacts)
 {
     LOG_info << "___TEST Contacts___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
 
     // --- Check my email and the email of the contact ---
@@ -2191,7 +2211,7 @@ bool SdkTest::checkAlert(int apiIndex, const string& title, handle h, int n)
 TEST_F(SdkTest, SdkTestShares)
 {
     LOG_info << "___TEST Shares___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     MegaShareList *sl;
     MegaShare *s;
@@ -2495,7 +2515,7 @@ TEST_F(SdkTest, SdkTestShares)
 TEST_F(SdkTest, SdkTestShareKeys)
 {
     LOG_info << "___TEST ShareKeys___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(3));
+    getAccountsForTest(3);
 
     // Three user scenario, with nested shares and new nodes created that need keys to be shared to the other users.
     // User A creates folder and shares it with user B
@@ -2589,7 +2609,7 @@ LocalPath fspathToLocal(const fs::path& p, FSACCESS_CLASS& fsa)
 
 TEST_F(SdkTest, SdkTestFolderIteration)
 {
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     for (int testcombination = 0; testcombination < 2; testcombination++)
     {
@@ -2871,7 +2891,7 @@ bool cmp(const autocomplete::CompletionState& c, std::vector<std::string>& s)
 
 TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 {
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
     using namespace autocomplete;
 
     {
@@ -3501,7 +3521,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
 TEST_F(SdkTest, SdkTestChat)
 {
     LOG_info << "___TEST Chat___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     // --- Send a new contact request ---
 
@@ -3645,7 +3665,7 @@ public:
 TEST_F(SdkTest, SdkTestFingerprint)
 {
     LOG_info << "___TEST fingerprint stream/file___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     int filesizes[] = { 10, 100, 1000, 10000, 100000, 10000000 };
     string expected[] = {
@@ -3852,7 +3872,7 @@ namespace mega
 TEST_F(SdkTest, SdkTestCloudraidTransfers)
 {
     LOG_info << "___TEST Cloudraid transfers___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -3990,7 +4010,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
 TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 {
     LOG_info << "___TEST Cloudraid transfers___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -4045,7 +4065,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithConnectionFailures)
 TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 {
     LOG_info << "___TEST Cloudraid transfers___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -4097,7 +4117,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
 TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 {
     LOG_info << "___TEST SdkTestOverquotaNonCloudraid";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -4170,7 +4190,7 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 TEST_F(SdkTest, SdkTestOverquotaCloudraid)
 {
     LOG_info << "___TEST SdkTestOverquotaCloudraid";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
@@ -4334,7 +4354,7 @@ CheckStreamedFile_MegaTransferListener* StreamRaidFilePart(MegaApi* megaApi, m_o
 TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 {
     LOG_info << "___TEST SdkCloudraidStreamingSoakTest";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
@@ -4489,7 +4509,7 @@ TEST_F(SdkTest, SdkCloudraidStreamingSoakTest)
 TEST_F(SdkTest, SdkRecentsTest)
 {
     LOG_info << "___TEST SdkRecentsTest___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     MegaNode *rootnode = megaApi[0]->getRootNode();
 
@@ -4552,7 +4572,7 @@ TEST_F(SdkTest, SdkRecentsTest)
 TEST_F(SdkTest, SdkMediaUploadRequestURL)
 {
     LOG_info << "___TEST MediaUploadRequestURL___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    getAccountsForTest(1);
 
     // Create a "media upload" instance
     int apiIndex = 0;
@@ -4569,9 +4589,18 @@ TEST_F(SdkTest, SdkMediaUploadRequestURL)
     ASSERT_NE(0, *url.get()) << "Got empty media upload URL";
 }
 
+TEST_F(SdkTest, SdkGetBanners)
+{
+    getAccountsForTest(1);
+    LOG_info << "___TEST GetBanners___";
+
+    auto err = synchronousGetBanners(0);
+    ASSERT_TRUE(err == MegaError::API_OK || err == MegaError::API_ENOENT) << "Get banners failed (error: " << err << ")";
+}
+
 TEST_F(SdkTest, SdkSimpleCommands)
 {
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    getAccountsForTest(1);
     LOG_info << "___TEST SimpleCommands___";
 
     // fetchTimeZone() test
@@ -4579,7 +4608,13 @@ TEST_F(SdkTest, SdkSimpleCommands)
     ASSERT_EQ(MegaError::API_OK, err) << "Fetch time zone failed (error: " << err << ")";
     ASSERT_TRUE(mApi[0].tzDetails && mApi[0].tzDetails->getNumTimeZones()) << "Invalid Time Zone details"; // some simple validation
 
+    // getMiscFlags() -- not logged in
+    logout(0);
+    err = synchronousGetMiscFlags(0);
+    ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
+
     // getUserEmail() test
+    getAccountsForTest(1);
     std::unique_ptr<MegaUser> user(megaApi[0]->getMyUser());
     ASSERT_TRUE(!!user); // some simple validation
 
@@ -4613,12 +4648,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
     }
 
     err = synchronousKillSession(0, INVALID_HANDLE);
-    ASSERT_EQ(MegaError::API_ESID, err) << "Kill session for unknown sessions shoud fail with API_ESID (error: " << err << ")";
-
-    // getMiscFlags() -- not logged in
-    logout(0);
-    err = synchronousGetMiscFlags(0);
-    ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
+    ASSERT_EQ(MegaError::API_ESID, err) << "Kill session for unknown seesions shoud fail with API_ESID (error: " << err << ")";
 }
 
 TEST_F(SdkTest, SdkHeartbeatCommands)
@@ -4690,7 +4720,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
 {
     LOG_info << "___TEST SdkGetCountryCallingCodes___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     getCountryCallingCodes();
     ASSERT_NE(nullptr, stringListMap);
@@ -4709,7 +4739,7 @@ TEST_F(SdkTest, SdkGetCountryCallingCodes)
 TEST_F(SdkTest, SdkGetRegisteredContacts)
 {
     LOG_info << "___TEST SdkGetRegisteredContacts___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     const std::string js1 = "+0000000010";
     const std::string js2 = "+0000000011";
@@ -4751,7 +4781,7 @@ TEST_F(SdkTest, SdkGetRegisteredContacts)
 TEST_F(SdkTest, DISABLED_invalidFileNames)
 {
     LOG_info << "___TEST invalidFileNames___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     FSACCESS_CLASS fsa;
     auto aux = LocalPath::fromPath(fs::current_path().u8string(), fsa);
@@ -4938,7 +4968,7 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
 TEST_F(SdkTest, RecursiveUploadWithLogout)
 {
     LOG_info << "___TEST RecursiveUploadWithLogout___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     // this one used to cause a double-delete
 
@@ -4969,7 +4999,7 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
 TEST_F(SdkTest, DISABLED_RecursiveDownloadWithLogout)
 {
     LOG_info << "___TEST RecursiveDownloadWithLogout";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     // this one used to cause a double-delete
 
@@ -5013,7 +5043,7 @@ TEST_F(SdkTest, DISABLED_RecursiveDownloadWithLogout)
 TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 {
     LOG_info << "___TEST SyncResumptionAfterFetchNodes___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(2);
 
     // This test has several issues:
     // 1. Remote nodes may not be committed to the sctable database in time for fetchnodes which

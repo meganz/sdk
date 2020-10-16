@@ -111,6 +111,8 @@ public class MegaApiJava {
 
     public final static int NODE_ATTR_DURATION = MegaApi.NODE_ATTR_DURATION;
     public final static int NODE_ATTR_COORDINATES = MegaApi.NODE_ATTR_COORDINATES;
+    public final static int NODE_ATTR_LABEL = MegaApi.NODE_ATTR_LABEL;
+    public final static int NODE_ATTR_FAV = MegaApi.NODE_ATTR_FAV;
 
     public final static int PAYMENT_METHOD_BALANCE = MegaApi.PAYMENT_METHOD_BALANCE;
     public final static int PAYMENT_METHOD_PAYPAL = MegaApi.PAYMENT_METHOD_PAYPAL;
@@ -185,6 +187,10 @@ public class MegaApiJava {
     public final static int ORDER_VIDEO_DESC = MegaApi.ORDER_VIDEO_DESC;
     public final static int ORDER_LINK_CREATION_ASC = MegaApi.ORDER_LINK_CREATION_ASC;
     public final static int ORDER_LINK_CREATION_DESC = MegaApi.ORDER_LINK_CREATION_DESC;
+    public final static int ORDER_LABEL_ASC = MegaApi.ORDER_LABEL_ASC;
+    public final static int ORDER_LABEL_DESC = MegaApi.ORDER_LABEL_DESC;
+    public final static int ORDER_FAV_ASC = MegaApi.ORDER_FAV_ASC;
+    public final static int ORDER_FAV_DESC = MegaApi.ORDER_FAV_DESC;
 
     public final static int TCP_SERVER_DENY_ALL = MegaApi.TCP_SERVER_DENY_ALL;
     public final static int TCP_SERVER_ALLOW_ALL = MegaApi.TCP_SERVER_ALLOW_ALL;
@@ -2090,8 +2096,9 @@ public class MegaApiJava {
      * - MegaRequest::getName - Returns the title of the PSA
      * - MegaRequest::getText - Returns the text of the PSA
      * - MegaRequest::getFile - Returns the URL of the image of the PSA
-     * - MegaRequest::getPassword - Returns the text for the possitive button (or an empty string)
-     * - MegaRequest::getLink - Returns the link for the possitive button (or an empty string)
+     * - MegaRequest::getPassword - Returns the text for the positive button (or an empty string)
+     * - MegaRequest::getLink - Returns the link for the positive button (or an empty string)
+     * - MegaRequest::getEmail - Returns the url that app need to open with in-app browser
      *
      * If there isn't any new PSA to show, onRequestFinish will be called with the error
      * code MegaError::API_ENOENT
@@ -2099,7 +2106,7 @@ public class MegaApiJava {
      * @param listener MegaRequestListener to track this request
      * @see MegaApi::setPSA
      */
-    void getPSA(MegaRequestListenerInterface listener){
+    public void getPSA(MegaRequestListenerInterface listener){
         megaApi.getPSA(createDelegateRequestListener(listener));
     }
 
@@ -2126,7 +2133,7 @@ public class MegaApiJava {
      *
      * @see MegaApi::setPSA
      */
-    void getPSA(){
+    public void getPSA(){
         megaApi.getPSA();
     }
 
@@ -2144,7 +2151,7 @@ public class MegaApiJava {
      *
      * @see MegaApi::getPSA
      */
-    void setPSA(int id, MegaRequestListenerInterface listener){
+    public void setPSA(int id, MegaRequestListenerInterface listener){
         megaApi.setPSA(id, createDelegateRequestListener(listener));
     }
 
@@ -2161,7 +2168,7 @@ public class MegaApiJava {
      *
      * @see MegaApi::getPSA
      */
-    void setPSA(int id){
+    public void setPSA(int id){
         megaApi.setPSA(id);
     }
 
@@ -4168,6 +4175,125 @@ public class MegaApiJava {
      */
     public void setNodeCoordinates(MegaNode node, double latitude, double longitude,  MegaRequestListenerInterface listener){
         megaApi.setNodeCoordinates(node, latitude, longitude, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set node label as a node attribute.
+     * Valid values for label attribute are:
+     *  - MegaNode::NODE_LBL_UNKNOWN = 0
+     *  - MegaNode::NODE_LBL_RED = 1
+     *  - MegaNode::NODE_LBL_ORANGE = 2
+     *  - MegaNode::NODE_LBL_YELLOW = 3
+     *  - MegaNode::NODE_LBL_GREEN = 4
+     *  - MegaNode::NODE_LBL_BLUE = 5
+     *  - MegaNode::NODE_LBL_PURPLE = 6
+     *  - MegaNode::NODE_LBL_GREY = 7
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumDetails - Returns the label for the node
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_LABEL
+     *
+     * @param node Node that will receive the information.
+     * @param label Label of the node
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setNodeLabel(MegaNode node, int label, MegaRequestListenerInterface listener){
+        megaApi.setNodeLabel(node, label, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set node label as a node attribute.
+     * Valid values for label attribute are:
+     *  - MegaNode::NODE_LBL_UNKNOWN = 0
+     *  - MegaNode::NODE_LBL_RED = 1
+     *  - MegaNode::NODE_LBL_ORANGE = 2
+     *  - MegaNode::NODE_LBL_YELLOW = 3
+     *  - MegaNode::NODE_LBL_GREEN = 4
+     *  - MegaNode::NODE_LBL_BLUE = 5
+     *  - MegaNode::NODE_LBL_PURPLE = 6
+     *  - MegaNode::NODE_LBL_GREY = 7
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumDetails - Returns the label for the node
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_LABEL
+     *
+     * @param node Node that will receive the information.
+     * @param label Label of the node
+     */
+    public void setNodeLabel(MegaNode node, int label){
+        megaApi.setNodeLabel(node, label);
+    }
+
+    /**
+     * Remove node label
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_LABEL
+     *
+     * @param node Node that will receive the information.
+     * @param listener MegaRequestListener to track this request
+     */
+    public void resetNodeLabel(MegaNode node, MegaRequestListenerInterface listener){
+        megaApi.resetNodeLabel(node, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Remove node label
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_LABEL
+     *
+     * @param node Node that will receive the information.
+     */
+    public void resetNodeLabel(MegaNode node){
+        megaApi.resetNodeLabel(node);
+    }
+
+    /**
+     * Set node favourite as a node attribute.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumDetails - Returns 1 if node is set as favourite, otherwise return 0
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_FAV
+     *
+     * @param node Node that will receive the information.
+     * @param favourite if true set node as favourite, otherwise remove the attribute
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setNodeFavourite(MegaNode node, boolean favourite, MegaRequestListenerInterface listener){
+        megaApi.setNodeFavourite(node, favourite, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set node favourite as a node attribute.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumDetails - Returns 1 if node is set as favourite, otherwise return 0
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_FAV
+     *
+     * @param node Node that will receive the information.
+     * @param favourite if true set node as favourite, otherwise remove the attribute
+     */
+    public void setNodeFavourite(MegaNode node, boolean favourite){
+        megaApi.setNodeFavourite(node, favourite);
     }
 
     /**
@@ -9443,6 +9569,62 @@ public class MegaApiJava {
      */
     public void getPublicLinkInformation(String megaFolderLink) {
         megaApi.getPublicLinkInformation(megaFolderLink);
+    }
+
+    /**
+     * Requests a list of all Smart Banners available for current user.
+     *
+     * The response value is stored as a MegaBannerList.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_BANNERS
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaBannerList: the list of banners
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EACCESS - If called with no user being logged in.
+     * - MegaError::API_EINTERNAL - If the internally used user attribute exists but can't be decoded.
+     * - MegaError::API_ENOENT if there are no banners to return to the user.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getBanners(MegaRequestListenerInterface listener) {
+        megaApi.getBanners(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Requests a list of all Smart Banners available for current user.
+     *
+     * The response value is stored as a MegaBannerList.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_BANNERS
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaBannerList: the list of banners
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EACCESS - If called with no user being logged in.
+     * - MegaError::API_EINTERNAL - If the internally used user attribute exists but can't be decoded.
+     * - MegaError::API_ENOENT if there are no banners to return to the user.
+     */
+    public void getBanners() {
+        megaApi.getBanners();
+    }
+
+    /**
+     * No longer show the Smart Banner with the specified id to the current user.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void dismissBanner(int id, MegaRequestListenerInterface listener) {
+        megaApi.dismissBanner(id, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * No longer show the Smart Banner with the specified id to the current user.
+     */
+    public void dismissBanner(int id) {
+        megaApi.dismissBanner(id);
     }
     
     /****************************************************************************************************/
