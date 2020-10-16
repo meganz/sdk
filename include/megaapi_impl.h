@@ -1623,7 +1623,7 @@ private:
 class MegaBannerListPrivate : public MegaBannerList
 {
 public:
-    MegaBannerList* copy() const override;
+    MegaBannerListPrivate* copy() const override; // "different" return type is Covariant
     const MegaBanner* get(int i) const override;
     int size() const override;
     void add(MegaBannerPrivate&&);

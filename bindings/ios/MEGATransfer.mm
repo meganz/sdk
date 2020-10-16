@@ -20,6 +20,7 @@
  */
 #import "MEGATransfer.h"
 #import "MEGANode+init.h"
+#import "MEGAError+init.h"
 
 using namespace mega;
 
@@ -143,6 +144,11 @@ using namespace mega;
 
 - (BOOL)isStreamingTransfer {
     return self.megaTransfer ? (BOOL) self.megaTransfer->isStreamingTransfer() : NO;
+}
+
+- (MEGAError *)lastErrorExtended {
+    mega::MegaError *e = (mega::MegaError *)self.megaTransfer->getLastErrorExtended();
+    return e ? [[MEGAError alloc] initWithMegaError:e cMemoryOwn:NO] : nil;
 }
 
 - (BOOL)isFolderTransfer {
