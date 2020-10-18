@@ -567,15 +567,14 @@ void SyncFileGet::updatelocalname()
 // add corresponding LocalNode (by path), then self-destruct
 void SyncFileGet::completed(Transfer*, LocalNode* )
 {
-    if (localNode.parent)
-    {
-        localNode.parent->setScanAgain(true, false);
-    }
+    localNode.setScanAgain(true, false, false);
+    LOG_debug << "clearing downlaod for " << &localNode << " on completed";
     localNode.download.reset(); // deletes this;
 }
 
 void SyncFileGet::terminated()
 {
+    LOG_debug << "clearing download for " << &localNode << " on terminated";
     localNode.download.reset(); // deletes this;
 }
 #endif

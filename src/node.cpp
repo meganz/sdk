@@ -1295,7 +1295,7 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
         c->setnameparent(ln, &fullPath, sync->client->fsaccess->fsShortname(fullPath), false);
         if (setScanAgain)
         {
-            c->setScanAgain(true, true);
+            c->setScanAgain(false, true, true);
         }
     }
 
@@ -1322,14 +1322,20 @@ void LocalNode::bumpnagleds()
 LocalNode::LocalNode()
 : unstableFsidAssigned(false)
 , deletingCloud{false}
-, deletingFS{false}
+, deletedFS{false}
 , moveAppliedToCloud(false)
 , moveApplyingToCloud(false)
 , moveAppliedToLocal(false)
 , moveApplyingToLocal(false)
 , conflicts(TREE_RESOLVED)
 , scanAgain(TREE_RESOLVED)
+, checkMovesAgain(TREE_RESOLVED)
 , syncAgain(TREE_RESOLVED)
+, parentSetCheckMovesAgain(false)
+, parentSetSyncAgain(false)
+, parentSetScanAgain(false)
+, scanInProgress(false)
+, scanObsolete(false)
 , useBlocked(TREE_RESOLVED)
 , scanBlocked(TREE_RESOLVED)
 {}
@@ -1342,14 +1348,20 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     notseen = 0;
     unstableFsidAssigned = false;
     deletingCloud = false;
-    deletingFS = false;
+    deletedFS = false;
     moveAppliedToCloud = false;
     moveApplyingToCloud = false;
     moveAppliedToLocal = false;
     moveApplyingToLocal = false;
     conflicts = TREE_RESOLVED;
     scanAgain = TREE_RESOLVED;
+    checkMovesAgain = TREE_RESOLVED;
     syncAgain = TREE_RESOLVED;
+    parentSetCheckMovesAgain = false;
+    parentSetSyncAgain = false;
+    parentSetScanAgain = false;
+    scanInProgress = false;
+    scanObsolete = false;
     useBlocked = TREE_RESOLVED;
     scanBlocked = TREE_RESOLVED;
     newnode.reset();
@@ -1464,8 +1476,13 @@ auto LocalNode::rare() -> RareFields&
     return *rareFields;
 }
 
-void LocalNode::setScanAgain(bool doHere, bool doBelow)
+void LocalNode::setScanAgain(bool doParent, bool doHere, bool doBelow)
 {
+    if (doHere)
+    {
+        scanObsolete = true;
+    }
+
     unsigned state = (doHere?1u:0u) << 1 | (doBelow?1u:0u);
 
     scanAgain = std::max<unsigned>(scanAgain, state);
@@ -1473,9 +1490,18 @@ void LocalNode::setScanAgain(bool doHere, bool doBelow)
     {
         p->scanAgain = std::max<unsigned>(p->scanAgain, TREE_DESCENDANT_FLAGGED);
     }
+
+    // for scanning, we only need to set the parent once
+    if (parent && doParent)
+    {
+        parent->scanAgain = std::max<unsigned>(parent->scanAgain, TREE_ACTION_HERE);
+        doParent = false;
+        parentSetScanAgain = false;
+    }
+    parentSetScanAgain = parentSetScanAgain || doParent;
 }
 
-void LocalNode::setCheckMovesAgain(bool doHere, bool doBelow)
+void LocalNode::setCheckMovesAgain(bool doParent, bool doHere, bool doBelow)
 {
     unsigned state = (doHere?1u:0u) << 1 | (doBelow?1u:0u);
 
@@ -1484,9 +1510,11 @@ void LocalNode::setCheckMovesAgain(bool doHere, bool doBelow)
     {
         p->checkMovesAgain = std::max<unsigned>(p->checkMovesAgain, TREE_DESCENDANT_FLAGGED);
     }
+
+    parentSetCheckMovesAgain = parentSetCheckMovesAgain || doParent;
 }
 
-void LocalNode::setSyncAgain(bool doHere, bool doBelow)
+void LocalNode::setSyncAgain(bool doParent, bool doHere, bool doBelow)
 {
     unsigned state = (doHere?1u:0u) << 1 | (doBelow?1u:0u);
 
@@ -1495,6 +1523,8 @@ void LocalNode::setSyncAgain(bool doHere, bool doBelow)
     {
         p->syncAgain = std::max<unsigned>(p->syncAgain, TREE_DESCENDANT_FLAGGED);
     }
+
+    parentSetSyncAgain = parentSetSyncAgain || doParent;
 }
 
 void LocalNode::setUseBlocked()
@@ -1544,7 +1574,7 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
         if (rare().scanBlockedTimer->armed())
         {
             LOG_verbose << "Scan blocked timer elapsed, trigger parent rescan: "  << localnodedisplaypath(*sync->client->fsaccess);;
-            if (parent) parent->setScanAgain(true, false);
+            if (parent) parent->setScanAgain(false, true, false);
             rare().scanBlockedTimer->backoff(); // wait increases exponentially
             return true;
         }

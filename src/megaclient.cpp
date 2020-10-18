@@ -2316,19 +2316,19 @@ void MegaClient::exec()
         }
         syncactivity = false;
 
-        if (scsn.stopped() || mBlocked || scpaused || !statecurrent || !allSyncsIdle())
-        {
-            LOG_verbose << " Megaclient exec is pending resolutions."
-                        << " scpaused=" << scpaused
-                        << " stopsc=" << scsn.stopped()
-                        << " mBlocked=" << mBlocked
-                        << " jsonsc.pos=" << (jsonsc.pos ? "not null" : "null")  // could be many MB
-                        << " allSyncsIdle=" << allSyncsIdle()
-                        << " statecurrent=" << statecurrent
-                        << " syncadding=" << syncadding
-                        << " syncactivity=" << syncactivity
-                        << " isAnySyncSyncing=" << isAnySyncSyncing();
-        }
+        //if (scsn.stopped() || mBlocked || scpaused || !statecurrent || !allSyncsIdle())
+        //{
+        //    LOG_verbose << " Megaclient exec is pending resolutions."
+        //                << " scpaused=" << scpaused
+        //                << " stopsc=" << scsn.stopped()
+        //                << " mBlocked=" << mBlocked
+        //                << " jsonsc.pos=" << (jsonsc.pos ? "not null" : "null")  // could be many MB
+        //                << " allSyncsIdle=" << allSyncsIdle()
+        //                << " statecurrent=" << statecurrent
+        //                << " syncadding=" << syncadding
+        //                << " syncactivity=" << syncactivity
+        //                << " isAnySyncSyncing=" << isAnySyncSyncing();
+        //}
 #endif
 
         if (!scpaused && jsonsc.pos)
@@ -2930,11 +2930,11 @@ void MegaClient::exec()
             // We must have statecurrent so that any LocalNode created can straight away indicate if it matched a Node
             if (statecurrent && isAnySyncSyncing() && !tooSoon)
             {
-                // Flags across all syncs, referred to in recursiveSync().
-                // Start with them all false
+                // we need one pass with recursiveSync() after scanning is complete, to be sure there are no moves left.
+                auto scanningCompletePreviously = mSyncFlags.scanningWasComplete;
                 mSyncFlags = SyncFlags();
                 mSyncFlags.scanningWasComplete = !isAnySyncScanning();
-                mSyncFlags.movesWereComplete = !mightAnySyncsHaveMoves();
+                mSyncFlags.movesWereComplete = scanningCompletePreviously && !mightAnySyncsHaveMoves();
 
                 //for (int c = 2; c--;)
                 {
@@ -7589,18 +7589,6 @@ Node* MegaClient::sc_deltree()
                 }
         }
     }
-}
-
-void MegaClient::triggerSync(NodeHandle h)
-{
-#ifdef ENABLE_SYNC
-    auto range = localnodeByNodeHandle.equal_range(h);
-
-    for (auto it = range.first; it != range.second; ++it)
-    {
-        it->second->setSyncAgain(true, false);
-    }
-#endif
 }
 
 // generate handle authentication token

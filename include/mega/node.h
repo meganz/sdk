@@ -479,7 +479,7 @@ struct MEGA_API LocalNode : public Cacheable
 
         // disappeared from local FS; we are moving the cloud node to the trash.
         bool deletingCloud : 1;
-        bool deletingFS : 1;
+        bool deletedFS : 1;
 
         // we saw this node moved/renamed locally, cloud move is underway or complete
         bool moveApplyingToCloud : 1;
@@ -503,9 +503,21 @@ struct MEGA_API LocalNode : public Cacheable
         // needs another recursiveSync for scanning at this level after pending changes
         unsigned scanAgain : 2;    // TREESTATE
 
+        unsigned scanInProgress : 1;
+        unsigned scanObsolete : 1;
+
         // whether this file/folder is blocked - now we can have many at once
         unsigned useBlocked : 2;    // TREESTATE
         unsigned scanBlocked : 2;    // TREESTATE
+
+
+        // When recursing the tree, sometimes we need a node to set a flag in its parent
+        // but, on other runs we skip over some nodes (eg. syncHere flag false)
+        // however, we still need to compute the required flags for the parent node.
+        // these flags record what the node still needs its parent to do in case it's not visited
+        unsigned parentSetScanAgain : 1;
+        unsigned parentSetCheckMovesAgain : 1;
+        unsigned parentSetSyncAgain : 1;
 
     };
 
@@ -525,9 +537,9 @@ public:
     dstime lastScanTime = 0;
 
     // set the syncupTargetedAction for this, and parents
-    void setScanAgain(bool doHere, bool doBelow);
-    void setCheckMovesAgain(bool doHere, bool doBelow);
-    void setSyncAgain(bool doHere, bool doBelow);
+    void setScanAgain(bool doParent, bool doHere, bool doBelow);
+    void setCheckMovesAgain(bool doParent, bool doHere, bool doBelow);
+    void setSyncAgain(bool doParent, bool doHere, bool doBelow);
 
     void setUseBlocked();
     void setScanBlocked();
