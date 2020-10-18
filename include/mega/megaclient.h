@@ -219,12 +219,10 @@ class SyncdownContext
 public:
     SyncdownContext()
       : mActionsPerformed(false)
-      , mRubbish(false)
     {
     }
 
     bool mActionsPerformed;
-    bool mRubbish;
 }; // SyncdownContext
 
 class MEGA_API MegaClient
@@ -1501,7 +1499,7 @@ public:
 
     // start downloading/copy missing files, create missing directories
     bool syncdown(LocalNode*, LocalPath&, SyncdownContext& cxt);
-    bool syncdown(LocalNode*, LocalPath&, bool);
+    bool syncdown(LocalNode*, LocalPath&);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
     void movetosyncdebris(Node*, bool);

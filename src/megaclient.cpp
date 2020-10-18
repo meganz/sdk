@@ -3003,7 +3003,7 @@ void MegaClient::exec()
                             if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
                             {
                                 LOG_debug << "Running syncdown on demand";
-                                if (!syncdown(sync->localroot.get(), localpath, true))
+                                if (!syncdown(sync->localroot.get(), localpath))
                                 {
                                     // a local filesystem item was locked - schedule periodic retry
                                     // and force a full rescan afterwards as the local item may
@@ -13273,12 +13273,11 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
 // * attempt to execute renames, moves and deletions (deletions require the
 // rubbish flag to be set)
 // returns false if any local fs op failed transiently
-bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
+bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
 {
     SyncdownContext cxt;
 
     cxt.mActionsPerformed = false;
-    cxt.mRubbish = rubbish;
 
     if (!syncdown(l, localpath, cxt))
     {
@@ -13461,7 +13460,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
 
             lit++;
         }
-        else if (cxt.mRubbish && ll->deleted)    // no corresponding remote node: delete local item
+        else if (ll->deleted)    // no corresponding remote node: delete local item
         {
             if (ll->type == FILENODE)
             {
