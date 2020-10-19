@@ -202,12 +202,17 @@ public class MegaApiJava {
     public final static int HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = MegaApi.HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
     public final static int HTTP_SERVER_ALLOW_LAST_LOCAL_LINK = MegaApi.HTTP_SERVER_ALLOW_LAST_LOCAL_LINK;
 
-    public final static int TARGET_ROOTNODES = 3;
-    public final static int NODE_UNKNOWN = 0;
-    public final static int NODE_PHOTO = 1;
-    public final static int NODE_AUDIO = 2;
-    public final static int NODE_VIDEO = 3;
-    public final static int NODE_DOCUMENT = 4;
+    public final static int FILE_TYPE_DEFAULT = MegaApi.FILE_TYPE_DEFAULT;
+    public final static int FILE_TYPE_PHOTO = MegaApi.FILE_TYPE_PHOTO;
+    public final static int FILE_TYPE_AUDIO = MegaApi.FILE_TYPE_AUDIO;
+    public final static int FILE_TYPE_VIDEO = MegaApi.FILE_TYPE_VIDEO;
+    public final static int FILE_TYPE_DOCUMENT = MegaApi.FILE_TYPE_DOCUMENT;
+
+    public final static int SEARCH_TARGET_INSHARE = MegaApi.SEARCH_TARGET_INSHARE;
+    public final static int SEARCH_TARGET_OUTSHARE = MegaApi.SEARCH_TARGET_OUTSHARE;
+    public final static int SEARCH_TARGET_PUBLICLINK = MegaApi.SEARCH_TARGET_PUBLICLINK;
+    public final static int SEARCH_TARGET_ROOTNODE = MegaApi.SEARCH_TARGET_ROOTNODE;
+    public final static int SEARCH_TARGET_ALL = MegaApi.SEARCH_TARGET_ALL;
 
     MegaApi getMegaApi()
     {
@@ -8496,6 +8501,138 @@ public class MegaApiJava {
         return nodeListToArray(megaApi.search(searchString));
     }
 
+    /**
+     * Allow to search nodes with the following options:
+     * - Search given a parent node of the tree to explore, or on the contrary search in a
+     *   specific target (root nodes, inshares, outshares, public links)
+     * - Search recursively
+     * - Containing a search string in their name
+     * - Filter by the type of the node
+     * - Order the returned list
+     *
+     * If node is provided, it will be the parent node of the tree to explore,
+     * search string and/or nodeType can be added to search parameters
+     *
+     * If node and searchString are not provided, and node type is not valid, this method will
+     * return an empty list.
+     *
+     * If parameter type is different of MegaApi::FILE_TYPE_DEFAULT, the following values for parameter
+     * order are invalid: MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
+     * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
+     *
+     * The search is case-insensitive. If the search string is not provided but type has any value
+     * defined at nodefiletype_t (except FILE_TYPE_DEFAULT),
+     * this method will return a list that contains nodes of the same type as provided.
+     *
+     * You take the ownership of the returned value.
+     *
+     * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+     * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+     * this method returns.
+     *
+     * @param node The parent node of the tree to explore
+     * @param searchString Search string. The search is case-insensitive
+     * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+     * @param recursive True if you want to seach recursively in the node tree.
+     * False if you want to seach in the children of the node only
+     * @param order Order for the returned list
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     * Undefined order
+     *
+     * - MegaApi::ORDER_DEFAULT_ASC = 1
+     * Folders first in alphabetical order, then files in the same order
+     *
+     * - MegaApi::ORDER_DEFAULT_DESC = 2
+     * Files first in reverse alphabetical order, then folders in the same order
+     *
+     * - MegaApi::ORDER_SIZE_ASC = 3
+     * Sort by size, ascending
+     *
+     * - MegaApi::ORDER_SIZE_DESC = 4
+     * Sort by size, descending
+     *
+     * - MegaApi::ORDER_CREATION_ASC = 5
+     * Sort by creation time in MEGA, ascending
+     *
+     * - MegaApi::ORDER_CREATION_DESC = 6
+     * Sort by creation time in MEGA, descending
+     *
+     * - MegaApi::ORDER_MODIFICATION_ASC = 7
+     * Sort by modification time of the original file, ascending
+     *
+     * - MegaApi::ORDER_MODIFICATION_DESC = 8
+     * Sort by modification time of the original file, descending
+     *
+     * - MegaApi::ORDER_PHOTO_ASC = 11
+     * Sort with photos first, then by date ascending
+     *
+     * - MegaApi::ORDER_PHOTO_DESC = 12
+     * Sort with photos first, then by date descending
+     *
+     * - MegaApi::ORDER_VIDEO_ASC = 13
+     * Sort with videos first, then by date ascending
+     *
+     * - MegaApi::ORDER_VIDEO_DESC = 14
+     * Sort with videos first, then by date descending
+     *
+     * - MegaApi::ORDER_LABEL_ASC = 17
+     * Sort by color label, ascending
+     *
+     * - MegaApi::ORDER_LABEL_DESC = 18
+     * Sort by color label, descending
+     *
+     * - MegaApi::ORDER_FAV_ASC = 19
+     * Sort nodes with favourite attr first
+     *
+     * - MegaApi::ORDER_FAV_DESC = 20
+     * Sort nodes with favourite attr last
+     *
+     * @param type Type of nodes requested in the search
+     * Valid values for this parameter are:
+     * - MegaApi::FILE_TYPE_DEFAULT = 0  --> all types
+     * - MegaApi::FILE_TYPE_PHOTO = 1
+     * - MegaApi::FILE_TYPE_AUDIO = 2
+     * - MegaApi::FILE_TYPE_VIDEO = 3
+     * - MegaApi::FILE_TYPE_DOCUMENT = 4
+     *
+     * @param target Target type where this method will search
+     * Valid values for this parameter are
+     * - SEARCH_TARGET_INSHARE = 0
+     * - SEARCH_TARGET_OUTSHARE = 1
+     * - SEARCH_TARGET_PUBLICLINK = 2
+     * - SEARCH_TARGET_ROOTNODE = 3
+     * - SEARCH_TARGET_ALL = 4
+     *
+     * @return List of nodes that match with the search parameters
+     */
+    public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
+                                            MegaCancelToken cancelToken, boolean recursive, int order, int type, int target) {
+        return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive,
+                order, type, target));
+    }
+
+    public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
+                                            MegaCancelToken cancelToken, boolean recursive, int order, int type) {
+        return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive,
+                order, type));
+    }
+
+    public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
+                                            MegaCancelToken cancelToken, boolean recursive, int order) {
+        return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive,
+                order));
+    }
+
+    public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
+                                            MegaCancelToken cancelToken, boolean recursive) {
+        return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive));
+    }
+
+    public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
+                                            MegaCancelToken cancelToken) {
+        return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken));
+    }
 
     /**
      * Return a list of buckets, each bucket containing a list of recently added/modified nodes
@@ -9887,16 +10024,5 @@ public class MegaApiJava {
      */
     public void cancelCreateAccount(MegaRequestListenerInterface listener){
         megaApi.cancelCreateAccount(createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Search nodes by type.
-     *
-     * TODO: add parameter descriptions
-     */
-    public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
-            MegaCancelToken cancelToken, boolean recursive, int order, int type, int target) {
-        return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive,
-                order, type, target));
     }
 }
