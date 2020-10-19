@@ -87,7 +87,7 @@ typedef NS_ENUM (NSInteger, MEGAFolderTargetType) {
     MEGAFolderTargetTypeInShare = 0,
     MEGAFolderTargetTypeOutShare,
     MEGAFolderTargetTypePublicLink,
-    MEGAFolderTargetTypeRootNodes,
+    MEGAFolderTargetTypeRootNode,
     MEGAFolderTargetTypeAll,
 };
 
