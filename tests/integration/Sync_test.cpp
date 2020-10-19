@@ -5311,7 +5311,7 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     static string singleNamedTest = ""; // to investigate just one sync case, put its name here, otherwise we loop.
 
     
-    for (int syncType = TwoWaySyncSymmetryCase::type_numTypes; --syncType; )
+    for (int syncType = TwoWaySyncSymmetryCase::type_numTypes; syncType--; )
     {
         //if (syncType != TwoWaySyncSymmetryCase::type_backupSync) continue;
 
