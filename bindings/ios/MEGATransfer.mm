@@ -169,11 +169,6 @@ using namespace mega;
     return (MEGATransferState) (self.megaTransfer ? self.megaTransfer->getState() : 0);
 }
 
-- (MEGAError *)lastErrorExtended {
-    MegaError *tempError = self.megaTransfer->getLastErrorExtended()->copy();
-    return self.megaTransfer ? [[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES] : nil;
-}
-
 - (unsigned long long)priority {
     return self.megaTransfer ? self.megaTransfer->getPriority() : 0;
 }
