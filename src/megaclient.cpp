@@ -10115,9 +10115,15 @@ void MegaClient::notifynode(Node* n)
         // deletion from LocalNodes.
         if (n->localnode && n->localnode->parent && n->parent && !n->parent->localnode)
         {
+            Sync& sync = *n->localnode->sync;
+
             if (n->changed.removed || n->changed.parent)
             {
-                if (n->type == FOLDERNODE)
+                if (sync.isMonitoring())
+                {
+                    sync.backupModified();
+                }
+                else if (n->type == FOLDERNODE)
                 {
                     app->syncupdate_remote_folder_deletion(n->localnode->sync, n);
                 }
@@ -10152,14 +10158,24 @@ void MegaClient::notifynode(Node* n)
                 {
                     if (!n->localnode)
                     {
-                        if (n->type == FOLDERNODE)
+                        Sync& sync = *n->parent->localnode->sync;
+
+                        if (sync.isMonitoring())
                         {
-                            app->syncupdate_remote_folder_addition(n->parent->localnode->sync, n);
+                            sync.backupModified();
+                        }
+                        else if (n->type == FOLDERNODE)
+                        {
+                            app->syncupdate_remote_folder_addition(&sync, n);
                         }
                         else
                         {
-                            app->syncupdate_remote_file_addition(n->parent->localnode->sync, n);
+                            app->syncupdate_remote_file_addition(&sync, n);
                         }
+                    }
+                    else if (n->localnode->sync->isMonitoring())
+                    {
+                        n->localnode->sync->backupModified();
                     }
                     else
                     {
@@ -10170,7 +10186,14 @@ void MegaClient::notifynode(Node* n)
             }
             else if (!n->changed.removed && n->changed.attrs && n->localnode && n->localnode->name.compare(n->displayname()))
             {
-                app->syncupdate_remote_rename(n->localnode->sync, n, n->localnode->name.c_str());
+                if (n->localnode->sync->isMonitoring())
+                {
+                    n->localnode->sync->backupModified();
+                }
+                else
+                {
+                    app->syncupdate_remote_rename(n->localnode->sync, n, n->localnode->name.c_str());
+                }
             }
         }
 #endif
