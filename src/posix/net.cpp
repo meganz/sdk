@@ -61,20 +61,23 @@ bool SockInfo::createAssociateEvent()
     return true;
 }
 
-bool SockInfo::checkEvent(bool& read, bool& write)
+bool SockInfo::checkEvent(bool& read, bool& write, bool logErr)
 {
     WSANETWORKEVENTS wne;
     memset(&wne, 0, sizeof(wne));
     auto err = WSAEnumNetworkEvents(fd, NULL, &wne);
     if (err)
     {
-        auto e = WSAGetLastError();
-        LOG_err << "WSAEnumNetworkEvents error " << e;
+        if (logErr)
+        {
+            auto e = WSAGetLastError();
+            LOG_err << "WSAEnumNetworkEvents error " << e;
+        }
         return false;
     }
 
     read = 0 != (FD_READ & wne.lNetworkEvents);
-    write = 0 != (FD_WRITE & wne.lNetworkEvents);  
+    write = 0 != (FD_WRITE & wne.lNetworkEvents);
 
     // Even though the writeable network event occurred, double check there is no space available in the write buffer
     // Otherwise curl can report a spurious timeout error
@@ -88,7 +91,7 @@ bool SockInfo::checkEvent(bool& read, bool& write)
         // where curl wrote to the socket, but not enough to cause it to become unwriteable for now.
         // So, we need to signal curl to write again if it has more data to write, if the socket can take
         // more data.  This trick with WSASend for 0 bytes enables that - if it fails with would-block
-        // then we can stop asking curl to write to the socket, and start waiting on the handle to 
+        // then we can stop asking curl to write to the socket, and start waiting on the handle to
         // know when to try again.
         // If curl has finished writing to the socket, it will call us back to change the mode to read only.
 
@@ -115,11 +118,12 @@ void SockInfo::closeEvent(bool adjustSocket)
 {
     if (adjustSocket)
     {
-#ifdef DEBUG
-        int result = 
-#endif
-        WSAEventSelect(fd, NULL, 0); // cancel association by specifying lNetworkEvents = 0
-        assert(result == 0);
+        int result = WSAEventSelect(fd, NULL, 0); // cancel association by specifying lNetworkEvents = 0
+        if (result)
+        {
+            auto err = WSAGetLastError();
+            LOG_err << "WSAEventSelect error: " << err;
+        }
     }
     associatedHandleEvents = 0;
     signalledWrite = false;
@@ -306,6 +310,7 @@ CurlHttpIO::CurlHttpIO()
     options.tries = 2;
     ares_init_options(&ares, &options, ARES_OPT_TRIES);
     arestimeout = -1;
+
     filterDNSservers();
 
     curl_multi_setopt(curlm[API], CURLMOPT_SOCKETFUNCTION, api_socket_callback);
@@ -384,6 +389,11 @@ bool CurlHttpIO::ipv6available()
 
 void CurlHttpIO::filterDNSservers()
 {
+    // in iOS, DNS resolution is done by cUrl directly (c-ares is not involved at all)
+#ifdef TARGET_OS_IPHONE
+    return;
+#endif
+
     string newservers;
     string serverlist;
     set<string> serverset;
@@ -545,7 +555,7 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
     for (auto& mapPair : prevAressockets)
     {
         // We pass false for c-ares becase we can't be sure if c-ares closed the socket or not
-        // If it's not using the socket, the event should not be triggered, and even if it is 
+        // If it's not using the socket, the event should not be triggered, and even if it is
         // then we just do one extra loop.
         mapPair.second.closeEvent(false);
     }
@@ -611,7 +621,7 @@ void CurlHttpIO::closearesevents()
 #if defined(_WIN32)
     for (auto& mapPair : aressockets)
     {
-        mapPair.second.closeEvent();
+        mapPair.second.closeEvent(false);
     }
 #endif
     aressockets.clear();
@@ -648,7 +658,7 @@ void CurlHttpIO::processaresevents()
 
 #if defined(_WIN32)
         bool read, write;
-        if (info.checkEvent(read, write))  // if checkEvent returns true, both `read` and `write` have been set.
+        if (info.checkEvent(read, write, false))  // if checkEvent returns true, both `read` and `write` have been set.
         {
             ares_process_fd(ares, read ? info.fd : ARES_SOCKET_BAD, write ? info.fd : ARES_SOCKET_BAD);
         }
@@ -1072,7 +1082,7 @@ void CurlHttpIO::proxy_ready_callback(void* arg, int status, int, hostent* host)
         if (httpio->proxyhost == httpctx->hostname && httpctx->hostip.size())
         {
             std::ostringstream oss;
-            
+
             oss << httpctx->hostip << ":" << httpio->proxyport;
             httpio->proxyip = oss.str();
 
@@ -1399,6 +1409,8 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         httpctx->posturl.replace(httpctx->posturl.find(httpctx->hostname), httpctx->hostname.size(), httpctx->hostip);
         httpctx->headers = curl_slist_append(httpctx->headers, httpctx->hostheader.c_str());
     }
+    
+#ifndef TARGET_OS_IPHONE
     else
     {
         LOG_err << "No IP nor proxy available";
@@ -1414,7 +1426,8 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         httpio->statechange = true;
         return;
     }
-    
+#endif
+
     CURL* curl;
     if ((curl = curl_easy_init()))
     {
@@ -1459,6 +1472,8 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 60L);
         curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);
         curl_easy_setopt(curl, CURLOPT_SOCKOPTDATA, (void*)req);
+        curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+
 
         if (httpio->maxspeed[GET] && httpio->maxspeed[GET] <= 102400)
         {
@@ -1590,7 +1605,11 @@ void CurlHttpIO::request_proxy_ip()
     httpctx->httpio = this;
     httpctx->hostname = proxyhost;
     httpctx->ares_pending = 1;
+    
 
+#if TARGET_OS_IPHONE
+    send_request(httpctx);
+#else
     if (ipv6proxyenabled)
     {
         httpctx->ares_pending++;
@@ -1600,6 +1619,7 @@ void CurlHttpIO::request_proxy_ip()
 
     LOG_debug << "Resolving IPv4 address for proxy: " << proxyhost;
     ares_gethostbyname(ares, proxyhost.c_str(), PF_INET, proxy_ready_callback, httpctx);
+#endif
 }
 
 bool CurlHttpIO::crackurl(string* url, string* scheme, string* hostname, int* port)
@@ -1761,7 +1781,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     httpctx->isCachedIp = false;
     httpctx->ares_pending = 0;
     httpctx->d = (req->type == REQ_JSON || req->method == METHOD_NONE) ? API : ((data ? len : req->out->size()) ? PUT : GET);
-    req->httpiohandle = (void*)httpctx;    
+    req->httpiohandle = (void*)httpctx;
 
     bool validrequest = true;
     if ((proxyurl.size() && !proxyhost.size()) // malformed proxy string
@@ -1907,6 +1927,9 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
         return;
     }
 
+#if TARGET_OS_IPHONE
+    send_request(httpctx);
+#else
     if (ipv6requestsenabled)
     {
         httpctx->ares_pending++;
@@ -1916,6 +1939,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 
     LOG_debug << "Resolving IPv4 address for " << httpctx->hostname;
     ares_gethostbyname(ares, httpctx->hostname.c_str(), PF_INET, ares_completed_callback, httpctx);
+#endif
 }
 
 void CurlHttpIO::setproxy(Proxy* proxy)
@@ -2165,7 +2189,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                         }
                         req->httpstatus = 200;
                     }
-                    
+
                     if (req->binary)
                     {
                         LOG_debug << "[received " << (req->buf ? req->bufpos : (int)req->in.size()) << " bytes of raw data]";
@@ -2411,7 +2435,7 @@ size_t CurlHttpIO::read_data(void* ptr, size_t size, size_t nmemb, void* source)
             httpio->partialdata[PUT] += nread;
         }
     }
-    
+
     memcpy(ptr, buf, nread);
     req->outpos += nread;
     //LOG_debug << req->logname << "Supplying " << nread << " bytes to cURL to send";
@@ -2462,7 +2486,7 @@ size_t CurlHttpIO::check_header(void* ptr, size_t size, size_t nmemb, void* targ
     size_t len = size * nmemb;
     if (len > 2)
     {
-        LOG_verbose << "Header: " << string((const char *)ptr, len - 2);
+        LOG_verbose << req->logname << "Header: " << string((const char *)ptr, len - 2);
     }
 
     if (len > 5 && !memcmp(ptr, "HTTP/", 5))
@@ -2589,7 +2613,7 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
         {
             LOG_debug << "Setting curl socket " << s << " to " << what;
         }
-        
+
         auto& info = it->second;
         info.fd = s;
         info.mode = what;
@@ -2614,6 +2638,11 @@ int CurlHttpIO::sockopt_callback(void *clientp, curl_socket_t, curlsocktype)
     {
         httpio->dnscache[httpctx->hostname].mNeedsResolvingAgain = false;
         httpctx->ares_pending = 1;
+        
+
+#if TARGET_OS_IPHONE
+        send_request(httpctx);
+#else
         if (httpio->ipv6requestsenabled)
         {
             httpctx->ares_pending++;
@@ -2623,6 +2652,7 @@ int CurlHttpIO::sockopt_callback(void *clientp, curl_socket_t, curlsocktype)
 
         LOG_debug << "Resolving IPv4 address for " << httpctx->hostname << " during connection";
         ares_gethostbyname(httpio->ares, httpctx->hostname.c_str(), PF_INET, ares_completed_callback, httpctx);
+#endif
     }
 
     return CURL_SOCKOPT_OK;

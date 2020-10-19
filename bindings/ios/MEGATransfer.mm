@@ -146,6 +146,11 @@ using namespace mega;
     return self.megaTransfer ? (BOOL) self.megaTransfer->isStreamingTransfer() : NO;
 }
 
+- (MEGAError *)lastErrorExtended {
+    mega::MegaError *e = (mega::MegaError *)self.megaTransfer->getLastErrorExtended();
+    return e ? [[MEGAError alloc] initWithMegaError:e cMemoryOwn:NO] : nil;
+}
+
 - (BOOL)isFolderTransfer {
     return self.megaTransfer ? (BOOL) self.megaTransfer->isFolderTransfer() : NO;
 }

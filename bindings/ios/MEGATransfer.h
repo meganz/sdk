@@ -193,6 +193,12 @@ typedef NS_ENUM (NSInteger, MEGATransferState) {
 @property (readonly, nonatomic) BOOL isStreamingTransfer;
 
 /**
+ * @brief The last error related to the transfer with extra info
+ *
+ */
+@property (readonly, nonatomic) MEGAError *lastErrorExtended;
+
+/**
  * @brief YES if it's a folder transfer, otherwise (file transfer) it returns NO
  */
 @property (readonly, nonatomic) BOOL isFolderTransfer;
