@@ -8612,6 +8612,11 @@ public class MegaApiJava {
                 order, type, target));
     }
 
+    public ArrayList<MegaNode> searchByType(int order, int type, int target) {
+        return nodeListToArray(megaApi.searchByType(null, null, null, true,
+                order, type, target));
+    }
+
     public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
                                             MegaCancelToken cancelToken, boolean recursive, int order, int type) {
         return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive,
