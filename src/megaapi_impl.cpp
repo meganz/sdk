@@ -20079,8 +20079,13 @@ void MegaApiImpl::sendPendingRequests()
                     MegaHandle nodeHandle = request->getNodeHandle();
                     MegaNode* node = getNodeByHandle(nodeHandle);
 
-                    // a valid node cannot be outside current account, or in Rubbish, or in a synced folder
-                    if (!client->isPrivateNode(nodeHandle) || isInRootnode(node, 2) || isInsideSync(node))
+                    // a valid folder cannot be outside current account or in Rubbish
+                    if (!client->isPrivateNode(nodeHandle) || isInRootnode(node, 2)
+#ifdef ENABLE_SYNC
+                        // or in a synced folder
+                        || isInsideSync(node)
+#endif
+                        )
                     {
                         e = API_EACCESS;
                         break;
