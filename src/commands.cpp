@@ -3603,6 +3603,8 @@ bool CommandGetUserData::procresult(Result r)
     string versionUnshareableKey;
     string deviceNames;
     string versionDeviceNames;
+    string myBackupsFolder;
+    string versionMyBackupsFolder;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -3725,6 +3727,10 @@ bool CommandGetUserData::procresult(Result r)
 
         case MAKENAMEID4('*', '!', 'd', 'n'):
             parseUserAttribute(deviceNames, versionDeviceNames);
+            break;
+
+        case MAKENAMEID5('*', '!', 'b', 'a', 'k'):
+            parseUserAttribute(myBackupsFolder, versionMyBackupsFolder);
             break;
 
         case 'b':   // business account's info
@@ -4038,6 +4044,21 @@ bool CommandGetUserData::procresult(Result r)
                     else
                     {
                         LOG_err << "Cannot extract TLV records for ATTR_CAMERA_UPLOADS_FOLDER";
+                    }
+                }
+
+                if (!myBackupsFolder.empty())
+                {
+                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&myBackupsFolder, &client->key));
+                    if (tlvRecords)
+                    {
+                        // store the value for private user attributes (decrypted version of serialized TLV)
+                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
+                        changes += u->updateattr(ATTR_MY_BACKUPS_FOLDER, tlvString.get(), &versionMyBackupsFolder);
+                    }
+                    else
+                    {
+                        LOG_err << "Cannot extract TLV records for ATTR_MY_BACKUPS_FOLDER";
                     }
                 }
 
