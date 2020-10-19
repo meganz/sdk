@@ -7370,7 +7370,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * - MEGAFolderTargetTypeInShare = 0
  * - MEGAFolderTargetTypeOutShare = 1
  * - MEGAFolderTargetTypePublicLink = 2
- * - MEGAFolderTargetTypeRootNodes = 3
+ * - MEGAFolderTargetTypeRootNode = 3
  * - MEGAFolderTargetTypeAll = 4
  *
  * @return List of nodes that contain the desired string in their name.
