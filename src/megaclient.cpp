@@ -2675,6 +2675,8 @@ void MegaClient::exec()
                                     // scan for items that were deleted while the sync was stopped
                                     // FIXME: defer this until RETRY queue is processed
                                     sync->scanseqno++;
+
+                                    DBTableTransactionCommitter committer(tctable);  //  just one db transaction to remove all the LocalNodes that get deleted
                                     sync->deletemissing(sync->localroot.get());
                                 }
                             }
@@ -2873,6 +2875,7 @@ void MegaClient::exec()
                                         if (sync->fullscan)
                                         {
                                             // recursively delete all LocalNodes that were deleted (not moved or renamed!)
+                                            DBTableTransactionCommitter committer(tctable);  //  just one db transaction to remove all the LocalNodes that get deleted
                                             sync->deletemissing(sync->localroot.get());
                                             sync->cachenodes();
                                         }
