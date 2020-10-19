@@ -470,6 +470,11 @@ struct CacheableWriter
 struct CacheableReader
 {
     CacheableReader(const string& d);
+
+    // to assist in mixed old/new code. Using this will probably require using
+    // currentPtr afterwards
+    CacheableReader(const string& d, const char *initialptr);
+
     const char* ptr;
     const char* end;
     unsigned fieldnum;
@@ -492,6 +497,8 @@ struct CacheableReader
 
     void eraseused(string& d); // must be the same string, unchanged
     bool hasdataleft() { return end > ptr; }
+
+    const char *currentPtr() { return ptr; } // to assist in mixed old/new code
 };
 
 template<typename T, typename U>

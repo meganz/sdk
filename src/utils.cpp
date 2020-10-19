@@ -156,6 +156,13 @@ CacheableReader::CacheableReader(const string& d)
 {
 }
 
+CacheableReader::CacheableReader(const string& d, const char *initialptr)
+    : ptr(initialptr)
+    , end(ptr + d.size())
+    , fieldnum(0)
+{
+}
+
 void CacheableReader::eraseused(string& d)
 {
     assert(end == d.data() + d.size());

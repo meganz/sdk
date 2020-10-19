@@ -328,22 +328,17 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     hasLinkCreationTs = MemAccess::get<char>(ptr);
     ptr += sizeof(hasLinkCreationTs);
 
-    auto authKeySize = MemAccess::get<char>(ptr);
-
-    ptr += sizeof authKeySize;
-    const char *authKey = nullptr;
-    if (authKeySize)
     {
-        authKey = ptr;
-        ptr += authKeySize;
-    }
-
-    for (i = 5; i--;)
-    {
-        if (ptr + (unsigned char)*ptr < end)
+        CacheableReader r(*d, ptr);
+        unsigned char ignored[6];
+        // bytes formerly used for extension
+        // unfortunately older cache versions need these to be zero
+        // we shall not use these
+        if (!r.unserializebinary(ignored, 6) )
         {
-            ptr += (unsigned char)*ptr + 1;
+            return nullptr;
         }
+        ptr = r.currentPtr();
     }
 
     if (ptr + sizeof(short) > end)
@@ -439,7 +434,17 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
             ptr += sizeof(cts);
         }
 
-        plink = new PublicLink(ph, cts, ets, takendown, authKey ? authKey : "");
+        std::string authKey;
+        {
+            CacheableReader r(*d, ptr);
+            if (!r.unserializestring(authKey))
+            {
+                return nullptr;
+            }
+            ptr = r.currentPtr();
+        }
+
+        plink = new PublicLink(ph, cts, ets, takendown, authKey.c_str());
         client->mPublicLinks[n->nodehandle] = plink->ph;
     }
     n->plink = plink;
@@ -542,18 +547,10 @@ bool Node::serialize(string* d)
     char hasLinkCreationTs = plink ? 1 : 0;
     d->append((char*)&hasLinkCreationTs, 1);
 
-    if (isExported && plink && plink->mAuthKey.size())
-    {
-        auto authKeySize = (char)plink->mAuthKey.size();
-        d->append((char*)&authKeySize, sizeof(authKeySize));
-        d->append(plink->mAuthKey.data(), authKeySize);
-    }
-    else
-    {
-        d->append("", 1);
-    }
+    d->append("\0\0\0\0\0", 6); // bytes formerly used for extension
+    // unfortunately older cache versions need these to be zero
+    // we shall not use these
 
-    d->append("\0\0\0\0", 5); // Use these bytes for extensions
 
     if (inshare)
     {
@@ -612,6 +609,9 @@ bool Node::serialize(string* d)
         {
             d->append((char*) &plink->cts, sizeof(plink->cts));
         }
+
+        CacheableWriter w(*d);
+        w.serializestring(plink->mAuthKey); //Note: serializing even if empty
     }
 
     return true;
