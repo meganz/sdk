@@ -500,7 +500,8 @@ else {
             LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libfreeimage.a
         }
         else {
-            LIBS += -lfreeimage$$DEBUG_SUFFIX
+            vcpkg:LIBS += -lfreeimage$$DEBUG_SUFFIX
+            !vcpkg:LIBS += -lfreeimage
         }
 
         vcpkg {
