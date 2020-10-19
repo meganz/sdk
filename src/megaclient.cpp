@@ -13657,6 +13657,26 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
             continue;
         }
 
+        // Make sure the local node is actually included.
+        {
+            LocalPath localPath = ll->getLocalPath();
+
+            if (!app->sync_syncable(ll->sync, localname.c_str(), localPath))
+            {
+                // As a precaution against remote changes.
+                if (ll->node)
+                {
+                    ll->node->localnode = nullptr;
+                    ll->node->tag = ll->sync->tag;
+                    ll->node = nullptr;
+
+                    ll->sync->statecacheadd(ll);
+                }
+
+                continue;
+            }
+        }
+
         rit = nchildren.find(&localname);
 
         bool isSymLink = false;
