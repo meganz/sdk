@@ -10985,7 +10985,7 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *can
         return new MegaNodeListPrivate();
     }
 
-    if (type != MegaApi::FILE_TYPE_UNKNOWN
+    if (type != MegaApi::FILE_TYPE_DEFAULT
             && (order < MegaApi::ORDER_NONE || order > MegaApi::ORDER_ALPHABETICAL_DESC))
     {
         return new MegaNodeListPrivate();
@@ -11533,7 +11533,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         return new MegaNodeListPrivate();
     }
 
-    if (type != MegaApi::FILE_TYPE_UNKNOWN
+    if (type != MegaApi::FILE_TYPE_DEFAULT
             && (order < MegaApi::ORDER_NONE || order > MegaApi::ORDER_ALPHABETICAL_DESC))
     {
         return new MegaNodeListPrivate();
@@ -12001,7 +12001,7 @@ bool SearchTreeProcessor::processNode(Node* node)
         return true;
     }
 
-    if (!mSearch && (!mClient || (mFileType < MegaApi::FILE_TYPE_UNKNOWN || mFileType > MegaApi::FILE_TYPE_DOCUMENT)))
+    if (!mSearch && (!mClient || (mFileType < MegaApi::FILE_TYPE_DEFAULT || mFileType > MegaApi::FILE_TYPE_DOCUMENT)))
     {
         // If no search string provided, client and type must be valid, otherwise return false
         return false;
@@ -12037,7 +12037,7 @@ bool SearchTreeProcessor::isValidTypeNode(Node *node)
             return mClient->nodeIsVideo(node);
         case MegaApi::FILE_TYPE_DOCUMENT:
             return mClient->nodeIsDocument(node);
-        case MegaApi::FILE_TYPE_UNKNOWN:
+        case MegaApi::FILE_TYPE_DEFAULT:
         default:
             return true;
     }

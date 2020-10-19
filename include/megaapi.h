@@ -14141,7 +14141,8 @@ class MegaApi
             ORDER_LINK_CREATION_ASC, ORDER_LINK_CREATION_DESC,
             ORDER_LABEL_ASC, ORDER_LABEL_DESC, ORDER_FAV_ASC, ORDER_FAV_DESC,};
 
-        enum { FILE_TYPE_UNKNOWN = 0,
+
+        enum { FILE_TYPE_DEFAULT = 0, // FILE_TYPE_UNKNOWN already exists at WinBase.h
                FILE_TYPE_PHOTO,
                FILE_TYPE_AUDIO,
                FILE_TYPE_VIDEO,
@@ -15739,12 +15740,12 @@ class MegaApi
          * If node and searchString are not provided, and node type is not valid, this method will
          * return an empty list.
          *
-         * If parameter type is different of MegaApi::FILE_TYPE_UNKNOWN, the following values for parameter
+         * If parameter type is different of MegaApi::FILE_TYPE_DEFAULT, the following values for parameter
          * order are invalid: MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
          * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
          *
          * The search is case-insensitive. If the search string is not provided but type has any value
-         * defined at nodefiletype_t (except FILE_TYPE_UNKNOWN),
+         * defined at nodefiletype_t (except FILE_TYPE_DEFAULT),
          * this method will return a list that contains nodes of the same type as provided.
          *
          * You take the ownership of the returned value.
@@ -15813,7 +15814,7 @@ class MegaApi
          *
          * @param type Type of nodes requested in the search
          * Valid values for this parameter are:
-         * - MegaApi::FILE_TYPE_UNKNOWN = 0  --> all types
+         * - MegaApi::FILE_TYPE_DEFAULT = 0  --> all types
          * - MegaApi::FILE_TYPE_PHOTO = 1
          * - MegaApi::FILE_TYPE_AUDIO = 2
          * - MegaApi::FILE_TYPE_VIDEO = 3
@@ -15829,7 +15830,7 @@ class MegaApi
          *
          * @return List of nodes that match with the search parameters
          */
-        MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int type = FILE_TYPE_UNKNOWN, int target = SEARCH_TARGET_ALL);
+        MegaNodeList* searchByType(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = ORDER_NONE, int type = FILE_TYPE_DEFAULT, int target = SEARCH_TARGET_ALL);
 
         /**
          * @brief Return a list of buckets, each bucket containing a list of recently added/modified nodes
