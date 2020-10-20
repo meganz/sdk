@@ -25247,30 +25247,9 @@ handle MegaFolderUploadController::addNewNodeToVector(handle targetHandle, handl
     handle newNodeHandle;
     NewNode newnode;
     SymmCipher key;
-    string attrstring;
-    byte buf[FOLDERNODEKEYLENGTH];
 
-    // set up new node as folder node
-    newnode.source = NEW_NODE;
-    newnode.type = FOLDERNODE;
-    newnode.nodehandle = 0;
-    newnode.parenthandle = UNDEF;
-
-    // generate fresh random key for this folder node
-    client->rng.genblock(buf,FOLDERNODEKEYLENGTH);
-    newnode.nodekey.assign((char*)buf,FOLDERNODEKEYLENGTH);
-    key.setkey(buf);
-
-    // generate fresh attribute object with the folder name
-    AttrMap attrs;
-    string sname = folderName;
-    client->fsaccess->normalize(&sname);
-    attrs.map['n'] = sname;
-
-    // JSON-encode object and encrypt attribute string
-    attrs.getjson(&attrstring);
-    newnode.attrstring.reset(new string);
-    client->makeattr(&key, newnode.attrstring, attrstring.c_str());
+    // generate fresh random key and node attributes
+    client->putnodes_prepareOneFolder(&newnode, folderName);
 
     // set nodeHandle
     newnode.nodehandle = newNodeHandle = client->nextUploadId();
