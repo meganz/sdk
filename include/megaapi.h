@@ -9375,7 +9375,6 @@ class MegaApi
          * - MegaRequest::getFile - Returns the URL of the image of the PSA
          * - MegaRequest::getPassword - Returns the text for the possitive button (or an empty string)
          * - MegaRequest::getLink - Returns the link for the possitive button (or an empty string)
-         * - MegaRequest::getEmail - Returns the URL (or an empty string)
          *
          * If there isn't any new PSA to show, onRequestFinish will be called with the error
          * code MegaError::API_ENOENT.
@@ -9397,7 +9396,14 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getNumber - Returns the id of the PSA (useful to call MegaApi::setPSA later)
-         * - MegaRequest::getLink - Returns the URL (or an empty string))
+         * Depending on the format of the PSA, the request may additionally return, for the new format:
+         * - MegaRequest::getEmail - Returns the URL (or an empty string))
+         * ...or for the old format:
+         * - MegaRequest::getName - Returns the title of the PSA
+         * - MegaRequest::getText - Returns the text of the PSA
+         * - MegaRequest::getFile - Returns the URL of the image of the PSA
+         * - MegaRequest::getPassword - Returns the text for the possitive button (or an empty string)
+         * - MegaRequest::getLink - Returns the link for the possitive button (or an empty string)
          *
          * If there isn't any new PSA to show, onRequestFinish will be called with the error
          * code MegaError::API_ENOENT.
