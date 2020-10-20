@@ -8213,11 +8213,6 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                         // FIXME: only do this for in-flight FA writes
                         uhnh.insert(pair<handle, handle>(uh, h));
                     }
-                    else if (nn_nni.source == NEW_NODE && nn_nni.type == FOLDERNODE)
-                    {
-                        // maps temp nodeHandle provided in putnodes, to definitive nodeHandle
-                        mTempHandleToNodeHandle.insert(pair<handle, handle>(nn_nni.nodehandle, h));
-                    }
                 }
             }
 

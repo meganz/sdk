@@ -237,8 +237,8 @@ public:
 protected:
     int mPendingFolders;
 
-    // Each element is a pair formed by the localpath of the folder, and the handle of it's parent node
-    std::vector<std::pair<LocalPath, handle>> mPendingFiles;
+    // maps parent handle to vector of LocalPath of it's children
+    map<handle, vector<LocalPath>> mFolderToPendingFiles;
 
     // maps targetHandle of the subtree to a vector of NewNodes
     map<handle, vector<NewNode>> mFolderStructure;
@@ -249,7 +249,8 @@ protected:
      */
     void scanFolder(handle targetHandle, handle parentHandle, LocalPath& localPath, std::string folderName);
     void createFolder();
-    void startFileUploads();
+    /* iterate through all pending files of each uploaded folder, and start all upload transfers */
+    void startFileUploads(const vector<NewNode> &nn);
     void checkCompletion();
     handle addNewNodeToVector(handle targetHandle, handle parentHandle, const char * folderName);
 };

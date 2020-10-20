@@ -25154,8 +25154,8 @@ void MegaFolderUploadController::scanFolder(handle targetHandle, handle parentHa
         if (dirEntryType == FILENODE)
         {
             (folderExists)
-                ? mPendingFiles.emplace_back(std::make_pair(localPath, folder->nodehandle)) // found folder handle
-                : mPendingFiles.emplace_back(std::make_pair(localPath, newNodeHandle));     // temp handle
+                ? mFolderToPendingFiles[folder->nodehandle].emplace_back(localPath)
+                : mFolderToPendingFiles[newNodeHandle].emplace_back(localPath);
         }
         else if (dirEntryType == FOLDERNODE)
         {
@@ -25173,7 +25173,7 @@ void MegaFolderUploadController::createFolder()
     if (mFolderStructure.empty())
     {
         // if all folder structure already exists in cloud drive, only add transfers
-        startFileUploads();
+        startFileUploads(vector<NewNode>());
         checkCompletion();
         return;
     }
@@ -25191,7 +25191,12 @@ void MegaFolderUploadController::createFolder()
 
             if (!e)
             {
-                startFileUploads();
+                startFileUploads(nn);
+                if (!mPendingFolders && !mFolderToPendingFiles.empty())
+                {
+                    // if all putnodes have been finished, but there are pending files to be processed
+                    mIncompleteTransfers++;
+                }
             }
             else
             {
@@ -25202,30 +25207,37 @@ void MegaFolderUploadController::createFolder()
     }
 }
 
-void MegaFolderUploadController::startFileUploads()
+void MegaFolderUploadController::startFileUploads(const vector<NewNode> &nn)
 {
-    auto itFiles = mPendingFiles.begin();
-    while (itFiles != mPendingFiles.end())
-    {
-       handle parentHandle = itFiles->second;
-       auto it = client->mTempHandleToNodeHandle.find(parentHandle);
-       unique_ptr <MegaNode> parentNode((it != client->mTempHandleToNodeHandle.end())
-               ? megaApi->getNodeByHandle(it->second)     // new node has been created, so we need to retrieve it's handle
-               : megaApi->getNodeByHandle(parentHandle)); // node already existed, so get it's handle from mPendingFiles
-
+   for (auto it = mFolderToPendingFiles.begin(); it != mFolderToPendingFiles.end();)
+   {
+       auto auxit = it++;
+       handle folderHandle = auxit->first;
+       for (size_t i = 0; i < nn.size(); i++)
+       {
+           if (nn[i].nodehandle == folderHandle)
+           {
+                // if we find a match in newNodes vector, update the definitive handle of the node
+                folderHandle = nn[i].mAddedHandle;
+                break;
+           }
+       }
+       unique_ptr <MegaNode> parentNode(megaApi->getNodeByHandle(folderHandle));
        if (parentNode != nullptr)
        {
-            pendingTransfers++;
-            const LocalPath &localpath = itFiles->first;
-            FileSystemType fsType = client->fsaccess->getlocalfstype(localpath);
-            megaApi->startUpload(false, localpath.toPath(*client->fsaccess).c_str(), parentNode.get(), (const char *)NULL, -1, tag, false, NULL, false, false, fsType, this);
-            itFiles = mPendingFiles.erase(itFiles);
+           vector<LocalPath> &pendingFiles = auxit->second;
+           for (size_t j = 0; j < pendingFiles.size(); j++)
+           {
+               pendingTransfers++;
+               const LocalPath &localpath = pendingFiles.at(j);
+               FileSystemType fsType = client->fsaccess->getlocalfstype(localpath);
+               megaApi->startUpload(false, localpath.toPath(*client->fsaccess).c_str(), parentNode.get(), (const char *)NULL, -1, tag, false, NULL, false, false, fsType, this);
+           }
+
+           //Remove element
+           mFolderToPendingFiles.erase(auxit);
        }
-       else
-       {
-           ++itFiles;
-       }
-    }
+   }
 }
 
 void MegaFolderUploadController::checkCompletion()
@@ -25234,7 +25246,7 @@ void MegaFolderUploadController::checkCompletion()
     {
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         mFolderStructure.clear();
-        mPendingFiles.clear();
+        mFolderToPendingFiles.clear();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
         transfer->setLastError(&mLastError);
         DBTableTransactionCommitter committer(client->tctable);
