@@ -523,7 +523,7 @@ void FileSystemAccess::normalize(string* filename) const
     *filename = std::move(result);
 }
 
-std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(LocalPath& localname)
+std::unique_ptr<LocalPath> FileSystemAccess::fsShortname(const LocalPath& localname)
 {
     LocalPath s;
     if (getsname(localname, s))

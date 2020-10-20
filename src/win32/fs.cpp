@@ -750,7 +750,7 @@ void WinFileSystemAccess::local2path(const std::wstring* local, string* path) co
 }
 
 // write short name of the last path component to sname
-bool WinFileSystemAccess::getsname(LocalPath& namePath, LocalPath& snamePath) const
+bool WinFileSystemAccess::getsname(const LocalPath& namePath, LocalPath& snamePath) const
 {
 #ifdef WINDOWS_PHONE
     return false;

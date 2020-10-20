@@ -313,6 +313,10 @@ public:
         vector<FSNode*> fsClashingNames;
 
         bool suppressRecursion = false;
+
+        // Sometimes when eg. creating a local a folder, we need to add to this list
+        // Note that it might be the cached version or a temporary regenerated list
+        vector<FSNode>* fsSiblings = nullptr;
     };
 
     vector<syncRow> computeSyncTriplets(Node* cloudNode,

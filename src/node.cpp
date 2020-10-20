@@ -2266,4 +2266,25 @@ node_vector *Fingerprints::nodesbyfingerprint(FileFingerprint* fingerprint)
     return nodes;
 }
 
+unique_ptr<FSNode> FSNode::fromFOpened(FileAccess& fa, const LocalPath& fullPath, FileSystemAccess& fsa)
+{
+    unique_ptr<FSNode> result(new FSNode);
+    result->type = fa.type;
+    result->fsid = fa.fsidvalid ? fa.fsid : UNDEF;
+    result->isSymlink = fa.mIsSymLink;
+    result->fingerprint.mtime = fa.mtime;
+    result->fingerprint.size = fa.size;
+
+    result->localname = fullPath.leafName(fsa.localseparator);
+
+    if (auto sn = fsa.fsShortname(fullPath))
+    {
+        if (*sn != result->localname)
+        {
+            result->shortname = std::move(sn);
+        }
+    }
+    return result;
+}
+
 } // namespace

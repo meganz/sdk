@@ -53,7 +53,7 @@ public:
     using FileSystemAccess::getlocalfstype;
 
     std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
-    
+
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
 
     DirAccess* newdiraccess() override;
@@ -69,7 +69,7 @@ public:
     void local2path(const std::wstring*, std::string*) const override;
     void path2local(const std::string*, std::wstring*) const override;
 
-    bool getsname(LocalPath&, LocalPath&) const override;
+    bool getsname(const LocalPath&, LocalPath&) const override;
 
     bool renamelocal(LocalPath&, LocalPath&, bool) override;
     bool copylocal(LocalPath&, LocalPath&, m_time_t) override;

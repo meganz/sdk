@@ -511,7 +511,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual void tmpnamelocal(LocalPath&) const = 0;
 
     // obtain local secondary name
-    virtual bool getsname(LocalPath&, LocalPath&) const = 0;
+    virtual bool getsname(const LocalPath&, LocalPath&) const = 0;
 
     // rename file, overwrite target
     virtual bool renamelocal(LocalPath&, LocalPath&, bool = true) = 0;
@@ -555,7 +555,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     void setdefaultfolderpermissions(int) { }
 
     // convenience function for getting filesystem shortnames
-    std::unique_ptr<LocalPath> fsShortname(LocalPath& localpath);
+    std::unique_ptr<LocalPath> fsShortname(const LocalPath& localpath);
 
     // set whenever an operation fails due to a transient condition (e.g. locking violation)
     bool transient_error;

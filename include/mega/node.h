@@ -388,6 +388,8 @@ struct MEGA_API FSNode
             ? new LocalPath(*shortname)
             : nullptr);
     }
+
+    static unique_ptr<FSNode> fromFOpened(FileAccess&, const LocalPath& fullName, FileSystemAccess& fsa);
 };
 
 enum TREESTATE : unsigned

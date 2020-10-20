@@ -2212,7 +2212,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
         // Otherwise, we can reconstruct the filesystem entries from the LocalNodes
         if (!effectiveFsChildren)
         {
-            fsChildren.reserve(node.children.size());
+            fsChildren.reserve(node.children.size() + 50);  // leave some room for others to be added in syncItem()
 
             for (auto &childIt : node.children)
             {
@@ -2265,6 +2265,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
             {
                 anyNameConflicts = true;
             }
+            childRow.fsSiblings = effectiveFsChildren;
 
             ScopedLengthRestore restoreLen(fullPath);
             if (childRow.fsNode)
@@ -2896,16 +2897,37 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPat
             if (client->fsaccess->mkdirlocal(fullPath))
             {
                 assert(row.syncNode);
-                //row.syncNode->setScanAgain(true, false, false);
-
                 assert(row.syncNode->localname == fullPath.leafName(client->fsaccess->localseparator));
 
-                if (auto sn = client->fsaccess->fsShortname(fullPath))
+                // Update our records of what we know is on disk for this (parent) LocalNode.
+                // This allows the next level of folders to be created too
+
+                auto fa = client->fsaccess->newfileaccess(false);
+                if (fa->fopen(fullPath, true, false))
                 {
-                    if (*sn != row.syncNode->localname)
+                    auto fsnode = FSNode::fromFOpened(*fa, fullPath, *client->fsaccess);
+
+                    row.syncNode->localname = fsnode->localname;
+                    row.syncNode->slocalname = fsnode->cloneShortname();
+                    row.syncNode->fsid = fsnode->fsid;
+                    statecacheadd(row.syncNode);
+
+                    if (row.fsSiblings->empty() && row.fsSiblings->capacity() < 50)
                     {
-                        row.syncNode->slocalname = std::move(sn);
+                        row.fsSiblings->reserve(50);
                     }
+                    if (row.fsSiblings->capacity() > row.fsSiblings->size())
+                    {
+                        // However much room we left in the vector, is how many directories we can
+                        // drill into, recursively creating as we go.
+                        // Since we can't invalidate the pointers taken to these elements already
+                        row.fsSiblings->emplace_back(std::move(*fsnode));
+                        row.fsNode = &row.fsSiblings->back();
+                    }
+                }
+                else
+                {
+                    row.syncNode->setScanAgain(true, false, false);
                 }
             }
             else if (client->fsaccess->transient_error)
