@@ -145,7 +145,7 @@ struct RequestTracker : public ::mega::MegaRequestListener
 };
 
 // Fixture class with common code for most of tests
-class SdkTest : public ::testing::Test, public MegaListener, public::MegaRequestListener, MegaTransferListener, MegaLogger {
+class SdkTest : public ::testing::Test, public MegaListener, public MegaRequestListener, MegaTransferListener, MegaLogger {
 
 public:
 
@@ -156,11 +156,11 @@ public:
         string pwd;
         int lastError;
         int lastTransferError;
-        
+
         // flags to monitor the completion of requests/transfers
         bool requestFlags[MegaRequest::TOTAL_OF_REQUEST_TYPES];
         bool transferFlags[MegaTransfer::TYPE_LOCAL_HTTP_DOWNLOAD];
-        
+
         std::unique_ptr<MegaContactRequest> cr;
         std::unique_ptr<MegaTimeZoneDetails> tzDetails;
         std::unique_ptr<MegaAccountDetails> accountDetails;

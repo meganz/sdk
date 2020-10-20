@@ -48,7 +48,7 @@
 #ifdef __APPLE__
     #include <xlocale.h>
     #include <strings.h>
-    #endif
+#endif
 
 #ifdef _WIN32
 #ifndef WINDOWS_PHONE
@@ -398,11 +398,11 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                 if (fav != 1)
                 {
                     LOG_err << "Invalid value for node attr fav: " << fav;
-        }
+                }
                 else
                 {
                     mFavourite = fav;
-    }
+                }
             }
             else if (it->first == AttrMap::string2nameid("lbl"))
             {
@@ -5630,9 +5630,8 @@ long long MegaApiImpl::getSDKtime()
 
 void MegaApiImpl::getSessionTransferURL(const char *path, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_SESSION_TRANSFER_URL);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_SESSION_TRANSFER_URL, listener);
     request->setText(path);
-    request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -5742,21 +5741,19 @@ void MegaApiImpl::base64ToBinary(const char *base64string, unsigned char **binar
 
 void MegaApiImpl::retryPendingConnections(bool disconnect, bool includexfers, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS, listener);
     request->setFlag(disconnect);
     request->setNumber(includexfers);
-    request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();
 }
 
 void MegaApiImpl::setDnsServers(const char *dnsServers, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RETRY_PENDING_CONNECTIONS, listener);
     request->setFlag(true);
     request->setNumber(true);
     request->setText(dnsServers);
-    request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -5882,7 +5879,6 @@ char* MegaApiImpl::smsVerifiedPhoneNumber()
 void MegaApiImpl::resetSmsVerifiedPhoneNumber(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RESET_SMS_VERIFIED_NUMBER, listener);
-    request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6237,8 +6233,7 @@ void MegaApiImpl::confirmCancelAccount(const char *link, const char *pwd, MegaRe
 
 void MegaApiImpl::resendVerificationEmail(MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL);
-    request->setListener(listener);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_RESEND_VERIFICATION_EMAIL, listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -6344,7 +6339,7 @@ void MegaApiImpl::loop()
     {
         client->httpio->getMEGADNSservers(&servers, false);
 
-                    if (servers.size())
+        if (servers.size())
             break;
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
@@ -8151,7 +8146,7 @@ MegaStringList *MegaApiImpl::getBackupFolders(int backuptag)
 
 void MegaApiImpl::setBackup(const char* localFolder, MegaNode* parent, bool attendPastBackups, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_BACKUP);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_BACKUP, listener);
     if(parent) request->setNodeHandle(parent->getHandle());
     if(localFolder)
     {
@@ -8168,16 +8163,14 @@ void MegaApiImpl::setBackup(const char* localFolder, MegaNode* parent, bool atte
     request->setText(periodstring.c_str());
     request->setFlag(attendPastBackups);
 
-    request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();
 }
 
 void MegaApiImpl::removeBackup(int tag, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_BACKUP);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_BACKUP, listener);
     request->setNumber(tag);
-    request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8185,19 +8178,16 @@ void MegaApiImpl::removeBackup(int tag, MegaRequestListener *listener)
 
 void MegaApiImpl::abortCurrentBackup(int tag, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ABORT_CURRENT_BACKUP);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ABORT_CURRENT_BACKUP, listener);
     request->setNumber(tag);
-    request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();
 }
 
 void MegaApiImpl::startTimer( int64_t period, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_TIMER);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_TIMER, listener);
     request->setNumber(period);
-
-    request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8572,7 +8562,7 @@ MegaNode *MegaApiImpl::getSyncedNode(const LocalPath& path)
 
 void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC, listener);
     request->setNodeHandle(megaHandle);
     if(localFolder)
     {
@@ -8593,7 +8583,6 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHand
         request->setName(request->getFile());
     }
 
-    request->setListener(listener);
     request->setRegExp(regExp);
     requestQueue.push(request);
     waiter->notify();
@@ -13375,6 +13364,7 @@ void MegaApiImpl::backupput_result(const Error& e, handle backupId)
     if (requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || (request->getType() != MegaRequest::TYPE_BACKUP_PUT)) return;
+
     request->setParentHandle(backupId);
     mHeartBeatMonitor->digestPutResult(backupId);
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -13385,6 +13375,7 @@ void MegaApiImpl::backupupdate_result(const Error& e, handle backupId)
     if (requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || (request->getType() != MegaRequest::TYPE_BACKUP_PUT)) return;
+
     assert(backupId == request->getParentHandle());
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
@@ -15652,7 +15643,7 @@ void MegaApiImpl::getpsa_result(error e, int id, string *title, string *text, st
         }
         else
         {
-        request->setName(title->c_str());
+            request->setName(title->c_str());
             request->setText(text->c_str());
             request->setFile(image->c_str());
             request->setPassword(buttontext->c_str());
@@ -22974,8 +22965,10 @@ void MegaApiImpl::sendPendingRequests()
             break;
         }
         case MegaRequest::TYPE_BACKUP_REMOVE:
+        {
             client->reqs.add(new CommandBackupRemove(client, request->getParentHandle()));
             break;
+        }
         case MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT:
         {
             client->reqs.add(new CommandBackupPutHeartBeat(client, 
@@ -23141,7 +23134,6 @@ void MegaApiImpl::setBackup(int backupType, MegaHandle targetNode, const char* l
     request->setAccess(state);
     request->setNumDetails(subState);
     request->setText(extraData);
-    request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -23150,7 +23142,6 @@ void MegaApiImpl::removeBackup(MegaHandle backupId, MegaRequestListener *listene
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_REMOVE, listener);
     request->setParentHandle(backupId);
-    request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -23195,7 +23186,6 @@ void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle t
         request->setText(extraData);
     }
 
-    request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();
 }
