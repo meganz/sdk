@@ -22,58 +22,27 @@
 #ifndef MEGA_FILESYSTEM_H
 #define MEGA_FILESYSTEM_H 1
 
-#if defined (__linux__) && !defined (__ANDROID__)
-#include <linux/magic.h>
-#endif
-
-#if defined (__linux__) || defined (__ANDROID__) // __ANDROID__ is always included in __linux__
-#include <sys/vfs.h>
-#elif defined  (__APPLE__) || defined (USE_IOS)
-#include <sys/mount.h>
-#include <sys/param.h>
-#elif defined(_WIN32) || defined(WINDOWS_PHONE)
-#include <winsock2.h>
-#include <Windows.h>
-#endif
-
 #include "types.h"
 #include "utils.h"
 #include "waiter.h"
 
-#if defined (__linux__) && !defined (__ANDROID__)
-// Define magic constants (for linux), in case they are not defined in headers
-#ifndef HFS_SUPER_MAGIC
-#define HFS_SUPER_MAGIC 0x4244
-#endif
-
-#ifndef NTFS_SB_MAGIC
-#define NTFS_SB_MAGIC   0x5346544e
-#endif
-
-#elif defined (__ANDROID__)
-// Define magic constants (for Android), in case they are not defined in headers
-#ifndef SDCARDFS_SUPER_MAGIC
-#define SDCARDFS_SUPER_MAGIC 0x5DCA2DF5
-#endif
-
-#ifndef FUSEBLK_SUPER_MAGIC
-#define FUSEBLK_SUPER_MAGIC  0x65735546
-#endif
-
-#ifndef FUSECTL_SUPER_MAGIC
-#define FUSECTL_SUPER_MAGIC  0x65735543
-#endif
-
-#ifndef F2FS_SUPER_MAGIC
-#define F2FS_SUPER_MAGIC 0xF2F52010
-#endif
-#endif
-
 namespace mega {
 
 // Enumeration for filesystem families
-enum FileSystemType {FS_UNKNOWN = -1, FS_APFS = 0, FS_HFS = 1, FS_EXT = 2, FS_FAT32 = 3,
-                     FS_EXFAT = 4, FS_NTFS = 5, FS_FUSE = 6, FS_SDCARDFS = 7, FS_F2FS = 8};
+enum FileSystemType
+{
+    FS_UNKNOWN = -1,
+    FS_APFS = 0,
+    FS_HFS = 1,
+    FS_EXT = 2,
+    FS_FAT32 = 3,
+    FS_EXFAT = 4,
+    FS_NTFS = 5,
+    FS_FUSE = 6,
+    FS_SDCARDFS = 7,
+    FS_F2FS = 8,
+    FS_XFS = 9
+};
 
 // generic host filesystem node ID interface
 struct MEGA_API FsNodeId
@@ -175,11 +144,11 @@ public:
     // Return a utf8 representation of the LocalPath (fsaccess is used to do the conversion)
     // No escaping or unescaping is done.
     std::string toPath(const FileSystemAccess& fsaccess) const;
-    
-    // Return a utf8 representation of the LocalPath, taking into account that the LocalPath 
+
+    // Return a utf8 representation of the LocalPath, taking into account that the LocalPath
     // may contain escaped characters that are disallowed for the filesystem.
     // Those characters are converted back (unescaped).  fsaccess is used to do the conversion.
-    std::string toName(const FileSystemAccess& fsaccess, FileSystemType fsType = FS_UNKNOWN) const;
+    std::string toName(const FileSystemAccess& fsaccess, FileSystemType fsType) const;
 
     // Create a Localpath from a utf8 string where no character conversions or escaping is necessary.
     static LocalPath fromPath(const std::string& path, const FileSystemAccess& fsaccess);
@@ -344,11 +313,11 @@ struct Notification
     LocalNode* localnode;
 };
 
-struct NotificationDeque : ThreadSafeDeque<Notification> 
+struct NotificationDeque : ThreadSafeDeque<Notification>
 {
     void replaceLocalNodePointers(LocalNode* check, LocalNode* newvalue)
     {
-        std::lock_guard<std::mutex> g(m); 
+        std::lock_guard<std::mutex> g(m);
         for (auto& n : mNotifications)
         {
             if (n.localnode == check)
@@ -445,9 +414,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     bool islocalfscompatible(unsigned char, bool isEscape, FileSystemType = FS_UNKNOWN) const;
     void escapefsincompatible(string*, FileSystemType fileSystemType) const;
 
-    FileSystemType getFilesystemType(const LocalPath& dstPath) const;
     const char *fstypetostring(FileSystemType type) const;
-    FileSystemType getlocalfstype(const LocalPath& dstPath) const;
+    virtual bool getlocalfstype(const LocalPath& path, FileSystemType& type) const = 0;
+    FileSystemType getlocalfstype(const LocalPath& path) const;
     void unescapefsincompatible(string*,FileSystemType) const;
 
     // convert MEGA path (UTF-8) to local format
@@ -490,7 +459,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // make sure that we stay within the range of timestamps supported by the server data structures (unsigned 32-bit)
     static void captimestamp(m_time_t*);
-    
+
     // set mtime
     virtual bool setmtimelocal(LocalPath&, m_time_t) = 0;
 
@@ -504,7 +473,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool getextension(const LocalPath&, char*, size_t) const = 0;
 
     // check if synchronization is supported for a specific path
-    virtual bool issyncsupported(LocalPath&, bool* = NULL) { return true; }
+    virtual bool issyncsupported(LocalPath&, bool* = NULL, SyncError* = nullptr) { return true; }
 
     // add notification (has to be called for all directories in tree for full crossplatform support)
     virtual void addnotify(LocalNode*, string*) { }
@@ -528,7 +497,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     // set whenever an operation fails due to a transient condition (e.g. locking violation)
     bool transient_error;
-    
+
     // set whenever there was a global file notification error or permanent failure
     // (this is in addition to the DirNotify-local error)
     bool notifyerr;

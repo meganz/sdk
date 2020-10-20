@@ -517,8 +517,6 @@ public:
     }
 #endif
 
-
-
     SimpleLogger& operator<<(const DirectMessage &obj)
     {
 #ifndef ENABLE_LOG_PERFORMANCE

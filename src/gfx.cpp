@@ -34,7 +34,7 @@ const int GfxProc::dimensionsavatar[][2] = {
 
 bool GfxProc::isgfx(string* localfilename)
 {
-    char ext[8];
+    char ext[MAXEXTENSIONLEN];
     const char* supported;
 
     if (!(supported = supportedformats()))
@@ -58,7 +58,7 @@ bool GfxProc::isgfx(string* localfilename)
 
 bool GfxProc::isvideo(string *localfilename)
 {
-    char ext[8];
+    char ext[MAXEXTENSIONLEN];
     const char* supported;
 
     if (!(supported = supportedvideoformats()))
@@ -276,7 +276,7 @@ void GfxProc::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 
         px = (w - rw) / 2;
         py = (h - rw) / 3;
-        
+
         rh = rw;
     }
 }

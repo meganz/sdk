@@ -213,7 +213,10 @@ struct DemoApp : public MegaApp
     void transfer_complete(Transfer*) override;
 
 #ifdef ENABLE_SYNC
-    void syncupdate_state(Sync*, syncstate_t) override;
+    void syncupdate_state(int tag, syncstate_t, SyncError, bool fireDisableEvent = true) override;
+    void sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const SyncError &error) override;
+    void sync_removed(int tag) override;
+
     void syncupdate_scanning(bool) override;
     void syncupdate_local_folder_addition(Sync*, LocalNode*, const char*) override;
     void syncupdate_local_folder_deletion(Sync* , LocalNode*) override;
@@ -256,6 +259,11 @@ struct DemoApp : public MegaApp
 
     void smsverificationsend_result(error);
     void smsverificationcheck_result(error, string*);
+
+    void getbanners_result(error) override;
+    void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;
+
+    void dismissbanner_result(error) override;
 
     void reload(const char*) override;
     void clearing() override;
@@ -381,3 +389,4 @@ void exec_querytransferquota(autocomplete::ACState& s);
 #endif
 void exec_metamac(autocomplete::ACState& s);
 void exec_resetverifiedphonenumber(autocomplete::ACState& s);
+void exec_banner(autocomplete::ACState& s);
