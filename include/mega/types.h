@@ -874,7 +874,8 @@ public:
                const Type syncType = TYPE_TWOWAY,
                const bool syncDeletions = false,
                const bool forceOverwrite = false,
-               const SyncError error = NO_SYNC_ERROR
+               const SyncError error = NO_SYNC_ERROR,
+               handle hearBeatID = UNDEF
             );
 
     // returns unique identifier
@@ -953,6 +954,9 @@ public:
     // check if a sync would be enabled according to the sync state and error
     static bool isEnabled(syncstate_t state, SyncError syncError);
 
+    handle getBackupId() const;
+    void setBackupId(const handle &backupId);
+
 private:
 
     // Unique identifier. any other field can change (even remote handle),
@@ -991,6 +995,9 @@ private:
 
     // failure cause (disable/failure cause).
     SyncError mError;
+
+    // id for heartbeating
+    handle mBackupId;
 
     // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
     bool serialize(std::string& data) const;

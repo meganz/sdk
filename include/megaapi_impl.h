@@ -29,6 +29,8 @@
 #include "mega/gfx/external.h"
 #include "megaapi.h"
 
+#include "mega/heartbeats.h"
+
 #define CRON_USE_LOCAL_TIME 1
 #include "mega/mega_ccronexpr.h"
 
@@ -2080,6 +2082,7 @@ class TransferQueue
         int getLastPushedTag() const;
 };
 
+
 class MegaApiImpl : public MegaApp
 {
     public:
@@ -2742,6 +2745,11 @@ class MegaApiImpl : public MegaApp
         void getBanners(MegaRequestListener *listener);
         void dismissBanner(int id, MegaRequestListener *listener);
 
+        void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
+        void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode);
+
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e, DBTableTransactionCommitter& committer);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
@@ -2860,6 +2868,7 @@ protected:
         map<int, MegaSyncPrivate *>::iterator eraseSyncByIterator(map<int, MegaSyncPrivate *>::iterator it);
 
 #endif
+        std::unique_ptr<MegaBackupMonitor> mHeartBeatMonitor;
 
         int pendingUploads;
         int pendingDownloads;
@@ -3179,10 +3188,12 @@ protected:
         std::mutex mSyncable_fa_mutex;
 #endif
 
-        void backupput_result(const Error&, handle) override;
+        void backupput_result(const Error&, handle backupId) override;
         void backupupdate_result(const Error&, handle) override;
         void backupputheartbeat_result(const Error&) override;
         void backupremove_result(const Error&, handle) override;
+        void heartbeat() override;
+        void pause_state_changed() override;
 
 protected:
         // suggest reload due to possible race condition with other clients

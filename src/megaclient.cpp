@@ -59,6 +59,9 @@ const int MegaClient::MAXQUEUEDFA = 30;
 // maximum number of concurrent putfa
 const int MegaClient::MAXPUTFA = 10;
 
+// hearbeat frequency
+static constexpr int FREQUENCY_HEARTBEAT_DS = 300;
+
 #ifdef ENABLE_SYNC
 // //bin/SyncDebris/yyyy-mm-dd base folder name
 const char* const MegaClient::SYNCDEBRISFOLDERNAME = "SyncDebris";
@@ -1023,6 +1026,21 @@ std::string MegaClient::getDeviceid() const
     return MegaClient::statsid;
 }
 
+std::string MegaClient::getDeviceidHash() const
+{
+    string deviceIdHash;
+    string id = getDeviceid();
+    if (id.size())
+    {
+        string hash;
+        HashSHA256 hasher;
+        hasher.add((const byte*)id.data(), unsigned(id.size()));
+        hasher.get(&hash);
+        Base64::btoa(hash, deviceIdHash);
+    }
+    return deviceIdHash;
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {
@@ -1168,6 +1186,8 @@ void MegaClient::init()
     btpfa.reset();
     btbadhost.reset();
 
+    btheartbeat.reset();
+
     abortlockrequest();
     transferHttpCounter = 0;
 
@@ -1184,7 +1204,7 @@ void MegaClient::init()
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
-    : useralerts(*this), btugexpiration(rng), btcs(rng), btbadhost(rng), btworkinglock(rng), btsc(rng), btpfa(rng)
+    : useralerts(*this), btugexpiration(rng), btcs(rng), btbadhost(rng), btworkinglock(rng), btsc(rng), btpfa(rng), btheartbeat(rng)
 #ifdef ENABLE_SYNC
     ,syncfslockretrybt(rng), syncdownbt(rng), syncnaglebt(rng), syncextrabt(rng), syncscanbt(rng)
 #endif
@@ -3050,6 +3070,11 @@ void MegaClient::exec()
             }
         }
 
+        if (btheartbeat.armed())
+        {
+            app->heartbeat();
+            btheartbeat.backoff(FREQUENCY_HEARTBEAT_DS);
+        }
 
         for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
         {
@@ -14614,6 +14639,24 @@ error MegaClient::saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t 
 }
 
 
+error MegaClient::updateSyncBackupId(int tag, handle newHearBeatID)
+{
+    if (syncConfigs)
+    {
+        auto syncconfig = syncConfigs->get(tag);
+        if (!syncconfig)
+        {
+            return API_ENOENT;
+        }
+        auto newConfig = *syncconfig;
+
+        newConfig.setBackupId(newHearBeatID);
+        syncConfigs->insert(newConfig);
+        return API_OK;
+    }
+    return API_ENOENT;
+}
+
 bool MegaClient::updateSyncRemoteLocation(const SyncConfig *config, Node *n, bool forceCallback)
 {
     if (!config)
@@ -14718,6 +14761,15 @@ error MegaClient::changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate
     e = changeSyncState(config, newstate, newSyncError, fireDisableEvent);
 
     return e;
+}
+
+string MegaClient::cypherTLVTextWithMasterKey(const char *name, const string &text)
+{
+    TLVstore tlv;
+    tlv.set(name, text);
+    std::unique_ptr<string> tlvStr{tlv.tlvRecordsToContainer(rng, &key)};
+
+    return Base64::btoa(*tlvStr);
 }
 
 void MegaClient::failSync(Sync* sync, SyncError syncerror)
@@ -15141,6 +15193,7 @@ void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
 // pause/unpause transfers
 void MegaClient::pausexfers(direction_t d, bool pause, bool hard, DBTableTransactionCommitter& committer)
 {
+    bool changed{xferpaused[d] != pause};
     xferpaused[d] = pause;
 
     if (!pause || hard)
@@ -15169,6 +15222,11 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard, DBTableTransac
                 it++;
             }
         }
+    }
+
+    if (changed)
+    {
+        app->pause_state_changed();
     }
 }
 

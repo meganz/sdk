@@ -5314,6 +5314,26 @@ void MegaApi::dismissBanner(int id, MegaRequestListener *listener)
     pImpl->dismissBanner(id, listener);
 }
 
+void MegaApi::setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener)
+{
+    pImpl->setBackup(backupType, targetNode, localFolder, backupName, state, subState, extraData, listener);
+}
+
+void MegaApi::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener)
+{
+    pImpl->updateBackup(backupId, backupType, targetNode, localFolder, backupName, state, subState, extraData, listener);
+}
+
+void MegaApi::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
+{
+    pImpl->removeBackup(backupId, listener);
+}
+
+void MegaApi::sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode)
+{
+    pImpl->sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode);
+}
+
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
     pImpl = new MegaHashSignatureImpl(base64Key);
