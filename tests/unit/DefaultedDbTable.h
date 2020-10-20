@@ -72,6 +72,16 @@ public:
     {
         throw NotImplemented{__func__};
     }
+
+    std::string getVar(const std::string&) override
+    {
+        throw NotImplemented{__func__};
+    }
+
+    bool setVar(const std::string&, const std::string&) override
+    {
+        throw NotImplemented{__func__};
+    }
 };
 
 } // mt

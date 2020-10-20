@@ -121,9 +121,18 @@ DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess* fsaccess, string* n
     sqlite3_exec(db, "PRAGMA journal_mode=WAL;", NULL, NULL, NULL);
 #endif
 
-    const char *sql = "CREATE TABLE IF NOT EXISTS statecache (id INTEGER PRIMARY KEY ASC NOT NULL, content BLOB NOT NULL)";
+    string sql = "CREATE TABLE IF NOT EXISTS statecache (id INTEGER PRIMARY KEY ASC NOT NULL, content BLOB NOT NULL)";
 
-    rc = sqlite3_exec(db, sql, NULL, NULL, NULL);
+    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
+
+    if (rc)
+    {
+        return NULL;
+    }
+
+
+    sql = "CREATE TABLE IF NOT EXISTS vars(name text PRIMARY KEY NOT NULL, value BLOB)";
+    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
 
     if (rc)
     {
@@ -356,11 +365,69 @@ void SqliteDbTable::remove()
 
 int SqliteDbTable::readSessionType()
 {
-    std::string sessionType;
-    if (get(mega::MegaClient::CACHEDSESSIONTYPE, &sessionType))
-        return atoi(sessionType.c_str());
-    else
-        return -1;
+    std::string sessionType = getVar("SESSION_TYPE");
+    return (sessionType != "") ? atoi(getVar("SESSION_TYPE").c_str()) : -1;
+}
+
+std::string SqliteDbTable::getVar(const std::string& name)
+{
+    if (!db)
+    {
+        return "";
+    }
+
+    std::string value;
+    checkTransaction();
+
+    sqlite3_stmt *stmt;
+    if (sqlite3_prepare(db, "SELECT value FROM vars WHERE name = ?", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_bind_text(stmt, 1, name.c_str(), name.length(), SQLITE_STATIC) == SQLITE_OK)
+        {
+            if((sqlite3_step(stmt) == SQLITE_ROW))
+            {
+                const void* data = sqlite3_column_blob(stmt, 0);
+                int size = sqlite3_column_bytes(stmt, 0);
+                if (data && size)
+                {
+                    value.assign(static_cast<const char*>(data), size);
+                }
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return value;
+}
+
+bool SqliteDbTable::setVar(const std::string& name, const std::string& value)
+{
+    if (!db)
+    {
+        return false;
+    }
+
+    checkTransaction();
+
+    sqlite3_stmt *stmt;
+    bool result = false;
+
+    if (sqlite3_prepare(db, "INSERT OR REPLACE INTO vars (name, value) VALUES (?, ?)", -1, &stmt, NULL) == SQLITE_OK)
+    {
+        if (sqlite3_bind_text(stmt, 1, name.c_str(), name.length(), SQLITE_STATIC) == SQLITE_OK)
+        {
+            if (sqlite3_bind_blob(stmt, 2, value.data(), value.size(), SQLITE_STATIC) == SQLITE_OK)
+            {
+                if (sqlite3_step(stmt) == SQLITE_DONE)
+                {
+                    result = true;
+                }
+            }
+        }
+    }
+
+    sqlite3_finalize(stmt);
+    return result;
 }
 } // namespace
 

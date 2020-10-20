@@ -4973,8 +4973,7 @@ bool CommandCreateEphemeralSession::procresult(Result r)
     {
         client->ephemeralSession = false;
         client->ephemeralSessionPlusPlus = false;
-        std::string sessionType = std::to_string(client->loggedin());
-        client->sctable->put(MegaClient::CACHEDSESSIONTYPE, &sessionType);
+        client->sctable->setVar("SESSION_TYPE", std::to_string(client->loggedin()));
         client->app->ephemeral_result(r.errorOrOK());
     }
     else
@@ -5269,8 +5268,7 @@ bool CommandConfirmSignupLink::procresult(Result r)
 
         client->ephemeralSessionPlusPlus = false;
         client->convertToFullAccountInProgress = true;
-        std::string sessionType = std::to_string(client->loggedin());
-        client->sctable->put(MegaClient::CACHEDSESSIONTYPE, &sessionType);
+        client->sctable->setVar("SESSION_TYPE", std::to_string(client->loggedin()));
         client->app->confirmsignuplink_result(API_OK);
         return true;
     }
@@ -5279,8 +5277,7 @@ bool CommandConfirmSignupLink::procresult(Result r)
 
     client->ephemeralSession = false;
     client->ephemeralSessionPlusPlus = false;
-    std::string sessionType = std::to_string(client->loggedin());
-    client->sctable->put(MegaClient::CACHEDSESSIONTYPE, &sessionType);
+    client->sctable->setVar("SESSION_TYPE", std::to_string(client->loggedin()));
     client->app->confirmsignuplink_result(r.errorOrOK());
     return r.wasStrictlyError();
 }
@@ -5457,8 +5454,7 @@ bool CommandFetchNodes::procresult(Result r)
                 client->applykeys();
                 client->initStatusTable();
                 client->initsc();
-                std::string sessionType = std::to_string(client->loggedin());
-                client->sctable->put(MegaClient::CACHEDSESSIONTYPE, &sessionType);
+                client->sctable->setVar("SESSION_TYPE", std::to_string(client->loggedin()));
                 client->pendingsccommit = false;
                 client->fetchnodestag = tag;
 
