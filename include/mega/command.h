@@ -580,7 +580,7 @@ class MEGA_API CommandPutNodes : public Command
 public:
     bool procresult(Result) override;
 
-    CommandPutNodes(MegaClient*, handle, const char*, vector<NewNode>&&, int, putsource_t = PUTNODES_APP, const char *cauth = NULL, std::function<void(const Error&, targettype_t , vector<NewNode>&)> = NULLPTR);
+    CommandPutNodes(MegaClient*, handle, const char*, vector<NewNode>&&, int, putsource_t = PUTNODES_APP, const char *cauth = NULL, std::function<void(const Error&, targettype_t , vector<NewNode>&)> = nullptr);
 };
 
 class MEGA_API CommandSetAttr : public Command

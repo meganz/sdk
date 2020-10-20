@@ -528,7 +528,7 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, vector<NewNode>&&, const char * = NULL, std::function<void(const Error &, targettype_t, vector<NewNode> &)> f = NULLPTR);
+    void putnodes(handle, vector<NewNode>&&, const char * = NULL, std::function<void(const Error &, targettype_t, vector<NewNode> &)> f = nullptr);
 
     // send files/folders to user
     void putnodes(const char*, vector<NewNode>&&);
