@@ -1229,9 +1229,6 @@ class MegaRequestPrivate : public MegaRequest
 
         MegaBackupListener *getBackupListener() const;
         void setBackupListener(MegaBackupListener *value);
-        void setBackupId(MegaHandle backupId);
-        void setBackupUploads(int ups);
-        void setBackupDownloads(int downs);
 
         MegaBannerList* getMegaBannerList() const override;
         void setBanners(vector< tuple<int, string, string, string, string, string, string> >&& banners);
