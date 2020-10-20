@@ -13170,14 +13170,9 @@ handle MegaClient::nextsyncid()
 // this method provides a temporal handle useful to indicate putnodes()-local parent linkage
 handle MegaClient::nextUploadId()
 {
-    byte* ptr = (byte*)&mCurrUploadId;
-
-    while (!++*ptr && ptr < (byte*)&mCurrUploadId + NODEHANDLE)
-    {
-        ptr++;
-    }
-
-    return mCurrUploadId;
+    return mCurrUploadId = (mCurrUploadId + 1 <= 0xFFFFFFFFFFFF)
+            ? mCurrUploadId + 1
+            : 0;
 }
 
 // recursively stop all transfers
