@@ -13372,11 +13372,6 @@ void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
 
 void MegaApiImpl::backupput_result(const Error& e, handle backupId)
 {
-    if (e || backupId == UNDEF)
-    {
-        LOG_err << "backupput_result failed: " << MegaError::getErrorString(e);
-    }
-
     if (requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || (request->getType() != MegaRequest::TYPE_BACKUP_PUT)) return;
@@ -13387,15 +13382,10 @@ void MegaApiImpl::backupput_result(const Error& e, handle backupId)
 
 void MegaApiImpl::backupupdate_result(const Error& e, handle backupId)
 {
-    if (e || backupId == UNDEF)
-    {
-        LOG_err << "backupupdate_result failed: " << MegaError::getErrorString(e);
-    }
-
     if (requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || (request->getType() != MegaRequest::TYPE_BACKUP_PUT)) return;
-    assert(backupId == request->getParentHandle()
+    assert(backupId == request->getParentHandle());
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
@@ -13410,10 +13400,6 @@ void MegaApiImpl::backupputheartbeat_result(const Error& e)
 
 void MegaApiImpl::backupremove_result(const Error& e, handle backupId)
 {
-    if (e || backupId == UNDEF)
-    {
-        LOG_err << "backupremove_result failed: " << MegaError::getErrorString(e);
-    }
     if (requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || (request->getType() != MegaRequest::TYPE_BACKUP_REMOVE)) return;
