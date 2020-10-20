@@ -145,7 +145,7 @@ struct RequestTracker : public ::mega::MegaRequestListener
 };
 
 // Fixture class with common code for most of tests
-class SdkTest : public ::testing::Test, public MegaListener, MegaRequestListener, MegaTransferListener, MegaLogger {
+class SdkTest : public ::testing::Test, public MegaListener, public MegaRequestListener, MegaTransferListener, MegaLogger {
 
 public:
 
@@ -197,6 +197,8 @@ public:
 
     std::mutex lastEventMutex;
     std::unique_ptr<MegaEvent> lastEvent;
+
+    MegaHandle mBackupId = UNDEF;
 
 protected:
     void SetUp() override;
@@ -277,6 +279,10 @@ public:
     template<typename ... Args> int synchronousGetExtendedAccountDetails(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_ACCOUNT_DETAILS, [this, apiIndex, args...]() { megaApi[apiIndex]->getExtendedAccountDetails(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousKillSession(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_KILL_SESSION, [this, apiIndex, args...]() { megaApi[apiIndex]->killSession(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetBanners(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_BANNERS, [this, apiIndex, args...]() { megaApi[apiIndex]->getBanners(args...); }); return mApi[apiIndex].lastError; }
+    template<typename ... Args> int synchronousSetBackup(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_BACKUP_PUT, [this, apiIndex, args...]() { megaApi[apiIndex]->setBackup(args...); }); return mApi[apiIndex].lastError; }
+    template<typename ... Args> int synchronousUpdateBackup(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_BACKUP_PUT, [this, apiIndex, args...]() { megaApi[apiIndex]->updateBackup(args...); }); return mApi[apiIndex].lastError; }
+    template<typename ... Args> int synchronousRemoveBackup(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_BACKUP_REMOVE, [this, apiIndex, args...]() { megaApi[apiIndex]->removeBackup(args...); }); return mApi[apiIndex].lastError; }
+    template<typename ... Args> int synchronousSendBackupHeartbeat(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT, [this, apiIndex, args...]() { megaApi[apiIndex]->sendBackupHeartbeat(args...); }); return mApi[apiIndex].lastError; }
 
 
     // convenience functions - make a request and wait for the result via listener, return the result code.  To add new functions to call, just copy the line

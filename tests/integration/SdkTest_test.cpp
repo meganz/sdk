@@ -28,9 +28,11 @@
 #ifdef WIN32
 #include <filesystem>
 namespace fs = ::std::filesystem;
+#define LOCAL_TEST_FOLDER "c:\\tmp\\synctests"
 #else
 #include <experimental/filesystem>
 namespace fs = ::std::experimental::filesystem;
+#define LOCAL_TEST_FOLDER (string(getenv("HOME"))+"/synctests_mega_auto")
 #endif
 
 using namespace std;
@@ -85,6 +87,32 @@ bool fileexists(const std::string& fn)
     struct stat   buffer;
     return (stat(fn.c_str(), &buffer) == 0);
 #endif
+}
+
+void moveToTrash(const fs::path& p)
+{
+    fs::path trashpath(TestFS::GetTrashFolder());
+    fs::create_directory(trashpath);
+    fs::path newpath = trashpath / p.filename();
+    for (int i = 2; fs::exists(newpath); ++i)
+    {
+        newpath = trashpath / fs::u8path(p.filename().stem().u8string() + "_" + to_string(i) + p.extension().u8string());
+    }
+    fs::rename(p, newpath);
+}
+
+fs::path makeNewTestRoot(fs::path p)
+{
+    if (fs::exists(p))
+    {
+        moveToTrash(p);
+    }
+#ifndef NDEBUG
+    bool b =
+#endif
+        fs::create_directories(p);
+    assert(b);
+    return p;
 }
 
 void copyFile(std::string& from, std::string& to)
@@ -328,6 +356,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     {
         return;
     }
+
     int apiIndex = getApiIndex(api);
     if (apiIndex < 0) return;
     mApi[apiIndex].requestFlags[request->getType()] = true;
@@ -515,6 +544,10 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
     case MegaRequest::TYPE_ACCOUNT_DETAILS:
         mApi[apiIndex].accountDetails.reset(mApi[apiIndex].lastError == API_OK ? request->getMegaAccountDetails() : nullptr);
+        break;
+  
+    case MegaRequest::TYPE_BACKUP_PUT:
+        mBackupId = request->getParentHandle();
         break;
     }
 }
@@ -4616,6 +4649,72 @@ TEST_F(SdkTest, SdkSimpleCommands)
 
     err = synchronousKillSession(0, INVALID_HANDLE);
     ASSERT_EQ(MegaError::API_ESID, err) << "Kill session for unknown seesions shoud fail with API_ESID (error: " << err << ")";
+}
+
+TEST_F(SdkTest, SdkHeartbeatCommands)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST HeartbeatCommands___";
+
+    // setbackup test
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    auto localtestfolder = localtestroot.string();
+    const char* backup = "/CommandBackupPutTest";
+    const char* extra = "Test SetBackup Camera Upload Test";
+    unique_ptr<char[]> localFolder(MegaApiImpl::binaryToBase64(localtestfolder.c_str(), localtestfolder.length()));
+    unique_ptr<char[]> backupName(MegaApiImpl::binaryToBase64(backup, strlen(backup)));
+    unique_ptr<char[]> extraData(MegaApiImpl::binaryToBase64(extra, strlen(extra)));
+
+    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+    char foldername[64] = "CommandBackupPutTest";
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, foldername, rootnode.get()));
+    
+    MegaHandle targetNode = mApi[0].h;
+    int state = 1;
+    int subState = 3;
+    
+    // setup a backup
+    int backupType = BackupType::CAMERA_UPLOAD;
+    auto err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
+    ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
+
+    // update a backup
+    const char* extra2 = "Test Update Camera Upload Test";
+    unique_ptr<char[]> extraData2(MegaApiImpl::binaryToBase64(extra2, strlen(extra2)));
+    err = synchronousUpdateBackup(0, mBackupId, BackupType::INVALID, UNDEF, nullptr, nullptr, -1, -1, extraData2.get());
+    ASSERT_EQ(MegaError::API_OK, err) << "updateBackup failed (error: " << err << ")";
+
+    // remove an existing backup
+    err = synchronousRemoveBackup(0, mBackupId, nullptr);
+    ASSERT_EQ(MegaError::API_OK, err) << "removeBackup failed (error: " << err << ")";
+
+    // add a backup again
+    err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
+    ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
+
+    // check heartbeat
+    err = synchronousSendBackupHeartbeat(0, mBackupId, 1, 10, 1, 1, 0, targetNode);
+    ASSERT_EQ(MegaError::API_OK, err) << "sendBackupHeartbeat failed (error: " << err << ")";
+
+    // negative test cases
+    gTestingInvalidArgs = true;
+    
+    // register the same backup twice: should work fine
+    err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
+    ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
+
+    // update a removed backup: should throw an error
+    err = synchronousRemoveBackup(0, mBackupId, nullptr);
+    ASSERT_EQ(MegaError::API_OK, err) << "removeBackup failed (error: " << err << ")";
+    // update the removed backup
+    err = synchronousUpdateBackup(0, mBackupId, BackupType::INVALID, UNDEF, nullptr, nullptr, -1, -1, extraData2.get());
+    ASSERT_NE(MegaError::API_OK, err) << "updateBackup failed (error: " << err << ")";
+
+    // create a backup with a big status: should report an error
+    err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), 255/*state*/, subState, extraData.get());
+    ASSERT_NE(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
+
+    gTestingInvalidArgs = false;
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)

@@ -504,12 +504,14 @@ void MegaBackupMonitor::onSyncBackupRegistered(int syncTag, handle backupId)
 
 void MegaBackupMonitor::digestPutResult(handle backupId)
 {
+    if (mPendingBackupPutCallbacks.empty())
+    {
+        return;
+    }
     // get the tag from queue of pending puts
     assert(mPendingBackupPutCallbacks.size());
     auto putResultCallback = mPendingBackupPutCallbacks.front();
     mPendingBackupPutCallbacks.pop_front();
-
-
     //call corresponding callback
     putResultCallback(backupId);
 }
