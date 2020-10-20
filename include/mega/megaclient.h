@@ -1212,6 +1212,9 @@ public:
     // have we just completed fetching new nodes?  (ie, caught up on all the historic actionpackets since the fetchnodes)
     bool statecurrent;
 
+    // actionpackets are up to date (similar to statecurrent but false if in the middle of spoonfeeding etc)
+    bool actionpacketsCurrent;
+
     // pending file attribute writes
     putfa_list queuedfa;
 
@@ -1860,6 +1863,7 @@ public:
         CodeCounter::ScopeStats dispatchTransfers = { "dispatchTransfers" };
         CodeCounter::ScopeStats csResponseProcessingTime = { "cs batch response processing" };
         CodeCounter::ScopeStats scProcessingTime = { "sc processing" };
+        CodeCounter::ScopeStats recursiveSyncTime = { "recursiveSync" };
         uint64_t transferStarts = 0, transferFinishes = 0;
         uint64_t transferTempErrors = 0, transferFails = 0;
         uint64_t prepwaitImmediate = 0, prepwaitZero = 0, prepwaitHttpio = 0, prepwaitFsaccess = 0, nonzeroWait = 0;

@@ -1100,6 +1100,7 @@ void MegaClient::init()
     csretrying = false;
     chunkfailed = false;
     statecurrent = false;
+    actionpacketsCurrent = false;
     totalNodes = 0;
     mAppliedKeyNodeCount = 0;
     faretrying = false;
@@ -2925,68 +2926,61 @@ void MegaClient::exec()
             bool tooSoon = filesystemNotificationsQuietTime
                            && filesystemNotificationsQuietTime > Waiter::ds;
 
-            LOG_debug << clientname << "tooSoon: " << tooSoon << "syncing: " << isAnySyncSyncing() << " current: " << statecurrent;
+            LOG_debug << clientname << "tooSoon: " << tooSoon << "syncing: " << isAnySyncSyncing() << " apCurrent: " << actionpacketsCurrent;
 
-            // We must have statecurrent so that any LocalNode created can straight away indicate if it matched a Node
-            if (statecurrent && isAnySyncSyncing() && !tooSoon)
+            // We must have actionpacketsCurrent so that any LocalNode created can straight away indicate if it matched a Node
+            if (actionpacketsCurrent && isAnySyncSyncing() && !tooSoon)
             {
+                CodeCounter::ScopeTimer rst(performanceStats.recursiveSyncTime);
+
                 // we need one pass with recursiveSync() after scanning is complete, to be sure there are no moves left.
                 auto scanningCompletePreviously = mSyncFlags.scanningWasComplete;
                 mSyncFlags = SyncFlags();
                 mSyncFlags.scanningWasComplete = !isAnySyncScanning();
                 mSyncFlags.movesWereComplete = scanningCompletePreviously && !mightAnySyncsHaveMoves();
 
-                //for (int c = 2; c--;)
+                for (Sync* sync : syncs)
                 {
-                    for (Sync* sync : syncs)
+                    if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
                     {
-                        if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
+                        // pathBuffer will have leafnames appended as we recurse
+                        LocalPath pathBuffer = sync->localroot->localname;
+
+                        DBTableTransactionCommitter committer(tctable);
+                        FSNode rootFsNode(sync->localroot->getKnownFSDetails());
+                        Sync::syncRow row{sync->cloudRoot(), sync->localroot.get(), &rootFsNode};
+
+                        // Will be re-set if we can reach the scan target.
+                        mSyncFlags.scanTargetReachable = false;
+
+                        sync->recursiveSync(row, pathBuffer, committer);
+
+                        // Cancel the scan request if we couldn't reach the scan target.
+                        if (!mSyncFlags.scanTargetReachable)
                         {
-                            // pathBuffer will have leafnames appended as we recurse
-                            LocalPath pathBuffer = sync->localroot->localname;
-
-                            DBTableTransactionCommitter committer(tctable);
-                            FSNode rootFsNode(sync->localroot->getKnownFSDetails());
-                            Sync::syncRow row{sync->cloudRoot(), sync->localroot.get(), &rootFsNode};
-
-                            // Will be re-set if we can reach the scan target.
-                            mSyncFlags.scanTargetReachable = false;
-
-                            sync->recursiveSync(row, pathBuffer, committer);
-
-                            // Cancel the scan request if we couldn't reach the scan target.
-                            if (!mSyncFlags.scanTargetReachable)
-                            {
-                                sync->mScanRequest.reset();
-                            }
-
-                            //{
-                            //    // a local filesystem item was locked - schedule periodic retry
-                            //    // and force a full rescan afterwards as the local item may
-                            //    // be subject to changes that are notified with obsolete paths
-                            //    success = false;
-                            //    sync->dirnotify->mErrorCount = true;
-                            //}
-                            sync->cachenodes();
-
-                            bool doneScanning = sync->localroot->scanAgain == TREE_RESOLVED;
-                            if (doneScanning && sync->state == SYNC_INITIALSCAN)
-                            {
-                                sync->changestate(SYNC_ACTIVE);
-                            }
-
+                            sync->mScanRequest.reset();
                         }
-                    }
 
-                    //if (!mSyncFlags.performedScans &&
-                    //    !mSyncFlags.ongoingMovesRenames)
-                    //{
-                    //    LOG_debug << clientname << "Re-calling recursiveSync() for post-move cases";
-                    //    mSyncFlags.scansAndMovesComplete = true;
-                    //    continue;
-                    //}
-                    //break;
+                        //{
+                        //    // a local filesystem item was locked - schedule periodic retry
+                        //    // and force a full rescan afterwards as the local item may
+                        //    // be subject to changes that are notified with obsolete paths
+                        //    success = false;
+                        //    sync->dirnotify->mErrorCount = true;
+                        //}
+                        sync->cachenodes();
+
+                        bool doneScanning = sync->localroot->scanAgain == TREE_RESOLVED;
+                        if (doneScanning && sync->state == SYNC_INITIALSCAN)
+                        {
+                            sync->changestate(SYNC_ACTIVE);
+                        }
+
+                    }
                 }
+
+                rst.complete();
+                LOG_verbose << performanceStats.recursiveSyncTime.report();
 
                 execsyncdeletions();
             }
@@ -4505,8 +4499,9 @@ void MegaClient::httprequest(const char *url, int method, bool binary, const cha
 // process server-client request
 bool MegaClient::procsc()
 {
-    CodeCounter::ScopeTimer ccst(performanceStats.scProcessingTime);
+    actionpacketsCurrent = false;
 
+    CodeCounter::ScopeTimer ccst(performanceStats.scProcessingTime);
     nameid name;
 
 #ifdef ENABLE_SYNC
@@ -4667,6 +4662,8 @@ bool MegaClient::procsc()
                             useralerts.begincatchup = true;
                         }
                     }
+
+                    actionpacketsCurrent = statecurrent && !insca_notlast;
 
                     if (!insca_notlast)
                     {
@@ -16032,6 +16029,7 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
         << applyKeys.report(reset) << "\n"
         << scProcessingTime.report(reset) << "\n"
         << csResponseProcessingTime.report(reset) << "\n"
+        << recursiveSyncTime.report(reset) << "\n"
         << " cs Request waiting time: " << csRequestWaitTime.report(reset) << "\n"
         << " cs requests sent/received: " << reqs.csRequestsSent << "/" << reqs.csRequestsCompleted << " batches: " << reqs.csBatchesSent << "/" << reqs.csBatchesReceived << "\n"
         << " transfers active time: " << transfersActiveTime.report(reset) << "\n"

@@ -763,7 +763,8 @@ unique_ptr<T> make_unique(constructorArgs&&... args)
     return (unique_ptr<T>(new T(std::forward<constructorArgs>(args)...)));
 }
 
-//#define MEGA_MEASURE_CODE   // uncomment this to track time spent in major subsystems, and log it every 2 minutes, with extra control from megacli
+//todo: comment this before merging
+#define MEGA_MEASURE_CODE   // uncomment this to track time spent in major subsystems, and log it every 2 minutes, with extra control from megacli
 
 namespace CodeCounter
 {
@@ -826,6 +827,7 @@ namespace CodeCounter
 #ifdef MEGA_MEASURE_CODE
         ScopeStats& scope;
         high_resolution_clock::time_point blockStart;
+        bool done = false;
 
         ScopeTimer(ScopeStats& sm) : scope(sm), blockStart(high_resolution_clock::now())
         {
@@ -833,14 +835,18 @@ namespace CodeCounter
         }
         ~ScopeTimer()
         {
+            if (!done) complete();
+        }
+        void complete()
+        {
             ++scope.count;
             ++scope.finishes;
             scope.timeSpent += high_resolution_clock::now() - blockStart;
+            done = true;
         }
 #else
-        ScopeTimer(ScopeStats& sm)
-        {
-        }
+        ScopeTimer(ScopeStats& sm) {}
+        void complete() {}
 #endif
     };
 }

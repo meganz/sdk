@@ -219,7 +219,7 @@ public:
 
 private:
     static int instanceCount;
-
+    friend class MegaClient;
     CodeCounter::ScopeStats countCurlHttpIOAddevents = { "curl-httpio-addevents" };
     CodeCounter::ScopeStats countAddAresEventsCode = { "ares-add-events" };
     CodeCounter::ScopeStats countAddCurlEventsCode = { "curl-add-events" };
