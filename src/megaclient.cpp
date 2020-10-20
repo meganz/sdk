@@ -1220,7 +1220,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     minstreamingrate = -1;
     ephemeralSession = false;
     ephemeralSessionPlusPlus = false;
-    convertToFullAccountInProgress = false;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -6906,6 +6905,8 @@ void MegaClient::sc_uac()
                 }
                 app->account_updated();
                 app->notify_confirmation(email.c_str());
+                ephemeralSession = false;
+                ephemeralSessionPlusPlus = false;
                 return;
 
             default:
@@ -8839,7 +8840,7 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                     }
                 }
 
-                if (ephemeralSessionPlusPlus)
+                if (uh == me && ephemeralSessionPlusPlus && !u->isattrvalid(ATTR_KEYRING))
                 {
                     string puEd255;
                     string puCu255;
@@ -8858,23 +8859,10 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                     }
                     else
                     {
-                        // prepare the TLV for private keys
-                        TLVstore tlvRecords;
-                        tlvRecords.set(EdDSA::TLV_KEY, string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
-                        tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
-                        string *tlvContainer = tlvRecords.tlvRecordsToContainer(rng, &key);
 
                         // store keys into user attributes (skipping the procresult() <-- reqtag=0)
                         userattr_map attrs;
                         string buf;
-
-                        User* u = finduser(uh, 0);
-                        if (u || (u = finduser(uh, 1)))
-                        {
-                            buf.assign(tlvContainer->data(), tlvContainer->size());
-                            std::string version = "";
-                            u->setattr(ATTR_KEYRING, &buf, &version);
-                        }
 
                         buf.assign((const char *) signkey->pubKey, EdDSA::PUBLIC_KEY_LENGTH);
                         attrs[ATTR_ED25519_PUBK] = buf;
@@ -8882,12 +8870,19 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                         buf.assign((const char *) chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH);
                         attrs[ATTR_CU25519_PUBK] = buf;
 
+                        // prepare the TLV for private keys
+                        TLVstore tlvRecords;
+                        tlvRecords.set(EdDSA::TLV_KEY, string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
+                        tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
+                        string *tlvContainer = tlvRecords.tlvRecordsToContainer(rng, &key);
+                        buf.assign(tlvContainer->data(), tlvContainer->size());
+                        attrs[ATTR_KEYRING] = buf;
+
                         LOG_debug << "Send keys attributes";
 
                         putua(&attrs, 0);
 
                         delete tlvContainer;
-                        LOG_info << "Creating new keypairs and signatures";
                     }
 
                 }
@@ -11855,7 +11850,7 @@ void MegaClient::fetchnodes(bool nocache)
     readSessionType();
 
     // only initial load from local cache
-    if (loggedin() == FULLACCOUNT && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable) && fetchStatusTable(statusTable))
+    if ((loggedin() == FULLACCOUNT || loggedin() == EPHEMERALACCOUNTPLUSPLUS) && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable) && fetchStatusTable(statusTable))
     {
         WAIT_CLASS::bumpds();
         fnstats.mode = FetchNodesStats::MODE_DB;
@@ -12191,20 +12186,6 @@ void MegaClient::initializekeys()
         clearKeys();
         return;
     }
-}
-
-void MegaClient::storeKeyring()
-{
-    userattr_map attrs;
-    string buf;
-
-    User *u = finduser(me);
-    assert(u);
-    assert(u->isattrvalid(ATTR_KEYRING));
-
-    std::unique_ptr<TLVstore> tlv = std::unique_ptr<TLVstore>(TLVstore::containerToTLVrecords(u->getattr(ATTR_KEYRING), &key));
-    mPrEd255 = tlv->get(EdDSA::TLV_KEY);
-    mPrCu255 = tlv->get(ECDH::TLV_KEY);
 }
 
 void MegaClient::loadAuthrings()

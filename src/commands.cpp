@@ -4087,43 +4087,6 @@ bool CommandGetUserData::procresult(Result r)
                     }
                 }
 
-                if (client->convertToFullAccountInProgress)
-                {
-                    assert(client->mPrCu255.size() && client->mPrEd255.size());
-                    client->convertToFullAccountInProgress = false;
-                    TLVstore tlvRecords;
-                    tlvRecords.set(EdDSA::TLV_KEY, client->mPrEd255);
-                    tlvRecords.set(ECDH::TLV_KEY, client->mPrCu255);
-                    std::unique_ptr<string> tlvContainer = std::unique_ptr<string>(tlvRecords.tlvRecordsToContainer(client->rng, &client->key));
-
-                    std::unique_ptr<EdDSA> signkey = make_unique<EdDSA>(client->rng, (unsigned char *) client->mPrEd255.data());
-                    std::unique_ptr<ECDH> chatkey = make_unique<ECDH>((unsigned char *) client->mPrCu255.data());
-
-                    std::string buf;
-                    buf.assign(tlvContainer->data(), tlvContainer->size());
-                    userattr_map attrs;
-                    attrs[ATTR_KEYRING] = buf;
-
-                    string sigCu255;
-                    signkey->signKey(chatkey->pubKey, ECDH::PUBLIC_KEY_LENGTH, &sigCu255);
-                    buf.assign(sigCu255.data(), sigCu255.size());
-                    attrs[ATTR_SIG_CU255_PUBK] = buf;
-
-                    if (client->pubk.isvalid())
-                    {
-                        string sigPubk;
-                        string pubkStr;
-                        client->pubk.serializekeyforjs(pubkStr);
-                        signkey->signKey((unsigned char*)pubkStr.data(), pubkStr.size(), &sigPubk);
-                        buf.assign(sigPubk.data(), sigPubk.size());
-                        attrs[ATTR_SIG_RSA_PUBK] = buf;
-                    }
-
-                    client->mPrCu255.clear();
-                    client->mPrEd255.clear();
-                    client->putua(&attrs, 0);
-                }
-
                 if (changes > 0)
                 {
                     u->setTag(tag ? tag : -1);
@@ -5261,13 +5224,7 @@ bool CommandConfirmSignupLink::procresult(Result r)
     {
         client->json.storeobject();
         client->ephemeralSession = false;
-        if (client->ephemeralSessionPlusPlus)
-        {
-            client->storeKeyring();
-        }
-
         client->ephemeralSessionPlusPlus = false;
-        client->convertToFullAccountInProgress = true;
         client->sctable->setVar("SESSION_TYPE", std::to_string(client->loggedin()));
         client->app->confirmsignuplink_result(API_OK);
         return true;
