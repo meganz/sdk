@@ -13395,7 +13395,7 @@ void MegaApiImpl::backupupdate_result(const Error& e, handle backupId)
     if (requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || (request->getType() != MegaRequest::TYPE_BACKUP_PUT)) return;
-    request->setParentHandle(backupId);
+    assert(backupId == request->getParentHandle()
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
@@ -15667,11 +15667,11 @@ void MegaApiImpl::getpsa_result(error e, int id, string *title, string *text, st
         else
         {
         request->setName(title->c_str());
-        request->setText(text->c_str());
-        request->setFile(image->c_str());
-        request->setPassword(buttontext->c_str());
-        request->setLink(buttonlink->c_str());
-    }
+            request->setText(text->c_str());
+            request->setFile(image->c_str());
+            request->setPassword(buttontext->c_str());
+            request->setLink(buttonlink->c_str());
+        }
     }
 
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -20386,8 +20386,8 @@ void MegaApiImpl::sendPendingRequests()
                         nid = AttrMap::string2nameid("lbl");
                         remove = (value == LBL_UNKNOWN);
                     }
-                else
-                {
+                    else
+                    {
                         nid = AttrMap::string2nameid("fav");
                         remove = !request->getNumDetails();
                         value = 1;
