@@ -1085,7 +1085,7 @@ bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepat
 
     auto localfilename = LocalPath::fromPath(inputFilepath, *api->fsAccess);
 
-    char ext[8];
+    char ext[MAXEXTENSIONLEN];
     if (api->fsAccess->getextension(localfilename, ext, sizeof(ext)) && MediaProperties::isMediaFilenameExt(ext))
     {
         mediaproperties.extractMediaPropertyFileAttributes(localfilename, api->fsAccess);
@@ -3257,6 +3257,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->folderInfo = request->getMegaFolderInfo() ? request->folderInfo->copy() : NULL;
     this->settings = request->getMegaPushNotificationSettings() ? request->settings->copy() : NULL;
     this->backgroundMediaUpload = NULL;
+    this->mBannerList.reset(request->mBannerList ? request->mBannerList->copy() : nullptr);
 }
 
 AccountDetails *MegaRequestPrivate::getAccountDetails() const
@@ -4007,7 +4008,7 @@ const char* MegaBannerPrivate::getImageLocation() const
     return std::get<6>(mDetails).c_str();
 }
 
-MegaBannerList* MegaBannerListPrivate::copy() const
+MegaBannerListPrivate* MegaBannerListPrivate::copy() const
 {
     return new MegaBannerListPrivate(*this);
 }
@@ -10976,70 +10977,16 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
     return result;
 }
 
-MegaNodeList* MegaApiImpl::searchInAllShares(const char *searchString, MegaCancelToken *cancelToken, int order, int target)
+MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *cancelToken, int order, int type)
 {
-    if (!searchString)
+    if (!searchString && (type < MegaApi::FILE_TYPE_PHOTO || type > MegaApi::FILE_TYPE_DOCUMENT))
     {
+        // If no search string and type is not valid
         return new MegaNodeListPrivate();
     }
 
-    if (cancelToken && cancelToken->isCancelled())
-    {
-        return new MegaNodeListPrivate();
-    }
-
-    if (target < TARGET_INSHARE || target > TARGET_PUBLICLINK)
-    {
-        return new MegaNodeListPrivate();
-    }
-
-    SdkMutexGuard g(sdkMutex);
-
-    if (cancelToken && cancelToken->isCancelled())
-    {
-        return new MegaNodeListPrivate();
-    }
-
-    node_vector result;
-    Node *node;
-    if (target == TARGET_INSHARE || target == TARGET_OUTSHARE)
-    {
-        // Search in inShares or outShares
-        ::mega::unique_ptr<MegaShareList> shares (target == TARGET_INSHARE
-                                                  ? getInSharesList(MegaApi::ORDER_NONE)
-                                                  : getOutShares(MegaApi::ORDER_NONE));
-
-        for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
-        {
-           node = client->nodebyhandle(shares->get(i)->getNodeHandle());
-           SearchTreeProcessor searchProcessor(searchString);
-           processTree(node, &searchProcessor, true, cancelToken);
-           vector<Node *>& vNodes  = searchProcessor.getResults();
-           result.insert(result.end(), vNodes.begin(), vNodes.end());
-        }
-    }
-    else
-    {
-        // Search in public links
-        for (auto it = client->mPublicLinks.begin(); it != client->mPublicLinks.end()
-             && !(cancelToken && cancelToken->isCancelled()); it++)
-        {
-            node = client->nodebyhandle(it->first);
-            SearchTreeProcessor searchProcessor(searchString);
-            processTree(node, &searchProcessor, true, cancelToken);
-            vector<Node *>& vNodes  = searchProcessor.getResults();
-            result.insert(result.end(), vNodes.begin(), vNodes.end());
-        }
-    }
-
-    sortByComparatorFunction(result, order, *client);
-    MegaNodeList *nodeList = new MegaNodeListPrivate(result.data(), int(result.size()));
-    return nodeList;
-}
-
-MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *cancelToken, int order)
-{
-    if(!searchString)
+    if (type != MegaApi::FILE_TYPE_DEFAULT
+            && (order < MegaApi::ORDER_NONE || order > MegaApi::ORDER_ALPHABETICAL_DESC))
     {
         return new MegaNodeListPrivate();
     }
@@ -11064,27 +11011,24 @@ MegaNodeList *MegaApiImpl::search(const char *searchString, MegaCancelToken *can
           && !(cancelToken && cancelToken->isCancelled()); i++)
     {
         node = client->nodebyhandle(client->rootnodes[i]);
-
-        SearchTreeProcessor searchProcessor(searchString);
+        SearchTreeProcessor searchProcessor(client, searchString, type);
         processTree(node, &searchProcessor, true, cancelToken);
         node_vector& vNodes = searchProcessor.getResults();
-
         result.insert(result.end(), vNodes.begin(), vNodes.end());
     }
 
     // inshares
-    MegaShareList *shares = getInSharesList(MegaApi::ORDER_NONE);
+    unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
     for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
     {
         node = client->nodebyhandle(shares->get(i)->getNodeHandle());
 
-        SearchTreeProcessor searchProcessor(searchString);
+        SearchTreeProcessor searchProcessor(client, searchString, type);
         processTree(node, &searchProcessor, true, cancelToken);
         vector<Node *>& vNodes  = searchProcessor.getResults();
 
         result.insert(result.end(), vNodes.begin(), vNodes.end());
     }
-    delete shares;
 
     sortByComparatorFunction(result, order, *client);
     MegaNodeList *nodeList = new MegaNodeListPrivate(result.data(), int(result.size()));
@@ -11581,9 +11525,16 @@ bool MegaApiImpl::processTree(Node* node, TreeProcessor* processor, bool recursi
     return result;
 }
 
-MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCancelToken *cancelToken, bool recursive, int order)
+MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCancelToken *cancelToken, bool recursive, int order, int type, int target)
 {
-    if (!n || !searchString)
+    if (!n && !searchString && (type < MegaApi::FILE_TYPE_PHOTO || type > MegaApi::FILE_TYPE_DOCUMENT))
+    {
+        // If node is not valid, and no search string, and type is not valid
+        return new MegaNodeListPrivate();
+    }
+
+    if (type != MegaApi::FILE_TYPE_DEFAULT
+            && (order < MegaApi::ORDER_NONE || order > MegaApi::ORDER_ALPHABETICAL_DESC))
     {
         return new MegaNodeListPrivate();
     }
@@ -11599,24 +11550,101 @@ MegaNodeList* MegaApiImpl::search(MegaNode* n, const char* searchString, MegaCan
     {
         return new MegaNodeListPrivate();
     }
-
-    Node *node = client->nodebyhandle(n->getHandle());
-    if (!node)
+    
+    MegaNodeList *nodeList = nullptr;
+    if (n)
     {
-        return new MegaNodeListPrivate();
-    }
+        // if node is provided, it will be the parent node of the tree to explore
+        Node *node = client->nodebyhandle(n->getHandle());
+        if (!node)
+        {
+            return new MegaNodeListPrivate();
+        }
 
-    SearchTreeProcessor searchProcessor(searchString);
-    for (node_list::iterator it = node->children.begin(); it != node->children.end()
-         && !(cancelToken && cancelToken->isCancelled()); )
+        // searchString and nodeType (if provided), are considered in search
+        SearchTreeProcessor searchProcessor(client, searchString, type);
+        for (node_list::iterator it = node->children.begin(); it != node->children.end()
+             && !(cancelToken && cancelToken->isCancelled()); )
+        {
+            processTree(*it++, &searchProcessor, recursive, cancelToken);
+        }
+
+        vector<Node *>& vNodes = searchProcessor.getResults();
+        sortByComparatorFunction(vNodes, order, *client);
+        nodeList = new MegaNodeListPrivate(vNodes.data(), int(vNodes.size()));
+    }
+    else
     {
-        processTree(*it++, &searchProcessor, recursive, cancelToken);
+        node_vector result;
+        Node *node;
+
+        // Target parameter is only considered if node is not provided
+        if (target < MegaApi::SEARCH_TARGET_INSHARE || target > MegaApi::SEARCH_TARGET_ALL)
+        {
+            return new MegaNodeListPrivate();
+        }
+
+        if (target == MegaApi::SEARCH_TARGET_ROOTNODE || target == MegaApi::SEARCH_TARGET_ALL)
+        {
+            // Search on rootnode (cloud, excludes Inbox and Rubbish)
+            node = client->nodebyhandle(client->rootnodes[0]);
+
+            SearchTreeProcessor searchProcessor(client, searchString, type);
+            processTree(node, &searchProcessor, recursive, cancelToken);
+            node_vector& vNodes = searchProcessor.getResults();
+
+            result.insert(result.end(), vNodes.begin(), vNodes.end());
+        }
+
+        if (target == MegaApi::SEARCH_TARGET_INSHARE || target == MegaApi::SEARCH_TARGET_ALL)
+        {
+            // Search on inshares
+            unique_ptr<MegaShareList> shares(getInSharesList(MegaApi::ORDER_NONE));
+            for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
+            {
+                node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+
+                SearchTreeProcessor searchProcessor(client, searchString, type);
+                processTree(node, &searchProcessor, recursive, cancelToken);
+                vector<Node *>& vNodes  = searchProcessor.getResults();
+
+                result.insert(result.end(), vNodes.begin(), vNodes.end());
+            }
+        }
+
+        if (target == MegaApi::SEARCH_TARGET_OUTSHARE)
+        {
+            // Search on outshares
+            unique_ptr<MegaShareList>shares (getOutShares(MegaApi::ORDER_NONE));
+            for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
+            {
+                node = client->nodebyhandle(shares->get(i)->getNodeHandle());
+
+                SearchTreeProcessor searchProcessor(client, searchString, type);
+                processTree(node, &searchProcessor, recursive, cancelToken);
+                vector<Node *>& vNodes  = searchProcessor.getResults();
+
+                result.insert(result.end(), vNodes.begin(), vNodes.end());
+            }
+        }
+
+        if (target == MegaApi::SEARCH_TARGET_PUBLICLINK)
+        {
+            // Search on public links
+            for (auto it = client->mPublicLinks.begin(); it != client->mPublicLinks.end()
+                 && !(cancelToken && cancelToken->isCancelled()); it++)
+            {
+                node = client->nodebyhandle(it->first);
+                SearchTreeProcessor searchProcessor(client, searchString, type);
+                processTree(node, &searchProcessor, true, cancelToken);
+                vector<Node *>& vNodes  = searchProcessor.getResults();
+                result.insert(result.end(), vNodes.begin(), vNodes.end());
+            }
+        }
+
+        sortByComparatorFunction(result, order, *client);
+        nodeList = new MegaNodeListPrivate(result.data(), int(result.size()));
     }
-
-    vector<Node *>& vNodes = searchProcessor.getResults();
-    sortByComparatorFunction(vNodes, order, *client);
-
-    MegaNodeList *nodeList = new MegaNodeListPrivate(vNodes.data(), int(vNodes.size()));
     return nodeList;
 }
 
@@ -11933,7 +11961,12 @@ MegaNode *MegaApiImpl::getNodeByCRC(const char *crc, MegaNode *parent)
     return NULL;
 }
 
-SearchTreeProcessor::SearchTreeProcessor(const char *search) { this->search = search; }
+SearchTreeProcessor::SearchTreeProcessor(MegaClient *client, const char *search, int type)
+{
+    mSearch = search;
+    mFileType = type;
+    mClient = client;
+}
 
 #if defined(_WIN32) || defined(__APPLE__)
 
@@ -11968,22 +12001,51 @@ bool SearchTreeProcessor::processNode(Node* node)
         return true;
     }
 
-    if (!search)
+    if (!mSearch && (!mClient || (mFileType < MegaApi::FILE_TYPE_DEFAULT || mFileType > MegaApi::FILE_TYPE_DOCUMENT)))
     {
+        // If no search string provided, client and type must be valid, otherwise return false
         return false;
     }
 
-    if (node->type <= FOLDERNODE && strcasestr(node->displayname(), search) != NULL)
+    if (node->type <= FOLDERNODE && (!mSearch || strcasestr(node->displayname(), mSearch) != NULL))
     {
-        results.push_back(node);
+        // If no search string provided (filter by node type), or search string match with node name
+        if (isValidTypeNode(node))
+        {
+            mResults.push_back(node);
+        }
     }
 
     return true;
 }
 
+bool SearchTreeProcessor::isValidTypeNode(Node *node)
+{
+    assert(node);
+    if (!mClient)
+    {
+        return true;
+    }
+
+    switch (mFileType)
+    {
+        case MegaApi::FILE_TYPE_PHOTO:
+            return mClient->nodeIsPhoto(node, false);
+        case MegaApi::FILE_TYPE_AUDIO:
+            return mClient->nodeIsAudio(node);
+        case MegaApi::FILE_TYPE_VIDEO:
+            return mClient->nodeIsVideo(node);
+        case MegaApi::FILE_TYPE_DOCUMENT:
+            return mClient->nodeIsDocument(node);
+        case MegaApi::FILE_TYPE_DEFAULT:
+        default:
+            return true;
+    }
+}
+
 vector<Node *> &SearchTreeProcessor::getResults()
 {
-    return results;
+    return mResults;
 }
 
 SizeProcessor::SizeProcessor()
@@ -13659,8 +13721,8 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
 
     if (!e && t != USER_HANDLE)
     {
-        assert(!nn.empty() && nn.back().added && nn.back().mAddedHandle != UNDEF);
-        n = client->nodebyhandle(nn.back().mAddedHandle);
+        assert(!nn.empty() && nn.front().added && nn.front().mAddedHandle != UNDEF);
+        n = client->nodebyhandle(nn.front().mAddedHandle);
 
         if(n)
         {
@@ -28031,7 +28093,7 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
             httpctx->server->fsAccess->tmpnamelocal(suffix);
             httpctx->tmpFileName.append(suffix.toPath(*httpctx->server->fsAccess));
 
-            char ext[8];
+            char ext[MAXEXTENSIONLEN];
             LocalPath localpath = LocalPath::fromPath(httpctx->path, *httpctx->server->fsAccess);
             if (httpctx->server->fsAccess->getextension(localpath, ext, sizeof ext))
             {
@@ -29089,7 +29151,7 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 httpctx->tmpFileName=httpctx->server->basePath;
                 httpctx->tmpFileName.append("httputfile");
                 httpctx->tmpFileName.append(LocalPath::tmpNameLocal(*httpctx->server->fsAccess).toPath(*httpctx->server->fsAccess));
-                char ext[8];
+                char ext[MAXEXTENSIONLEN];
                 if (httpctx->server->fsAccess->getextension(LocalPath::fromPath(httpctx->path, *httpctx->server->fsAccess), ext, sizeof ext))
                 {
                     httpctx->tmpFileName.append(ext);
@@ -31797,7 +31859,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
             fds->fsAccess->tmpnamelocal(suffix);
             ftpdatactx->tmpFileName.append(suffix.toPath(*fds->fsAccess));
 
-            char ext[8];
+            char ext[MAXEXTENSIONLEN];
             if (ftpdatactx->server->fsAccess->getextension(LocalPath::fromPath(fds->controlftpctx->arg1, *ftpdatactx->server->fsAccess), ext, sizeof ext))
             {
                 ftpdatactx->tmpFileName.append(ext);

@@ -2924,6 +2924,74 @@ void exec_fingerprint(autocomplete::ACState& s)
     }
 }
 
+void exec_timelocal(autocomplete::ACState& s)
+{
+    bool get = s.words[1].s == "get";
+    auto localfilepath = LocalPath::fromPath(s.words[2].s, *client->fsaccess);
+
+    if (get && s.words.size() != 3 || !get && s.words.size() != 4)
+    {
+        cout << "wrong number of arguments for : " << s.words[1].s << endl;
+        return;
+    }
+    
+    m_time_t set_time = 0;
+
+    if (!get)
+    {
+        // similar to Transfers::complete()
+
+        std::istringstream is(s.words[3].s);
+        std::tm tm_record;
+        is >> std::get_time(&tm_record, "%Y-%m-%d %H:%M:%S");
+
+        set_time = m_mktime(&tm_record);
+
+        cout << "Setting mtime to " << set_time << endl;
+
+        bool success = client->fsaccess->setmtimelocal(localfilepath, set_time);
+        if (!success)
+        {
+            cout << "setmtimelocal failed!  Was it transient? " << client->fsaccess->transient_error << endl;
+        }
+    }
+
+    // perform get in both cases
+    auto fa = client->fsaccess->newfileaccess();
+    if (fa->fopen(localfilepath, true, false))
+    {
+        FileFingerprint fp;
+        fp.genfingerprint(fa.get());
+        if (fp.isvalid)
+        {
+            std::tm tm_record;
+            m_localtime(fp.mtime, &tm_record);
+            cout << "mtime for file is " << fp.mtime << ": " << std::put_time(&tm_record, "%Y-%m-%d %H:%M:%S") << endl;
+
+            if (!get)
+            {
+                if (::mega::abs(set_time - fp.mtime) <= 2)
+                {
+                    cout << "mtime read back is within 2 seconds, so success. Actual difference: " << ::mega::abs(set_time - fp.mtime) << endl;
+                }
+                else
+                {
+                    cout << "ERROR Silent failure in setmtimelocal, difference is " << ::mega::abs(set_time - fp.mtime) << endl;
+                }
+            }
+        }
+        else
+        {
+            cout << "fingerprint generation failed: " << localfilepath.toPath(*client->fsaccess) << endl;
+        }
+    }
+    else
+    {
+        cout << "fopen failed: " << localfilepath.toPath(*client->fsaccess) << endl;
+    }
+
+}
+
 MegaCLILogger gLogger;
 
 autocomplete::ACN autocompleteSyntax()
@@ -3045,6 +3113,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_setmaxuploadspeed, sequence(text("setmaxuploadspeed"), opt(wholenumber(10000))));
     p->Add(exec_handles, sequence(text("handles"), opt(either(text("on"), text("off")))));
     p->Add(exec_httpsonly, sequence(text("httpsonly"), opt(either(text("on"), text("off")))));
+    p->Add(exec_timelocal, sequence(text("mtimelocal"), either(text("set"), text("get")), localFSPath(), opt(param("datetime"))));
 
     p->Add(exec_mfac, sequence(text("mfac"), param("email")));
     p->Add(exec_mfae, sequence(text("mfae")));
