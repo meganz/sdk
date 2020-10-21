@@ -6060,7 +6060,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 *
 * This function allows to start a transfer based on a MEGATransfer object. It can be used,
 * for example, to retry transfers that finished with an error. To do it, you can retain the
-* MEGATransfer object in onTransferFinish (calling MegaTransfer::copy to take the ownership)
+* MEGATransfer object in onTransferFinish (calling [MEGATransfer clone] to take the ownership)
 * and use it later with this function.
 *
 * If the transfer parameter is nil or is not of type MEGATransferTypeDownload or
@@ -6077,7 +6077,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 *
 * This function allows to start a transfer based on a MEGATransfer object. It can be used,
 * for example, to retry transfers that finished with an error. To do it, you can retain the
-* MEGATransfer object in onTransferFinish (calling MegaTransfer::copy to take the ownership)
+* MEGATransfer object in onTransferFinish (calling [MEGATransfer clone] to take the ownership)
 * and use it later with this function.
 *
 * If the transfer parameter is nil or is not of type MEGATransferTypeDownload or
