@@ -15452,7 +15452,7 @@ namespace action_bucket_compare
         return a.time > b.time;
     }
 
-    bool getExtensionDotted(const Node* n, char ext[MAXEXTENSIONLEN], const MegaClient& mc)
+    bool getExtensionDotted(const Node* n, char ext[MAXEXTENSIONLEN + 1], const MegaClient& mc)
     {
         auto localname = LocalPath::fromPath(n->displayname(), *mc.fsaccess);
         if (mc.fsaccess->getextension(localname, ext, MAXEXTENSIONLEN))  // plenty of buffer space left to append a '.'
@@ -15468,7 +15468,7 @@ namespace action_bucket_compare
 
 bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
 {
-    char ext[MAXEXTENSIONLEN];
+    char ext[MAXEXTENSIONLEN + 1];
     if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
     {
         bool a = action_bucket_compare::nodeIsPhoto(n, ext, true);
@@ -15492,7 +15492,7 @@ bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
 
 bool MegaClient::nodeIsVideo(const Node *n) const
 {
-    char ext[MAXEXTENSIONLEN];
+    char ext[MAXEXTENSIONLEN + 1];
     if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
     {
         return action_bucket_compare::nodeIsVideo(n, ext, *this);
@@ -15502,7 +15502,7 @@ bool MegaClient::nodeIsVideo(const Node *n) const
 
 bool MegaClient::nodeIsPhoto(const Node *n, bool checkPreview) const
 {
-    char ext[MAXEXTENSIONLEN];
+    char ext[MAXEXTENSIONLEN + 1];
     if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
     {
         return action_bucket_compare::nodeIsPhoto(n, ext, checkPreview);
@@ -15512,7 +15512,7 @@ bool MegaClient::nodeIsPhoto(const Node *n, bool checkPreview) const
 
 bool MegaClient::nodeIsAudio(const Node *n) const
 {
-    char ext[MAXEXTENSIONLEN];
+    char ext[MAXEXTENSIONLEN + 1];
     if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
     {
         return action_bucket_compare::nodeIsAudio(n, ext);
@@ -15522,7 +15522,7 @@ bool MegaClient::nodeIsAudio(const Node *n) const
 
 bool MegaClient::nodeIsDocument(const Node *n) const
 {
-    char ext[MAXEXTENSIONLEN];
+    char ext[MAXEXTENSIONLEN + 1];
     if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
     {
         return action_bucket_compare::nodeIsDocument(n, ext);
