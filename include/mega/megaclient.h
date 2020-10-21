@@ -934,6 +934,8 @@ public:
     // backoff for the expiration of cached user data
     BackoffTimer btugexpiration;
 
+    static string SESSIONTYPE;
+
 private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
@@ -1170,7 +1172,7 @@ public:
     pendinghttp_map pendinghttp;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT, CACHEDSESSIONTYPE} sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT} sctablerectype;
 
     // record type indicator for statusTable
     enum StatusTableRecType { CACHEDSTATUS };

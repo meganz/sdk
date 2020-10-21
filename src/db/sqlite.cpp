@@ -365,8 +365,8 @@ void SqliteDbTable::remove()
 
 int SqliteDbTable::readSessionType()
 {
-    std::string sessionType = getVar("SESSION_TYPE");
-    return (sessionType != "") ? atoi(getVar("SESSION_TYPE").c_str()) : -1;
+    std::string sessionType = getVar(MegaClient::SESSIONTYPE);
+    return (sessionType != "") ? atoi(sessionType.c_str()) : -1;
 }
 
 std::string SqliteDbTable::getVar(const std::string& name)
