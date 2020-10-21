@@ -341,7 +341,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * @brief Get the total bytes of started downloads
  * @return Total bytes of started downloads
  *
- * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalDownloads
+ * The count starts with the creation of MegaApi and is reset with calls to [MEGASdk resetTotalDownloads]
  * or just before a log in or a log out.
  *
  * Function related to statistics will be reviewed in future updates to
@@ -361,7 +361,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * Get the total bytes of started uploads
  * @return Total bytes of started uploads
  *
- * The count starts with the creation of MegaApi and is reset with calls to MegaApi::resetTotalUploads
+ * The count starts with the creation of MegaApi and is reset with calls to [MEGASdk resetTotalDownloads]
  * or just before a log in or a log out.
  *
  * Function related to statistics will be reviewed in future updates to
@@ -6001,22 +6001,22 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 
 /**
  * @brief Reset the number of total downloads
- * This function resets the number returned by MegaApi::getTotalDownloads
+ * This function resets the number returned by [MEGASdk totalDownloads]
  *
  * @deprecated Function related to statistics will be reviewed in future updates to
  * provide more data and avoid race conditions. They could change or be removed in the current form.
  *
  */
-- (void)resetTotalDownloads;
+- (void)resetTotalDownloads __attribute__((deprecated("They could change or be removed in the current form.")));
 
 /**
  * @brief Reset the number of total uploads
- * This function resets the number returned by MegaApi::getTotalUploads
+ * This function resets the number returned by [MEGASdk totalUploads]
  *
  * @deprecated Function related to statistics will be reviewed in future updates to
  * provide more data and avoid race conditions. They could change or be removed in the current form.
  */
-- (void)resetTotalUploads;
+- (void)resetTotalUploads __attribute__((deprecated("They could change or be removed in the current form.")));
 
 /**
  * @brief Cancel a transfer.
@@ -6063,12 +6063,12 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 * MEGATransfer object in onTransferFinish (calling MegaTransfer::copy to take the ownership)
 * and use it later with this function.
 *
-* If the transfer parameter is NULL or is not of type MegaTransfer::TYPE_DOWNLOAD or
-* MegaTransfer::TYPE_UPLOAD (transfers started with MegaApi::startDownload or
-* MegaApi::startUpload) the function returns without doing anything.
+* If the transfer parameter is nil or is not of type MEGATransferTypeDownload or
+* MEGATransferTypeUpload (transfers started with [MEGASdk startDownload] or
+* [MEGASdk startUpload) the function returns without doing anything.
 *
 * @param transfer Transfer to be retried
-* @param listener MEGATransferDelegate to track this transfer
+* @param delegate MEGATransferDelegate to track this transfer
 */
 - (void)retryTransfer:(MEGATransfer *)transfer delegate:(id<MEGATransferDelegate>)delegate;
 
@@ -6080,9 +6080,9 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 * MEGATransfer object in onTransferFinish (calling MegaTransfer::copy to take the ownership)
 * and use it later with this function.
 *
-* If the transfer parameter is NULL or is not of type MegaTransfer::TYPE_DOWNLOAD or
-* MegaTransfer::TYPE_UPLOAD (transfers started with MegaApi::startDownload or
-* MegaApi::startUpload) the function returns without doing anything.
+* If the transfer parameter is nil or is not of type MEGATransferTypeDownload or
+* MEGATransferTypeUpload (transfers started with [MEGASdk startDownload] or
+* [MEGASdk startUpload) the function returns without doing anything.
 *
 * @param transfer Transfer to be retried
 */
