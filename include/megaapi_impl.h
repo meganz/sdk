@@ -29,6 +29,8 @@
 #include "mega/gfx/external.h"
 #include "megaapi.h"
 
+#include "mega/heartbeats.h"
+
 #define CRON_USE_LOCAL_TIME 1
 #include "mega/mega_ccronexpr.h"
 
@@ -1963,14 +1965,17 @@ class TreeProcessor
 class SearchTreeProcessor : public TreeProcessor
 {
     public:
-        SearchTreeProcessor(const char *search);
+        SearchTreeProcessor(MegaClient *client, const char *search, int type);
         virtual bool processNode(Node* node);
+        bool isValidTypeNode(Node *node);
         virtual ~SearchTreeProcessor() {}
         vector<Node *> &getResults();
 
     protected:
-        const char *search;
-        vector<Node *> results;
+        int mFileType;
+        const char *mSearch;
+        vector<Node *> mResults;
+        MegaClient *mClient;
 };
 
 class OutShareProcessor : public TreeProcessor
@@ -2077,6 +2082,7 @@ class TransferQueue
         int getLastPushedTag() const;
 };
 
+
 class MegaApiImpl : public MegaApp
 {
     public:
@@ -2086,8 +2092,6 @@ class MegaApiImpl : public MegaApp
         virtual ~MegaApiImpl();
 
         static MegaApiImpl* ImplOf(MegaApi*);
-
-        enum { TARGET_INSHARE = 0, TARGET_OUTSHARE, TARGET_PUBLICLINK, };
 
         //Multiple listener management.
         void addListener(MegaListener* listener);
@@ -2220,6 +2224,8 @@ class MegaApiImpl : public MegaApp
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
 
         void setLoggingName(const char* loggingName);
+
+        bool platformSetRLimitNumFile(int newNumFileLimit) const;
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         bool createLocalFolder(const char *path);
@@ -2515,11 +2521,9 @@ class MegaApiImpl : public MegaApp
 
         MegaRecentActionBucketList* getRecentActions(unsigned days = 90, unsigned maxnodes = 10000);
 
-        MegaNodeList* search(MegaNode* node, const char* searchString, MegaCancelToken *cancelToken, bool recursive = 1, int order = MegaApi::ORDER_NONE);
+        MegaNodeList* search(MegaNode *node, const char *searchString, MegaCancelToken *cancelToken, bool recursive = true, int order = MegaApi::ORDER_NONE, int type = MegaApi::FILE_TYPE_DEFAULT, int target = MegaApi::SEARCH_TARGET_ALL);
         bool processMegaTree(MegaNode* node, MegaTreeProcessor* processor, bool recursive = 1);
-        MegaNodeList* search(const char* searchString, MegaCancelToken *cancelToken, int order = MegaApi::ORDER_NONE);
-
-        MegaNodeList* searchInAllShares(const char *searchString, MegaCancelToken *cancelToken, int order, int target);
+        MegaNodeList* search(const char* searchString, MegaCancelToken *cancelToken, int order = MegaApi::ORDER_NONE, int type = MegaApi::FILE_TYPE_DEFAULT);
 
         MegaNode *createForeignFileNode(MegaHandle handle, const char *key, const char *name, m_off_t size, m_off_t mtime,
                                        MegaHandle parentHandle, const char *privateauth, const char *publicauth, const char *chatauth);
@@ -2745,6 +2749,11 @@ class MegaApiImpl : public MegaApp
         void getBanners(MegaRequestListener *listener);
         void dismissBanner(int id, MegaRequestListener *listener);
 
+        void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
+        void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode);
+
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e, DBTableTransactionCommitter& committer);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
@@ -2864,6 +2873,7 @@ protected:
         map<int, MegaSyncPrivate *>::iterator eraseSyncByIterator(map<int, MegaSyncPrivate *>::iterator it);
 
 #endif
+        std::unique_ptr<MegaBackupMonitor> mHeartBeatMonitor;
 
         int pendingUploads;
         int pendingDownloads;
@@ -3183,10 +3193,12 @@ protected:
         std::mutex mSyncable_fa_mutex;
 #endif
 
-        void backupput_result(const Error&, handle) override;
+        void backupput_result(const Error&, handle backupId) override;
         void backupupdate_result(const Error&, handle) override;
         void backupputheartbeat_result(const Error&) override;
         void backupremove_result(const Error&, handle) override;
+        void heartbeat() override;
+        void pause_state_changed() override;
 
 protected:
         // suggest reload due to possible race condition with other clients

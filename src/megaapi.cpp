@@ -3853,17 +3853,22 @@ MegaNodeList *MegaApi::search(const char *searchString, MegaCancelToken *cancelT
 
 MegaNodeList* MegaApi::searchOnInShares(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApiImpl::TARGET_INSHARE);
+    return pImpl->search(nullptr, searchString, cancelToken, true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE);
 }
 
 MegaNodeList* MegaApi::searchOnOutShares(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApiImpl::TARGET_OUTSHARE);
+    return pImpl->search(nullptr, searchString, cancelToken, true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE);
 }
 
 MegaNodeList* MegaApi::searchOnPublicLinks(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApiImpl::TARGET_PUBLICLINK);
+    return pImpl->search(nullptr, searchString, cancelToken, true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_PUBLICLINK);
+}
+
+MegaNodeList* MegaApi::searchByType(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order, int type, int target)
+{
+    return pImpl->search(n, searchString, cancelToken, recursive, order, type, target);
 }
 
 long long MegaApi::getSize(MegaNode *n)
@@ -4211,6 +4216,11 @@ void MegaApi::getPublicLinkInformation(const char *megaFolderLink, MegaRequestLi
 MegaApiLock* MegaApi::getMegaApiLock(bool lockNow)
 {
     return new MegaApiLock(pImpl, lockNow);
+}
+
+bool MegaApi::platformSetRLimitNumFile(int newNumFileLimit) const
+{
+    return pImpl->platformSetRLimitNumFile(newNumFileLimit);
 }
 
 void MegaApi::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener, bool reverifying_whitelisted)
@@ -5317,6 +5327,26 @@ void MegaApi::getBanners(MegaRequestListener *listener)
 void MegaApi::dismissBanner(int id, MegaRequestListener *listener)
 {
     pImpl->dismissBanner(id, listener);
+}
+
+void MegaApi::setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener)
+{
+    pImpl->setBackup(backupType, targetNode, localFolder, backupName, state, subState, extraData, listener);
+}
+
+void MegaApi::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener)
+{
+    pImpl->updateBackup(backupId, backupType, targetNode, localFolder, backupName, state, subState, extraData, listener);
+}
+
+void MegaApi::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
+{
+    pImpl->removeBackup(backupId, listener);
+}
+
+void MegaApi::sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode)
+{
+    pImpl->sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode);
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)

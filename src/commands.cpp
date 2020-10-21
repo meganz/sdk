@@ -1678,15 +1678,10 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *em
         arg("sn", (byte*)&client->cachedscsn, sizeof client->cachedscsn);
     }
 
-    string id = client->getDeviceid();
-
-    if (id.size())
+    string deviceIdHash = client->getDeviceidHash();
+    if (!deviceIdHash.empty())
     {
-        string hash;
-        HashSHA256 hasher;
-        hasher.add((const byte*)id.data(), unsigned(id.size()));
-        hasher.get(&hash);
-        arg("si", (const byte*)hash.data(), int(hash.size()));
+        arg("si", deviceIdHash.c_str());
     }
 
     tag = client->reqtag;
@@ -8104,7 +8099,8 @@ bool CommandFolderLinkInfo::procresult(Result r)
     }
 }
 
-CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle nodeHandle, const string& localFolder, const std::string &deviceId, const string& backupName, int state, int subState, const string& extraData)
+// to register a new backup
+CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle nodeHandle, const string& localFolder, const std::string &deviceId, int state, int subState, const string& extraData)
 {
     assert(type != BackupType::INVALID);
 
@@ -8114,16 +8110,18 @@ CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle n
     arg("h", (byte*)&nodeHandle, MegaClient::NODEHANDLE);
     arg("l", localFolder.c_str());
     arg("d", deviceId.c_str());
-    arg("n", backupName.c_str());
     arg("s", state);
     arg("ss", subState);
-    arg("e", extraData.c_str());
+
+    if (!extraData.empty())
+        arg("e", extraData.c_str());
 
     tag = client->reqtag;
     mUpdate = false;
 }
 
-CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, const char* backupName, int state, int subState, const char* extraData)
+// to update an already registered backup
+CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, int state, int subState, const char* extraData)
 {
     cmd("sp");
 
@@ -8149,17 +8147,12 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupTy
         arg("d", deviceId);
     }
 
-    if (backupName)
-    {
-        arg("n", backupName);
-    }
-
-    if (state > 0)
+    if (state >= 0)
     {
         arg("s", state);
     }
 
-    if (subState > 0)
+    if (subState >= 0)
     {
         arg("ss", subState);
     }
@@ -8177,12 +8170,18 @@ bool CommandBackupPut::procresult(Result r)
 {
     assert(r.wasStrictlyError() || r.hasJsonItem());
     handle backupId = UNDEF;
-    Error e = r.errorOrOK();
+    Error e = API_OK;
+
     if (r.hasJsonItem())
     {
         backupId = client->json.gethandle(MegaClient::USERHANDLE);
         e = API_OK;
     }
+    else
+    {
+        e = r.errorOrOK();
+    }
+
     if (mUpdate)
     {
         client->app->backupupdate_result(e, backupId);
@@ -8194,7 +8193,7 @@ bool CommandBackupPut::procresult(Result r)
     return r.wasStrictlyError() || r.hasJsonItem();
 }
 
-CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, uint32_t ts, handle lastNode)
+CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode)
 {
     cmd("sphb");
 
