@@ -1364,7 +1364,8 @@ bool PosixFileSystemAccess::getextension(const LocalPath& filename, char* extens
     const char* ptr = str->data() + str->size();
     char c;
 
-    size = std::min(size - 1, str->size());
+    // we need to leave space for trailing '.' and '\0'
+    size = std::min(size - 2, str->size());
 
     for (unsigned i = 0; i < size; i++)
     {
