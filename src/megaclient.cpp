@@ -2926,7 +2926,7 @@ void MegaClient::exec()
             bool tooSoon = filesystemNotificationsQuietTime
                            && filesystemNotificationsQuietTime > Waiter::ds;
 
-            LOG_debug << clientname << "tooSoon: " << tooSoon << "syncing: " << isAnySyncSyncing() << " apCurrent: " << actionpacketsCurrent;
+            LOG_debug << clientname << "tooSoon: " << tooSoon << " syncing: " << isAnySyncSyncing() << " apCurrent: " << actionpacketsCurrent;
 
             // We must have actionpacketsCurrent so that any LocalNode created can straight away indicate if it matched a Node
             if (actionpacketsCurrent && isAnySyncSyncing() && !tooSoon)

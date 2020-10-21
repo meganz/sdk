@@ -40,7 +40,8 @@ const int Sync::FILE_UPDATE_MAX_DELAY_SECS = 60;
 const dstime Sync::RECENT_VERSION_INTERVAL_SECS = 10800;
 
 // set gLogsync true for very, very detailed syhc logging
-bool gLogsync = true;
+//bool gLogsync = true;
+bool gLogsync = false;
 #define SYNC_verbose if (gLogsync) LOG_verbose
 
 std::atomic<size_t> ScanService::mNumServices(0);
@@ -2136,6 +2137,8 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
     bool syncHere = !wasSynced;
     bool recurseHere = true;
 
+    SYNC_verbose << client->clientname << "sync/recurse here: " << syncHere << recurseHere;
+
     // reset this node's sync flag. It will be set again if anything remains to be done.
     row.syncNode->syncAgain = TREE_RESOLVED;
 
@@ -2225,6 +2228,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
             effectiveFsChildren = &fsChildren;
         }
     }
+    SYNC_verbose << client->clientname << "sync/recurse here after scan logic: " << syncHere << recurseHere;
 
     // Have we encountered the scan target?
     client->mSyncFlags.scanTargetReachable |= mScanRequest && mScanRequest->matches(*row.syncNode);
@@ -2233,6 +2237,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
     auto childRows = computeSyncTriplets(row.cloudNode, *row.syncNode, *effectiveFsChildren);
 
     syncHere &= !row.cloudNode || row.cloudNode->mPendingChanges.empty();
+    SYNC_verbose << client->clientname << "sync/recurse here after pending changes logic: " << syncHere << recurseHere << !!row.cloudNode << (row.cloudNode ? (row.cloudNode->mPendingChanges.empty()?"1":"0") : "-");
 
     bool folderSynced = syncHere;
     bool subfoldersSynced = true;
@@ -2725,7 +2730,7 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPa
     row.syncNode->treestate(TREESTATE_PENDING);
     statecacheadd(row.syncNode);
 
-    row.syncNode->setSyncAgain(true, false, false);
+    //row.syncNode->setSyncAgain(true, false, false);
 
     return false;
 }
@@ -2758,7 +2763,8 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& full
 {
     if (client->mSyncFlags.movesWereComplete ||
         row.syncNode->moveAppliedToCloud ||
-        row.syncNode->deletedFS)
+        row.syncNode->deletedFS ||
+        row.syncNode->deletingCloud) // once the cloud delete finishes, the fs node is gone and so we visit here on the next run
     {
         // local and cloud disappeared; remove sync item also
         LOG_verbose << "Marking Localnode for deletion" << logTriplet(row, fullPath);
@@ -2778,8 +2784,14 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& full
     }
     else if (row.syncNode->moveApplyingToCloud)
     {
-        // wait for the move from the node to complete in the cloud
+        // The logic for a move can detect when it's finished, and sets moveAppliedToCloud
+        LOG_verbose << "Cloud move still in progress" << logTriplet(row, fullPath);
         row.suppressRecursion = true;
+    }
+    else
+    {
+        LOG_debug << "resolve_delSyncNode not resolved at: " << logTriplet(row, fullPath);
+        assert(false);
     }
     return false;
 }
@@ -3278,6 +3290,7 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullP
     if (inProgress)
     {
         row.suppressRecursion = true;
+        row.syncNode->setSyncAgain(true, false, false); // make sure we revisit
     }
 
     return false;
