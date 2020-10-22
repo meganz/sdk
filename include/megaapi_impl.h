@@ -273,7 +273,7 @@ protected:
     void scanFolder(handle targetHandle, handle parentHandle, LocalPath& localPath, std::string folderName);
     void createFolder();
     /* iterate through all pending files of each uploaded folder, and start all upload transfers */
-    void startFileUploads(const vector<NewNode> &nn);
+    void uploadFiles();
     void checkCompletion();
     handle addNewNodeToVector(handle targetHandle, handle parentHandle, const char * folderName);
 };

@@ -24967,8 +24967,6 @@ void MegaFolderUploadController::start(MegaNode*)
     transfer->setState(MegaTransfer::STATE_QUEUED);
     megaApi->fireOnTransferStart(transfer);
 
-    // root folder of the new tree
-    const char *folderName = transfer->getFileName();
     unique_ptr<MegaNode> parent(megaApi->getNodeByHandle(transfer->getParentHandle()));
     if (!parent)
     {
@@ -25236,18 +25234,18 @@ void MegaFolderUploadController::createFolder()
     }
 }
 
-void MegaFolderUploadController::startFileUploads(const vector<NewNode> &nn)
+void MegaFolderUploadController::uploadFiles()
 {
    for (auto it = mFolderToPendingFiles.begin(); it != mFolderToPendingFiles.end();)
    {
        auto auxit = it++;
        handle folderHandle = auxit->first;
-       for (size_t i = 0; i < nn.size(); i++)
+       for (auto it = mNewNodesResult.begin(); it != mNewNodesResult.end(); it++)
        {
-           if (nn[i].nodehandle == folderHandle)
+           if (it->first == folderHandle)
            {
                 // if we find a match in newNodes vector, update the definitive handle of the node
-                folderHandle = nn[i].mAddedHandle;
+                folderHandle = it->second;
                 break;
            }
        }
@@ -25268,6 +25266,13 @@ void MegaFolderUploadController::startFileUploads(const vector<NewNode> &nn)
            mFolderToPendingFiles.erase(auxit);
        }
    }
+
+   if (!mPendingFolders && !mFolderToPendingFiles.empty())
+   {
+       // if there are pending files to be processed increment mIncompleteTransfers
+       mIncompleteTransfers++;
+   }
+   checkCompletion();
 }
 
 void MegaFolderUploadController::checkCompletion()
