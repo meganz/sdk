@@ -14763,6 +14763,8 @@ error MegaClient::changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate
     return e;
 }
 
+#endif
+
 string MegaClient::cypherTLVTextWithMasterKey(const char *name, const string &text)
 {
     TLVstore tlv;
@@ -14771,6 +14773,8 @@ string MegaClient::cypherTLVTextWithMasterKey(const char *name, const string &te
 
     return Base64::btoa(*tlvStr);
 }
+
+#ifdef ENABLE_SYNC
 
 void MegaClient::failSync(Sync* sync, SyncError syncerror)
 {
