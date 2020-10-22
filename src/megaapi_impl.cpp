@@ -25143,6 +25143,10 @@ void *MegaFolderUploadController::threadEntryPoint(void *param)
 
 void MegaFolderUploadController::run()
 {
+    workerThreadId = std::this_thread::get_id();
+    auto localpath = LocalPath::fromPath(transfer->getPath(), *client->fsaccess);
+    scanFolder(transfer->getParentHandle(), transfer->getParentHandle(), localpath, transfer->getFileName());
+    createFolder();
 }
 
 void MegaFolderUploadController::scanFolder(handle targetHandle, handle parentHandle, LocalPath& localPath, std::string folderName)
