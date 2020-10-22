@@ -111,9 +111,10 @@ public:
         return false;
         //throw NotImplemented{__func__};
     }
-    mega::handle getFirstAncestor(mega::handle) override
+    mega::handle getFirstAncestor(mega::handle h) override
     {
-        throw NotImplemented{__func__};
+        return h;
+        //throw NotImplemented{__func__};
     }
     bool isNodeInDB(mega::handle) override
     {

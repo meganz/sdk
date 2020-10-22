@@ -4109,6 +4109,15 @@ void MegaClient::nexttransferretry(direction_t d, dstime* dsmin)
     }
 }
 
+string MegaClient::cypherTLVTextWithMasterKey(const char *name, const string &text)
+{
+    TLVstore tlv;
+    tlv.set(name, text);
+    std::unique_ptr<string> tlvStr{tlv.tlvRecordsToContainer(rng, &key)};
+
+    return Base64::btoa(*tlvStr);
+}
+
 // disconnect all HTTP connections (slows down operations, but is semantically neutral)
 void MegaClient::disconnect()
 {
@@ -14918,15 +14927,6 @@ error MegaClient::changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate
     return e;
 }
 
-string MegaClient::cypherTLVTextWithMasterKey(const char *name, const string &text)
-{
-    TLVstore tlv;
-    tlv.set(name, text);
-    std::unique_ptr<string> tlvStr{tlv.tlvRecordsToContainer(rng, &key)};
-
-    return Base64::btoa(*tlvStr);
-}
-
 void MegaClient::failSync(Sync* sync, SyncError syncerror)
 {
     LOG_err << "Failing sync: " << sync->getConfig().getLocalPath() << " error = " << syncerror;
@@ -15861,7 +15861,7 @@ handle MegaClient::getovhandle(Node *parent, string *name)
 node_list MegaClient::getChildrens(Node* node)
 {
     node_list nodeList;
-    if (!node)
+    if (!node || !sctable)
     {
         return nodeList;
     }
