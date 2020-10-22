@@ -25199,9 +25199,8 @@ void MegaFolderUploadController::createFolder()
 {
     if (mFolderStructure.empty())
     {
-        // if all folder structure already exists in cloud drive, only add transfers
-        startFileUploads(vector<NewNode>());
-        checkCompletion();
+        // if all folder structure already exists in cloud drive, add file transfers
+        uploadFiles();
         return;
     }
 
@@ -25218,20 +25217,41 @@ void MegaFolderUploadController::createFolder()
 
             if (!e)
             {
-                startFileUploads(nn);
-                if (!mPendingFolders && !mFolderToPendingFiles.empty())
+                for (auto &n: nn)
                 {
-                    // if all putnodes have been finished, but there are pending files to be processed
-                    mIncompleteTransfers++;
+                    // map temp node handle to definitive one
+                    mNewNodesResult[n.nodehandle] = n.mAddedHandle;
                 }
             }
             else
             {
+                // increment incompleteTransfers
                 mIncompleteTransfers++;
+                for (auto &n: nn)
+                {
+                    auto it = mFolderToPendingFiles.find(n.nodehandle);
+                    if (it != mFolderToPendingFiles.end())
+                    {
+                        // decrement the number of children files pending to be processed
+                        mPendingFilesToProcess -= it->second.size();
+
+                        // remove all children files of the folder that failed in putnodes
+                        mFolderToPendingFiles.erase(it);
+                    }
+                }
             }
-            checkCompletion();
+
+            if (!mPendingFolders)
+            {
+                // release semaphore, because all putnodes have been processed and we have received all results
+                mSemaphore->release();
+            }
         });
     }
+
+    // wait until all putnodes have been processed
+    mSemaphore->wait();
+    uploadFiles();
 }
 
 void MegaFolderUploadController::uploadFiles()
