@@ -111,6 +111,8 @@ public class MegaApiJava {
 
     public final static int NODE_ATTR_DURATION = MegaApi.NODE_ATTR_DURATION;
     public final static int NODE_ATTR_COORDINATES = MegaApi.NODE_ATTR_COORDINATES;
+    public final static int NODE_ATTR_LABEL = MegaApi.NODE_ATTR_LABEL;
+    public final static int NODE_ATTR_FAV = MegaApi.NODE_ATTR_FAV;
 
     public final static int PAYMENT_METHOD_BALANCE = MegaApi.PAYMENT_METHOD_BALANCE;
     public final static int PAYMENT_METHOD_PAYPAL = MegaApi.PAYMENT_METHOD_PAYPAL;
@@ -185,6 +187,10 @@ public class MegaApiJava {
     public final static int ORDER_VIDEO_DESC = MegaApi.ORDER_VIDEO_DESC;
     public final static int ORDER_LINK_CREATION_ASC = MegaApi.ORDER_LINK_CREATION_ASC;
     public final static int ORDER_LINK_CREATION_DESC = MegaApi.ORDER_LINK_CREATION_DESC;
+    public final static int ORDER_LABEL_ASC = MegaApi.ORDER_LABEL_ASC;
+    public final static int ORDER_LABEL_DESC = MegaApi.ORDER_LABEL_DESC;
+    public final static int ORDER_FAV_ASC = MegaApi.ORDER_FAV_ASC;
+    public final static int ORDER_FAV_DESC = MegaApi.ORDER_FAV_DESC;
 
     public final static int TCP_SERVER_DENY_ALL = MegaApi.TCP_SERVER_DENY_ALL;
     public final static int TCP_SERVER_ALLOW_ALL = MegaApi.TCP_SERVER_ALLOW_ALL;
@@ -196,7 +202,17 @@ public class MegaApiJava {
     public final static int HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = MegaApi.HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
     public final static int HTTP_SERVER_ALLOW_LAST_LOCAL_LINK = MegaApi.HTTP_SERVER_ALLOW_LAST_LOCAL_LINK;
 
+    public final static int FILE_TYPE_DEFAULT = MegaApi.FILE_TYPE_DEFAULT;
+    public final static int FILE_TYPE_PHOTO = MegaApi.FILE_TYPE_PHOTO;
+    public final static int FILE_TYPE_AUDIO = MegaApi.FILE_TYPE_AUDIO;
+    public final static int FILE_TYPE_VIDEO = MegaApi.FILE_TYPE_VIDEO;
+    public final static int FILE_TYPE_DOCUMENT = MegaApi.FILE_TYPE_DOCUMENT;
 
+    public final static int SEARCH_TARGET_INSHARE = MegaApi.SEARCH_TARGET_INSHARE;
+    public final static int SEARCH_TARGET_OUTSHARE = MegaApi.SEARCH_TARGET_OUTSHARE;
+    public final static int SEARCH_TARGET_PUBLICLINK = MegaApi.SEARCH_TARGET_PUBLICLINK;
+    public final static int SEARCH_TARGET_ROOTNODE = MegaApi.SEARCH_TARGET_ROOTNODE;
+    public final static int SEARCH_TARGET_ALL = MegaApi.SEARCH_TARGET_ALL;
 
     MegaApi getMegaApi()
     {
@@ -2087,12 +2103,14 @@ public class MegaApiJava {
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
      * - MegaRequest::getNumber - Returns the id of the PSA (useful to call MegaApi::setPSA later)
+     * Depending on the format of the PSA, the request may additionally return, for the new format:
+     * - MegaRequest::getEmail - Returns the URL (or an empty string)
+     * ...or for the old format:
      * - MegaRequest::getName - Returns the title of the PSA
      * - MegaRequest::getText - Returns the text of the PSA
      * - MegaRequest::getFile - Returns the URL of the image of the PSA
      * - MegaRequest::getPassword - Returns the text for the positive button (or an empty string)
      * - MegaRequest::getLink - Returns the link for the positive button (or an empty string)
-     * - MegaRequest::getEmail - Returns the url that app need to open with in-app browser
      *
      * If there isn't any new PSA to show, onRequestFinish will be called with the error
      * code MegaError::API_ENOENT
@@ -2100,35 +2118,8 @@ public class MegaApiJava {
      * @param listener MegaRequestListener to track this request
      * @see MegaApi::setPSA
      */
-    public void getPSA(MegaRequestListenerInterface listener){
-        megaApi.getPSA(createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Get the next PSA (Public Service Announcement) that should be shown to the user
-     *
-     * After the PSA has been accepted or dismissed by the user, app should
-     * use MegaApi::setPSA to notify API servers about this event and
-     * do not get the same PSA again in the next call to this function.
-     *
-     * The associated request type with this request is MegaRequest::TYPE_GET_PSA.
-     *
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getNumber - Returns the id of the PSA (useful to call MegaApi::setPSA later)
-     * - MegaRequest::getName - Returns the title of the PSA
-     * - MegaRequest::getText - Returns the text of the PSA
-     * - MegaRequest::getFile - Returns the URL of the image of the PSA
-     * - MegaRequest::getPassword - Returns the text for the possitive button (or an empty string)
-     * - MegaRequest::getLink - Returns the link for the possitive button (or an empty string)
-     *
-     * If there isn't any new PSA to show, onRequestFinish will be called with the error
-     * code MegaError::API_ENOENT
-     *
-     * @see MegaApi::setPSA
-     */
-    public void getPSA(){
-        megaApi.getPSA();
+    public void getPSAWithUrl(MegaRequestListenerInterface listener){
+        megaApi.getPSAWithUrl(createDelegateRequestListener(listener));
     }
 
     /**
@@ -4169,6 +4160,125 @@ public class MegaApiJava {
      */
     public void setNodeCoordinates(MegaNode node, double latitude, double longitude,  MegaRequestListenerInterface listener){
         megaApi.setNodeCoordinates(node, latitude, longitude, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set node label as a node attribute.
+     * Valid values for label attribute are:
+     *  - MegaNode::NODE_LBL_UNKNOWN = 0
+     *  - MegaNode::NODE_LBL_RED = 1
+     *  - MegaNode::NODE_LBL_ORANGE = 2
+     *  - MegaNode::NODE_LBL_YELLOW = 3
+     *  - MegaNode::NODE_LBL_GREEN = 4
+     *  - MegaNode::NODE_LBL_BLUE = 5
+     *  - MegaNode::NODE_LBL_PURPLE = 6
+     *  - MegaNode::NODE_LBL_GREY = 7
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumDetails - Returns the label for the node
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_LABEL
+     *
+     * @param node Node that will receive the information.
+     * @param label Label of the node
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setNodeLabel(MegaNode node, int label, MegaRequestListenerInterface listener){
+        megaApi.setNodeLabel(node, label, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set node label as a node attribute.
+     * Valid values for label attribute are:
+     *  - MegaNode::NODE_LBL_UNKNOWN = 0
+     *  - MegaNode::NODE_LBL_RED = 1
+     *  - MegaNode::NODE_LBL_ORANGE = 2
+     *  - MegaNode::NODE_LBL_YELLOW = 3
+     *  - MegaNode::NODE_LBL_GREEN = 4
+     *  - MegaNode::NODE_LBL_BLUE = 5
+     *  - MegaNode::NODE_LBL_PURPLE = 6
+     *  - MegaNode::NODE_LBL_GREY = 7
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumDetails - Returns the label for the node
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_LABEL
+     *
+     * @param node Node that will receive the information.
+     * @param label Label of the node
+     */
+    public void setNodeLabel(MegaNode node, int label){
+        megaApi.setNodeLabel(node, label);
+    }
+
+    /**
+     * Remove node label
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_LABEL
+     *
+     * @param node Node that will receive the information.
+     * @param listener MegaRequestListener to track this request
+     */
+    public void resetNodeLabel(MegaNode node, MegaRequestListenerInterface listener){
+        megaApi.resetNodeLabel(node, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Remove node label
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_LABEL
+     *
+     * @param node Node that will receive the information.
+     */
+    public void resetNodeLabel(MegaNode node){
+        megaApi.resetNodeLabel(node);
+    }
+
+    /**
+     * Set node favourite as a node attribute.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumDetails - Returns 1 if node is set as favourite, otherwise return 0
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_FAV
+     *
+     * @param node Node that will receive the information.
+     * @param favourite if true set node as favourite, otherwise remove the attribute
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setNodeFavourite(MegaNode node, boolean favourite, MegaRequestListenerInterface listener){
+        megaApi.setNodeFavourite(node, favourite, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set node favourite as a node attribute.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumDetails - Returns 1 if node is set as favourite, otherwise return 0
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_FAV
+     *
+     * @param node Node that will receive the information.
+     * @param favourite if true set node as favourite, otherwise remove the attribute
+     */
+    public void setNodeFavourite(MegaNode node, boolean favourite){
+        megaApi.setNodeFavourite(node, favourite);
     }
 
     /**
@@ -8366,6 +8476,456 @@ public class MegaApiJava {
         return nodeListToArray(megaApi.search(searchString));
     }
 
+    /**
+     * Allow to search nodes with the following options:
+     * - Search given a parent node of the tree to explore, or on the contrary search in a
+     *   specific target (root nodes, inshares, outshares, public links)
+     * - Search recursively
+     * - Containing a search string in their name
+     * - Filter by the type of the node
+     * - Order the returned list
+     *
+     * If node is provided, it will be the parent node of the tree to explore,
+     * search string and/or nodeType can be added to search parameters
+     *
+     * If node and searchString are not provided, and node type is not valid, this method will
+     * return an empty list.
+     *
+     * If parameter type is different of MegaApi::FILE_TYPE_DEFAULT, the following values for parameter
+     * order are invalid: MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
+     * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
+     *
+     * The search is case-insensitive. If the search string is not provided but type has any value
+     * defined at nodefiletype_t (except FILE_TYPE_DEFAULT),
+     * this method will return a list that contains nodes of the same type as provided.
+     *
+     * You take the ownership of the returned value.
+     *
+     * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+     * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+     * this method returns.
+     *
+     * @param node The parent node of the tree to explore
+     * @param searchString Search string. The search is case-insensitive
+     * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+     * @param recursive True if you want to seach recursively in the node tree.
+     * False if you want to seach in the children of the node only
+     * @param order Order for the returned list
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     * Undefined order
+     *
+     * - MegaApi::ORDER_DEFAULT_ASC = 1
+     * Folders first in alphabetical order, then files in the same order
+     *
+     * - MegaApi::ORDER_DEFAULT_DESC = 2
+     * Files first in reverse alphabetical order, then folders in the same order
+     *
+     * - MegaApi::ORDER_SIZE_ASC = 3
+     * Sort by size, ascending
+     *
+     * - MegaApi::ORDER_SIZE_DESC = 4
+     * Sort by size, descending
+     *
+     * - MegaApi::ORDER_CREATION_ASC = 5
+     * Sort by creation time in MEGA, ascending
+     *
+     * - MegaApi::ORDER_CREATION_DESC = 6
+     * Sort by creation time in MEGA, descending
+     *
+     * - MegaApi::ORDER_MODIFICATION_ASC = 7
+     * Sort by modification time of the original file, ascending
+     *
+     * - MegaApi::ORDER_MODIFICATION_DESC = 8
+     * Sort by modification time of the original file, descending
+     *
+     * - MegaApi::ORDER_PHOTO_ASC = 11
+     * Sort with photos first, then by date ascending
+     *
+     * - MegaApi::ORDER_PHOTO_DESC = 12
+     * Sort with photos first, then by date descending
+     *
+     * - MegaApi::ORDER_VIDEO_ASC = 13
+     * Sort with videos first, then by date ascending
+     *
+     * - MegaApi::ORDER_VIDEO_DESC = 14
+     * Sort with videos first, then by date descending
+     *
+     * - MegaApi::ORDER_LABEL_ASC = 17
+     * Sort by color label, ascending
+     *
+     * - MegaApi::ORDER_LABEL_DESC = 18
+     * Sort by color label, descending
+     *
+     * - MegaApi::ORDER_FAV_ASC = 19
+     * Sort nodes with favourite attr first
+     *
+     * - MegaApi::ORDER_FAV_DESC = 20
+     * Sort nodes with favourite attr last
+     *
+     * @param type Type of nodes requested in the search
+     * Valid values for this parameter are:
+     * - MegaApi::FILE_TYPE_DEFAULT = 0  --> all types
+     * - MegaApi::FILE_TYPE_PHOTO = 1
+     * - MegaApi::FILE_TYPE_AUDIO = 2
+     * - MegaApi::FILE_TYPE_VIDEO = 3
+     * - MegaApi::FILE_TYPE_DOCUMENT = 4
+     *
+     * @param target Target type where this method will search
+     * Valid values for this parameter are
+     * - SEARCH_TARGET_INSHARE = 0
+     * - SEARCH_TARGET_OUTSHARE = 1
+     * - SEARCH_TARGET_PUBLICLINK = 2
+     * - SEARCH_TARGET_ROOTNODE = 3
+     * - SEARCH_TARGET_ALL = 4
+     *
+     * @return List of nodes that match with the search parameters
+     */
+    public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
+                                            MegaCancelToken cancelToken, boolean recursive, int order, int type, int target) {
+        return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive,
+                order, type, target));
+    }
+
+    /**
+     * Allow to search nodes with the following options:
+     * - Search in a specific target (root nodes, inshares, outshares, public links)
+     * - Filter by the type of the node
+     * - Order the returned list
+     *
+     * If node type is not valid, this method will return an empty list.
+     *
+     * If parameter type is different of MegaApi::FILE_TYPE_DEFAULT, the following values for parameter
+     * order are invalid: MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
+     * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
+     *
+     * The search is case-insensitive. If the type has any value defined at nodefiletype_t
+     * (except FILE_TYPE_DEFAULT), this method will return a list
+     * that contains nodes of the same type as provided.
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param order Order for the returned list
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     * Undefined order
+     *
+     * - MegaApi::ORDER_DEFAULT_ASC = 1
+     * Folders first in alphabetical order, then files in the same order
+     *
+     * - MegaApi::ORDER_DEFAULT_DESC = 2
+     * Files first in reverse alphabetical order, then folders in the same order
+     *
+     * - MegaApi::ORDER_SIZE_ASC = 3
+     * Sort by size, ascending
+     *
+     * - MegaApi::ORDER_SIZE_DESC = 4
+     * Sort by size, descending
+     *
+     * - MegaApi::ORDER_CREATION_ASC = 5
+     * Sort by creation time in MEGA, ascending
+     *
+     * - MegaApi::ORDER_CREATION_DESC = 6
+     * Sort by creation time in MEGA, descending
+     *
+     * - MegaApi::ORDER_MODIFICATION_ASC = 7
+     * Sort by modification time of the original file, ascending
+     *
+     * - MegaApi::ORDER_MODIFICATION_DESC = 8
+     * Sort by modification time of the original file, descending
+     *
+     * - MegaApi::ORDER_PHOTO_ASC = 11
+     * Sort with photos first, then by date ascending
+     *
+     * - MegaApi::ORDER_PHOTO_DESC = 12
+     * Sort with photos first, then by date descending
+     *
+     * - MegaApi::ORDER_VIDEO_ASC = 13
+     * Sort with videos first, then by date ascending
+     *
+     * - MegaApi::ORDER_VIDEO_DESC = 14
+     * Sort with videos first, then by date descending
+     *
+     * - MegaApi::ORDER_LABEL_ASC = 17
+     * Sort by color label, ascending
+     *
+     * - MegaApi::ORDER_LABEL_DESC = 18
+     * Sort by color label, descending
+     *
+     * - MegaApi::ORDER_FAV_ASC = 19
+     * Sort nodes with favourite attr first
+     *
+     * - MegaApi::ORDER_FAV_DESC = 20
+     * Sort nodes with favourite attr last
+     *
+     * @param type Type of nodes requested in the search
+     * Valid values for this parameter are:
+     * - MegaApi::FILE_TYPE_DEFAULT = 0  --> all types
+     * - MegaApi::FILE_TYPE_PHOTO = 1
+     * - MegaApi::FILE_TYPE_AUDIO = 2
+     * - MegaApi::FILE_TYPE_VIDEO = 3
+     * - MegaApi::FILE_TYPE_DOCUMENT = 4
+     *
+     * @param target Target type where this method will search
+     * Valid values for this parameter are
+     * - SEARCH_TARGET_INSHARE = 0
+     * - SEARCH_TARGET_OUTSHARE = 1
+     * - SEARCH_TARGET_PUBLICLINK = 2
+     * - SEARCH_TARGET_ROOTNODE = 3
+     * - SEARCH_TARGET_ALL = 4
+     *
+     * @return List of nodes that match with the search parameters
+     */
+    public ArrayList<MegaNode> searchByType(int order, int type, int target) {
+        return nodeListToArray(megaApi.searchByType(null, null, null, true,
+                order, type, target));
+    }
+
+    /**
+     * Allow to search nodes with the following options:
+     * - Search given a parent node of the tree to explore
+     * - Search recursively
+     * - Containing a search string in their name
+     * - Filter by the type of the node
+     * - Order the returned list
+     *
+     * If node is provided, it will be the parent node of the tree to explore,
+     * search string and/or nodeType can be added to search parameters
+     *
+     * If node and searchString are not provided, and node type is not valid, this method will
+     * return an empty list.
+     *
+     * If parameter type is different of MegaApi::FILE_TYPE_DEFAULT, the following values for parameter
+     * order are invalid: MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
+     * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
+     *
+     * The search is case-insensitive. If the search string is not provided but type has any value
+     * defined at nodefiletype_t (except FILE_TYPE_DEFAULT),
+     * this method will return a list that contains nodes of the same type as provided.
+     *
+     * You take the ownership of the returned value.
+     *
+     * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+     * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+     * this method returns.
+     *
+     * @param node The parent node of the tree to explore
+     * @param searchString Search string. The search is case-insensitive
+     * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+     * @param recursive True if you want to seach recursively in the node tree.
+     * False if you want to seach in the children of the node only
+     * @param order Order for the returned list
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     * Undefined order
+     *
+     * - MegaApi::ORDER_DEFAULT_ASC = 1
+     * Folders first in alphabetical order, then files in the same order
+     *
+     * - MegaApi::ORDER_DEFAULT_DESC = 2
+     * Files first in reverse alphabetical order, then folders in the same order
+     *
+     * - MegaApi::ORDER_SIZE_ASC = 3
+     * Sort by size, ascending
+     *
+     * - MegaApi::ORDER_SIZE_DESC = 4
+     * Sort by size, descending
+     *
+     * - MegaApi::ORDER_CREATION_ASC = 5
+     * Sort by creation time in MEGA, ascending
+     *
+     * - MegaApi::ORDER_CREATION_DESC = 6
+     * Sort by creation time in MEGA, descending
+     *
+     * - MegaApi::ORDER_MODIFICATION_ASC = 7
+     * Sort by modification time of the original file, ascending
+     *
+     * - MegaApi::ORDER_MODIFICATION_DESC = 8
+     * Sort by modification time of the original file, descending
+     *
+     * - MegaApi::ORDER_PHOTO_ASC = 11
+     * Sort with photos first, then by date ascending
+     *
+     * - MegaApi::ORDER_PHOTO_DESC = 12
+     * Sort with photos first, then by date descending
+     *
+     * - MegaApi::ORDER_VIDEO_ASC = 13
+     * Sort with videos first, then by date ascending
+     *
+     * - MegaApi::ORDER_VIDEO_DESC = 14
+     * Sort with videos first, then by date descending
+     *
+     * - MegaApi::ORDER_LABEL_ASC = 17
+     * Sort by color label, ascending
+     *
+     * - MegaApi::ORDER_LABEL_DESC = 18
+     * Sort by color label, descending
+     *
+     * - MegaApi::ORDER_FAV_ASC = 19
+     * Sort nodes with favourite attr first
+     *
+     * - MegaApi::ORDER_FAV_DESC = 20
+     * Sort nodes with favourite attr last
+     *
+     * @param type Type of nodes requested in the search
+     * Valid values for this parameter are:
+     * - MegaApi::FILE_TYPE_DEFAULT = 0  --> all types
+     * - MegaApi::FILE_TYPE_PHOTO = 1
+     * - MegaApi::FILE_TYPE_AUDIO = 2
+     * - MegaApi::FILE_TYPE_VIDEO = 3
+     * - MegaApi::FILE_TYPE_DOCUMENT = 4
+     *
+     * @return List of nodes that match with the search parameters
+     */
+    public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
+                                            MegaCancelToken cancelToken, boolean recursive, int order, int type) {
+        return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive,
+                order, type));
+    }
+
+    /**
+     * Allow to search nodes with the following options:
+     * - Search given a parent node of the tree to explore
+     * - Search recursively
+     * - Containing a search string in their name
+     * - Order the returned list
+     *
+     * If node is provided, it will be the parent node of the tree to explore,
+     * search string can be added to search parameters
+     *
+     * If node and searchString are not provided, this method will
+     * return an empty list.
+     *
+     * You take the ownership of the returned value.
+     *
+     * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+     * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+     * this method returns.
+     *
+     * @param node The parent node of the tree to explore
+     * @param searchString Search string. The search is case-insensitive
+     * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+     * @param recursive True if you want to seach recursively in the node tree.
+     * False if you want to seach in the children of the node only
+     * @param order Order for the returned list
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     * Undefined order
+     *
+     * - MegaApi::ORDER_DEFAULT_ASC = 1
+     * Folders first in alphabetical order, then files in the same order
+     *
+     * - MegaApi::ORDER_DEFAULT_DESC = 2
+     * Files first in reverse alphabetical order, then folders in the same order
+     *
+     * - MegaApi::ORDER_SIZE_ASC = 3
+     * Sort by size, ascending
+     *
+     * - MegaApi::ORDER_SIZE_DESC = 4
+     * Sort by size, descending
+     *
+     * - MegaApi::ORDER_CREATION_ASC = 5
+     * Sort by creation time in MEGA, ascending
+     *
+     * - MegaApi::ORDER_CREATION_DESC = 6
+     * Sort by creation time in MEGA, descending
+     *
+     * - MegaApi::ORDER_MODIFICATION_ASC = 7
+     * Sort by modification time of the original file, ascending
+     *
+     * - MegaApi::ORDER_MODIFICATION_DESC = 8
+     * Sort by modification time of the original file, descending
+     *
+     * - MegaApi::ORDER_PHOTO_ASC = 11
+     * Sort with photos first, then by date ascending
+     *
+     * - MegaApi::ORDER_PHOTO_DESC = 12
+     * Sort with photos first, then by date descending
+     *
+     * - MegaApi::ORDER_VIDEO_ASC = 13
+     * Sort with videos first, then by date ascending
+     *
+     * - MegaApi::ORDER_VIDEO_DESC = 14
+     * Sort with videos first, then by date descending
+     *
+     * - MegaApi::ORDER_LABEL_ASC = 17
+     * Sort by color label, ascending
+     *
+     * - MegaApi::ORDER_LABEL_DESC = 18
+     * Sort by color label, descending
+     *
+     * - MegaApi::ORDER_FAV_ASC = 19
+     * Sort nodes with favourite attr first
+     *
+     * - MegaApi::ORDER_FAV_DESC = 20
+     * Sort nodes with favourite attr last
+     *
+     * @return List of nodes that match with the search parameters
+     */
+    public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
+                                            MegaCancelToken cancelToken, boolean recursive, int order) {
+        return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive,
+                order));
+    }
+
+    /**
+     * Allow to search nodes with the following options:
+     * - Search given a parent node of the tree to explore
+     * - Search recursively
+     * - Containing a search string in their name
+     *
+     * If node is provided, it will be the parent node of the tree to explore,
+     * search string can be added to search parameters
+     *
+     * If node and searchString are not provided, this method will
+     * return an empty list.
+     *
+     * You take the ownership of the returned value.
+     *
+     * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+     * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+     * this method returns.
+     *
+     * @param node The parent node of the tree to explore
+     * @param searchString Search string. The search is case-insensitive
+     * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+     * @param recursive True if you want to seach recursively in the node tree.
+     * False if you want to seach in the children of the node only
+     *
+     * @return List of nodes that match with the search parameters
+     */
+    public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
+                                            MegaCancelToken cancelToken, boolean recursive) {
+        return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive));
+    }
+
+    /**
+     * Allow to search nodes with the following options:
+     * - Search given a parent node of the tree to explore
+     * - Containing a search string in their name
+     *
+     * If node is provided, it will be the parent node of the tree to explore,
+     * search string can be added to search parameters
+     *
+     * If node and searchString are not provided, this method will
+     * return an empty list.
+     *
+     * You take the ownership of the returned value.
+     *
+     * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+     * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+     * this method returns.
+     *
+     * @param node The parent node of the tree to explore
+     * @param searchString Search string. The search is case-insensitive
+     * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+     *
+     * @return List of nodes that match with the search parameters
+     */
+    public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
+                                            MegaCancelToken cancelToken) {
+        return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken));
+    }
 
     /**
      * Return a list of buckets, each bucket containing a list of recently added/modified nodes
@@ -9444,6 +10004,62 @@ public class MegaApiJava {
      */
     public void getPublicLinkInformation(String megaFolderLink) {
         megaApi.getPublicLinkInformation(megaFolderLink);
+    }
+
+    /**
+     * Requests a list of all Smart Banners available for current user.
+     *
+     * The response value is stored as a MegaBannerList.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_BANNERS
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaBannerList: the list of banners
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EACCESS - If called with no user being logged in.
+     * - MegaError::API_EINTERNAL - If the internally used user attribute exists but can't be decoded.
+     * - MegaError::API_ENOENT if there are no banners to return to the user.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getBanners(MegaRequestListenerInterface listener) {
+        megaApi.getBanners(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Requests a list of all Smart Banners available for current user.
+     *
+     * The response value is stored as a MegaBannerList.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_BANNERS
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaBannerList: the list of banners
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EACCESS - If called with no user being logged in.
+     * - MegaError::API_EINTERNAL - If the internally used user attribute exists but can't be decoded.
+     * - MegaError::API_ENOENT if there are no banners to return to the user.
+     */
+    public void getBanners() {
+        megaApi.getBanners();
+    }
+
+    /**
+     * No longer show the Smart Banner with the specified id to the current user.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void dismissBanner(int id, MegaRequestListenerInterface listener) {
+        megaApi.dismissBanner(id, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * No longer show the Smart Banner with the specified id to the current user.
+     */
+    public void dismissBanner(int id) {
+        megaApi.dismissBanner(id);
     }
     
     /****************************************************************************************************/
