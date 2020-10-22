@@ -7121,7 +7121,6 @@ void MegaClient::notifypurge(void)
 
     if ((t = int(nodenotify.size())))
     {
-
         applykeys();
 
         if (!fetchingnodes)
@@ -7189,6 +7188,7 @@ void MegaClient::notifypurge(void)
             }
         }
 #endif
+        DBTableTransactionCommitter committer(tctable);
 
         // check all notified nodes for removed status and purge
         for (i = 0; i < t; i++)
