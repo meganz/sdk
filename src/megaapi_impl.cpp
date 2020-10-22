@@ -25181,6 +25181,7 @@ void MegaFolderUploadController::scanFolder(handle targetHandle, handle parentHa
         localPath.appendWithSeparator(localname, false, client->fsaccess->localseparator);
         if (dirEntryType == FILENODE)
         {
+            mPendingFilesToProcess++;
             (folderExists)
                 ? mFolderToPendingFiles[folder->nodehandle].emplace_back(localPath)
                 : mFolderToPendingFiles[newNodeHandle].emplace_back(localPath);
@@ -25257,6 +25258,7 @@ void MegaFolderUploadController::startFileUploads(const vector<NewNode> &nn)
            for (size_t j = 0; j < pendingFiles.size(); j++)
            {
                pendingTransfers++;
+               mPendingFilesToProcess--;
                const LocalPath &localpath = pendingFiles.at(j);
                FileSystemType fsType = client->fsaccess->getlocalfstype(localpath);
                megaApi->startUpload(false, localpath.toPath(*client->fsaccess).c_str(), parentNode.get(), (const char *)NULL, -1, tag, false, NULL, false, false, fsType, this);
@@ -25270,7 +25272,11 @@ void MegaFolderUploadController::startFileUploads(const vector<NewNode> &nn)
 
 void MegaFolderUploadController::checkCompletion()
 {
-    if (!cancelled && !recursive && !pendingTransfers && !mPendingFolders)
+    if (!cancelled
+            && !recursive
+            && !pendingTransfers
+            && !mPendingFolders
+            && !mPendingFilesToProcess)
     {
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         mFolderStructure.clear();
