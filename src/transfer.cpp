@@ -623,7 +623,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
     if (type == GET)
     {
-        LOG_debug << "Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size();
+        LOG_debug << client->clientname << "Download complete: " << (files.size() ? LOG_NODEHANDLE(files.front()->h) : "NO_FILES") << " " << files.size() << (files.size() ? files.front()->name : "");
 
         bool transient_error = false;
         LocalPath tmplocalname;
@@ -986,7 +986,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
     }
     else
     {
-        LOG_debug << "Upload complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
+        LOG_debug << client->clientname << "Upload complete: " << (files.size() ? files.front()->name : "NO_FILES") << " " << files.size();
 
         if (slot->fa)
         {

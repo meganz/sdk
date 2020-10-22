@@ -1090,7 +1090,7 @@ private:
     void closetc(bool remove = false);
 
     // avoid many ifdefs by testing inside
-    void triggerSync(NodeHandle);
+    void triggerSync(NodeHandle, bool recurse = false);
 
     // server-client command processing
     bool sc_checkSequenceTag(const string& tag);

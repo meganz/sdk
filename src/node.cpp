@@ -1323,8 +1323,9 @@ LocalNode::LocalNode()
 : unstableFsidAssigned(false)
 , deletingCloud{false}
 , deletedFS{false}
-, moveAppliedToCloud(false)
-, moveApplyingToCloud(false)
+, moveSourceAppliedToCloud(false)
+, moveSourceApplyingToCloud(false)
+, moveTargetApplyingToCloud(false)
 , moveAppliedToLocal(false)
 , moveApplyingToLocal(false)
 , conflicts(TREE_RESOLVED)
@@ -1349,8 +1350,9 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     unstableFsidAssigned = false;
     deletingCloud = false;
     deletedFS = false;
-    moveAppliedToCloud = false;
-    moveApplyingToCloud = false;
+    moveSourceAppliedToCloud = false;
+    moveSourceApplyingToCloud = false;
+    moveTargetApplyingToCloud = false;
     moveAppliedToLocal = false;
     moveApplyingToLocal = false;
     conflicts = TREE_RESOLVED;

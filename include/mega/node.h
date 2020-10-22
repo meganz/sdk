@@ -484,8 +484,9 @@ struct MEGA_API LocalNode : public Cacheable
         bool deletedFS : 1;
 
         // we saw this node moved/renamed locally, cloud move is underway or complete
-        bool moveApplyingToCloud : 1;
-        bool moveAppliedToCloud : 1;
+        bool moveSourceApplyingToCloud : 1;
+        bool moveSourceAppliedToCloud : 1;
+        bool moveTargetApplyingToCloud : 1;
 
         // we saw this node moved/renamed in the cloud, local move expected (or active)
         bool moveApplyingToLocal : 1;
