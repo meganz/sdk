@@ -24955,6 +24955,9 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->pendingTransfers = 0;
     this->tag = transfer->getTag();
     this->mPendingFolders = 0;
+    this->mSemaphore = new MegaSemaphore();
+    this->threadstarted = false;
+    this->mPendingFilesToProcess = 0;
 }
 
 void MegaFolderUploadController::start(MegaNode*)
@@ -24964,7 +24967,7 @@ void MegaFolderUploadController::start(MegaNode*)
     transfer->setState(MegaTransfer::STATE_QUEUED);
     megaApi->fireOnTransferStart(transfer);
 
-    // Root folder of the new tree
+    // root folder of the new tree
     const char *folderName = transfer->getFileName();
     unique_ptr<MegaNode> parent(megaApi->getNodeByHandle(transfer->getParentHandle()));
     if (!parent)
@@ -24975,9 +24978,9 @@ void MegaFolderUploadController::start(MegaNode*)
         return;
     }
 
-    auto localpath = LocalPath::fromPath(transfer->getPath(), *client->fsaccess);
-    scanFolder(parent->getHandle(), parent->getHandle(), localpath, folderName);
-    createFolder();
+    // worker thread will perform the folder scan
+    mThread.start(threadEntryPoint, this);
+    threadstarted = true;
 }
 
 void MegaFolderUploadController::cancel()
@@ -25118,7 +25121,28 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
 
 MegaFolderUploadController::~MegaFolderUploadController()
 {
+    assert(workerThreadId != std::this_thread::get_id());
+    if (threadstarted)
+    {
+        if (workerThreadId == std::this_thread::get_id())
+        {
+            LOG_warn << "We are calling join from worker thread.";
+        }
+        mThread.join();
+    }
+    delete mSemaphore;
     //we shouldn't need to dettach as transfer listener: all listened transfer should have been cancelled/completed
+}
+
+void *MegaFolderUploadController::threadEntryPoint(void *param)
+{
+    MegaFolderUploadController *uploadController = (MegaFolderUploadController *)param;
+    uploadController->run();
+    return NULL;
+}
+
+void MegaFolderUploadController::run()
+{
 }
 
 void MegaFolderUploadController::scanFolder(handle targetHandle, handle parentHandle, LocalPath& localPath, std::string folderName)

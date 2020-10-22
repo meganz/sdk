@@ -235,13 +235,36 @@ public:
     ~MegaFolderUploadController();
 
 protected:
+    // number of folders that are pending to be created in cloud drive
     int mPendingFolders;
+
+    // number of files pending to be processed (add a transfer for each one)
+    int mPendingFilesToProcess;
+
+    // flag that indicates if worker thread has been started, it will be checked by parent thread before call join
+    bool threadstarted;
+
+    // semaphore to control worker thread execution flow
+    MegaSemaphore *mSemaphore;
+
+    // Worker thread
+    MegaThread mThread;
+
+    // worker thread Id
+    std::thread::id workerThreadId;
+
+    // maps tempHandle to definitive handle
+    map<handle, handle> mNewNodesResult;
 
     // maps parent handle to vector of LocalPath of it's children
     map<handle, vector<LocalPath>> mFolderToPendingFiles;
 
     // maps targetHandle of the subtree to a vector of NewNodes
     map<handle, vector<NewNode>> mFolderStructure;
+
+    // worker thread related methods
+    void run();
+    static void *threadEntryPoint(void *param);
 
     /* Scan entire tree recursively, and retrieve folder structure and files to be uploaded.
      * A putnodes command can only add subtrees under same target, so in case we need to add
