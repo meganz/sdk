@@ -19366,7 +19366,8 @@ void MegaApiImpl::sendPendingRequests()
                                 // continue to complete the copy-delete
                                 client->restag = request->getTag();
                                 vector<NewNode> emptyVec;
-                                putnodes_result(API_OK, NODE_HANDLE, emptyVec);
+                                targettype_t target = client->isForeignNode(newParent->nodehandle) ? USER_HANDLE : NODE_HANDLE;
+                                putnodes_result(API_OK, target, emptyVec);
                                 break;
                             }
 
