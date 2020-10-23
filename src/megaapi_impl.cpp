@@ -19362,13 +19362,9 @@ void MegaApiImpl::sendPendingRequests()
                         {
                             if (node->isvalid && ovn->isvalid && *(FileFingerprint*)node == *(FileFingerprint*)ovn)
                             {
-                                e = API_OK; // there is already an identical node in the target folder
-                                // continue to complete the copy-delete
-                                client->restag = request->getTag();
-                                vector<NewNode> emptyVec;
-                                targettype_t target = client->isForeignNode(newParent->nodehandle) ? USER_HANDLE : NODE_HANDLE;
-                                putnodes_result(API_OK, target, emptyVec);
-                                break;
+                                request->setNodeHandle(UNDEF);
+                                e = client->unlink(node, false, request->getTag());
+                                break;  // request finishes now if error, otherwise on unlink_result
                             }
 
                             if (!client->versions_disabled)
