@@ -13473,7 +13473,6 @@ void MegaApiImpl::backupupdate_result(const Error& e, handle backupId)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || (request->getType() != MegaRequest::TYPE_BACKUP_PUT)) return;
 
-    assert(backupId == request->getParentHandle());
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
@@ -23216,13 +23215,13 @@ void MegaApiImpl::dismissBanner(int id, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener)
+void MegaApiImpl::setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_PUT, listener);
     request->setTotalBytes(backupType);
     request->setNodeHandle(targetNode);
     request->setFile(localFolder);
-    request->setName(deviceId);
+    request->setName(backupName);
     request->setAccess(state);
     request->setNumDetails(subState);
     request->setText(extraData);
@@ -23238,7 +23237,7 @@ void MegaApiImpl::removeBackup(MegaHandle backupId, MegaRequestListener *listene
     waiter->notify();
 }
 
-void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener)
+void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_PUT, listener);
     request->setParentHandle(backupId);
@@ -23258,9 +23257,9 @@ void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle t
         request->setFile(localFolder);
     }
 
-    if (deviceId)
+    if (backupName)
     {
-        request->setName(deviceId);
+        request->setName(backupName);
     }
 
     if (state >= 0)

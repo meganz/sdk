@@ -18189,7 +18189,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the target node of the backup
-         * - MegaRequest::getName - Returns the device id hash of the backup source device
+         * - MegaRequest::getName - Returns the backup name of the remote location
          * - MegaRequest::getAccess - Returns the backup state
          * - MegaRequest::getFile - Returns the path of the local folder
          * - MegaRequest::getText - Returns the extraData associated with the request
@@ -18200,14 +18200,14 @@ class MegaApi
          * @param backupType back up type requested for the service
          * @param targetNode MEGA folder to hold the backups
          * @param localFolder Local path of the folder
-         * @param deviceId device id hash of source device
+         * @param backupName backup name for remote location
          * @param state state
          * @param subState subState
          * @param extraData extraData
          * @param listener MegaRequestListener to track this request
          *
         */
-        void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Update an existing backup
@@ -18227,7 +18227,7 @@ class MegaApi
          * - MegaRequest::getParentHandle - Returns the backupId
          * - MegaRequest::getTotalBytes - Returns the backup type
          * - MegaRequest::getNodeHandle - Returns the target node of the backup
-         * - MegaRequest::getName - Returns the device id hash of the backup source device
+         * - MegaRequest::getName - Returns the backup name of the remote location
          * - MegaRequest::getFile - Returns the path of the local folder
          * - MegaRequest::getAccess - Returns the backup state
          * - MegaRequest::getNumDetails - Returns the backup substate
@@ -18238,14 +18238,14 @@ class MegaApi
          * @param backupType Local path of the folder
          * @param targetNode MEGA folder to hold the backups
          * @param localFolder Local path of the folder
-         * @param deviceId device id hash of source device
+         * @param backupName backup name of remote location
          * @param state backup state 
          * @param subState backup subState
          * @param extraData extraData for the backup
          * @param listener MegaRequestListener to track this request
          *
         */
-        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
         
         /**
          * @brief Remove a backup
@@ -18269,18 +18269,18 @@ class MegaApi
          * - MegaRequest::getParentHandle - Returns the backupId
          * - MegaRequest::getAccess - Returns the backup state
          * - MegaRequest::getNumDetails - Returns the backup substate
-         * - MegaRequest::getParamType - Returns the number of backup files uploaded
-         * - MegaRequest::getTransferTag - Returns the number of backup files downloaded
-         * - MegaRequest::getNumber - Returns the time associated with the request
-         * - MegaRequest::getNodeHandle - Returns the last target node handled
+         * - MegaRequest::getParamType - Returns the number of pending upload transfers
+         * - MegaRequest::getTransferTag - Returns the number of pending download transfers
+         * - MegaRequest::getNumber - Returns the last action timestamp
+         * - MegaRequest::getNodeHandle - Returns the last node handle to be synced
          *
          * @param backupId backup id identifying the backup
          * @param state backup state
          * @param progress backup progress 
-         * @param ups uploads performed for the backup
-         * @param downs downloads performed for the backup
-         * @param ts time
-         * @param listener MegaRequestListener to track this request
+         * @param ups Number of pending upload transfers
+         * @param downs Number of pending download transfers
+         * @param ts Last action timestamp
+         * @param lastNode Last node handle to be synced 
          *
         */
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode);
