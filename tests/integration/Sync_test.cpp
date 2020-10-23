@@ -816,6 +816,11 @@ struct StandardClient : public MegaApp
 #ifdef GFX_CLASS
         gfx.startProcessingThread();
 #endif
+
+        byte buffer[MegaClient::SIDLEN];
+        client.rng.genblock(buffer, MegaClient::SIDLEN);
+        client.sid.assign((char*)buffer, MegaClient::SIDLEN);
+        client.opensctable();
     }
 
     ~StandardClient()
