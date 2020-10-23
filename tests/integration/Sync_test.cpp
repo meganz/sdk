@@ -38,7 +38,6 @@
 
 #define DEFAULTWAIT std::chrono::seconds(20)
 
-#ifdef ENABLE_SYNC
 
 using namespace ::mega;
 using namespace ::std;
@@ -116,7 +115,7 @@ TestFS::~TestFS()
     for_each(m_cleaners.begin(), m_cleaners.end(), [](thread& t) { t.join(); });
 }
 
-
+#ifdef ENABLE_SYNC
 
 namespace {
 
