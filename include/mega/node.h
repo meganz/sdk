@@ -244,6 +244,8 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     node_set::iterator tounlink_it;
 #endif
 
+    std::set<handle> mChildrenInMemory;
+
     // source tag.  The tag of the request or transfer that last modified this node (available in MegaApi)
     int tag = 0;
 

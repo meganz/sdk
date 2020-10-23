@@ -15870,12 +15870,20 @@ node_list MegaClient::getChildrens(Node* node)
     sctable->getChildrenFromNode(node->nodehandle, nodeMap);
     node_vector dp;
 
+    for (const auto it : node->mChildrenInMemory)
+    {
+        NodeSerialized n;
+        n.mDecrypted = true;
+        nodeMap[it] = n;
+    }
+
     for (const auto nodeMapIt : nodeMap)
     {
         Node* n;
         auto nodeIt = mNodes.find(nodeMapIt.first);
         if (nodeIt == mNodes.end())
         {
+            assert(nodeMapIt.second.mNode.length());
             n = Node::unserialize(this, &nodeMapIt.second.mNode, &dp, nodeMapIt.second.mDecrypted);
         }
         else

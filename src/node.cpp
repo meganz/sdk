@@ -145,6 +145,11 @@ Node::~Node()
     // abort pending direct reads
     client->preadabort(this);
 
+    if (!client->mOptimizePurgeNodes && parent)
+    {
+        parent->mChildrenInMemory.erase(nodehandle);
+    }
+
     // remove node's fingerprint from hash
     if (!client->mOptimizePurgeNodes)
     {
@@ -205,6 +210,18 @@ Node::~Node()
     // in case this node is currently being transferred for syncing: abort transfer
     delete syncget;
 #endif
+
+    if (!client->mOptimizePurgeNodes)
+    {
+        for (auto& childHandle : mChildrenInMemory)
+        {
+            Node* child = client->nodebyhandleInRam(childHandle);
+            if (child)
+            {
+                child->parent = nullptr;
+            }
+        }
+    }
 }
 
 void Node::setkeyfromjson(const char* k)
@@ -502,7 +519,7 @@ bool Node::serialize(string* d)
     bool decrypted = true;
     if (attrstring)
     {
-        LOG_warn << "Trying to serialize an encrypted node";
+        LOG_debug << "Trying to serialize an encrypted node";
 
         //Last attempt to decrypt the node
         applykey();
@@ -1063,8 +1080,9 @@ bool Node::setparent(Node* p)
     NodeCounter nc;
     bool gotnc = false;
 
-   if (parent)
+    if (parent)
     {
+        parent->mChildrenInMemory.erase(nodehandle);
         Node *originalancestor = firstancestor();
         handle oah = originalancestor->nodehandle;
         if (oah == client->rootnodes[0] || oah == client->rootnodes[1] || oah == client->rootnodes[2] || originalancestor->inshare)
@@ -1083,6 +1101,7 @@ bool Node::setparent(Node* p)
 
     parenthandle = p->nodehandle;
     parent = p;
+    parent->mChildrenInMemory.insert(nodehandle);
 
     Node* newancestor = firstancestor();
     handle nah = newancestor->nodehandle;
