@@ -214,6 +214,12 @@ public class MegaApiJava {
     public final static int SEARCH_TARGET_ROOTNODE = MegaApi.SEARCH_TARGET_ROOTNODE;
     public final static int SEARCH_TARGET_ALL = MegaApi.SEARCH_TARGET_ALL;
 
+    public final static int STATE_NONE = MegaApi.STATE_NONE;
+    public final static int STATE_SYNCED = MegaApi.STATE_SYNCED;
+    public final static int STATE_PENDING = MegaApi.STATE_PENDING;
+    public final static int STATE_SYNCING = MegaApi.STATE_SYNCING;
+    public final static int STATE_IGNORED = MegaApi.STATE_IGNORED;
+
     MegaApi getMegaApi()
     {
         return megaApi;
@@ -10317,5 +10323,115 @@ public class MegaApiJava {
      */
     public void cancelCreateAccount(MegaRequestListenerInterface listener){
         megaApi.cancelCreateAccount(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Starts a backup of a local folder into a remote location
+     *
+     * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns the backupId
+     * - MegaRequest::getNodeHandle - Returns the target node of the backup
+     * - MegaRequest::getName - Returns the device id hash of the backup source device
+     * - MegaRequest::getAccess - Returns the backup state
+     * - MegaRequest::getFile - Returns the path of the local folder
+     * - MegaRequest::getText - Returns the extraData associated with the request
+     * - MegaRequest::getTotalBytes - Returns the backup type
+     * - MegaRequest::getNumDetails - Returns the backup substate
+     * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * @param backupType backup type requested for the service
+     * @param targetNode MEGA folder to hold the backups
+     * @param localFolder Local path of the folder
+     * @param deviceId device id hash of source device
+     * @param state state
+     * @param subState subState
+     * @param extraData extraData
+     * @param listener MegaRequestListener to track this request
+     *
+     */
+    public void setBackup(int backupType, long targetNode, String localFolder, String deviceId, int state, int subState, String extraData, MegaRequestListenerInterface listener) {
+        megaApi.setBackup(backupType, targetNode, localFolder, deviceId, state, subState,extraData, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Update an existing backup
+     *
+     *  Params that keep the same value are passed with invalid value to avoid to send to the server
+     *    Invalid values:
+     *    - type: BackupType::INVALID
+     *    - nodeHandle: UNDEF
+     *    - localFolder: nullptr
+     *    - deviceId: nullptr
+     *    - state: -1
+     *    - subState: -1
+     *    - extraData: nullptr
+     *
+     * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns the backupId
+     * - MegaRequest::getTotalBytes - Returns the backup type
+     * - MegaRequest::getNodeHandle - Returns the target node of the backup
+     * - MegaRequest::getName - Returns the device id hash of the backup source device
+     * - MegaRequest::getFile - Returns the path of the local folder
+     * - MegaRequest::getAccess - Returns the backup state
+     * - MegaRequest::getNumDetails - Returns the backup substate
+     * - MegaRequest::getText - Returns the extraData associated with the request
+     * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * @param backupId backup id identifying the backup to be updated
+     * @param backupType backup type requested for the service
+     * @param targetNode MEGA folder to hold the backups
+     * @param localFolder Local path of the folder
+     * @param deviceId device id hash of source device
+     * @param state backup state
+     * @param subState backup subState
+     * @param extraData extraData for the backup
+     * @param listener MegaRequestListener to track this request
+     *
+     */
+    public void updateBackup(long backupId, int backupType, long targetNode, String localFolder, String deviceId, int state, int subState, String extraData, MegaRequestListenerInterface listener) {
+        megaApi.updateBackup(backupId, backupType, targetNode, localFolder, deviceId, state, subState, extraData, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Remove a backup
+     *
+     * The associated request type with this request is MegaRequest::TYPE_BACKUP_REMOVE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns the backupId
+     * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * @param backupId backup id identifying the backup to be removed
+     * @param listener MegaRequestListener to track this request
+     *
+     */
+    public void removeBackup(long backupId, MegaRequestListenerInterface listener) {
+        megaApi.removeBackup(backupId, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get heartbeat associated with an existing backup
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns the backupId
+     * - MegaRequest::getAccess - Returns the backup state
+     * - MegaRequest::getNumDetails - Returns the backup substate
+     * - MegaRequest::getParamType - Returns the number of backup files uploaded
+     * - MegaRequest::getTransferTag - Returns the number of backup files downloaded
+     * - MegaRequest::getNumber - Returns the time associated with the request
+     * - MegaRequest::getNodeHandle - Returns the last target node handled
+     *
+     * @param backupId backup id identifying the backup
+     * @param state backup state
+     * @param progress backup progress
+     * @param ups number of pending upload transfers
+     * @param downs number of pending download transfers
+     * @param ts last action timestamp
+     * @param lastNode last node handle to be synced
+     */
+    public void sendBackupHeartbeat(long backupId, int state, int progress, int ups, int downs, long ts, long lastNode) {
+        megaApi.sendBackupHeartbeat(backupId, state, progress, ups, downs, ts, lastNode);
     }
 }

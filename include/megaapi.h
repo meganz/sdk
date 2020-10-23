@@ -18277,10 +18277,10 @@ class MegaApi
          * @param backupId backup id identifying the backup
          * @param state backup state
          * @param progress backup progress 
-         * @param ups uploads performed for the backup
-         * @param downs downloads performed for the backup
-         * @param ts time
-         * @param listener MegaRequestListener to track this request
+         * @param ups number of pending upload transfers
+         * @param downs number of pending download transfers
+         * @param ts last action timestamp
+         * @param lastNode last node handle to be synced
          *
         */
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode);
