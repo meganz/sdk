@@ -11581,7 +11581,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
     {
         return new MegaNodeListPrivate();
     }
-    
+
     MegaNodeList *nodeList = nullptr;
     if (n)
     {
@@ -19420,12 +19420,9 @@ void MegaApiImpl::sendPendingRequests()
                         {
                             if (node->isvalid && ovn->isvalid && *(FileFingerprint*)node == *(FileFingerprint*)ovn)
                             {
-                                e = API_OK; // there is already an identical node in the target folder
-                                // continue to complete the copy-delete
-                                client->restag = request->getTag();
-                                vector<NewNode> emptyVec;
-                                putnodes_result(API_OK, NODE_HANDLE, emptyVec);
-                                break;
+                                request->setNodeHandle(UNDEF);
+                                e = client->unlink(node, false, request->getTag());
+                                break;  // request finishes now if error, otherwise on unlink_result
                             }
 
                             if (!client->versions_disabled)
@@ -23032,7 +23029,7 @@ void MegaApiImpl::sendPendingRequests()
         {
             BackupType bType = request->getTotalBytes() < INVALID || request->getTotalBytes() > CAMERA_UPLOAD ?
                                INVALID : static_cast<BackupType>(request->getTotalBytes());
-            
+
             if (request->getParentHandle() == UNDEF) // Register a new sync
             {
                 string localFolder(binaryToBase64(request->getFile(), strlen(request->getFile())));
@@ -23048,10 +23045,10 @@ void MegaApiImpl::sendPendingRequests()
                 const char* extra = request->getText();
                 unique_ptr<char[]> extraData(extra ? binaryToBase64(extra, strlen(extra)) : nullptr);
                 client->reqs.add(new CommandBackupPut(client,
-                                                      (MegaHandle)request->getParentHandle(), 
+                                                      (MegaHandle)request->getParentHandle(),
                                                       bType,
-                                                      request->getNodeHandle(), 
-                                                      localFolder.get(), 
+                                                      request->getNodeHandle(),
+                                                      localFolder.get(),
                                                       client->getDeviceidHash().c_str(),
                                                       request->getAccess(),
                                                       request->getNumDetails(),
@@ -23066,13 +23063,13 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT:
         {
-            client->reqs.add(new CommandBackupPutHeartBeat(client, 
-                                                           (MegaHandle)request->getParentHandle(), 
+            client->reqs.add(new CommandBackupPutHeartBeat(client,
+                                                           (MegaHandle)request->getParentHandle(),
                                                            (uint8_t)request->getAccess(),
                                                            (uint8_t)request->getNumDetails(),
                                                            (uint32_t)request->getParamType(),
                                                            (uint32_t)request->getTransferTag(),
-                                                           request->getNumber(), 
+                                                           request->getNumber(),
                                                            request->getNodeHandle()));
             break;
         }
