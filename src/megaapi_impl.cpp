@@ -18425,6 +18425,62 @@ void MegaApiImpl::updateBackups()
     }
 }
 
+
+MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst, const char *localPath, handle parentHandle, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener)
+{
+    if (fsType == FS_UNKNOWN && localPath)
+    {
+        fsType = fsAccess->getlocalfstype(LocalPath::fromPath(localPath, *fsAccess));
+    }
+
+    MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
+    if(localPath)
+    {
+        string path(localPath);
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
+            path.insert(0, "\\\\?\\");
+#endif
+        transfer->setPath(path.data());
+    }
+
+    transfer->setParentHandle(parentHandle);
+    if (targetUser)
+    {
+        transfer->setParentPath(targetUser);
+    }
+
+    transfer->setMaxRetries(maxRetries);
+    transfer->setAppData(appData);
+    transfer->setSourceFileTemporary(isSourceFileTemporary);
+    transfer->setStartFirst(startFirst);
+
+    transfer->setBackupTransfer(isBackup);
+
+    if (fileName || transfer->getFileName())
+    {
+       std::string auxName = fileName
+               ? fileName
+               : transfer->getFileName();
+
+       std::string path = localPath
+               ? localPath
+               : "";
+
+       client->fsaccess->unescapefsincompatible(&auxName, fsType);
+       transfer->setFileName(auxName.c_str());
+    }
+
+    transfer->setTime(mtime);
+
+    if(folderTransferTag)
+    {
+        transfer->setFolderTransferTag(folderTransferTag);
+    }
+
+    transfer->setStreamingTransfer(forceNewUpload);
+    return transfer;
+}
 unsigned MegaApiImpl::sendPendingTransfers()
 {
     auto t0 = std::chrono::steady_clock::now();
@@ -18919,6 +18975,11 @@ unsigned MegaApiImpl::sendPendingTransfers()
     }
     mProcessingFolderTransfer = false;
     return count;
+}
+
+void MegaApiImpl::processPendingTransfer(MegaTransferPrivate *transfer)
+{
+
 }
 
 void MegaApiImpl::removeRecursively(const char *path)
@@ -25254,20 +25315,13 @@ void MegaFolderUploadController::uploadFiles()
            {
                const LocalPath &localpath = pendingFiles.at(j);
                FileSystemType fsType = client->fsaccess->getlocalfstype(localpath);
-               error e = megaApi->startManualTransfer(false, localpath.toPath(*client->fsaccess).c_str(),
+               MegaTransferPrivate *transfer = megaApi->createUploadTransfer(false, localpath.toPath(*client->fsaccess).c_str(),
                                        parentNode.get()->getHandle(), nullptr, (const char *)NULL,
                                        -1, tag, false, NULL, false, false, fsType, this);
 
+                megaApi->processPendingTransfer(transfer);
                 mPendingFilesToProcess--;
-                if (!e)
-                {
-                    pendingTransfers++;
-                }
-                else if (e != API_ENOENT)
-                {
-                    //If returned err is API_ENOENT, another transfer is queued for the same file
-                    mIncompleteTransfers++;
-                }
+                pendingTransfers++;
            }
            //Remove folder and it's children from map
            mFolderToPendingFiles.erase(auxit);

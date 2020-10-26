@@ -3257,7 +3257,9 @@ protected:
         void sendPendingScRequest();
         void sendPendingRequests();
         unsigned sendPendingTransfers();
+        void processPendingTransfer(MegaTransferPrivate *transfer);
         void updateBackups();
+        MegaTransferPrivate* createUploadTransfer(bool startFirst, const char *localPath, handle parentHandle, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener);
 
         //Internal
         Node* getNodeByFingerprintInternal(const char *fingerprint);
