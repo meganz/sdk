@@ -2400,6 +2400,7 @@ class MegaApiImpl : public MegaApp
         MegaTransferList *getChildTransfers(int transferTag);
         MegaTransferList *getTansfersByFolderTag(int folderTransferTag);
         MegaTransferPrivate* createUploadTransfer(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener);
+        MegaTransferPrivate* createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener);
 
 #ifdef ENABLE_SYNC
         //Sync

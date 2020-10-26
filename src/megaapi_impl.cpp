@@ -8280,7 +8280,8 @@ void MegaApiImpl::startUploadForSupport(const char *localPath, bool isSourceTemp
     return startUpload(true, localPath, nullptr, nullptr, "pGTOqu7_Fek", -1, 0, false, nullptr, isSourceTemporary, false, fsType, listener);
 }
 
-void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener)
+
+MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener)
 {
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
 
@@ -8322,6 +8323,12 @@ void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* loc
         transfer->setFolderTransferTag(folderTransferTag);
     }
 
+    return transfer;
+}
+
+void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener)
+{
+    MegaTransferPrivate *transfer = createDownloadTransfer(startFirst, node, localPath, folderTransferTag, appData, listener);
     transferQueue.push(transfer);
     waiter->notify();
 }
