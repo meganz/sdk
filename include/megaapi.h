@@ -18205,7 +18205,6 @@ class MegaApi
          * @param subState subState
          * @param extraData extraData
          * @param listener MegaRequestListener to track this request
-         *
         */
         void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
 
@@ -18243,7 +18242,6 @@ class MegaApi
          * @param subState backup subState
          * @param extraData extraData for the backup
          * @param listener MegaRequestListener to track this request
-         *
         */
         void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
         
@@ -18257,7 +18255,6 @@ class MegaApi
          *
          * @param backupId backup id identifying the backup to be removed
          * @param listener MegaRequestListener to track this request
-         *
         */
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
         
@@ -18281,9 +18278,9 @@ class MegaApi
          * @param downs Number of pending download transfers
          * @param ts Last action timestamp
          * @param lastNode Last node handle to be synced 
-         *
+         * @param listener MegaRequestListener to track this request
         */
-        void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode);
+        void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener = nullptr);
 
  private:
         MegaApiImpl *pImpl;
