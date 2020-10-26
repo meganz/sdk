@@ -24965,6 +24965,8 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->pendingTransfers = 0;
     this->tag = transfer->getTag();
     this->mPendingFolders = 0;
+    this->mPendingFilesToProcess = 0;
+    this->mSemaphore.reset(new MegaSemaphore());
 }
 
 void MegaFolderUploadController::start(MegaNode*)
@@ -24974,8 +24976,6 @@ void MegaFolderUploadController::start(MegaNode*)
     transfer->setState(MegaTransfer::STATE_QUEUED);
     megaApi->fireOnTransferStart(transfer);
 
-    // Root folder of the new tree
-    const char *folderName = transfer->getFileName();
     unique_ptr<MegaNode> parent(megaApi->getNodeByHandle(transfer->getParentHandle()));
     if (!parent)
     {
@@ -24985,9 +24985,12 @@ void MegaFolderUploadController::start(MegaNode*)
         return;
     }
 
-    auto localpath = LocalPath::fromPath(transfer->getPath(), *client->fsaccess);
-    scanFolder(parent->getHandle(), parent->getHandle(), localpath, folderName);
-    createFolder();
+    mThread = std::thread ([this]() {
+        auto localpath = LocalPath::fromPath(transfer->getPath(), *client->fsaccess);
+        scanFolder(transfer->getParentHandle(), transfer->getParentHandle(), localpath, transfer->getFileName());
+        createFolder();
+    });
+    mThread.detach();
 }
 
 void MegaFolderUploadController::cancel()
@@ -25163,6 +25166,7 @@ void MegaFolderUploadController::scanFolder(handle targetHandle, handle parentHa
         localPath.appendWithSeparator(localname, false, client->fsaccess->localseparator);
         if (dirEntryType == FILENODE)
         {
+            mPendingFilesToProcess++;
             (folderExists)
                 ? mFolderToPendingFiles[folder->nodehandle].emplace_back(localPath)
                 : mFolderToPendingFiles[newNodeHandle].emplace_back(localPath);
@@ -25182,9 +25186,8 @@ void MegaFolderUploadController::createFolder()
 {
     if (mFolderStructure.empty())
     {
-        // if all folder structure already exists in cloud drive, only add transfers
-        startFileUploads(vector<NewNode>());
-        checkCompletion();
+        // if all folder structure already exists in cloud drive, add file transfers
+        uploadFiles();
         return;
     }
 
@@ -25201,34 +25204,56 @@ void MegaFolderUploadController::createFolder()
 
             if (!e)
             {
-                startFileUploads(nn);
-                if (!mPendingFolders && !mFolderToPendingFiles.empty())
+                for (auto &n: nn)
                 {
-                    // if all putnodes have been finished, but there are pending files to be processed
-                    mIncompleteTransfers++;
+                    // map temp node handle to definitive one
+                    mNewNodesResult[n.nodehandle] = n.mAddedHandle;
                 }
             }
             else
             {
+                // increment incompleteTransfers
                 mIncompleteTransfers++;
+                for (auto &n: nn)
+                {
+                    auto it = mFolderToPendingFiles.find(n.nodehandle);
+                    if (it != mFolderToPendingFiles.end())
+                    {
+                        // decrement the number of children files pending to be processed
+                        mPendingFilesToProcess -= it->second.size();
+
+                        // remove all children files of the folder that failed in putnodes
+                        mFolderToPendingFiles.erase(it);
+                    }
+                }
             }
-            checkCompletion();
+
+            if (!mPendingFolders)
+            {
+                // release semaphore, because all putnodes have been processed and we have received all results
+                mSemaphore->release();
+            }
         });
     }
+
+    // wait until all putnodes have been processed
+    mSemaphore->wait();
+    uploadFiles();
 }
 
-void MegaFolderUploadController::startFileUploads(const vector<NewNode> &nn)
+void MegaFolderUploadController::uploadFiles()
 {
+   TransferQueue transferQueue;
    for (auto it = mFolderToPendingFiles.begin(); it != mFolderToPendingFiles.end();)
    {
        auto auxit = it++;
        handle folderHandle = auxit->first;
-       for (size_t i = 0; i < nn.size(); i++)
+       for (auto it = mNewNodesResult.begin(); it != mNewNodesResult.end(); it++)
        {
-           if (nn[i].nodehandle == folderHandle)
+           if (it->first == folderHandle)
            {
                 // if we find a match in newNodes vector, update the definitive handle of the node
-                folderHandle = nn[i].mAddedHandle;
+                folderHandle = it->second;
                 break;
            }
        }
@@ -25238,21 +25263,42 @@ void MegaFolderUploadController::startFileUploads(const vector<NewNode> &nn)
            vector<LocalPath> &pendingFiles = auxit->second;
            for (size_t j = 0; j < pendingFiles.size(); j++)
            {
-               pendingTransfers++;
                const LocalPath &localpath = pendingFiles.at(j);
                FileSystemType fsType = client->fsaccess->getlocalfstype(localpath);
-               megaApi->startUpload(false, localpath.toPath(*client->fsaccess).c_str(), parentNode.get(), (const char *)NULL, -1, tag, false, NULL, false, false, fsType, this);
-           }
+               MegaTransferPrivate *transfer = megaApi->createUploadTransfer(false, localpath.toPath(*client->fsaccess).c_str(),
+                                       parentNode.get(), nullptr, (const char *)NULL,
+                                       -1, tag, false, NULL, false, false, fsType, this);
 
-           //Remove element
+                transferQueue.push(transfer);
+                mPendingFilesToProcess--;
+                pendingTransfers++;
+           }
+           //Remove folder and it's children from map
            mFolderToPendingFiles.erase(auxit);
        }
    }
+
+   if (!mPendingFolders && !mFolderToPendingFiles.empty())
+   {
+       // if there are pending files to be processed at this point, increment mIncompleteTransfers
+       mIncompleteTransfers++;
+   }
+
+   if (pendingTransfers)
+   {
+      megaApi->sendPendingTransfers(&transferQueue);
+   }
+
+   checkCompletion();
 }
 
 void MegaFolderUploadController::checkCompletion()
 {
-    if (!cancelled && !recursive && !pendingTransfers && !mPendingFolders)
+    if (!cancelled
+            && !recursive
+            && !pendingTransfers
+            && !mPendingFolders
+            && !mPendingFilesToProcess)
     {
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         mFolderStructure.clear();

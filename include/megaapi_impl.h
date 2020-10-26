@@ -235,7 +235,20 @@ public:
     ~MegaFolderUploadController();
 
 protected:
+    // number of folders that are pending to be created in cloud drive
     int mPendingFolders;
+
+    // number of files pending to be processed (add a transfer for each one)
+    int mPendingFilesToProcess;
+
+    // semaphore to control worker thread execution flow
+    unique_ptr<MegaSemaphore> mSemaphore;
+
+    // Worker thread
+    std::thread mThread;
+
+    // maps tempHandle to definitive handle
+    map<handle, handle> mNewNodesResult;
 
     // maps parent handle to vector of LocalPath of it's children
     map<handle, vector<LocalPath>> mFolderToPendingFiles;
@@ -250,7 +263,7 @@ protected:
     void scanFolder(handle targetHandle, handle parentHandle, LocalPath& localPath, std::string folderName);
     void createFolder();
     /* iterate through all pending files of each uploaded folder, and start all upload transfers */
-    void startFileUploads(const vector<NewNode> &nn);
+    void uploadFiles();
     void checkCompletion();
     handle addNewNodeToVector(handle targetHandle, handle parentHandle, const char * folderName);
 };
@@ -3268,6 +3281,7 @@ protected:
 
         friend class MegaBackgroundMediaUploadPrivate;
         friend class MegaFolderDownloadController;
+        friend class MegaFolderUploadController;
 };
 
 class MegaHashSignatureImpl
