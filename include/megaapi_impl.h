@@ -429,8 +429,15 @@ public:
     void onTransferFinish(MegaApi*, MegaTransfer *t, MegaError *e) override;
 
 protected:
+
+    // number of files pending to be processed (add a transfer for each one)
+    int mPendingFilesToProcess;
+
     // each element is a pair formed by the folder LocalPath and a vector that contains all children folders
     std::vector<std::pair<LocalPath, std::vector<unique_ptr<MegaNode>>>> mLocalTree;
+
+    // Worker thread
+    std::thread mThread;
 };
 
 class MegaNodePrivate : public MegaNode, public Cacheable
@@ -3278,6 +3285,7 @@ protected:
 
         friend class MegaBackgroundMediaUploadPrivate;
         friend class MegaFolderUploadController;
+        friend class MegaFolderDownloadController;
 };
 
 class MegaHashSignatureImpl
