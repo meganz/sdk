@@ -345,6 +345,7 @@ int64_t chunkmac_map::macsmac(SymmCipher *cipher)
     m[0] ^= m[1];
     m[1] = m[2] ^ m[3];
 
+    // LOG_debug << "macsmac final: " << Base64Str<sizeof int64_t>(mac);
     return MemAccess::get<int64_t>((const char*)mac);
 }
 
