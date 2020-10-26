@@ -545,7 +545,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_ACCOUNT_DETAILS:
         mApi[apiIndex].accountDetails.reset(mApi[apiIndex].lastError == API_OK ? request->getMegaAccountDetails() : nullptr);
         break;
-  
+
     case MegaRequest::TYPE_BACKUP_PUT:
         mBackupId = request->getParentHandle();
         break;
@@ -816,6 +816,8 @@ void SdkTest::createFile(string filename, bool largeFile)
         // create a file large enough for long upload/download times (5-10MB)
         if (largeFile)
             limit = 1000000 + rand() % 1000000;
+
+        //limit = 5494065 / 5;
 
         for (int i = 0; i < limit; i++)
         {
@@ -4119,6 +4121,7 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
     LOG_info << "___TEST SdkTestOverquotaNonCloudraid";
     getAccountsForTest(2);
 
+    //for (int i = 0; i < 1000; ++i) {
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
     // make a file to download, and upload so we can pull it down
@@ -4175,6 +4178,9 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
     ASSERT_LT(DebugTestHook::countdownToOverquota, originalcount);  // there should have been more http activity after the wait
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+
+    //cout << "Passed round " << i << endl; }
+
 }
 #endif
 
@@ -4668,11 +4674,11 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
     char foldername[64] = "CommandBackupPutTest";
     ASSERT_NO_FATAL_FAILURE(createFolder(0, foldername, rootnode.get()));
-    
+
     MegaHandle targetNode = mApi[0].h;
     int state = 1;
     int subState = 3;
-    
+
     // setup a backup
     int backupType = BackupType::CAMERA_UPLOAD;
     auto err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
@@ -4698,7 +4704,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
 
     // negative test cases
     gTestingInvalidArgs = true;
-    
+
     // register the same backup twice: should work fine
     err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
