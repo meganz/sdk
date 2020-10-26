@@ -241,17 +241,11 @@ protected:
     // number of files pending to be processed (add a transfer for each one)
     int mPendingFilesToProcess;
 
-    // flag that indicates if worker thread has been started, it will be checked by parent thread before call join
-    bool threadstarted;
-
     // semaphore to control worker thread execution flow
-    MegaSemaphore *mSemaphore;
+    unique_ptr<MegaSemaphore> mSemaphore;
 
     // Worker thread
-    MegaThread mThread;
-
-    // worker thread Id
-    std::thread::id workerThreadId;
+    std::thread mThread;
 
     // maps tempHandle to definitive handle
     map<handle, handle> mNewNodesResult;
@@ -261,10 +255,6 @@ protected:
 
     // maps targetHandle of the subtree to a vector of NewNodes
     map<handle, vector<NewNode>> mFolderStructure;
-
-    // worker thread related methods
-    void run();
-    static void *threadEntryPoint(void *param);
 
     /* Scan entire tree recursively, and retrieve folder structure and files to be uploaded.
      * A putnodes command can only add subtrees under same target, so in case we need to add

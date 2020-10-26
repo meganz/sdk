@@ -24955,9 +24955,8 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->pendingTransfers = 0;
     this->tag = transfer->getTag();
     this->mPendingFolders = 0;
-    this->mSemaphore = new MegaSemaphore();
-    this->threadstarted = false;
     this->mPendingFilesToProcess = 0;
+    this->mSemaphore.reset(new MegaSemaphore());
 }
 
 void MegaFolderUploadController::start(MegaNode*)
@@ -24976,9 +24975,12 @@ void MegaFolderUploadController::start(MegaNode*)
         return;
     }
 
-    // worker thread will perform the folder scan
-    mThread.start(threadEntryPoint, this);
-    threadstarted = true;
+    mThread = std::thread ([this]() {
+        auto localpath = LocalPath::fromPath(transfer->getPath(), *client->fsaccess);
+        scanFolder(transfer->getParentHandle(), transfer->getParentHandle(), localpath, transfer->getFileName());
+        createFolder();
+    });
+    mThread.detach();
 }
 
 void MegaFolderUploadController::cancel()
@@ -25119,32 +25121,7 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
 
 MegaFolderUploadController::~MegaFolderUploadController()
 {
-    assert(workerThreadId != std::this_thread::get_id());
-    if (threadstarted)
-    {
-        if (workerThreadId == std::this_thread::get_id())
-        {
-            LOG_warn << "We are calling join from worker thread.";
-        }
-        mThread.join();
-    }
-    delete mSemaphore;
     //we shouldn't need to dettach as transfer listener: all listened transfer should have been cancelled/completed
-}
-
-void *MegaFolderUploadController::threadEntryPoint(void *param)
-{
-    MegaFolderUploadController *uploadController = (MegaFolderUploadController *)param;
-    uploadController->run();
-    return NULL;
-}
-
-void MegaFolderUploadController::run()
-{
-    workerThreadId = std::this_thread::get_id();
-    auto localpath = LocalPath::fromPath(transfer->getPath(), *client->fsaccess);
-    scanFolder(transfer->getParentHandle(), transfer->getParentHandle(), localpath, transfer->getFileName());
-    createFolder();
 }
 
 void MegaFolderUploadController::scanFolder(handle targetHandle, handle parentHandle, LocalPath& localPath, std::string folderName)
@@ -25275,21 +25252,31 @@ void MegaFolderUploadController::uploadFiles()
            vector<LocalPath> &pendingFiles = auxit->second;
            for (size_t j = 0; j < pendingFiles.size(); j++)
            {
-               pendingTransfers++;
-               mPendingFilesToProcess--;
                const LocalPath &localpath = pendingFiles.at(j);
                FileSystemType fsType = client->fsaccess->getlocalfstype(localpath);
-               megaApi->startUpload(false, localpath.toPath(*client->fsaccess).c_str(), parentNode.get(), (const char *)NULL, -1, tag, false, NULL, false, false, fsType, this);
-           }
+               error e = megaApi->startManualTransfer(false, localpath.toPath(*client->fsaccess).c_str(),
+                                       parentNode.get()->getHandle(), nullptr, (const char *)NULL,
+                                       -1, tag, false, NULL, false, false, fsType, this);
 
-           //Remove element
+                mPendingFilesToProcess--;
+                if (!e)
+                {
+                    pendingTransfers++;
+                }
+                else if (e != API_ENOENT)
+                {
+                    //If returned err is API_ENOENT, another transfer is queued for the same file
+                    mIncompleteTransfers++;
+                }
+           }
+           //Remove folder and it's children from map
            mFolderToPendingFiles.erase(auxit);
        }
    }
 
    if (!mPendingFolders && !mFolderToPendingFiles.empty())
    {
-       // if there are pending files to be processed increment mIncompleteTransfers
+       // if there are pending files to be processed at this point, increment mIncompleteTransfers
        mIncompleteTransfers++;
    }
    checkCompletion();
