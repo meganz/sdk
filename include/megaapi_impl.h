@@ -2399,7 +2399,7 @@ class MegaApiImpl : public MegaApp
         MegaTransferList *getTransfers(int type);
         MegaTransferList *getChildTransfers(int transferTag);
         MegaTransferList *getTansfersByFolderTag(int folderTransferTag);
-
+        MegaTransferPrivate* createUploadTransfer(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener);
 
 #ifdef ENABLE_SYNC
         //Sync
@@ -3252,7 +3252,6 @@ protected:
         unsigned sendPendingTransfers();
         void processPendingTransfer(MegaTransferPrivate *transfer);
         void updateBackups();
-        MegaTransferPrivate* createUploadTransfer(bool startFirst, const char *localPath, handle parentHandle, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener);
 
         //Internal
         Node* getNodeByFingerprintInternal(const char *fingerprint);

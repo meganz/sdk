@@ -8196,7 +8196,7 @@ void MegaApiImpl::startTimer( int64_t period, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener)
+MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener)
 {
     if (fsType == FS_UNKNOWN && localPath)
     {
@@ -8214,7 +8214,7 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
         transfer->setPath(path.data());
     }
 
-    if(parent)
+    if (parent)
     {
         transfer->setParentHandle(parent->getHandle());
     }
@@ -8253,7 +8253,12 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
     }
 
     transfer->setStreamingTransfer(forceNewUpload);
+    return transfer;
+}
 
+void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener)
+{
+    MegaTransferPrivate *transfer = createUploadTransfer(startFirst, localPath, parent, fileName, targetUser, mtime, folderTransferTag, isBackup, appData, isSourceFileTemporary, forceNewUpload, fsType, listener);
     transferQueue.push(transfer);
     waiter->notify();
 }
@@ -18426,61 +18431,6 @@ void MegaApiImpl::updateBackups()
 }
 
 
-MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst, const char *localPath, handle parentHandle, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener)
-{
-    if (fsType == FS_UNKNOWN && localPath)
-    {
-        fsType = fsAccess->getlocalfstype(LocalPath::fromPath(localPath, *fsAccess));
-    }
-
-    MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
-    if(localPath)
-    {
-        string path(localPath);
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
-        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
-            path.insert(0, "\\\\?\\");
-#endif
-        transfer->setPath(path.data());
-    }
-
-    transfer->setParentHandle(parentHandle);
-    if (targetUser)
-    {
-        transfer->setParentPath(targetUser);
-    }
-
-    transfer->setMaxRetries(maxRetries);
-    transfer->setAppData(appData);
-    transfer->setSourceFileTemporary(isSourceFileTemporary);
-    transfer->setStartFirst(startFirst);
-
-    transfer->setBackupTransfer(isBackup);
-
-    if (fileName || transfer->getFileName())
-    {
-       std::string auxName = fileName
-               ? fileName
-               : transfer->getFileName();
-
-       std::string path = localPath
-               ? localPath
-               : "";
-
-       client->fsaccess->unescapefsincompatible(&auxName, fsType);
-       transfer->setFileName(auxName.c_str());
-    }
-
-    transfer->setTime(mtime);
-
-    if(folderTransferTag)
-    {
-        transfer->setFolderTransferTag(folderTransferTag);
-    }
-
-    transfer->setStreamingTransfer(forceNewUpload);
-    return transfer;
-}
 
 unsigned MegaApiImpl::sendPendingTransfers()
 {
@@ -25306,7 +25256,7 @@ void MegaFolderUploadController::uploadFiles()
                const LocalPath &localpath = pendingFiles.at(j);
                FileSystemType fsType = client->fsaccess->getlocalfstype(localpath);
                MegaTransferPrivate *transfer = megaApi->createUploadTransfer(false, localpath.toPath(*client->fsaccess).c_str(),
-                                       parentNode.get()->getHandle(), nullptr, (const char *)NULL,
+                                       parentNode.get(), nullptr, (const char *)NULL,
                                        -1, tag, false, NULL, false, false, fsType, this);
 
                 megaApi->processPendingTransfer(transfer);
