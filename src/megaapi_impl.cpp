@@ -1491,6 +1491,47 @@ char *MegaApiImpl::getBlockedPath()
 }
 #endif
 
+void MegaApiImpl::backupFolder(const char *localFolder, const char *backupName, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_FOLDER);
+
+    if (localFolder && *localFolder)
+    {
+        // set local path
+        string path(localFolder);
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+        if (!PathIsRelativeA(path.c_str()) && ((path.size() < 2) || path.compare(0, 2, "\\\\")))
+            path.insert(0, "\\\\?\\");
+#endif
+        request->setFile(path.c_str());
+
+        // set backup name
+        if (backupName && *backupName)  request->setName(backupName);
+
+        else
+        {
+            // trim trailing path separator(s)
+            while (!path.empty() && (path.back() == '\\' || path.back() == '/'))  path.pop_back();
+
+            // find the last non-trailing separator
+            auto sep = path.find_last_of("\\/");
+
+            // set the name to the last leaf
+            if (sep == string::npos)  request->setName(path.c_str());
+
+            else
+            {
+                const string& leaf = path.substr(sep + 1);
+                request->setName(leaf.c_str());
+            }
+        }
+    }
+
+    request->setListener(listener);
+    requestQueue.push(request);
+    waiter->notify();  // validate and continue in MegaApiImpl::sendPendingRequests()
+}
+
 MegaBackup *MegaApiImpl::getBackupByTag(int tag)
 {
     sdkMutex.lock();
@@ -23105,6 +23146,128 @@ void MegaApiImpl::sendPendingRequests()
                                                            (uint32_t)request->getTransferTag(),
                                                            request->getNumber(), 
                                                            request->getNodeHandle()));
+            break;
+        }
+        case MegaRequest::TYPE_BACKUP_FOLDER:
+        {
+            // validate the request
+            if (!request->getFile() || !request->getName()) { e = API_EACCESS; break; }
+
+            // get current user
+            User* u = client->ownuser();
+
+            // get handle of remote "My Backups" folder, from user attributes
+            if (!u || !u->isattrvalid(ATTR_MY_BACKUPS_FOLDER)) { e = API_EACCESS; break; }
+            const string* handleContainerStr = u->getattr(ATTR_MY_BACKUPS_FOLDER);
+            if (!handleContainerStr) { e = API_EACCESS; break; }
+
+            std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(handleContainerStr, &client->key));
+            if (!tlvRecords || !tlvRecords->find("h")) { e = API_ENOENT; break; }
+
+            const string& handleStr = tlvRecords->get("h");
+            handle h = MegaApi::base64ToHandle(handleStr.c_str());
+            if (h == UNDEF) { e = API_ENOENT; break; }
+
+            // get Node of remote "My Backups" folder
+            MegaNode* myBackupsNode = getNodeByHandle(h);
+            if (!myBackupsNode) { e = API_ENOENT; break; }
+
+            // get `DEVICE_NAME`, from user attributes
+            if (!u->isattrvalid(ATTR_DEVICE_NAMES)) { e = API_EINCOMPLETE; break; }
+            const string* deviceNameContainerStr = u->getattr(ATTR_DEVICE_NAMES);
+            if (!deviceNameContainerStr) { e = API_EINCOMPLETE; break; }
+
+            tlvRecords.reset(TLVstore::containerToTLVrecords(deviceNameContainerStr, &client->key));
+            if (!tlvRecords || !tlvRecords->find("n")) { e = API_EINCOMPLETE; break; } // is 'n' the right key ??
+
+            const string& devName64Str = tlvRecords->get("n");
+            string deviceName = Base64::btoa(devName64Str);
+            if (deviceName.empty()) { e = API_EINCOMPLETE; break; }
+
+            // get 'device-id'
+            const string& deviceId = client->getDeviceid();
+            if (deviceId.empty()) { e = API_EINCOMPLETE; break; }
+
+            // loop remote children of "My Backups" folder, to find `DEVICE_NAME`-with-'device-id' node
+            const MegaNodeList* nodeList = myBackupsNode->getChildren();
+            MegaNode* deviceNameNode = nullptr;
+            for (int i = 0; i < nodeList->size(); ++i)
+            {
+                MegaNode* child = nodeList->get(i);
+
+                // get folder name
+                const char* name = child->getName();
+                bool gotName = deviceName == name;
+
+                // get 'device-id' tag
+                const char* id = child->getCustomAttr("device-id");
+                bool gotId = deviceId == id;
+
+                // determine whether we found our node or not
+                if (!gotName && !gotId) { continue; } // ignore this child folder
+
+                if (gotName && gotId) // got it, use this one to add another backup to it
+                {
+                    deviceNameNode = child;
+                    break;
+                }
+
+                // there's an error if only one of the folder's {name, id} is correct and the other is wrong.
+                e = API_EINCOMPLETE;
+                break;
+            }
+
+            if (e != API_OK) { break; }
+
+            if (!deviceNameNode)
+            {
+                // create "My Backups"/`DEVICE_NAME`/
+                // HOW ? Like this?
+                auto nextSyncTag = client->nextSyncTag();
+                auto sync = make_unique<MegaSyncPrivate>(nullptr, deviceName.c_str(), h, nextSyncTag);
+                sync->setListener(request->getSyncListener());
+
+                // NOW WHAT ? Something like this?
+                std::unique_ptr<char[]> remotePath{ getNodePathByNodeHandle(h) };
+                SyncConfig syncConfig{ nextSyncTag, nullptr, deviceName.c_str(), h, remotePath.get(),
+                                       0, {}, true, SyncConfig::TYPE_BACKUP };
+
+                SyncError syncError = NO_SYNC_ERROR;
+                e = client->addsync(syncConfig, DEBRISFOLDER, nullptr, syncError, true, sync.get());
+
+                fireOnSyncAdded(sync.get(), MegaSync::NEW);
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+
+                // Update deviceNameNode somehow?
+                // HOW ?
+
+                // tag the new node with `dev:<device-id>` in `attrstring`
+                // HOW ?
+            }
+
+            // the name of the backup folder was set when the request was created
+            const char* backupName = request->getName();
+
+            // create "My Backups"/`DEVICE_NAME`/backupName/
+            // HOW ? Like this?
+            auto nextSyncTag = client->nextSyncTag();
+            auto sync = make_unique<MegaSyncPrivate>(request->getFile(), request->getName(), deviceNameNode->getHandle(), nextSyncTag);
+            sync->setListener(request->getSyncListener());
+
+            // NOW WHAT ? Something like this?
+            std::unique_ptr<char[]> remotePath{ getNodePathByNodeHandle(request->getNodeHandle()) };
+            SyncConfig syncConfig{ nextSyncTag, request->getFile(), request->getName(), deviceNameNode->getHandle(), remotePath.get(),
+                                   0, {}, true, SyncConfig::TYPE_BACKUP };
+
+            SyncError syncError = NO_SYNC_ERROR;
+            e = client->addsync(syncConfig, DEBRISFOLDER, nullptr, syncError, true, sync.get());
+
+            fireOnSyncAdded(sync.get(), MegaSync::NEW);
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+
+            // tag the new node with `bak:<device-id>` in `attrstring`
+            // HOW ?
+
             break;
         }
         default:

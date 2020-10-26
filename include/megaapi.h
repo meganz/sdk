@@ -2985,6 +2985,7 @@ class MegaRequest
             TYPE_SEND_DEV_COMMAND,
             TYPE_GET_BANNERS, TYPE_DISMISS_BANNER,
             TYPE_BACKUP_PUT, TYPE_BACKUP_REMOVE, TYPE_BACKUP_PUT_HEART_BEAT,
+            TYPE_BACKUP_FOLDER, // separate symbol, for "My Backups"
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -13972,6 +13973,8 @@ class MegaApi
          */
         char *getBlockedPath();
 #endif
+
+        void backupFolder(const char *localFolder, const char *backupName = nullptr, MegaRequestListener *listener = nullptr);
 
         /**
          * @brief Get the backup identified with a tag

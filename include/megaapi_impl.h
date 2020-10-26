@@ -2419,6 +2419,8 @@ class MegaApiImpl : public MegaApp
         void setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
 #endif
 
+        void backupFolder(const char *localFolder, const char *backupName = nullptr, MegaRequestListener *listener = nullptr);
+
         MegaBackup *getBackupByTag(int tag);
         MegaBackup *getBackupByNode(MegaNode *node);
         MegaBackup *getBackupByPath(const char * localPath);
