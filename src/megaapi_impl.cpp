@@ -18637,7 +18637,6 @@ unsigned MegaApiImpl::sendPendingTransfers()
                 }
                 else
                 {
-                    mProcessingFolderTransfer = true;
                     transferMap[nextTag] = transfer;
                     folderTransferMap[nextTag] = transfer;
                     transfer->setTag(nextTag);
@@ -18674,7 +18673,6 @@ unsigned MegaApiImpl::sendPendingTransfers()
                 if (!transfer->isStreamingTransfer() && ((node && node->type != FILENODE) || (publicNode && publicNode->getType() != FILENODE)) )
                 {
                     // Folder download
-                    mProcessingFolderTransfer = true;
                     transferMap[nextTag] = transfer;
                     folderTransferMap[nextTag] = transfer;
                     transfer->setTag(nextTag);
@@ -18907,17 +18905,11 @@ unsigned MegaApiImpl::sendPendingTransfers()
             fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(e), committer);
         }
 
-        auto elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count();
-        if (elapsedTime > maxPendingTransfersTimeout
-                || (!mProcessingFolderTransfer && (++count > 100 || elapsedTime > minPendingTransfersTimeout)))
+        if (++count > 100 || std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count() > 100)
         {
-            // if elapsed time exceeds 3000 ms, and we are processing a folder transfer
-            // or we're not processing a folder transfer, and processed transfers exceed 100
-            // or elapsed time exceeds 1000 ms
             break;
         }
     }
-    mProcessingFolderTransfer = false;
     return count;
 }
 
