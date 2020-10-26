@@ -18425,7 +18425,7 @@ void MegaApiImpl::updateBackups()
     }
 }
 
-unsigned MegaApiImpl::sendPendingTransfers()
+unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue)
 {
     auto t0 = std::chrono::steady_clock::now();
     unsigned count = 0;
@@ -18433,7 +18433,14 @@ unsigned MegaApiImpl::sendPendingTransfers()
     SdkMutexGuard guard(sdkMutex);
     DBTableTransactionCommitter committer(client->tctable);
 
-    while(MegaTransferPrivate *transfer = transferQueue.pop())
+    TransferQueue &auxQueue = queue
+            ? *queue            // custom transferQueue used for folder uploads/downloads
+            : transferQueue;    // transfer queue of class MegaApiImpl
+
+    // if we are processing a custom queue, we need to process in one shot
+    bool timeout = !queue;
+
+    while(MegaTransferPrivate *transfer = auxQueue.pop())
     {
         error e = API_OK;
         int nextTag = client->nextreqtag();
@@ -18905,7 +18912,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
             fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(e), committer);
         }
 
-        if (++count > 100 || std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count() > 100)
+        if (timeout && (++count > 100 || std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count() > 100))
         {
             break;
         }
