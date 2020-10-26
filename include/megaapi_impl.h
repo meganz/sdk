@@ -418,6 +418,9 @@ public:
 protected:
     // each element is a pair formed by the folder LocalPath and a vector that contains all children folders
     std::vector<std::pair<LocalPath, std::vector<unique_ptr<MegaNode>>>> mLocalTree;
+
+    // Worker thread
+    std::thread mThread;
 };
 
 class MegaNodePrivate : public MegaNode, public Cacheable
@@ -3264,6 +3267,7 @@ protected:
         bool hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const;
 
         friend class MegaBackgroundMediaUploadPrivate;
+        friend class MegaFolderDownloadController;
 };
 
 class MegaHashSignatureImpl

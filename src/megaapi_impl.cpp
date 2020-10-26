@@ -26416,32 +26416,35 @@ void MegaFolderDownloadController::start(MegaNode *node)
         deleteNode = true;
     }
 
-    LocalPath path;
-    if (transfer->getParentPath())
-    {
-        path = LocalPath::fromPath(transfer->getParentPath(), *client->fsaccess);
-    }
-    else
-    {
-        path = LocalPath::fromPath(".", *client->fsaccess);
-        path.appendWithSeparator(LocalPath::fromPath("", *client->fsaccess), true, client->fsaccess->localseparator);
-    }
+    mThread = std::thread ([this, deleteNode, node]() {
+        LocalPath path;
+        if (transfer->getParentPath())
+        {
+            path = LocalPath::fromPath(transfer->getParentPath(), *client->fsaccess);
+        }
+        else
+        {
+            path = LocalPath::fromPath(".", *client->fsaccess);
+            path.appendWithSeparator(LocalPath::fromPath("", *client->fsaccess), true, client->fsaccess->localseparator);
+        }
 
-    FileSystemType fsType = client->fsaccess->getlocalfstype(path);
-    const LocalPath &name = (!transfer->getFileName())
-            ? LocalPath::fromName(node->getName(), *client->fsaccess, fsType)
-            : LocalPath::fromName(transfer->getFileName(), *client->fsaccess, fsType);
+        FileSystemType fsType = client->fsaccess->getlocalfstype(path);
+        const LocalPath &name = (!transfer->getFileName())
+             ? LocalPath::fromName(node->getName(), *client->fsaccess, fsType)
+             : LocalPath::fromName(transfer->getFileName(), *client->fsaccess, fsType);
 
-    path.appendWithSeparator(name, true, client->fsaccess->localseparator);
-    path.ensureWinExtendedPathLenPrefix();
-    transfer->setPath(path.toPath(*client->fsaccess).c_str());
-    scanFolder(node, path, fsType);
-    downloadFolder(fsType);
+        path.appendWithSeparator(name, true, client->fsaccess->localseparator);
+        path.ensureWinExtendedPathLenPrefix();
+        transfer->setPath(path.toPath(*client->fsaccess).c_str());
+        scanFolder(node, path, fsType);
+        downloadFolder(fsType);
 
-    if (deleteNode)
-    {
-        delete node;
-    }
+        if (deleteNode)
+        {
+            delete node;
+        }
+    });
+    mThread.detach();
 }
 
 void MegaFolderDownloadController::cancel()
@@ -26626,6 +26629,7 @@ void MegaFolderDownloadController::downloadFolder(FileSystemType fsType)
         ++it;
     }
 
+    TransferQueue transferQueue;
     // Add all download transfers in one shot
     for (auto it = mLocalTree.begin(); it != mLocalTree.end(); it++)
     {
@@ -26634,13 +26638,19 @@ void MegaFolderDownloadController::downloadFolder(FileSystemType fsType)
 
         for (size_t i = 0; i < nodeVector.size(); i++)
         {
-             pendingTransfers++;
              MegaNode &node = *(nodeVector.at(i).get());
              ScopedLengthRestore restoreLen(localpath);
              localpath.appendWithSeparator(LocalPath::fromName(node.getName(), *client->fsaccess, fsType), true, client->fsaccess->localseparator);
              string utf8path = localpath.toPath(*client->fsaccess);
-             megaApi->startDownload(false, &node, utf8path.c_str(), tag, transfer->getAppData(), this);
+             MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), tag, transfer->getAppData(), this);
+             transferQueue.push(transferDownload);
+             pendingTransfers++;
          }
+    }
+
+    if (pendingTransfers)
+    {
+        megaApi->sendPendingTransfers(&transferQueue);
     }
 
     // After create all local directories and start all transfers, check for completion
