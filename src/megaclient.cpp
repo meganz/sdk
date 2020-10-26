@@ -14619,7 +14619,7 @@ bool MegaClient::updateSyncRemoteLocation(const SyncConfig *config, Node *n, boo
     if (!config)
     {
         LOG_err << "no config upon updateSyncRemotePath";
-        return API_ENOENT;
+        return false;
     }
     assert(syncConfigs);
 
@@ -15002,8 +15002,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                     {
                         t->chunkmacs.clear();
                         t->progresscompleted = 0;
-                        delete [] t->ultoken;
-                        t->ultoken = NULL;
+                        t->ultoken.reset();
                         t->pos = 0;
                     }
                 }
@@ -15041,8 +15040,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                             t->tempurls.clear();
                             t->chunkmacs.clear();
                             t->progresscompleted = 0;
-                            delete [] t->ultoken;
-                            t->ultoken = NULL;
+                            t->ultoken.reset();
                             t->pos = 0;
                         }
                     }
@@ -15218,7 +15216,7 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
     std::string localName =
       localNode->localname.toName(*fsaccess,
                                   localNode->sync->mFilesystemType);
-  
+
     // Only compare metamac if the node doesn't already exist.
     node_vector::const_iterator remoteNode =
       std::find_if(remoteNodes->begin(),

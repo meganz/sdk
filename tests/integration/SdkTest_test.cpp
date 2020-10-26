@@ -784,6 +784,8 @@ void SdkTest::createFile(string filename, bool largeFile)
         if (largeFile)
             limit = 1000000 + rand() % 1000000;
 
+        //limit = 5494065 / 5;
+
         for (int i = 0; i < limit; i++)
         {
             fprintf(fp, "test ");
@@ -4086,6 +4088,7 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
     LOG_info << "___TEST SdkTestOverquotaNonCloudraid";
     getAccountsForTest(2);
 
+    //for (int i = 0; i < 1000; ++i) {
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
 
     // make a file to download, and upload so we can pull it down
@@ -4142,6 +4145,9 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
     ASSERT_LT(DebugTestHook::countdownToOverquota, originalcount);  // there should have been more http activity after the wait
 
     ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+
+    //cout << "Passed round " << i << endl; }
+
 }
 #endif
 
