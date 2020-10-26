@@ -18437,17 +18437,19 @@ void MegaApiImpl::updateBackups()
     }
 }
 
-
-
-unsigned MegaApiImpl::sendPendingTransfers()
+unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue)
 {
     auto t0 = std::chrono::steady_clock::now();
     unsigned count = 0;
     SdkMutexGuard guard(sdkMutex);
-    while(MegaTransferPrivate *transfer = transferQueue.pop())
+    TransferQueue &auxQueue = queue
+            ? *queue            // custom transferQueue used for folder uploads/downloads
+            : transferQueue;    // transfer queue of class MegaApiImpl
+    bool timeout = !queue;
+    while(MegaTransferPrivate *transfer = auxQueue.pop())
     {
         processPendingTransfer(transfer);
-        if (++count > 100 || std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count() > 100)
+        if (timeout && (++count > 100 || std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count() > 100))
         {
             break;
         }
@@ -25241,6 +25243,7 @@ void MegaFolderUploadController::createFolder()
 
 void MegaFolderUploadController::uploadFiles()
 {
+   TransferQueue transferQueue;
    for (auto it = mFolderToPendingFiles.begin(); it != mFolderToPendingFiles.end();)
    {
        auto auxit = it++;
@@ -25266,13 +25269,18 @@ void MegaFolderUploadController::uploadFiles()
                                        parentNode.get(), nullptr, (const char *)NULL,
                                        -1, tag, false, NULL, false, false, fsType, this);
 
-                megaApi->processPendingTransfer(transfer);
+                transferQueue.push(transfer);
                 mPendingFilesToProcess--;
                 pendingTransfers++;
            }
            //Remove folder and it's children from map
            mFolderToPendingFiles.erase(auxit);
        }
+   }
+
+   if (pendingTransfers)
+   {
+      megaApi->sendPendingTransfers(&transferQueue);
    }
 
    if (!mPendingFolders && !mFolderToPendingFiles.empty())
@@ -26671,6 +26679,7 @@ void MegaFolderDownloadController::downloadFolder(FileSystemType fsType)
         ++it;
     }
 
+    TransferQueue transferQueue;
     // Add all download transfers in one shot
     for (auto it = mLocalTree.begin(); it != mLocalTree.end(); it++)
     {
@@ -26684,10 +26693,15 @@ void MegaFolderDownloadController::downloadFolder(FileSystemType fsType)
              localpath.appendWithSeparator(LocalPath::fromName(node.getName(), *client->fsaccess, fsType), true, client->fsaccess->localseparator);
              string utf8path = localpath.toPath(*client->fsaccess);
              MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), tag, transfer->getAppData(), this);
-             megaApi->processPendingTransfer(transferDownload);
+             transferQueue.push(transferDownload);
              mPendingFilesToProcess --;
              pendingTransfers++;
          }
+    }
+
+    if (pendingTransfers)
+    {
+        megaApi->sendPendingTransfers(&transferQueue);
     }
 
     // After create all local directories and start all transfers, check for completion
