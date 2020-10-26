@@ -8275,6 +8275,66 @@ void MegaApiImpl::startUploadForSupport(const char *localPath, bool isSourceTemp
     return startUpload(true, localPath, nullptr, nullptr, "pGTOqu7_Fek", -1, 0, false, nullptr, isSourceTemporary, false, fsType, listener);
 }
 
+MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener)
+{
+    if (fsType == FS_UNKNOWN && localPath)
+    {
+        fsType = fsAccess->getlocalfstype(LocalPath::fromPath(localPath, *fsAccess));
+    }
+
+    MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
+    if(localPath)
+    {
+        string path(localPath);
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
+            path.insert(0, "\\\\?\\");
+#endif
+        transfer->setPath(path.data());
+    }
+
+    if (parent)
+    {
+        transfer->setParentHandle(parent->getHandle());
+    }
+
+    if (targetUser)
+    {
+        transfer->setParentPath(targetUser);
+    }
+
+    transfer->setMaxRetries(maxRetries);
+    transfer->setAppData(appData);
+    transfer->setSourceFileTemporary(isSourceFileTemporary);
+    transfer->setStartFirst(startFirst);
+
+    transfer->setBackupTransfer(isBackup);
+
+    if (fileName || transfer->getFileName())
+    {
+       std::string auxName = fileName
+               ? fileName
+               : transfer->getFileName();
+
+       std::string path = localPath
+               ? localPath
+               : "";
+
+       client->fsaccess->unescapefsincompatible(&auxName, fsType);
+       transfer->setFileName(auxName.c_str());
+    }
+
+    transfer->setTime(mtime);
+
+    if(folderTransferTag)
+    {
+        transfer->setFolderTransferTag(folderTransferTag);
+    }
+
+    transfer->setStreamingTransfer(forceNewUpload);
+    return transfer;
+}
+
 void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener)
 {
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
@@ -8323,6 +8383,51 @@ void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* loc
 
 void MegaApiImpl::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
 { startDownload(false, node, localFolder, 0, NULL, listener); }
+
+MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener)
+{
+    MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
+
+    if(localPath)
+    {
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+        string path(localPath);
+        if(!PathIsRelativeA(path.c_str()) && ((path.size()<2) || path.compare(0, 2, "\\\\")))
+            path.insert(0, "\\\\?\\");
+        localPath = path.data();
+#endif
+
+        int c = localPath[strlen(localPath)-1];
+        if (strchr(FileSystemAccess::getPathSeparator(), c))
+        {
+            transfer->setParentPath(localPath);
+        }
+        else
+        {
+            transfer->setPath(localPath);
+        }
+    }
+
+    if (node)
+    {
+        transfer->setNodeHandle(node->getHandle());
+        if (node->isPublic() || node->isForeign())
+        {
+            transfer->setPublicNode(node, true);
+        }
+    }
+
+    transfer->setMaxRetries(maxRetries);
+    transfer->setAppData(appData);
+    transfer->setStartFirst(startFirst);
+
+    if (folderTransferTag)
+    {
+        transfer->setFolderTransferTag(folderTransferTag);
+    }
+
+    return transfer;
+}
 
 void MegaApiImpl::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
 {
