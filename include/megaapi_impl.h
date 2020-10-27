@@ -417,7 +417,8 @@ public:
 
 protected:
     void scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType);
-    void downloadFolder(FileSystemType fstype);
+    void createFolder();
+    void downloadFiles(FileSystemType fsType);
     void checkCompletion();
 
 public:

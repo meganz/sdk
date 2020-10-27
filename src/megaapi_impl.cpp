@@ -26477,8 +26477,9 @@ void MegaFolderDownloadController::start(MegaNode *node)
         path.ensureWinExtendedPathLenPrefix();
         transfer->setPath(path.toPath(*client->fsaccess).c_str());
         scanFolder(node, path, fsType);
-        downloadFolder(fsType);
-
+        createFolder();
+        downloadFiles(fsType);
+        checkCompletion();
         if (deleteNode)
         {
             delete node;
@@ -26628,7 +26629,7 @@ void MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpa
     }
 }
 
-void MegaFolderDownloadController::downloadFolder(FileSystemType fsType)
+void MegaFolderDownloadController::createFolder()
 {
     // Create all local directories in one shot
     auto it = mLocalTree.begin();
@@ -26668,7 +26669,10 @@ void MegaFolderDownloadController::downloadFolder(FileSystemType fsType)
         da.reset();
         ++it;
     }
+}
 
+void MegaFolderDownloadController::downloadFiles(FileSystemType fsType)
+{
     TransferQueue transferQueue;
     // Add all download transfers in one shot
     for (auto it = mLocalTree.begin(); it != mLocalTree.end(); it++)
@@ -26692,9 +26696,6 @@ void MegaFolderDownloadController::downloadFolder(FileSystemType fsType)
     {
         megaApi->sendPendingTransfers(&transferQueue);
     }
-
-    // After create all local directories and start all transfers, check for completion
-    checkCompletion();
 }
 
 void MegaFolderDownloadController::checkCompletion()
