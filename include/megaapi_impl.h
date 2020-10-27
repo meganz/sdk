@@ -241,8 +241,8 @@ protected:
     // number of files pending to be processed (add a transfer for each one)
     int mPendingFilesToProcess;
 
-    // semaphore to control worker thread execution flow
-    unique_ptr<MegaSemaphore> mSemaphore;
+    // mutex to control worker thread execution flow
+    std::recursive_timed_mutex mMutex;
 
     // maps tempHandle to definitive handle
     map<handle, handle> mNewNodesResult;

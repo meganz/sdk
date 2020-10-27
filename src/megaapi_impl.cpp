@@ -24966,7 +24966,6 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->tag = transfer->getTag();
     this->mPendingFolders = 0;
     this->mPendingFilesToProcess = 0;
-    this->mSemaphore.reset(new MegaSemaphore());
 }
 
 void MegaFolderUploadController::start(MegaNode*)
@@ -24975,6 +24974,7 @@ void MegaFolderUploadController::start(MegaNode*)
     transfer->setStartTime(Waiter::ds);
     transfer->setState(MegaTransfer::STATE_QUEUED);
     megaApi->fireOnTransferStart(transfer);
+    mMutex.lock(); // adquire MegaFolderUploadController mutex with SDK thread
 
     unique_ptr<MegaNode> parent(megaApi->getNodeByHandle(transfer->getParentHandle()));
     if (!parent)
@@ -24991,7 +24991,7 @@ void MegaFolderUploadController::start(MegaNode*)
         if (!mFolderStructure.empty())
         {
             createFolder();
-            mSemaphore->wait(); // wait until all folders have been created
+            mMutex.lock(); // wait until all folders have been created, and SDK thread unlock mutex
         }
         uploadFiles();
         checkCompletion();
@@ -25229,8 +25229,9 @@ void MegaFolderUploadController::createFolder()
 
             if (!mPendingFolders)
             {
-                // release semaphore, because all putnodes have been processed and we have received all results
-                mSemaphore->release();
+                /* all putnodes have been processed and we have received all results
+                 * unlock mutex in order to worker thread continue it's execution */
+                mMutex.unlock();
             }
         });
     }
