@@ -11825,7 +11825,7 @@ class MegaApi
          * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
          * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
          *
-         * If the folder is not private to the current ccount, or is in Rubbish, or is in a synced folder,
+         * If the folder is not private to the current account, or is in Rubbish, or is in a synced folder,
          * the request will fail with the error code MegaError::API_EACCESS.
          *
          * @param nodehandle MegaHandle of the node to be used as target folder
