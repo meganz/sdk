@@ -59,6 +59,9 @@ const int MegaClient::MAXQUEUEDFA = 30;
 // maximum number of concurrent putfa
 const int MegaClient::MAXPUTFA = 10;
 
+// hearbeat frequency
+static constexpr int FREQUENCY_HEARTBEAT_DS = 300;
+
 #ifdef ENABLE_SYNC
 // //bin/SyncDebris/yyyy-mm-dd base folder name
 const char* const MegaClient::SYNCDEBRISFOLDERNAME = "SyncDebris";
@@ -1023,6 +1026,21 @@ std::string MegaClient::getDeviceid() const
     return MegaClient::statsid;
 }
 
+std::string MegaClient::getDeviceidHash() const
+{
+    string deviceIdHash;
+    string id = getDeviceid();
+    if (id.size())
+    {
+        string hash;
+        HashSHA256 hasher;
+        hasher.add((const byte*)id.data(), unsigned(id.size()));
+        hasher.get(&hash);
+        Base64::btoa(hash, deviceIdHash);
+    }
+    return deviceIdHash;
+}
+
 // set warn level
 void MegaClient::warn(const char* msg)
 {
@@ -1168,6 +1186,8 @@ void MegaClient::init()
     btpfa.reset();
     btbadhost.reset();
 
+    btheartbeat.reset();
+
     abortlockrequest();
     transferHttpCounter = 0;
 
@@ -1184,7 +1204,7 @@ void MegaClient::init()
 }
 
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
-    : useralerts(*this), btugexpiration(rng), btcs(rng), btbadhost(rng), btworkinglock(rng), btsc(rng), btpfa(rng)
+    : useralerts(*this), btugexpiration(rng), btcs(rng), btbadhost(rng), btworkinglock(rng), btsc(rng), btpfa(rng), btheartbeat(rng)
 #ifdef ENABLE_SYNC
     ,syncfslockretrybt(rng), syncdownbt(rng), syncnaglebt(rng), syncextrabt(rng), syncscanbt(rng)
 #endif
@@ -2675,6 +2695,8 @@ void MegaClient::exec()
                                     // scan for items that were deleted while the sync was stopped
                                     // FIXME: defer this until RETRY queue is processed
                                     sync->scanseqno++;
+
+                                    DBTableTransactionCommitter committer(tctable);  //  just one db transaction to remove all the LocalNodes that get deleted
                                     sync->deletemissing(sync->localroot.get());
                                 }
                             }
@@ -2873,6 +2895,7 @@ void MegaClient::exec()
                                         if (sync->fullscan)
                                         {
                                             // recursively delete all LocalNodes that were deleted (not moved or renamed!)
+                                            DBTableTransactionCommitter committer(tctable);  //  just one db transaction to remove all the LocalNodes that get deleted
                                             sync->deletemissing(sync->localroot.get());
                                             sync->cachenodes();
                                         }
@@ -3047,6 +3070,11 @@ void MegaClient::exec()
             }
         }
 
+        if (btheartbeat.armed())
+        {
+            app->heartbeat();
+            btheartbeat.backoff(FREQUENCY_HEARTBEAT_DS);
+        }
 
         for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
         {
@@ -7093,7 +7121,6 @@ void MegaClient::notifypurge(void)
 
     if ((t = int(nodenotify.size())))
     {
-
         applykeys();
 
         if (!fetchingnodes)
@@ -7161,6 +7188,7 @@ void MegaClient::notifypurge(void)
             }
         }
 #endif
+        DBTableTransactionCommitter committer(tctable);
 
         // check all notified nodes for removed status and purge
         for (i = 0; i < t; i++)
@@ -14611,12 +14639,30 @@ error MegaClient::saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t 
 }
 
 
+error MegaClient::updateSyncBackupId(int tag, handle newHearBeatID)
+{
+    if (syncConfigs)
+    {
+        auto syncconfig = syncConfigs->get(tag);
+        if (!syncconfig)
+        {
+            return API_ENOENT;
+        }
+        auto newConfig = *syncconfig;
+
+        newConfig.setBackupId(newHearBeatID);
+        syncConfigs->insert(newConfig);
+        return API_OK;
+    }
+    return API_ENOENT;
+}
+
 bool MegaClient::updateSyncRemoteLocation(const SyncConfig *config, Node *n, bool forceCallback)
 {
     if (!config)
     {
         LOG_err << "no config upon updateSyncRemotePath";
-        return API_ENOENT;
+        return false;
     }
     assert(syncConfigs);
 
@@ -14716,6 +14762,19 @@ error MegaClient::changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate
 
     return e;
 }
+
+#endif
+
+string MegaClient::cypherTLVTextWithMasterKey(const char *name, const string &text)
+{
+    TLVstore tlv;
+    tlv.set(name, text);
+    std::unique_ptr<string> tlvStr{tlv.tlvRecordsToContainer(rng, &key)};
+
+    return Base64::btoa(*tlvStr);
+}
+
+#ifdef ENABLE_SYNC
 
 void MegaClient::failSync(Sync* sync, SyncError syncerror)
 {
@@ -14999,8 +15058,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                     {
                         t->chunkmacs.clear();
                         t->progresscompleted = 0;
-                        delete [] t->ultoken;
-                        t->ultoken = NULL;
+                        t->ultoken.reset();
                         t->pos = 0;
                     }
                 }
@@ -15038,8 +15096,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                             t->tempurls.clear();
                             t->chunkmacs.clear();
                             t->progresscompleted = 0;
-                            delete [] t->ultoken;
-                            t->ultoken = NULL;
+                            t->ultoken.reset();
                             t->pos = 0;
                         }
                     }
@@ -15138,6 +15195,7 @@ void MegaClient::stopxfer(File* f, DBTableTransactionCommitter* committer)
 // pause/unpause transfers
 void MegaClient::pausexfers(direction_t d, bool pause, bool hard, DBTableTransactionCommitter& committer)
 {
+    bool changed{xferpaused[d] != pause};
     xferpaused[d] = pause;
 
     if (!pause || hard)
@@ -15166,6 +15224,11 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard, DBTableTransac
                 it++;
             }
         }
+    }
+
+    if (changed)
+    {
+        app->pause_state_changed();
     }
 }
 
@@ -15215,7 +15278,7 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
     std::string localName =
       localNode->localname.toName(*fsaccess,
                                   localNode->sync->mFilesystemType);
-  
+
     // Only compare metamac if the node doesn't already exist.
     node_vector::const_iterator remoteNode =
       std::find_if(remoteNodes->begin(),
@@ -15317,11 +15380,13 @@ namespace action_bucket_compare
     // these lists of file extensions (and the logic to use them) all come from the webclient - if updating here, please make sure the webclient is updated too, preferably webclient first.
     const static string webclient_is_image_def = ".jpg.jpeg.gif.bmp.png.";
     const static string webclient_is_image_raw = ".3fr.arw.cr2.crw.ciff.cs1.dcr.dng.erf.iiq.k25.kdc.mef.mos.mrw.nef.nrw.orf.pef.raf.raw.rw2.rwl.sr2.srf.srw.x3f.";
-    const static string webclient_is_image_thumb = "psd.svg.tif.tiff.webp";  // leaving out .pdf
+    const static string webclient_is_image_thumb = ".psd.svg.tif.tiff.webp.";  // leaving out .pdf
     const static string webclient_mime_photo_extensions = ".3ds.bmp.btif.cgm.cmx.djv.djvu.dwg.dxf.fbs.fh.fh4.fh5.fh7.fhc.fpx.fst.g3.gif.heic.heif.ico.ief.jpe.jpeg.jpg.ktx.mdi.mmr.npx.pbm.pct.pcx.pgm.pic.png.pnm.ppm.psd.ras.rgb.rlc.sgi.sid.svg.svgz.tga.tif.tiff.uvg.uvi.uvvg.uvvi.wbmp.wdp.webp.xbm.xif.xpm.xwd.";
     const static string webclient_mime_video_extensions = ".3g2.3gp.asf.asx.avi.dvb.f4v.fli.flv.fvt.h261.h263.h264.jpgm.jpgv.jpm.m1v.m2v.m4u.m4v.mj2.mjp2.mk3d.mks.mkv.mng.mov.movie.mp4.mp4v.mpe.mpeg.mpg.mpg4.mxu.ogv.pyv.qt.smv.uvh.uvm.uvp.uvs.uvu.uvv.uvvh.uvvm.uvvp.uvvs.uvvu.uvvv.viv.vob.webm.wm.wmv.wmx.wvx.";
+    const static string webclient_mime_audio_extensions = ".3ga.aac.adp.aif.aifc.aiff.au.caf.dra.dts.dtshd.ecelp4800.ecelp7470.ecelp9600.eol.flac.iff.kar.lvp.m2a.m3a.m3u.m4a.mid.midi.mka.mp2.mp2a.mp3.mp4a.mpga.oga.ogg.opus.pya.ra.ram.rip.rmi.rmp.s3m.sil.snd.spx.uva.uvva.wav.wax.weba.wma.xm.";
+    const static string webclient_mime_document_extensions = ".ans.ascii.doc.docx.dotx.json.log.ods.odt.pages.pdf.ppc.pps.ppt.pptx.rtf.stc.std.stw.sti.sxc.sxd.sxi.sxm.sxw.txt.wpd.wps.xls.xlsx.xlt.xltm.";
 
-    bool nodeIsVideo(const Node* n, char ext[12], const MegaClient& mc)
+    bool nodeIsVideo(const Node *n, char ext[MAXEXTENSIONLEN], const MegaClient& mc)
     {
         if (n->hasfileattribute(fa_media) && n->nodekey().size() == FILENODEKEYLENGTH)
         {
@@ -15349,12 +15414,23 @@ namespace action_bucket_compare
         return action_bucket_compare::webclient_mime_video_extensions.find(ext) != string::npos;
     }
 
-    bool nodeIsPhoto(const Node* n, char ext[12])
+    bool nodeIsAudio(const Node *n, char ext[MAXEXTENSIONLEN])
+    {
+         return action_bucket_compare::webclient_mime_audio_extensions.find(ext) != string::npos;
+    }
+
+    bool nodeIsDocument(const Node *n, char ext[MAXEXTENSIONLEN])
+    {
+         return action_bucket_compare::webclient_mime_document_extensions.find(ext) != string::npos;
+    }
+
+    bool nodeIsPhoto(const Node *n, char ext[MAXEXTENSIONLEN], bool checkPreview)
     {
         // evaluate according to the webclient rules, so that we get exactly the same bucketing.
         return action_bucket_compare::webclient_is_image_def.find(ext) != string::npos ||
             action_bucket_compare::webclient_is_image_raw.find(ext) != string::npos ||
-            (action_bucket_compare::webclient_mime_photo_extensions.find(ext) != string::npos && n->hasfileattribute(GfxProc::PREVIEW));
+            (action_bucket_compare::webclient_mime_photo_extensions.find(ext) != string::npos
+                && (!checkPreview || n->hasfileattribute(GfxProc::PREVIEW)));
     }
 
     static bool compare(const Node* a, const Node* b, MegaClient* mc)
@@ -15378,10 +15454,10 @@ namespace action_bucket_compare
         return a.time > b.time;
     }
 
-    bool getExtensionDotted(const Node* n, char ext[12], const MegaClient& mc)
+    bool getExtensionDotted(const Node* n, char ext[MAXEXTENSIONLEN + 1], const MegaClient& mc)
     {
         auto localname = LocalPath::fromPath(n->displayname(), *mc.fsaccess);
-        if (mc.fsaccess->getextension(localname, ext, 8))  // plenty of buffer space left to append a '.'
+        if (mc.fsaccess->getextension(localname, ext, MAXEXTENSIONLEN))  // plenty of buffer space left to append a '.'
         {
             strcat(ext, ".");
             return true;
@@ -15392,12 +15468,12 @@ namespace action_bucket_compare
 }   // end namespace action_bucket_compare
 
 
-bool MegaClient::nodeIsMedia(const Node* n, bool* isphoto, bool* isvideo) const
+bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
 {
-    char ext[12];
+    char ext[MAXEXTENSIONLEN + 1];
     if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
     {
-        bool a = action_bucket_compare::nodeIsPhoto(n, ext);
+        bool a = action_bucket_compare::nodeIsPhoto(n, ext, true);
         if (isphoto)
         {
             *isphoto = a;
@@ -15412,6 +15488,46 @@ bool MegaClient::nodeIsMedia(const Node* n, bool* isphoto, bool* isvideo) const
             *isvideo = b;
         }
         return a || b;
+    }
+    return false;
+}
+
+bool MegaClient::nodeIsVideo(const Node *n) const
+{
+    char ext[MAXEXTENSIONLEN + 1];
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    {
+        return action_bucket_compare::nodeIsVideo(n, ext, *this);
+    }
+    return false;
+}
+
+bool MegaClient::nodeIsPhoto(const Node *n, bool checkPreview) const
+{
+    char ext[MAXEXTENSIONLEN + 1];
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    {
+        return action_bucket_compare::nodeIsPhoto(n, ext, checkPreview);
+    }
+    return false;
+}
+
+bool MegaClient::nodeIsAudio(const Node *n) const
+{
+    char ext[MAXEXTENSIONLEN + 1];
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    {
+        return action_bucket_compare::nodeIsAudio(n, ext);
+    }
+    return false;
+}
+
+bool MegaClient::nodeIsDocument(const Node *n) const
+{
+    char ext[MAXEXTENSIONLEN + 1];
+    if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
+    {
+        return action_bucket_compare::nodeIsDocument(n, ext);
     }
     return false;
 }

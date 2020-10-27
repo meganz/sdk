@@ -688,10 +688,7 @@ $application->add(new WhoamiCommand());
 $application->add(new PasswdCommand());
 $application->add(new MountCommand());
 $application->add(new MvCommand());
-
-$shell = new Shell($application);
-$shell->run();
-
+$application->run();
 ?>
 
 

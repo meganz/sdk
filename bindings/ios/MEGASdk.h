@@ -75,6 +75,22 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeFavouriteDesc
 };
 
+typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
+    MEGANodeFormatTypeUnknown = 0,
+    MEGANodeFormatTypePhoto,
+    MEGANodeFormatTypeAudio,
+    MEGANodeFormatTypeVideo,
+    MEGANodeFormatTypeDocument,
+};
+
+typedef NS_ENUM (NSInteger, MEGAFolderTargetType) {
+    MEGAFolderTargetTypeInShare = 0,
+    MEGAFolderTargetTypeOutShare,
+    MEGAFolderTargetTypePublicLink,
+    MEGAFolderTargetTypeRootNode,
+    MEGAFolderTargetTypeAll,
+};
+
 typedef NS_ENUM (NSInteger, MEGAEventType) {
     MEGAEventTypeFeedback = 0,
     MEGAEventTypeDebug,
@@ -321,6 +337,18 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  */
 @property (readonly, nonatomic) Retry waiting;
 
+/*
+ * @brief Get the total bytes of started downloads
+ * @return Total bytes of started downloads
+ *
+ * The count starts with the creation of MegaApi and is reset with calls to [MEGASdk resetTotalDownloads]
+ * or just before a log in or a log out.
+ *
+ * Function related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ */
+@property (readonly, nonatomic) NSNumber *totalsDownloadBytes __attribute__((deprecated("They could change or be removed in the current form.")));
+
 /**
  * @brief Total downloaded bytes since the creation of the MEGASdk object.
  *
@@ -328,6 +356,19 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * provide more data and avoid race conditions. They could change or be removed in the current form.
  */
 @property (readonly, nonatomic) NSNumber *totalsDownloadedBytes __attribute__((deprecated("They could change or be removed in the current form.")));
+
+/**
+ * Get the total bytes of started uploads
+ * @return Total bytes of started uploads
+ *
+ * The count starts with the creation of MegaApi and is reset with calls to [MEGASdk resetTotalDownloads]
+ * or just before a log in or a log out.
+ *
+ * Function related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ *
+ */
+@property (readonly, nonatomic) NSNumber *totalsUploadBytes __attribute__((deprecated("They could change or be removed in the current form.")));
 
 /**
  * @brief Total uploaded bytes since the creation of the MEGASdk object.
@@ -5959,6 +6000,25 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (void)startStreamingNode:(MEGANode *)node startPos:(NSNumber *)startPos size:(NSNumber *)size;
 
 /**
+ * @brief Reset the number of total downloads
+ * This function resets the number returned by [MEGASdk totalDownloads]
+ *
+ * @deprecated Function related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ *
+ */
+- (void)resetTotalDownloads __attribute__((deprecated("They could change or be removed in the current form.")));
+
+/**
+ * @brief Reset the number of total uploads
+ * This function resets the number returned by [MEGASdk totalUploads]
+ *
+ * @deprecated Function related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ */
+- (void)resetTotalUploads __attribute__((deprecated("They could change or be removed in the current form.")));
+
+/**
  * @brief Cancel a transfer.
  *
  * When a transfer is cancelled, it will finish and will provide the error code
@@ -5994,6 +6054,39 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *
  */
 - (void)cancelTransfer:(MEGATransfer *)transfer;
+
+/**
+* @brief Retry a transfer
+*
+* This function allows to start a transfer based on a MEGATransfer object. It can be used,
+* for example, to retry transfers that finished with an error. To do it, you can retain the
+* MEGATransfer object in onTransferFinish (calling [MEGATransfer clone] to take the ownership)
+* and use it later with this function.
+*
+* If the transfer parameter is nil or is not of type MEGATransferTypeDownload or
+* MEGATransferTypeUpload (transfers started with [MEGASdk startDownload] or
+* [MEGASdk startUpload) the function returns without doing anything.
+*
+* @param transfer Transfer to be retried
+* @param delegate MEGATransferDelegate to track this transfer
+*/
+- (void)retryTransfer:(MEGATransfer *)transfer delegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+* @brief Retry a transfer
+*
+* This function allows to start a transfer based on a MEGATransfer object. It can be used,
+* for example, to retry transfers that finished with an error. To do it, you can retain the
+* MEGATransfer object in onTransferFinish (calling [MEGATransfer clone] to take the ownership)
+* and use it later with this function.
+*
+* If the transfer parameter is nil or is not of type MEGATransferTypeDownload or
+* MEGATransferTypeUpload (transfers started with [MEGASdk startDownload] or
+* [MEGASdk startUpload) the function returns without doing anything.
+*
+* @param transfer Transfer to be retried
+*/
+- (void)retryTransfer:(MEGATransfer *)transfer;
 
 /**
 * @brief Move a transfer to the top of the transfer queue
@@ -7281,6 +7374,91 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * @return List of nodes that contain the desired string in their name.
  */
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString;
+
+/**
+ * @brief Search nodes containing a search string in their name.
+ *
+ * The search is case-insensitive.
+ *
+ * @param node The parent node of the tree to explore.
+ * @param searchString Search string. The search is case-insensitive.
+ * If the search string is not provided but nodeFormatType has any value apart from MEGANodeFormatTypeUnknown
+ * this method will return a list that contains nodes of the same type as provided.
+ * @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
+ * @param recursive YES if you want to seach recursively in the node tree.
+ * NO if you want to seach in the children of the node only
+ * @param orderType MEGASortOrderType for the returned list.
+ * Valid values for this parameter are:
+ * - MEGASortOrderTypeNone = 0
+ * Undefined order
+ *
+ * - MEGASortOrderTypeDefaultAsc = 1
+ * Folders first in alphabetical order, then files in the same order
+ *
+ * - MEGASortOrderTypeDefaultDesc = 2
+ * Files first in reverse alphabetical order, then folders in the same order
+ *
+ * - MEGASortOrderTypeSizeAsc = 3
+ * Sort by size, ascending
+ *
+ * - MEGASortOrderTypeSizeDesc = 4
+ * Sort by size, descending
+ *
+ * - MEGASortOrderTypeCreationAsc = 5
+ *  Sort by creation time in MEGA, ascending
+ *
+ * - MEGASortOrderTypeCreationDesc = 6
+ * Sort by creation time in MEGA, descending
+ *
+ * - MEGASortOrderTypeModificationAsc = 7
+ * Sort by modification time of the original file, ascending
+ *
+ * - MEGASortOrderTypeModificationDesc = 8
+ * Sort by modification time of the original file, descending
+ *
+ * - MEGASortOrderTypeAlphabeticalAsc = 9
+ * Same behavior than MEGASortOrderTypeDefaultAsc
+ *
+ * - MEGASortOrderTypeAlphabeticalDesc = 10
+ * Same behavior than MEGASortOrderTypeDefaultDesc
+ *
+ * - MEGASortOrderTypePhotoAsc = 11
+ * Sort with photos first, then by date ascending
+ *
+ * - MEGASortOrderTypePhotoDesc = 12
+ * Sort with photos first, then by date descending
+ *
+ * - MEGASortOrderTypeVideoAsc = 13
+ * Sort with videos first, then by date ascending
+ *
+ * - MEGASortOrderTypeVideoDesc = 14
+ * Sort with videos first, then by date descending
+ *
+ * @param nodeFormatType Type of nodes requested in the search
+ * Valid values for this parameter are:
+ * - MEGANodeFormatTypeUnknown = 0
+ * - MEGANodeFormatTypePhoto = 1
+ * - MEGANodeFormatTypeAudio = 2
+ * - MEGANodeFormatTypeVideo = 3
+ * - MEGANodeFormatTypeDocument = 4
+ *
+ * @param folderTargetType Target type where this method will search
+ * Valid values for this parameter are
+ * - MEGAFolderTargetTypeInShare = 0
+ * - MEGAFolderTargetTypeOutShare = 1
+ * - MEGAFolderTargetTypePublicLink = 2
+ * - MEGAFolderTargetTypeRootNode = 3
+ * - MEGAFolderTargetTypeAll = 4
+ *
+ * @return List of nodes that contain the desired string in their name.
+ */
+- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node
+                           searchString:(nullable NSString *)searchString
+                            cancelToken:(MEGACancelToken *)cancelToken
+                              recursive:(BOOL)recursive
+                              orderType:(MEGASortOrderType)orderType
+                         nodeFormatType:(MEGANodeFormatType)nodeFormatType
+                       folderTargetType:(MEGAFolderTargetType)folderTargetType;
 
 /**
  * @brief Return an array of buckets, each bucket containing a list of recently added/modified nodes
