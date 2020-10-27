@@ -8194,7 +8194,10 @@ CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle 
     arg("qu", uploads);
     arg("qd", downloads);
     arg("lts", ts);
-    arg("lh", (byte*)&lastNode, MegaClient::NODEHANDLE);
+    if (!ISUNDEF(lastNode))
+    {
+        arg("lh", (byte*)&lastNode, MegaClient::NODEHANDLE);
+    }
 
     tag = client->reqtag;
 }
