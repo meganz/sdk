@@ -7740,6 +7740,15 @@ class MegaApi
             ACCOUNT_BLOCKED_VERIFICATION_EMAIL = 700,       // temporary blocked, require email verification
         };
 
+        enum {
+            BACKUP_TYPE_INVALID = -1,
+            BACKUP_TYPE_TWO_WAY_SYNC = 0,
+            BACKUP_TYPE_UP_SYNC = 1,
+            BACKUP_TYPE_DOWN_SYNC = 2,
+            BACKUP_TYPE_CAMERA_UPLOADS = 3,
+            BACKUP_TYPE_MEDIA_UPLOADS = 4,   // Android has a secondary CU
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -18184,7 +18193,15 @@ class MegaApi
         void dismissBanner(int id, MegaRequestListener *listener = nullptr);
 
         /**
-         * @brief Starts a backup of a local folder into a remote location
+         * @brief Registers a backup to display in Backup Centre
+         *
+         * Apps should register backups, like CameraUploads, in order to be listed in the
+         * BackupCentre. The client should send heartbeats to indicate the progress of the
+         * backup (see \c MegaApi::sendBackupHeartbeats).
+         *
+         * Possible types of backups:
+         *  BACKUP_TYPE_CAMERA_UPLOADS = 3,
+         *  BACKUP_TYPE_MEDIA_UPLOADS = 4,   // Android has a secondary CU
          *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
          * Valid data in the MegaRequest object received on callbacks:
@@ -18209,11 +18226,16 @@ class MegaApi
         void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
 
         /**
-         * @brief Update an existing backup
+         * @brief Update the information about a registered backup for Backup Centre
+         *
+         * Possible types of backups:
+         *  BACKUP_TYPE_INVALID = -1,
+         *  BACKUP_TYPE_CAMERA_UPLOADS = 3,
+         *  BACKUP_TYPE_MEDIA_UPLOADS = 4,   // Android has a secondary CU
          *
          *  Params that keep the same value are passed with invalid value to avoid to send to the server
          *    Invalid values:
-         *    - type: BackupType::INVALID
+         *    - type: BACKUP_TYPE_INVALID
          *    - nodeHandle: UNDEF
          *    - localFolder: nullptr
          *    - deviceId: nullptr

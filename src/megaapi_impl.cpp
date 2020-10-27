@@ -23026,10 +23026,16 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_BACKUP_PUT:
         {
-            BackupType bType = request->getTotalBytes() < INVALID || request->getTotalBytes() > MEDIA_UPLOAD ?
-                               INVALID : static_cast<BackupType>(request->getTotalBytes());
-            
-            if (request->getParentHandle() == UNDEF) // Register a new sync
+            bool isNew = request->getParentHandle() == UNDEF;
+            int backupType = static_cast<int>(request->getTotalBytes());
+            if (backupType < MegaApi::BACKUP_TYPE_CAMERA_UPLOADS || backupType > MegaApi::BACKUP_TYPE_MEDIA_UPLOADS)
+            {
+                e = API_EARGS;
+                break;
+            }
+            BackupType bType = static_cast<BackupType>(backupType);
+
+            if (isNew) // Register a new sync
             {
                 string localFolder(binaryToBase64(request->getFile(), strlen(request->getFile())));
                 string extraData(binaryToBase64(request->getText(), strlen(request->getText())));
