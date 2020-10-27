@@ -24988,7 +24988,13 @@ void MegaFolderUploadController::start(MegaNode*)
     std::thread thread([this]() {
         auto localpath = LocalPath::fromPath(transfer->getPath(), *client->fsaccess);
         scanFolder(transfer->getParentHandle(), transfer->getParentHandle(), localpath, transfer->getFileName());
-        createFolder();
+        if (!mFolderStructure.empty())
+        {
+            createFolder();
+            mSemaphore->wait(); // wait until all folders have been created
+        }
+        uploadFiles();
+        checkCompletion();
     });
     thread.detach();
 }
@@ -25184,13 +25190,6 @@ void MegaFolderUploadController::scanFolder(handle targetHandle, handle parentHa
 
 void MegaFolderUploadController::createFolder()
 {
-    if (mFolderStructure.empty())
-    {
-        // if all folder structure already exists in cloud drive, add file transfers
-        uploadFiles();
-        return;
-    }
-
     for (auto it = mFolderStructure.begin(); it != mFolderStructure.end(); it++)
     {
         assert(it->second.size());
@@ -25235,10 +25234,6 @@ void MegaFolderUploadController::createFolder()
             }
         });
     }
-
-    // wait until all putnodes have been processed
-    mSemaphore->wait();
-    uploadFiles();
 }
 
 void MegaFolderUploadController::uploadFiles()
@@ -25288,8 +25283,6 @@ void MegaFolderUploadController::uploadFiles()
    {
       megaApi->sendPendingTransfers(&transferQueue);
    }
-
-   checkCompletion();
 }
 
 void MegaFolderUploadController::checkCompletion()
