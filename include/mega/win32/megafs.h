@@ -69,7 +69,7 @@ public:
     void local2path(const std::wstring*, std::string*) const override;
     void path2local(const std::string*, std::wstring*) const override;
 
-    bool getsname(LocalPath&, LocalPath&) const override;
+    bool getsname(const LocalPath&, LocalPath&) const override;
 
     bool renamelocal(LocalPath&, LocalPath&, bool) override;
     bool copylocal(LocalPath&, LocalPath&, m_time_t) override;

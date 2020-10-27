@@ -220,7 +220,7 @@ public:
         *path = *local;
     }
 
-    bool getsname(mega::LocalPath&, mega::LocalPath&) const override
+    bool getsname(const mega::LocalPath&, mega::LocalPath&) const override
     {
         return false;
     }

@@ -38,7 +38,7 @@ public:
     GfxJob();
 
     // locally encoded path of the image
-    string localfilename;
+    LocalPath localfilename;
 
     // vector with the required image type
     vector<fatype> imagetypes;

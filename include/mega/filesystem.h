@@ -472,7 +472,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual void tmpnamelocal(LocalPath&) const = 0;
 
     // obtain local secondary name
-    virtual bool getsname(LocalPath&, LocalPath&) const = 0;
+    virtual bool getsname(const LocalPath&, LocalPath&) const = 0;
 
     // rename file, overwrite target
     virtual bool renamelocal(LocalPath&, LocalPath&, bool = true) = 0;
