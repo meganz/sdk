@@ -8116,7 +8116,7 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupTy
 {
     cmd("sp");
 
-    arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
+    arg("id", (byte*)&backupId, MegaClient::BACKUPHANDLE);
 
     if (type != BackupType::INVALID)
     {
@@ -8165,7 +8165,7 @@ bool CommandBackupPut::procresult(Result r)
 
     if (r.hasJsonItem())
     {
-        backupId = client->json.gethandle(MegaClient::USERHANDLE);
+        backupId = client->json.gethandle(MegaClient::BACKUPHANDLE);
         e = API_OK;
     }
     else
@@ -8188,7 +8188,7 @@ CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle 
 {
     cmd("sphb");
 
-    arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
+    arg("id", (byte*)&backupId, MegaClient::BACKUPHANDLE);
     arg("s", status);
     arg("p", progress);
     arg("qu", uploads);
@@ -8209,7 +8209,7 @@ CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId)
     : id(backupId)
 {
     cmd("sr");
-    arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
+    arg("id", (byte*)&backupId, MegaClient::BACKUPHANDLE);
 
     tag = client->reqtag;
 }
