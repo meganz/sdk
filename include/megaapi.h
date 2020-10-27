@@ -18268,7 +18268,10 @@ class MegaApi
         void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
         
         /**
-         * @brief Remove a backup
+         * @brief Unregister a backup already registered for the Backup Centre
+         *
+         * This method allows to remove a backup from the list of backups displayed in the
+         * Backup Centre. @see \c MegaApi::setBackup.
          *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_REMOVE
          * Valid data in the MegaRequest object received on callbacks:
@@ -18281,7 +18284,10 @@ class MegaApi
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
         
         /**
-         * @brief Get heartbeat associated with an existing backup
+         * @brief Send heartbeat associated with an existing backup
+         *
+         * The client should call this method regularly for every registered backup, in order to
+         * inform about the status of the backup.
          *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT
          * Valid data in the MegaRequest object received on callbacks:
