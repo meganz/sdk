@@ -4674,14 +4674,14 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     int subState = 3;
     
     // setup a backup
-    int backupType = BackupType::CAMERA_UPLOAD;
+    int backupType = MegaApi::BACKUP_TYPE_CAMERA_UPLOADS;
     auto err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
 
     // update a backup
     const char* extra2 = "Test Update Camera Upload Test";
     unique_ptr<char[]> extraData2(MegaApiImpl::binaryToBase64(extra2, strlen(extra2)));
-    err = synchronousUpdateBackup(0, mBackupId, BackupType::INVALID, UNDEF, nullptr, nullptr, -1, -1, extraData2.get());
+    err = synchronousUpdateBackup(0, mBackupId, MegaApi::BACKUP_TYPE_INVALID, UNDEF, nullptr, nullptr, -1, -1, extraData2.get());
     ASSERT_EQ(MegaError::API_OK, err) << "updateBackup failed (error: " << err << ")";
 
     // remove an existing backup
