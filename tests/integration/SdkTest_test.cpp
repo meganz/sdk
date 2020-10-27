@@ -818,7 +818,7 @@ void SdkTest::deleteFile(string filename)
 {
     fs::path p = fs::u8path(filename);
     std::error_code ignoredEc;
-    fs::remove(p,ignoredEc);
+    fs::remove(p, ignoredEc);
 }
 
 const char* envVarAccount[] = {"MEGA_EMAIL", "MEGA_EMAIL_AUX", "MEGA_EMAIL_AUX2"};
@@ -4977,7 +4977,7 @@ void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath)
     {
         RequestTracker removeTracker(megaApi);
         megaApi->removeSync(syncs->get(i),&removeTracker);
-        removeTracker.waitForResult();
+        ASSERT_EQ(API_OK, removeTracker.waitForResult());
     }
 
     std::unique_ptr<MegaNode> baseNode{megaApi->getNodeByPath(("/" + basePath.u8string()).c_str())};
@@ -5047,7 +5047,7 @@ TEST_F(SdkTest, SyncBasicOperations)
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
 
-    // Create local directory and a file.
+    // Create local directories and a files.
     fs::create_directories(localPath1);
     createFile((localPath1 / "fileTest1").u8string(), false);
     fs::create_directories(localPath2);
@@ -5084,7 +5084,7 @@ TEST_F(SdkTest, SyncBasicOperations)
     ASSERT_TRUE(sync2 && sync2->getState() == MegaSync::SYNC_ACTIVE);
     ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
 
-    LOG_verbose << "SyncRemoveRemoteNode :  Add syncs that fails";
+    LOG_verbose << "SyncRemoveRemoteNode :  Add syncs that fail";
     {
         TestingWithLogErrorAllowanceGuard g;
         ASSERT_EQ(MegaError::API_EEXIST, synchronousSyncFolder(0, localPath3.u8string().c_str(), remoteBaseNode1.get())); // Remote node is currently synced.
@@ -5126,7 +5126,7 @@ TEST_F(SdkTest, SyncBasicOperations)
     sync2 = waitForSyncState(megaApi[0].get(), remoteBaseNode2.get(), MegaSync::SYNC_ACTIVE);
     ASSERT_TRUE(sync2 && sync2->getState() == MegaSync::SYNC_ACTIVE);
 
-    LOG_verbose << "SyncRemoveRemoteNode :  Enable syncs that fails";
+    LOG_verbose << "SyncRemoveRemoteNode :  Enable syncs that fail";
     {
         TestingWithLogErrorAllowanceGuard g;
 
@@ -5143,9 +5143,9 @@ TEST_F(SdkTest, SyncBasicOperations)
     ASSERT_EQ(nullptr, sync.get());
     // Sync 2
     ASSERT_EQ(MegaError::API_OK, synchronousRemoveSync(0, sync2.get())) << "API Error removing the sync";
-    // Keep a not updated MegaSync object
+    // Keep sync2 not updated. Will be used later to test another removal attemp using a non-updated object.
 
-    LOG_verbose << "SyncRemoveRemoteNode :  Remove Syncs that fails";
+    LOG_verbose << "SyncRemoveRemoteNode :  Remove Syncs that fail";
     {
         TestingWithLogErrorAllowanceGuard g;
 
@@ -5584,7 +5584,7 @@ TEST_F(SdkTest, SyncPersistence)
     ASSERT_TRUE(sync && sync->getState() == MegaSync::SYNC_ACTIVE);
     ASSERT_EQ(remoteFolder, string(sync->getMegaFolder()));
 
-    // Check if a logout with setKeepSyncsAfterLogout(false) doesn't keeps the sync configured.
+    // Check if a logout with setKeepSyncsAfterLogout(false) doesn't keep the sync configured.
     megaApi[0]->setKeepSyncsAfterLogout(false);
     ASSERT_NO_FATAL_FAILURE(logout(0));
     trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
@@ -5646,7 +5646,7 @@ TEST_F(SdkTest, SyncPaths)
     std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), MegaSync::SYNC_ACTIVE);
     ASSERT_TRUE(sync && sync->getState() == MegaSync::SYNC_ACTIVE);
 
-    LOG_verbose << "SyncPersistence :  Adding a file and checking if it is synced,";
+    LOG_verbose << "SyncPersistence :  Adding a file and checking if it is synced.";
     createFile(filePath.u8string(), false);
     std::unique_ptr<MegaNode> remoteNode;
     WaitFor([this, &remoteNode, &remoteBaseNode, fileNameStr]() -> bool
@@ -5736,7 +5736,7 @@ TEST_F(SdkTest, SyncOQTransitions)
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), fillPath));
 
-    // Create local directory and file.
+    // Create local directory
     fs::create_directories(localPath);
 
     LOG_verbose << "SyncOQTransitions :  Creating remote folder";
@@ -5826,7 +5826,7 @@ TEST_F(SdkTest, SyncOQTransitions)
         ASSERT_EQ(MegaSync::STORAGE_OVERQUOTA, sync->getError());
     }
 
-    LOG_verbose << "SyncOQTransitions :  Check for transition form OQ while offline.";
+    LOG_verbose << "SyncOQTransitions :  Check for transition from OQ while offline.";
     ASSERT_NO_FATAL_FAILURE(locallogout());
 
     std::unique_ptr<MegaNode> toRemoveNode(megaApi[1]->getChildNode(inshareNode, (remote1GBFile->getName() + to_string(filesNeeded-1)).c_str()));
@@ -5834,7 +5834,7 @@ TEST_F(SdkTest, SyncOQTransitions)
 
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.c_str()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
-    ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Needed to ensure we know we are in OQ
+    ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Needed to ensure we know we are no longer in OQ
     sync = waitForSyncState(megaApi[0].get(), tagID, MegaSync::SYNC_ACTIVE);
     ASSERT_TRUE(sync && sync->getState() == MegaSync::SYNC_ACTIVE);
 
