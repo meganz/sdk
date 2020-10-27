@@ -244,9 +244,6 @@ protected:
     // semaphore to control worker thread execution flow
     unique_ptr<MegaSemaphore> mSemaphore;
 
-    // Worker thread
-    std::thread mThread;
-
     // maps tempHandle to definitive handle
     map<handle, handle> mNewNodesResult;
 
@@ -431,9 +428,6 @@ public:
 protected:
     // each element is a pair formed by the folder LocalPath and a vector that contains all children folders
     std::vector<std::pair<LocalPath, std::vector<unique_ptr<MegaNode>>>> mLocalTree;
-
-    // Worker thread
-    std::thread mThread;
 };
 
 class MegaNodePrivate : public MegaNode, public Cacheable

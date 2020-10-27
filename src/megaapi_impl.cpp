@@ -18449,7 +18449,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue)
             : transferQueue;    // transfer queue of class MegaApiImpl
 
     // if we are processing a custom queue, we need to process in one shot
-    bool timeout = !queue;
+    bool canSplit = !queue;
 
     while(MegaTransferPrivate *transfer = auxQueue.pop())
     {
@@ -18923,7 +18923,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue)
             fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(e), committer);
         }
 
-        if (timeout && (++count > 100 || std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count() > 100))
+        if (canSplit && (++count > 100 || std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - t0).count() > 100))
         {
             break;
         }
@@ -24985,12 +24985,12 @@ void MegaFolderUploadController::start(MegaNode*)
         return;
     }
 
-    mThread = std::thread ([this]() {
+    std::thread thread([this]() {
         auto localpath = LocalPath::fromPath(transfer->getPath(), *client->fsaccess);
         scanFolder(transfer->getParentHandle(), transfer->getParentHandle(), localpath, transfer->getFileName());
         createFolder();
     });
-    mThread.detach();
+    thread.detach();
 }
 
 void MegaFolderUploadController::cancel()
@@ -26462,7 +26462,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
         deleteNode = true;
     }
 
-    mThread = std::thread ([this, deleteNode, node]() {
+    std::thread thread([this, deleteNode, node]() {
         LocalPath path;
         if (transfer->getParentPath())
         {
@@ -26490,7 +26490,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
             delete node;
         }
     });
-    mThread.detach();
+    thread.detach();
 }
 
 void MegaFolderDownloadController::cancel()
