@@ -23026,7 +23026,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_BACKUP_PUT:
         {
-            BackupType bType = request->getTotalBytes() < INVALID || request->getTotalBytes() > CAMERA_UPLOAD ?
+            BackupType bType = request->getTotalBytes() < INVALID || request->getTotalBytes() > MEDIA_UPLOAD ?
                                INVALID : static_cast<BackupType>(request->getTotalBytes());
             
             if (request->getParentHandle() == UNDEF) // Register a new sync
