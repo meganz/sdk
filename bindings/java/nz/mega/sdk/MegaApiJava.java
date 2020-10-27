@@ -214,7 +214,8 @@ public class MegaApiJava {
     public final static int SEARCH_TARGET_ROOTNODE = MegaApi.SEARCH_TARGET_ROOTNODE;
     public final static int SEARCH_TARGET_ALL = MegaApi.SEARCH_TARGET_ALL;
 
-    public final static int BACKUP_TYPE_CAMERA_UPLOAD = 3;
+    public final static int BACKUP_TYPE_CAMERA_UPLOAD = MegaApi.BACKUP_TYPE_CAMERA_UPLOADS;
+    public final static int BACKUP_TYPE_MEDIA_UPLOADS = MegaApi.BACKUP_TYPE_MEDIA_UPLOADS;
 
     public final static int CU_SYNC_STATE_ACTIVE = 1;
     public final static int CU_SYNC_STATE_FAILED = CU_SYNC_STATE_ACTIVE + 1;
