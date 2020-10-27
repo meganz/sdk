@@ -219,7 +219,7 @@ public class MegaApiJava {
     public final static int CU_SYNC_STATE_ACTIVE = 1;
     public final static int CU_SYNC_STATE_FAILED = CU_SYNC_STATE_ACTIVE + 1;
     public final static int CU_SYNC_STATE_TEMPORARY_DISABLED = CU_SYNC_STATE_FAILED + 1;
-    public final static int CU_SYNC_STATE_DISABLED = CU_SYNC_STATE_TEMPORARY_DISABLED + 2;
+    public final static int CU_SYNC_STATE_DISABLED = CU_SYNC_STATE_TEMPORARY_DISABLED + 1;
     public final static int CU_SYNC_STATE_PAUSE_UP = CU_SYNC_STATE_DISABLED + 1;
     public final static int CU_SYNC_STATE_PAUSE_DOWN = CU_SYNC_STATE_PAUSE_UP + 1;
     public final static int CU_SYNC_STATE_PAUSE_FULL = CU_SYNC_STATE_PAUSE_DOWN + 1;
@@ -10444,8 +10444,11 @@ public class MegaApiJava {
      * @param downs Number of pending download transfers
      * @param ts Last action timestamp
      * @param lastNode Last node handle to be synced
+     * @param listener MegaRequestListener to track this request
      */
-    public void sendBackupHeartbeat(long backupId, int status, int progress, int ups, int downs, long ts, long lastNode) {
-        megaApi.sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode);
+    public void sendBackupHeartbeat(long backupId, int status, int progress, int ups, int downs,
+            long ts, long lastNode, MegaRequestListenerInterface listener) {
+        megaApi.sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode,
+                createDelegateRequestListener(listener));
     }
 }
