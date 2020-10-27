@@ -995,10 +995,7 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError)
 // NULL: no match, optionally returns residual path
 LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, LocalNode** parent, LocalPath* outpath)
 {
-    if (outpath)
-    {
-        assert(outpath->empty());
-    }
+    assert(!outpath || outpath->empty());
 
     size_t subpathIndex = 0;
 

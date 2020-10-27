@@ -94,9 +94,6 @@ class MEGA_API LocalPath
     friend int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2, const FileSystemAccess& fsaccess);
     friend const string& adjustBasePath(const LocalPath& name);
 
-    size_t getLength() { return localpath.size(); }
-    void setLength(size_t length) { localpath.resize(length); }
-
 public:
     LocalPath() {}
 

@@ -638,7 +638,7 @@ WinFileSystemAccess::~WinFileSystemAccess()
 // append \ to bare Windows drive letter paths
 int sanitizedriveletter(std::wstring& localpath)
 {
-    if (localpath.size() > 1 && localpath[localpath.size() - 1] == L':')
+    if (localpath.size() > 1 && localpath.back() == L':')
     {
         localpath.append(L"\\");
         return 1;
@@ -774,7 +774,7 @@ bool WinFileSystemAccess::getsname(LocalPath& namePath, LocalPath& snamePath) co
     if (!rr)
     {
         DWORD e = GetLastError();
-        LOG_warn << "Unable to get short path name: " << namePath.localpath.c_str() << ". Error code: " << e;
+        LOG_warn << "Unable to get short path name: " << namePath.toPath(gWfsa) << ". Error code: " << e;
         sname.clear();
         return false;
     }
@@ -801,12 +801,8 @@ bool WinFileSystemAccess::renamelocal(LocalPath& oldnamePath, LocalPath& newname
         DWORD e = GetLastError();
         if (SimpleLogger::logCurrentLevel >= logWarning && !skip_errorreport)
         {
-            string utf8oldname;
-            client->fsaccess->local2path(&oldnamePath.localpath, &utf8oldname);
-
-            string utf8newname;
-            client->fsaccess->local2path(&newnamePath.localpath, &utf8newname);
-            LOG_warn << "Unable to move file: " << utf8oldname.c_str() << " to " << utf8newname.c_str() << ". Error code: " << e;
+            LOG_warn << "Unable to move file: " << oldnamePath.toPath(gWfsa) <<
+                        " to " << newnamePath.toPath(gWfsa) << ". Error code: " << e;
         }
         transient_error = istransientorexists(e);
     }
@@ -1068,7 +1064,7 @@ bool WinFileSystemAccess::getextension(const LocalPath& filenamePath, char* exte
 
     if (size > filenamePath.localpath.size())
     {
-        size = int(filenamePath.localpath.size());
+        size = filenamePath.localpath.size();
     }
 
     for (i = 0; i < size; i++)
