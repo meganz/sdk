@@ -4245,8 +4245,6 @@ void MegaClient::locallogout(bool removecaches)
     minstreamingrate = -1;
     ephemeralSession = false;
     ephemeralSessionPlusPlus = false;
-    // This is commented because at intermediate layer we are forcing a locallogout in login process
-    //convertToFullAccountInProgress = false;
 #ifdef USE_MEDIAINFO
     mediaFileInfo = MediaFileInfo();
 #endif
@@ -8877,7 +8875,6 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                     string sigCu255;
                     string sigPubk;
 
-                    // generate keypairs
                     // MegaClient::signkey & chatkey are created on putua::procresult()
                     std::unique_ptr<EdDSA> signkey = make_unique<EdDSA>(rng);
                     std::unique_ptr<ECDH> chatkey = make_unique<ECDH>();
@@ -8904,15 +8901,13 @@ bool MegaClient::readusers(JSON* j, bool actionpackets)
                         TLVstore tlvRecords;
                         tlvRecords.set(EdDSA::TLV_KEY, string((const char*)signkey->keySeed, EdDSA::SEED_KEY_LENGTH));
                         tlvRecords.set(ECDH::TLV_KEY, string((const char*)chatkey->privKey, ECDH::PRIVATE_KEY_LENGTH));
-                        string *tlvContainer = tlvRecords.tlvRecordsToContainer(rng, &key);
+                        std::unique_ptr<string> tlvContainer = std::unique_ptr<string>(tlvRecords.tlvRecordsToContainer(rng, &key));
                         buf.assign(tlvContainer->data(), tlvContainer->size());
                         attrs[ATTR_KEYRING] = buf;
 
                         LOG_debug << "Send keys attributes";
 
                         putua(&attrs, 0);
-
-                        delete tlvContainer;
                     }
 
                 }
