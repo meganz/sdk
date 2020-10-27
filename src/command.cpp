@@ -36,41 +36,32 @@ Command::Command()
     suppressSID = false;
 }
 
+Command::~Command()
+{
+    for (const auto& listenerWeak: mListeners)
+    {
+        if (auto listener = listenerWeak.lock())
+        {
+            listener->onCommandToBeDeleted(this);
+        }
+    }
+}
+
 void Command::cancel()
 {
     canceled = true;
 }
 
-void Command::addToNodePendingCommands(handle h, MegaClient* client)
-{
-    if (auto node = client->nodebyhandle(h))
-    {
-        addToNodePendingCommands(node);
-    }
-}
-
-void Command::addToNodePendingCommands(Node* node)
-{
-    node->mPendingChanges.push_back(this);
-}
-
-void Command::removeFromNodePendingCommands(handle h, MegaClient* client)
-{
-    if (auto node = client->nodebyhandle(h))
-    {
-        removeFromNodePendingCommands(node);
-    }
-}
-
-void Command::removeFromNodePendingCommands(Node* node)
-{
-    node->mPendingChanges.erase(this);
-}
-
 // returns completed command JSON string
-const char* Command::getstring() const
+const char* Command::getstring()
 {
+    mRead = true;
     return json.c_str();
+}
+
+void Command::replaceWith(Command &command)
+{
+    json = command.getstring();
 }
 
 //return true when the response is an error, false otherwise (in that case it doesn't consume JSON chars)
@@ -139,6 +130,16 @@ bool Command::checkError(Error& errorDetails, JSON& json)
 }
 
 // add opcode
+bool Command::getRead() const
+{
+    return mRead;
+}
+
+void Command::addListener(const std::shared_ptr<CommandListener> &listener)
+{
+    mListeners.push_back(listener);
+}
+
 void Command::cmd(const char* cmd)
 {
     json.append("\"a\":\"");

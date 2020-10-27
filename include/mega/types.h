@@ -272,9 +272,15 @@ typedef list<struct File*> file_list;
 // RUBBISH - rubbish bin
 typedef enum { TYPE_UNKNOWN = -1, FILENODE = 0, FOLDERNODE, ROOTNODE, INCOMINGNODE, RUBBISHNODE } nodetype_t;
 
+typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
+               LBL_BLUE = 5, LBL_PURPLE = 6, LBL_GREY = 7, } nodelabel_t;
+
 // node type key lengths
 const int FILENODEKEYLENGTH = 32;
 const int FOLDERNODEKEYLENGTH = 16;
+
+// Max file extension length
+const int MAXEXTENSIONLEN = 12;
 
 typedef list<class Sync*> sync_list;
 
@@ -868,7 +874,8 @@ public:
                const Type syncType = TYPE_TWOWAY,
                const bool syncDeletions = false,
                const bool forceOverwrite = false,
-               const SyncError error = NO_SYNC_ERROR
+               const SyncError error = NO_SYNC_ERROR,
+               handle hearBeatID = UNDEF
             );
 
     // returns unique identifier
@@ -947,8 +954,10 @@ public:
     // check if a sync would be enabled according to the sync state and error
     static bool isEnabled(syncstate_t state, SyncError syncError);
 
+    handle getBackupId() const;
+    void setBackupId(const handle &backupId);
+
 private:
-    friend bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
 
     // Unique identifier. any other field can change (even remote handle),
     // and we want to keep disabled configurations saved: e.g: remote handle changed
@@ -987,40 +996,13 @@ private:
     // failure cause (disable/failure cause).
     SyncError mError;
 
+    // id for heartbeating
+    handle mBackupId;
+
     // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
     bool serialize(std::string& data) const;
 
-    // this is very handy for defining comparison operators
-    std::tuple<const int&,
-               const bool&,
-               const std::string&,
-               const std::string&,
-               const handle&,
-               const std::string&,
-               const fsfp_t&,
-               const std::vector<std::string>&,
-               const Type&,
-               const bool&,
-               const bool&,
-               const int&> tie() const
-    {
-        return std::tie(mTag,
-                        mEnabled,
-                        mLocalPath,
-                        mName,
-                        mRemoteNode,
-                        mRemotePath,
-                        mLocalFingerprint,
-                        mRegExps,
-                        mSyncType,
-                        mSyncDeletions,
-                        mForceOverwrite,
-                        mError);
-    }
 };
-
-bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
-
 
 // cross reference pointers.  For the case where two classes have pointers to each other, and they should
 // either always be NULL or if one refers to the other, the other refers to the one.

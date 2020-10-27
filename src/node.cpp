@@ -1183,7 +1183,7 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
         {
             // set new name
             localname = newlocalpath->subpathFrom(p);
-            name = localname.toName(*sync->client->fsaccess);
+            name = localname.toName(*sync->client->fsaccess, sync->mFilesystemType);
 
             if (node)
             {
@@ -1279,8 +1279,7 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
         {
             // complete the copy/delete operation
             dstime nds = NEVER;
-            size_t numPending = 0;
-            sync->client->syncup(parent, &nds, numPending, true);
+            sync->client->syncup(parent, &nds);
 
             // check if nodes can be immediately created
             bool immediatecreation = (int) sync->client->synccreate.size() == nc;
@@ -1325,8 +1324,6 @@ LocalNode::LocalNode()
 , created{false}
 , reported{false}
 , checked{false}
-, syncdownTargetedAction(SYNCTREE_RESOLVED)
-, syncupTargetedAction(SYNCTREE_RESOLVED)
 {}
 
 // initialize fresh LocalNode object - must be called exactly once
@@ -1339,8 +1336,6 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     deleted = false;
     created = false;
     reported = false;
-    syncdownTargetedAction = SYNCTREE_RESOLVED;
-    syncupTargetedAction = SYNCTREE_RESOLVED;
     syncxfer = true;
     newnode.reset();
     parent_dbid = 0;
@@ -1380,32 +1375,6 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
 
     sync->client->totalLocalNodes++;
     sync->localnodes[type]++;
-}
-
-void LocalNode::needsFutureSyncup()
-{
-    syncupTargetedAction = syncupTargetedAction < SYNCTREE_SCAN_HERE ? SYNCTREE_SCAN_HERE : syncupTargetedAction;
-    for (auto p = parent; p != NULL; p = p->parent)
-    {
-        if (p->syncupTargetedAction >= SYNCTREE_DESCENDANT_FLAGGED)
-        {
-            break;
-        }
-        p->syncupTargetedAction = SYNCTREE_DESCENDANT_FLAGGED;
-    }
-}
-
-void LocalNode::needsFutureSyncdown()
-{
-    syncdownTargetedAction = syncdownTargetedAction < SYNCTREE_SCAN_HERE ? SYNCTREE_SCAN_HERE : syncdownTargetedAction;
-    for (auto p = parent; p != NULL; p = p->parent)
-    {
-        if (p->syncdownTargetedAction >= SYNCTREE_DESCENDANT_FLAGGED)
-        {
-            break;
-        }
-        p->syncdownTargetedAction = SYNCTREE_DESCENDANT_FLAGGED;
-    }
 }
 
 // update treestates back to the root LocalNode, inform app about changes
@@ -1821,7 +1790,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->localname = LocalPath(std::move(localname));
     l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(std::move(shortname)));
     l->slocalname_in_db = 0 != expansionflags[0];
-    l->name = l->localname.toName(*sync->client->fsaccess);
+    l->name = l->localname.toName(*sync->client->fsaccess, sync->mFilesystemType);
 
     memcpy(l->crc.data(), crc, sizeof crc);
     l->mtime = mtime;
