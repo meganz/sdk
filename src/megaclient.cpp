@@ -4083,6 +4083,13 @@ void MegaClient::resumeResumableSyncs()
             {
                 Sync *s = syncs.back();
                 newstate = s->state; //override state with the actual one from the sync
+
+                // Only internal backups can be resumed.
+                if (s->isBackup())
+                {
+                    // And they should come up in the MONITOR state.
+                    s->monitor();
+                }
             }
 
             // update config entry with the error, if any. otherwise addsync would have updated it
@@ -13309,10 +13316,20 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
 
     if (l->sync->isMirroring())
     {
-        // Has the mirror stabilized?
-        if (!cxt.mActionsPerformed)
+        bool mirrorStable = true;
+
+        // SCs must have been processed.
+        mirrorStable &= statecurrent;
+
+        // Syncdown must not have performed any actions.
+        mirrorStable &= !cxt.mActionsPerformed;
+
+        // Scan queue must be empty.
+        mirrorStable &= mirrorStable && l->sync->dirnotify->empty();
+
+        // Monitor if the mirror is stable.
+        if (mirrorStable)
         {
-            // Move into the monitoring state.
             l->sync->monitor();
         }
     }
@@ -15034,6 +15051,13 @@ error MegaClient::enableSync(const SyncConfig *syncConfig, SyncError &syncError,
     {
         Sync *s = syncs.back();
         newstate = s->state; //override state with the actual one from the sync
+
+        // Only internal backups can be resumed.
+        if (s->isBackup())
+        {
+            // And they should come up in the MONITOR state.
+            s->monitor();
+        }
 
         // note, we only update the remote node handle if successfully added
         // thus we avoid pairing to a new node if the sync failed.

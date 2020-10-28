@@ -666,15 +666,9 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
     mLocalPath = config.getLocalPath();
     LocalPath crootpath = LocalPath::fromPath(mLocalPath, *client->fsaccess);
 
-    //// dgw: TODO: Use SyncConfig when available.
-    //bool isBackup = false;
-
-    //isBackup |= mLocalPath.find("cls0") != mLocalPath.npos;
-    //isBackup |= mLocalPath.find("synca") != mLocalPath.npos;
-
     mBackupState = config.getType() == SyncConfig::TYPE_BACKUP  
-               ? SYNC_BACKUP_MIRROR
-               : SYNC_BACKUP_NONE;
+                   ? SYNC_BACKUP_MIRROR
+                   : SYNC_BACKUP_NONE;
 
     if (cdebris)
     {
