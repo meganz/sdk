@@ -1061,7 +1061,7 @@ void PosixFileSystemAccess::local2path(const string* local, string* path) const
 }
 
 // no legacy DOS garbage here...
-bool PosixFileSystemAccess::getsname(LocalPath&, LocalPath&) const
+bool PosixFileSystemAccess::getsname(const LocalPath&, LocalPath&) const
 {
     return false;
 }
