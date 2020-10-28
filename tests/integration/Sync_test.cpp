@@ -4122,6 +4122,10 @@ TEST(Sync, DetectsAndReportsNameClashes)
     // Wait for the client to process our changes.
     waitonsyncs(TIMEOUT, &client);
 
+    conflicts.clear();
+    client.conflictsDetected(conflicts);
+    ASSERT_EQ(0, conflicts.size());
+
     // Conflicts should be resolved.
     ASSERT_FALSE(client.conflictsDetected());
 }

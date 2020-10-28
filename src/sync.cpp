@@ -2046,7 +2046,10 @@ auto Sync::computeSyncTriplets(Node* cloudParent, const LocalNode& syncParent, v
             }
 
             // There should never be any conflicting triplets.
-            assert(tNext - tCurr < 2);
+            if (tNext - tCurr >= 2)
+            {
+                assert(tNext - tCurr < 2);
+            }
 
             auto* remoteNode = rCurr != rEnd ? *rCurr : nullptr;
             auto* triplet = tCurr != tEnd ? &triplets[tCurr] : nullptr;
@@ -2127,7 +2130,8 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
     SYNC_verbose << client->clientname << "Entering folder with "
         << row.syncNode->scanAgain  << "-"
         << row.syncNode->checkMovesAgain << "-"
-        << row.syncNode->syncAgain << " at "
+        << row.syncNode->syncAgain << " ("
+        << row.syncNode->conflicts << ") at "
         << fullPath.toPath(*client->fsaccess);
 
     // make sure any subtree flags are passed to child nodes, so we can clear the flag at this level
@@ -2424,6 +2428,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
         if (child.second->parentSetScanAgain) row.syncNode->setScanAgain(false, true, false);
         if (child.second->parentSetCheckMovesAgain) row.syncNode->setCheckMovesAgain(false, true, false);
         if (child.second->parentSetSyncAgain) row.syncNode->setSyncAgain(false, true, false);
+        if (child.second->parentSetContainsConflicts) row.syncNode->setContainsConflicts(false, true, false);
 
         child.second->parentSetScanAgain = false;  // we should only use this one once
     }
@@ -2432,7 +2437,8 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
                 << "Exiting folder with "
                 << row.syncNode->scanAgain  << "-"
                 << row.syncNode->checkMovesAgain << "-"
-                << row.syncNode->syncAgain << " at "
+                << row.syncNode->syncAgain << " ("
+                << row.syncNode->conflicts << ") at "
                 << fullPath.toPath(*client->fsaccess);
 
     return folderSynced && subfoldersSynced;
@@ -2458,6 +2464,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTab
         row.syncNode->parentSetScanAgain = false;
         row.syncNode->parentSetCheckMovesAgain = false;
         row.syncNode->parentSetSyncAgain = false;
+        row.syncNode->parentSetContainsConflicts = false;
     }
 
 
@@ -2541,15 +2548,15 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTab
     // Except if we previously had a folder (just itself) synced, allow recursing into that one.
     if (!row.fsClashingNames.empty() || !row.cloudClashingNames.empty())
     {
-        if (row.syncNode) row.syncNode->conflictDetected();
-        if (parentRow.syncNode) parentRow.syncNode->conflictDetected();
+        if (row.syncNode) row.syncNode->setContainsConflicts(true, false, false);
+        else parentRow.syncNode->setContainsConflicts(false, true, false);
 
         if (row.cloudNode && row.syncNode && row.fsNode &&
             row.syncNode->type == FOLDERNODE &&
             row.cloudNode->nodeHandle() == row.syncNode->syncedCloudNodeHandle &&
             row.fsNode->fsid != UNDEF && row.fsNode->fsid == row.syncNode->fsid)
         {
-            SYNC_verbose << "Name clashes at this already-synced folder.  We wll sync below though." << logTriplet(row, fullPath);
+            SYNC_verbose << "Name clashes at this already-synced folder.  We will sync below though." << logTriplet(row, fullPath);
         }
         else
         {
@@ -2565,7 +2572,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTab
         }
     }
 
-     bool rowSynced = false;
+    bool rowSynced = false;
 
     // each of the 8 possible cases of present/absent for this row
     if (row.syncNode)

@@ -1335,6 +1335,7 @@ LocalNode::LocalNode()
 , parentSetCheckMovesAgain(false)
 , parentSetSyncAgain(false)
 , parentSetScanAgain(false)
+, parentSetContainsConflicts(false)
 , scanInProgress(false)
 , scanObsolete(false)
 , useBlocked(TREE_RESOLVED)
@@ -1362,6 +1363,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     parentSetCheckMovesAgain = false;
     parentSetSyncAgain = false;
     parentSetScanAgain = false;
+    parentSetContainsConflicts = false;
     scanInProgress = false;
     scanObsolete = false;
     useBlocked = TREE_RESOLVED;
@@ -1527,6 +1529,22 @@ void LocalNode::setSyncAgain(bool doParent, bool doHere, bool doBelow)
     }
 
     parentSetSyncAgain = parentSetSyncAgain || doParent;
+}
+
+void LocalNode::setContainsConflicts(bool doParent, bool doHere, bool doBelow)
+{
+    // using the 3 flags for consistency & understandabilty but doBelow is not relevant
+    assert(!doBelow);
+
+    unsigned state = (doHere?1u:0u) << 1 | (doBelow?1u:0u);
+
+    conflicts = std::max<unsigned>(conflicts, state);
+    for (auto p = parent; p != NULL; p = p->parent)
+    {
+        p->conflicts = std::max<unsigned>(p->conflicts, TREE_DESCENDANT_FLAGGED);
+    }
+
+    parentSetContainsConflicts = parentSetContainsConflicts || doParent;
 }
 
 void LocalNode::setUseBlocked()
@@ -1860,55 +1878,55 @@ LocalNode::~LocalNode()
     //}
 }
 
-void LocalNode::conflictDetected(const TREESTATE conflicts)
-{
-    this->conflicts = conflicts;
-    conflictRefresh();
-}
-
-void LocalNode::conflictDetected()
-{
-    conflicts |= TREE_ACTION_HERE;
-    conflictRefresh();
-}
-
-void LocalNode::conflictRefresh()
-{
-    if (conflicts == TREE_RESOLVED)
-    {
-        return;
-    }
-
-    for (auto* node = parent; node; node = node->parent)
-    {
-        if (node->conflictsDetectedBelow())
-        {
-            return;
-        }
-
-        node->conflicts |= TREE_DESCENDANT_FLAGGED;
-    }
-}
-
+//void LocalNode::conflictDetected(const TREESTATE conflicts)
+//{
+//    this->conflicts = conflicts;
+//    conflictRefresh();
+//}
+//
+//void LocalNode::conflictDetected()
+//{
+//    conflicts |= TREE_ACTION_HERE;
+//    conflictRefresh();
+//}
+//
+//void LocalNode::conflictRefresh()
+//{
+//    if (conflicts == TREE_RESOLVED)
+//    {
+//        return;
+//    }
+//
+//    for (auto* node = parent; node; node = node->parent)
+//    {
+//        if (node->conflictsDetectedBelow())
+//        {
+//            return;
+//        }
+//
+//        node->conflicts |= TREE_DESCENDANT_FLAGGED;
+//    }
+//}
+//
 bool LocalNode::conflictsDetected() const
 {
     return conflicts != TREE_RESOLVED;
 }
-
-bool LocalNode::conflictsDetectedBelow() const
-{
-    return conflicts & TREE_DESCENDANT_FLAGGED;
-}
-
-bool LocalNode::conflictsDetectedHere() const
-{
-    return conflicts & TREE_ACTION_HERE;
-}
-
-void LocalNode::conflictsResolved()
-{
-    conflicts = TREE_RESOLVED;
-}
+//
+//bool LocalNode::conflictsDetectedBelow() const
+//{
+//    return conflicts & TREE_DESCENDANT_FLAGGED;
+//}
+//
+//bool LocalNode::conflictsDetectedHere() const
+//{
+//    return conflicts & TREE_ACTION_HERE;
+//}
+//
+//void LocalNode::conflictsResolved()
+//{
+//    conflicts = TREE_RESOLVED;
+//}
 
 //void LocalNode::detach(const bool recreate)
 //{

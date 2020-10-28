@@ -521,6 +521,7 @@ struct MEGA_API LocalNode : public Cacheable
         unsigned parentSetScanAgain : 1;
         unsigned parentSetCheckMovesAgain : 1;
         unsigned parentSetSyncAgain : 1;
+        unsigned parentSetContainsConflicts : 1;
 
     };
 
@@ -546,6 +547,8 @@ public:
 
     void setUseBlocked();
     void setScanBlocked();
+
+    void setContainsConflicts(bool doParent, bool doHere, bool doBelow);
 
     bool checkForScanBlocked(FSNode* fsnode);
 
@@ -621,26 +624,26 @@ public:
 
     ~LocalNode();
 
-    // Update this node's conflict state.
-    void conflictDetected(const TREESTATE conflicts);
+    //// Update this node's conflict state.
+    //void conflictDetected(const TREESTATE conflicts);
 
-    // Signal that a name conflict has been detected in this node.
-    void conflictDetected();
+    //// Signal that a name conflict has been detected in this node.
+    //void conflictDetected();
 
-    // Propagate our conflict state to our parents.
-    void conflictRefresh();
+    //// Propagate our conflict state to our parents.
+    //void conflictRefresh();
 
-    // True if any name conflicts have been detected in this subtree.
+    //// True if any name conflicts have been detected in this subtree.
     bool conflictsDetected() const;
 
-    // True if any conflicts have been detected in any of our children.
-    bool conflictsDetectedBelow() const;
+    //// True if any conflicts have been detected in any of our children.
+    //bool conflictsDetectedBelow() const;
 
-    // True if any conflicts have been detected by this node.
-    bool conflictsDetectedHere() const;
+    //// True if any conflicts have been detected by this node.
+    //bool conflictsDetectedHere() const;
 
-    // Clears this node's conflict detection state.
-    void conflictsResolved();
+    //// Clears this node's conflict detection state.
+    //void conflictsResolved();
 
     //// Detach this node from it's remote associate.
     //void detach(const bool recreate = false);
