@@ -1195,10 +1195,10 @@ struct StandardClient : public MegaApp
 
     std::function<void (StandardClient& mc, promise<bool>& pb)> onFetchNodes;
 
-    void fetchnodes(promise<bool>& pb)
+    void fetchnodes(bool noCache, promise<bool>& pb)
     {
         resultproc.prepresult(FETCHNODES, ++next_request_tag,
-            [&](){ client.fetchnodes(); },
+            [&](){ client.fetchnodes(noCache); },
             [this, &pb](error e)
             {
                 if (e)
@@ -1942,61 +1942,7 @@ struct StandardClient : public MegaApp
         pb.set_value(false);
     }
 
-
-
-    void waitonsyncs(chrono::seconds d = chrono::seconds(2))
-    {
-        auto start = chrono::steady_clock::now();
-        for (;;)
-        {
-            bool any_add_del = false;;
-            vector<int> syncstates;
-
-            thread_do([&syncstates, &any_add_del, this](StandardClient& mc, promise<bool>&)
-            {
-                for (auto& sync : mc.client.syncs)
-                {
-                    syncstates.push_back(sync->state);
-                    if (sync->deleteq.size() || sync->insertq.size())
-                        any_add_del = true;
-                }
-                if (!(client.todebris.empty() && client.tounlink.empty() && client.synccreate.empty()))
-                {
-                    any_add_del = true;
-                }
-                if (!client.transfers[GET].empty() || !client.transfers[PUT].empty())
-                {
-                    any_add_del = true;
-                }
-            });
-            bool allactive = true;
-            {
-                lock_guard<mutex> g(StandardClient::om);
-                //std::out() << "sync state: ";
-                //for (auto n : syncstates)
-                //{
-                //    out() << n;
-                //    if (n != SYNC_ACTIVE) allactive = false;
-                //}
-                //out() << endl;
-            }
-
-            if (any_add_del || debugging)
-            {
-                start = chrono::steady_clock::now();
-            }
-
-            if (allactive && ((chrono::steady_clock::now() - start) > d) && ((chrono::steady_clock::now() - lastcb) > d))
-            {
-               break;
-            }
-//out() << "waiting 500" << endl;
-            WaitMillisec(500);
-        }
-
-    }
-
-    bool login_reset(const string& user, const string& pw)
+    bool login_reset(const string& user, const string& pw, bool noCache = false)
     {
         future<bool> p1;
         p1 = thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.preloginFromEnv(user, pb); });
@@ -2011,7 +1957,7 @@ struct StandardClient : public MegaApp
             out() << "loginFromEnv failed" << endl;
             return false;
         }
-        p1 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.fetchnodes(pb); });
+        p1 = thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.fetchnodes(noCache, pb); });
         if (!waitonresults(&p1)) {
             out() << "fetchnodes failed" << endl;
             return false;
@@ -2029,9 +1975,9 @@ struct StandardClient : public MegaApp
         return true;
     }
 
-    bool login_reset_makeremotenodes(const string& user, const string& pw, const string& prefix, int depth, int fanout)
+    bool login_reset_makeremotenodes(const string& user, const string& pw, const string& prefix, int depth, int fanout, bool noCache = false)
     {
-        if (!login_reset(user, pw))
+        if (!login_reset(user, pw, noCache))
         {
             out() << "login_reset failed" << endl;
             return false;
@@ -2045,14 +1991,14 @@ struct StandardClient : public MegaApp
         return true;
     }
 
-    bool login_fetchnodes(const string& user, const string& pw, bool makeBaseFolder = false)
+    bool login_fetchnodes(const string& user, const string& pw, bool makeBaseFolder = false, bool noCache = false)
     {
         future<bool> p2;
         p2 = thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.preloginFromEnv(user, pb); });
         if (!waitonresults(&p2)) return false;
         p2 = thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.loginFromEnv(user, pw, pb); });
         if (!waitonresults(&p2)) return false;
-        p2 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.fetchnodes(pb); });
+        p2 = thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.fetchnodes(noCache, pb); });
         if (!waitonresults(&p2)) return false;
         p2 = thread_do([makeBaseFolder](StandardClient& sc, promise<bool>& pb) { sc.ensureTestBaseFolder(makeBaseFolder, pb); });
         if (!waitonresults(&p2)) return false;
@@ -2064,7 +2010,7 @@ struct StandardClient : public MegaApp
         future<bool> p2;
         p2 = thread_do([=](StandardClient& sc, promise<bool>& pb) { sc.loginFromSession(session, pb); });
         if (!waitonresults(&p2)) return false;
-        p2 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.fetchnodes(pb); });
+        p2 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.fetchnodes(false, pb); });
         if (!waitonresults(&p2)) return false;
         p2 = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.ensureTestBaseFolder(false, pb); });
         if (!waitonresults(&p2)) return false;
