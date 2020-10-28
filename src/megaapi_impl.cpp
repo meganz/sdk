@@ -23150,14 +23150,14 @@ void MegaApiImpl::sendPendingRequests()
             if (!handleContainerStr) { e = API_EACCESS; break; }
 
             std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(handleContainerStr, &client->key));
-            if (!tlvRecords || !tlvRecords->find("h")) { e = API_ENOENT; break; }
+            if (!tlvRecords || !tlvRecords->find("h")) { e = API_EINTERNAL; break; }
 
             const string& handleStr = tlvRecords->get("h");
             handle h = MegaApi::base64ToHandle(handleStr.c_str());
             if (h == UNDEF) { e = API_ENOENT; break; }
 
             // get Node of remote "My Backups" folder
-            MegaNode* myBackupsNode = getNodeByHandle(h);
+            Node* myBackupsNode = client->nodebyhandle(h);
             if (!myBackupsNode) { e = API_ENOENT; break; }
 
             // get `DEVICE_NAME`, from user attributes
@@ -23166,9 +23166,9 @@ void MegaApiImpl::sendPendingRequests()
             if (!deviceNameContainerStr) { e = API_EINCOMPLETE; break; }
 
             tlvRecords.reset(TLVstore::containerToTLVrecords(deviceNameContainerStr, &client->key));
-            if (!tlvRecords || !tlvRecords->find("n")) { e = API_EINCOMPLETE; break; } // is 'n' the right key ??
+            if (!tlvRecords || !tlvRecords->find("device-id")) { e = API_EINCOMPLETE; break; }
 
-            const string& devName64Str = tlvRecords->get("n");
+            const string& devName64Str = tlvRecords->get("device-id");
             string deviceName = Base64::btoa(devName64Str);
             if (deviceName.empty()) { e = API_EINCOMPLETE; break; }
 
@@ -23176,85 +23176,107 @@ void MegaApiImpl::sendPendingRequests()
             const string& deviceId = client->getDeviceid();
             if (deviceId.empty()) { e = API_EINCOMPLETE; break; }
 
-            // loop remote children of "My Backups" folder, to find `DEVICE_NAME`-with-'device-id' node
-            const MegaNodeList* nodeList = myBackupsNode->getChildren();
-            MegaNode* deviceNameNode = nullptr;
-            for (int i = 0; i < nodeList->size(); ++i)
+            // serch for remote folder "My Backups"/`DEVICE_NAME`/
+            Node* deviceNameNode = client->childnodebyname(myBackupsNode, deviceName.c_str(), false);
+            if (deviceNameNode) // validate this node
             {
-                MegaNode* child = nodeList->get(i);
-
-                // get folder name
-                const char* name = child->getName();
-                bool gotName = deviceName == name;
+                if(deviceNameNode->type != FOLDERNODE) { e = API_EACCESS; break; }
 
                 // get 'device-id' tag
-                const char* id = child->getCustomAttr("device-id");
-                bool gotId = deviceId == id;
+                const auto& childAttrs = deviceNameNode->attrs.map;
+                nameid attrId = AttrMap::string2nameid("dev-id"); // "device-id" would be too long
+                auto found = childAttrs.find(attrId);
 
-                // determine whether we found our node or not
-                if (!gotName && !gotId) { continue; } // ignore this child folder
-
-                if (gotName && gotId) // got it, use this one to add another backup to it
-                {
-                    deviceNameNode = child;
-                    break;
-                }
-
-                // there's an error if only one of the folder's {name, id} is correct and the other is wrong.
-                e = API_EINCOMPLETE;
-                break;
+                // a folder without the attribute, or with it but with different value, will not be accessed
+                if (found == childAttrs.end() || found->second != deviceId) { e = API_EACCESS; break; }
             }
-
-            if (e != API_OK) { break; }
-
-            if (!deviceNameNode)
+            else // create `DEVICE_NAME` remote dir
             {
-                // create "My Backups"/`DEVICE_NAME`/
-                // HOW ? Like this?
-                auto nextSyncTag = client->nextSyncTag();
-                auto sync = make_unique<MegaSyncPrivate>(nullptr, deviceName.c_str(), h, nextSyncTag);
-                sync->setListener(request->getSyncListener());
+                vector<NewNode> newnodes(1);
+                NewNode *newnode = &newnodes[0];
 
-                // NOW WHAT ? Something like this?
-                std::unique_ptr<char[]> remotePath{ getNodePathByNodeHandle(h) };
-                SyncConfig syncConfig{ nextSyncTag, nullptr, deviceName.c_str(), h, remotePath.get(),
-                                       0, {}, true, SyncConfig::TYPE_BACKUP };
+                // set up new node as folder node
+                newnode->type = FOLDERNODE;
+                newnode->nodehandle = 0; // why not UNDEF?
 
-                SyncError syncError = NO_SYNC_ERROR;
-                e = client->addsync(syncConfig, DEBRISFOLDER, nullptr, syncError, true, sync.get());
+                // generate fresh random key for this folder node
+                byte buf[FOLDERNODEKEYLENGTH];
+                client->rng.genblock(buf, FOLDERNODEKEYLENGTH);
+                newnode->nodekey.assign((char*)buf, FOLDERNODEKEYLENGTH);
+                SymmCipher key;
+                key.setkey(buf);
 
-                fireOnSyncAdded(sync.get(), MegaSync::NEW);
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                // generate fresh attribute object with the folder name
+                AttrMap attrs;
+                fsAccess->normalize(&deviceName);
+                attrs.map['n'] = deviceName;
+                nameid attrId = AttrMap::string2nameid("dev-id"); // "device-id" would be too long
+                attrs.map[attrId] = deviceId;
 
-                // Update deviceNameNode somehow?
-                // HOW ?
+                // JSON-encode object and encrypt attribute string
+                string attrstring;
+                attrs.getjson(&attrstring);
+                newnode->attrstring.reset(new string);
+                client->makeattr(&key, newnode->attrstring, attrstring.c_str());
 
-                // tag the new node with `dev:<device-id>` in `attrstring`
-                // HOW ?
+                // add the newly generated folder node
+                client->putnodes(h, move(newnodes));
+
+                // Get the new node & handle.
+                // HOW ? How can it wait until the remote folder was created?
+
+                // Update deviceNameNode somehow
             }
 
-            // the name of the backup folder was set when the request was created
-            const char* backupName = request->getName();
+            //
+            // create backupName remote dir
 
-            // create "My Backups"/`DEVICE_NAME`/backupName/
-            // HOW ? Like this?
+            vector<NewNode> newnodes(1);
+            NewNode *newnode = &newnodes[0];
+
+            // set up new node as folder node
+            newnode->type = FOLDERNODE;
+            newnode->nodehandle = 0; // why not UNDEF?
+
+            // generate fresh random key for this folder node
+            byte buf[FOLDERNODEKEYLENGTH];
+            client->rng.genblock(buf, FOLDERNODEKEYLENGTH);
+            newnode->nodekey.assign((char*)buf, FOLDERNODEKEYLENGTH);
+            SymmCipher key;
+            key.setkey(buf);
+
+            // generate fresh attribute object with the folder name
+            AttrMap attrs;
+            fsAccess->normalize(&backupName);
+            attrs.map['n'] = backupName;
+            nameid attrId = AttrMap::string2nameid("dev-id"); // "device-id" would be too long
+            attrs.map[attrId] = deviceId;
+
+            // JSON-encode object and encrypt attribute string
+            string attrstring;
+            attrs.getjson(&attrstring);
+            newnode->attrstring.reset(new string);
+            client->makeattr(&key, newnode->attrstring, attrstring.c_str());
+
+            // add the newly generated folder node
+            client->putnodes(deviceNameNode->nodehandle, move(newnodes));
+
+            // Get the new node & handle.
+            // HOW ? How can it wait until the remote folder was created?
+            handle bkpHandle = UNDEF;
+
+            // create the SyncConfig
             auto nextSyncTag = client->nextSyncTag();
-            auto sync = make_unique<MegaSyncPrivate>(request->getFile(), request->getName(), deviceNameNode->getHandle(), nextSyncTag);
+            std::unique_ptr<char[]> remotePath { getNodePathByNodeHandle(bkpHandle) };
+            SyncConfig syncConfig { nextSyncTag, nullptr, deviceName.c_str(), bkpHandle, remotePath.get(),
+                                    0, {}, true, SyncConfig::TYPE_BACKUP };
+
+            // What should be done with syncConfig ?  Something like this?
+            auto sync = make_unique<MegaSyncPrivate>(localPath.c_str(), backupName.c_str(), bkpHandle, nextSyncTag);
             sync->setListener(request->getSyncListener());
-
-            // NOW WHAT ? Something like this?
-            std::unique_ptr<char[]> remotePath{ getNodePathByNodeHandle(request->getNodeHandle()) };
-            SyncConfig syncConfig{ nextSyncTag, request->getFile(), request->getName(), deviceNameNode->getHandle(), remotePath.get(),
-                                   0, {}, true, SyncConfig::TYPE_BACKUP };
-
-            SyncError syncError = NO_SYNC_ERROR;
-            e = client->addsync(syncConfig, DEBRISFOLDER, nullptr, syncError, true, sync.get());
 
             fireOnSyncAdded(sync.get(), MegaSync::NEW);
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-
-            // tag the new node with `bak:<device-id>` in `attrstring`
-            // HOW ?
 
             break;
         }
