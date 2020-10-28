@@ -1733,22 +1733,10 @@ bool WinDirAccess::dopen(LocalPath* nameArg, FileAccess* f, bool glob)
 
         if (glob)
         {
-            wchar_t* bp = const_cast<wchar_t*>(name.c_str());
-
-            // store base path for glob() emulation
-            int p = int(wcslen(bp));
-
-            while (p--)
+            if (size_t index = nameArg->getLeafnameByteIndex(gWfsa))
             {
-                if (bp[p] == '/' || bp[p] == '\\')
-                {
-                    break;
-                }
-            }
-
-            if (p >= 0)
-            {
-                globbase.assign((char*)bp, (p + 1) * sizeof(wchar_t));
+                globbase = *nameArg;
+                globbase.truncate(index);
             }
             else
             {
@@ -1777,6 +1765,7 @@ bool WinDirAccess::dnext(LocalPath& /*path*/, LocalPath& nameArg, bool /*follows
           || (ffd.cFileName[1] && ((ffd.cFileName[1] != '.') || ffd.cFileName[2]))))
         {
             nameArg.localpath.assign(ffd.cFileName, wcslen(ffd.cFileName));
+            nameArg.prependWithSeparator(globbase, gWfsa.localseparator);
 
             if (type)
             {

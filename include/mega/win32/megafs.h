@@ -33,7 +33,7 @@ struct MEGA_API WinDirAccess : public DirAccess
     bool ffdvalid;
     WIN32_FIND_DATAW ffd;
     HANDLE hFind;
-    string globbase;
+    LocalPath globbase;
 
     WIN32_FIND_DATAW currentItemAttributes;
     friend class WinFileAccess;
@@ -53,7 +53,7 @@ public:
     using FileSystemAccess::getlocalfstype;
 
     std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
-    
+
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
 
     DirAccess* newdiraccess() override;
