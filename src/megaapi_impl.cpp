@@ -26455,28 +26455,29 @@ void MegaFolderDownloadController::start(MegaNode *node)
         }
         deleteNode = true;
     }
+    LocalPath path;
+    if (transfer->getParentPath())
+    {
+        path = LocalPath::fromPath(transfer->getParentPath(), *client->fsaccess);
+    }
+    else
+    {
+        path = LocalPath::fromPath(".", *client->fsaccess);
+        path.appendWithSeparator(LocalPath::fromPath("", *client->fsaccess), true, client->fsaccess->localseparator);
+    }
 
-    std::thread thread([this, deleteNode, node]() {
-        LocalPath path;
-        if (transfer->getParentPath())
-        {
-            path = LocalPath::fromPath(transfer->getParentPath(), *client->fsaccess);
-        }
-        else
-        {
-            path = LocalPath::fromPath(".", *client->fsaccess);
-            path.appendWithSeparator(LocalPath::fromPath("", *client->fsaccess), true, client->fsaccess->localseparator);
-        }
+    FileSystemType fsType = client->fsaccess->getlocalfstype(path);
+    const LocalPath &name = (!transfer->getFileName())
+         ? LocalPath::fromName(node->getName(), *client->fsaccess, fsType)
+         : LocalPath::fromName(transfer->getFileName(), *client->fsaccess, fsType);
 
-        FileSystemType fsType = client->fsaccess->getlocalfstype(path);
-        const LocalPath &name = (!transfer->getFileName())
-             ? LocalPath::fromName(node->getName(), *client->fsaccess, fsType)
-             : LocalPath::fromName(transfer->getFileName(), *client->fsaccess, fsType);
+    path.appendWithSeparator(name, true, client->fsaccess->localseparator);
+    path.ensureWinExtendedPathLenPrefix();
+    transfer->setPath(path.toPath(*client->fsaccess).c_str());
 
-        path.appendWithSeparator(name, true, client->fsaccess->localseparator);
-        path.ensureWinExtendedPathLenPrefix();
-        transfer->setPath(path.toPath(*client->fsaccess).c_str());
-        scanFolder(node, path, fsType);
+    std::thread thread([this, deleteNode, node, fsType, &path]() {
+        LocalPath localPath = std::move(path);
+        scanFolder(node, localPath, fsType);
         createFolder();
         downloadFiles(fsType);
         checkCompletion();
