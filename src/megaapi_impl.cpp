@@ -25014,8 +25014,9 @@ void MegaFolderUploadController::start(MegaNode*)
         return;
     }
 
-    std::thread thread([this]() {
-        auto localpath = LocalPath::fromPath(transfer->getPath(), *client->fsaccess);
+    LocalPath path = LocalPath::fromPath(transfer->getPath(), *client->fsaccess);
+    std::thread thread([this, &path]() {
+        LocalPath localpath = std::move(path);
         scanFolder(transfer->getParentHandle(), transfer->getParentHandle(), localpath, transfer->getFileName());
         if (!mFolderStructure.empty())
         {
