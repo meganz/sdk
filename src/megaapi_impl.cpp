@@ -18988,12 +18988,29 @@ LocalPath MegaApiImpl::getLocalPathFromName(const char *name, FileSystemType fsT
     return LocalPath::fromName(name, *client->fsaccess, fsType);
 }
 
-string MegaApiImpl::LocalPathToPath(LocalPath &localpath)
+string MegaApiImpl::LocalPathToPath(const LocalPath &localpath)
 {
     SdkMutexGuard g(sdkMutex);
     return localpath.toPath(*client->fsaccess);
 }
 
+string MegaApiImpl::LocalPathToName(LocalPath &localpath, FileSystemType fsType)
+{
+    SdkMutexGuard g(sdkMutex);
+    return localpath.toName(*client->fsaccess, fsType);
+}
+
+FileSystemType MegaApiImpl::getLocalfstypeFromPath(const LocalPath& localpath)
+{
+    SdkMutexGuard g(sdkMutex);
+    return client->fsaccess->getlocalfstype(localpath);
+}
+
+DirAccess* MegaApiImpl::getNewDirAccess()
+{
+    SdkMutexGuard g(sdkMutex);
+    return client->fsaccess->newdiraccess();
+}
 
 error MegaApiImpl::processAbortBackupRequest(MegaRequestPrivate *request, error e)
 {
@@ -25020,6 +25037,8 @@ void MegaFolderUploadController::start(MegaNode*)
     transfer->setStartTime(Waiter::ds);
     transfer->setState(MegaTransfer::STATE_QUEUED);
     megaApi->fireOnTransferStart(transfer);
+    mLocalSeparator = client->fsaccess->localseparator;
+    mFollowsymlinks = client->followsymlinks;
     mMutex.lock(); // adquire MegaFolderUploadController mutex with SDK thread
 
     unique_ptr<MegaNode> parent(megaApi->getNodeByHandle(transfer->getParentHandle()));
@@ -25190,19 +25209,19 @@ MegaFolderUploadController::~MegaFolderUploadController()
 void MegaFolderUploadController::scanFolder(handle targetHandle, handle parentHandle, LocalPath& localPath, std::string folderName)
 {
     recursive++;
-    unique_ptr<DirAccess> da(client->fsaccess->newdiraccess());
+    unique_ptr<DirAccess> da(megaApi->getNewDirAccess());
     if (!da->dopen(&localPath, nullptr, false))
     {
-        LOG_err << "Can't open local directory" << localPath.toPath(*client->fsaccess);
+        LOG_err << "Can't open local directory" << megaApi->LocalPathToPath(localPath);
         recursive--;
         mLastError = API_EACCESS;
         mIncompleteTransfers++;
         return;
     }
 
-    Node *parentNode = client->nodebyhandle(parentHandle);
-    Node *folder = client->childnodebyname(parentNode, folderName.c_str(), false);
-    bool folderExists = folder && folder->type == FOLDERNODE;
+    unique_ptr<MegaNode> parentNode(megaApi->getNodeByHandle(parentHandle));
+    unique_ptr<MegaNode> folder(megaApi->getChildNode(parentNode.get(), folderName.c_str()));
+    bool folderExists = folder && folder->getType() == FOLDERNODE;
 
     // if folder doesn't exists in cloud drive, create a new node and add to vector of new nodes
     MegaHandle newNodeHandle = !folderExists
@@ -25212,24 +25231,24 @@ void MegaFolderUploadController::scanFolder(handle targetHandle, handle parentHa
     assert(folderExists || (newNodeHandle != UNDEF));
     LocalPath localname;
     nodetype_t dirEntryType;
-    FileSystemType fsType = client->fsaccess->getlocalfstype(localPath);
-    while (da->dnext(localPath, localname, client->followsymlinks, &dirEntryType))
+    FileSystemType fsType = megaApi->getLocalfstypeFromPath(localPath);
+    while (da->dnext(localPath, localname, mFollowsymlinks, &dirEntryType))
     {
         ScopedLengthRestore restoreLen(localPath);
-        localPath.appendWithSeparator(localname, false, client->fsaccess->localseparator);
+        localPath.appendWithSeparator(localname, false, mLocalSeparator);
         if (dirEntryType == FILENODE)
         {
             mPendingFilesToProcess++;
             (folderExists)
-                ? mFolderToPendingFiles[folder->nodehandle].emplace_back(localPath)
+                ? mFolderToPendingFiles[folder->getHandle()].emplace_back(localPath)
                 : mFolderToPendingFiles[newNodeHandle].emplace_back(localPath);
         }
         else if (dirEntryType == FOLDERNODE)
         {
             // if folder exists, call scanFolderNode with parent handle as new target for each child
             (folderExists)
-                ? scanFolder(folder->nodehandle, folder->nodehandle, localPath, localname.toName(*client->fsaccess, fsType))
-                : scanFolder(targetHandle, newNodeHandle, localPath, localname.toName(*client->fsaccess, fsType));
+                ? scanFolder(folder->getHandle(), folder->getHandle(), localPath, megaApi->LocalPathToName(localname, fsType))
+                : scanFolder(targetHandle, newNodeHandle, localPath, megaApi->LocalPathToName(localname, fsType));
         }
     }
     recursive--;
@@ -25307,8 +25326,8 @@ void MegaFolderUploadController::uploadFiles()
            for (size_t j = 0; j < pendingFiles.size(); j++)
            {
                const LocalPath &localpath = pendingFiles.at(j);
-               FileSystemType fsType = client->fsaccess->getlocalfstype(localpath);
-               MegaTransferPrivate *transfer = megaApi->createUploadTransfer(false, localpath.toPath(*client->fsaccess).c_str(),
+               FileSystemType fsType = megaApi->getLocalfstypeFromPath(localpath);
+               MegaTransferPrivate *transfer = megaApi->createUploadTransfer(false, megaApi->LocalPathToPath(localpath).c_str(),
                                        parentNode.get(), nullptr, (const char *)NULL,
                                        -1, tag, false, NULL, false, false, fsType, this);
 

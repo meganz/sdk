@@ -221,6 +221,7 @@ protected:
     std::set<MegaTransferPrivate*> subTransfers;
     int mIncompleteTransfers = { 0 };
     MegaErrorPrivate mLastError = { API_OK };
+    std::string mLocalSeparator;
 };
 
 class MegaFolderUploadController : public MegaTransferListener, public MegaRecursiveOperation
@@ -235,6 +236,10 @@ public:
     ~MegaFolderUploadController();
 
 protected:
+
+    // if set, symlinks will be followed
+    bool mFollowsymlinks;
+
     // number of folders that are pending to be created in cloud drive
     int mPendingFolders;
 
@@ -429,7 +434,6 @@ public:
 protected:
     // each element is a pair formed by the folder LocalPath and a vector that contains all children folders
     std::vector<std::pair<LocalPath, std::vector<unique_ptr<MegaNode>>>> mLocalTree;
-    std::string mLocalSeparator;
 };
 
 class MegaNodePrivate : public MegaNode, public Cacheable
@@ -2508,7 +2512,10 @@ class MegaApiImpl : public MegaApp
         static void removeRecursively(const char *path);
 
         LocalPath getLocalPathFromName(const char *name, FileSystemType fsType);
-        string LocalPathToPath(LocalPath &localpath);
+        string LocalPathToPath(const LocalPath &localpath);
+        string LocalPathToName(LocalPath &localpath, FileSystemType fsType);
+        FileSystemType getLocalfstypeFromPath(const LocalPath& path);
+        DirAccess* getNewDirAccess();
 
         //Fingerprint
         char *getFingerprint(const char *filePath);
