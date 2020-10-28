@@ -18982,6 +18982,18 @@ void MegaApiImpl::removeRecursively(const char *path)
 #endif
 }
 
+LocalPath MegaApiImpl::getLocalPathFromName(const char *name, FileSystemType fsType)
+{
+    SdkMutexGuard g(sdkMutex);
+    return LocalPath::fromName(name, *client->fsaccess, fsType);
+}
+
+string MegaApiImpl::LocalPathToPath(LocalPath &localpath)
+{
+    SdkMutexGuard g(sdkMutex);
+    return localpath.toPath(*client->fsaccess);
+}
+
 
 error MegaApiImpl::processAbortBackupRequest(MegaRequestPrivate *request, error e)
 {
@@ -26476,6 +26488,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
     transfer->setStartTime(Waiter::ds);
     transfer->setState(MegaTransfer::STATE_QUEUED);
     megaApi->fireOnTransferStart(transfer);
+    mLocalSeparator = client->fsaccess->localseparator;
 
     bool deleteNode = false;
     if (!node)
@@ -26634,7 +26647,7 @@ void MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpa
 
     if (!children)
     {
-        LOG_err << "Child nodes not found: " << localpath.toPath(*client->fsaccess);
+        LOG_err << "Child nodes not found: " << megaApi->LocalPathToPath(localpath);
         recursive--;
         mLastError = API_ENOENT;
         mIncompleteTransfers++;
@@ -26653,7 +26666,7 @@ void MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpa
         else
         {
             ScopedLengthRestore restoreLen(localpath);
-            localpath.appendWithSeparator(LocalPath::fromName(child->getName(), *client->fsaccess, fsType), true, client->fsaccess->localseparator);
+            localpath.appendWithSeparator(megaApi->getLocalPathFromName(child->getName(), fsType), true, mLocalSeparator);
             scanFolder(child, localpath, fsType);
         }
     }
@@ -26696,8 +26709,8 @@ void MegaFolderDownloadController::downloadFiles(FileSystemType fsType)
         {
              MegaNode &node = *(nodeVector.at(i).get());
              ScopedLengthRestore restoreLen(localpath);
-             localpath.appendWithSeparator(LocalPath::fromName(node.getName(), *client->fsaccess, fsType), true, client->fsaccess->localseparator);
-             string utf8path = localpath.toPath(*client->fsaccess);
+             localpath.appendWithSeparator(megaApi->getLocalPathFromName(node.getName(), fsType), true, mLocalSeparator);
+             string utf8path = megaApi->LocalPathToPath(localpath);
              MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), tag, transfer->getAppData(), this);
              transferQueue.push(transferDownload);
              pendingTransfers++;

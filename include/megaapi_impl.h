@@ -429,6 +429,7 @@ public:
 protected:
     // each element is a pair formed by the folder LocalPath and a vector that contains all children folders
     std::vector<std::pair<LocalPath, std::vector<unique_ptr<MegaNode>>>> mLocalTree;
+    std::string mLocalSeparator;
 };
 
 class MegaNodePrivate : public MegaNode, public Cacheable
@@ -2505,6 +2506,9 @@ class MegaApiImpl : public MegaApp
         int getAccess(MegaNode* node);
         long long getSize(MegaNode *node);
         static void removeRecursively(const char *path);
+
+        LocalPath getLocalPathFromName(const char *name, FileSystemType fsType);
+        string LocalPathToPath(LocalPath &localpath);
 
         //Fingerprint
         char *getFingerprint(const char *filePath);
