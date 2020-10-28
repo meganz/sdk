@@ -1493,41 +1493,10 @@ char *MegaApiImpl::getBlockedPath()
 
 void MegaApiImpl::backupFolder(const char *localFolder, const char *backupName, MegaRequestListener *listener)
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_FOLDER);
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_FOLDER, listener);
+    request->setFile(localFolder);
+    request->setName(backupName);
 
-    if (localFolder && *localFolder)
-    {
-        // set local path
-        string path(localFolder);
-#if defined(_WIN32) && !defined(WINDOWS_PHONE)
-        if (!PathIsRelativeA(path.c_str()) && ((path.size() < 2) || path.compare(0, 2, "\\\\")))
-            path.insert(0, "\\\\?\\");
-#endif
-        request->setFile(path.c_str());
-
-        // set backup name
-        if (backupName && *backupName)  request->setName(backupName);
-
-        else
-        {
-            // trim trailing path separator(s)
-            while (!path.empty() && (path.back() == '\\' || path.back() == '/'))  path.pop_back();
-
-            // find the last non-trailing separator
-            auto sep = path.find_last_of("\\/");
-
-            // set the name to the last leaf
-            if (sep == string::npos)  request->setName(path.c_str());
-
-            else
-            {
-                const string& leaf = path.substr(sep + 1);
-                request->setName(leaf.c_str());
-            }
-        }
-    }
-
-    request->setListener(listener);
     requestQueue.push(request);
     waiter->notify();  // validate and continue in MegaApiImpl::sendPendingRequests()
 }
@@ -23148,10 +23117,29 @@ void MegaApiImpl::sendPendingRequests()
                                                            request->getNodeHandle()));
             break;
         }
-        case MegaRequest::TYPE_BACKUP_FOLDER:
+        case MegaRequest::TYPE_BACKUP_FOLDER: // see MegaApiImpl::backupFolder()
         {
-            // validate the request
-            if (!request->getFile() || !request->getName()) { e = API_EACCESS; break; }
+            // validate local path and backup name
+            string localPath(request->getFile());
+            string backupName(request->getName());
+
+            if (backupName.empty()) // get the last leaf of local path
+            {
+                // trim trailing path separator(s)
+                while (!localPath.empty() && (localPath.back() == '\\' || localPath.back() == '/'))  localPath.pop_back();
+
+                // find the last non-trailing separator
+                auto sep = localPath.find_last_of("\\/");
+
+                backupName = sep == string::npos ? localPath : localPath.substr(sep + 1);
+            }
+
+            if (localPath.empty()) { e = API_EARGS; break; }
+
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+            if (!PathIsRelativeA(localPath.c_str()) && ((localPath.size() < 2) || localPath.compare(0, 2, "\\\\")))
+                localPath.insert(0, "\\\\?\\");
+#endif
 
             // get current user
             User* u = client->ownuser();
