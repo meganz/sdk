@@ -6390,6 +6390,11 @@ void MegaApiImpl::loop()
     sdkMutex.unlock();
 }
 
+void MegaApiImpl::createRemoteFolder(handle h, vector<NewNode>&& newnodes, const char *cauth, std::function<void(const Error&, targettype_t , vector<NewNode>&)> f)
+{
+    SdkMutexGuard g(sdkMutex);
+    client->putnodes(h, move(newnodes), cauth, move(f));
+}
 
 void MegaApiImpl::createFolder(const char *name, MegaNode *parent, MegaRequestListener *listener)
 {
@@ -25225,7 +25230,7 @@ void MegaFolderUploadController::createFolder()
         assert(it->second.size());
         handle targetHandle = it->first;
         vector<NewNode> &newnodes = it->second;
-        client->putnodes(targetHandle, move(newnodes), "NULL", [this](const Error& e, targettype_t t, vector<NewNode>& nn)
+        megaApi->createRemoteFolder(targetHandle, move(newnodes), "NULL", [this](const Error& e, targettype_t t, vector<NewNode>& nn)
         {
             // lambda function that will be executed as completion function in putnodes procresult
             mLastError = e;

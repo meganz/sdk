@@ -2249,6 +2249,7 @@ class MegaApiImpl : public MegaApp
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         bool createLocalFolder(const char *path);
+        void createRemoteFolder(handle h, vector<NewNode>&& newnodes, const char *cauth, std::function<void(const Error&, targettype_t , vector<NewNode>&)> f);
         MegaErrorPrivate createLocalFolder(LocalPath & localPath);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
         void moveNode(MegaNode* node, MegaNode* newParent, const char *newName, MegaRequestListener *listener = NULL);
