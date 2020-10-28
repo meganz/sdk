@@ -6420,6 +6420,35 @@ bool MegaApiImpl::createLocalFolder(const char *path)
     return success;
 }
 
+MegaErrorPrivate MegaApiImpl::createLocalFolder(LocalPath & localPath)
+{
+    SdkMutexGuard g(sdkMutex);
+    auto da = client->fsaccess->newfileaccess();
+    if (!da->fopen(localPath, true, false))
+    {
+        if (!client->fsaccess->mkdirlocal(localPath))
+        {
+            da.reset();
+            LOG_err << "Unable to create folder: " << localPath.toPath(*client->fsaccess);
+            return API_EWRITE;
+        }
+    }
+    else if (da->type == FILENODE)
+    {
+        da.reset();
+        LOG_err << "Local file detected where there should be a folder: " << localPath.toPath(*client->fsaccess);
+        return API_EARGS;
+    }
+    else
+    {
+        da.reset();
+        LOG_debug << "Already existing folder detected: " << localPath.toPath(*client->fsaccess);
+        return API_EEXIST;
+    }
+    da.reset();
+    return API_OK;
+}
+
 void MegaApiImpl::moveNode(MegaNode *node, MegaNode *newParent, const char *newName, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_MOVE, listener);
@@ -26637,37 +26666,13 @@ void MegaFolderDownloadController::createFolder()
     while (it != mLocalTree.end())
     {
         LocalPath &localpath = it->first;
-        auto da = client->fsaccess->newfileaccess();
-        if (!da->fopen(localpath, true, false))
+        mLastError = megaApi->createLocalFolder(localpath);
+        if (mLastError.getErrorCode() && mLastError.getErrorCode() != API_EEXIST)
         {
-            if (!client->fsaccess->mkdirlocal(localpath))
-            {
-                da.reset();
-                LOG_err << "Unable to create folder: " << localpath.toPath(*client->fsaccess);
-                mLastError = API_EWRITE;
-                mIncompleteTransfers++;
-
-                // By removing this element we also remove all it's children nodes
-                it = mLocalTree.erase(it);
-                continue;
-            }
-        }
-        else if (da->type == FILENODE)
-        {
-            da.reset();
-            LOG_err << "Local file detected where there should be a folder: " << localpath.toPath(*client->fsaccess);
-            mLastError = API_EEXIST;
             mIncompleteTransfers++;
-
-            // By removing this element we also remove all it's children nodes
-            it = mLocalTree.erase(it);
+            it = mLocalTree.erase(it); // remove all it's children nodes
             continue;
         }
-        else
-        {
-            LOG_debug << "Already existing folder detected: " << localpath.toPath(*client->fsaccess);
-        }
-        da.reset();
         ++it;
     }
 }

@@ -2249,6 +2249,7 @@ class MegaApiImpl : public MegaApp
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         bool createLocalFolder(const char *path);
+        MegaErrorPrivate createLocalFolder(LocalPath & localPath);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
         void moveNode(MegaNode* node, MegaNode* newParent, const char *newName, MegaRequestListener *listener = NULL);
         void copyNode(MegaNode* node, MegaNode *newParent, MegaRequestListener *listener = NULL);
