@@ -237,6 +237,12 @@ public:
 
 protected:
 
+    // worker thread
+    std::thread mWorkerThread;
+
+    // thread id of main thread
+    std::thread::id mMainThreadId;
+
     // if set, symlinks will be followed
     bool mFollowsymlinks;
 

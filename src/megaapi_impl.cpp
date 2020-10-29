@@ -25029,6 +25029,9 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->tag = transfer->getTag();
     this->mPendingFolders = 0;
     this->mPendingFilesToProcess = 0;
+    this->mLocalSeparator = client->fsaccess->localseparator;
+    this->mFollowsymlinks = client->followsymlinks;
+    this->mMainThreadId = std::this_thread::get_id();
 }
 
 void MegaFolderUploadController::start(MegaNode*)
@@ -25037,8 +25040,6 @@ void MegaFolderUploadController::start(MegaNode*)
     transfer->setStartTime(Waiter::ds);
     transfer->setState(MegaTransfer::STATE_QUEUED);
     megaApi->fireOnTransferStart(transfer);
-    mLocalSeparator = client->fsaccess->localseparator;
-    mFollowsymlinks = client->followsymlinks;
     mMutex.lock(); // adquire MegaFolderUploadController mutex with SDK thread
 
     unique_ptr<MegaNode> parent(megaApi->getNodeByHandle(transfer->getParentHandle()));
@@ -25051,7 +25052,7 @@ void MegaFolderUploadController::start(MegaNode*)
     }
 
     LocalPath path = LocalPath::fromPath(transfer->getPath(), *client->fsaccess);
-    std::thread thread([this, &path]() {
+    mWorkerThread = std::thread ([this, &path]() {
         LocalPath localpath = std::move(path);
         scanFolder(transfer->getParentHandle(), transfer->getParentHandle(), localpath, transfer->getFileName());
         if (!mFolderStructure.empty())
@@ -25060,9 +25061,7 @@ void MegaFolderUploadController::start(MegaNode*)
             mMutex.lock(); // wait until all folders have been created, and SDK thread unlock mutex
         }
         uploadFiles();
-        checkCompletion();
     });
-    thread.detach();
 }
 
 void MegaFolderUploadController::cancel()
@@ -25203,6 +25202,10 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
 
 MegaFolderUploadController::~MegaFolderUploadController()
 {
+    // if dtor is called from SDK thread join, otherwise detach
+    mMainThreadId == std::this_thread::get_id()
+        ? mWorkerThread.join()
+        : mWorkerThread.detach();
     //we shouldn't need to dettach as transfer listener: all listened transfer should have been cancelled/completed
 }
 
@@ -25298,6 +25301,9 @@ void MegaFolderUploadController::createFolder()
                 /* all putnodes have been processed and we have received all results
                  * unlock mutex in order to worker thread continue it's execution */
                 mMutex.unlock();
+
+                /* if all putnodes have failed, checkCompletion will call dtor and we will join worker thread */
+                checkCompletion();
             }
         });
     }
@@ -25340,12 +25346,7 @@ void MegaFolderUploadController::uploadFiles()
        }
    }
 
-   if (!mPendingFolders && !mFolderToPendingFiles.empty())
-   {
-       // if there are pending files to be processed at this point, increment mIncompleteTransfers
-       mIncompleteTransfers++;
-   }
-
+   assert(!mPendingFolders && mFolderToPendingFiles.empty());
    if (pendingTransfers)
    {
       megaApi->sendPendingTransfers(&transferQueue);
