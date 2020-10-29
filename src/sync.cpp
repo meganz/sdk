@@ -2123,7 +2123,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
     // nothing to do for this subtree? Skip traversal
     if (!(row.syncNode->scanRequired() || row.syncNode->mightHaveMoves() || row.syncNode->syncRequired()))
     {
-        SYNC_verbose << client->clientname << "No syncing/moving/scanning needed at " << logTriplet(row, fullPath);
+        SYNC_verbose << client->clientname << "No scanning/moving/syncing needed at " << logTriplet(row, fullPath);
         return true;
     }
 
@@ -2837,7 +2837,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath,
             row.syncNode->upload.reset();
         }
 
-        if (!row.syncNode->upload)
+        if (!row.syncNode->upload && !row.syncNode->newnode)
         {
             if (parentRow.cloudNode)
             {
@@ -2855,6 +2855,10 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath,
                 SYNC_verbose << client->clientname << "Parent cloud folder to upload to doesn't exist yet" << logTriplet(row, fullPath);
                 row.syncNode->setSyncAgain(true, false, false);
             }
+        }
+        else if (row.syncNode->newnode)
+        {
+            SYNC_verbose << client->clientname << "Upload complete but putnodes in progress" << logTriplet(row, fullPath);
         }
         else
         {
@@ -3057,7 +3061,7 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fu
     else
     {
         // todo: but, nodes are always current before we call recursiveSync - shortcut this case for nodes?
-        SYNC_verbose << client->clientname << "Wait for scanning to finish before removing cloud node: " << logTriplet(row, fullPath);
+        SYNC_verbose << client->clientname << "Wait for scanning+moving to finish before removing cloud node: " << logTriplet(row, fullPath);
         row.syncNode->setSyncAgain(true, false, false); // make sure we revisit (but don't keep checkMoves set)
     }
     return false;
