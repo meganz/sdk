@@ -124,14 +124,15 @@ struct NewSyncConfig
     SyncConfig::Type type = SyncConfig::Type::TYPE_TWOWAY;
     bool syncDeletions = true;
     bool forceOverwrite = false;
+    bool isExternal = false;
 
     static NewSyncConfig from(const SyncConfig& config)
     {
-        return NewSyncConfig{config.getType(), config.syncDeletions(), config.forceOverwrite()};
+        return NewSyncConfig{config.getType(), config.syncDeletions(), config.forceOverwrite(), config.isExternal()};
     }
 
-    NewSyncConfig(SyncConfig::Type t = SyncConfig::TYPE_TWOWAY, bool s = true, bool f = false)
-        : type(t), syncDeletions(s), forceOverwrite(f)
+    NewSyncConfig(SyncConfig::Type t = SyncConfig::TYPE_TWOWAY, bool s = true, bool f = false, bool x = false)
+        : type(t), syncDeletions(s), forceOverwrite(f), isExternal(x)
     {}
 };
 
@@ -153,6 +154,12 @@ static std::string syncConfigToString(const SyncConfig& config)
     {
         description = "TWOWAY";
     }
+    else if (config.getType() == SyncConfig::TYPE_BACKUP)
+    {
+        description = "BACKUP";
+        description += ", isExternal ";
+        description += config.isExternal() ? "ON" : "OFF";
+    }
     else if (config.getType() == SyncConfig::TYPE_UP)
     {
         description = "UP";
@@ -168,7 +175,7 @@ static std::string syncConfigToString(const SyncConfig& config)
 
 // creates a NewSyncConfig object from config options as strings.
 // returns a pair where `first` is success and `second` is the sync config.
-static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {})
+static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {}, std::string external = {})
 {
     static int syncTag = 13217;
     auto toLower = [](std::string& s)
@@ -179,6 +186,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
     toLower(type);
     toLower(syncDel);
     toLower(overwrite);
+    toLower(external);
 
     SyncConfig::Type syncType;
     if (type == "up")
@@ -193,6 +201,10 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
     {
         syncType = SyncConfig::TYPE_TWOWAY;
     }
+    else if (type == "backup")
+    {
+        syncType = SyncConfig::TYPE_BACKUP;
+    }
     else
     {
         return std::make_pair(false, SyncConfig(syncTag++, "", "", UNDEF, "", 0));
@@ -200,6 +212,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
 
     bool syncDeletions = false;
     bool forceOverwrite = false;
+    bool isExternal = false;
 
     if (syncType != SyncConfig::TYPE_TWOWAY)
     {
@@ -228,13 +241,29 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         {
             return std::make_pair(false, SyncConfig(syncTag++, "", "", UNDEF, "", 0));
         }
+
+        if (external == "on")
+        {
+            isExternal = true;
+        }
+        else if (external == "off")
+        {
+            isExternal = false;
+        }
+        else
+        {
+            return std::make_pair(false, SyncConfig(syncTag++, "", "", UNDEF, "", 0));
+        }
     }
 
-    return std::make_pair(true, SyncConfig(syncTag++, "", "", UNDEF, "", 0, {}, true, syncType, syncDeletions, forceOverwrite));
+    auto config = SyncConfig(syncTag++, "", "", UNDEF, "", 0, {}, true, syncType, syncDeletions, forceOverwrite);
+    config.isExternal(isExternal);
+
+    return std::make_pair(true, std::move(config));
 }
 
 // sync configuration used when creating a new sync
-static SyncConfig newSyncConfig = syncConfigFromStrings("twoway", "off", "off").second;
+static SyncConfig newSyncConfig = syncConfigFromStrings("twoway", "off", "off", "off").second;
 
 #endif
 
@@ -3050,7 +3079,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 #ifdef ENABLE_SYNC
     p->Add(exec_sync, sequence(text("sync"), opt(either(sequence(localFSPath(), remoteFSPath(client, &cwd, "dst")), param("cancelslot")))));
-    p->Add(exec_syncconfig, sequence(text("syncconfig"), opt(sequence(param("type (TWOWAY/UP/DOWN)"), opt(sequence(param("syncDeletions (ON/OFF)"), param("forceOverwrite (ON/OFF)")))))));
+    p->Add(exec_syncconfig, sequence(text("syncconfig"), opt(sequence(param("type (TWOWAY/UP/DOWN/BACKUP)"), opt(sequence(param("syncDeletions (ON/OFF)"), param("forceOverwrite (ON/OFF)"), param("isExternal (ON/OFF)")))))));
 #endif
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(flag("-writable"), param("expiretime"), text("del")))));
     p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
@@ -4441,11 +4470,12 @@ void exec_syncconfig(autocomplete::ACState& s)
     {
         cout << "Current sync config: " << syncConfigToString(newSyncConfig) << endl;
     }
-    else if (s.words.size() == 2 || s.words.size() == 4)
+    else if (s.words.size() == 2 || s.words.size() == 5)
     {
         auto pair = syncConfigFromStrings(s.words[1].s,
                 (s.words.size() > 2 ? s.words[2].s : "off"),
-                (s.words.size() > 3 ? s.words[3].s : "off"));
+                (s.words.size() > 3 ? s.words[3].s : "off"),
+                (s.words.size() > 4 ? s.words[4].s : "off"));
 
         if (pair.first)
         {
