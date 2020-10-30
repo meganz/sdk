@@ -234,6 +234,8 @@ public:
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
     ~MegaFolderUploadController();
+    bool isCompleted();
+    void complete();
 
 protected:
 
@@ -272,7 +274,6 @@ protected:
     void createFolder();
     /* iterate through all pending files of each uploaded folder, and start all upload transfers */
     void uploadFiles();
-    void checkCompletion();
     handle addNewNodeToVector(handle targetHandle, handle parentHandle, const char * folderName);
 };
 

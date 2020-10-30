@@ -25353,22 +25353,25 @@ void MegaFolderUploadController::uploadFiles()
    }
 }
 
-void MegaFolderUploadController::checkCompletion()
+bool MegaFolderUploadController::isCompleted()
 {
-    if (!cancelled
+    return (!cancelled
             && !recursive
             && !pendingTransfers
             && !mPendingFolders
-            && !mPendingFilesToProcess)
-    {
-        LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
-        mFolderStructure.clear();
-        mFolderToPendingFiles.clear();
-        transfer->setState(MegaTransfer::STATE_COMPLETED);
-        transfer->setLastError(&mLastError);
-        DBTableTransactionCommitter committer(client->tctable);
-        megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(!mIncompleteTransfers ? API_OK : API_EINCOMPLETE), committer);
-    }
+            && !mPendingFilesToProcess);
+}
+
+void MegaFolderUploadController::complete()
+{
+    assert(mMainThreadId == std::this_thread::get_id());
+    LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
+    mFolderStructure.clear();
+    mFolderToPendingFiles.clear();
+    transfer->setState(MegaTransfer::STATE_COMPLETED);
+    transfer->setLastError(&mLastError);
+    DBTableTransactionCommitter committer(client->tctable);
+    megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(!mIncompleteTransfers ? API_OK : API_EINCOMPLETE), committer);
 }
 
 handle MegaFolderUploadController::addNewNodeToVector(handle targetHandle, handle parentHandle, const char * folderName)
