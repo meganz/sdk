@@ -2839,6 +2839,15 @@ void MegaTransferPrivate::startRecursiveOperation(unique_ptr<MegaRecursiveOperat
     recursiveOperation->start(node);
 }
 
+void MegaTransferPrivate::endRecursiveOperation()
+{
+    if (this->getType() == MegaTransfer::TYPE_UPLOAD)
+    {
+        MegaFolderUploadController *controller = static_cast<MegaFolderUploadController*> (this->recursiveOperation.get());
+        controller->complete();
+    }
+}
+
 long long MegaTransferPrivate::getPlaceInQueue() const
 {
     return placeInQueue;
@@ -3934,6 +3943,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_SEND_DEV_COMMAND: return "SEND_DEV_COMMAND";
         case TYPE_GET_BANNERS: return "GET_BANNERS";
         case TYPE_DISMISS_BANNER: return "DISMISS_BANNER";
+        case TYPE_END_RECURSIVE_OPERATION: return "END_RECURSIVE_OPERATION";
     }
     return "UNKNOWN";
 }
@@ -8367,6 +8377,18 @@ MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNo
     }
 
     return transfer;
+}
+
+void MegaApiImpl::endRecursiveOperation(MegaTransfer *t, MegaRequestListener *listener)
+{
+    //not sure if name is good or we should change
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_END_RECURSIVE_OPERATION, listener);
+    if(t)
+    {
+        request->setTransferTag(t->getTag());
+    }
+    requestQueue.push(request);
+    waiter->notify();
 }
 
 void MegaApiImpl::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
@@ -21258,6 +21280,20 @@ void MegaApiImpl::sendPendingRequests()
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }
+
+        case MegaRequest::TYPE_END_RECURSIVE_OPERATION:
+        {
+            int transferTag = request->getTransferTag();
+            MegaTransferPrivate *megaTransfer = getMegaTransferPrivate(transferTag);
+            if (!megaTransfer)
+            {
+                e = API_ENOENT;
+                break;
+            }
+
+            megaTransfer->endRecursiveOperation();
+            break;
+        }
         case MegaRequest::TYPE_CANCEL_TRANSFER:
         {
             int transferTag = request->getTransferTag();
@@ -25055,12 +25091,23 @@ void MegaFolderUploadController::start(MegaNode*)
     mWorkerThread = std::thread ([this, &path]() {
         LocalPath localpath = std::move(path);
         scanFolder(transfer->getParentHandle(), transfer->getParentHandle(), localpath, transfer->getFileName());
+
+        if (isCompleted())
+        {
+            // The folder that we want to upload doesn't have any file, and already exists in cloud drive
+            megaApi->endRecursiveOperation(this->transfer);
+            return;
+        }
+
         if (!mFolderStructure.empty())
         {
             createFolder();
             mMutex.lock(); // wait until all folders have been created, and SDK thread unlock mutex
         }
-        uploadFiles();
+
+        isCompleted()
+                ? megaApi->endRecursiveOperation(this->transfer) // there's no files to upload
+                : uploadFiles();                                 // upload pending files
     });
 }
 
@@ -25148,6 +25195,17 @@ void MegaFolderUploadController::cancel()
     transfer = nullptr;  // no final callback for this one since it is being destroyed now
 }
 
+void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
+{
+    int type = request->getType();
+    int errorCode = e->getErrorCode();
+    assert(type == MegaRequest::TYPE_END_RECURSIVE_OPERATION);
+    if (errorCode)
+    {
+        LOG_err << " MegaFolderUploadController, error completing recursive operation";
+    }
+}
+
 void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
     subTransfers.insert(static_cast<MegaTransferPrivate*>(t));
@@ -25196,16 +25254,22 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
             mLastError = *e;
             mIncompleteTransfers++;
         }
-        checkCompletion();
+
+        if (isCompleted())
+        {
+            megaApi->endRecursiveOperation(transfer);
+        }
     }
 }
 
 MegaFolderUploadController::~MegaFolderUploadController()
 {
-    // if dtor is called from SDK thread join, otherwise detach
-    mMainThreadId == std::this_thread::get_id()
-        ? mWorkerThread.join()
-        : mWorkerThread.detach();
+    assert(mMainThreadId == std::this_thread::get_id());
+    if (mMainThreadId == std::this_thread::get_id())
+    {
+        LOG_err << "MegaFolderUploadController is being called from worker thread";
+    }
+    mWorkerThread.join();
     //we shouldn't need to dettach as transfer listener: all listened transfer should have been cancelled/completed
 }
 
@@ -25303,7 +25367,10 @@ void MegaFolderUploadController::createFolder()
                 mMutex.unlock();
 
                 /* if all putnodes have failed, checkCompletion will call dtor and we will join worker thread */
-                checkCompletion();
+                if (isCompleted())
+                {
+                    megaApi->endRecursiveOperation(this->transfer);
+                }
             }
         });
     }

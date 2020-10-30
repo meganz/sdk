@@ -224,12 +224,13 @@ protected:
     std::string mLocalSeparator;
 };
 
-class MegaFolderUploadController : public MegaTransferListener, public MegaRecursiveOperation
+class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveOperation
 {
 public:
     MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
     void start(MegaNode* node) override;
     void cancel() override;
+    void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e) override;
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
@@ -793,7 +794,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         static MegaTransferPrivate* unserialize(string*);
 
         void startRecursiveOperation(unique_ptr<MegaRecursiveOperation>, MegaNode* node); // takes ownership of both
-
+        void endRecursiveOperation();
         long long getPlaceInQueue() const;
         void setPlaceInQueue(long long value);
 
@@ -2379,6 +2380,7 @@ class MegaApiImpl : public MegaApp
         void setStreamingMinimumRate(int bytesPerSecond);
         void retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener = NULL);
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener=NULL);
+        void endRecursiveOperation(MegaTransfer *t, MegaRequestListener *listener=NULL);
         void cancelTransferByTag(int transferTag, MegaRequestListener *listener = NULL);
         void cancelTransfers(int direction, MegaRequestListener *listener=NULL);
         void pauseTransfers(bool pause, int direction, MegaRequestListener* listener=NULL);
