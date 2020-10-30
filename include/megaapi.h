@@ -18289,11 +18289,12 @@ class MegaApi
          * The client should call this method regularly for every registered backup, in order to
          * inform about the status of the backup.
          *
-         * Progress and last node are not always meaningful (ie. when the Camera Uploads starts a new
-         * batch, there isn't a last node, or when the Camera Uploads up to date and inactive for
-         * long time, the progress doesn't make sense). In consequence, these two parameters are
-         * optional by passing:
+         * Progress, last timestamp and last node are not always meaningful (ie. when the Camera
+         * Uploads starts a new batch, there isn't a last node, or when the CU up to date and
+         * inactive for long time, the progress doesn't make sense). In consequence, these parameters
+         * are optional. They will not be sent to API if they take the following values:
          * - lastNode = INVALID_HANDLE
+         * - lastTs = -1
          * - progress = -1
          *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT
