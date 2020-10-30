@@ -23160,21 +23160,21 @@ void MegaApiImpl::sendPendingRequests()
             Node* myBackupsNode = client->nodebyhandle(h);
             if (!myBackupsNode) { e = API_ENOENT; break; }
 
+            // get 'device-id'
+            const string& deviceId = client->getDeviceid();
+            if (deviceId.empty()) { e = API_EINCOMPLETE; break; }
+
             // get `DEVICE_NAME`, from user attributes
             if (!u->isattrvalid(ATTR_DEVICE_NAMES)) { e = API_EINCOMPLETE; break; }
             const string* deviceNameContainerStr = u->getattr(ATTR_DEVICE_NAMES);
             if (!deviceNameContainerStr) { e = API_EINCOMPLETE; break; }
 
             tlvRecords.reset(TLVstore::containerToTLVrecords(deviceNameContainerStr, &client->key));
-            if (!tlvRecords || !tlvRecords->find("device-id")) { e = API_EINCOMPLETE; break; }
+            if (!tlvRecords || !tlvRecords->find(deviceId)) { e = API_EINCOMPLETE; break; }
 
-            const string& devName64Str = tlvRecords->get("device-id");
+            const string& devName64Str = tlvRecords->get(deviceId);
             string deviceName = Base64::btoa(devName64Str);
             if (deviceName.empty()) { e = API_EINCOMPLETE; break; }
-
-            // get 'device-id'
-            const string& deviceId = client->getDeviceid();
-            if (deviceId.empty()) { e = API_EINCOMPLETE; break; }
 
             // serch for remote folder "My Backups"/`DEVICE_NAME`/
             Node* deviceNameNode = client->childnodebyname(myBackupsNode, deviceName.c_str(), false);
