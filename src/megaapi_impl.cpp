@@ -25088,7 +25088,7 @@ void MegaFolderUploadController::start(MegaNode*)
     }
 
     LocalPath path = LocalPath::fromPath(transfer->getPath(), *client->fsaccess);
-    mWorkerThread = std::thread ([this, &path]() {
+    mWorkerThread = std::thread ([this, path]() {
         LocalPath localpath = std::move(path);
         scanFolder(transfer->getParentHandle(), transfer->getParentHandle(), localpath, transfer->getFileName());
 
@@ -25431,6 +25431,11 @@ bool MegaFolderUploadController::isCompleted()
 
 void MegaFolderUploadController::complete()
 {
+    if (!transfer)
+    {
+        return;
+    }
+
     assert(mMainThreadId == std::this_thread::get_id());
     LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
     mFolderStructure.clear();
