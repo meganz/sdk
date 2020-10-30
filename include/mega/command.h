@@ -1349,7 +1349,7 @@ class MEGA_API CommandBackupPutHeartBeat : public Command
 public:
     bool procresult(Result) override;
 
-    CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode);
+    CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode);
 };
 
 class MEGA_API CommandGetBanners : public Command
