@@ -12889,7 +12889,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
             {
                 if(syncError)
                 {
-                    *syncError = ACTIVE_SYNC_BELOW_PATH;
+                    *syncError = ACTIVE_SYNC_ABOVE_PATH;
                 }
                 return API_EEXIST;
             }
