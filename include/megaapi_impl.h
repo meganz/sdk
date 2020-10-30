@@ -760,11 +760,16 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         long long getPlaceInQueue() const;
         void setPlaceInQueue(long long value);
 
+        void setDoNotStopSubTransfers(bool doNotStopSubTransfers);
+        bool getDoNotStopSubTransfers() const;
+
 protected:
         int type;
         int tag;
         int state;
         uint64_t priority;
+
+        bool mDoNotStopSubTransfers = false;
 
         struct
         {
