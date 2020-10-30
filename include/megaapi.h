@@ -7644,6 +7644,7 @@ class MegaApi
             // ATTR_UNSHAREABLE_KEY = 26         // it's internal for SDK, not exposed to apps
             USER_ATTR_ALIAS = 27,                // private - byte array
             USER_ATTR_DEVICE_NAMES = 30,          // private - byte array
+            USER_ATTR_MY_BACKUPS_FOLDER = 31,    // private - byte array
         };
 
         enum {
@@ -10426,6 +10427,8 @@ class MegaApi
          * Get the list of the users's aliases (private)
          * MegaApi::ATTR_DEVICE_NAMES = 30
          * Get the list of device names (private)
+         * MegaApi::ATTR_MY_BACKUPS_FOLDER = 31
+         * Get the target folder for My Backups (private)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -11810,6 +11813,43 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getCameraUploadsFolderSecondary(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set My Backups folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
+         * - MegaRequest::getFlag - Returns false
+         * - MegaRequest::getNodehandle - Returns the provided node handle
+         * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+         * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
+         *
+         * If the folder is not private to the current account, or is in Rubbish, or is in a synced folder,
+         * the request will fail with the error code MegaError::API_EACCESS.
+         *
+         * @param nodehandle MegaHandle of the node to be used as target folder
+         * @param listener MegaRequestListener to track this request
+         */
+        void setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Gets My Backups target folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
+         * - MegaRequest::getFlag - Returns false
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodehandle - Returns the handle of the node where My Backups files are stored
+         *
+         * If the folder was not set, the request will fail with the error code MegaError::API_ENOENT.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getMyBackupsFolder(MegaRequestListener *listener = nullptr);
 
         /**
          * @brief Gets the alias for an user

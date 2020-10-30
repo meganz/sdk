@@ -5818,6 +5818,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
         case MegaApi::USER_ATTR_ALIAS:
         case MegaApi::USER_ATTR_DEVICE_NAMES:
+        case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
             scope = '*';
             break;
 
@@ -10388,6 +10389,21 @@ void MegaApiImpl::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListene
     MegaStringMapPrivate stringMap;
     stringMap.set("h", Base64Str<MegaClient::NODEHANDLE>(nodehandle));
     setUserAttribute(MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER, &stringMap, listener);
+}
+
+void MegaApiImpl::getMyBackupsFolder(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_MY_BACKUPS_FOLDER);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+{
+    MegaStringMapPrivate stringMap;
+    stringMap.set("h", Base64Str<MegaClient::NODEHANDLE>(nodehandle));
+    setUserAttribute(MegaApi::USER_ATTR_MY_BACKUPS_FOLDER, &stringMap, listener);
 }
 
 void MegaApiImpl::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
@@ -15368,9 +15384,10 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             }
             case MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER:
             case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
+            case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
             {
                 // If attr is CAMERA_UPLOADS_FOLDER determine if we want to retrieve primary or secondary folder
-                // If attr is MY_CHAT_FILES_FOLDER there's no secondary folder
+                // If attr is MY_CHAT_FILES_FOLDER or MY_BACKUPS_FOLDER there's no secondary folder
                 const char *key = request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
                         && request->getFlag()
                             ? "sh"
@@ -20171,6 +20188,23 @@ void MegaApiImpl::sendPendingRequests()
                     else
                     {
                         tlv.reset(TLVstore::containerToTLVrecords(ownUser->getattr(type), &client->key));
+                    }
+                }
+                else if (type == ATTR_MY_BACKUPS_FOLDER)
+                {
+                    MegaHandle nodeHandle = request->getNodeHandle();
+                    MegaNode* node = getNodeByHandle(nodeHandle);
+
+                    // a valid folder cannot be outside current account or in Rubbish
+                    if (!client->isPrivateNode(nodeHandle) || isInRootnode(node, 2)
+#ifdef ENABLE_SYNC
+                        // or in a synced folder
+                        || isInsideSync(node)
+#endif
+                        )
+                    {
+                        e = API_EACCESS;
+                        break;
                     }
                 }
                 else

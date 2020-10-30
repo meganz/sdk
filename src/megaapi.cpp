@@ -2764,6 +2764,16 @@ void MegaApi::getMyChatFilesFolder(MegaRequestListener *listener)
     pImpl->getMyChatFilesFolder(listener);
 }
 
+void MegaApi::setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+{
+    pImpl->setMyBackupsFolder(nodehandle, listener);
+}
+
+void MegaApi::getMyBackupsFolder(MegaRequestListener *listener)
+{
+    pImpl->getMyBackupsFolder(listener);
+}
+
 void MegaApi::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
 {
     pImpl->getUserAlias(uh, listener);
