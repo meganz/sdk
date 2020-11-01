@@ -1469,7 +1469,7 @@ public:
     bool syncnagleretry;
     BackoffTimer syncnaglebt;
 
-    dstime filesystemNotificationsQuietTime = 0;
+    //dstime filesystemNotificationsQuietTime = 0;
 
     // timer for extra notifications
     // (workaround for buggy network filesystems)
@@ -1480,8 +1480,8 @@ public:
     bool syncscanfailed;
     BackoffTimer syncscanbt;
 
-    // vanished from a local synced folder
-    localnode_set localsyncnotseen;
+    //// vanished from a local synced folder
+    //localnode_set localsyncnotseen;
 
     // maps local fsid to corresponding LocalNode* (s)
     fsid_localnode_map localnodeByFsid;

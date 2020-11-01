@@ -40,9 +40,6 @@ struct LocalPathPtrCmp
 typedef map<const LocalPath*, LocalNode*, LocalPathPtrCmp> localnode_map;
 typedef map<const string*, Node*, StringCmp> remotenode_map;
 
-using name_localnode_map = map<const string*, LocalNode*, NamePtrCmp>;
-using name_remotenode_map = map<const string*, Node*, NamePtrCmp>;
-
 struct MEGA_API NodeCore
 {
     // node's own handle
@@ -465,11 +462,16 @@ struct MEGA_API LocalNode : public Cacheable
     // FILENODE or FOLDERNODE
     nodetype_t type = TYPE_UNKNOWN;
 
-    // detection of deleted filesystem records
-    int scanseqno = 0;
+    // using a per-Localnode scan delay prevents self-notifications delaying the whole sync
+    dstime scanDelayUntil = 0;
+    //dstime lastScanTime = 0;
 
-    // number of iterations since last seen
-    int notseen = 0;
+
+    //// detection of deleted filesystem records
+    //int scanseqno = 0;
+
+    //// number of iterations since last seen
+    //int notseen = 0;
 
     // global sync reference
     handle syncid = mega::UNDEF;
@@ -538,10 +540,8 @@ private:
 public:
     RareFields& rare();
 
-    dstime lastScanTime = 0;
-
     // set the syncupTargetedAction for this, and parents
-    void setScanAgain(bool doParent, bool doHere, bool doBelow);
+    void setScanAgain(bool doParent, bool doHere, bool doBelow, dstime delayds);
     void setCheckMovesAgain(bool doParent, bool doHere, bool doBelow);
     void setSyncAgain(bool doParent, bool doHere, bool doBelow);
 
@@ -604,7 +604,7 @@ public:
     unique_ptr<Upload> upload;
     unique_ptr<SyncFileGet> download;
 
-    void setnotseen(int);
+//    void setnotseen(int);
 
     void setfsid(handle newfsid, fsid_localnode_map& fsidnodes);
 

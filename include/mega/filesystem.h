@@ -44,17 +44,6 @@ enum FileSystemType
     FS_XFS = 9
 };
 
-class NamePtrCmp
-{
-public:
-    NamePtrCmp(FileSystemType type);
-
-    bool operator()(const string* lhs, const string* rhs) const;
-
-private:
-    FileSystemType mType;
-}; // NamePtrCmp
-
 // generic host filesystem node ID interface
 struct MEGA_API FsNodeId
 {
@@ -104,6 +93,11 @@ class MEGA_API LocalPath
     friend struct FileSystemAccess;
     friend int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2, const FileSystemAccess& fsaccess);
     friend const string& adjustBasePath(const LocalPath& name);
+    friend int compareUtf(const string&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
+    friend int compareUtf(const string&, bool unescaping1, const LocalPath&, bool unescaping2, bool caseInsensitive);
+    friend int compareUtf(const LocalPath&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
+    friend int compareUtf(const LocalPath&, bool unescaping1, const LocalPath&, bool unescaping2, bool caseInsensitive);
+
 
     size_t getLength() { return localpath.size(); }
     void setLength(size_t length) { localpath.resize(length); }
@@ -179,16 +173,16 @@ public:
     bool operator!=(const LocalPath& p) const { return localpath != p.localpath; }
     bool operator<(const LocalPath& p) const { return localpath < p.localpath; }
 
-    // Escape-aware comparators.
-    int compare(const LocalPath& rhs) const;
-    int compare(const string& rhs) const;
+    //// Escape-aware comparators.
+    //int compare(const LocalPath& rhs, bool leftUnescaped, bool rightUnescaped) const;
+    //int compare(const string& rhs, bool leftUnescaped, bool rightUnescaped) const;
 
-    int ciCompare(const LocalPath& rhs) const;
-    int ciCompare(const string& rhs) const;
+    //int ciCompare(const LocalPath& rhs, bool leftUnescaped, bool rightUnescaped) const;
+    //int ciCompare(const string& rhs, bool leftUnescaped, bool rightUnescaped) const;
 
-    // Escape and filesystem-aware comparators.
-    int fsCompare(const LocalPath& rhs, FileSystemType fsType) const;
-    int fsCompare(const string& rhs, FileSystemType fsType) const;
+    //// Escape and filesystem-aware comparators.
+    //int fsCompare(const LocalPath& rhs, bool leftUnescaped, bool rightUnescaped, FileSystemType fsType) const;
+    //int fsCompare(const string& rhs, bool leftUnescaped, bool rightUnescaped, FileSystemType fsType) const;
 };
 
 struct NameConflict {
@@ -580,6 +574,15 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     FileSystemAccess();
     virtual ~FileSystemAccess() { }
 };
+
+bool isCaseInsensitive(const FileSystemType type);
+
+int compareUtf(const string&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
+int compareUtf(const string&, bool unescaping1, const LocalPath&, bool unescaping2, bool caseInsensitive);
+int compareUtf(const LocalPath&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
+int compareUtf(const LocalPath&, bool unescaping1, const LocalPath&, bool unescaping2, bool caseInsensitive);
+
+
 } // namespace
 
 #endif

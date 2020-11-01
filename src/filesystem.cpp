@@ -71,16 +71,16 @@ bool isEscape(UnicodeCodepointIterator<CharT> it)
 }
 
 template<typename CharT, typename CharU, typename UnaryOperation>
-int localCompare(UnicodeCodepointIterator<CharT> first1,
-                 UnicodeCodepointIterator<CharU> first2,
-                 UnaryOperation transform)
+int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
+               UnicodeCodepointIterator<CharU> first2, bool unescaping2,
+               UnaryOperation transform)
 {
     while (!(first1.end() || first2.end()))
     {
         int c1;
         int c2;
 
-        if (isEscape(first1))
+        if (unescaping1 && isEscape(first1))
         {
             c1 = decodeEscape(first1);
         }
@@ -89,57 +89,7 @@ int localCompare(UnicodeCodepointIterator<CharT> first1,
             c1 = first1.get();
         }
 
-        if (isEscape(first2))
-        {
-            c2 = decodeEscape(first2);
-        }
-        else
-        {
-            c2 = first2.get();
-        }
-
-        c1 = transform(c1);
-        c2 = transform(c2);
-
-        if (c1 != c2)
-        {
-            return c1 - c2;
-        }
-    }
-
-    if (first1.end() && first2.end())
-    {
-        return 0;
-    }
-
-    if (first1.end())
-    {
-        return -1;
-    }
-
-    return 1;
-}
-
-template<typename CharT, typename CharU, typename UnaryOperation>
-int remoteCompare(UnicodeCodepointIterator<CharT> first1,
-                  UnicodeCodepointIterator<CharU> first2,
-                  UnaryOperation transform)
-{
-    while (!(first1.end() || first2.end()))
-    {
-        int c1;
-        int c2;
-
-        if (isEscape(first1))
-        {
-            c1 = decodeEscape(first1);
-        }
-        else
-        {
-            c1 = first1.get();
-        }
-
-        if (isControlEscape(first2))
+        if (unescaping2 && isEscape(first2))
         {
             c2 = decodeEscape(first2);
         }
@@ -172,31 +122,54 @@ int remoteCompare(UnicodeCodepointIterator<CharT> first1,
 
 } // detail
 
-static bool isCaseInsensitive(const FileSystemType type)
+
+int compareUtf(const string& s1, bool unescaping1, const string& s2, bool unescaping2, bool caseInsensitive)
 {
-    return type == FS_EXFAT
-           || type == FS_FAT32
-           || type == FS_NTFS
-           || type == FS_UNKNOWN;
+    return detail::compareUtf(
+                unicodeCodepointIterator(s1), unescaping1,
+                unicodeCodepointIterator(s2), unescaping2,
+                caseInsensitive ? Utils::toUpper: detail::identity);
 }
 
-NamePtrCmp::NamePtrCmp(FileSystemType type)
-  : mType(type)
+int compareUtf(const string& s1, bool unescaping1, const LocalPath& s2, bool unescaping2, bool caseInsensitive)
 {
+    return detail::compareUtf(
+        unicodeCodepointIterator(s1), unescaping1,
+        unicodeCodepointIterator(s2.localpath), unescaping2,
+        caseInsensitive ? Utils::toUpper: detail::identity);
 }
 
-bool NamePtrCmp::operator()(const string* lhs, const string* rhs) const
+int compareUtf(const LocalPath& s1, bool unescaping1, const string& s2, bool unescaping2, bool caseInsensitive)
 {
-    assert(lhs && rhs);
+    return detail::compareUtf(
+        unicodeCodepointIterator(s1.localpath), unescaping1,
+        unicodeCodepointIterator(s2), unescaping2,
+        caseInsensitive ? Utils::toUpper: detail::identity);
+}
 
-    auto transform =
-      isCaseInsensitive(mType) ? Utils::toUpper
-                               : detail::identity;
+int compareUtf(const LocalPath& s1, bool unescaping1, const LocalPath& s2, bool unescaping2, bool caseInsensitive)
+{
+    return detail::compareUtf(
+        unicodeCodepointIterator(s1.localpath), unescaping1,
+        unicodeCodepointIterator(s2.localpath), unescaping2,
+        caseInsensitive ? Utils::toUpper: detail::identity);
+}
 
-    return detail::remoteCompare(
-             unicodeCodepointIterator(*lhs),
-             unicodeCodepointIterator(*rhs),
-             transform);
+
+bool isCaseInsensitive(const FileSystemType type)
+{
+    if    (type == FS_EXFAT
+        || type == FS_FAT32
+        || type == FS_NTFS
+        || type == FS_UNKNOWN)
+    {
+        return true;
+    }
+#ifdef WIN32
+    return true;
+#else
+    return false;
+#endif
 }
 
 FileSystemAccess::FileSystemAccess()
@@ -390,10 +363,10 @@ void FileSystemAccess::escapefsincompatible(string* name, FileSystemType fileSys
             sprintf(buffer, "%%%02x", character);
             name->replace(i, 1, buffer);
 
-            LOG_debug << "Escaped character for filesystem type "
-                      << fstypetostring(fileSystemType)
-                      << ": "
-                      << buffer;
+            //LOG_debug << "Escaped character for filesystem type "
+            //          << fstypetostring(fileSystemType)
+            //          << ": "
+            //          << buffer;
 
             seqsize = 3;
         }
@@ -1214,57 +1187,57 @@ LocalPath LocalPath::tmpNameLocal(const FileSystemAccess& fsaccess)
     return lp;
 }
 
-int LocalPath::compare(const LocalPath& rhs) const
-{
-    return detail::localCompare(
-             unicodeCodepointIterator(localpath),
-             unicodeCodepointIterator(rhs.localpath),
-             detail::identity);
-}
-
-int LocalPath::compare(const string& rhs) const
-{
-    return detail::remoteCompare(
-             unicodeCodepointIterator(localpath),
-             unicodeCodepointIterator(rhs),
-             detail::identity);
-}
-
-int LocalPath::ciCompare(const LocalPath& rhs) const
-{
-    return detail::localCompare(
-             unicodeCodepointIterator(localpath),
-             unicodeCodepointIterator(rhs.localpath),
-             Utils::toUpper);
-}
-
-int LocalPath::ciCompare(const string& rhs) const
-{
-    return detail::remoteCompare(
-             unicodeCodepointIterator(localpath),
-             unicodeCodepointIterator(rhs),
-             Utils::toUpper);
-}
-
-int LocalPath::fsCompare(const LocalPath& rhs, FileSystemType fsType) const
-{
-    if (isCaseInsensitive(fsType))
-    {
-        return ciCompare(rhs);
-    }
-
-    return compare(rhs);
-}
-
-int LocalPath::fsCompare(const string& rhs, FileSystemType fsType) const
-{
-    if (isCaseInsensitive(fsType))
-    {
-        return ciCompare(rhs);
-    }
-
-    return compare(rhs);
-}
+//int LocalPath::compare(const LocalPath& rhs, bool leftUnescaped, bool rightUnescaped) const
+//{
+//    return detail::compareUtf(
+//             unicodeCodepointIterator(localpath), leftUnescaped,
+//             unicodeCodepointIterator(rhs.localpath), rightUnescaped,
+//             detail::identity);
+//}
+//
+//int LocalPath::compare(const string& rhs, bool leftUnescaped, bool rightUnescaped) const
+//{
+//    return detail::compareUtf(
+//             unicodeCodepointIterator(localpath), leftUnescaped,
+//             unicodeCodepointIterator(rhs), rightUnescaped,
+//             detail::identity);
+//}
+//
+//int LocalPath::ciCompare(const LocalPath& rhs, bool leftUnescaped, bool rightUnescaped) const
+//{
+//    return detail::compareUtf(
+//             unicodeCodepointIterator(localpath), leftUnescaped,
+//             unicodeCodepointIterator(rhs.localpath), rightUnescaped,
+//             Utils::toUpper);
+//}
+//
+//int LocalPath::ciCompare(const string& rhs, bool leftUnescaped, bool rightUnescaped) const
+//{
+//    return detail::compareUtf(
+//             unicodeCodepointIterator(localpath), leftUnescaped,
+//             unicodeCodepointIterator(rhs), rightUnescaped,
+//             Utils::toUpper);
+//}
+//
+//int LocalPath::fsCompare(const LocalPath& rhs, bool leftUnescaped, bool rightUnescaped, FileSystemType fsType) const
+//{
+//    if (isCaseInsensitive(fsType))
+//    {
+//        return ciCompare(rhs, leftUnescaped, rightUnescaped);
+//    }
+//
+//    return compare(rhs, leftUnescaped, rightUnescaped);
+//}
+//
+//int LocalPath::fsCompare(const string& rhs, bool leftUnescaped, bool rightUnescaped, FileSystemType fsType) const
+//{
+//    if (isCaseInsensitive(fsType))
+//    {
+//        return ciCompare(rhs, leftUnescaped, rightUnescaped);
+//    }
+//
+//    return compare(rhs, leftUnescaped, rightUnescaped);
+//}
 
 bool LocalPath::isContainingPathOf(const LocalPath& path, separator_t localseparator, size_t* subpathIndex) const
 {

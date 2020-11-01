@@ -2908,28 +2908,28 @@ void MegaClient::exec()
                 {
                     dstime extradelay = sync->procextraq();
                     dstime scandelay  = sync->procscanq();
-                    dstime delay = std::min(extradelay, scandelay);
+                    //dstime delay = std::min(extradelay, scandelay);
 
-                    // Don't wait for paused syncs.
-                    if (sync->paused())
-                    {
-                        continue;
-                    }
+                    //// Don't wait for paused syncs.
+                    //if (sync->paused())
+                    //{
+                    //    continue;
+                    //}
 
-                    if (EVER(delay))
-                    {
-                        filesystemNotificationsQuietTime = Waiter::ds + delay;
-                    }
+                    //if (EVER(delay))
+                    //{
+                    //    filesystemNotificationsQuietTime = Waiter::ds + delay;
+                    //}
                 }
             }
 
-            bool tooSoon = filesystemNotificationsQuietTime
-                           && filesystemNotificationsQuietTime > Waiter::ds;
+            //bool tooSoon = filesystemNotificationsQuietTime
+            //               && filesystemNotificationsQuietTime > Waiter::ds;
 
-            LOG_debug << clientname << "tooSoon: " << tooSoon << " syncing: " << isAnySyncSyncing() << " apCurrent: " << actionpacketsCurrent;
+            LOG_debug << clientname << /*"tooSoon: " << tooSoon <<*/ " syncing: " << isAnySyncSyncing() << " apCurrent: " << actionpacketsCurrent;
 
             // We must have actionpacketsCurrent so that any LocalNode created can straight away indicate if it matched a Node
-            if (actionpacketsCurrent && isAnySyncSyncing() && !tooSoon)
+            if (actionpacketsCurrent && isAnySyncSyncing())// && !tooSoon)
             {
                 CodeCounter::ScopeTimer rst(performanceStats.recursiveSyncTime);
 

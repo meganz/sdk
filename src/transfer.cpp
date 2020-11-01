@@ -1030,10 +1030,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 {
                     if (LocalNode::Upload *syncUpload = dynamic_cast<LocalNode::Upload*>(f))
                     {
-                        if (syncUpload->localNode.parent)
-                        {
-                            syncUpload->localNode.setScanAgain(true, false, false);
-                        }
+                        syncUpload->localNode.setScanAgain(true, false, false, 0);
                     }
                 }
 #endif

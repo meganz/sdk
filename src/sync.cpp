@@ -570,8 +570,8 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
     state = SYNC_INITIALSCAN;
     statecachetable = NULL;
 
-    fullscan = true;
-    scanseqno = 0;
+    //fullscan = true;
+    //scanseqno = 0;
 
     mLocalPath = config.getLocalPath();
     LocalPath crootpath = LocalPath::fromPath(mLocalPath, *client->fsaccess);
@@ -613,7 +613,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
 
     localroot->init(this, FOLDERNODE, NULL, crootpath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
     localroot->setSyncedNodeHandle(remotenode->nodeHandle());
-    localroot->setScanAgain(false, true, true);
+    localroot->setScanAgain(false, true, true, 0);
     localroot->setCheckMovesAgain(false, true, true);
     localroot->setSyncAgain(false, true, true);
 
@@ -834,9 +834,11 @@ bool Sync::readstatecache()
         addstatecachechildren(0, &tmap, localroot->localname, localroot.get(), 100);
         cachenodes();
 
-        // trigger a single-pass full scan to identify deleted nodes
-        fullscan = true;
-        scanseqno++;
+        //// trigger a single-pass full scan to identify deleted nodes
+        //fullscan = true;
+        //scanseqno++;
+
+        localroot->setScanAgain(false, true, true, 0);
 
         return true;
     }
@@ -942,7 +944,7 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError)
 
         state = newstate;
         errorCode = newSyncError;
-        fullscan = false;
+//        fullscan = false;
     }
 }
 
@@ -1177,7 +1179,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
                 assert(row.syncNode);
             }
 
-            row.syncNode->setCheckMovesAgain(true, true, false);
+            row.syncNode->setCheckMovesAgain(true, false, false);
 
             // logic to detect files being updated in the local computer moving the original file
             // to another location as a temporary backup
@@ -1261,8 +1263,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
                         sourceLocalNode->moveSourceApplyingToCloud = false;
                         row.syncNode->moveTargetApplyingToCloud = false;
 
-                        row.syncNode->setScanAgain(true, true, true);
-                        sourceLocalNode->setScanAgain(true, false, false);
+                        row.syncNode->setScanAgain(true, true, true, 0);
+                        sourceLocalNode->setScanAgain(true, false, false, 0);
 
                         return false;
                     }
@@ -1466,8 +1468,8 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
             sourceLocalNode->moveContentTo(row.syncNode, fullPath, true);
             sourceLocalNode->moveAppliedToLocal = true;
 
-            sourceLocalNode->setScanAgain(true, false, false);
-            row.syncNode->setScanAgain(true, false, false);
+            sourceLocalNode->setScanAgain(true, false, false, 0);
+            row.syncNode->setScanAgain(true, false, false, 0);
 
             rowResult = false;
             return true;
@@ -1607,7 +1609,7 @@ dstime Sync::procextraq()
             SYNC_verbose << "Setting scan flag by delayed notification on " << nearest->localnodedisplaypath(*client->fsaccess);
         }
 #endif
-        nearest->setScanAgain(false, true, !remainder.empty());
+        nearest->setScanAgain(false, true, !remainder.empty(), SCANNING_DELAY_DS);
 
         // How long the caller should wait before syncing.
         delay = SCANNING_DELAY_DS;
@@ -1671,7 +1673,7 @@ dstime Sync::procscanq()
         }
 #endif
 
-        nearest->setScanAgain(false, true, !remainder.empty());
+        nearest->setScanAgain(false, true, !remainder.empty(), SCANNING_DELAY_DS);
 
         // Queue an extra notification if we're a network sync.
         if (isnetwork)
@@ -1691,30 +1693,30 @@ dstime Sync::procscanq()
     return delay;
 }
 
-// todo: do we still need this?
-// delete all child LocalNodes that have been missing for two consecutive scans (*l must still exist)
-void Sync::deletemissing(LocalNode* l)
-{
-    LocalPath path;
-    std::unique_ptr<FileAccess> fa;
-    for (localnode_map::iterator it = l->children.begin(); it != l->children.end(); )
-    {
-        if (scanseqno-it->second->scanseqno > 1)
-        {
-            if (!fa)
-            {
-                fa = client->fsaccess->newfileaccess();
-            }
-            client->unlinkifexists(it->second, fa.get(), path);
-            delete it++->second;
-        }
-        else
-        {
-            deletemissing(it->second);
-            it++;
-        }
-    }
-}
+//// todo: do we still need this?
+//// delete all child LocalNodes that have been missing for two consecutive scans (*l must still exist)
+//void Sync::deletemissing(LocalNode* l)
+//{
+//    LocalPath path;
+//    std::unique_ptr<FileAccess> fa;
+//    for (localnode_map::iterator it = l->children.begin(); it != l->children.end(); )
+//    {
+//        if (scanseqno-it->second->scanseqno > 1)
+//        {
+//            if (!fa)
+//            {
+//                fa = client->fsaccess->newfileaccess();
+//            }
+//            client->unlinkifexists(it->second, fa.get(), path);
+//            delete it++->second;
+//        }
+//        else
+//        {
+//            deletemissing(it->second);
+//            it++;
+//        }
+//    }
+//}
 
 bool Sync::movetolocaldebris(LocalPath& localpath)
 {
@@ -1842,9 +1844,32 @@ void Sync::recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& ncs)
     }
 }
 
+const LocalPath& Sync::syncRow::comparisonLocalname() const
+{
+    if (syncNode)
+    {
+        return syncNode->localname;
+    }
+    else if (fsNode)
+    {
+        return fsNode->localname;
+    }
+    else if (!fsClashingNames.empty())
+    {
+        return fsClashingNames[0]->localname;
+    }
+    else
+    {
+        assert(false);
+        static LocalPath nullResult;
+        return nullResult;
+    }
+}
+
+
 auto Sync::computeSyncTriplets(Node* cloudParent, const LocalNode& syncParent, vector<FSNode>& fsNodes) const -> vector<syncRow>
 {
-    // One comparator to sort them all.
+    /* // One comparator to sort them all.
     class Comparator
     {
     public:
@@ -1857,7 +1882,7 @@ auto Sync::computeSyncTriplets(Node* cloudParent, const LocalNode& syncParent, v
         int compare(const FSNode& lhs, const LocalNode& rhs) const
         {
             // Cloud name, case sensitive.
-            return lhs.localname.compare(rhs.name);
+            return lhs.localname.compare(rhs.name, true, true);
         }
 
         int compare(const Node& lhs, const syncRow& rhs) const
@@ -1865,13 +1890,13 @@ auto Sync::computeSyncTriplets(Node* cloudParent, const LocalNode& syncParent, v
             // Local name, filesystem-dependent sensitivity.
             auto a = LocalPath::fromName(lhs.displayname(), mFsAccess, mFsType);
 
-            return a.fsCompare(name(rhs), mFsType);
+            return a.fsCompare(name(rhs), true, true, mFsType);
         }
 
         bool operator()(const FSNode& lhs, const FSNode& rhs) const
         {
             // Cloud name, case sensitive.
-            return lhs.localname.compare(rhs.localname) < 0;
+            return lhs.localname.compare(rhs.localname, true, true) < 0;
         }
 
         bool operator()(const LocalNode* lhs, const LocalNode* rhs) const
@@ -1924,8 +1949,9 @@ auto Sync::computeSyncTriplets(Node* cloudParent, const LocalNode& syncParent, v
         FileSystemAccess& mFsAccess;
         FileSystemType mFsType;
     }; // Comparator
+    */
 
-    Comparator comparator(*this);
+    //Comparator comparator(*this);
     vector<LocalNode*> localNodes;
     vector<Node*> remoteNodes;
     vector<syncRow> triplets;
@@ -1946,8 +1972,36 @@ auto Sync::computeSyncTriplets(Node* cloudParent, const LocalNode& syncParent, v
         }
     }
 
-    std::sort(fsNodes.begin(), fsNodes.end(), comparator);
-    std::sort(localNodes.begin(), localNodes.end(), comparator);
+    bool caseInsensitive = false; // comparing to go to the cloud, differing case really is a different name
+
+    auto fsCompareLess = [=](const FSNode& lhs, const FSNode& rhs) -> bool {
+        return compareUtf(
+            lhs.localname, true,
+            rhs.localname, true, caseInsensitive) < 0;
+    };
+
+    auto lnCompareLess = [=](const LocalNode* lhs, const LocalNode* rhs) -> bool {
+        return compareUtf(
+            lhs->localname, true,
+            rhs->localname, true, caseInsensitive) < 0;
+    };
+
+    auto fslnCompareSpaceship = [=](const FSNode& lhs, const LocalNode& rhs) -> int {
+        return compareUtf(
+            lhs.localname, true,
+            rhs.localname, true, caseInsensitive);
+    };
+
+    std::sort(fsNodes.begin(), fsNodes.end(), fsCompareLess);
+    std::sort(localNodes.begin(), localNodes.end(), lnCompareLess);
+
+//#ifdef DEBUG
+//    string fss, lns;
+//    for (auto& i : fsNodes) fss += i.localname.toPath(*client->fsaccess) + " ";
+//    for (auto i : localNodes) lns += i->localname.toPath(*client->fsaccess) + " ";
+//    LOG_debug << "fs names sorted: " << fss;
+//    LOG_debug << "ln names sorted: " << lns;
+//#endif
 
     // Pair filesystem nodes with local nodes.
     {
@@ -1959,13 +2013,16 @@ auto Sync::computeSyncTriplets(Node* cloudParent, const LocalNode& syncParent, v
         for ( ; ; )
         {
             // Determine the next filesystem node.
-            auto fNext = std::upper_bound(fCurr, fEnd, *fCurr, comparator);
+            auto fNext = std::upper_bound(fCurr, fEnd, *fCurr, fsCompareLess);
 
             // Determine the next local node.
-            auto lNext = std::upper_bound(lCurr, lEnd, *lCurr, comparator);
+            auto lNext = std::upper_bound(lCurr, lEnd, *lCurr, lnCompareLess);
 
             // By design, we should never have any conflicting local nodes.
-            assert(std::distance(lCurr, lNext) < 2);
+            if (!(std::distance(lCurr, lNext) < 2))
+            {
+                assert(std::distance(lCurr, lNext) < 2);
+            }
 
             auto *fsNode = fCurr != fEnd ? &*fCurr : nullptr;
             auto *localNode = lCurr != lEnd ? *lCurr : nullptr;
@@ -1976,7 +2033,7 @@ auto Sync::computeSyncTriplets(Node* cloudParent, const LocalNode& syncParent, v
             if (fsNode && localNode)
             {
                 const auto relationship =
-                  comparator.compare(*fsNode, *localNode);
+                    fslnCompareSpaceship(*fsNode, *localNode);
 
                 // Non-null entries are considered equivalent.
                 if (relationship < 0)
@@ -2021,8 +2078,42 @@ auto Sync::computeSyncTriplets(Node* cloudParent, const LocalNode& syncParent, v
         }
     }
 
-    std::sort(remoteNodes.begin(), remoteNodes.end(), comparator);
-    std::sort(triplets.begin(), triplets.end(), comparator);
+    // node names going to the local FS, might clash if they only differ by case
+    caseInsensitive = isCaseInsensitive(mFilesystemType);
+
+    auto cloudCompareLess = [this, caseInsensitive](const Node* lhs, const Node* rhs) -> bool {
+        return compareUtf(
+            lhs->displayname(), false,
+            rhs->displayname(), false, caseInsensitive) < 0;
+    };
+
+    auto rowCompareLess = [=](const syncRow& lhs, const syncRow& rhs) -> bool {
+        return compareUtf(
+            lhs.comparisonLocalname(), true,
+            rhs.comparisonLocalname(), true, caseInsensitive) < 0;
+    };
+
+    auto cloudrowCompareSpaceship = [=](const Node* lhs, const syncRow& rhs) -> int {
+        // todo:  add an escape-as-we-compare option?
+        // consider: local d%  upload to cloud as d%, now we need to match those up for a single syncrow.
+        // consider: alternamtely d% in the cloud and local d%25 should also be considered a match.
+        //auto a = LocalPath::fromName(lhs->displayname(), *client->fsaccess, mFilesystemType);
+
+        return compareUtf(
+            lhs->displayname(), false,
+            rhs.comparisonLocalname(), true, caseInsensitive);
+    };
+
+    std::sort(remoteNodes.begin(), remoteNodes.end(), cloudCompareLess);
+    std::sort(triplets.begin(), triplets.end(), rowCompareLess);
+
+//#ifdef DEBUG
+//    string rns, trs;
+//    for (auto i : remoteNodes) rns += i->displayname() + string(" ");
+//    for (auto i : triplets) trs += i.comparisonLocalname().toPath(*client->fsaccess) + " ";
+//    LOG_debug << "remote names sorted: " << rns;
+//    LOG_debug << "row names sorted: " << trs;
+//#endif
 
     // Link cloud nodes with triplets.
     {
@@ -2033,13 +2124,13 @@ auto Sync::computeSyncTriplets(Node* cloudParent, const LocalNode& syncParent, v
 
         for ( ; ; )
         {
-            auto rNext = std::upper_bound(rCurr, rEnd, *rCurr, comparator);
+            auto rNext = std::upper_bound(rCurr, rEnd, *rCurr, cloudCompareLess);
             auto tNext = tCurr;
 
             // Compute upper bound manually.
             for ( ; tNext != tEnd; ++tNext)
             {
-                if (comparator(triplets[tCurr], triplets[tNext]))
+                if (rowCompareLess(triplets[tCurr], triplets[tNext]))
                 {
                     break;
                 }
@@ -2054,13 +2145,17 @@ auto Sync::computeSyncTriplets(Node* cloudParent, const LocalNode& syncParent, v
             auto* remoteNode = rCurr != rEnd ? *rCurr : nullptr;
             auto* triplet = tCurr != tEnd ? &triplets[tCurr] : nullptr;
 
+//#ifdef DEBUG
+//            auto rn = remoteNode ? remoteNode->displayname() : "";
+//#endif
+
             // Bail as there's nothing to pair.
             if (!(remoteNode || triplet)) break;
 
             if (remoteNode && triplet)
             {
                 const auto relationship =
-                  comparator.compare(*remoteNode, *triplet);
+                    cloudrowCompareSpaceship(remoteNode, *triplet);
 
                 // Non-null entries are considered equivalent.
                 if (relationship < 0)
@@ -2173,14 +2268,21 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
             {
                 client->mSyncFlags.performedScans = true;
 
-                auto elapsed = Waiter::ds - node.lastScanTime;
-                if (!mScanRequest && elapsed >= 20)
+                if (!mScanRequest)
                 {
-                    LOG_verbose << "Requesting scan for: " << fullPath.toPath(*client->fsaccess);
-                    node.scanObsolete = false;
-                    node.scanInProgress = true;
-                    mScanRequest = client->mScanService->scan(node, fullPath);
-                    syncHere = false;
+                    if (node.scanDelayUntil != 0 && Waiter::ds < node.scanDelayUntil)
+                    {
+                        SYNC_verbose << "Too soon to scan this folder, needs more ds: " << node.scanDelayUntil - Waiter::ds;
+                        syncHere = false;
+                    }
+                    else
+                    {
+                        LOG_verbose << "Requesting scan for: " << fullPath.toPath(*client->fsaccess);
+                        node.scanObsolete = false;
+                        node.scanInProgress = true;
+                        mScanRequest = client->mScanService->scan(node, fullPath);
+                        syncHere = false;
+                    }
                 }
                 else if (mScanRequest &&
                          mScanRequest->matches(node) &&
@@ -2190,18 +2292,19 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
                     node.scanInProgress = false;
                     if (node.scanObsolete)
                     {
-                        LOG_verbose << "Re-requesting scan for: " << fullPath.toPath(*client->fsaccess);
+                        LOG_verbose << "Scan outdated for : " << fullPath.toPath(*client->fsaccess);
                         node.scanObsolete = false;
-                        node.scanInProgress = true;
-                        mScanRequest = client->mScanService->scan(node, fullPath);
+                        node.scanInProgress = false;
+                        mScanRequest.reset();
                         syncHere = false;
+                        node.scanDelayUntil = Waiter::ds + 10; // don't scan too frequently
                     }
                     else
                     {
                         node.lastFolderScan.reset(
                             new vector<FSNode>(mScanRequest->results()));
 
-                        node.lastScanTime = Waiter::ds;
+                        node.scanDelayUntil = Waiter::ds + 20; // don't scan too frequently
                         mScanRequest.reset();
                         row.syncNode->scanAgain = TREE_RESOLVED;
                         row.syncNode->setCheckMovesAgain(false, true, false);
@@ -2271,7 +2374,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
     }
 #endif
 
-    // Reset these flags before we evalueate each subnode.
+    // Reset these flags before we evaluate each subnode.
     // They could be set again during that processing,
     // And additionally we double check with each child node after, in case we had reason to skip it.
     row.syncNode->checkMovesAgain = TREE_RESOLVED;
@@ -2303,7 +2406,11 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
                 fullPath.appendWithSeparator(LocalPath::fromName(childRow.cloudNode->displayname(), *client->fsaccess, mFilesystemType), true, client->fsaccess->localseparator);
             }
 
-            assert(!childRow.syncNode || childRow.syncNode->getLocalPath(true) == fullPath);
+            if (!(!childRow.syncNode || childRow.syncNode->getLocalPath(true) == fullPath))
+            {
+                auto s = childRow.syncNode->getLocalPath(true);
+                assert(!childRow.syncNode || 0 == compareUtf(childRow.syncNode->getLocalPath(true), true, fullPath, true, false));
+            }
 
             if (!fsstableids && !row.syncNode->unstableFsidAssigned)
             {
@@ -2425,7 +2532,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
         row.syncNode->conflicts = updateTreestateFromChild(row.syncNode->conflicts, child.second->conflicts);
         row.syncNode->scanBlocked = updateTreestateFromChild(row.syncNode->scanBlocked, child.second->scanBlocked);
 
-        if (child.second->parentSetScanAgain) row.syncNode->setScanAgain(false, true, false);
+        if (child.second->parentSetScanAgain) row.syncNode->setScanAgain(false, true, false, 0);
         if (child.second->parentSetCheckMovesAgain) row.syncNode->setCheckMovesAgain(false, true, false);
         if (child.second->parentSetSyncAgain) row.syncNode->setSyncAgain(false, true, false);
         if (child.second->parentSetContainsConflicts) row.syncNode->setContainsConflicts(false, true, false);
@@ -2746,7 +2853,7 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPa
 
     if (row.syncNode->type != FILENODE)
     {
-        row.syncNode->setScanAgain(false, true, true);
+        row.syncNode->setScanAgain(false, true, true, 0);
     }
 
     row.syncNode->treestate(TREESTATE_PENDING);
@@ -2819,7 +2926,7 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& full
     {
         LOG_debug << client->clientname << "resolve_delSyncNode not resolved at: " << logTriplet(row, fullPath);
         assert(false);
-        row.syncNode->setScanAgain(true, true, true);
+        row.syncNode->setScanAgain(true, true, true, 2);
     }
     return false;
 }
@@ -2971,7 +3078,8 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPat
                 }
                 else
                 {
-                    row.syncNode->setScanAgain(true, false, false);
+                    LOG_warn << client->clientname << "Failed to fopen folder straight after creation - revisit in 5s. " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
+                    row.syncNode->setScanAgain(true, false, false, 50);
                 }
             }
             else if (client->fsaccess->transient_error)
@@ -3046,7 +3154,7 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fu
         LOG_debug << client->clientname << "Moving local item to local sync debris: " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
         if (movetolocaldebris(fullPath))
         {
-            row.syncNode->setScanAgain(true, false, false);
+            row.syncNode->setScanAgain(true, false, false, 0);
             row.syncNode->scanAgain = TREE_RESOLVED;
 
             // don't let revisits do anything until the tree is cleaned up

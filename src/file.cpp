@@ -567,7 +567,7 @@ void SyncFileGet::updatelocalname()
 // add corresponding LocalNode (by path), then self-destruct
 void SyncFileGet::completed(Transfer*, LocalNode* )
 {
-    localNode.setScanAgain(true, false, false);
+    localNode.setScanAgain(true, false, false, 0);
     LOG_debug << "clearing downlaod for " << &localNode << " on completed";
     localNode.download.reset(); // deletes this;
 }

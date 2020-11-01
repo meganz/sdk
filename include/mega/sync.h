@@ -252,8 +252,8 @@ public:
     // current state
     syncstate_t state = SYNC_INITIALSCAN;
 
-    // are we conducting a full tree scan? (during initialization and if event notification failed)
-    bool fullscan = true;
+    //// are we conducting a full tree scan? (during initialization and if event notification failed)
+    //bool fullscan = true;
 
     // syncing to an inbound share?
     bool inshare = false;
@@ -288,8 +288,8 @@ public:
     // process all outstanding filesystem notifications (mark sections of the sync tree to visit)
     dstime procscanq();
 
-    // recursively look for vanished child nodes and delete them
-    void deletemissing(LocalNode*);
+    //// recursively look for vanished child nodes and delete them
+    //void deletemissing(LocalNode*);
 
     unsigned localnodes[2]{};
 
@@ -317,6 +317,8 @@ public:
         // Sometimes when eg. creating a local a folder, we need to add to this list
         // Note that it might be the cached version or a temporary regenerated list
         vector<FSNode>* fsSiblings = nullptr;
+
+        const LocalPath& comparisonLocalname() const;
     };
 
     vector<syncRow> computeSyncTriplets(Node* cloudNode,
@@ -349,9 +351,9 @@ public:
     // own position in session sync list
     sync_list::iterator sync_it{};
 
-    // rescan sequence number (incremented when a full rescan or a new
-    // notification batch starts)
-    int scanseqno = 0;
+    //// rescan sequence number (incremented when a full rescan or a new
+    //// notification batch starts)
+    //int scanseqno = 0;
 
     // notified nodes originating from this sync bear this tag
     int tag = 0;

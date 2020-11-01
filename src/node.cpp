@@ -1295,7 +1295,7 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
         c->setnameparent(ln, &fullPath, sync->client->fsaccess->fsShortname(fullPath), false);
         if (setScanAgain)
         {
-            c->setScanAgain(false, true, true);
+            c->setScanAgain(false, true, true, 0);
         }
     }
 
@@ -1347,7 +1347,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
 {
     sync = csync;
     parent = NULL;
-    notseen = 0;
+//    notseen = 0;
     unstableFsidAssigned = false;
     deletingCloud = false;
     deletedFS = false;
@@ -1403,7 +1403,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
 //    }
 //#endif
 
-    scanseqno = sync->scanseqno;
+//    scanseqno = sync->scanseqno;
 
     // mark fsid as not valid
     fsid_it = sync->client->localnodeByFsid.end();
@@ -1480,7 +1480,7 @@ auto LocalNode::rare() -> RareFields&
     return *rareFields;
 }
 
-void LocalNode::setScanAgain(bool doParent, bool doHere, bool doBelow)
+void LocalNode::setScanAgain(bool doParent, bool doHere, bool doBelow, dstime delayds)
 {
     if (doHere)
     {
@@ -1488,6 +1488,10 @@ void LocalNode::setScanAgain(bool doParent, bool doHere, bool doBelow)
     }
 
     unsigned state = (doHere?1u:0u) << 1 | (doBelow?1u:0u);
+    if (state >= TREE_ACTION_HERE && delayds > 0)
+    {
+        scanDelayUntil = std::max<dstime>(scanDelayUntil,  Waiter::ds + delayds);
+    }
 
     scanAgain = std::max<unsigned>(scanAgain, state);
     for (auto p = parent; p != NULL; p = p->parent)
@@ -1594,7 +1598,7 @@ bool LocalNode::checkForScanBlocked(FSNode* fsNode)
         if (rare().scanBlockedTimer->armed())
         {
             LOG_verbose << "Scan blocked timer elapsed, trigger parent rescan: "  << localnodedisplaypath(*sync->client->fsaccess);;
-            if (parent) parent->setScanAgain(false, true, false);
+            if (parent) parent->setScanAgain(false, true, false, 0);
             rare().scanBlockedTimer->backoff(); // wait increases exponentially
             return true;
         }
@@ -1717,35 +1721,35 @@ treestate_t LocalNode::checkstate()
 //    }
 //}
 
-void LocalNode::setnotseen(int newnotseen)
-{
-    if (!sync)
-    {
-        LOG_err << "LocalNode::init() was never called";
-        assert(false);
-        return;
-    }
-
-    if (!newnotseen)
-    {
-        if (notseen)
-        {
-            sync->client->localsyncnotseen.erase(notseen_it);
-        }
-
-        notseen = 0;
-        scanseqno = sync->scanseqno;
-    }
-    else
-    {
-        if (!notseen)
-        {
-            notseen_it = sync->client->localsyncnotseen.insert(this).first;
-        }
-
-        notseen = newnotseen;
-    }
-}
+//void LocalNode::setnotseen(int newnotseen)
+//{
+//    if (!sync)
+//    {
+//        LOG_err << "LocalNode::init() was never called";
+//        assert(false);
+//        return;
+//    }
+//
+//    if (!newnotseen)
+//    {
+//        if (notseen)
+//        {
+//            sync->client->localsyncnotseen.erase(notseen_it);
+//        }
+//
+//        notseen = 0;
+//        scanseqno = sync->scanseqno;
+//    }
+//    else
+//    {
+//        if (!notseen)
+//        {
+//            notseen_it = sync->client->localsyncnotseen.insert(this).first;
+//        }
+//
+//        notseen = newnotseen;
+//    }
+//}
 
 // set fsid - assume that an existing assignment of the same fsid is no longer current and revoke
 void LocalNode::setfsid(handle newfsid, fsid_localnode_map& fsidnodes)
@@ -1820,7 +1824,7 @@ LocalNode::~LocalNode()
         sync->statecachedel(this);
     }
 
-    setnotseen(0);
+//    setnotseen(0);
 
     newnode.reset();
 

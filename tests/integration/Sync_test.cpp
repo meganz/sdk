@@ -5295,20 +5295,21 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
 
     // to investigate just one sync case, put its name here,
     // otherwise we loop to generate all combinations (except those excluded)
-    static string singleNamedTest = "";//"delete_up_other_folder_steady";
+    static string singleNamedTest = "";//"delete_down_other_file_resumed";
 
     for (int selfChange = 0; selfChange < 2; ++selfChange)
     {
-        //if (selfChange) continue;
+        //if (!selfChange) continue;
 
         for (int up = 0; up < 2; ++up)
         {
-            //if (!up) continue;
+            //if (up) continue;
 
             for (int action = 0; action < (int)TwoWaySyncSymmetryCase::action_numactions; ++action)
             {
                 //if (action != TwoWaySyncSymmetryCase::action_moveIntoSync) continue;
                 //if (action != TwoWaySyncSymmetryCase::action_rename) continue;
+                //if (action != TwoWaySyncSymmetryCase::action_delete) continue;
 
                 for (int file = 0; file < 2; ++file)
                 {
