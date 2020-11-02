@@ -1498,7 +1498,114 @@ void MegaApiImpl::backupFolder(const char *localFolder, const char *backupName, 
     request->setName(backupName);
 
     requestQueue.push(request);
-    waiter->notify();  // validate and continue in MegaApiImpl::sendPendingRequests()
+    waiter->notify();  // followup in MegaApiImpl::backupFolder_sendPendingRequest()
+}
+
+error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) // request created in MegaApiImpl::backupFolder()
+{
+    // validate local path and backup name
+    string localPath(request->getFile());
+    string backupName(request->getName());
+
+    if (backupName.empty()) // get the last leaf of local path
+    {
+        // trim trailing path separator(s)
+        while (!localPath.empty() && (localPath.back() == '\\' || localPath.back() == '/'))  localPath.pop_back();
+
+        // find the last non-trailing separator
+        auto sep = localPath.find_last_of("\\/");
+
+        backupName = sep == string::npos ? localPath : localPath.substr(sep + 1);
+        request->setName(backupName.c_str()); // use this in putnodes_result()
+    }
+
+    if (localPath.empty()) { return API_EARGS; }
+
+#if defined(_WIN32) && !defined(WINDOWS_PHONE)
+    if (!PathIsRelativeA(localPath.c_str()) && ((localPath.size() < 2) || localPath.compare(0, 2, "\\\\")))
+    {
+        localPath.insert(0, "\\\\?\\");
+        request->setFile(localPath.c_str());
+    }
+#endif
+
+    // get current user
+    User* u = client->ownuser();
+
+    // get handle of remote "My Backups" folder, from user attributes
+    if (!u || !u->isattrvalid(ATTR_MY_BACKUPS_FOLDER)) { return API_EACCESS; }
+    const string* handleContainerStr = u->getattr(ATTR_MY_BACKUPS_FOLDER);
+    if (!handleContainerStr) { return API_EACCESS; }
+
+    std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(handleContainerStr, &client->key));
+    if (!tlvRecords || !tlvRecords->find("h")) { return API_EINTERNAL; }
+
+    const string& handleStr = tlvRecords->get("h");
+    handle h = MegaApi::base64ToHandle(handleStr.c_str());
+    if (h == UNDEF) { return API_ENOENT; }
+
+    // get Node of remote "My Backups" folder
+    Node* myBackupsNode = client->nodebyhandle(h);
+    if (!myBackupsNode) { return API_ENOENT; }
+
+    // get 'device-id'
+    const string& deviceId = client->getDeviceid();
+    if (deviceId.empty()) { return API_EINCOMPLETE; }
+
+    // get `DEVICE_NAME`, from user attributes
+    if (!u->isattrvalid(ATTR_DEVICE_NAMES)) { return API_EINCOMPLETE; }
+    const string* deviceNameContainerStr = u->getattr(ATTR_DEVICE_NAMES);
+    if (!deviceNameContainerStr) { return API_EINCOMPLETE; }
+
+    tlvRecords.reset(TLVstore::containerToTLVrecords(deviceNameContainerStr, &client->key));
+    if (!tlvRecords || !tlvRecords->find(deviceId)) { return API_EINCOMPLETE; }
+
+    const string& devName64Str = tlvRecords->get(deviceId);
+    string deviceName = Base64::btoa(devName64Str);
+    if (deviceName.empty()) { return API_EINCOMPLETE; }
+
+    request->setText(deviceName.c_str()); // cache this to use it in putnodes_result()
+
+    vector<NewNode> newnodes;
+    nameid attrId = AttrMap::string2nameid("dev-id"); // "device-id" would be too long
+    std::function<void(AttrMap& attrs)> addAttrsFunc = [=](AttrMap& attrs)
+    {
+        attrs.map[attrId] = deviceId;
+    };
+
+    // serch for remote folder "My Backups"/`DEVICE_NAME`/
+    Node* deviceNameNode = client->childnodebyname(myBackupsNode, deviceName.c_str(), false);
+    if (deviceNameNode) // validate this node
+    {
+        if (deviceNameNode->type != FOLDERNODE) { return API_EACCESS; }
+
+        // get 'dev-id' tag
+        const auto& childAttrs = deviceNameNode->attrs.map;
+        auto found = childAttrs.find(attrId);
+
+        // a folder without the attribute, or with it but with different value, will not be accessed
+        if (found == childAttrs.end() || found->second != deviceId) { return API_EACCESS; }
+    }
+    else // create `DEVICE_NAME` remote dir
+    {
+        newnodes.emplace_back();
+        NewNode& newNode = newnodes.back();
+
+        client->putnodes_prepareOneFolder(&newNode, deviceName, addAttrsFunc);
+        newNode.nodehandle = AttrMap::string2nameid("dummy"); // any value should do, let's make it somewhat "readable"
+    }
+
+    // create backupName remote dir
+    newnodes.emplace_back();
+    NewNode& backupNameNode = newnodes.back();
+
+    client->putnodes_prepareOneFolder(&backupNameNode, backupName, addAttrsFunc);
+    backupNameNode.parenthandle = deviceNameNode ? deviceNameNode->nodehandle : newnodes[0].nodehandle;
+
+    // create the new node(s)
+    client->putnodes(myBackupsNode->nodehandle, move(newnodes));  // followup in putnodes_result()
+
+    return API_OK;
 }
 
 MegaBackup *MegaApiImpl::getBackupByTag(int tag)
@@ -13903,6 +14010,31 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));    // even if import fails, notify account was successfuly created anyway
             return;
         }
+
+        else if (request->getType() == MegaRequest::TYPE_BACKUP_FOLDER)
+        {
+            handle backupHandle = nn.back().nodehandle;
+            const char* deviceName = request->getText(); // cached value
+
+            // create the SyncConfig
+            auto nextSyncTag = client->nextSyncTag();
+            std::unique_ptr<char[]> remotePath{ getNodePathByNodeHandle(backupHandle) };
+            SyncConfig syncConfig{ nextSyncTag, nullptr, deviceName, backupHandle, remotePath.get(),
+                                    0, {}, true, SyncConfig::TYPE_BACKUP };
+
+            const char* backupName = request->getName();
+            const char* localPath = request->getFile();
+
+            // create the Sync
+            auto sync = make_unique<MegaSyncPrivate>(localPath, backupName, backupHandle, nextSyncTag);
+            sync->setListener(request->getSyncListener());
+
+            fireOnSyncAdded(sync.get(), MegaSync::NEW);
+
+            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+            return;
+        }
+
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
     }
     else
@@ -23117,8 +23249,9 @@ void MegaApiImpl::sendPendingRequests()
                                                            request->getNodeHandle()));
             break;
         }
-        case MegaRequest::TYPE_BACKUP_FOLDER: // see MegaApiImpl::backupFolder()
+        case MegaRequest::TYPE_BACKUP_FOLDER: // request created in MegaApiImpl::backupFolder()
         {
+            e = backupFolder_sendPendingRequest(request);
 
             break;
         }

@@ -3263,6 +3263,10 @@ protected:
         bool hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const;
 
         friend class MegaBackgroundMediaUploadPrivate;
+
+private:
+        error backupFolder_sendPendingRequest(MegaRequestPrivate* request);
+
 };
 
 class MegaHashSignatureImpl
