@@ -7456,7 +7456,7 @@ error MegaClient::setattr(Node* n, const char *prevattr)
     return API_OK;
 }
 
-void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername)
+void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void(AttrMap&)> addAttrs)
 {
     string attrstring;
     byte buf[FOLDERNODEKEYLENGTH];
@@ -7477,6 +7477,9 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 
     fsaccess->normalize(&foldername);
     attrs.map['n'] = foldername;
+
+    // add custom attributes
+    if (addAttrs)  addAttrs(attrs);
 
     // JSON-encode object and encrypt attribute string
     attrs.getjson(&attrstring);
