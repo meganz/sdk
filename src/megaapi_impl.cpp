@@ -25092,22 +25092,18 @@ void MegaFolderUploadController::start(MegaNode*)
         LocalPath localpath = std::move(path);
         scanFolder(transfer->getParentHandle(), transfer->getParentHandle(), localpath, transfer->getFileName());
 
-        if (isCompleted())
-        {
-            // The folder that we want to upload doesn't have any file, and already exists in cloud drive
-            megaApi->endRecursiveOperation(this->transfer);
-            return;
-        }
-
         if (!mFolderStructure.empty())
         {
             createFolder();
             mMutex.lock(); // wait until all folders have been created, and SDK thread unlock mutex
         }
 
-        isCompleted()
-                ? megaApi->endRecursiveOperation(this->transfer) // there's no files to upload
-                : uploadFiles();                                 // upload pending files
+        uploadFiles();
+
+        if (isCompleted())
+        {
+            megaApi->endRecursiveOperation(transfer);
+        }
     });
 }
 
@@ -25366,10 +25362,9 @@ void MegaFolderUploadController::createFolder()
                  * unlock mutex in order to worker thread continue it's execution */
                 mMutex.unlock();
 
-                /* if all putnodes have failed, checkCompletion will call dtor and we will join worker thread */
                 if (isCompleted())
                 {
-                    megaApi->endRecursiveOperation(this->transfer);
+                    megaApi->endRecursiveOperation(transfer);
                 }
             }
         });
