@@ -23081,6 +23081,45 @@ void MegaApiImpl::sendPendingRequests()
                                                            request->getNodeHandle()));
             break;
         }
+        case MegaRequest::TYPE_FETCH_GOOGLE_ADS:
+        {
+                MegaStringList* stringList = request->getMegaStringList();
+                std::vector<std::string> vectorString;
+                for (int i = 0; i < stringList->size(); i++)
+                {
+                    vectorString.push_back(stringList->get(i));
+                }
+
+                client->reqs.add(new CommandFetchGoogleAds(client, request->getNumber(), vectorString, request->getNodeHandle(), [request, this](Error e, string_map value)
+                {
+                    if (e == API_OK)
+                    {
+                        std::unique_ptr<MegaStringMap> stringMap = std::unique_ptr<MegaStringMap>(MegaStringMap::createInstance());
+                        for (const auto itMap : value)
+                        {
+                            stringMap->set(itMap.first.c_str(), itMap.second.c_str());
+                        }
+
+                        request->setMegaStringMap(stringMap.get());
+                    }
+
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                }));
+            break;
+        }
+        case MegaRequest::TYPE_QUERY_GOOGLE_ADS:
+        {
+            client->reqs.add(new CommandQueryGoogleAds(client, request->getNumber(), request->getNodeHandle(), [request, this](Error e, int value)
+            {
+                if (e == API_OK)
+                {
+                    request->setNumDetails(value);
+                }
+
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }));
+            break;
+        }
         default:
         {
             e = API_EINTERNAL;
