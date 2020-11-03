@@ -55,6 +55,11 @@ double HeartBeatBackupInfo::progress() const
     return mProgress;
 }
 
+void HeartBeatBackupInfo::invalidateProgress()
+{
+    mProgressInvalid = true;
+}
+
 uint32_t HeartBeatBackupInfo::pendingUps() const
 {
     return mPendingUps;
@@ -118,6 +123,7 @@ void HeartBeatBackupInfo::setStatus(const int &status)
 
 void HeartBeatBackupInfo::setProgress(const double &progress)
 {
+    mProgressInvalid = false;
     mProgress = progress;
     updateLastActionTime();
 }
@@ -228,6 +234,7 @@ void HeartBeatTransferProgressedInfo::clearFinshedTransfers()
 
 void HeartBeatTransferProgressedInfo::setTransferredBytes(long long value)
 {
+    mProgressInvalid = false;
     if (mTransferredBytes != value)
     {
         mTransferredBytes = value;
@@ -237,6 +244,7 @@ void HeartBeatTransferProgressedInfo::setTransferredBytes(long long value)
 
 void HeartBeatTransferProgressedInfo::setTotalBytes(long long value)
 {
+    mProgressInvalid = false;
     if (mTotalBytes != value)
     {
         mTotalBytes = value;
@@ -246,7 +254,7 @@ void HeartBeatTransferProgressedInfo::setTotalBytes(long long value)
 
 double HeartBeatTransferProgressedInfo::progress() const
 {
-    return std::max(0., std::min(1., static_cast<double>(mTransferredBytes) / static_cast<double>(mTotalBytes)));
+    return mProgressInvalid ? -1.0 : std::max(0., std::min(1., static_cast<double>(mTransferredBytes) / static_cast<double>(mTotalBytes)));
 }
 
 #ifdef ENABLE_SYNC
@@ -757,9 +765,16 @@ void MegaBackupMonitor::beatBackupInfo(const std::shared_ptr<HeartBeatBackupInfo
 
         hbs->setLastBeat(m_time(nullptr));
 
-        auto newCommand = new CommandBackupPutHeartBeat(mClient, hbs->backupId(), hbs->status(),
-                          static_cast<uint8_t>(std::lround(hbs->progress()*100.0)), hbs->pendingUps(), hbs->pendingDowns(),
+        int8_t progress = (hbs->progress() < 0) ? -1 : static_cast<int8_t>(std::lround(hbs->progress()*100.0));
+
+        auto newCommand = new CommandBackupPutHeartBeat(mClient, hbs->backupId(),  static_cast<uint8_t>(hbs->status()),
+                          progress, hbs->pendingUps(), hbs->pendingDowns(),
                           hbs->lastAction(), hbs->lastItemUpdated());
+        if (hbs->status() == HeartBeatSyncInfo::Status::UPTODATE && progress >= 100)
+        {
+            hbs->invalidateProgress(); // we invalidate progress, so as not to keep on reporting 100% progress after reached up to date
+            // note: new transfer updates will modify the progress and make it valid again
+        }
 
         auto runningCommand = hbs->runningCommand();
 

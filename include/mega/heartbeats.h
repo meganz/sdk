@@ -49,6 +49,7 @@ public:
     virtual int status() const;
 
     virtual double progress() const;
+    virtual void invalidateProgress();
 
     virtual uint32_t pendingUps() const;
 
@@ -79,14 +80,16 @@ protected:
 
     int mStatus = 0;
     double mProgress = 0;
+    bool mProgressInvalid = true;
+
 
     uint32_t mPendingUps = 0;
     uint32_t mPendingDowns = 0;
 
     mega::MegaHandle mLastItemUpdated = INVALID_HANDLE; // handle of node most recently updated
 
-    m_time_t mLastAction = 0;   //timestamps of the last action
-    m_time_t mLastBeat = 0;     //timestamps of the last beat
+    m_time_t mLastAction = -1;   //timestamps of the last action
+    m_time_t mLastBeat = -1;     //timestamps of the last beat
 
     Command *mRunningCommand = nullptr;
 
@@ -239,8 +242,6 @@ private:
 
     mega::MegaClient *mClient = nullptr;
     std::deque<std::function<void(handle)>> mPendingBackupPutCallbacks; // Callbacks to be executed when backupId received after a registering "sp"
-
-    m_time_t mLastBeat = 0;
 
     void updateBackupInfo(const MegaBackupInfo &info);
     void registerBackupInfo(const MegaBackupInfo &info);
