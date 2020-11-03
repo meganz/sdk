@@ -2235,6 +2235,13 @@ public:
 class MegaStringList
 {
 public:
+    /**
+     * @brief Creates a new instance of MegaStringList
+     *
+     * @return A pointer to the superclass of the private object
+     */
+    static MegaStringList *createInstance();
+
     virtual ~MegaStringList();
 
     virtual MegaStringList *copy() const;
@@ -2257,6 +2264,13 @@ public:
      * @return Number of strings in the list
      */
     virtual int size() const;
+
+    /**
+     * @brief Add element to the list
+     *
+     * @param value String to add to list
+     */
+    virtual void add(const char* value);
 };
 
 /**
@@ -2985,6 +2999,7 @@ class MegaRequest
             TYPE_SEND_DEV_COMMAND,
             TYPE_GET_BANNERS, TYPE_DISMISS_BANNER,
             TYPE_BACKUP_PUT, TYPE_BACKUP_REMOVE, TYPE_BACKUP_PUT_HEART_BEAT,
+            TYPE_FETCH_GOOGLE_ADS, TYPE_QUERY_GOOGLE_ADS,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -3080,6 +3095,8 @@ class MegaRequest
          * - MegaApi::setBackup - Returns the target node of the backup
          * - MegaApi::updateBackup - Returns the target node of the backup
          * - MegaApi::sendBackupHeartbeat - Returns the last node backed up
+         * - MegaApi::fetchGoogleAds - Returns public handle that the user is visiting (optionally)
+         * - MegaApi::queryGoogleAds - Returns public handle that the user is visiting (optionally)
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3417,6 +3434,8 @@ class MegaRequest
          * - MegaApi::sendChatStats - Returns the connection port
          * - MegaApi::dismissBanner - Returns the timestamp of the request
          * - MegaApi::sendBackupHeartbeat - Returns the time associated with the request
+         * - MegaApi::fetchGoogleAds - Returns a bitmap flag used to communicate with the API
+         * - MegaApi::queryGoogleAds - Returns a bitmap flag used to communicate with the API
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3632,6 +3651,7 @@ class MegaRequest
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::getUserAttribute - Returns the attribute value
+         * - MegaApi::fetchGoogleAds - Returns google ads
          *
          * @return String map including the key-value pairs of the attribute
          */
@@ -3711,6 +3731,19 @@ class MegaRequest
          * @return List of all Smart Banners available for current user
          */
         virtual MegaBannerList* getMegaBannerList() const;
+
+        /**
+         * @brief Returns the string list
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::fetchGoogleAds - A list of the adslot ids to fetch
+         *
+         * @return String list
+         */
+        virtual MegaStringList* getMegaStringList() const;
 };
 
 /**
@@ -18284,6 +18317,25 @@ class MegaApi
          *
         */
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode);
+
+        /**
+         * @brief Allow fetch google ads
+         *
+         * @param adFlags A bitmap flag used to communicate with the API
+         * @param adUnits A list of the adslot ids to fetch
+         * @param publicHandle Provide the public handle that the user is visiting (optionally)
+         * @param listener MegaRequestListener to track this request
+         */
+        void fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Allows you to simply query if we should show an ad or not
+         *
+         * @param adFlags A bitmap flag used to communicate with the API
+         * @param publicHandle Provide the public handle that the user is visiting (optionally)
+         * @param listener MegaRequestListener to track this request
+         */
+        void queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaRequestListener *listener = nullptr);
 
  private:
         MegaApiImpl *pImpl;
