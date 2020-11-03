@@ -25104,7 +25104,7 @@ void MegaFolderUploadController::start(MegaNode*)
 
         if (isCompleted())
         {
-            // if there's no pending files to be processed, end folder upload operation
+            // if we call endRecursiveOperation after uploadFiles, we may incur in a double free for this object
             megaApi->endRecursiveOperation(transfer, this);
             return;
         }
@@ -26636,6 +26636,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
         createFolder();
         if (isCompleted())
         {
+            // if we call endRecursiveOperation after downloadFiles, we may incur in a double free for this object
             megaApi->endRecursiveOperation(transfer, this);
             return;
         }
