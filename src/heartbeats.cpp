@@ -509,7 +509,6 @@ void MegaBackupMonitor::digestPutResult(handle backupId)
         return;
     }
     // get the tag from queue of pending puts
-    assert(mPendingBackupPutCallbacks.size());
     auto putResultCallback = mPendingBackupPutCallbacks.front();
     mPendingBackupPutCallbacks.pop_front();
     //call corresponding callback
@@ -743,6 +742,12 @@ void MegaBackupMonitor::calculateStatus(HeartBeatBackupInfo *hbs)
 
 void MegaBackupMonitor::beatBackupInfo(const std::shared_ptr<HeartBeatBackupInfo> &hbs)
 {
+    if (ISUNDEF(hbs->backupId()))
+    {
+        LOG_warn << "Backup not registered yet. Skipping heartbeat...";
+        return;
+    }
+
     auto now = m_time(nullptr);
     auto lapsed = now - hbs->lastBeat();
     if ( (hbs->lastAction() > hbs->lastBeat()) //something happened since last reported!
