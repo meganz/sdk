@@ -160,8 +160,13 @@ if (USE_QT)
 
     # get qt version
     if ("${QT_QMAKE_EXECUTABLE}" STREQUAL "")
-        set(QT_QMAKE_EXECUTABLE "${QT_DIR}/bin/qmake.exe")
+        if(WIN32)
+            set(QT_QMAKE_EXECUTABLE "${QT_DIR}/bin/qmake.exe")
+        else()
+            set(QT_QMAKE_EXECUTABLE "${CMAKE_PREFIX_PATH}/bin/qmake")
+        endif()
     endif()
+    message(STATUS "qmake executable : ${QT_QMAKE_EXECUTABLE}")
 
     execute_process(COMMAND ${QT_QMAKE_EXECUTABLE} -query QT_VERSION OUTPUT_VARIABLE QT_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
     message(STATUS "Using QT ${QT_VERSION} from ${Qt5_DIR} ${QT_DIR}")
@@ -218,6 +223,8 @@ elseif (USE_THIRDPARTY_FROM_VCPKG) #vcpkg or system
     ENDIF(WIN32)
 
     set(vcpkg_dir "${Mega3rdPartyDir}/vcpkg/installed/${VCPKG_TRIPLET}")
+    link_directories("${vcpkg_dir}/lib")
+
 endif()
 
 message(STATUS, " prebuilt_dir = ${Mega3rdPartyDir}")
@@ -317,7 +324,7 @@ endfunction(ImportALibrary)
 function(ImportStdVcpkgLibrary libName winDbg win linDbg lin)
     if (WIN32 OR EXISTS ${vcpkg_dir}/lib/${lin}.a)
         add_library(${libName} STATIC IMPORTED)
-        message("adding library: " ${vcpkg_dir}/lib/${lin}.a)
+        message("adding vcpkg library: ${libName} in ${vcpkg_dir}/lib/${lin}.a")
         # function that imports vcpkg libraries (receiving different names for win/linux)
         set_property(TARGET ${libName} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${vcpkg_dir}/include)
         if (WIN32)
@@ -609,7 +616,7 @@ if(WIN32)
     SET(WIN_EXTRA_INCLUDE $<${USE_PREBUILT_3RDPARTY}:${prebuilt_dir}/libs/sqlite3.c>)
 endif()
 
-if(CMAKE_HOST_APPLE)
+if(CMAKE_HOST_APPLE AND NOT USE_THIRDPARTY_FROM_VCPKG)
     SET(MACOS_EXTRA_INCLUDE $<${USE_PREBUILT_3RDPARTY}:${prebuilt_dir}/sqlite3.c>)
 endif()
 
@@ -957,3 +964,4 @@ if (WIN32)
 else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wconversion -Wno-unused-parameter")
 endif()
+

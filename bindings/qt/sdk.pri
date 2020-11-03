@@ -204,7 +204,8 @@ CONFIG(USE_MEDIAINFO) {
 CONFIG(USE_LIBRAW) {
     DEFINES += HAVE_LIBRAW
 
-    vcpkg:LIBS += -lraw$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX
+    vcpkg:LIBS += -lraw$$DEBUG_SUFFIX
+    vcpkg:!macx:LIBS += -ljasper$$DEBUG_SUFFIX
     vcpkg:win32:LIBS += -ljpeg$$DEBUG_SUFFIX
     vcpkg:!win32:LIBS += -ljpeg
     vcpkg:unix:!macx:LIBS += -lgomp
@@ -235,8 +236,10 @@ CONFIG(USE_PDFIUM) {
     vcpkg:LIBS += -lpdfium -lfreetype$$DEBUG_SUFFIX -ljpeg$$DEBUG_SUFFIX_WO -lopenjp2  -llcms$$DEBUG_SUFFIX 
 
     #make sure we get the vcpkg built icu libraries and not a system one with the same name
-    debug:vcpkg:LIBS += -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuucd -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuiod
-    !debug:vcpkg:LIBS += -l$$THIRDPARTY_VCPKG_PATH/lib/icuuc$$DEBUG_SUFFIX_WO.lib -l$$THIRDPARTY_VCPKG_PATH/lib/icuio$$DEBUG_SUFFIX_WO.lib
+    debug:vcpkg:!macx:LIBS += -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuucd -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuiod
+    !debug:vcpkg:!macx:LIBS += -l$$THIRDPARTY_VCPKG_PATH/lib/icuuc$$DEBUG_SUFFIX_WO.lib -l$$THIRDPARTY_VCPKG_PATH/lib/icuio$$DEBUG_SUFFIX_WO.lib
+    debug:vcpkg:macx:LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuucd.a $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuiod.a
+    !debug:vcpkg:macx:LIBS += $$THIRDPARTY_VCPKG_PATH/lib/libicuuc.a $$THIRDPARTY_VCPKG_PATH/lib/libicuio.a
     #vcpkg:QMAKE_LFLAGS_WINDOWS += /VERBOSE
 
     vcpkg:unix:!macx:LIBS += -lpng -lharfbuzz #freetype dependencies. ideally we could use pkg-config to get these
