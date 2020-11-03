@@ -25080,7 +25080,6 @@ void MegaFolderUploadController::start(MegaNode*)
     transfer->setStartTime(Waiter::ds);
     transfer->setState(MegaTransfer::STATE_QUEUED);
     megaApi->fireOnTransferStart(transfer);
-    mMutex.lock(); // adquire MegaFolderUploadController mutex with SDK thread
 
     unique_ptr<MegaNode> parent(megaApi->getNodeByHandle(transfer->getParentHandle()));
     if (!parent)
@@ -25092,6 +25091,7 @@ void MegaFolderUploadController::start(MegaNode*)
     }
 
     LocalPath path = LocalPath::fromPath(transfer->getPath(), *client->fsaccess);
+    mMutex.lock(); // adquire MegaFolderUploadController mutex with SDK thread
     mWorkerThread = std::thread ([this, path]() {
         LocalPath localpath = std::move(path);
         scanFolder(transfer->getParentHandle(), transfer->getParentHandle(), localpath, transfer->getFileName());
