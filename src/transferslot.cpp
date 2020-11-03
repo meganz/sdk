@@ -1135,15 +1135,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             }
                         }
 
-                        unsigned size = (unsigned)(posrange.second - posrange.first);
-                        if (size > 16777216)
-                        {
-                            client->sendevent(99434, "Invalid request size", 0);
-
-                            transfer->chunkmacs.clear();
-                            return transfer->failed(API_EINTERNAL, committer);
-                        }
-
                         reqs[i]->prepare(finaltempurl.c_str(), transfer->transfercipher(),
                                                                transfer->ctriv,
                                                                posrange.first, posrange.second);
