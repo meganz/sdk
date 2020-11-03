@@ -25102,12 +25102,14 @@ void MegaFolderUploadController::start(MegaNode*)
             mMutex.lock(); // wait until all folders have been created, and SDK thread unlock mutex
         }
 
-        uploadFiles();
-
         if (isCompleted())
         {
+            // if there's no pending files to be processed, end folder upload operation
             megaApi->endRecursiveOperation(transfer, this);
+            return;
         }
+
+        uploadFiles();
     });
 }
 
@@ -25407,7 +25409,7 @@ void MegaFolderUploadController::uploadFiles()
        }
    }
 
-   assert(!mPendingFolders && mFolderToPendingFiles.empty());
+   assert(!mPendingFolders && mFolderToPendingFiles.empty() && pendingTransfers);
    if (pendingTransfers)
    {
       megaApi->sendPendingTransfers(&transferQueue);
@@ -26571,6 +26573,7 @@ MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *megaApi,
     this->tag = transfer->getTag();
     this->mMainThreadId = std::this_thread::get_id();
     this->mLocalSeparator = client->fsaccess->localseparator;
+    this->mPendingFilesToProcess = 0;
 }
 
 MegaFolderDownloadController::~MegaFolderDownloadController()
@@ -26626,16 +26629,17 @@ void MegaFolderDownloadController::start(MegaNode *node)
     mWorkerThread = std::thread ([this, deleteNode, node, fsType, path]() {
         LocalPath localPath = std::move(path);
         scanFolder(node, localPath, fsType);
-        createFolder();
-        downloadFiles(fsType);
         if (deleteNode)
         {
             delete node;
         }
+        createFolder();
         if (isCompleted())
         {
             megaApi->endRecursiveOperation(transfer, this);
+            return;
         }
+        downloadFiles(fsType);
     });
 }
 
@@ -26764,6 +26768,7 @@ void MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpa
             // Add child node to vector in mLocalTree at index we have stored it's localPath
             ::mega::unique_ptr<MegaNode> childNode (child->copy());
             mLocalTree.at(index).second.push_back(std::move(childNode));
+            mPendingFilesToProcess++;
         }
         else
         {
@@ -26792,6 +26797,7 @@ void MegaFolderDownloadController::createFolder()
         {
             mIncompleteTransfers++;
             it = mLocalTree.erase(it); // remove all it's children nodes
+            mPendingFilesToProcess -= it->second.size();
             continue;
         }
         ++it;
@@ -26816,9 +26822,11 @@ void MegaFolderDownloadController::downloadFiles(FileSystemType fsType)
              MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), tag, transfer->getAppData(), this);
              transferQueue.push(transferDownload);
              pendingTransfers++;
+             mPendingFilesToProcess--;
          }
     }
 
+    assert(pendingTransfers);
     if (pendingTransfers)
     {
         megaApi->sendPendingTransfers(&transferQueue);
@@ -26827,7 +26835,7 @@ void MegaFolderDownloadController::downloadFiles(FileSystemType fsType)
 
 bool MegaFolderDownloadController::isCompleted()
 {
-    return (!cancelled && !recursive && !pendingTransfers);
+    return (!cancelled && !recursive && !pendingTransfers && !mPendingFilesToProcess);
 }
 
 void MegaFolderDownloadController::complete()

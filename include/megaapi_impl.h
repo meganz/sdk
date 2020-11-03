@@ -443,6 +443,9 @@ protected:
     // thread id of main thread
     std::thread::id mMainThreadId;
 
+    // number of files pending to be processed (add a transfer for each one)
+    int mPendingFilesToProcess;
+
     // each element is a pair formed by the folder LocalPath and a vector that contains all children folders
     std::vector<std::pair<LocalPath, std::vector<unique_ptr<MegaNode>>>> mLocalTree;
 
