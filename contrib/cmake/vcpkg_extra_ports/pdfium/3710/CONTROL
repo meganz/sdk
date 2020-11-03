@@ -2,4 +2,4 @@ Source: pdfium
 Version: chromium/3710
 Homepage: https://pdfium.googlesource.com/pdfium/
 Description: Library to render PDF files
-Build-Depends: icu, lcms, libjpeg-turbo, openjpeg
+Build-Depends: icu, lcms, libjpeg-turbo, openjpeg, bzip2 (osx)
