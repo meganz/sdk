@@ -2841,9 +2841,14 @@ void MegaTransferPrivate::startRecursiveOperation(unique_ptr<MegaRecursiveOperat
 
 void MegaTransferPrivate::endRecursiveOperation()
 {
-    if (this->getType() == MegaTransfer::TYPE_UPLOAD)
+    if (getType() == MegaTransfer::TYPE_UPLOAD)
     {
-        MegaFolderUploadController *controller = static_cast<MegaFolderUploadController*> (this->recursiveOperation.get());
+        MegaFolderUploadController *controller = static_cast<MegaFolderUploadController*> (recursiveOperation.get());
+        controller->complete();
+    }
+    else
+    {
+        MegaFolderDownloadController *controller = static_cast<MegaFolderDownloadController*> (recursiveOperation.get());
         controller->complete();
     }
 }
@@ -8381,9 +8386,8 @@ MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNo
 
 void MegaApiImpl::endRecursiveOperation(MegaTransfer *t, MegaRequestListener *listener)
 {
-    //not sure if name is good or we should change
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_END_RECURSIVE_OPERATION, listener);
-    if(t)
+    if (t)
     {
         request->setTransferTag(t->getTag());
     }
@@ -25102,7 +25106,7 @@ void MegaFolderUploadController::start(MegaNode*)
 
         if (isCompleted())
         {
-            megaApi->endRecursiveOperation(transfer);
+            megaApi->endRecursiveOperation(transfer, this);
         }
     });
 }
@@ -25253,7 +25257,7 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
 
         if (isCompleted())
         {
-            megaApi->endRecursiveOperation(transfer);
+            megaApi->endRecursiveOperation(transfer, this);
         }
     }
 }
@@ -25263,7 +25267,7 @@ MegaFolderUploadController::~MegaFolderUploadController()
     assert(mMainThreadId == std::this_thread::get_id());
     if (mMainThreadId == std::this_thread::get_id())
     {
-        LOG_err << "MegaFolderUploadController is being called from worker thread";
+        LOG_err << "MegaFolderUploadController dtor is being called from worker thread";
     }
     mWorkerThread.join();
     //we shouldn't need to dettach as transfer listener: all listened transfer should have been cancelled/completed
@@ -25364,7 +25368,7 @@ void MegaFolderUploadController::createFolder()
 
                 if (isCompleted())
                 {
-                    megaApi->endRecursiveOperation(transfer);
+                    megaApi->endRecursiveOperation(transfer, this);
                 }
             }
         });
@@ -26570,6 +26574,18 @@ MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *megaApi,
     this->recursive = 0;
     this->pendingTransfers = 0;
     this->tag = transfer->getTag();
+    this->mMainThreadId = std::this_thread::get_id();
+    this->mLocalSeparator = client->fsaccess->localseparator;
+}
+
+MegaFolderDownloadController::~MegaFolderDownloadController()
+{
+    assert(mMainThreadId == std::this_thread::get_id());
+    if (mMainThreadId == std::this_thread::get_id())
+    {
+        LOG_err << "MegaFolderDownloadController dtor is being called from worker thread";
+    }
+    mWorkerThread.join();
 }
 
 void MegaFolderDownloadController::start(MegaNode *node)
@@ -26578,7 +26594,6 @@ void MegaFolderDownloadController::start(MegaNode *node)
     transfer->setStartTime(Waiter::ds);
     transfer->setState(MegaTransfer::STATE_QUEUED);
     megaApi->fireOnTransferStart(transfer);
-    mLocalSeparator = client->fsaccess->localseparator;
 
     bool deleteNode = false;
     if (!node)
@@ -26613,18 +26628,20 @@ void MegaFolderDownloadController::start(MegaNode *node)
     path.ensureWinExtendedPathLenPrefix();
     transfer->setPath(path.toPath(*client->fsaccess).c_str());
 
-    std::thread thread([this, deleteNode, node, fsType, &path]() {
+    mWorkerThread = std::thread ([this, deleteNode, node, fsType, path]() {
         LocalPath localPath = std::move(path);
         scanFolder(node, localPath, fsType);
         createFolder();
         downloadFiles(fsType);
-        checkCompletion();
         if (deleteNode)
         {
             delete node;
         }
+        if (isCompleted())
+        {
+            megaApi->endRecursiveOperation(transfer, this);
+        }
     });
-    thread.detach();
 }
 
 void MegaFolderDownloadController::cancel()
@@ -26813,16 +26830,35 @@ void MegaFolderDownloadController::downloadFiles(FileSystemType fsType)
     }
 }
 
-void MegaFolderDownloadController::checkCompletion()
+bool MegaFolderDownloadController::isCompleted()
 {
-    if (!cancelled && !recursive && !pendingTransfers)
+    return (!cancelled && !recursive && !pendingTransfers);
+}
+
+void MegaFolderDownloadController::complete()
+{
+    if (!transfer)
     {
-        LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
-        mLocalTree.clear();
-        transfer->setState(MegaTransfer::STATE_COMPLETED);
-        transfer->setLastError(&mLastError);
-        DBTableTransactionCommitter committer(client->tctable);
-        megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(!mIncompleteTransfers ? API_OK : API_EINCOMPLETE), committer);
+        return;
+    }
+
+    assert(mMainThreadId == std::this_thread::get_id());
+    LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
+    mLocalTree.clear();
+    transfer->setState(MegaTransfer::STATE_COMPLETED);
+    transfer->setLastError(&mLastError);
+    DBTableTransactionCommitter committer(client->tctable);
+    megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(!mIncompleteTransfers ? API_OK : API_EINCOMPLETE), committer);
+}
+
+void MegaFolderDownloadController::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
+{
+    int type = request->getType();
+    int errorCode = e->getErrorCode();
+    assert(type == MegaRequest::TYPE_END_RECURSIVE_OPERATION);
+    if (errorCode)
+    {
+        LOG_err << " MegaFolderDownloadController, error completing recursive operation";
     }
 }
 
@@ -26874,7 +26910,10 @@ void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, 
             mLastError = *e;
             mIncompleteTransfers++;
         }
-        checkCompletion();
+        if (isCompleted())
+        {
+            megaApi->endRecursiveOperation(transfer, this);
+        }
     }
 }
 

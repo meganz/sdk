@@ -421,27 +421,34 @@ public:
     void setValid(bool value);
 };
 
-class MegaFolderDownloadController : public MegaTransferListener, public MegaRecursiveOperation
+class MegaFolderDownloadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveOperation
 {
 public:
     MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
+    ~MegaFolderDownloadController();
     void start(MegaNode *node) override;
     void cancel() override;
-
-protected:
-    void scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType);
-    void createFolder();
-    void downloadFiles(FileSystemType fsType);
-    void checkCompletion();
-
-public:
+    void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e) override;
     void onTransferStart(MegaApi *, MegaTransfer *t) override;
     void onTransferUpdate(MegaApi *, MegaTransfer *t) override;
     void onTransferFinish(MegaApi*, MegaTransfer *t, MegaError *e) override;
+    bool isCompleted();
+    void complete();
 
 protected:
+
+    // worker thread
+    std::thread mWorkerThread;
+
+    // thread id of main thread
+    std::thread::id mMainThreadId;
+
     // each element is a pair formed by the folder LocalPath and a vector that contains all children folders
     std::vector<std::pair<LocalPath, std::vector<unique_ptr<MegaNode>>>> mLocalTree;
+
+    void scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType);
+    void createFolder();
+    void downloadFiles(FileSystemType fsType);
 };
 
 class MegaNodePrivate : public MegaNode, public Cacheable
