@@ -118,9 +118,9 @@ public:
     inline bool enabled()           { return mIsEnabled; }
 };
 
-inline auto BackoffTimerGroupTracker::add(BackoffTimerTracked* bt) -> Iter 
-{ 
-    return timeouts.emplace(bt->nextset() ? bt->nextset() : NEVER, bt); 
+inline auto BackoffTimerGroupTracker::add(BackoffTimerTracked* bt) -> Iter
+{
+    return timeouts.emplace(bt->nextset() ? bt->nextset() : NEVER, bt);
 }
 
 inline void BackoffTimerTracked::untrack()

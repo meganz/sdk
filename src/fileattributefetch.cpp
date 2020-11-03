@@ -48,7 +48,7 @@ FileAttributeFetch::FileAttributeFetch(handle h, string key, fatype t, int ctag)
 void FileAttributeFetchChannel::dispatch()
 {
     faf_map::iterator it;
- 
+
     // reserve space
     req.outbuf.clear();
     req.outbuf.reserve((fafs[0].size() + fafs[1].size()) * sizeof(handle));
@@ -116,7 +116,7 @@ void FileAttributeFetchChannel::parse(int /*fac*/, bool final)
         {
             if (final || falen > 16*1048576)
             {
-                break; 
+                break;
             }
             else
             {

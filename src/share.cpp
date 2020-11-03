@@ -33,9 +33,9 @@ Share::Share(User* u, accesslevel_t a, m_time_t t, PendingContactRequest* pendin
 void Share::serialize(string* d)
 {
     handle uh = user ? user->userhandle : 0;
-    char a = (char)access;    
+    char a = (char)access;
     char version = 1;
-    handle ph = pcr!=NULL ? pcr->id : UNDEF;  
+    handle ph = pcr!=NULL ? pcr->id : UNDEF;
 
     d->append((char*)&uh, sizeof uh);
     d->append((char*)&ts, sizeof ts);
@@ -57,7 +57,7 @@ NewShare* Share::unserialize(int direction, handle h,
     if (version_flag >= 1)
     {
         // Pending flag exists
-        ph = MemAccess::get<handle>(*ptr + sizeof(handle) + sizeof(m_time_t) + 2);       
+        ph = MemAccess::get<handle>(*ptr + sizeof(handle) + sizeof(m_time_t) + 2);
     }
     auto newShare = new NewShare(h, direction, MemAccess::get<handle>(*ptr),
                                  (accesslevel_t)(*ptr)[sizeof(handle) + sizeof(m_time_t)],

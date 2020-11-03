@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-/* 
+/*
  * File:   CronExprParser.cpp
  * Author: alex
- * 
+ *
  * Created on February 24, 2015, 9:35 AM
  */
 
@@ -133,9 +133,9 @@ struct tm* cron_time(time_t* date, struct tm* out) {
 #ifdef _WIN32
     errno_t err = localtime_s(out, date);
     return 0 == err ? out : NULL;
-#else /* _WIN32 */    
+#else /* _WIN32 */
     return localtime_r(date, out);
-#endif /* _WIN32 */    
+#endif /* _WIN32 */
 }
 
 #endif /* CRON_USE_LOCAL_TIME */
@@ -876,7 +876,7 @@ void cron_parse_expr(const char* expression, cron_expr* target, const char** err
 
     goto return_res;
 
-    return_res: 
+    return_res:
     free_splitted(fields, len);
 }
 

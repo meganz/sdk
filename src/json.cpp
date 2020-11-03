@@ -323,7 +323,7 @@ bool JSON::ishandle(int size)
                 return false;
             }
         }
-    
+
         return pos[i] == '"';
     }
 
@@ -620,4 +620,214 @@ void JSON::begin(const char* json)
 {
     pos = json;
 }
+
+JSONWriter::JSONWriter()
+  : mJson()
+  , mLevels()
+  , mLevel(-1)
+{
+}
+
+void JSONWriter::cmd(const char* cmd)
+{
+    mJson.append("\"a\":\"");
+    mJson.append(cmd);
+    mJson.append("\"");
+}
+
+void JSONWriter::notself(MegaClient* client)
+{
+    mJson.append(",\"i\":\"");
+    mJson.append(client->sessionid, sizeof client->sessionid);
+    mJson.append("\"");
+}
+
+void JSONWriter::arg(const char* name, const string& value, int quotes)
+{
+    arg(name, value.c_str(), quotes);
+}
+
+void JSONWriter::arg(const char* name, const char* value, int quotes)
+{
+    addcomma();
+    mJson.append("\"");
+    mJson.append(name);
+    mJson.append(quotes ? "\":\"" : "\":");
+    mJson.append(value);
+    if (quotes)
+    {
+        mJson.append("\"");
+    }
+}
+
+void JSONWriter::arg(const char* name, handle h, int len)
+{
+    char buf[16];
+
+    Base64::btoa((const byte*)&h, len, buf);
+
+    arg(name, buf);
+}
+
+void JSONWriter::arg(const char* name, const byte* value, int len)
+{
+    char* buf = new char[len * 4 / 3 + 4];
+
+    Base64::btoa(value, len, buf);
+
+    arg(name, buf);
+
+    delete[] buf;
+}
+
+void JSONWriter::arg(const char* name, m_off_t n)
+{
+    char buf[32];
+
+    sprintf(buf, "%" PRId64, n);
+
+    arg(name, buf, 0);
+}
+
+void JSONWriter::addcomma()
+{
+    if (mJson.size() && !strchr("[{", mJson[mJson.size() - 1]))
+    {
+        mJson.append(",");
+    }
+}
+
+void JSONWriter::appendraw(const char* s)
+{
+    mJson.append(s);
+}
+
+void JSONWriter::appendraw(const char* s, int len)
+{
+    mJson.append(s, len);
+}
+
+void JSONWriter::beginarray()
+{
+    addcomma();
+    mJson.append("[");
+    openobject();
+}
+
+void JSONWriter::beginarray(const char* name)
+{
+    addcomma();
+    mJson.append("\"");
+    mJson.append(name);
+    mJson.append("\":[");
+    openobject();
+}
+
+void JSONWriter::endarray()
+{
+    mJson.append("]");
+    closeobject();
+}
+
+void JSONWriter::beginobject()
+{
+    addcomma();
+    mJson.append("{");
+}
+
+void JSONWriter::beginobject(const char* name)
+{
+    addcomma();
+    mJson.append("\"");
+    mJson.append(name);
+    mJson.append("\":{");
+}
+
+void JSONWriter::endobject()
+{
+    mJson.append("}");
+}
+
+void JSONWriter::element(int n)
+{
+    char buf[24];
+
+    sprintf(buf, "%d", n);
+
+    if (elements())
+    {
+        mJson.append(",");
+    }
+    mJson.append(buf);
+}
+
+void JSONWriter::element(handle h, int len)
+{
+    char buf[16];
+
+    Base64::btoa((const byte*)&h, len, buf);
+
+    mJson.append(elements() ? ",\"" : "\"");
+    mJson.append(buf);
+    mJson.append("\"");
+}
+
+void JSONWriter::element(const byte* data, int len)
+{
+    char* buf = new char[len * 4 / 3 + 4];
+
+    len = Base64::btoa(data, len, buf);
+
+    mJson.append(elements() ? ",\"" : "\"");
+    mJson.append(buf, len);
+
+    delete[] buf;
+
+    mJson.append("\"");
+}
+
+void JSONWriter::element(const char* buf)
+{
+    mJson.append(elements() ? ",\"" : "\"");
+    mJson.append(buf, strlen(buf));
+    mJson.append("\"");
+}
+
+void JSONWriter::openobject()
+{
+    mLevels[++mLevel] = 0;
+}
+
+void JSONWriter::closeobject()
+{
+    --mLevel;
+}
+
+const byte* JSONWriter::getbytes() const
+{
+    return reinterpret_cast<const byte*>(mJson.data());
+}
+
+const string& JSONWriter::getstring() const
+{
+    return mJson;
+}
+
+size_t JSONWriter::size() const
+{
+    return mJson.size();
+}
+
+int JSONWriter::elements()
+{
+    if (!mLevels[mLevel])
+    {
+        mLevels[mLevel] = 1;
+        return 0;
+    }
+
+    return 1;
+}
+
 } // namespace
+

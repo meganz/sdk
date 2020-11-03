@@ -117,6 +117,14 @@ using namespace mega;
     return (Retry) self.megaApi->isWaiting();
 }
 
+- (NSNumber *)totalsDownloadBytes {
+    return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalDownloadBytes()];
+}
+
+- (NSNumber *)totalsUploadBytes {
+    return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalUploadBytes()];
+}
+
 - (NSNumber *)totalsDownloadedBytes {
     return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalDownloadedBytes()];
 }
@@ -1021,6 +1029,30 @@ using namespace mega;
     return stringLink;
 }
 
+- (void)setNodeLabel:(MEGANode *)node label:(MEGANodeLabel)label delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setNodeLabel(node.getCPtr, (int)label, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setNodeLabel:(MEGANode *)node label:(MEGANodeLabel)label {
+    self.megaApi->setNodeLabel(node.getCPtr, (int)label);
+}
+
+- (void)resetNodeLabel:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->resetNodeLabel(node.getCPtr, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)resetNodeLabel:(MEGANode *)node {
+    self.megaApi->resetNodeLabel(node.getCPtr);
+}
+
+- (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setNodeFavourite(node.getCPtr, favourite, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite {
+    self.megaApi->setNodeFavourite(node.getCPtr, favourite);
+}
+
 - (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setNodeCoordinates(node ? [node getCPtr] : NULL, (latitude ? latitude.doubleValue : MegaNode::INVALID_COORDINATE), (longitude ? longitude.doubleValue : MegaNode::INVALID_COORDINATE), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -1639,12 +1671,28 @@ using namespace mega;
     self.megaApi->startStreaming((node != nil) ? [node getCPtr] : NULL, (startPos != nil) ? [startPos longLongValue] : 0, (size != nil) ? [size longLongValue] : 0, NULL);
 }
 
+- (void)resetTotalDownloads {
+    self.megaApi->resetTotalDownloads();
+}
+
+- (void)resetTotalUploads {
+    self.megaApi->resetTotalUploads();
+}
+
 - (void)cancelTransfer:(MEGATransfer *)transfer delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->cancelTransfer((transfer != nil) ? [transfer getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)cancelTransfer:(MEGATransfer *)transfer {
     self.megaApi->cancelTransfer((transfer != nil) ? [transfer getCPtr] : NULL);
+}
+
+- (void)retryTransfer:(MEGATransfer *)transfer delegate:(id<MEGATransferDelegate>)delegate {
+    self.megaApi->retryTransfer((transfer != nil) ? [transfer getCPtr] : NULL, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
+}
+
+- (void)retryTransfer:(MEGATransfer *)transfer {
+    self.megaApi->retryTransfer((transfer != nil) ? [transfer getCPtr] : NULL);
 }
 
 - (void)moveTransferToFirst:(MEGATransfer *)transfer delegate:(id<MEGARequestDelegate>)delegate {
@@ -2060,12 +2108,20 @@ using namespace mega;
     return [[MEGAError alloc] initWithMegaError:self.megaApi->checkAccess((node != nil) ? [node getCPtr] : NULL, (int) level).copy() cMemoryOwn:YES];
 }
 
+- (MEGAError *)checkAccessErrorExtendedForNode:(MEGANode *)node level:(MEGAShareType)level {
+    return [[MEGAError alloc] initWithMegaError:self.megaApi->checkAccessErrorExtended(node.getCPtr, (int)level) cMemoryOwn:YES];
+}
+
 - (BOOL)isNodeInRubbish:(MEGANode *)node {
     return self.megaApi->isInRubbish(node ? [node getCPtr] : NULL);
 }
 
 - (MEGAError *)checkMoveForNode:(MEGANode *)node target:(MEGANode *)target {
     return [[MEGAError alloc] initWithMegaError:self.megaApi->checkMove((node != nil) ? [node getCPtr] : NULL, (target != nil) ? [target getCPtr] : NULL).copy() cMemoryOwn:YES];
+}
+
+- (MEGAError *)checkMoveErrorExtendedForNode:(MEGANode *)node target:(MEGANode *)target {
+    return [[MEGAError alloc] initWithMegaError:self.megaApi->checkMoveErrorExtended(node.getCPtr, target.getCPtr) cMemoryOwn:YES];
 }
 
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString recursive:(BOOL)recursive {
@@ -2080,6 +2136,16 @@ using namespace mega;
     return [[MEGANodeList alloc] initWithNodeList:self.megaApi->search((node != nil) ? [node getCPtr] : NULL, (searchString != nil) ? [searchString UTF8String] : NULL, YES) cMemoryOwn:YES];
 }
 
+- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node
+                           searchString:(nullable NSString *)searchString
+                            cancelToken:(MEGACancelToken *)cancelToken
+                              recursive:(BOOL)recursive
+                              orderType:(MEGASortOrderType)orderType
+                         nodeFormatType:(MEGANodeFormatType)nodeFormatType
+                       folderTargetType:(MEGAFolderTargetType)folderTargetType {
+    
+    return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchByType(node ? [node getCPtr] : NULL, searchString.UTF8String, cancelToken ? [cancelToken getCPtr] : NULL, recursive, (int)orderType, (int)nodeFormatType, (int)folderTargetType) cMemoryOwn:YES];
+}
 - (NSMutableArray *)recentActions {
     MegaRecentActionBucketList *megaRecentActionBucketList = self.megaApi->getRecentActions();
     int count = megaRecentActionBucketList->size();
@@ -2439,7 +2505,7 @@ using namespace mega;
     self.megaApi->resetSmsVerifiedPhoneNumber([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)resetSmsVerifiedPhoneNumberWithDelegate {
+- (void)resetSmsVerifiedPhoneNumber {
     self.megaApi->resetSmsVerifiedPhoneNumber();
 }
 

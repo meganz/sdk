@@ -32,9 +32,9 @@
 
 namespace mega {
 
-TransferCategory::TransferCategory(direction_t d, filesizetype_t s) 
+TransferCategory::TransferCategory(direction_t d, filesizetype_t s)
     : direction(d)
-    , sizetype(s) 
+    , sizetype(s)
 {
 }
 
@@ -44,14 +44,14 @@ TransferCategory::TransferCategory(Transfer* t)
 {
 }
 
-unsigned TransferCategory::index() 
+unsigned TransferCategory::index()
 {
     assert(direction == GET || direction == PUT);
     assert(sizetype == LARGEFILE || sizetype == SMALLFILE);
     return 2 + direction * 2 + sizetype;
 }
 
-unsigned TransferCategory::directionIndex() 
+unsigned TransferCategory::directionIndex()
 {
     assert(direction == GET || direction == PUT);
     return direction;
@@ -129,11 +129,6 @@ Transfer::~Transfer()
         client->asyncfopens--;
     }
 
-    if (ultoken)
-    {
-        delete [] ultoken;
-    }
-
     if (finished)
     {
         if (type == GET && !localfilename.empty())
@@ -180,7 +175,7 @@ bool Transfer::serialize(string *d)
     {
         hasUltoken = 2;
         d->append((const char*)&hasUltoken, sizeof(char));
-        d->append((const char*)ultoken, NewNode::UPLOADTOKENLEN);
+        d->append((const char*)ultoken.get(), NewNode::UPLOADTOKENLEN);
     }
     else
     {
@@ -311,8 +306,8 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     if (hasUltoken)
     {
-        t->ultoken = new byte[NewNode::UPLOADTOKENLEN]();
-        memcpy(t->ultoken, ptr, ll);
+        t->ultoken.reset(new byte[NewNode::UPLOADTOKENLEN]());
+        memcpy(t->ultoken.get(), ptr, ll);
         ptr += ll;
     }
 
@@ -394,7 +389,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 
     if (e == API_EOVERQUOTA || e == API_EPAYWALL)
     {
-        assert((API_EPAYWALL && !timeleft) || (type == PUT && !timeleft) || (type == GET && timeleft)); // overstorage only possible for uploads, overbandwidth for downloads
+        assert((e == API_EPAYWALL && !timeleft) || (type == PUT && !timeleft) || (type == GET && timeleft)); // overstorage only possible for uploads, overbandwidth for downloads
         if (!slot)
         {
             bt.backoff(timeleft ? timeleft : NEVER);
@@ -441,6 +436,10 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
         ++client->performanceStats.transferTempErrors;
     }
 
+#ifdef ENABLE_SYNC
+    bool alreadyDisabled = false;
+#endif
+
     for (file_list::iterator it = files.begin(); it != files.end();)
     {
         // Remove files with foreign targets, if transfer failed with a (foreign) storage overquota
@@ -449,6 +448,13 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
                 && client->isForeignNode((*it)->h))
         {
             File *f = (*it++);
+
+#ifdef ENABLE_SYNC
+            if (f->syncxfer)
+            {
+                client->disableSyncContainingNode(f->h, FOREIGN_TARGET_OVERSTORAGE);
+            }
+#endif
             removeTransferFile(API_EOVERQUOTA, f, &committer);
             continue;
         }
@@ -489,8 +495,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
     {
         chunkmacs.clear();
         progresscompleted = 0;
-        delete [] ultoken;
-        ultoken = NULL;
+        ultoken.reset();
         pos = 0;
 
         if (slot && slot->fa && (slot->fa->mtime != mtime || slot->fa->size != size))
@@ -502,7 +507,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
     }
 
     if (defer)
-    {        
+    {
         failcount++;
         delete slot;
         slot = NULL;
@@ -526,7 +531,14 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
             {
                 client->syncdownrequired = true;
             }
+
+            if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
+            {
+                client->disableSyncs(BUSINESS_EXPIRED);
+                alreadyDisabled = true;
+            }
 #endif
+
             client->app->file_removed(*it, e);
         }
         client->app->transfer_removed(this);
@@ -548,7 +560,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
     assert(type == PUT || (node && node->type == FILENODE));
 
 #ifdef USE_MEDIAINFO
-    char ext[8];
+    char ext[MAXEXTENSIONLEN];
     if (((type == PUT && size >= 16) || (node && node->nodekey().size() == FILENODEKEYLENGTH && node->size >= 16)) &&
         client->fsaccess->getextension(localpath, ext, sizeof(ext)) &&
         MediaProperties::isMediaFilenameExt(ext) &&
@@ -1122,9 +1134,9 @@ DirectReadNode::DirectReadNode(MegaClient* cclient, handle ch, bool cp, SymmCiph
 
     retries = 0;
     size = 0;
-    
+
     pendingcmd = NULL;
-    
+
     dsdrn_it = client->dsdrns.end();
 }
 
@@ -1141,12 +1153,12 @@ DirectReadNode::~DirectReadNode()
     {
         delete *(it++);
     }
-    
+
     client->hdrns.erase(hdrn_it);
 }
 
 void DirectReadNode::dispatch()
-{    
+{
     if (reads.empty())
     {
         LOG_debug << "Removing DirectReadNode";
@@ -1224,7 +1236,7 @@ void DirectReadNode::retry(const Error& e, dstime timeleft)
     if (!e || !minretryds)
     {
         // immediate retry desired
-        dispatch();        
+        dispatch();
     }
     else
     {
@@ -1277,7 +1289,7 @@ void DirectReadNode::cmdresult(const Error &e, dstime timeleft)
 }
 
 void DirectReadNode::schedule(dstime deltads)
-{            
+{
     WAIT_CLASS::bumpds();
     if (dsdrn_it != client->dsdrns.end())
     {
@@ -1377,7 +1389,7 @@ bool DirectReadSlot::doio()
                 req->status = REQ_READY;
             }
         }
-        
+
         if (req->status == REQ_READY)
         {
             bool newBufferSupplied = false, pauseForRaid = false;
@@ -1427,7 +1439,7 @@ bool DirectReadSlot::doio()
                 }
             }
         }
-        
+
         if (req->status == REQ_FAILURE)
         {
             if (req->httpstatus == 509)
@@ -1517,7 +1529,7 @@ DirectRead::DirectRead(DirectReadNode* cdrn, m_off_t ccount, m_off_t coffset, in
     drs = NULL;
 
     reads_it = drn->reads.insert(drn->reads.end(), this);
-    
+
     if (!drn->tempurls.empty())
     {
         // we already have tempurl(s): queue for immediate fetching
@@ -1899,7 +1911,7 @@ error TransferList::pause(Transfer *transfer, bool enable, DBTableTransactionCom
             {
                 transfer->bt.arm();
             }
-            delete transfer->slot;  
+            delete transfer->slot;
             transfer->slot = NULL;
         }
         transfer->state = TRANSFERSTATE_PAUSED;
@@ -1916,12 +1928,12 @@ auto TransferList::begin(direction_t direction) -> transfer_list::iterator
     return transfers[direction].begin();
 }
 
-auto TransferList::end(direction_t direction) -> transfer_list::iterator 
+auto TransferList::end(direction_t direction) -> transfer_list::iterator
 {
     return transfers[direction].end();
 }
 
-bool TransferList::getIterator(Transfer *transfer, transfer_list::iterator& it, bool canHandleErasedElements) 
+bool TransferList::getIterator(Transfer *transfer, transfer_list::iterator& it, bool canHandleErasedElements)
 {
     assert(transfer);
     if (!transfer)
@@ -1964,7 +1976,7 @@ std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(
                     && transfer->asyncopencontext->finished))
             {
                 TransferCategory tc(transfer);
-                
+
                 if (tc.sizetype == LARGEFILE && continueLarge)
                 {
                     continueLarge = continuefunction(transfer);
@@ -2029,7 +2041,7 @@ void TransferList::prepareIncreasePriority(Transfer *transfer, transfer_list::it
             {
                 lastActiveTransfer->bt.arm();
             }
-            delete lastActiveTransfer->slot; 
+            delete lastActiveTransfer->slot;
             lastActiveTransfer->slot = NULL;
             lastActiveTransfer->state = TRANSFERSTATE_QUEUED;
             client->transfercacheadd(lastActiveTransfer, &committer);
@@ -2052,7 +2064,7 @@ void TransferList::prepareDecreasePriority(Transfer *transfer, transfer_list::it
                 {
                     transfer->bt.arm();
                 }
-                delete transfer->slot; 
+                delete transfer->slot;
                 transfer->slot = NULL;
                 transfer->state = TRANSFERSTATE_QUEUED;
                 break;

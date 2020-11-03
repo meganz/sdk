@@ -44,12 +44,10 @@ long long SimpleLogger::maxPayloadLogSize  = 10240;
 
 #ifdef ENABLE_LOG_PERFORMANCE
 
-#ifdef WIN64
+#ifdef WIN32
 thread_local std::array<char, LOGGER_CHUNKS_SIZE> SimpleLogger::mBuffer;
-#elif WIN32
-//thread_local std::array<char, LOGGER_CHUNKS_SIZE> SimpleLogger::mBuffer; 
 #else
-__thread std::array<char, LOGGER_CHUNKS_SIZE> SimpleLogger::mBuffer; 
+__thread std::array<char, LOGGER_CHUNKS_SIZE> SimpleLogger::mBuffer;
 #endif
 
 #else

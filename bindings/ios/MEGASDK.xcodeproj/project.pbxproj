@@ -96,6 +96,7 @@
 		B6657E9C225C2B6200EF8D91 /* raid.cpp in Sources */ = {isa = PBXBuildFile; fileRef = B6657E9B225C2B6200EF8D91 /* raid.cpp */; };
 		B698890D2198CCE300D0EE89 /* MEGAFileInputStream.mm in Sources */ = {isa = PBXBuildFile; fileRef = B698890B2198CCE300D0EE89 /* MEGAFileInputStream.mm */; };
 		B6A6CB662170125A009032C9 /* MEGABackgroundMediaUpload.mm in Sources */ = {isa = PBXBuildFile; fileRef = B6A6CB652170125A009032C9 /* MEGABackgroundMediaUpload.mm */; };
+		BF9CF0D12541737500A3EBBB /* heartbeats.cpp in Sources */ = {isa = PBXBuildFile; fileRef = BF9CF0D02541737500A3EBBB /* heartbeats.cpp */; };
 		BFD7F5172341B3A60039A6EE /* MEGAPushNotificationSettings.mm in Sources */ = {isa = PBXBuildFile; fileRef = BFD7F5162341B3A60039A6EE /* MEGAPushNotificationSettings.mm */; };
 /* End PBXBuildFile section */
 
@@ -327,6 +328,8 @@
 		B698890C2198CCE300D0EE89 /* MEGAFileInputStream.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAFileInputStream.h; sourceTree = "<group>"; };
 		B6A6CB642170125A009032C9 /* MEGABackgroundMediaUpload.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = MEGABackgroundMediaUpload.h; sourceTree = "<group>"; };
 		B6A6CB652170125A009032C9 /* MEGABackgroundMediaUpload.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGABackgroundMediaUpload.mm; sourceTree = "<group>"; };
+		BF9CF0CF2541734200A3EBBB /* heartbeats.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = heartbeats.h; sourceTree = "<group>"; };
+		BF9CF0D02541737500A3EBBB /* heartbeats.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; name = heartbeats.cpp; path = ../../src/heartbeats.cpp; sourceTree = "<group>"; };
 		BFD7F5152341B3A60039A6EE /* MEGAPushNotificationSettings.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = MEGAPushNotificationSettings.h; sourceTree = "<group>"; };
 		BFD7F5162341B3A60039A6EE /* MEGAPushNotificationSettings.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = MEGAPushNotificationSettings.mm; sourceTree = "<group>"; };
 		BFD7F5182341B3B50039A6EE /* MEGAPushNotificationSettings+init.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MEGAPushNotificationSettings+init.h"; sourceTree = "<group>"; };
@@ -358,6 +361,7 @@
 				940BEF9A19ED92C2007E7FA2 /* base64.cpp */,
 				940BEF9B19ED92C2007E7FA2 /* command.cpp */,
 				940BEF9C19ED92C2007E7FA2 /* commands.cpp */,
+				BF9CF0D02541737500A3EBBB /* heartbeats.cpp */,
 				940BEF9D19ED92C2007E7FA2 /* db.cpp */,
 				940BEF9E19ED92C2007E7FA2 /* file.cpp */,
 				940BEF9F19ED92C2007E7FA2 /* fileattributefetch.cpp */,
@@ -539,6 +543,7 @@
 				A8FD7B621E93B3FB0031FC50 /* osx */,
 				940BF03D19EDBCAD007E7FA2 /* account.h */,
 				940BF03E19EDBCAD007E7FA2 /* attrmap.h */,
+				BF9CF0CF2541734200A3EBBB /* heartbeats.h */,
 				940BF03F19EDBCAD007E7FA2 /* backofftimer.h */,
 				940BF04019EDBCAD007E7FA2 /* base64.h */,
 				940BF04119EDBCAD007E7FA2 /* command.h */,
@@ -813,6 +818,7 @@
 				940BEFC319ED92C2007E7FA2 /* json.cpp in Sources */,
 				940BEFD519ED92C2007E7FA2 /* waiterbase.cpp in Sources */,
 				940BEFCB19ED92C2007E7FA2 /* request.cpp in Sources */,
+				BF9CF0D12541737500A3EBBB /* heartbeats.cpp in Sources */,
 				940BEFBF19ED92C2007E7FA2 /* filefingerprint.cpp in Sources */,
 				940BEFC219ED92C2007E7FA2 /* http.cpp in Sources */,
 				41D98D071BD562AD00764370 /* MEGAContactRequestList.mm in Sources */,
