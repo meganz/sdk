@@ -1,0 +1,6 @@
+#
+# Extra libs only needed for mac OS
+#
+
+pcre
+
