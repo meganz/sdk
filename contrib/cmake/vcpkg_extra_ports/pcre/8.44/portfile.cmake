@@ -63,56 +63,59 @@ foreach(FILE ${CURRENT_PACKAGES_DIR}/include/pcre.h ${CURRENT_PACKAGES_DIR}/incl
     file(WRITE ${FILE} "${PCRE_H}")
 endforeach()
 
-# Create pkgconfig files
-set(PACKAGE_VERSION ${PCRE_VERSION})
-set(prefix "${CURRENT_INSTALLED_DIR}")
-set(exec_prefix "\${prefix}")
-set(libdir "\${prefix}/lib")
-set(includedir "\${prefix}/include")
-if(VCPKG_TARGET_IS_LINUX)
-    # Used here in .pc.in files: Libs.private: @PTHREAD_CFLAGS@
-    set(PTHREAD_CFLAGS "-pthread")
-endif()
-if (NOT VCPKG_BUILD_TYPE OR VCPKG_BUILD_TYPE STREQUAL "release")
-    
-    configure_file("${SOURCE_PATH}/libpcre.pc.in" "${CURRENT_PACKAGES_DIR}/lib/pkgconfig/libpcre.pc" @ONLY)
-    configure_file("${SOURCE_PATH}/libpcre16.pc.in" "${CURRENT_PACKAGES_DIR}/lib/pkgconfig/libpcre16.pc" @ONLY)
-    configure_file("${SOURCE_PATH}/libpcre32.pc.in" "${CURRENT_PACKAGES_DIR}/lib/pkgconfig/libpcre32.pc" @ONLY)
-    configure_file("${SOURCE_PATH}/libpcrecpp.pc.in" "${CURRENT_PACKAGES_DIR}/lib/pkgconfig/libpcrecpp.pc" @ONLY)
-    configure_file("${SOURCE_PATH}/libpcreposix.pc.in" "${CURRENT_PACKAGES_DIR}/lib/pkgconfig/libpcreposix.pc" @ONLY)
-endif()
-# debug
-set(prefix "${CURRENT_INSTALLED_DIR}/debug")
-set(exec_prefix "\${prefix}")
-set(libdir "\${prefix}/lib")
-set(includedir "\${prefix}/../include")
-if(NOT VCPKG_BUILD_TYPE OR VCPKG_BUILD_TYPE STREQUAL "debug")
-    configure_file("${SOURCE_PATH}/libpcre.pc.in" "${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libpcre.pc" @ONLY)
-    configure_file("${SOURCE_PATH}/libpcre16.pc.in" "${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libpcre16.pc" @ONLY)
-    configure_file("${SOURCE_PATH}/libpcre32.pc.in" "${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libpcre32.pc" @ONLY)
-    configure_file("${SOURCE_PATH}/libpcrecpp.pc.in" "${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libpcrecpp.pc" @ONLY)
-    configure_file("${SOURCE_PATH}/libpcreposix.pc.in" "${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libpcreposix.pc" @ONLY)
-
-    if (VCPKG_TARGET_IS_WINDOWS)
-        vcpkg_replace_string(${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libpcre.pc
-            "-lpcre" "-lpcred"
-        )
-        vcpkg_replace_string(${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libpcre16.pc
-            "-lpcre16" "-lpcre16d"
-        )
-        vcpkg_replace_string(${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libpcre32.pc
-            "-lpcre32" "-lpcre32d"
-        )
-        vcpkg_replace_string(${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libpcrecpp.pc
-            "-lpcre -lpcrecpp" "-lpcred -lpcrecppd"
-        )
-        vcpkg_replace_string(${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libpcreposix.pc
-            "-lpcreposix" "-lpcreposixd"
-        )
+if(NOT DEFINED VCPKG_OSX_DEPLOYMENT_TARGET)
+    # Create pkgconfig files
+    set(PACKAGE_VERSION ${PCRE_VERSION})
+    set(prefix "${CURRENT_INSTALLED_DIR}")
+    set(exec_prefix "\${prefix}")
+    set(libdir "\${prefix}/lib")
+    set(includedir "\${prefix}/include")
+    if(VCPKG_TARGET_IS_LINUX)
+        # Used here in .pc.in files: Libs.private: @PTHREAD_CFLAGS@
+        set(PTHREAD_CFLAGS "-pthread")
     endif()
-endif()
+    if (NOT VCPKG_BUILD_TYPE OR VCPKG_BUILD_TYPE STREQUAL "release")
+
+        configure_file("${SOURCE_PATH}/libpcre.pc.in" "${CURRENT_PACKAGES_DIR}/lib/pkgconfig/libpcre.pc" @ONLY)
+        configure_file("${SOURCE_PATH}/libpcre16.pc.in" "${CURRENT_PACKAGES_DIR}/lib/pkgconfig/libpcre16.pc" @ONLY)
+        configure_file("${SOURCE_PATH}/libpcre32.pc.in" "${CURRENT_PACKAGES_DIR}/lib/pkgconfig/libpcre32.pc" @ONLY)
+        configure_file("${SOURCE_PATH}/libpcrecpp.pc.in" "${CURRENT_PACKAGES_DIR}/lib/pkgconfig/libpcrecpp.pc" @ONLY)
+        configure_file("${SOURCE_PATH}/libpcreposix.pc.in" "${CURRENT_PACKAGES_DIR}/lib/pkgconfig/libpcreposix.pc" @ONLY)
+    endif()
+    # debug
+    set(prefix "${CURRENT_INSTALLED_DIR}/debug")
+    set(exec_prefix "\${prefix}")
+    set(libdir "\${prefix}/lib")
+    set(includedir "\${prefix}/../include")
+    if(NOT VCPKG_BUILD_TYPE OR VCPKG_BUILD_TYPE STREQUAL "debug")
+        configure_file("${SOURCE_PATH}/libpcre.pc.in" "${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libpcre.pc" @ONLY)
+        configure_file("${SOURCE_PATH}/libpcre16.pc.in" "${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libpcre16.pc" @ONLY)
+        configure_file("${SOURCE_PATH}/libpcre32.pc.in" "${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libpcre32.pc" @ONLY)
+        configure_file("${SOURCE_PATH}/libpcrecpp.pc.in" "${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libpcrecpp.pc" @ONLY)
+        configure_file("${SOURCE_PATH}/libpcreposix.pc.in" "${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libpcreposix.pc" @ONLY)
+
+        if (VCPKG_TARGET_IS_WINDOWS)
+            vcpkg_replace_string(${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libpcre.pc
+                "-lpcre" "-lpcred"
+            )
+            vcpkg_replace_string(${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libpcre16.pc
+                "-lpcre16" "-lpcre16d"
+            )
+            vcpkg_replace_string(${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libpcre32.pc
+                "-lpcre32" "-lpcre32d"
+            )
+            vcpkg_replace_string(${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libpcrecpp.pc
+                "-lpcre -lpcrecpp" "-lpcred -lpcrecppd"
+            )
+            vcpkg_replace_string(${CURRENT_PACKAGES_DIR}/debug/lib/pkgconfig/libpcreposix.pc
+                "-lpcreposix" "-lpcreposixd"
+            )
+        endif()
+    endif()
 
 vcpkg_fixup_pkgconfig(SYSTEM_LIBRARIES pthread)
+
+endif(NOT DEFINED VCPKG_OSX_DEPLOYMENT_TARGET)
 
 file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/include)
 file(REMOVE_RECURSE ${CURRENT_PACKAGES_DIR}/debug/share)
