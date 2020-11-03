@@ -25365,11 +25365,6 @@ void MegaFolderUploadController::createFolder()
                 /* all putnodes have been processed and we have received all results
                  * unlock mutex in order to worker thread continue it's execution */
                 mMutex.unlock();
-
-                if (isCompleted())
-                {
-                    megaApi->endRecursiveOperation(transfer, this);
-                }
             }
         });
     }
