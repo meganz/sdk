@@ -2841,16 +2841,15 @@ void MegaTransferPrivate::startRecursiveOperation(unique_ptr<MegaRecursiveOperat
 
 void MegaTransferPrivate::endRecursiveOperation()
 {
-    if (getType() == MegaTransfer::TYPE_UPLOAD)
+    if (!recursiveOperation)
     {
-        MegaFolderUploadController *controller = static_cast<MegaFolderUploadController*> (recursiveOperation.get());
-        controller->complete();
+        LOG_warn << "Can't complete MegaRecursiveOperation, because object has been removed previously";
+        return;
     }
-    else
-    {
-        MegaFolderDownloadController *controller = static_cast<MegaFolderDownloadController*> (recursiveOperation.get());
-        controller->complete();
-    }
+
+    getType() == MegaTransfer::TYPE_UPLOAD
+        ? (static_cast<MegaFolderUploadController*> (recursiveOperation.get()))->complete()
+        : (static_cast<MegaFolderDownloadController*> (recursiveOperation.get()))->complete();
 }
 
 long long MegaTransferPrivate::getPlaceInQueue() const
