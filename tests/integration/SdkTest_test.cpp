@@ -238,7 +238,7 @@ void SdkTest::TearDown()
     out() << logTime() << "Test done, teardown starts" << endl;
     // do some cleanup
 
-    for (size_t i = 0; i < gSessionIDs.size(); ++i)
+    for (size_t i = 0; i < megaApi.size(); ++i)
     {
         if (gResumeSessions && megaApi[i] && gSessionIDs[i].empty())
         {

@@ -1143,6 +1143,73 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
 //        }
 //    }
 
+struct ProgressingMonitor
+{
+    bool resolved = false;
+    MegaClient* client;
+    SyncFlags& sf;
+    ProgressingMonitor(MegaClient* c) : client(c), sf(*client->mSyncFlags) {}
+
+    bool isContainingNodePath(const string& a, const string& b)
+    {
+        return a.size() <= b.size() &&
+            !memcmp(a.c_str(), b.c_str(), a.size()) &&
+            (a.size() == b.size() || b[a.size()] == '/');
+    }
+
+    void waitingCloud(const string& cloudPath, Sync::SyncWaitReason r)
+    {
+        resolved = true;
+
+        if (sf.scanningWasComplete && sf.noProgressCount > 10)
+        {
+            auto i = sf.stalledNodePaths.lower_bound(cloudPath);
+            if (i != sf.stalledNodePaths.end()) --i;
+            if (i == sf.stalledNodePaths.end() && !sf.stalledNodePaths.empty()) i = --sf.stalledNodePaths.end();
+            if (i == sf.stalledNodePaths.end() ||
+                !isContainingNodePath(i->first, cloudPath))
+            {
+                sf.stalledNodePaths[cloudPath] = r;
+            }
+
+            sf.stalledNodePaths[cloudPath] = r;
+        }
+    }
+
+    void waitingLocal(const LocalPath& p, Sync::SyncWaitReason r)
+    {
+        resolved = true;
+
+        if (sf.scanningWasComplete && sf.noProgressCount > 10)
+        {
+            auto i = sf.stalledLocalPaths.lower_bound(p);
+            if (i != sf.stalledLocalPaths.end()) --i;
+            if (i == sf.stalledLocalPaths.end() && !sf.stalledLocalPaths.empty()) i = --sf.stalledLocalPaths.end();
+            if (i == sf.stalledLocalPaths.end() ||
+                !i->first.isContainingPathOf(p, client->fsaccess->localseparator))
+            {
+                sf.stalledLocalPaths[p] = r;
+            }
+        }
+    }
+
+    void noResult()
+    {
+        resolved = true;
+    }
+
+    // For brevity in programming, if none of the above occurred,
+    // the destructor records that we are progressing (ie, not stalled).
+    ~ProgressingMonitor()
+    {
+        if (!resolved)
+        {
+            sf.noProgress = false;
+            sf.noProgressCount = 0;
+        }
+    }
+};
+
 
 bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool& rowResult)
 {
@@ -1172,6 +1239,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
         if (LocalNode* sourceLocalNode = client->findLocalNodeByFsid(row.fsNode->fsid, row.fsNode->type, row.fsNode->fingerprint, *this, nullptr))
         {
             assert(parentRow.syncNode);
+            ProgressingMonitor monitor(client);
 
             if (!row.syncNode)
             {
@@ -1331,6 +1399,9 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
                     if (!sourceCloudNode) SYNC_verbose << client->clientname << "Source parent cloud node doesn't exist yet" << logTriplet(row, fullPath);
                     if (!targetCloudNode) SYNC_verbose << client->clientname << "Target parent cloud node doesn't exist yet" << logTriplet(row, fullPath);
 
+                    monitor.waitingLocal(sourceLocalNode->getLocalPath(true), MoveNeedsTargetFolder);
+                    monitor.waitingLocal(fullPath, MoveNeedsTargetFolder);
+
                     row.suppressRecursion = true;
                     rowResult = false;
                     return true;
@@ -1430,6 +1501,8 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
         if (sourceLocalNode == row.syncNode) return false;
 
         // It's a move or rename
+        ProgressingMonitor monitor(client);
+
         assert(parentRow.syncNode);
         if (parentRow.syncNode) parentRow.syncNode->setCheckMovesAgain(false, true, false);
         if (row.syncNode) row.syncNode->setCheckMovesAgain(true, false, false);
@@ -1478,14 +1551,15 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
         {
             LOG_warn << "transient error moving folder: " << sourcePath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
             row.syncNode->setUseBlocked();   // todo: any interaction with checkMovesAgain ? might we stall if the transient error never resovles?
-            rowResult = false;
             row.suppressRecursion = true;
             sourceLocalNode->moveApplyingToLocal = false;
+            rowResult = false;
             return true;
         }
         else
         {
             SYNC_verbose << "Move to here delayed since local parent doesn't exist yet: " << sourcePath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
+            monitor.waitingCloud(row.cloudNode->displaypath(), MoveNeedsTargetFolder);
             rowResult = false;
             return true;
         }
@@ -2266,8 +2340,6 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
         {
             if (row.fsNode)
             {
-                client->mSyncFlags.performedScans = true;
-
                 if (!mScanRequest)
                 {
                     if (node.scanDelayUntil != 0 && Waiter::ds < node.scanDelayUntil)
@@ -2351,7 +2423,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
     SYNC_verbose << client->clientname << "sync/recurse here after scan logic: " << syncHere << recurseHere;
 
     // Have we encountered the scan target?
-    client->mSyncFlags.scanTargetReachable |= mScanRequest && mScanRequest->matches(*row.syncNode);
+    client->mSyncFlags->scanTargetReachable |= mScanRequest && mScanRequest->matches(*row.syncNode);
 
     // Get sync triplets.
     auto childRows = computeSyncTriplets(row.cloudNode, *row.syncNode, *effectiveFsChildren);
@@ -2725,6 +2797,7 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTab
                         row.syncNode->setSyncedNodeHandle(row.cloudNode->nodeHandle());
 
                         statecacheadd(row.syncNode);
+                        ProgressingMonitor monitor(client); // not stalling
                     }
                     else
                     {
@@ -2836,6 +2909,8 @@ bool Sync::syncItem(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTab
 
 bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool considerSynced)
 {
+    ProgressingMonitor monitor(client);
+
     // this really is a new node: add
     LOG_debug << client->clientname << "Creating LocalNode from FS at: " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
 
@@ -2866,6 +2941,7 @@ bool Sync::resolve_makeSyncNode_fromFS(syncRow& row, syncRow& parentRow, LocalPa
 
 bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, LocalPath& fullPath, bool considerSynced)
 {
+    ProgressingMonitor monitor(client);
     LOG_debug << client->clientname << "Creating LocalNode from Cloud at: " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
 
     assert(row.syncNode == nullptr);
@@ -2885,12 +2961,15 @@ bool Sync::resolve_makeSyncNode_fromCloud(syncRow& row, syncRow& parentRow, Loca
     }
     statecacheadd(row.syncNode);
     row.syncNode->setSyncAgain(true, false, false);
+
     return false;
 }
 
 bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
-    if (client->mSyncFlags.movesWereComplete ||
+    ProgressingMonitor monitor(client);
+
+    if (client->mSyncFlags->movesWereComplete ||
         row.syncNode->moveSourceAppliedToCloud ||
         row.syncNode->moveAppliedToLocal ||
         row.syncNode->deletedFS ||
@@ -2927,12 +3006,15 @@ bool Sync::resolve_delSyncNode(syncRow& row, syncRow& parentRow, LocalPath& full
         LOG_debug << client->clientname << "resolve_delSyncNode not resolved at: " << logTriplet(row, fullPath);
         assert(false);
         row.syncNode->setScanAgain(true, true, true, 2);
+        monitor.noResult();
     }
     return false;
 }
 
 bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTableTransactionCommitter& committer)
 {
+    ProgressingMonitor monitor(client);
+
     if (row.fsNode->type == FILENODE)
     {
         // upload the file if we're not already uploading
@@ -2961,6 +3043,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath,
             {
                 SYNC_verbose << client->clientname << "Parent cloud folder to upload to doesn't exist yet" << logTriplet(row, fullPath);
                 row.syncNode->setSyncAgain(true, false, false);
+                monitor.waitingLocal(fullPath, UpsyncNeedsTargetFolder);
             }
         }
         else if (row.syncNode->newnode)
@@ -2986,16 +3069,19 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath,
         {
             SYNC_verbose << "Delay creating cloud node until parent cloud node exists: " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
             row.syncNode->setSyncAgain(true, false, false);
+            monitor.waitingLocal(fullPath, UpsyncNeedsTargetFolder);
         }
 
         // we may not see some moves/renames until the entire folder structure is created.
-        row.syncNode->setCheckMovesAgain(true, false, false);
+        row.syncNode->setCheckMovesAgain(true, false, false);     // todo: double check - might not be needed for the wait case? might cause a stall?
     }
     return false;
 }
 
 bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath, DBTableTransactionCommitter& committer, bool alreadyExists)
 {
+    ProgressingMonitor monitor(client);
+
     if (row.cloudNode->type == FILENODE)
     {
         // download the file if we're not already downloading
@@ -3035,6 +3121,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPat
         {
             SYNC_verbose << "Delay starting download until parent local folder exists: " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
             row.syncNode->setSyncAgain(true, false, false);
+            monitor.waitingCloud(row.cloudNode->displaypath(), DownsyncNeedsTargetFolder);
         }
     }
     else
@@ -3100,10 +3187,11 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPat
         {
             SYNC_verbose << "Delay creating local folder until parent local folder exists: " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
             row.syncNode->setSyncAgain(true, false, false);
+            monitor.waitingCloud(row.cloudNode->displaypath(), DownsyncNeedsTargetFolder);
         }
 
         // we may not see some moves/renames until the entire folder structure is created.
-        row.syncNode->setCheckMovesAgain(true, false, false);
+        row.syncNode->setCheckMovesAgain(true, false, false);  // todo: is this still right for the watiing case
     }
     return false;
 }
@@ -3111,6 +3199,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPat
 
 bool Sync::resolve_userIntervention(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
+    ProgressingMonitor monitor(client);
     LOG_debug << client->clientname << "write me" << logTriplet(row, fullPath);
     assert(false);
     return false;
@@ -3118,6 +3207,7 @@ bool Sync::resolve_userIntervention(syncRow& row, syncRow& parentRow, LocalPath&
 
 bool Sync::resolve_pickWinner(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
+    ProgressingMonitor monitor(client);
     LOG_debug << client->clientname << "write me" << logTriplet(row, fullPath);
     assert(false);
     return false;
@@ -3125,6 +3215,8 @@ bool Sync::resolve_pickWinner(syncRow& row, syncRow& parentRow, LocalPath& fullP
 
 bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
+    ProgressingMonitor monitor(client);
+
     if (!row.syncNode->syncedCloudNodeHandle.isUndef() &&
         client->nodeIsInActiveSync(client->nodeByHandle(row.syncNode->syncedCloudNodeHandle)))
     {
@@ -3143,13 +3235,15 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fu
             SYNC_verbose << client->clientname << "Letting move destination node process this first: " << logTriplet(row, fullPath);
         }
         row.suppressRecursion = true;
+        monitor.noResult();
     }
     else if (row.syncNode->deletedFS)
     {
         SYNC_verbose << client->clientname << "FS item already removed: " << logTriplet(row, fullPath);
         row.suppressRecursion = true;
+        monitor.noResult();
     }
-    else if (client->mSyncFlags.movesWereComplete)
+    else if (client->mSyncFlags->movesWereComplete)
     {
         LOG_debug << client->clientname << "Moving local item to local sync debris: " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
         if (movetolocaldebris(fullPath))
@@ -3164,13 +3258,22 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fu
         else
         {
             LOG_err << client->clientname << "Failed to move to local debris:  " << fullPath.toPath(*client->fsaccess);
+            // todo: try again on a delay?
         }
     }
     else
     {
         // todo: but, nodes are always current before we call recursiveSync - shortcut this case for nodes?
-        SYNC_verbose << client->clientname << "Wait for scanning+moving to finish before removing cloud node: " << logTriplet(row, fullPath);
+        SYNC_verbose << client->clientname << "Wait for scanning+moving to finish before removing local node: " << logTriplet(row, fullPath);
         row.syncNode->setSyncAgain(true, false, false); // make sure we revisit (but don't keep checkMoves set)
+        if (parentRow.cloudNode)
+        {
+            monitor.waitingCloud(parentRow.cloudNode->displaypath() + "/" + row.syncNode->name, DeleteWaitingOnMoves);
+        }
+        else
+        {
+            monitor.noResult();
+        }
     }
     return false;
 }
@@ -3371,6 +3474,7 @@ bool MegaClient::checkIfFileIsChanging(FSNode& fsNode, const LocalPath& fullPath
 
 bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
+    ProgressingMonitor monitor(client);
     bool inProgress = row.syncNode->deletingCloud || row.syncNode->moveApplyingToLocal || row.syncNode->moveSourceApplyingToCloud;
 
     if (inProgress)
@@ -3401,7 +3505,7 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullP
             }
             inProgress = true;
         }
-        else if (client->mSyncFlags.movesWereComplete)
+        else if (client->mSyncFlags->movesWereComplete)
         {
             if (!row.syncNode->deletingCloud)
             {
@@ -3420,6 +3524,8 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullP
             // in case it's actually a move and we just haven't seen the fsid yet
             SYNC_verbose << client->clientname << "Wait for scanning/moving to finish before moving to local debris: " << logTriplet(row, fullPath);
             row.syncNode->setSyncAgain(true, false, false); // make sure we revisit
+
+            monitor.waitingLocal(fullPath, DeleteWaitingOnMoves);
         }
     }
 

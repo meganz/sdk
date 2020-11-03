@@ -504,23 +504,7 @@ public:
     // active syncs
     sync_list syncs;
 
-    struct SyncFlags
-    {
-        // this gets set if any scanning occurred
-        bool performedScans = false;
-
-        // whether the target of an asynchronous scan request is reachable.
-        bool scanTargetReachable = false;
-
-        // we can only perform moves after scanning is complete
-        bool scanningWasComplete = false;
-
-        // we can only delete/upload/download after moves are complete
-        bool movesWereComplete = false;
-
-    };
-
-    SyncFlags mSyncFlags;
+    unique_ptr<SyncFlags> mSyncFlags;
 
     // used to asynchronously perform scans.
     unique_ptr<ScanService> mScanService;

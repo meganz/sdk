@@ -227,6 +227,7 @@ private:
 class MEGA_API Sync
 {
 public:
+    enum SyncWaitReason { MoveNeedsTargetFolder, UpsyncNeedsTargetFolder, DownsyncNeedsTargetFolder, DeleteWaitingOnMoves };
 
     // returns the sync config
     const SyncConfig& getConfig() const;
@@ -416,6 +417,25 @@ protected :
 private:
     std::string mLocalPath;
 };
+
+struct SyncFlags
+{
+    // whether the target of an asynchronous scan request is reachable.
+    bool scanTargetReachable = false;
+
+    // we can only perform moves after scanning is complete
+    bool scanningWasComplete = false;
+
+    // we can only delete/upload/download after moves are complete
+    bool movesWereComplete = false;
+
+    // stall detection (for incompatible local and remote changes, eg file added locally in a folder removed remotely)
+    bool noProgress = true;
+    int noProgressCount = 0;
+    map<string, Sync::SyncWaitReason> stalledNodePaths;
+    map<LocalPath, Sync::SyncWaitReason> stalledLocalPaths;
+};
+
 } // namespace
 
 #endif

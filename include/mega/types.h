@@ -304,6 +304,7 @@ const int FILENODEKEYLENGTH = 32;
 const int FOLDERNODEKEYLENGTH = 16;
 
 typedef list<class Sync*> sync_list;
+struct SyncFlags;
 
 // persistent resource cache storage
 class Cacheable

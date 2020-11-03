@@ -2646,7 +2646,7 @@ void exec_treecompare(autocomplete::ACState& s)
 }
 
 
-bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersperfolder, int recurselevel, int filesperfolder, int filesize, int& totalfilecount, int& totalfoldercount)
+bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersperfolder, int recurselevel, int filesperfolder, uint64_t filesize, int& totalfilecount, int& totalfoldercount)
 {
     fs::path p = targetfolder / fs::u8path(prefix);
     if (!fs::is_directory(p) && !fs::create_directory(p))
@@ -2658,8 +2658,10 @@ bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersp
         string filename = prefix + "_file_" + std::to_string(++totalfilecount);
         fs::path fp = p / fs::u8path(filename);
         ofstream fs(fp.u8string(), std::ios::binary);
+        char buffer[64 * 1024];
+        fs.rdbuf()->pubsetbuf(buffer, sizeof(buffer));
 
-        for (unsigned j = filesize / sizeof(int); j--; )
+        for (auto j = filesize / sizeof(int); j--; )
         {
             fs.write((char*)&totalfilecount, sizeof(int));
         }
@@ -2680,11 +2682,12 @@ bool buildLocalFolders(fs::path targetfolder, const string& prefix, int foldersp
 void exec_generatetestfilesfolders(autocomplete::ACState& s)
 {
     string param, nameprefix = "test";
-    int folderdepth = 1, folderwidth = 1, filecount = 100, filesize = 1024;
+    int folderdepth = 1, folderwidth = 1, filecount = 100;
+    int64_t filesize = 1024;
     if (s.extractflagparam("-folderdepth", param)) folderdepth = atoi(param.c_str());
     if (s.extractflagparam("-folderwidth", param)) folderwidth = atoi(param.c_str());
     if (s.extractflagparam("-filecount", param)) filecount = atoi(param.c_str());
-    if (s.extractflagparam("-filesize", param)) filesize = atoi(param.c_str());
+    if (s.extractflagparam("-filesize", param)) filesize = atoll(param.c_str());
     if (s.extractflagparam("-nameprefix", param)) nameprefix = param;
 
     fs::path p = pathFromLocalPath(s.words[1].s, true);

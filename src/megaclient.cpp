@@ -1160,6 +1160,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     , syncnaglebt(rng), /*syncextrabt(rng),*/ syncscanbt(rng)
 #endif
     , mAsyncQueue(*w, workerThreadCount)
+    , mSyncFlags(new SyncFlags)
 {
     sctable = NULL;
     pendingsccommit = false;
@@ -2906,27 +2907,12 @@ void MegaClient::exec()
                 }
                 else
                 {
-                    dstime extradelay = sync->procextraq();
-                    dstime scandelay  = sync->procscanq();
-                    //dstime delay = std::min(extradelay, scandelay);
-
-                    //// Don't wait for paused syncs.
-                    //if (sync->paused())
-                    //{
-                    //    continue;
-                    //}
-
-                    //if (EVER(delay))
-                    //{
-                    //    filesystemNotificationsQuietTime = Waiter::ds + delay;
-                    //}
+                    sync->procextraq();
+                    sync->procscanq();
                 }
             }
 
-            //bool tooSoon = filesystemNotificationsQuietTime
-            //               && filesystemNotificationsQuietTime > Waiter::ds;
-
-            LOG_debug << clientname << /*"tooSoon: " << tooSoon <<*/ " syncing: " << isAnySyncSyncing() << " apCurrent: " << actionpacketsCurrent;
+            //LOG_debug << clientname << " syncing: " << isAnySyncSyncing() << " apCurrent: " << actionpacketsCurrent;
 
             // We must have actionpacketsCurrent so that any LocalNode created can straight away indicate if it matched a Node
             if (actionpacketsCurrent && isAnySyncSyncing())// && !tooSoon)
@@ -2934,10 +2920,13 @@ void MegaClient::exec()
                 CodeCounter::ScopeTimer rst(performanceStats.recursiveSyncTime);
 
                 // we need one pass with recursiveSync() after scanning is complete, to be sure there are no moves left.
-                auto scanningCompletePreviously = mSyncFlags.scanningWasComplete;
-                mSyncFlags = SyncFlags();
-                mSyncFlags.scanningWasComplete = !isAnySyncScanning();
-                mSyncFlags.movesWereComplete = scanningCompletePreviously && !mightAnySyncsHaveMoves();
+                auto scanningCompletePreviously = mSyncFlags->scanningWasComplete;
+                mSyncFlags->scanTargetReachable = false;
+                mSyncFlags->scanningWasComplete = !isAnySyncScanning();
+                mSyncFlags->movesWereComplete = scanningCompletePreviously && !mightAnySyncsHaveMoves();
+                mSyncFlags->noProgress = true;
+                mSyncFlags->stalledNodePaths.clear();
+                mSyncFlags->stalledLocalPaths.clear();
 
                 for (Sync* sync : syncs)
                 {
@@ -2951,13 +2940,14 @@ void MegaClient::exec()
                         Sync::syncRow row{sync->cloudRoot(), sync->localroot.get(), &rootFsNode};
 
                         // Will be re-set if we can reach the scan target.
-                        mSyncFlags.scanTargetReachable = false;
+                        mSyncFlags->scanTargetReachable = false;
 
                         sync->recursiveSync(row, pathBuffer, committer);
 
                         // Cancel the scan request if we couldn't reach the scan target.
-                        if (!mSyncFlags.scanTargetReachable)
+                        if (!mSyncFlags->scanTargetReachable)
                         {
+                            LOG_warn << "Abandoning unreachable scan request";
                             sync->mScanRequest.reset();
                         }
 
@@ -2981,6 +2971,18 @@ void MegaClient::exec()
 
                 rst.complete();
                 LOG_verbose << performanceStats.recursiveSyncTime.report();
+
+                if (mSyncFlags->noProgress)
+                {
+                    ++mSyncFlags->noProgressCount;
+                }
+                if (!mSyncFlags->stalledNodePaths.empty() ||
+                    !mSyncFlags->stalledLocalPaths.empty())
+                {
+                    LOG_warn << "Stall detected!";
+                    for (auto& p : mSyncFlags->stalledNodePaths) LOG_warn << "stalled node path: " << p.first;
+                    for (auto& p : mSyncFlags->stalledLocalPaths) LOG_warn << "stalled local path: " << p.first.toPath(*fsaccess);
+                }
 
                 execsyncdeletions();
             }

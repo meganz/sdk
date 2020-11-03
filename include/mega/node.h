@@ -46,7 +46,7 @@ struct MEGA_API NodeCore
     handle nodehandle = UNDEF;
 
     // inline convenience function to get a typed version that ensures we use the 6 bytes of a node handle, and not 8
-    NodeHandle nodeHandle() { return NodeHandle().set6byte(nodehandle); }
+    NodeHandle nodeHandle() const { return NodeHandle().set6byte(nodehandle); }
 
     // parent node handle (in a Node context, temporary placeholder until parent is set)
     handle parenthandle = UNDEF;
