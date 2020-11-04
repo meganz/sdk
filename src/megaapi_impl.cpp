@@ -2519,6 +2519,11 @@ long long MegaTransferPrivate::getNotificationNumber() const
     return notificationNumber;
 }
 
+bool MegaTransferPrivate::getTargetOverride() const
+{
+    return mTargetOverride;
+}
+
 bool MegaTransferPrivate::serialize(string *d)
 {
     d->append((const char*)&type, sizeof(type));
@@ -2831,6 +2836,11 @@ void MegaTransferPrivate::setNotificationNumber(long long notificationNumber)
 void MegaTransferPrivate::setListener(MegaTransferListener *listener)
 {
     this->listener = listener;
+}
+
+void MegaTransferPrivate::setTargetOverride(bool targetOverride)
+{
+    mTargetOverride = targetOverride;
 }
 
 void MegaTransferPrivate::startRecursiveOperation(unique_ptr<MegaRecursiveOperation> op, MegaNode* node)
@@ -13789,7 +13799,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
     }
 }
 
-void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<NewNode>& nn)
+void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<NewNode>& nn, bool targetOverride)
 {
     handle h = UNDEF;
     Node *n = NULL;
@@ -13834,6 +13844,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
         }
 
         transfer->setNodeHandle(h);
+        transfer->setTargetOverride(targetOverride);
         transfer->setTransferredBytes(transfer->getTotalBytes());
 
         if (!e)
@@ -13867,6 +13878,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
     if (request->getType() == MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD)
     {
         request->setNodeHandle(h);
+        request->setFlag(targetOverride);
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         return;
     }
@@ -13888,6 +13900,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
     if (request->getType() != MegaRequest::TYPE_MOVE)
     {
         request->setNodeHandle(h);
+        request->setFlag(targetOverride);
         if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
         {
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));    // even if import fails, notify account was successfuly created anyway
@@ -13907,6 +13920,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             else
             {
                 request->setNodeHandle(h);
+                request->setFlag(targetOverride);
                 e = client->unlink(node, false, request->getTag());
             }
         }

@@ -1807,7 +1807,7 @@ struct StandardClient : public MegaApp
         resultproc.processresult(CATCHUP, error(API_OK));
     }
 
-    void putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn) override
+    void putnodes_result(const Error& e, targettype_t tt, vector<NewNode>& nn, bool targetOverride) override
     {
         resultproc.processresult(PUTNODES, e, UNDEF);
     }
