@@ -11580,8 +11580,13 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         return new MegaNodeListPrivate();
     }
 
+    if (order < MegaApi::ORDER_NONE || order > MegaApi::ORDER_FAV_DESC)
+    {
+        return new MegaNodeListPrivate();
+    }
+
     if (type != MegaApi::FILE_TYPE_DEFAULT
-            && (order < MegaApi::ORDER_NONE || order > MegaApi::ORDER_ALPHABETICAL_DESC))
+            && (order >= MegaApi::ORDER_PHOTO_ASC && order <= MegaApi::ORDER_VIDEO_DESC))
     {
         return new MegaNodeListPrivate();
     }
