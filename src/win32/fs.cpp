@@ -1765,7 +1765,10 @@ bool WinDirAccess::dnext(LocalPath& /*path*/, LocalPath& nameArg, bool /*follows
           || (ffd.cFileName[1] && ((ffd.cFileName[1] != '.') || ffd.cFileName[2]))))
         {
             nameArg.localpath.assign(ffd.cFileName, wcslen(ffd.cFileName));
-            nameArg.prependWithSeparator(globbase, gWfsa.localseparator);
+            if (!globbase.empty())
+            {
+                nameArg.prependWithSeparator(globbase, gWfsa.localseparator);
+            }
 
             if (type)
             {
