@@ -18328,7 +18328,7 @@ class MegaApi
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode);
 
         /**
-         * @brief Allow fetch google ads
+         * @brief Fetch Google ads
          *
          * @param adFlags A bitmap flag used to communicate with the API
          * @param adUnits A list of the adslot ids to fetch
@@ -18338,7 +18338,7 @@ class MegaApi
         void fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener = nullptr);
 
         /**
-         * @brief Allows you to simply query if we should show an ad or not
+         * @brief Check if Google ads should show or not
          *
          * @param adFlags A bitmap flag used to communicate with the API
          * @param publicHandle Provide the public handle that the user is visiting (optionally)
