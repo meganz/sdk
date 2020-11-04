@@ -4154,11 +4154,6 @@ MegaStringListPrivate::MegaStringListPrivate(const MegaStringListPrivate *string
 
 MegaStringListPrivate::MegaStringListPrivate(char **newlist, int size)
 {
-    if (!size)
-    {
-        return;
-    }
-
     for (int i = 0; i < size; i++)
     {
         mList.push_back(newlist[i]);
@@ -4194,6 +4189,11 @@ void MegaStringListPrivate::add(const char *value)
     {
         mList.push_back(value);
     }
+}
+
+string_vector MegaStringListPrivate::getVector()
+{
+    return mList;
 }
 
 bool operator==(const MegaStringList& lhs, const MegaStringList& rhs)
@@ -23083,14 +23083,15 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_FETCH_GOOGLE_ADS:
         {
-                MegaStringList* stringList = request->getMegaStringList();
-                std::vector<std::string> vectorString;
-                for (int i = 0; i < stringList->size(); i++)
+                int flags = request->getNumber();
+                if (flags < MegaApi::GOOGLE_ADS_FORCE_ADS || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
                 {
-                    vectorString.push_back(stringList->get(i));
+                    e = API_EARGS;
+                    break;
                 }
 
-                client->reqs.add(new CommandFetchGoogleAds(client, request->getNumber(), vectorString, request->getNodeHandle(), [request, this](Error e, string_map value)
+                string_vector vectorString = static_cast<MegaStringListPrivate*>(request->getMegaStringList())->getVector();
+                client->reqs.add(new CommandFetchGoogleAds(client, flags, vectorString, request->getNodeHandle(), [request, this](Error e, string_map value)
                 {
                     if (e == API_OK)
                     {
@@ -23109,7 +23110,14 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_QUERY_GOOGLE_ADS:
         {
-            client->reqs.add(new CommandQueryGoogleAds(client, request->getNumber(), request->getNodeHandle(), [request, this](Error e, int value)
+            int flags = request->getNumber();
+            if (flags < MegaApi::GOOGLE_ADS_FORCE_ADS || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->reqs.add(new CommandQueryGoogleAds(client, flags, request->getNodeHandle(), [request, this](Error e, int value)
             {
                 if (e == API_OK)
                 {

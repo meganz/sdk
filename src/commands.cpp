@@ -8338,7 +8338,7 @@ bool CommandDismissBanner::procresult(Result r)
 bool CommandFetchGoogleAds::procresult(Command::Result r)
 {
     string_map result;
-    if (r.wasErrorOrOK())
+    if (r.wasStrictlyError())
     {
         mCompletion(r.errorOrOK(), result);
         return true;
@@ -8377,6 +8377,12 @@ bool CommandFetchGoogleAds::procresult(Command::Result r)
                     break;
 
                 default:
+                    if (!client->json.storeobject())
+                    {
+                        result.clear();
+                        mCompletion(API_EINTERNAL, result);
+                        return false;
+                    }
                     break;
             }
         }
@@ -8386,7 +8392,7 @@ bool CommandFetchGoogleAds::procresult(Command::Result r)
 
     mCompletion((error ? API_EINTERNAL : API_OK), result);
 
-    return true;
+    return !error;
 }
 
 CommandFetchGoogleAds::CommandFetchGoogleAds(MegaClient* client, int adFlags, const std::vector<std::string> &adUnits, handle publicHandle, CommandFetchGoogleAdsCompletion completion)

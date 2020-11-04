@@ -7774,12 +7774,12 @@ class MegaApi
         };
 
         enum {
-            GOOGLE_ADS_FORCE_ADS = 512,                     // Force enable ads regardless of any other factors.
-            GOOGLE_ADS_IGNORE_MEGA = 1024,                  // Show ads even if the current user or file owner is a MEGA employee.
-            GOOGLE_ADS_IGNORE_COUNTRY = 2048,               // Show ads even if the user is not within an enabled country.
-            GOOGLE_ADS_IGNORE_IP = 4096,                    // Show ads even if the user is on a blacklisted IP (MEGA ips).
-            GOOGLE_ADS_IGNORE_PRO = 8192,                   // Show ads even if the current user or file owner is a PRO user.
-            GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 16384,         // Ignore the rollout logic which only servers ads to 10% of users based on their IP.
+            GOOGLE_ADS_FORCE_ADS = 0x200,                     // Force enable ads regardless of any other factors.
+            GOOGLE_ADS_IGNORE_MEGA = 0x400,                  // Show ads even if the current user or file owner is a MEGA employee.
+            GOOGLE_ADS_IGNORE_COUNTRY = 0x800,               // Show ads even if the user is not within an enabled country.
+            GOOGLE_ADS_IGNORE_IP = 0x1000,                    // Show ads even if the user is on a blacklisted IP (MEGA ips).
+            GOOGLE_ADS_IGNORE_PRO = 0x2000,                   // Show ads even if the current user or file owner is a PRO user.
+            GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000,         // Ignore the rollout logic which only servers ads to 10% of users based on their IP.
         };
 
         /**
@@ -18332,19 +18332,19 @@ class MegaApi
          *
          * @param adFlags A bitmap flag used to communicate with the API
          * @param adUnits A list of the adslot ids to fetch
-         * @param publicHandle Provide the public handle that the user is visiting (optionally)
+         * @param publicHandle Provide the public handle that the user is visiting
          * @param listener MegaRequestListener to track this request
          */
-        void fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener = nullptr);
+        void fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
 
         /**
          * @brief Check if Google ads should show or not
          *
          * @param adFlags A bitmap flag used to communicate with the API
-         * @param publicHandle Provide the public handle that the user is visiting (optionally)
+         * @param publicHandle Provide the public handle that the user is visiting
          * @param listener MegaRequestListener to track this request
          */
-        void queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaRequestListener *listener = nullptr);
+        void queryGoogleAds(int adFlags, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
 
  private:
         MegaApiImpl *pImpl;

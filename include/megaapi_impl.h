@@ -1667,9 +1667,10 @@ public:
     const char* get(int i) const override;
     int size() const override;
     void add(const char* value) override;
+    string_vector getVector();
 protected:
     MegaStringListPrivate(const MegaStringListPrivate *stringList);
-    std::vector<std::string> mList;
+    string_vector mList;
 };
 
 bool operator==(const MegaStringList& lhs, const MegaStringList& rhs);
