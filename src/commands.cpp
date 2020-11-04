@@ -8365,7 +8365,7 @@ bool CommandFetchGoogleAds::procresult(Command::Result r)
 
                 case EOO:
                     exit = true;
-                    if (id.size())
+                    if (!id.empty() && !iu.empty())
                     {
                         result[id] = iu;
                     }
@@ -8412,7 +8412,6 @@ CommandFetchGoogleAds::CommandFetchGoogleAds(MegaClient* client, int adFlags, co
     {
         element(adUnit.c_str());
     }
-
     endarray();
 
     tag = client->reqtag;
