@@ -7773,6 +7773,15 @@ class MegaApi
             ACCOUNT_BLOCKED_VERIFICATION_EMAIL = 700,       // temporary blocked, require email verification
         };
 
+        enum {
+            GOOGLE_ADS_FORCE_ADS = 512,                     // Force enable ads regardless of any other factors.
+            GOOGLE_ADS_IGNORE_MEGA = 1024,                  // Show ads even if the current user or file owner is a MEGA employee.
+            GOOGLE_ADS_IGNORE_COUNTRY = 2048,               // Show ads even if the user is not within an enabled country.
+            GOOGLE_ADS_IGNORE_IP = 4096,                    // Show ads even if the user is on a blacklisted IP (MEGA ips).
+            GOOGLE_ADS_IGNORE_PRO = 8192,                   // Show ads even if the current user or file owner is a PRO user.
+            GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 16384,         // Ignore the rollout logic which only servers ads to 10% of users based on their IP.
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
