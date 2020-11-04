@@ -680,7 +680,6 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/mega_http_parser.h
             ${MegaDir}/include/mega/waiter.h
             ${MegaDir}/include/mega/db/sqlite.h
-            ${MegaDir}/include/mega/db/bdb.h
             ${MegaDir}/include/mega/types.h
             ${MegaDir}/include/mega/filefingerprint.h
             ${MegaDir}/include/mega/filesystem.h
