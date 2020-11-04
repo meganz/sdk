@@ -1451,6 +1451,77 @@ struct StandardClient : public MegaApp
         }
     }
 
+    bool backupAdd_inthread(const int tag,
+                            const string& drivePath,
+                            string sourcePath,
+                            const string& targetPath)
+    {
+        // Verify source path is below drive path.
+        if (sourcePath.size() < drivePath.size()
+            || sourcePath.compare(0, drivePath.size(), drivePath))
+        {
+            return false;
+        }
+
+        auto* rootNode = client.nodebyhandle(basefolderhandle);
+
+        // Root isn't in the cloud.
+        if (!rootNode)
+        {
+            return false;
+        }
+
+        auto* targetNode = drillchildnodebyname(rootNode, targetPath);
+
+        // Target path doesn't exist.
+        if (!targetNode)
+        {
+            return false;
+        }
+
+        // Remove drive path from source path.
+        sourcePath.erase(0, drivePath.size());
+
+        XBackupConfig config;
+
+        // Populate configuration.
+        config.drivePath =
+          LocalPath::fromPath(drivePath, *client.fsaccess);
+        config.sourcePath =
+          LocalPath::fromPath(sourcePath, *client.fsaccess);
+
+        config.enabled = true;
+        config.targetHandle = targetNode->nodehandle;
+        config.tag = tag;
+
+        // Try and add the backup.
+        return client.backupAdd(config).first == API_OK;
+    }
+
+    bool backupAdd_mainthread(const int tag,
+                              const string& drivePath,
+                              const string& sourcePath,
+                              const string& targetPath)
+    {
+        const fs::path dp = fsBasePath / fs::u8path(drivePath);
+        const fs::path sp = fsBasePath / fs::u8path(sourcePath);
+
+        fs::create_directories(dp);
+        fs::create_directories(sp);
+
+        auto result =
+          thread_do([&](StandardClient& client, promise<bool>& result)
+                    {
+                        result.set_value(
+                          client.backupAdd_inthread(tag,
+                                                    dp.u8string(),
+                                                    sp.u8string(),
+                                                    targetPath));
+                    });
+
+        return result.get();
+    }
+
     bool setupSync_inthread(int syncTag, const string& subfoldername, const fs::path& localpath, bool isBackup)
     {
         if (Node* n = client.nodebyhandle(basefolderhandle))
@@ -4025,25 +4096,56 @@ struct TwoWaySyncSymmetryCase
         return nullptr;
     }
 
-    void SetupTwoWaySync(bool inthread)
+    bool BackupAdd(const string& drivePath, const string& sourcePath, const string& targetPath, const bool inThread)
     {
-        string syncrootpath = localSyncRootPath().u8string();
+        if (inThread)
+        {
+            return client1().backupAdd_inthread(++state.next_sync_tag, drivePath, sourcePath, targetPath);
+        }
 
+        sync_tag = ++state.next_sync_tag;
+
+        return client1().backupAdd_mainthread(sync_tag, drivePath, sourcePath, targetPath);
+    }
+
+    bool SetupSync(const string& sourcePath, const string& targetPath, const bool inThread)
+    {
+        if (inThread)
+        {
+            return client1().setupSync_inthread(++state.next_sync_tag, targetPath, sourcePath, isBackup());
+        }
+
+        sync_tag = ++state.next_sync_tag;
+
+        return client1().setupSync_mainthread(sourcePath, targetPath, sync_tag, isBackup());
+    }
+
+    void SetupTwoWaySync(const bool inThread)
+    {
         ASSERT_NE(remoteSyncRoot(), nullptr);
 
-        auto lsfr = syncrootpath.erase(0, client1().fsBasePath.u8string().size() + 1);
-        auto rsfr = remoteSyncRootPath();
+        string basePath   = client1().fsBasePath.u8string();
+        string drivePath  = localTestBasePath().u8string();
+        string sourcePath = localSyncRootPath().u8string();
+        string targetPath = remoteSyncRootPath();
+        bool result;
 
-        if (!inthread)
+        if (!inThread)
         {
-            bool syncsetup = client1().setupSync_mainthread(lsfr, rsfr, sync_tag = ++state.next_sync_tag, isBackup());
-            ASSERT_TRUE(syncsetup);
+            drivePath.erase(0, basePath.size() + 1);
+            sourcePath.erase(0, basePath.size() + 1);
+        }
+
+        if (isExternalBackup())
+        {
+            result = BackupAdd(drivePath, sourcePath, targetPath, inThread);
         }
         else
         {
-            fs::path syncdir = client1().fsBasePath / fs::u8path(lsfr);
-            client1().setupSync_inthread(++state.next_sync_tag, rsfr, syncdir, isBackup());
+            result = SetupSync(sourcePath, targetPath, inThread);
         }
+
+        ASSERT_TRUE(result);
     }
 
     void PauseTwoWaySync()
@@ -4696,8 +4798,7 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
 
                         for (int isExternal = 0; isExternal < 2; ++isExternal)
                         {
-                            // dgw: TODO: Until we can fix the tests.
-                            if (isExternal) continue;
+                            //if (isExternal) continue;
 
                             if (isExternal && syncType != TwoWaySyncSymmetryCase::type_backupSync)
                             {

@@ -42,6 +42,8 @@
 namespace mega {
 
 class SyncConfigBag;
+class XBackupConfig;
+class XBackupConfigStore;
 
 class MEGA_API FetchNodesStats
 {
@@ -613,6 +615,109 @@ public:
      */
     error isLocalPathSyncable(std::string newPath, int newSyncTag = 0, SyncError *syncError = nullptr);
 
+    /**
+     * @brief
+     * Add an external backup sync.
+     *
+     * @param config
+     * Config describing the sync to be added.
+     *
+     * @param delayInitialScan
+     * Whether we should delay the inital scan.
+     *
+     * @return
+     * The result of adding the sync.
+     */
+    pair<error, SyncError> backupAdd(const XBackupConfig& config,
+                                     const bool delayInitialScan = false);
+
+    /**
+     * @brief
+     * Removes a previously opened backup database from memory.
+     *
+     * Note that this function will:
+     * - Flush any pending database changes.
+     * - Remove all contained backup configs from memory.
+     * - Remove the database itself from memory.
+     *
+     * @param drivePath
+     * The drive containing the database to remove.
+     *
+     * @param notify
+     * Whether we should emit sync_removed events.
+     *
+     * @return
+     * The result of removing the backup database.
+     *
+     * API_EARGS
+     * The path is invalid.
+     *
+     * API_EBUSY
+     * There is an active sync on this device.
+     *
+     * API_EFAILED
+     * Encountered an internal error.
+     * 
+     * API_ENOENT
+     * No such database exists in memory.
+     *
+     * API_EWRITE
+     * The database has been removed from memory but it could not
+     * be successfully flushed.
+     *
+     * API_OK
+     * The database was removed from memory.
+     */
+    error backupRemove(const LocalPath& drivePath,
+                       const bool notify = true);
+
+    /**
+     * @brief
+     * Restores backups loaded from an external drive.
+     *
+     * @param configs
+     * A map describing the backups to restore.
+     *
+     * @param delayInitialScan
+     * Whether we should delay the inital scan.
+     *
+     * @return
+     * The result of restoring the external backups.
+     */
+    pair<error, SyncError> backupRestore(const LocalPath& drivePath,
+                                         const map<int, XBackupConfig>& configs,
+                                         const bool delayInitialScan = false);
+
+    /**
+     * @brief
+     * Restores backups from an external drive.
+     *
+     * @param drivePath
+     * The drive to restore external backups from.
+     *
+     * @param delayInitialScan
+     * Whether we should delay the inital scan.
+     *
+     * @return
+     * The result of restoring the external backups.
+     */
+    pair<error, SyncError> backupRestore(const LocalPath& drivePath,
+                                         const bool delayInitialScan = false);
+
+    /**
+     * @brief
+     * Add a sync.
+     *
+     * @param config
+     * Config describing the sync to add.
+     *
+     * @param delayInitialScan
+     * Whether we should delay the initial scan.
+     *
+     * @return
+     * The result of adding the sync.
+     */
+    pair<error, SyncError> addsync(const SyncConfig& config, const bool delayInitialScan = false);
 
     /**
      * @brief add sync. Will fill syncError in case there is one.
@@ -629,16 +734,18 @@ public:
     void delsync(Sync*);
 
     // remove sync configuration. It will remove sync configuration cache & call app's callback sync_removed
-    error removeSyncConfig(int tag);
-    error removeSyncConfigByNodeHandle(handle nodeHandle);
+    error removeSyncConfig(const int tag, const bool notify = true);
+    error removeSyncConfigByNodeHandle(const handle nodeHandle, const bool notify = true);
 
     //// sync config updating & persisting ////
     // updates in state & error
-    error saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, SyncError syncerror);
+    error saveAndUpdateSyncConfig(SyncConfig config, syncstate_t newstate, SyncError syncerror);
+
     // updates in remote path/node & calls app's syncupdate_remote_root_changed. passing n=null will remove remote handle and keep last known path
-    bool updateSyncRemoteLocation(const SyncConfig *config, Node *n, bool forceCallback = false); //returns if changed
+    bool updateSyncRemoteLocation(SyncConfig config, Node *n, bool forceCallback = false); //returns if changed
+
     // updates heartbeatID
-    error updateSyncBackupId(int tag, handle newHearBeatID);
+    error updateSyncBackupId(int tag, handle newHeartBeatID);
 
     // transition the cache to failed
     void failSync(Sync* sync, SyncError syncerror);
@@ -662,7 +769,7 @@ public:
     // if resetFingeprint is true, it will assign a new Filesystem Fingerprint.
     // if newRemoteNode is set, it will try to use it to restablish the sync, updating the cached configuration if successful.
     error enableSync(int tag, SyncError &syncError, bool resetFingerprint = false, mega::handle newRemoteNode = UNDEF);
-    error enableSync(const SyncConfig *syncConfig, SyncError &syncError,
+    error enableSync(const SyncConfig &syncConfig, SyncError &syncError,
                      bool resetFingerprint = false, mega::handle newRemoteNode = UNDEF);
 
     /**
@@ -671,7 +778,7 @@ public:
      * forwarded to the application listeners
      * @return error if any
      */
-    error changeSyncState(const SyncConfig *config, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent);
+    error changeSyncState(const SyncConfig &config, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent);
     error changeSyncState(int tag, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent = true);
     error changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent);
 
@@ -1038,8 +1145,19 @@ private:
     // Resumes all resumable syncs
     void resumeResumableSyncs();
 
+public:
+    Sync *getSyncByTag(const int tag) const;
     Sync *getSyncContainingNodeHandle(mega::handle nodeHandle);
 
+    bool getSyncConfig(const handle remoteHandle, SyncConfig& destination) const;
+
+    bool getSyncConfig(const int tag, SyncConfig& destination) const;
+
+    vector<SyncConfig> getSyncConfigs() const;
+
+    error updateSyncConfig(const SyncConfig& config);
+
+private:
 #endif
 
     // update time at which next deferred transfer retry kicks in
@@ -1236,6 +1354,22 @@ public:
 
     // key protecting non-shareable GPS coordinates in nodes
     string unshareablekey;
+
+#ifdef ENABLE_SYNC
+
+    // Returns a reference to this user's backup configuration store.
+    XBackupConfigStore* xBackupConfigStore();
+    
+    // Whether the store has any changes that need to be written to disk.
+    bool xBackupConfigStoreDirty() const;
+
+    // Attempts to flush database changes to disk.
+    error xBackupConfigStoreFlush();
+
+    // Manages this user's external backup configuration databases.
+    unique_ptr<XBackupConfigStore> mXBackupConfigStore;
+
+#endif // ENABLE_SYNC
 
     // application key
     char appkey[16];

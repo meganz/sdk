@@ -2501,7 +2501,7 @@ void MegaClient::exec()
                             syncsup = false;
                             sync->initializing = false;
                             LOG_debug << "Initial delayed scan finished. New / modified files: " << sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
-                            saveAndUpdateSyncConfig(&sync->getConfig(), sync->state, NO_SYNC_ERROR);
+                            saveAndUpdateSyncConfig(sync->getConfig(), sync->state, NO_SYNC_ERROR);
                         }
                         else
                         {
@@ -3048,6 +3048,9 @@ void MegaClient::exec()
                 }
             }
         }
+
+        // Flush changes made to external backup configs.
+        xBackupConfigStoreFlush();
 #endif
 
         notifypurge();
@@ -4056,7 +4059,7 @@ void MegaClient::resumeResumableSyncs()
         if (!config.getRemotePath().size()) //should only happen if coming from old cache
         {
             auto node = nodebyhandle(config.getRemoteNode());
-            updateSyncRemoteLocation(&config, node); //updates cache & notice app of this change
+            updateSyncRemoteLocation(config, node); //updates cache & notice app of this change
             if (node)
             {
                 auto newpath = node->displaypath();
@@ -4087,13 +4090,16 @@ void MegaClient::resumeResumableSyncs()
                 // Only internal backups can be resumed.
                 if (s->isBackup())
                 {
+                    // Sanity.
+                    assert(!config.isExternal());
+
                     // And they should come up in the MONITOR state.
                     s->monitor();
                 }
             }
 
             // update config entry with the error, if any. otherwise addsync would have updated it
-            saveAndUpdateSyncConfig(&config, newstate, static_cast<SyncError>(syncError) );
+            saveAndUpdateSyncConfig(config, newstate, static_cast<SyncError>(syncError) );
         }
 
         LOG_debug << "Sync autoresumed: " << config.getTag() << " " << config.getLocalPath() << " fsfp= " << config.getLocalFingerprint() << " error = " << syncError ;
@@ -4245,6 +4251,9 @@ void MegaClient::locallogout(bool removecaches)
     me = UNDEF;
     uid.clear();
     unshareablekey.clear();
+#ifdef ENABLE_SYNC
+    mXBackupConfigStore.reset();
+#endif // ENABLE_SYNC
     publichandle = UNDEF;
     cachedscsn = UNDEF;
     achievements_enabled = false;
@@ -5048,6 +5057,133 @@ void MegaClient::initStatusTable()
     }
 }
 
+#ifdef ENABLE_SYNC
+
+XBackupConfigStore* MegaClient::xBackupConfigStore()
+{
+    // Has a store already been created?
+    if (mXBackupConfigStore)
+    {
+        // Yep, return a reference to it.
+        return mXBackupConfigStore.get();
+    }
+
+    // Get a handle on our user's data.
+    auto* user = finduser(me);
+
+    // Couldn't get user info
+    if (!user)
+    {
+        return nullptr;
+    }
+
+    // For convenience.
+    auto get =
+      [=](const attr_t name) -> const string*
+      {
+          // Get the attribute.
+          const auto* value = user->getattr(name);
+
+          // Attribute present and valid?
+          if (!(value && user->isattrvalid(name)))
+          {
+              nullptr;
+          }
+
+          using AttributeStr =
+            Base64Str<SymmCipher::KEYLENGTH>;
+
+          // Attribute malformed?
+          if (value->size() != AttributeStr::STRLEN)
+          {
+              return nullptr;
+          }
+
+          return value;
+      };
+
+    // Get attributes.
+    const auto* configKey = get(ATTR_XBACKUP_CONFIG_KEY);
+    const auto* configName = get(ATTR_XBACKUP_CONFIG_NAME);
+
+    // Could we retrieve the attributes?
+    if (!(configKey && configName))
+    {
+        // Nope and we need them.
+        return nullptr;
+    }
+
+    // Create the store.
+    mXBackupConfigStore.reset(
+      new XBackupConfigStore(key,
+                             *fsaccess,
+                             *configKey,
+                             *configName,
+                             rng));
+
+    // Return a reference to the newly created store.
+    return mXBackupConfigStore.get();
+}
+
+bool MegaClient::xBackupConfigStoreDirty() const
+{
+    return mXBackupConfigStore && mXBackupConfigStore->dirty();
+}
+
+error MegaClient::xBackupConfigStoreFlush()
+{
+    // No need to flush if the store's not dirty.
+    if (!xBackupConfigStoreDirty())
+    {
+        return API_OK;
+    }
+
+    vector<LocalPath> drivePaths;
+
+    // Try and flush the store.
+    LOG_verbose << "Attempting to flush config store.";
+
+    if (mXBackupConfigStore->flush(drivePaths) == API_OK)
+    {
+        // Changes have been flushed.
+        LOG_verbose << "Config store flushed to disk.";
+        return API_OK;
+    }
+
+    LOG_verbose << "Couldn't flush config store.";
+
+    // Shut down the backups on the affected drives.
+    for (const auto& drivePath : drivePaths)
+    {
+        LOG_verbose << "Failing syncs contained on "
+                    << drivePath.toPath(*fsaccess);
+
+        const auto* configs = mXBackupConfigStore->configs(drivePath);
+        size_t numFailed = 0;
+
+        for (auto& it : *configs)
+        {
+            auto* sync = getSyncByTag(it.first);
+
+            if (sync && sync->state != SYNC_FAILED)
+            {
+                failSync(sync, UNKNOWN_ERROR);
+                ++numFailed;
+            }
+        }
+
+        LOG_verbose << "Failed "
+                    << numFailed
+                    << " backup(s) out of "
+                    << configs->size()
+                    << " on "
+                    << drivePath.toPath(*fsaccess);
+    }
+
+    return API_EWRITE;
+}
+
+#endif // ENABLE_SYNC
 
 // erase and and fill user's local state cache
 void MegaClient::updatesc()
@@ -7158,12 +7294,12 @@ void MegaClient::notifypurge(void)
         }
 
 #ifdef ENABLE_SYNC
-        if (syncConfigs)  // otherwise, syncConfigs = nullptr
         {
-            //update sync root node location and trigger failing cases
+            // update sync root node location and trigger failing cases
             handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
+
             // check for renamed/moved sync root folders
-            for (const auto& config : syncConfigs->all())
+            for (const auto& config : getSyncConfigs())
             {
                 Node *n = nodebyhandle(config.getRemoteNode());
                 if (n && (n->changed.attrs || n->changed.parent || n->changed.removed))
@@ -7171,7 +7307,7 @@ void MegaClient::notifypurge(void)
                     bool removed = n->changed.removed;
 
                     // update path in sync configuration
-                    bool pathChanged = updateSyncRemoteLocation(&config, removed ? nullptr : n);
+                    bool pathChanged = updateSyncRemoteLocation(config, removed ? nullptr : n);
 
                     // fail active syncs
                     for (sync_list::iterator it = syncs.begin(); it != syncs.end(); it++)
@@ -13042,7 +13178,7 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, SyncError 
     LocalPath newLocallyEncodedAbsolutePath;
     fsaccess->expanselocalpath(newLocallyEncodedPath, newLocallyEncodedAbsolutePath);
 
-    for (const auto& config : syncConfigs->all())
+    for (const auto& config : getSyncConfigs())
     {
         if (config.getTag() == newSyncTag)
         {
@@ -13067,6 +13203,266 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, SyncError 
     }
 
     return API_OK;
+}
+
+pair<error, SyncError> MegaClient::backupAdd(const XBackupConfig& config,
+                                             const bool delayInitialScan)
+{
+    using std::make_pair;
+
+    // Is the config valid?
+    if (!config.valid())
+    {
+        return make_pair(API_EARGS, NO_SYNC_ERROR);
+    }
+
+    // For convenience.
+    auto& drivePath = config.drivePath;
+    auto& sourcePath = config.sourcePath;
+
+    // Could we get our hands on the config store?
+    auto* store = xBackupConfigStore();
+
+    if (!store)
+    {
+        LOG_verbose << "Unable to add backup "
+                    << sourcePath.toPath(*fsaccess)
+                    << " on "
+                    << drivePath.toPath(*fsaccess)
+                    << " as there is no config store.";
+
+        // Nope and we can't do anything without it.
+        return make_pair(API_EFAILED, NO_SYNC_ERROR);
+    }
+
+    // Try and create (open) the database.
+    if (auto* configs = store->create(drivePath))
+    {
+        // We've opened an existing database.
+        LOG_verbose << "Existing config database found on "
+                    << drivePath.toPath(*fsaccess);
+
+        // Try and restore any backups in this database.
+        auto result =
+          backupRestore(config.drivePath, *configs, delayInitialScan);
+
+        // Were we able to restore (some) of its backups?
+        if (result.first != API_OK)
+        {
+            // Nope so don't bother trying to add a new backup.
+            LOG_verbose << "Skipping add of backup "
+                        << sourcePath.toPath(*fsaccess)
+                        << " on "
+                        << drivePath.toPath(*fsaccess)
+                        << " as we could not restore it's database.";
+
+            return result;
+        }
+    }
+    else if (!store->opened(config.drivePath))
+    {
+        // Couldn't create (or open) the database.
+        LOG_verbose << "Unable to add backup "
+                    << sourcePath.toPath(*fsaccess)
+                    << " on "
+                    << drivePath.toPath(*fsaccess)
+                    << " as we could not open it's config database.";
+
+        return make_pair(API_EFAILED, NO_SYNC_ERROR);
+    }
+
+    // Try and add the new backup sync.
+    return addsync(translate(*this, config), delayInitialScan);
+}
+
+error MegaClient::backupRemove(const LocalPath& drivePath,
+                               const bool notify)
+{
+    // Is the path valid?
+    if (drivePath.empty())
+    {
+        return API_EARGS;
+    }
+
+    auto* store = xBackupConfigStore();
+
+    // Does the store exist?
+    if (!store)
+    {
+        // Nope and we need it.
+        return API_EFAILED;
+    }
+
+    // Get the configs contained on this drive.
+    const auto* configs = store->configs(drivePath);
+
+    // Was there any backup database for this drive?
+    if (!configs)
+    {
+        return API_ENOENT;
+    }
+
+    // Are any of these configs used by an active sync?
+    for (const auto* sync : syncs)
+    {
+        if (configs->count(sync->tag))
+        {
+            // Database is still in use.
+            return API_EBUSY;
+        }
+    }
+
+    // Let the app know we're removing these configs.
+    if (notify)
+    {
+        for (const auto& it : *configs)
+        {
+            app->sync_removed(it.first);
+        }
+    }
+
+    // Flush the database and remove it from memory.
+    return store->close(drivePath);
+}
+
+pair<error, SyncError> MegaClient::backupRestore(const LocalPath& drivePath,
+                                                 const XBackupConfigMap& configs,
+                                                 const bool delayInitialScan)
+{
+    using std::make_pair;
+
+    size_t numRestored = 0;
+
+    LOG_verbose << "Attempting to restore backup syncs from "
+                << drivePath.toPath(*fsaccess);
+
+    for (auto& it : configs)
+    {
+        // Translate the config into something we can add.
+        auto config = translate(*this, it.second);
+
+        // Can we resume this config?
+        if (!config.isResumable())
+        {
+            // Nope, skip it.
+            LOG_verbose << "Skipping restoration of "
+                        << config.getLocalPath()
+                        << " as it is not resumeable.";
+            continue;
+        }
+
+        // Try and add the backup sync.
+        auto result = addsync(config, delayInitialScan);
+
+        // What's the state of the backup sync?
+        auto state =
+          isSyncErrorPermanent(result.second) ? SYNC_FAILED
+                                              : SYNC_DISABLED;
+
+        // Were we able to add the backup sync?
+        if (result.first)
+        {
+            // Nope, record the failure.
+            LOG_verbose << "Unable restore sync at: "
+                        << config.getLocalPath()
+                        << ": error = "
+                        << result.first
+                        << ", syncError = "
+                        << result.second;
+        }
+        else
+        {
+            // Yup, update the state to reflect the sync.
+            state = syncs.back()->state;
+
+            // Keep track of how many backups we've restored.
+            ++numRestored;
+        }
+
+        // Update the backup's error information.
+        saveAndUpdateSyncConfig(config, state, result.second);
+    }
+
+    // Log how many backups we could restore.
+    LOG_verbose << "Restored "
+                << numRestored
+                << " backup(s) out of "
+                << configs.size()
+                << " from "
+                << drivePath.toPath(*fsaccess);
+
+    // Consider the function successful if we could restore any backups.
+    if (numRestored || configs.empty())
+    {
+        return make_pair(API_OK, NO_SYNC_ERROR);
+    }
+
+    return make_pair(API_EFAILED, NO_SYNC_ERROR);
+}
+
+pair<error, SyncError> MegaClient::backupRestore(const LocalPath& drivePath,
+                                                 const bool delayInitialScan)
+{
+    using std::make_pair;
+
+    // Is the drive path valid?
+    if (drivePath.empty())
+    {
+        return make_pair(API_EARGS, NO_SYNC_ERROR);
+    }
+
+    // Can we get our hands on the config store?
+    auto* store = xBackupConfigStore();
+
+    if (!store)
+    {
+        LOG_verbose << "Couldn't restore "
+                    << drivePath.toPath(*fsaccess)
+                    << " as there is no config store.";
+
+        // Nope and we can't do anything without it.
+        return make_pair(API_EFAILED, NO_SYNC_ERROR);
+    }
+
+    // Has this drive already been opened?
+    if (store->opened(drivePath))
+    {
+        LOG_verbose << "Skipped restore of "
+                    << drivePath.toPath(*fsaccess)
+                    << " as it has already been opened.";
+
+        // Then we don't have to do anything.
+        return make_pair(API_EEXIST, NO_SYNC_ERROR);
+    }
+
+    // Try and open the database on the drive.
+    if (auto* configs = store->open(drivePath))
+    {
+        // Try and restore the backups in the database.
+        return backupRestore(drivePath, *configs, delayInitialScan);
+    }
+
+    // Couldn't open the database.
+    LOG_verbose << "Failed to restore "
+                << drivePath.toPath(*fsaccess)
+                << " as we couldn't open its config database.";
+
+    return make_pair(API_EREAD, NO_SYNC_ERROR);
+}
+
+pair<error, SyncError> MegaClient::addsync(const SyncConfig& config,
+                                           const bool delayInitialScan)
+{
+    using std::make_pair;
+
+    SyncError syncError;
+    error result = addsync(config,
+                           DEBRISFOLDER,
+                           nullptr,
+                           syncError,
+                           delayInitialScan);
+
+    return make_pair(result, syncError);
 }
 
 // check sync path, add sync if folder
@@ -13159,7 +13555,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, LocalPath* 
             if (isAnError(syncError))
             {
                 // save configuration but avoid creating active sync, and set as temporary disabled:
-                saveAndUpdateSyncConfig(&syncConfig, SYNC_DISABLED, static_cast<SyncError>(syncError) );
+                saveAndUpdateSyncConfig(syncConfig, SYNC_DISABLED, static_cast<SyncError>(syncError) );
                 return API_EFAILED;
             }
 
@@ -13194,7 +13590,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, LocalPath* 
             if (delayInitialScan)
             {
                 e = API_OK;
-                saveAndUpdateSyncConfig(&syncConfig, sync->state, static_cast<SyncError>(syncError) );
+                saveAndUpdateSyncConfig(syncConfig, sync->state, static_cast<SyncError>(syncError) );
             }
             else
             {
@@ -13208,7 +13604,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, LocalPath* 
                     LOG_debug << "Initial scan finished. New / modified files: " << sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
 
                     // Sync constructor now receives the syncConfig as reference, to be able to write -at least- fingerprints for new syncs
-                    saveAndUpdateSyncConfig(&syncConfig, sync->state, static_cast<SyncError>(syncError) );
+                    saveAndUpdateSyncConfig(syncConfig, sync->state, static_cast<SyncError>(syncError) );
                 }
                 else
                 {
@@ -14767,177 +15163,163 @@ void MegaClient::delsync(Sync* sync)
     syncactivity = true;
 }
 
-error MegaClient::removeSyncConfig(int tag)
+error MegaClient::removeSyncConfig(const int tag, const bool notify)
 {
-    error e = API_OK;
+    error result = API_OK;
 
-    if (!syncConfigs || !syncConfigs->removeByTag(tag))
-    {
-        LOG_err << "Found no config for tag " << tag << " upon sync removal";
-        return API_ENOENT;
-    }
-
-    app->sync_removed(tag);
-    return e;
-}
-
-error MegaClient::removeSyncConfigByNodeHandle(mega::handle nodeHandle)
-{
-    if (!syncConfigs)
-    {
-        LOG_err << "no SyncConfig upon removeSyncConfigByNodeHandle";
-        return API_ENOENT;
-    }
-
-    auto config = syncConfigs ? syncConfigs->getByNodeHandle(nodeHandle) : nullptr;
-    if (config)
-    {
-        return removeSyncConfig(config->getTag());
-    }
-
-    LOG_err << "Found no config for handle " << nodeHandle << " upon sync removal";
-    return API_ENOENT;
-}
-
-error MegaClient::saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, SyncError newSyncError)
-{
     if (syncConfigs)
     {
-        assert(config);
-        auto newConfig = *config;
-
-        newConfig.setEnabled(SyncConfig::isEnabled(newstate, newSyncError));
-        newConfig.setError(newSyncError);
-
-        syncConfigs->insert(newConfig);
-        return API_OK;
+        result = syncConfigs->removeByTag(tag);
     }
-    return API_ENOENT;
-}
 
-
-error MegaClient::updateSyncBackupId(int tag, handle newHearBeatID)
-{
-    if (syncConfigs)
+    if (result == API_ENOENT)
     {
-        auto syncconfig = syncConfigs->get(tag);
-        if (!syncconfig)
+        if (mXBackupConfigStore)
         {
-            return API_ENOENT;
+            result = mXBackupConfigStore->remove(tag);
         }
-        auto newConfig = *syncconfig;
-
-        newConfig.setBackupId(newHearBeatID);
-        syncConfigs->insert(newConfig);
-        return API_OK;
     }
+
+    if (result == API_ENOENT)
+    {
+        LOG_err << "Found no config for tag: "
+                << tag
+                << "upon sync removal.";
+
+        return result;
+    }
+
+    if (notify)
+    {
+        app->sync_removed(tag);
+    }
+
+    return result;
+}
+
+error MegaClient::removeSyncConfigByNodeHandle(const handle nodeHandle, const bool notify)
+{
+    SyncConfig config;
+
+    if (getSyncConfig(nodeHandle, config))
+    {
+        return removeSyncConfig(config.getTag(), notify);
+    }
+
+    LOG_err << "Found no config for handle "
+            << LOG_NODEHANDLE(nodeHandle)
+            << "upon sync removal.";
+
     return API_ENOENT;
 }
 
-bool MegaClient::updateSyncRemoteLocation(const SyncConfig *config, Node *n, bool forceCallback)
+error MegaClient::saveAndUpdateSyncConfig(SyncConfig config, syncstate_t newstate, SyncError newSyncError)
 {
-    if (!config)
-    {
-        LOG_err << "no config upon updateSyncRemotePath";
-        return false;
-    }
-    assert(syncConfigs);
+    config.setEnabled(SyncConfig::isEnabled(newstate, newSyncError));
+    config.setError(newSyncError);
 
+    return updateSyncConfig(config);
+}
+
+error MegaClient::updateSyncBackupId(int tag, handle newHeartBeatID)
+{
+    SyncConfig config;
+
+    if (getSyncConfig(tag, config))
+    {
+        config.setBackupId(newHeartBeatID);
+
+        return updateSyncConfig(config);
+    }
+
+    return API_ENOENT;
+}
+
+bool MegaClient::updateSyncRemoteLocation(SyncConfig config, Node *n, bool forceCallback)
+{
     bool changed = false;
-    auto newconfig = *config;
+
     if (n)
     {
         auto newpath = n->displaypath();
-        if (newpath != config->getRemotePath())
+        if (newpath != config.getRemotePath())
         {
-            newconfig.setRemotePath(newpath);
+            config.setRemotePath(newpath);
             changed = true;
         }
 
-        if (config->getRemoteNode() != n->nodehandle)
+        if (config.getRemoteNode() != n->nodehandle)
         {
-            newconfig.setRemoteNode(n->nodehandle);
+            config.setRemoteNode(n->nodehandle);
             changed = true;
         }
     }
     else //unset remote node: failed!
     {
-        if (config->getRemoteNode() != UNDEF)
+        if (config.getRemoteNode() != UNDEF)
         {
-            newconfig.setRemoteNode(UNDEF);
+            config.setRemoteNode(UNDEF);
             changed = true;
         }
     }
 
     if (changed || forceCallback)
     {
-        app->syncupdate_remote_root_changed(newconfig);
+        app->syncupdate_remote_root_changed(config);
     }
 
     //persist
-    if (syncConfigs)
-    {
-        syncConfigs->insert(newconfig);
-    }
+    updateSyncConfig(config);
 
     return changed;
 }
 
-error MegaClient::changeSyncState(const SyncConfig *config, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent)
+error MegaClient::changeSyncState(const SyncConfig &config, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent)
 {
-    error e = API_OK;
-    assert(config);
-    if (config)
+    error result = API_OK;
+
+    if (config.getError() != newSyncError
+        || config.getEnabled() != SyncConfig::isEnabled(newstate, newSyncError))
     {
-        if ( (config->getError() != newSyncError) || (config->getEnabled() != SyncConfig::isEnabled(newstate, newSyncError)) ) //has changed
-        {
-            e = saveAndUpdateSyncConfig(config, newstate, newSyncError);
-        }
-    }
-    else
-    {
-        return API_ENOENT;
+        result = saveAndUpdateSyncConfig(config, newstate, newSyncError);
     }
 
-    if (!e)
+    if (result == API_OK)
     {
-        app->syncupdate_state(config->getTag(), newstate, newSyncError, fireDisableEvent);
+        app->syncupdate_state(config.getTag(), newstate, newSyncError, fireDisableEvent);
     }
 
     abortbackoff(false);
-    return e;
+
+    return result;
 }
 
 error MegaClient::changeSyncState(int tag, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent)
 {
-    error e = API_OK;
+    SyncConfig config;
 
-    if (!syncConfigs)
+    if (getSyncConfig(tag, config))
     {
-        LOG_err << "no SyncConfig upon changeSyncState";
-        return API_ENOENT;
+        return changeSyncState(config, newstate, newSyncError, fireDisableEvent);
     }
-    auto config = syncConfigs ? syncConfigs->get(tag) : nullptr;
-    assert(config);
-    e = changeSyncState(config, newstate, newSyncError, fireDisableEvent);
-    return e;
+
+    LOG_err << "no SyncConfig upon changeSyncState: " << tag;
+
+    return API_ENOENT;
 }
 
 error MegaClient::changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent)
 {
-    error e = API_OK;
+    SyncConfig config;
 
-    if (!syncConfigs)
+    if (getSyncConfig(nodeHandle, config))
     {
-        LOG_err << "no SyncConfig upon changeSyncStateByNodeHandle";
-        return API_ENOENT;
+        return changeSyncState(config, newstate, newSyncError, fireDisableEvent);
     }
 
-    auto config = syncConfigs?syncConfigs->getByNodeHandle(nodeHandle):nullptr;
-    assert(config);
-    e = changeSyncState(config, newstate, newSyncError, fireDisableEvent);
+    LOG_err << "no SyncConfig upon changeSyncStateByNodeHandle: " << LOG_NODEHANDLE(nodeHandle);
 
-    return e;
+    return API_ENOENT;
 }
 
 #endif
@@ -14981,6 +15363,19 @@ bool MegaClient::disableSyncContainingNode(mega::handle nodeHandle, SyncError sy
     return false;
 }
 
+Sync* MegaClient::getSyncByTag(const int tag) const
+{
+    for (auto* sync : syncs)
+    {
+        if (sync->tag == tag)
+        {
+            return sync;
+        }
+    }
+
+    return nullptr;
+}
+
 Sync * MegaClient::getSyncContainingNodeHandle(mega::handle nodeHandle)
 {
     while(!ISUNDEF(nodeHandle))
@@ -14998,6 +15393,102 @@ Sync * MegaClient::getSyncContainingNodeHandle(mega::handle nodeHandle)
         nodeHandle = n ? n->parenthandle : UNDEF;
     }
     return nullptr;
+}
+
+bool MegaClient::getSyncConfig(const handle remoteHandle, SyncConfig& destination) const
+{
+    if (syncConfigs)
+    {
+        if (auto* config = syncConfigs->getByNodeHandle(remoteHandle))
+        {
+            destination = *config;
+            return true;
+        }
+    }
+    
+    if (mXBackupConfigStore)
+    {
+        if (auto* config = mXBackupConfigStore->get(remoteHandle))
+        {
+            destination = translate(*this, *config);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool MegaClient::getSyncConfig(const int tag, SyncConfig& destination) const
+{
+    if (syncConfigs)
+    {
+        if (auto* config = syncConfigs->get(tag))
+        {
+            destination = *config;
+            return true;
+        }
+    }
+
+    if (mXBackupConfigStore)
+    {
+        if (auto* config = mXBackupConfigStore->get(tag))
+        {
+            destination = translate(*this, *config);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+vector<SyncConfig> MegaClient::getSyncConfigs() const
+{
+    vector<SyncConfig> configs;
+
+    if (syncConfigs)
+    {
+        configs = syncConfigs->all();
+    }
+
+    if (!mXBackupConfigStore)
+    {
+        return configs;
+    }
+
+    for (auto& i : mXBackupConfigStore->configs())
+    {
+        SyncConfig config = translate(*this, i.second);
+        configs.emplace_back(std::move(config));
+    }
+
+    return configs;
+}
+
+error MegaClient::updateSyncConfig(const SyncConfig& config)
+{
+    if (!config.isExternal())
+    {
+        if (syncConfigs)
+        {
+            return syncConfigs->insert(config);
+        }
+        
+        return API_ENOENT;
+    }
+
+    if (!mXBackupConfigStore)
+    {
+        return API_ENOENT;
+    }
+
+    auto c = translate(*this, config);
+
+    if (!mXBackupConfigStore->add(c))
+    {
+        return API_ENOENT;
+    }
+
+    return API_OK;
 }
 
 void MegaClient::failSyncs(SyncError syncError)
@@ -15027,11 +15518,11 @@ void MegaClient::disableSyncs(SyncError syncError)
     syncactivity = true;
 }
 
-error MegaClient::enableSync(const SyncConfig *syncConfig, SyncError &syncError, bool resetFingerprint, handle newRemoteNode)
+error MegaClient::enableSync(const SyncConfig &syncConfig, SyncError &syncError, bool resetFingerprint, handle newRemoteNode)
 {
     syncError = NO_SYNC_ERROR;
 
-    auto newConfig = *syncConfig;
+    auto newConfig = syncConfig;
     if (resetFingerprint)
     {
         newConfig.setLocalFingerprint(0); //This will cause the local filesystem fingerprint to be recalculated
@@ -15052,11 +15543,15 @@ error MegaClient::enableSync(const SyncConfig *syncConfig, SyncError &syncError,
         Sync *s = syncs.back();
         newstate = s->state; //override state with the actual one from the sync
 
-        // Only internal backups can be resumed.
+        // Are we enabling a backup?
         if (s->isBackup())
         {
-            // And they should come up in the MONITOR state.
-            s->monitor();
+            // Is it an internal backup?
+            if (!newConfig.isExternal())
+            {
+                // Then it should be in the monitor mode.
+                s->monitor();
+            }
         }
 
         // note, we only update the remote node handle if successfully added
@@ -15084,19 +15579,14 @@ error MegaClient::enableSync(const SyncConfig *syncConfig, SyncError &syncError,
 
 error MegaClient::enableSync(int tag, SyncError &syncError, bool resetFingerprint, handle newRemoteNode)
 {
-    if (!syncConfigs)
+    SyncConfig config;
+
+    if (getSyncConfig(tag, config))
     {
-        return API_ENOENT;
+        return enableSync(config, syncError, resetFingerprint, newRemoteNode);
     }
 
-    auto syncConfig = syncConfigs->get(tag);
-
-    if (!syncConfig)
-    {
-        return API_ENOENT;
-    }
-
-    return enableSync(syncConfig, syncError, resetFingerprint, newRemoteNode);
+    return API_ENOENT;
 }
 
 void MegaClient::restoreSyncs()
@@ -15104,12 +15594,14 @@ void MegaClient::restoreSyncs()
     bool anySyncRestored = false;
     for (const auto& config : syncConfigs->all())
     {
+        assert(!config.isExternal());
+
         SyncError syncError = static_cast<SyncError>(config.getError());
 
         if (config.isResumable())
         {
             LOG_verbose << "Restoring sync: " << config.getLocalPath();
-            const auto e = enableSync(&config, syncError);
+            const auto e = enableSync(config, syncError);
             if (e == API_OK)
             {
                 anySyncRestored = true;

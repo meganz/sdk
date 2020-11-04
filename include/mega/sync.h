@@ -46,10 +46,10 @@ public:
     MEGA_DISABLE_COPY_MOVE(SyncConfigBag)
 
     // Adds a new sync config or updates if exists already
-    void insert(const SyncConfig& syncConfig);
+    error insert(const SyncConfig& syncConfig);
 
     // Removes a sync config with a given tag
-    bool removeByTag(const int tag);
+    error removeByTag(const int tag);
 
     // Returns the sync config with a given tag
     const SyncConfig* get(const int tag) const;
@@ -73,7 +73,7 @@ class MEGA_API Sync
 public:
 
     // returns the sync config
-    const SyncConfig& getConfig() const;
+    SyncConfig getConfig() const;
 
     void* appData = nullptr; //DEPRECATED, do not use: sync re-enabled does not have this set.
 

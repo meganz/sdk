@@ -524,7 +524,7 @@ SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, Prn
     ++mTable->nextid;
 }
 
-void SyncConfigBag::insert(const SyncConfig& syncConfig)
+error SyncConfigBag::insert(const SyncConfig& syncConfig)
 {
     auto insertOrUpdate = [this](const uint32_t id, const SyncConfig& syncConfig)
     {
@@ -548,7 +548,7 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
         {
             if (!insertOrUpdate(mTable->nextid, syncConfig))
             {
-                return;
+                return API_EWRITE;
             }
         }
         auto insertPair = mSyncConfigs.insert(std::make_pair(syncConfig.getTag(), syncConfig));
@@ -565,33 +565,47 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
         {
             if (!insertOrUpdate(tableId, syncConfig))
             {
-                return;
+                return API_EWRITE;
             }
         }
         syncConfigIt->second = syncConfig;
         syncConfigIt->second.dbid = tableId;
     }
+
+    return API_OK;
 }
 
-bool SyncConfigBag::removeByTag(const int tag)
+error SyncConfigBag::removeByTag(const int tag)
 {
-    auto syncConfigPair = mSyncConfigs.find(tag);
-    if (syncConfigPair != mSyncConfigs.end())
+    auto it = mSyncConfigs.find(tag);
+
+    if (it == mSyncConfigs.end())
     {
-        if (mTable)
-        {
-            DBTableTransactionCommitter committer{mTable.get()};
-            if (!mTable->del(syncConfigPair->second.dbid))
-            {
-                LOG_err << "Incomplete database del at id: " << syncConfigPair->second.dbid;
-                assert(false);
-                mTable->abort();
-            }
-        }
-        mSyncConfigs.erase(syncConfigPair);
-        return true;
+        return API_ENOENT;
     }
-    return false;
+
+    mSyncConfigs.erase(it);
+
+    if (!mTable)
+    {
+        return API_OK;
+    }
+
+    DBTableTransactionCommitter committer(mTable.get());
+
+    if (!mTable->del(it->second.dbid))
+    {
+        LOG_err << "Unable to remove config from database: "
+                << it->second.dbid;
+
+        assert(false);
+
+        mTable->abort();
+
+        return API_EWRITE;
+    }
+
+    return API_OK;
 }
 
 const SyncConfig* SyncConfigBag::get(const int tag) const
@@ -922,12 +936,14 @@ bool Sync::readstatecache()
     return false;
 }
 
-const SyncConfig& Sync::getConfig() const
+SyncConfig Sync::getConfig() const
 {
-    assert(client->syncConfigs && "Calling getConfig() requires sync configs");
-    const auto config = client->syncConfigs->get(tag);
-    assert(config);
-    return *config;
+    SyncConfig config;
+
+    bool result = client->getSyncConfig(tag, config);
+    assert(result && "Unable to retrieve sync config.");
+
+    return config;
 }
 
 // remove LocalNode from DB cache

@@ -550,6 +550,14 @@ string User::attr2string(attr_t type)
             attrname = "*!bak";
             break;
 
+        case ATTR_XBACKUP_CONFIG_NAME:
+            attrname = "^~xbcn";
+            break;
+
+        case ATTR_XBACKUP_CONFIG_KEY:
+            attrname = "^~xbck";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -694,6 +702,14 @@ string User::attr2longname(attr_t type)
     case ATTR_MY_BACKUPS_FOLDER:
         longname = "ATTR_MY_BACKUPS_FOLDER";
         break;
+
+    case ATTR_XBACKUP_CONFIG_NAME:
+        longname = "XBACKUP_CONFIG_NAME";
+        break;
+
+    case ATTR_XBACKUP_CONFIG_KEY:
+        longname = "XBACKUP_CONFIG_KEY";
+        break;
     }
 
     return longname;
@@ -830,6 +846,14 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_MY_BACKUPS_FOLDER;
     }
+    else if (!strcmp(name, "^~xbcn"))
+    {
+        return ATTR_XBACKUP_CONFIG_NAME;
+    }
+    else if (!strcmp(name, "^~xbck"))
+    {
+        return ATTR_XBACKUP_CONFIG_KEY;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -856,6 +880,8 @@ int User::needversioning(attr_t at)
         case ATTR_GEOLOCATION:
         case ATTR_MY_CHAT_FILES_FOLDER:
         case ATTR_PUSH_SETTINGS:
+        case ATTR_XBACKUP_CONFIG_NAME:
+        case ATTR_XBACKUP_CONFIG_KEY:
             return 0;
 
         case ATTR_LAST_INT:
@@ -915,6 +941,8 @@ char User::scope(attr_t at)
         case ATTR_RUBBISH_TIME:
         case ATTR_STORAGE_STATE:
         case ATTR_PUSH_SETTINGS:
+        case ATTR_XBACKUP_CONFIG_NAME:
+        case ATTR_XBACKUP_CONFIG_KEY:
             return '^';
 
         default:
@@ -1330,6 +1358,14 @@ bool User::setChanged(attr_t at)
 
         case ATTR_MY_BACKUPS_FOLDER:
             changed.myBackupsFolder = true;
+            break;
+
+        case ATTR_XBACKUP_CONFIG_NAME:
+            changed.xBackupConfigName = true;
+            break;
+
+        case ATTR_XBACKUP_CONFIG_KEY:
+            changed.xBackupConfigKey = true;
             break;
 
         default:

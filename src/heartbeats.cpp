@@ -409,22 +409,23 @@ int MegaBackupInfoSync::getSyncState(MegaClient *client, const MegaSync &sync)
 
 BackupType MegaBackupInfoSync::getSyncType(MegaClient *client, const MegaSync &sync)
 {
-    int syncTag = sync.getTag();
-    auto config = client->syncConfigs->get(syncTag);
-    assert(config);
+    SyncConfig config;
 
-    if (config)
+    bool result = client->getSyncConfig(sync.getTag(), config);
+    assert(result);
+
+    if (result)
     {
-        switch (config->getType())
+        switch (config.getType())
         {
         case SyncConfig::Type::TYPE_UP:
-                return BackupType::UP_SYNC;
+            return BackupType::UP_SYNC;
         case SyncConfig::Type::TYPE_DOWN:
-                return BackupType::DOWN_SYNC;
+            return BackupType::DOWN_SYNC;
         case SyncConfig::Type::TYPE_TWOWAY:
-                return BackupType::TWO_WAY;
+            return BackupType::TWO_WAY;
         default:
-                return BackupType::INVALID;
+            return BackupType::INVALID;
         }
     }
     return BackupType::INVALID;
@@ -556,9 +557,10 @@ void MegaBackupMonitor::updateOrRegisterSync(MegaSync *sync)
     {
         return;
     }
+    SyncConfig config;
     int syncTag = sync->getTag();
-    auto config = mClient->syncConfigs->get(syncTag);
-    handle backupId = config ? config->getBackupId() : UNDEF;
+    bool result = mClient->getSyncConfig(syncTag, config);
+    handle backupId = result ? config.getBackupId() : UNDEF;
 
     std::unique_ptr<MegaBackupInfo> info = ::mega::make_unique<MegaBackupInfoSync>(mClient, *sync, backupId);
 

@@ -390,3 +390,16 @@ void exec_querytransferquota(autocomplete::ACState& s);
 void exec_metamac(autocomplete::ACState& s);
 void exec_resetverifiedphonenumber(autocomplete::ACState& s);
 void exec_banner(autocomplete::ACState& s);
+
+#ifdef ENABLE_SYNC
+
+void exec_backupadd(autocomplete::ACState& s);
+void exec_backuplist(autocomplete::ACState& s);
+void exec_backuplistconfigs(autocomplete::ACState& s);
+void exec_backupremove(autocomplete::ACState& s);
+void exec_backupremoveconfig(autocomplete::ACState& s);
+void exec_backuprestore(autocomplete::ACState& s);
+void exec_backupxable(autocomplete::ACState& s);
+
+#endif // ENABLE_SYNC
+
