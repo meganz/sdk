@@ -25266,7 +25266,7 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
 MegaFolderUploadController::~MegaFolderUploadController()
 {
     assert(mMainThreadId == std::this_thread::get_id());
-    if (mMainThreadId == std::this_thread::get_id())
+    if (mMainThreadId != std::this_thread::get_id())
     {
         LOG_err << "MegaFolderUploadController dtor is being called from worker thread";
     }
@@ -26578,7 +26578,7 @@ MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *megaApi,
 MegaFolderDownloadController::~MegaFolderDownloadController()
 {
     assert(mMainThreadId == std::this_thread::get_id());
-    if (mMainThreadId == std::this_thread::get_id())
+    if (mMainThreadId != std::this_thread::get_id())
     {
         LOG_err << "MegaFolderDownloadController dtor is being called from worker thread";
     }
