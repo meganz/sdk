@@ -25071,6 +25071,7 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->mLocalSeparator = client->fsaccess->localseparator;
     this->mFollowsymlinks = client->followsymlinks;
     this->mMainThreadId = std::this_thread::get_id();
+    this->megaApi->addRequestListener(this);
 }
 
 void MegaFolderUploadController::start(MegaNode*)
@@ -25104,7 +25105,7 @@ void MegaFolderUploadController::start(MegaNode*)
         if (isCompleted())
         {
             // if we call endRecursiveOperation after uploadFiles, we may incur in a double free for this object
-            megaApi->endRecursiveOperation(transfer, this);
+            megaApi->endRecursiveOperation(transfer);
             return;
         }
 
@@ -25198,10 +25199,12 @@ void MegaFolderUploadController::cancel()
 
 void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
 {
-    int type = request->getType();
-    int errorCode = e->getErrorCode();
-    assert(type == MegaRequest::TYPE_END_RECURSIVE_OPERATION);
-    if (errorCode)
+    if (request->getType() != MegaRequest::TYPE_END_RECURSIVE_OPERATION)
+    {
+        return;
+    }
+
+    if (e->getErrorCode())
     {
         LOG_err << " MegaFolderUploadController, error completing recursive operation";
     }
@@ -25258,7 +25261,7 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
 
         if (isCompleted())
         {
-            megaApi->endRecursiveOperation(transfer, this);
+            megaApi->endRecursiveOperation(transfer);
         }
     }
 }
@@ -25271,6 +25274,7 @@ MegaFolderUploadController::~MegaFolderUploadController()
         LOG_err << "MegaFolderUploadController dtor is being called from worker thread";
     }
     mWorkerThread.join();
+    megaApi->removeRequestListener(this);
     //we shouldn't need to dettach as transfer listener: all listened transfer should have been cancelled/completed
 }
 
@@ -26573,6 +26577,7 @@ MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *megaApi,
     this->mMainThreadId = std::this_thread::get_id();
     this->mLocalSeparator = client->fsaccess->localseparator;
     this->mPendingFilesToProcess = 0;
+    this->megaApi->addRequestListener(this);
 }
 
 MegaFolderDownloadController::~MegaFolderDownloadController()
@@ -26583,6 +26588,7 @@ MegaFolderDownloadController::~MegaFolderDownloadController()
         LOG_err << "MegaFolderDownloadController dtor is being called from worker thread";
     }
     mWorkerThread.join();
+    megaApi->removeRequestListener(this);
 }
 
 void MegaFolderDownloadController::start(MegaNode *node)
@@ -26636,7 +26642,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
         if (isCompleted())
         {
             // if we call endRecursiveOperation after downloadFiles, we may incur in a double free for this object
-            megaApi->endRecursiveOperation(transfer, this);
+            megaApi->endRecursiveOperation(transfer);
             return;
         }
         downloadFiles(fsType);
@@ -26856,10 +26862,12 @@ void MegaFolderDownloadController::complete()
 
 void MegaFolderDownloadController::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
 {
-    int type = request->getType();
-    int errorCode = e->getErrorCode();
-    assert(type == MegaRequest::TYPE_END_RECURSIVE_OPERATION);
-    if (errorCode)
+    if (request->getType() != MegaRequest::TYPE_END_RECURSIVE_OPERATION)
+    {
+        return;
+    }
+
+    if (e->getErrorCode())
     {
         LOG_err << " MegaFolderDownloadController, error completing recursive operation";
     }
@@ -26915,7 +26923,7 @@ void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, 
         }
         if (isCompleted())
         {
-            megaApi->endRecursiveOperation(transfer, this);
+            megaApi->endRecursiveOperation(transfer);
         }
     }
 }
