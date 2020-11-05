@@ -729,6 +729,25 @@ PosixFileSystemAccess::~PosixFileSystemAccess()
     }
 }
 
+bool PosixFileSystemAccess::cwd(LocalPath& path) const
+{
+    string& buf = path.localpath;
+
+    buf.resize(128);
+
+    while (!getcwd(&buf[0], buf.size()))
+    {
+        if (errno != ERANGE)
+        {
+            return false;
+        }
+
+        buf.resize(buf.size() << 1);
+    }
+
+    return true;
+}
+
 // wake up from filesystem updates
 void PosixFileSystemAccess::addevents(Waiter* w, int /*flags*/)
 {

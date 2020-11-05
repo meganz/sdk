@@ -543,6 +543,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     FileSystemAccess();
     virtual ~FileSystemAccess() { }
+
+    // Get the current working directory.
+    virtual bool cwd(LocalPath& path) const = 0;
 };
 } // namespace
 

@@ -127,6 +127,11 @@ public:
     {
         throw NotImplemented{__func__};
     }
+
+    bool cwd(mega::LocalPath&) const override
+    {
+        throw NotImplemented{__func__};
+    }
 };
 
 } // mt
