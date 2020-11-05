@@ -1179,7 +1179,7 @@ void DemoApp::fetchnodes_result(const Error& e)
     }
 }
 
-void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& nn)
+void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& nn, bool targetOverride)
 {
     if (t == USER_HANDLE)
     {
@@ -1207,6 +1207,11 @@ void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& n
     if (e)
     {
         cout << "Node addition failed (" << errorstring(e) << ")" << endl;
+    }
+
+    if (targetOverride)
+    {
+        cout << "Target folder has changed!" << endl;
     }
 
     auto i = gOnPutNodeTag.find(client->restag);

@@ -1240,6 +1240,11 @@ long long MegaTransfer::getNotificationNumber() const
     return 0;
 }
 
+bool MegaTransfer::getTargetOverride() const
+{
+    return false;
+}
+
 MegaError::MegaError(int e)
 {
     errorCode = e;
