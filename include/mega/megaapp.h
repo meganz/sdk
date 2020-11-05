@@ -391,7 +391,7 @@ struct MEGA_API MegaApp
     virtual void keepmealive_result (error) { }
 
     // get the current PSA
-    virtual void getpsa_result (error, int, string*, string*, string*, string*, string*) { }
+    virtual void getpsa_result (error, int, string*, string*, string*, string*, string*, string*) { }
 
     // result of the user alert acknowledge request
     virtual void acknowledgeuseralerts_result(error) { }
@@ -415,6 +415,15 @@ struct MEGA_API MegaApp
     virtual void backupupdate_result(const Error&, handle /*backup id*/) { }
     virtual void backupputheartbeat_result(const Error&) { }
     virtual void backupremove_result(const Error&, handle /*backup id*/) { }
+
+    virtual void heartbeat() { }
+
+    virtual void pause_state_changed() { }
+
+    virtual void getbanners_result(error) { }
+    virtual void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) { }
+
+    virtual void dismissbanner_result(error) { }
 
     virtual ~MegaApp() { }
 };

@@ -260,6 +260,11 @@ struct DemoApp : public MegaApp
     void smsverificationsend_result(error) override;
     void smsverificationcheck_result(error, string*) override;
 
+    void getbanners_result(error) override;
+    void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;
+
+    void dismissbanner_result(error) override;
+
     void reload(const char*) override;
     void clearing() override;
 
@@ -384,3 +389,4 @@ void exec_querytransferquota(autocomplete::ACState& s);
 #endif
 void exec_metamac(autocomplete::ACState& s);
 void exec_resetverifiedphonenumber(autocomplete::ACState& s);
+void exec_banner(autocomplete::ACState& s);

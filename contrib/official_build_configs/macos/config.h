@@ -144,9 +144,6 @@
 /* Define to use libcrypto++ */
 #define USE_CRYPTOPP 1
 
-/* Define to use Berkeley DB */
-#define USE_DB 0
-
 /* Use inotify API
 #define USE_INOTIFY 1*/
 
