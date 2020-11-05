@@ -3846,10 +3846,10 @@ void MegaClient::dispatchTransfers()
                         {
                             nexttransfer->uploadhandle = getuploadhandle();
 
-                            if (!gfxdisabled && gfx && gfx->isgfx(nexttransfer->localfilename.editStringDirect()))
+                            if (!gfxdisabled && gfx && gfx->isgfx(nexttransfer->localfilename))
                             {
                                 // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
-                                nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, nexttransfer->localfilename.editStringDirect(), nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
+                                nexttransfer->minfa += gfx->gendimensionsputfa(ts->fa, nexttransfer->localfilename, nexttransfer->uploadhandle, nexttransfer->transfercipher(), -1, false);
                             }
                         }
                     }
@@ -12988,8 +12988,8 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, SyncError 
         fsaccess->expanselocalpath(otherLocallyEncodedPath, otherLocallyEncodedAbsolutePath);
 
         if (config.getEnabled() && !isAnError(config.getError()) &&
-                ( newLocallyEncodedAbsolutePath.isContainingPathOf(otherLocallyEncodedAbsolutePath, *fsaccess)
-                  || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath, *fsaccess)
+                ( newLocallyEncodedAbsolutePath.isContainingPathOf(otherLocallyEncodedAbsolutePath, fsaccess->localseparator)
+                  || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath, fsaccess->localseparator)
                 ) )
         {
 
@@ -13007,7 +13007,7 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, SyncError 
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)
-error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* localdebris, SyncError &syncError, bool delayInitialScan, void *appData)
+error MegaClient::addsync(SyncConfig syncConfig, const char* debris, LocalPath* localdebris, SyncError &syncError, bool delayInitialScan, void *appData)
 {
 #ifdef ENABLE_SYNC
     syncError = NO_SYNC_ERROR;
@@ -13033,7 +13033,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, string* loc
 
     string localPath = syncConfig.getLocalPath();
     auto rootpath = LocalPath::fromPath(localPath, *fsaccess);
-    rootpath.trimNonDriveTrailingSeparator(*fsaccess);
+    rootpath.trimNonDriveTrailingSeparator(fsaccess->localseparator);
 
     bool isnetwork = false;
     if (!fsaccess->issyncsupported(rootpath, &isnetwork, &syncError))
@@ -13211,14 +13211,10 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
 
     if (name->find('%') + 1)
     {
-        string tmplocalname;
-
         // perform one round of unescaping to ensure that the resulting local
         // filename matches
-        fsaccess->path2local(name, &tmplocalname);
-        fsaccess->local2name(&tmplocalname, fsType);
-
-        strings->push_back(tmplocalname);
+        LocalPath p = LocalPath::fromPath(*name, *fsaccess);
+        strings->push_back(p.toName(*fsaccess, fsType));
         name = &strings->back();
     }
 
@@ -13678,8 +13674,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                 ll->reported = true;
 
                 char report[256];
-                sprintf(report, "%d %d %d %d", (int)lit->first->editStringDirect()->size(), (int)localname.size(), (int)ll->name.size(), (int)ll->type);
-
+                sprintf(report, "%d %d %d %d", (int)lit->first->reportSize(), (int)localname.size(), (int)ll->name.size(), (int)ll->type);
                 // report a "no-name localnode" event
                 reportevent("LN", report, 0);
             }
@@ -13731,7 +13726,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                         // same fingerprint, if available): no action needed
                         if (!ll->checked)
                         {
-                            if (!gfxdisabled && gfx && gfx->isgfx(ll->localname.editStringDirect()))
+                            if (!gfxdisabled && gfx && gfx->isgfx(ll->localname))
                             {
                                 int missingattr = 0;
 
@@ -13747,7 +13742,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                                 }
 
                                 if (missingattr && checkaccess(ll->node, OWNER)
-                                        && !gfx->isvideo(ll->localname.editStringDirect()))
+                                        && !gfx->isvideo(ll->localname))
                                 {
                                     char me64[12];
                                     Base64::btoa((const byte*)&me, MegaClient::USERHANDLE, me64);
@@ -13756,7 +13751,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                                         LOG_debug << "Restoring missing attributes: " << ll->name;
                                         SymmCipher *symmcipher = ll->node->nodecipher();
                                         auto llpath = ll->getLocalPath();
-                                        gfx->gendimensionsputfa(NULL, llpath.editStringDirect(), ll->node->nodehandle, symmcipher, missingattr);
+                                        gfx->gendimensionsputfa(NULL, llpath, ll->node->nodehandle, symmcipher, missingattr);
                                     }
                                 }
                             }
@@ -13821,7 +13816,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                         auto f = fsaccess->newfileaccess();
                         auto lpath = ll->getLocalPath(true);
                         LocalPath stream = lpath;
-                        stream.append(LocalPath::fromLocalname(string((const char *)(const wchar_t*)L":$CmdTcID:$DATA", 30)));
+                        stream.append(LocalPath::fromPlatformEncoded(wstring(L":$CmdTcID:$DATA", 15)));
                         if (f->fopen(stream))
                         {
                             LOG_warn << "COMODO detected";
@@ -13849,7 +13844,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                             }
                         }
 
-                        lpath.append(LocalPath::fromLocalname(string((const char *)(const wchar_t*)L":OECustomProperty", 34)));
+                        lpath.append(LocalPath::fromPlatformEncoded(wstring(L":OECustomProperty", 17)));
                         if (f->fopen(lpath))
                         {
                             LOG_warn << "Windows Search detected";

@@ -67,7 +67,7 @@ class MEGA_API GfxProcQT : public GfxProc
 public:
     GfxProcQT();
     ~GfxProcQT();
-    bool readbitmap(FileAccess*, string*, int);
+    bool readbitmap(FileAccess*, const LocalPath&, int);
     bool resizebitmap(int, int, string*);
     void freebitmap();
 

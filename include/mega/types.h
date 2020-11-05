@@ -95,6 +95,10 @@ using std::tuple;
 using std::ostringstream;
 using std::unique_ptr;
 
+#ifdef WIN32
+using std::wstring;
+#endif
+
 // forward declaration
 struct AttrMap;
 class BackoffTimer;

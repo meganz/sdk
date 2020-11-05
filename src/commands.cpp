@@ -3240,7 +3240,9 @@ bool CommandGetUA::procresult(Result r)
             }   // switch (nameid)
         }
     }
-    return false;
+#ifndef WIN32
+    return false;  // unreachable code
+#endif
 }
 
 #ifdef DEBUG
@@ -8198,6 +8200,8 @@ bool CommandBackupPut::procresult(Result r)
     {
         e = r.errorOrOK();
     }
+
+    LOG_debug << "backup put result: " << error(e) << " " << backupId;
 
     if (mUpdate)
     {
