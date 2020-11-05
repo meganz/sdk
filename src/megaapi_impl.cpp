@@ -25095,14 +25095,9 @@ void MegaFolderUploadController::start(MegaNode*)
     mWorkerThread = std::thread ([this, path]() {
         LocalPath localpath = std::move(path);
         scanFolder(transfer->getParentHandle(), transfer->getParentHandle(), localpath, transfer->getFileName());
+        createFolder();
 
-        if (!mFolderStructure.empty())
-        {
-            createFolder();
-            mMutex.lock(); // wait until all folders have been created, and SDK thread unlock mutex
-        }
-
-        if (isCompleted())
+        if (isCompleted() || mIncompleteTransfers)
         {
             // if we call endRecursiveOperation after uploadFiles, we may incur in a double free for this object
             megaApi->endRecursiveOperation(transfer);
@@ -25336,10 +25331,11 @@ void MegaFolderUploadController::createFolder()
         megaApi->createRemoteFolder(targetHandle, move(newnodes), "NULL", [this](const Error& e, targettype_t t, vector<NewNode>& nn)
         {
             // lambda function that will be executed as completion function in putnodes procresult
-            mLastError = e;
-            mPendingFolders -= nn.size();
-
-            if (!e)
+            if (e)
+            {
+                mIncompleteTransfers++;
+            }
+            else
             {
                 for (auto &n: nn)
                 {
@@ -25347,36 +25343,23 @@ void MegaFolderUploadController::createFolder()
                     mNewNodesResult[n.nodehandle] = n.mAddedHandle;
                 }
             }
-            else
-            {
-                // increment incompleteTransfers
-                mIncompleteTransfers++;
-                for (auto &n: nn)
-                {
-                    auto it = mFolderToPendingFiles.find(n.nodehandle);
-                    if (it != mFolderToPendingFiles.end())
-                    {
-                        // decrement the number of children files pending to be processed
-                        mPendingFilesToProcess -= it->second.size();
-
-                        // remove all children files of the folder that failed in putnodes
-                        mFolderToPendingFiles.erase(it);
-                    }
-                }
-            }
-
-            if (!mPendingFolders)
-            {
-                /* all putnodes have been processed and we have received all results
-                 * unlock mutex in order to worker thread continue it's execution */
-                mMutex.unlock();
-            }
+            mLastError = e;
+            mPendingFolders -= nn.size();
+            mMutex.unlock(); //unlock mutex in order to worker thread continues it's execution
         });
+
+        mMutex.lock(); // wait until sdk thread unlock mutex, in putnodes completion function
+        if (mIncompleteTransfers)
+        {
+            // some putnodes has failed, so we have to cancel folder upload due to folder structure is incomplete
+            return;
+        }
     }
 }
 
 void MegaFolderUploadController::uploadFiles()
 {
+   assert(!mPendingFolders && !mIncompleteTransfers);
    TransferQueue transferQueue;
    for (auto it = mFolderToPendingFiles.begin(); it != mFolderToPendingFiles.end();)
    {
