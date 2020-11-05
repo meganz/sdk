@@ -13467,7 +13467,7 @@ void MegaApiImpl::backupupdate_result(const Error& e, handle backupId)
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || (request->getType() != MegaRequest::TYPE_BACKUP_PUT)) return;
 
-    assert(backupId == request->getParentHandle());
+    assert(e || backupId == request->getParentHandle());
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 

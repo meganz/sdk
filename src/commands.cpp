@@ -8196,6 +8196,8 @@ bool CommandBackupPut::procresult(Result r)
         e = r.errorOrOK();
     }
 
+    LOG_debug << "backup put result: " << error(e) << " " << backupId;
+
     if (mUpdate)
     {
         client->app->backupupdate_result(e, backupId);
