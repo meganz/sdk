@@ -264,8 +264,12 @@ public:
     bool getlocalfstype(const LocalPath& , FileSystemType& ) const override { return false; }
     void path2local(const string*, string*) const override {}
     void local2path(const string*, string*) const override {}
+    #if defined(_WIN32)
+    void path2local(const std::wstring*, string*) const override {}
+    void local2path(const string*, std::wstring*) const override {}
+    #endif
     void tmpnamelocal(LocalPath&) const override {}
-    bool getsname(LocalPath&, LocalPath&) const override { return false; }
+    bool getsname(const LocalPath& , LocalPath& ) const override { return false; }
     bool renamelocal(LocalPath&, LocalPath&, bool = true) override { return false; }
     bool copylocal(LocalPath&, LocalPath&, m_time_t) override { return false; }
     bool unlinklocal(LocalPath&) override { return false; }
@@ -273,7 +277,6 @@ public:
     bool mkdirlocal(LocalPath&, bool = false) override { return false; }
     bool setmtimelocal(LocalPath&, m_time_t) override { return false; }
     bool chdirlocal(LocalPath&) const override { return false; }
-    size_t lastpartlocal(const string*) const override { return 0; }
     bool getextension(const LocalPath&, char*, size_t) const override { return false; }
     bool expanselocalpath(LocalPath& , LocalPath& ) override { return false; }
 
