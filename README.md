@@ -104,8 +104,8 @@ Filesystem event monitoring: The provided filesystem layer implements
 the Linux `inotify` and the MacOS `fsevents` interfaces.
 
 To build the reference `megacli` example, you may also need to install:
-
 * GNU Readline (`libreadline-dev`, `readline-devel`)
+on Mac, you will probably need to download the source and build it yourself, and adjust the project to refer to that version.
 
 For Android, we provide an additional implementation of the graphics subsystem using Android libraries.
 
@@ -113,20 +113,10 @@ For iOS, we provide an additional implementation of the graphics subsystem using
 
 #### Windows
 
-To build the client access engine under Windows, you'll need the following:
-
-* A Windows-native C++ development environment (e.g. MinGW or Visual Studio)
-* Crypto++
-* zlib (until WinHTTP learns how to deal with Content-Encoding: gzip)
-* SQLite or configure `--without-sqlite`
-* FreeImage or configure `--without-freeimage`
-* pthreads (MinGW)
-
-Optional dependency:
-* Sodium, configure `--with-sodium`
+We use vcpkg, cmake, and Visual Studio, and provide scripts to build the 3rd party libraries and set up the project.
 
 ### Build Dependencies
-* Consult contrib\cmake\3rdparty_deps.txt to enable/disable a particular package.
+* Consult contrib\cmake\3rdparty_deps.txt to see dependencies and enable/disable a particular package.
 * Your 3rdParty library builds should be outside the SDK repo. You can use the same 3rdParty folder for other mega components, e.g., megasync, etc..
 * We are moving to use vcpkg to build most of them. You can start like this:
 	mkdir 3rdParty
@@ -134,7 +124,7 @@ Optional dependency:
 	git clone https://github.com/Microsoft/vcpkg.git
 	cd vcpkg
 	.\bootstrap-vcpkg.bat -disableMetrics
-* Edit triplet configuration as required in contrib\cmake\vcpkg_extra_triplets\<x64-windows-mega-staticdev.cmake/x64-windows-mega.cmake/x86-windows-mega.cmake>
+* Edit triplet configuration as required in the SDK: contrib\cmake\vcpkg_extra_triplets\<x64-windows-mega-staticdev.cmake/x64-windows-mega.cmake/x86-windows-mega.cmake>
 * Fix compiler and toolset selection. Just comment them if you only have one VS installed.
 * Run the batch file contrib\cmake\build3rdparty.cmd from vcpkg folder
 * Provide the parameters as desired, e.g., C:\work\mega\3rdParty\vcpkg>..\..\sdk\contrib\cmake\build3rdparty.cmd -o x64-windows-mega
@@ -147,16 +137,15 @@ Once the 3rdParty dependencies are built, you can start building your SDK as fol
 * mkdir cmake-build-x64 (folder names matching pattern cmake-build-* in contrib/cmake are ignored by git)
 * Download and install CMake from https://cmake.org/download/. Mininimum required version is 3.15
 * cd cmake-build-x64
-* Run CMake-gui from this folder
-	* Set your options. Choose the same compiler and confugurations used to generate 3rdParty.
-	* Set your flags, e.g., USE_FREEIMAGE == 0
-	* Generate Projects
-* It should generate all the prjects inside cmake-build-x64 folder.
-* Open the sln file in your Visual Studio and build Debug/Release target as desired.
+* Run CMake-gui from this folder:   cmake-gui ..
+    * Click "Configure"
+	* Choose your compiler etc if it prompts for that (Choose the same compiler and confugurations used to generate 3rdParty)
+	* Set your options and flags (though the defaults should be fine for just SDK), e.g., USE_FREEIMAGE == 0
+	* Make sure UNCHECKED_ITERATORS matches the setting used in your 3rdparty (for debug, off is faster, but that can't be turned off if using Qt)
+	* Click "Configure" again, and then "Generate"
+* It should generate all the projects, and Visual Studio .sln file, inside cmake-build-x64 folder.
+	* Click "Open Project" to start Visual Studio with that .sln
 	
-To build the reference `megacli.exe` example, you will also need to procure 
-development packages (at least headers and `.lib`/`.a` libraries) of:
-* GNU Readline/Termcap
 
 ### Folder syncing
 
