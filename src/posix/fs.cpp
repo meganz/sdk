@@ -1007,12 +1007,15 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 }
             }
 
+            // NOTE: if the target is a synced excluded folder and we skip source, we will miss target notification
+            // and do not replicate move to cloud. Avoid optimization as Windows does.
+            //
             // for rename/move operations, skip source if both paths are synced
             // (to handle rapid a -> b, b -> c without overwriting b).
-            if (n == 2 && paths[0] && paths[1] && (kfse->type & FSE_TYPE_MASK) == FSE_RENAME)
+            /*if (n == 2 && paths[0] && paths[1] && (kfse->type & FSE_TYPE_MASK) == FSE_RENAME)
             {
                 paths[0] = NULL;
-            }
+            }*/
 
             for (i = n; i--; )
             {
