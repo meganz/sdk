@@ -18330,6 +18330,15 @@ class MegaApi
         /**
          * @brief Fetch Google ads
          *
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_GOOGLE_ADS
+         * Valid data in the MegaRequest object received on callbacks:
+         *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+         *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
+         *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+         *
+         * When the error code is MegaError::API_OK:
+         * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
+         *
          * @param adFlags A bitmap flag used to communicate with the API
          * Valid values are:
          *      - GOOGLE_ADS_FORCE_ADS = 0x200
@@ -18346,6 +18355,14 @@ class MegaApi
 
         /**
          * @brief Check if Google ads should show or not
+         *
+         * The associated request type with this request is MegaRequest::TYPE_QUERY_GOOGLE_ADS
+         * Valid data in the MegaRequest object received on callbacks:
+         *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+         *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+         *
+         * When the error code is MegaError::API_OK:
+         * - MegaRequest::getNumDetails Return if ads should be show or not
          *
          * @param adFlags A bitmap flag used to communicate with the API
          * Valid values are:
