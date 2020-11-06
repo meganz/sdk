@@ -95,6 +95,10 @@ using std::tuple;
 using std::ostringstream;
 using std::unique_ptr;
 
+#ifdef WIN32
+using std::wstring;
+#endif
+
 // forward declaration
 struct AttrMap;
 class BackoffTimer;
@@ -596,6 +600,7 @@ typedef enum {
     ATTR_AUTHRSA = 28,                      // private - byte array
     ATTR_AUTHCU255 = 29,                    // private - byte array
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
+    ATTR_MY_BACKUPS_FOLDER = 31             // private - byte array - non-versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;

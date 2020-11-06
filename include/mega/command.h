@@ -26,6 +26,7 @@
 #include "node.h"
 #include "account.h"
 #include "http.h"
+#include "json.h"
 
 namespace mega {
 
@@ -44,17 +45,12 @@ class MEGA_API Command
 {
     std::vector<std::weak_ptr<CommandListener>> mListeners;
 
-    static const int MAXDEPTH = 8;
-
-    char levels[MAXDEPTH];
-
     error result;
 
 protected:
     bool canceled;
 
-    string json;
-
+    JSONWriter jsonWriter;
     bool mRead = false;// if json has already been read
 
 public:
@@ -64,7 +60,6 @@ public:
 
     int tag;
 
-    char level;
     bool persistent;
 
     // some commands can only succeed if they are in their own batch.  eg. smss, when the account is blocked pending validation
@@ -96,7 +91,6 @@ public:
 
     void openobject();
     void closeobject();
-    int elements();
 
     enum Outcome {  CmdError,            // The reply was an error, already extracted from the JSON.  The error code may have been 0 (API_OK)
                     //CmdActionpacket,     // The reply was a cmdseq string, and we have processed the corresponding actionpackets

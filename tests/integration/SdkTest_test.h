@@ -172,7 +172,9 @@ public:
         bool accountUpdated;
 
         MegaHandle h;
-
+#ifdef ENABLE_SYNC
+        int lastSyncError;
+#endif
 #ifdef ENABLE_CHAT
         bool chatUpdated;        // flags to monitor the updates of chats due to actionpackets
         map<handle, std::unique_ptr<MegaTextChat>> chats;   //  runtime cache of fetched/updated chats
@@ -296,6 +298,11 @@ public:
     template<typename ... requestArgs> int doSetFileVersionsOption(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->setFileVersionsOption(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doMoveNode(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->moveNode(args..., &rt); return rt.waitForResult(); }
     template<typename ... requestArgs> int doCopyNode(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->copyNode(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousSyncFolder(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->syncFolder(args..., &rt); rt.waitForResult(); mApi[apiIndex].lastSyncError = rt.request->getNumDetails() ; return rt.result; }
+    template<typename ... requestArgs> int synchronousRemoveSync(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->removeSync(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousDisableSync(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->disableSync(args..., &rt); return rt.waitForResult(); }
+    template<typename ... requestArgs> int synchronousEnableSync(unsigned apiIndex, requestArgs... args) { RequestTracker rt(megaApi[apiIndex].get()); megaApi[apiIndex]->enableSync(args..., &rt); rt.waitForResult(); mApi[apiIndex].lastSyncError = rt.request->getNumDetails() ; return rt.result; }
+
 
     void createFile(string filename, bool largeFile = true);
     int64_t getFilesize(string filename);
@@ -320,6 +327,10 @@ public:
     void getContactRequest(unsigned int apiIndex, bool outgoing, int expectedSize = 1);
 
     void createFolder(unsigned int apiIndex, const char * name, MegaNode *n, int timeout = maxTimeout);
+    void deleteNode(unsigned int apiIndex, MegaNode *n, int timeout = maxTimeout);
+    void renameNode(unsigned int apiIndex, MegaNode *n, std::string newFolderName, int timeout = maxTimeout);
+    void moveNode(unsigned int apiIndex, MegaNode *n, MegaNode *newParent, int timeout = maxTimeout);
+    void copyNode(unsigned int apiIndex, MegaNode *n, MegaNode *newParent, const char* newName, int timeout = maxTimeout);
 
     void getRegisteredContacts(const std::map<std::string, std::string>& contacts);
 
