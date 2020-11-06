@@ -624,19 +624,37 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    // Needed so we can get our hands on the cwd.
+    auto fsAccess = new FSACCESS_CLASS();
+
+    // Where are we?
+    LocalPath currentDir;
+    bool result = fsAccess->cwd(currentDir);
+
+    if (!result)
+    {
+        cerr << "Unable to determine current working directory." << endl;
+        return EXIT_FAILURE;
+    }
+
     // create MegaClient, providing our custom MegaApp and Waiter classes
-    client = new MegaClient(app, new WAIT_CLASS, new HTTPIO_CLASS, new FSACCESS_CLASS,
+    client = new MegaClient(app,
+                            new WAIT_CLASS,
+                            new HTTPIO_CLASS,
+                            fsAccess,
                         #ifdef DBACCESS_CLASS
-                                                    new DBACCESS_CLASS,
+                            new DBACCESS_CLASS(currentDir),
                         #else
-                                                    NULL,
+                            nullptr,
                         #endif
                         #ifdef GFX_CLASS
-                                                    new GFX_CLASS,
+                            new GFX_CLASS,
                         #else
-                                                    NULL,
+                            nullptr,
                         #endif
-                            "N9tSBJDC", "megasimplesync", 2);
+                            "N9tSBJDC",
+                            "megasimplesync",
+                            2);
 
     // if MEGA_DEBUG env variable is set
     if (getenv("MEGA_DEBUG"))

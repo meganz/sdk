@@ -145,18 +145,32 @@ public:
     MEGA_DISABLE_COPY_MOVE(DBTableTransactionCommitter)
 };
 
+enum DbOpenFlag
+{
+    // Recycle legacy database, if present.
+    DB_OPEN_FLAG_RECYCLE = 0x1,
+    // Operations should always be transacted.
+    DB_OPEN_FLAG_TRANSACTED = 0x2
+}; // DbOpenFlag
+
 struct MEGA_API DbAccess
 {
     static const int LEGACY_DB_VERSION = 11;
     static const int DB_VERSION = LEGACY_DB_VERSION + 1;
 
     DbAccess();
-    virtual DbTable* open(PrnGen &rng, FileSystemAccess*, string*, bool recycleLegacyDB, bool checkAlwaysTransacted) = 0;
 
     virtual ~DbAccess() { }
 
+    virtual DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) = 0;
+
     int currentDbVersion;
 };
+
+// Convenience.
+using DbAccessPtr = unique_ptr<DbAccess>;
+using DbTablePtr = unique_ptr<DbTable>;
+
 } // namespace
 
 #endif

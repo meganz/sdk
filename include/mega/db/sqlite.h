@@ -28,13 +28,14 @@
 namespace mega {
 class MEGA_API SqliteDbAccess : public DbAccess
 {
-    string dbpath;
+    LocalPath mRootPath;
 
 public:
-    DbTable* open(PrnGen &rng, FileSystemAccess*, string*, bool recycleLegacyDB, bool checkAlwaysTransacted) override;
+    explicit SqliteDbAccess(const LocalPath& rootPath);
 
-    SqliteDbAccess(string* = NULL);
     ~SqliteDbAccess();
+
+    DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags) override;
 };
 
 class MEGA_API SqliteDbTable : public DbTable
@@ -56,7 +57,7 @@ public:
     void abort();
     void remove();
 
-    SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess *fs, string *filepath, bool checkAlwaysTransacted);
+    SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted);
     ~SqliteDbTable();
 };
 } // namespace

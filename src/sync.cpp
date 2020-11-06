@@ -492,7 +492,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
 SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng, const std::string& id)
 {
     std::string dbname = "syncconfigsv2_" + id;
-    mTable.reset(dbaccess.open(rng, &fsaccess, &dbname, false, false));
+    mTable.reset(dbaccess.open(rng, fsaccess, dbname));
     if (!mTable)
     {
         LOG_err << "Unable to open DB table: " << dbname;
@@ -753,7 +753,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
             dbname.resize(sizeof tableid * 4 / 3 + 3);
             dbname.resize(Base64::btoa((byte*)tableid, sizeof tableid, (char*)dbname.c_str()));
 
-            statecachetable = client->dbaccess->open(client->rng, client->fsaccess, &dbname, false, false);
+            statecachetable = client->dbaccess->open(client->rng, *client->fsaccess, dbname);
 
             readstatecache();
         }

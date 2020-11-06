@@ -123,11 +123,15 @@ class MegaHTTPServer;
 class MegaFTPServer;
 #endif
 
-class MegaDbAccess : public SqliteDbAccess
+class MegaDbAccess
+  : public SqliteDbAccess
 {
-	public:
-		MegaDbAccess(string *basePath = NULL) : SqliteDbAccess(basePath){}
-};
+public:
+    MegaDbAccess(const LocalPath& rootPath)
+      : SqliteDbAccess(rootPath)
+    {
+    }
+}; // MegaDbAccess
 
 class MegaErrorPrivate : public MegaError
 {

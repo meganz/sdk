@@ -1496,7 +1496,11 @@ static char* line;
 
 static AccountDetails account;
 
+// Current remote directory.
 static handle cwd = UNDEF;
+
+// Where we were on the local filesystem when megacli started.
+static LocalPath startDir;
 
 static const char* rootnodenames[] =
 { "ROOT", "INBOX", "RUBBISH" };
@@ -4311,23 +4315,25 @@ void exec_open(autocomplete::ACState& s)
 #endif
             // create a new MegaClient with a different MegaApp to process callbacks
             // from the client logged into a folder. Reuse the waiter and httpio
-            clientFolder = new MegaClient(new DemoAppFolder, client->waiter,
-                                            client->httpio, new FSACCESS_CLASS,
+            clientFolder = new MegaClient(new DemoAppFolder,
+                                          client->waiter,
+                                          client->httpio,
+                                          new FSACCESS_CLASS,
                 #ifdef DBACCESS_CLASS
-                                            new DBACCESS_CLASS,
+                                          new DBACCESS_CLASS(startDir),
                 #else
-                                            NULL,
+                                          NULL,
                 #endif
                 #ifdef GFX_CLASS
-                                            gfx,
+                                          gfx,
                 #else
-                                            NULL,
+                                          NULL,
                 #endif
-                                            "Gk8DyQBS",
-                                            "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
-                                            "." TOSTRING(MEGA_MINOR_VERSION)
-                                            "." TOSTRING(MEGA_MICRO_VERSION),
-                                            2);
+                                          "Gk8DyQBS",
+                                          "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
+                                          "." TOSTRING(MEGA_MINOR_VERSION)
+                                          "." TOSTRING(MEGA_MICRO_VERSION),
+                                          2);
         }
         else
         {
@@ -8100,6 +8106,16 @@ int main()
     gfx->startProcessingThread();
 #endif
 
+    // Needed so we can get the cwd.
+    auto fsAccess = new FSACCESS_CLASS();
+
+    // Where are we?
+    if (!fsAccess->cwd(startDir))
+    {
+        cerr << "Unable to determine current working directory." << endl;
+        return EXIT_FAILURE;
+    }
+
     // instantiate app components: the callback processor (DemoApp),
     // the HTTP I/O engine (WinHttpIO) and the MegaClient itself
     client = new MegaClient(new DemoApp,
@@ -8108,9 +8124,10 @@ int main()
 #else
                             new CONSOLE_WAIT_CLASS,
 #endif
-                            new HTTPIO_CLASS, new FSACCESS_CLASS,
+                            new HTTPIO_CLASS,
+                            fsAccess,
 #ifdef DBACCESS_CLASS
-                            new DBACCESS_CLASS,
+                            new DBACCESS_CLASS(startDir),
 #else
                             NULL,
 #endif
