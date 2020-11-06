@@ -18331,6 +18331,13 @@ class MegaApi
          * @brief Fetch Google ads
          *
          * @param adFlags A bitmap flag used to communicate with the API
+         * Valid values are:
+         *      - GOOGLE_ADS_FORCE_ADS = 0x200
+         *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+         *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+         *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+         *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+         *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000
          * @param adUnits A list of the adslot ids to fetch
          * @param publicHandle Provide the public handle that the user is visiting
          * @param listener MegaRequestListener to track this request
@@ -18341,6 +18348,13 @@ class MegaApi
          * @brief Check if Google ads should show or not
          *
          * @param adFlags A bitmap flag used to communicate with the API
+         * Valid values are:
+         *      - GOOGLE_ADS_FORCE_ADS = 0x200
+         *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+         *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+         *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+         *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+         *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT 0x4000
          * @param publicHandle Provide the public handle that the user is visiting
          * @param listener MegaRequestListener to track this request
          */
