@@ -598,19 +598,19 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 LOG_debug << "Upload token received";
                                 if (!transfer->ultoken)
                                 {
-                                    transfer->ultoken = new byte[NewNode::UPLOADTOKENLEN]();
+                                    transfer->ultoken.reset(new byte[NewNode::UPLOADTOKENLEN]());
                                 }
 
                                 bool tokenOK = true;
                                 if (reqs[i]->in.data()[NewNode::UPLOADTOKENLEN - 1] == 1)
                                 {
                                     LOG_debug << "New style upload token";
-                                    memcpy(transfer->ultoken, reqs[i]->in.data(), NewNode::UPLOADTOKENLEN);
+                                    memcpy(transfer->ultoken.get(), reqs[i]->in.data(), NewNode::UPLOADTOKENLEN);
                                 }
                                 else
                                 {
                                     LOG_debug << "Old style upload token: " << reqs[i]->in;
-                                    tokenOK = (Base64::atob(reqs[i]->in.data(), transfer->ultoken, NewNode::UPLOADTOKENLEN)
+                                    tokenOK = (Base64::atob(reqs[i]->in.data(), transfer->ultoken.get(), NewNode::UPLOADTOKENLEN)
                                                == NewNode::OLDUPLOADTOKENLEN);
                                 }
 
@@ -619,11 +619,27 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                     errorcount = 0;
                                     transfer->failcount = 0;
 
+                                    // any other connections that have not reported back yet, or we haven't processed yet,
+                                    // must have completed also - make sure to include their chunk MACs in the mac-of-macs
+                                    for (int j = connections; j--; )
+                                    {
+                                        if (j != i && reqs[j] &&
+                                              (reqs[j]->status == REQ_INFLIGHT
+                                            || reqs[j]->status == REQ_SUCCESS
+                                            || reqs[j]->status == REQ_FAILURE)) // could be a network error getting the result
+                                        {
+                                            LOG_debug << "Including chunk MACs from incomplete/unprocessed (at this end) connection " << j;
+                                            transfer->progresscompleted += reqs[j]->size;
+                                            transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[j].get())->mChunkmacs);
+                                        }
+                                    }
+
                                     transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[i].get())->mChunkmacs);
+                                    transfer->progresscompleted += reqs[i]->size;
+                                    assert(transfer->progresscompleted == transfer->size);
 
                                     updatecontiguousprogress();
 
-                                    transfer->progresscompleted += reqs[i]->size;
                                     memcpy(transfer->filekey, transfer->transferkey.data(), sizeof transfer->transferkey);
                                     ((int64_t*)transfer->filekey)[2] = transfer->ctriv;
                                     ((int64_t*)transfer->filekey)[3] = macsmac(&transfer->chunkmacs);
@@ -643,8 +659,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 }
                                 else
                                 {
-                                    delete [] transfer->ultoken;
-                                    transfer->ultoken = NULL;
+                                    transfer->ultoken.reset();
                                 }
                             }
 
@@ -837,7 +852,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             if (transfer->type == PUT)
                             {
                                 LOG_verbose << "Async read succeeded";
-                                m_off_t npos = asyncIO[i]->pos + asyncIO[i]->len;
+                                m_off_t npos = asyncIO[i]->posOfBuffer + asyncIO[i]->dataBufferLen;
                                 string finaltempurl = transferbuf.tempURL(i);
                                 if (client->usealtupport && !memcmp(finaltempurl.c_str(), "http:", 5))
                                 {
@@ -848,7 +863,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                     }
                                 }
 
-                                auto pos = asyncIO[i]->pos;
+                                auto pos = asyncIO[i]->posOfBuffer;
                                 auto req = reqs[i];    // shared_ptr so no object is deleted out from under the worker
                                 auto transferkey = transfer->transferkey;
                                 auto ctriv = transfer->ctriv;
@@ -918,7 +933,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     }
                     else if (transfer->type == GET)
                     {
-                        p += asyncIO[i]->len;
+                        p += asyncIO[i]->dataBufferLen;
                     }
                     break;
 
@@ -1059,13 +1074,17 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                         m_off_t pos = posrange.first;
                         unsigned size = (unsigned)(posrange.second - pos);
 
+                        // No need to keep recopying already processed macs from prior uploads on this req[i]
+                        // For uploads, these are always on chunk boundaries so no need to worry about partials.
+                        static_cast<HttpReqUL*>(reqs[i].get())->mChunkmacs.clear();
+
                         if (fa->asyncavailable())
                         {
                             if (asyncIO[i])
                             {
                                 LOG_warn << "Retrying a failed read";
-                                pos = asyncIO[i]->pos;
-                                size = asyncIO[i]->len;
+                                pos = asyncIO[i]->posOfBuffer;
+                                size = asyncIO[i]->dataBufferLen;
                                 posrange.second = pos + size;
                                 delete asyncIO[i];
                                 asyncIO[i] = NULL;
