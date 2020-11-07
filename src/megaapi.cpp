@@ -5339,6 +5339,16 @@ void MegaApi::sendBackupHeartbeat(MegaHandle backupId, int status, int progress,
     pImpl->sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode);
 }
 
+void MegaApi::getBackupName(MegaHandle backupId, MegaRequestListener* listener)
+{
+    pImpl->getBackupName(backupId, listener);
+}
+
+void MegaApi::setBackupName(MegaHandle backupId, const char* backupName, MegaRequestListener* listener)
+{
+    pImpl->setBackupName(backupId, backupName, listener);
+}
+
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
     pImpl = new MegaHashSignatureImpl(base64Key);

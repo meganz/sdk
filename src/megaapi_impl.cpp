@@ -5818,6 +5818,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
         case MegaApi::USER_ATTR_ALIAS:
         case MegaApi::USER_ATTR_DEVICE_NAMES:
+        case MegaApi::USER_ATTR_BACKUP_NAMES:
             scope = '*';
             break;
 
@@ -15081,7 +15082,8 @@ void MegaApiImpl::getua_result(error e)
         }
         else if ((request->getParamType() == MegaApi::USER_ATTR_ALIAS
                   || request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
-                  || request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES)
+                  || request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES
+                  || request->getParamType() == MegaApi::USER_ATTR_BACKUP_NAMES)
                     && request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
             // The attribute doesn't exists so we have to create it
@@ -15391,12 +15393,13 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 break;
             }
             case MegaApi::USER_ATTR_ALIAS:
+            case MegaApi::USER_ATTR_BACKUP_NAMES:
             {
-                // If a uh was set in the request, we have to find it in the aliases map and return it
-                const char *uh = request->getText();
-                if (uh)
+                // If a handle was set in the request, we have to find it in the corresponding map and return it
+                const char *h = request->getText();
+                if (h)
                 {
-                    const char *buf = stringMap->get(uh);
+                    const char *buf = stringMap->get(h);
                     if (!buf)
                     {
                         e = API_ENOENT;
@@ -15420,7 +15423,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 request->setName(Base64::atob(buf).c_str());
                 break;
             }
-
+ 
             default:
                 break;
         }
@@ -23295,6 +23298,30 @@ void MegaApiImpl::sendBackupHeartbeat(MegaHandle backupId, int status, int progr
     request->setTransferTag(downs);
     request->setNumber(ts);
     request->setNodeHandle(lastNode);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getBackupName(MegaHandle backupId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_BACKUP_NAMES);
+    request->setNodeHandle(backupId);
+    request->setText(Base64Str<MegaClient::NODEHANDLE>(backupId));
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setBackupName(MegaHandle backupId, const char* backupName, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    MegaStringMapPrivate stringMap;
+    string buf = backupName ? backupName : "";    // backup name is null to remove it
+    stringMap.set(Base64Str<MegaClient::NODEHANDLE>(backupId), Base64::btoa(buf).c_str());
+    request->setMegaStringMap(&stringMap);
+    request->setParamType(MegaApi::USER_ATTR_BACKUP_NAMES);
+    request->setNodeHandle(backupId);
+    request->setText(backupName);
     requestQueue.push(request);
     waiter->notify();
 }

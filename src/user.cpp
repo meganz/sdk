@@ -546,6 +546,10 @@ string User::attr2string(attr_t type)
             attrname =  "*!dn";
             break;
 
+        case ATTR_BACKUP_NAMES:
+            attrname = "*!bn";
+            break;
+            
         case ATTR_UNKNOWN:  // empty string
             break;
     }

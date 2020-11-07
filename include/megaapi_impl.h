@@ -2752,6 +2752,9 @@ class MegaApiImpl : public MegaApp
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode);
 
+        void getBackupName(MegaHandle backupId, MegaRequestListener* listener = nullptr);
+        void setBackupName(MegaHandle backupId, const char* backupName, MegaRequestListener* listener = nullptr);
+
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e, DBTableTransactionCommitter& committer);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);

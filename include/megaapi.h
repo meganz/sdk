@@ -7644,6 +7644,7 @@ class MegaApi
             // ATTR_UNSHAREABLE_KEY = 26         // it's internal for SDK, not exposed to apps
             USER_ATTR_ALIAS = 27,                // private - byte array
             USER_ATTR_DEVICE_NAMES = 30,          // private - byte array
+            USER_ATTR_BACKUP_NAMES = 31,          // private - byte array
         };
 
         enum {
@@ -18284,6 +18285,41 @@ class MegaApi
          *
         */
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode);
+
+        /**
+         * @brief Gets the backup name corresponding to a backup id
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_BACKUP_NAMES
+         * - MegaRequest::getNodeHandle - backup id in binary
+         * - MegaRequest::getText - backup id encoded in B64
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getName - Returns the backup name
+         *
+         * If the backup name doesn't exists the request will fail with the error code MegaError::API_ENOENT.
+         *
+         * @param backupId backup id identifying the backup
+         * @param listener MegaRequestListener to track this request
+         */
+        void getBackupName(MegaHandle backupId, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Set or reset a backup name
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_BACKUP_NAMES
+         * - MegaRequest::getNodeHandle - Returns the backup handle in binary
+         * - MegaRequest::getText - Returns the backup name
+         *
+         * @param backupId backup id identifying the backup
+         * @param backupName backup name to be set, or null to reset the existing
+         * @param listener MegaRequestListener to track this request
+         */
+        void setBackupName(MegaHandle backupId, const char* backupName, MegaRequestListener* listener = nullptr);
 
  private:
         MegaApiImpl *pImpl;

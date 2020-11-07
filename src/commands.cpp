@@ -3598,6 +3598,8 @@ bool CommandGetUserData::procresult(Result r)
     string versionUnshareableKey;
     string deviceNames;
     string versionDeviceNames;
+    string backupNames;
+    string versionBackupNames;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -3720,6 +3722,10 @@ bool CommandGetUserData::procresult(Result r)
 
         case MAKENAMEID4('*', '!', 'd', 'n'):
             parseUserAttribute(deviceNames, versionDeviceNames);
+            break;
+        
+        case MAKENAMEID4('*', '!', 'b', 'n'):
+            parseUserAttribute(backupNames, versionBackupNames);
             break;
 
         case 'b':   // business account's info
@@ -4080,6 +4086,21 @@ bool CommandGetUserData::procresult(Result r)
                     else
                     {
                         LOG_err << "Cannot extract TLV records for ATTR_DEVICE_NAMES";
+                    }
+                }
+
+                if (backupNames.size())
+                {
+                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&backupNames, &client->key));
+                    if (tlvRecords)
+                    {
+                        // store the value for private user attributes (decrypted version of serialized TLV)
+                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
+                        changes += u->updateattr(ATTR_BACKUP_NAMES, tlvString.get(), &versionBackupNames);
+                    }
+                    else
+                    {
+                        LOG_err << "Cannot extract TLV records for ATTR_BACKUP_NAMES";
                     }
                 }
 
