@@ -360,7 +360,8 @@ int SdkTest::getApiIndex(MegaApi* api)
 
 void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 {
-    if (request->getType() == MegaRequest::TYPE_DELETE)
+    auto type = request->getType();
+    if (type == MegaRequest::TYPE_DELETE)
     {
         return;
     }
@@ -373,7 +374,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     // there could be a race on these getting set?
     LOG_info << "lastError (by request) for MegaApi " << apiIndex << ": " << mApi[apiIndex].lastError;
 
-    switch(request->getType())
+    switch(type)
     {
     case MegaRequest::TYPE_CREATE_FOLDER:
         mApi[apiIndex].h = request->getNodeHandle();
@@ -435,6 +436,14 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
                 attributeValue = "Avatar not found";
             }
         }
+        else if (request->getParamType() == MegaApi::USER_ATTR_BACKUP_NAMES)
+        {
+            if (mApi[apiIndex].lastError == API_OK)
+            {
+                mBackupName = request->getName();
+            }
+        }
+             
         break;
 
 #ifdef ENABLE_CHAT
@@ -4788,6 +4797,39 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     ASSERT_NE(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
 
     gTestingInvalidArgs = false;
+}
+
+TEST_F(SdkTest, SdkBackupNames)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST SdkBackupNames___";
+
+    // setbackup test
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    auto localtestfolder = localtestroot.string();
+    const char* backup = "/SdkBackupNamesTest";
+    const char* extra = "Test Set/GetBackupname APIs";
+    unique_ptr<char[]> localFolder(MegaApiImpl::binaryToBase64(localtestfolder.c_str(), localtestfolder.length()));
+    unique_ptr<char[]> backupName(MegaApiImpl::binaryToBase64(backup, strlen(backup)));
+    unique_ptr<char[]> extraData(MegaApiImpl::binaryToBase64(extra, strlen(extra)));
+
+    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+    char foldername[64] = "BackupNamesTest";
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, foldername, rootnode.get()));
+
+    MegaHandle targetNode = mApi[0].h;
+    int state = 1;
+    int subState = 3;
+
+    // setup a backup
+    int backupType = BackupType::CAMERA_UPLOAD;
+    auto err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
+    ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
+    err = synchronousSetBackupName(0, mBackupId, "BackupNamesTest");
+    ASSERT_EQ(MegaError::API_OK, err) << "setBackupName failed (error: " << err << ")";
+    err = synchronousGetBackupName(0, mBackupId);
+    ASSERT_EQ(MegaError::API_OK, err) << "getBackupName failed (error: " << err << ")"; 
+    ASSERT_EQ(mBackupName, backupName.get()) << "getBackupName returned incorrect value";
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
