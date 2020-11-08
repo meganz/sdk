@@ -168,10 +168,7 @@ SqliteDbTable::~SqliteDbTable()
         return;
     }
 
-    if (pStmt)
-    {
-        sqlite3_finalize(pStmt);
-    }
+    sqlite3_finalize(pStmt);
     abort();
     sqlite3_close(db);
     LOG_debug << "Database closed " << dbfile;
@@ -185,13 +182,21 @@ void SqliteDbTable::rewind()
         return;
     }
 
+    int result;
+
     if (pStmt)
     {
-        sqlite3_reset(pStmt);
+        result = sqlite3_reset(pStmt);
     }
     else
     {
-        sqlite3_prepare(db, "SELECT id, content FROM statecache", -1, &pStmt, NULL);
+        result = sqlite3_prepare(db, "SELECT id, content FROM statecache", -1, &pStmt, NULL);
+    }
+
+    if (result != SQLITE_OK)
+    {
+        LOG_err << "Unable to rewind database: " << dbfile;
+        assert(!"Unable to rewind database.");
     }
 }
 
@@ -214,6 +219,13 @@ bool SqliteDbTable::next(uint32_t* index, string* data)
     {
         sqlite3_finalize(pStmt);
         pStmt = NULL;
+
+        if (rc != SQLITE_DONE)
+        {
+            LOG_err << "Unable to get next record from database: " << dbfile;
+            assert(!"Unable to get next record from database.");
+        }
+
         return false;
     }
 
@@ -235,23 +247,31 @@ bool SqliteDbTable::get(uint32_t index, string* data)
     checkTransaction();
 
     sqlite3_stmt *stmt;
-    bool result = false;
+    int rc;
 
-    if (sqlite3_prepare(db, "SELECT content FROM statecache WHERE id = ?", -1, &stmt, NULL) == SQLITE_OK)
+    rc = sqlite3_prepare(db, "SELECT content FROM statecache WHERE id = ?", -1, &stmt, NULL);
+    if (rc == SQLITE_OK)
     {
-        if (sqlite3_bind_int(stmt, 1, index) == SQLITE_OK)
+        rc = sqlite3_bind_int(stmt, 1, index);
+        if (rc == SQLITE_OK)
         {
-            if (sqlite3_step(stmt) == SQLITE_ROW)
+            rc = sqlite3_step(stmt);
+            if (rc == SQLITE_ROW)
             {
                 data->assign((char*)sqlite3_column_blob(stmt, 0), sqlite3_column_bytes(stmt, 0));
-
-                result = true;
             }
         }
     }
 
     sqlite3_finalize(stmt);
-    return result;
+
+    if (rc != SQLITE_DONE && rc != SQLITE_ROW)
+    {
+        LOG_err << "Unable to get record from database: " << dbfile;
+        assert(!"Unable to get record from database.");
+    }
+
+    return rc == SQLITE_ROW;
 }
 
 // add/update record by index
@@ -282,6 +302,13 @@ bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
     }
 
     sqlite3_finalize(stmt);
+
+    if (!result)
+    {
+        LOG_err << "Unable to put record into database: " << dbfile;
+        assert(!"Unable to put record into database.");
+    }
+
     return result;
 }
 
@@ -299,7 +326,15 @@ bool SqliteDbTable::del(uint32_t index)
 
     sprintf(buf, "DELETE FROM statecache WHERE id = %" PRIu32, index);
 
-    return !sqlite3_exec(db, buf, 0, 0, NULL);
+    if (sqlite3_exec(db, buf, 0, 0, nullptr) != SQLITE_OK)
+    {
+        LOG_err << "Unable to delete record from database: " << dbfile;
+        assert(!"Unable to delete record from database.");
+
+        return false;
+    }
+
+    return true;
 }
 
 // truncate table
@@ -312,7 +347,11 @@ void SqliteDbTable::truncate()
 
     checkTransaction();
 
-    sqlite3_exec(db, "DELETE FROM statecache", 0, 0, NULL);
+    if (sqlite3_exec(db, "DELETE FROM statecache", 0, 0, NULL) != API_OK)
+    {
+        LOG_err << "Unable to truncate database: " << dbfile;
+        assert(!"Unable to truncate database.");
+    }
 }
 
 // begin transaction
@@ -324,7 +363,11 @@ void SqliteDbTable::begin()
     }
 
     LOG_debug << "DB transaction BEGIN " << dbfile;
-    sqlite3_exec(db, "BEGIN", 0, 0, NULL);
+    if (sqlite3_exec(db, "BEGIN", 0, 0, NULL) != SQLITE_OK)
+    {
+        LOG_err << "Unable to begin transaction on database: " << dbfile;
+        assert(!"Unable to begin transaction on database.");
+    }
 }
 
 // commit transaction
@@ -336,7 +379,17 @@ void SqliteDbTable::commit()
     }
 
     LOG_debug << "DB transaction COMMIT " << dbfile;
-    sqlite3_exec(db, "COMMIT", 0, 0, NULL);
+
+    if (sqlite3_get_autocommit(db))
+    {
+        return;
+    }
+
+    if (sqlite3_exec(db, "COMMIT", 0, 0, NULL) != SQLITE_OK)
+    {
+        LOG_err << "Unable to commit transaction on database: " << dbfile;
+        assert(!"Unable to commit transaction on database.");
+    }
 }
 
 // abort transaction
@@ -348,7 +401,17 @@ void SqliteDbTable::abort()
     }
 
     LOG_debug << "DB transaction ROLLBACK " << dbfile;
-    sqlite3_exec(db, "ROLLBACK", 0, 0, NULL);
+
+    if (sqlite3_get_autocommit(db))
+    {
+        return;
+    }
+
+    if (sqlite3_exec(db, "ROLLBACK", 0, 0, NULL) != SQLITE_OK)
+    {
+        LOG_err << "Unable to rollback transaction on database: " << dbfile;
+        assert(!"Unable to rollback transaction on database.");
+    }
 }
 
 void SqliteDbTable::remove()
@@ -358,10 +421,7 @@ void SqliteDbTable::remove()
         return;
     }
 
-    if (pStmt)
-    {
-        sqlite3_finalize(pStmt);
-    }
+    sqlite3_finalize(pStmt);
     abort();
     sqlite3_close(db);
 
