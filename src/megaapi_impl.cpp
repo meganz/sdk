@@ -23117,7 +23117,7 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                string_vector &vectorString = static_cast<MegaStringListPrivate*>(request->getMegaStringList())->getVector();
+                const string_vector &vectorString = static_cast<MegaStringListPrivate*>(request->getMegaStringList())->getVector();
                 client->reqs.add(new CommandFetchGoogleAds(client, flags, vectorString, request->getNodeHandle(), [request, this](Error e, string_map value)
                 {
                     if (e == API_OK)

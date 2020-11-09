@@ -569,6 +569,10 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_BACKUP_PUT:
         mBackupId = request->getParentHandle();
         break;
+
+    case MegaRequest::TYPE_FETCH_GOOGLE_ADS:
+        mApi[apiIndex].mStringMap.reset(mApi[apiIndex].lastError == API_OK ? request->getMegaStringMap()->copy() : nullptr);
+            break;
     }
 }
 
@@ -5110,6 +5114,26 @@ TEST_F(SdkTest, DISABLED_RecursiveDownloadWithLogout)
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
     fs::remove_all(uploadpath, ec);
     fs::remove_all(downloadpath, ec);
+}
+
+TEST_F(SdkTest, QueryGoogleAds)
+{
+    LOG_info << "___TEST QueryGoogleAds";
+    getAccountsForTest(1);
+    int err = synchronousQueryGoogleAds(0, MegaApi::GOOGLE_ADS_FORCE_ADS);
+    ASSERT_EQ(MegaError::API_OK, err) << "Query Google Ads failed (error: " << err << ")";
+}
+
+TEST_F(SdkTest, FetchGoogleAds)
+{
+    LOG_info << "___TEST FetchGoogleAds";
+    getAccountsForTest(1);
+    std::unique_ptr<MegaStringList> stringList = std::unique_ptr<MegaStringList>(MegaStringList::createInstance());
+    stringList->add("and0");
+    stringList->add("ios0");
+    int err = synchronousFetchGoogleAds(0, MegaApi::GOOGLE_ADS_FORCE_ADS, stringList.get());
+    ASSERT_EQ(MegaError::API_OK, err) << "Fetch Google Ads failed (error: " << err << ")";
+    ASSERT_EQ(mApi[0].mStringMap->size(), 2);
 }
 
 #ifdef ENABLE_SYNC
