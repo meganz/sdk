@@ -1307,6 +1307,11 @@ public:
         return table;
     }
 
+    bool probe(mega::FileSystemAccess&, const string&) const override
+    {
+        return true;
+    }
+
 private:
     std::vector<std::pair<uint32_t, std::string>>& mData;
 };

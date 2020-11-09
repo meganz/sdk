@@ -36,6 +36,8 @@ public:
     ~SqliteDbAccess();
 
     DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags) override;
+
+    bool probe(FileSystemAccess& fsAccess, const string& name) const override;
 };
 
 class MEGA_API SqliteDbTable : public DbTable

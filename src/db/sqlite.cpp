@@ -150,6 +150,22 @@ DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, const str
                              (flags & DB_OPEN_FLAG_TRANSACTED) > 0);
 }
 
+bool SqliteDbAccess::probe(FileSystemAccess& fsAccess, const string& name) const
+{
+    auto fileAccess = fsAccess.newfileaccess();
+
+    LocalPath dbPath = databasePath(fsAccess, mRootPath, name, DB_VERSION);
+
+    if (fileAccess->isfile(dbPath))
+    {
+        return true;
+    }
+
+    dbPath = databasePath(fsAccess, mRootPath, name, LEGACY_DB_VERSION);
+
+    return fileAccess->isfile(dbPath);
+}
+
 SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* db, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted)
   : DbTable(rng, checkAlwaysTransacted)
   , db(db)
