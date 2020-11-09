@@ -353,10 +353,14 @@ bool FileAccess::fopen(const LocalPath& name)
     return sysstat(&mtime, &size);
 }
 
-bool FileAccess::isfolder(LocalPath& name)
+bool FileAccess::isfile(const LocalPath& path)
 {
-    fopen(name);
-    return (type == FOLDERNODE);
+    return fopen(path) && type == FILENODE;
+}
+
+bool FileAccess::isfolder(const LocalPath& path)
+{
+    return fopen(path) && type == FOLDERNODE;
 }
 
 // check if size and mtime are unchanged, then open for reading

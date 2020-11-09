@@ -260,7 +260,10 @@ struct MEGA_API FileAccess
     bool fopen(const LocalPath&);
 
     // check if a local path is a folder
-    bool isfolder(LocalPath&);
+    bool isfolder(const LocalPath& path);
+
+    // check if local path is a file.
+    bool isfile(const LocalPath& path);
 
     // update localname (only has an effect if operating in by-name mode)
     virtual void updatelocalname(const LocalPath&, bool force) = 0;
