@@ -25261,6 +25261,7 @@ void MegaFolderUploadController::cancel()
         subTransfer->setLastError(&megaError);
 
         bool found = false;
+        bool fireSubTransferFinish = false;
         file_list files = transfer->files;
         file_list::iterator iterator = files.begin();
         while (iterator != files.end())
@@ -25272,7 +25273,16 @@ void MegaFolderUploadController::cancel()
                 found = true;
                 if (!file->syncxfer)
                 {
-                    client->stopxfer(file, committer);
+                    if (!this->transfer->getDoNotStopSubTransfers())
+                    {
+                        client->stopxfer(file, committer);
+                    }
+                    else
+                    {
+                        //firing onTransferFinished without stopping (to preserve cache)
+                        subTransfer->setState(MegaTransfer::STATE_FAILED);
+                        fireSubTransferFinish = true;
+                    }
                 }
                 else
                 {
@@ -25288,8 +25298,14 @@ void MegaFolderUploadController::cancel()
             LOG_warn << "No file found for subtransfer: " << subTransfer->getFileName();
 
             subTransfer->setState(MegaTransfer::STATE_CANCELLED);
+            fireSubTransferFinish = true;
+        }
+
+        if (fireSubTransferFinish)
+        {
             megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), *committer);
         }
+
         cancelledSubTransfers++;
     }
 
