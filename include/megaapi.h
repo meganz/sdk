@@ -5914,8 +5914,9 @@ public:
      */
     enum UserErrorCode
     {
-        USER_ETD_UNKNOWN = -1,      ///< Unknown state
-        USER_ETD_SUSPENSION = 7,    ///< Account suspend by an ETD/ToS 'severe'
+        USER_ETD_UNKNOWN = -1,          ///< Unknown state
+        USER_COPYRIGHT_SUSPENSION = 4,  /// Account suspended by copyright
+        USER_ETD_SUSPENSION = 7,        ///< Account suspend by an ETD/ToS 'severe'
     };
 
     /**
@@ -5983,6 +5984,7 @@ public:
          *
          * This method only returns a valid value when hasExtraInfo is true
          * Possible values:
+         *  MegaError::UserErrorCode::USER_COPYRIGHT_SUSPENSION
          *  MegaError::UserErrorCode::USER_ETD_SUSPENSION
          *
          * Otherwise, it returns MegaError::UserErrorCode::USER_ETD_UNKNOWN
