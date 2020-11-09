@@ -89,7 +89,7 @@ bool PosixFileAccess::mFoundASymlink = false;
 
 #ifdef USE_IOS
 
-const string& adjustBasePath(const LocalPath& name)
+const string adjustBasePath(const LocalPath& name)
 {
     // return a temporary variable that the caller can optionally use c_str on (in that expression)
     if (PosixFileSystemAccess::appbasepath)
