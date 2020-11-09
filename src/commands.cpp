@@ -1274,10 +1274,15 @@ bool CommandPutNodes::procresult(Result r)
 
     client->sendkeyrewrites();
 
+    // when the target has been removed, the API automatically adds the new node/s
+    // into the rubbish bin
+    Node *tempNode = !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
+    bool targetOverride = (tempNode && tempNode->parenthandle != targethandle);
+
 #ifdef ENABLE_SYNC
     if (source == PUTNODES_SYNC)
     {
-        client->app->putnodes_result(e, type, nn);
+        client->app->putnodes_result(e, type, nn, targetOverride);
         client->putnodes_sync_result(e, nn);
     }
     else
@@ -1297,7 +1302,7 @@ bool CommandPutNodes::procresult(Result r)
             }
         }
 #endif
-        client->app->putnodes_result((!e && empty) ? API_ENOENT : static_cast<error>(e), type, nn);
+        client->app->putnodes_result((!e && empty) ? API_ENOENT : static_cast<error>(e), type, nn, targetOverride);
     }
 #ifdef ENABLE_SYNC
     else
@@ -3235,7 +3240,9 @@ bool CommandGetUA::procresult(Result r)
             }   // switch (nameid)
         }
     }
-    return false;
+#ifndef WIN32
+    return false;  // unreachable code
+#endif
 }
 
 #ifdef DEBUG
@@ -8193,6 +8200,8 @@ bool CommandBackupPut::procresult(Result r)
     {
         e = r.errorOrOK();
     }
+
+    LOG_debug << "backup put result: " << error(e) << " " << backupId;
 
     if (mUpdate)
     {

@@ -752,7 +752,8 @@ void MegaBackupMonitor::beatBackupInfo(const std::shared_ptr<HeartBeatBackupInfo
 
         hbs->setLastBeat(m_time(nullptr));
 
-        auto newCommand = new CommandBackupPutHeartBeat(mClient, hbs->backupId(), hbs->status(),
+        auto newCommand = new CommandBackupPutHeartBeat(mClient, hbs->backupId(), 
+                          static_cast<uint8_t>(hbs->status()),
                           static_cast<uint8_t>(std::lround(hbs->progress()*100.0)), hbs->pendingUps(), hbs->pendingDowns(),
                           hbs->lastAction(), hbs->lastItemUpdated());
 
