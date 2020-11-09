@@ -36,7 +36,7 @@ In the `examples` folder you can find example apps using:
 Building
 --------
 
-There are two methods - the one we are using now for most platforms is with vcpkg and cmake, and the prior system based on autotools still works for POSIX based system.
+There are two methods - the one we are using now for most platforms is with vcpkg and cmake, and the prior system based on autotools still works for POSIX based systems.
 
 ### Platform Dependencies
 
@@ -46,28 +46,29 @@ Some dependencies are different for each platform because the SDK uses generic i
 - Graphics management (FreeImage, QT or iOS frameworks)
 - Threads/mutexes (Win32, pthread, QT threads, or C++11)
 
-### Building with vcpkg and cmake (Works for all platforms, use this one for Windows.  For other platforms autotools is also an option)
+### Building with vcpkg and cmake 
 
+This is the method that works for Windows - it also works for other platforms (and for those, autotools is also an option).
 We use vcpkg, cmake, and provide scripts to build the 3rd party libraries and set up the project.
 
 #### Build 3rdParty Dependencies with vcpkg
 * Consult contrib\cmake\3rdparty_deps.txt to see dependencies and enable/disable a particular package.
 * Your 3rdParty library builds should be outside the SDK repo. You can use the same 3rdParty folder for other mega components, e.g., megasync, etc..
-* To build the 3rdParty libraries with vcpkg, you can stat like this:
-	mkdir 3rdParty
-	cd 3rdParty
-	git clone https://github.com/Microsoft/vcpkg.git
-	cd vcpkg
-	.\bootstrap-vcpkg.bat -disableMetrics      (Windows)
-	./bootstrap-vcpkg.sh -disableMetrics       (Posix)
+* To build the 3rdParty libraries with vcpkg, you can start like this:
+	* mkdir 3rdParty
+	* cd 3rdParty
+	* git clone https://github.com/Microsoft/vcpkg.git
+	* cd vcpkg
+	* .\bootstrap-vcpkg.bat -disableMetrics      (Windows)
+	* ./bootstrap-vcpkg.sh -disableMetrics       (Posix)
 * Edit triplet configuration as required in the SDK: 
-	contrib\cmake\vcpkg_extra_triplets\<x64-windows-mega-staticdev.cmake/x64-windows-mega.cmake/x86-windows-mega.cmake>   (Windows)
-	contrib/cmake/vcpkg_extra_triplets/<x64-linux>     (Linux)
+	* contrib\cmake\vcpkg_extra_triplets\<x64-windows-mega-staticdev.cmake/x64-windows-mega.cmake/x86-windows-mega.cmake>   (Windows)
+	* contrib/cmake/vcpkg_extra_triplets/<x64-linux>     (Linux)
 * Fix compiler and toolset selection. 
-	Just comment them if you only have one VS installed.  (Windows)
+	* Just comment them if you only have one VS installed.  (Windows)
 * Run the SDK's batch file from vcpkg folder, check options first
-	..\..\sdk\contrib\cmake\build3rdparty.cmd -o x64-windows-mega     (Windows)
-	../../sdk/contrib/cmake/build3rdparty.bash x64-linux              (Posix - adjust per platform)
+	* ..\..\sdk\contrib\cmake\build3rdparty.cmd -o x64-windows-mega     (Windows)
+	* ../../sdk/contrib/cmake/build3rdparty.bash x64-linux              (Posix - adjust per platform)
 
 #### Building SDK with cmake + your favourite build system
 Once the 3rdParty dependencies are built, you can start building your SDK as follows:
