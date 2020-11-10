@@ -23062,9 +23062,10 @@ void MegaApiImpl::sendPendingRequests()
             
             if (request->getParentHandle() == UNDEF) // Register a new sync
             {
+                string backupName(binaryToBase64(request->getName(), strlen(request->getName())));
                 string localFolder(binaryToBase64(request->getFile(), strlen(request->getFile())));
                 string extraData(binaryToBase64(request->getText(), strlen(request->getText())));
-                client->reqs.add(new CommandBackupPut(client, bType, request->getNodeHandle(),
+                client->reqs.add(new CommandBackupPut(client, bType, backupName, request->getNodeHandle(),
                                                       localFolder, client->getDeviceidHash(),
                                                       request->getAccess(), request->getNumDetails(), extraData));
             }

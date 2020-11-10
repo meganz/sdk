@@ -8140,7 +8140,7 @@ bool CommandFolderLinkInfo::procresult(Result r)
 }
 
 // to register a new backup
-CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle nodeHandle, const string& localFolder, const std::string &deviceId, int state, int subState, const string& extraData)
+CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, const std::string& backupName, handle nodeHandle, const string& localFolder, const std::string &deviceId, int state, int subState, const string& extraData)
 {
     assert(type != BackupType::INVALID);
 
@@ -8156,6 +8156,7 @@ CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle n
     if (!extraData.empty())
         arg("e", extraData.c_str());
 
+    mBackupName = backupName;
     tag = client->reqtag;
     mUpdate = false;
 }
@@ -8221,7 +8222,7 @@ bool CommandBackupPut::procresult(Result r)
     {
         e = r.errorOrOK();
     }
-
+    client->putua(ATTR_BACKUP_NAMES, (byte*)mBackupName.c_str(), unsigned(mBackupName.size()));
     LOG_debug << "backup put result: " << error(e) << " " << backupId;
 
     if (mUpdate)

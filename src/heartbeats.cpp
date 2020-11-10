@@ -298,8 +298,9 @@ void HeartBeatSyncInfo::updateStatus(MegaClient *client)
 
 ////////////// BackupInfo ////////////////
 
-MegaBackupInfo::MegaBackupInfo(BackupType type, string localFolder, handle megaHandle, int state, int substate, std::string extra, handle backupId)
+MegaBackupInfo::MegaBackupInfo(BackupType type, string backupName, string localFolder, handle megaHandle, int state, int substate, std::string extra, handle backupId)
     : mType(type)
+    , mBackupName(backupName)
     , mBackupId(backupId)
     , mLocalFolder(localFolder)
     , mMegaHandle(megaHandle)
@@ -313,6 +314,11 @@ MegaBackupInfo::MegaBackupInfo(BackupType type, string localFolder, handle megaH
 BackupType MegaBackupInfo::type() const
 {
     return mType;
+}
+
+string MegaBackupInfo::backupName() const
+{
+    return mBackupName;
 }
 
 handle MegaBackupInfo::backupId() const
@@ -352,7 +358,7 @@ void MegaBackupInfo::setBackupId(const handle &backupId)
 
 #ifdef ENABLE_SYNC
 MegaBackupInfoSync::MegaBackupInfoSync(MegaClient *client, const MegaSync &sync, handle backupid)
-    : MegaBackupInfo(getSyncType(client, sync), sync.getLocalFolder(), sync.getMegaHandle()
+    : MegaBackupInfo(getSyncType(client, sync), sync.getName(), sync.getLocalFolder(), sync.getMegaHandle()
                  , getSyncState(client, sync), getSyncSubstatus(sync), getSyncExtraData(sync), backupid)
 {
 
@@ -420,6 +426,11 @@ BackupType MegaBackupInfoSync::getSyncType(MegaClient *client, const MegaSync &s
         }
     }
     return BackupType::INVALID;
+}
+
+string MegaBackupInfoSync::getSyncName(MegaClient* client, const MegaSync& sync)
+{
+    return sync.getName();
 }
 
 int MegaBackupInfoSync::getSyncSubstatus(const MegaSync &sync)
@@ -534,7 +545,7 @@ void MegaBackupMonitor::registerBackupInfo(const MegaBackupInfo &info)
     string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", info.localFolder()) );
     string deviceIdHash = mClient->getDeviceidHash();
 
-    mClient->reqs.add(new CommandBackupPut(mClient, info.type(), info.megaHandle(),
+    mClient->reqs.add(new CommandBackupPut(mClient, info.type(), info.backupName(),info.megaHandle(),
                                            localFolderEncrypted.c_str(),
                                            deviceIdHash.c_str(),
                                            info.state(), info.subState(), info.extra().c_str()

@@ -159,9 +159,11 @@ private:
 class MegaBackupInfo
 {
 public:
-    MegaBackupInfo(BackupType type, string localFolder, handle megaHandle, int state, int substate, string extra, handle backupId = UNDEF);
+    MegaBackupInfo(BackupType type, string backupName, string localFolder, handle megaHandle, int state, int substate, string extra, handle backupId = UNDEF);
 
     BackupType type() const;
+    
+    string backupName() const;
 
     handle backupId() const;
 
@@ -179,6 +181,7 @@ public:
 
 protected:
     BackupType mType;
+    string mBackupName;
     handle mBackupId;
     string mLocalFolder;
     handle mMegaHandle;
@@ -206,6 +209,7 @@ public:
     void updatePauseState(MegaClient *client);
 
     static BackupType getSyncType(MegaClient *client, const MegaSync &sync);
+    static string getSyncName(MegaClient* client, const MegaSync& sync);
     static int getSyncState (MegaClient *client, const MegaSync &sync);
     static int getSyncSubstatus (const MegaSync &sync);
     string getSyncExtraData(const MegaSync &sync);
