@@ -5197,6 +5197,16 @@ bool MegaApi::isChatNotifiable(MegaHandle chatid)
     return pImpl->isChatNotifiable(chatid);
 }
 
+void MegaApi::startChatCall(MegaHandle chatid, MegaRequestListener *listener)
+{
+    pImpl->startChatCall(chatid, listener);
+}
+
+void MegaApi::joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener *listener)
+{
+    pImpl->joinChatCall(chatid, callid, listener);
+}
+
 #endif
 
 bool MegaApi::isSharesNotifiable()
