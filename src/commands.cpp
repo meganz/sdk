@@ -6980,7 +6980,7 @@ bool CommandChatLinkURL::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, r.errorOrOK());
+        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, UNDEF, r.errorOrOK());
         return true;
     }
     else
@@ -6991,6 +6991,8 @@ bool CommandChatLinkURL::procresult(Result r)
         string url;
         string ct;
         m_time_t ts = 0;
+        bool meetingRoom = false;
+        handle callid = UNDEF;
 
         for (;;)
         {
@@ -7020,21 +7022,29 @@ bool CommandChatLinkURL::procresult(Result r)
                     ts = client->json.getint();
                     break;
 
+                case MAKENAMEID6('c', 'a', 'l', 'l', 'I', 'd'):
+                    callid = client->json.gethandle(MegaClient::CHATHANDLE);
+                    break;
+
+                case MAKENAMEID2('m', 'r'):
+                    meetingRoom = static_cast<bool>(client->json.getint());
+                    break;
+
                 case EOO:
                     if (chatid != UNDEF && shard != -1 && !url.empty() && !ct.empty() && numPeers != -1)
                     {
-                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, ts, API_OK);
+                        client->app->chatlinkurl_result(chatid, shard, &url, &ct, numPeers, ts, meetingRoom, callid, API_OK);
                     }
                     else
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, UNDEF, API_EINTERNAL);
                     }
                     return true;
 
                 default:
                     if (!client->json.storeobject())
                     {
-                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, API_EINTERNAL);
+                        client->app->chatlinkurl_result(UNDEF, -1, NULL, NULL, -1, 0, false, UNDEF, API_EINTERNAL);
                         return false;
                     }
             }
