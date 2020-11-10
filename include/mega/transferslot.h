@@ -121,6 +121,7 @@ struct MEGA_API TransferSlot
 
     // compute the meta MAC based on the chunk MACs
     int64_t macsmac(chunkmac_map*);
+    int64_t macsmac_gaps(chunkmac_map*, size_t g1, size_t g2, size_t g3, size_t g4);
 
     // tslots list position
     transferslot_list::iterator slots_it;
@@ -138,7 +139,9 @@ struct MEGA_API TransferSlot
 private:
     void toggleport(HttpReqXfer* req);
     bool tryRaidRecoveryFromHttpGetError(unsigned i);
-    bool checkTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client);
+    bool checkDownloadTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client);
+    bool checkMetaMacWithMissingLateEntries();
+    void updateMacInKey(int64_t correctMac);
 };
 } // namespace
 

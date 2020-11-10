@@ -349,6 +349,28 @@ int64_t chunkmac_map::macsmac(SymmCipher *cipher)
     return MemAccess::get<int64_t>((const char*)mac);
 }
 
+int64_t chunkmac_map::macsmac_gaps(SymmCipher *cipher, size_t g1, size_t g2, size_t g3, size_t g4)
+{
+    byte mac[SymmCipher::BLOCKSIZE] = { 0 };
+
+    int n = 0;
+    for (chunkmac_map::iterator it = begin(); it != end(); it++, n++)
+    {
+        if ((n >= g1 && n < g2) || (n >= g3 && n < g4)) continue;
+        
+        assert(it->first == ChunkedHash::chunkfloor(it->first));
+        SymmCipher::xorblock(it->second.mac, mac);
+        cipher->ecb_encrypt(mac);
+    }
+
+    uint32_t* m = (uint32_t*)mac;
+
+    m[0] ^= m[1];
+    m[1] = m[2] ^ m[3];
+
+    return MemAccess::get<int64_t>((const char*)mac);
+}
+
 bool CacheableReader::unserializechunkmacs(chunkmac_map& m)
 {
     if (m.unserialize(ptr, end))   // ptr is adjusted by reference
