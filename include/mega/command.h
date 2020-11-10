@@ -965,7 +965,7 @@ class MEGA_API CommandChatCreate : public Command
 public:
     bool procresult(Result) override;
 
-    CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const string_map *ukm = NULL, const char *title = NULL);
+    CommandChatCreate(MegaClient*, bool group, bool publicchat, const userpriv_vector*, const string_map *ukm = NULL, const char *title = NULL, bool meetingRoom = false);
 };
 
 class MEGA_API CommandChatInvite : public Command

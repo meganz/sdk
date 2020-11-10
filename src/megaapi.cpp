@@ -5054,12 +5054,12 @@ char *MegaApi::getMimeType(const char *extension)
 #ifdef ENABLE_CHAT
 void MegaApi::createChat(bool group, MegaTextChatPeerList *peers, const char *title, MegaRequestListener *listener)
 {
-    pImpl->createChat(group, false, peers, NULL, title, listener);
+    pImpl->createChat(group, false, peers, NULL, title, false, listener);
 }
 
-void MegaApi::createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, MegaRequestListener *listener)
+void MegaApi::createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title, bool meetingRoom, MegaRequestListener *listener)
 {
-    pImpl->createChat(true, true, peers, userKeyMap, title, listener);
+    pImpl->createChat(true, true, peers, userKeyMap, title, meetingRoom, listener);
 }
 
 void MegaApi::inviteToChat(MegaHandle chatid,  MegaHandle uh, int privilege, const char *title, MegaRequestListener *listener)

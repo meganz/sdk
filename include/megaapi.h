@@ -3382,6 +3382,8 @@ class MegaRequest
          * - MegaApi::setBackup - Returns the cron like time string to define period
          * - MegaApi::setBackup - Returns the extraData associated with the request
          * - MegaApi::updateBackup - Returns the extraData associated with the request
+         * - MegaApi::startChatCall - Returns the url sfu
+         * - MegaApi::joinChatCall - Returns the url sfu
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3419,8 +3421,7 @@ class MegaRequest
          * - MegaApi::sendChatStats - Returns the connection port
          * - MegaApi::dismissBanner - Returns the timestamp of the request
          * - MegaApi::sendBackupHeartbeat - Returns the time associated with the request
-         * - MegaApi::startChatCall - Returns the url sfu
-         * - MegaApi::joinChatCall - Returns the url sfu
+         * - MegaApi::createPublicChat - Returns if chat room is a meeting room
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -17419,6 +17420,7 @@ class MegaApi
          * - MegaChatRequest::getMegaChatPeerList - List of participants and their privilege level
          * - MegaChatRequest::getMegaStringMap - MegaStringMap with handles and unified keys or each peer
          * - MegaRequest::getText - Returns the title of the chat.
+         * - MegaRequest::getNumber - Returns if chat room is a meeting room
          *
          * Valid data in the MegaChatRequest object received in onRequestFinish when the error code
          * is MegaError::ERROR_OK:
@@ -17430,10 +17432,10 @@ class MegaApi
          * @param peers MegaChatPeerList including other users and their privilege level
          * @param title Byte array that contains the chat topic if exists. NULL if no custom title is required.
          * @param userKeyMap MegaStringMap of user handles in B64 as keys, and unified keys in B64 as values. Own user included
-         *
+         * @param meetingRoom Boolean indicating if room is a meeting room
          * @param listener MegaChatRequestListener to track this request
          */
-        void createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title = NULL, MegaRequestListener *listener = NULL);
+        void createPublicChat(MegaTextChatPeerList *peers, const MegaStringMap *userKeyMap, const char *title = NULL, bool meetingRoom = false, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Adds a user to an existing chat. To do this you must have the

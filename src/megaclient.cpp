@@ -15740,9 +15740,9 @@ void MegaClient::cleanrubbishbin()
 }
 
 #ifdef ENABLE_CHAT
-void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector *userpriv, const string_map *userkeymap, const char *title)
+void MegaClient::createChat(bool group, bool publicchat, const userpriv_vector *userpriv, const string_map *userkeymap, const char *title, bool meetingRoom)
 {
-    reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title));
+    reqs.add(new CommandChatCreate(this, group, publicchat, userpriv, userkeymap, title, meetingRoom));
 }
 
 void MegaClient::inviteToChat(handle chatid, handle uh, int priv, const char *unifiedkey, const char *title)

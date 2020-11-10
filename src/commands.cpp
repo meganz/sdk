@@ -6180,7 +6180,7 @@ bool CommandGetLocalSSLCertificate::procresult(Result r)
 }
 
 #ifdef ENABLE_CHAT
-CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool publicchat, const userpriv_vector *upl, const string_map *ukm, const char *title)
+CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool publicchat, const userpriv_vector *upl, const string_map *ukm, const char *title, bool meetingRoom)
 {
     this->client = client;
     this->chatPeers = new userpriv_vector(*upl);
@@ -6210,6 +6210,11 @@ CommandChatCreate::CommandChatCreate(MegaClient *client, bool group, bool public
             mUnifiedKey = it->second;
             arg("ck", mUnifiedKey.c_str());
         }
+    }
+
+    if (meetingRoom)
+    {
+        arg("mr", 1);
     }
 
     beginarray("u");
