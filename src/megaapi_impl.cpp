@@ -6447,24 +6447,20 @@ MegaErrorPrivate MegaApiImpl::createLocalFolder(LocalPath & localPath)
     {
         if (!client->fsaccess->mkdirlocal(localPath))
         {
-            da.reset();
             LOG_err << "Unable to create folder: " << localPath.toPath(*client->fsaccess);
             return API_EWRITE;
         }
     }
     else if (da->type == FILENODE)
     {
-        da.reset();
         LOG_err << "Local file detected where there should be a folder: " << localPath.toPath(*client->fsaccess);
         return API_EARGS;
     }
     else
     {
-        da.reset();
         LOG_debug << "Already existing folder detected: " << localPath.toPath(*client->fsaccess);
         return API_EEXIST;
     }
-    da.reset();
     return API_OK;
 }
 
