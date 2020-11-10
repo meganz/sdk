@@ -1362,6 +1362,26 @@ public:
     CommandDismissBanner(MegaClient*, int id, m_time_t ts);
 };
 
+typedef std::function<void(Error, std::string, handle)> CommandStartChatCallCompletion;
+class MEGA_API CommandStartChatCall : public Command
+{
+    CommandStartChatCallCompletion mCompletion;
+public:
+    bool procresult(Result) override;
+
+    CommandStartChatCall(MegaClient*, handle chatid, CommandStartChatCallCompletion completion);
+};
+
+typedef std::function<void(Error, std::string)> CommandJoinChatCallCompletion;
+class MEGA_API CommandJoinChatCall : public Command
+{
+    CommandJoinChatCallCompletion mCompletion;
+public:
+    bool procresult(Result) override;
+
+    CommandJoinChatCall(MegaClient*, handle chatid, handle callid, CommandJoinChatCallCompletion completion);
+};
+
 } // namespace
 
 #endif

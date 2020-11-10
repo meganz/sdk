@@ -8365,4 +8365,94 @@ bool CommandDismissBanner::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
+bool CommandStartChatCall::procresult(Command::Result r)
+{
+    if (r.wasErrorOrOK())
+    {
+        mCompletion(r.errorOrOK(), "", UNDEF);
+        return true;
+    }
+
+    handle callid = UNDEF;
+    string sfuUrl;
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case MAKENAMEID6('c', 'a', 'l', 'l', 'I', 'd'):
+                callid = client->json.gethandle(MegaClient::CHATHANDLE);
+                break;
+
+            case MAKENAMEID3('s', 'f', 'u'):
+                client->json.storeobject(&sfuUrl);
+                break;
+
+            case EOO:
+                mCompletion(API_OK, sfuUrl, callid);
+                return true;
+                break;
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    mCompletion(API_EINTERNAL, "", UNDEF);
+                    return false;
+                }
+        }
+    }
+}
+
+CommandStartChatCall::CommandStartChatCall(MegaClient *client, handle chatid, CommandStartChatCallCompletion completion)
+    : mCompletion(completion)
+{
+    cmd("chatStartCall");
+    arg("chatId", (byte*)&chatid, MegaClient::CHATHANDLE);
+
+    tag = client->reqtag;
+}
+
+bool CommandJoinChatCall::procresult(Command::Result r)
+{
+    if (r.wasErrorOrOK())
+    {
+        mCompletion(r.errorOrOK(), "");
+        return true;
+    }
+
+    string sfuUrl;
+
+    for (;;)
+    {
+        switch (client->json.getnameid())
+        {
+            case MAKENAMEID3('u', 'r', 'l'):
+                client->json.storeobject(&sfuUrl);
+                break;
+
+            case EOO:
+                mCompletion(API_OK, sfuUrl);
+                return true;
+                break;
+
+            default:
+                if (!client->json.storeobject())
+                {
+                    mCompletion(API_EINTERNAL, "");
+                    return false;
+                }
+        }
+    }
+}
+
+CommandJoinChatCall::CommandJoinChatCall(MegaClient *client, handle chatid, handle callid, CommandJoinChatCallCompletion completion)
+    : mCompletion(completion)
+{
+    cmd("chatJoinCall");
+    arg("chatId", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("callId", (byte*)&callid, MegaClient::CHATHANDLE);
+
+    tag = client->reqtag;
+}
+
 } // namespace
