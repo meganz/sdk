@@ -1343,15 +1343,13 @@ bool PosixFileSystemAccess::chdirlocal(LocalPath& name) const
 }
 
 // return lowercased ASCII file extension, including the . separator
-bool PosixFileSystemAccess::getextension(const LocalPath& filename, char* extension, size_t size) const
+bool PosixFileSystemAccess::getextension(const LocalPath& filename, std::string &extension) const
 {
     const std::string* str = &filename.localpath;
     const char* ptr = str->data() + str->size();
     char c;
 
-    size = std::min(size - 1, str->size());
-
-    for (unsigned i = 0; i < size; i++)
+    for (unsigned i = 0; i < str->size(); i++)
     {
         if (*--ptr == '.')
         {
@@ -1365,11 +1363,8 @@ bool PosixFileSystemAccess::getextension(const LocalPath& filename, char* extens
                 // tolower()
                 if (c >= 'A' && c <= 'Z') c |= ' ';
 
-                extension[j] = c;
+                extension.push_back(c);
             }
-
-            extension[j] = 0;
-
             return true;
         }
     }
