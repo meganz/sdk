@@ -141,7 +141,6 @@ private:
     bool tryRaidRecoveryFromHttpGetError(unsigned i);
     bool checkDownloadTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client);
     bool checkMetaMacWithMissingLateEntries();
-    void updateMacInKey(int64_t correctMac);
 };
 } // namespace
 
