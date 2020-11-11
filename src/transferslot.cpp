@@ -376,7 +376,7 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
                 auto correctMac = macsmac(&transfer->chunkmacs);
                 transfer->currentmetamac = correctMac;
                 transfer->metamac = correctMac;
-                updateMacInKey(correctMac);
+                // TODO: update the Node's key to be correct (needs some API additions before enabling)
                 return true;
             }
         }
@@ -400,7 +400,7 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
                         auto correctMac = macsmac(&transfer->chunkmacs);
                         transfer->currentmetamac = correctMac;
                         transfer->metamac = correctMac;
-                        updateMacInKey(correctMac);
+                        // TODO: update the Node's key to be correct (needs some API additions before enabling)
                         return true;
                     }
                 }
@@ -408,35 +408,6 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
         }
     }
     return false;
-}
-
-void TransferSlot::updateMacInKey(int64_t correctMac)
-{
-    // Update the Node's key to be correct (needs some API additions before enabling)
-    //for (file_list::iterator it = transfer->files.begin(); it != transfer->files.end(); it++)
-    //{
-    //    if ((*it)->hprivate && !(*it)->hforeign)
-    //    {
-    //        if (Node* n = transfer->client->nodebyhandle((*it)->h))
-    //        {
-    //            if (n->type == FILENODE && n->nodekey().size() == FILENODEKEYLENGTH)
-    //            {
-    //                auto k1 = (byte*)n->nodekey().data();
-    //                auto k2 = k1 + SymmCipher::KEYLENGTH;
-    //                if (transfer->metamac == MemAccess::get<int64_t>((const char*)k2 + sizeof(int64_t)))
-    //                {
-    //                    SymmCipher::xorblock(k2, k1);
-    //                    MemAccess::set<int64_t>(k2 + sizeof(int64_t), correctMac);
-    //                    SymmCipher::xorblock(k2, k1);
-
-    //                    handle_vector hv;
-    //                    hv.push_back(n->nodehandle);
-    //                    transfer->client->reqs.add(new CommandNodeKeyUpdate(transfer->client, &hv));
-    //                }
-    //            }
-    //        }
-    //    }
-    //}
 }
 
 bool TransferSlot::checkDownloadTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client)
