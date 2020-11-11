@@ -160,7 +160,7 @@ struct DemoApp : public MegaApp
 
     void fetchnodes_result(const Error&) override;
 
-    void putnodes_result(const Error&, targettype_t, vector<NewNode>&) override;
+    void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride) override;
 
     void share_result(error) override;
     void share_result(int, error) override;
@@ -257,8 +257,8 @@ struct DemoApp : public MegaApp
     void contactlinkquery_result(error, handle, string*, string*, string*, string*) override;
     void contactlinkdelete_result(error) override;
 
-    void smsverificationsend_result(error);
-    void smsverificationcheck_result(error, string*);
+    void smsverificationsend_result(error) override;
+    void smsverificationcheck_result(error, string*) override;
 
     void getbanners_result(error) override;
     void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;

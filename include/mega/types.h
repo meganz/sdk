@@ -95,6 +95,10 @@ using std::tuple;
 using std::ostringstream;
 using std::unique_ptr;
 
+#ifdef WIN32
+using std::wstring;
+#endif
+
 // forward declaration
 struct AttrMap;
 class BackoffTimer;
@@ -215,6 +219,7 @@ public:
     typedef enum
     {
         USER_ETD_UNKNOWN = -1,
+        USER_COPYRIGHT_SUSPENSION = 4,  // Account suspended by copyright
         USER_ETD_SUSPENSION = 7, // represents an ETD/ToS 'severe' suspension level
     } UserErrorCode;
 

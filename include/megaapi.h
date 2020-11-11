@@ -4240,6 +4240,16 @@ class MegaTransfer
          * @return Notification number
          */
         virtual long long getNotificationNumber() const;
+
+        /**
+         * @brief Returns whether the target folder of the transfer was overriden by the API server
+         *
+         * It may happen that the target folder fo a transfer is deleted by the time the node
+         * is going to be added. Hence, the API will create the node in the rubbish bin.
+         *
+         * @return True if target folder was overriden (apps can check the final parent)
+         */
+        virtual bool getTargetOverride() const;
 };
 
 /**
@@ -5904,8 +5914,9 @@ public:
      */
     enum UserErrorCode
     {
-        USER_ETD_UNKNOWN = -1,      ///< Unknown state
-        USER_ETD_SUSPENSION = 7,    ///< Account suspend by an ETD/ToS 'severe'
+        USER_ETD_UNKNOWN = -1,          ///< Unknown state
+        USER_COPYRIGHT_SUSPENSION = 4,  /// Account suspended by copyright
+        USER_ETD_SUSPENSION = 7,        ///< Account suspend by an ETD/ToS 'severe'
     };
 
     /**
@@ -5973,6 +5984,7 @@ public:
          *
          * This method only returns a valid value when hasExtraInfo is true
          * Possible values:
+         *  MegaError::UserErrorCode::USER_COPYRIGHT_SUSPENSION
          *  MegaError::UserErrorCode::USER_ETD_SUSPENSION
          *
          * Otherwise, it returns MegaError::UserErrorCode::USER_ETD_UNKNOWN
@@ -9811,6 +9823,7 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - Handle of the new folder
+         * - MegaRequest::getFlag - True if target folder (\c parent) was overriden
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
@@ -9855,6 +9868,10 @@ class MegaApi
          * - MegaRequest::getParentHandle - Returns the handle of the new parent for the node
          * - MegaRequest::getName - Returns the name for the new node
          *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getFlag - True if target folder (\c newParent) was overriden
+         *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
@@ -9877,6 +9894,11 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - Handle of the new node
+         * - MegaRequest::getFlag - True if target folder (\c newParent) was overriden
+         *
+         * @note In case the target folder was overriden, the MegaRequest::getParentHandle still keeps
+         * the handle of the original target folder. You can check the final parent by checking the
+         * value returned by MegaNode::getParentHandle
          *
          * If the status of the business account is expired, onRequestFinish will be called with the error
          * code MegaError::API_EBUSINESSPASTDUE.
@@ -10127,6 +10149,7 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - Handle of the new node in the account
+         * - MegaRequest::getFlag - True if target folder (\c parent) was overriden
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
@@ -16532,6 +16555,7 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - Returns the handle of the uploaded node
+         * - MegaRequest::getFlag - True if target folder (\c parent) was overriden
          *
          * @param state The MegaBackgroundMediaUpload object tracking this upload
          * @param utf8Name The leaf name of the file, utf-8 encoded
