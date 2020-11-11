@@ -1115,7 +1115,7 @@ size_t WinFileSystemAccess::lastpartlocal(const string* name) const
 }
 
 // return lowercased ASCII file extension, including the . separator
-bool WinFileSystemAccess::getextension(const LocalPath& filenamePath, char* extension, size_t size) const
+bool WinFileSystemAccess::getextension(const LocalPath& filenamePath, std::string &extension) const
 {
     const string* filename = filenamePath.editStringDirect();
 
@@ -1124,18 +1124,14 @@ bool WinFileSystemAccess::getextension(const LocalPath& filenamePath, char* exte
 
     char c;
     size_t i, j;
-
-	size--;
-
-	if (size * sizeof(wchar_t) > filename->size())
-	{
-		size = int(filename->size() / sizeof(wchar_t));
-	}
+    size_t size = int(filename->size() / sizeof(wchar_t));
 
 	for (i = 0; i < size; i++)
 	{
 		if (*--ptr == '.')
 		{
+            extension.reserve(i+1);
+
 			for (j = 0; j <= i; j++)
 			{
 				if (*ptr < '.' || *ptr > 'z') return false;
@@ -1145,11 +1141,8 @@ bool WinFileSystemAccess::getextension(const LocalPath& filenamePath, char* exte
 				// tolower()
 				if (c >= 'A' && c <= 'Z') c |= ' ';
                 
-                extension[j] = c;
-			}
-			
-            extension[j] = 0;
-            
+                extension.push_back(c);
+            }
 			return true;
 		}
 	}

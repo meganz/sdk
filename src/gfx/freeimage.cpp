@@ -250,10 +250,9 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, string* imagePath, int s
         seek_target = av_rescale_q(formatContext->duration / 5, av_get_time_base_q(), videoStream->time_base);
     }
 
-    char ext[MAXEXTENSIONLEN];
-
-    if (client->fsaccess->getextension(LocalPath::fromLocalname(*imagePath),ext,8)
-            && strcmp(ext,".mp3") && seek_target > 0
+    string extension;
+    if (client->fsaccess->getextension(LocalPath::fromLocalname(*imagePath), extension)
+            && extension.compare(".mp3") && seek_target > 0
             && av_seek_frame(formatContext, videoStreamIdx, seek_target, AVSEEK_FLAG_BACKWARD) < 0)
     {
         LOG_warn << "Error seeking video";
@@ -405,12 +404,12 @@ bool GfxProcFreeImage::readbitmap(FileAccess* fa, string* localname, int size)
 #endif
 
 #ifdef HAVE_FFMPEG
-    char ext[MAXEXTENSIONLEN];
+    string extension;
     bool isvideo = false;
-    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localname), ext, sizeof ext))
+    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localname), extension))
     {
         const char* ptr;
-        if ((ptr = strstr(supportedformatsFfmpeg(), ext)) && ptr[strlen(ext)] == '.')
+        if ((ptr = strstr(supportedformatsFfmpeg(), extension.c_str())) && ptr[extension.size()] == '.')
         {
             string name;  // WIN32 ffmpeg uses utf8 rather than wide strings
             client->fsaccess->local2path(localname, &name);
