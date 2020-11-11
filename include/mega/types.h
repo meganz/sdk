@@ -61,6 +61,7 @@ namespace mega {
 using byte = CryptoPP::byte;
 #elif __RPCNDR_H_VERSION__ != 500
 typedef unsigned char byte;
+
 #endif
 }
 
@@ -134,9 +135,9 @@ class AuthRing;
 
 #define EOO 0
 
-// Our own version of time_t which we can be sure is 64 bit.  
+// Our own version of time_t which we can be sure is 64 bit.
 // Utils.h has functions m_time() and so on corresponding to time() which help us to use this type and avoid arithmetic overflow when working with time_t on systems where it's 32-bit
-typedef int64_t m_time_t; 
+typedef int64_t m_time_t;
 
 // monotonously increasing time in deciseconds
 typedef uint32_t dstime;
@@ -271,6 +272,9 @@ typedef list<struct File*> file_list;
 // RUBBISH - rubbish bin
 typedef enum { TYPE_UNKNOWN = -1, FILENODE = 0, FOLDERNODE, ROOTNODE, INCOMINGNODE, RUBBISHNODE } nodetype_t;
 
+typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,
+               LBL_BLUE = 5, LBL_PURPLE = 6, LBL_GREY = 7, } nodelabel_t;
+
 // node type key lengths
 const int FILENODEKEYLENGTH = 32;
 const int FOLDERNODEKEYLENGTH = 16;
@@ -317,7 +321,77 @@ typedef enum { PUTNODES_APP, PUTNODES_SYNC, PUTNODES_SYNCDEBRIS } putsource_t;
 // maps handle-index pairs to file attribute handle
 typedef map<pair<handle, fatype>, pair<handle, int> > fa_map;
 
-typedef enum { SYNC_FAILED = -2, SYNC_CANCELED = -1, SYNC_INITIALSCAN = 0, SYNC_ACTIVE } syncstate_t;
+typedef enum {
+    SYNC_DISABLED = -3, //user disabled (if no syncError, otherwise automatically disabled . i.e SYNC_TEMPORARY_DISABLED)
+    SYNC_FAILED = -2,
+    SYNC_CANCELED = -1, // being deleted
+    SYNC_INITIALSCAN = 0,
+    SYNC_ACTIVE
+} syncstate_t;
+
+enum SyncError {
+    NO_SYNC_ERROR = 0,
+    UNKNOWN_ERROR = 1,
+    UNSUPPORTED_FILE_SYSTEM = 2,            // File system type is not supported
+    INVALID_REMOTE_TYPE = 3,                // Remote type is not a folder that can be synced
+    INVALID_LOCAL_TYPE = 4,                 // Local path does not refer to a folder
+    INITIAL_SCAN_FAILED = 5,                // The initial scan failed
+    LOCAL_PATH_TEMPORARY_UNAVAILABLE = 6,   // Local path is temporarily unavailable: this is fatal when adding a sync
+    LOCAL_PATH_UNAVAILABLE = 7,             // Local path is not available (can't be open)
+    REMOTE_NODE_NOT_FOUND = 8,              // Remote node does no longer exists
+    STORAGE_OVERQUOTA = 9,                  // Account reached storage overquota
+    BUSINESS_EXPIRED = 10,                  // Business account expired
+    FOREIGN_TARGET_OVERSTORAGE = 11,        // Sync transfer fails (upload into an inshare whose account is overquota)
+    REMOTE_PATH_HAS_CHANGED = 12,           // Remote path has changed (currently unused: not an error)
+    REMOTE_PATH_DELETED = 13,               // Remote path has been deleted
+    SHARE_NON_FULL_ACCESS = 14,             // Existing inbound share sync or part thereof lost full access
+    LOCAL_FINGERPRINT_MISMATCH = 15,        // Filesystem fingerprint does not match the one stored for the synchronization
+    PUT_NODES_ERROR = 16,                   // Error processing put nodes result
+    ACTIVE_SYNC_BELOW_PATH = 17,            // There's a synced node below the path to be synced
+    ACTIVE_SYNC_ABOVE_PATH = 18,            // There's a synced node above the path to be synced
+    REMOTE_NODE_MOVED_TO_RUBBISH = 19,      // Moved to rubbish
+    REMOTE_NODE_INSIDE_RUBBISH = 20,        // Attempted to be added in rubbish
+    VBOXSHAREDFOLDER_UNSUPPORTED = 21,      // Found unsupported VBoxSharedFolderFS
+    LOCAL_PATH_SYNC_COLLISION = 22,         // Local path includes a synced path or is included within one
+    LOCAL_IS_FAT = 23,                      // Found FAT (not a failure per se)
+    LOCAL_IS_HGFS= 24,                      // Found HGFS (not a failure per se)
+    ACCOUNT_BLOCKED= 25,                    // Account blocked
+    UNKNOWN_TEMPORARY_ERROR = 26,           // Unknown temporary error
+    TOO_MANY_ACTION_PACKETS = 27,           // Too many changes in account, local state discarded
+    LOGGED_OUT = 28,                        // Logged out
+};
+
+inline bool isSyncErrorPermanent(SyncError e)
+{
+    switch (e)
+    {
+    case NO_SYNC_ERROR:
+    case LOGGED_OUT: //syncs may be restored after relogging
+    case UNKNOWN_TEMPORARY_ERROR:
+    case STORAGE_OVERQUOTA:
+    case BUSINESS_EXPIRED:
+    case FOREIGN_TARGET_OVERSTORAGE:
+    case ACCOUNT_BLOCKED:
+    case LOCAL_IS_FAT:
+    case LOCAL_IS_HGFS:
+        return false;
+    default:
+        return true;
+    }
+}
+
+inline bool isAnError(SyncError e)
+{
+    switch (e)
+    {
+    case NO_SYNC_ERROR:
+    case LOCAL_IS_FAT:
+    case LOCAL_IS_HGFS:
+        return false;
+    default:
+        return true;
+    }
+}
 
 typedef enum { SYNCDEL_NONE, SYNCDEL_DELETED, SYNCDEL_INFLIGHT, SYNCDEL_BIN,
                SYNCDEL_DEBRIS, SYNCDEL_DEBRISDAY, SYNCDEL_FAILED } syncdel_t;
@@ -353,7 +427,7 @@ template <class T, class E>
 class deque_with_lazy_bulk_erase
 {
     // This is a wrapper class for deque.  Erasing an element from the middle of a deque is not cheap since all the subsequent elements need to be shuffled back.
-    // This wrapper intercepts the erase() calls for single items, and instead marks each one as 'erased'.  
+    // This wrapper intercepts the erase() calls for single items, and instead marks each one as 'erased'.
     // The supplied template class E contains the normal deque entry T, plus a flag or similar to mark an entry erased.
     // Any other operation on the deque performs all the gathered erases in a single std::remove_if for efficiency.
     // This makes an enormous difference when cancelling 100k transfers in MEGAsync's transfers window for example.
@@ -675,9 +749,9 @@ namespace CodeCounter
         std::string name;
         ScopeStats(std::string s) : name(std::move(s)) {}
 
-        inline string report(bool reset = false) 
-        { 
-            string s = " " + name + ": " + std::to_string(count) + " " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(timeSpent).count()); 
+        inline string report(bool reset = false)
+        {
+            string s = " " + name + ": " + std::to_string(count) + " " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(timeSpent).count());
             if (reset)
             {
                 count = 0;
@@ -701,9 +775,9 @@ namespace CodeCounter
         inline void start(bool b = true) { if (b && !started) { deltaStart = high_resolution_clock::now(); started = true; }  }
         inline void stop(bool b = true) { if (b && started) { sum += high_resolution_clock::now() - deltaStart; started = false; } }
         inline bool inprogress() { return started; }
-        inline string report(bool reset = false) 
-        { 
-            string s = std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(sum).count()); 
+        inline string report(bool reset = false)
+        {
+            string s = std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(sum).count());
             if (reset) sum = high_resolution_clock::duration{ 0 };
             return s;
         }
@@ -737,6 +811,41 @@ namespace CodeCounter
     };
 }
 
+
+// Hold the status of a status variable
+class CacheableStatus : public Cacheable
+{
+public:
+    enum Type
+    {
+        STATUS_UNKNOWN = 0,
+        STATUS_STORAGE = 1,
+        STATUS_BUSINESS = 2,
+        STATUS_BLOCKED = 3,
+    };
+
+    CacheableStatus(int64_t type, int64_t value);
+
+    // serializes the object to a string
+    bool serialize(string* data) override;
+
+    // deserializes the string to a SyncConfig object. Returns null in case of failure
+    static std::shared_ptr<CacheableStatus> unserialize(MegaClient *client, const std::string& data);
+    int64_t type() const;
+    int64_t value() const;
+
+    void setValue(const int64_t value);
+
+private:
+
+    // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
+    bool serialize(std::string& data) const;
+
+    int64_t mType = STATUS_UNKNOWN;
+    int64_t mValue = 0;
+
+};
+
 typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3 } BackupType;
 
 // Holds the config of a sync. Can be extended with future config options
@@ -751,25 +860,48 @@ public:
         TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
     };
 
-    SyncConfig(std::string localPath,
+    SyncConfig(int tag,
+               std::string localPath,
+               std::string syncName,
                const handle remoteNode,
+               const std::string &remotePath,
                const fsfp_t localFingerprint,
                std::vector<std::string> regExps = {},
+               const bool enabled = true,
                const Type syncType = TYPE_TWOWAY,
                const bool syncDeletions = false,
-               const bool forceOverwrite = false);
+               const bool forceOverwrite = false,
+               const SyncError error = NO_SYNC_ERROR
+            );
 
-    // whether this sync is resumable
+    // returns unique identifier
+    int getTag() const;
+
+    // returns unique identifier
+    void setTag(int tag);
+
+    // whether this sync can be resumed
     bool isResumable() const;
 
-    // sets whether this sync is resumable
-    void setResumable(bool active);
+    // whether this sync should be resumed at startup
+    bool isResumableAtStartup() const;
+
+    // wether this sync has errors (was inactive)
+    bool hasError() const;
 
     // returns the local path of the sync
     const std::string& getLocalPath() const;
 
+    // returns the name of the sync
+    const std::string& getName() const;
+
     // returns the remote path of the sync
     handle getRemoteNode() const;
+
+    void setRemoteNode(const handle &remoteNode);
+
+    // returns the last valid remote path of the sync
+    const std::string& getRemotePath() const;
 
     // returns the local fingerprint
     fsfp_t getLocalFingerprint() const;
@@ -801,23 +933,49 @@ public:
     // deserializes the string to a SyncConfig object. Returns null in case of failure
     static std::unique_ptr<SyncConfig> unserialize(const std::string& data);
 
-private:
-    friend bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
+    void setRemotePath(const std::string &remotePath);
 
-    // Whether the sync is resumable
-    bool mResumable = true;
+    // get error code (errors can be temporary/fatal/mere warnings)
+    SyncError getError() const;
+
+    // sets the error
+    void setError(SyncError value);
+
+    // enabled by the user
+    bool getEnabled() const;
+
+    // sets if enabled by the user
+    void setEnabled(bool enabled);
+
+    // check if a sync would be enabled according to the sync state and error
+    static bool isEnabled(syncstate_t state, SyncError syncError);
+
+private:
+
+    // Unique identifier. any other field can change (even remote handle),
+    // and we want to keep disabled configurations saved: e.g: remote handle changed
+    int mTag;
+
+    // enabled/disabled by the user
+    bool mEnabled = true;
 
     // the local path of the sync
     std::string mLocalPath;
 
+    // name of the sync (if localpath is not adecuate)
+    std::string mName;
+
     // the remote handle of the sync
     handle mRemoteNode;
+
+    // the last valid remote path of the sync
+    std::string mRemotePath;
 
     // the local fingerprint
     fsfp_t mLocalFingerprint;
 
     // list of regular expressions
-    std::vector<std::string> mRegExps;
+    std::vector<std::string> mRegExps; //TODO: rename this to wildcardExclusions?: they are not regexps AFAIK
 
     // type of the sync, defaults to bidirectional
     Type mSyncType;
@@ -828,32 +986,13 @@ private:
     // whether changes are overwritten irregardless of file properties (only relevant for one-way-sync)
     bool mForceOverwrite;
 
+    // failure cause (disable/failure cause).
+    SyncError mError;
+
     // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
     bool serialize(std::string& data) const;
 
-    // this is very handy for defining comparison operators
-    std::tuple<const bool&,
-               const std::string&,
-               const handle&,
-               const fsfp_t&,
-               const std::vector<std::string>&,
-               const Type&,
-               const bool&,
-               const bool&> tie() const
-    {
-        return std::tie(mResumable,
-                        mLocalPath,
-                        mRemoteNode,
-                        mLocalFingerprint,
-                        mRegExps,
-                        mSyncType,
-                        mSyncDeletions,
-                        mForceOverwrite);
-    }
 };
-
-bool operator==(const SyncConfig& lhs, const SyncConfig& rhs);
-
 
 // cross reference pointers.  For the case where two classes have pointers to each other, and they should
 // either always be NULL or if one refers to the other, the other refers to the one.
@@ -862,7 +1001,7 @@ template<class TO, class FROM>
 FROM*& crossref_other_ptr_ref(TO* s);  // to be supplied for each pair of classes (to assign to the right member thereof) (gets around circular declarations)
 
 template <class  TO, class  FROM>
-class MEGA_API  crossref_ptr 
+class MEGA_API  crossref_ptr
 {
     friend class crossref_ptr<FROM, TO>;
 
@@ -879,7 +1018,7 @@ public:
         reset();
     }
 
-    void crossref(TO* to, FROM* from) 
+    void crossref(TO* to, FROM* from)
     {
         assert(to && from);
         assert(ptr == nullptr);

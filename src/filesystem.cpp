@@ -70,6 +70,8 @@ const char *FileSystemAccess::fstypetostring(FileSystemType type) const
             return "SDCARDFS";
         case FS_F2FS:
             return "F2FS";
+        case FS_XFS:
+            return "XFS";
         case FS_UNKNOWN:    // fall through
             return "UNKNOWN FS";
     }
@@ -77,119 +79,51 @@ const char *FileSystemAccess::fstypetostring(FileSystemType type) const
     return "UNKNOWN FS";
 }
 
-FileSystemType FileSystemAccess::getlocalfstype(const LocalPath& dstPath) const
+FileSystemType FileSystemAccess::getlocalfstype(const LocalPath& path) const
 {
-    if (dstPath.empty())
+    // Not enough information to determine path.
+    if (path.empty())
     {
         return FS_UNKNOWN;
     }
 
-#if defined (__linux__) && !defined (__ANDROID__)
-    // Filesystem detection for Linux
-    struct statfs fileStat;
-    if (!statfs(dstPath.editStringDirect()->c_str(), &fileStat))
-    {
-        switch (fileStat.f_type)
-        {
-            case EXT2_SUPER_MAGIC:
-                return FS_EXT;
-            case MSDOS_SUPER_MAGIC:
-                return FS_FAT32;
-            case HFS_SUPER_MAGIC:
-                return FS_HFS;
-            case NTFS_SB_MAGIC:
-                return FS_NTFS;
-            default:
-                return FS_UNKNOWN;
-        }
-    }
-#elif defined (__ANDROID__)
-    // Filesystem detection for Android
-    struct statfs fileStat;
-    if (!statfs(dstPath.editStringDirect()->c_str(), &fileStat))
-    {
-        switch (fileStat.f_type)
-        {
-            case EXT2_SUPER_MAGIC:
-                return FS_EXT;
-            case MSDOS_SUPER_MAGIC:
-                return FS_FAT32;
-            case HFS_SUPER_MAGIC:
-                return FS_HFS;
-            case NTFS_SB_MAGIC:
-                return FS_NTFS;
-            case SDCARDFS_SUPER_MAGIC:
-                return FS_SDCARDFS;
-            case FUSEBLK_SUPER_MAGIC:
-            case FUSECTL_SUPER_MAGIC:
-                return FS_FUSE;
-            case F2FS_SUPER_MAGIC:
-                return FS_F2FS;
-            default:
-                return FS_UNKNOWN;
-        }
-    }
-#elif defined  (__APPLE__) || defined (USE_IOS)
-    // Filesystem detection for Apple and iOS
-    struct statfs fileStat;
-    if (!statfs(dstPath.editStringDirect()->c_str(), &fileStat))
-    {
-        if (!strcmp(fileStat.f_fstypename, "apfs"))
-        {
-            return FS_APFS;
-        }
-        if (!strcmp(fileStat.f_fstypename, "hfs"))
-        {
-            return FS_HFS;
-        }
-        if (!strcmp(fileStat.f_fstypename, "ntfs"))
-        {
-            return FS_NTFS;
-        }
-        if (!strcmp(fileStat.f_fstypename, "msdos"))
-        {
-            return FS_FAT32;
-        }
-    }
-#elif defined(_WIN32) || defined(WINDOWS_PHONE)
-    // Filesystem detection for Windows
+    FileSystemType type;
 
-    auto tmpPath = dstPath;
-    tmpPath.editStringDirect()->append("", 1); // make sure of 2 byte terminator as LPCTWSTR (later we'll make it wstring for windows)
+    // Try and get the type from the path we were given.
+    if (getlocalfstype(path, type))
+    {
+        // Path exists.
+        return type;
+    }
 
-    std::wstring volMountPoint;
-    volMountPoint.resize(MAX_PATH);
-    DWORD mountLen = static_cast<DWORD>(volMountPoint.size());
-    if (!(GetVolumePathNameW((LPCWSTR)tmpPath.editStringDirect()->data(), &volMountPoint[0], mountLen)))
+    // Try and get the type based on our parent's path.
+    LocalPath parentPath(path);
+
+    // Remove trailing separator, if any.
+    parentPath.trimNonDriveTrailingSeparator(*this);
+
+    // Did the path consist solely of that separator?
+    if (parentPath.empty())
     {
         return FS_UNKNOWN;
     }
 
-    LPCWSTR auxMountPoint = volMountPoint.c_str();
-    WCHAR volumeName[MAX_PATH + 1] = { 0 };
-    WCHAR fileSystemName[MAX_PATH + 1] = { 0 };
-    DWORD serialNumber = 0;
-    DWORD maxComponentLen = 0;
-    DWORD fileSystemFlags = 0;
+    // Where does our name begin?
+    auto index = parentPath.getLeafnameByteIndex(*this);
 
-    if (GetVolumeInformationW(auxMountPoint, volumeName, sizeof(volumeName),
-                             &serialNumber, &maxComponentLen, &fileSystemFlags,
-                             fileSystemName, sizeof(fileSystemName)))
+    // We have a parent.
+    if (index)
     {
-        if (!wcscmp(fileSystemName, L"NTFS"))
+        // Remove the current leaf name.
+        parentPath.truncate(index);
+
+        // Try and get our parent's filesystem type.
+        if (getlocalfstype(parentPath, type))
         {
-            return FS_NTFS;
-        }
-        if (!wcscmp(fileSystemName, L"exFAT"))
-        {
-            return FS_EXFAT;
-        }
-        if (!wcscmp(fileSystemName, L"FAT32"))
-        {
-            return FS_FAT32;
+            return type;
         }
     }
-#endif
+
     return FS_UNKNOWN;
 }
 
@@ -202,21 +136,6 @@ bool FileSystemAccess::isControlChar(unsigned char c) const
 bool FileSystemAccess::islocalfscompatible(unsigned char c, bool, FileSystemType) const
 {
     return c >= ' ' && !strchr("\\/:?\"<>|*", c);
-}
-
-FileSystemType FileSystemAccess::getFilesystemType(const LocalPath& dstPath) const
-{
-    // first get "valid" path (no last leaf name, in case it is not in the FS?)
-    LocalPath validPath = dstPath;
-
-    if (!validPath.endsInSeparator(*this))
-    {
-        size_t leafIndex = validPath.getLeafnameByteIndex(*this);
-        if (leafIndex > 0)
-            validPath.truncate(leafIndex);
-    }
-
-    return getlocalfstype(validPath);
 }
 
 // replace characters that are not allowed in local fs names with a %xx escape sequence
@@ -249,7 +168,7 @@ void FileSystemAccess::escapefsincompatible(string* name, FileSystemType fileSys
             name->replace(i, 1, buf);
             LOG_debug << "Escape incompatible character for filesystem type "
                       << fstypetostring(fileSystemType)
-                      << ", replace '" << std::string(&incompatibleChar, 1) << "' by '" << buf << "'\n";
+                      << ", replace '" << incompatibleChar << "' by '" << buf << "'\n";
         }
         i += utf8seqsize;
     }

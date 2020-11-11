@@ -1011,6 +1011,30 @@ using namespace mega;
     return stringLink;
 }
 
+- (void)setNodeLabel:(MEGANode *)node label:(MEGANodeLabel)label delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setNodeLabel(node.getCPtr, (int)label, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setNodeLabel:(MEGANode *)node label:(MEGANodeLabel)label {
+    self.megaApi->setNodeLabel(node.getCPtr, (int)label);
+}
+
+- (void)resetNodeLabel:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->resetNodeLabel(node.getCPtr, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)resetNodeLabel:(MEGANode *)node {
+    self.megaApi->resetNodeLabel(node.getCPtr);
+}
+
+- (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setNodeFavourite(node.getCPtr, favourite, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite {
+    self.megaApi->setNodeFavourite(node.getCPtr, favourite);
+}
+
 - (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setNodeCoordinates(node ? [node getCPtr] : NULL, (latitude ? latitude.doubleValue : MegaNode::INVALID_COORDINATE), (longitude ? longitude.doubleValue : MegaNode::INVALID_COORDINATE), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -2429,7 +2453,7 @@ using namespace mega;
     self.megaApi->resetSmsVerifiedPhoneNumber([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)resetSmsVerifiedPhoneNumberWithDelegate {
+- (void)resetSmsVerifiedPhoneNumber {
     self.megaApi->resetSmsVerifiedPhoneNumber();
 }
 

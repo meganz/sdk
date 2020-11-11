@@ -194,7 +194,7 @@ class SCSN
     // sc inconsistency: stop querying for action packets
     bool stopsc = false;
 
-public: 
+public:
 
     bool setScsn(JSON*);
     void setScsn(handle);
@@ -211,6 +211,8 @@ public:
     SCSN();
     void clear();
 };
+
+std::ostream& operator<<(std::ostream &os, const SCSN &scsn);
 
 class MEGA_API MegaClient
 {
@@ -263,7 +265,7 @@ public:
 
     // the verified account phone number, filled in from 'ug'
     string mSmsVerifiedPhone;
-	
+
     // pseudo-random number generator
     PrnGen rng;
 
@@ -292,6 +294,9 @@ public:
 
     // ID tag of the next request
     int nextreqtag();
+
+    // ID tag of the next sync
+    int nextSyncTag(int increment = 0);
 
     // corresponding ID tag of the currently executing callback
     int restag;
@@ -456,13 +461,16 @@ public:
     error checkmove(Node*, Node*);
 
     // delete node
-    error unlink(Node*, bool = false);
+    error unlink(Node*, bool keepversions, int tag, std::function<void(handle, error)> resultFunction = nullptr);
 
     // delete all versions
     void unlinkversions();
 
     // move node to new parent folder
     error rename(Node*, Node*, syncdel_t = SYNCDEL_NONE, handle = UNDEF, const char *newName = nullptr);
+
+    // Queue commands (if needed) to remvoe any outshares (or pending outshares) below the specified node
+    void removeOutSharesFromSubtree(Node* n);
 
     // start/stop/pause file transfer
     bool startxfer(direction_t, File*, DBTableTransactionCommitter&, bool skipdupes = false, bool startfirst = false, bool donotpersist = false);
@@ -474,6 +482,12 @@ public:
 
     // set max connections per transfer
     void setmaxconnections(direction_t, int);
+
+    // updates business status
+    void setBusinessStatus(BizStatus newBizStatus);
+
+    // updates block boolean
+    void setBlocked(bool value);
 
     // enqueue/abort direct read
     void pread(Node*, m_off_t, m_off_t, void*);
@@ -494,8 +508,9 @@ public:
     // A collection of sync configs backed by a database table
     std::unique_ptr<SyncConfigBag> syncConfigs;
 
-    // whether we allow the automatic resumption of syncs
-    bool allowAutoResumeSyncs = true;
+    // keep sync configuration after logout
+    bool mKeepSyncsAfterLogout = false;
+
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
@@ -513,17 +528,17 @@ public:
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
-    void putnodes(handle, NewNode*, int, const char * = NULL);
+    void putnodes(handle, vector<NewNode>&&, const char * = NULL);
 
     // send files/folders to user
-    void putnodes(const char*, NewNode*, int);
+    void putnodes(const char*, vector<NewNode>&&);
 
     // attach file attribute to upload or node handle
     void putfa(handle, fatype, SymmCipher*, std::unique_ptr<string>, bool checkAccess = true);
 
     // queue file attribute retrieval
     error getfa(handle h, string *fileattrstring, const string &nodekey, fatype, int = 0);
-    
+
     // notify delayed upload completion subsystem about new file attribute
     void checkfacompletion(handle, Transfer* = NULL);
 
@@ -547,7 +562,7 @@ public:
     void delua(const char* an);
 
     // send dev command for testing
-    void senddevcommand(const char *command, const char *email);
+    void senddevcommand(const char *command, const char *email, long long q = 0, int bs = 0, int us = 0);
 #endif
 
     // delete or block an existing contact
@@ -567,12 +582,86 @@ public:
     // add timer
     error addtimer(TimerWithBackoff *twb);
 
-    // add/delete sync
-    error isnodesyncable(Node*, bool* = NULL);
+#ifdef ENABLE_SYNC
+    /**
+     * @brief is node syncable
+     * @param isinshare filled with whether the node is within an inshare.
+     * @param syncError filled with SyncError with the sync error that makes the node unsyncable
+     * @return API_OK if syncable. (regular) error otherwise
+     */
+    error isnodesyncable(Node*, bool * isinshare = NULL, SyncError *syncError = nullptr);
 
-    error addsync(SyncConfig, const char*, string*, int = 0, void* = NULL);
+    /**
+     * @brief is local path syncable
+     * @param newPath path to check
+     * @param syncTag tag to exclude in checking (that of the new sync)
+     * @param syncError filled with SyncError with the sync error that makes the node unsyncable
+     * @return API_OK if syncable. (regular) error otherwise
+     */
+    error isLocalPathSyncable(std::string newPath, int newSyncTag = 0, SyncError *syncError = nullptr);
 
-    void delsync(Sync*, bool = true);
+
+    /**
+     * @brief add sync. Will fill syncError in case there is one.
+     * It will persist the sync configuration if everything goes fine.
+     * @param syncError filled with SyncError with the sync error that prevented the addition
+     * @param delayInitialScan delay the initial scan
+     * @return API_OK if added to active syncs. (regular) error otherwise.
+     */
+    error addsync(SyncConfig, const char*, string*, SyncError &syncError, bool delayInitialScan = false, void* = NULL);
+
+
+    // removes an active sync (transition to pre-removal state).
+    // This will entail the removal of the sync cache & configuration cache (see removeSyncConfig)
+    void delsync(Sync*);
+
+    // remove sync configuration. It will remove sync configuration cache & call app's callback sync_removed
+    error removeSyncConfig(int tag);
+    error removeSyncConfigByNodeHandle(handle nodeHandle);
+
+    //// sync config updating & persisting ////
+    // updates in state & error
+    error saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, SyncError syncerror);
+    // updates in remote path/node & calls app's syncupdate_remote_root_changed. passing n=null will remove remote handle and keep last known path
+    bool updateSyncRemoteLocation(const SyncConfig *config, Node *n, bool forceCallback = false); //returns if changed
+
+    // transition the cache to failed
+    void failSync(Sync* sync, SyncError syncerror);
+
+    // disable synchronization. (transition to disable_state)
+    // If no error passed, it entails a manual disable: won't be resumed automatically anymore, but it will be kept in cache
+    void disableSync(Sync*, SyncError syncError =  NO_SYNC_ERROR);
+    bool disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError);
+
+    // fail all active syncs
+    void failSyncs(SyncError syncError =  NO_SYNC_ERROR);
+
+    //disable all active syncs
+    // If no error passed, it entails a manual disable: won't be resumed automatically anymore, but it will be kept in cache
+    void disableSyncs(SyncError syncError =  NO_SYNC_ERROR);
+
+    // restore all configured syncs that were in a temporary error state (not manually disabled)
+    void restoreSyncs();
+
+    // attempts to enable a sync. will fill syncError with the SyncError error (if any)
+    // if resetFingeprint is true, it will assign a new Filesystem Fingerprint.
+    // if newRemoteNode is set, it will try to use it to restablish the sync, updating the cached configuration if successful.
+    error enableSync(int tag, SyncError &syncError, bool resetFingerprint = false, mega::handle newRemoteNode = UNDEF);
+    error enableSync(const SyncConfig *syncConfig, SyncError &syncError,
+                     bool resetFingerprint = false, mega::handle newRemoteNode = UNDEF);
+
+    /**
+     * @brief updates the state of a synchronization. it will persist the changes and call app syncupdate_state handler
+     * @param fireDisableEvent passed to the app: if when the change entails a transition to inactive, the transition should be
+     * forwarded to the application listeners
+     * @return error if any
+     */
+    error changeSyncState(const SyncConfig *config, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent);
+    error changeSyncState(int tag, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent = true);
+    error changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent);
+
+
+#endif
 
     // close all open HTTP connections
     void disconnect();
@@ -770,7 +859,7 @@ public:
 
     // use HTTPS for all communications
     bool usehttps;
-    
+
     // use an alternative port for downloads (8080)
     bool usealtdownport;
 
@@ -800,6 +889,9 @@ public:
 
     // storage status
     storagestatus_t ststatus;
+
+    // cacheable status
+    std::map<int64_t, std::shared_ptr<CacheableStatus>> mCachedStatus;
 
     // warning timestamps related to storage overquota in paywall mode
     vector<m_time_t> mOverquotaWarningTs;
@@ -854,6 +946,7 @@ private:
 
     // account is blocked: stops querying for action packets, pauses transfer & removes transfer slot availability
     bool mBlocked = false;
+    bool mBlockedSet = false; //value set in current execution
 
     bool pendingscTimedOut = false;
 
@@ -862,7 +955,7 @@ private:
     HttpReq* badhostcs;
 
     // Working lock
-    HttpReq* workinglockcs;
+    unique_ptr<HttpReq> workinglockcs;
 
     // notify URL for new server-client commands
     string scnotifyurl;
@@ -913,6 +1006,9 @@ private:
 #ifdef ENABLE_SYNC
     // Resumes all resumable syncs
     void resumeResumableSyncs();
+
+    Sync *getSyncContainingNodeHandle(mega::handle nodeHandle);
+
 #endif
 
     // update time at which next deferred transfer retry kicks in
@@ -920,9 +1016,12 @@ private:
 
     // a TransferSlot chunk failed
     bool chunkfailed;
-    
+
     // fetch state serialize from local cache
     bool fetchsc(DbTable*);
+
+    // fetch statusTable from local cache
+    bool fetchStatusTable(DbTable*);
 
     // remove old (2 days or more) transfers from cache, if they were not resumed
     void purgeOrphanTransfers(bool remove = false);
@@ -984,10 +1083,10 @@ private:
     // encode/query handle type
     void encodehandletype(handle*, bool);
     bool isprivatehandle(handle*);
-    
+
     // add direct read
     void queueread(handle, bool, SymmCipher*, int64_t, m_off_t, m_off_t, void*, const char* = NULL, const char* = NULL, const char* = NULL);
-    
+
     // execute pending direct reads
     bool execdirectreads();
 
@@ -1020,7 +1119,7 @@ public:
 
     // enable / disable the gfx layer
     bool gfxdisabled;
-    
+
     // DB access
     DbAccess* dbaccess = nullptr;
 
@@ -1036,10 +1135,13 @@ public:
     // during processing of request responses, transfer table updates can be wrapped up in a single begin/commit
     DBTableTransactionCommitter* mTctableRequestCommitter = nullptr;
 
+    // status cache table for logged in user. For data pertaining status which requires immediate commits
+    DbTable* statusTable;
+
     // scsn as read from sctable
     handle cachedscsn;
 
-    // initial state load in progress?  initial state can come from the database cache or via an 'f' command to the API.  
+    // initial state load in progress?  initial state can come from the database cache or via an 'f' command to the API.
     // Either way there can still be a lot of historic actionpackets to follow since that snaphot, especially if the user has not been online for a long time.
     bool fetchingnodes;
     int fetchnodestag;
@@ -1058,19 +1160,31 @@ public:
     // reqs[r^1] is being processed on the API server
     HttpReq* pendingcs;
 
+    // Only queue the "Server busy" event once, until the current cs completes, otherwise we may DDOS
+    // ourselves in cases where many clients get 500s for a while and then recover at the same time
+    bool pendingcs_serverBusySent = false;
+
     // pending HTTP requests
     pendinghttp_map pendinghttp;
 
     // record type indicator for sctable
-    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT } sctablerectype;
+    enum { CACHEDSCSN, CACHEDNODE, CACHEDUSER, CACHEDLOCALNODE, CACHEDPCR, CACHEDTRANSFER, CACHEDFILE, CACHEDCHAT} sctablerectype;
+
+    // record type indicator for statusTable
+    enum StatusTableRecType { CACHEDSTATUS };
 
     // open/create state cache database table
     void opensctable();
+
+    // open/create status database table
+    void openStatusTable();
 
     // initialize/update state cache referenced sctable
     void initsc();
     void updatesc();
     void finalizesc(bool);
+
+    void initStatusTable();
 
     // flag to pause / resume the processing of action packets
     bool scpaused;
@@ -1101,6 +1215,9 @@ public:
     // current request tag
     int reqtag;
 
+    // current sync tag
+    int mSyncTag;
+
     // user maps: by handle and by case-normalized e-mail address
     uh_map uhindex;
     um_map umindex;
@@ -1112,7 +1229,7 @@ public:
     fa_map pendingfa;
 
     // upload waiting for file attributes
-    handletransfer_map faputcompletion;    
+    handletransfer_map faputcompletion;
 
     // file attribute fetch channels
     fafc_map fafcs;
@@ -1122,7 +1239,7 @@ public:
 
     // active/pending direct reads
     handledrn_map hdrns;   // DirectReadNodes, main ownership.  One per file, each with one DirectRead per client request.
-    dsdrn_map dsdrns;      // indicates the time at which DRNs should be retried 
+    dsdrn_map dsdrns;      // indicates the time at which DRNs should be retried
     dr_list drq;           // DirectReads that are in DirectReadNodes which have fectched URLs
     drs_list drss;         // DirectReadSlot for each DR in drq, up to Max
 
@@ -1256,7 +1373,7 @@ public:
     // maps node handle to public handle
     std::map<handle, handle> mPublicLinks;
 
-#ifdef ENABLE_SYNC    
+#ifdef ENABLE_SYNC
     // sync debris folder name in //bin
     static const char* const SYNCDEBRISFOLDERNAME;
 
@@ -1324,17 +1441,18 @@ public:
     handle currsyncid;
 
     // SyncDebris folder addition result
-    void putnodes_syncdebris_result(error, NewNode*);
+    void putnodes_syncdebris_result(error, vector<NewNode>&);
 
     // if no sync putnodes operation is in progress, apply the updates stored
     // in syncadded/syncdeleted/syncoverwritten to the remote tree
     void syncupdate();
 
     // create missing folders, copy/start uploading missing files
-    bool syncup(LocalNode*, dstime*);
+    bool syncup(LocalNode* l, dstime* nds, size_t& parentPending);
+    bool syncup(LocalNode* l, dstime* nds);
 
     // sync putnodes() completion
-    void putnodes_sync_result(error, NewNode*, int);
+    void putnodes_sync_result(error, vector<NewNode>&);
 
     // start downloading/copy missing files, create missing directories
     bool syncdown(LocalNode*, LocalPath&, bool);
@@ -1349,7 +1467,7 @@ public:
     // unlink queued nodes directly (for inbound share syncing)
     void execsyncunlink();
     node_set tounlink;
-    
+
     // commit all queueud deletions
     void execsyncdeletions();
 
@@ -1396,7 +1514,7 @@ public:
     dstime lastDispatchTransfersDs = 0;
 
     // process object arrays by the API server
-    int readnodes(JSON*, int, putsource_t = PUTNODES_APP, NewNode* = NULL, int = 0, int = 0, bool applykeys = false);
+    int readnodes(JSON*, int, putsource_t, vector<NewNode>*, int, bool applykeys);
 
     void readok(JSON*);
     void readokelement(JSON*);
@@ -1431,6 +1549,7 @@ public:
     bool warnlevel();
 
     Node* childnodebyname(Node*, const char*, bool = false);
+    void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection
@@ -1617,7 +1736,7 @@ public:
 
     void keepmealive(int, bool enable = true);
 
-    void getpsa();
+    void getpsa(bool urlSupport);
 
     // tells the API the user has seen existing alerts
     void acknowledgeuseralerts();
@@ -1648,6 +1767,9 @@ public:
 
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     BizStatus mBizStatus;
+    // indicates that the last update to mBizStatus comes from cache.
+    // Used to notify the apps in the very first non-cache update. For backwards compatibility.
+    bool mBizStatusLoadedFromCache = false;
 
     // list of handles of the Master business account/s
     std::set<handle> mBizMasters;
@@ -1660,7 +1782,7 @@ public:
 
     // whether the destructor has started running yet
     bool destructorRunning = false;
-  
+
     MegaClientAsyncQueue mAsyncQueue;
 
     // Keep track of high level operation counts and times, for performance analysis
@@ -1689,7 +1811,12 @@ public:
 
 #ifdef ENABLE_SYNC
     void resetSyncConfigs();
+    bool getKeepSyncsAfterLogout() const;
+    void setKeepSyncsAfterLogout(bool keepSyncsAfterLogout);
 #endif
+
+    void loadCacheableStatus(std::shared_ptr<CacheableStatus> status);
+
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
