@@ -15382,7 +15382,7 @@ namespace action_bucket_compare
     const static string webclient_mime_audio_extensions = ".3ga.aac.adp.aif.aifc.aiff.au.caf.dra.dts.dtshd.ecelp4800.ecelp7470.ecelp9600.eol.flac.iff.kar.lvp.m2a.m3a.m3u.m4a.mid.midi.mka.mp2.mp2a.mp3.mp4a.mpga.oga.ogg.opus.pya.ra.ram.rip.rmi.rmp.s3m.sil.snd.spx.uva.uvva.wav.wax.weba.wma.xm.";
     const static string webclient_mime_document_extensions = ".ans.ascii.doc.docx.dotx.json.log.ods.odt.pages.pdf.ppc.pps.ppt.pptx.rtf.stc.std.stw.sti.sxc.sxd.sxi.sxm.sxw.txt.wpd.wps.xls.xlsx.xlt.xltm.";
 
-    bool nodeIsVideo(const Node *n, char ext[MAXEXTENSIONLEN], const MegaClient& mc)
+    bool nodeIsVideo(const Node *n, const string& ext, const MegaClient& mc)
     {
         if (n->hasfileattribute(fa_media) && n->nodekey().size() == FILENODEKEYLENGTH)
         {
@@ -15410,17 +15410,17 @@ namespace action_bucket_compare
         return action_bucket_compare::webclient_mime_video_extensions.find(ext) != string::npos;
     }
 
-    bool nodeIsAudio(const Node *n, char ext[MAXEXTENSIONLEN])
+    bool nodeIsAudio(const Node *n, const string& ext)
     {
          return action_bucket_compare::webclient_mime_audio_extensions.find(ext) != string::npos;
     }
 
-    bool nodeIsDocument(const Node *n, char ext[MAXEXTENSIONLEN])
+    bool nodeIsDocument(const Node *n, const string& ext)
     {
          return action_bucket_compare::webclient_mime_document_extensions.find(ext) != string::npos;
     }
 
-    bool nodeIsPhoto(const Node *n, char ext[MAXEXTENSIONLEN], bool checkPreview)
+    bool nodeIsPhoto(const Node *n, const string& ext, bool checkPreview)
     {
         // evaluate according to the webclient rules, so that we get exactly the same bucketing.
         return action_bucket_compare::webclient_is_image_def.find(ext) != string::npos ||
@@ -15450,12 +15450,12 @@ namespace action_bucket_compare
         return a.time > b.time;
     }
 
-    bool getExtensionDotted(const Node* n, char ext[MAXEXTENSIONLEN + 1], const MegaClient& mc)
+    bool getExtensionDotted(const Node* n, std::string& ext, const MegaClient& mc)
     {
         auto localname = LocalPath::fromPath(n->displayname(), *mc.fsaccess);
-        if (mc.fsaccess->getextension(localname, ext, MAXEXTENSIONLEN))  // plenty of buffer space left to append a '.'
+        if (mc.fsaccess->getextension(localname, ext))
         {
-            strcat(ext, ".");
+            ext.push_back('.');
             return true;
         }
         return false;
@@ -15466,7 +15466,7 @@ namespace action_bucket_compare
 
 bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
 {
-    char ext[MAXEXTENSIONLEN + 1];
+    string ext;
     if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
     {
         bool a = action_bucket_compare::nodeIsPhoto(n, ext, true);
@@ -15490,7 +15490,7 @@ bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
 
 bool MegaClient::nodeIsVideo(const Node *n) const
 {
-    char ext[MAXEXTENSIONLEN + 1];
+    string ext;
     if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
     {
         return action_bucket_compare::nodeIsVideo(n, ext, *this);
@@ -15500,7 +15500,7 @@ bool MegaClient::nodeIsVideo(const Node *n) const
 
 bool MegaClient::nodeIsPhoto(const Node *n, bool checkPreview) const
 {
-    char ext[MAXEXTENSIONLEN + 1];
+    string ext;
     if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
     {
         return action_bucket_compare::nodeIsPhoto(n, ext, checkPreview);
@@ -15510,7 +15510,7 @@ bool MegaClient::nodeIsPhoto(const Node *n, bool checkPreview) const
 
 bool MegaClient::nodeIsAudio(const Node *n) const
 {
-    char ext[MAXEXTENSIONLEN + 1];
+    string ext;
     if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
     {
         return action_bucket_compare::nodeIsAudio(n, ext);
@@ -15520,7 +15520,7 @@ bool MegaClient::nodeIsAudio(const Node *n) const
 
 bool MegaClient::nodeIsDocument(const Node *n) const
 {
-    char ext[MAXEXTENSIONLEN + 1];
+    string ext;
     if (n->type == FILENODE && action_bucket_compare::getExtensionDotted(n, ext, *this))
     {
         return action_bucket_compare::nodeIsDocument(n, ext);

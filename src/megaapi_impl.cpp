@@ -1084,8 +1084,8 @@ bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepat
 
     auto localfilename = LocalPath::fromPath(inputFilepath, *api->fsAccess);
 
-    char ext[MAXEXTENSIONLEN];
-    if (api->fsAccess->getextension(localfilename, ext, sizeof(ext)) && MediaProperties::isMediaFilenameExt(ext))
+    string ext;
+    if (api->fsAccess->getextension(localfilename, ext) && MediaProperties::isMediaFilenameExt(ext))
     {
         mediaproperties.extractMediaPropertyFileAttributes(localfilename, api->fsAccess);
 
@@ -28335,9 +28335,9 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
             httpctx->server->fsAccess->tmpnamelocal(suffix);
             httpctx->tmpFileName.append(suffix.toPath(*httpctx->server->fsAccess));
 
-            char ext[MAXEXTENSIONLEN];
+            string ext;
             LocalPath localpath = LocalPath::fromPath(httpctx->path, *httpctx->server->fsAccess);
-            if (httpctx->server->fsAccess->getextension(localpath, ext, sizeof ext))
+            if (httpctx->server->fsAccess->getextension(localpath, ext))
             {
                 httpctx->tmpFileName.append(ext);
             }
@@ -29393,8 +29393,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 httpctx->tmpFileName=httpctx->server->basePath;
                 httpctx->tmpFileName.append("httputfile");
                 httpctx->tmpFileName.append(LocalPath::tmpNameLocal(*httpctx->server->fsAccess).toPath(*httpctx->server->fsAccess));
-                char ext[MAXEXTENSIONLEN];
-                if (httpctx->server->fsAccess->getextension(LocalPath::fromPath(httpctx->path, *httpctx->server->fsAccess), ext, sizeof ext))
+                string ext;
+                if (httpctx->server->fsAccess->getextension(LocalPath::fromPath(httpctx->path, *httpctx->server->fsAccess), ext))
                 {
                     httpctx->tmpFileName.append(ext);
                 }
@@ -32101,8 +32101,8 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
             fds->fsAccess->tmpnamelocal(suffix);
             ftpdatactx->tmpFileName.append(suffix.toPath(*fds->fsAccess));
 
-            char ext[MAXEXTENSIONLEN];
-            if (ftpdatactx->server->fsAccess->getextension(LocalPath::fromPath(fds->controlftpctx->arg1, *ftpdatactx->server->fsAccess), ext, sizeof ext))
+            string ext;
+            if (ftpdatactx->server->fsAccess->getextension(LocalPath::fromPath(fds->controlftpctx->arg1, *ftpdatactx->server->fsAccess), ext))
             {
                 ftpdatactx->tmpFileName.append(ext);
             }
