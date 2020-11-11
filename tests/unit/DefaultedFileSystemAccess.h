@@ -95,7 +95,7 @@ public:
     {
         throw NotImplemented{__func__};
     }
-    bool getextension(const mega::LocalPath&, char*, size_t) const override
+    bool getextension(const mega::LocalPath&, std::string&) const override
     {
         throw NotImplemented{__func__};
     }
