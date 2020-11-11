@@ -1130,6 +1130,8 @@ bool WinFileSystemAccess::getextension(const LocalPath& filenamePath, std::strin
 	{
 		if (*--ptr == '.')
 		{
+            extension.reserve(i+1);
+
 			for (j = 0; j <= i; j++)
 			{
 				if (*ptr < '.' || *ptr > 'z') return false;

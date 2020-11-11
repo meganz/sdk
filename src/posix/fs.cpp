@@ -1368,6 +1368,8 @@ bool PosixFileSystemAccess::getextension(const LocalPath& filename, std::string 
     {
         if (*--ptr == '.')
         {
+            extension.reserve(i+1);
+
             unsigned j = 0;
             for (; j <= i; j++)
             {
