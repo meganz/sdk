@@ -362,7 +362,7 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
 
     // last 3 connections, up to 32MB (ie chunks) each, up to two completing after the one that delivered the ultoken
     size_t end = transfer->chunkmacs.size();
-    size_t finalN = std::min<int>(32 * 3, end);
+    size_t finalN = std::min<size_t>(32 * 3, end);
 
     // first check for the most likely - a single connection gap (or two but completely consecutive making a single gap)
     for (size_t countBack = 1; countBack <= finalN; ++countBack)
@@ -385,8 +385,7 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
     // now check for two separate pieces missing (much less likely)
     // limit to checking up to 16Mb pieces wtih up to 8Mb between to avoid excessive CPU
     // takes about 1 second on a fairly modest laptop for a 100Mb file (in a release build)
-    int caseschecked = 0;
-    finalN = std::min<int>(16 * 2 + 8, transfer->chunkmacs.size());
+    finalN = std::min<size_t>(16 * 2 + 8, transfer->chunkmacs.size());
     for (size_t start1 = end - finalN; start1 < end; ++start1)
     {
         for (size_t len1 = 1; len1 <= 16 && start1 + len1 <= end; ++len1)
