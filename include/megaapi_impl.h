@@ -255,9 +255,6 @@ protected:
     // number of files pending to be processed (add a transfer for each one)
     int mPendingFilesToProcess;
 
-    // mutex to control worker thread execution flow
-    std::recursive_timed_mutex mMutex;
-
     // maps tempHandle to definitive handle
     map<handle, handle> mNewNodesResult;
 
@@ -265,7 +262,7 @@ protected:
     map<handle, vector<LocalPath>> mFolderToPendingFiles;
 
     // maps targetHandle of the subtree to a vector of NewNodes
-    map<handle, vector<NewNode>> mFolderStructure;
+    vector<pair<handle, vector<NewNode>>> mFolderStructure;
 
     /* Scan entire tree recursively, and retrieve folder structure and files to be uploaded.
      * A putnodes command can only add subtrees under same target, so in case we need to add
@@ -275,7 +272,8 @@ protected:
     void createFolder();
     /* iterate through all pending files of each uploaded folder, and start all upload transfers */
     void uploadFiles();
-    handle addNewNodeToVector(handle targetHandle, handle parentHandle, const char * folderName);
+    void updateNodeHandles(handle &targetHandle, vector<NewNode> &newnodes);
+    void addNewNodeToVector(handle &targetHandle, handle &parentHandle, const char *folderName);
 };
 
 
