@@ -1240,6 +1240,11 @@ long long MegaTransfer::getNotificationNumber() const
     return 0;
 }
 
+bool MegaTransfer::getTargetOverride() const
+{
+    return false;
+}
+
 MegaError::MegaError(int e)
 {
     errorCode = e;
@@ -2764,6 +2769,16 @@ void MegaApi::getMyChatFilesFolder(MegaRequestListener *listener)
     pImpl->getMyChatFilesFolder(listener);
 }
 
+void MegaApi::setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+{
+    pImpl->setMyBackupsFolder(nodehandle, listener);
+}
+
+void MegaApi::getMyBackupsFolder(MegaRequestListener *listener)
+{
+    pImpl->getMyBackupsFolder(listener);
+}
+
 void MegaApi::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
 {
     pImpl->getUserAlias(uh, listener);
@@ -3215,7 +3230,7 @@ int MegaApi::syncPathState(string* path)
 
 MegaNode *MegaApi::getSyncedNode(string *path)
 {
-    return pImpl->getSyncedNode(LocalPath::fromLocalname(*path));
+    return pImpl->getSyncedNode(LocalPath::fromPlatformEncoded(*path));
 }
 
 void MegaApi::syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRequestListener *listener)
@@ -4206,6 +4221,11 @@ void MegaApi::getPublicLinkInformation(const char *megaFolderLink, MegaRequestLi
 MegaApiLock* MegaApi::getMegaApiLock(bool lockNow)
 {
     return new MegaApiLock(pImpl, lockNow);
+}
+
+bool MegaApi::platformSetRLimitNumFile(int newNumFileLimit) const
+{
+    return pImpl->platformSetRLimitNumFile(newNumFileLimit);
 }
 
 void MegaApi::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener, bool reverifying_whitelisted)
@@ -5312,6 +5332,26 @@ void MegaApi::getBanners(MegaRequestListener *listener)
 void MegaApi::dismissBanner(int id, MegaRequestListener *listener)
 {
     pImpl->dismissBanner(id, listener);
+}
+
+void MegaApi::setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener)
+{
+    pImpl->setBackup(backupType, targetNode, localFolder, backupName, state, subState, extraData, listener);
+}
+
+void MegaApi::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener)
+{
+    pImpl->updateBackup(backupId, backupType, targetNode, localFolder, backupName, state, subState, extraData, listener);
+}
+
+void MegaApi::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
+{
+    pImpl->removeBackup(backupId, listener);
+}
+
+void MegaApi::sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode)
+{
+    pImpl->sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode);
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)

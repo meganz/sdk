@@ -123,7 +123,7 @@ struct MEGA_API MegaApp
     virtual void key_modified(handle, attr_t) { }
 
     // node addition has failed
-    virtual void putnodes_result(const Error&, targettype_t, vector<NewNode>&) { }
+    virtual void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride = false) { }
 
     // share update result
     virtual void share_result(error) { }
@@ -415,6 +415,10 @@ struct MEGA_API MegaApp
     virtual void backupupdate_result(const Error&, handle /*backup id*/) { }
     virtual void backupputheartbeat_result(const Error&) { }
     virtual void backupremove_result(const Error&, handle /*backup id*/) { }
+
+    virtual void heartbeat() { }
+
+    virtual void pause_state_changed() { }
 
     virtual void getbanners_result(error) { }
     virtual void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) { }
