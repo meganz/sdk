@@ -34,7 +34,6 @@ const int GfxProc::dimensionsavatar[][2] = {
 
 bool GfxProc::isgfx(string* localfilename)
 {
-    char ext[MAXEXTENSIONLEN];
     const char* supported;
 
     if (!(supported = supportedformats()))
@@ -42,12 +41,13 @@ bool GfxProc::isgfx(string* localfilename)
         return true;
     }
 
-    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localfilename), ext, sizeof ext))
+    string ext;
+    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localfilename), ext))
     {
         const char* ptr;
 
         // FIXME: use hash
-        if ((ptr = strstr(supported, ext)) && ptr[strlen(ext)] == '.')
+        if ((ptr = strstr(supported, ext.c_str())) && ptr[ext.size()] == '.')
         {
             return true;
         }
@@ -58,7 +58,6 @@ bool GfxProc::isgfx(string* localfilename)
 
 bool GfxProc::isvideo(string *localfilename)
 {
-    char ext[MAXEXTENSIONLEN];
     const char* supported;
 
     if (!(supported = supportedvideoformats()))
@@ -66,12 +65,13 @@ bool GfxProc::isvideo(string *localfilename)
         return false;
     }
 
-    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localfilename), ext, sizeof ext))
+    string ext;
+    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localfilename), ext))
     {
         const char* ptr;
 
         // FIXME: use hash
-        if ((ptr = strstr(supported, ext)) && ptr[strlen(ext)] == '.')
+        if ((ptr = strstr(supported, ext.c_str())) && ptr[ext.size()] == '.')
         {
             return true;
         }
