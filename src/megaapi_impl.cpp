@@ -20177,7 +20177,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 std::unique_ptr<TLVstore> tlv;
                 User *ownUser = client->finduser(client->me);
-                if (type == ATTR_ALIAS || type == ATTR_CAMERA_UPLOADS_FOLDER || type == ATTR_DEVICE_NAMES)
+                if (type == ATTR_ALIAS || type == ATTR_CAMERA_UPLOADS_FOLDER || type == ATTR_DEVICE_NAMES || type == ATTR_BACKUP_NAMES)
                 {
                     if (!ownUser->isattrvalid(type)) // not fetched yet or outdated
                     {
