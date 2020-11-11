@@ -75,6 +75,22 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeFavouriteDesc
 };
 
+typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
+    MEGANodeFormatTypeUnknown = 0,
+    MEGANodeFormatTypePhoto,
+    MEGANodeFormatTypeAudio,
+    MEGANodeFormatTypeVideo,
+    MEGANodeFormatTypeDocument,
+};
+
+typedef NS_ENUM (NSInteger, MEGAFolderTargetType) {
+    MEGAFolderTargetTypeInShare = 0,
+    MEGAFolderTargetTypeOutShare,
+    MEGAFolderTargetTypePublicLink,
+    MEGAFolderTargetTypeRootNode,
+    MEGAFolderTargetTypeAll,
+};
+
 typedef NS_ENUM (NSInteger, MEGAEventType) {
     MEGAEventTypeFeedback = 0,
     MEGAEventTypeDebug,
@@ -7096,6 +7112,8 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 /**
  * @brief Check if a node has an access level.
  *
+ * @deprecated Use checkAccessErrorExtendedForNode
+ *
  * @param node Node to check.
  * @param level Access level to check.
  * Valid values for this parameter are:
@@ -7114,7 +7132,30 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (MEGAError *)checkAccessForNode:(MEGANode *)node level:(MEGAShareType)level;
 
 /**
+ * @brief Check if a node has an access level
+ *
+ * @param node Node to check
+ * @param level Access level to check
+ * Valid values for this parameter are:
+ * - MEGAShareTypeAccessOwner
+ * - MEGAShareTypeAccessFull
+ * - MEGAShareTypeAccessReadWrite
+ * - MEGAShareTypeAccessRead
+ *
+ * @return Error with the result.
+ * Valid values for the error code are:
+ * - MEGAErrorTypeApiOk - The node has the required access level
+ * - MEGAErrorTypeApiEAccess - The node doesn't have the required access level
+ * - MEGAErrorTypeApiENoent - The node doesn't exist in the account
+ * - MEGAErrorTypeApiEArgs - Invalid parameters
+ */
+- (MEGAError *)checkAccessErrorExtendedForNode:(MEGANode *)node level:(MEGAShareType)level;
+
+/**
  * @brief Check if a node can be moved to a target node.
+ *
+ * @deprecated User checkMoveErrorExtendedForNode
+ *
  * @param node Node to check.
  * @param target Target for the move operation.
  * @return MEGAError object with the result:
@@ -7126,6 +7167,21 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * - MEGAErrorTypeApiEArgs - Invalid parameters
  */
 - (MEGAError *)checkMoveForNode:(MEGANode *)node target:(MEGANode *)target;
+
+/**
+ * @brief Check if a node can be moved to a target node.
+ *
+ * @param node Node to check.
+ * @param target Target for the move operation.
+ * @return MEGAError object with the result:
+ * Valid values for the error code are:
+ * - MEGAErrorTypeApiOk - The node can be moved to the target
+ * - MEGAErrorTypeApiEAccess - The node can't be moved because of permissions problems
+ * - MEGAErrorTypeApiECircular - The node can't be moved because that would create a circular linkage
+ * - MEGAErrorTypeApiENoent - The node or the target doesn't exist in the account
+ * - MEGAErrorTypeApiEArgs - Invalid parameters
+ */
+- (MEGAError *)checkMoveErrorExtendedForNode:(MEGANode *)node target:(MEGANode *)target;
 
 /**
  * @brief Check if a node is in the Rubbish bin tree
@@ -7241,6 +7297,91 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * @return List of nodes that contain the desired string in their name.
  */
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString;
+
+/**
+ * @brief Search nodes containing a search string in their name.
+ *
+ * The search is case-insensitive.
+ *
+ * @param node The parent node of the tree to explore.
+ * @param searchString Search string. The search is case-insensitive.
+ * If the search string is not provided but nodeFormatType has any value apart from MEGANodeFormatTypeUnknown
+ * this method will return a list that contains nodes of the same type as provided.
+ * @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
+ * @param recursive YES if you want to seach recursively in the node tree.
+ * NO if you want to seach in the children of the node only
+ * @param orderType MEGASortOrderType for the returned list.
+ * Valid values for this parameter are:
+ * - MEGASortOrderTypeNone = 0
+ * Undefined order
+ *
+ * - MEGASortOrderTypeDefaultAsc = 1
+ * Folders first in alphabetical order, then files in the same order
+ *
+ * - MEGASortOrderTypeDefaultDesc = 2
+ * Files first in reverse alphabetical order, then folders in the same order
+ *
+ * - MEGASortOrderTypeSizeAsc = 3
+ * Sort by size, ascending
+ *
+ * - MEGASortOrderTypeSizeDesc = 4
+ * Sort by size, descending
+ *
+ * - MEGASortOrderTypeCreationAsc = 5
+ *  Sort by creation time in MEGA, ascending
+ *
+ * - MEGASortOrderTypeCreationDesc = 6
+ * Sort by creation time in MEGA, descending
+ *
+ * - MEGASortOrderTypeModificationAsc = 7
+ * Sort by modification time of the original file, ascending
+ *
+ * - MEGASortOrderTypeModificationDesc = 8
+ * Sort by modification time of the original file, descending
+ *
+ * - MEGASortOrderTypeAlphabeticalAsc = 9
+ * Same behavior than MEGASortOrderTypeDefaultAsc
+ *
+ * - MEGASortOrderTypeAlphabeticalDesc = 10
+ * Same behavior than MEGASortOrderTypeDefaultDesc
+ *
+ * - MEGASortOrderTypePhotoAsc = 11
+ * Sort with photos first, then by date ascending
+ *
+ * - MEGASortOrderTypePhotoDesc = 12
+ * Sort with photos first, then by date descending
+ *
+ * - MEGASortOrderTypeVideoAsc = 13
+ * Sort with videos first, then by date ascending
+ *
+ * - MEGASortOrderTypeVideoDesc = 14
+ * Sort with videos first, then by date descending
+ *
+ * @param nodeFormatType Type of nodes requested in the search
+ * Valid values for this parameter are:
+ * - MEGANodeFormatTypeUnknown = 0
+ * - MEGANodeFormatTypePhoto = 1
+ * - MEGANodeFormatTypeAudio = 2
+ * - MEGANodeFormatTypeVideo = 3
+ * - MEGANodeFormatTypeDocument = 4
+ *
+ * @param folderTargetType Target type where this method will search
+ * Valid values for this parameter are
+ * - MEGAFolderTargetTypeInShare = 0
+ * - MEGAFolderTargetTypeOutShare = 1
+ * - MEGAFolderTargetTypePublicLink = 2
+ * - MEGAFolderTargetTypeRootNode = 3
+ * - MEGAFolderTargetTypeAll = 4
+ *
+ * @return List of nodes that contain the desired string in their name.
+ */
+- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node
+                           searchString:(nullable NSString *)searchString
+                            cancelToken:(MEGACancelToken *)cancelToken
+                              recursive:(BOOL)recursive
+                              orderType:(MEGASortOrderType)orderType
+                         nodeFormatType:(MEGANodeFormatType)nodeFormatType
+                       folderTargetType:(MEGAFolderTargetType)folderTargetType;
 
 /**
  * @brief Return an array of buckets, each bucket containing a list of recently added/modified nodes

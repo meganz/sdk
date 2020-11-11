@@ -1689,6 +1689,34 @@ TEST_F(SdkTest, SdkTestTransfers)
     ASSERT_STREQ(filename1.data(), n1->getName()) << "Uploaded file with wrong name (error: " << mApi[0].lastError << ")";
 
 
+    ASSERT_EQ(API_OK, doSetFileVersionsOption(0, false));  // false = not disabled
+
+    // Upload a file over an existing one to make a version
+    {
+        ofstream f(filename1);
+        f << "edited";
+    }
+
+    ASSERT_EQ(API_OK, doStartUpload(0, filename1.c_str(), rootnode));
+
+    // Upload a file over an existing one to make a version
+    {
+        ofstream f(filename1);
+        f << "edited2";
+    }
+
+    ASSERT_EQ(API_OK, doStartUpload(0, filename1.c_str(), rootnode));
+
+    // copy a node with versions to a new name (exercises the multi node putndoes_result)
+    MegaNode* nodeToCopy1 = megaApi[0]->getNodeByPath(("/" + filename1).c_str());
+    ASSERT_EQ(API_OK, doCopyNode(0, nodeToCopy1, rootnode, "some_other_name"));
+
+    // put original filename1 back
+    fs::remove(filename1);
+    createFile(filename1);
+    ASSERT_EQ(API_OK, doStartUpload(0, filename1.c_str(), rootnode));
+    n1 = megaApi[0]->getNodeByPath(("/" + filename1).c_str());
+
     // --- Get node by fingerprint (needs to be a file, not a folder) ---
 
     std::unique_ptr<char[]> fingerprint{megaApi[0]->getFingerprint(n1)};
