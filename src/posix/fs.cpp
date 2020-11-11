@@ -438,6 +438,21 @@ bool PosixFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
 #endif
 }
 
+bool PosixFileAccess::ftruncate()
+{
+    retry = false;
+
+    // Truncate the file.
+    if (::ftruncate(fd, 0x0) == 0)
+    {
+        // Set the file pointer back to the start.
+        return lseek(fd, 0x0, SEEK_SET) == 0x0;
+    }
+
+    // Couldn't truncate the file.
+    return false;
+}
+
 int PosixFileAccess::stealFileDescriptor()
 {
     int toret = fd;

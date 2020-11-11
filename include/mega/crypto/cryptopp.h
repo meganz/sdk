@@ -35,6 +35,7 @@
 #include <cryptopp/crc.h>
 #include <cryptopp/nbtheory.h>
 #include <cryptopp/algparam.h>
+#include <cryptopp/hkdf.h>
 #include <cryptopp/hmac.h>
 #include <cryptopp/pwdbased.h>
 
@@ -158,16 +159,50 @@ public:
     void cbc_encrypt_pkcs_padding(const std::string *data, const byte* iv, std::string *result);
 
     /**
-     * @brief Decrypt symmetrically using AES in CBC mode and pkcs padding
+     * @brief
+     * Decrypt symmetrically using AES in CBC mode and pkcs padding
      *
      * The size of the IV is one block in AES-128 (16 bytes).
      *
-     * @param data Data to be decrypted
-     * @param iv Initialisation vector.
-     * @param result Decrypted message
-     * @return Void.
+     * @param data
+     * Data to be decrypted
+     *
+     * @param iv
+     * Initialisation vector.
+     *
+     * @param result
+     * Where we should write the decrypted message.
+     *
+     * @return
+     * True if decryption was successful.
      */
-    void cbc_decrypt_pkcs_padding(const std::string *data, const byte* iv, std::string *result);
+    bool cbc_decrypt_pkcs_padding(const std::string* data, const byte* iv, std::string* result);
+
+    /**
+     * @brief
+     * Decrypt symmetrically using AES in CBC mode and pkcs padding
+     *
+     * The size of the IV is one block in AES-128 (16 bytes).
+     *
+     * @param data
+     * Data to be decrypted
+     *
+     * @param dataLength
+     * Length of data to be decryped.
+     *
+     * @param iv
+     * Initialisation vector.
+     *
+     * @param result
+     * Where we should write the decrypted message.
+     *
+     * @return
+     * True if decryption was successful.
+     */
+    bool cbc_decrypt_pkcs_padding(const byte* data,
+                                  const size_t dataLength,
+                                  const byte* iv,
+                                  std::string* result);
 
     /**
      * Authenticated symmetric encryption using AES in CCM mode (counter with CBC-MAC).
@@ -422,6 +457,7 @@ public:
      * @param length Key length
      */
     HMACSHA256(const byte *key, size_t length);
+    HMACSHA256();
 
     /**
      * @brief Add data to the HMAC
@@ -435,10 +471,43 @@ public:
      * @param out The HMAC-SHA256 will be returned in the first 32 bytes of this buffer
      */
     void get(byte *out);
+
+    /**
+     * @brief
+     * Set the HMAC's key.
+     *
+     * @param key
+     * HMAC key.
+     *
+     * @param length
+     * Length of HMAC key.
+     */
+    void setkey(const byte* key, const size_t length);
 };
 
 /**
- * @brief HMAC-SHA512 generator
+ * @brief HDKF HMAC-SHA512 Key Derivation Function.
+ */
+class MEGA_API HKDF_HMAC_SHA512
+{
+public:
+    HKDF_HMAC_SHA512();
+
+    bool deriveKey(byte* derivedKey,
+                   const size_t derivedKeyLength,
+                   const byte* secret,
+                   const size_t secretLength,
+                   const byte* salt = NULL,
+                   const size_t saltLength = 0,
+                   const byte* info = NULL,
+                   const size_t infoLength = 0) const;
+
+private:
+    CryptoPP::HKDF<CryptoPP::SHA512> mHKDF;
+}; // HKDF_HMAC_SHA512
+
+/**
+ * @brief PBKDF2 HMAC-SHA512 Key Derivation Function.
  */
 class MEGA_API PBKDF2_HMAC_SHA512
 {
@@ -446,9 +515,14 @@ class MEGA_API PBKDF2_HMAC_SHA512
 
 public:
     PBKDF2_HMAC_SHA512();
-    void deriveKey(byte* derivedkey, size_t derivedkeyLen,
-                   byte* pwd, size_t pwdLen,
-                   byte* salt, size_t saltLen, unsigned int iterations);
+
+    void deriveKey(byte* derivedkey,
+                   const size_t derivedkeyLen,
+                   const byte* pwd,
+                   const size_t pwdLen,
+                   const byte* salt,
+                   const size_t saltLen,
+                   const unsigned int iterations) const;
 };
 
 } // namespace

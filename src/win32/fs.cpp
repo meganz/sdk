@@ -121,6 +121,27 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
      return true;
 }
 
+bool WinFileAccess::ftruncate()
+{
+    // Set the file pointer to the start of the file.
+    if (SetFilePointerEx(hFile, 0x0, nullptr, FILE_BEGIN))
+    {
+        // Truncate the file.
+        if (SetEndOfFile(hFile))
+        {
+            return true;
+        }
+    }
+
+    // Why couldn't we truncate the file?
+    auto error = GetLastError();
+
+    // Is it a transient error?
+    retry = WinFileSystemAccess::istransient(error);
+
+    return false;
+}
+
 m_time_t FileTime_to_POSIX(FILETIME* ft)
 {
     LARGE_INTEGER date;
