@@ -8263,6 +8263,7 @@ CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId)
     cmd("sr");
     arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
 
+    client->putua(ATTR_BACKUP_NAMES, (byte*)"", 0);
     tag = client->reqtag;
 }
 

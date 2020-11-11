@@ -57,9 +57,9 @@ bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVst
         }
         if (newValue != currentValue)
         {
-            if (type == ATTR_ALIAS && newValue[0] == '\0')
+            if ((type == ATTR_ALIAS || type == ATTR_BACKUP_NAMES) && newValue[0] == '\0')
             {
-                // alias being removed
+                // alias/backupName being removed
                 tlv.reset(key);
             }
             else
