@@ -1053,21 +1053,13 @@ bool WinFileSystemAccess::chdirlocal(LocalPath& namePath) const
 }
 
 // return lowercased ASCII file extension, including the . separator
-bool WinFileSystemAccess::getextension(const LocalPath& filenamePath, char* extension, size_t size) const
+bool WinFileSystemAccess::getextension(const LocalPath& filenamePath, string& extension) const
 {
     const wchar_t* ptr = filenamePath.localpath.data() + filenamePath.localpath.size();
-
     char c;
     size_t i, j;
 
-    size--;
-
-    if (size > filenamePath.localpath.size())
-    {
-        size = filenamePath.localpath.size();
-    }
-
-    for (i = 0; i < size; i++)
+    for (i = 0; i < filenamePath.localpath.size(); i++)
     {
         if (*--ptr == '.')
         {
@@ -1080,11 +1072,8 @@ bool WinFileSystemAccess::getextension(const LocalPath& filenamePath, char* exte
                 // tolower()
                 if (c >= 'A' && c <= 'Z') c |= ' ';
 
-                extension[j] = c;
+                extension.push_back(c);
             }
-
-            extension[j] = 0;
-
             return true;
         }
     }
