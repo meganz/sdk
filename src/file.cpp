@@ -298,7 +298,7 @@ void File::completed(Transfer* t, LocalNode* l)
         newnode->uploadhandle = t->uploadhandle;
 
         // reference to uploaded file
-        memcpy(newnode->uploadtoken, t->ultoken, sizeof newnode->uploadtoken);
+        memcpy(newnode->uploadtoken, t->ultoken.get(), sizeof newnode->uploadtoken);
 
         // file's crypto key
         newnode->nodekey.assign((char*)t->filekey, FILENODEKEYLENGTH);
