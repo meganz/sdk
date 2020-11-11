@@ -221,27 +221,48 @@ protected:
     std::set<MegaTransferPrivate*> subTransfers;
     int mIncompleteTransfers = { 0 };
     MegaErrorPrivate mLastError = { API_OK };
+    std::string mLocalSeparator;
 };
 
-class MegaFolderUploadController : public MegaTransferListener, public MegaRecursiveOperation
+class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveOperation
 {
 public:
     MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
     void start(MegaNode* node) override;
     void cancel() override;
+    void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e) override;
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
     ~MegaFolderUploadController();
+    bool isCompleted();
+    void complete();
 
 protected:
+
+    // worker thread
+    std::thread mWorkerThread;
+
+    // thread id of main thread
+    std::thread::id mMainThreadId;
+
+    // if set, symlinks will be followed
+    bool mFollowsymlinks;
+
+    // number of folders that are pending to be created in cloud drive
     int mPendingFolders;
+
+    // number of files pending to be processed (add a transfer for each one)
+    int mPendingFilesToProcess;
+
+    // maps tempHandle to definitive handle
+    map<handle, handle> mNewNodesResult;
 
     // maps parent handle to vector of LocalPath of it's children
     map<handle, vector<LocalPath>> mFolderToPendingFiles;
 
     // maps targetHandle of the subtree to a vector of NewNodes
-    map<handle, vector<NewNode>> mFolderStructure;
+    vector<pair<handle, vector<NewNode>>> mFolderStructure;
 
     /* Scan entire tree recursively, and retrieve folder structure and files to be uploaded.
      * A putnodes command can only add subtrees under same target, so in case we need to add
@@ -250,9 +271,9 @@ protected:
     void scanFolder(handle targetHandle, handle parentHandle, LocalPath& localPath, std::string folderName);
     void createFolder();
     /* iterate through all pending files of each uploaded folder, and start all upload transfers */
-    void startFileUploads(const vector<NewNode> &nn);
-    void checkCompletion();
-    handle addNewNodeToVector(handle targetHandle, handle parentHandle, const char * folderName);
+    void uploadFiles();
+    void updateNodeHandles(handle &targetHandle, vector<NewNode> &newnodes);
+    void addNewNodeToVector(handle &targetHandle, handle &parentHandle, const char *folderName);
 };
 
 
@@ -398,26 +419,37 @@ public:
     void setValid(bool value);
 };
 
-class MegaFolderDownloadController : public MegaTransferListener, public MegaRecursiveOperation
+class MegaFolderDownloadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveOperation
 {
 public:
     MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
+    ~MegaFolderDownloadController();
     void start(MegaNode *node) override;
     void cancel() override;
-
-protected:
-    void scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType);
-    void downloadFolder(FileSystemType fstype);
-    void checkCompletion();
-
-public:
+    void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e) override;
     void onTransferStart(MegaApi *, MegaTransfer *t) override;
     void onTransferUpdate(MegaApi *, MegaTransfer *t) override;
     void onTransferFinish(MegaApi*, MegaTransfer *t, MegaError *e) override;
+    bool isCompleted();
+    void complete();
 
 protected:
+
+    // worker thread
+    std::thread mWorkerThread;
+
+    // thread id of main thread
+    std::thread::id mMainThreadId;
+
+    // number of files pending to be processed (add a transfer for each one)
+    int mPendingFilesToProcess;
+
     // each element is a pair formed by the folder LocalPath and a vector that contains all children folders
     std::vector<std::pair<LocalPath, std::vector<unique_ptr<MegaNode>>>> mLocalTree;
+
+    void scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType);
+    void createFolder();
+    void downloadFiles(FileSystemType fsType);
 };
 
 class MegaNodePrivate : public MegaNode, public Cacheable
@@ -770,7 +802,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         static MegaTransferPrivate* unserialize(string*);
 
         void startRecursiveOperation(unique_ptr<MegaRecursiveOperation>, MegaNode* node); // takes ownership of both
-
+        void endRecursiveOperation();
         long long getPlaceInQueue() const;
         void setPlaceInQueue(long long value);
 
@@ -2106,12 +2138,6 @@ class MegaApiImpl : public MegaApp
 
         static MegaApiImpl* ImplOf(MegaApi*);
 
-        // timeout that must not be exceeded while processing transfers queue
-        const unsigned minPendingTransfersTimeout = 100;
-
-        // timeout that must not be exceeded while processing transfers queue and we are processing a folder tree
-        const unsigned maxPendingTransfersTimeout = 3000;
-
         //Multiple listener management.
         void addListener(MegaListener* listener);
         void addRequestListener(MegaRequestListener* listener);
@@ -2244,6 +2270,8 @@ class MegaApiImpl : public MegaApp
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         bool createLocalFolder(const char *path);
+        void createRemoteFolder(handle h, vector<NewNode>&& newnodes, const char *cauth, std::function<void(const Error&, targettype_t , vector<NewNode>&)> f);
+        MegaErrorPrivate createLocalFolder(LocalPath & localPath);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
         void moveNode(MegaNode* node, MegaNode* newParent, const char *newName, MegaRequestListener *listener = NULL);
         void copyNode(MegaNode* node, MegaNode *newParent, MegaRequestListener *listener = NULL);
@@ -2352,12 +2380,15 @@ class MegaApiImpl : public MegaApp
         void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener);
         void startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener);
         void startUploadForSupport(const char *localPath, bool isSourceTemporary, FileSystemType fsType, MegaTransferListener *listener=NULL);
+        MegaTransferPrivate* createUploadTransfer(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener);
         void startDownload(MegaNode* node, const char* localPath, MegaTransferListener *listener = NULL);
         void startDownload(bool startFirst, MegaNode *node, const char* target, int folderTransferTag, const char *appData, MegaTransferListener *listener);
+        MegaTransferPrivate* createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener);
         void startStreaming(MegaNode* node, m_off_t startPos, m_off_t size, MegaTransferListener *listener);
         void setStreamingMinimumRate(int bytesPerSecond);
         void retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener = NULL);
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener=NULL);
+        void endRecursiveOperation(MegaTransfer *t, MegaRequestListener *listener=NULL);
         void cancelTransferByTag(int transferTag, MegaRequestListener *listener = NULL);
         void cancelTransfers(int direction, MegaRequestListener *listener=NULL);
         void pauseTransfers(bool pause, int direction, MegaRequestListener* listener=NULL);
@@ -2496,6 +2527,12 @@ class MegaApiImpl : public MegaApp
         int getAccess(MegaNode* node);
         long long getSize(MegaNode *node);
         static void removeRecursively(const char *path);
+
+        LocalPath getLocalPathFromName(const char *name, FileSystemType fsType);
+        string LocalPathToPath(const LocalPath &localpath);
+        string LocalPathToName(LocalPath &localpath, FileSystemType fsType);
+        FileSystemType getLocalfstypeFromPath(const LocalPath& path);
+        DirAccess* getNewDirAccess();
 
         //Fingerprint
         char *getFingerprint(const char *filePath);
@@ -2892,7 +2929,6 @@ protected:
         long long totalDownloadBytes;
         long long totalUploadBytes;
         long long notificationNumber;
-        bool mProcessingFolderTransfer;
         set<MegaRequestListener *> requestListeners;
         set<MegaTransferListener *> transferListeners;
         set<MegaBackupListener *> backupListeners;
@@ -3243,7 +3279,7 @@ protected:
 
         void sendPendingScRequest();
         void sendPendingRequests();
-        unsigned sendPendingTransfers();
+        unsigned sendPendingTransfers(TransferQueue *queue = nullptr);
         void updateBackups();
 
         //Internal
@@ -3269,6 +3305,8 @@ protected:
         bool hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const;
 
         friend class MegaBackgroundMediaUploadPrivate;
+        friend class MegaFolderDownloadController;
+        friend class MegaFolderUploadController;
 };
 
 class MegaHashSignatureImpl
