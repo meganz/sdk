@@ -8222,7 +8222,8 @@ bool CommandBackupPut::procresult(Result r)
     {
         e = r.errorOrOK();
     }
-    client->putua(ATTR_BACKUP_NAMES, (byte*)mBackupName.c_str(), unsigned(mBackupName.size()));
+    string buf = Base64::btoa(mBackupName);
+    client->putua(ATTR_BACKUP_NAMES, (byte*)buf.c_str(), unsigned(buf.size()));
     LOG_debug << "backup put result: " << error(e) << " " << backupId;
 
     if (mUpdate)
@@ -8262,8 +8263,9 @@ CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId)
 {
     cmd("sr");
     arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
-
-    client->putua(ATTR_BACKUP_NAMES, (byte*)"", 0);
+    
+    string buf = Base64::btoa("");
+    client->putua(ATTR_BACKUP_NAMES, (byte*)buf.c_str(), unsigned(buf.size()));
     tag = client->reqtag;
 }
 
