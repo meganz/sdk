@@ -319,7 +319,11 @@ CONFIG(USE_FFMPEG) {
         vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/ffmpeg
         else:INCLUDEPATH += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg
         LIBS += -lavcodec -lavformat -lavutil -lswscale
-        vcpkg:macx:LIBS += -lswrescale -lbz2
+        vcpkg:macx {
+            debug:LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libbz2d.a
+            else:LIBS += $$THIRDPARTY_VCPKG_PATH/lib/libbz2.a
+        }
+
     }
 }
 
@@ -523,10 +527,13 @@ vcpkg {
     INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/libsodium
 
     CONFIG(USE_CURL) {
-        INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/openssl
+        !macx:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/openssl
         INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/cares
         win32:LIBS +=  -llibcurl$$DASH_DEBUG_SUFFIX -lcares -llibcrypto -llibssl
-        else:LIBS +=  -lcurl$$DASH_DEBUG_SUFFIX -lcares -lcrypto -lssl
+        else {
+            LIBS +=  -lcurl$$DASH_DEBUG_SUFFIX -lcares
+            !macx:LIBS += -lcrypto -lssl
+        }
     }
 
     CONFIG(USE_PCRE) {
