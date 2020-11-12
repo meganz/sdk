@@ -3303,6 +3303,11 @@ MegaTimeZoneDetails *MegaRequestPrivate::getMegaTimeZoneDetails() const
     return timeZoneDetails;
 }
 
+MegaStringList *MegaRequestPrivate::getMegaStringList() const
+{
+    return mStringList.get();
+}
+
 #ifdef ENABLE_CHAT
 MegaTextChatPeerList *MegaRequestPrivate::getMegaTextChatPeerList() const
 {
@@ -3414,6 +3419,16 @@ void MegaRequestPrivate::setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUplo
 {
     // non-owned pointer
     backgroundMediaUpload = p;
+}
+
+void MegaRequestPrivate::setMegaStringList(MegaStringList* stringList)
+{
+    mStringList.reset();
+
+    if (stringList)
+    {
+       mStringList = unique_ptr<MegaStringList>(stringList->copy());
+    }
 }
 
 
@@ -3956,6 +3971,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_BACKUP_PUT: return "BACKUP_PUT";
         case TYPE_BACKUP_REMOVE: return "BACKUP_REMOVE";
         case TYPE_BACKUP_PUT_HEART_BEAT: return "BACKUP_PUT_HEART_BEAT";
+        case TYPE_FETCH_GOOGLE_ADS: return "FETCH_GOOGLE_ADS";
+        case TYPE_QUERY_GOOGLE_ADS: return "QUERY_GOOGLE_ADS";
     }
     return "UNKNOWN";
 }
@@ -4146,46 +4163,24 @@ MegaStringMapPrivate::MegaStringMapPrivate(const MegaStringMapPrivate *megaStrin
 
 MegaStringListPrivate::MegaStringListPrivate()
 {
-    list = NULL;
-    s = 0;
 }
 
 MegaStringListPrivate::MegaStringListPrivate(const MegaStringListPrivate *stringList)
 {
-    s = stringList->size();
-    if (!s)
-    {
-        list = NULL;
-        return;
-    }
-
-    list = new const char*[s];
-    for (int i = 0; i < s; i++)
-        list[i] = MegaApi::strdup(stringList->get(i));
+    mList = stringList->mList;
 }
 
 MegaStringListPrivate::MegaStringListPrivate(char **newlist, int size)
 {
-    list = NULL;
-    s = size;
-    if (!size)
-    {
-        return;
-    }
-
-    list = new const char*[size];
     for (int i = 0; i < size; i++)
-        list[i] = newlist[i];
+    {
+        mList.push_back(newlist[i]);
+    }
 }
 
 MegaStringListPrivate::~MegaStringListPrivate()
 {
-    if(!list)
-        return;
 
-    for(int i=0; i<s; i++)
-        delete [] list[i];
-    delete [] list;
 }
 
 MegaStringList *MegaStringListPrivate::copy() const
@@ -4195,15 +4190,28 @@ MegaStringList *MegaStringListPrivate::copy() const
 
 const char *MegaStringListPrivate::get(int i) const
 {
-    if(!list || (i < 0) || (i >= s))
-        return NULL;
+    if((i < 0) || (i >= mList.size()))
+        return nullptr;
 
-    return list[i];
+    return mList[i].c_str();
 }
 
 int MegaStringListPrivate::size() const
 {
-    return s;
+    return mList.size();
+}
+
+void MegaStringListPrivate::add(const char *value)
+{
+    if (value)
+    {
+        mList.push_back(value);
+    }
+}
+
+const string_vector& MegaStringListPrivate::getVector()
+{
+    return mList;
 }
 
 bool operator==(const MegaStringList& lhs, const MegaStringList& rhs)
@@ -23113,6 +23121,53 @@ void MegaApiImpl::sendPendingRequests()
                                                            request->getNodeHandle()));
             break;
         }
+        case MegaRequest::TYPE_FETCH_GOOGLE_ADS:
+        {
+                int flags = request->getNumber();
+                if (flags < MegaApi::GOOGLE_ADS_FORCE_ADS || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
+                {
+                    e = API_EARGS;
+                    break;
+                }
+
+                const string_vector &vectorString = static_cast<MegaStringListPrivate*>(request->getMegaStringList())->getVector();
+                client->reqs.add(new CommandFetchGoogleAds(client, flags, vectorString, request->getNodeHandle(), [request, this](Error e, string_map value)
+                {
+                    if (e == API_OK)
+                    {
+                        std::unique_ptr<MegaStringMap> stringMap = std::unique_ptr<MegaStringMap>(MegaStringMap::createInstance());
+                        for (const auto itMap : value)
+                        {
+                            stringMap->set(itMap.first.c_str(), itMap.second.c_str());
+                        }
+
+                        request->setMegaStringMap(stringMap.get());
+                    }
+
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                }));
+            break;
+        }
+        case MegaRequest::TYPE_QUERY_GOOGLE_ADS:
+        {
+            int flags = request->getNumber();
+            if (flags < MegaApi::GOOGLE_ADS_FORCE_ADS || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->reqs.add(new CommandQueryGoogleAds(client, flags, request->getNodeHandle(), [request, this](Error e, int value)
+            {
+                if (e == API_OK)
+                {
+                    request->setNumDetails(value);
+                }
+
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }));
+            break;
+        }
         default:
         {
             e = API_EINTERNAL;
@@ -23332,6 +23387,25 @@ void MegaApiImpl::sendBackupHeartbeat(MegaHandle backupId, int status, int progr
     request->setTransferTag(downs);
     request->setNumber(ts);
     request->setNodeHandle(lastNode);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_GOOGLE_ADS, listener);
+    request->setNumber(adFlags);
+    request->setMegaStringList(adUnits);
+    request->setNodeHandle(publicHandle);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_GOOGLE_ADS, listener);
+    request->setNumber(adFlags);
+    request->setNodeHandle(publicHandle);
     requestQueue.push(request);
     waiter->notify();
 }

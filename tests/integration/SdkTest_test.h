@@ -164,6 +164,7 @@ public:
         std::unique_ptr<MegaContactRequest> cr;
         std::unique_ptr<MegaTimeZoneDetails> tzDetails;
         std::unique_ptr<MegaAccountDetails> accountDetails;
+        std::unique_ptr<MegaStringMap> mStringMap;
 
         // flags to monitor the updates of nodes/users/PCRs due to actionpackets
         bool nodeUpdated;
@@ -285,6 +286,9 @@ public:
     template<typename ... Args> int synchronousUpdateBackup(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_BACKUP_PUT, [this, apiIndex, args...]() { megaApi[apiIndex]->updateBackup(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousRemoveBackup(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_BACKUP_REMOVE, [this, apiIndex, args...]() { megaApi[apiIndex]->removeBackup(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousSendBackupHeartbeat(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT, [this, apiIndex, args...]() { megaApi[apiIndex]->sendBackupHeartbeat(args...); }); return mApi[apiIndex].lastError; }
+
+    template<typename ... Args> int synchronousQueryGoogleAds(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_QUERY_GOOGLE_ADS, [this, apiIndex, args...]() { megaApi[apiIndex]->queryGoogleAds(args...); }); return mApi[apiIndex].lastError; }
+    template<typename ... Args> int synchronousFetchGoogleAds(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_FETCH_GOOGLE_ADS, [this, apiIndex, args...]() { megaApi[apiIndex]->fetchGoogleAds(args...); }); return mApi[apiIndex].lastError; }
 
 
     // convenience functions - make a request and wait for the result via listener, return the result code.  To add new functions to call, just copy the line
