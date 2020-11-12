@@ -5,9 +5,14 @@ MEGA SDK configuration and compilation instructions for OSX.
 *) Install Homebrew package manager: http://brew.sh/
  The website has nice instructions how to install it.
 
-*) Install dependencies:
-brew install autoconf automake libtool libcryptopp sqlite openssl c-ares freeimage readline
+*) Install most dependencies using Homebew:
+brew install autoconf automake libtool libsodium sqlite openssl c-ares freeimage readline
 brew install --with-openssl curl
+
+*) Install libcryptopp from GitHub using the instructions in INSTALL distfile:
+https://github.com/weidai11/cryptopp/blob/master/Install.txt
+Using the following prefix for the make install command:
+make install PREFIX=/usr/local/opt/cryptopp
 
 *) Get and extract MEGA SDK sources
 
@@ -21,7 +26,8 @@ brew install --with-openssl curl
  --with-cares=/usr/local/opt/c-ares \
 --with-curl=/usr/local/opt/curl \
 --with-freeimage=/usr/local/opt/freeimage \
---with-readline=/usr/local/opt/readline
+--with-readline=/usr/local/opt/readline \
+--with-sodium=/usr/local/opt/libsodium
 
 *) Build project:
 make
