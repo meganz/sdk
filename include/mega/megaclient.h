@@ -515,6 +515,8 @@ public:
     // true if any name conflicts have been detected.
     bool conflictsDetected() const;
 
+    bool syncStallDetected(map<string, SyncWaitReason>& stalledNodePaths, map<LocalPath, SyncWaitReason>& stalledLocalPaths) const;
+
     // indicates whether all startup syncs have been fully scanned
     bool allSyncsIdle();
 
@@ -1448,6 +1450,9 @@ public:
 
     // app scanstate flag
     bool syncscanstate;
+
+    // app scanstate flag
+    bool syncStallState;
 
     // sync PUT Nagle timer
     bool syncnagleretry;

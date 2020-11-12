@@ -3100,6 +3100,7 @@ protected:
         void sync_removed(int tag) override;
 
         void syncupdate_scanning(bool scanning) override;
+        void syncupdate_stalled(bool stalled) override;
         void syncupdate_local_folder_addition(Sync* sync, const LocalPath& path) override;
         void syncupdate_local_folder_deletion(Sync* sync, const LocalPath& path) override;
         void syncupdate_local_file_addition(Sync* sync, const LocalPath& path) override;

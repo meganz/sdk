@@ -1120,6 +1120,8 @@ void MegaClient::init()
         syncscanstate = false;
     }
 
+    syncStallState = false;
+
     resetSyncConfigs();
 #endif
 
@@ -1430,6 +1432,20 @@ bool MegaClient::conflictsDetected() const
         }
     }
 
+    return false;
+}
+
+bool MegaClient::syncStallDetected(map<string, SyncWaitReason>& snp, map<LocalPath, SyncWaitReason>& slp) const
+{
+    bool stalled = !mSyncFlags->stalledNodePaths.empty() ||
+                   !mSyncFlags->stalledLocalPaths.empty();
+
+    if (stalled)
+    {
+        snp = mSyncFlags->stalledNodePaths;
+        slp = mSyncFlags->stalledLocalPaths;
+        return true;
+    }
     return false;
 }
 
@@ -2945,7 +2961,7 @@ void MegaClient::exec()
                         sync->recursiveSync(row, pathBuffer, committer);
 
                         // Cancel the scan request if we couldn't reach the scan target.
-                        if (!mSyncFlags->scanTargetReachable)
+                        if (sync->mScanRequest && !mSyncFlags->scanTargetReachable)
                         {
                             LOG_warn << "Abandoning unreachable scan request";
                             sync->mScanRequest.reset();
@@ -2976,12 +2992,21 @@ void MegaClient::exec()
                 {
                     ++mSyncFlags->noProgressCount;
                 }
-                if (!mSyncFlags->stalledNodePaths.empty() ||
-                    !mSyncFlags->stalledLocalPaths.empty())
+
+                bool stalled = !mSyncFlags->stalledNodePaths.empty() ||
+                               !mSyncFlags->stalledLocalPaths.empty();
+                if (stalled)
                 {
-                    LOG_warn << "Stall detected!";
+                    LOG_warn << clientname << "Stall detected!";
                     for (auto& p : mSyncFlags->stalledNodePaths) LOG_warn << "stalled node path: " << p.first;
                     for (auto& p : mSyncFlags->stalledLocalPaths) LOG_warn << "stalled local path: " << p.first.toPath(*fsaccess);
+                }
+
+                if (stalled != syncStallState)
+                {
+                    app->syncupdate_stalled(stalled);
+                    syncStallState = stalled;
+                    LOG_warn << clientname << "Stall state app notifedd: " << stalled;
                 }
 
                 execsyncdeletions();
@@ -2993,6 +3018,8 @@ void MegaClient::exec()
                 app->syncupdate_scanning(anySyncScanning);
                 syncscanstate = anySyncScanning;
             }
+
+            
 
                     //// notify the app if a lock is being retried
                     //if (success)

@@ -514,6 +514,18 @@ void DemoApp::syncupdate_scanning(bool active)
     }
 }
 
+void DemoApp::syncupdate_stalled(bool stalled)
+{
+    if (stalled)
+    {
+        cout << "Sync - stalled" << endl;
+    }
+    else
+    {
+        cout << "Sync - stall ended" << endl;
+    }
+}
+
 // sync update callbacks are for informational purposes only and must not change or delete the sync itself
 void DemoApp::syncupdate_local_folder_addition(Sync* sync, const LocalPath& path)
 {

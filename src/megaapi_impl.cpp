@@ -12931,11 +12931,16 @@ void MegaApiImpl::syncupdate_state(int tag, syncstate_t newstate, SyncError sync
 
 void MegaApiImpl::syncupdate_scanning(bool scanning)
 {
-    if(client)
+    if (client)
     {
         client->abortbackoff(false);
         client->syncscanstate = scanning;
     }
+    fireOnGlobalSyncStateChanged();
+}
+
+void MegaApiImpl::syncupdate_stalled(bool scanning)
+{
     fireOnGlobalSyncStateChanged();
 }
 

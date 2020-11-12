@@ -285,6 +285,7 @@ struct MEGA_API MegaApp
     // sync status updates and events
     virtual void syncupdate_state(int tag, syncstate_t, SyncError, bool = true) { }
     virtual void syncupdate_scanning(bool) { }
+    virtual void syncupdate_stalled(bool) { }
     virtual void syncupdate_local_folder_addition(Sync*, const LocalPath& path) { }
     virtual void syncupdate_local_folder_deletion(Sync*, const LocalPath& path) { }
     virtual void syncupdate_local_file_addition(Sync*, const LocalPath& path) { }

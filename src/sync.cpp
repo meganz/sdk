@@ -1157,7 +1157,7 @@ struct ProgressingMonitor
             (a.size() == b.size() || b[a.size()] == '/');
     }
 
-    void waitingCloud(const string& cloudPath, Sync::SyncWaitReason r)
+    void waitingCloud(const string& cloudPath, SyncWaitReason r)
     {
         resolved = true;
 
@@ -1176,7 +1176,7 @@ struct ProgressingMonitor
         }
     }
 
-    void waitingLocal(const LocalPath& p, Sync::SyncWaitReason r)
+    void waitingLocal(const LocalPath& p, SyncWaitReason r)
     {
         resolved = true;
 
@@ -1399,8 +1399,8 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
                     if (!sourceCloudNode) SYNC_verbose << client->clientname << "Source parent cloud node doesn't exist yet" << logTriplet(row, fullPath);
                     if (!targetCloudNode) SYNC_verbose << client->clientname << "Target parent cloud node doesn't exist yet" << logTriplet(row, fullPath);
 
-                    monitor.waitingLocal(sourceLocalNode->getLocalPath(true), MoveNeedsTargetFolder);
-                    monitor.waitingLocal(fullPath, MoveNeedsTargetFolder);
+                    monitor.waitingLocal(sourceLocalNode->getLocalPath(true), SyncWaitReason::MoveNeedsTargetFolder);
+                    monitor.waitingLocal(fullPath, SyncWaitReason::MoveNeedsTargetFolder);
 
                     row.suppressRecursion = true;
                     rowResult = false;
@@ -1559,7 +1559,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
         else
         {
             SYNC_verbose << "Move to here delayed since local parent doesn't exist yet: " << sourcePath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
-            monitor.waitingCloud(row.cloudNode->displaypath(), MoveNeedsTargetFolder);
+            monitor.waitingCloud(row.cloudNode->displaypath(), SyncWaitReason::MoveNeedsTargetFolder);
             rowResult = false;
             return true;
         }
@@ -3043,7 +3043,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath,
             {
                 SYNC_verbose << client->clientname << "Parent cloud folder to upload to doesn't exist yet" << logTriplet(row, fullPath);
                 row.syncNode->setSyncAgain(true, false, false);
-                monitor.waitingLocal(fullPath, UpsyncNeedsTargetFolder);
+                monitor.waitingLocal(fullPath, SyncWaitReason::UpsyncNeedsTargetFolder);
             }
         }
         else if (row.syncNode->newnode)
@@ -3069,7 +3069,7 @@ bool Sync::resolve_upsync(syncRow& row, syncRow& parentRow, LocalPath& fullPath,
         {
             SYNC_verbose << "Delay creating cloud node until parent cloud node exists: " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
             row.syncNode->setSyncAgain(true, false, false);
-            monitor.waitingLocal(fullPath, UpsyncNeedsTargetFolder);
+            monitor.waitingLocal(fullPath, SyncWaitReason::UpsyncNeedsTargetFolder);
         }
 
         // we may not see some moves/renames until the entire folder structure is created.
@@ -3121,7 +3121,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPat
         {
             SYNC_verbose << "Delay starting download until parent local folder exists: " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
             row.syncNode->setSyncAgain(true, false, false);
-            monitor.waitingCloud(row.cloudNode->displaypath(), DownsyncNeedsTargetFolder);
+            monitor.waitingCloud(row.cloudNode->displaypath(), SyncWaitReason::DownsyncNeedsTargetFolder);
         }
     }
     else
@@ -3187,7 +3187,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPat
         {
             SYNC_verbose << "Delay creating local folder until parent local folder exists: " << fullPath.toPath(*client->fsaccess) << logTriplet(row, fullPath);
             row.syncNode->setSyncAgain(true, false, false);
-            monitor.waitingCloud(row.cloudNode->displaypath(), DownsyncNeedsTargetFolder);
+            monitor.waitingCloud(row.cloudNode->displaypath(), SyncWaitReason::DownsyncNeedsTargetFolder);
         }
 
         // we may not see some moves/renames until the entire folder structure is created.
@@ -3268,7 +3268,7 @@ bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fu
         row.syncNode->setSyncAgain(true, false, false); // make sure we revisit (but don't keep checkMoves set)
         if (parentRow.cloudNode)
         {
-            monitor.waitingCloud(parentRow.cloudNode->displaypath() + "/" + row.syncNode->name, DeleteWaitingOnMoves);
+            monitor.waitingCloud(parentRow.cloudNode->displaypath() + "/" + row.syncNode->name, SyncWaitReason::DeleteWaitingOnMoves);
         }
         else
         {
@@ -3525,7 +3525,7 @@ bool Sync::resolve_fsNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullP
             SYNC_verbose << client->clientname << "Wait for scanning/moving to finish before moving to local debris: " << logTriplet(row, fullPath);
             row.syncNode->setSyncAgain(true, false, false); // make sure we revisit
 
-            monitor.waitingLocal(fullPath, DeleteWaitingOnMoves);
+            monitor.waitingLocal(fullPath, SyncWaitReason::DeleteWaitingOnMoves);
         }
     }
 

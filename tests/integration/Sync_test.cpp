@@ -892,6 +892,7 @@ struct StandardClient : public MegaApp
 
     void syncupdate_state(int tag, syncstate_t state, SyncError syncError, bool fireDisableEvent = true) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << " syncupdate_state() " << state << " error :" << syncError << endl; } }
     void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b << endl; } }
+    void syncupdate_stalled(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_stalled()" << b << endl; } }
     void syncupdate_local_folder_addition(Sync* s, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " yncupdate_local_folder_addition() " << path.toPath(*client.fsaccess) << endl; }}
     void syncupdate_local_folder_deletion(Sync*, const LocalPath& path) override { if (logcb) { onCallback(); lock_guard<mutex> g(om);  out() << clientname << "syncupdate_local_folder_deletion() " << path.toPath(*client.fsaccess) << endl; }}
     void syncupdate_local_file_addition(Sync*, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << "syncupdate_local_file_addition() " << path.toPath(*client.fsaccess) << " " << endl; }}
@@ -2320,66 +2321,69 @@ struct StandardClient : public MegaApp
 };
 
 
-void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1 = nullptr, StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr)
+void waitonsyncs(std::function<bool(int64_t millisecNoActivity, int64_t millisecNoSyncing)> endCondition, StandardClient* c1 = nullptr, StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr)
 {
     auto totalTimeoutStart = chrono::steady_clock::now();
-    auto start = chrono::steady_clock::now();
+    auto startNoActivity = chrono::steady_clock::now();
+    auto startNoSyncing = chrono::steady_clock::now();
     std::vector<StandardClient*> v{ c1, c2, c3, c4 };
     for (;;)
     {
-        bool any_add_del = false;
+        bool any_activity = false;
+        bool any_still_syncing = false;
         vector<int> syncstates;
 
         for (auto vn : v) if (vn)
         {
-            vn->thread_do([&syncstates, &any_add_del](StandardClient& mc, promise<bool>&)
-            {
-                for (auto& sync : mc.client.syncs)
+            vn->thread_do([&syncstates, &any_activity, &any_still_syncing](StandardClient& mc, promise<bool>&)
                 {
-                    syncstates.push_back(sync->state);
-                    if (sync->deleteq.size() || sync->insertq.size())
-                        any_add_del = true;
-                }
-                if (!(mc.client.todebris.empty() && mc.client.tounlink.empty() //&& mc.client.synccreate.empty()
-                    && mc.client.transferlist.transfers[GET].empty() && mc.client.transferlist.transfers[PUT].empty()))
-                {
-                    any_add_del = true;
-                }
-                if (mc.client.isAnySyncSyncing())
-                {
-                    any_add_del = true;
-                }
-                if (mc.client.reqs.cmdsInflight())
-                {
-                    // helps with waiting for 500s to pass
-                    any_add_del = true;
-                }
-            });
+                    for (auto& sync : mc.client.syncs)
+                    {
+                        syncstates.push_back(sync->state);
+                        if (sync->deleteq.size() || sync->insertq.size())
+                            any_activity = true;
+                    }
+                    if (!(mc.client.todebris.empty() && mc.client.tounlink.empty() //&& mc.client.synccreate.empty()
+                        && mc.client.transferlist.transfers[GET].empty() && mc.client.transferlist.transfers[PUT].empty()))
+                    {
+                        any_activity = true;
+                    }
+                    if (mc.client.isAnySyncSyncing())
+                    {
+                        any_still_syncing = true;
+                    }
+                    if (mc.client.reqs.cmdsInflight())
+                    {
+                        // helps with waiting for 500s to pass
+                        any_activity = true;
+                    }
+                });
         }
 
-        bool allactive = true;
+        if (any_activity || StandardClient::debugging)
         {
-            //lock_guard<mutex> g(StandardClient::om);
-            //out() << "sync state: ";
-            //for (auto n : syncstates)
-            //{
-            //    cout << n;
-            //    if (n != SYNC_ACTIVE) allactive = false;
-            //}
-            //out() << endl;
+            startNoActivity = chrono::steady_clock::now();
         }
-
-        if (any_add_del || StandardClient::debugging)
+        if (any_still_syncing || StandardClient::debugging)
         {
-            start = chrono::steady_clock::now();
+            startNoSyncing = chrono::steady_clock::now();
         }
 
+        auto minNoActivityTime = std::chrono::milliseconds(6 * 60 * 1000);
+        auto minNoSyncingTime = std::chrono::milliseconds(6 * 60 * 1000);
         for (auto vn : v) if (vn)
         {
-            if (allactive && ((chrono::steady_clock::now() - start) > d) && ((chrono::steady_clock::now() - vn->lastcb) > d))
-            {
-                return;
-            }
+            auto t1 = chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - startNoActivity);
+            auto t2 = chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - vn->lastcb);
+            if (t1 < minNoActivityTime) minNoActivityTime = t1;
+            if (t2 < minNoActivityTime) minNoActivityTime = t2;
+
+            auto t3 = chrono::duration_cast<chrono::milliseconds>(chrono::steady_clock::now() - startNoSyncing);
+            if (t3 < minNoSyncingTime) minNoSyncingTime = t3;
+        }
+        if (endCondition(minNoActivityTime.count(), minNoSyncingTime.count()))
+        {
+            return;
         }
 
         WaitMillisec(400);
@@ -2390,8 +2394,20 @@ void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1
             return;
         }
     }
-
 }
+
+void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1 = nullptr, StandardClient* c2 = nullptr, StandardClient* c3 = nullptr, StandardClient* c4 = nullptr)
+{
+    auto endCondition = [d](int64_t millisecNoActivity, int64_t millisecNoSyncing) {
+        return std::chrono::duration_cast<chrono::milliseconds>(d).count() < millisecNoActivity
+            && std::chrono::duration_cast<chrono::milliseconds>(d).count() < millisecNoSyncing;
+    };
+
+    waitonsyncs(endCondition, c1, c2, c3, c4);
+}
+
+
+
 
 
 mutex StandardClient::om;
@@ -3495,14 +3511,31 @@ GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
     ASSERT_TRUE(pclientA1->login_fetchnodes_resumesync(string((char*)session, sessionsize), sync1path.u8string(), "f", 1));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
-    waitonsyncs(std::chrono::seconds(10), pclientA1.get(), &clientA2);
+    waitonsyncs([&pclientA1](int64_t millisecNoActivity, int64_t millisecNoSyncing){
+            map<string, SyncWaitReason> stalledNodePaths; 
+            map<LocalPath, SyncWaitReason> stalledLocalPaths;
+            std::lock_guard<std::recursive_mutex> lg(pclientA1->clientMutex);
+            return millisecNoActivity > 3000 && pclientA1->client.syncStallDetected(stalledNodePaths, stalledLocalPaths);
+            },
+        pclientA1.get(), &clientA2);
 
-    // check everything matches (model has expected state of remote and local)
-    model.findnode("f/f_1/f_1_2")->addkid(model.buildModelSubdirs("newlocal", 2, 2, 2));
-    ASSERT_TRUE(model.movetosynctrash("f/f_1", "f"));
-    ASSERT_TRUE(pclientA1->confirmModel_mainthread(model.findnode("f"), 1));
-    ASSERT_TRUE(model.removesynctrash("f", "f_1/f_1_2/newlocal"));
-    ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
+    ASSERT_EQ(1, pclientA1->client.mSyncFlags->stalledNodePaths.size());
+    ASSERT_EQ(1, pclientA1->client.mSyncFlags->stalledLocalPaths.size());
+
+
+    Model modelLocal1;
+    modelLocal1.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
+    modelLocal1.findnode("f/f_1/f_1_2")->addkid(model.buildModelSubdirs("newlocal", 2, 2, 2));
+    pclientA1->localNodesMustHaveNodes = false;
+
+    Model modelRemote1;
+    modelRemote1.root->addkid(model.buildModelSubdirs("f", 3, 3, 0));
+    ASSERT_TRUE(modelRemote1.movetosynctrash("f/f_1", "f"));
+
+    ASSERT_TRUE(pclientA1->confirmModel_mainthread(modelLocal1.findnode("f"), 1, false, StandardClient::CONFIRM_LOCAL));
+    ASSERT_TRUE(pclientA1->confirmModel_mainthread(modelRemote1.findnode("f"), 1, false, StandardClient::CONFIRM_REMOTE));
+    //ASSERT_TRUE(modelRemote1.removesynctrash("f", "f_1/f_1_2/newlocal"));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(modelRemote1.findnode("f"), 2));
 }
 
 

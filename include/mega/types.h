@@ -1090,6 +1090,8 @@ public:
     void operator=(crossref_ptr&& p) { assert(!p.ptr); ptr = p; }
 };
 
+enum class SyncWaitReason { MoveNeedsTargetFolder, UpsyncNeedsTargetFolder, DownsyncNeedsTargetFolder, DeleteWaitingOnMoves };
+
 } // namespace
 
 #define MEGA_DISABLE_COPY(class_name) \

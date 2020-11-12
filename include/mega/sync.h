@@ -227,7 +227,6 @@ private:
 class MEGA_API Sync
 {
 public:
-    enum SyncWaitReason { MoveNeedsTargetFolder, UpsyncNeedsTargetFolder, DownsyncNeedsTargetFolder, DeleteWaitingOnMoves };
 
     // returns the sync config
     const SyncConfig& getConfig() const;
@@ -432,8 +431,8 @@ struct SyncFlags
     // stall detection (for incompatible local and remote changes, eg file added locally in a folder removed remotely)
     bool noProgress = true;
     int noProgressCount = 0;
-    map<string, Sync::SyncWaitReason> stalledNodePaths;
-    map<LocalPath, Sync::SyncWaitReason> stalledLocalPaths;
+    map<string, SyncWaitReason> stalledNodePaths;
+    map<LocalPath, SyncWaitReason> stalledLocalPaths;
 };
 
 } // namespace
