@@ -527,11 +527,11 @@ GfxProcQT::~GfxProcQT()
 bool GfxProcQT::readbitmap(FileAccess*, const LocalPath& localname, int)
 {
 #ifdef _WIN32
-    imagePath = QString::fromWCharArray(localname.getLocalPath().c_str());
+    imagePath = QString::fromUtf8(localname.toPath(*client->fsaccess).c_str());
     if(imagePath.startsWith(QString::fromUtf8("\\\\?\\")))
         imagePath = imagePath.mid(4);
 #else
-    imagePath = QString::fromUtf8(localname.getLocalPath().c_str());
+    imagePath = QString::fromUtf8(localname.toPath(*client->fsaccess).c_str());
 #endif
 
     image = readbitmapQT(w, h, orientation, imageType, imagePath);
