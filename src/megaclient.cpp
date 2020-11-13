@@ -1158,8 +1158,6 @@ void MegaClient::init()
     syncnagleretry = false;
     syncextraretry = false;
     syncsup = true;
-    syncdownrequired = false;
-    syncuprequired = false;
 
     if (syncscanstate)
     {
@@ -1389,7 +1387,37 @@ void MegaClient::setKeepSyncsAfterLogout(bool keepSyncsAfterLogout)
 {
     mKeepSyncsAfterLogout = keepSyncsAfterLogout;
 }
-#endif
+
+bool MegaClient::anySyncNeedsTargetedSyncdown()
+{
+    for (Sync* sync : syncs)
+    {
+        if (sync->state != SYNC_CANCELED &&
+            sync->state != SYNC_FAILED &&
+            sync->localroot->syncdownTargetedAction != LocalNode::SYNCTREE_RESOLVED)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void MegaClient::setAllSyncsNeedSyncdown()
+{
+    for (Sync* sync : syncs)
+    {
+        sync->localroot->syncdownTargetedAction = LocalNode::SYNCTREE_SCAN_HERE;
+    }
+}
+
+void MegaClient::setAllSyncsNeedSyncup()
+{
+    for (Sync* sync : syncs)
+    {
+        sync->localroot->syncupTargetedAction = LocalNode::SYNCTREE_SCAN_HERE;
+    }
+}
+#endif  // ENABLE_SYNC
 
 std::string MegaClient::getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
 {
@@ -2270,13 +2298,13 @@ void MegaClient::exec()
                         << " statecurrent=" << statecurrent
                         << " syncadding=" << syncadding
                         << " syncactivity=" << syncactivity
-                        << " syncdownrequired=" << syncdownrequired
+                        << " anySyncNeedsTargetedSyncdown=" << anySyncNeedsTargetedSyncdown()
                         << " syncdownretry=" << syncdownretry;
         }
 
         // do not process the SC result until all preconfigured syncs are up and running
         // except if SC packets are required to complete a fetchnodes
-        if (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownrequired && !syncdownretry)
+        if (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !anySyncNeedsTargetedSyncdown() && !syncdownretry)
 #else
         if (!scpaused && jsonsc.pos)
 #endif
@@ -2294,7 +2322,7 @@ void MegaClient::exec()
             else
             {
                 // remote changes require immediate attention of syncdown()
-                syncdownrequired = true;
+                setAllSyncsNeedSyncdown();
                 syncactivity = true;
             }
 #endif
@@ -2526,7 +2554,7 @@ void MegaClient::exec()
             {
                 syncsup = true;
                 syncactivity = true;
-                syncdownrequired = true;
+                setAllSyncsNeedSyncdown();
             }
         }
 
@@ -2560,7 +2588,7 @@ void MegaClient::exec()
         // halt all syncing while the local filesystem is pending a lock-blocked operation
         // or while we are fetching nodes
         // FIXME: indicate by callback
-        if (!syncdownretry && !syncadding && statecurrent && !syncdownrequired && !fetchingnodes)
+        if (!syncdownretry && !syncadding && statecurrent && !anySyncNeedsTargetedSyncdown() && !fetchingnodes)
         {
             // process active syncs, stop doing so while transient local fs ops are pending
             if (syncs.size() || syncactivity)
@@ -2678,7 +2706,8 @@ void MegaClient::exec()
                                         if (!syncadding)
                                         {
                                             LOG_debug << "Running syncup to create missing folders";
-                                            syncup(sync->localroot.get(), &nds);
+                                            size_t numPending = 0;
+                                            syncup(sync->localroot.get(), &nds, numPending, true);
                                             sync->cachenodes();
                                         }
 
@@ -2776,7 +2805,7 @@ void MegaClient::exec()
                 if (prevpending && !totalpending)
                 {
                     LOG_debug << "Scan queue processed, triggering a scan";
-                    syncdownrequired = true;
+                    setAllSyncsNeedSyncdown();
                 }
 
                 notifypurge();
@@ -2843,15 +2872,19 @@ void MegaClient::exec()
                             for (Sync* sync : syncs)
                             {
                                 if ((sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
-                                 && !syncadding && syncuprequired && !syncnagleretry)
+                                 && !syncadding && (sync->localroot->syncupTargetedAction != LocalNode::SYNCTREE_RESOLVED) && !syncnagleretry)
                                 {
                                     LOG_debug << "Running syncup on demand";
-                                    repeatsyncup |= !syncup(sync->localroot.get(), &nds);
+                                    size_t numPending = 0;
+                                    repeatsyncup |= !(syncup(sync->localroot.get(), &nds, numPending, true) && numPending == 0);
                                     syncupdone = true;
                                     sync->cachenodes();
                                 }
                             }
-                            syncuprequired = !syncupdone || repeatsyncup;
+                            if (!syncupdone || repeatsyncup)
+                            {
+                                setAllSyncsNeedSyncup();
+                            }
 
                             if (EVER(nds))
                             {
@@ -2861,7 +2894,7 @@ void MegaClient::exec()
                                 }
 
                                 syncnagleretry = true;
-                                syncuprequired = true;
+                                setAllSyncsNeedSyncup();
                             }
 
                             // delete files that were overwritten by folders in syncup()
@@ -2963,12 +2996,11 @@ void MegaClient::exec()
             if (syncdownretry && syncdownbt.armed())
             {
                 syncdownretry = false;
-                syncdownrequired = true;
+                setAllSyncsNeedSyncdown();
             }
 
-            if (syncdownrequired)
+            if (anySyncNeedsTargetedSyncdown())
             {
-                syncdownrequired = false;
                 if (!fetchingnodes)
                 {
                     LOG_verbose << "Running syncdown";
@@ -2987,7 +3019,7 @@ void MegaClient::exec()
                             if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
                             {
                                 LOG_debug << "Running syncdown on demand";
-                                if (!syncdown(sync->localroot.get(), localpath, true))
+                                if (!syncdown(sync->localroot.get(), localpath, false))
                                 {
                                     // a local filesystem item was locked - schedule periodic retry
                                     // and force a full rescan afterwards as the local item may
@@ -3004,7 +3036,7 @@ void MegaClient::exec()
                     // notify the app if a lock is being retried
                     if (success)
                     {
-                        syncuprequired = true;
+                        setAllSyncsNeedSyncup();
                         syncdownretry = false;
                         syncactivity = true;
 
@@ -3150,7 +3182,7 @@ int MegaClient::preparewait()
 #ifdef ENABLE_SYNC
     // sync directory scans in progress or still processing sc packet without having
     // encountered a locally locked item? don't wait.
-    if (syncactivity || syncdownrequired || (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownretry))
+    if (syncactivity || anySyncNeedsTargetedSyncdown() || (!scpaused && jsonsc.pos && (syncsup || !statecurrent) && !syncdownretry))
     {
         nds = Waiter::ds;
     }
@@ -3262,7 +3294,7 @@ int MegaClient::preparewait()
 
         // retrying of transient failed read ops
         if (syncfslockretry && !syncdownretry && !syncadding
-                && statecurrent && !syncdownrequired && !syncfsopsfailed)
+                && statecurrent && !anySyncNeedsTargetedSyncdown() && !syncfsopsfailed)
         {
             LOG_debug << "Waiting for a temporary error checking filesystem notification";
             syncfslockretrybt.update(&nds);
@@ -7377,7 +7409,12 @@ Node* MegaClient::sc_deltree()
                     reqtag = 0;
                     proctree(n, &td);
                     reqtag = creqtag;
-
+#ifdef ENABLE_SYNC
+                    if (n->parent && n->parent->localnode)
+                    {
+                        n->parent->localnode->needsFutureSyncdown();
+                    }
+#endif
                     useralerts.convertNotedSharedNodes(false, originatingUser);
                 }
                 return n;
@@ -13238,8 +13275,18 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
 // * attempt to execute renames, moves and deletions (deletions require the
 // rubbish flag to be set)
 // returns false if any local fs op failed transiently
-bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
+bool MegaClient::syncdown(LocalNode * const l, LocalPath& localpath, bool scanWholeSubtree)
 {
+    if (!scanWholeSubtree && l->syncdownTargetedAction == LocalNode::SYNCTREE_RESOLVED)
+    {
+        return true;
+    }
+
+    scanWholeSubtree = scanWholeSubtree || l->syncdownTargetedAction == LocalNode::SYNCTREE_SCAN_HERE;
+
+    auto originalTargetedAction =  l->syncdownTargetedAction;
+    l->syncdownTargetedAction = LocalNode::SYNCTREE_RESOLVED;
+
     // only use for LocalNodes with a corresponding and properly linked Node
     if (l->type != FOLDERNODE || !l->node || (l->parent && l->node->parent->localnode != l->parent))
     {
@@ -13374,8 +13421,9 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                 }
 
                 // recurse into directories of equal name
-                if (!syncdown(ll, localpath, rubbish) && success)
+                if (!syncdown(ll, localpath, scanWholeSubtree))
                 {
+                    l->syncdownTargetedAction = std::max<unsigned>(originalTargetedAction, LocalNode::SYNCTREE_DESCENDANT_FLAGGED);
                     success = false;
                 }
 
@@ -13384,7 +13432,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
 
             lit++;
         }
-        else if (rubbish && ll->deleted)    // no corresponding remote node: delete local item
+        else if (ll->deleted)    // no corresponding remote node: delete local item
         {
             if (ll->type == FILENODE)
             {
@@ -13418,6 +13466,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                 {
                     blockedfile = localpath;
                     LOG_warn << "Transient error deleting " << blockedfile.toPath(*fsaccess);
+                    l->needsFutureSyncdown();
                     success = false;
                     lit++;
                 }
@@ -13429,10 +13478,21 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
         }
     }
 
+    if (!scanWholeSubtree)
+    {
+        return success;
+    }
+
     // create/move missing local folders / FolderNodes, initiate downloads of
     // missing local files
     for (rit = nchildren.begin(); rit != nchildren.end(); rit++)
     {
+        if (!rit->second->mPendingChanges.empty())
+        {
+            // if we already decided on an action for this node, wait until that is finished before considering more changes.
+            l->needsFutureSyncdown();
+            continue;
+        }
 
         localname = rit->second->attrs.map.find('n')->second;
 
@@ -13476,6 +13536,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                     // schedule retry
                     blockedfile = curpath;
                     LOG_debug << "Transient error moving localnode " << blockedfile.toPath(*fsaccess);
+                    l->needsFutureSyncdown();
                     success = false;
                 }
             }
@@ -13546,9 +13607,13 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                         ll->setnode(rit->second);
                         ll->sync->statecacheadd(ll);
 
-                        if (!syncdown(ll, localpath, rubbish) && success)
+                        if (!syncdown(ll, localpath, true))
                         {
-                            LOG_debug << "Syncdown not finished";
+                            if (success)
+                            {
+                                LOG_debug << "Syncdown not finished";
+                            }
+                            l->syncdownTargetedAction = std::max<unsigned>(originalTargetedAction, LocalNode::SYNCTREE_DESCENDANT_FLAGGED);
                             success = false;
                         }
                     }
@@ -13561,6 +13626,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                 {
                     blockedfile = localpath;
                     LOG_debug << "Transient error creating folder " << blockedfile.toPath(*fsaccess);
+                    l->needsFutureSyncdown();
                     success = false;
                 }
                 else if (!fsaccess->transient_error)
@@ -13582,8 +13648,18 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
 // if attached to an existing node
 // l and n are assumed to be folders and existing on both sides or scheduled
 // for creation
-bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
+bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool scanWholeSubtree)
 {
+    if (!scanWholeSubtree && l->syncupTargetedAction == LocalNode::SYNCTREE_RESOLVED)
+    {
+        return true;
+    }
+
+    scanWholeSubtree = scanWholeSubtree || l->syncupTargetedAction == LocalNode::SYNCTREE_SCAN_HERE;
+
+    auto originalTargetedAction = l->syncupTargetedAction;
+    l->syncupTargetedAction = LocalNode::SYNCTREE_RESOLVED;
+
     bool insync = true;
 
     list<string> strings;
@@ -13662,6 +13738,14 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
         if (ll->deleted)
         {
             LOG_debug << "LocalNode deleted " << ll->name;
+            continue;
+        }
+
+        if (ll->node && !ll->node->mPendingChanges.empty())
+        {
+            // We are already doing something with this node, eg. moving it to this folder.
+            // Wait until that is done and then re-evaluate
+            ll->needsFutureSyncup();
             continue;
         }
 
@@ -13872,14 +13956,20 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                     }
 
                     // recurse into directories of equal name
-                    if (!syncup(ll, nds, numPending))
+                    if (!syncup(ll, nds, numPending, scanWholeSubtree))
                     {
+                        l->syncupTargetedAction = originalTargetedAction;
                         parentPending += numPending;
                         return false;
                     }
                     continue;
                 }
             }
+        }
+
+        if (!scanWholeSubtree)
+        {
+            return true;
         }
 
         if (isSymLink)
@@ -14094,8 +14184,9 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
 
         if (ll->type == FOLDERNODE)
         {
-            if (!syncup(ll, nds, numPending))
+            if (!syncup(ll, nds, numPending, true))
             {
+                l->syncupTargetedAction = originalTargetedAction;
                 parentPending += numPending;
                 return false;
             }
@@ -14110,13 +14201,6 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
     parentPending += numPending;
 
     return true;
-}
-
-bool MegaClient::syncup(LocalNode* l, dstime* nds)
-{
-    size_t numPending = 0;
-
-    return syncup(l, nds, numPending) && numPending == 0;
 }
 
 // execute updates stored in synccreate[]

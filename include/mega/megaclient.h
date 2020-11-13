@@ -511,6 +511,10 @@ public:
     // keep sync configuration after logout
     bool mKeepSyncsAfterLogout = false;
 
+    // manage syncdown flags inside the syncs
+    void setAllSyncsNeedSyncdown();
+    bool anySyncNeedsTargetedSyncdown();
+    void setAllSyncsNeedSyncup();
 #endif
 
     // if set, symlinks will be followed except in recursive deletions
@@ -1417,11 +1421,6 @@ public:
     // app scanstate flag
     bool syncscanstate;
 
-    // scan required flag
-    bool syncdownrequired;
-
-    bool syncuprequired;
-
     // block local fs updates processing while locked ops are in progress
     bool syncfsopsfailed;
 
@@ -1473,14 +1472,13 @@ public:
     void syncupdate();
 
     // create missing folders, copy/start uploading missing files
-    bool syncup(LocalNode* l, dstime* nds, size_t& parentPending);
-    bool syncup(LocalNode* l, dstime* nds);
+    bool syncup(LocalNode* l, dstime* nds, size_t& parentPending, bool scanWholeSubtree);
 
     // sync putnodes() completion
     void putnodes_sync_result(error, vector<NewNode>&);
 
     // start downloading/copy missing files, create missing directories
-    bool syncdown(LocalNode*, LocalPath&, bool);
+    bool syncdown(LocalNode * const, LocalPath&, bool scanWholeSubtree);
 
     // move nodes to //bin/SyncDebris/yyyy-mm-dd/ or unlink directly
     void movetosyncdebris(Node*, bool);
