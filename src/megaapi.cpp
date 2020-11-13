@@ -90,6 +90,11 @@ const char *MegaProxy::getPassword()
     return password;
 }
 
+MegaStringList *MegaStringList::createInstance()
+{
+    return new MegaStringListPrivate();
+}
+
 MegaStringList::~MegaStringList()
 {
 
@@ -108,6 +113,11 @@ const char *MegaStringList::get(int) const
 int MegaStringList::size() const
 {
     return 0;
+}
+
+void MegaStringList::add(const char *)
+{
+
 }
 
 MegaStringListMap::MegaStringListMap()
@@ -1043,6 +1053,11 @@ MegaBannerList* MegaRequest::getMegaBannerList() const
     return nullptr;
 }
 
+MegaStringList* MegaRequest::getMegaStringList() const
+{
+    return nullptr;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -1238,6 +1253,11 @@ unsigned long long MegaTransfer::getPriority() const
 long long MegaTransfer::getNotificationNumber() const
 {
     return 0;
+}
+
+bool MegaTransfer::getTargetOverride() const
+{
+    return false;
 }
 
 MegaError::MegaError(int e)
@@ -2764,6 +2784,16 @@ void MegaApi::getMyChatFilesFolder(MegaRequestListener *listener)
     pImpl->getMyChatFilesFolder(listener);
 }
 
+void MegaApi::setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+{
+    pImpl->setMyBackupsFolder(nodehandle, listener);
+}
+
+void MegaApi::getMyBackupsFolder(MegaRequestListener *listener)
+{
+    pImpl->getMyBackupsFolder(listener);
+}
+
 void MegaApi::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
 {
     pImpl->getUserAlias(uh, listener);
@@ -3215,7 +3245,7 @@ int MegaApi::syncPathState(string* path)
 
 MegaNode *MegaApi::getSyncedNode(string *path)
 {
-    return pImpl->getSyncedNode(LocalPath::fromLocalname(*path));
+    return pImpl->getSyncedNode(LocalPath::fromPlatformEncoded(*path));
 }
 
 void MegaApi::syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRequestListener *listener)
@@ -5337,6 +5367,16 @@ void MegaApi::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
 void MegaApi::sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener)
 {
     pImpl->sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode, listener);
+}
+
+void MegaApi::fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener)
+{
+    pImpl->fetchGoogleAds(adFlags, adUnits, publicHandle, listener);
+}
+
+void MegaApi::queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaRequestListener *listener)
+{
+    pImpl->queryGoogleAds(adFlags, publicHandle, listener);
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)

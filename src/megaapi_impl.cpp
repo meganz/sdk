@@ -486,9 +486,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->syncdeleted = (node->syncdeleted != SYNCDEL_NONE);
     if(node->localnode)
     {
-        LocalPath lp;
-        node->localnode->getlocalpath(lp, true);
-        localPath.swap(*lp.editStringDirect());
+        localPath = node->localnode->getLocalPath(true).platformEncoded();
         localPath.append("", 1);
     }
 #endif
@@ -1086,8 +1084,8 @@ bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepat
 
     auto localfilename = LocalPath::fromPath(inputFilepath, *api->fsAccess);
 
-    char ext[MAXEXTENSIONLEN];
-    if (api->fsAccess->getextension(localfilename, ext, sizeof(ext)) && MediaProperties::isMediaFilenameExt(ext))
+    string ext;
+    if (api->fsAccess->getextension(localfilename, ext) && MediaProperties::isMediaFilenameExt(ext))
     {
         mediaproperties.extractMediaPropertyFileAttributes(localfilename, api->fsAccess);
 
@@ -2519,6 +2517,11 @@ long long MegaTransferPrivate::getNotificationNumber() const
     return notificationNumber;
 }
 
+bool MegaTransferPrivate::getTargetOverride() const
+{
+    return mTargetOverride;
+}
+
 bool MegaTransferPrivate::serialize(string *d)
 {
     d->append((const char*)&type, sizeof(type));
@@ -2833,6 +2836,11 @@ void MegaTransferPrivate::setListener(MegaTransferListener *listener)
     this->listener = listener;
 }
 
+void MegaTransferPrivate::setTargetOverride(bool targetOverride)
+{
+    mTargetOverride = targetOverride;
+}
+
 void MegaTransferPrivate::startRecursiveOperation(unique_ptr<MegaRecursiveOperation> op, MegaNode* node)
 {
     assert(op && !recursiveOperation);
@@ -2848,6 +2856,16 @@ long long MegaTransferPrivate::getPlaceInQueue() const
 void MegaTransferPrivate::setPlaceInQueue(long long value)
 {
     placeInQueue = value;
+}
+
+void MegaTransferPrivate::setDoNotStopSubTransfers(bool doNotStopSubTransfers)
+{
+    mDoNotStopSubTransfers = doNotStopSubTransfers;
+}
+
+bool MegaTransferPrivate::getDoNotStopSubTransfers() const
+{
+    return mDoNotStopSubTransfers;
 }
 
 void MegaTransferPrivate::setPath(const char* path)
@@ -3285,6 +3303,11 @@ MegaTimeZoneDetails *MegaRequestPrivate::getMegaTimeZoneDetails() const
     return timeZoneDetails;
 }
 
+MegaStringList *MegaRequestPrivate::getMegaStringList() const
+{
+    return mStringList.get();
+}
+
 #ifdef ENABLE_CHAT
 MegaTextChatPeerList *MegaRequestPrivate::getMegaTextChatPeerList() const
 {
@@ -3396,6 +3419,16 @@ void MegaRequestPrivate::setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUplo
 {
     // non-owned pointer
     backgroundMediaUpload = p;
+}
+
+void MegaRequestPrivate::setMegaStringList(MegaStringList* stringList)
+{
+    mStringList.reset();
+
+    if (stringList)
+    {
+       mStringList = unique_ptr<MegaStringList>(stringList->copy());
+    }
 }
 
 
@@ -3938,6 +3971,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_BACKUP_PUT: return "BACKUP_PUT";
         case TYPE_BACKUP_REMOVE: return "BACKUP_REMOVE";
         case TYPE_BACKUP_PUT_HEART_BEAT: return "BACKUP_PUT_HEART_BEAT";
+        case TYPE_FETCH_GOOGLE_ADS: return "FETCH_GOOGLE_ADS";
+        case TYPE_QUERY_GOOGLE_ADS: return "QUERY_GOOGLE_ADS";
     }
     return "UNKNOWN";
 }
@@ -4128,46 +4163,24 @@ MegaStringMapPrivate::MegaStringMapPrivate(const MegaStringMapPrivate *megaStrin
 
 MegaStringListPrivate::MegaStringListPrivate()
 {
-    list = NULL;
-    s = 0;
 }
 
 MegaStringListPrivate::MegaStringListPrivate(const MegaStringListPrivate *stringList)
 {
-    s = stringList->size();
-    if (!s)
-    {
-        list = NULL;
-        return;
-    }
-
-    list = new const char*[s];
-    for (int i = 0; i < s; i++)
-        list[i] = MegaApi::strdup(stringList->get(i));
+    mList = stringList->mList;
 }
 
 MegaStringListPrivate::MegaStringListPrivate(char **newlist, int size)
 {
-    list = NULL;
-    s = size;
-    if (!size)
-    {
-        return;
-    }
-
-    list = new const char*[size];
     for (int i = 0; i < size; i++)
-        list[i] = newlist[i];
+    {
+        mList.push_back(newlist[i]);
+    }
 }
 
 MegaStringListPrivate::~MegaStringListPrivate()
 {
-    if(!list)
-        return;
 
-    for(int i=0; i<s; i++)
-        delete [] list[i];
-    delete [] list;
 }
 
 MegaStringList *MegaStringListPrivate::copy() const
@@ -4177,15 +4190,28 @@ MegaStringList *MegaStringListPrivate::copy() const
 
 const char *MegaStringListPrivate::get(int i) const
 {
-    if(!list || (i < 0) || (i >= s))
-        return NULL;
+    if((i < 0) || (i >= mList.size()))
+        return nullptr;
 
-    return list[i];
+    return mList[i].c_str();
 }
 
 int MegaStringListPrivate::size() const
 {
-    return s;
+    return mList.size();
+}
+
+void MegaStringListPrivate::add(const char *value)
+{
+    if (value)
+    {
+        mList.push_back(value);
+    }
+}
+
+const string_vector& MegaStringListPrivate::getVector()
+{
+    return mList;
 }
 
 bool operator==(const MegaStringList& lhs, const MegaStringList& rhs)
@@ -4869,7 +4895,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, Node *n, const LocalPath& dstPath, 
     LocalPath finalPath;
     if(!dstPath.empty())
     {
-        if (dstPath.endsInSeparator(*client->fsaccess))
+        if (dstPath.endsInSeparator(client->fsaccess->localseparator))
         {
             finalPath = dstPath;
             finalPath.appendWithSeparator(lpName, true, client->fsaccess->localseparator);
@@ -4902,7 +4928,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, const LocalPath& dstPa
     LocalPath finalPath;
     if(!dstPath.empty())
     {
-        if (dstPath.endsInSeparator(*client->fsaccess))
+        if (dstPath.endsInSeparator(client->fsaccess->localseparator))
         {
             finalPath = dstPath;
             finalPath.appendWithSeparator(lpName, true, client->fsaccess->localseparator);
@@ -5016,11 +5042,7 @@ void MegaFileGet::prepare()
 void MegaFileGet::updatelocalname()
 {
 #ifdef _WIN32
-    transfer->localfilename.editStringDirect()->append("", 1);
-    WIN32_FILE_ATTRIBUTE_DATA fad;
-    if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), GetFileExInfoStandard, &fad))
-        SetFileAttributesW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
-    transfer->localfilename.editStringDirect()->resize(transfer->localfilename.editStringDirect()->size()-1);
+    RemoveHiddenFileAttribute(transfer->localfilename);
 #endif
 }
 
@@ -5029,11 +5051,7 @@ void MegaFileGet::progress()
 #ifdef _WIN32
     if(transfer->slot && !transfer->slot->progressreported)
     {
-        transfer->localfilename.editStringDirect()->append("", 1);
-        WIN32_FILE_ATTRIBUTE_DATA fad;
-        if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), GetFileExInfoStandard, &fad))
-            SetFileAttributesW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), fad.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN);
-        transfer->localfilename.editStringDirect()->resize(transfer->localfilename.editStringDirect()->size()-1);
+        AddHiddenFileAttribute(transfer->localfilename);
     }
 #endif
 }
@@ -5250,14 +5268,9 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 
     if (basePath)
     {
-        string sBasePath = basePath;
-        int lastIndex = int(sBasePath.size() - 1);
-        if (sBasePath[lastIndex] != '/' && sBasePath[lastIndex] != '\\')
-        {
-            string utf8Separator;
-            fsAccess->local2path(&fsAccess->localseparator, &utf8Separator);
-            sBasePath.append(utf8Separator);
-        }
+        LocalPath lp = LocalPath::fromPath(basePath, *fsAccess);
+        lp.appendWithSeparator(LocalPath(), true, fsAccess->localseparator);
+        string sBasePath = lp.toPath(*fsAccess);
         dbAccess = new MegaDbAccess(&sBasePath);
 
         this->basePath = basePath;
@@ -5818,6 +5831,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
         case MegaApi::USER_ATTR_ALIAS:
         case MegaApi::USER_ATTR_DEVICE_NAMES:
+        case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
             scope = '*';
             break;
 
@@ -7567,6 +7581,9 @@ void MegaApiImpl::abortPendingActions(error preverror)
         {
             auto transfer = transferMap.begin()->second;
             transfer->setState(MegaTransfer::STATE_FAILED);
+
+            transfer->setDoNotStopSubTransfers(true); //so as not to remove subtransfer from cache
+
             // this call can be recursive and remove multiple, eg with MegaFolderUploadController
             fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(preverror), committer);
         }
@@ -7584,7 +7601,8 @@ bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &
     bool hasPreview = (Node::hasfileattribute(&node.fileattrstring, GfxProc::PREVIEW) != 0);
     bool hasThumbnail = (Node::hasfileattribute(&node.fileattrstring, GfxProc::THUMBNAIL) != 0);
     string name = node.displayname();
-    bool isMedia = gfxAccess->isgfx(&name) || gfxAccess->isvideo(&name);
+    LocalPath lp = LocalPath::fromPath(name, *client->fsaccess);
+    bool isMedia = gfxAccess->isgfx(lp) || gfxAccess->isvideo(lp);
     bool canForceUpload = transfer.isStreamingTransfer();
     bool isPdf = name.find(".pdf") != string::npos;
 
@@ -8463,7 +8481,7 @@ bool MegaApiImpl::moveToLocalDebris(const char *path)
     Sync *sync = NULL;
     for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
     {
-        if ((*it)->localroot->localname.isContainingPathOf(localpath, *fsAccess))
+        if ((*it)->localroot->localname.isContainingPathOf(localpath, fsAccess->localseparator))
         {
             sync = (*it);
             break;
@@ -8519,17 +8537,17 @@ int MegaApiImpl::syncPathState(string* path)
         return state;
     }
 
-    LocalPath localpath = LocalPath::fromLocalname(*path);
+    LocalPath localpath = LocalPath::fromPlatformEncoded(*path);
 
     for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
     {
         Sync *sync = (*it);
-        if (!sync->localroot->localname.isContainingPathOf(localpath, *client->fsaccess))
+        if (!sync->localroot->localname.isContainingPathOf(localpath, client->fsaccess->localseparator))
         {
             continue;
         }
 
-        if (sync->localdebris.isContainingPathOf(localpath, *client->fsaccess))
+        if (sync->localdebris.isContainingPathOf(localpath, client->fsaccess->localseparator))
         {
             state = MegaApi::STATE_IGNORED;
             break;
@@ -8549,9 +8567,7 @@ int MegaApiImpl::syncPathState(string* path)
             }
             else
             {
-                size_t index = fsAccess->lastpartlocal(path);
-                string name = path->substr(index);
-                fsAccess->local2name(&name, sync->mFilesystemType);
+                string name = localpath.leafName(fsAccess->localseparator).toName(*fsAccess, sync->mFilesystemType);
                 if (is_syncable(sync, name.c_str(), localpath))
                 {
                     auto fa = fsAccess->newfileaccess();
@@ -8869,11 +8885,9 @@ string MegaApiImpl::getLocalPath(MegaNode *n)
         return string();
     }
 
-    string result;
-    LocalPath lp;
-    node->localnode->getlocalpath(lp, true);
-    result.swap(*lp.editStringDirect());
+    string result = node->localnode->getLocalPath(true).platformEncoded();
     result.append("", 1);
+
     sdkMutex.unlock();
     return result;
 }
@@ -8898,7 +8912,6 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
     }
 #endif
 
-    string name;
     LocalNode *parent = NULL;
     auto localpath = LocalPath::fromPath(utf8path, *fsAccess);
 
@@ -8918,13 +8931,13 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
         Sync *sync = (*it);
         if (sync->localnodebypath(NULL, localpath, &parent) || parent)
         {
-            if (sync->localdebris.isContainingPathOf(localpath, *fsAccess))
+            if (sync->localdebris.isContainingPathOf(localpath, fsAccess->localseparator))
             {
                 break;
             }
 
-            size_t lastpart = localpath.lastpartlocal(*fsAccess);
-            name = localpath.subpathFrom(lastpart).toName(*fsAccess, sync->mFilesystemType);
+            auto temp = localpath.leafName(fsAccess->localseparator);
+            auto name = temp.toName(*fsAccess, sync->mFilesystemType);
             result = is_syncable(sync, name.c_str(), localpath);
             break;
         }
@@ -9120,12 +9133,11 @@ bool MegaApiImpl::createThumbnail(const char *imagePath, const char *dstPath)
     fsAccess->path2local(&utf8ImagePath, &localImagePath);
 
     string utf8DstPath = dstPath;
-    string localDstPath;
-    fsAccess->path2local(&utf8DstPath, &localDstPath);
+    LocalPath localDstPath = LocalPath::fromPath(utf8DstPath, *fsAccess);
 
     sdkMutex.lock();
-    bool result = gfxAccess->savefa(&localImagePath, GfxProc::dimensions[GfxProc::THUMBNAIL][0],
-            GfxProc::dimensions[GfxProc::THUMBNAIL][1], &localDstPath);
+    bool result = gfxAccess->savefa(LocalPath::fromPath(localImagePath, *client->fsaccess), GfxProc::dimensions[GfxProc::THUMBNAIL][0],
+            GfxProc::dimensions[GfxProc::THUMBNAIL][1], localDstPath);
     sdkMutex.unlock();
 
     return result;
@@ -9143,12 +9155,11 @@ bool MegaApiImpl::createPreview(const char *imagePath, const char *dstPath)
     fsAccess->path2local(&utf8ImagePath, &localImagePath);
 
     string utf8DstPath = dstPath;
-    string localDstPath;
-    fsAccess->path2local(&utf8DstPath, &localDstPath);
+    LocalPath localDstPath = LocalPath::fromPath(utf8DstPath, *fsAccess);
 
     sdkMutex.lock();
-    bool result = gfxAccess->savefa(&localImagePath, GfxProc::dimensions[GfxProc::PREVIEW][0],
-            GfxProc::dimensions[GfxProc::PREVIEW][1], &localDstPath);
+    bool result = gfxAccess->savefa(LocalPath::fromPath(localImagePath, *client->fsaccess), GfxProc::dimensions[GfxProc::PREVIEW][0],
+            GfxProc::dimensions[GfxProc::PREVIEW][1], localDstPath);
     sdkMutex.unlock();
 
     return result;
@@ -9166,12 +9177,11 @@ bool MegaApiImpl::createAvatar(const char *imagePath, const char *dstPath)
     fsAccess->path2local(&utf8ImagePath, &localImagePath);
 
     string utf8DstPath = dstPath;
-    string localDstPath;
-    fsAccess->path2local(&utf8DstPath, &localDstPath);
+    LocalPath localDstPath = LocalPath::fromPath(utf8DstPath, *fsAccess);
 
     sdkMutex.lock();
-    bool result = gfxAccess->savefa(&localImagePath, GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][0],
-            GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][1], &localDstPath);
+    bool result = gfxAccess->savefa(LocalPath::fromPath(localImagePath, *client->fsaccess), GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][0],
+            GfxProc::dimensionsavatar[GfxProc::AVATAR250X250][1], localDstPath);
     sdkMutex.unlock();
 
     return result;
@@ -10390,6 +10400,21 @@ void MegaApiImpl::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListene
     setUserAttribute(MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER, &stringMap, listener);
 }
 
+void MegaApiImpl::getMyBackupsFolder(MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_MY_BACKUPS_FOLDER);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+{
+    MegaStringMapPrivate stringMap;
+    stringMap.set("h", Base64Str<MegaClient::NODEHANDLE>(nodehandle));
+    setUserAttribute(MegaApi::USER_ATTR_MY_BACKUPS_FOLDER, &stringMap, listener);
+}
+
 void MegaApiImpl::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
@@ -11564,8 +11589,13 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         return new MegaNodeListPrivate();
     }
 
+    if (order < MegaApi::ORDER_NONE || order > MegaApi::ORDER_FAV_DESC)
+    {
+        return new MegaNodeListPrivate();
+    }
+
     if (type != MegaApi::FILE_TYPE_DEFAULT
-            && (order < MegaApi::ORDER_NONE || order > MegaApi::ORDER_ALPHABETICAL_DESC))
+            && (order >= MegaApi::ORDER_PHOTO_ASC && order <= MegaApi::ORDER_VIDEO_DESC))
     {
         return new MegaNodeListPrivate();
     }
@@ -13292,12 +13322,12 @@ void MegaApiImpl::syncupdate_remote_rename(Sync *sync, Node *n, const char *prev
 
 void MegaApiImpl::syncupdate_treestate(LocalNode *l)
 {
-    LocalPath localpath = l->getLocalPath(true);
-
     if(syncMap.find(l->sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(l->sync->tag);
 
-    fireOnFileSyncStateChanged(megaSync, localpath.editStringDirect(), (int)l->ts);
+    string s = l->getLocalPath(true).platformEncoded();
+
+    fireOnFileSyncStateChanged(megaSync, &s, (int)l->ts);
 }
 
 bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, LocalPath& localpath, Node *node)
@@ -13472,6 +13502,7 @@ void MegaApiImpl::backupupdate_result(const Error& e, handle backupId)
     if (requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
     if (!request || (request->getType() != MegaRequest::TYPE_BACKUP_PUT)) return;
+
 
     assert(e != API_OK || backupId == request->getParentHandle());
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -13773,7 +13804,7 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
     }
 }
 
-void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<NewNode>& nn)
+void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<NewNode>& nn, bool targetOverride)
 {
     handle h = UNDEF;
     Node *n = NULL;
@@ -13818,6 +13849,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
         }
 
         transfer->setNodeHandle(h);
+        transfer->setTargetOverride(targetOverride);
         transfer->setTransferredBytes(transfer->getTotalBytes());
 
         if (!e)
@@ -13851,6 +13883,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
     if (request->getType() == MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD)
     {
         request->setNodeHandle(h);
+        request->setFlag(targetOverride);
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         return;
     }
@@ -13872,6 +13905,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
     if (request->getType() != MegaRequest::TYPE_MOVE)
     {
         request->setNodeHandle(h);
+        request->setFlag(targetOverride);
         if (request->getType() == MegaRequest::TYPE_CREATE_ACCOUNT)
         {
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));    // even if import fails, notify account was successfuly created anyway
@@ -13891,6 +13925,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             else
             {
                 request->setNodeHandle(h);
+                request->setFlag(targetOverride);
                 e = client->unlink(node, false, request->getTag());
             }
         }
@@ -15368,9 +15403,10 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
             }
             case MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER:
             case MegaApi::USER_ATTR_MY_CHAT_FILES_FOLDER:
+            case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
             {
                 // If attr is CAMERA_UPLOADS_FOLDER determine if we want to retrieve primary or secondary folder
-                // If attr is MY_CHAT_FILES_FOLDER there's no secondary folder
+                // If attr is MY_CHAT_FILES_FOLDER or MY_BACKUPS_FOLDER there's no secondary folder
                 const char *key = request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
                         && request->getFlag()
                             ? "sh"
@@ -18974,7 +19010,7 @@ unsigned MegaApiImpl::sendPendingTransfers()
 void MegaApiImpl::removeRecursively(const char *path)
 {
 #ifndef _WIN32
-    auto localpath = LocalPath::fromLocalname(path);
+    auto localpath = LocalPath::fromPlatformEncoded(path);
     PosixFileSystemAccess::emptydirlocal(localpath);
 #else
     string utf16path;
@@ -18982,7 +19018,7 @@ void MegaApiImpl::removeRecursively(const char *path)
     if (utf16path.size() > 1)
     {
         utf16path.resize(utf16path.size() - 1);
-        auto localpath = LocalPath::fromLocalname(utf16path);
+        auto localpath = LocalPath::fromPlatformEncoded(utf16path);
         WinFileSystemAccess::emptydirlocal(localpath);
     }
 #endif
@@ -20173,6 +20209,23 @@ void MegaApiImpl::sendPendingRequests()
                         tlv.reset(TLVstore::containerToTLVrecords(ownUser->getattr(type), &client->key));
                     }
                 }
+                else if (type == ATTR_MY_BACKUPS_FOLDER)
+                {
+                    MegaHandle nodeHandle = request->getNodeHandle();
+                    MegaNode* node = getNodeByHandle(nodeHandle);
+
+                    // a valid folder cannot be outside current account or in Rubbish
+                    if (!client->isPrivateNode(nodeHandle) || isInRootnode(node, 2)
+#ifdef ENABLE_SYNC
+                        // or in a synced folder
+                        || isInsideSync(node)
+#endif
+                        )
+                    {
+                        e = API_EACCESS;
+                        break;
+                    }
+                }
                 else
                 {
                     tlv.reset(new TLVstore);
@@ -21267,11 +21320,7 @@ void MegaApiImpl::sendPendingRequests()
                 #ifdef _WIN32
                     if (transfer->type == GET)
                     {
-                        transfer->localfilename.editStringDirect()->append("", 1);
-                        WIN32_FILE_ATTRIBUTE_DATA fad;
-                        if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), GetFileExInfoStandard, &fad))
-                            SetFileAttributesW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
-                        transfer->localfilename.editStringDirect()->resize(transfer->localfilename.editStringDirect()->size()-1);
+                        RemoveHiddenFileAttribute(transfer->localfilename);
                     }
                 #endif
 
@@ -23079,6 +23128,53 @@ void MegaApiImpl::sendPendingRequests()
                                                            request->getNodeHandle()));
             break;
         }
+        case MegaRequest::TYPE_FETCH_GOOGLE_ADS:
+        {
+                int flags = request->getNumber();
+                if (flags < MegaApi::GOOGLE_ADS_FORCE_ADS || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
+                {
+                    e = API_EARGS;
+                    break;
+                }
+
+                const string_vector &vectorString = static_cast<MegaStringListPrivate*>(request->getMegaStringList())->getVector();
+                client->reqs.add(new CommandFetchGoogleAds(client, flags, vectorString, request->getNodeHandle(), [request, this](Error e, string_map value)
+                {
+                    if (e == API_OK)
+                    {
+                        std::unique_ptr<MegaStringMap> stringMap = std::unique_ptr<MegaStringMap>(MegaStringMap::createInstance());
+                        for (const auto itMap : value)
+                        {
+                            stringMap->set(itMap.first.c_str(), itMap.second.c_str());
+                        }
+
+                        request->setMegaStringMap(stringMap.get());
+                    }
+
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                }));
+            break;
+        }
+        case MegaRequest::TYPE_QUERY_GOOGLE_ADS:
+        {
+            int flags = request->getNumber();
+            if (flags < MegaApi::GOOGLE_ADS_FORCE_ADS || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->reqs.add(new CommandQueryGoogleAds(client, flags, request->getNodeHandle(), [request, this](Error e, int value)
+            {
+                if (e == API_OK)
+                {
+                    request->setNumDetails(value);
+                }
+
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }));
+            break;
+        }
         default:
         {
             e = API_EINTERNAL;
@@ -23298,6 +23394,25 @@ void MegaApiImpl::sendBackupHeartbeat(MegaHandle backupId, int status, int progr
     request->setTransferTag(downs);
     request->setNumber(ts);
     request->setNodeHandle(lastNode);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_GOOGLE_ADS, listener);
+    request->setNumber(adFlags);
+    request->setMegaStringList(adUnits);
+    request->setNodeHandle(publicHandle);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_GOOGLE_ADS, listener);
+    request->setNumber(adFlags);
+    request->setNodeHandle(publicHandle);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -25208,11 +25323,7 @@ void MegaFolderUploadController::cancel()
 #ifdef _WIN32
         if (transfer->type == GET)
         {
-            transfer->localfilename.editStringDirect()->append("", 1);
-            WIN32_FILE_ATTRIBUTE_DATA fad;
-            if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), GetFileExInfoStandard, &fad))
-                SetFileAttributesW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
-            transfer->localfilename.editStringDirect()->resize(transfer->localfilename.editStringDirect()->size()-1);
+            RemoveHiddenFileAttribute(transfer->localfilename);
         }
 #endif
 
@@ -25220,6 +25331,7 @@ void MegaFolderUploadController::cancel()
         subTransfer->setLastError(&megaError);
 
         bool found = false;
+        bool fireSubTransferFinish = false;
         file_list files = transfer->files;
         file_list::iterator iterator = files.begin();
         while (iterator != files.end())
@@ -25231,7 +25343,16 @@ void MegaFolderUploadController::cancel()
                 found = true;
                 if (!file->syncxfer)
                 {
-                    client->stopxfer(file, committer);
+                    if (!this->transfer->getDoNotStopSubTransfers())
+                    {
+                        client->stopxfer(file, committer);
+                    }
+                    else
+                    {
+                        //firing onTransferFinished without stopping (to preserve cache)
+                        subTransfer->setState(MegaTransfer::STATE_FAILED);
+                        fireSubTransferFinish = true;
+                    }
                 }
                 else
                 {
@@ -25247,8 +25368,14 @@ void MegaFolderUploadController::cancel()
             LOG_warn << "No file found for subtransfer: " << subTransfer->getFileName();
 
             subTransfer->setState(MegaTransfer::STATE_CANCELLED);
+            fireSubTransferFinish = true;
+        }
+
+        if (fireSubTransferFinish)
+        {
             megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), *committer);
         }
+
         cancelledSubTransfers++;
     }
 
@@ -26604,19 +26731,14 @@ void MegaFolderDownloadController::cancel()
 
 #ifdef _WIN32
         if (transfer->type == GET)
-        {
-            transfer->localfilename.editStringDirect()->append("", 1);
-            WIN32_FILE_ATTRIBUTE_DATA fad;
-            if (GetFileAttributesExW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), GetFileExInfoStandard, &fad))
-                SetFileAttributesW((LPCWSTR)transfer->localfilename.editStringDirect()->data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
-            transfer->localfilename.editStringDirect()->resize(transfer->localfilename.editStringDirect()->size()-1);
-        }
+            RemoveHiddenFileAttribute(transfer->localfilename);
 #endif
 
         MegaErrorPrivate megaError(API_EINCOMPLETE);
         subTransfer->setLastError(&megaError);
 
         bool found = false;
+        bool fireSubTransferFinish = false;
         file_list files = transfer->files;
         file_list::iterator iterator = files.begin();
         while (iterator != files.end())
@@ -26628,7 +26750,16 @@ void MegaFolderDownloadController::cancel()
                 found = true;
                 if (!file->syncxfer)
                 {
-                    client->stopxfer(file, committer);
+                    if (!this->transfer->getDoNotStopSubTransfers())
+                    {
+                        client->stopxfer(file, committer);
+                    }
+                    else
+                    {
+                        //firing onTransferFinished without stopping (to preserve cache)
+                        subTransfer->setState(MegaTransfer::STATE_FAILED);
+                        fireSubTransferFinish = true;
+                    }
                 }
                 else
                 {
@@ -26644,8 +26775,14 @@ void MegaFolderDownloadController::cancel()
             LOG_warn << "No file found for subtransfer: " << subTransfer->getFileName();
 
             subTransfer->setState(MegaTransfer::STATE_CANCELLED);
+            fireSubTransferFinish = true;
+        }
+
+        if (fireSubTransferFinish)
+        {
             megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), *committer);
         }
+
         cancelledSubTransfers++;
     }
 
@@ -26653,7 +26790,6 @@ void MegaFolderDownloadController::cancel()
 
     transfer = nullptr;  // no final callback for this one since it is being destroyed now
 }
-
 
 void MegaFolderDownloadController::downloadFolderNode(MegaNode *node, LocalPath& localpath, FileSystemType fsType)
 {
@@ -26979,14 +27115,12 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl *megaApi, string basePath, bool tls, st
 
     if (basePath.size())
     {
-        string sBasePath = basePath;
-        int lastIndex = int(sBasePath.size() - 1);
-        if (sBasePath[lastIndex] != '/' && sBasePath[lastIndex] != '\\')
+        LocalPath lp = LocalPath::fromPath(basePath, *fsAccess);
+        if (!lp.endsInSeparator(fsAccess->localseparator))
         {
-            string utf8Separator;
-            fsAccess->local2path(&fsAccess->localseparator, &utf8Separator);
-            sBasePath.append(utf8Separator);
+            lp.appendWithSeparator(LocalPath(), true, fsAccess->localseparator);
         }
+        string sBasePath = lp.toPath(*fsAccess);
         this->basePath = sBasePath;
     }
     semaphoresdestroyed = false;
@@ -28282,9 +28416,9 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
             httpctx->server->fsAccess->tmpnamelocal(suffix);
             httpctx->tmpFileName.append(suffix.toPath(*httpctx->server->fsAccess));
 
-            char ext[MAXEXTENSIONLEN];
+            string ext;
             LocalPath localpath = LocalPath::fromPath(httpctx->path, *httpctx->server->fsAccess);
-            if (httpctx->server->fsAccess->getextension(localpath, ext, sizeof ext))
+            if (httpctx->server->fsAccess->getextension(localpath, ext))
             {
                 httpctx->tmpFileName.append(ext);
             }
@@ -29340,8 +29474,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 httpctx->tmpFileName=httpctx->server->basePath;
                 httpctx->tmpFileName.append("httputfile");
                 httpctx->tmpFileName.append(LocalPath::tmpNameLocal(*httpctx->server->fsAccess).toPath(*httpctx->server->fsAccess));
-                char ext[MAXEXTENSIONLEN];
-                if (httpctx->server->fsAccess->getextension(LocalPath::fromPath(httpctx->path, *httpctx->server->fsAccess), ext, sizeof ext))
+                string ext;
+                if (httpctx->server->fsAccess->getextension(LocalPath::fromPath(httpctx->path, *httpctx->server->fsAccess), ext))
                 {
                     httpctx->tmpFileName.append(ext);
                 }
@@ -32048,8 +32182,8 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
             fds->fsAccess->tmpnamelocal(suffix);
             ftpdatactx->tmpFileName.append(suffix.toPath(*fds->fsAccess));
 
-            char ext[MAXEXTENSIONLEN];
-            if (ftpdatactx->server->fsAccess->getextension(LocalPath::fromPath(fds->controlftpctx->arg1, *ftpdatactx->server->fsAccess), ext, sizeof ext))
+            string ext;
+            if (ftpdatactx->server->fsAccess->getextension(LocalPath::fromPath(fds->controlftpctx->arg1, *ftpdatactx->server->fsAccess), ext))
             {
                 ftpdatactx->tmpFileName.append(ext);
             }

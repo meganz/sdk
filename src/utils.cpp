@@ -52,6 +52,25 @@ string toHandle(handle h)
     return string(base64Handle);
 }
 
+void AddHiddenFileAttribute(mega::LocalPath& path)
+{
+#ifdef _WIN32
+    WIN32_FILE_ATTRIBUTE_DATA fad;
+    if (GetFileAttributesExW(path.localpath.data(), GetFileExInfoStandard, &fad))
+        SetFileAttributesW(path.localpath.data(), fad.dwFileAttributes | FILE_ATTRIBUTE_HIDDEN);
+#endif
+}
+
+void RemoveHiddenFileAttribute(mega::LocalPath& path)
+{
+#ifdef _WIN32
+    WIN32_FILE_ATTRIBUTE_DATA fad;
+    if (GetFileAttributesExW(path.localpath.data(), GetFileExInfoStandard, &fad))
+        SetFileAttributesW(path.localpath.data(), fad.dwFileAttributes & ~FILE_ATTRIBUTE_HIDDEN);
+#endif
+}
+
+
 CacheableWriter::CacheableWriter(string& d)
     : dest(d)
 {
@@ -336,6 +355,29 @@ int64_t chunkmac_map::macsmac(SymmCipher *cipher)
     {
         assert(it->first == ChunkedHash::chunkfloor(it->first));
         // LOG_debug << "macsmac input: " << it->first << ": " << Base64Str<sizeof it->second.mac>(it->second.mac);
+        SymmCipher::xorblock(it->second.mac, mac);
+        cipher->ecb_encrypt(mac);
+    }
+
+    uint32_t* m = (uint32_t*)mac;
+
+    m[0] ^= m[1];
+    m[1] = m[2] ^ m[3];
+
+    // LOG_debug << "macsmac final: " << Base64Str<sizeof int64_t>(mac);
+    return MemAccess::get<int64_t>((const char*)mac);
+}
+
+int64_t chunkmac_map::macsmac_gaps(SymmCipher *cipher, size_t g1, size_t g2, size_t g3, size_t g4)
+{
+    byte mac[SymmCipher::BLOCKSIZE] = { 0 };
+
+    int n = 0;
+    for (chunkmac_map::iterator it = begin(); it != end(); it++, n++)
+    {
+        if ((n >= g1 && n < g2) || (n >= g3 && n < g4)) continue;
+        
+        assert(it->first == ChunkedHash::chunkfloor(it->first));
         SymmCipher::xorblock(it->second.mac, mac);
         cipher->ecb_encrypt(mac);
     }
@@ -2479,7 +2521,7 @@ bool SyncConfig::serialize(std::string& data) const
     writer.serializeu32(static_cast<uint32_t>(mSyncType));
     writer.serializebool(mSyncDeletions);
     writer.serializebool(mForceOverwrite);
-    writer.serializeu32(static_cast<int>(mError));
+    writer.serializeu32(static_cast<uint32_t>(mError));
     writer.serializehandle(mBackupId);
     writer.serializeexpansionflags();
     return true;
@@ -2605,6 +2647,5 @@ void MegaClientAsyncQueue::asyncThreadLoop()
         mWaiter.notify();
     }
 }
-
 } // namespace
 

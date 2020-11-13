@@ -26,6 +26,7 @@
 #include "node.h"
 #include "account.h"
 #include "http.h"
+#include "json.h"
 
 namespace mega {
 
@@ -44,17 +45,12 @@ class MEGA_API Command
 {
     std::vector<std::weak_ptr<CommandListener>> mListeners;
 
-    static const int MAXDEPTH = 8;
-
-    char levels[MAXDEPTH];
-
     error result;
 
 protected:
     bool canceled;
 
-    string json;
-
+    JSONWriter jsonWriter;
     bool mRead = false;// if json has already been read
 
 public:
@@ -64,7 +60,6 @@ public:
 
     int tag;
 
-    char level;
     bool persistent;
 
     // some commands can only succeed if they are in their own batch.  eg. smss, when the account is blocked pending validation
@@ -96,7 +91,6 @@ public:
 
     void openobject();
     void closeobject();
-    int elements();
 
     enum Outcome {  CmdError,            // The reply was an error, already extracted from the JSON.  The error code may have been 0 (API_OK)
                     //CmdActionpacket,     // The reply was a cmdseq string, and we have processed the corresponding actionpackets
@@ -1366,6 +1360,26 @@ public:
     bool procresult(Result) override;
 
     CommandDismissBanner(MegaClient*, int id, m_time_t ts);
+};
+
+typedef std::function<void(Error, string_map)> CommandFetchGoogleAdsCompletion;
+class MEGA_API CommandFetchGoogleAds : public Command
+{
+    CommandFetchGoogleAdsCompletion mCompletion;
+public:
+    bool procresult(Result) override;
+
+    CommandFetchGoogleAds(MegaClient*, int adFlags, const std::vector<std::string>& adUnits, handle publicHandle, CommandFetchGoogleAdsCompletion completion);
+};
+
+typedef std::function<void(Error, int)> CommandQueryGoogleAdsCompletion;
+class MEGA_API CommandQueryGoogleAds : public Command
+{
+    CommandQueryGoogleAdsCompletion mCompletion;
+public:
+    bool procresult(Result) override;
+
+    CommandQueryGoogleAds(MegaClient*, int adFlags, handle publicHandle, CommandQueryGoogleAdsCompletion completion);
 };
 
 } // namespace
