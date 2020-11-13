@@ -100,7 +100,7 @@ FileSystemType FileSystemAccess::getlocalfstype(const LocalPath& path) const
     LocalPath parentPath(path);
 
     // Remove trailing separator, if any.
-    parentPath.trimNonDriveTrailingSeparator(localseparator);
+    parentPath.trimNonDriveTrailingSeparator(LocalPath::localPathSeparator);
 
     // Did the path consist solely of that separator?
     if (parentPath.empty())
@@ -792,7 +792,7 @@ bool LocalPath::findNextSeparator(size_t& separatorBytePos, separator_t localsep
 
 bool LocalPath::findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const
 {
-    separatorBytePos = localpath.rfind(fsaccess.localseparator, separatorBytePos);
+    separatorBytePos = localpath.rfind(LocalPath::localPathSeparator, separatorBytePos);
     return separatorBytePos != string::npos;
 }
 
@@ -812,7 +812,7 @@ size_t LocalPath::getLeafnameByteIndex(const FileSystemAccess& fsaccess) const
 
     while (p && (p -= 1))
     {
-        if (localpath[p] == fsaccess.localseparator)
+        if (localpath[p] == LocalPath::localPathSeparator)
         {
             p += 1;
             break;
@@ -855,7 +855,7 @@ LocalPath LocalPath::subpathTo(size_t bytePos) const
 LocalPath LocalPath::insertFilenameCounter(unsigned counter, const FileSystemAccess& fsaccess)
 {
     size_t dotindex = localpath.find_last_of('.');
-    size_t sepindex = localpath.find_last_of(fsaccess.localseparator);
+    size_t sepindex = localpath.find_last_of(LocalPath::localPathSeparator);
 
     LocalPath result, extension;
 

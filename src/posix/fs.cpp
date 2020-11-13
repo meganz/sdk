@@ -794,7 +794,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                 if (lastname.size() < ignore->size()
                                  || memcmp(lastname.c_str(), ignore->data(), ignore->size())
                                  || (lastname.size() > ignore->size()
-                                  && lastname[ignore->size()] != localseparator))
+                                  && lastname[ignore->size()] != LocalPath::localPathSeparator))
                                 {
                                     // previous IN_MOVED_FROM is not followed by the
                                     // corresponding IN_MOVED_TO, so was actually a deletion
@@ -825,7 +825,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                 if (insize < ignore->size()
                                  || memcmp(in->name, ignore->data(), ignore->size())
                                  || (insize > ignore->size()
-                                  && in->name[ignore->size()] != localseparator))
+                                  && in->name[ignore->size()] != LocalPath::localPathSeparator))
                                 {
                                     LOG_debug << "Filesystem notification. Root: " << it->second->name << "   Path: " << in->name;
                                     it->second->sync->dirnotify->notify(DirNotify::DIREVENTS,
@@ -849,7 +849,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
             if (lastname.size() < ignore->size()
              || memcmp(lastname.c_str(), ignore->data(), ignore->size())
              || (lastname.size() > ignore->size()
-              && lastname[ignore->size()] != localseparator))
+              && lastname[ignore->size()] != LocalPath::localPathSeparator))
             {
                 LOG_debug << "Filesystem notification. Root: " << lastlocalnode->name << "   Path: " << lastname;
                 lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
@@ -1215,7 +1215,7 @@ void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
                 {
                     ScopedLengthRestore restore(name);
 
-                    name.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true, pfsa.localseparator);
+                    name.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true, LocalPath::localPathSeparator);
 
 #ifdef USE_IOS
                     const string nameStr = adjustBasePath(name);
@@ -1960,7 +1960,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
 
         if (*d->d_name != '.' || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2])))
         {
-            path.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true, pfsa.localseparator);
+            path.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true, LocalPath::localPathSeparator);
 
 #ifdef USE_IOS
             const string pathStr = adjustBasePath(path);
