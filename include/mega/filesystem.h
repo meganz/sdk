@@ -103,8 +103,10 @@ public:
 
 #ifdef _WIN32
     typedef wchar_t separator_t;
+    const static separator_t localPathSeparator = L'\\';
 #else
     typedef char separator_t;
+    const static separator_t localPathSeparator = '/';
 #endif
 
     // returns the internal representation copied into a string buffer, for backward compatibility
@@ -422,9 +424,6 @@ public:
 // generic host filesystem access interface
 struct MEGA_API FileSystemAccess : public EventTrigger
 {
-    // local path separator, e.g. "/" or "\\"
-    LocalPath::separator_t localseparator;
-
     // waiter to notify on filesystem events
     Waiter *waiter;
 

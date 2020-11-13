@@ -627,8 +627,6 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
     defaultfilepermissions = 0600;
     defaultfolderpermissions = 0700;
 
-    localseparator = '/';
-
 #ifdef USE_IOS
     if (!appbasepath)
     {

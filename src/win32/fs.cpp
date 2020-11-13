@@ -626,8 +626,6 @@ WinFileSystemAccess::WinFileSystemAccess()
 {
     notifyerr = false;
     notifyfailed = false;
-
-    localseparator = L'\\';
 }
 
 WinFileSystemAccess::~WinFileSystemAccess()
