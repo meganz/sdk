@@ -218,11 +218,11 @@ public class MegaApiJava {
     public final static int BACKUP_TYPE_MEDIA_UPLOADS = MegaApi.BACKUP_TYPE_MEDIA_UPLOADS;
 
     public final static int CU_SYNC_STATE_ACTIVE = 1;
-    public final static int CU_SYNC_STATE_FAILED = CU_SYNC_STATE_ACTIVE + 1;
-    public final static int CU_SYNC_STATE_DISABLED = CU_SYNC_STATE_FAILED + 1;
-    public final static int CU_SYNC_STATE_PAUSE_UP = CU_SYNC_STATE_DISABLED + 1;
-    public final static int CU_SYNC_STATE_PAUSE_FULL = CU_SYNC_STATE_PAUSE_UP + 1;
-    public final static int CU_SYNC_STATE_UNKNOWN = CU_SYNC_STATE_PAUSE_FULL + 1;
+    public final static int CU_SYNC_STATE_FAILED = 2;
+    public final static int CU_SYNC_STATE_DISABLED = 4;
+    public final static int CU_SYNC_STATE_PAUSE_UP = 5;
+    public final static int CU_SYNC_STATE_PAUSE_FULL = 7;
+    public final static int CU_SYNC_STATE_UNKNOWN = 8;
 
     public final static int CU_SYNC_STATUS_UPTODATE = 1;
     public final static int CU_SYNC_STATUS_SYNCING = CU_SYNC_STATUS_UPTODATE + 1;
