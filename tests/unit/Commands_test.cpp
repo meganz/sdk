@@ -277,7 +277,7 @@ public:
     bool mkdirlocal(LocalPath&, bool = false) override { return false; }
     bool setmtimelocal(LocalPath&, m_time_t) override { return false; }
     bool chdirlocal(LocalPath&) const override { return false; }
-    bool getextension(const LocalPath&, char*, size_t) const override { return false; }
+    bool getextension(const LocalPath&, string&) const override { return false; }
     bool expanselocalpath(LocalPath& , LocalPath& ) override { return false; }
 
     void addevents(Waiter*, int) override {}
