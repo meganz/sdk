@@ -2887,8 +2887,8 @@ protected:
         void putnodes_result(const Error&, targettype_t, vector<NewNode>&) override;
 
         // share update result
-        void share_result(error) override;
-        void share_result(int, error) override;
+        void share_result(error, bool writable = false) override;
+        void share_result(int, error, bool writable = false) override;
 
         // contact request results
         void setpcr_result(handle, error, opcactions_t) override;

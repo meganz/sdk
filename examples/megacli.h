@@ -162,8 +162,8 @@ struct DemoApp : public MegaApp
 
     void putnodes_result(const Error&, targettype_t, vector<NewNode>&) override;
 
-    void share_result(error) override;
-    void share_result(int, error) override;
+    void share_result(error, bool writable) override;
+    void share_result(int, error, bool writable) override;
 
     void setpcr_result(handle, error, opcactions_t) override;
     void updatepcr_result(error, ipcactions_t) override;
