@@ -14358,6 +14358,7 @@ void MegaApiImpl::exportnode_result(handle h, handle ph)
         }
 
         string link = client->getPublicLink(client->mNewLinkFormat, n->type, ph, key);
+        request->setLink(link.c_str());
         if (n->plink && n->plink->mAuthKey.size())
         {
             request->setPrivateKey(n->plink->mAuthKey.c_str());
