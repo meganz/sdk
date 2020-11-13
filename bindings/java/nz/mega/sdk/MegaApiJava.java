@@ -219,11 +219,9 @@ public class MegaApiJava {
 
     public final static int CU_SYNC_STATE_ACTIVE = 1;
     public final static int CU_SYNC_STATE_FAILED = CU_SYNC_STATE_ACTIVE + 1;
-    public final static int CU_SYNC_STATE_TEMPORARY_DISABLED = CU_SYNC_STATE_FAILED + 1;
-    public final static int CU_SYNC_STATE_DISABLED = CU_SYNC_STATE_TEMPORARY_DISABLED + 1;
+    public final static int CU_SYNC_STATE_DISABLED = CU_SYNC_STATE_FAILED + 1;
     public final static int CU_SYNC_STATE_PAUSE_UP = CU_SYNC_STATE_DISABLED + 1;
-    public final static int CU_SYNC_STATE_PAUSE_DOWN = CU_SYNC_STATE_PAUSE_UP + 1;
-    public final static int CU_SYNC_STATE_PAUSE_FULL = CU_SYNC_STATE_PAUSE_DOWN + 1;
+    public final static int CU_SYNC_STATE_PAUSE_FULL = CU_SYNC_STATE_PAUSE_UP + 1;
     public final static int CU_SYNC_STATE_UNKNOWN = CU_SYNC_STATE_PAUSE_FULL + 1;
 
     public final static int CU_SYNC_STATUS_UPTODATE = 1;
