@@ -4931,8 +4931,25 @@ void exec_putua(autocomplete::ACState& s)
     {
         if (s.words[2].s == "set")
         {
-            client->putua(attrtype, (const byte*)s.words[3].s.c_str(), unsigned(s.words[3].s.size()));
-
+            if (attrtype == ATTR_BACKUP_NAMES)
+            {
+                string attr = Base64::btoa(s.words[3].s);
+                client->putua(ATTR_BACKUP_NAMES, (byte*)attr.c_str(), unsigned(attr.size()));
+            }
+            if (attrtype == ATTR_DEVICE_NAMES)
+            {
+                string attr = Base64::btoa(s.words[3].s);
+                client->putua(ATTR_DEVICE_NAMES, (byte*)attr.c_str(), unsigned(attr.size()));
+            }
+            if (attrtype == ATTR_ALIAS)
+            {
+                string attr = Base64::btoa(s.words[3].s);
+                client->putua(ATTR_ALIAS, (byte*)attr.c_str(), unsigned(attr.size()));
+            }            
+            else
+            {
+                client->putua(attrtype, (const byte*)s.words[3].s.c_str(), unsigned(s.words[3].s.size()));
+            }
             return;
         }
         else if (s.words[2].s == "set64")
