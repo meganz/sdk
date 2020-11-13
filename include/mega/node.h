@@ -87,7 +87,7 @@ struct MEGA_API PublicLink
     bool takendown;
     string mAuthKey;
 
-    PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, string mAuthKey = {});
+    PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const string &authKey = {});
     PublicLink(PublicLink *plink);
 
     bool isExpired();
@@ -256,7 +256,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // handle of public link for the node
     PublicLink* plink = nullptr;
 
-    void setpubliclink(handle, m_time_t, m_time_t, bool, std::string authKey = {});
+    void setpubliclink(handle, m_time_t, m_time_t, bool, const string &authKey = {});
 
     bool serialize(string*) override;
     static Node* unserialize(MegaClient*, const string*, node_vector*);

@@ -1121,7 +1121,7 @@ bool Node::isbelow(Node* p) const
     }
 }
 
-void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, string authKey)
+void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const string &authKey)
 {
     if (!plink) // creation
     {
@@ -1140,7 +1140,7 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, 
     client->mPublicLinks[nodehandle] = ph;
 }
 
-PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, std::string authKey)
+PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const string &authKey)
 {
     this->ph = ph;
     this->cts = cts;
