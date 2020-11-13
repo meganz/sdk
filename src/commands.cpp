@@ -4846,13 +4846,13 @@ bool CommandSetPH::procresult(Result r)
         return true;
     }
 
+    handle ph = UNDEF;
+    std::string authKey;
 
     if (mWritable) // aparently, depending on 'w', the response can be [{"ph":"XXXXXXXX","w":"YYYYYYYYYYYYYYYYYYYYYY"}] or simply [XXXXXXXX]
     {
-        handle ph = UNDEF;
-        std::string authKey;
-
-        for (;;)
+        bool exit = false;
+        while (!exit)
         {
             switch (client->json.getnameid())
             {
@@ -4866,20 +4866,13 @@ bool CommandSetPH::procresult(Result r)
 
             case EOO:
             {
-                if (ISUNDEF(ph))
+                if (authKey.empty())
                 {
                     client->app->exportnode_result(API_EINTERNAL);
                     return true;
                 }
-                Node *n = client->nodebyhandle(h);
-                if (n)
-                {
-                    n->setpubliclink(ph, time(nullptr), ets, false, authKey);
-                    n->changed.publiclink = true;
-                    client->notifynode(n);
-                }
-                client->app->exportnode_result(h, ph);
-                return true;
+                exit = true;
+                break;
             }
             default:
                 if (!client->json.storeobject())
@@ -4890,25 +4883,26 @@ bool CommandSetPH::procresult(Result r)
             }
         }
     }
-    else
+    else    // format: [XXXXXXXX]
     {
-        handle ph = client->json.gethandle();
-
-        if (ISUNDEF(ph))
-        {
-            client->app->exportnode_result(API_EINTERNAL);
-            return true;
-        }
-
-        Node *n = client->nodebyhandle(h);
-        if (n)
-        {
-            n->setpubliclink(ph, time(nullptr), ets, false);
-            n->changed.publiclink = true;
-            client->notifynode(n);
-        }
-        client->app->exportnode_result(h, ph);
+        ph = client->json.gethandle();
     }
+
+    if (ISUNDEF(ph))
+    {
+        client->app->exportnode_result(API_EINTERNAL);
+        return true;
+    }
+
+    Node *n = client->nodebyhandle(h);
+    if (n)
+    {
+        n->setpubliclink(ph, time(nullptr), ets, false, authKey);
+        n->changed.publiclink = true;
+        client->notifynode(n);
+    }
+
+    client->app->exportnode_result(h, ph);
 
     return true;
 }
