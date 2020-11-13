@@ -4234,7 +4234,7 @@ void exec_open(autocomplete::ACState& s)
             clientFolder->logout();
         }
 
-        return clientFolder->app->login_result(clientFolder->folderaccess(s.words[1].s.c_str()));
+        return clientFolder->app->login_result(clientFolder->folderaccess(s.words[1].s.c_str(), nullptr));
     }
     else
     {
@@ -4435,7 +4435,7 @@ void exec_login(autocomplete::ACState& s)
                 const char* ptr;
                 if ((ptr = strchr(s.words[1].s.c_str(), '#')))  // folder link indicator
                 {
-                    return client->app->login_result(client->folderaccess(s.words[1].s.c_str()));
+                    return client->app->login_result(client->folderaccess(s.words[1].s.c_str(), nullptr));
                 }
                 else
                 {
