@@ -15882,7 +15882,7 @@ void MegaClient::chatlinkjoin(handle publichandle, const char *unifiedkey)
     reqs.add(new CommandChatLinkJoin(this, publichandle, unifiedkey));
 }
 
-void MegaClient::setchatretentiontime(handle chatid, int period)
+void MegaClient::setchatretentiontime(handle chatid, unsigned int period)
 {
     reqs.add(new CommandSetChatRetentionTime(this, chatid, period));
 }

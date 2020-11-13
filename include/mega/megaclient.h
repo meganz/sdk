@@ -831,7 +831,7 @@ public:
     void chatlinkjoin(handle publichandle, const char *unifiedkey);
 
     // set retention time for a chatroom in seconds, after which older messages in the chat are automatically deleted
-    void setchatretentiontime(handle chatid, int period);
+    void setchatretentiontime(handle chatid, unsigned int period);
 #endif
 
     // get mega achievements

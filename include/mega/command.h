@@ -1091,7 +1091,7 @@ class MEGA_API CommandSetChatRetentionTime : public Command
 public:
     bool procresult(Result) override;
 
-    CommandSetChatRetentionTime(MegaClient*, handle , int);
+    CommandSetChatRetentionTime(MegaClient*, handle , unsigned int);
 
 protected:
     handle mChatid;

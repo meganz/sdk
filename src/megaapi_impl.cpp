@@ -10215,7 +10215,7 @@ void MegaApiImpl::setChatRetentionTime(MegaHandle chatid, unsigned int period, M
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_RETENTION_TIME, listener);
     request->setNodeHandle(chatid);
-    request->setNumDetails(period);
+    request->setTotalBytes(period);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -22596,7 +22596,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_SET_RETENTION_TIME:
         {
             MegaHandle chatid = request->getNodeHandle();
-            int period = request->getNumDetails();
+            unsigned int period = static_cast <unsigned int>(request->getTotalBytes());
 
             if (chatid == INVALID_HANDLE)
             {
