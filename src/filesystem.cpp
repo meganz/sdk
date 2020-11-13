@@ -1290,12 +1290,12 @@ bool LocalPath::nextPathComponent(size_t& subpathIndex, LocalPath& component, se
 
 ScopedLengthRestore::ScopedLengthRestore(LocalPath& p)
     : path(p)
-    , length(path.getLength())
+    , length(path.localpath.size())
 {
 }
 ScopedLengthRestore::~ScopedLengthRestore()
 {
-    path.setLength(length);
+    path.localpath.resize(length);
 };
 
 } // namespace

@@ -369,6 +369,7 @@ int64_t chunkmac_map::macsmac(SymmCipher *cipher)
     m[0] ^= m[1];
     m[1] = m[2] ^ m[3];
 
+    // LOG_debug << "macsmac final: " << Base64Str<sizeof int64_t>(mac);
     return MemAccess::get<int64_t>((const char*)mac);
 }
 
@@ -2228,7 +2229,7 @@ SyncConfig::SyncConfig(int tag,
                        const Type syncType,
                        const bool syncDeletions,
                        const bool forceOverwrite,
-                       const SyncError error)
+                       const SyncError error, mega::handle hearBeatID)
     : mTag{tag}
     , mEnabled{enabled}
     , mLocalPath{std::move(localPath)}
@@ -2241,6 +2242,7 @@ SyncConfig::SyncConfig(int tag,
     , mSyncDeletions{syncDeletions}
     , mForceOverwrite{forceOverwrite}
     , mError{error}
+    , mBackupId(hearBeatID)
 {}
 
 
@@ -2381,6 +2383,16 @@ void SyncConfig::setError(SyncError value)
     mError = value;
 }
 
+handle SyncConfig::getBackupId() const
+{
+    return mBackupId;
+}
+
+void SyncConfig::setBackupId(const handle &backupId)
+{
+    mBackupId = backupId;
+}
+
 // This should be a const-method but can't be due to the broken Cacheable interface.
 // Do not mutate members in this function! Hence, we forward to a private const-method.
 bool SyncConfig::serialize(std::string* data)
@@ -2403,6 +2415,7 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     bool syncDeletions;
     bool forceOverwrite;
     uint32_t error;
+    handle heartBeatID;
 
     CacheableReader reader{data};
     if (!reader.unserializei64(tag))
@@ -2462,10 +2475,14 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     {
         return {};
     }
+    if (!reader.unserializehandle(heartBeatID))
+    {
+        return {};
+    }
     auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{static_cast<int>(tag), std::move(localPath), std::move(name),
                     remoteNode, std::move(remotePath), fingerprint, std::move(regExps), enabled,
                     static_cast<Type>(syncType), syncDeletions,
-                    forceOverwrite, static_cast<SyncError>(error)}};
+                    forceOverwrite, static_cast<SyncError>(error), heartBeatID}};
     return syncConfig;
 }
 
@@ -2488,6 +2505,7 @@ bool SyncConfig::serialize(std::string& data) const
     writer.serializebool(mSyncDeletions);
     writer.serializebool(mForceOverwrite);
     writer.serializeu32(static_cast<uint32_t>(mError));
+    writer.serializehandle(mBackupId);
     writer.serializeexpansionflags();
     return true;
 }

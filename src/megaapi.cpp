@@ -402,6 +402,16 @@ int MegaNode::getDuration()
     return -1;
 }
 
+bool MegaNode::isFavourite()
+{
+    return false;
+}
+
+int MegaNode::getLabel()
+{
+    return 0;
+}
+
 int MegaNode::getWidth()
 {
     return -1;
@@ -1028,6 +1038,11 @@ MegaBackgroundMediaUpload* MegaRequest::getMegaBackgroundMediaUploadPtr() const
     return NULL;
 }
 
+MegaBannerList* MegaRequest::getMegaBannerList() const
+{
+    return nullptr;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -1223,6 +1238,11 @@ unsigned long long MegaTransfer::getPriority() const
 long long MegaTransfer::getNotificationNumber() const
 {
     return 0;
+}
+
+bool MegaTransfer::getTargetOverride() const
+{
+    return false;
 }
 
 MegaError::MegaError(int e)
@@ -1753,7 +1773,12 @@ void MegaApi::setPSA(int id, MegaRequestListener *listener)
 
 void MegaApi::getPSA(MegaRequestListener *listener)
 {
-    pImpl->getPSA(listener);
+    pImpl->getPSA(false, listener);
+}
+
+void MegaApi::getPSAWithUrl(MegaRequestListener *listener)
+{
+    pImpl->getPSA(true, listener);
 }
 
 void MegaApi::acknowledgeUserAlerts(MegaRequestListener *listener)
@@ -2482,6 +2507,21 @@ void MegaApi::setNodeDuration(MegaNode *node, int secs, MegaRequestListener *lis
     pImpl->setNodeDuration(node, secs, listener);
 }
 
+void MegaApi::setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener)
+{
+    pImpl->setNodeLabel(node, label, listener);
+}
+
+void MegaApi::resetNodeLabel(MegaNode *node, MegaRequestListener *listener)
+{
+    pImpl->setNodeLabel(node, MegaNode::NODE_LBL_UNKNOWN, listener);
+}
+
+void MegaApi::setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener)
+{
+    pImpl->setNodeFavourite(node, fav, listener);
+}
+
 void MegaApi::setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener)
 {
     pImpl->setNodeCoordinates(node, false, latitude, longitude, listener);
@@ -2727,6 +2767,16 @@ void MegaApi::setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *l
 void MegaApi::getMyChatFilesFolder(MegaRequestListener *listener)
 {
     pImpl->getMyChatFilesFolder(listener);
+}
+
+void MegaApi::setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener)
+{
+    pImpl->setMyBackupsFolder(nodehandle, listener);
+}
+
+void MegaApi::getMyBackupsFolder(MegaRequestListener *listener)
+{
+    pImpl->getMyBackupsFolder(listener);
 }
 
 void MegaApi::getUserAlias(MegaHandle uh, MegaRequestListener *listener)
@@ -3821,17 +3871,22 @@ MegaNodeList *MegaApi::search(const char *searchString, MegaCancelToken *cancelT
 
 MegaNodeList* MegaApi::searchOnInShares(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApiImpl::TARGET_INSHARE);
+    return pImpl->search(nullptr, searchString, cancelToken, true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_INSHARE);
 }
 
 MegaNodeList* MegaApi::searchOnOutShares(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApiImpl::TARGET_OUTSHARE);
+    return pImpl->search(nullptr, searchString, cancelToken, true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_OUTSHARE);
 }
 
 MegaNodeList* MegaApi::searchOnPublicLinks(const char *searchString, MegaCancelToken *cancelToken, int order)
 {
-    return pImpl->searchInAllShares(searchString, cancelToken, order, MegaApiImpl::TARGET_PUBLICLINK);
+    return pImpl->search(nullptr, searchString, cancelToken, true, order, MegaApi::FILE_TYPE_DEFAULT, MegaApi::SEARCH_TARGET_PUBLICLINK);
+}
+
+MegaNodeList* MegaApi::searchByType(MegaNode *n, const char *searchString, MegaCancelToken *cancelToken, bool recursive, int order, int type, int target)
+{
+    return pImpl->search(n, searchString, cancelToken, recursive, order, type, target);
 }
 
 long long MegaApi::getSize(MegaNode *n)
@@ -4179,6 +4234,11 @@ void MegaApi::getPublicLinkInformation(const char *megaFolderLink, MegaRequestLi
 MegaApiLock* MegaApi::getMegaApiLock(bool lockNow)
 {
     return new MegaApiLock(pImpl, lockNow);
+}
+
+bool MegaApi::platformSetRLimitNumFile(int newNumFileLimit) const
+{
+    return pImpl->platformSetRLimitNumFile(newNumFileLimit);
 }
 
 void MegaApi::sendSMSVerificationCode(const char* phoneNumber, MegaRequestListener *listener, bool reverifying_whitelisted)
@@ -5275,6 +5335,36 @@ bool MegaApi::ensureMediaInfo()
 void MegaApi::setOriginalFingerprint(MegaNode* node, const char* originalFingerprint, MegaRequestListener *listener)
 {
     return pImpl->setOriginalFingerprint(node, originalFingerprint, listener);
+}
+
+void MegaApi::getBanners(MegaRequestListener *listener)
+{
+    pImpl->getBanners(listener);
+}
+
+void MegaApi::dismissBanner(int id, MegaRequestListener *listener)
+{
+    pImpl->dismissBanner(id, listener);
+}
+
+void MegaApi::setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener)
+{
+    pImpl->setBackup(backupType, targetNode, localFolder, backupName, state, subState, extraData, listener);
+}
+
+void MegaApi::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener)
+{
+    pImpl->updateBackup(backupId, backupType, targetNode, localFolder, backupName, state, subState, extraData, listener);
+}
+
+void MegaApi::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
+{
+    pImpl->removeBackup(backupId, listener);
+}
+
+void MegaApi::sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode)
+{
+    pImpl->sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode);
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
@@ -6889,6 +6979,79 @@ int64_t MegaIntegerList::get(int /*i*/) const
 }
 
 int MegaIntegerList::size() const
+{
+    return 0;
+}
+
+
+MegaBanner::MegaBanner()
+{
+}
+
+MegaBanner::~MegaBanner()
+{
+}
+
+MegaBanner* MegaBanner::copy() const
+{
+    return nullptr;
+}
+
+int MegaBanner::getId() const
+{
+    return 0;
+}
+
+const char* MegaBanner::getTitle() const
+{
+    return nullptr;
+}
+
+const char* MegaBanner::getDescription() const
+{
+    return nullptr;
+}
+
+const char* MegaBanner::getImage() const
+{
+    return nullptr;
+}
+
+const char* MegaBanner::getUrl() const
+{
+    return nullptr;
+}
+
+const char* MegaBanner::getBackgroundImage() const
+{
+    return nullptr;
+}
+
+const char* MegaBanner::getImageLocation() const
+{
+    return nullptr;
+}
+
+
+MegaBannerList::MegaBannerList()
+{
+}
+
+MegaBannerList::~MegaBannerList()
+{
+}
+
+MegaBannerList* MegaBannerList::copy() const
+{
+    return nullptr;
+}
+
+const MegaBanner* MegaBannerList::get(int i) const
+{
+    return nullptr;
+}
+
+int MegaBannerList::size() const
 {
     return 0;
 }

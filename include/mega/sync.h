@@ -231,7 +231,7 @@ public:
     // returns the sync config
     const SyncConfig& getConfig() const;
 
-    void* appData = nullptr;
+    void* appData = nullptr; //DEPRECATED, do not use: sync re-enabled does not have this set.
 
     MegaClient* client = nullptr;
 

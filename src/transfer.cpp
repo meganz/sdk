@@ -129,11 +129,6 @@ Transfer::~Transfer()
         client->asyncfopens--;
     }
 
-    if (ultoken)
-    {
-        delete [] ultoken;
-    }
-
     if (finished)
     {
         if (type == GET && !localfilename.empty())
@@ -181,7 +176,7 @@ bool Transfer::serialize(string *d)
     {
         hasUltoken = 2;
         d->append((const char*)&hasUltoken, sizeof(char));
-        d->append((const char*)ultoken, NewNode::UPLOADTOKENLEN);
+        d->append((const char*)ultoken.get(), NewNode::UPLOADTOKENLEN);
     }
     else
     {
@@ -326,8 +321,8 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     if (hasUltoken)
     {
-        t->ultoken = new byte[NewNode::UPLOADTOKENLEN]();
-        memcpy(t->ultoken, ptr, ll);
+        t->ultoken.reset(new byte[NewNode::UPLOADTOKENLEN]());
+        memcpy(t->ultoken.get(), ptr, ll);
         ptr += ll;
     }
 
@@ -515,8 +510,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
     {
         chunkmacs.clear();
         progresscompleted = 0;
-        delete [] ultoken;
-        ultoken = NULL;
+        ultoken.reset();
         pos = 0;
 
         if (slot && slot->fa && (slot->fa->mtime != mtime || slot->fa->size != size))
@@ -581,7 +575,7 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
     assert(type == PUT || (node && node->type == FILENODE));
 
 #ifdef USE_MEDIAINFO
-    char ext[8];
+    char ext[MAXEXTENSIONLEN];
     if (((type == PUT && size >= 16) || (node && node->nodekey().size() == FILENODEKEYLENGTH && node->size >= 16)) &&
         client->fsaccess->getextension(localpath, ext, sizeof(ext)) &&
         MediaProperties::isMediaFilenameExt(ext) &&

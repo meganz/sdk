@@ -969,7 +969,7 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
 {
     // We generate the command just before sending, so it's up to date for any external changes that occured in the meantime
     // And we can also take into account any changes we have sent for this node that have not yet been applied by actionpackets
-    json.clear();
+    jsonWriter.clear();
     generationError = API_OK;
 
     cmd("a");
@@ -1015,7 +1015,7 @@ const char* CommandSetAttr::getJSON(MegaClient* client)
     arg("n", (byte*)&h, MegaClient::NODEHANDLE);
     arg("at", (byte*)at.c_str(), int(at.size()));
 
-    return json.c_str();
+    return jsonWriter.getstring().c_str();
 }
 
 
@@ -1266,17 +1266,23 @@ bool CommandPutNodes::procresult(Result r)
         }
 #endif
 
+	    // when the target has been removed, the API automatically adds the new node/s
+	    // into the rubbish bin
+	    Node *tempNode = !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
+	    bool targetOverride = (tempNode && tempNode->parenthandle != targethandle);
+
+
 #ifdef ENABLE_SYNC
         if (source == PUTNODES_SYNC)
         {
-            client->app->putnodes_result(API_OK, type, nn);
+            client->app->putnodes_result(API_OK, type, nn, targetOverride);
             client->putnodes_sync_result(API_OK, nn);
         }
         else
 #endif
         if (source == PUTNODES_APP)
         {
-            client->app->putnodes_result(emptyResponse ? API_ENOENT : API_OK, type, nn);
+            client->app->putnodes_result(emptyResponse ? API_ENOENT : API_OK, type, nn, targetOverride);
         }
 #ifdef ENABLE_SYNC
         else
@@ -1556,7 +1562,7 @@ const char* CommandLogout::getJSON(MegaClient* client)
         // only set it once in case of retries.
         incrementedCount = true;
     }
-    return json.c_str();
+    return jsonWriter.getstring().c_str();
 }
 
 bool CommandLogout::procresult(Result r)
@@ -1594,6 +1600,7 @@ bool CommandPrelogin::procresult(Result r)
     if (r.wasErrorOrOK())
     {
         client->app->prelogin_result(0, NULL, NULL, r.errorOrOK());
+        return true;
     }
 
     assert(r.hasJsonObject());
@@ -1680,15 +1687,10 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *em
         arg("sn", (byte*)&client->cachedscsn, sizeof client->cachedscsn);
     }
 
-    string id = client->getDeviceid();
-
-    if (id.size())
+    string deviceIdHash = client->getDeviceidHash();
+    if (!deviceIdHash.empty())
     {
-        string hash;
-        HashSHA256 hasher;
-        hasher.add((const byte*)id.data(), unsigned(id.size()));
-        hasher.get(&hash);
-        arg("si", (const byte*)hash.data(), int(hash.size()));
+        arg("si", deviceIdHash.c_str());
     }
 
     tag = client->reqtag;
@@ -3257,7 +3259,9 @@ bool CommandGetUA::procresult(Result r)
             }   // switch (nameid)
         }
     }
-    return false;
+#ifndef WIN32
+    return false;  // unreachable code
+#endif
 }
 
 #ifdef DEBUG
@@ -3628,6 +3632,8 @@ bool CommandGetUserData::procresult(Result r)
     string versionUnshareableKey;
     string deviceNames;
     string versionDeviceNames;
+    string myBackupsFolder;
+    string versionMyBackupsFolder;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -3750,6 +3756,10 @@ bool CommandGetUserData::procresult(Result r)
 
         case MAKENAMEID4('*', '!', 'd', 'n'):
             parseUserAttribute(deviceNames, versionDeviceNames);
+            break;
+
+        case MAKENAMEID5('*', '!', 'b', 'a', 'k'):
+            parseUserAttribute(myBackupsFolder, versionMyBackupsFolder);
             break;
 
         case 'b':   // business account's info
@@ -4063,6 +4073,21 @@ bool CommandGetUserData::procresult(Result r)
                     else
                     {
                         LOG_err << "Cannot extract TLV records for ATTR_CAMERA_UPLOADS_FOLDER";
+                    }
+                }
+
+                if (!myBackupsFolder.empty())
+                {
+                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&myBackupsFolder, &client->key));
+                    if (tlvRecords)
+                    {
+                        // store the value for private user attributes (decrypted version of serialized TLV)
+                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
+                        changes += u->updateattr(ATTR_MY_BACKUPS_FOLDER, tlvString.get(), &versionMyBackupsFolder);
+                    }
+                    else
+                    {
+                        LOG_err << "Cannot extract TLV records for ATTR_MY_BACKUPS_FOLDER";
                     }
                 }
 
@@ -7631,9 +7656,14 @@ bool CommandMultiFactorAuthDisable::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-CommandGetPSA::CommandGetPSA(MegaClient *client)
+CommandGetPSA::CommandGetPSA(bool urlSupport, MegaClient *client)
 {
     cmd("gpsa");
+
+    if (urlSupport)
+    {
+        arg("w", 1);
+    }
 
     tag = client->reqtag;
 }
@@ -7642,14 +7672,14 @@ bool CommandGetPSA::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->getpsa_result(r.errorOrOK(), 0, NULL, NULL, NULL, NULL, NULL);
+        client->app->getpsa_result(r.errorOrOK(), 0, NULL, NULL, NULL, NULL, NULL, NULL);
         return true;
     }
 
     int id = 0;
     string temp;
     string title, text, imagename, imagepath;
-    string buttonlink, buttontext;
+    string buttonlink, buttontext, url;
 
     for (;;)
     {
@@ -7672,6 +7702,9 @@ bool CommandGetPSA::procresult(Result r)
             case 'l':
                 client->json.storeobject(&buttonlink);
                 break;
+            case MAKENAMEID3('u', 'r', 'l'):
+                client->json.storeobject(&url);
+                break;
             case 'b':
                 client->json.storeobject(&temp);
                 Base64::atob(temp, buttontext);
@@ -7682,13 +7715,13 @@ bool CommandGetPSA::procresult(Result r)
             case EOO:
                 imagepath.append(imagename);
                 imagepath.append(".png");
-                client->app->getpsa_result(API_OK, id, &title, &text, &imagepath, &buttontext, &buttonlink);
+                client->app->getpsa_result(API_OK, id, &title, &text, &imagepath, &buttontext, &buttonlink, &url);
                 return true;
             default:
                 if (!client->json.storeobject())
                 {
                     LOG_err << "Failed to parse get PSA response";
-                    client->app->getpsa_result(API_EINTERNAL, 0, NULL, NULL, NULL, NULL, NULL);
+                    client->app->getpsa_result(API_EINTERNAL, 0, NULL, NULL, NULL, NULL, NULL, NULL);
                     return false;
                 }
                 break;
@@ -7974,6 +8007,7 @@ CommandGetCountryCallingCodes::CommandGetCountryCallingCodes(MegaClient* client)
 {
     cmd("smslc");
 
+    batchSeparately = true;
     tag = client->reqtag;
 }
 
@@ -8149,7 +8183,8 @@ bool CommandFolderLinkInfo::procresult(Result r)
     }
 }
 
-CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle nodeHandle, const string& localFolder, const std::string &deviceId, const string& backupName, int state, int subState, const string& extraData)
+// to register a new backup
+CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle nodeHandle, const string& localFolder, const std::string &deviceId, int state, int subState, const string& extraData)
 {
     assert(type != BackupType::INVALID);
 
@@ -8159,16 +8194,18 @@ CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle n
     arg("h", (byte*)&nodeHandle, MegaClient::NODEHANDLE);
     arg("l", localFolder.c_str());
     arg("d", deviceId.c_str());
-    arg("n", backupName.c_str());
     arg("s", state);
     arg("ss", subState);
-    arg("e", extraData.c_str());
+
+    if (!extraData.empty())
+        arg("e", extraData.c_str());
 
     tag = client->reqtag;
     mUpdate = false;
 }
 
-CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, const char* backupName, int state, int subState, const char* extraData)
+// to update an already registered backup
+CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, int state, int subState, const char* extraData)
 {
     mStringIsNotSeqtag = true;
 
@@ -8196,17 +8233,12 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupTy
         arg("d", deviceId);
     }
 
-    if (backupName)
-    {
-        arg("n", backupName);
-    }
-
-    if (state > 0)
+    if (state >= 0)
     {
         arg("s", state);
     }
 
-    if (subState > 0)
+    if (subState >= 0)
     {
         arg("ss", subState);
     }
@@ -8224,12 +8256,20 @@ bool CommandBackupPut::procresult(Result r)
 {
     assert(r.wasStrictlyError() || r.hasJsonItem());
     handle backupId = UNDEF;
-    Error e = r.errorOrOK();
+    Error e = API_OK;
+
     if (r.hasJsonItem())
     {
         backupId = client->json.gethandle(MegaClient::USERHANDLE);
         e = API_OK;
     }
+    else
+    {
+        e = r.errorOrOK();
+    }
+
+    LOG_debug << "backup put result: " << error(e) << " " << backupId;
+
     if (mUpdate)
     {
         client->app->backupupdate_result(e, backupId);
@@ -8241,7 +8281,7 @@ bool CommandBackupPut::procresult(Result r)
     return r.wasStrictlyError() || r.hasJsonItem();
 }
 
-CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, uint32_t ts, handle lastNode)
+CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode)
 {
     cmd("sphb");
 
@@ -8274,6 +8314,121 @@ CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId)
 bool CommandBackupRemove::procresult(Result r)
 {
     client->app->backupremove_result(r.errorOrOK(), id);
+    return r.wasErrorOrOK();
+}
+
+CommandGetBanners::CommandGetBanners(MegaClient* client)
+{
+    cmd("gban");
+
+    tag = client->reqtag;
+}
+
+bool CommandGetBanners::procresult(Result r)
+{
+    if (r.wasErrorOrOK())
+    {
+        client->app->getbanners_result(r.errorOrOK());
+        return true; // because parsing didn't fail
+    }
+
+    /*
+        {
+            "id": 2, ///The banner id
+            "t": "R2V0IFZlcmlmaWVk", ///Banner title
+            "d": "TWFrZSBpdCBlYXNpZXIgZm9yIHlvdXIgY29udGFjdHMgdG8gZmluZCB5b3Ugb24gTUVHQS4", ///Banner description.
+            "img": "Verified_image.png", ///Image name.
+            "l": "", ///URL
+            "bimg": "Verified_BG.png", ///background image name.
+            "dsp": "https://domain/path" ///Where to get the image.
+        }, {"id":3, ...}, ... ]
+    */
+
+    vector< tuple<int, string, string, string, string, string, string> > banners;
+
+    // loop array elements
+    while (client->json.enterobject())
+    {
+        int id = 0;
+        string title, description, img, url, bimg, dsp;
+        bool exit = false;
+
+        // loop and read object members
+        while (!exit)
+        {
+            switch (client->json.getnameid())
+            {
+            case MAKENAMEID2('i', 'd'):
+                id = client->json.getint32();
+                break;
+
+            case MAKENAMEID1('t'):
+                client->json.storeobject(&title);
+                break;
+
+            case MAKENAMEID1('d'):
+                client->json.storeobject(&description);
+                break;
+
+            case MAKENAMEID3('i', 'm', 'g'):
+                client->json.storeobject(&img);
+                break;
+
+            case MAKENAMEID1('l'):
+                client->json.storeobject(&url);
+                break;
+
+            case MAKENAMEID4('b', 'i', 'm', 'g'):
+                client->json.storeobject(&bimg);
+                break;
+
+            case MAKENAMEID3('d', 's', 'p'):
+                client->json.storeobject(&dsp);
+                break;
+
+            case EOO:
+                if (!id || title.empty() || description.empty())
+                {
+                    LOG_err << "Missing id, title or description in response to gban";
+                    client->app->getbanners_result(API_EINTERNAL);
+                    return false;
+                }
+                exit = true;
+                break;
+
+            default:
+                if (!client->json.storeobject()) // skip unknown member
+                {
+                    LOG_err << "Failed to parse banners response";
+                    client->app->getbanners_result(API_EINTERNAL);
+                    return false;
+                }
+                break;
+            }
+        }
+
+        banners.emplace_back(make_tuple(id, move(title), move(description), move(img), move(url), move(bimg), move(dsp)));
+
+        client->json.leaveobject();
+    }
+
+    client->app->getbanners_result(move(banners));
+
+    return true;
+}
+
+CommandDismissBanner::CommandDismissBanner(MegaClient* client, int id, m_time_t timestamp)
+{
+    cmd("dban");
+    arg("id", id); // id of the Smart Banner
+    arg("ts", timestamp);
+
+    tag = client->reqtag;
+}
+
+bool CommandDismissBanner::procresult(Result r)
+{
+    client->app->dismissbanner_result(r.errorOrOK());
     return r.wasErrorOrOK();
 }
 

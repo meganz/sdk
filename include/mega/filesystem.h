@@ -99,9 +99,6 @@ class MEGA_API LocalPath
     friend int compareUtf(const LocalPath&, bool unescaping1, const LocalPath&, bool unescaping2, bool caseInsensitive);
 
 
-    size_t getLength() { return localpath.size(); }
-    void setLength(size_t length) { localpath.resize(length); }
-
 public:
     LocalPath() {}
 

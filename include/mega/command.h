@@ -26,31 +26,40 @@
 #include "node.h"
 #include "account.h"
 #include "http.h"
+#include "json.h"
 
 namespace mega {
 
 struct JSON;
 struct MegaApp;
 // request command component
+
+class MEGA_API CommandListener
+{
+public:
+    virtual void onCommandToBeDeleted(Command *) = 0;
+};
+
+
 class MEGA_API Command
 {
-    static const int MAXDEPTH = 8;
-
-    char levels[MAXDEPTH];
+    std::vector<std::weak_ptr<CommandListener>> mListeners;
 
     error result;
 
 protected:
     bool canceled;
 
-    string json;
+    JSONWriter jsonWriter;
+    bool mRead = false;// if json has already been read
 
 public:
     MegaClient* client; // non-owning
 
+    void addListener(const std::shared_ptr<CommandListener> &listener);
+
     int tag;
 
-    char level;
     bool persistent;
 
     // some commands can only succeed if they are in their own batch.  eg. smss, when the account is blocked pending validation
@@ -91,7 +100,6 @@ public:
 
     void openobject();
     void closeobject();
-    int elements();
 
     enum Outcome {  CmdError,            // The reply was an error, already extracted from the JSON.  The error code may have been 0 (API_OK)
                     CmdActionpacket,     // The reply was a seqtag string, and we have processed the corresponding actionpackets
@@ -168,7 +176,7 @@ public:
     virtual const char* getJSON(MegaClient* client);
 
     Command();
-    virtual ~Command() = default;
+    virtual ~Command();
 
     bool checkError(Error &errorDetails, JSON &json);
 
@@ -178,6 +186,8 @@ public:
     void removeFromNodePendingCommands(Node* n);
 
     MEGA_DEFAULT_COPY_MOVE(Command)
+    bool getRead() const; //if already read
+    void replaceWith(Command &command);
 };
 
 // list of new file attributes to write
@@ -1262,7 +1272,7 @@ class MEGA_API CommandGetPSA : public Command
 public:
     bool procresult(Result) override;
 
-    CommandGetPSA(MegaClient*);
+    CommandGetPSA(bool urlSupport, MegaClient*);
 };
 
 class MEGA_API CommandFetchTimeZone : public Command
@@ -1335,7 +1345,7 @@ public:
     bool procresult(Result) override;
 
     // Register a new Sync
-    CommandBackupPut(MegaClient* client, BackupType type, handle nodeHandle, const std::string& localFolder, const std::string& deviceId, const std::string& backupName, int state, int subState, const std::string& extraData);
+    CommandBackupPut(MegaClient* client, BackupType type, handle nodeHandle, const std::string& localFolder, const std::string& deviceId, int state, int subState, const std::string& extraData);
 
     // Update a Backup
     // Params that keep the same value are passed with invalid value to avoid to send to the server
@@ -1344,11 +1354,10 @@ public:
     // - nodeHandle: UNDEF
     // - localFolder: nullptr
     // - deviceId: nullptr
-    // - backupName: nullptr
     // - state: -1
     // - subState: -1
     // - extraData: nullptr
-    CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char* deviceId, const char* backupName, int state, int subState, const char* extraData);
+    CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData);
 
 private:
     bool mUpdate = false;
@@ -1369,7 +1378,23 @@ class MEGA_API CommandBackupPutHeartBeat : public Command
 public:
     bool procresult(Result) override;
 
-    CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, uint32_t ts, handle lastNode);
+    CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode);
+};
+
+class MEGA_API CommandGetBanners : public Command
+{
+public:
+    bool procresult(Result) override;
+
+    CommandGetBanners(MegaClient*);
+};
+
+class MEGA_API CommandDismissBanner : public Command
+{
+public:
+    bool procresult(Result) override;
+
+    CommandDismissBanner(MegaClient*, int id, m_time_t ts);
 };
 
 } // namespace

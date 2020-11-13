@@ -67,7 +67,7 @@ libwebsockets
 #          git checkout chromium/3710
 #          cd ..
 #          gclient sync --force
-# - If using VS2015 compiler, find span.h and #ove 'constexpr' from all the forwarding constructors.
+# - If using VS2015 compiler, find span.h and remove 'constexpr' from all the forwarding constructors.
 # - If using the latest Pdfium, use at least VS2017 and skip the branch checkout above, and substitute CMakeLists.txt with pdfium-masterbranch-CMakeLists.txt
 #   in sdk/contrib/cmake/vcpkg_extra_ports/pdfium/3710/  (subfolder named '3710' is indeed confusing)
 # - change directory to 3rdparty\vcpkg folder and run build3rdparty.cmd with the desired triplet

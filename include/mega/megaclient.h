@@ -668,6 +668,8 @@ public:
     error saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, SyncError syncerror);
     // updates in remote path/node & calls app's syncupdate_remote_root_changed. passing n=null will remove remote handle and keep last known path
     bool updateSyncRemoteLocation(const SyncConfig *config, Node *n, bool forceCallback = false); //returns if changed
+    // updates heartbeatID
+    error updateSyncBackupId(int tag, handle newHearBeatID);
 
     // transition the cache to failed
     void failSync(Sync* sync, SyncError syncerror);
@@ -714,6 +716,14 @@ public:
     Sync *getSyncContainingNodeHandle(mega::handle nodeHandle);
 
 #endif
+
+    /**
+     * @brief creates a tlv with one record and returns it encrypted with master key
+     * @param name name of the record
+     * @param text value of the record
+     * @return encrypted base64 string with the tlv contents
+     */
+    std::string cypherTLVTextWithMasterKey(const char *name, const std::string &text);
 
     // close all open HTTP connections
     void disconnect();
@@ -985,6 +995,9 @@ private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;
+
+    // backoff for heartbeats
+    BackoffTimer btheartbeat;
 
     vector<TimerWithBackoff *> bttimers;
 
@@ -1424,7 +1437,19 @@ public:
     recentactions_vector getRecentActions(unsigned maxcount, m_time_t since);
 
     // determine if the file is a video, photo, or media (video or photo).  If the extension (with trailing .) is not precalculated, pass null
-    bool nodeIsMedia(const Node*, bool* isphoto, bool* isvideo) const;
+    bool nodeIsMedia(const Node*, bool *isphoto, bool *isvideo) const;
+
+    // determine if the file is a photo.
+    bool nodeIsPhoto(const Node *n, bool checkPreview) const;
+
+    // determine if the file is a video.
+    bool nodeIsVideo(const Node *n) const;
+
+    // determine if the file is an audio.
+    bool nodeIsAudio(const Node *n) const;
+
+    // determine if the file is a document.
+    bool nodeIsDocument(const Node *n) const;
 
     // generate & return upload handle
     handle getuploadhandle();
@@ -1606,6 +1631,7 @@ public:
     bool warnlevel();
 
     Node* childnodebyname(Node*, const char*, bool = false);
+    void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
 
     // purge account state and abort server-client connection
@@ -1789,7 +1815,7 @@ public:
 
     void keepmealive(int, bool enable = true);
 
-    void getpsa();
+    void getpsa(bool urlSupport);
 
     // tells the API the user has seen existing alerts
     void acknowledgeuseralerts();
@@ -1862,6 +1888,8 @@ public:
     } performanceStats;
 
     std::string getDeviceid() const;
+
+    std::string getDeviceidHash() const;
 
 #ifdef ENABLE_SYNC
     void resetSyncConfigs();

@@ -33,7 +33,7 @@ struct MEGA_API WinDirAccess : public DirAccess
     bool ffdvalid;
     WIN32_FIND_DATAW ffd;
     HANDLE hFind;
-    string globbase;
+    LocalPath globbase;
 
     WIN32_FIND_DATAW currentItemAttributes;
     friend class WinFileAccess;
