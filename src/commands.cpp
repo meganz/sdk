@@ -4851,14 +4851,13 @@ bool CommandSetPH::procresult(Result r)
     {
         handle ph = UNDEF;
         std::string authKey;
-        bool hasAuthKey = false;
 
         for (;;)
         {
             switch (client->json.getnameid())
             {
             case 'w':
-                hasAuthKey = client->json.storeobject(&authKey);
+                client->json.storeobject(&authKey);
                 break;
 
             case MAKENAMEID2('p', 'h'):

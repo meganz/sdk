@@ -2901,7 +2901,8 @@ autocomplete::ACN autocompleteSyntax()
     std::unique_ptr<Either> p(new Either("      "));
 
     p->Add(exec_apiurl, sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
-    p->Add(exec_login, sequence(text("login"), either(sequence(param("email"), opt(param("password"))), exportedLink(false, true), param("session"), sequence(text("autoresume"), opt(param("id"))))));
+    p->Add(exec_login, sequence(text("login"), either(sequence(param("email"), opt(param("password"))),
+                                                      sequence(exportedLink(false, true), opt(param("auth_key"))), param("session"), sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
     p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name")), param("confirmationlink"))));
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
@@ -4435,7 +4436,8 @@ void exec_login(autocomplete::ACState& s)
                 const char* ptr;
                 if ((ptr = strchr(s.words[1].s.c_str(), '#')))  // folder link indicator
                 {
-                    return client->app->login_result(client->folderaccess(s.words[1].s.c_str(), nullptr));
+                    const char *authKey = s.words.size() == 3 ? s.words[2].s.c_str() : nullptr;
+                    return client->app->login_result(client->folderaccess(s.words[1].s.c_str(), authKey));
                 }
                 else
                 {
@@ -4460,7 +4462,7 @@ void exec_login(autocomplete::ACState& s)
         else
         {
             cout << "      login email [password]" << endl
-                << "      login exportedfolderurl#key" << endl
+                << "      login exportedfolderurl#key [authKey]" << endl
                 << "      login session" << endl;
         }
     }
