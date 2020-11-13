@@ -419,7 +419,8 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         break;
 
     case MegaRequest::TYPE_GET_ATTR_USER:
-        if ( (mApi[apiIndex].lastError == API_OK) && (request->getParamType() != MegaApi::USER_ATTR_AVATAR) )
+        if ( (mApi[apiIndex].lastError == API_OK) && (request->getParamType() != MegaApi::USER_ATTR_AVATAR) 
+            && (request->getParamType() != MegaApi::USER_ATTR_DEVICE_NAMES))
         {
             attributeValue = request->getText();
         }
@@ -440,7 +441,14 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         {
             if (mApi[apiIndex].lastError == API_OK)
             {
-                mBackupName = request->getName();
+                mBackupName = request->getText();
+            }
+        }
+        else if (request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES)
+        {
+            if (mApi[apiIndex].lastError == API_OK)
+            {
+                attributeValue = request->getName();
             }
         }
              
@@ -4799,6 +4807,16 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     gTestingInvalidArgs = false;
 }
 
+TEST_F(SdkTest, SdkDeviceNames)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST SdkDeviceNames___";
+
+    MegaUser* u = megaApi[0]->getMyUser();
+    bool null_pointer = (u == nullptr);
+    ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << mApi[0].email;
+    getUserAttribute(u, MegaApi::USER_ATTR_DEVICE_NAMES, maxTimeout, 0);
+}
 TEST_F(SdkTest, SdkBackupNames)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -4825,8 +4843,14 @@ TEST_F(SdkTest, SdkBackupNames)
     int backupType = BackupType::CAMERA_UPLOAD;
     auto err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
-    err = synchronousSetBackupName(0, mBackupId, "BackupNamesTest");
-    ASSERT_EQ(MegaError::API_OK, err) << "setBackupName failed (error: " << err << ")";
+
+    MegaUser* u = megaApi[0]->getMyUser();
+    bool null_pointer = (u == nullptr);
+    ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << mApi[0].email;
+    getUserAttribute(u, MegaApi::USER_ATTR_BACKUP_NAMES, maxTimeout, 0);
+
+    //err = synchronousSetBackupName(0, mBackupId, "BackupNamesTest");
+    //ASSERT_EQ(MegaError::API_OK, err) << "setBackupName failed (error: " << err << ")";
     err = synchronousGetBackupName(0, mBackupId);
     ASSERT_EQ(MegaError::API_OK, err) << "getBackupName failed (error: " << err << ")"; 
     ASSERT_EQ(mBackupName, backupName.get()) << "getBackupName returned incorrect value";
