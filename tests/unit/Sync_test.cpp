@@ -283,7 +283,7 @@ int computeReversePathMatchScore(const string& path1,
 
     return mega::computeReversePathMatchScore(localpath1,
                                               localpath2,
-                                              mt::DefaultedFileSystemAccess(sep));
+                                              mt::DefaultedFileSystemAccess());
 #else
     return mega::computeReversePathMatchScore(
         LocalPath::fromPlatformEncoded(path1),
@@ -293,7 +293,7 @@ int computeReversePathMatchScore(const string& path1,
 #endif
 }
 
-void test_computeReversePathMatchScore(mega::LocalPath::separator_t sep)
+void test_computeReversePathMatchScore()
 {
     string sepstr("/");
     ASSERT_EQ(0, computeReversePathMatchScore("", ""));
@@ -322,7 +322,7 @@ void test_computeReversePathMatchScore(mega::LocalPath::separator_t sep)
 
 TEST(Sync, computeReverseMatchScore_oneByteSeparator)
 {
-    test_computeReversePathMatchScore('/');
+    test_computeReversePathMatchScore();
 }
 
 /*TEST(Sync, assignFilesystemIds_whenFilesystemFingerprintsMatchLocalNodes)
