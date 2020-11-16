@@ -1280,11 +1280,15 @@ bool CommandPutNodes::procresult(Result r)
 
     client->sendkeyrewrites();
 
+    // when the target has been removed, the API automatically adds the new node/s
+    // into the rubbish bin
+    Node *tempNode = !nn.empty() ? client->nodebyhandle(nn.front().mAddedHandle) : nullptr;
+    bool targetOverride = (tempNode && tempNode->parenthandle != targethandle);
+
 #ifdef ENABLE_SYNC
     if (source == PUTNODES_SYNC)
     {
-        vector<NewNode> emptyVec;
-        client->app->putnodes_result(e, type, emptyVec);
+        client->app->putnodes_result(e, type, nn, targetOverride);
         client->putnodes_sync_result(e, nn);
     }
     else
@@ -1304,7 +1308,7 @@ bool CommandPutNodes::procresult(Result r)
             }
         }
 #endif
-        client->app->putnodes_result((!e && empty) ? API_ENOENT : static_cast<error>(e), type, nn);
+        client->app->putnodes_result((!e && empty) ? API_ENOENT : static_cast<error>(e), type, nn, targetOverride);
     }
 #ifdef ENABLE_SYNC
     else
@@ -1444,48 +1448,7 @@ bool CommandMoveNode::procresult(Result r)
         }
 #endif
         // Movement of shares and pending shares into Rubbish should remove them
-        if (r.wasError(API_OK))
-        {
-            Node *n = client->nodebyhandle(h);
-            if (n && (n->pendingshares || n->outshares))
-            {
-                Node *rootnode = client->nodebyhandle(np);
-                while (rootnode)
-                {
-                    if (!rootnode->parent)
-                    {
-                        break;
-                    }
-                    rootnode = rootnode->parent;
-                }
-                if (rootnode && rootnode->type == RUBBISHNODE)
-                {
-                    share_map::iterator it;
-                    if (n->pendingshares)
-                    {
-                        for (it = n->pendingshares->begin(); it != n->pendingshares->end(); it++)
-                        {
-                            client->newshares.push_back(new NewShare(
-                                                            n->nodehandle, 1, n->owner, ACCESS_UNKNOWN,
-                                                            0, NULL, NULL, it->first, false));
-                        }
-                    }
-
-                    if (n->outshares)
-                    {
-                        for (it = n->outshares->begin(); it != n->outshares->end(); it++)
-                        {
-                            client->newshares.push_back(new NewShare(
-                                                            n->nodehandle, 1, it->first, ACCESS_UNKNOWN,
-                                                            0, NULL, NULL, UNDEF, false));
-                        }
-                    }
-
-                    client->mergenewshares(1);
-                }
-            }
-        }
-        else if (syncdel == SYNCDEL_NONE)
+        if (r.wasStrictlyError() && syncdel == SYNCDEL_NONE)
         {
             client->sendevent(99439, "Unexpected move error", 0);
         }
@@ -1639,6 +1602,7 @@ bool CommandPrelogin::procresult(Result r)
     if (r.wasErrorOrOK())
     {
         client->app->prelogin_result(0, NULL, NULL, r.errorOrOK());
+        return true;
     }
 
     assert(r.hasJsonObject());
@@ -1725,15 +1689,10 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *em
         arg("sn", (byte*)&client->cachedscsn, sizeof client->cachedscsn);
     }
 
-    string id = client->getDeviceid();
-
-    if (id.size())
+    string deviceIdHash = client->getDeviceidHash();
+    if (!deviceIdHash.empty())
     {
-        string hash;
-        HashSHA256 hasher;
-        hasher.add((const byte*)id.data(), unsigned(id.size()));
-        hasher.get(&hash);
-        arg("si", (const byte*)hash.data(), int(hash.size()));
+        arg("si", deviceIdHash.c_str());
     }
 
     tag = client->reqtag;
@@ -3066,6 +3025,8 @@ bool CommandGetUA::procresult(Result r)
             LOG_info << "File versioning is enabled";
             client->versions_disabled = false;
         }
+
+        return true;
     }
     else
     {
@@ -3285,7 +3246,9 @@ bool CommandGetUA::procresult(Result r)
             }   // switch (nameid)
         }
     }
-    return false;
+#ifndef WIN32
+    return false;  // unreachable code
+#endif
 }
 
 #ifdef DEBUG
@@ -3648,6 +3611,8 @@ bool CommandGetUserData::procresult(Result r)
     string versionUnshareableKey;
     string deviceNames;
     string versionDeviceNames;
+    string myBackupsFolder;
+    string versionMyBackupsFolder;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -3770,6 +3735,10 @@ bool CommandGetUserData::procresult(Result r)
 
         case MAKENAMEID4('*', '!', 'd', 'n'):
             parseUserAttribute(deviceNames, versionDeviceNames);
+            break;
+
+        case MAKENAMEID5('*', '!', 'b', 'a', 'k'):
+            parseUserAttribute(myBackupsFolder, versionMyBackupsFolder);
             break;
 
         case 'b':   // business account's info
@@ -4086,6 +4055,21 @@ bool CommandGetUserData::procresult(Result r)
                     }
                 }
 
+                if (!myBackupsFolder.empty())
+                {
+                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&myBackupsFolder, &client->key));
+                    if (tlvRecords)
+                    {
+                        // store the value for private user attributes (decrypted version of serialized TLV)
+                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
+                        changes += u->updateattr(ATTR_MY_BACKUPS_FOLDER, tlvString.get(), &versionMyBackupsFolder);
+                    }
+                    else
+                    {
+                        LOG_err << "Cannot extract TLV records for ATTR_MY_BACKUPS_FOLDER";
+                    }
+                }
+
                 if (aliases.size())
                 {
                     unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&aliases, &client->key));
@@ -4149,11 +4133,9 @@ bool CommandGetUserData::procresult(Result r)
                     std::string err = "GetUserData: invalid business status / account mode";
                     LOG_err << err;
                     client->sendevent(99450, err.c_str(), 0);
-
-                    client->mBizStatus = BIZ_STATUS_EXPIRED;
                     client->mBizMode = BIZ_MODE_SUBUSER;
                     client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
-                    client->app->notify_business_status(client->mBizStatus);
+                    client->setBusinessStatus(BIZ_STATUS_EXPIRED);
                 }
                 else
                 {
@@ -4180,11 +4162,7 @@ bool CommandGetUserData::procresult(Result r)
                     assert(m != BIZ_MODE_SUBUSER || !masters.empty());
                     client->mBizMasters = masters;
 
-                    if (client->mBizStatus != s)
-                    {
-                        client->mBizStatus = s;
-                        client->app->notify_business_status(s);
-                    }
+                    client->setBusinessStatus(s);
 
                     // if current business status will expire sooner than the scheduled `ug`, update the
                     // backoff to a shorter one in order to refresh the business status asap
@@ -4212,16 +4190,10 @@ bool CommandGetUserData::procresult(Result r)
             }
             else
             {
-                BizStatus oldStatus = client->mBizStatus;
-                client->mBizStatus = BIZ_STATUS_INACTIVE;
                 client->mBizMode = BIZ_MODE_UNKNOWN;
                 client->mBizMasters.clear();
                 client->mBizExpirationTs = client->mBizGracePeriodTs = 0;
-
-                if (client->mBizStatus != oldStatus)
-                {
-                    client->app->notify_business_status(client->mBizStatus);
-                }
+                client->setBusinessStatus(BIZ_STATUS_INACTIVE);
             }
 
             if (uspw)
@@ -5505,6 +5477,7 @@ bool CommandFetchNodes::procresult(Result r)
 
                 client->mergenewshares(0);
                 client->applykeys();
+                client->initStatusTable();
                 client->initsc();
                 client->pendingsccommit = false;
                 client->fetchnodestag = tag;
@@ -7672,9 +7645,14 @@ bool CommandMultiFactorAuthDisable::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-CommandGetPSA::CommandGetPSA(MegaClient *client)
+CommandGetPSA::CommandGetPSA(bool urlSupport, MegaClient *client)
 {
     cmd("gpsa");
+
+    if (urlSupport)
+    {
+        arg("w", 1);
+    }
 
     tag = client->reqtag;
 }
@@ -7683,14 +7661,14 @@ bool CommandGetPSA::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->getpsa_result(r.errorOrOK(), 0, NULL, NULL, NULL, NULL, NULL);
+        client->app->getpsa_result(r.errorOrOK(), 0, NULL, NULL, NULL, NULL, NULL, NULL);
         return true;
     }
 
     int id = 0;
     string temp;
     string title, text, imagename, imagepath;
-    string buttonlink, buttontext;
+    string buttonlink, buttontext, url;
 
     for (;;)
     {
@@ -7713,6 +7691,9 @@ bool CommandGetPSA::procresult(Result r)
             case 'l':
                 client->json.storeobject(&buttonlink);
                 break;
+            case MAKENAMEID3('u', 'r', 'l'):
+                client->json.storeobject(&url);
+                break;
             case 'b':
                 client->json.storeobject(&temp);
                 Base64::atob(temp, buttontext);
@@ -7723,13 +7704,13 @@ bool CommandGetPSA::procresult(Result r)
             case EOO:
                 imagepath.append(imagename);
                 imagepath.append(".png");
-                client->app->getpsa_result(API_OK, id, &title, &text, &imagepath, &buttontext, &buttonlink);
+                client->app->getpsa_result(API_OK, id, &title, &text, &imagepath, &buttontext, &buttonlink, &url);
                 return true;
             default:
                 if (!client->json.storeobject())
                 {
                     LOG_err << "Failed to parse get PSA response";
-                    client->app->getpsa_result(API_EINTERNAL, 0, NULL, NULL, NULL, NULL, NULL);
+                    client->app->getpsa_result(API_EINTERNAL, 0, NULL, NULL, NULL, NULL, NULL, NULL);
                     return false;
                 }
                 break;
@@ -8014,6 +7995,7 @@ CommandGetCountryCallingCodes::CommandGetCountryCallingCodes(MegaClient* client)
 {
     cmd("smslc");
 
+    batchSeparately = true;
     tag = client->reqtag;
 }
 
@@ -8189,7 +8171,8 @@ bool CommandFolderLinkInfo::procresult(Result r)
     }
 }
 
-CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle nodeHandle, const string& localFolder, const std::string &deviceId, const string& backupName, int state, int subState, const string& extraData)
+// to register a new backup
+CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle nodeHandle, const string& localFolder, const std::string &deviceId, int state, int subState, const string& extraData)
 {
     assert(type != BackupType::INVALID);
 
@@ -8199,16 +8182,18 @@ CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle n
     arg("h", (byte*)&nodeHandle, MegaClient::NODEHANDLE);
     arg("l", localFolder.c_str());
     arg("d", deviceId.c_str());
-    arg("n", backupName.c_str());
     arg("s", state);
     arg("ss", subState);
-    arg("e", extraData.c_str());
+
+    if (!extraData.empty())
+        arg("e", extraData.c_str());
 
     tag = client->reqtag;
     mUpdate = false;
 }
 
-CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, const char* backupName, int state, int subState, const char* extraData)
+// to update an already registered backup
+CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, int state, int subState, const char* extraData)
 {
     cmd("sp");
 
@@ -8234,17 +8219,12 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupTy
         arg("d", deviceId);
     }
 
-    if (backupName)
-    {
-        arg("n", backupName);
-    }
-
-    if (state > 0)
+    if (state >= 0)
     {
         arg("s", state);
     }
 
-    if (subState > 0)
+    if (subState >= 0)
     {
         arg("ss", subState);
     }
@@ -8262,12 +8242,20 @@ bool CommandBackupPut::procresult(Result r)
 {
     assert(r.wasStrictlyError() || r.hasJsonItem());
     handle backupId = UNDEF;
-    Error e = r.errorOrOK();
+    Error e = API_OK;
+
     if (r.hasJsonItem())
     {
         backupId = client->json.gethandle(MegaClient::USERHANDLE);
         e = API_OK;
     }
+    else
+    {
+        e = r.errorOrOK();
+    }
+
+    LOG_debug << "backup put result: " << error(e) << " " << backupId;
+
     if (mUpdate)
     {
         client->app->backupupdate_result(e, backupId);
@@ -8279,7 +8267,7 @@ bool CommandBackupPut::procresult(Result r)
     return r.wasStrictlyError() || r.hasJsonItem();
 }
 
-CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, uint32_t ts, handle lastNode)
+CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode)
 {
     cmd("sphb");
 
@@ -8313,6 +8301,237 @@ bool CommandBackupRemove::procresult(Result r)
 {
     client->app->backupremove_result(r.errorOrOK(), id);
     return r.wasErrorOrOK();
+}
+
+CommandGetBanners::CommandGetBanners(MegaClient* client)
+{
+    cmd("gban");
+
+    tag = client->reqtag;
+}
+
+bool CommandGetBanners::procresult(Result r)
+{
+    if (r.wasErrorOrOK())
+    {
+        client->app->getbanners_result(r.errorOrOK());
+        return true; // because parsing didn't fail
+    }
+
+    /*
+        {
+            "id": 2, ///The banner id
+            "t": "R2V0IFZlcmlmaWVk", ///Banner title
+            "d": "TWFrZSBpdCBlYXNpZXIgZm9yIHlvdXIgY29udGFjdHMgdG8gZmluZCB5b3Ugb24gTUVHQS4", ///Banner description.
+            "img": "Verified_image.png", ///Image name.
+            "l": "", ///URL
+            "bimg": "Verified_BG.png", ///background image name.
+            "dsp": "https://domain/path" ///Where to get the image.
+        }, {"id":3, ...}, ... ]
+    */
+
+    vector< tuple<int, string, string, string, string, string, string> > banners;
+
+    // loop array elements
+    while (client->json.enterobject())
+    {
+        int id = 0;
+        string title, description, img, url, bimg, dsp;
+        bool exit = false;
+
+        // loop and read object members
+        while (!exit)
+        {
+            switch (client->json.getnameid())
+            {
+            case MAKENAMEID2('i', 'd'):
+                id = client->json.getint32();
+                break;
+
+            case MAKENAMEID1('t'):
+                client->json.storeobject(&title);
+                break;
+
+            case MAKENAMEID1('d'):
+                client->json.storeobject(&description);
+                break;
+
+            case MAKENAMEID3('i', 'm', 'g'):
+                client->json.storeobject(&img);
+                break;
+
+            case MAKENAMEID1('l'):
+                client->json.storeobject(&url);
+                break;
+
+            case MAKENAMEID4('b', 'i', 'm', 'g'):
+                client->json.storeobject(&bimg);
+                break;
+
+            case MAKENAMEID3('d', 's', 'p'):
+                client->json.storeobject(&dsp);
+                break;
+
+            case EOO:
+                if (!id || title.empty() || description.empty())
+                {
+                    LOG_err << "Missing id, title or description in response to gban";
+                    client->app->getbanners_result(API_EINTERNAL);
+                    return false;
+                }
+                exit = true;
+                break;
+
+            default:
+                if (!client->json.storeobject()) // skip unknown member
+                {
+                    LOG_err << "Failed to parse banners response";
+                    client->app->getbanners_result(API_EINTERNAL);
+                    return false;
+                }
+                break;
+            }
+        }
+
+        banners.emplace_back(make_tuple(id, move(title), move(description), move(img), move(url), move(bimg), move(dsp)));
+
+        client->json.leaveobject();
+    }
+
+    client->app->getbanners_result(move(banners));
+
+    return true;
+}
+
+CommandDismissBanner::CommandDismissBanner(MegaClient* client, int id, m_time_t timestamp)
+{
+    cmd("dban");
+    arg("id", id); // id of the Smart Banner
+    arg("ts", timestamp);
+
+    tag = client->reqtag;
+}
+
+bool CommandDismissBanner::procresult(Result r)
+{
+    client->app->dismissbanner_result(r.errorOrOK());
+    return r.wasErrorOrOK();
+}
+
+bool CommandFetchGoogleAds::procresult(Command::Result r)
+{
+    string_map result;
+    if (r.wasStrictlyError())
+    {
+        mCompletion(r.errorOrOK(), result);
+        return true;
+    }
+
+    bool error = false;
+
+    while (client->json.enterobject() && !error)
+    {
+        std::string id;
+        std::string iu;
+        bool exit = false;
+        while (!exit)
+        {
+            switch (client->json.getnameid())
+            {
+                case MAKENAMEID2('i', 'd'):
+                    client->json.storeobject(&id);
+                    break;
+
+                case MAKENAMEID2('i', 'u'):
+                    client->json.storeobject(&iu);
+                    break;
+
+                case EOO:
+                    exit = true;
+                    if (!id.empty() && !iu.empty())
+                    {
+                        result[id] = iu;
+                    }
+                    else
+                    {
+                        error = true;
+                        result.clear();
+                    }
+                    break;
+
+                default:
+                    if (!client->json.storeobject())
+                    {
+                        result.clear();
+                        mCompletion(API_EINTERNAL, result);
+                        return false;
+                    }
+                    break;
+            }
+        }
+
+        client->json.leaveobject();
+    }
+
+    mCompletion((error ? API_EINTERNAL : API_OK), result);
+
+    return !error;
+}
+
+CommandFetchGoogleAds::CommandFetchGoogleAds(MegaClient* client, int adFlags, const std::vector<std::string> &adUnits, handle publicHandle, CommandFetchGoogleAdsCompletion completion)
+    : mCompletion(completion)
+{
+    cmd("adf");
+    arg("ad", adFlags);
+    arg("af", 2); // IU (mobile apps)
+
+    if (!ISUNDEF(publicHandle))
+    {
+        arg("p", publicHandle);
+    }
+
+    beginarray("au");
+    for (const std::string& adUnit : adUnits)
+    {
+        element(adUnit.c_str());
+    }
+    endarray();
+
+    tag = client->reqtag;
+}
+
+bool CommandQueryGoogleAds::procresult(Command::Result r)
+{
+    if (r.wasErrorOrOK())
+    {
+        mCompletion(r.errorOrOK(), 0);
+        return true;
+    }
+
+    if (!client->json.isnumeric())
+    {
+        // It's wrongly formatted, consume this one so the next command can be processed.
+        LOG_err << "Command response badly formatted";
+        mCompletion(API_EINTERNAL, 0);
+        return false;
+    }
+
+    int value = client->json.getint();
+    mCompletion(API_OK, value);
+    return true;
+}
+
+CommandQueryGoogleAds::CommandQueryGoogleAds(MegaClient* client, int adFlags, handle publicHandle, CommandQueryGoogleAdsCompletion completion)
+    : mCompletion(completion)
+{
+    cmd("ads");
+    arg("ad", adFlags);
+    if (!ISUNDEF(publicHandle))
+    {
+        arg("ph", publicHandle);
+    }
+
+    tag = client->reqtag;
 }
 
 } // namespace

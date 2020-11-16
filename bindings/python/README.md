@@ -9,11 +9,12 @@ normal fashion:
 * A Python distribution package (a "Wheel") needs to be built, which then can
   be installed.
 
-* Install the Python package.
+* Install the Python package (also needed Python devel package).
 
 The instructions given here are strictly only valid for Linux. The may need
 adaptation for other platforms.
 
+**Note:** we will refer to the root directory where SDK is downloaded as `<SDK>`
 
 Prerequisites
 -------------
@@ -43,13 +44,13 @@ Build Python Bindings
 Build Python Distribution Package
 ---------------------------------
 
-The Python package to be built will be a platform specific "Wheel" package,
-as it contains all native libraries (shared libraries, DLLs) required to use
-the Mega API from Python.
-
-    python setup.py bdist_wheel
-
-The package created will be located in folder `dist/`.
+To use the Mega API from Python, you need to build the Python package as a platform specific "Wheel" package,
+as it contains all native libraries (shared libraries, DLLs) required.  
+```
+    cd <SDK>/bindings/python/  
+    python setup.py bdist_wheel  
+```
+The package created will be located in folder `<SDK>/bindings/python/dist/`.
 
 **Note:** You may need to install the `wheel` package for Python, if your Python
 is not by default equipped for it, yet. This could be the (Linux) `python-wheel`
@@ -59,15 +60,23 @@ distribution package, or by using e. g. `pip install wheel`.
 Install Python Distribution Package
 -----------------------------------
 
-The Wheel package should then be easy to install using `pip` in the common
+Once you have generated the Wheel package located at `<SDK>/bindings/python/dist/`, you need to install it by using `pip` in the common
 fashion, e. g.
 
     pip install megasdk-2.6.0-py2.py3-none-any.whl
+
+**Note:**  Once the package has been generated, you will need to import from Python with command `import mega`
 
 
 Test Installed Package
 ----------------------
 
-    import mega
+    import mega #`(if you haven't done it yet)`
     api = mega.MegaApi('test')
     print(dir(api)))
+
+
+Run megacli with python
+-----------------------------------
+
+    python <SDK>/examples/python/megacli.py
