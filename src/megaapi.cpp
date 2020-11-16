@@ -5187,7 +5187,7 @@ void MegaApi::archiveChat(MegaHandle chatid, int archive, MegaRequestListener *l
     pImpl->archiveChat(chatid, archive, listener);
 }
 
-void MegaApi::setChatRetentionTime(MegaHandle chatid, int period, MegaRequestListener *listener)
+void MegaApi::setChatRetentionTime(MegaHandle chatid, unsigned period, MegaRequestListener *listener)
 {
     pImpl->setChatRetentionTime(chatid, period, listener);
 }

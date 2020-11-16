@@ -6872,7 +6872,7 @@ bool CommandArchiveChat::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-CommandSetChatRetentionTime::CommandSetChatRetentionTime(MegaClient *client, handle chatid, int period)
+CommandSetChatRetentionTime::CommandSetChatRetentionTime(MegaClient *client, handle chatid, unsigned period)
 {
     mChatid = chatid;
 
