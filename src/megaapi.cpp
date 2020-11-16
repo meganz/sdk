@@ -522,9 +522,9 @@ int64_t MegaNode::getPublicLinkCreationTime()
     return 0;
 }
 
-string MegaNode::getWritableLinkAuthKey()
+const char * MegaNode::getWritableLinkAuthKey()
 {
-    return string();
+    return nullptr;
 }
 
 bool MegaNode::isFile()

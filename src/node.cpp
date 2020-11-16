@@ -1126,7 +1126,7 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, 
     if (!plink) // creation
     {
         assert(client->mPublicLinks.find(nodehandle) == client->mPublicLinks.end());
-        plink = new PublicLink(ph, cts, ets, takendown, authKey);
+        plink = new PublicLink(ph, cts, ets, takendown, authKey.c_str());
     }
     else            // update
     {
@@ -1140,13 +1140,16 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, 
     client->mPublicLinks[nodehandle] = ph;
 }
 
-PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const string &authKey)
+PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey)
 {
     this->ph = ph;
     this->cts = cts;
     this->ets = ets;
     this->takendown = takendown;
-    this->mAuthKey = authKey;
+    if (authKey)
+    {
+        this->mAuthKey = authKey;
+    }
 }
 
 PublicLink::PublicLink(PublicLink *plink)

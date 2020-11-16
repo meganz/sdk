@@ -772,7 +772,16 @@ class MegaNode
          */
         virtual int64_t getPublicLinkCreationTime();
 
-        virtual std::string getWritableLinkAuthKey();
+        /**
+         * @brief Returns authentication key for a writable folder.
+         *
+         * The MegaNode object retains the ownership of the returned string. It will
+         * be valid until the MegaNode object is deleted.
+         *
+         * @return authentication key for a writable folder. If there is no authentication key,
+         * nullptr shall be returned.
+         */
+        virtual const char * getWritableLinkAuthKey();
 
         /**
          * @brief Returns true if this node represents a file (type == TYPE_FILE)
@@ -3277,7 +3286,6 @@ class MegaRequest
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::getUserData - Returns the private RSA key of the account, Base64-encoded
-         * TODO: add doc for logintofolder
          * @return Private key related to the request
          */
         virtual const char* getPrivateKey() const;

@@ -1185,6 +1185,7 @@ void MegaClient::init()
     pendingscUserAlerts.reset();
     mBlocked = false;
     mBlockedSet = false;
+    mLoggedIntoWritableFolder = false;
     pendingcs_serverBusySent = false;
 
     btcs.reset();
@@ -8668,7 +8669,6 @@ void MegaClient::procph(JSON *j)
             Node *n = NULL;
             bool takendown = false;
             std::string authKey;
-            bool hasAuthKey = false;
 
             bool done = false;
             while (!done)
@@ -8682,7 +8682,7 @@ void MegaClient::procph(JSON *j)
                         ph = j->gethandle(MegaClient::NODEHANDLE);
                         break;
                     case 'w':
-                        hasAuthKey = j->storeobject(&authKey);
+                        j->storeobject(&authKey);
                         break;
                     case MAKENAMEID3('e', 't', 's'):
                         ets = j->getint();

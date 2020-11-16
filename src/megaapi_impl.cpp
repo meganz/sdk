@@ -209,7 +209,8 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
 
     if (node->isExported())
     {
-        this->plink = new PublicLink(node->getPublicHandle(), node->getPublicLinkCreationTime(), node->getExpirationTime(), node->isTakenDown(), node->getWritableLinkAuthKey());
+        this->plink = new PublicLink(node->getPublicHandle(), node->getPublicLinkCreationTime(),
+                                     node->getExpirationTime(), node->isTakenDown(), node->getWritableLinkAuthKey());
 
         if (type == FOLDERNODE)
         {
@@ -952,9 +953,9 @@ int64_t MegaNodePrivate::getPublicLinkCreationTime()
     return plink ? plink->cts : -1;
 }
 
-string MegaNodePrivate::getWritableLinkAuthKey()
+const char *MegaNodePrivate::getWritableLinkAuthKey()
 {
-    return plink ? plink->mAuthKey : string();
+    return (plink && !plink->mAuthKey.empty()) ? plink->mAuthKey.c_str() : nullptr;
 }
 
 bool MegaNodePrivate::isNewLinkFormat()
@@ -19237,7 +19238,6 @@ void MegaApiImpl::sendPendingRequests()
             const char* megaFolderLink = request->getLink();
             const char* base64pwkey = request->getPrivateKey();
             const char* sessionKey = request->getSessionKey();
-            const char* folderAuthKey = request->getSessionKey();
 
             if (!megaFolderLink && (!(login && password)) && !sessionKey && (!(login && base64pwkey)))
             {
@@ -19906,7 +19906,7 @@ void MegaApiImpl::sendPendingRequests()
             Node* node = client->nodebyhandle(request->getNodeHandle());
             if(!node) { e = API_EARGS; break; }
 
-            e = client->exportnode(node, !request->getAccess(), request->getNumber(), request->getFlag()); //TODO: doc flag
+            e = client->exportnode(node, !request->getAccess(), request->getNumber(), request->getFlag());
             break;
         }
         case MegaRequest::TYPE_FETCH_NODES:

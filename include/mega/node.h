@@ -87,7 +87,7 @@ struct MEGA_API PublicLink
     bool takendown;
     string mAuthKey;
 
-    PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const string &authKey = {});
+    PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey = nullptr);
     PublicLink(PublicLink *plink);
 
     bool isExpired();

@@ -450,7 +450,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaNode* getPublicNode() override;
         char *getPublicLink(bool includeKey = true) override;
         int64_t getPublicLinkCreationTime() override;
-        string getWritableLinkAuthKey() override;
+        const char * getWritableLinkAuthKey() override;
 
         bool isNewLinkFormat();
         bool isFile() override;
