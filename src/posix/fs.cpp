@@ -1215,7 +1215,7 @@ void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
                 {
                     ScopedLengthRestore restore(name);
 
-                    name.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true, LocalPath::localPathSeparator);
+                    name.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true);
 
 #ifdef USE_IOS
                     const string nameStr = adjustBasePath(name);
@@ -1960,7 +1960,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
 
         if (*d->d_name != '.' || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2])))
         {
-            path.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true, LocalPath::localPathSeparator);
+            path.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true);
 
 #ifdef USE_IOS
             const string pathStr = adjustBasePath(path);

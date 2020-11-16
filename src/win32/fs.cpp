@@ -501,7 +501,7 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
 
         if (!skipcasecheck)
         {
-            LocalPath filename = namePath.leafName(gWfsa.localseparator);
+            LocalPath filename = namePath.leafName();
 
             if (filename.localpath != wstring(fad.cFileName) &&
                 filename.localpath != wstring(fad.cAlternateFileName) &&
@@ -921,7 +921,7 @@ void WinFileSystemAccess::emptydirlocal(LocalPath& namePath, dev_t basedev)
         WIN32_FIND_DATAW ffd;
         {
             ScopedLengthRestore restoreNamePath2(namePath);
-            namePath.appendWithSeparator(LocalPath::fromPlatformEncoded(L"*"), true, gWfsa.localseparator);
+            namePath.appendWithSeparator(LocalPath::fromPlatformEncoded(L"*"), true);
 
             #ifdef WINDOWS_PHONE
                 hFind = FindFirstFileExW(namePath.localpath.c_str(), FindExInfoBasic, &ffd, FindExSearchNameMatch, NULL, 0);
@@ -1758,7 +1758,7 @@ bool WinDirAccess::dnext(LocalPath& /*path*/, LocalPath& nameArg, bool /*follows
             nameArg.localpath.assign(ffd.cFileName, wcslen(ffd.cFileName));
             if (!globbase.empty())
             {
-                nameArg.prependWithSeparator(globbase, gWfsa.localseparator);
+                nameArg.prependWithSeparator(globbase);
             }
 
             if (type)

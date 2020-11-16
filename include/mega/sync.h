@@ -29,7 +29,7 @@ namespace mega {
 
 // Searching from the back, this function compares path1 and path2 character by character and
 // returns the number of consecutive character matches (excluding separators) but only including whole node names.
-// It's assumed that the paths are normalized (e.g. not contain ..) and separated with the given `localseparator`.
+// It's assumed that the paths are normalized (e.g. not contain ..) and separated with `LocalPath::localPathSeparator`.
 int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2, const FileSystemAccess&);
 
 // Recursively iterates through the filesystem tree starting at the sync root and assigns

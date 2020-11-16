@@ -116,15 +116,15 @@ public:
     void clear();
     void erase(size_t pos = 0, size_t count = string::npos);
     void truncate(size_t bytePos);
-    LocalPath leafName(separator_t localseparator) const;
+    LocalPath leafName() const;
     void append(const LocalPath& additionalPath);
-    void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways, separator_t localseparator);
-    void prependWithSeparator(const LocalPath& additionalPath, separator_t localseparator);
-    void trimNonDriveTrailingSeparator(separator_t);
-    bool findNextSeparator(size_t& separatorBytePos, separator_t localseparator) const;
+    void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways);
+    void prependWithSeparator(const LocalPath& additionalPath);
+    void trimNonDriveTrailingSeparator();
+    bool findNextSeparator(size_t& separatorBytePos) const;
     bool findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
-    bool endsInSeparator(separator_t) const;
-    bool beginsWithSeparator(separator_t) const;
+    bool endsInSeparator() const;
+    bool beginsWithSeparator() const;
     size_t reportSize() const { return localpath.size() * sizeof(separator_t); } // only for reporting, not logic
 
     // get the index of the leaf name.  A trailing separator is considered part of the leaf.
@@ -137,8 +137,8 @@ public:
 
     void ensureWinExtendedPathLenPrefix();
 
-    bool isContainingPathOf(const LocalPath& path, separator_t localseparator, size_t* subpathIndex = nullptr) const;
-    bool nextPathComponent(size_t& subpathIndex, LocalPath& component, separator_t localseparator) const;
+    bool isContainingPathOf(const LocalPath& path, size_t* subpathIndex = nullptr) const;
+    bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const;
 
     // Return a utf8 representation of the LocalPath (fsaccess is used to do the conversion)
     // No escaping or unescaping is done.
