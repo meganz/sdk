@@ -611,13 +611,14 @@ class MEGA_API CommandSetShare : public Command
     accesslevel_t access;
     string msg;
     string personal_representation;
+    bool mWritable = false;
 
     bool procuserresult(MegaClient*);
 
 public:
     bool procresult(Result) override;
 
-    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, int, const char*, const char* = NULL);
+    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, int, const char*, bool writable, const char* = NULL);
 };
 
 class MEGA_API CommandGetUserData : public Command

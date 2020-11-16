@@ -7732,7 +7732,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n)
         {
             if (it.second->pcr)
             {
-                setshare(n, it.second->pcr->targetemail.c_str(), ACCESS_UNKNOWN, nullptr);
+                setshare(n, it.second->pcr->targetemail.c_str(), ACCESS_UNKNOWN);
             }
         }
     }
@@ -7743,11 +7743,11 @@ void MegaClient::removeOutSharesFromSubtree(Node* n)
         {
             if (it.second->user)
             {
-                setshare(n, it.second->user->email.c_str(), ACCESS_UNKNOWN, nullptr);
+                setshare(n, it.second->user->email.c_str(), ACCESS_UNKNOWN);
             }
             else // folder links are a shared folder without user
             {
-                setshare(n, nullptr, ACCESS_UNKNOWN, nullptr);
+                setshare(n, nullptr, ACCESS_UNKNOWN);
             }
         }
     }
@@ -9704,7 +9704,7 @@ void MegaClient::rewriteforeignkeys(Node* n)
 
 // if user has a known public key, complete instantly
 // otherwise, queue and request public key if not already pending
-void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, const char* personal_representation)
+void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writable, const char* personal_representation)
 {
     size_t total = n->outshares ? n->outshares->size() : 0;
     total += n->pendingshares ? n->pendingshares->size() : 0;
@@ -9715,7 +9715,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, const char
         rewriteforeignkeys(n);
     }
 
-    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionCreateShare>(n->nodehandle, a, reqtag, personal_representation));
+    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionCreateShare>(n->nodehandle, a, reqtag, writable, personal_representation));
 }
 
 // Add/delete/remind outgoing pending contact request
@@ -10932,12 +10932,12 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable)
             // deletion of outgoing share also deletes the link automatically
             // need to first remove the link and then the share
             getpubliclink(n, del, ets, writable);
-            setshare(n, NULL, ACCESS_UNKNOWN);
+            setshare(n, NULL, ACCESS_UNKNOWN, writable);
         }
         else
         {
             // exporting folder - need to create share first
-            setshare(n, NULL, writable ? FULL : RDONLY);
+            setshare(n, NULL, writable ? FULL : RDONLY, writable);
             // getpubliclink() is called as _result() of the share
 
         }

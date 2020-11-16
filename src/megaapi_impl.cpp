@@ -13943,7 +13943,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
     }
 }
 
-void MegaApiImpl::share_result(error e)
+void MegaApiImpl::share_result(error e, bool writable)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -13968,6 +13968,7 @@ void MegaApiImpl::share_result(error e)
 
         int creqtag = client->reqtag;
         client->reqtag = client->restag;
+        assert(writable == request->getFlag());
         client->getpubliclink(node, false, request->getNumber(), request->getFlag());
         client->reqtag = creqtag;
 
@@ -13977,7 +13978,7 @@ void MegaApiImpl::share_result(error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::share_result(int, error)
+void MegaApiImpl::share_result(int, error, bool writable)
 {
     //The other callback will be called at the end of the request
 }
