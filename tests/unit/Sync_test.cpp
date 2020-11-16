@@ -295,7 +295,8 @@ int computeReversePathMatchScore(const string& path1,
 
 void test_computeReversePathMatchScore()
 {
-    string sepstr("/");
+    string sepstr;
+    sepstr.push_back(LocalPath::localPathSeparator);
     ASSERT_EQ(0, computeReversePathMatchScore("", ""));
     ASSERT_EQ(0, computeReversePathMatchScore("", sepstr + "a"));
     ASSERT_EQ(0, computeReversePathMatchScore(sepstr + "b", ""));
