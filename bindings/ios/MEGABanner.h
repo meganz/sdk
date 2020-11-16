@@ -24,69 +24,51 @@
 @interface MEGABanner : NSObject
 
 /**
-* @brief Returns the id of the MegaBanner
+* @brief Returns the id of the MEGABanner
 *
 * @return Id of this banner
 */
 @property (nonatomic, readonly) NSUInteger identifier;
 
 /**
-* @brief Returns the title associated with the MegaBanner object
+* @brief Returns the title associated with the MEGABanner object
 *
-* The SDK retains the ownership of the returned value. It will be valid until
-* the MegaBanner object is deleted.
-*
-* @return Title associated with the MegaBanner object
+* @return Title associated with the MEGABanner object
 */
 @property (nonatomic, readonly) NSString *title;
 
 /**
-* @brief Returns the description associated with the MegaBanner object
+* @brief Returns the description associated with the MEGABanner object
 *
-* The SDK retains the ownership of the returned value. It will be valid until
-* the MegaBanner object is deleted.
-*
-* @return Description associated with the MegaBanner object
+* @return Description associated with the MEGABanner object
 */
 @property (nonatomic, readonly) NSString *description;
 
 /**
 * @brief Returns the filename of the image used by the MegaBanner object
 *
-* The SDK retains the ownership of the returned value. It will be valid until
-* the MegaBanner object is deleted.
-*
 * @return Filename of the image used by the MegaBanner object
 */
 @property (nonatomic, readonly) NSString *imageFilename;
 
 /**
-* @brief Returns the filename of the background image used by the MegaBanner object
+* @brief Returns the filename of the background image used by the MEGABanner object
 *
-* The SDK retains the ownership of the returned value. It will be valid until
-* the MegaBanner object is deleted.
-*
-* @return Filename of the background image used by the MegaBanner object
+* @return Filename of the background image used by the MEGABanner object
 */
 @property (nonatomic, readonly) NSString *backgroundImageFilename;
 
 /**
 * @brief Returns the URL where images are located
 *
-* The SDK retains the ownership of the returned value. It will be valid until
-* the MegaBanner object is deleted.
-*
 * @return URL where images are located
 */
 @property (nonatomic, readonly) NSString *imageLocationURLString;
 
 /**
-* @brief Returns the URL associated with the MegaBanner object
+* @brief Returns the URL associated with the MEGABanner object
 *
-* The SDK retains the ownership of the returned value. It will be valid until
-* the MegaBanner object is deleted.
-*
-* @return URL associated with the MegaBanner object
+* @return URL associated with the MEGABanner object
 */
 @property (nonatomic, readonly) NSString *URLString;
 
