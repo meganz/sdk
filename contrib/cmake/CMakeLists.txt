@@ -66,7 +66,7 @@ if (WIN32)
         ENDIF()
     ENDIF()
 else(WIN32)
-    set(NO_READLINE 0)
+    set(NO_READLINE 0 CACHE STRING "")
 endif(WIN32)
 
 if (USE_WEBRTC)
