@@ -203,9 +203,6 @@
 /* Define to use libcryptopp */
 #define USE_CRYPTOPP 1
 
-/* Define to use Berkeley DB */
-#define USE_DB 0
-
 /* Use inotify API */
 #ifndef __APPLE__
 #define USE_INOTIFY 1

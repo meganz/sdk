@@ -49,7 +49,7 @@ endif()
 set (HAVE_LIBUV ${USE_LIBUV})
 set (HAVE_LIBRAW ${USE_LIBRAW})
 
-if (WIN32 AND NOT USE_PREBUILT_3RDPARTY)
+if (WIN32)
     set (USE_THIRDPARTY_FROM_VCPKG 1 CACHE STRING "")
 else()
     set (USE_THIRDPARTY_FROM_VCPKG 0 CACHE STRING "")
@@ -60,7 +60,6 @@ message(STATUS " Using 3rd party from vcpkg = ${USE_THIRDPARTY_FROM_VCPKG}")
 if (WIN32)
     set (NO_READLINE 1 CACHE STRING "")
     set (UNCHECKED_ITERATORS 0 CACHE STRING "")
-    set (USE_PREBUILT_3RDPARTY 0 CACHE STRING "")
     IF (USE_WEBRTC)
         IF ("${WebRtcDir}" STREQUAL "")
             SET (WebRtcDir "${Mega3rdPartyDir}/libwebrtc/build32debug")
@@ -68,7 +67,6 @@ if (WIN32)
     ENDIF()
 else(WIN32)
     set(NO_READLINE 0)
-    set(USE_PREBUILT_3RDPARTY 0 CACHE STRING "")
 endif(WIN32)
 
 if (USE_WEBRTC)
@@ -174,29 +172,14 @@ if (USE_QT)
 endif(USE_QT)
 
 # currently supported scenarios for getting 3rd party libraries:
-#  - prebuilt libraries, in a folder from mega    (set USE_PREBUILT_3RDPARTY and prebulit_dir (if the default does not suit))
-#  - vcpkg built dependencies (there are some scripts that do most of that)  (do not set USE_PREBUILT_3RDPARTY, and set vcpkg_dir if the default does not suit, also set )
+#  - vcpkg built dependencies (there are some scripts in this folder to build those)
 #  - libraries from the system, installed via eg. apt-get on linux
 
-if (USE_PREBUILT_3RDPARTY)
-    if ("${prebuilt_dir}" STREQUAL "")
-        SET (prebuilt_dir ${Mega3rdPartyDir} CACHE STRING "Location of prebuilt 3rd party folder from MEGA.nz")
-    ENDIF()
+if (APPLE AND NOT NO_READLINE)
+    include_directories( BEFORE SYSTEM "${Mega3rdPartyDir}/vcpkg/readline-8.0" )
+endif()
 
-    include_directories( "${Mega3rdPartyDir}/include" )
-    include_directories( "${Mega3rdPartyDir}/include/curl" )
-    include_directories( "${Mega3rdPartyDir}/include/libsodium" )
-    include_directories( "${Mega3rdPartyDir}/include/cares" )
-    include_directories( "${Mega3rdPartyDir}/include/mediainfo" )
-    include_directories( "${Mega3rdPartyDir}/include/zenlib" )
-    include_directories( "${Mega3rdPartyDir}/include/pdfium" )
-    include_directories( "${Mega3rdPartyDir}/include/zlib" )
-    include_directories( "${Mega3rdPartyDir}/include/libuv" )
-    include_directories( "${Mega3rdPartyDir}/include/ffmpeg" )
-
-    link_directories( "${Mega3rdPartyDir}/libs" )
-
-elseif (USE_THIRDPARTY_FROM_VCPKG) #vcpkg or system
+if (USE_THIRDPARTY_FROM_VCPKG) #vcpkg or system
 
     #determine VCPKG triplet
     IF(WIN32)
@@ -227,8 +210,6 @@ elseif (USE_THIRDPARTY_FROM_VCPKG) #vcpkg or system
 
 endif()
 
-message(STATUS, " prebuilt_dir = ${Mega3rdPartyDir}")
-message(STATUS, " USE_PREBUILT_3RDPARTY = ${USE_PREBUILT_3RDPARTY}")
 message(STATUS, " Mega3rdPartyDir = ${Mega3rdPartyDir}")
 message(STATUS, " USE_THIRDPARTY_FROM_VCPKG = ${USE_THIRDPARTY_FROM_VCPKG}")
 message(STATUS, " vcpkg_dir = ${vcpkg_dir}")
@@ -247,7 +228,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_DEBUG -DDEBUG")
 if (WIN32)
     # node deletion in debug under VC++ is pretty slow without this.  However libraries we depend on need to be built with the same setting or linking fails 
     # (hence the build3rdParty script using the xNN-windows-static-uncheckediterators triplets)
-    if (UNCHECKED_ITERATORS AND NOT USE_PREBUILT_3RDPARTY)
+    if (UNCHECKED_ITERATORS)
         set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_ITERATOR_DEBUG_LEVEL=0" )
     endif()
 
@@ -255,23 +236,21 @@ if (WIN32)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:__cplusplus /std:c++17")
     add_definitions( -DNOMINMAX )
 
-    IF (NOT USE_PREBUILT_3RDPARTY)
-        #Link against the static C/C++ libraries on windows. Though, if linking with prebuilt QT we need dynamic CRT
-        foreach(flag_var
-                CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE 
-                CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
-                CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-            if (MEGA_LINK_DYNAMIC_CRT)
-                if(${flag_var} MATCHES "/MT")
-                    string(REGEX REPLACE "/MT" "/MD" ${flag_var} "${${flag_var}}")
-                endif()
-            else ()
-                if(${flag_var} MATCHES "/MD")
-                    string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
-                endif()
-            endif ()
-        endforeach(flag_var)
-    ENDIF()
+	#Link against the static C/C++ libraries on windows. Though, if linking with prebuilt QT we need dynamic CRT
+	foreach(flag_var
+			CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE 
+			CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
+			CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+		if (MEGA_LINK_DYNAMIC_CRT)
+			if(${flag_var} MATCHES "/MT")
+				string(REGEX REPLACE "/MT" "/MD" ${flag_var} "${${flag_var}}")
+			endif()
+		else ()
+			if(${flag_var} MATCHES "/MD")
+				string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
+			endif()
+		endif ()
+	endforeach(flag_var)
 
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
     set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
@@ -343,72 +322,10 @@ function(ImportHeaderLibrary libName includeDir)
     set_property(TARGET ${libName} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${includeDir})
 endfunction(ImportHeaderLibrary)
 
-IF(WIN32)
-if(USE_PREBUILT_3RDPARTY) #TODO: do this explicitly for !Win32? (currently relying on lib path & -lLIBNAME)
-    
-        ImportALibrary(z               "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/zlibstat.lib" "${prebuilt_dir}/libs/x32/zlibstat.lib")
-        
-        IF(USE_CRYPTOPP)
-            ImportALibrary(cryptopp        "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/cryptopp.lib"  "${prebuilt_dir}/libs/x32/cryptopp.lib")
-        ENDIF(USE_CRYPTOPP)
-
-        IF(USE_CURL)
-            ImportALibrary(curl        "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/libcurl.lib"  "${prebuilt_dir}/libs/x32/libcurl.lib")
-            ImportALibrary(cares       "${prebuilt_dir}/include/cares" "${prebuilt_dir}/libs/x32d/cares.lib" "${prebuilt_dir}/libs/x32/cares.lib")
-        ENDIF(USE_CURL)
-        
-        IF(USE_SODIUM)
-            ImportALibrary(sodium      "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/sodium.lib"  "${prebuilt_dir}/libs/x32/sodium.lib")
-        ENDIF(USE_SODIUM)
-        
-        IF(USE_OPENSSL)
-            ImportALibrary(ssl         "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/ssleay32.lib" "${prebuilt_dir}/libs/x32/ssleay32.lib")
-            ImportALibrary(crypto      "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/libeay32.lib" "${prebuilt_dir}/libs/x32/libeay32.lib")
-        ENDIF(USE_OPENSSL)
-        
-        IF(USE_MEDIAINFO)
-            ImportALibrary(mediainfo    "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/MediaInfo.lib" "${prebuilt_dir}/libs/x32/MediaInfo.lib")
-            ImportALibrary(zen          "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/ZenLib.lib" "${prebuilt_dir}/libs/x32/ZenLib.lib")
-        ENDIF(USE_MEDIAINFO)
-        
-        IF(HAVE_FFMPEG)
-        IF(WIN32)
-            ImportALibrary(avutil "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avutil.lib" "${prebuilt_dir}/libs/x32/avutil.lib")
-            ImportALibrary(avformat "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avformat.lib" "${prebuilt_dir}/libs/x32/avformat.lib")
-            ImportALibrary(avcodec "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avcodec.lib" "${prebuilt_dir}/libs/x32/avcodec.lib")
-            ImportALibrary(avfilter "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avfilter.lib" "${prebuilt_dir}/libs/x32/avfilter.lib")
-            ImportALibrary(avdevice "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avdevice.lib" "${prebuilt_dir}/libs/x32/avdevice.lib")
-            ImportALibrary(swscale  "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/swscale.lib"  "${prebuilt_dir}/libs/x32/swscale.lib")
-            ImportALibrary(swresample "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/swresample.lib"  "${prebuilt_dir}/libs/x32/swresample.lib")
-        else()
-            ImportALibrary(avformat "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avformat.lib" "${prebuilt_dir}/libs/x32/avformat.lib")
-            ImportALibrary(avutil "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avutil.lib" "${prebuilt_dir}/libs/x32/avutil.lib")
-            ImportALibrary(avcodec "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avcodec.lib" "${prebuilt_dir}/libs/x32/avcodec.lib")
-            ImportALibrary(avfilter "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avfilter.lib" "${prebuilt_dir}/libs/x32/avfilter.lib")
-            ImportALibrary(avdevice "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/avdevice.lib" "${prebuilt_dir}/libs/x32/avdevice.lib")
-            ImportALibrary(swscale  "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/swscale.lib"  "${prebuilt_dir}/libs/x32/swscale.lib")
-            ImportALibrary(swresample "${prebuilt_dir}/include/ffmpeg" "${prebuilt_dir}/libs/x32d/swresample.lib"  "${prebuilt_dir}/libs/x32/swresample.lib")
-
-        endif()
-        ENDIF(HAVE_FFMPEG)
-        
-        IF(USE_LIBUV)
-            ImportALibrary(uv       "${prebuilt_dir}/include/libuv" "${prebuilt_dir}/libs/x32d/libuv.lib" "${prebuilt_dir}/libs/x32/libuv.lib")
-        ENDIF(USE_LIBUV)
-
-        IF(USE_LIBRAW)
-            add_definitions( -DLIBRAW_NODLL)
-            ImportALibrary(raw       "${prebuilt_dir}/include/libraw" "${prebuilt_dir}/libs/x32d/libraw.lib" "${prebuilt_dir}/libs/x32/libraw.lib")
-        ENDIF(USE_LIBRAW)
-
-        IF(USE_PDFIUM)
-            ImportALibrary(pdfium       "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/pdfium.lib" "${prebuilt_dir}/libs/x32/pdfium.lib")
-        ENDIF(USE_PDFIUM)
-        
-        ImportALibrary(gtest           "${prebuilt_dir}/include" "${prebuilt_dir}/libs/x32d/gtestd.lib" "${prebuilt_dir}/libs/x32/gtest.lib")
-
-    endif(USE_PREBUILT_3RDPARTY)
-endif(WIN32)
+if (APPLE AND NOT NO_READLINE)
+    ImportALibrary(macgnureadline  "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/libreadline.a" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/libreadline.a")
+    ImportALibrary(macgnuhistory   "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/libhistory.a" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/libhistory.a" )
+endif()
 
 if (USE_THIRDPARTY_FROM_VCPKG)
         IF(USE_CRYPTOPP)
@@ -612,14 +529,6 @@ SET(Mega_CryptoFiles ${MegaDir}/src/crypto/cryptopp.cpp ${MegaDir}/src/crypto/so
 SET(Mega_DbFiles ${MegaDir}/src/db/sqlite.cpp ${MegaDir}/src/db/sqlite.cpp )
 SET(Mega_GfxFiles ${MegaDir}/src/gfx/external.cpp ${MegaDir}/src/gfx/freeimage.cpp ) 
 
-if(WIN32)
-    SET(WIN_EXTRA_INCLUDE $<${USE_PREBUILT_3RDPARTY}:${prebuilt_dir}/libs/sqlite3.c>)
-endif()
-
-if(CMAKE_HOST_APPLE AND NOT USE_THIRDPARTY_FROM_VCPKG)
-    SET(MACOS_EXTRA_INCLUDE $<${USE_PREBUILT_3RDPARTY}:${prebuilt_dir}/sqlite3.c>)
-endif()
-
 add_library(Mega STATIC
             ${MegaDir}/include/megaapi.h
             ${MegaDir}/include/megaapi_impl.h
@@ -687,7 +596,6 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/mega_http_parser.h
             ${MegaDir}/include/mega/waiter.h
             ${MegaDir}/include/mega/db/sqlite.h
-            ${MegaDir}/include/mega/db/bdb.h
             ${MegaDir}/include/mega/types.h
             ${MegaDir}/include/mega/filefingerprint.h
             ${MegaDir}/include/mega/filesystem.h
@@ -696,6 +604,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/logging.h
             ${MegaDir}/include/mega/file.h
             ${MegaDir}/include/mega/sync.h
+            ${MegaDir}/include/mega/heartbeats.h
             ${MegaDir}/include/mega/utils.h
             ${MegaDir}/include/mega/account.h
             ${MegaDir}/include/mega/transfer.h
@@ -744,6 +653,7 @@ add_library(Mega STATIC
             ${MegaDir}/src/share.cpp 
             ${MegaDir}/src/sharenodekeys.cpp 
             ${MegaDir}/src/sync.cpp 
+            ${MegaDir}/src/heartbeats.cpp
             ${MegaDir}/src/testhooks.cpp 
             ${MegaDir}/src/transfer.cpp 
             ${MegaDir}/src/transferslot.cpp 
@@ -790,7 +700,7 @@ target_link_libraries(Mega PUBLIC
                         $<${USE_CURL}:cares>
                         $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:ssl>
                         $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:crypto>
-                        $<$<NOT:${USE_PREBUILT_3RDPARTY}>:$<${USE_SQLITE}:sqlite3>>
+                        $<${USE_SQLITE}:sqlite3>
                         $<${USE_LIBUV}:uv>
                         $<${USE_LIBRAW}:raw> $<${USE_LIBRAW}:${raw_deps}>
                         $<${USE_FREEIMAGE}:freeimage> $<${USE_FREEIMAGE}:${freeimage_deps}>
@@ -934,9 +844,13 @@ configure_file("${MegaDir}/logo.png" logo.png COPYONLY)
 # actual apps
 
 add_executable(megacli ${MegaDir}/examples/megacli.cpp)
-target_link_libraries(megacli Mega)
+target_link_libraries(megacli Mega )
 if (NOT NO_READLINE)
-    target_link_libraries(megacli readline)
+    if (APPLE)
+        target_link_libraries(megacli macgnureadline macgnuhistory)
+    else()
+        target_link_libraries(megacli readline)
+    endif()
 endif (NOT NO_READLINE)
 
 add_executable(megasimplesync ${MegaDir}/examples/megasimplesync.cpp)
@@ -964,4 +878,3 @@ if (WIN32)
 else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wconversion -Wno-unused-parameter")
 endif()
-

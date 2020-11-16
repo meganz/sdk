@@ -30,8 +30,7 @@ namespace mega {
 // Searching from the back, this function compares path1 and path2 character by character and
 // returns the number of consecutive character matches (excluding separators) but only including whole node names.
 // It's assumed that the paths are normalized (e.g. not contain ..) and separated with the given `localseparator`.
-// `accumulated` is a buffer that is used to avoid constant reallocations.
-int computeReversePathMatchScore(string& accumulated, const LocalPath& path1, const LocalPath& path2, const FileSystemAccess&);
+int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2, const FileSystemAccess&);
 
 // Recursively iterates through the filesystem tree starting at the sync root and assigns
 // fs IDs to those local nodes that match the fingerprint retrieved from disk.
@@ -76,7 +75,7 @@ public:
     // returns the sync config
     const SyncConfig& getConfig() const;
 
-    void* appData = nullptr;
+    void* appData = nullptr; //DEPRECATED, do not use: sync re-enabled does not have this set.
 
     MegaClient* client = nullptr;
 
@@ -139,7 +138,7 @@ public:
     unsigned localnodes[2]{};
 
     // look up LocalNode relative to localroot
-    LocalNode* localnodebypath(LocalNode*, const LocalPath&, LocalNode** = NULL, string* = NULL);
+    LocalNode* localnodebypath(LocalNode*, const LocalPath&, LocalNode** = nullptr, LocalPath* outpath = nullptr);
 
     // Assigns fs IDs to those local nodes that match the fingerprint retrieved from disk.
     // The fs IDs of unmatched nodes are invalidated.
@@ -195,7 +194,7 @@ public:
 
     // flag to optimize destruction by skipping calls to treestate()
     bool mDestructorRunning = false;
-    Sync(MegaClient*, SyncConfig &, const char*, string*, Node*, bool, int, void*);
+    Sync(MegaClient*, SyncConfig &, const char*, LocalPath*, Node*, bool, int, void*);
     ~Sync();
 
     static const int SCANNING_DELAY_DS;

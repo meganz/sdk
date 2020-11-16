@@ -13,6 +13,9 @@ debug:DEBUG_SUFFIX = "d"
 else:DEBUG_SUFFIX = ""
 debug:DASH_DEBUG_SUFFIX = "-d"
 else:DASH_DEBUG_SUFFIX = ""
+debug:UNDERSCORE_DEBUG_SUFFIX = "_d"
+else:UNDERSCORE_DEBUG_SUFFIX = ""
+
 debug:win32:DEBUG_SUFFIX_WO = "d"
 else:DEBUG_SUFFIX_WO = ""
 
@@ -65,7 +68,8 @@ SOURCES += src/attrmap.cpp \
     src/testhooks.cpp
 
 CONFIG(USE_MEGAAPI) {
-  SOURCES += src/megaapi.cpp src/megaapi_impl.cpp
+  SOURCES += src/megaapi.cpp src/megaapi_impl.cpp src/heartbeats.cpp
+
 
   CONFIG(qt) {
     SOURCES += bindings/qt/QTMegaRequestListener.cpp \
@@ -416,6 +420,7 @@ HEADERS  += include/mega.h \
             include/mega/share.h \
             include/mega/sharenodekeys.h \
             include/mega/sync.h \
+            include/mega/heartbeats.h \
             include/mega/transfer.h \
             include/mega/transferslot.h \
             include/mega/treeproc.h \
@@ -504,7 +509,17 @@ else {
             LIBS += $$MEGASDK_BASE_PATH/bindings/qt/3rdparty/libs/libfreeimage.a
         }
         else {
-            LIBS += -lfreeimage
+            vcpkg:LIBS += -lfreeimage$$DEBUG_SUFFIX
+            !vcpkg:LIBS += -lfreeimage
+        }
+
+        vcpkg {
+            LIBS += -ljpeg$$DEBUG_SUFFIX -ltiff$$DEBUG_SUFFIX -llibpng16$$DEBUG_SUFFIX \
+            -lIlmImf-2_3$$UNDERSCORE_DEBUG_SUFFIX -lIex-2_3$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-2_3$$UNDERSCORE_DEBUG_SUFFIX \
+            -lIexMath-2_3$$UNDERSCORE_DEBUG_SUFFIX -lIlmImfUtil-2_3$$UNDERSCORE_DEBUG_SUFFIX -lImath-2_3$$UNDERSCORE_DEBUG_SUFFIX \
+            -llibwebpmux$$DEBUG_SUFFIX -lwebpdecoder$$DEBUG_SUFFIX -lwebpdemux$$DEBUG_SUFFIX -lwebp$$DEBUG_SUFFIX \
+            -ljpegxr$$DEBUG_SUFFIX -ljxrglue$$DEBUG_SUFFIX -lHalf-2_3$$UNDERSCORE_DEBUG_SUFFIX \
+            -llzma$$DEBUG_SUFFIX -ljasper$$DEBUG_SUFFIX -lraw$$DEBUG_SUFFIX -lopenjp2
         }
     }
 }
