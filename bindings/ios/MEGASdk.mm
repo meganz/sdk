@@ -2627,4 +2627,13 @@ using namespace mega;
     delete delegate;
 }
 
+- (void)getBanners:(id<MEGARequestDelegate>)delegate {
+    if (delegate == nil) return;
+    self.megaApi -> getBanners([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)dismissBanner:(NSInteger)bannerIdentifier delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi -> dismissBanner((int)bannerIdentifier, [self createDelegateMEGARequestListener:delegate singleListener:true]);
+}
+
 @end
