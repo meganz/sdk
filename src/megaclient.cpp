@@ -1185,7 +1185,6 @@ void MegaClient::init()
     pendingscUserAlerts.reset();
     mBlocked = false;
     mBlockedSet = false;
-    mLoggedIntoWritableFolder = false;
     pendingcs_serverBusySent = false;
 
     btcs.reset();
@@ -7458,7 +7457,7 @@ error MegaClient::setattr(Node* n, const char *prevattr)
         return API_EPAYWALL;
     }
 
-    if (!mLoggedIntoWritableFolder && !checkaccess(n, FULL))
+    if (!checkaccess(n, FULL))
     {
         return API_EACCESS;
     }
@@ -7532,9 +7531,15 @@ void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes)
 // returns 1 if node has accesslevel a or better, 0 otherwise
 int MegaClient::checkaccess(Node* n, accesslevel_t a)
 {
+    // writable folder link access is supposed to be full
+    if (mLoggedIntoWritableFolder)
+    {
+        return a <= FULL;
+    }
+
     // folder link access is always read-only - ignore login status during
     // initial tree fetch
-    if ((a < OWNERPRELOGIN) && !loggedin())
+    if (a < OWNERPRELOGIN && !loggedin())
     {
         return a == RDONLY;
     }
@@ -7762,7 +7767,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n)
 // delete node tree
 error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void(handle, error)> resultFunction)
 {
-    if (!mLoggedIntoWritableFolder && !n->inshare && !checkaccess(n, FULL))
+    if (!n->inshare && !checkaccess(n, FULL))
     {
         return API_EACCESS;
     }
@@ -15729,6 +15734,11 @@ handle MegaClient::getovhandle(Node *parent, string *name)
         }
     }
     return ovhandle;
+}
+
+bool MegaClient::loggedIntoWritableFolder() const
+{
+    return mLoggedIntoWritableFolder;
 }
 
 void MegaClient::userfeedbackstore(const char *message)

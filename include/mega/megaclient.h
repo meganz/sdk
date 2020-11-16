@@ -945,7 +945,7 @@ public:
     BackoffTimer btugexpiration;
 
     // if logged into writable folder
-    bool mLoggedIntoWritableFolder = false;
+    bool loggedIntoWritableFolder() const;
 
 private:
     BackoffTimer btcs;
@@ -968,6 +968,8 @@ private:
 
     bool pendingscTimedOut = false;
 
+    // if logged into writable folder
+    bool mLoggedIntoWritableFolder = false;
 
     // badhost report
     HttpReq* badhostcs;

@@ -4124,7 +4124,7 @@ void exec_put(autocomplete::ACState& s)
         n = client->nodebyhandle(target);
     }
 
-    if (client->loggedin() == NOTLOGGEDIN && !targetuser.size())
+    if (client->loggedin() == NOTLOGGEDIN && !targetuser.size() && !client->loggedIntoWritableFolder())
     {
         cout << "Not logged in." << endl;
 
