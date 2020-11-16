@@ -354,7 +354,7 @@ size_t assignFilesystemIdsImpl(const FingerprintCache& fingerprints, Fingerprint
             auto l = nodeIt->second;
             if (l != l->sync->localroot.get()) // never assign fs ID to the root localnode
             {
-                nodePath = l->getLocalPath(false);
+                nodePath = l->getLocalPath();
                 for (auto fileIt = fileRange.first; fileIt != fileRange.second; ++fileIt)
                 {
                     auto& filePath = fileIt->second.path;
@@ -1180,7 +1180,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             LOG_warn << "Parent not detected yet. Unknown remainder: " << newname.toPath(*client->fsaccess);
             if (parent)
             {
-                LocalPath notifyPath = parent->getLocalPath(true);
+                LocalPath notifyPath = parent->getLocalPath();
                 notifyPath.appendWithSeparator(newname.subpathTo(index), true, client->fsaccess->localseparator);
                 dirnotify->notify(DirNotify::DIREVENTS, l, std::move(notifyPath), true);
             }
@@ -1480,7 +1480,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                             if (currentsecs - updatedfileinitialts <= FILE_UPDATE_MAX_DELAY_SECS)
                             {
                                 bool waitforupdate = false;
-                                auto local = it->second->getLocalPath(true);
+                                auto local = it->second->getLocalPath();
                                 auto prevfa = client->fsaccess->newfileaccess(false);
 
                                 bool exists = prevfa->fopen(local);
@@ -1761,7 +1761,7 @@ bool Sync::checkValidNotification(int q, Notification& notification)
         LocalPath tmppath;
         if (notification.localnode)
         {
-            tmppath = notification.localnode->getLocalPath(true);
+            tmppath = notification.localnode->getLocalPath();
         }
 
         if (!notification.path.empty())

@@ -1608,14 +1608,14 @@ LocalNode::~LocalNode()
     slocalname.reset();
 }
 
-LocalPath LocalNode::getLocalPath(bool sdisable) const
+LocalPath LocalNode::getLocalPath() const
 {
     LocalPath lp;
-    getlocalpath(lp, sdisable);
+    getlocalpath(lp);
     return lp;
 }
 
-void LocalNode::getlocalpath(LocalPath& path, bool sdisable) const
+void LocalNode::getlocalpath(LocalPath& path) const
 {
     if (!sync)
     {
@@ -1630,23 +1630,15 @@ void LocalNode::getlocalpath(LocalPath& path, bool sdisable) const
     {
         assert(!l->parent || l->parent->sync == sync);
 
-        // use short name, if available (less likely to overflow MAXPATH,
-        // perhaps faster?) and sdisable not set.  Use localname from the sync root though, as it has the absolute path.
-        if (!sdisable && l->slocalname && l->parent)
-        {
-            path.prependWithSeparator(*l->slocalname, sync->client->fsaccess->localseparator);
-        }
-        else
-        {
-            path.prependWithSeparator(l->localname, sync->client->fsaccess->localseparator);
-        }
+        // sync root has absolute path, the rest are just their leafname
+        path.prependWithSeparator(l->localname, sync->client->fsaccess->localseparator);
     }
 }
 
 string LocalNode::localnodedisplaypath(FileSystemAccess& fsa) const
 {
     LocalPath local;
-    getlocalpath(local, true);
+    getlocalpath(local);
     return local.toPath(fsa);
 }
 
@@ -1665,7 +1657,7 @@ LocalNode* LocalNode::childbyname(LocalPath* localname)
 
 void LocalNode::prepare()
 {
-    getlocalpath(transfer->localfilename, true);
+    getlocalpath(transfer->localfilename);
 
     // is this transfer in progress? update file's filename.
     if (transfer->slot && transfer->slot->fa && !transfer->slot->fa->nonblocking_localname.empty())
