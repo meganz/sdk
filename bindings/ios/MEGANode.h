@@ -29,6 +29,17 @@ typedef NS_ENUM (NSInteger, MEGANodeType) {
     MEGANodeTypeRubbish
 };
 
+typedef NS_ENUM(NSInteger, MEGANodeLabel) {
+    MEGANodeLabelUnknown = 0,
+    MEGANodeLabelRed,
+    MEGANodeLabelOrange,
+    MEGANodeLabelYellow,
+    MEGANodeLabelGreen,
+    MEGANodeLabelBlue,
+    MEGANodeLabelPurple,
+    MEGANodeLabelGrey
+};
+
 typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
     MEGANodeChangeTypeRemoved        = 0x01,
     MEGANodeChangeTypeAttributes     = 0x02,
@@ -126,6 +137,28 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  * @brief VideoCodecId of the node for video files. -1 if not set.
  */
 @property (readonly, nonatomic) NSInteger videoCodecId;
+
+/**
+ * @brief Get the attribute of the node representing if node is marked as favourite.
+ *
+ * @return YES if node is marked as favourite, otherwise return NO (attribute is not set).
+ */
+@property (readonly, nonatomic, getter=isFavourite) BOOL favourite;
+
+/**
+ * @brief Get the attribute of the node representing its label.
+ *
+ * @return The label of the node, valid values are:
+ *  - MEGANodeLabelUnknown = 0
+ *  - MEGANodeLabelRed = 1
+ *  - MEGANodeLabelOrange = 2
+ *  - MEGANodeLabelYellow = 3
+ *  - MEGANodeLabelGreen = 4
+ *  - MEGANodeLabelBlue = 5
+ *  - MEGANodeLabelPurple = 6
+ *  - MEGANodeLabelGrey = 7
+ */
+@property (readonly, nonatomic) MEGANodeLabel label;
 
 /**
  * @brief Attribute of the node representing the latitude coordinate in its decimal
@@ -451,5 +484,7 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  * @return YES if the public link has been taken down, otherwise NO
  */
 - (BOOL)isTakenDown;
+
++ (NSString *)stringForNodeLabel:(MEGANodeLabel)nodeLabel;
 
 @end

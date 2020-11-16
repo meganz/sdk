@@ -45,12 +45,12 @@ public:
 
     void serverresponse(string&& movestring, MegaClient*);
     void servererror(const std::string &e, MegaClient* client);
-	
+
     void process(MegaClient* client);
     bool processCmdJSON(Command* cmd);
 
     void clear();
-    bool empty() const; 
+    bool empty() const;
     void swap(Request&);
     bool stopProcessing = false;
 

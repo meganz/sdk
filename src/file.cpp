@@ -68,9 +68,10 @@ bool File::serialize(string *d)
     d->append((char*)&ll, sizeof(ll));
     d->append(name.data(), ll);
 
-    ll = (unsigned short)localname.editStringDirect()->size();
+    auto tmpstr = localname.platformEncoded();
+    ll = (unsigned short)tmpstr.size();
     d->append((char*)&ll, sizeof(ll));
-    d->append(localname.editStringDirect()->data(), ll);
+    d->append(tmpstr.data(), ll);
 
     ll = (unsigned short)targetuser.size();
     d->append((char*)&ll, sizeof(ll));
@@ -206,7 +207,7 @@ File *File::unserialize(string *d)
     delete fp;
 
     file->name.assign(name, namelen);
-    file->localname.editStringDirect()->assign(localname, localnamelen);
+    file->localname = LocalPath::fromPlatformEncoded(std::string(localname, localnamelen));
     file->targetuser.assign(targetuser, targetuserlen);
     file->privauth.assign(privauth, privauthlen);
     file->pubauth.assign(pubauth, pubauthlen);
@@ -298,7 +299,7 @@ void File::completed(Transfer* t, LocalNode* l)
         newnode->uploadhandle = t->uploadhandle;
 
         // reference to uploaded file
-        memcpy(newnode->uploadtoken, t->ultoken, sizeof newnode->uploadtoken);
+        memcpy(newnode->uploadtoken, t->ultoken.get(), sizeof newnode->uploadtoken);
 
         // file's crypto key
         newnode->nodekey.assign((char*)t->filekey, FILENODEKEYLENGTH);
@@ -312,6 +313,7 @@ void File::completed(Transfer* t, LocalNode* l)
         }
 #endif
         AttrMap attrs;
+        t->client->honorPreviousVersionAttrs(previousNode, attrs);
 
         // store filename
         attrs.map['n'] = name;
@@ -343,7 +345,7 @@ void File::completed(Transfer* t, LocalNode* l)
             {
                 th = t->client->rootnodes[RUBBISHNODE - ROOTNODE];
             }
-#ifdef ENABLE_SYNC            
+#ifdef ENABLE_SYNC
             if (l)
             {
                 // tag the previous version in the synced folder (if any) or move to SyncDebris

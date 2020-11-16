@@ -25,8 +25,8 @@
 
 namespace mega {
 PubKeyAction::PubKeyAction()
-{ 
-    cmd = NULL; 
+{
+    cmd = NULL;
 }
 
 PubKeyActionPutNodes::PubKeyActionPutNodes(vector<NewNode>&& newnodes, int ctag)
@@ -47,7 +47,8 @@ void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
         {
             if (!(t = u->pubk.encrypt(client->rng, (const byte*)nn[i].nodekey.data(), nn[i].nodekey.size(), buf, sizeof buf)))
             {
-                return client->app->putnodes_result(API_EINTERNAL, USER_HANDLE, nn);
+                client->app->putnodes_result(API_EINTERNAL, USER_HANDLE, nn);
+                return;
             }
 
             nn[i].nodekey.assign((char*)buf, t);

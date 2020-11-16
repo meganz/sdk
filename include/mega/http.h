@@ -92,9 +92,9 @@ namespace mega {
 #define APISSLEXPONENT "\x01\x00\x01"
 
 #define MEGA_DNS_SERVERS "2001:678:25c:2215::554,89.44.169.136," \
-                         "2001:67c:1998:2212::13,31.216.148.13," \
-                         "2405:f900:3e6a:1::103,31.216.148.11," \
-                         "2403:9800:c020::43,122.56.56.216"
+                         "2001:678:25c:2215::559,89.44.169.141," \
+                         "2a0b:e40:3::14,66.203.127.16," \
+                         "2a0b:e40:3::16,66.203.127.14"
 
 class MEGA_API SpeedController
 {
@@ -160,7 +160,7 @@ struct MEGA_API HttpIO : public EventTrigger
 
     // timestamp of last data received (across all connections)
     dstime lastdata;
-    
+
     // download speed
     SpeedController downloadSpeedController;
     m_off_t downloadSpeed;
@@ -182,7 +182,7 @@ struct MEGA_API HttpIO : public EventTrigger
 
     // connection timeout (ds)
     static const int CONNECTTIMEOUT;
-    
+
     // set useragent (must be called exactly once)
     virtual void setuseragent(string*) = 0;
 
@@ -190,7 +190,10 @@ struct MEGA_API HttpIO : public EventTrigger
     virtual Proxy *getautoproxy();
 
     // get alternative DNS servers
-    void getMEGADNSservers(string*, bool = true);
+    void getMEGADNSservers(string* dnsservers, bool getfromnetwork);
+
+    // get DNS servers as configured in the system
+    void getDNSserversFromIos(string &dnsServers);
 
     // set max download speed
     virtual bool setmaxdownloadspeed(m_off_t bpslimit);
@@ -280,8 +283,8 @@ struct MEGA_API HttpReq
     size_t size();
 
     // a buffer that the HttpReq filled in.   This struct owns the buffer (so HttpReq no longer has it).
-    struct http_buf_t 
-    { 
+    struct http_buf_t
+    {
         byte* datastart();
         size_t datalen();
 
@@ -293,10 +296,10 @@ struct MEGA_API HttpReq
         void swap(http_buf_t& other);
         bool isNull();
 
-    private: 
+    private:
         byte* buf;
     };
-    
+
     // give up ownership of the buffer for client to use.  The caller is the new owner of the http_buf_t, and the HttpReq no longer has the buffer or any info about it.
     http_buf_t* release_buf();
 
@@ -305,7 +308,7 @@ struct MEGA_API HttpReq
 
     // set response content length
     void setcontentlength(m_off_t);
-    
+
     // reserve space for incoming data
     byte* reserveput(unsigned* len);
 
@@ -352,8 +355,8 @@ struct MEGA_API GenericHttpReq : public HttpReq
 
 class MEGA_API EncryptByChunks
 {
-    // this class allows encrypting a large buffer chunk by chunk, 
-    // or alternatively encrypting consecutive data by feeding it a piece at a time, 
+    // this class allows encrypting a large buffer chunk by chunk,
+    // or alternatively encrypting consecutive data by feeding it a piece at a time,
     // from separate buffers (the algorithm chooses the size though)
 
 public:

@@ -29,7 +29,7 @@
 
 namespace mega {
 
-// Helper class: Automatically manage backoff timer enablement - if the slot is in progress and has an fa, the transfer's backoff timer should not be considered 
+// Helper class: Automatically manage backoff timer enablement - if the slot is in progress and has an fa, the transfer's backoff timer should not be considered
 // (part of a performance upgrade, so we don't loop all the transfers, calling their bt.update() on every preparewait() )
 class TransferSlotFileAccess
 {
@@ -93,7 +93,7 @@ struct MEGA_API TransferSlot
     // file attributes mutable
     int fileattrsmutable;
 
-    // maximum number of parallel connections and connection array. 
+    // maximum number of parallel connections and connection array.
     // shared_ptr for convenient coordination with the worker threads that do encrypt/decrypt on this data.
     int connections;
     vector<std::shared_ptr<HttpReqXfer>> reqs;
@@ -128,6 +128,7 @@ struct MEGA_API TransferSlot
 
     // compute the meta MAC based on the chunk MACs
     int64_t macsmac(chunkmac_map*);
+    int64_t macsmac_gaps(chunkmac_map*, size_t g1, size_t g2, size_t g3, size_t g4);
 
     // tslots list position
     transferslot_list::iterator slots_it;
@@ -138,14 +139,15 @@ struct MEGA_API TransferSlot
 
     // transfer failure flag. MegaClient will increment the transfer->errorcount when it sees this set.
     bool failure;
-    
+
     TransferSlot(Transfer*);
     ~TransferSlot();
 
 private:
     void toggleport(HttpReqXfer* req);
     bool tryRaidRecoveryFromHttpGetError(unsigned i, bool incrementErrors);
-    bool checkTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client);
+    bool checkDownloadTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client);
+    bool checkMetaMacWithMissingLateEntries();
 
     // returns true if connection haven't received data recently (set incrementErrors) or if slower than other connections (reset incrementErrors)
     bool testForSlowRaidConnection(unsigned connectionNum, bool& incrementErrors);

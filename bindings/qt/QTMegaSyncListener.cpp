@@ -36,6 +36,35 @@ void QTMegaSyncListener::onSyncFileStateChanged(MegaApi *api, MegaSync *sync, st
     QCoreApplication::postEvent(this, event, INT_MIN);
 }
 
+void QTMegaSyncListener::onSyncAdded(MegaApi *api, MegaSync *sync, int additionState)
+{
+    QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnSyncAdded);
+    event->setSync(sync->copy());
+    event->setNewState(additionState);
+    QCoreApplication::postEvent(this, event, INT_MIN);
+}
+
+void QTMegaSyncListener::onSyncDisabled(MegaApi *api, MegaSync *sync)
+{
+    QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnSyncDisabled);
+    event->setSync(sync->copy());
+    QCoreApplication::postEvent(this, event, INT_MIN);
+}
+
+void QTMegaSyncListener::onSyncEnabled(MegaApi *api, MegaSync *sync)
+{
+    QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnSyncEnabled);
+    event->setSync(sync->copy());
+    QCoreApplication::postEvent(this, event, INT_MIN);
+}
+
+void QTMegaSyncListener::onSyncDeleted(MegaApi *api, MegaSync *sync)
+{
+    QTMegaEvent *event = new QTMegaEvent(api, (QEvent::Type)QTMegaEvent::OnSyncDeleted);
+    event->setSync(sync->copy());
+    QCoreApplication::postEvent(this, event, INT_MIN);
+}
+
 void QTMegaSyncListener::customEvent(QEvent *e)
 {
     QTMegaEvent *event = (QTMegaEvent *)e;
