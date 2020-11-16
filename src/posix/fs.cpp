@@ -94,7 +94,7 @@ const string adjustBasePath(const LocalPath& name)
     // return a temporary variable that the caller can optionally use c_str on (in that expression)
     if (PosixFileSystemAccess::appbasepath)
     {
-        if (!name.beginsWithSeparator('/'))
+        if (!name.beginsWithSeparator())
         {
             string absolutename = PosixFileSystemAccess::appbasepath;
             absolutename.append(name.localpath);
