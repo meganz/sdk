@@ -7006,13 +7006,16 @@ void DemoApp::exportnode_result(handle h, handle ph)
 
         cout << publicLink;
 
-        string authKey { n->plink ? n->plink->mAuthKey : string() };
-
-        if (authKey.size())
+        if (n->plink)
         {
-            string authToken(publicLink);
-            authToken = authToken.substr(strlen("https://mega.nz/folder/")).append(":").append(authKey);
-            cout << "\n          AuthToken = " << authToken;
+            string authKey = n->plink->mAuthKey;
+
+            if (authKey.size())
+            {
+                string authToken(publicLink);
+                authToken = authToken.substr(strlen("https://mega.nz/folder/")).append(":").append(authKey);
+                cout << "\n          AuthToken = " << authToken;
+            }
         }
 
         cout << endl;
