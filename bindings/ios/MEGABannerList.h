@@ -23,10 +23,10 @@
 #import "MEGABanner.h"
 
 /**
-* @brief List of MegaBanner objects
+* @brief List of MEGABanner objects
 *
-* A MegaBannerList has the ownership of the MegaBanner objects that it contains, so they will be
-* only valid until the MegaBannerList is deleted.
+* A MEGABannerList has the ownership of the MEGABanner objects that it contains, so they will be
+* only valid until the MEGABannerList is deleted.
 *
 */
 @interface MEGABannerList : NSObject
@@ -36,7 +36,7 @@
  */
 @property (nonatomic, readonly) NSInteger size;
 
-- (instancetype)clone;
+- (instancetype _Nonnull)clone;
 
 /**
 * @brief Returns the MEGABanner at position i in the MEGABannerList
@@ -48,6 +48,7 @@
 *
 * @param i Position of the MEGABanner that we want to get for the list
 * @return MEGABanner at position i in the list
-*/- (MEGABanner *)bannerAtIndex:(NSInteger)index;
+*/
+- (MEGABanner * _Nullable)bannerAtIndex:(NSInteger)index;
 
 @end

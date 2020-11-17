@@ -1,5 +1,5 @@
 /**
- * @file MEGAUserAlertList.mm
+ * @file MEGABannerList.mm
  * @brief List of MEGAUserAlert objects
  *
  * (c) 2018-Present by Mega Limited, Auckland, New Zealand

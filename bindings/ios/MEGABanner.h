@@ -35,42 +35,42 @@
 *
 * @return Title associated with the MEGABanner object
 */
-@property (nonatomic, readonly) NSString *title;
+@property (nonatomic, readonly, nullable) NSString *title;
 
 /**
 * @brief Returns the description associated with the MEGABanner object
 *
 * @return Description associated with the MEGABanner object
 */
-@property (nonatomic, readonly) NSString *description;
+@property (nonatomic, readonly, nullable) NSString *description;
 
 /**
 * @brief Returns the filename of the image used by the MegaBanner object
 *
 * @return Filename of the image used by the MegaBanner object
 */
-@property (nonatomic, readonly) NSString *imageFilename;
+@property (nonatomic, readonly, nullable) NSString *imageFilename;
 
 /**
 * @brief Returns the filename of the background image used by the MEGABanner object
 *
 * @return Filename of the background image used by the MEGABanner object
 */
-@property (nonatomic, readonly) NSString *backgroundImageFilename;
+@property (nonatomic, readonly, nullable) NSString *backgroundImageFilename;
 
 /**
 * @brief Returns the URL where images are located
 *
 * @return URL where images are located
 */
-@property (nonatomic, readonly) NSString *imageLocationURLString;
+@property (nonatomic, readonly, nullable) NSString *imageLocationURLString;
 
 /**
 * @brief Returns the URL associated with the MEGABanner object
 *
 * @return URL associated with the MEGABanner object
 */
-@property (nonatomic, readonly) NSString *URLString;
+@property (nonatomic, readonly, nullable) NSString *URLString;
 
 
 @end

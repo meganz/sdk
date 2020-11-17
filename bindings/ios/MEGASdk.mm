@@ -2522,7 +2522,6 @@ using namespace mega;
 #pragma mark - Banner
 
 - (void)getBanners:(id<MEGARequestDelegate>)delegate {
-    if (delegate == nil) return;
     self.megaApi -> getBanners([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 

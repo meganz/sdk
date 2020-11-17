@@ -1,5 +1,5 @@
 /**
- * @file MEGAUser.mm
+ * @file MEGABanner.mm
  * @brief Represents an user in MEGA
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
@@ -60,39 +60,38 @@ using namespace mega;
 - (NSString *)title{
     if (!self.megaBanner) return nil;
     
-    return self.megaBanner->getTitle() ? [[NSString alloc] initWithUTF8String:self.megaBanner->getTitle()] : nil;
+    return self.megaBanner->getTitle() ? @(self.megaBanner->getTitle()) : nil;
 }
 
 - (NSString *)description {
     if (!self.megaBanner) return nil;
     
-    return self.megaBanner->getDescription() ? [[NSString alloc] initWithUTF8String:self.megaBanner->getDescription()] : nil;
+    return self.megaBanner->getDescription() ? @(self.megaBanner->getDescription()) : nil;
 }
 
 - (NSString *)imageFilename {
     if (!self.megaBanner) return nil;
     
-    return self.megaBanner->getImage() ? [[NSString alloc] initWithUTF8String:self.megaBanner->getImage()] : nil;
+    return self.megaBanner->getImage() ? @(self.megaBanner->getImage()) : nil;
 }
 
 - (NSString *)backgroundImageFilename {
     if (!self.megaBanner) return nil;
     
-    return self.megaBanner->getBackgroundImage() ? [[NSString alloc] initWithUTF8String:self.megaBanner->getBackgroundImage()] : nil;
+    return self.megaBanner->getBackgroundImage() ? @(self.megaBanner->getBackgroundImage()) : nil;
 }
 
 
 - (NSString *)imageLocationURLString {
     if (!self.megaBanner) return nil;
     
-    return self.megaBanner->getImageLocation() ? [[NSString alloc] initWithUTF8String:self.megaBanner->getImageLocation()] : nil;
+    return self.megaBanner->getImageLocation() ? @(self.megaBanner->getImageLocation()) : nil;
 }
 
 - (NSString *)URLString {
     if (!self.megaBanner) return nil;
     
-    return self.megaBanner->getUrl() ? [[NSString alloc] initWithUTF8String:self.megaBanner->getUrl()] : nil;
+    return self.megaBanner->getUrl() ? @(self.megaBanner->getUrl()) : nil;
 }
-
 
 @end
