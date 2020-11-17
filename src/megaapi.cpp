@@ -90,6 +90,11 @@ const char *MegaProxy::getPassword()
     return password;
 }
 
+MegaStringList *MegaStringList::createInstance()
+{
+    return new MegaStringListPrivate();
+}
+
 MegaStringList::~MegaStringList()
 {
 
@@ -108,6 +113,11 @@ const char *MegaStringList::get(int) const
 int MegaStringList::size() const
 {
     return 0;
+}
+
+void MegaStringList::add(const char *)
+{
+
 }
 
 MegaStringListMap::MegaStringListMap()
@@ -1039,6 +1049,11 @@ MegaBackgroundMediaUpload* MegaRequest::getMegaBackgroundMediaUploadPtr() const
 }
 
 MegaBannerList* MegaRequest::getMegaBannerList() const
+{
+    return nullptr;
+}
+
+MegaStringList* MegaRequest::getMegaStringList() const
 {
     return nullptr;
 }
@@ -5152,7 +5167,7 @@ void MegaApi::archiveChat(MegaHandle chatid, int archive, MegaRequestListener *l
     pImpl->archiveChat(chatid, archive, listener);
 }
 
-void MegaApi::setChatRetentionTime(MegaHandle chatid, int period, MegaRequestListener *listener)
+void MegaApi::setChatRetentionTime(MegaHandle chatid, unsigned period, MegaRequestListener *listener)
 {
     pImpl->setChatRetentionTime(chatid, period, listener);
 }
@@ -5362,6 +5377,16 @@ void MegaApi::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
 void MegaApi::sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode)
 {
     pImpl->sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode);
+}
+
+void MegaApi::fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener)
+{
+    pImpl->fetchGoogleAds(adFlags, adUnits, publicHandle, listener);
+}
+
+void MegaApi::queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaRequestListener *listener)
+{
+    pImpl->queryGoogleAds(adFlags, publicHandle, listener);
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)

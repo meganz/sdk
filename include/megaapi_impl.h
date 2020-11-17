@@ -762,11 +762,16 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         long long getPlaceInQueue() const;
         void setPlaceInQueue(long long value);
 
+        void setDoNotStopSubTransfers(bool doNotStopSubTransfers);
+        bool getDoNotStopSubTransfers() const;
+
 protected:
         int type;
         int tag;
         int state;
         uint64_t priority;
+
+        bool mDoNotStopSubTransfers = false;
 
         struct
         {
@@ -1203,6 +1208,7 @@ class MegaRequestPrivate : public MegaRequest
         MegaAchievementsDetails *getMegaAchievementsDetails() const override;
         AchievementsDetails *getAchievementsDetails() const;
         MegaTimeZoneDetails *getMegaTimeZoneDetails () const override;
+        MegaStringList *getMegaStringList() const override;
 
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *getMegaTextChatPeerList() const override;
@@ -1222,6 +1228,7 @@ class MegaRequestPrivate : public MegaRequest
         void setMegaPushNotificationSettings(const MegaPushNotificationSettings *settings);
         MegaBackgroundMediaUpload *getMegaBackgroundMediaUploadPtr() const override;
         void setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUpload *);  // non-owned pointer
+        void setMegaStringList(MegaStringList* stringList);
 
 #ifdef ENABLE_SYNC
         void setSyncListener(MegaSyncListener *syncListener);
@@ -1283,6 +1290,7 @@ protected:
         MegaFolderInfo *folderInfo;
         MegaPushNotificationSettings *settings;
         MegaBackgroundMediaUpload* backgroundMediaUpload;  // non-owned pointer
+        unique_ptr<MegaStringList> mStringList;
 
     private:
         unique_ptr<MegaBannerListPrivate> mBannerList;
@@ -1666,10 +1674,11 @@ public:
     MegaStringList *copy() const override;
     const char* get(int i) const override;
     int size() const override;
+    void add(const char* value) override;
+    const string_vector& getVector();
 protected:
     MegaStringListPrivate(const MegaStringListPrivate *stringList);
-    const char** list;
-    int s;
+    string_vector mList;
 };
 
 bool operator==(const MegaStringList& lhs, const MegaStringList& rhs);
@@ -2705,7 +2714,7 @@ class MegaApiImpl : public MegaApp
         bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh);
         const char* getFileAttribute(MegaHandle h);
         void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
-        void setChatRetentionTime(MegaHandle chatid, int period, MegaRequestListener *listener = NULL);
+        void setChatRetentionTime(MegaHandle chatid, unsigned int period, MegaRequestListener *listener = NULL);
         void requestRichPreview(const char *url, MegaRequestListener *listener = NULL);
         void chatLinkHandle(MegaHandle chatid, bool del, bool createifmissing, MegaRequestListener *listener = NULL);
         void getChatLinkURL(MegaHandle publichandle, MegaRequestListener *listener = NULL);
@@ -2758,6 +2767,9 @@ class MegaApiImpl : public MegaApp
         void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode);
+
+        void fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener = nullptr);
+        void queryGoogleAds(int adFlags, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e, DBTableTransactionCommitter& committer);

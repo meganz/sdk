@@ -250,10 +250,9 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
         seek_target = av_rescale_q(formatContext->duration / 5, av_get_time_base_q(), videoStream->time_base);
     }
 
-    char ext[MAXEXTENSIONLEN];
-
-    if (client->fsaccess->getextension(imagePath,ext, MAXEXTENSIONLEN)
-            && strcmp(ext,".mp3") && seek_target > 0
+    string extension;
+    if (client->fsaccess->getextension(imagePath, extension)
+            && strcmp(extension.c_str(),".mp3") && seek_target > 0
             && av_seek_frame(formatContext, videoStreamIdx, seek_target, AVSEEK_FLAG_BACKWARD) < 0)
     {
         LOG_warn << "Error seeking video";
@@ -401,12 +400,12 @@ const char* GfxProcFreeImage::supportedformats()
 bool GfxProcFreeImage::readbitmap(FileAccess* fa, const LocalPath& localname, int size)
 {
 #ifdef HAVE_FFMPEG
-    char ext[MAXEXTENSIONLEN];
+    string extension;
     bool isvideo = false;
-    if (client->fsaccess->getextension(localname, ext, sizeof ext))
+    if (client->fsaccess->getextension(localname, extension))
     {
         const char* ptr;
-        if ((ptr = strstr(supportedformatsFfmpeg(), ext)) && ptr[strlen(ext)] == '.')
+        if ((ptr = strstr(supportedformatsFfmpeg(), extension.c_str())) && ptr[extension.size()] == '.')
         {
             isvideo = true;
             if (!readbitmapFfmpeg(fa, localname, size) )

@@ -8695,6 +8695,34 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 */
 - (void)sendEvent:(NSInteger)eventType message:(NSString *)message;
 
+#pragma mark - Banner
+
+/**
+ * @brief Requests a list of all Smart Banners available for current user.
+ *
+ * The response value is stored as a MegaBannerList.
+ *
+ * The associated request type with this request is MEGARequestTypeGetBanners
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - MEGABannerList: to get the list of banners
+ *
+ * On the onRequestFinish error, the error code associated to the MegaError can be:
+ * - MEGAErrorTypeApiEAccess - If called with no user being logged in.
+ * - MEGAErrorTypeApiEInternal - If the internally used user attribute exists but can't be decoded.
+ * - MEGAErrorTypeApiENoent - If there are no banners to return to the user.
+ *
+ * @param listener MEGARequestDelegate to track this request
+ */
+- (void)getBanners:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief No longer show the Smart Banner with the specified id to the current user.
+ *
+ * The associated request type with this request is MEGARequestTypeDismissBanner
+ */
+- (void)dismissBanner:(NSInteger)bannerIdentifier delegate:(id<MEGARequestDelegate>)delegate;
+
 @end
 
 NS_ASSUME_NONNULL_END

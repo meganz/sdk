@@ -219,6 +219,7 @@ public:
     typedef enum
     {
         USER_ETD_UNKNOWN = -1,
+        USER_COPYRIGHT_SUSPENSION = 4,  // Account suspended by copyright
         USER_ETD_SUSPENSION = 7, // represents an ETD/ToS 'severe' suspension level
     } UserErrorCode;
 
@@ -282,9 +283,6 @@ typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL
 // node type key lengths
 const int FILENODEKEYLENGTH = 32;
 const int FOLDERNODEKEYLENGTH = 16;
-
-// Max file extension length
-const int MAXEXTENSIONLEN = 12;
 
 typedef list<class Sync*> sync_list;
 
