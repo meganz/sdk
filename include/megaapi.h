@@ -7787,12 +7787,13 @@ class MegaApi
         };
 
         enum {
-            GOOGLE_ADS_FORCE_ADS = 0x200,                     // Force enable ads regardless of any other factors.
-            GOOGLE_ADS_IGNORE_MEGA = 0x400,                  // Show ads even if the current user or file owner is a MEGA employee.
-            GOOGLE_ADS_IGNORE_COUNTRY = 0x800,               // Show ads even if the user is not within an enabled country.
-            GOOGLE_ADS_IGNORE_IP = 0x1000,                    // Show ads even if the user is on a blacklisted IP (MEGA ips).
-            GOOGLE_ADS_IGNORE_PRO = 0x2000,                   // Show ads even if the current user or file owner is a PRO user.
-            GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000,         // Ignore the rollout logic which only servers ads to 10% of users based on their IP.
+            GOOGLE_ADS_DEFAULT = 0x0,                       // If you don't want to set any overrides/flags, then please provide 0
+            GOOGLE_ADS_FORCE_ADS = 0x200,                   // Force enable ads regardless of any other factors.
+            GOOGLE_ADS_IGNORE_MEGA = 0x400,                 // Show ads even if the current user or file owner is a MEGA employee.
+            GOOGLE_ADS_IGNORE_COUNTRY = 0x800,              // Show ads even if the user is not within an enabled country.
+            GOOGLE_ADS_IGNORE_IP = 0x1000,                  // Show ads even if the user is on a blacklisted IP (MEGA ips).
+            GOOGLE_ADS_IGNORE_PRO = 0x2000,                 // Show ads even if the current user or file owner is a PRO user.
+            GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000,        // Ignore the rollout logic which only servers ads to 10% of users based on their IP.
         };
 
         /**
@@ -18405,6 +18406,7 @@ class MegaApi
          *
          * @param adFlags A bitmap flag used to communicate with the API
          * Valid values are:
+         *      - GOOGLE_ADS_DEFAULT = 0x0
          *      - GOOGLE_ADS_FORCE_ADS = 0x200
          *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
          *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
@@ -18430,6 +18432,7 @@ class MegaApi
          *
          * @param adFlags A bitmap flag used to communicate with the API
          * Valid values are:
+         *      - GOOGLE_ADS_DEFAULT = 0x0
          *      - GOOGLE_ADS_FORCE_ADS = 0x200
          *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
          *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
