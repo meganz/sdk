@@ -34,7 +34,6 @@ const int GfxProc::dimensionsavatar[][2] = {
 
 bool GfxProc::isgfx(string* localfilename)
 {
-    char ext[8];
     const char* supported;
 
     if (!(supported = supportedformats()))
@@ -42,12 +41,13 @@ bool GfxProc::isgfx(string* localfilename)
         return true;
     }
 
-    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localfilename), ext, sizeof ext))
+    string ext;
+    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localfilename), ext))
     {
         const char* ptr;
 
         // FIXME: use hash
-        if ((ptr = strstr(supported, ext)) && ptr[strlen(ext)] == '.')
+        if ((ptr = strstr(supported, ext.c_str())) && ptr[ext.size()] == '.')
         {
             return true;
         }
@@ -58,7 +58,6 @@ bool GfxProc::isgfx(string* localfilename)
 
 bool GfxProc::isvideo(string *localfilename)
 {
-    char ext[8];
     const char* supported;
 
     if (!(supported = supportedvideoformats()))
@@ -66,12 +65,13 @@ bool GfxProc::isvideo(string *localfilename)
         return false;
     }
 
-    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localfilename), ext, sizeof ext))
+    string ext;
+    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localfilename), ext))
     {
         const char* ptr;
 
         // FIXME: use hash
-        if ((ptr = strstr(supported, ext)) && ptr[strlen(ext)] == '.')
+        if ((ptr = strstr(supported, ext.c_str())) && ptr[ext.size()] == '.')
         {
             return true;
         }
@@ -276,7 +276,7 @@ void GfxProc::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 
         px = (w - rw) / 2;
         py = (h - rw) / 3;
-        
+
         rh = rw;
     }
 }
@@ -311,9 +311,12 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, string* localfilename, handl
         return 0;
     }
 
+    // get the count before it might be popped off and processed already
+    auto count = int(job->imagetypes.size());
+
     requests.push(job);
     waiter.notify();
-    return int(job->imagetypes.size());
+    return count;
 }
 
 bool GfxProc::savefa(string *localfilepath, int width, int height, string *localdstpath)

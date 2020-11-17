@@ -55,6 +55,10 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeQuerySignUpLink,
     MEGARequestTypeAddSync,
     MEGARequestTypeRemoveSync,
+    MEGARequestTypeDisableSync,
+    MEGARequestTypeEnableSync,
+    MEGARequestTypeCopySyncConfig,
+    MEGARequestTypeCopyCachedConfig,
     MEGARequestTypeRemoveSyncs,
     MEGARequestTypePauseTransfers,
     MEGARequestTypeCancelTransfer,
@@ -152,8 +156,11 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeGetMiscFlags,
     MEGARequestTypeResendVerificationEmail,
     MEGARequestTypeSupportTicket,
-    MEGARequestTypeSendDevCommand,
+    MEGARequestTypeRetentionTime,
     MEGARequestTypeResetSmsVerifiedNumber,
+    MEGARequestTypeSendDevCommand,
+    MEGARequestTypeGetBanners,
+    MEGARequestTypeDismissBanner,
     TotalOfRequestTypes
 };
 

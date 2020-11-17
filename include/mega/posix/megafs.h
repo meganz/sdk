@@ -63,6 +63,8 @@ struct MEGA_API PosixDirAccess : public DirAccess
 class MEGA_API PosixFileSystemAccess : public FileSystemAccess
 {
 public:
+    using FileSystemAccess::getlocalfstype;
+
     int notifyfd;
 
 #ifdef USE_INOTIFY
@@ -87,6 +89,8 @@ public:
     DirAccess* newdiraccess() override;
     DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*) override;
 
+    bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
+
     void tmpnamelocal(LocalPath&) const override;
 
     void local2path(const string*, string*) const override;
@@ -103,7 +107,7 @@ public:
     bool setmtimelocal(LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
     size_t lastpartlocal(const string*) const override;
-    bool getextension(const LocalPath&, char*, size_t) const override;
+    bool getextension(const LocalPath&, std::string&) const override;
     bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) override;
 
     void addevents(Waiter*, int) override;

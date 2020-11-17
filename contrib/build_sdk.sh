@@ -142,7 +142,7 @@ package_download() {
         cp /tmp/megasdkbuild/$3 $file 
     else
         echo "Downloading $name to get $3"
-        wget --secure-protocol=TLSv1 --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
+        wget --secure-protocol=TLSv1_2 --no-check-certificate -c $url -O $file --progress=bar:force -t 2 -T 30 || \
         curl -k $url > $file || exit 1
     fi
     

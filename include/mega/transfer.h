@@ -88,13 +88,13 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // minimum number of file attributes that need to be posted before a PUT transfer can complete
     int minfa;
-    
+
     // position in transfers[type]
     transfer_map::iterator transfers_it;
 
     // position in faputcompletion[uploadhandle]
     handletransfer_map::iterator faputcompletion_it;
-    
+
     // upload result
     unique_ptr<byte[]> ultoken;
 
@@ -107,7 +107,7 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // signal completion
     void complete(DBTableTransactionCommitter&);
-    
+
     // execute completion
     void completefiles();
 
@@ -138,7 +138,7 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // context of the async fopen operation
     AsyncIOContext* asyncopencontext;
-   
+
     // timestamp of the start of the transfer
     m_time_t lastaccesstime;
 
@@ -306,13 +306,13 @@ struct MEGA_API DirectReadNode
 
     // API command result
     void cmdresult(const Error&, dstime = 0);
-    
+
     // enqueue new read
     void enqueue(m_off_t, m_off_t, int, void*);
 
     // dispatch all reads
     void dispatch();
-    
+
     // schedule next event
     void schedule(dstime);
 

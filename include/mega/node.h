@@ -76,6 +76,7 @@ struct MEGA_API NewNode : public NodeCore
     std::unique_ptr<string> fileattributes;
 
     bool added = false;
+    handle mAddedHandle = UNDEF;
 };
 
 struct MEGA_API PublicLink
@@ -204,7 +205,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         bool publiclink : 1;
         bool newnode : 1;
     } changed;
-    
+
     void setkey(const byte* = NULL);
 
     void setkeyfromjson(const char*);
@@ -245,7 +246,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     node_set::iterator tounlink_it;
 #endif
 
-    // source tag
+    // source tag.  The tag of the request or transfer that last modified this node (available in MegaApi)
     int tag = 0;
 
     // check if node is below this node

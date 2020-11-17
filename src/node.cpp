@@ -514,7 +514,7 @@ bool Node::serialize(string* d)
     time_t ts = 0;  // we don't want to break backward compatibiltiy by changing the size (where m_time_t differs)
     d->append((char*)&ts, sizeof(ts));
 
-    ts = (time_t)ctime; 
+    ts = (time_t)ctime;
     d->append((char*)&ts, sizeof(ts));
 
     d->append(nodekeydata);
@@ -1183,7 +1183,7 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
         {
             // set new name
             localname = newlocalpath->subpathFrom(p);
-            name = localname.toName(*sync->client->fsaccess);
+            name = localname.toName(*sync->client->fsaccess, sync->mFilesystemType);
 
             if (node)
             {
@@ -1211,7 +1211,7 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
         }
     }
 
-    if (parent && parent != newparent && !sync->client->destructorRunning)
+    if (parent && parent != newparent && !sync->mDestructorRunning)
     {
         treestate(TREESTATE_NONE);
     }
@@ -1225,7 +1225,7 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
             if (!newnode && node)
             {
                 assert(parent->node);
-                
+
                 int creqtag = sync->client->reqtag;
                 sync->client->reqtag = sync->tag;
                 LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
@@ -1433,7 +1433,7 @@ treestate_t LocalNode::checkstate()
             break;
         }
 
-        if (it->second->ts == TREESTATE_PENDING && ts == TREESTATE_SYNCED)
+        if (it->second->ts == TREESTATE_PENDING && state == TREESTATE_SYNCED)
         {
             state = TREESTATE_PENDING;
         }
@@ -1557,7 +1557,7 @@ LocalNode::~LocalNode()
             sync->dirnotify->notifyq[q].replaceLocalNodePointers(this, (LocalNode*)~0);
         }
     }
-    
+
     // remove from fsidnode map, if present
     if (fsid_it != sync->client->fsidnode.end())
     {
@@ -1738,7 +1738,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
 
     nodetype_t type;
     m_off_t size;
-    
+
     if (!r.unserializei64(size)) return nullptr;
 
     if (size < 0 && size >= -FOLDERNODE)
@@ -1763,7 +1763,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     unsigned char expansionflags[8] = { 0 };
 
     if (!r.unserializehandle(fsid) ||
-        !r.unserializeu32(parent_dbid) || 
+        !r.unserializeu32(parent_dbid) ||
         !r.unserializenodehandle(h) ||
         !r.unserializestring(localname) ||
         (type == FILENODE && !r.unserializebinary((byte*)crc, sizeof(crc))) ||
@@ -1790,7 +1790,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->localname = LocalPath(std::move(localname));
     l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(std::move(shortname)));
     l->slocalname_in_db = 0 != expansionflags[0];
-    l->name = l->localname.toName(*sync->client->fsaccess);
+    l->name = l->localname.toName(*sync->client->fsaccess, sync->mFilesystemType);
 
     memcpy(l->crc.data(), crc, sizeof crc);
     l->mtime = mtime;

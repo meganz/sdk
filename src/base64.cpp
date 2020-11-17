@@ -26,12 +26,12 @@ namespace mega {
 unsigned char Base64::to64(byte c)
 {
     c &= 63;
- 
+
     if (c < 26)
     {
         return c + 'A';
     }
- 
+
     if (c < 52)
     {
         return c - 26 + 'a';
