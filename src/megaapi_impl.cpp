@@ -36,6 +36,7 @@
 #include <cctype>
 #include <locale>
 #include <thread>
+#include <future>
 
 #ifndef _WIN32
 #ifndef _LARGEFILE64_SOURCE
@@ -4212,7 +4213,7 @@ const char *MegaStringListPrivate::get(int i) const
 
 int MegaStringListPrivate::size() const
 {
-    return mList.size();
+    return int(mList.size());
 }
 
 void MegaStringListPrivate::add(const char *value)
@@ -23239,7 +23240,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_FETCH_GOOGLE_ADS:
         {
-                int flags = request->getNumber();
+                int flags = int(request->getNumber());
                 if (flags < MegaApi::GOOGLE_ADS_FORCE_ADS || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
                 {
                     e = API_EARGS;
@@ -23266,7 +23267,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_QUERY_GOOGLE_ADS:
         {
-            int flags = request->getNumber();
+            int flags = int(request->getNumber());
             if (flags < MegaApi::GOOGLE_ADS_FORCE_ADS || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
             {
                 e = API_EARGS;
@@ -25656,7 +25657,7 @@ void MegaFolderUploadController::createFolder()
                 }
             }
             mLastError = e;
-            mPendingFolders -= nn.size();
+            mPendingFolders -= int(nn.size());
             promise.set_value (true); // unlock worker thread by fulfilling promise
         });
 
@@ -27175,7 +27176,7 @@ void MegaFolderDownloadController::createFolder()
         {
             mIncompleteTransfers++;
             it = mLocalTree.erase(it); // remove all it's children nodes
-            mPendingFilesToProcess -= it->second.size();
+            mPendingFilesToProcess -= int(it->second.size());
             continue;
         }
         ++it;
