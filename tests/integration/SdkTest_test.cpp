@@ -400,7 +400,8 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_GET_ATTR_USER:
         if ( (mApi[apiIndex].lastError == API_OK) && (request->getParamType() != MegaApi::USER_ATTR_AVATAR) )
         {
-            attributeValue = request->getText();
+            const char *text = request->getText();
+            attributeValue = text ? text : "";
         }
 
         if (request->getParamType() == MegaApi::USER_ATTR_AVATAR)
@@ -769,7 +770,7 @@ bool SdkTest::waitForResponse(bool *responseReceived, unsigned int timeout)
             else if (!connRetried && tWaited > (pollingT * 240))
             {
                 megaApi[0]->retryPendingConnections(true);
-                if (megaApi[1] && megaApi[1]->isLoggedIn())
+                if (megaApi.size() > 1 && megaApi[1] && megaApi[1]->isLoggedIn())
                 {
                     megaApi[1]->retryPendingConnections(true);
                 }
