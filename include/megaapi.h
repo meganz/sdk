@@ -13974,6 +13974,13 @@ class MegaApi
         char *getBlockedPath();
 #endif
 
+        /**
+         * @brief Start backup for the given folder, to "My Backups" remote destination
+         *
+         * @param localFolder The local folder to be backed up
+         * @param backupName The remote folder to be used for this backup, i.e. /My Backups/[DEVICE_NAME]/backupName
+         * @param listener MegaRequestListener to track this request
+         */
         void backupFolder(const char *localFolder, const char *backupName = nullptr, MegaRequestListener *listener = nullptr);
 
         /**
