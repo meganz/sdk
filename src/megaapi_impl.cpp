@@ -23190,6 +23190,7 @@ void MegaApiImpl::sendPendingRequests()
             }));
             break;
         }
+#ifdef ENABLE_CHAT
         case MegaRequest::TYPE_START_CHAT_CALL:
         {
             if (request->getNodeHandle() == INVALID_HANDLE)
@@ -23229,6 +23230,7 @@ void MegaApiImpl::sendPendingRequests()
             }));
             break;
         }
+#endif
         default:
         {
             e = API_EINTERNAL;
