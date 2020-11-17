@@ -2950,7 +2950,7 @@ void exec_timelocal(autocomplete::ACState& s)
     bool get = s.words[1].s == "get";
     auto localfilepath = LocalPath::fromPath(s.words[2].s, *client->fsaccess);
 
-    if (get && s.words.size() != 3 || !get && s.words.size() != 4)
+    if ((get && s.words.size() != 3) || (!get && s.words.size() != 4))
     {
         cout << "wrong number of arguments for : " << s.words[1].s << endl;
         return;
