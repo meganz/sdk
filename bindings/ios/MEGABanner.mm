@@ -1,6 +1,6 @@
 /**
  * @file MEGABanner.mm
- * @brief Represents an user in MEGA
+ * @brief Represents an user banner in MEGA
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *

@@ -1,6 +1,6 @@
 /**
- * @file MEGAStringList.h
- * @brief List of strings
+ * @file MEGABannerList.h
+ * @brief List of MEGABanner
  *
  * (c) 2017- by Mega Limited, Auckland, New Zealand
  *

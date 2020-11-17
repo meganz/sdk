@@ -1,6 +1,6 @@
 /**
- * @file MEGAUser.h
- * @brief Represents an user in MEGA
+ * @file MEGABanner.h
+ * @brief Represents an user banner in MEGA
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
