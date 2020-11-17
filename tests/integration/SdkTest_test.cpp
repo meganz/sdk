@@ -4605,6 +4605,61 @@ TEST_F(SdkTest, SdkGetBanners)
     ASSERT_TRUE(err == MegaError::API_OK || err == MegaError::API_ENOENT) << "Get banners failed (error: " << err << ")";
 }
 
+TEST_F(SdkTest, SdkBackupFolder)
+{
+    getAccountsForTest(1);
+    LOG_info << "___TEST BackupFolder___";
+
+    //
+    // make this work even before the remote API has support for My Backups folder
+
+    // create My Backups folder
+    fetchnodes(0, maxTimeout);
+    std::unique_ptr<MegaNode> myBkpsNode{ megaApi[0]->getNodeByPath("/My Backups") };
+    if (!myBkpsNode)
+    {
+        std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+        const char* folderName = "My Backups";
+        ASSERT_NO_FATAL_FAILURE(createFolder(0, folderName, rootnode.get()));
+
+        fetchnodes(0, maxTimeout);
+
+        myBkpsNode.reset(megaApi[0]->getNodeByPath("/My Backups"));
+
+        // set My Backups handle attr
+        MegaHandle mh = myBkpsNode->getHandle();
+        int err = synchronousSetMyBackupsFolder(0, mh);
+        ASSERT_TRUE(err == MegaError::API_OK) << "Setting My Backup folder failed (error: " << err << ")";
+        err = synchronousGetMyBackupsFolder(0);
+        ASSERT_TRUE(err == MegaError::API_OK);
+
+        // read the attribute to make sure it was set
+        std::unique_ptr<MegaUser> user(megaApi[0]->getMyUser());
+        ASSERT_NO_FATAL_FAILURE(getUserAttribute(user.get(), MegaApi::USER_ATTR_MY_BACKUPS_FOLDER, maxTimeout, 0));
+
+        // look for Device Name attr
+        if (synchronousGetDeviceName(0) != MegaError::API_OK || attributeValue.empty())
+        {
+            auto now = m_time(nullptr);
+            char timebuf[32];
+            strftime(timebuf, sizeof timebuf, "%c", localtime(&now));
+
+            string deviceName = string("Jenkins ") + timebuf;
+            synchronousSetDeviceName(0, deviceName.c_str());
+        }
+    }
+
+    // make sure Device Name attr was set
+    int err = synchronousGetDeviceName(0);
+    ASSERT_TRUE(err == MegaError::API_OK) << "Getting device name attr failed (error: " << err << ")";
+
+    // request to backup a folder
+    string folderToBackup = string(LOCAL_TEST_FOLDER) + "\\LocalBackedUpFolder";
+    makeNewTestRoot(folderToBackup.c_str());
+    err = synchronousBackupFolder(0, folderToBackup.c_str(), "RemoteBackupFolder");
+    ASSERT_TRUE(err == MegaError::API_OK) << "Backup folder failed (error: " << err << ")";
+}
+
 TEST_F(SdkTest, SdkSimpleCommands)
 {
     getAccountsForTest(1);
