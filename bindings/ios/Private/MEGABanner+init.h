@@ -1,6 +1,6 @@
 /**
- * @file MEGAUserAlert+init.h
- * @brief Private functions of MEGAUserAlert
+ * @file MEGABanner+init.h
+ * @brief Private functions of MEGABanner
  *
  * (c) 2018-Present by Mega Limited, Auckland, New Zealand
  *

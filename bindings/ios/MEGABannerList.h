@@ -36,7 +36,7 @@
  */
 @property (nonatomic, readonly) NSInteger size;
 
-- (instancetype _Nonnull)clone;
+- (nonnull instancetype)clone;
 
 /**
 * @brief Returns the MEGABanner at position i in the MEGABannerList
@@ -49,6 +49,6 @@
 * @param i Position of the MEGABanner that we want to get for the list
 * @return MEGABanner at position i in the list
 */
-- (MEGABanner * _Nullable)bannerAtIndex:(NSInteger)index;
+- (nullable MEGABanner *)bannerAtIndex:(NSInteger)index;
 
 @end
