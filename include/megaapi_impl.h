@@ -226,6 +226,8 @@ protected:
     LocalPath::separator_t mLocalSeparator;
 };
 
+class TransferQueue;
+
 class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveOperation
 {
 public:
@@ -252,10 +254,25 @@ protected:
     bool mFollowsymlinks;
 
     // number of folders that are pending to be created in cloud drive
-    int mPendingFolders;
+    //int mPendingFolders;
 
     // number of files pending to be processed (add a transfer for each one)
-    int mPendingFilesToProcess;
+    //int mPendingFilesToProcess;
+
+    struct Tree
+    {
+        unique_ptr<MegaNode> megaNode;
+        handle tmpCreateFolderHandle = UNDEF;
+
+        // if we need to create a folder, this is present
+        NewNode newnode;
+
+        // Files to upload to this folder
+        vector<LocalPath> files;
+
+        // subfolders
+        vector<unique_ptr<Tree>> subtrees;
+    };
 
     // maps tempHandle to definitive handle
     map<handle, handle> mNewNodesResult;
@@ -264,18 +281,20 @@ protected:
     map<handle, vector<LocalPath>> mFolderToPendingFiles;
 
     // maps targetHandle of the subtree to a vector of NewNodes
-    vector<pair<handle, vector<NewNode>>> mFolderStructure;
+    //vector<pair<handle, vector<NewNode>>> mFolderStructure;
+    Tree mUploadTree;
+
 
     /* Scan entire tree recursively, and retrieve folder structure and files to be uploaded.
      * A putnodes command can only add subtrees under same target, so in case we need to add
      * subtrees under different targets, this method will generate a subtree for each one
      */
-    void scanFolder(handle targetHandle, handle parentHandle, LocalPath& localPath, std::string folderName);
-    void createFolder();
+    void scanFolder(Tree& tree, LocalPath& localPath);
+    bool createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, bool inSubnodesOfCreate);
     /* iterate through all pending files of each uploaded folder, and start all upload transfers */
-    void uploadFiles();
-    void updateNodeHandles(handle &targetHandle, vector<NewNode> &newnodes);
-    void addNewNodeToVector(handle &targetHandle, handle &parentHandle, const char *folderName);
+    void uploadFiles(Tree& tree, TransferQueue& transferQueue);
+    //void updateNodeHandles(handle &targetHandle, vector<NewNode> &newnodes);
+    //void addNewNodeToVector(handle &targetHandle, handle &parentHandle, const char *folderName);
 };
 
 

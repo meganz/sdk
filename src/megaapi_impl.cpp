@@ -25360,8 +25360,8 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->recursive = 0;
     this->pendingTransfers = 0;
     this->tag = transfer->getTag();
-    this->mPendingFolders = 0;
-    this->mPendingFilesToProcess = 0;
+    //this->mPendingFolders = 0;
+    //this->mPendingFilesToProcess = 0;
     this->mLocalSeparator = client->fsaccess->localseparator;
     this->mFollowsymlinks = client->followsymlinks;
     this->mMainThreadId = std::this_thread::get_id();
@@ -25385,19 +25385,40 @@ void MegaFolderUploadController::start(MegaNode*)
     }
 
     LocalPath path = LocalPath::fromPath(transfer->getPath(), *client->fsaccess);
+
+    // the parent to put it to
+    mUploadTree.megaNode.reset(megaApi->getNodeByHandle(transfer->getParentHandle()));
+
+    // a node representing the folder we are putting to the parent: 
+    unique_ptr<Tree> newTreeNode(new Tree);
+    auto leaf = path.leafName(client->fsaccess->localseparator).toPath(*client->fsaccess);
+    newTreeNode->megaNode.reset(megaApi->getChildNode(mUploadTree.megaNode.get(), leaf.c_str()));
+    if (!newTreeNode->megaNode)
+    {
+        client->putnodes_prepareOneFolder(&newTreeNode->newnode, leaf); 
+        newTreeNode->newnode.nodehandle = newTreeNode->tmpCreateFolderHandle = client->nextUploadId();
+        newTreeNode->newnode.parenthandle = UNDEF;
+    }
+    mUploadTree.subtrees.push_back(std::move(newTreeNode));
+
     mWorkerThread = std::thread ([this, path]() {
-        LocalPath localpath = std::move(path);
-        scanFolder(transfer->getParentHandle(), transfer->getParentHandle(), localpath, transfer->getFileName());
-        createFolder();
 
-        if (isCompleted() || mIncompleteTransfers)
+        // recurse all subfolders on disk, building up tree structure to match
+        // not yet existing folders get a temporary upload id instead of a handle
+        LocalPath lp = path;
+
+        scanFolder(*mUploadTree.subtrees.front(), lp);
+        
+        // create folders in batches, not too many at once
+        vector<NewNode> newnodes;
+        if (!createNextFolderBatch(mUploadTree, newnodes, false))
         {
-            // if we call endRecursiveOperation after uploadFiles, we may incur in a double free for this object
-            megaApi->endRecursiveOperation(transfer);
-            return;
+            // no folders to create so start uploads
+            // otherwise the folder completion function will start them
+            TransferQueue transferQueue;
+            uploadFiles(mUploadTree, transferQueue);
+            megaApi->sendPendingTransfers(&transferQueue);
         }
-
-        uploadFiles();
     });
 }
 
@@ -25578,7 +25599,7 @@ MegaFolderUploadController::~MegaFolderUploadController()
     //we shouldn't need to dettach as transfer listener: all listened transfer should have been cancelled/completed
 }
 
-void MegaFolderUploadController::scanFolder(handle targetHandle, handle parentHandle, LocalPath& localPath, std::string folderName)
+void MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
 {
     recursive++;
     unique_ptr<DirAccess> da(megaApi->getNewDirAccess());
@@ -25591,14 +25612,6 @@ void MegaFolderUploadController::scanFolder(handle targetHandle, handle parentHa
         return;
     }
 
-    unique_ptr<MegaNode> parentNode(megaApi->getNodeByHandle(parentHandle));
-    unique_ptr<MegaNode> folder(megaApi->getChildNode(parentNode.get(), folderName.c_str()));
-    bool folderExists = folder && folder->getType() == FOLDERNODE;
-    if (!folderExists)
-    {
-        addNewNodeToVector(targetHandle, parentHandle, folderName.c_str());
-    }
-
     LocalPath localname;
     nodetype_t dirEntryType;
     FileSystemType fsType = megaApi->getLocalfstypeFromPath(localPath);
@@ -25608,143 +25621,158 @@ void MegaFolderUploadController::scanFolder(handle targetHandle, handle parentHa
         localPath.appendWithSeparator(localname, false, mLocalSeparator);
         if (dirEntryType == FILENODE)
         {
-            // if folder exists, takes it's handle to store new file node in mFolderToPendingFiles map,
-            // otherwise takes temporal nodehandle
-            mPendingFilesToProcess++;
-            (folderExists)
-                ? mFolderToPendingFiles[folder->getHandle()].emplace_back(localPath)
-                : mFolderToPendingFiles[parentHandle].emplace_back(localPath);
+            tree.files.push_back(localPath);
         }
         else if (dirEntryType == FOLDERNODE)
         {
+
+            string folderName = megaApi->LocalPathToName(localname, fsType);
+
+            unique_ptr<Tree> newTreeNode(new Tree);
+            newTreeNode->megaNode.reset(megaApi->getChildNode(tree.megaNode.get(), folderName.c_str()));
+
+            bool existsRemotely = newTreeNode->megaNode && newTreeNode->megaNode->getType() == dirEntryType;
+
             // if folder exists, call scanFolderNode with folder handle as target handle for the new subtree
-            (folderExists)
-                ? scanFolder(folder->getHandle(), folder->getHandle(), localPath, megaApi->LocalPathToName(localname, fsType))
-                : scanFolder(targetHandle, parentHandle, localPath, megaApi->LocalPathToName(localname, fsType));
+            if (!existsRemotely)
+            {
+                // generate fresh random key and node attributes
+                client->putnodes_prepareOneFolder(&newTreeNode->newnode, folderName);  // todo: strictly speaking, this is not thread safe becuase of the client's RNG - this class should get its own, probably, and that method be a static/global function
+
+                // set nodeHandle
+                newTreeNode->newnode.nodehandle = newTreeNode->tmpCreateFolderHandle = client->nextUploadId();
+
+                // set parent handle for newnodes batch
+                newTreeNode->newnode.parenthandle = tree.megaNode ? UNDEF : tree.tmpCreateFolderHandle;
+            }
+            scanFolder(*newTreeNode, localPath);
+            tree.subtrees.push_back(std::move(newTreeNode));
         }
     }
     recursive--;
 }
 
-void MegaFolderUploadController::createFolder()
+bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, bool inSubnodesOfCreate)
 {
-    for (auto it = mFolderStructure.begin(); it != mFolderStructure.end(); it++)
+    // recurse until we find one that is not yet sent
+    for (auto& t : tree.subtrees)
     {
-        assert(it->second.size());
-        handle targetHandle = it->first;
-        vector<NewNode> &newnodes = it->second;
-
-        if (it != mFolderStructure.begin())
+        if (!t->megaNode)
         {
-            // skip first iteration, as there are no previous putnodes results to be processed
-            updateNodeHandles(targetHandle, newnodes);
+            auto it = mNewNodesResult.find(t->tmpCreateFolderHandle);
+            if (it != mNewNodesResult.end())
+            {
+                t->megaNode.reset(megaApi->getNodeByHandle(it->second));
+            }
+        }
+        if (!t->megaNode && newnodes.size() < MAXNODESUPLOAD)
+        {
+            if (!inSubnodesOfCreate)
+            {
+                t->newnode.parenthandle = UNDEF;
+            }
+            newnodes.push_back(std::move(t->newnode));
         }
 
-        std::promise<bool> promise; // use a promise for each putnodes
-        megaApi->createRemoteFolder(targetHandle, move(newnodes), "NULL", [this, &promise](const Error& e, targettype_t t, vector<NewNode>& nn)
+        if (createNextFolderBatch(*t, newnodes, !newnodes.empty()))
         {
-            // lambda function that will be executed as completion function in putnodes procresult
-            if (e)
+            if (!inSubnodesOfCreate)
             {
-                mIncompleteTransfers++;
+                // we found enough and sent this batch already
+                return true;
             }
-            else
+        }
+    }
+
+    if (!inSubnodesOfCreate && !newnodes.empty())
+    {
+        megaApi->createRemoteFolder(tree.megaNode->getHandle(), std::move(newnodes), "NULL",  /// todo:  is that "null" really supposed to be a string?
+            [this](const Error& e, targettype_t t, vector<NewNode>& nn)
             {
-                for (auto &n: nn)
+                // lambda function that will be executed as completion function in putnodes procresult
+                if (e)
                 {
-                    // map temp node handle to definitive one
-                    mNewNodesResult[n.nodehandle] = n.mAddedHandle;
+                    // todo:  shouldn't the first error terminate the whole operation?
+                    mIncompleteTransfers++;
+                    mLastError = e;
                 }
-            }
-            mLastError = e;
-            mPendingFolders -= int(nn.size());
-            promise.set_value (true); // unlock worker thread by fulfilling promise
-        });
+                else
+                {
+                    for (auto& n : nn)
+                    {
+                        // map temp node handle to definitive one
+                        mNewNodesResult[n.nodehandle] = n.mAddedHandle;
+                    }
 
-        promise.get_future().get(); // get locked until future value can be retrieved
-        if (mIncompleteTransfers)
-        {
-            // some putnodes has failed, so we have to cancel folder upload due to folder structure is incomplete
-            return;
-        }
+                    // start the next batch, if there are any left
+                    vector<NewNode> newnodes;
+                    if (createNextFolderBatch(mUploadTree, newnodes, false))
+                    {
+                        // new putnodes is on its way (with completion pending)
+                    }
+                    else
+                    {
+                        TransferQueue transferQueue;
+                        uploadFiles(mUploadTree, transferQueue);
+                        megaApi->sendPendingTransfers(&transferQueue);
+                    }
+                }
+            });
+        return true;
     }
+    return false;
 }
 
-// this method updates temp nodeHandles, with those received in previous putnodes commands.
-void MegaFolderUploadController::updateNodeHandles(handle &targetHandle, vector<NewNode> &newnodes)
+
+//// this method updates temp nodeHandles, with those received in previous putnodes commands.
+//void MegaFolderUploadController::updateNodeHandles(handle &targetHandle, vector<NewNode> &newnodes)
+//{
+//    auto it = mNewNodesResult.find(targetHandle);
+//    if (it != mNewNodesResult.end())
+//    {
+//        // update targetHandle
+//        targetHandle = it->second;
+//    }
+//
+//    for (size_t i = 0; i < newnodes.size(); i++)
+//    {
+//        NewNode &n = newnodes.at(i);
+//        auto it = mNewNodesResult.find(n.parenthandle);
+//        if (it != mNewNodesResult.end())
+//        {
+//            n.parenthandle = it->second != targetHandle
+//                    ? it->second    // update temp nodeHandle with definitive one
+//                    : UNDEF;        // parent handle is the same as target handle of putnodes
+//        }
+//    }
+//}
+
+void MegaFolderUploadController::uploadFiles(Tree& tree, TransferQueue& transferQueue)
 {
-    auto it = mNewNodesResult.find(targetHandle);
-    if (it != mNewNodesResult.end())
+
+    for (const auto& localpath : tree.files)
     {
-        // update targetHandle
-        targetHandle = it->second;
+        FileSystemType fsType = megaApi->getLocalfstypeFromPath(localpath);
+        MegaTransferPrivate* transfer = megaApi->createUploadTransfer(false, megaApi->LocalPathToPath(localpath).c_str(),
+            tree.megaNode.get(), nullptr, (const char*)NULL,
+            -1, tag, false, NULL, false, false, fsType, this);
+        transferQueue.push(transfer);
+        pendingTransfers++;
     }
 
-    for (size_t i = 0; i < newnodes.size(); i++)
+    for (auto& t : tree.subtrees)
     {
-        NewNode &n = newnodes.at(i);
-        auto it = mNewNodesResult.find(n.parenthandle);
-        if (it != mNewNodesResult.end())
-        {
-            n.parenthandle = it->second != targetHandle
-                    ? it->second    // update temp nodeHandle with definitive one
-                    : UNDEF;        // parent handle is the same as target handle of putnodes
-        }
+        uploadFiles(*t, transferQueue);
     }
-}
-
-void MegaFolderUploadController::uploadFiles()
-{
-   assert(!mPendingFolders && !mIncompleteTransfers);
-   TransferQueue transferQueue;
-   for (auto it = mFolderToPendingFiles.begin(); it != mFolderToPendingFiles.end();)
-   {
-       auto auxit = it++;
-       handle folderHandle = auxit->first;
-       for (auto it = mNewNodesResult.begin(); it != mNewNodesResult.end(); it++)
-       {
-           if (it->first == folderHandle)
-           {
-                // if we find a match in newNodes vector, update the definitive handle of the node
-                folderHandle = it->second;
-                break;
-           }
-       }
-       unique_ptr <MegaNode> parentNode(megaApi->getNodeByHandle(folderHandle));
-       if (parentNode != nullptr)
-       {
-           vector<LocalPath> &pendingFiles = auxit->second;
-           for (size_t j = 0; j < pendingFiles.size(); j++)
-           {
-               const LocalPath &localpath = pendingFiles.at(j);
-               FileSystemType fsType = megaApi->getLocalfstypeFromPath(localpath);
-               MegaTransferPrivate *transfer = megaApi->createUploadTransfer(false, megaApi->LocalPathToPath(localpath).c_str(),
-                                       parentNode.get(), nullptr, (const char *)NULL,
-                                       -1, tag, false, NULL, false, false, fsType, this);
-
-                transferQueue.push(transfer);
-                mPendingFilesToProcess--;
-                pendingTransfers++;
-           }
-           //Remove folder and it's children from map
-           mFolderToPendingFiles.erase(auxit);
-       }
-   }
-
-   assert(!mPendingFolders && mFolderToPendingFiles.empty() && pendingTransfers);
-   if (pendingTransfers)
-   {
-      megaApi->sendPendingTransfers(&transferQueue);
-   }
 }
 
 bool MegaFolderUploadController::isCompleted()
 {
     return (!cancelled
             && !recursive
-            && !pendingTransfers
-            && !mPendingFolders
-            && !mPendingFilesToProcess);
+            && !pendingTransfers);
+            //&& !mPendingFolders);
+            //&& !mPendingFilesToProcess);
 }
 
 void MegaFolderUploadController::complete()
@@ -25756,7 +25784,7 @@ void MegaFolderUploadController::complete()
 
     assert(mMainThreadId == std::this_thread::get_id());
     LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
-    mFolderStructure.clear();
+    //mFolderStructure.clear();
     mFolderToPendingFiles.clear();
     transfer->setState(MegaTransfer::STATE_COMPLETED);
     transfer->setLastError(&mLastError);
@@ -25768,7 +25796,7 @@ void MegaFolderUploadController::complete()
  * It also stores NewNode handle in parameter parentHandle.
  * In case NewNodes vector exceeds limit of MAXNODESUPLOAD nodes, it will add a new node vector,
  * and will update targetHandle */
-void MegaFolderUploadController::addNewNodeToVector(handle &targetHandle, handle &parentHandle, const char *folderName)
+/*void MegaFolderUploadController::addNewNodeToVector(handle &targetHandle, handle &parentHandle, const char *folderName)
 {
     handle newNodeHandle;
     NewNode newnode;
@@ -25831,7 +25859,7 @@ void MegaFolderUploadController::addNewNodeToVector(handle &targetHandle, handle
 
     mPendingFolders++;
     parentHandle = newNodeHandle;
-}
+}*/
 
 MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char* filename, bool attendPastBackups, const char *speriod, int64_t period, int maxBackups)
 {
