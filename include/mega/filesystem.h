@@ -92,7 +92,11 @@ class MEGA_API LocalPath
     friend class GfxProcFreeImage;
     friend struct FileSystemAccess;
     friend int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2, const FileSystemAccess& fsaccess);
+#ifdef USE_IOS
+    friend const string adjustBasePath(const LocalPath& name);
+#else
     friend const string& adjustBasePath(const LocalPath& name);
+#endif
 
 public:
     LocalPath() {}
@@ -499,7 +503,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool chdirlocal(LocalPath&) const = 0;
 
     // obtain lowercased extension
-    virtual bool getextension(const LocalPath&, char*, size_t) const = 0;
+    virtual bool getextension(const LocalPath&, std::string&) const = 0;
 
     // check if synchronization is supported for a specific path
     virtual bool issyncsupported(LocalPath&, bool* = NULL, SyncError* = nullptr) { return true; }

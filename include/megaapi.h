@@ -2235,6 +2235,13 @@ public:
 class MegaStringList
 {
 public:
+    /**
+     * @brief Creates a new instance of MegaStringList
+     *
+     * @return A pointer to the superclass of the private object
+     */
+    static MegaStringList *createInstance();
+
     virtual ~MegaStringList();
 
     virtual MegaStringList *copy() const;
@@ -2257,6 +2264,13 @@ public:
      * @return Number of strings in the list
      */
     virtual int size() const;
+
+    /**
+     * @brief Add element to the list
+     *
+     * @param value String to add to list
+     */
+    virtual void add(const char* value);
 };
 
 /**
@@ -2985,6 +2999,7 @@ class MegaRequest
             TYPE_SEND_DEV_COMMAND,
             TYPE_GET_BANNERS, TYPE_DISMISS_BANNER,
             TYPE_BACKUP_PUT, TYPE_BACKUP_REMOVE, TYPE_BACKUP_PUT_HEART_BEAT,
+            TYPE_FETCH_GOOGLE_ADS, TYPE_QUERY_GOOGLE_ADS,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -3080,6 +3095,8 @@ class MegaRequest
          * - MegaApi::setBackup - Returns the target node of the backup
          * - MegaApi::updateBackup - Returns the target node of the backup
          * - MegaApi::sendBackupHeartbeat - Returns the last node backed up
+         * - MegaApi::fetchGoogleAds - Returns public handle that the user is visiting (optionally)
+         * - MegaApi::queryGoogleAds - Returns public handle that the user is visiting (optionally)
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3417,6 +3434,8 @@ class MegaRequest
          * - MegaApi::sendChatStats - Returns the connection port
          * - MegaApi::dismissBanner - Returns the timestamp of the request
          * - MegaApi::sendBackupHeartbeat - Returns the time associated with the request
+         * - MegaApi::fetchGoogleAds - Returns a bitmap flag used to communicate with the API
+         * - MegaApi::queryGoogleAds - Returns a bitmap flag used to communicate with the API
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3632,6 +3651,7 @@ class MegaRequest
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::getUserAttribute - Returns the attribute value
+         * - MegaApi::fetchGoogleAds - Returns google ads
          *
          * @return String map including the key-value pairs of the attribute
          */
@@ -3711,6 +3731,19 @@ class MegaRequest
          * @return List of all Smart Banners available for current user
          */
         virtual MegaBannerList* getMegaBannerList() const;
+
+        /**
+         * @brief Returns the string list
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::fetchGoogleAds - A list of the adslot ids to fetch
+         *
+         * @return String list
+         */
+        virtual MegaStringList* getMegaStringList() const;
 };
 
 /**
@@ -5914,8 +5947,9 @@ public:
      */
     enum UserErrorCode
     {
-        USER_ETD_UNKNOWN = -1,      ///< Unknown state
-        USER_ETD_SUSPENSION = 7,    ///< Account suspend by an ETD/ToS 'severe'
+        USER_ETD_UNKNOWN = -1,          ///< Unknown state
+        USER_COPYRIGHT_SUSPENSION = 4,  /// Account suspended by copyright
+        USER_ETD_SUSPENSION = 7,        ///< Account suspend by an ETD/ToS 'severe'
     };
 
     /**
@@ -5983,6 +6017,7 @@ public:
          *
          * This method only returns a valid value when hasExtraInfo is true
          * Possible values:
+         *  MegaError::UserErrorCode::USER_COPYRIGHT_SUSPENSION
          *  MegaError::UserErrorCode::USER_ETD_SUSPENSION
          *
          * Otherwise, it returns MegaError::UserErrorCode::USER_ETD_UNKNOWN
@@ -7750,6 +7785,15 @@ class MegaApi
             ACCOUNT_BLOCKED_SUBUSER_REMOVED = 401,          // subuser removed by business administrator
             ACCOUNT_BLOCKED_VERIFICATION_SMS = 500,         // temporary blocked, require SMS verification
             ACCOUNT_BLOCKED_VERIFICATION_EMAIL = 700,       // temporary blocked, require email verification
+        };
+
+        enum {
+            GOOGLE_ADS_FORCE_ADS = 0x200,                     // Force enable ads regardless of any other factors.
+            GOOGLE_ADS_IGNORE_MEGA = 0x400,                  // Show ads even if the current user or file owner is a MEGA employee.
+            GOOGLE_ADS_IGNORE_COUNTRY = 0x800,               // Show ads even if the user is not within an enabled country.
+            GOOGLE_ADS_IGNORE_IP = 0x1000,                    // Show ads even if the user is on a blacklisted IP (MEGA ips).
+            GOOGLE_ADS_IGNORE_PRO = 0x2000,                   // Show ads even if the current user or file owner is a PRO user.
+            GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000,         // Ignore the rollout logic which only servers ads to 10% of users based on their IP.
         };
 
         /**
@@ -17791,7 +17835,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_SET_RETENTION_TIME
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
-         * - MegaRequest::getNumdetails - Returns the retention timeframe
+         * - MegaRequest::getTotalBytes - Returns the retention timeframe
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS - If the chatid is invalid
@@ -17802,7 +17846,7 @@ class MegaApi
          * @param period retention timeframe in seconds, after which older messages in the chat are automatically deleted
          * @param listener MegaRequestListener to track this request
          */
-        void setChatRetentionTime(MegaHandle chatid, int period, MegaRequestListener *listener = NULL);
+        void setChatRetentionTime(MegaHandle chatid, unsigned period, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Request rich preview information for specified URL
@@ -18382,6 +18426,56 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setBackupName(MegaHandle backupId, const char* backupName, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Fetch Google ads
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_GOOGLE_ADS
+         * Valid data in the MegaRequest object received on callbacks:
+         *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+         *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
+         *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+         *
+         * When the error code is MegaError::API_OK:
+         * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
+         *
+         * @param adFlags A bitmap flag used to communicate with the API
+         * Valid values are:
+         *      - GOOGLE_ADS_FORCE_ADS = 0x200
+         *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+         *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+         *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+         *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+         *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000
+         * @param adUnits A list of the adslot ids to fetch
+         * @param publicHandle Provide the public handle that the user is visiting
+         * @param listener MegaRequestListener to track this request
+         */
+        void fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Check if Google ads should show or not
+         *
+         * The associated request type with this request is MegaRequest::TYPE_QUERY_GOOGLE_ADS
+         * Valid data in the MegaRequest object received on callbacks:
+         *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+         *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+         *
+         * When the error code is MegaError::API_OK:
+         * - MegaRequest::getNumDetails Return if ads should be show or not
+         *
+         * @param adFlags A bitmap flag used to communicate with the API
+         * Valid values are:
+         *      - GOOGLE_ADS_FORCE_ADS = 0x200
+         *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+         *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+         *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+         *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+         *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT 0x4000
+         * @param publicHandle Provide the public handle that the user is visiting
+         * @param listener MegaRequestListener to track this request
+         */
+        void queryGoogleAds(int adFlags, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
 
  private:
         MegaApiImpl *pImpl;

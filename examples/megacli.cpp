@@ -6427,8 +6427,8 @@ void exec_mediainfo(autocomplete::ACState& s)
         MediaProperties mp;
         auto localFilename = LocalPath::fromPath(s.words[2].s, *client->fsaccess);
 
-        char ext[8];
-        if (client->fsaccess->getextension(localFilename, ext, sizeof(ext)) && MediaProperties::isMediaFilenameExt(ext))
+        string ext;
+        if (client->fsaccess->getextension(localFilename, ext) && MediaProperties::isMediaFilenameExt(ext))
         {
             mp.extractMediaPropertyFileAttributes(localFilename, client->fsaccess);
                                 uint32_t dummykey[4] = { 1, 2, 3, 4 };  // check encode/decode

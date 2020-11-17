@@ -1084,8 +1084,8 @@ bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo(const char* inputFilepat
 
     auto localfilename = LocalPath::fromPath(inputFilepath, *api->fsAccess);
 
-    char ext[MAXEXTENSIONLEN];
-    if (api->fsAccess->getextension(localfilename, ext, sizeof(ext)) && MediaProperties::isMediaFilenameExt(ext))
+    string ext;
+    if (api->fsAccess->getextension(localfilename, ext) && MediaProperties::isMediaFilenameExt(ext))
     {
         mediaproperties.extractMediaPropertyFileAttributes(localfilename, api->fsAccess);
 
@@ -2858,6 +2858,16 @@ void MegaTransferPrivate::setPlaceInQueue(long long value)
     placeInQueue = value;
 }
 
+void MegaTransferPrivate::setDoNotStopSubTransfers(bool doNotStopSubTransfers)
+{
+    mDoNotStopSubTransfers = doNotStopSubTransfers;
+}
+
+bool MegaTransferPrivate::getDoNotStopSubTransfers() const
+{
+    return mDoNotStopSubTransfers;
+}
+
 void MegaTransferPrivate::setPath(const char* path)
 {
     if(this->path) delete [] this->path;
@@ -3293,6 +3303,11 @@ MegaTimeZoneDetails *MegaRequestPrivate::getMegaTimeZoneDetails() const
     return timeZoneDetails;
 }
 
+MegaStringList *MegaRequestPrivate::getMegaStringList() const
+{
+    return mStringList.get();
+}
+
 #ifdef ENABLE_CHAT
 MegaTextChatPeerList *MegaRequestPrivate::getMegaTextChatPeerList() const
 {
@@ -3404,6 +3419,16 @@ void MegaRequestPrivate::setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUplo
 {
     // non-owned pointer
     backgroundMediaUpload = p;
+}
+
+void MegaRequestPrivate::setMegaStringList(MegaStringList* stringList)
+{
+    mStringList.reset();
+
+    if (stringList)
+    {
+       mStringList = unique_ptr<MegaStringList>(stringList->copy());
+    }
 }
 
 
@@ -3946,6 +3971,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_BACKUP_PUT: return "BACKUP_PUT";
         case TYPE_BACKUP_REMOVE: return "BACKUP_REMOVE";
         case TYPE_BACKUP_PUT_HEART_BEAT: return "BACKUP_PUT_HEART_BEAT";
+        case TYPE_FETCH_GOOGLE_ADS: return "FETCH_GOOGLE_ADS";
+        case TYPE_QUERY_GOOGLE_ADS: return "QUERY_GOOGLE_ADS";
     }
     return "UNKNOWN";
 }
@@ -4136,46 +4163,24 @@ MegaStringMapPrivate::MegaStringMapPrivate(const MegaStringMapPrivate *megaStrin
 
 MegaStringListPrivate::MegaStringListPrivate()
 {
-    list = NULL;
-    s = 0;
 }
 
 MegaStringListPrivate::MegaStringListPrivate(const MegaStringListPrivate *stringList)
 {
-    s = stringList->size();
-    if (!s)
-    {
-        list = NULL;
-        return;
-    }
-
-    list = new const char*[s];
-    for (int i = 0; i < s; i++)
-        list[i] = MegaApi::strdup(stringList->get(i));
+    mList = stringList->mList;
 }
 
 MegaStringListPrivate::MegaStringListPrivate(char **newlist, int size)
 {
-    list = NULL;
-    s = size;
-    if (!size)
-    {
-        return;
-    }
-
-    list = new const char*[size];
     for (int i = 0; i < size; i++)
-        list[i] = newlist[i];
+    {
+        mList.push_back(newlist[i]);
+    }
 }
 
 MegaStringListPrivate::~MegaStringListPrivate()
 {
-    if(!list)
-        return;
 
-    for(int i=0; i<s; i++)
-        delete [] list[i];
-    delete [] list;
 }
 
 MegaStringList *MegaStringListPrivate::copy() const
@@ -4185,15 +4190,28 @@ MegaStringList *MegaStringListPrivate::copy() const
 
 const char *MegaStringListPrivate::get(int i) const
 {
-    if(!list || (i < 0) || (i >= s))
-        return NULL;
+    if((i < 0) || (i >= mList.size()))
+        return nullptr;
 
-    return list[i];
+    return mList[i].c_str();
 }
 
 int MegaStringListPrivate::size() const
 {
-    return s;
+    return mList.size();
+}
+
+void MegaStringListPrivate::add(const char *value)
+{
+    if (value)
+    {
+        mList.push_back(value);
+    }
+}
+
+const string_vector& MegaStringListPrivate::getVector()
+{
+    return mList;
 }
 
 bool operator==(const MegaStringList& lhs, const MegaStringList& rhs)
@@ -7564,6 +7582,9 @@ void MegaApiImpl::abortPendingActions(error preverror)
         {
             auto transfer = transferMap.begin()->second;
             transfer->setState(MegaTransfer::STATE_FAILED);
+
+            transfer->setDoNotStopSubTransfers(true); //so as not to remove subtransfer from cache
+
             // this call can be recursive and remove multiple, eg with MegaFolderUploadController
             fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(preverror), committer);
         }
@@ -10191,11 +10212,11 @@ void MegaApiImpl::archiveChat(MegaHandle chatid, int archive, MegaRequestListene
     waiter->notify();
 }
 
-void MegaApiImpl::setChatRetentionTime(MegaHandle chatid, int period, MegaRequestListener *listener)
+void MegaApiImpl::setChatRetentionTime(MegaHandle chatid, unsigned period, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_RETENTION_TIME, listener);
     request->setNodeHandle(chatid);
-    request->setNumDetails(period);
+    request->setTotalBytes(period);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -22578,7 +22599,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_SET_RETENTION_TIME:
         {
             MegaHandle chatid = request->getNodeHandle();
-            int period = request->getNumDetails();
+            unsigned period = static_cast <unsigned>(request->getTotalBytes());
 
             if (chatid == INVALID_HANDLE)
             {
@@ -23104,6 +23125,53 @@ void MegaApiImpl::sendPendingRequests()
                                                            request->getNodeHandle()));
             break;
         }
+        case MegaRequest::TYPE_FETCH_GOOGLE_ADS:
+        {
+                int flags = request->getNumber();
+                if (flags < MegaApi::GOOGLE_ADS_FORCE_ADS || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
+                {
+                    e = API_EARGS;
+                    break;
+                }
+
+                const string_vector &vectorString = static_cast<MegaStringListPrivate*>(request->getMegaStringList())->getVector();
+                client->reqs.add(new CommandFetchGoogleAds(client, flags, vectorString, request->getNodeHandle(), [request, this](Error e, string_map value)
+                {
+                    if (e == API_OK)
+                    {
+                        std::unique_ptr<MegaStringMap> stringMap = std::unique_ptr<MegaStringMap>(MegaStringMap::createInstance());
+                        for (const auto itMap : value)
+                        {
+                            stringMap->set(itMap.first.c_str(), itMap.second.c_str());
+                        }
+
+                        request->setMegaStringMap(stringMap.get());
+                    }
+
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                }));
+            break;
+        }
+        case MegaRequest::TYPE_QUERY_GOOGLE_ADS:
+        {
+            int flags = request->getNumber();
+            if (flags < MegaApi::GOOGLE_ADS_FORCE_ADS || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
+            {
+                e = API_EARGS;
+                break;
+            }
+
+            client->reqs.add(new CommandQueryGoogleAds(client, flags, request->getNodeHandle(), [request, this](Error e, int value)
+            {
+                if (e == API_OK)
+                {
+                    request->setNumDetails(value);
+                }
+
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }));
+            break;
+        }
         default:
         {
             e = API_EINTERNAL;
@@ -23347,6 +23415,25 @@ void MegaApiImpl::setBackupName(MegaHandle backupId, const char* backupName, Meg
     request->setParamType(MegaApi::USER_ATTR_BACKUP_NAMES);
     request->setNodeHandle(backupId);
     request->setText(backupName);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_FETCH_GOOGLE_ADS, listener);
+    request->setNumber(adFlags);
+    request->setMegaStringList(adUnits);
+    request->setNodeHandle(publicHandle);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaRequestListener *listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_GOOGLE_ADS, listener);
+    request->setNumber(adFlags);
+    request->setNodeHandle(publicHandle);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -25265,6 +25352,7 @@ void MegaFolderUploadController::cancel()
         subTransfer->setLastError(&megaError);
 
         bool found = false;
+        bool fireSubTransferFinish = false;
         file_list files = transfer->files;
         file_list::iterator iterator = files.begin();
         while (iterator != files.end())
@@ -25276,7 +25364,16 @@ void MegaFolderUploadController::cancel()
                 found = true;
                 if (!file->syncxfer)
                 {
-                    client->stopxfer(file, committer);
+                    if (!this->transfer->getDoNotStopSubTransfers())
+                    {
+                        client->stopxfer(file, committer);
+                    }
+                    else
+                    {
+                        //firing onTransferFinished without stopping (to preserve cache)
+                        subTransfer->setState(MegaTransfer::STATE_FAILED);
+                        fireSubTransferFinish = true;
+                    }
                 }
                 else
                 {
@@ -25292,8 +25389,14 @@ void MegaFolderUploadController::cancel()
             LOG_warn << "No file found for subtransfer: " << subTransfer->getFileName();
 
             subTransfer->setState(MegaTransfer::STATE_CANCELLED);
+            fireSubTransferFinish = true;
+        }
+
+        if (fireSubTransferFinish)
+        {
             megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), *committer);
         }
+
         cancelledSubTransfers++;
     }
 
@@ -26656,6 +26759,7 @@ void MegaFolderDownloadController::cancel()
         subTransfer->setLastError(&megaError);
 
         bool found = false;
+        bool fireSubTransferFinish = false;
         file_list files = transfer->files;
         file_list::iterator iterator = files.begin();
         while (iterator != files.end())
@@ -26667,7 +26771,16 @@ void MegaFolderDownloadController::cancel()
                 found = true;
                 if (!file->syncxfer)
                 {
-                    client->stopxfer(file, committer);
+                    if (!this->transfer->getDoNotStopSubTransfers())
+                    {
+                        client->stopxfer(file, committer);
+                    }
+                    else
+                    {
+                        //firing onTransferFinished without stopping (to preserve cache)
+                        subTransfer->setState(MegaTransfer::STATE_FAILED);
+                        fireSubTransferFinish = true;
+                    }
                 }
                 else
                 {
@@ -26683,8 +26796,14 @@ void MegaFolderDownloadController::cancel()
             LOG_warn << "No file found for subtransfer: " << subTransfer->getFileName();
 
             subTransfer->setState(MegaTransfer::STATE_CANCELLED);
+            fireSubTransferFinish = true;
+        }
+
+        if (fireSubTransferFinish)
+        {
             megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), *committer);
         }
+
         cancelledSubTransfers++;
     }
 
@@ -28318,9 +28437,9 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
             httpctx->server->fsAccess->tmpnamelocal(suffix);
             httpctx->tmpFileName.append(suffix.toPath(*httpctx->server->fsAccess));
 
-            char ext[MAXEXTENSIONLEN];
+            string ext;
             LocalPath localpath = LocalPath::fromPath(httpctx->path, *httpctx->server->fsAccess);
-            if (httpctx->server->fsAccess->getextension(localpath, ext, sizeof ext))
+            if (httpctx->server->fsAccess->getextension(localpath, ext))
             {
                 httpctx->tmpFileName.append(ext);
             }
@@ -29376,8 +29495,8 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 httpctx->tmpFileName=httpctx->server->basePath;
                 httpctx->tmpFileName.append("httputfile");
                 httpctx->tmpFileName.append(LocalPath::tmpNameLocal(*httpctx->server->fsAccess).toPath(*httpctx->server->fsAccess));
-                char ext[MAXEXTENSIONLEN];
-                if (httpctx->server->fsAccess->getextension(LocalPath::fromPath(httpctx->path, *httpctx->server->fsAccess), ext, sizeof ext))
+                string ext;
+                if (httpctx->server->fsAccess->getextension(LocalPath::fromPath(httpctx->path, *httpctx->server->fsAccess), ext))
                 {
                     httpctx->tmpFileName.append(ext);
                 }
@@ -32084,8 +32203,8 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
             fds->fsAccess->tmpnamelocal(suffix);
             ftpdatactx->tmpFileName.append(suffix.toPath(*fds->fsAccess));
 
-            char ext[MAXEXTENSIONLEN];
-            if (ftpdatactx->server->fsAccess->getextension(LocalPath::fromPath(fds->controlftpctx->arg1, *ftpdatactx->server->fsAccess), ext, sizeof ext))
+            string ext;
+            if (ftpdatactx->server->fsAccess->getextension(LocalPath::fromPath(fds->controlftpctx->arg1, *ftpdatactx->server->fsAccess), ext))
             {
                 ftpdatactx->tmpFileName.append(ext);
             }

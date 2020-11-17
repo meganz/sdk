@@ -164,6 +164,7 @@ public:
         std::unique_ptr<MegaContactRequest> cr;
         std::unique_ptr<MegaTimeZoneDetails> tzDetails;
         std::unique_ptr<MegaAccountDetails> accountDetails;
+        std::unique_ptr<MegaStringMap> mStringMap;
 
         // flags to monitor the updates of nodes/users/PCRs due to actionpackets
         bool nodeUpdated;
@@ -290,6 +291,9 @@ public:
     template<typename ... Args> int synchronousGetBackupName(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_GET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getBackupName(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousSetDeviceName(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->setDeviceName(args...); }); return mApi[apiIndex].lastError; }
     template<typename ... Args> int synchronousGetDeviceName(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_SET_ATTR_USER, [this, apiIndex, args...]() { megaApi[apiIndex]->getDeviceName(args...); }); return mApi[apiIndex].lastError; }
+
+    template<typename ... Args> int synchronousQueryGoogleAds(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_QUERY_GOOGLE_ADS, [this, apiIndex, args...]() { megaApi[apiIndex]->queryGoogleAds(args...); }); return mApi[apiIndex].lastError; }
+    template<typename ... Args> int synchronousFetchGoogleAds(unsigned apiIndex, Args... args) { synchronousRequest(apiIndex, MegaRequest::TYPE_FETCH_GOOGLE_ADS, [this, apiIndex, args...]() { megaApi[apiIndex]->fetchGoogleAds(args...); }); return mApi[apiIndex].lastError; }
 
 
     // convenience functions - make a request and wait for the result via listener, return the result code.  To add new functions to call, just copy the line

@@ -1,4 +1,4 @@
-include(vcpkg_common_functions)
+#include(vcpkg_common_functions)
 
 vcpkg_check_linkage(ONLY_STATIC_LIBRARY)
 
