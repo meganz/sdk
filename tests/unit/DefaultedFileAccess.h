@@ -35,7 +35,7 @@ public:
     {
         throw NotImplemented{__func__};
     }
-    void updatelocalname(mega::LocalPath&) override
+    void updatelocalname(const mega::LocalPath&, bool force) override
     {
         throw NotImplemented{__func__};
     }

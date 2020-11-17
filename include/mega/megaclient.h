@@ -608,7 +608,7 @@ public:
      * @param delayInitialScan delay the initial scan
      * @return API_OK if added to active syncs. (regular) error otherwise.
      */
-    error addsync(SyncConfig, const char*, string*, SyncError &syncError, bool delayInitialScan = false, void* = NULL);
+    error addsync(SyncConfig, const char*, LocalPath*, SyncError &syncError, bool delayInitialScan = false, void* = NULL);
 
 
     // removes an active sync (transition to pre-removal state).
@@ -831,7 +831,7 @@ public:
     void chatlinkjoin(handle publichandle, const char *unifiedkey);
 
     // set retention time for a chatroom in seconds, after which older messages in the chat are automatically deleted
-    void setchatretentiontime(handle chatid, int period);
+    void setchatretentiontime(handle chatid, unsigned period);
 #endif
 
     // get mega achievements

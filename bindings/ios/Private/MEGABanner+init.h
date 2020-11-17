@@ -1,5 +1,8 @@
 /**
- * (c) 2019 by Mega Limited, Wellsford, New Zealand
+ * @file MEGABanner+init.h
+ * @brief Private functions of MEGABanner
+ *
+ * (c) 2018-Present by Mega Limited, Auckland, New Zealand
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -15,23 +18,13 @@
  * You should have received a copy of the license along with this
  * program.
  */
+#import "MEGABanner.h"
+#import "megaapi.h"
 
-#include <array>
-#include <tuple>
+@interface MEGABanner (init)
 
-#include <gtest/gtest.h>
+- (instancetype)initWithMegaBanner:(mega::MegaBanner *)megaBanner cMemoryOwn:(BOOL)cMemoryOwn;
+- (mega::MegaBanner *)getCPtr;
 
-#include <mega/utils.h>
-
-TEST(utils, hashCombine_integer)
-{
-    size_t hash = 0;
-    mega::hashCombine(hash, 42);
-#ifdef _WIN32
-    // MSVC's std::hash gives different values than that of gcc/clang
-    ASSERT_EQ(sizeof(hash) == 4 ? 286246808ul : 10203658983813110072ull, hash);
-#else
-    ASSERT_EQ(2654435811ull, hash);
-#endif
-}
+@end
 
