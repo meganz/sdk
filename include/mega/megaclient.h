@@ -1586,9 +1586,9 @@ public:
     static const int CHATHANDLE = 8;
     static const int SESSIONHANDLE = 8;
     static const int PURCHASEHANDLE = 8;
+    static const int BACKUPHANDLE = 8;
     static const int CONTACTLINKHANDLE = 6;
     static const int CHATLINKHANDLE = 6;
-    static const int BACKUPHANDLE = 8;
 
     // max new nodes per request
     static const int MAX_NEWNODES = 2000;

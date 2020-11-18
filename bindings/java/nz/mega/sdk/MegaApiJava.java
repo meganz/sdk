@@ -214,6 +214,22 @@ public class MegaApiJava {
     public final static int SEARCH_TARGET_ROOTNODE = MegaApi.SEARCH_TARGET_ROOTNODE;
     public final static int SEARCH_TARGET_ALL = MegaApi.SEARCH_TARGET_ALL;
 
+    public final static int BACKUP_TYPE_CAMERA_UPLOAD = MegaApi.BACKUP_TYPE_CAMERA_UPLOADS;
+    public final static int BACKUP_TYPE_MEDIA_UPLOADS = MegaApi.BACKUP_TYPE_MEDIA_UPLOADS;
+
+    public final static int CU_SYNC_STATE_ACTIVE = 1;
+    public final static int CU_SYNC_STATE_FAILED = 2;
+    public final static int CU_SYNC_STATE_DISABLED = 4;
+    public final static int CU_SYNC_STATE_PAUSE_UP = 5;
+    public final static int CU_SYNC_STATE_PAUSE_FULL = 7;
+    public final static int CU_SYNC_STATE_UNKNOWN = 8;
+
+    public final static int CU_SYNC_STATUS_UPTODATE = 1;
+    public final static int CU_SYNC_STATUS_SYNCING = CU_SYNC_STATUS_UPTODATE + 1;
+    public final static int CU_SYNC_STATUS_PENDING = CU_SYNC_STATUS_SYNCING + 1;
+    public final static int CU_SYNC_STATUS_INACTIVE = CU_SYNC_STATUS_PENDING + 1;
+    public final static int CU_SYNC_STATUS_UNKNOWN = CU_SYNC_STATUS_INACTIVE + 1;
+
     MegaApi getMegaApi()
     {
         return megaApi;
@@ -10317,5 +10333,131 @@ public class MegaApiJava {
      */
     public void cancelCreateAccount(MegaRequestListenerInterface listener){
         megaApi.cancelCreateAccount(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Starts a backup of a local folder into a remote location
+     *
+     * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the target node of the backup
+     * - MegaRequest::getName - Returns the backup name of the remote location
+     * - MegaRequest::getAccess - Returns the backup state
+     * - MegaRequest::getFile - Returns the path of the local folder
+     * - MegaRequest::getText - Returns the extraData associated with the request
+     * - MegaRequest::getTotalBytes - Returns the backup type
+     * - MegaRequest::getNumDetails - Returns the backup substate
+     * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * @param backupType back up type requested for the service
+     * @param targetNode MEGA folder to hold the backups
+     * @param localFolder Local path of the folder
+     * @param backupName backup name for remote location
+     * @param state state
+     * @param subState subState
+     * @param extraData extraData
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setBackup(int backupType, long targetNode, String localFolder, String backupName,
+        int state, int subState, String extraData, MegaRequestListenerInterface listener) {
+        megaApi.setBackup(backupType, targetNode, localFolder, backupName, state, subState,
+            extraData, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Update an existing backup
+     *
+     *  Params that keep the same value are passed with invalid value to avoid to send to the server
+     *    Invalid values:
+     *    - type: BackupType::INVALID
+     *    - nodeHandle: UNDEF
+     *    - localFolder: nullptr
+     *    - deviceId: nullptr
+     *    - state: -1
+     *    - subState: -1
+     *    - extraData: nullptr
+     *
+     * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns the backupId
+     * - MegaRequest::getTotalBytes - Returns the backup type
+     * - MegaRequest::getNodeHandle - Returns the target node of the backup
+     * - MegaRequest::getName - Returns the backup name of the remote location
+     * - MegaRequest::getFile - Returns the path of the local folder
+     * - MegaRequest::getAccess - Returns the backup state
+     * - MegaRequest::getNumDetails - Returns the backup substate
+     * - MegaRequest::getText - Returns the extraData associated with the request
+     * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * @param backupId backup id identifying the backup to be updated
+     * @param backupType Local path of the folder
+     * @param targetNode MEGA folder to hold the backups
+     * @param localFolder Local path of the folder
+     * @param backupName backup name of remote location
+     * @param state backup state
+     * @param subState backup subState
+     * @param extraData extraData for the backup
+     * @param listener MegaRequestListener to track this request
+     *
+     */
+    public void updateBackup(long backupId, int backupType, long targetNode, String localFolder,
+        String backupName, int state, int subState, String extraData,
+        MegaRequestListenerInterface listener) {
+        megaApi.updateBackup(backupId, backupType, targetNode, localFolder, backupName, state,
+            subState, extraData, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Remove a backup
+     *
+     * The associated request type with this request is MegaRequest::TYPE_BACKUP_REMOVE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns the backupId
+     * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * @param backupId backup id identifying the backup to be removed
+     * @param listener MegaRequestListener to track this request
+     *
+     */
+    public void removeBackup(long backupId, MegaRequestListenerInterface listener) {
+        megaApi.removeBackup(backupId, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Send heartbeat associated with an existing backup
+     *
+     * The client should call this method regularly for every registered backup, in order to
+     * inform about the status of the backup.
+     *
+     * Progress and last node are not always meaningful (ie. when the Camera Uploads starts a new
+     * batch, there isn't a last node, or when the Camera Uploads up to date and inactive for
+     * long time, the progress doesn't make sense). In consequence, these two parameters are
+     * optional by passing:
+     * - lastNode = INVALID_HANDLE
+     * - progress = -1
+     *
+     * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns the backupId
+     * - MegaRequest::getAccess - Returns the backup state
+     * - MegaRequest::getNumDetails - Returns the backup substate
+     * - MegaRequest::getParamType - Returns the number of pending upload transfers
+     * - MegaRequest::getTransferTag - Returns the number of pending download transfers
+     * - MegaRequest::getNumber - Returns the last action timestamp
+     * - MegaRequest::getNodeHandle - Returns the last node handle to be synced
+     *
+     * @param backupId backup id identifying the backup
+     * @param status backup state
+     * @param progress backup progress
+     * @param ups Number of pending upload transfers
+     * @param downs Number of pending download transfers
+     * @param ts Last action timestamp
+     * @param lastNode Last node handle to be synced
+     * @param listener MegaRequestListener to track this request
+     */
+    public void sendBackupHeartbeat(long backupId, int status, int progress, int ups, int downs,
+            long ts, long lastNode, MegaRequestListenerInterface listener) {
+        megaApi.sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode,
+                createDelegateRequestListener(listener));
     }
 }

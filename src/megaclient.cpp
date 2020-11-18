@@ -12988,8 +12988,8 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, SyncError 
         fsaccess->expanselocalpath(otherLocallyEncodedPath, otherLocallyEncodedAbsolutePath);
 
         if (config.getEnabled() && !isAnError(config.getError()) &&
-                ( newLocallyEncodedAbsolutePath.isContainingPathOf(otherLocallyEncodedAbsolutePath, fsaccess->localseparator)
-                  || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath, fsaccess->localseparator)
+                ( newLocallyEncodedAbsolutePath.isContainingPathOf(otherLocallyEncodedAbsolutePath)
+                  || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath)
                 ) )
         {
 
@@ -13033,7 +13033,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, LocalPath* 
 
     string localPath = syncConfig.getLocalPath();
     auto rootpath = LocalPath::fromPath(localPath, *fsaccess);
-    rootpath.trimNonDriveTrailingSeparator(fsaccess->localseparator);
+    rootpath.trimNonDriveTrailingSeparator();
 
     bool isnetwork = false;
     if (!fsaccess->issyncsupported(rootpath, &isnetwork, &syncError))
@@ -13270,7 +13270,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
          && (l->parent || l->sync->debris != ait->second))
         {
             ScopedLengthRestore restoreLen(localpath);
-            localpath.appendWithSeparator(LocalPath::fromName(ait->second, *fsaccess, l->sync->mFilesystemType), true, fsaccess->localseparator);
+            localpath.appendWithSeparator(LocalPath::fromName(ait->second, *fsaccess, l->sync->mFilesystemType), true);
 
             if (app->sync_syncable(l->sync, ait->second.c_str(), localpath, *it))
             {
@@ -13295,7 +13295,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
         rit = nchildren.find(&ll->name);
 
         ScopedLengthRestore restoreLen(localpath);
-        localpath.appendWithSeparator(ll->localname, true, fsaccess->localseparator);
+        localpath.appendWithSeparator(ll->localname, true);
 
         // do we have a corresponding remote child?
         if (rit != nchildren.end())
@@ -13437,7 +13437,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
         localname = rit->second->attrs.map.find('n')->second;
 
         ScopedLengthRestore restoreLen(localpath);
-        localpath.appendWithSeparator(LocalPath::fromName(localname, *fsaccess, l->sync->mFilesystemType), true, fsaccess->localseparator);
+        localpath.appendWithSeparator(LocalPath::fromName(localname, *fsaccess, l->sync->mFilesystemType), true);
 
         LOG_debug << "Unsynced remote node in syncdown: " << localpath.toPath(*fsaccess) << " Nsize: " << rit->second->size
                   << " Nmtime: " << rit->second->mtime << " Nhandle: " << LOG_NODEHANDLE(rit->second->nodehandle);
