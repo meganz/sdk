@@ -2249,7 +2249,7 @@ SyncConfig::SyncConfig(int tag,
                        const SyncError error, mega::handle hearBeatID)
     : mTag{tag}
     , mEnabled{enabled}
-    , mExternal{false}
+    , mDrivePath{}
     , mLocalPath{std::move(localPath)}
     , mName{std::move(name)}
     , mRemoteNode{remoteNode}
@@ -2291,21 +2291,11 @@ bool SyncConfig::isEnabled(syncstate_t state, SyncError syncError)
 
 bool SyncConfig::isResumable() const
 {
-    if (mExternal && mSyncType == TYPE_BACKUP)
-    {
-        return false;
-    }
-
     return mEnabled && !isSyncErrorPermanent(mError);
 }
 
 bool SyncConfig::isResumableAtStartup() const
 {
-    if (mExternal && mSyncType == TYPE_BACKUP)
-    {
-        return false;
-    }
-
     return mEnabled && (!isAnError(mError)
                         || mError == LOGGED_OUT
                         || mError == UNKNOWN_TEMPORARY_ERROR
@@ -2421,14 +2411,24 @@ void SyncConfig::setBackupId(const handle &backupId)
     mBackupId = backupId;
 }
 
-void SyncConfig::isExternal(bool isExternal)
+bool SyncConfig::isBackup() const
 {
-    mExternal = isExternal;
+    return mSyncType == TYPE_BACKUP;
 }
 
 bool SyncConfig::isExternal() const
 {
-    return mExternal;
+    return !mDrivePath.empty();
+}
+
+void SyncConfig::drivePath(const string& drivePath)
+{
+    mDrivePath = drivePath;
+}
+
+const string& SyncConfig::drivePath() const
+{
+    return mDrivePath;
 }
 
 // This should be a const-method but can't be due to the broken Cacheable interface.

@@ -226,6 +226,323 @@ private:
     std::string mLocalPath;
     SyncBackupState mBackupState;
 };
+
+class MEGA_API XBackupConfig
+{
+public:
+    XBackupConfig();
+
+    MEGA_DEFAULT_COPY_MOVE(XBackupConfig);
+
+    bool valid() const;
+
+    bool operator==(const XBackupConfig& rhs) const;
+
+    bool operator!=(const XBackupConfig& rhs) const;
+
+    // Absolute path to containing drive.
+    LocalPath drivePath;
+
+    // Relative path to sync root.
+    LocalPath sourcePath;
+    
+    // ID for backup heartbeating.
+    handle heartbeatID;
+
+    // Handle of remote sync target.
+    handle targetHandle;
+
+    // The last error that occured on this sync.
+    SyncError lastError;
+
+    // Identity of sync.
+    int tag;
+
+    // Whether the sync has been enabled by the user.
+    bool enabled;
+}; // XBackupConfig
+
+// Translates an SyncConfig into a XBackupConfig.
+XBackupConfig translate(const MegaClient& client, const SyncConfig &config);
+
+// Translates an XBackupConfig into a SyncConfig.
+SyncConfig translate(const MegaClient& client, const XBackupConfig& config);
+
+// For convenience.
+using XBackupConfigMap = map<int, XBackupConfig>;
+
+class XBackupConfigDBObserver;
+class XBackupConfigIOContext;
+
+class MEGA_API XBackupConfigDB
+{
+public:
+    XBackupConfigDB(const LocalPath& drivePath,
+                    XBackupConfigDBObserver& observer);
+
+    ~XBackupConfigDB();
+
+    MEGA_DISABLE_COPY(XBackupConfigDB);
+
+    MEGA_DEFAULT_MOVE(XBackupConfigDB);
+
+    // Add a new (or update an existing) config.
+    const XBackupConfig* add(const XBackupConfig& config);
+
+    // Remove all configs.
+    void clear();
+
+    // Get current configs.
+    const XBackupConfigMap& configs() const;
+
+    // Path to the drive containing this database.
+    const LocalPath& drivePath() const;
+
+    // Get config by backup tag.
+    const XBackupConfig* get(const int tag) const;
+
+    // Get config by backup target handle.
+    const XBackupConfig* get(const handle targetHandle) const;
+
+    // Read this database from disk.
+    error read(XBackupConfigIOContext& ioContext);
+
+    // Remove config by backup tag.
+    error remove(const int tag);
+
+    // Remove config by backup target handle.
+    error remove(const handle targetHandle);
+
+    // Write this database to disk.
+    error write(XBackupConfigIOContext& ioContext);
+
+private:
+    // Adds a new (or updates an existing) config.
+    const XBackupConfig* add(const XBackupConfig& config,
+                             const bool flush);
+
+    // Removes all configs.
+    void clear(const bool flush);
+
+    // Reads this database from the specified slot on disk.
+    error read(XBackupConfigIOContext& ioContext,
+               const unsigned int slot);
+
+    // Remove config by backup tag.
+    error remove(const int tag, const bool flush);
+
+    // How many times we should be able to write the database before
+    // overwriting earlier versions.
+    static const unsigned int NUM_SLOTS;
+
+    // Path to the drive containing this database.
+    LocalPath mDrivePath;
+
+    // Who we tell about config changes.
+    XBackupConfigDBObserver& mObserver;
+
+    // Maps backup tag to config.
+    XBackupConfigMap mTagToConfig;
+
+    // Maps backup target handle to config.
+    map<handle, XBackupConfig*> mTargetToConfig;
+
+    // Tracks which 'slot' we're writing to.
+    unsigned int mSlot;
+}; // XBackupConfigDB
+
+// Convenience.
+using XBackupConfigDBPtr = unique_ptr<XBackupConfigDB>;
+
+class MEGA_API XBackupConfigIOContext
+{
+public:
+    XBackupConfigIOContext(SymmCipher& cipher,
+                           FileSystemAccess& fsAccess,
+                           const string& key,
+                           const string& name,
+                           PrnGen& rng);
+
+    virtual ~XBackupConfigIOContext();
+
+    MEGA_DISABLE_COPY_MOVE(XBackupConfigIOContext);
+
+    // Deserialize configs from JSON.
+    bool deserialize(XBackupConfigMap& configs,
+                     JSON& reader) const;
+
+    // Determine which slots are present.
+    error get(const LocalPath& drivePath,
+              vector<unsigned int>& slots);
+
+    // Read data from the specified slot.
+    error read(const LocalPath& drivePath,
+               string& data,
+               const unsigned int slot);
+
+    // Serialize configs to JSON.
+    void serialize(const XBackupConfigMap& configs,
+                   JSONWriter& writer) const;
+
+    // Write data to the specified slot.
+    error write(const LocalPath& drivePath,
+                const string& data,
+                const unsigned int slot);
+
+private:
+    // Decrypt data.
+    bool decrypt(const string& in, string& out);
+
+    // Deserialize a config from JSON.
+    bool deserialize(XBackupConfig& config, JSON& reader) const;
+
+    // Encrypt data.
+    string encrypt(const string& data);
+
+    // Serialize a config to JSON.
+    void serialize(const XBackupConfig& config, JSONWriter& writer) const;
+
+    // Name of the backup configuration directory.
+    static const string BACKUP_CONFIG_DIR;
+
+    // The cipher protecting the user's configuration databases.
+    SymmCipher mCipher;
+
+    // How we access the filesystem.
+    FileSystemAccess& mFsAccess;
+
+    // Name of this user's configuration databases.
+    LocalPath mName;
+
+    // Pseudo-random number generator.
+    PrnGen& mRNG;
+
+    // Hash used to authenticate configuration databases.
+    HMACSHA256 mSigner;
+}; // XBackupConfigIOContext
+
+class MEGA_API XBackupConfigDBObserver
+{
+public:
+    // Invoked when a backup config is being added.
+    virtual void onAdd(XBackupConfigDB& db,
+                       const XBackupConfig& config) = 0;
+
+    // Invoked when a backup config is being changed.
+    virtual void onChange(XBackupConfigDB& db,
+                          const XBackupConfig& from,
+                          const XBackupConfig& to) = 0;
+
+    // Invoked when a database needs to be written.
+    virtual void onDirty(XBackupConfigDB& db) = 0;
+
+    // Invoked when a backup config is being removed.
+    virtual void onRemove(XBackupConfigDB& db,
+                          const XBackupConfig& config) = 0;
+
+protected:
+    XBackupConfigDBObserver();
+
+    ~XBackupConfigDBObserver();
+}; // XBackupConfigDBObserver
+
+class MEGA_API XBackupConfigStore
+  : private XBackupConfigDBObserver
+  , private XBackupConfigIOContext
+{
+public:
+    XBackupConfigStore(SymmCipher& cipher,
+                       FileSystemAccess& fsAccess,
+                       const string& key,
+                       const string& name,
+                       PrnGen& rng);
+
+    ~XBackupConfigStore();
+
+    MEGA_DISABLE_COPY_MOVE(XBackupConfigStore);
+
+    // Add a new (or update an existing) config.
+    const XBackupConfig* add(const XBackupConfig& config);
+
+    // Close a database.
+    error close(const LocalPath& drivePath);
+
+    // Close all databases.
+    error close();
+
+    // Get configs from a database.
+    const XBackupConfigMap* configs(const LocalPath& drivePath) const;
+
+    // Get all configs.
+    XBackupConfigMap configs() const;
+
+    // Create a new (or open an existing) database.
+    const XBackupConfigMap* create(const LocalPath& drivePath);
+
+    // Whether any databases need flushing.
+    bool dirty() const;
+    
+    // Flush a database to disk.
+    error flush(const LocalPath& drivePath);
+
+    // Flush all databases to disk.
+    error flush(vector<LocalPath>& drivePaths);
+    error flush();
+
+    // Get config by backup tag.
+    const XBackupConfig* get(const int tag) const;
+
+    // Get config by backup target handle.
+    const XBackupConfig* get(const handle targetHandle) const;
+
+    // Open (and add) an existing database.
+    const XBackupConfigMap* open(const LocalPath& drivePath);
+
+    // Check whether a database is open.
+    bool opened(const LocalPath& drivePath) const;
+
+    // Remove config by backup tag.
+    error remove(const int tag);
+
+    // Remove config by backup target handle.
+    error remove(const handle targetHandle);
+
+private:
+    // Close a database.
+    error close(XBackupConfigDB& db);
+
+    // Flush a database to disk.
+    error flush(XBackupConfigDB& db);
+
+    // Invoked when a backup config is being added.
+    void onAdd(XBackupConfigDB& db,
+               const XBackupConfig& config) override;
+
+    // Invoked when a backup config is being changed.
+    void onChange(XBackupConfigDB& db,
+                  const XBackupConfig& from,
+                  const XBackupConfig& to) override;
+
+    // Invoked when a database needs to be written.
+    void onDirty(XBackupConfigDB& db) override;
+
+    // Invoked when a backup config is being removed.
+    void onRemove(XBackupConfigDB& db,
+                  const XBackupConfig& config) override;
+
+    // Tracks which databases need to be written.
+    set<XBackupConfigDB*> mDirtyDB;
+
+    // Maps drive path to database.
+    map<LocalPath, XBackupConfigDBPtr> mDriveToDB;
+
+    // Maps backup tag to database.
+    map<int, XBackupConfigDB*> mTagToDB;
+
+    // Maps backup target handle to database.
+    map<handle, XBackupConfigDB*> mTargetToDB;
+}; // XBackupConfigStore
+
 } // namespace
 
 #endif

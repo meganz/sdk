@@ -666,9 +666,8 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
     mLocalPath = config.getLocalPath();
     LocalPath crootpath = LocalPath::fromPath(mLocalPath, *client->fsaccess);
 
-    mBackupState = config.getType() == SyncConfig::TYPE_BACKUP  
-                   ? SYNC_BACKUP_MIRROR
-                   : SYNC_BACKUP_NONE;
+    mBackupState = config.isBackup() ? SYNC_BACKUP_MIRROR
+                                     : SYNC_BACKUP_NONE;
 
     if (cdebris)
     {
@@ -1982,5 +1981,1221 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
 
     return false;
 }
+
+XBackupConfig::XBackupConfig()
+  : drivePath()
+  , sourcePath()
+  , heartbeatID(UNDEF)
+  , targetHandle(UNDEF)
+  , lastError(NO_SYNC_ERROR)
+  , tag(0)
+  , enabled(false)
+{
+}
+
+bool XBackupConfig::valid() const
+{
+    return !(drivePath.empty()
+             || sourcePath.empty()
+             || targetHandle == UNDEF);
+}
+
+bool XBackupConfig::operator==(const XBackupConfig& rhs) const
+{
+    return drivePath == rhs.drivePath
+           && sourcePath == rhs.sourcePath
+           && heartbeatID == rhs.heartbeatID
+           && targetHandle == rhs.targetHandle
+           && lastError == rhs.lastError
+           && tag == rhs.tag
+           && enabled == rhs.enabled;
+}
+
+bool XBackupConfig::operator!=(const XBackupConfig& rhs) const
+{
+    return !(*this == rhs);
+}
+
+XBackupConfig translate(const MegaClient& client, const SyncConfig &config)
+{
+    XBackupConfig result;
+
+    assert(config.drivePath().size());
+    assert(config.isBackup());
+    assert(config.isExternal());
+
+    result.enabled = config.getEnabled();
+    result.heartbeatID = config.getBackupId();
+    result.lastError = config.getError();
+    result.tag = config.getTag();
+    result.targetHandle = config.getRemoteNode();
+
+    const auto& drivePath = config.drivePath();
+    const auto sourcePath = config.getLocalPath().substr(drivePath.size());
+
+    const auto& fsAccess = *client.fsaccess;
+
+    result.drivePath = LocalPath::fromPath(drivePath, fsAccess);
+    result.sourcePath = LocalPath::fromPath(sourcePath, fsAccess);
+
+    return result;
+}
+
+SyncConfig translate(const MegaClient& client, const XBackupConfig& config)
+{
+    string drivePath = config.drivePath.toPath(*client.fsaccess);
+    string sourcePath;
+    string targetPath;
+
+    // Source Path
+    {
+        LocalPath temp = config.drivePath;
+
+        temp.appendWithSeparator(config.sourcePath, false);
+
+        sourcePath = temp.toPath(*client.fsaccess);
+    }
+
+    // Target Path
+    if (config.targetHandle != UNDEF)
+    {
+        const auto* targetNode =
+          client.nodebyhandle(config.targetHandle);
+
+        assert(targetNode);
+
+        targetPath = targetNode->displaypath();
+    }
+
+    // Build config.
+    auto result =
+      SyncConfig(config.tag,
+                 sourcePath,
+                 sourcePath,
+                 config.targetHandle,
+                 std::move(targetPath),
+                 0,
+                 string_vector(),
+                 config.enabled,
+                 SyncConfig::TYPE_BACKUP,
+                 true,
+                 false,
+                 config.lastError,
+                 config.heartbeatID);
+
+    result.drivePath(std::move(drivePath));
+
+    return result;
+}
+
+const unsigned int XBackupConfigDB::NUM_SLOTS = 2;
+
+XBackupConfigDB::XBackupConfigDB(const LocalPath& drivePath,
+                                 XBackupConfigDBObserver& observer)
+  : mDrivePath(drivePath)
+  , mObserver(observer)
+  , mTagToConfig()
+  , mTargetToConfig()
+  , mSlot(0)
+{
+}
+
+XBackupConfigDB::~XBackupConfigDB()
+{
+    // Drop the configs.
+    clear(false);
+}
+
+const XBackupConfig* XBackupConfigDB::add(const XBackupConfig& config)
+{
+    // Add (or update) the config and flush.
+    return add(config, true);
+}
+
+void XBackupConfigDB::clear()
+{
+    // Drop the configs and flush.
+    clear(true);
+}
+
+const XBackupConfigMap& XBackupConfigDB::configs() const
+{
+    return mTagToConfig;
+}
+
+const LocalPath& XBackupConfigDB::drivePath() const
+{
+    return mDrivePath;
+}
+
+const XBackupConfig* XBackupConfigDB::get(const int tag) const
+{
+    auto it = mTagToConfig.find(tag);
+
+    if (it != mTagToConfig.end())
+    {
+        return &it->second;
+    }
+
+    return nullptr;
+}
+
+const XBackupConfig* XBackupConfigDB::get(const handle targetHandle) const
+{
+    auto it = mTargetToConfig.find(targetHandle);
+
+    if (it != mTargetToConfig.end())
+    {
+        return it->second;
+    }
+
+    return nullptr;
+}
+
+error XBackupConfigDB::read(XBackupConfigIOContext& ioContext)
+{
+    vector<unsigned int> slots;
+
+    // Determine which slots we should load first, if any.
+    if (ioContext.get(mDrivePath, slots) != API_OK)
+    {
+        // Couldn't get a list of slots.
+        return API_ENOENT;
+    }
+
+    // Try and load the database from one of the slots.
+    for (const auto& slot : slots)
+    {
+        // Can we read the database from this slot?
+        if (read(ioContext, slot) == API_OK)
+        {
+            // Update the slot number.
+            mSlot = (slot + 1) % NUM_SLOTS;
+
+            // Yep, loaded.
+            return API_OK;
+        }
+    }
+
+    // Couldn't load the database.
+    return API_EREAD;
+}
+
+error XBackupConfigDB::remove(const int tag)
+{
+    // Remove the config, if present and flush.
+    return remove(tag, true);
+}
+
+error XBackupConfigDB::remove(const handle targetHandle)
+{
+    // Any config present with the given target handle?
+    if (const auto* config = get(targetHandle))
+    {
+        // Yep, remove it.
+        return remove(config->tag, true);
+    }
+
+    // Nope.
+    return API_ENOENT;
+}
+
+error XBackupConfigDB::write(XBackupConfigIOContext& ioContext)
+{
+    JSONWriter writer;
+
+    // Serialize the database.
+    ioContext.serialize(mTagToConfig, writer);
+
+    // Try and write the database out to disk.
+    if (ioContext.write(mDrivePath, writer.getstring(), mSlot) != API_OK)
+    {
+        // Couldn't write the database out to disk.
+        return API_EWRITE;
+    }
+
+    // Rotate the slot.
+    mSlot = (mSlot + 1) % NUM_SLOTS;
+
+    return API_OK;
+}
+
+const XBackupConfig* XBackupConfigDB::add(const XBackupConfig& config,
+                                          const bool flush)
+{
+    // Sanity check.
+    assert(config.drivePath == mDrivePath);
+
+    auto it = mTagToConfig.find(config.tag);
+
+    // Do we already have a config with this tag?
+    if (it != mTagToConfig.end())
+    {
+        // Has the config changed?
+        if (config == it->second)
+        {
+            // Hasn't changed.
+            return &it->second;
+        }
+
+        // Tell the observer a config's changed.
+        mObserver.onChange(*this, it->second, config);
+
+        // Tell the observer we need to be written.
+        if (flush)
+        {
+            // But only if this change should be flushed.
+            mObserver.onDirty(*this);
+        }
+
+        // Remove the existing config from the target index.
+        mTargetToConfig.erase(it->second.targetHandle);
+
+        // Update the config.
+        it->second = config;
+
+        // Sanity check.
+        assert(mTargetToConfig.count(config.targetHandle) == 0);
+
+        // Index the updated config by target, if possible.
+        if (config.targetHandle != UNDEF)
+        {
+            mTargetToConfig.emplace(config.targetHandle, &it->second);
+        }
+
+        // We're done.
+        return &it->second;
+    }
+
+    // Add the config to the database.
+    auto result = mTagToConfig.emplace(config.tag, config);
+
+    // Sanity check.
+    assert(mTargetToConfig.count(config.targetHandle) == 0);
+
+    // Index the new config by target, if possible.
+    if (config.targetHandle != UNDEF)
+    {
+        mTargetToConfig.emplace(config.targetHandle, &result.first->second);
+    }
+
+    // Tell the observer we've added a config.
+    mObserver.onAdd(*this, config);
+
+    // Tell the observer we need to be written.
+    if (flush)
+    {
+        // But only if this change should be flushed.
+        mObserver.onDirty(*this);
+    }
+    
+    // We're done.
+    return &result.first->second;
+}
+
+void XBackupConfigDB::clear(const bool flush)
+{
+    // Are there any configs to remove?
+    if (mTagToConfig.empty())
+    {
+        // Nope.
+        return;
+    }
+
+    // Tell the observer we've removed the configs.
+    for (auto& it : mTagToConfig)
+    {
+        mObserver.onRemove(*this, it.second);
+    }
+
+    // Tell the observer we need to be written.
+    if (flush)
+    {
+        // But only if these changes should be flushed.
+        mObserver.onDirty(*this);
+    }
+
+    // Clear the backup target handle index.
+    mTargetToConfig.clear();
+
+    // Clear the config database.
+    mTagToConfig.clear();
+}
+
+error XBackupConfigDB::read(XBackupConfigIOContext& ioContext,
+                            const unsigned int slot)
+{
+    // Try and read the database from the specified slot.
+    string data;
+
+    if (ioContext.read(mDrivePath, data, slot) != API_OK)
+    {
+        // Couldn't read the database.
+        return API_EREAD;
+    }
+
+    // Try and deserialize the configs contained in the database.
+    XBackupConfigMap configs;
+    JSON reader(data);
+
+    if (!ioContext.deserialize(configs, reader))
+    {
+        // Couldn't deserialize the configs.
+        return API_EREAD;
+    }
+
+    // Remove configs that aren't present on disk.
+    for (const auto& it : mTagToConfig)
+    {
+        if (!configs.count(it.first))
+        {
+            remove(it.first, false);
+        }
+    }
+
+    // Add (or update) configs.
+    for (auto& it : configs)
+    {
+        // Correct config's drive path.
+        it.second.drivePath = mDrivePath;
+
+        // Add / update the config.
+        add(it.second, false);
+    }
+
+    return API_OK;
+}
+
+error XBackupConfigDB::remove(const int tag, const bool flush)
+{
+    auto it = mTagToConfig.find(tag);
+
+    // Any config present with the given tag?
+    if (it == mTagToConfig.end())
+    {
+        // Nope.
+        return API_ENOENT;
+    }
+
+    // Tell the observer we've removed a config.
+    mObserver.onRemove(*this, it->second);
+
+    // Tell the observer we need to be written.
+    if (flush)
+    {
+        // But only if this change should be flushed.
+        mObserver.onDirty(*this);
+    }
+
+    // Remove the config from the target handle index.
+    mTargetToConfig.erase(it->second.targetHandle);
+
+    // Remove the config from the database.
+    mTagToConfig.erase(it);
+
+    // We're done.
+    return API_OK;
+}
+
+XBackupConfigIOContext::XBackupConfigIOContext(SymmCipher& cipher,
+                                               FileSystemAccess& fsAccess,
+                                               const string& key,
+                                               const string& name,
+                                               PrnGen& rng)
+  : mCipher()
+  , mFsAccess(fsAccess)
+  , mName(LocalPath::fromPath(name, mFsAccess))
+  , mRNG(rng)
+  , mSigner()
+{
+    // Used to alter initial state for key derivation.
+    static const byte auth[] = "authentication";
+    static const byte codec[] = "codec";
+
+    // These attributes *must* be sane.
+    assert(!key.empty());
+    assert(!name.empty());
+
+    // Deserialize the key.
+    string k = Base64::atob(key);
+    assert(k.size() == SymmCipher::KEYLENGTH);
+
+    // Decrypt the key.
+    cipher.ecb_decrypt(reinterpret_cast<byte*>(&k[0]), k.size());
+
+    // Generate authentication and encryption keys.
+    HKDF_HMAC_SHA512 hkdf;
+    byte ka[SymmCipher::KEYLENGTH];
+    byte ke[SymmCipher::KEYLENGTH];
+
+    // Derive our authentication key.
+    bool result =
+      hkdf.deriveKey(ka,
+                     sizeof(ka),
+                     reinterpret_cast<const byte*>(&k[0]),
+                     k.size(),
+                     nullptr,
+                     0,
+                     auth,
+                     sizeof(auth));
+    assert(result);
+
+    // Derive our encryption key.
+    result =
+      hkdf.deriveKey(ke,
+                     sizeof(ke),
+                     reinterpret_cast<const byte*>(&k[0]),
+                     k.size(),
+                     nullptr,
+                     0,
+                     codec,
+                     sizeof(codec));
+    assert(result);
+
+    // Load the authenticaton key into our internal signer.
+    mSigner.setkey(ka, sizeof(ka));
+
+    // Load the encryption key into our internal cipher.
+    mCipher.setkey(ke);
+}
+
+XBackupConfigIOContext::~XBackupConfigIOContext()
+{
+}
+
+bool XBackupConfigIOContext::deserialize(XBackupConfigMap& configs,
+                                         JSON& reader) const
+{
+    if (!reader.enterarray())
+    {
+        return false;
+    }
+
+    // Deserialize the configs.
+    while (reader.enterobject())
+    {
+        XBackupConfig config;
+
+        if (!deserialize(config, reader))
+        {
+            return false;
+        }
+
+        // So move is well-defined.
+        const auto tag = config.tag;
+
+        configs.emplace(tag, std::move(config));
+    }
+
+    return reader.leavearray();
+}
+
+error XBackupConfigIOContext::get(const LocalPath& drivePath,
+                                  vector<unsigned int>& slots)
+{
+    using std::isdigit;
+    using std::sort;
+
+    using SlotTimePair = pair<unsigned int, m_time_t>;
+
+    LocalPath globPath = drivePath;
+
+    // Glob for configuration directory.
+    globPath.appendWithSeparator(
+      LocalPath::fromPath(BACKUP_CONFIG_DIR, mFsAccess), false);
+
+    globPath.appendWithSeparator(mName, false);
+    globPath.append(LocalPath::fromPath(".?", mFsAccess));
+
+    // Open directory for iteration.
+    unique_ptr<DirAccess> dirAccess(mFsAccess.newdiraccess());
+
+    if (!dirAccess->dopen(&globPath, nullptr, true))
+    {
+        // Couldn't open directory for iteration.
+        return API_ENOENT;
+    }
+
+    auto fileAccess = mFsAccess.newfileaccess(false);
+    LocalPath filePath;
+    vector<SlotTimePair> slotTimes;
+    nodetype_t type;
+
+    // Iterate directory.
+    while (dirAccess->dnext(globPath, filePath, false, &type))
+    {
+        // Skip directories.
+        if (type != FILENODE)
+        {
+            continue;
+        }
+
+        // Determine slot suffix.
+        const char suffix = filePath.toPath(mFsAccess).back();
+
+        // Skip invalid suffixes.
+        if (!isdigit(suffix))
+        {
+            continue;
+        }
+
+        // Determine file's modification time.
+        if (!fileAccess->fopen(filePath))
+        {
+            // Couldn't stat file.
+            continue;
+        }
+
+        // Record this slot-time pair.
+        slotTimes.emplace_back(suffix - 0x30, fileAccess->mtime);
+    }
+
+    // Sort the list of slot-time pairs.
+    sort(slotTimes.begin(),
+         slotTimes.end(),
+         [](const auto& lhs, const auto& rhs)
+         {
+             // Order by descending modification time.
+             if (lhs.second != rhs.second)
+             {
+                 return lhs.second > rhs.second;
+             }
+
+             // Otherwise by descending slot.
+             return lhs.first > rhs.first;
+         });
+
+    // Transmit sorted list of slots to the caller.
+    for (const auto& slotTime : slotTimes)
+    {
+        slots.emplace_back(slotTime.first);
+    }
+
+    return API_OK;
+}
+
+error XBackupConfigIOContext::read(const LocalPath& drivePath,
+                                   string& data,
+                                   const unsigned int slot)
+{
+    using std::to_string;
+
+    LocalPath path = drivePath;
+
+    // Generate path to the configuration file.
+    path.appendWithSeparator(
+      LocalPath::fromPath(BACKUP_CONFIG_DIR, mFsAccess), false);
+
+    path.appendWithSeparator(mName, false);
+    path.append(LocalPath::fromPath("." + to_string(slot), mFsAccess));
+
+    // Try and open the file for reading.
+    auto fileAccess = mFsAccess.newfileaccess(false);
+
+    if (!fileAccess->fopen(path, true, false))
+    {
+        // Couldn't open the file for reading.
+        return API_EREAD;
+    }
+
+    // Try and read the data from the file.
+    string d;
+
+    if (!fileAccess->fread(&d, fileAccess->size, 0, 0x0))
+    {
+        // Couldn't read the file.
+        return API_EREAD;
+    }
+
+    // Try and decrypt the data.
+    if (!decrypt(d, data))
+    {
+        // Couldn't decrypt the data.
+        return API_EREAD;
+    }
+
+    return API_OK;
+}
+
+void XBackupConfigIOContext::serialize(const XBackupConfigMap& configs,
+                                       JSONWriter& writer) const
+{
+    writer.beginarray();
+
+    for (const auto& it : configs)
+    {
+        serialize(it.second, writer);
+    }
+
+    writer.endarray();
+}
+
+error XBackupConfigIOContext::write(const LocalPath& drivePath,
+                                    const string& data,
+                                    const unsigned int slot)
+{
+    using std::to_string;
+
+    LocalPath path = drivePath;
+
+    path.appendWithSeparator(
+      LocalPath::fromPath(BACKUP_CONFIG_DIR, mFsAccess), false);
+
+    // Try and create the backup configuration directory.
+    if (!(mFsAccess.mkdirlocal(path) || mFsAccess.target_exists))
+    {
+        // Couldn't create the directory and it doesn't exist.
+        return API_EFAILED;
+    }
+
+    // Generate the rest of the path.
+    path.appendWithSeparator(mName, false);
+    path.append(LocalPath::fromPath("." + to_string(slot), mFsAccess));
+
+    // Open the file for writing.
+    auto fileAccess = mFsAccess.newfileaccess(false);
+
+    if (!fileAccess->fopen(path, false, true))
+    {
+        // Couldn't open the file for writing.
+        return API_EWRITE;
+    }
+
+    // Truncate the file only if necessary.
+    if (fileAccess->size > 0 && !fileAccess->ftruncate())
+    {
+        // Couldn't truncate the file.
+        return API_EWRITE;
+    }
+
+    // Encrypt the configuration data.
+    const string d = encrypt(data);
+
+    // Write the encrypted configuration data.
+    auto* bytes = reinterpret_cast<const byte*>(&d[0]);
+
+    if (!fileAccess->fwrite(bytes, d.size(), 0x0))
+    {
+        // Couldn't write out the data.
+        return API_EWRITE;
+    }
+
+    return API_OK;
+}
+
+bool XBackupConfigIOContext::decrypt(const string& in, string& out)
+{
+    // Handy constants.
+    const size_t IV_LENGTH       = SymmCipher::KEYLENGTH;
+    const size_t MAC_LENGTH      = 32;
+    const size_t METADATA_LENGTH = IV_LENGTH + MAC_LENGTH;
+
+    // Is the file too short to be valid?
+    if (in.size() <= METADATA_LENGTH)
+    {
+        return false;
+    }
+
+    // For convenience.
+    const byte* data = reinterpret_cast<const byte*>(&in[0]);
+    const byte* iv   = &data[in.size() - METADATA_LENGTH];
+    const byte* mac  = &data[in.size() - MAC_LENGTH];
+
+    byte cmac[MAC_LENGTH];
+
+    // Compute HMAC on file.
+    mSigner.add(data, in.size() - MAC_LENGTH);
+    mSigner.get(cmac);
+
+    // Is the file corrupt?
+    if (memcmp(cmac, mac, MAC_LENGTH))
+    {
+        return false;
+    }
+
+    // Try and decrypt the file.
+    return mCipher.cbc_decrypt_pkcs_padding(data,
+                                            in.size() - METADATA_LENGTH,
+                                            iv,
+                                            &out);
+}
+
+bool XBackupConfigIOContext::deserialize(XBackupConfig& config, JSON& reader) const
+{
+    const auto TYPE_ENABLED       = MAKENAMEID2('e', 'n');
+    const auto TYPE_HEARTBEAT_ID  = MAKENAMEID2('h', 'b');
+    const auto TYPE_LAST_ERROR    = MAKENAMEID2('l', 'e');
+    const auto TYPE_SOURCE_PATH   = MAKENAMEID2('s', 'p');
+    const auto TYPE_TAG           = MAKENAMEID1('t');
+    const auto TYPE_TARGET_HANDLE = MAKENAMEID2('t', 'h');
+
+    for ( ; ; )
+    {
+        switch (reader.getnameid())
+        {
+        case EOO:
+            return true;
+
+        case TYPE_ENABLED:
+            config.enabled = reader.getbool();
+            break;
+ 
+        case TYPE_HEARTBEAT_ID:
+            config.heartbeatID =
+              reader.gethandle(sizeof(handle));
+            break;
+
+        case TYPE_LAST_ERROR:
+            config.lastError =
+              static_cast<SyncError>(reader.getint32());
+            break;
+
+        case TYPE_SOURCE_PATH:
+        {
+            string sourcePath;
+
+            reader.storebinary(&sourcePath);
+            
+            config.sourcePath =
+              LocalPath::fromPath(sourcePath, mFsAccess);
+
+            break;
+        }
+
+        case TYPE_TAG:
+            config.tag = reader.getint32();
+            break;
+
+        case TYPE_TARGET_HANDLE:
+            config.targetHandle =
+              reader.gethandle(sizeof(handle));
+            break;
+
+        default:
+            if (!reader.storeobject())
+            {
+                return false;
+            }
+            break;
+        }
+    }
+}
+
+string XBackupConfigIOContext::encrypt(const string& data)
+{
+    byte iv[SymmCipher::KEYLENGTH];
+
+    // Generate initialization vector.
+    mRNG.genblock(iv, sizeof(iv));
+
+    string d;
+
+    // Encrypt file using IV.
+    mCipher.cbc_encrypt_pkcs_padding(&data, iv, &d);
+
+    // Add IV to file.
+    d.insert(d.end(), std::begin(iv), std::end(iv));
+
+    byte mac[32];
+
+    // Compute HMAC on file (including IV).
+    mSigner.add(reinterpret_cast<const byte*>(&d[0]), d.size());
+    mSigner.get(mac);
+
+    // Add HMAC to file.
+    d.insert(d.end(), std::begin(mac), std::end(mac));
+
+    // We're done.
+    return d;
+}
+
+void XBackupConfigIOContext::serialize(const XBackupConfig& config,
+                                       JSONWriter& writer) const
+{
+    // Encode path to avoid escaping issues.
+    const string sourcePath =
+      Base64::btoa(config.sourcePath.toPath(mFsAccess));
+
+    writer.beginobject();
+
+    writer.arg("sp", sourcePath);
+    writer.arg("hb", config.heartbeatID, sizeof(handle));
+    writer.arg("th", config.targetHandle, sizeof(handle));
+    writer.arg("le", config.lastError);
+    writer.arg("t", config.tag);
+    writer.arg("en", config.enabled);
+
+    writer.endobject();
+}
+
+const string XBackupConfigIOContext::BACKUP_CONFIG_DIR = ".megabackup";
+
+XBackupConfigDBObserver::XBackupConfigDBObserver()
+{
+}
+
+XBackupConfigDBObserver::~XBackupConfigDBObserver()
+{
+}
+
+XBackupConfigStore::XBackupConfigStore(SymmCipher& cipher,
+                                       FileSystemAccess& fsAccess,
+                                       const string& key,
+                                       const string& name,
+                                       PrnGen& rng)
+  : XBackupConfigDBObserver()
+  , XBackupConfigIOContext(cipher, fsAccess, key, name, rng)
+  , mDirtyDB()
+  , mDriveToDB()
+  , mTagToDB()
+  , mTargetToDB()
+{
+}
+
+XBackupConfigStore::~XBackupConfigStore()
+{
+    // Close all open databases.
+    close();
+}
+
+const XBackupConfig* XBackupConfigStore::add(const XBackupConfig& config)
+{
+    auto i = mTagToDB.find(config.tag);
+
+    // Is the config already in a database?
+    if (i != mTagToDB.end())
+    {
+        // Is the config moving between databases?
+        if (i->second->drivePath() == config.drivePath)
+        {
+            // Nope, just update the config.
+            return i->second->add(config);
+        }
+
+        // Remove the config from the (old) database.
+        i->second->remove(config.tag);
+    }
+
+    auto j = mDriveToDB.find(config.drivePath);
+
+    // Does the target database exist?
+    if (j == mDriveToDB.end())
+    {
+        // Nope, can't add the config.
+        return nullptr;
+    }
+
+    // Add (update) the config.
+    return j->second->add(config);
+}
+
+error XBackupConfigStore::close(const LocalPath& drivePath)
+{
+    auto i = mDriveToDB.find(drivePath);
+
+    // Does the database exist?
+    if (i != mDriveToDB.end())
+    {
+        // Yep, close it.
+        return close(*i->second);
+    }
+
+    // Doesn't exist.
+    return API_ENOENT;
+}
+
+error XBackupConfigStore::close()
+{
+    error result = API_OK;
+
+    auto i = mDriveToDB.begin();
+    auto j = mDriveToDB.end();
+
+    // Close all the databases.
+    while (i != j)
+    {
+        auto& db = *i++->second;
+
+        if (close(db) != API_OK)
+        {
+            result = API_EWRITE;
+        }
+    }
+
+    return result;
+}
+
+const XBackupConfigMap* XBackupConfigStore::configs(const LocalPath& drivePath) const
+{
+    auto i = mDriveToDB.find(drivePath);
+
+    // Database exist?
+    if (i != mDriveToDB.end())
+    {
+        // Yep, return a reference to its configs.
+        return &i->second->configs();
+    }
+
+    // Nothing to return.
+    return nullptr;
+}
+
+XBackupConfigMap XBackupConfigStore::configs() const
+{
+    XBackupConfigMap result;
+
+    // Collect configs from all databases.
+    for (auto& i : mDriveToDB)
+    {
+        auto& configs = i.second->configs();
+
+        result.insert(configs.begin(), configs.end());
+    }
+
+    return result;
+}
+
+const XBackupConfigMap* XBackupConfigStore::create(const LocalPath& drivePath)
+{
+    // Has this database already been opened?
+    if (opened(drivePath))
+    {
+        // Yes, so we have nothing to do.
+        return nullptr;
+    }
+
+    // Create database object.
+    XBackupConfigDBPtr db(new XBackupConfigDB(drivePath, *this));
+
+    // Load existing database, if any.
+    if (db->read(*this) == API_EREAD)
+    {
+        // Couldn't load the database.
+        return nullptr;
+    }
+
+    // Add database to the store.
+    auto it = mDriveToDB.emplace(drivePath, std::move(db));
+
+    // Return reference to (possibly empty) configs.
+    return &it.first->second->configs();
+}
+
+bool XBackupConfigStore::dirty() const
+{
+    return !mDirtyDB.empty();
+}
+
+error XBackupConfigStore::flush(const LocalPath& drivePath)
+{
+    auto i = mDriveToDB.find(drivePath);
+
+    // Does the database exist?
+    if (i != mDriveToDB.end())
+    {
+        // Yep, flush it.
+        return flush(*i->second);
+    }
+
+    // Can't flush a database that doesn't exist.
+    return API_ENOENT;
+}
+
+error XBackupConfigStore::flush(vector<LocalPath>& drivePaths)
+{
+    error result = API_OK;
+
+    // Try and flush all dirty databases.
+    auto i = mDirtyDB.begin();
+    auto j = mDirtyDB.end();
+
+    while (i != j)
+    {
+        auto* db = *i++;
+
+        if (flush(*db) != API_OK)
+        {
+            // Record which databases couldn't be flushed.
+            drivePaths.emplace_back(db->drivePath());
+
+            result = API_EWRITE;
+        }
+    }
+
+    return result;
+}
+
+error XBackupConfigStore::flush()
+{
+    error result = API_OK;
+
+    // Try and flush all dirty databases.
+    for (auto* db : mDirtyDB)
+    {
+        if (flush(*db) != API_OK)
+        {
+            result = API_EWRITE;
+        }
+    }
+
+    return result;
+}
+
+const XBackupConfig* XBackupConfigStore::get(const int tag) const
+{
+    auto it = mTagToDB.find(tag);
+
+    if (it != mTagToDB.end())
+    {
+        return it->second->get(tag);
+    }
+    
+    return nullptr;
+}
+
+const XBackupConfig* XBackupConfigStore::get(const handle targetHandle) const
+{
+    auto it = mTargetToDB.find(targetHandle);
+
+    if (it != mTargetToDB.end())
+    {
+        return it->second->get(targetHandle);
+    }
+
+    return nullptr;
+}
+
+const XBackupConfigMap* XBackupConfigStore::open(const LocalPath& drivePath)
+{
+    // Has this database already been opened?
+    if (opened(drivePath))
+    {
+        // Yep, do nothing.
+        return nullptr;
+    }
+
+    // Create database object.
+    XBackupConfigDBPtr db(new XBackupConfigDB(drivePath, *this));
+
+    // Try and load the database from disk.
+    if (db->read(*this) != API_OK)
+    {
+        // Couldn't load the database.
+        return nullptr;
+    }
+
+    // Add the database to the store.
+    auto it = mDriveToDB.emplace(drivePath, std::move(db));
+
+    // Return reference to (possibly empty) configs.
+    return &it.first->second->configs();
+}
+
+bool XBackupConfigStore::opened(const LocalPath& drivePath) const
+{
+    return mDriveToDB.count(drivePath) > 0;
+}
+
+error XBackupConfigStore::remove(const int tag)
+{
+    auto it = mTagToDB.find(tag);
+
+    if (it != mTagToDB.end())
+    {
+        return it->second->remove(tag);
+    }
+
+    return API_ENOENT;
+}
+
+error XBackupConfigStore::remove(const handle targetHandle)
+{
+    auto it = mTargetToDB.find(targetHandle);
+
+    if (it != mTargetToDB.end())
+    {
+        return it->second->remove(targetHandle);
+    }
+
+    return API_ENOENT;
+}
+
+error XBackupConfigStore::close(XBackupConfigDB& db)
+{
+    // Try and flush the database.
+    const auto result = flush(db);
+
+    // Remove the database from memory.
+    mDriveToDB.erase(db.drivePath());
+
+    // Return flush result.
+    return result;
+}
+
+error XBackupConfigStore::flush(XBackupConfigDB& db)
+{
+    auto i = mDirtyDB.find(&db);
+
+    // Does this database need flushing?
+    if (i == mDirtyDB.end())
+    {
+        // Doesn't need flushing.
+        return API_OK;
+    }
+
+    // Try and write the database to disk.
+    auto result = (*i)->write(*this);
+
+    // Database no longer needs flushing.
+    mDirtyDB.erase(i);
+
+    return result;
+}
+
+void XBackupConfigStore::onAdd(XBackupConfigDB& db, const XBackupConfig& config)
+{
+    mTagToDB.emplace(config.tag, &db);
+
+    if (config.targetHandle == UNDEF)
+    {
+        return;
+    }
+
+    // Sanity check.
+    assert(mTargetToDB.count(config.targetHandle) == 0);
+
+    mTargetToDB.emplace(config.targetHandle, &db);
+}
+
+void XBackupConfigStore::onChange(XBackupConfigDB& db,
+                                  const XBackupConfig& from,
+                                  const XBackupConfig& to)
+{
+    mTargetToDB.erase(from.targetHandle);
+
+    if (to.targetHandle == UNDEF)
+    {
+        return;
+    }
+
+    // Sanity check.
+    assert(mTargetToDB.count(to.targetHandle) == 0);
+
+    mTargetToDB.emplace(to.targetHandle, &db);
+}
+
+void XBackupConfigStore::onDirty(XBackupConfigDB& db)
+{
+    mDirtyDB.emplace(&db);
+}
+
+void XBackupConfigStore::onRemove(XBackupConfigDB&, const XBackupConfig& config)
+{
+    mTagToDB.erase(config.tag);
+    mTargetToDB.erase(config.targetHandle);
+}
+
 } // namespace
+
 #endif
+

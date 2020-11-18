@@ -211,6 +211,7 @@ typedef enum ErrorCodes
     API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
     API_EBUSINESSPASTDUE = -28,     ///< Business account expired
     API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
+    API_EBUSY = -30                 ///< Resource is busy.
 } error;
 
 class Error
@@ -973,9 +974,15 @@ public:
     handle getBackupId() const;
     void setBackupId(const handle &backupId);
 
+    // Whether this a backup sync.
+    bool isBackup() const;
+
     // Whether this sync is backed by an external device.
-    void isExternal(bool isExternal);
     bool isExternal() const;
+
+    // Path to the volume containing this backup.
+    void drivePath(const string& drivePath);
+    const string &drivePath() const;
 
 private:
 
@@ -988,6 +995,9 @@ private:
 
     // sync stored on external device.
     bool mExternal = false;
+
+    // Path to the volume containing this backup.
+    string mDrivePath;
 
     // the local path of the sync
     std::string mLocalPath;
