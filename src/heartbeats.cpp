@@ -770,11 +770,14 @@ void MegaBackupMonitor::beatBackupInfo(const std::shared_ptr<HeartBeatBackupInfo
         auto newCommand = new CommandBackupPutHeartBeat(mClient, hbs->backupId(),  static_cast<uint8_t>(hbs->status()),
                           progress, hbs->pendingUps(), hbs->pendingDowns(),
                           hbs->lastAction(), hbs->lastItemUpdated());
+
+#ifdef ENABLE_SYNC
         if (hbs->status() == HeartBeatSyncInfo::Status::UPTODATE && progress >= 100)
         {
             hbs->invalidateProgress(); // we invalidate progress, so as not to keep on reporting 100% progress after reached up to date
             // note: new transfer updates will modify the progress and make it valid again
         }
+#endif
 
         auto runningCommand = hbs->runningCommand();
 
