@@ -212,7 +212,6 @@ public:
     void updatePauseState(MegaClient *client);
 
     static BackupType getSyncType(MegaClient *client, const MegaSync &sync);
-    static string getSyncName(MegaClient* client, const MegaSync& sync);
     static int getSyncState (MegaClient *client, const MegaSync &sync);
     static int getSyncSubstatus (const MegaSync &sync);
     string getSyncExtraData(const MegaSync &sync);

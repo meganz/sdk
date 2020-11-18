@@ -3732,7 +3732,7 @@ bool CommandGetUserData::procresult(Result r)
         case MAKENAMEID4('*', '!', 'd', 'n'):
             parseUserAttribute(deviceNames, versionDeviceNames);
             break;
-        
+
         case MAKENAMEID5('*', '!', 'b', 'a', 'k'):
             parseUserAttribute(myBackupsFolder, versionMyBackupsFolder);
             break;
@@ -8223,43 +8223,46 @@ bool CommandBackupPut::procresult(Result r)
         e = r.errorOrOK();
     }
 
-    // automatically add the backup name to the corresponding user attribute
-    std::string key {Base64Str<MegaClient::BACKUPHANDLE>(backupId)};
-    std::string value = mBackupName;
-    string_map attrMap;
-    attrMap[key] = value;
-    attr_t attrtype = ATTR_BACKUP_NAMES;
-
-    std::unique_ptr<TLVstore> tlv;
-
-    User *ownUser = client->finduser(client->me);
-    const std::string *oldValue = ownUser->getattr(attrtype);
-    if (!oldValue)  // attr doesn't exist -> create it
+    if (!ISUNDEF(backupId))
     {
-        tlv.reset(new TLVstore());
-        tlv->set(key, value);
+        // automatically add the backup name to the corresponding user attribute
+        std::string key {Base64Str<MegaClient::BACKUPHANDLE>(backupId)};
+        std::string value = mBackupName;
+        string_map attrMap;
+        attrMap[key] = value;
+        attr_t attrtype = ATTR_BACKUP_NAMES;
 
-        // serialize and encrypt the TLV container
-        std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
-        client->putua(attrtype, (byte *)container->data(), unsigned(container->size()));
-    }
-    else if (!ownUser->isattrvalid(attrtype)) // not fetched yet or outdated
-    {
-        LOG_err << "Failed to set backup name for backup id : " << backupId;
-    }
-    else
-    {
-        tlv.reset(TLVstore::containerToTLVrecords(oldValue, &client->key));
+        std::unique_ptr<TLVstore> tlv;
 
-        if (User::mergeUserAttribute(attrtype, attrMap, *tlv.get()))
+        User *ownUser = client->finduser(client->me);
+        const std::string *oldValue = ownUser->getattr(attrtype);
+        if (!oldValue)  // attr doesn't exist -> create it
         {
+            tlv.reset(new TLVstore());
+            tlv->set(key, value);
+
             // serialize and encrypt the TLV container
             std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
             client->putua(attrtype, (byte *)container->data(), unsigned(container->size()));
         }
+        else if (!ownUser->isattrvalid(attrtype)) // not fetched yet or outdated
+        {
+            LOG_err << "Failed to set backup name for backup id : " << backupId;
+        }
         else
         {
-            LOG_err << "Failed to merge with existing backup names with the new one for backup id: " << backupId;
+            tlv.reset(TLVstore::containerToTLVrecords(oldValue, &client->key));
+
+            if (User::mergeUserAttribute(attrtype, attrMap, *tlv.get()))
+            {
+                // serialize and encrypt the TLV container
+                std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
+                client->putua(attrtype, (byte *)container->data(), unsigned(container->size()));
+            }
+            else
+            {
+                LOG_err << "Failed to merge with existing backup names with the new one for backup id: " << backupId;
+            }
         }
     }
 

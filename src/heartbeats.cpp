@@ -436,11 +436,6 @@ BackupType MegaBackupInfoSync::getSyncType(MegaClient *client, const MegaSync &s
     return BackupType::INVALID;
 }
 
-string MegaBackupInfoSync::getSyncName(MegaClient* client, const MegaSync& sync)
-{
-    return sync.getName();
-}
-
 int MegaBackupInfoSync::getSyncSubstatus(const MegaSync &sync)
 {
     return sync.getError();
@@ -552,7 +547,7 @@ void MegaBackupMonitor::registerBackupInfo(const MegaBackupInfo &info)
     string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", info.localFolder()) );
     string deviceIdHash = mClient->getDeviceidHash();
 
-    mClient->reqs.add(new CommandBackupPut(mClient, info.type(), info.backupName(),info.megaHandle(),
+    mClient->reqs.add(new CommandBackupPut(mClient, info.type(), info.backupName(), info.megaHandle(),
                                            localFolderEncrypted.c_str(),
                                            deviceIdHash.c_str(),
                                            info.state(), info.subState(), info.extra().c_str()
