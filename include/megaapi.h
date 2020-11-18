@@ -1250,6 +1250,7 @@ class MegaUser
             CHANGE_TYPE_ALIAS                       = 0x1000000,
             CHANGE_TYPE_UNSHAREABLE_KEY             = 0x2000000,
             CHANGE_TYPE_DEVICE_NAMES                = 0x4000000,
+            CHANGE_TYPE_BACKUP_NAMES                = 0x8000000,
         };
 
         /**
@@ -1424,7 +1425,8 @@ class MegaUser
          * - MegaUser::CHANGE_TYPE_DEVICE_NAMES = 0x4000000
          * Check if device names have changed
          *
-         */
+         * - MegaUser::CHANGE_TYPE_BACKUP_NAMES = 0x8000000
+         * Check if backup names have changed         */
         virtual int getChanges();
 
         /**

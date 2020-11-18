@@ -1807,6 +1807,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_DEVICE_NAMES;
     }
+    if (user->changed.backupNames)
+    {
+        changed |= MegaUser::CHANGE_TYPE_BACKUP_NAMES;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
