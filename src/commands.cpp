@@ -1119,7 +1119,6 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     if (type == NODE_HANDLE)
     {
         Node* tn;
-
         if ((tn = client->nodebyhandle(th)))
         {
             ShareNodeKeys snk;
@@ -1937,7 +1936,7 @@ CommandShareKeyUpdate::CommandShareKeyUpdate(MegaClient* client, handle_vector* 
 }
 
 // add/remove share; include node share keys if new share
-CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslevel_t a, int newshare, const char* msg, const char* personal_representation)
+CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslevel_t a, int newshare, const char* msg, bool writable, const char* personal_representation)
 {
     byte auth[SymmCipher::BLOCKSIZE];
     byte key[SymmCipher::KEYLENGTH];
@@ -1949,6 +1948,7 @@ CommandSetShare::CommandSetShare(MegaClient* client, Node* n, User* u, accesslev
     sh = n->nodehandle;
     user = u;
     access = a;
+    mWritable = writable;
 
     cmd("s2");
     arg("n", (byte*)&sh, MegaClient::NODEHANDLE);
@@ -2086,7 +2086,7 @@ bool CommandSetShare::procresult(Result r)
 
                         // repeat attempt with corrected share key
                         client->restag = tag;
-                        client->reqs.add(new CommandSetShare(client, n, user, access, 0, msg.c_str(), personal_representation.c_str()));
+                        client->reqs.add(new CommandSetShare(client, n, user, access, 0, msg.c_str(), mWritable, personal_representation.c_str()));
                         return false;
                     }
                 }
@@ -2129,7 +2129,7 @@ bool CommandSetShare::procresult(Result r)
                 break;
 
             case EOO:
-                client->app->share_result(API_OK);
+                client->app->share_result(API_OK, mWritable);
                 return true;
 
             default:
@@ -4778,7 +4778,7 @@ bool CommandGetUserSessions::procresult(Result r)
     return true;
 }
 
-CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t ets)
+CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t ets, bool writable)
 {
     cmd("l");
     arg("n", (byte*)&n->nodehandle, MegaClient::NODEHANDLE);
@@ -4793,9 +4793,15 @@ CommandSetPH::CommandSetPH(MegaClient* client, Node* n, int del, m_time_t ets)
         arg("ets", ets);
     }
 
+    if (writable)
+    {
+        arg("w", "1");
+    }
+
     this->h = n->nodehandle;
     this->ets = ets;
     this->tag = client->reqtag;
+    mWritable = writable;
 }
 
 bool CommandSetPH::procresult(Result r)
@@ -4806,7 +4812,47 @@ bool CommandSetPH::procresult(Result r)
         return true;
     }
 
-    handle ph = client->json.gethandle();
+    handle ph = UNDEF;
+    std::string authKey;
+
+    if (mWritable) // aparently, depending on 'w', the response can be [{"ph":"XXXXXXXX","w":"YYYYYYYYYYYYYYYYYYYYYY"}] or simply [XXXXXXXX]
+    {
+        bool exit = false;
+        while (!exit)
+        {
+            switch (client->json.getnameid())
+            {
+            case 'w':
+                client->json.storeobject(&authKey);
+                break;
+
+            case MAKENAMEID2('p', 'h'):
+                ph = client->json.gethandle();
+                break;
+
+            case EOO:
+            {
+                if (authKey.empty())
+                {
+                    client->app->exportnode_result(API_EINTERNAL);
+                    return true;
+                }
+                exit = true;
+                break;
+            }
+            default:
+                if (!client->json.storeobject())
+                {
+                    client->app->exportnode_result(API_EINTERNAL);
+                    return true;
+                }
+            }
+        }
+    }
+    else    // format: [XXXXXXXX]
+    {
+        ph = client->json.gethandle();
+    }
 
     if (ISUNDEF(ph))
     {
@@ -4817,12 +4863,13 @@ bool CommandSetPH::procresult(Result r)
     Node *n = client->nodebyhandle(h);
     if (n)
     {
-        n->setpubliclink(ph, time(nullptr), ets, false);
+        n->setpubliclink(ph, time(nullptr), ets, false, authKey);
         n->changed.publiclink = true;
         client->notifynode(n);
     }
 
     client->app->exportnode_result(h, ph);
+
     return true;
 }
 

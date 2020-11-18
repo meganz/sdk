@@ -1224,7 +1224,7 @@ void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& n
     }
 }
 
-void DemoApp::share_result(error e)
+void DemoApp::share_result(error e, bool writable)
 {
     if (e)
     {
@@ -1246,7 +1246,7 @@ void DemoApp::share_result(error e)
                     return;
                 }
 
-                client->getpubliclink(n, del, ets);
+                client->getpubliclink(n, del, ets, writable);
             }
             else
             {
@@ -1257,7 +1257,7 @@ void DemoApp::share_result(error e)
     }
 }
 
-void DemoApp::share_result(int, error e)
+void DemoApp::share_result(int, error e, bool writable)
 {
     if (e)
     {
@@ -3001,7 +3001,8 @@ autocomplete::ACN autocompleteSyntax()
     std::unique_ptr<Either> p(new Either("      "));
 
     p->Add(exec_apiurl, sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
-    p->Add(exec_login, sequence(text("login"), either(sequence(param("email"), opt(param("password"))), exportedLink(false, true), param("session"), sequence(text("autoresume"), opt(param("id"))))));
+    p->Add(exec_login, sequence(text("login"), either(sequence(param("email"), opt(param("password"))),
+                                                      sequence(exportedLink(false, true), opt(param("auth_key"))), param("session"), sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
     p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name")), param("confirmationlink"))));
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
@@ -3047,7 +3048,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_sync, sequence(text("sync"), opt(either(sequence(localFSPath(), remoteFSPath(client, &cwd, "dst")), param("cancelslot")))));
     p->Add(exec_syncconfig, sequence(text("syncconfig"), opt(sequence(param("type (TWOWAY/UP/DOWN)"), opt(sequence(param("syncDeletions (ON/OFF)"), param("forceOverwrite (ON/OFF)")))))));
 #endif
-    p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(param("expiretime"), text("del")))));
+    p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(flag("-writable"), param("expiretime"), text("del")))));
     p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
     p->Add(exec_invite, sequence(text("invite"), param("dstemail"), opt(either(param("origemail"), text("del"), text("rmd")))));
 
@@ -4123,7 +4124,7 @@ void exec_put(autocomplete::ACState& s)
         n = client->nodebyhandle(target);
     }
 
-    if (client->loggedin() == NOTLOGGEDIN && !targetuser.size())
+    if (client->loggedin() == NOTLOGGEDIN && !targetuser.size() && !client->loggedIntoWritableFolder())
     {
         cout << "Not logged in." << endl;
 
@@ -4333,7 +4334,7 @@ void exec_open(autocomplete::ACState& s)
             clientFolder->logout();
         }
 
-        return clientFolder->app->login_result(clientFolder->folderaccess(s.words[1].s.c_str()));
+        return clientFolder->app->login_result(clientFolder->folderaccess(s.words[1].s.c_str(), nullptr));
     }
     else
     {
@@ -4537,7 +4538,8 @@ void exec_login(autocomplete::ACState& s)
                 const char* ptr;
                 if ((ptr = strchr(s.words[1].s.c_str(), '#')))  // folder link indicator
                 {
-                    return client->app->login_result(client->folderaccess(s.words[1].s.c_str()));
+                    const char *authKey = s.words.size() == 3 ? s.words[2].s.c_str() : nullptr;
+                    return client->app->login_result(client->folderaccess(s.words[1].s.c_str(), authKey));
                 }
                 else
                 {
@@ -4562,7 +4564,7 @@ void exec_login(autocomplete::ACState& s)
         else
         {
             cout << "      login email [password]" << endl
-                << "      login exportedfolderurl#key" << endl
+                << "      login exportedfolderurl#key [authKey]" << endl
                 << "      login session" << endl;
         }
     }
@@ -5726,6 +5728,9 @@ void exec_export(autocomplete::ACState& s)
     int deltmp = 0;
     int etstmp = 0;
 
+    bool writable = s.extractflag("-writable");
+
+
     if ((n = nodebypath(s.words[1].s.c_str())))
     {
         if (s.words.size() > 2)
@@ -5741,7 +5746,7 @@ void exec_export(autocomplete::ACState& s)
         cout << "Exporting..." << endl;
 
         error e;
-        if ((e = client->exportnode(n, deltmp, etstmp)))
+        if ((e = client->exportnode(n, deltmp, etstmp, writable)))
         {
             cout << s.words[1].s << ": Export rejected (" << errorstring(e) << ")" << endl;
         }
@@ -7091,14 +7096,32 @@ void DemoApp::exportnode_result(handle h, handle ph)
             return;
         }
 
+        string publicLink;
         if (n->type == FILENODE)
         {
-            cout << MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey().data())) << endl;
+            publicLink = MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey().data()));
         }
         else
         {
-            cout << MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key)) << endl;
+            publicLink = MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key));
         }
+
+        cout << publicLink;
+
+        if (n->plink)
+        {
+            string authKey = n->plink->mAuthKey;
+
+            if (authKey.size())
+            {
+                string authToken(publicLink);
+                authToken = authToken.substr(strlen("https://mega.nz/folder/")).append(":").append(authKey);
+                cout << "\n          AuthToken = " << authToken;
+            }
+        }
+
+        cout << endl;
+
     }
     else
     {

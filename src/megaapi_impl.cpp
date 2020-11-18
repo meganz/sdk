@@ -209,7 +209,8 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
 
     if (node->isExported())
     {
-        this->plink = new PublicLink(node->getPublicHandle(), node->getPublicLinkCreationTime(), node->getExpirationTime(), node->isTakenDown());
+        this->plink = new PublicLink(node->getPublicHandle(), node->getPublicLinkCreationTime(),
+                                     node->getExpirationTime(), node->isTakenDown(), node->getWritableLinkAuthKey());
 
         if (type == FOLDERNODE)
         {
@@ -950,6 +951,11 @@ char *MegaNodePrivate::getPublicLink(bool includeKey)
 int64_t MegaNodePrivate::getPublicLinkCreationTime()
 {
     return plink ? plink->cts : -1;
+}
+
+const char *MegaNodePrivate::getWritableLinkAuthKey()
+{
+    return (plink && !plink->mAuthKey.empty()) ? plink->mAuthKey.c_str() : nullptr;
 }
 
 bool MegaNodePrivate::isNewLinkFormat()
@@ -6554,10 +6560,11 @@ void MegaApiImpl::share(MegaNode *node, const char* email, int access, MegaReque
     waiter->notify();
 }
 
-void MegaApiImpl::loginToFolder(const char* megaFolderLink, MegaRequestListener *listener)
+void MegaApiImpl::loginToFolder(const char* megaFolderLink, const char* authKey, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
     request->setLink(megaFolderLink);
+    request->setPassword(authKey);
     request->setEmail("FOLDER");
     requestQueue.push(request);
     waiter->notify();
@@ -6884,12 +6891,13 @@ void MegaApiImpl::setNodeCoordinates(MegaNode *node, bool unshareable, double la
     waiter->notify();
 }
 
-void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener)
+void MegaApiImpl::exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_EXPORT, listener);
     if(node) request->setNodeHandle(node->getHandle());
     request->setNumber(expireTime);
     request->setAccess(1);
+    request->setFlag(writable);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -13937,7 +13945,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
     }
 }
 
-void MegaApiImpl::share_result(error e)
+void MegaApiImpl::share_result(error e, bool writable)
 {
     if(requestMap.find(client->restag) == requestMap.end()) return;
     MegaRequestPrivate* request = requestMap.at(client->restag);
@@ -13962,7 +13970,8 @@ void MegaApiImpl::share_result(error e)
 
         int creqtag = client->reqtag;
         client->reqtag = client->restag;
-        client->getpubliclink(node, false, request->getNumber());
+        assert(writable == request->getFlag());
+        client->getpubliclink(node, false, request->getNumber(), request->getFlag());
         client->reqtag = creqtag;
 
         return;
@@ -13971,7 +13980,7 @@ void MegaApiImpl::share_result(error e)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::share_result(int, error)
+void MegaApiImpl::share_result(int, error, bool writable)
 {
     //The other callback will be called at the end of the request
 }
@@ -14809,6 +14818,10 @@ void MegaApiImpl::exportnode_result(handle h, handle ph)
 
         string link = client->getPublicLink(client->mNewLinkFormat, n->type, ph, key);
         request->setLink(link.c_str());
+        if (n->plink && n->plink->mAuthKey.size())
+        {
+            request->setPrivateKey(n->plink->mAuthKey.c_str());
+        }
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(MegaError::API_OK));
     }
     else
@@ -19254,13 +19267,13 @@ void MegaApiImpl::sendPendingRequests()
                 int size = Base64::atob(sessionKey, (byte *)session, sizeof session);
                 client->login(session, size);
             }
-            else if (login && (base64pwkey || password))
+            else if (login && (base64pwkey || password) && !megaFolderLink)
             {
                 client->prelogin(slogin.c_str());
             }
             else
             {
-                e = client->folderaccess(megaFolderLink);
+                e = client->folderaccess(megaFolderLink, password);
                 if(e == API_OK)
                 {
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
@@ -19894,7 +19907,7 @@ void MegaApiImpl::sendPendingRequests()
             Node* node = client->nodebyhandle(request->getNodeHandle());
             if(!node) { e = API_EARGS; break; }
 
-            e = client->exportnode(node, !request->getAccess(), request->getNumber());
+            e = client->exportnode(node, !request->getAccess(), request->getNumber(), request->getFlag());
             break;
         }
         case MegaRequest::TYPE_FETCH_NODES:

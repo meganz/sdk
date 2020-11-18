@@ -450,6 +450,8 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaNode* getPublicNode() override;
         char *getPublicLink(bool includeKey = true) override;
         int64_t getPublicLinkCreationTime() override;
+        const char * getWritableLinkAuthKey() override;
+
         bool isNewLinkFormat();
         bool isFile() override;
         bool isFolder() override;
@@ -2252,7 +2254,7 @@ class MegaApiImpl : public MegaApp
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
         void share(MegaNode *node, MegaUser* user, int level, MegaRequestListener *listener = NULL);
         void share(MegaNode* node, const char* email, int level, MegaRequestListener *listener = NULL);
-        void loginToFolder(const char* megaFolderLink, MegaRequestListener *listener = NULL);
+        void loginToFolder(const char* megaFolderLink, const char *authKey = nullptr, MegaRequestListener *listener = NULL);
         void importFileLink(const char* megaFileLink, MegaNode* parent, MegaRequestListener *listener = NULL);
         void decryptPasswordProtectedLink(const char* link, const char* password, MegaRequestListener *listener = NULL);
         void encryptLinkWithPassword(const char* link, const char* password, MegaRequestListener *listener = NULL);
@@ -2293,7 +2295,7 @@ class MegaApiImpl : public MegaApp
         void setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener = NULL);
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
         void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
-        void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
+        void exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
@@ -3022,8 +3024,8 @@ protected:
         void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride) override;
 
         // share update result
-        void share_result(error) override;
-        void share_result(int, error) override;
+        void share_result(error, bool writable = false) override;
+        void share_result(int, error, bool writable = false) override;
 
         // contact request results
         void setpcr_result(handle, error, opcactions_t) override;

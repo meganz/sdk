@@ -488,7 +488,7 @@ void MegaClient::setsid(const byte* newsid, unsigned len)
 }
 
 // configure for exported folder links access
-void MegaClient::setrootnode(handle h)
+void MegaClient::setrootnode(handle h, const char *authKey)
 {
     char buf[12];
 
@@ -497,6 +497,12 @@ void MegaClient::setrootnode(handle h)
     auth = "&n=";
     auth.append(buf);
     publichandle = h;
+
+    if (authKey && strlen(authKey))
+    {
+        auth.append(authKey); //nodehandle+authkey
+        mLoggedIntoWritableFolder = true;
+    }
 
     if (accountauth.size())
     {
@@ -1417,6 +1423,16 @@ std::string MegaClient::getPublicLink(bool newLinkFormat, nodetype_t type, handl
     }
 
     return strlink;
+}
+
+std::string MegaClient::getWritableLinkAuthKey(handle nodeHandle)
+{
+    auto node = nodebyhandle(nodeHandle);
+    if (node->plink)
+    {
+        return node->plink->mAuthKey;
+    }
+    return {};
 }
 
 // nonblocking state machine executing all operations currently in progress
@@ -4268,6 +4284,7 @@ void MegaClient::locallogout(bool removecaches)
     pendingcs = NULL;
     scsn.clear();
     mBlocked = false;
+    mLoggedIntoWritableFolder = false;
     mBlockedSet = false;
 
     for (putfa_list::iterator it = queuedfa.begin(); it != queuedfa.end(); it++)
@@ -6434,6 +6451,8 @@ void MegaClient::sc_ph()
     m_time_t ets = 0;
     m_time_t cts = 0;
     Node *n;
+    std::string authKey;
+    bool hasAuthKey = false;
 
     bool done = false;
     while (!done)
@@ -6445,6 +6464,9 @@ void MegaClient::sc_ph()
             break;
         case MAKENAMEID2('p','h'):
             ph = jsonsc.gethandle(MegaClient::NODEHANDLE);
+            break;
+        case 'w':
+            hasAuthKey = jsonsc.storeobject(&authKey);
             break;
         case 'd':
             deleted = (jsonsc.getint() == 1);
@@ -6510,7 +6532,7 @@ void MegaClient::sc_ph()
                 }
                 else
                 {
-                    n->setpubliclink(ph, cts, ets, takendown);
+                    n->setpubliclink(ph, cts, ets, takendown, authKey);
                 }
 
                 n->changed.publiclink = true;
@@ -7509,9 +7531,15 @@ void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes)
 // returns 1 if node has accesslevel a or better, 0 otherwise
 int MegaClient::checkaccess(Node* n, accesslevel_t a)
 {
+    // writable folder link access is supposed to be full
+    if (mLoggedIntoWritableFolder)
+    {
+        return a <= FULL;
+    }
+
     // folder link access is always read-only - ignore login status during
     // initial tree fetch
-    if ((a < OWNERPRELOGIN) && !loggedin())
+    if (a < OWNERPRELOGIN && !loggedin())
     {
         return a == RDONLY;
     }
@@ -7710,7 +7738,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n)
         {
             if (it.second->pcr)
             {
-                setshare(n, it.second->pcr->targetemail.c_str(), ACCESS_UNKNOWN, nullptr);
+                setshare(n, it.second->pcr->targetemail.c_str(), ACCESS_UNKNOWN);
             }
         }
     }
@@ -7721,11 +7749,11 @@ void MegaClient::removeOutSharesFromSubtree(Node* n)
         {
             if (it.second->user)
             {
-                setshare(n, it.second->user->email.c_str(), ACCESS_UNKNOWN, nullptr);
+                setshare(n, it.second->user->email.c_str(), ACCESS_UNKNOWN);
             }
             else // folder links are a shared folder without user
             {
-                setshare(n, nullptr, ACCESS_UNKNOWN, nullptr);
+                setshare(n, nullptr, ACCESS_UNKNOWN);
             }
         }
     }
@@ -8645,6 +8673,7 @@ void MegaClient::procph(JSON *j)
             m_time_t cts = 0;
             Node *n = NULL;
             bool takendown = false;
+            std::string authKey;
 
             bool done = false;
             while (!done)
@@ -8656,6 +8685,9 @@ void MegaClient::procph(JSON *j)
                         break;
                     case MAKENAMEID2('p','h'):
                         ph = j->gethandle(MegaClient::NODEHANDLE);
+                        break;
+                    case 'w':
+                        j->storeobject(&authKey);
                         break;
                     case MAKENAMEID3('e', 't', 's'):
                         ets = j->getint();
@@ -8687,7 +8719,7 @@ void MegaClient::procph(JSON *j)
                         n = nodebyhandle(h);
                         if (n)
                         {
-                            n->setpubliclink(ph, cts, ets, takendown);
+                            n->setpubliclink(ph, cts, ets, takendown, authKey);
                         }
                         else
                         {
@@ -8951,7 +8983,7 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool 
     return API_EARGS;
 }
 
-error MegaClient::folderaccess(const char *folderlink)
+error MegaClient::folderaccess(const char *folderlink, const char *authKey)
 {
     handle h = UNDEF;
     byte folderkey[FOLDERNODEKEYLENGTH];
@@ -8959,7 +8991,7 @@ error MegaClient::folderaccess(const char *folderlink)
     error e;
     if ((e = parsepubliclink(folderlink, h, folderkey, true)) == API_OK)
     {
-        setrootnode(h);
+        setrootnode(h, authKey);
         key.setkey(folderkey);
     }
 
@@ -9677,7 +9709,7 @@ void MegaClient::rewriteforeignkeys(Node* n)
 
 // if user has a known public key, complete instantly
 // otherwise, queue and request public key if not already pending
-void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, const char* personal_representation)
+void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, bool writable, const char* personal_representation)
 {
     size_t total = n->outshares ? n->outshares->size() : 0;
     total += n->pendingshares ? n->pendingshares->size() : 0;
@@ -9688,7 +9720,7 @@ void MegaClient::setshare(Node* n, const char* user, accesslevel_t a, const char
         rewriteforeignkeys(n);
     }
 
-    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionCreateShare>(n->nodehandle, a, reqtag, personal_representation));
+    queuepubkeyreq(user, ::mega::make_unique<PubKeyActionCreateShare>(n->nodehandle, a, reqtag, writable, personal_representation));
 }
 
 // Add/delete/remind outgoing pending contact request
@@ -10870,10 +10902,12 @@ void MegaClient::querytransferquota(m_off_t size)
 }
 
 // export node link
-error MegaClient::exportnode(Node* n, int del, m_time_t ets)
+error MegaClient::exportnode(Node* n, int del, m_time_t ets, bool writable)
 {
     if (n->plink && !del && !n->plink->takendown
-            && (ets == n->plink->ets) && !n->plink->isExpired())
+            && (ets == n->plink->ets) && !n->plink->isExpired()
+            && ( (writable && n->plink->mAuthKey.size()) || (!writable && !n->plink->mAuthKey.size()) )
+                 )
     {
         if (ststatus == STORAGE_PAYWALL)
         {
@@ -10894,7 +10928,7 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
     switch (n->type)
     {
     case FILENODE:
-        getpubliclink(n, del, ets);
+        getpubliclink(n, del, ets, writable);
         break;
 
     case FOLDERNODE:
@@ -10902,14 +10936,15 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
         {
             // deletion of outgoing share also deletes the link automatically
             // need to first remove the link and then the share
-            getpubliclink(n, del, ets);
-            setshare(n, NULL, ACCESS_UNKNOWN);
+            getpubliclink(n, del, ets, writable);
+            setshare(n, NULL, ACCESS_UNKNOWN, writable);
         }
         else
         {
             // exporting folder - need to create share first
-            setshare(n, NULL, RDONLY);
+            setshare(n, NULL, writable ? FULL : RDONLY, writable);
             // getpubliclink() is called as _result() of the share
+
         }
 
         break;
@@ -10921,9 +10956,9 @@ error MegaClient::exportnode(Node* n, int del, m_time_t ets)
     return API_OK;
 }
 
-void MegaClient::getpubliclink(Node* n, int del, m_time_t ets)
+void MegaClient::getpubliclink(Node* n, int del, m_time_t ets, bool writable)
 {
-    reqs.add(new CommandSetPH(this, n, del, ets));
+    reqs.add(new CommandSetPH(this, n, del, ets, writable));
 }
 
 // open exported file link
@@ -15699,6 +15734,11 @@ handle MegaClient::getovhandle(Node *parent, string *name)
         }
     }
     return ovhandle;
+}
+
+bool MegaClient::loggedIntoWritableFolder() const
+{
+    return mLoggedIntoWritableFolder;
 }
 
 void MegaClient::userfeedbackstore(const char *message)

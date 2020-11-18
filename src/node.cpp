@@ -81,6 +81,13 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     if (ISUNDEF(*client->rootnodes))
     {
         *client->rootnodes = h;
+
+        if (client->loggedIntoWritableFolder())
+        {
+            // If logged into writable folder, we need the sharekey set in the root node
+            // so as to include it in subsequent put nodes
+            sharekey = new SymmCipher(client->key); //we use the "master key", in this case the secret share key
+        }
     }
 
     if (t >= ROOTNODE && t <= RUBBISHNODE)
@@ -328,7 +335,17 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
     hasLinkCreationTs = MemAccess::get<char>(ptr);
     ptr += sizeof(hasLinkCreationTs);
 
-    for (i = 6; i--;)
+    auto authKeySize = MemAccess::get<char>(ptr);
+
+    ptr += sizeof authKeySize;
+    const char *authKey = nullptr;
+    if (authKeySize)
+    {
+        authKey = ptr;
+        ptr += authKeySize;
+    }
+
+    for (i = 5; i--;)
     {
         if (ptr + (unsigned char)*ptr < end)
         {
@@ -429,7 +446,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp)
             ptr += sizeof(cts);
         }
 
-        plink = new PublicLink(ph, cts, ets, takendown);
+        plink = new PublicLink(ph, cts, ets, takendown, authKey ? authKey : "");
         client->mPublicLinks[n->nodehandle] = plink->ph;
     }
     n->plink = plink;
@@ -532,7 +549,18 @@ bool Node::serialize(string* d)
     char hasLinkCreationTs = plink ? 1 : 0;
     d->append((char*)&hasLinkCreationTs, 1);
 
-    d->append("\0\0\0\0\0", 6); // Use these bytes for extensions
+    if (isExported && plink && plink->mAuthKey.size())
+    {
+        auto authKeySize = (char)plink->mAuthKey.size();
+        d->append((char*)&authKeySize, sizeof(authKeySize));
+        d->append(plink->mAuthKey.data(), authKeySize);
+    }
+    else
+    {
+        d->append("", 1);
+    }
+
+    d->append("\0\0\0\0", 5); // Use these bytes for extensions
 
     if (inshare)
     {
@@ -1100,12 +1128,12 @@ bool Node::isbelow(Node* p) const
     }
 }
 
-void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
+void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const string &authKey)
 {
     if (!plink) // creation
     {
         assert(client->mPublicLinks.find(nodehandle) == client->mPublicLinks.end());
-        plink = new PublicLink(ph, cts, ets, takendown);
+        plink = new PublicLink(ph, cts, ets, takendown, authKey.empty() ? nullptr : authKey.c_str());
     }
     else            // update
     {
@@ -1114,16 +1142,21 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
         plink->cts = cts;
         plink->ets = ets;
         plink->takendown = takendown;
+        plink->mAuthKey = authKey;
     }
     client->mPublicLinks[nodehandle] = ph;
 }
 
-PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
+PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey)
 {
     this->ph = ph;
     this->cts = cts;
     this->ets = ets;
     this->takendown = takendown;
+    if (authKey)
+    {
+        this->mAuthKey = authKey;
+    }
 }
 
 PublicLink::PublicLink(PublicLink *plink)
@@ -1132,6 +1165,7 @@ PublicLink::PublicLink(PublicLink *plink)
     this->cts = plink->cts;
     this->ets = plink->ets;
     this->takendown = plink->takendown;
+    this->mAuthKey = plink->mAuthKey;
 }
 
 bool PublicLink::isExpired()
