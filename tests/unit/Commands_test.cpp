@@ -279,6 +279,7 @@ public:
     bool chdirlocal(LocalPath&) const override { return false; }
     bool getextension(const LocalPath&, string&) const override { return false; }
     bool expanselocalpath(LocalPath& , LocalPath& ) override { return false; }
+    bool cwd(LocalPath&) const { return false; }
 
     void addevents(Waiter*, int) override {}
 };

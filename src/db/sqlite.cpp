@@ -41,8 +41,7 @@ static LocalPath databasePath(const FileSystemAccess& fsAccess,
 
     path.appendWithSeparator(
       LocalPath::fromPath(osstream.str(), fsAccess),
-      false,
-      fsAccess.localseparator);
+      false);
 
     return path;
 }
@@ -185,9 +184,19 @@ SqliteDbTable::~SqliteDbTable()
     }
 
     sqlite3_finalize(pStmt);
-    abort();
+
+    if (inTransaction())
+    {
+        abort();
+    }
+
     sqlite3_close(db);
     LOG_debug << "Database closed " << dbfile;
+}
+
+bool SqliteDbTable::inTransaction() const
+{
+    return sqlite3_get_autocommit(db) == 0;
 }
 
 // set cursor to first record
@@ -396,11 +405,6 @@ void SqliteDbTable::commit()
 
     LOG_debug << "DB transaction COMMIT " << dbfile;
 
-    if (sqlite3_get_autocommit(db))
-    {
-        return;
-    }
-
     if (sqlite3_exec(db, "COMMIT", 0, 0, NULL) != SQLITE_OK)
     {
         LOG_err << "Unable to commit transaction on database: " << dbfile;
@@ -418,11 +422,6 @@ void SqliteDbTable::abort()
 
     LOG_debug << "DB transaction ROLLBACK " << dbfile;
 
-    if (sqlite3_get_autocommit(db))
-    {
-        return;
-    }
-
     if (sqlite3_exec(db, "ROLLBACK", 0, 0, NULL) != SQLITE_OK)
     {
         LOG_err << "Unable to rollback transaction on database: " << dbfile;
@@ -438,7 +437,12 @@ void SqliteDbTable::remove()
     }
 
     sqlite3_finalize(pStmt);
-    abort();
+
+    if (inTransaction())
+    {
+        abort();
+    }
+
     sqlite3_close(db);
 
     db = NULL;

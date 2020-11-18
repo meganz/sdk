@@ -61,6 +61,8 @@ public:
 
     SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted);
     ~SqliteDbTable();
+
+    bool inTransaction() const;
 };
 } // namespace
 

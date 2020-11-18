@@ -1302,7 +1302,7 @@ public:
     {}
     mega::DbTable* open(mega::PrnGen &rng, mega::FileSystemAccess&, const std::string&, const int flags) override
     {
-        auto table = new MockDbTable{rng, (flags & mega::DB_OPEN_FLAG_RECYCLE) > 0};
+        auto table = new MockDbTable{rng, (flags & mega::DB_OPEN_FLAG_TRANSACTED) > 0};
         table->mData = &mData;
         return table;
     }
