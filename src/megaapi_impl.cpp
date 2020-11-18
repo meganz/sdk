@@ -25652,6 +25652,11 @@ void MegaFolderUploadController::createFolder()
             // lambda function that will be executed as completion function in putnodes procresult
             if (e)
             {
+                if (e == API_EARGS)
+                {
+                    LOG_err << "PutNodes failed with EARGS upon folder upload";
+                    //megaApi->sendEvent(99454, "PutNodes failed with EARGS upon folder upload");
+                }
                 mIncompleteTransfers++;
             }
             else
