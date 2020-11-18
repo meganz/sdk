@@ -423,10 +423,10 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         break;
 
     case MegaRequest::TYPE_GET_ATTR_USER:
-        if ( (mApi[apiIndex].lastError == API_OK) && (request->getParamType() != MegaApi::USER_ATTR_AVATAR) 
-            && (request->getParamType() != MegaApi::USER_ATTR_DEVICE_NAMES))
+
+        if ( (mApi[apiIndex].lastError == API_OK) && (request->getParamType() != MegaApi::USER_ATTR_AVATAR))
         {
-            attributeValue = request->getText();
+            attributeValue = request->getText() ? request->getText() : "";
         }
 
         if (request->getParamType() == MegaApi::USER_ATTR_AVATAR)
@@ -445,7 +445,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         {
             if (mApi[apiIndex].lastError == API_OK)
             {
-                mBackupName = request->getText();
+                mBackupName = request->getName();
             }
         }
         else if (request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES)
@@ -455,7 +455,6 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
                 attributeValue = request->getName();
             }
         }
-             
         break;
 
 #ifdef ENABLE_CHAT
