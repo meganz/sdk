@@ -25,7 +25,7 @@
 #include "megaapi_impl.h"
 #include <algorithm>
 
-#if (__cplusplus >= 201703L)
+#if (__cplusplus > 201703L)
     #include <filesystem>
     namespace fs = std::filesystem;
     #define USE_FILESYSTEM
