@@ -4846,10 +4846,12 @@ TEST_F(SdkTest, SdkBackupNames)
     int state = 1;
     int subState = 3;
 
-    // setup a backup (automatically updates the backup name in the user's attribute)
+    // setup a backup (automatically updates the backup name in the user's attribute)    
+    mApi[0].userUpdated = false;
     int backupType = BackupType::CAMERA_UPLOAD;
     auto err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
+    ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
 
     MegaUser* u = megaApi[0]->getMyUser();
     bool null_pointer = (u == nullptr);
@@ -4867,6 +4869,9 @@ TEST_F(SdkTest, SdkBackupNames)
     // check the name of the backup has been updated
 
     // remove the backup (automatically updates the user's attribute, removing the entry for the backup id)
+    mApi[0].userUpdated = false;
+    // synchronousRemoveBackup()
+    ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
 
     // check the backup name is no longer available for the removed backup id (ENOENT)
 }
