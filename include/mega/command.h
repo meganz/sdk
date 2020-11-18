@@ -1331,7 +1331,7 @@ private:
 
 class MEGA_API CommandBackupRemove : public Command
 {
-    handle id;
+    handle mBackupId;
 
 public:
     bool procresult(Result) override;

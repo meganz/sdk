@@ -8296,19 +8296,53 @@ bool CommandBackupPutHeartBeat::procresult(Result r)
 }
 
 CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId)
-    : id(backupId)
+    : mBackupId(backupId)
 {
     cmd("sr");
     arg("id", (byte*)&backupId, MegaClient::BACKUPHANDLE);
-    
-    string buf = Base64::btoa("");
-    client->putua(ATTR_BACKUP_NAMES, (byte*)buf.c_str(), unsigned(buf.size()));
+
     tag = client->reqtag;
 }
 
 bool CommandBackupRemove::procresult(Result r)
 {
-    client->app->backupremove_result(r.errorOrOK(), id);
+    client->app->backupremove_result(r.errorOrOK(), mBackupId);
+
+    if (r.succeeded())  // remove the corresponding backup name from the user's attribute
+    {
+        User *ownUser = client->finduser(client->me);
+        attr_t attrtype = ATTR_BACKUP_NAMES;
+        std::string key {Base64Str<MegaClient::BACKUPHANDLE>(mBackupId)};
+        const std::string *oldValue = ownUser->getattr(attrtype);
+        if (!oldValue)  // attr doesn't exist -> create it
+        {
+            LOG_warn << "Backup was removed, but there was no name for it. Backup id: " << key;
+        }
+        else if (!ownUser->isattrvalid(attrtype))
+        {
+            LOG_err << "Failed to remove backup name for backup id: " << key;
+        }
+        else
+        {
+            string_map attrMap;
+            attrMap[key] = "";
+
+            std::unique_ptr<TLVstore> tlv;
+            tlv.reset(TLVstore::containerToTLVrecords(oldValue, &client->key));
+
+            if (User::mergeUserAttribute(attrtype, attrMap, *tlv.get()))
+            {
+                // serialize and encrypt the TLV container
+                std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
+                client->putua(attrtype, (byte *)container->data(), unsigned(container->size()));
+            }
+            else
+            {
+                LOG_err << "Failed to merge with existing backup names with the new one for backup id: " << key;
+            }
+        }
+    }
+
     return r.wasErrorOrOK();
 }
 
