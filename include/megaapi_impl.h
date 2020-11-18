@@ -254,9 +254,6 @@ protected:
     // if set, symlinks will be followed
     bool mFollowsymlinks;
 
-    // number of folders that are pending to be created in cloud drive
-    int mPendingFolders;
-
     // maps tempHandle to definitive handle
     map<handle, handle> mNewNodesResult;
 

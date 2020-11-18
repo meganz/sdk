@@ -25359,7 +25359,6 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->recursive = 0;
     this->pendingTransfers = 0;
     this->tag = transfer->getTag();
-    this->mPendingFolders = 0;
     this->mPendingFilesToProcess = 0;
     this->mLocalSeparator = client->fsaccess->localseparator;
     this->mFollowsymlinks = client->followsymlinks;
@@ -25668,7 +25667,6 @@ void MegaFolderUploadController::createFolder()
                 }
             }
             mLastError = e;
-            mPendingFolders -= nn.size();
             promise.set_value (true); // unlock worker thread by fulfilling promise
         });
 
@@ -25706,7 +25704,7 @@ void MegaFolderUploadController::updateNodeHandles(handle &targetHandle, vector<
 
 void MegaFolderUploadController::uploadFiles()
 {
-   assert(!mPendingFolders && !mIncompleteTransfers);
+   assert(!mIncompleteTransfers);
    TransferQueue transferQueue;
    for (auto it = mFolderToPendingFiles.begin(); it != mFolderToPendingFiles.end();)
    {
@@ -25742,7 +25740,7 @@ void MegaFolderUploadController::uploadFiles()
        }
    }
 
-   assert(!mPendingFolders && mFolderToPendingFiles.empty() && pendingTransfers);
+   assert(mFolderToPendingFiles.empty() && pendingTransfers);
    if (pendingTransfers)
    {
       megaApi->sendPendingTransfers(&transferQueue);
@@ -25754,7 +25752,6 @@ bool MegaFolderUploadController::isCompleted()
     return (!cancelled
             && !recursive
             && !pendingTransfers
-            && !mPendingFolders
             && !mPendingFilesToProcess);
 }
 
@@ -25834,8 +25831,6 @@ handle MegaFolderUploadController::addNewNodeToVector(handle &targetHandle, hand
             mUploadTrees.emplace_back(std::move(tree));
         }
     }
-
-    mPendingFolders++;
     return newNodeHandle;
 }
 
