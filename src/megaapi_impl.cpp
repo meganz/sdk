@@ -23080,8 +23080,11 @@ void MegaApiImpl::sendPendingRequests()
             int backupType = static_cast<int>(request->getTotalBytes());
             if (backupType < MegaApi::BACKUP_TYPE_CAMERA_UPLOADS || backupType > MegaApi::BACKUP_TYPE_MEDIA_UPLOADS)
             {
-                e = API_EARGS;
-                break;
+                if (isNew || (!isNew && backupType != MegaApi::BACKUP_TYPE_INVALID))
+                {
+                    e = API_EARGS;
+                    break;
+                }
             }
             BackupType bType = static_cast<BackupType>(backupType);
 
