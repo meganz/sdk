@@ -202,7 +202,6 @@ public:
     std::unique_ptr<MegaEvent> lastEvent;
 
     MegaHandle mBackupId = UNDEF;
-    string mBackupName;
 
 protected:
     void SetUp() override;

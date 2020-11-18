@@ -424,11 +424,18 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
     case MegaRequest::TYPE_GET_ATTR_USER:
 
-        if ( (mApi[apiIndex].lastError == API_OK) && (request->getParamType() != MegaApi::USER_ATTR_AVATAR))
+        if (mApi[apiIndex].lastError == API_OK && 
+            (request->getParamType() == MegaApi::USER_ATTR_BACKUP_NAMES ||
+             request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES || 
+             request->getParamType() == MegaApi::USER_ATTR_ALIAS))
+        {
+            attributeValue = request->getName();
+        }
+        else if ( (mApi[apiIndex].lastError == API_OK) && (request->getParamType() != MegaApi::USER_ATTR_AVATAR))
         {
             attributeValue = request->getText() ? request->getText() : "";
         }
-
+        
         if (request->getParamType() == MegaApi::USER_ATTR_AVATAR)
         {
             if (mApi[apiIndex].lastError == API_OK)
@@ -439,20 +446,6 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
             if (mApi[apiIndex].lastError == API_ENOENT)
             {
                 attributeValue = "Avatar not found";
-            }
-        }
-        else if (request->getParamType() == MegaApi::USER_ATTR_BACKUP_NAMES)
-        {
-            if (mApi[apiIndex].lastError == API_OK)
-            {
-                mBackupName = request->getName();
-            }
-        }
-        else if (request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES)
-        {
-            if (mApi[apiIndex].lastError == API_OK)
-            {
-                attributeValue = request->getName();
             }
         }
         break;
@@ -642,7 +635,8 @@ void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
 
         if (u->hasChanged(MegaUser::CHANGE_TYPE_AVATAR)
                 || u->hasChanged(MegaUser::CHANGE_TYPE_FIRSTNAME)
-                || u->hasChanged(MegaUser::CHANGE_TYPE_LASTNAME))
+                || u->hasChanged(MegaUser::CHANGE_TYPE_LASTNAME)
+                || u->hasChanged(MegaUser::CHANGE_TYPE_BACKUP_NAMES))
         {
             mApi[apiIndex].userUpdated = true;
         }
@@ -4832,7 +4826,7 @@ TEST_F(SdkTest, SdkBackupNames)
     // setbackup test
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     auto localtestfolder = localtestroot.string();
-    const char* backup = "/SdkBackupNamesTest";
+    char* backup = "/SdkBackupNamesTest";
     const char* extra = "Test Set/GetBackupname APIs";
     unique_ptr<char[]> localFolder(MegaApiImpl::binaryToBase64(localtestfolder.c_str(), localtestfolder.length()));
     unique_ptr<char[]> backupName(MegaApiImpl::binaryToBase64(backup, strlen(backup)));
@@ -4853,27 +4847,34 @@ TEST_F(SdkTest, SdkBackupNames)
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
     ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
 
-    MegaUser* u = megaApi[0]->getMyUser();
-    bool null_pointer = (u == nullptr);
-    ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << mApi[0].email;
-
     // retrieve the given backup name
     err = synchronousGetBackupName(0, mBackupId);
     ASSERT_EQ(MegaError::API_OK, err) << "getBackupName failed (error: " << err << ")"; 
-    ASSERT_EQ(mBackupName, backupName.get()) << "getBackupName returned incorrect value";
+    ASSERT_EQ(attributeValue, backupName.get()) << "getBackupName returned incorrect value";
 
     // give a new name to the backup
-    //err = synchronousSetBackupName(0, mBackupId, "BackupNamesTest");
-    //ASSERT_EQ(MegaError::API_OK, err) << "setBackupName failed (error: " << err << ")";
+    mApi[0].userUpdated = false;
+    backup = "/SdkBackupNames_setBackupName_Test";
+    err = synchronousSetBackupName(0, mBackupId, backup);
+    ASSERT_EQ(MegaError::API_OK, err) << "setBackupName failed (error: " << err << ")";
+    ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
 
     // check the name of the backup has been updated
+    err = synchronousGetBackupName(0, mBackupId);
+    ASSERT_EQ(MegaError::API_OK, err) << "getBackupName failed (error: " << err << ")";
+    ASSERT_EQ(attributeValue, backup) << "setbackupName failed to update the backup name";
 
     // remove the backup (automatically updates the user's attribute, removing the entry for the backup id)
     mApi[0].userUpdated = false;
-    // synchronousRemoveBackup()
-    ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
+    synchronousRemoveBackup(0, mBackupId);
+    // ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
 
     // check the backup name is no longer available for the removed backup id (ENOENT)
+    // negative test cases
+    ////gTestingInvalidArgs = true;
+    //err = synchronousGetBackupName(0, mBackupId);
+    //ASSERT_EQ(MegaError::API_ENOENT, err) << "removeBackup failed to remove backup name (error: " << err << ")";
+    ////gTestingInvalidArgs = false;
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
