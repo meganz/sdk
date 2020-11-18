@@ -686,7 +686,7 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time
     if (!targetfolder.empty())
     {
         string s = targetfolder;
-        localname.prependWithSeparator(LocalPath::fromPath(s, *client->fsaccess), client->fsaccess->localseparator);
+        localname.prependWithSeparator(LocalPath::fromPath(s, *client->fsaccess));
     }
 }
 
@@ -704,7 +704,7 @@ AppFilePut::AppFilePut(const LocalPath& clocalname, handle ch, const char* ctarg
     // erase path component
     auto fileSystemType = client->fsaccess->getlocalfstype(clocalname);
 
-    name = clocalname.leafName(client->fsaccess->localseparator).toName(*client->fsaccess, fileSystemType);
+    name = clocalname.leafName().toName(*client->fsaccess, fileSystemType);
 }
 
 // user addition/update (users never get deleted)
@@ -4068,7 +4068,7 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
 
 string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 {
-    return itemlocalname.leafName(client->fsaccess->localseparator).toPath(*client->fsaccess);
+    return itemlocalname.leafName().toPath(*client->fsaccess);
 }
 
 void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder)
@@ -4091,7 +4091,7 @@ void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder)
                 cout << "Queueing " << leafNameUtf8 << "..." << endl;
             }
             auto newpath = localname;
-            newpath.appendWithSeparator(itemlocalleafname, true, client->fsaccess->localseparator);
+            newpath.appendWithSeparator(itemlocalleafname, true);
             uploadLocalPath(type, leafNameUtf8, newpath, cloudFolder, "", committer, total, true);
         }
         if (gVerboseMode)
