@@ -456,8 +456,17 @@ protected:
     // number of files pending to be processed (add a transfer for each one)
     int mPendingFilesToProcess;
 
-    // each element is a pair formed by the folder LocalPath and a vector that contains all children folders
-    std::vector<std::pair<LocalPath, std::vector<unique_ptr<MegaNode>>>> mLocalTree;
+    struct LocalTree
+    {
+        LocalTree(LocalPath lp)
+        {
+            localPath = lp;
+        }
+
+        LocalPath localPath;
+        vector<unique_ptr<MegaNode>> childrenNodes;
+    };
+    vector<LocalTree> mLocalTree;
 
     void scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType);
     void createFolder();

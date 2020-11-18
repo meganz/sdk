@@ -27115,7 +27115,7 @@ void MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpa
     if (node->getType() == FOLDERNODE)
     {
        // If node is a folder, store it's localPath, along with a vector with it's children file nodes
-       mLocalTree.emplace_back((std::make_pair(localpath, std::vector<unique_ptr<MegaNode>>())));
+       mLocalTree.emplace_back(LocalTree(localpath));
        index = mLocalTree.size() - 1;
     }
 
@@ -27147,7 +27147,7 @@ void MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpa
         {
             // Add child node to vector in mLocalTree at index we have stored it's localPath
             ::mega::unique_ptr<MegaNode> childNode (child->copy());
-            mLocalTree.at(index).second.push_back(std::move(childNode));
+            mLocalTree.at(index).childrenNodes.push_back(std::move(childNode));
             mPendingFilesToProcess++;
         }
         else
@@ -27171,13 +27171,13 @@ void MegaFolderDownloadController::createFolder()
     auto it = mLocalTree.begin();
     while (it != mLocalTree.end())
     {
-        LocalPath &localpath = it->first;
+        LocalPath &localpath = it->localPath;
         mLastError = megaApi->createLocalFolder(localpath);
         if (mLastError.getErrorCode() && mLastError.getErrorCode() != API_EEXIST)
         {
             mIncompleteTransfers++;
             it = mLocalTree.erase(it); // remove all it's children nodes
-            mPendingFilesToProcess -= it->second.size();
+            mPendingFilesToProcess -= it->childrenNodes.size();
             continue;
         }
         ++it;
@@ -27190,12 +27190,12 @@ void MegaFolderDownloadController::downloadFiles(FileSystemType fsType)
     // Add all download transfers in one shot
     for (auto it = mLocalTree.begin(); it != mLocalTree.end(); it++)
     {
-        LocalPath &localpath = it->first;
-        const std::vector<unique_ptr<MegaNode>> &nodeVector = it->second;
+        LocalPath &localpath = it->localPath;
+        const std::vector<unique_ptr<MegaNode>> &childrenNodes = it->childrenNodes;
 
-        for (size_t i = 0; i < nodeVector.size(); i++)
+        for (size_t i = 0; i < childrenNodes.size(); i++)
         {
-             MegaNode &node = *(nodeVector.at(i).get());
+             MegaNode &node = *(childrenNodes.at(i).get());
              ScopedLengthRestore restoreLen(localpath);
              localpath.appendWithSeparator(megaApi->getLocalPathFromName(node.getName(), fsType), true, mLocalSeparator);
              string utf8path = megaApi->LocalPathToPath(localpath);
