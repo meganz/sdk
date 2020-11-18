@@ -23147,7 +23147,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_FETCH_GOOGLE_ADS:
         {
                 int flags = request->getNumber();
-                if (flags < MegaApi::GOOGLE_ADS_FORCE_ADS || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
+                if (flags < MegaApi::GOOGLE_ADS_DEFAULT || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
                 {
                     e = API_EARGS;
                     break;
@@ -23174,7 +23174,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_QUERY_GOOGLE_ADS:
         {
             int flags = request->getNumber();
-            if (flags < MegaApi::GOOGLE_ADS_FORCE_ADS || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
+            if (flags < MegaApi::GOOGLE_ADS_DEFAULT || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
             {
                 e = API_EARGS;
                 break;
