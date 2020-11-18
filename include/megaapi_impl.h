@@ -263,8 +263,18 @@ protected:
     // maps parent handle to vector of LocalPath of it's children
     map<handle, vector<LocalPath>> mFolderToPendingFiles;
 
-    // maps targetHandle of the subtree to a vector of NewNodes
-    vector<pair<handle, vector<NewNode>>> mFolderStructure;
+    struct Tree
+    {
+        Tree(handle th, NewNode nn) // this constructor add the first nn to the vector
+        {
+            targetHandle = th;
+            newNodes.emplace_back(std::move(nn));
+        }
+
+        handle targetHandle;
+        vector<NewNode> newNodes;
+    };
+    vector<Tree> mUploadTrees;
 
     /* Scan entire tree recursively, and retrieve folder structure and files to be uploaded.
      * A putnodes command can only add subtrees under same target, so in case we need to add
@@ -275,7 +285,7 @@ protected:
     /* iterate through all pending files of each uploaded folder, and start all upload transfers */
     void uploadFiles();
     void updateNodeHandles(handle &targetHandle, vector<NewNode> &newnodes);
-    void addNewNodeToVector(handle &targetHandle, handle &parentHandle, const char *folderName);
+    handle addNewNodeToVector(handle &targetHandle, handle parentHandle, const char *folderName);
 };
 
 
