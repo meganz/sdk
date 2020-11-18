@@ -4867,14 +4867,11 @@ TEST_F(SdkTest, SdkBackupNames)
     // remove the backup (automatically updates the user's attribute, removing the entry for the backup id)
     mApi[0].userUpdated = false;
     synchronousRemoveBackup(0, mBackupId);
-    // ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
+    ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
 
     // check the backup name is no longer available for the removed backup id (ENOENT)
-    // negative test cases
-    ////gTestingInvalidArgs = true;
-    //err = synchronousGetBackupName(0, mBackupId);
-    //ASSERT_EQ(MegaError::API_ENOENT, err) << "removeBackup failed to remove backup name (error: " << err << ")";
-    ////gTestingInvalidArgs = false;
+    err = synchronousGetBackupName(0, mBackupId);
+    ASSERT_EQ(MegaError::API_ENOENT, err) << "removeBackup failed to remove backup name (error: " << err << ")";
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
