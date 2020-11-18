@@ -23400,7 +23400,7 @@ void MegaApiImpl::getBackupName(MegaHandle backupId, MegaRequestListener* listen
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
     request->setParamType(MegaApi::USER_ATTR_BACKUP_NAMES);
     request->setNodeHandle(backupId);
-    request->setText(Base64Str<MegaClient::USERHANDLE>(backupId));
+    request->setText(Base64Str<MegaClient::BACKUPHANDLE>(backupId));
     requestQueue.push(request);
     waiter->notify();
 }
@@ -23410,7 +23410,7 @@ void MegaApiImpl::setBackupName(MegaHandle backupId, const char* backupName, Meg
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
     MegaStringMapPrivate stringMap;
     string buf = backupName ? backupName : "";    // backup name is null to remove it
-    stringMap.set(Base64Str<MegaClient::USERHANDLE>(backupId), Base64::btoa(buf).c_str());
+    stringMap.set(Base64Str<MegaClient::BACKUPHANDLE>(backupId), Base64::btoa(buf).c_str());
     request->setMegaStringMap(&stringMap);
     request->setParamType(MegaApi::USER_ATTR_BACKUP_NAMES);
     request->setNodeHandle(backupId);

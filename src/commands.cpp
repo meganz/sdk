@@ -8166,7 +8166,7 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupTy
 {
     cmd("sp");
 
-    arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
+    arg("id", (byte*)&backupId, MegaClient::BACKUPHANDLE);
 
     if (type != BackupType::INVALID)
     {
@@ -8224,7 +8224,7 @@ bool CommandBackupPut::procresult(Result r)
     }
 
     // automatically add the backup name to the corresponding user attribute
-    std::string key {Base64Str<MegaClient::NODEHANDLE>(backupId)};
+    std::string key {Base64Str<MegaClient::BACKUPHANDLE>(backupId)};
     std::string value = mBackupName;
     string_map attrMap;
     attrMap[key] = value;
@@ -8278,7 +8278,7 @@ CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle 
 {
     cmd("sphb");
 
-    arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
+    arg("id", (byte*)&backupId, MegaClient::BACKUPHANDLE);
     arg("s", status);
     arg("p", progress);
     arg("qu", uploads);
@@ -8299,7 +8299,7 @@ CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId)
     : id(backupId)
 {
     cmd("sr");
-    arg("id", (byte*)&backupId, MegaClient::USERHANDLE);
+    arg("id", (byte*)&backupId, MegaClient::BACKUPHANDLE);
     
     string buf = Base64::btoa("");
     client->putua(ATTR_BACKUP_NAMES, (byte*)buf.c_str(), unsigned(buf.size()));
