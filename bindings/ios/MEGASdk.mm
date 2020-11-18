@@ -2519,6 +2519,16 @@ using namespace mega;
     self.megaApi->setPushNotificationSettings(pushNotificationSettings.getCPtr);
 }
 
+#pragma mark - Banner
+
+- (void)getBanners:(id<MEGARequestDelegate>)delegate {
+    self.megaApi -> getBanners([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)dismissBanner:(NSInteger)bannerIdentifier delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi -> dismissBanner((int)bannerIdentifier, [self createDelegateMEGARequestListener:delegate singleListener:true]);
+}
+
 #pragma mark - Debug
 
 + (void)setLogLevel:(MEGALogLevel)logLevel {

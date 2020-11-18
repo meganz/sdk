@@ -17,7 +17,7 @@ libraw/latest
 libsodium/latest
 libuv/latest
 libvpx/latest
-libwebsockets/latest
+libwebsockets/2.4.2
 libzen/latest
 mbedtls/latest
 nghttp2/latest
