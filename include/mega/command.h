@@ -106,7 +106,7 @@ public:
 
         bool succeeded()
         {
-            return mOutcome != CmdError || error(mError) != API_OK;
+            return mOutcome != CmdError || error(mError) == API_OK;
         }
 
         bool hasJsonArray()
