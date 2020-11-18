@@ -368,8 +368,8 @@ struct MEGA_API LocalNode : public File
     localnode_set::iterator notseen_it{};
 
     // build full local path to this node
-    void getlocalpath(LocalPath&, bool sdisable = false) const;
-    LocalPath getLocalPath(bool sdisable = false) const;
+    void getlocalpath(LocalPath&) const;
+    LocalPath getLocalPath() const;
     string localnodedisplaypath(FileSystemAccess& fsa) const;
 
     // return child node by name

@@ -13849,7 +13849,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                     {
                         LOG_debug << "Modification time changed only";
                         auto f = fsaccess->newfileaccess();
-                        auto lpath = ll->getLocalPath(true);
+                        auto lpath = ll->getLocalPath();
                         LocalPath stream = lpath;
                         stream.append(LocalPath::fromPlatformEncoded(wstring(L":$CmdTcID:$DATA", 15)));
                         if (f->fopen(stream))
@@ -14270,7 +14270,7 @@ void MegaClient::syncupdate()
                 nextreqtag();
                 startxfer(PUT, l, committer);
 
-                tmppath = l->getLocalPath(true).toPath(*fsaccess);
+                tmppath = l->getLocalPath().toPath(*fsaccess);
                 app->syncupdate_put(l->sync, l, tmppath.c_str());
             }
         }
@@ -14404,7 +14404,7 @@ void MegaClient::unlinkifexists(LocalNode *l, FileAccess *fa, LocalPath& reuseBu
     // sdisable = true for this call.  In the case where we are doing a full scan due to fs notifications failing,
     // and a file was renamed but retains the same shortname, we would check the presence of the wrong file.
     // Also shortnames are slowly being deprecated by Microsoft, so using full names is now the normal case anyway.
-    l->getlocalpath(reuseBuffer, true);
+    l->getlocalpath(reuseBuffer);
     if (fa->fopen(reuseBuffer) || fa->type == FOLDERNODE)
     {
         LOG_warn << "Deletion of existing file avoided";
@@ -15333,7 +15333,7 @@ Node* MegaClient::nodebyfingerprint(LocalNode* localNode)
     // they are identical.
     auto ifAccess = fsaccess->newfileaccess();
 
-    auto localPath = localNode->getLocalPath(true);
+    auto localPath = localNode->getLocalPath();
 
     if (!ifAccess->fopen(localPath, true, false))
         return nullptr;

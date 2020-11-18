@@ -487,7 +487,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->syncdeleted = (node->syncdeleted != SYNCDEL_NONE);
     if(node->localnode)
     {
-        localPath = node->localnode->getLocalPath(true).platformEncoded();
+        localPath = node->localnode->getLocalPath().platformEncoded();
         localPath.append("", 1);
     }
 #endif
@@ -4204,7 +4204,7 @@ const char *MegaStringListPrivate::get(int i) const
 
 int MegaStringListPrivate::size() const
 {
-    return mList.size();
+    return int(mList.size());
 }
 
 void MegaStringListPrivate::add(const char *value)
@@ -8893,7 +8893,7 @@ string MegaApiImpl::getLocalPath(MegaNode *n)
         return string();
     }
 
-    string result = node->localnode->getLocalPath(true).platformEncoded();
+    string result = node->localnode->getLocalPath().platformEncoded();
     result.append("", 1);
 
     sdkMutex.unlock();
@@ -12168,7 +12168,7 @@ void MegaApiImpl::file_added(File *f)
         LocalNode *l = dynamic_cast<LocalNode *>(f);
         if (l)
         {
-            path = l->getLocalPath(true).toPath(*fsAccess);
+            path = l->getLocalPath().toPath(*fsAccess);
         }
         else
 #endif
@@ -13146,7 +13146,7 @@ void MegaApiImpl::syncupdate_local_folder_deletion(Sync *sync, LocalNode *localN
 {
     client->abortbackoff(false);
 
-    string path = localNode->getLocalPath(true).toPath(*fsAccess);
+    string path = localNode->getLocalPath().toPath(*fsAccess);
     LOG_debug << "Sync - local folder deletion detected: " << path.c_str();
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
@@ -13175,7 +13175,7 @@ void MegaApiImpl::syncupdate_local_file_deletion(Sync *sync, LocalNode *localNod
 {
     client->abortbackoff(false);
 
-    string path = localNode->getLocalPath(true).toPath(*fsAccess);
+    string path = localNode->getLocalPath().toPath(*fsAccess);
     LOG_debug << "Sync - local file deletion detected: " << path.c_str();
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
@@ -13203,7 +13203,7 @@ void MegaApiImpl::syncupdate_local_move(Sync *sync, LocalNode *localNode, const 
 {
     client->abortbackoff(false);
 
-    string path = localNode->getLocalPath(true).toPath(*fsAccess);
+    string path = localNode->getLocalPath().toPath(*fsAccess);
     LOG_debug << "Sync - local rename/move " << path.c_str() << " -> " << to;
 
     if(syncMap.find(sync->tag) == syncMap.end()) return;
@@ -13333,7 +13333,7 @@ void MegaApiImpl::syncupdate_treestate(LocalNode *l)
     if(syncMap.find(l->sync->tag) == syncMap.end()) return;
     MegaSyncPrivate* megaSync = syncMap.at(l->sync->tag);
 
-    string s = l->getLocalPath(true).platformEncoded();
+    string s = l->getLocalPath().platformEncoded();
 
     fireOnFileSyncStateChanged(megaSync, &s, (int)l->ts);
 }
@@ -23146,7 +23146,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_FETCH_GOOGLE_ADS:
         {
-                int flags = request->getNumber();
+                int flags = int(request->getNumber());
                 if (flags < MegaApi::GOOGLE_ADS_DEFAULT || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
                 {
                     e = API_EARGS;
@@ -23173,7 +23173,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_QUERY_GOOGLE_ADS:
         {
-            int flags = request->getNumber();
+            int flags = int(request->getNumber());
             if (flags < MegaApi::GOOGLE_ADS_DEFAULT || flags > MegaApi::GOOGLE_ADS_FLAG_IGNORE_ROLLOUT)
             {
                 e = API_EARGS;

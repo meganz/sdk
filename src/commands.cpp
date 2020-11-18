@@ -8519,7 +8519,7 @@ bool CommandQueryGoogleAds::procresult(Command::Result r)
         return false;
     }
 
-    int value = client->json.getint();
+    int value = client->json.getint32();
     mCompletion(API_OK, value);
     return true;
 }

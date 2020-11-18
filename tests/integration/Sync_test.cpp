@@ -1545,7 +1545,7 @@ struct StandardClient : public MegaApp
             return false;
         }
 
-        auto localpath = n->getLocalPath(false).toName(*client.fsaccess, FS_UNKNOWN);
+        auto localpath = n->getLocalPath().toName(*client.fsaccess, FS_UNKNOWN);
         string n_localname = n->localname.toName(*client.fsaccess, FS_UNKNOWN);
         if (n_localname.size())
         {
@@ -1564,7 +1564,7 @@ struct StandardClient : public MegaApp
             EXPECT_EQ(mn->parent->type, Model::ModelNode::folder);
             EXPECT_EQ(n->parent->type, FOLDERNODE);
 
-            string parentpath = n->parent->getLocalPath(false).toName(*client.fsaccess, FS_UNKNOWN);
+            string parentpath = n->parent->getLocalPath().toName(*client.fsaccess, FS_UNKNOWN);
             EXPECT_EQ(localpath.substr(0, parentpath.size()), parentpath);
         }
         if (n->node && n->parent && n->parent->node)

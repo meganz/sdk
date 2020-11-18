@@ -31,7 +31,7 @@
     #include <readline/history.h>
 #endif
 
-#if (__cplusplus >= 201700L)
+#if (__cplusplus >= 201703L)
     #include <filesystem>
     namespace fs = std::filesystem;
     #define USE_FILESYSTEM
