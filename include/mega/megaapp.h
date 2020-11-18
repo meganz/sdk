@@ -126,8 +126,8 @@ struct MEGA_API MegaApp
     virtual void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride = false) { }
 
     // share update result
-    virtual void share_result(error) { }
-    virtual void share_result(int, error) { }
+    virtual void share_result(error, bool writable = false) { }
+    virtual void share_result(int, error, bool writable = false) { }
 
     // outgoing pending contact result
     virtual void setpcr_result(handle, error, opcactions_t) { }
