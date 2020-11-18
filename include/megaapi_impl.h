@@ -224,6 +224,15 @@ protected:
     int mIncompleteTransfers = { 0 };
     MegaErrorPrivate mLastError = { API_OK };
     LocalPath::separator_t mLocalSeparator;
+
+    // worker thread
+    std::thread mWorkerThread;
+
+    // thread id of main thread
+    std::thread::id mMainThreadId;
+
+    // number of files pending to be processed (add a transfer for each one)
+    long long mPendingFilesToProcess;
 };
 
 class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveOperation
@@ -242,20 +251,11 @@ public:
 
 protected:
 
-    // worker thread
-    std::thread mWorkerThread;
-
-    // thread id of main thread
-    std::thread::id mMainThreadId;
-
     // if set, symlinks will be followed
     bool mFollowsymlinks;
 
     // number of folders that are pending to be created in cloud drive
     int mPendingFolders;
-
-    // number of files pending to be processed (add a transfer for each one)
-    int mPendingFilesToProcess;
 
     // maps tempHandle to definitive handle
     map<handle, handle> mNewNodesResult;
@@ -447,15 +447,6 @@ public:
 
 protected:
 
-    // worker thread
-    std::thread mWorkerThread;
-
-    // thread id of main thread
-    std::thread::id mMainThreadId;
-
-    // number of files pending to be processed (add a transfer for each one)
-    int mPendingFilesToProcess;
-
     struct LocalTree
     {
         LocalTree(LocalPath lp)
@@ -467,7 +458,6 @@ protected:
         vector<unique_ptr<MegaNode>> childrenNodes;
     };
     vector<LocalTree> mLocalTree;
-
     void scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType);
     void createFolder();
     void downloadFiles(FileSystemType fsType);
