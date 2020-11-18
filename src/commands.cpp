@@ -1119,15 +1119,8 @@ CommandPutNodes::CommandPutNodes(MegaClient* client, handle th,
     if (type == NODE_HANDLE)
     {
         Node* tn;
-
         if ((tn = client->nodebyhandle(th)))
         {
-            if (client->loggedIntoWritableFolder() && !tn->sharekey)
-            {
-                //setting as shared key the share secret key
-                tn->sharekey = new SymmCipher(client->key);
-            }
-
             ShareNodeKeys snk;
 
             for (unsigned i = 0; i < nn.size(); i++)
