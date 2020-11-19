@@ -4838,7 +4838,6 @@ TEST_F(SdkTest, SdkDeviceNames)
     getUserAttribute(u, MegaApi::USER_ATTR_DEVICE_NAMES, maxTimeout, 0);
 }
 
-
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
 {
     LOG_info << "___TEST SdkGetCountryCallingCodes___";
