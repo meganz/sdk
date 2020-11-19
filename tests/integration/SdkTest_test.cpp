@@ -4831,11 +4831,44 @@ TEST_F(SdkTest, SdkDeviceNames)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkDeviceNames___";
+    
+    // test setter/getter
+    string deviceName = "SdkDeviceNamesTest";
+    auto err = synchronousSetDeviceName(0, deviceName.c_str());
+    ASSERT_EQ(MegaError::API_OK, err) << "setDeviceName failed (error: " << err << ")";
+    err = synchronousGetDeviceName(0);
+    ASSERT_EQ(MegaError::API_OK, err) << "getDeviceName failed (error: " << err << ")";
+    ASSERT_EQ(attributeValue, deviceName) << "getDeviceName returned incorrect value";
+}
 
-    MegaUser* u = megaApi[0]->getMyUser();
-    bool null_pointer = (u == nullptr);
-    ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << mApi[0].email;
-    getUserAttribute(u, MegaApi::USER_ATTR_DEVICE_NAMES, maxTimeout, 0);
+TEST_F(SdkTest, SdkUserAlias)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST SdkUserAlias___";
+
+    // setup
+    MegaHandle uh = UNDEF;
+    if (auto u = megaApi[0]->getMyUser())
+    {
+        uh = u->getHandle();
+    }
+    else
+    {
+        ASSERT_TRUE(FALSE) << "Cannot find the MegaUser for email: " << mApi[0].email;
+    }
+
+    if (uh == UNDEF)
+    {
+        ASSERT_TRUE(FALSE) << "failed to get user handle for email:" << mApi[0].email;
+    }
+
+    // test setter/getter
+    string alias = "UserAliasTest";
+    auto err = synchronousSetUserAlias(0, uh, Base64::btoa(alias).c_str());
+    ASSERT_EQ(MegaError::API_OK, err) << "setUserAlias failed (error: " << err << ")";
+    err = synchronousGetUserAlias(0, uh);
+    ASSERT_EQ(MegaError::API_OK, err) << "getUserAlias failed (error: " << err << ")";
+    ASSERT_EQ(attributeValue, alias) << "getUserAlias returned incorrect value";
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)
