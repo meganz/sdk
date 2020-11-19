@@ -495,8 +495,8 @@ SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, Prn
     mTable.reset(dbaccess.open(rng, fsaccess, dbname));
     if (!mTable)
     {
-        LOG_err << "Unable to open DB table: " << dbname;
-        assert(false);
+        LOG_warn << "Unable to open database: " << dbname;
+        // no syncs configured --> no database
         return;
     }
 
