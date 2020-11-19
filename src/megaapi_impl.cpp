@@ -15439,15 +15439,15 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 const char *h = request->getText();
                 if (h)
                 {
-                    const char *buf = stringMap->get(h);
-                    if (!buf)
+                    string key{h};
+                    if (!tlv->find(key))
                     {
                         e = API_ENOENT;
                         break;
                     }
                     else
                     {
-                        request->setName(Base64::atob(buf).c_str());
+                        request->setName(Base64::atob(tlv->get(key)).c_str());
                     }
                 }
                 break;
@@ -20203,7 +20203,10 @@ void MegaApiImpl::sendPendingRequests()
 
                 std::unique_ptr<TLVstore> tlv;
                 User *ownUser = client->finduser(client->me);
-                if (type == ATTR_ALIAS || type == ATTR_CAMERA_UPLOADS_FOLDER || type == ATTR_DEVICE_NAMES || type == ATTR_BACKUP_NAMES)
+                if (type == ATTR_ALIAS
+                        || type == ATTR_CAMERA_UPLOADS_FOLDER
+                        || type == ATTR_DEVICE_NAMES
+                        || type == ATTR_BACKUP_NAMES)
                 {
                     if (!ownUser->isattrvalid(type)) // not fetched yet or outdated
                     {
@@ -23364,7 +23367,7 @@ void MegaApiImpl::setBackup(int backupType, MegaHandle targetNode, const char* l
     request->setTotalBytes(backupType);
     request->setNodeHandle(targetNode);
     request->setFile(localFolder);
-    request->setName(backupName);
+    request->setName(backupName ? Base64::btoa(backupName).c_str() : nullptr);
     request->setAccess(state);
     request->setNumDetails(subState);
     request->setText(extraData);

@@ -8223,11 +8223,12 @@ bool CommandBackupPut::procresult(Result r)
         e = r.errorOrOK();
     }
 
-    if (!ISUNDEF(backupId))
+    if (!mUpdate && !ISUNDEF(backupId)) // successfully registered a new backup --> set the backup name
     {
+        assert(r.succeeded());
+
         // automatically add the backup name to the corresponding user attribute
         std::string key {Base64Str<MegaClient::BACKUPHANDLE>(backupId)};
-        std::string value {Base64::btoa(mBackupName)};  // not strictly required in B64, but for homogeneity with other private attrs
         attr_t attrtype = ATTR_BACKUP_NAMES;
 
         std::unique_ptr<TLVstore> tlv;
@@ -8237,7 +8238,7 @@ bool CommandBackupPut::procresult(Result r)
         if (!oldValue)  // attr doesn't exist -> create it
         {
             tlv.reset(new TLVstore());
-            tlv->set(key, value);
+            tlv->set(key, mBackupName);
 
             // serialize and encrypt the TLV container
             std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
@@ -8249,7 +8250,7 @@ bool CommandBackupPut::procresult(Result r)
         }
         else
         {
-            string_map attrMap {{key,value}};
+            string_map attrMap { {key, Base64::btoa(mBackupName)} };
             tlv.reset(TLVstore::containerToTLVrecords(oldValue, &client->key));
             if (User::mergeUserAttribute(attrtype, attrMap, *tlv.get()))
             {
