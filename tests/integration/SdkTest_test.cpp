@@ -4857,8 +4857,7 @@ TEST_F(SdkTest, SdkBackupNames)
     backup = "/SdkBackupNames_setBackupName_Test";
     err = synchronousSetBackupName(0, mBackupId, backup);
     ASSERT_EQ(MegaError::API_OK, err) << "setBackupName failed (error: " << err << ")";
-    ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
-
+    
     // check the name of the backup has been updated
     err = synchronousGetBackupName(0, mBackupId);
     ASSERT_EQ(MegaError::API_OK, err) << "getBackupName failed (error: " << err << ")";
