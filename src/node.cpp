@@ -47,7 +47,6 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     parent = NULL;
 
 #ifdef ENABLE_SYNC
-    localnode = NULL;
     syncget = NULL;
 
     syncdeleted = SYNCDEL_NONE;
@@ -196,7 +195,7 @@ Node::~Node()
     if (localnode)
     {
         localnode->deleted = true;
-        localnode->node = NULL;
+        localnode.reset();
     }
 
     // in case this node is currently being transferred for syncing: abort transfer
@@ -514,7 +513,7 @@ bool Node::serialize(string* d)
     time_t ts = 0;  // we don't want to break backward compatibiltiy by changing the size (where m_time_t differs)
     d->append((char*)&ts, sizeof(ts));
 
-    ts = (time_t)ctime; 
+    ts = (time_t)ctime;
     d->append((char*)&ts, sizeof(ts));
 
     d->append(nodekeydata);
@@ -1225,7 +1224,7 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
             if (!newnode && node)
             {
                 assert(parent->node);
-                
+
                 int creqtag = sync->client->reqtag;
                 sync->client->reqtag = sync->tag;
                 LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
@@ -1331,7 +1330,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
 {
     sync = csync;
     parent = NULL;
-    node = NULL;
+    node.reset();
     notseen = 0;
     deleted = false;
     created = false;
@@ -1443,19 +1442,11 @@ treestate_t LocalNode::checkstate()
 
 void LocalNode::setnode(Node* cnode)
 {
-    if (node && (node != cnode) && node->localnode)
-    {
-        node->localnode = NULL;
-    }
-
     deleted = false;
 
-    node = cnode;
-
-    if (node)
-    {
-        node->localnode = this;
-    }
+    if (cnode) cnode->localnode.reset();
+    node.reset();
+    node.crossref(cnode, this);
 }
 
 void LocalNode::setnotseen(int newnotseen)
@@ -1557,7 +1548,7 @@ LocalNode::~LocalNode()
             sync->dirnotify->notifyq[q].replaceLocalNodePointers(this, (LocalNode*)~0);
         }
     }
-    
+
     // remove from fsidnode map, if present
     if (fsid_it != sync->client->fsidnode.end())
     {
@@ -1597,7 +1588,7 @@ LocalNode::~LocalNode()
         // shutting down
         if (sync->state < SYNC_INITIALSCAN)
         {
-            node->localnode = NULL;
+            node.reset();
         }
         else
         {
@@ -1738,7 +1729,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
 
     nodetype_t type;
     m_off_t size;
-    
+
     if (!r.unserializei64(size)) return nullptr;
 
     if (size < 0 && size >= -FOLDERNODE)
@@ -1763,7 +1754,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     unsigned char expansionflags[8] = { 0 };
 
     if (!r.unserializehandle(fsid) ||
-        !r.unserializeu32(parent_dbid) || 
+        !r.unserializeu32(parent_dbid) ||
         !r.unserializenodehandle(h) ||
         !r.unserializestring(localname) ||
         (type == FILENODE && !r.unserializebinary((byte*)crc, sizeof(crc))) ||
@@ -1796,7 +1787,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->mtime = mtime;
     l->isvalid = true;
 
-    l->node = sync->client->nodebyhandle(h);
+    l->node.store_unchecked(sync->client->nodebyhandle(h));
     l->parent = nullptr;
     l->sync = sync;
     l->mSyncable = syncable == 1;
