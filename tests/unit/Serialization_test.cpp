@@ -380,7 +380,7 @@ TEST(Serialization, LocalNode_forFolder_withoutParent_withoutNode)
     l.setfsid(10, client.cli->fsidnode);
     std::string data;
     ASSERT_TRUE(l.serialize(&data));
-#ifndef WIN32    
+#ifndef WIN32
     ASSERT_EQ(45u, data.size());
 #endif
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
@@ -453,7 +453,7 @@ TEST(Serialization, LocalNode_forFolder)
     l->parent_dbid = l->parent->dbid;
     auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42);
     l->setfsid(10, client.cli->fsidnode);
-    l->node = &n;
+    l->setnode(&n);
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
 #ifndef WIN32
