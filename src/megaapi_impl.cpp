@@ -23083,42 +23083,71 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_BACKUP_PUT:
         {
-            bool isNew = request->getParentHandle() == UNDEF;
+            handle remoteNode = request->getNodeHandle();
+            const char* backupName = request->getName();
+            const char* localFolder = request->getFile();
+            const char* extraData = request->getText();
             int backupType = static_cast<int>(request->getTotalBytes());
-            if (backupType < MegaApi::BACKUP_TYPE_CAMERA_UPLOADS || backupType > MegaApi::BACKUP_TYPE_MEDIA_UPLOADS)
+            BackupType bType = static_cast<BackupType>(backupType);
+            handle backupId = request->getParentHandle();
+
+            bool isNew = request->getFlag();
+            if (isNew) // Register a new sync/backup
             {
-                if (isNew || (!isNew && backupType != MegaApi::BACKUP_TYPE_INVALID))
+                if ((backupType != MegaApi::BACKUP_TYPE_CAMERA_UPLOADS
+                     && backupType != MegaApi::BACKUP_TYPE_MEDIA_UPLOADS)
+                        || !localFolder
+                        || !backupName
+                        || ISUNDEF(remoteNode)
+                        || !ISUNDEF(backupId))  // new backups don't have a backup id yet
                 {
                     e = API_EARGS;
                     break;
                 }
-            }
-            BackupType bType = static_cast<BackupType>(backupType);
 
-            if (isNew) // Register a new sync
-            {
-                string backupName(binaryToBase64(request->getName(), strlen(request->getName())));
-                string localFolder(binaryToBase64(request->getFile(), strlen(request->getFile())));
-                string extraData(binaryToBase64(request->getText(), strlen(request->getText())));
-                client->reqs.add(new CommandBackupPut(client, bType, backupName, request->getNodeHandle(),
-                                                      localFolder, client->getDeviceidHash(),
-                                                      request->getAccess(), request->getNumDetails(), extraData));
+                string localFolderEncrypted(client->cypherTLVTextWithMasterKey("lf", localFolder));
+                string extraDataEncrypted;
+                if (extraData)
+                {
+                    extraDataEncrypted = client->cypherTLVTextWithMasterKey("ed", extraData);
+                }
+
+                client->reqs.add(new CommandBackupPut(client, bType, backupName, remoteNode,
+                                                      localFolderEncrypted.c_str(), client->getDeviceidHash(),
+                                                      request->getAccess(), request->getNumDetails(), extraDataEncrypted));
             }
-            else // update a backup
+            else // update an existing sync/backup
             {
-                const char* file = request->getFile();
-                unique_ptr<char[]> localFolder(file ? binaryToBase64(file, strlen(file)) : nullptr);
-                const char* extra = request->getText();
-                unique_ptr<char[]> extraData(extra ? binaryToBase64(extra, strlen(extra)) : nullptr);
+                if ((backupType != MegaApi::BACKUP_TYPE_CAMERA_UPLOADS
+                     && backupType != MegaApi::BACKUP_TYPE_MEDIA_UPLOADS
+                     && backupType != MegaApi::BACKUP_TYPE_INVALID)
+                        || ISUNDEF(backupId))   // existing backups must have a backup id
+                {
+                    e = API_EARGS;
+                    break;
+                }
+
+                string localFolderEncrypted;
+                if (localFolder)
+                {
+                    localFolderEncrypted = client->cypherTLVTextWithMasterKey("lf", localFolder);
+                }
+
+                string extraDataEncrypted;
+                if (extraData)
+                {
+                    extraDataEncrypted = client->cypherTLVTextWithMasterKey("ed", extraData);
+                }
+
                 client->reqs.add(new CommandBackupPut(client,
                                                       (MegaHandle)request->getParentHandle(), 
                                                       bType,
                                                       request->getNodeHandle(), 
-                                                      localFolder.get(), 
+                                                      localFolderEncrypted.empty() ? nullptr : localFolderEncrypted.c_str(),
                                                       client->getDeviceidHash().c_str(),
                                                       request->getAccess(),
                                                       request->getNumDetails(),
-                                                      extraData.get()));
+                                                      extraDataEncrypted.empty() ? nullptr : extraDataEncrypted.c_str()));
             }
             break;
         }
@@ -23339,6 +23368,8 @@ void MegaApiImpl::setBackup(int backupType, MegaHandle targetNode, const char* l
     request->setAccess(state);
     request->setNumDetails(subState);
     request->setText(extraData);
+    request->setFlag(true); // indicates it's a new backup
+
     requestQueue.push(request);
     waiter->notify();
 }

@@ -18312,6 +18312,10 @@ class MegaApi
          *  BACKUP_TYPE_CAMERA_UPLOADS = 3,
          *  BACKUP_TYPE_MEDIA_UPLOADS = 4,   // Android has a secondary CU
          *
+         * Note that the backup name is not registered in the API as part of the data of this
+         * backup. It will be stored in a user's attribute after this request finished. For
+         * more information, see \c MegaApi::setBackupName and MegaApi::getBackupName.
+         *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the target node of the backup
@@ -18321,6 +18325,7 @@ class MegaApi
          * - MegaRequest::getText - Returns the extraData associated with the request
          * - MegaRequest::getTotalBytes - Returns the backup type
          * - MegaRequest::getNumDetails - Returns the backup substate
+         * - MegaRequest::getFlag - Returns true
          * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          *
          * @param backupType back up type requested for the service
@@ -18329,7 +18334,7 @@ class MegaApi
          * @param backupName Name of the backup
          * @param state state
          * @param subState subState
-         * @param extraData extraData
+         * @param extraData A binary array converted into B64 (optional)
          * @param listener MegaRequestListener to track this request
         */
         void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
@@ -18371,7 +18376,7 @@ class MegaApi
          * @param backupName backup name of remote location
          * @param state backup state 
          * @param subState backup subState
-         * @param extraData extraData for the backup
+         * @param extraData A binary array converted into B64 (optional)
          * @param listener MegaRequestListener to track this request
         */
         void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
