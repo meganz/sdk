@@ -23452,7 +23452,7 @@ void MegaApiImpl::setBackupName(MegaHandle backupId, const char* backupName, Meg
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
     MegaStringMapPrivate stringMap;
-    string buf = backupName ? backupName : "";    // backup name is null to remove it
+    string buf = backupName ? Base64::btoa(backupName) : Base64::btoa("");    // backup name is null to remove it
     stringMap.set(Base64Str<MegaClient::BACKUPHANDLE>(backupId), Base64::btoa(buf).c_str());
     request->setMegaStringMap(&stringMap);
     request->setParamType(MegaApi::USER_ATTR_BACKUP_NAMES);
