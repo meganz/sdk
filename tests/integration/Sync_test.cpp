@@ -814,18 +814,23 @@ struct StandardClient : public MegaApp
         : client_dbaccess_path(ensureDir(basepath / name))
         , httpio(new HTTPIO_CLASS)
         , fsaccess(new FSACCESS_CLASS)
-        , client(this, &waiter, httpio.get(), fsaccess.get(),
+        , client(this,
+                 &waiter,
+                 httpio.get(),
+                 fsaccess.get(),
 #ifdef DBACCESS_CLASS
-            new DBACCESS_CLASS(&client_dbaccess_path),
+                 new DBACCESS_CLASS(LocalPath::fromPath(client_dbaccess_path, *fsaccess)),
 #else
-            NULL,
+                 NULL,
 #endif
 #ifdef GFX_CLASS
-            &gfx,
+                 &gfx,
 #else
-            NULL,
+                 NULL,
 #endif
-            "N9tSBJDC", USER_AGENT.c_str(), THREADS_PER_MEGACLIENT )
+                 "N9tSBJDC",
+                 USER_AGENT.c_str(),
+                 THREADS_PER_MEGACLIENT)
         , clientname(name)
         , fsBasePath(basepath / fs::u8path(name))
         , resultproc(client)

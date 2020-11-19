@@ -5272,16 +5272,12 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
     fsAccess = new MegaFileSystemAccess(fseventsfd);
 #endif
 
+    dbAccess = nullptr;
     if (basePath)
     {
-        LocalPath lp = LocalPath::fromPath(basePath, *fsAccess);
-        lp.appendWithSeparator(LocalPath(), true);
-        string sBasePath = lp.toPath(*fsAccess);
-        dbAccess = new MegaDbAccess(&sBasePath);
-
+        dbAccess = new MegaDbAccess(LocalPath::fromPath(basePath, *fsAccess));
         this->basePath = basePath;
     }
-    else dbAccess = NULL;
 
     gfxAccess = NULL;
     if(processor)
