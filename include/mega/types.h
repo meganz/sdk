@@ -997,9 +997,6 @@ private:
     // enabled/disabled by the user
     bool mEnabled = true;
 
-    // sync stored on external device.
-    bool mExternal = false;
-
     // Path to the volume containing this backup.
     string mDrivePath;
 
