@@ -4744,7 +4744,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
 
 TEST_F(SdkTest, SdkHeartbeatCommands)
 {
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
     LOG_info << "___TEST HeartbeatCommands___";
 
     // setbackup test
