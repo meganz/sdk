@@ -4154,6 +4154,13 @@ class MegaTransfer
         virtual bool isForeignOverquota() const;
 
         /**
+         * @brief Returns true if the transfer may force a new upload.
+         *
+         * @return true if the transfer can force a new upload.
+         */
+        virtual bool isForceNewUpload() const;
+
+        /**
          * @brief Returns true is this is a streaming transfer
          * @return true if this is a streaming transfer, false otherwise
          * @see MegaApi::startStreaming

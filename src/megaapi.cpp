@@ -1215,6 +1215,11 @@ bool MegaTransfer::isForeignOverquota() const
     return false;
 }
 
+bool MegaTransfer::isForceNewUpload() const
+{
+    return false;
+}
+
 char *MegaTransfer::getLastBytes() const
 {
     return NULL;
