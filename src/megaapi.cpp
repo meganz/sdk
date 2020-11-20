@@ -2559,7 +2559,7 @@ void MegaApi::setUnshareableNodeCoordinates(MegaNode *node, double latitude, dou
 
 void MegaApi::exportNode(MegaNode *node, MegaRequestListener *listener)
 {
-    pImpl->exportNode(node, 0, listener);
+    pImpl->exportNode(node, 0, false, listener);
 }
 
 void MegaApi::exportNode(MegaNode *node, bool writable, MegaRequestListener *listener)
