@@ -123,8 +123,12 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
 
 bool WinFileAccess::ftruncate()
 {
+    LARGE_INTEGER zero;
+
+    zero.QuadPart = 0x0;
+
     // Set the file pointer to the start of the file.
-    if (SetFilePointerEx(hFile, 0x0, nullptr, FILE_BEGIN))
+    if (SetFilePointerEx(hFile, zero, nullptr, FILE_BEGIN))
     {
         // Truncate the file.
         if (SetEndOfFile(hFile))
