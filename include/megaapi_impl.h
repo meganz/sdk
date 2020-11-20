@@ -705,7 +705,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         void setStartFirst(bool startFirst);
         void setBackupTransfer(bool backupTransfer);
         void setForeignOverquota(bool backupTransfer);
-        void setForceNewUpload(bool backupTransfer);
+        void setForceNewUpload(bool forceNewUpload);
         void setStreamingTransfer(bool streamingTransfer);
         void setLastBytes(char *lastBytes);
         void setLastError(const MegaError *e);
