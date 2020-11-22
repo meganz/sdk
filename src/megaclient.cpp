@@ -13074,7 +13074,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, LocalPath* 
     if (!fsaccess->issyncsupported(rootpath, &isnetwork, &syncError))
     {
         LOG_warn << "Unsupported filesystem";
-        if (!syncError)
+        if (!isAnError(syncError))
         {
             syncError = UNSUPPORTED_FILE_SYSTEM;
         }
@@ -13098,7 +13098,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, LocalPath* 
             if (e)
             {
                 LOG_warn << "Local path not syncable: ";
-                if (!syncError)
+                if (!isAnError(syncError))
                 {
                     syncError = LOCAL_PATH_UNAVAILABLE;
                 }
@@ -13126,7 +13126,7 @@ error MegaClient::addsync(SyncConfig syncConfig, const char* debris, LocalPath* 
                 syncError = ACCOUNT_BLOCKED;
             }
 
-            if (syncError)
+            if (isAnError(syncError))
             {
                 // save configuration but avoid creating active sync, and set as temporary disabled:
                 saveAndUpdateSyncConfig(&syncConfig, SYNC_DISABLED, static_cast<SyncError>(syncError) );
