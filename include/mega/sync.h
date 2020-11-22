@@ -389,6 +389,9 @@ public:
                 const string& data,
                 const unsigned int slot);
 
+    // Name of the backup configuration directory.
+    static const string BACKUP_CONFIG_DIR;
+
 private:
     // Decrypt data.
     bool decrypt(const string& in, string& out);
@@ -401,9 +404,6 @@ private:
 
     // Serialize a config to JSON.
     void serialize(const XBackupConfig& config, JSONWriter& writer) const;
-
-    // Name of the backup configuration directory.
-    static const string BACKUP_CONFIG_DIR;
 
     // The cipher protecting the user's configuration databases.
     SymmCipher mCipher;

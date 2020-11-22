@@ -17,6 +17,7 @@
  */
 
 #include <memory>
+#include <numeric>
 
 #include <gtest/gtest.h>
 
@@ -1354,4 +1355,485 @@ TEST(Sync, SyncConfigBag_withPreviousState)
     const std::vector<mega::SyncConfig> expConfigs{config1, config2};
     //ASSERT_EQ(expConfigs, bag2.all());
 }
+
+namespace XBackupConfigTests
+{
+
+using namespace mega;
+using namespace std;
+using namespace testing;
+
+class Directory
+{
+public:
+    Directory(FSACCESS_CLASS& fsAccess, const LocalPath& path)
+      : mFSAccess(fsAccess)
+      , mPath(path)
+    {
+        mFSAccess.mkdirlocal(mPath, false);
+    }
+
+    ~Directory()
+    {
+        mFSAccess.emptydirlocal(mPath);
+        mFSAccess.rmdirlocal(mPath);
+    }
+
+    operator const LocalPath&() const
+    {
+        return mPath;
+    }
+
+private:
+    FSACCESS_CLASS& mFSAccess;
+    LocalPath mPath;
+}; // Directory
+
+class Utilities
+{
+public:
+    static string randomBase64(const size_t n)
+    {
+        return Base64::btoa(randomBytes(n));
+    }
+
+    static string randomBytes(const size_t n)
+    {
+        string result(n, '0');
+
+        mRNG.genblock(reinterpret_cast<byte*>(&result[0]), n);
+
+        return result;
+    }
+
+    static bool randomFile(LocalPath path, const size_t n = 64)
+    {
+        auto fileAccess = mFSAccess.newfileaccess(false);
+
+        if (!fileAccess->fopen(path, false, true))
+        {
+            return false;
+        }
+
+        if (fileAccess->size > 0)
+        {
+            if (!fileAccess->ftruncate())
+            {
+                return false;
+            }
+        }
+
+        const string data = randomBytes(n);
+        const byte* bytes = reinterpret_cast<const byte*>(&data[0]);
+
+        return fileAccess->fwrite(bytes, n, 0x0);
+    }
+
+    static LocalPath randomPath(const size_t n = 16)
+    {
+        return LocalPath::fromPath(randomBase64(n), mFSAccess);
+    }
+
+private:
+    static FSACCESS_CLASS mFSAccess;
+    static PrnGen mRNG;
+}; // Utilities
+
+FSACCESS_CLASS Utilities::mFSAccess;
+PrnGen Utilities::mRNG;
+
+class XBackupConfigIOContextTest
+  : public Test
+{
+public:
+    XBackupConfigIOContextTest()
+      : Test()
+      , mCipher(SymmCipher::zeroiv)
+      , mFSAccess()
+      , mRNG()
+      , mConfigKey(Utilities::randomBase64(16))
+      , mConfigName(Utilities::randomBase64(16))
+      , mIOContext(mCipher,
+                   mFSAccess,
+                   mConfigKey,
+                   mConfigName,
+                   mRNG)
+    {
+    }
+
+    const string& configName() const
+    {
+        return mConfigName;
+    }
+
+    FSACCESS_CLASS& fsAccess()
+    {
+        return mFSAccess;
+    }
+
+    XBackupConfigIOContext& ioContext()
+    {
+        return mIOContext;
+    }
+
+private:
+    SymmCipher mCipher;
+    FSACCESS_CLASS mFSAccess;
+    PrnGen mRNG;
+    const string mConfigKey;
+    const string mConfigName;
+    XBackupConfigIOContext mIOContext;
+}; // XBackupConfigIOContextTest
+
+TEST_F(XBackupConfigIOContextTest, GetBadPath)
+{
+    vector<unsigned int> slots;
+
+    // Generate a bogus path.
+    const auto drivePath = Utilities::randomPath();
+
+    // Try to read slots from an invalid path.
+    EXPECT_NE(ioContext().get(drivePath, slots), API_OK);
+
+    // Slots should be empty.
+    EXPECT_TRUE(slots.empty());
+}
+
+TEST_F(XBackupConfigIOContextTest, GetNoSlots)
+{
+    const auto& BACKUP_DIR =
+      XBackupConfigIOContext::BACKUP_CONFIG_DIR;
+
+    // Make sure the drive path exists.
+    Directory drivePath(fsAccess(), Utilities::randomPath());
+
+    // Make sure the backup directory exists.
+    LocalPath backupPath = drivePath;
+
+    backupPath.appendWithSeparator(
+      LocalPath::fromPath(BACKUP_DIR, fsAccess()), false);
+
+    EXPECT_TRUE(fsAccess().mkdirlocal(backupPath, false));
+
+    // Generate some malformed slots for this user.
+    {
+        LocalPath configPath = backupPath;
+
+        // This file will be ignored as it has no slot suffix.
+        configPath.appendWithSeparator(
+          LocalPath::fromPath(configName(), fsAccess()), false);
+        EXPECT_TRUE(Utilities::randomFile(configPath));
+
+        // This file will be ignored as it has a malformed slot suffix.
+        configPath.append(LocalPath::fromPath(".", fsAccess()));
+        EXPECT_TRUE(Utilities::randomFile(configPath));
+
+        // This file will be ignored as it has an invalid slot suffix.
+        configPath.append(LocalPath::fromPath("Q", fsAccess()));
+        EXPECT_TRUE(Utilities::randomFile(configPath));
+    }
+
+    // Generate a slot for a different user.
+    {
+        LocalPath configPath = backupPath;
+
+        configPath.appendWithSeparator(Utilities::randomPath(), false);
+        configPath.append(LocalPath::fromPath(".0", fsAccess()));
+
+        EXPECT_TRUE(Utilities::randomFile(configPath));
+    }
+
+    vector<unsigned int> slots;
+
+    // Try and get a list of slots.
+    EXPECT_EQ(ioContext().get(drivePath, slots), API_OK);
+
+    // Slots should be empty.
+    EXPECT_TRUE(slots.empty());
+}
+
+TEST_F(XBackupConfigIOContextTest, GetSlotsOrderedByModificationTime)
+{
+    const auto& BACKUP_DIR =
+      XBackupConfigIOContext::BACKUP_CONFIG_DIR;
+
+    const size_t NUM_SLOTS = 3;
+
+    // Make sure drive path exists.
+    Directory drivePath(fsAccess(), Utilities::randomPath());
+
+    // Make sure backup directory exists.
+    LocalPath backupPath = drivePath;
+
+    backupPath.appendWithSeparator(
+      LocalPath::fromPath(BACKUP_DIR, fsAccess()), false);
+
+    EXPECT_TRUE(fsAccess().mkdirlocal(backupPath, false));
+
+    // Generate some slots for this user.
+    {
+        LocalPath configPath = backupPath;
+
+        // Generate suitable config path prefix.
+        configPath.appendWithSeparator(
+          LocalPath::fromPath(configName(), fsAccess()), false);
+
+        for (size_t i = 0; i < NUM_SLOTS; ++i)
+        {
+            using std::to_string;
+
+            ScopedLengthRestore restorer(configPath);
+
+            // Generate suffix.
+            LocalPath suffixPath =
+              LocalPath::fromPath("." + to_string(i), fsAccess());
+
+            // Complete config path.
+            configPath.append(suffixPath);
+
+            // Populate the file.
+            EXPECT_TRUE(Utilities::randomFile(configPath));
+
+            // Set the modification time.
+            EXPECT_TRUE(fsAccess().setmtimelocal(configPath, i * 1000));
+        }
+    }
+
+    vector<unsigned int> slots;
+
+    // Get the slots.
+    EXPECT_EQ(ioContext().get(drivePath, slots), API_OK);
+
+    // Did we retrieve the correct number of slots?
+    EXPECT_EQ(slots.size(), NUM_SLOTS);
+
+    // Are the slots ordered by descending modification time?
+    {
+        vector<unsigned int> expected(NUM_SLOTS, 0);
+
+        iota(begin(expected), end(expected), 0);
+
+        EXPECT_TRUE(equal(begin(expected), end(expected), rbegin(slots)));
+    }
+}
+
+TEST_F(XBackupConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
+{
+    const auto& BACKUP_DIR =
+      XBackupConfigIOContext::BACKUP_CONFIG_DIR;
+
+    const size_t NUM_SLOTS = 3;
+
+    // Make sure drive path exists.
+    Directory drivePath(fsAccess(), Utilities::randomPath());
+
+    // Make sure backup directory exists.
+    LocalPath backupPath = drivePath;
+
+    backupPath.appendWithSeparator(
+      LocalPath::fromPath(BACKUP_DIR, fsAccess()), false);
+
+    EXPECT_TRUE(fsAccess().mkdirlocal(backupPath, false));
+
+    // Generate some slots for this user.
+    {
+        LocalPath configPath = backupPath;
+
+        // Generate suitable config path prefix.
+        configPath.appendWithSeparator(
+          LocalPath::fromPath(configName(), fsAccess()), false);
+
+        for (size_t i = 0; i < NUM_SLOTS; ++i)
+        {
+            using std::to_string;
+
+            ScopedLengthRestore restorer(configPath);
+
+            // Generate suffix.
+            LocalPath suffixPath =
+              LocalPath::fromPath("." + to_string(i), fsAccess());
+
+            // Complete config path.
+            configPath.append(suffixPath);
+
+            // Populate the file.
+            EXPECT_TRUE(Utilities::randomFile(configPath));
+
+            // Set the modification time.
+            EXPECT_TRUE(fsAccess().setmtimelocal(configPath, 0));
+        }
+    }
+
+    vector<unsigned int> slots;
+
+    // Get the slots.
+    EXPECT_EQ(ioContext().get(drivePath, slots), API_OK);
+
+    // Did we retrieve the correct number of slots?
+    EXPECT_EQ(slots.size(), NUM_SLOTS);
+
+    // Are the slots ordered by descending slot number when their
+    // modification time is the same?
+    {
+        vector<unsigned int> expected(NUM_SLOTS, 0);
+
+        iota(begin(expected), end(expected), 0);
+
+        EXPECT_TRUE(equal(begin(expected), end(expected), rbegin(slots)));
+    }
+}
+
+TEST_F(XBackupConfigIOContextTest, Read)
+{
+    // Make sure the drive path exists.
+    Directory drivePath(fsAccess(), Utilities::randomPath());
+
+    // Try writing some data out and reading it back again.
+    {
+        string read;
+        string written = Utilities::randomBytes(64);
+
+        EXPECT_EQ(ioContext().write(drivePath, written, 0), API_OK);
+        EXPECT_EQ(ioContext().read(drivePath, read, 0), API_OK);
+        EXPECT_EQ(read, written);
+    }
+
+    // Try a different slot to make sure it has an effect.
+    {
+        string read;
+        string written = Utilities::randomBytes(64);
+
+        EXPECT_EQ(ioContext().read(drivePath, read, 1), API_EREAD);
+        EXPECT_TRUE(read.empty());
+
+        EXPECT_EQ(ioContext().write(drivePath, written, 1), API_OK);
+        EXPECT_EQ(ioContext().read(drivePath, read, 1), API_OK);
+        EXPECT_EQ(read, written);
+    }
+}
+
+TEST_F(XBackupConfigIOContextTest, ReadBadData)
+{
+    const string& BACKUP_DIR =
+      XBackupConfigIOContext::BACKUP_CONFIG_DIR;
+
+    string data;
+
+    // Make sure the drive path exists.
+    Directory drivePath(fsAccess(), Utilities::randomPath());
+
+    // Make sure the backup directory exists.
+    LocalPath backupPath = drivePath;
+
+    backupPath.appendWithSeparator(
+      LocalPath::fromPath(BACKUP_DIR, fsAccess()), false);
+
+    EXPECT_TRUE(fsAccess().mkdirlocal(backupPath, false));
+
+    // Generate slot path.
+    LocalPath slotPath = backupPath;
+
+    slotPath.appendWithSeparator(
+      LocalPath::fromPath(configName(), fsAccess()), false);
+
+    slotPath.append(LocalPath::fromPath(".0", fsAccess()));
+
+    // Try loading a file that's too short to be valid.
+    EXPECT_TRUE(Utilities::randomFile(slotPath, 1));
+    EXPECT_EQ(ioContext().read(drivePath, data, 0), API_EREAD);
+    EXPECT_TRUE(data.empty());
+
+    // Try loading a file composed entirely of junk.
+    EXPECT_TRUE(Utilities::randomFile(slotPath, 128));
+    EXPECT_EQ(ioContext().read(drivePath, data, 0), API_EREAD);
+    EXPECT_TRUE(data.empty());
+}
+
+TEST_F(XBackupConfigIOContextTest, ReadBadPath)
+{
+    const LocalPath drivePath = Utilities::randomPath();
+    string data;
+
+    // Try and read data from an insane path.
+    EXPECT_EQ(ioContext().read(drivePath, data, 0), API_EREAD);
+    EXPECT_TRUE(data.empty());
+}
+
+TEST_F(XBackupConfigIOContextTest, Serialize)
+{
+    XBackupConfigMap read;
+    XBackupConfigMap written;
+    JSONWriter writer;
+
+    // Populate the database with two configs.
+    {
+        XBackupConfig config;
+
+        config.enabled = false;
+        config.heartbeatID = UNDEF;
+        config.lastError = NO_SYNC_ERROR;
+        config.sourcePath = Utilities::randomPath();
+        config.tag = 1;
+        config.targetHandle = UNDEF;
+
+        written.emplace(config.tag, config);
+
+        config.enabled = true;
+        config.heartbeatID = 1;
+        config.lastError = UNKNOWN_ERROR;
+        config.sourcePath = Utilities::randomPath();
+        config.tag = 2;
+        config.targetHandle = 3;
+
+        written.emplace(config.tag, config);
+    }
+
+    // Serialize the database.
+    ioContext().serialize(written, writer);
+    EXPECT_FALSE(writer.getstring().empty());
+
+    // Deserialize the database.
+    {
+        JSON reader(writer.getstring());
+        EXPECT_TRUE(ioContext().deserialize(read, reader));
+    }
+
+    // Are the databases identical?
+    EXPECT_EQ(read, written);
+}
+
+TEST_F(XBackupConfigIOContextTest, SerializeEmpty)
+{
+    JSONWriter writer;
+
+    // Serialize an empty database.
+    {
+        // Does serializing an empty database yield an empty array?
+        ioContext().serialize(XBackupConfigMap(), writer);
+        EXPECT_EQ(writer.getstring(), "[]");
+    }
+
+    // Deserialize the empty database.
+    {
+        XBackupConfigMap configs;
+        JSON reader(writer.getstring());
+
+        // Can we deserialize an empty database?
+        EXPECT_TRUE(ioContext().deserialize(configs, reader));
+        EXPECT_TRUE(configs.empty());
+    }
+}
+
+TEST_F(XBackupConfigIOContextTest, WriteBadPath)
+{
+    const LocalPath drivePath = Utilities::randomPath();
+    const string data = Utilities::randomBytes(64);
+
+    // Try and write data to an insane path.
+    EXPECT_NE(ioContext().write(drivePath, data, 0), API_OK);
+}
+
+} // XBackupConfigTests
+
 #endif
+
