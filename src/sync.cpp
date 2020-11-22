@@ -584,26 +584,24 @@ error SyncConfigBag::removeByTag(const int tag)
         return API_ENOENT;
     }
 
+    if (mTable)
+    {
+        DBTableTransactionCommitter committer(mTable.get());
+
+        if (!mTable->del(it->second.dbid))
+        {
+            LOG_err << "Unable to remove config from database: "
+                    << it->second.dbid;
+
+            assert(false);
+
+            mTable->abort();
+
+            return API_EWRITE;
+        }
+    }
+
     mSyncConfigs.erase(it);
-
-    if (!mTable)
-    {
-        return API_OK;
-    }
-
-    DBTableTransactionCommitter committer(mTable.get());
-
-    if (!mTable->del(it->second.dbid))
-    {
-        LOG_err << "Unable to remove config from database: "
-                << it->second.dbid;
-
-        assert(false);
-
-        mTable->abort();
-
-        return API_EWRITE;
-    }
 
     return API_OK;
 }
