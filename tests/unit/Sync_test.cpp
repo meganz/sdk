@@ -19,6 +19,7 @@
 #include <memory>
 #include <numeric>
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <mega/megaclient.h>
@@ -1442,17 +1443,39 @@ private:
 FSACCESS_CLASS Utilities::mFSAccess;
 PrnGen Utilities::mRNG;
 
-class XBackupConfigIOContextTest
+class XBackupConfigTest
   : public Test
 {
 public:
-    XBackupConfigIOContextTest()
+    XBackupConfigTest()
       : Test()
       , mCipher(SymmCipher::zeroiv)
       , mFSAccess()
       , mRNG()
       , mConfigKey(Utilities::randomBase64(16))
       , mConfigName(Utilities::randomBase64(16))
+    {
+    }
+
+    FSACCESS_CLASS& fsAccess()
+    {
+        return mFSAccess;
+    }
+
+protected:
+    SymmCipher mCipher;
+    FSACCESS_CLASS mFSAccess;
+    PrnGen mRNG;
+    const string mConfigKey;
+    const string mConfigName;
+}; // XBackupConfigTest
+
+class XBackupConfigIOContextTest
+  : public XBackupConfigTest
+{
+public:
+    XBackupConfigIOContextTest()
+      : XBackupConfigTest()
       , mIOContext(mCipher,
                    mFSAccess,
                    mConfigKey,
@@ -1466,22 +1489,12 @@ public:
         return mConfigName;
     }
 
-    FSACCESS_CLASS& fsAccess()
-    {
-        return mFSAccess;
-    }
-
     XBackupConfigIOContext& ioContext()
     {
         return mIOContext;
     }
 
 private:
-    SymmCipher mCipher;
-    FSACCESS_CLASS mFSAccess;
-    PrnGen mRNG;
-    const string mConfigKey;
-    const string mConfigName;
     XBackupConfigIOContext mIOContext;
 }; // XBackupConfigIOContextTest
 
@@ -1831,6 +1844,904 @@ TEST_F(XBackupConfigIOContextTest, WriteBadPath)
 
     // Try and write data to an insane path.
     EXPECT_NE(ioContext().write(drivePath, data, 0), API_OK);
+}
+
+class XBackupConfigDBTest
+  : public XBackupConfigTest
+{
+public:
+    class IOContext
+      : public XBackupConfigIOContext
+    {
+    public:
+        using XBackupConfigIOContext::XBackupConfigIOContext;
+
+        MOCK_METHOD(error,
+                    get,
+                    (const LocalPath&, vector<unsigned int>&),
+                    (override));
+
+        MOCK_METHOD(error,
+                    read,
+                    (const LocalPath&, string&, const unsigned int),
+                    (override));
+
+        MOCK_METHOD(error,
+                    write,
+                    (const LocalPath&, const string&, const unsigned int),
+                    (override));
+    }; // IOContext
+
+    class Observer
+      : public XBackupConfigDBObserver
+    {
+    public:
+        // Convenience.
+        using Config = XBackupConfig;
+        using DB = XBackupConfigDB;
+
+        MOCK_METHOD(void,
+                    onAdd,
+                    (DB&, const Config&),
+                    (override));
+
+        MOCK_METHOD(void,
+                    onChange,
+                    (DB&, const Config&, const Config&),
+                    (override));
+
+        MOCK_METHOD(void,
+                    onDirty,
+                    (DB&),
+                    (override));
+
+        MOCK_METHOD(void,
+                    onRemove,
+                    (DB&, const Config&),
+                    (override));
+    }; // Observer
+
+    XBackupConfigDBTest()
+      : XBackupConfigTest()
+      , mDrivePath(Utilities::randomPath())
+      , mIOContext(mCipher,
+                   mFSAccess,
+                   mConfigKey,
+                   mConfigName,
+                   mRNG)
+      , mObserver()
+    {
+    }
+
+    const LocalPath& drivePath() const
+    {
+        return mDrivePath;
+    }
+
+    IOContext& ioContext()
+    {
+        return mIOContext;
+    }
+
+    Observer& observer()
+    {
+        return mObserver;
+    }
+
+private:
+    const LocalPath mDrivePath;
+    NiceMock<IOContext> mIOContext;
+    NiceMock<Observer> mObserver;
+}; // XBackupConfigDBTest
+
+TEST_F(XBackupConfigDBTest, AddWithTarget)
+{
+    // Create config DB.
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    // Create and populate config.
+    XBackupConfig config;
+
+    config.drivePath = drivePath();
+    config.sourcePath = LocalPath();
+    config.enabled = true;
+    config.tag = 0;
+    config.targetHandle = 1;
+
+    // Database should tell the observer that a new config has been added.
+    Expectation onAdd =
+      EXPECT_CALL(observer(),
+                  onAdd(Ref(configDB), Eq(config)))
+        .Times(1);
+
+    // Database should tell the observer it needs to be written.
+    EXPECT_CALL(observer(),
+                onDirty(Ref(configDB)))
+      .After(onAdd);
+
+    // Add config to database.
+    const auto* c = configDB.add(config);
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, config);
+
+    // Has a config been added?
+    EXPECT_EQ(configDB.configs().size(), 1);
+
+    // Can we retrieve the config by tag?
+    EXPECT_EQ(configDB.get(config.tag), c);
+
+    // Can we retrieve the config by target handle?
+    EXPECT_EQ(configDB.get(config.targetHandle), c);
+}
+
+TEST_F(XBackupConfigDBTest, AddWithoutTarget)
+{
+    // Create config DB.
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    // Create and populate config.
+    XBackupConfig config;
+
+    config.drivePath = drivePath();
+    config.sourcePath = LocalPath();
+    config.enabled = true;
+    config.tag = 0;
+    config.targetHandle = UNDEF;
+
+    // Database should tell the observer that a new config has been added.
+    Expectation onAdd =
+      EXPECT_CALL(observer(),
+                  onAdd(Ref(configDB), Eq(config)))
+        .Times(1);
+
+    // Database should tell the observer it needs to be written.
+    EXPECT_CALL(observer(),
+                onDirty(Ref(configDB)))
+      .Times(1)
+      .After(onAdd);
+
+    // Add config to database.
+    const auto* c = configDB.add(config);
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, config);
+
+    // Has a config been added?
+    EXPECT_EQ(configDB.configs().size(), 1);
+
+    // Can we retrieve the config by tag?
+    EXPECT_EQ(configDB.get(config.tag), c);
+
+    // No mapping should ever be created for an UNDEF handle.
+    EXPECT_EQ(configDB.get(UNDEF), nullptr);
+}
+
+TEST_F(XBackupConfigDBTest, Clear)
+{
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    // Add a couple configurations.
+    XBackupConfig configA;
+    XBackupConfig configB;
+
+    configA.drivePath = drivePath();
+    configA.sourcePath = Utilities::randomPath();
+    configA.tag = 0;
+    configA.targetHandle = 1;
+
+    configB.drivePath = drivePath();
+    configB.sourcePath = Utilities::randomPath();
+    configB.tag = 2;
+    configB.targetHandle = 3;
+
+    EXPECT_NE(configDB.add(configA), nullptr);
+    EXPECT_NE(configDB.add(configB), nullptr);
+
+    // Verify configs have been added.
+    EXPECT_EQ(configDB.configs().size(), 2);
+
+    // Observer should be notified for each config cleared.
+    Expectation onRemoveA =
+      EXPECT_CALL(observer(),
+                  onRemove(Ref(configDB), Eq(configA)))
+        .Times(1);
+
+    Expectation onRemoveB =
+      EXPECT_CALL(observer(),
+                  onRemove(Ref(configDB), Eq(configB)))
+        .Times(1)
+        .After(onRemoveA);
+
+    // Observer should be notified that the DB needs writing.
+    EXPECT_CALL(observer(),
+                onDirty(Ref(configDB)))
+      .Times(1)
+      .After(onRemoveB);
+
+    // Clear the database.
+    configDB.clear();
+
+    // Database shouldn't contain any configs.
+    EXPECT_TRUE(configDB.configs().empty());
+
+    // No mappings should remain.
+    EXPECT_EQ(configDB.get(configA.tag), nullptr);
+    EXPECT_EQ(configDB.get(configB.tag), nullptr);
+    EXPECT_EQ(configDB.get(configA.targetHandle), nullptr);
+    EXPECT_EQ(configDB.get(configB.targetHandle), nullptr);
+}
+
+TEST_F(XBackupConfigDBTest, ClearEmpty)
+{
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    // Clearing an empty database should not trigger any notifications.
+    EXPECT_CALL(observer(), onDirty(_)).Times(0);
+    EXPECT_CALL(observer(), onRemove(_, _)).Times(0);
+
+    // Clear the database.
+    configDB.clear();
+}
+
+TEST_F(XBackupConfigDBTest, Destruct)
+{
+    // Nested scope so we can test destruction.
+    {
+        XBackupConfigDB configDB(drivePath(), observer());
+
+        // Create config.
+        XBackupConfig config;
+
+        config.drivePath = drivePath();
+        config.sourcePath = Utilities::randomPath();
+        config.tag = 1;
+        config.targetHandle = 2;
+
+        // Add config.
+        EXPECT_NE(configDB.add(config), nullptr);
+
+        // Observer should be told about each removed config.
+        EXPECT_CALL(observer(),
+                    onRemove(Ref(configDB), Eq(config)))
+          .Times(1);
+
+        // Destructor does not dirty the database.
+        EXPECT_CALL(observer(),
+                    onDirty(Ref(configDB)))
+          .Times(0);
+    }
+}
+
+TEST_F(XBackupConfigDBTest, DrivePath)
+{
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    EXPECT_EQ(configDB.drivePath(), drivePath());
+}
+
+TEST_F(XBackupConfigDBTest, DestructEmpty)
+{
+    // Nested scope so we can test destruction.
+    {
+        XBackupConfigDB configDB(drivePath(), observer());
+
+        // An empty database should not generate any notifications.
+        EXPECT_CALL(observer(), onDirty(_)).Times(0);
+        EXPECT_CALL(observer(), onRemove(_, _)).Times(0);
+    }
+}
+
+TEST_F(XBackupConfigDBTest, Read)
+{
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    // Add a configuration to be written to disk.
+    XBackupConfig config;
+
+    config.drivePath = drivePath();
+    config.sourcePath = Utilities::randomPath();
+    config.tag = 1;
+    config.targetHandle = 2;
+
+    // Add the config to the database.
+    EXPECT_NE(configDB.add(config), nullptr);
+
+    // Write the config to disk.
+    string json;
+
+    // Capture the JSON and signal write success.
+    EXPECT_CALL(ioContext(),
+                write(Eq(drivePath()), _, Eq(0)))
+      .WillOnce(DoAll(SaveArg<1>(&json),
+                      Return(API_OK)));
+
+    // Write the database to disk.
+    EXPECT_EQ(configDB.write(ioContext()), API_OK);
+
+    // Clear the database.
+    configDB.clear();
+
+    // Read the configuration back.
+    static const vector<unsigned int> slots = {0};
+
+    // Return a single slot for reading.
+    Expectation get =
+      EXPECT_CALL(ioContext(),
+                  get(Eq(drivePath()), _))
+        .WillOnce(DoAll(SetArgReferee<1>(slots),
+                        Return(API_OK)));
+
+    // Read should return the captured JSON.
+    Expectation read =
+      EXPECT_CALL(ioContext(),
+                  read(Eq(drivePath()), _, Eq(0)))
+        .After(get)
+        .WillOnce(DoAll(SetArgReferee<1>(json),
+                        Return(API_OK)));
+
+    // Observer should be notified when a configuration is loaded.
+    EXPECT_CALL(observer(),
+                onAdd(Ref(configDB), Eq(config)))
+      .Times(1)
+      .After(read);
+
+    // Loading should not trigger any dirty notifications.
+    EXPECT_CALL(observer(), onDirty(Ref(configDB))).Times(0);
+
+    // Read should succeed.
+    EXPECT_EQ(configDB.read(ioContext()), API_OK);
+
+    // Can we retrieve the loaded config by tag?
+    const auto* c = configDB.get(config.tag);
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, config);
+
+    // Can we retrieve the loaded config by target handle?
+    EXPECT_EQ(configDB.get(config.targetHandle), c);
+}
+
+TEST_F(XBackupConfigDBTest, ReadBadDecrypt)
+{
+    static const vector<unsigned int> slots = {1};
+
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    // Return a single slot for reading.
+    Expectation get =
+      EXPECT_CALL(ioContext(),
+                  get(Eq(drivePath()), _))
+        .WillOnce(DoAll(SetArgReferee<1>(slots),
+                        Return(API_OK)));
+
+    // Force the slot read to fail.
+    EXPECT_CALL(ioContext(),
+                read(Eq(drivePath()), _, Eq(slots.front())))
+      .After(get)
+      .WillOnce(Return(API_EREAD));
+
+    // Read should fail if we can't read from the only available slot.
+    EXPECT_EQ(configDB.read(ioContext()), API_EREAD);
+}
+
+TEST_F(XBackupConfigDBTest, ReadEmptyClearsDatabase)
+{
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    // Add a config to the database.
+    XBackupConfig config;
+
+    config.drivePath = drivePath();
+    config.tag = 1;
+    config.targetHandle = 2;
+
+    EXPECT_NE(configDB.add(config), nullptr);
+
+    // Return a single slot for reading.
+    static const vector<unsigned int> slots = {0};
+
+    Expectation get =
+      EXPECT_CALL(ioContext(),
+                  get(Eq(drivePath()), _))
+        .WillOnce(DoAll(SetArgReferee<1>(slots),
+                        Return(API_OK)));
+
+    // Read yields an empty database.
+    Expectation read =
+      EXPECT_CALL(ioContext(),
+                  read(Eq(drivePath()), _, Eq(0)))
+        .After(get)
+        .WillOnce(DoAll(SetArgReferee<1>("[]"),
+                        Return(API_OK)));
+
+    // Observer should be notified that the config has been removed.
+    EXPECT_CALL(observer(),
+                onRemove(Ref(configDB), Eq(config)))
+      .Times(1)
+      .After(read);
+
+    // Loading should never generate onDirty notifications.
+    EXPECT_CALL(observer(), onDirty(Ref(configDB))).Times(0);
+
+    // Read the empty database.
+    EXPECT_EQ(configDB.read(ioContext()), API_OK);
+
+    // Tag mapping should've been removed.
+    EXPECT_EQ(configDB.get(config.tag), nullptr);
+
+    // Target Handle mapping should've been removed.
+    EXPECT_EQ(configDB.get(config.targetHandle), nullptr);
+}
+
+TEST_F(XBackupConfigDBTest, ReadNoSlots)
+{
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    // Don't return any slots for reading.
+    EXPECT_CALL(ioContext(),
+                get(Eq(drivePath()), _))
+      .WillOnce(Return(API_ENOENT));
+
+    // Read should fail as there are no slots.
+    EXPECT_EQ(configDB.read(ioContext()), API_ENOENT);
+}
+
+TEST_F(XBackupConfigDBTest, ReadUpdatesDatabase)
+{
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    // Add a config to the database.
+    XBackupConfig configBefore;
+
+    configBefore.drivePath = drivePath();
+    configBefore.sourcePath = Utilities::randomPath();
+    configBefore.tag = 1;
+    configBefore.targetHandle = 2;
+
+    EXPECT_NE(configDB.add(configBefore), nullptr);
+
+    // Capture the JSON and signal write success.
+    string json;
+
+    EXPECT_CALL(ioContext(),
+                write(Eq(drivePath()), _, Eq(0)))
+      .WillOnce(DoAll(SaveArg<1>(&json),
+                      Return(API_OK)));
+
+    // Write the database to disk.
+    EXPECT_EQ(configDB.write(ioContext()), API_OK);
+
+    // Change the config's target handle.
+    XBackupConfig configAfter = configBefore;
+
+    configAfter.targetHandle = 3;
+
+    EXPECT_NE(configDB.add(configAfter), nullptr);
+
+    // Return a single slot for reading.
+    static const vector<unsigned int> slots = {0};
+
+    Expectation get =
+      EXPECT_CALL(ioContext(),
+                  get(Eq(drivePath()), _))
+        .WillOnce(DoAll(SetArgReferee<1>(slots),
+                        Return(API_OK)));
+
+    // Read should return the captured JSON.
+    Expectation read =
+      EXPECT_CALL(ioContext(),
+                  read(Eq(drivePath()), _, Eq(0)))
+        .After(get)
+        .WillOnce(DoAll(SetArgReferee<1>(json),
+                        Return(API_OK)));
+
+    // Observer should be notified when the config changes.
+    EXPECT_CALL(observer(),
+                onChange(Ref(configDB),
+                         Eq(configAfter),
+                         Eq(configBefore)))
+      .Times(1)
+      .After(read);
+
+    // No dirty notications should be triggered when loading.
+    EXPECT_CALL(observer(), onDirty(Ref(configDB))).Times(0);
+
+    // Read back the database.
+    EXPECT_EQ(configDB.read(ioContext()), API_OK);
+
+    // Can we still retrieve the config by tag?
+    const auto* c = configDB.get(configBefore.tag);
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, configBefore);
+
+    // Updated target handle mapping should no longer exist.
+    EXPECT_EQ(configDB.get(configAfter.targetHandle), nullptr);
+
+    // Original target handle mapping should be in effect.
+    EXPECT_EQ(configDB.get(configBefore.targetHandle), c);
+}
+
+TEST_F(XBackupConfigDBTest, ReadTriesAllAvailableSlots)
+{
+    // Slots available for reading.
+    static const vector<unsigned int> slots = {1, 2, 3};
+
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    // Return three slots for reading.
+    Expectation get =
+      EXPECT_CALL(ioContext(),
+                  get(Eq(drivePath()), _))
+      .WillOnce(DoAll(SetArgReferee<1>(slots),
+                      Return(API_OK)));
+
+    // Attempts to read slots 1 and 2 should fail.
+    Expectation read1 =
+      EXPECT_CALL(ioContext(),
+                  read(Eq(drivePath()), _, Eq(1)))
+      .After(get)
+      .WillOnce(Return(API_EREAD));
+
+    Expectation read2 =
+      EXPECT_CALL(ioContext(),
+                  read(Eq(drivePath()), _, Eq(2)))
+      .After(read1)
+      .WillOnce(Return(API_EREAD));
+
+    // Reading slot 3 should succeed.
+    EXPECT_CALL(ioContext(),
+                read(Eq(drivePath()), _, Eq(3)))
+      .After(read2)
+      .WillOnce(DoAll(SetArgReferee<1>("[]"),
+                      Return(API_OK)));
+
+    // Read should succeed as one slot could be read.
+    EXPECT_EQ(configDB.read(ioContext()), API_OK);
+}
+
+TEST_F(XBackupConfigDBTest, RemoveByTag)
+{
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    // Add a config to remove.
+    XBackupConfig config;
+
+    config.drivePath = drivePath();
+    config.sourcePath = Utilities::randomPath();
+    config.tag = 1;
+    config.targetHandle = 2;
+
+    EXPECT_NE(configDB.add(config), nullptr);
+
+    // Observer should be notified when the config is removed.
+    Expectation onRemove =
+      EXPECT_CALL(observer(),
+                  onRemove(Ref(configDB), Eq(config)))
+      .Times(1);
+
+    // Database should be dirty after config has been removed.
+    EXPECT_CALL(observer(),
+                onDirty(Ref(configDB)))
+      .Times(1)
+      .After(onRemove);
+
+    // Remove the config by tag.
+    EXPECT_EQ(configDB.remove(config.tag), API_OK);
+
+    // Database should now be empty.
+    EXPECT_TRUE(configDB.configs().empty());
+
+    // Mappings should be removed.
+    EXPECT_EQ(configDB.get(config.tag), nullptr);
+    EXPECT_EQ(configDB.get(config.targetHandle), nullptr);
+}
+
+TEST_F(XBackupConfigDBTest, RemoveByTagWhenEmpty)
+{
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    EXPECT_CALL(observer(), onDirty(_)).Times(0);
+    EXPECT_CALL(observer(), onRemove(_, _)).Times(0);
+
+    EXPECT_EQ(configDB.remove(0), API_ENOENT);
+}
+
+TEST_F(XBackupConfigDBTest, RemoveByUnknownTag)
+{
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    // Add some config so the database isn't empty.
+    {
+        XBackupConfig config;
+
+        config.drivePath = drivePath();
+        config.tag = 0;
+        config.targetHandle = 1;
+
+        EXPECT_NE(configDB.add(config), nullptr);
+    }
+
+    EXPECT_CALL(observer(), onDirty(_)).Times(0);
+    EXPECT_CALL(observer(), onRemove(_, _)).Times(0);
+
+    EXPECT_EQ(configDB.remove(1), API_ENOENT);
+
+    // Verify and clear the expectations now as the database will trigger
+    // an onRemove notification when it is destroyed.
+    Mock::VerifyAndClearExpectations(&observer());
+}
+
+TEST_F(XBackupConfigDBTest, RemoveByTargetHandle)
+{
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    // Add a config to remove.
+    XBackupConfig config;
+
+    config.drivePath = drivePath();
+    config.tag = 0;
+    config.targetHandle = 1;
+
+    EXPECT_NE(configDB.add(config), nullptr);
+
+    // Observer should be notified when the config is removed.
+    Expectation onRemove =
+      EXPECT_CALL(observer(),
+                  onRemove(Ref(configDB), Eq(config)))
+      .Times(1);
+
+    // Database should be dirty after the config has been removed.
+    EXPECT_CALL(observer(),
+                onDirty(Ref(configDB)))
+      .Times(1)
+      .After(onRemove);
+
+    // Remove the config.
+    EXPECT_EQ(configDB.remove(config.targetHandle), API_OK);
+
+    // Database should now be empty.
+    EXPECT_TRUE(configDB.configs().empty());
+
+    // Mappings should be removed.
+    EXPECT_EQ(configDB.get(config.tag), nullptr);
+    EXPECT_EQ(configDB.get(config.targetHandle), nullptr);
+}
+
+TEST_F(XBackupConfigDBTest, RemoveByTargetHandleWhenEmpty)
+{
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    EXPECT_CALL(observer(), onDirty(_)).Times(0);
+    EXPECT_CALL(observer(), onRemove(_, _)).Times(0);
+
+    const handle targetHandle = 0;
+    EXPECT_EQ(configDB.remove(targetHandle), API_ENOENT);
+}
+
+TEST_F(XBackupConfigDBTest, RemoveByUnknownTargetHandle)
+{
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    // Add a config so that the database isn't empty.
+    {
+        XBackupConfig config;
+
+        config.drivePath = drivePath();
+        config.tag = 0;
+        config.targetHandle = 1;
+
+        EXPECT_NE(configDB.add(config), nullptr);
+    }
+
+    EXPECT_CALL(observer(), onDirty(_)).Times(0);
+    EXPECT_CALL(observer(), onRemove(_, _)).Times(0);
+
+    const handle targetHandle = 0;
+    EXPECT_EQ(configDB.remove(targetHandle), API_ENOENT);
+
+    // Verify and clear the expectations now as the database will trigger
+    // an onRemove notification when it is destroyed.
+    Mock::VerifyAndClearExpectations(&observer());
+}
+
+TEST_F(XBackupConfigDBTest, Update)
+{
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    // Add a config.
+    XBackupConfig configBefore;
+
+    configBefore.drivePath = drivePath();
+    configBefore.enabled = false;
+    configBefore.tag = 0;
+    configBefore.targetHandle = 1;
+
+    const auto* c = configDB.add(configBefore);
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, configBefore);
+
+    // Update config.
+    XBackupConfig configAfter = configBefore;
+
+    configAfter.enabled = true;
+
+    // Observer should be notified when config changes.
+    Expectation onChange =
+      EXPECT_CALL(observer(),
+                  onChange(Ref(configDB),
+                           Eq(configBefore),
+                           Eq(configAfter)))
+      .Times(1);
+
+    // Database needs a write after updating a config.
+    EXPECT_CALL(observer(),
+                onDirty(Ref(configDB)))
+      .Times(1)
+      .After(onChange);
+
+    // Update config in the database.
+    EXPECT_EQ(configDB.add(configAfter), c);
+    EXPECT_EQ(*c, configAfter);
+
+    // Can still retrieve by tag.
+    EXPECT_EQ(configDB.get(configAfter.tag), c);
+
+    // Can still retrieve by target handle.
+    EXPECT_EQ(configDB.get(configAfter.targetHandle), c);
+}
+
+TEST_F(XBackupConfigDBTest, UpdateChangeTargetHandle)
+{
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    // Add config.
+    XBackupConfig configBefore;
+
+    configBefore.drivePath = drivePath();
+    configBefore.tag = 0;
+    configBefore.targetHandle = 0;
+
+    const auto* c = configDB.add(configBefore);
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, configBefore);
+
+    // Update config.
+    XBackupConfig configAfter = configBefore;
+
+    configAfter.targetHandle = 1;
+    
+    // Observer should be notified when a config changes.
+    Expectation onChange =
+      EXPECT_CALL(observer(),
+                  onChange(Ref(configDB),
+                           Eq(configBefore),
+                           Eq(configAfter)))
+      .Times(1);
+
+    // Database should be dirty when a config has changed.
+    EXPECT_CALL(observer(),
+                onDirty(Ref(configDB)))
+      .Times(1)
+      .After(onChange);
+
+    // Update the config in the database.
+    EXPECT_EQ(configDB.add(configAfter), c);
+    EXPECT_EQ(*c, configAfter);
+
+    // Can still retrieve by tag.
+    EXPECT_EQ(configDB.get(configAfter.tag), c);
+
+    // Old target handle mapping has been removed.
+    EXPECT_EQ(configDB.get(configBefore.targetHandle), nullptr);
+
+    // New target handle mapping has been added.
+    EXPECT_EQ(configDB.get(configAfter.targetHandle), c);
+}
+
+TEST_F(XBackupConfigDBTest, UpdateRemoveTargetHandle)
+{
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    // Add config.
+    XBackupConfig configBefore;
+
+    configBefore.drivePath = drivePath();
+    configBefore.tag = 0;
+    configBefore.targetHandle = 0;
+
+    const auto* c = configDB.add(configBefore);
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, configBefore);
+
+    // Update config.
+    XBackupConfig configAfter = configBefore;
+
+    configAfter.targetHandle = UNDEF;
+    
+    // Observer should be notified when a config changes.
+    Expectation onChange =
+      EXPECT_CALL(observer(),
+                  onChange(Ref(configDB),
+                           Eq(configBefore),
+                           Eq(configAfter)))
+      .Times(1);
+
+    // Database should be dirty when a config has changed.
+    EXPECT_CALL(observer(),
+                onDirty(Ref(configDB)))
+      .Times(1)
+      .After(onChange);
+
+    // Update the config in the database.
+    EXPECT_EQ(configDB.add(configAfter), c);
+    EXPECT_EQ(*c, configAfter);
+
+    // Can still retrieve by tag.
+    EXPECT_EQ(configDB.get(configAfter.tag), c);
+
+    // Old target handle mapping has been removed.
+    EXPECT_EQ(configDB.get(configBefore.targetHandle), nullptr);
+
+    // No mapping ever exists for UNDEF target handle.
+    EXPECT_EQ(configDB.get(UNDEF), nullptr);
+}
+
+TEST_F(XBackupConfigDBTest, UpdateWithoutChange)
+{
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    // Add config.
+    XBackupConfig config;
+
+    config.drivePath = drivePath();
+    config.tag = 0;
+    config.targetHandle = 1;
+
+    EXPECT_NE(configDB.add(config), nullptr);
+
+    // Notifications should only be generated when the config changes.
+    EXPECT_CALL(observer(), onChange(_, _, _)).Times(0);
+    EXPECT_CALL(observer(), onDirty(_)).Times(0);
+
+    EXPECT_NE(configDB.add(config), nullptr);
+}
+
+TEST_F(XBackupConfigDBTest, WriteFail)
+{
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    // Any attempt to write to slot 0 will fail.
+    EXPECT_CALL(ioContext(),
+                write(Eq(drivePath()), _, Eq(0)))
+      .Times(2)
+      .WillRepeatedly(Return(API_EWRITE));
+
+    // Write will fail as we can't write to slot 0.
+    EXPECT_EQ(configDB.write(ioContext()), API_EWRITE);
+
+    // Make sure the slot number isn't incremented.
+    EXPECT_EQ(configDB.write(ioContext()), API_EWRITE);
+}
+
+TEST_F(XBackupConfigDBTest, WriteOK)
+{
+    XBackupConfigDB configDB(drivePath(), observer());
+
+    // Writes to slot 0 should succeed.
+    Expectation write0 =
+      EXPECT_CALL(ioContext(),
+                  write(Eq(drivePath()), _, Eq(0)))
+      .WillOnce(Return(API_OK));
+
+    // Writes to slot 1 should succeed.
+    EXPECT_CALL(ioContext(),
+                write(Eq(drivePath()), _, Eq(1)))
+      .After(write0)
+      .WillOnce(Return(API_OK));
+
+    // First write will dump data to slot 0.
+    EXPECT_EQ(configDB.write(ioContext()), API_OK);
+
+    // Second write will dump data to slot 1.
+    EXPECT_EQ(configDB.write(ioContext()), API_OK);
 }
 
 } // XBackupConfigTests

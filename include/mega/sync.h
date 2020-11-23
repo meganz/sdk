@@ -372,22 +372,22 @@ public:
                      JSON& reader) const;
 
     // Determine which slots are present.
-    error get(const LocalPath& drivePath,
-              vector<unsigned int>& slots);
+    virtual error get(const LocalPath& drivePath,
+                      vector<unsigned int>& slots);
 
     // Read data from the specified slot.
-    error read(const LocalPath& drivePath,
-               string& data,
-               const unsigned int slot);
+    virtual error read(const LocalPath& drivePath,
+                       string& data,
+                       const unsigned int slot);
 
     // Serialize configs to JSON.
     void serialize(const XBackupConfigMap& configs,
                    JSONWriter& writer) const;
 
     // Write data to the specified slot.
-    error write(const LocalPath& drivePath,
-                const string& data,
-                const unsigned int slot);
+    virtual error write(const LocalPath& drivePath,
+                        const string& data,
+                        const unsigned int slot);
 
     // Name of the backup configuration directory.
     static const string BACKUP_CONFIG_DIR;
