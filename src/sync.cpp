@@ -2572,7 +2572,7 @@ error XBackupConfigIOContext::get(const LocalPath& drivePath,
     // Sort the list of slot-time pairs.
     sort(slotTimes.begin(),
          slotTimes.end(),
-         [](const auto& lhs, const auto& rhs)
+         [](const SlotTimePair& lhs, const SlotTimePair& rhs)
          {
              // Order by descending modification time.
              if (lhs.second != rhs.second)
