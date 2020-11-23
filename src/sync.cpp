@@ -2359,11 +2359,16 @@ error XBackupConfigDB::read(XBackupConfigIOContext& ioContext,
     }
 
     // Remove configs that aren't present on disk.
-    for (const auto& it : mTagToConfig)
+    auto i = mTagToConfig.begin();
+    auto j = mTagToConfig.end();
+
+    while (i != j)
     {
-        if (!configs.count(it.first))
+        const auto tag = i++->first;
+
+        if (!configs.count(tag))
         {
-            remove(it.first, false);
+            remove(tag, false);
         }
     }
 
