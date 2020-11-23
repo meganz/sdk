@@ -4827,7 +4827,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     gTestingInvalidArgs = false;
 }
 
-TEST_F(SdkTest, SdkDeviceNames)
+TEST_F(SdkTest, DISABLED_SdkDeviceNames)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkDeviceNames___";
@@ -4841,7 +4841,7 @@ TEST_F(SdkTest, SdkDeviceNames)
     ASSERT_EQ(attributeValue, deviceName) << "getDeviceName returned incorrect value";
 }
 
-TEST_F(SdkTest, SdkUserAlias)
+TEST_F(SdkTest, DISABLED_SdkUserAlias)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkUserAlias___";
