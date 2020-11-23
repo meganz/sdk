@@ -1361,7 +1361,6 @@ namespace XBackupConfigTests
 {
 
 using namespace mega;
-using namespace std;
 using namespace testing;
 
 class Directory
