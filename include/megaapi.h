@@ -2984,6 +2984,7 @@ class MegaRequest
             TYPE_SUPPORT_TICKET, TYPE_SET_RETENTION_TIME, TYPE_RESET_SMS_VERIFIED_NUMBER,
             TYPE_SEND_DEV_COMMAND,
             TYPE_GET_BANNERS, TYPE_DISMISS_BANNER,
+            TYPE_BACKUP_PUT, TYPE_BACKUP_REMOVE, TYPE_BACKUP_PUT_HEART_BEAT,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -3076,6 +3077,9 @@ class MegaRequest
          * - MegaApi::getUrlChat - Returns the handle of the chat
          * - MegaApi::grantAccessInChat - Returns the handle of the node
          * - MegaApi::removeAccessInChat - Returns the handle of the node
+         * - MegaApi::setBackup - Returns the target node of the backup
+         * - MegaApi::updateBackup - Returns the target node of the backup
+         * - MegaApi::sendBackupHeartbeat - Returns the last node backed up
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3125,6 +3129,9 @@ class MegaRequest
          * - MegaApi::removeFromChat - Returns the handle of the user to be removed
          * - MegaApi::grantAccessInchat - Returns the chat identifier
          * - MegaApi::removeAccessInchat - Returns the chat identifier
+         * - MegaApi::removeBackup - Returns the backupId
+         * - MegaApi::updateBackup - Returns the backupId
+         * - MegaApi::sendBackupHeartbeat - Returns the backupId
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3156,6 +3163,8 @@ class MegaRequest
          * - MegaApi::renameNode - Returns the new name for the node
          * - MegaApi::syncFolder - Returns the name for the sync
          * - MegaApi::copySyncDataToCache - Returns the name for the sync
+         * - MegaApi::setBackup - Returns the device id hash of the backup source device
+         * - MegaApi::updateBackup - Returns the device id hash of the backup source device
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3261,6 +3270,9 @@ class MegaRequest
          * - MegaApi::exportNode - Returns true
          * - MegaApi::disableExport - Returns false
          * - MegaApi::inviteToChat - Returns the privilege level wanted for the user
+         * - MegaApi::setBackup - Returns the backup state
+         * - MegaApi::updateBackup - Returns the backup state
+         * - MegaApi::sendBackupHeartbeat - Returns the backup state
          *
          * @return Access level related to the request
          */
@@ -3281,6 +3293,7 @@ class MegaRequest
          * - MegaApi::setAvatar - Returns the source path for the avatar
          * - MegaApi::syncFolder - Returns the path of the local folder
          * - MegaApi::setBackup - Returns the path of the local folder
+         * - MegaApi::updateBackup - Returns the path of the local folder
          *
          * @return Path of a file related to the request
          */
@@ -3345,6 +3358,7 @@ class MegaRequest
          * - MegaApi::getUserAttribute - Returns the attribute type
          * - MegaApi::setMaxConnections - Returns the direction of transfers
          * - MegaApi::dismissBanner - Returns the id of the banner
+         * - MegaApi::sendBackupHeartbeat - Returns the number of backup files uploaded
          *
          * @return Type of parameter related to the request
          */
@@ -3364,6 +3378,8 @@ class MegaRequest
          * - MegaApi::sendEvent - Returns the event message
          * - MegaApi::createAccount - Returns the lastname for the new account
          * - MegaApi::setBackup - Returns the cron like time string to define period
+         * - MegaApi::setBackup - Returns the extraData associated with the request
+         * - MegaApi::updateBackup - Returns the extraData associated with the request
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3400,6 +3416,7 @@ class MegaRequest
          * - MegaApi::startTimer - Returns the selected period
          * - MegaApi::sendChatStats - Returns the connection port
          * - MegaApi::dismissBanner - Returns the timestamp of the request
+         * - MegaApi::sendBackupHeartbeat - Returns the time associated with the request
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3450,6 +3467,11 @@ class MegaRequest
 
         /**
          * @brief Returns the number of bytes that the SDK will have to transfer to finish the request
+         *
+         * In addition, this value is also valid for these requests:
+         * - MegaApi::setBackup - Returns the backup type
+         * - MegaApi::updateBackup - Returns the backup type
+         *
          * @return Number of bytes that the SDK will have to transfer to finish the request
          */
         virtual long long getTotalBytes() const;
@@ -3538,6 +3560,7 @@ class MegaRequest
          * - MegaApi::setBackup - Returns the tag asociated with the backup
          * - MegaApi::syncFolder - Returns the tag asociated with the sync
          * - MegaApi::copySyncDataToCache - Returns the tag asociated with the sync
+         * - MegaApi::sendBackupHeartbeat - Returns the number of backup files downloaded
          *
          * @return Tag of a transfer related to the request
          */
@@ -3554,6 +3577,9 @@ class MegaRequest
          *  - MegaApi::removeSync
          *  - MegaApi::enableSync
          *  - MegaApi::syncFolder
+         *  - MegaApi::setBackup
+         *  - MegaApi::updateBackup
+         *  - MegaApi::sendBackupHeartbeat
          *
          * @return Number of details related to this request
          */
@@ -4214,6 +4240,16 @@ class MegaTransfer
          * @return Notification number
          */
         virtual long long getNotificationNumber() const;
+
+        /**
+         * @brief Returns whether the target folder of the transfer was overriden by the API server
+         *
+         * It may happen that the target folder fo a transfer is deleted by the time the node
+         * is going to be added. Hence, the API will create the node in the rubbish bin.
+         *
+         * @return True if target folder was overriden (apps can check the final parent)
+         */
+        virtual bool getTargetOverride() const;
 };
 
 /**
@@ -5878,8 +5914,9 @@ public:
      */
     enum UserErrorCode
     {
-        USER_ETD_UNKNOWN = -1,      ///< Unknown state
-        USER_ETD_SUSPENSION = 7,    ///< Account suspend by an ETD/ToS 'severe'
+        USER_ETD_UNKNOWN = -1,          ///< Unknown state
+        USER_COPYRIGHT_SUSPENSION = 4,  /// Account suspended by copyright
+        USER_ETD_SUSPENSION = 7,        ///< Account suspend by an ETD/ToS 'severe'
     };
 
     /**
@@ -5947,6 +5984,7 @@ public:
          *
          * This method only returns a valid value when hasExtraInfo is true
          * Possible values:
+         *  MegaError::UserErrorCode::USER_COPYRIGHT_SUSPENSION
          *  MegaError::UserErrorCode::USER_ETD_SUSPENSION
          *
          * Otherwise, it returns MegaError::UserErrorCode::USER_ETD_UNKNOWN
@@ -7618,6 +7656,7 @@ class MegaApi
             // ATTR_UNSHAREABLE_KEY = 26         // it's internal for SDK, not exposed to apps
             USER_ATTR_ALIAS = 27,                // private - byte array
             USER_ATTR_DEVICE_NAMES = 30,          // private - byte array
+            USER_ATTR_MY_BACKUPS_FOLDER = 31,    // private - byte array
         };
 
         enum {
@@ -9375,7 +9414,6 @@ class MegaApi
          * - MegaRequest::getFile - Returns the URL of the image of the PSA
          * - MegaRequest::getPassword - Returns the text for the possitive button (or an empty string)
          * - MegaRequest::getLink - Returns the link for the possitive button (or an empty string)
-         * - MegaRequest::getEmail - Returns the URL (or an empty string)
          *
          * If there isn't any new PSA to show, onRequestFinish will be called with the error
          * code MegaError::API_ENOENT.
@@ -9397,7 +9435,14 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getNumber - Returns the id of the PSA (useful to call MegaApi::setPSA later)
-         * - MegaRequest::getLink - Returns the URL (or an empty string))
+         * Depending on the format of the PSA, the request may additionally return, for the new format:
+         * - MegaRequest::getEmail - Returns the URL (or an empty string))
+         * ...or for the old format:
+         * - MegaRequest::getName - Returns the title of the PSA
+         * - MegaRequest::getText - Returns the text of the PSA
+         * - MegaRequest::getFile - Returns the URL of the image of the PSA
+         * - MegaRequest::getPassword - Returns the text for the possitive button (or an empty string)
+         * - MegaRequest::getLink - Returns the link for the possitive button (or an empty string)
          *
          * If there isn't any new PSA to show, onRequestFinish will be called with the error
          * code MegaError::API_ENOENT.
@@ -9778,6 +9823,7 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - Handle of the new folder
+         * - MegaRequest::getFlag - True if target folder (\c parent) was overriden
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
@@ -9822,6 +9868,10 @@ class MegaApi
          * - MegaRequest::getParentHandle - Returns the handle of the new parent for the node
          * - MegaRequest::getName - Returns the name for the new node
          *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getFlag - True if target folder (\c newParent) was overriden
+         *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
@@ -9844,6 +9894,11 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - Handle of the new node
+         * - MegaRequest::getFlag - True if target folder (\c newParent) was overriden
+         *
+         * @note In case the target folder was overriden, the MegaRequest::getParentHandle still keeps
+         * the handle of the original target folder. You can check the final parent by checking the
+         * value returned by MegaNode::getParentHandle
          *
          * If the status of the business account is expired, onRequestFinish will be called with the error
          * code MegaError::API_EBUSINESSPASTDUE.
@@ -10094,6 +10149,7 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - Handle of the new node in the account
+         * - MegaRequest::getFlag - True if target folder (\c parent) was overriden
          *
          * If the MEGA account is a business account and it's status is expired, onRequestFinish will
          * be called with the error code MegaError::API_EBUSINESSPASTDUE.
@@ -10394,6 +10450,8 @@ class MegaApi
          * Get the list of the users's aliases (private)
          * MegaApi::ATTR_DEVICE_NAMES = 30
          * Get the list of device names (private)
+         * MegaApi::ATTR_MY_BACKUPS_FOLDER = 31
+         * Get the target folder for My Backups (private)
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -11778,6 +11836,43 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getCameraUploadsFolderSecondary(MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Set My Backups folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
+         * - MegaRequest::getFlag - Returns false
+         * - MegaRequest::getNodehandle - Returns the provided node handle
+         * - MegaRequest::getMegaStringMap - Returns a MegaStringMap.
+         * The key "h" in the map contains the nodehandle specified as parameter encoded in B64
+         *
+         * If the folder is not private to the current account, or is in Rubbish, or is in a synced folder,
+         * the request will fail with the error code MegaError::API_EACCESS.
+         *
+         * @param nodehandle MegaHandle of the node to be used as target folder
+         * @param listener MegaRequestListener to track this request
+         */
+        void setMyBackupsFolder(MegaHandle nodehandle, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Gets My Backups target folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_MY_BACKUPS_FOLDER
+         * - MegaRequest::getFlag - Returns false
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodehandle - Returns the handle of the node where My Backups files are stored
+         *
+         * If the folder was not set, the request will fail with the error code MegaError::API_ENOENT.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getMyBackupsFolder(MegaRequestListener *listener = nullptr);
 
         /**
          * @brief Gets the alias for an user
@@ -16460,6 +16555,7 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getNodeHandle - Returns the handle of the uploaded node
+         * - MegaRequest::getFlag - True if target folder (\c parent) was overriden
          *
          * @param state The MegaBackgroundMediaUpload object tracking this upload
          * @param utf8Name The leaf name of the file, utf-8 encoded
@@ -18094,7 +18190,6 @@ class MegaApi
          */
         void getPublicLinkInformation(const char *megaFolderLink, MegaRequestListener *listener = NULL);
 
-
         /**
          * @brief Get an object that can lock the MegaApi, allowing multiple quick synchronous calls.
          *
@@ -18111,6 +18206,22 @@ class MegaApi
          * You take ownership of the returned value, and you must delete it when the sequence is complete.
          */
         MegaApiLock* getMegaApiLock(bool lockNow);
+
+        /**
+         * @brief Call the low level function setrlimit() for NOFILE, needed for some platforms.
+         *
+         * Particularly on phones, the system default limit for the number of open files (and sockets)
+         * is quite low.   When the SDK can be working on many files and many sockets at once,
+         * we need a higher limit.   Those limits need to take into account the needs of the whole
+         * app and not just the SDK, of course.   This function is provided in order that the app
+         * can make that call and set appropriate limits.
+         *
+         * @param newNumFileLimit The new limit of file and socket handles for the whole app.
+         *
+         * @return True when there were no errors setting the new limit (even when clipped to the maximum
+         * allowed value). It returns false when setting a new limit failed.
+         */
+        bool platformSetRLimitNumFile(int newNumFileLimit) const;
 
         /**
          * @brief Requests a list of all Smart Banners available for current user.
@@ -18135,6 +18246,108 @@ class MegaApi
          * @brief No longer show the Smart Banner with the specified id to the current user.
          */
         void dismissBanner(int id, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Starts a backup of a local folder into a remote location
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the target node of the backup
+         * - MegaRequest::getName - Returns the device id hash of the backup source device
+         * - MegaRequest::getAccess - Returns the backup state
+         * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getText - Returns the extraData associated with the request
+         * - MegaRequest::getTotalBytes - Returns the backup type
+         * - MegaRequest::getNumDetails - Returns the backup substate
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * @param backupType back up type requested for the service
+         * @param targetNode MEGA folder to hold the backups
+         * @param localFolder Local path of the folder
+         * @param deviceId device id hash of source device
+         * @param state state
+         * @param subState subState
+         * @param extraData extraData
+         * @param listener MegaRequestListener to track this request
+         *
+        */
+        void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Update an existing backup
+         *
+         *  Params that keep the same value are passed with invalid value to avoid to send to the server
+         *    Invalid values:
+         *    - type: BackupType::INVALID
+         *    - nodeHandle: UNDEF
+         *    - localFolder: nullptr
+         *    - deviceId: nullptr
+         *    - state: -1
+         *    - subState: -1
+         *    - extraData: nullptr
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the backupId
+         * - MegaRequest::getTotalBytes - Returns the backup type
+         * - MegaRequest::getNodeHandle - Returns the target node of the backup
+         * - MegaRequest::getName - Returns the device id hash of the backup source device
+         * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getAccess - Returns the backup state
+         * - MegaRequest::getNumDetails - Returns the backup substate
+         * - MegaRequest::getText - Returns the extraData associated with the request
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * @param backupId backup id identifying the backup to be updated
+         * @param backupType Local path of the folder
+         * @param targetNode MEGA folder to hold the backups
+         * @param localFolder Local path of the folder
+         * @param deviceId device id hash of source device
+         * @param state backup state 
+         * @param subState backup subState
+         * @param extraData extraData for the backup
+         * @param listener MegaRequestListener to track this request
+         *
+        */
+        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        
+        /**
+         * @brief Remove a backup
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_REMOVE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the backupId
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * @param backupId backup id identifying the backup to be removed
+         * @param listener MegaRequestListener to track this request
+         *
+        */
+        void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
+        
+        /**
+         * @brief Get heartbeat associated with an existing backup
+         *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the backupId
+         * - MegaRequest::getAccess - Returns the backup state
+         * - MegaRequest::getNumDetails - Returns the backup substate
+         * - MegaRequest::getParamType - Returns the number of backup files uploaded
+         * - MegaRequest::getTransferTag - Returns the number of backup files downloaded
+         * - MegaRequest::getNumber - Returns the time associated with the request
+         * - MegaRequest::getNodeHandle - Returns the last target node handled
+         *
+         * @param backupId backup id identifying the backup
+         * @param state backup state
+         * @param progress backup progress 
+         * @param ups uploads performed for the backup
+         * @param downs downloads performed for the backup
+         * @param ts time
+         * @param listener MegaRequestListener to track this request
+         *
+        */
+        void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode);
 
  private:
         MegaApiImpl *pImpl;

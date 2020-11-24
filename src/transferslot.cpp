@@ -918,7 +918,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             if (transfer->type == PUT)
                             {
                                 LOG_verbose << "Async read succeeded";
-                                m_off_t npos = asyncIO[i]->pos + asyncIO[i]->len;
+                                m_off_t npos = asyncIO[i]->posOfBuffer + asyncIO[i]->dataBufferLen;
                                 string finaltempurl = transferbuf.tempURL(i);
                                 if (client->usealtupport && !memcmp(finaltempurl.c_str(), "http:", 5))
                                 {
@@ -929,7 +929,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                     }
                                 }
 
-                                auto pos = asyncIO[i]->pos;
+                                auto pos = asyncIO[i]->posOfBuffer;
                                 auto req = reqs[i];    // shared_ptr so no object is deleted out from under the worker
                                 auto transferkey = transfer->transferkey;
                                 auto ctriv = transfer->ctriv;
@@ -999,7 +999,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     }
                     else if (transfer->type == GET)
                     {
-                        p += asyncIO[i]->len;
+                        p += asyncIO[i]->dataBufferLen;
                     }
                     break;
 
@@ -1149,8 +1149,8 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             if (asyncIO[i])
                             {
                                 LOG_warn << "Retrying a failed read";
-                                pos = asyncIO[i]->pos;
-                                size = asyncIO[i]->len;
+                                pos = asyncIO[i]->posOfBuffer;
+                                size = asyncIO[i]->dataBufferLen;
                                 posrange.second = pos + size;
                                 delete asyncIO[i];
                                 asyncIO[i] = NULL;

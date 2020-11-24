@@ -68,7 +68,8 @@ SOURCES += src/attrmap.cpp \
     src/testhooks.cpp
 
 CONFIG(USE_MEGAAPI) {
-  SOURCES += src/megaapi.cpp src/megaapi_impl.cpp
+  SOURCES += src/megaapi.cpp src/megaapi_impl.cpp src/heartbeats.cpp
+
 
   CONFIG(qt) {
     SOURCES += bindings/qt/QTMegaRequestListener.cpp \
@@ -412,6 +413,7 @@ HEADERS  += include/mega.h \
             include/mega/share.h \
             include/mega/sharenodekeys.h \
             include/mega/sync.h \
+            include/mega/heartbeats.h \
             include/mega/transfer.h \
             include/mega/transferslot.h \
             include/mega/treeproc.h \

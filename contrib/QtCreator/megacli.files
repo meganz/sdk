@@ -4,7 +4,6 @@
 ../../examples/megasimplesync.cpp
 ../../include/mega/crypto/cryptopp.h
 ../../include/mega/crypto/sodium.h
-../../include/mega/db/bdb.h
 ../../include/mega/db/sqlite.h
 ../../include/mega/gfx/external.h
 ../../include/mega/gfx/freeimage.h
@@ -64,6 +63,7 @@
 ../../include/mega/share.h
 ../../include/mega/sharenodekeys.h
 ../../include/mega/sync.h
+../../include/mega/heartbeats.h
 ../../include/mega/thread.h
 ../../include/mega/transfer.h
 ../../include/mega/transferslot.h
@@ -79,7 +79,6 @@
 ../../include/megaapi_impl.h
 ../../src/crypto/cryptopp.cpp
 ../../src/crypto/sodium.cpp
-../../src/db/bdb.cpp
 ../../src/db/sqlite.cpp
 ../../src/gfx/external.cpp
 ../../src/gfx/freeimage.cpp
