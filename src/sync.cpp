@@ -3061,8 +3061,13 @@ error XBackupConfigStore::flush()
     error result = API_OK;
 
     // Try and flush all dirty databases.
-    for (auto* db : mDirtyDB)
+    auto i = mDirtyDB.begin();
+    auto j = mDirtyDB.end();
+
+    while (i != j)
     {
+        auto* db = *i++;
+
         if (flush(*db) != API_OK)
         {
             result = API_EWRITE;
