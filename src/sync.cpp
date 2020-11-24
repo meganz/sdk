@@ -2987,10 +2987,22 @@ const XBackupConfigMap* XBackupConfigStore::create(const LocalPath& drivePath)
     XBackupConfigDBPtr db(new XBackupConfigDB(drivePath, *this));
 
     // Load existing database, if any.
-    if (db->read(*this) == API_EREAD)
+    error result = db->read(*this);
+
+    if (result == API_EREAD)
     {
         // Couldn't load the database.
         return nullptr;
+    }
+
+    // Create the database if it didn't already exist.
+    if (result == API_ENOENT)
+    {
+        if (db->write(*this) == API_EWRITE)
+        {
+            // Couldn't create the database.
+            return nullptr;
+        }
     }
 
     // Add database to the store.
