@@ -18,7 +18,15 @@ CONFIG += USE_FFMPEG
 CONFIG -= qt
 CONFIG += object_parallel_to_source
 
-LIBS += -lgtest
+win32 {
+    CONFIG += USE_AUTOCOMPLETE
+    CONFIG += console
+    debug:LIBS += -lgtestd
+    !debug:LIBS += -lgtest
+}
+else {
+    LIBS += -lgtest
+}
 
 include(../../../../bindings/qt/sdk.pri)
 

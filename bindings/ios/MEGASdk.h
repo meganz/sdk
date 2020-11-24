@@ -337,6 +337,18 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  */
 @property (readonly, nonatomic) Retry waiting;
 
+/*
+ * @brief Get the total bytes of started downloads
+ * @return Total bytes of started downloads
+ *
+ * The count starts with the creation of MegaApi and is reset with calls to [MEGASdk resetTotalDownloads]
+ * or just before a log in or a log out.
+ *
+ * Function related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ */
+@property (readonly, nonatomic) NSNumber *totalsDownloadBytes __attribute__((deprecated("They could change or be removed in the current form.")));
+
 /**
  * @brief Total downloaded bytes since the creation of the MEGASdk object.
  *
@@ -344,6 +356,19 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * provide more data and avoid race conditions. They could change or be removed in the current form.
  */
 @property (readonly, nonatomic) NSNumber *totalsDownloadedBytes __attribute__((deprecated("They could change or be removed in the current form.")));
+
+/**
+ * Get the total bytes of started uploads
+ * @return Total bytes of started uploads
+ *
+ * The count starts with the creation of MegaApi and is reset with calls to [MEGASdk resetTotalDownloads]
+ * or just before a log in or a log out.
+ *
+ * Function related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ *
+ */
+@property (readonly, nonatomic) NSNumber *totalsUploadBytes __attribute__((deprecated("They could change or be removed in the current form.")));
 
 /**
  * @brief Total uploaded bytes since the creation of the MEGASdk object.
@@ -5975,6 +6000,25 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (void)startStreamingNode:(MEGANode *)node startPos:(NSNumber *)startPos size:(NSNumber *)size;
 
 /**
+ * @brief Reset the number of total downloads
+ * This function resets the number returned by [MEGASdk totalDownloads]
+ *
+ * @deprecated Function related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ *
+ */
+- (void)resetTotalDownloads __attribute__((deprecated("They could change or be removed in the current form.")));
+
+/**
+ * @brief Reset the number of total uploads
+ * This function resets the number returned by [MEGASdk totalUploads]
+ *
+ * @deprecated Function related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ */
+- (void)resetTotalUploads __attribute__((deprecated("They could change or be removed in the current form.")));
+
+/**
  * @brief Cancel a transfer.
  *
  * When a transfer is cancelled, it will finish and will provide the error code
@@ -6010,6 +6054,39 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *
  */
 - (void)cancelTransfer:(MEGATransfer *)transfer;
+
+/**
+* @brief Retry a transfer
+*
+* This function allows to start a transfer based on a MEGATransfer object. It can be used,
+* for example, to retry transfers that finished with an error. To do it, you can retain the
+* MEGATransfer object in onTransferFinish (calling [MEGATransfer clone] to take the ownership)
+* and use it later with this function.
+*
+* If the transfer parameter is nil or is not of type MEGATransferTypeDownload or
+* MEGATransferTypeUpload (transfers started with [MEGASdk startDownload] or
+* [MEGASdk startUpload) the function returns without doing anything.
+*
+* @param transfer Transfer to be retried
+* @param delegate MEGATransferDelegate to track this transfer
+*/
+- (void)retryTransfer:(MEGATransfer *)transfer delegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+* @brief Retry a transfer
+*
+* This function allows to start a transfer based on a MEGATransfer object. It can be used,
+* for example, to retry transfers that finished with an error. To do it, you can retain the
+* MEGATransfer object in onTransferFinish (calling [MEGATransfer clone] to take the ownership)
+* and use it later with this function.
+*
+* If the transfer parameter is nil or is not of type MEGATransferTypeDownload or
+* MEGATransferTypeUpload (transfers started with [MEGASdk startDownload] or
+* [MEGASdk startUpload) the function returns without doing anything.
+*
+* @param transfer Transfer to be retried
+*/
+- (void)retryTransfer:(MEGATransfer *)transfer;
 
 /**
 * @brief Move a transfer to the top of the transfer queue
