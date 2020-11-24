@@ -43,7 +43,7 @@
 using namespace ::mega;
 using namespace ::std;
 
-#if (__cplusplus >= 201700L)
+#if (__cplusplus > 201703L)
     #include <filesystem>
     namespace fs = std::filesystem;
     #define USE_FILESYSTEM

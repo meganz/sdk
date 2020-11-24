@@ -250,9 +250,9 @@ bool GfxProcFreeImage::readbitmapFfmpeg(FileAccess* fa, const LocalPath& imagePa
         seek_target = av_rescale_q(formatContext->duration / 5, av_get_time_base_q(), videoStream->time_base);
     }
 
-    string extension;
-    if (client->fsaccess->getextension(imagePath, extension)
-            && strcmp(ext,".mp3") && seek_target > 0
+    string ext;
+    if (client->fsaccess->getextension(imagePath, ext)
+            && strcmp(ext.c_str(),".mp3") && seek_target > 0
             && av_seek_frame(formatContext, videoStreamIdx, seek_target, AVSEEK_FLAG_BACKWARD) < 0)
     {
         LOG_warn << "Error seeking video";
