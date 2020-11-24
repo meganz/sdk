@@ -8353,10 +8353,12 @@ bool CommandGetBanners::procresult(Result r)
 
             case MAKENAMEID1('t'):
                 client->json.storeobject(&title);
+                title = Base64::atob(title);
                 break;
 
             case MAKENAMEID1('d'):
                 client->json.storeobject(&description);
+                description = Base64::atob(description);
                 break;
 
             case MAKENAMEID3('i', 'm', 'g'):
