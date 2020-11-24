@@ -95,6 +95,10 @@ using std::tuple;
 using std::ostringstream;
 using std::unique_ptr;
 
+#ifdef WIN32
+using std::wstring;
+#endif
+
 // forward declaration
 struct AttrMap;
 class BackoffTimer;
@@ -215,6 +219,7 @@ public:
     typedef enum
     {
         USER_ETD_UNKNOWN = -1,
+        USER_COPYRIGHT_SUSPENSION = 4,  // Account suspended by copyright
         USER_ETD_SUSPENSION = 7, // represents an ETD/ToS 'severe' suspension level
     } UserErrorCode;
 
@@ -593,6 +598,7 @@ typedef enum {
     ATTR_AUTHRSA = 28,                      // private - byte array
     ATTR_AUTHCU255 = 29,                    // private - byte array
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
+    ATTR_MY_BACKUPS_FOLDER = 31             // private - byte array - non-versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -871,7 +877,8 @@ public:
                const Type syncType = TYPE_TWOWAY,
                const bool syncDeletions = false,
                const bool forceOverwrite = false,
-               const SyncError error = NO_SYNC_ERROR
+               const SyncError error = NO_SYNC_ERROR,
+               handle hearBeatID = UNDEF
             );
 
     // returns unique identifier
@@ -950,6 +957,9 @@ public:
     // check if a sync would be enabled according to the sync state and error
     static bool isEnabled(syncstate_t state, SyncError syncError);
 
+    handle getBackupId() const;
+    void setBackupId(const handle &backupId);
+
 private:
 
     // Unique identifier. any other field can change (even remote handle),
@@ -988,6 +998,9 @@ private:
 
     // failure cause (disable/failure cause).
     SyncError mError;
+
+    // id for heartbeating
+    handle mBackupId;
 
     // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
     bool serialize(std::string& data) const;

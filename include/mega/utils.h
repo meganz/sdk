@@ -433,6 +433,7 @@ class chunkmac_map : public map<m_off_t, ChunkMAC>
 {
 public:
     int64_t macsmac(SymmCipher *cipher);
+    int64_t macsmac_gaps(SymmCipher *cipher, size_t g1, size_t g2, size_t g3, size_t g4);
     void serialize(string& d) const;
     bool unserialize(const char*& ptr, const char* end);
     void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* lastblockprogress = nullptr);

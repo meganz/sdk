@@ -33,7 +33,7 @@ struct MEGA_API WinDirAccess : public DirAccess
     bool ffdvalid;
     WIN32_FIND_DATAW ffd;
     HANDLE hFind;
-    string globbase;
+    LocalPath globbase;
 
     WIN32_FIND_DATAW currentItemAttributes;
     friend class WinFileAccess;
@@ -53,7 +53,7 @@ public:
     using FileSystemAccess::getlocalfstype;
 
     std::unique_ptr<FileAccess> newfileaccess(bool followSymLinks = true) override;
-    
+
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
 
     DirAccess* newdiraccess() override;
@@ -63,12 +63,13 @@ public:
 
     void tmpnamelocal(LocalPath&) const override;
 
-    void path2local(const string*, string*) const override;
-    void local2path(const string*, string*) const override;
+    void path2local(const std::string*, std::string*) const override;
+    void local2path(const std::string*, std::string*) const override;
 
-    static int sanitizedriveletter(LocalPath&);
+    void local2path(const std::wstring*, std::string*) const override;
+    void path2local(const std::string*, std::wstring*) const override;
 
-    bool getsname(LocalPath&, LocalPath&) const override;
+    bool getsname(const LocalPath&, LocalPath&) const override;
 
     bool renamelocal(LocalPath&, LocalPath&, bool) override;
     bool copylocal(LocalPath&, LocalPath&, m_time_t) override;
@@ -77,7 +78,6 @@ public:
     bool mkdirlocal(LocalPath&, bool) override;
     bool setmtimelocal(LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
-    size_t lastpartlocal(const string*) const override;
     bool getextension(const LocalPath&, string&) const override;
     bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) override;
 
@@ -131,11 +131,11 @@ private:
 
 public:
 
-    void addnotify(LocalNode*, string*) override;
+    void addnotify(LocalNode*, const LocalPath&) override;
 
     fsfp_t fsfingerprint() const override;
     bool fsstableids() const override;
-    
+
     WinDirNotify(LocalPath&, const LocalPath&, WinFileSystemAccess* owner, Waiter* waiter);
     ~WinDirNotify();
 };
@@ -161,7 +161,7 @@ public:
 
     bool fopen(LocalPath&, bool read, bool write, DirAccess* iteratingDir, bool ignoreAttributes) override;
     bool fopen_impl(LocalPath&, bool read, bool write, bool async, DirAccess* iteratingDir, bool ignoreAttributes);
-    void updatelocalname(LocalPath&) override;
+    void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
     bool fwrite(const byte *, unsigned, m_off_t);
 

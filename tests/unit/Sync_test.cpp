@@ -220,17 +220,7 @@ public:
         *path = *local;
     }
 
-    size_t lastpartlocal(const std::string* localname) const override
-    {
-        const char* ptr = localname->data();
-        if ((ptr = strrchr(ptr, '/')))
-        {
-            return ptr - localname->data() + 1;
-        }
-        return 0;
-    }
-
-    bool getsname(mega::LocalPath&, mega::LocalPath&) const override
+    bool getsname(const mega::LocalPath&, mega::LocalPath&) const override
     {
         return false;
     }
@@ -283,53 +273,57 @@ using std::string;
 /*
  * Shim to make following test less painful.
  */
-int computeReversePathMatchScore(string& accumulated,
-                                 const string& path1,
+int computeReversePathMatchScore(const string& path1,
                                  const string& path2,
-                                 const string& sep)
+                                 LocalPath::separator_t sep)
 {
-    return mega::computeReversePathMatchScore(accumulated,
-                                              LocalPath::fromLocalname(path1),
-                                              LocalPath::fromLocalname(path2),
+#if defined(_WIN32)
+    mega::WinFileSystemAccess wfa;
+    auto localpath1 = LocalPath::fromPath(path1, wfa);
+    auto localpath2 = LocalPath::fromPath(path2, wfa);
+
+    return mega::computeReversePathMatchScore(localpath1,
+                                              localpath2,
                                               mt::DefaultedFileSystemAccess(sep));
+#else
+    return mega::computeReversePathMatchScore(
+        LocalPath::fromPlatformEncoded(path1),
+        LocalPath::fromPlatformEncoded(path2),
+        mt::DefaultedFileSystemAccess(sep));
+
+#endif
 }
 
-void test_computeReversePathMatchScore(const string &sep)
+void test_computeReversePathMatchScore(mega::LocalPath::separator_t sep)
 {
-    string acc;
+    string sepstr("/");
+    ASSERT_EQ(0, computeReversePathMatchScore("", "", sep));
+    ASSERT_EQ(0, computeReversePathMatchScore("", sepstr + "a", sep));
+    ASSERT_EQ(0, computeReversePathMatchScore(sepstr + "b", "", sep));
+    ASSERT_EQ(0, computeReversePathMatchScore("a", "b", sep));
+    ASSERT_EQ(2, computeReversePathMatchScore("cc", "cc", sep));
+    ASSERT_EQ(0, computeReversePathMatchScore(sepstr, sepstr, sep));
+    ASSERT_EQ(0, computeReversePathMatchScore(sepstr + "b", sepstr + "a", sep));
+    ASSERT_EQ(2, computeReversePathMatchScore(sepstr + "cc", sepstr + "cc", sep));
+    ASSERT_EQ(0, computeReversePathMatchScore(sepstr + "b", sepstr + "b" + sepstr, sep));
+    ASSERT_EQ(2, computeReversePathMatchScore(sepstr + "a" + sepstr + "b", sepstr + "a" + sepstr + "b", sep));
+    ASSERT_EQ(2, computeReversePathMatchScore(sepstr + "a" + sepstr + "c" + sepstr + "a" + sepstr + "b", sepstr + "a" + sepstr + "b", sep));
+    ASSERT_EQ(3, computeReversePathMatchScore(sepstr + "aaa" + sepstr + "bbbb" + sepstr + "ccc", sepstr + "aaa" + sepstr + "bbb" + sepstr + "ccc", sep));
+    ASSERT_EQ(2, computeReversePathMatchScore("a" + sepstr + "b", "a" + sepstr + "b", sep));
 
-    ASSERT_EQ(0, computeReversePathMatchScore(acc, "", "", sep));
-    ASSERT_EQ(0, computeReversePathMatchScore(acc, "", sep + "a", sep));
-    ASSERT_EQ(0, computeReversePathMatchScore(acc, sep + "b", "", sep));
-    ASSERT_EQ(0, computeReversePathMatchScore(acc, "a", "b", sep));
-    ASSERT_EQ(2, computeReversePathMatchScore(acc, "cc", "cc", sep));
-    ASSERT_EQ(0, computeReversePathMatchScore(acc, sep, sep, sep));
-    ASSERT_EQ(0, computeReversePathMatchScore(acc, sep + "b", sep + "a", sep));
-    ASSERT_EQ(2, computeReversePathMatchScore(acc, sep + "cc", sep + "cc", sep));
-    ASSERT_EQ(0, computeReversePathMatchScore(acc, sep + "b", sep + "b" + sep, sep));
-    ASSERT_EQ(2, computeReversePathMatchScore(acc, sep + "a" + sep + "b", sep + "a" + sep + "b", sep));
-    ASSERT_EQ(2, computeReversePathMatchScore(acc, sep + "a" + sep + "c" + sep + "a" + sep + "b", sep + "a" + sep + "b", sep));
-    ASSERT_EQ(3, computeReversePathMatchScore(acc, sep + "aaa" + sep + "bbbb" + sep + "ccc", sep + "aaa" + sep + "bbb" + sep + "ccc", sep));
-    ASSERT_EQ(2, computeReversePathMatchScore(acc, "a" + sep + "b", "a" + sep + "b", sep));
+    const string base = sepstr + "a" + sepstr + "b";
+    const string reference = sepstr + "c12" + sepstr + "e34";
 
-    const string base = sep + "a" + sep + "b";
-    const string reference = sep + "c12" + sep + "e34";
-
-    ASSERT_EQ(6, computeReversePathMatchScore(acc, base + reference, base + sep + "a65" + reference, sep));
-    ASSERT_EQ(6, computeReversePathMatchScore(acc, base + reference, base + sep + ".debris" + reference, sep));
-    ASSERT_EQ(6, computeReversePathMatchScore(acc, base + reference, base + sep + "ab" + reference, sep));
+    ASSERT_EQ(6, computeReversePathMatchScore(base + reference, base + sepstr + "a65" + reference, sep));
+    ASSERT_EQ(6, computeReversePathMatchScore(base + reference, base + sepstr + ".debris" + reference, sep));
+    ASSERT_EQ(6, computeReversePathMatchScore(base + reference, base + sepstr + "ab" + reference, sep));
 }
 
 }
 
 TEST(Sync, computeReverseMatchScore_oneByteSeparator)
 {
-    test_computeReversePathMatchScore("/");
-}
-
-TEST(Sync, computeReverseMatchScore_twoByteSeparator)
-{
-    test_computeReversePathMatchScore("//");
+    test_computeReversePathMatchScore('/');
 }
 
 /*TEST(Sync, assignFilesystemIds_whenFilesystemFingerprintsMatchLocalNodes)

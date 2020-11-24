@@ -34,3 +34,4 @@ TEST(utils, hashCombine_integer)
     ASSERT_EQ(2654435811ull, hash);
 #endif
 }
+
