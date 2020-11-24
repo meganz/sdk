@@ -2293,6 +2293,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setStartFirst(transfer->shouldStartFirst());
     this->setBackupTransfer(transfer->isBackupTransfer());
     this->setForeignOverquota(transfer->isForeignOverquota());
+    this->setForceNewUpload(transfer->isForceNewUpload());
     this->setLastError(transfer->lastError.get());
     this->setFolderTransferTag(transfer->getFolderTransferTag());
     this->setAppData(transfer->getAppData());
@@ -2377,6 +2378,11 @@ bool MegaTransferPrivate::isBackupTransfer() const
 bool MegaTransferPrivate::isForeignOverquota() const
 {
     return foreignOverquota;
+}
+
+bool MegaTransferPrivate::isForceNewUpload() const
+{
+    return forceNewUpload;
 }
 
 bool MegaTransferPrivate::isSourceFileTemporary() const
@@ -2792,6 +2798,11 @@ void MegaTransferPrivate::setBackupTransfer(bool backupTransfer)
 void MegaTransferPrivate::setForeignOverquota(bool foreignOverquota)
 {
     this->foreignOverquota = foreignOverquota;
+}
+
+void MegaTransferPrivate::setForceNewUpload(bool forceNewUpload)
+{
+    this->forceNewUpload = forceNewUpload;
 }
 
 void MegaTransferPrivate::setStreamingTransfer(bool streamingTransfer)
@@ -7607,7 +7618,7 @@ bool MegaApiImpl::hasToForceUpload(const Node &node, const MegaTransferPrivate &
     string name = node.displayname();
     LocalPath lp = LocalPath::fromPath(name, *client->fsaccess);
     bool isMedia = gfxAccess->isgfx(lp) || gfxAccess->isvideo(lp);
-    bool canForceUpload = transfer.isStreamingTransfer();
+    bool canForceUpload = transfer.isForceNewUpload();
     bool isPdf = name.find(".pdf") != string::npos;
 
     return canForceUpload && (isMedia || isPdf) && !(hasPreview && hasThumbnail);
@@ -8306,7 +8317,7 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
         transfer->setFolderTransferTag(folderTransferTag);
     }
 
-    transfer->setStreamingTransfer(forceNewUpload);
+    transfer->setForceNewUpload(forceNewUpload);
 
     transferQueue.push(transfer);
     waiter->notify();
@@ -8456,7 +8467,7 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
     {
         MegaNode *parent = getNodeByHandle(t->getParentHandle());
         startUpload(t->shouldStartFirst(), t->getPath(), parent, t->getFileName(), t->getTime(), 0,
-                          t->isBackupTransfer(), t->getAppData(), t->isSourceFileTemporary(), t->isStreamingTransfer(),
+                          t->isBackupTransfer(), t->getAppData(), t->isSourceFileTemporary(), t->isForceNewUpload(),
                           client->fsaccess->getlocalfstype(LocalPath::fromPath(t->getPath(), *fsAccess)), listener);
         delete parent;
     }
