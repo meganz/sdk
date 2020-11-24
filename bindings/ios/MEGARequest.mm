@@ -248,7 +248,7 @@ using namespace mega;
 }
 
 - (MEGABannerList *)bannerList {
-    MegaBannerList *bannerList = self.megaRequest->getMegaBannerList();
+    MegaBannerList *bannerList = self.megaRequest->getMegaBannerList() -> copy();
     return [[MEGABannerList alloc] initWithMegaBannerList:bannerList cMemoryOwn:YES];
 }
 
