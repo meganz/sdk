@@ -511,6 +511,11 @@ public:
     // keep sync configuration after logout
     bool mKeepSyncsAfterLogout = false;
 
+    // backup names pending to be sent
+    string_map mPendingBackupNames;
+
+    // true if setting the backup name for any backup id is in progress
+    bool mSendingBackupName = false;
 #endif
 
     // if set, symlinks will be followed except in recursive deletions

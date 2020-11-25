@@ -2867,6 +2867,28 @@ bool CommandPutUAVer::procresult(Result r)
                     LOG_err << "Failed to decrypt " << User::attr2string(at) << " after putua";
                 }
             }
+            else if (at == ATTR_BACKUP_NAMES && client->mSendingBackupName)
+            {
+                if (client->mPendingBackupNames.empty())
+                {
+                    client->mSendingBackupName = false;
+                }
+                else    // more names arrived during `upv`
+                {
+                    string_map attrMap = move(client->mPendingBackupNames);
+                    const std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&av, &client->key));
+                    if (User::mergeUserAttribute(at, attrMap, *tlvRecords.get()))
+                    {
+                        // serialize and encrypt the TLV container
+                        std::unique_ptr<std::string> container(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
+                        client->putua(at, (byte *)container->data(), unsigned(container->size()));
+                    }
+                    else
+                    {
+                        LOG_err << "Failed to merge with existing backup names after `upv`";
+                    }
+                }
+            }
 
             client->notifyuser(u);
             client->app->putua_result(API_OK);
@@ -3120,7 +3142,7 @@ bool CommandGetUA::procresult(Result r)
                         case '*':   // private, encrypted
                         {
                             // decrypt the data and build the TLV records
-                            TLVstore *tlvRecords = TLVstore::containerToTLVrecords(&value, &client->key);
+                            std::unique_ptr<TLVstore> tlvRecords { TLVstore::containerToTLVrecords(&value, &client->key) };
                             if (!tlvRecords)
                             {
                                 LOG_err << "Cannot extract TLV records for private attribute " << User::attr2string(at);
@@ -3132,12 +3154,12 @@ bool CommandGetUA::procresult(Result r)
                             string *tlvString = tlvRecords->tlvRecordsToContainer(client->rng, &client->key);
                             u->setattr(at, tlvString, &version);
                             delete tlvString;
-                            client->app->getua_result(tlvRecords, at);
+                            client->app->getua_result(tlvRecords.get(), at);
 
                             if (User::isAuthring(at))
                             {
                                 client->mAuthRings.erase(at);
-                                client->mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
+                                client->mAuthRings.emplace(at, AuthRing(at, *tlvRecords.get()));
 
                                 if (client->mFetchingAuthrings && client->mAuthRings.size() == 3)
                                 {
@@ -3145,8 +3167,21 @@ bool CommandGetUA::procresult(Result r)
                                     client->fetchContactsKeys();
                                 }
                             }
-
-                            delete tlvRecords;
+                            else if (at == ATTR_BACKUP_NAMES && client->mSendingBackupName)
+                            {
+                                // there are pending updates to send, delayed because the attr was not up to date
+                                string_map attrMap = move(client->mPendingBackupNames);
+                                if (User::mergeUserAttribute(at, attrMap, *tlvRecords.get()))
+                                {
+                                    // serialize and encrypt the TLV container
+                                    std::unique_ptr<std::string> container(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
+                                    client->putua(at, (byte *)container->data(), unsigned(container->size()));
+                                }
+                                else
+                                {
+                                    LOG_err << "Failed to merge with existing backup names after `uga`";
+                                }
+                            }
                             break;
                         }
                         case '+':   // public
@@ -8223,40 +8258,46 @@ bool CommandBackupPut::procresult(Result r)
         e = r.errorOrOK();
     }
 
-    if (!mUpdate && !ISUNDEF(backupId)) // successfully registered a new backup --> set the backup name
+    // Upon new backup successfully registered --> set the backup name silently
+    if (!mUpdate && !ISUNDEF(backupId))
     {
         assert(r.succeeded());
 
-        // automatically add the backup name to the corresponding user attribute
         std::string key {Base64Str<MegaClient::BACKUPHANDLE>(backupId)};
-        attr_t attrtype = ATTR_BACKUP_NAMES;
-
-        std::unique_ptr<TLVstore> tlv;
+        attr_t attrType = ATTR_BACKUP_NAMES;
 
         User *ownUser = client->finduser(client->me);
-        const std::string *oldValue = ownUser->getattr(attrtype);
-        if (!oldValue)  // attr doesn't exist -> create it
-        {
-            tlv.reset(new TLVstore());
-            tlv->set(key, mBackupName);
+        const std::string *oldValue = ownUser->getattr(attrType);
 
-            // serialize and encrypt the TLV container
-            std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
-            client->putua(attrtype, (byte *)container->data(), unsigned(container->size()));
-        }
-        else if (!ownUser->isattrvalid(attrtype)) // not fetched yet or outdated
+        if (oldValue && !ownUser->isattrvalid(attrType)) // not fetched yet or outdated
         {
-            LOG_err << "Failed to set backup name for backup id : " << backupId;
+            LOG_warn << "Cannot immediately set backup name for backup id: " << backupId << ". Fetching...";
+            client->getua(ownUser, attrType, 0);
+            client->mSendingBackupName = true;
+        }
+
+        if (client->mSendingBackupName)
+        {
+            // accumulate this update for the future, in order to avoid race conditions
+            // they will be sent upon `upv` completion for the update in progress
+            client->mPendingBackupNames[key] = mBackupName;
         }
         else
         {
-            string_map attrMap { {key, Base64::btoa(mBackupName)} };
-            tlv.reset(TLVstore::containerToTLVrecords(oldValue, &client->key));
-            if (User::mergeUserAttribute(attrtype, attrMap, *tlv.get()))
+            // send backup name for this backup directly
+            std::unique_ptr<TLVstore> tlv { !oldValue
+                        ? new TLVstore()
+                        : TLVstore::containerToTLVrecords(oldValue, &client->key) };
+
+            string_map attrMap = move(client->mPendingBackupNames);
+            attrMap[key] = Base64::btoa(mBackupName);
+            if (User::mergeUserAttribute(attrType, attrMap, *tlv.get()))
             {
                 // serialize and encrypt the TLV container
                 std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
-                client->putua(attrtype, (byte *)container->data(), unsigned(container->size()));
+                client->putua(attrType, (byte *)container->data(), unsigned(container->size()));
+
+                client->mSendingBackupName = true;
             }
             else
             {
@@ -8319,33 +8360,43 @@ bool CommandBackupRemove::procresult(Result r)
 {
     client->app->backupremove_result(r.errorOrOK(), mBackupId);
 
-    if (r.succeeded())  // remove the corresponding backup name from the user's attribute
-    {
-        User *ownUser = client->finduser(client->me);
-        attr_t attrtype = ATTR_BACKUP_NAMES;
+
+    // Upon removal of backup successfully --> remove the backup name silently for the user's attribute
+    if (r.succeeded())
+    {        
         std::string key {Base64Str<MegaClient::BACKUPHANDLE>(mBackupId)};
-        const std::string *oldValue = ownUser->getattr(attrtype);
-        if (!oldValue)  // attr doesn't exist -> create it
-        {
-            LOG_warn << "Backup was removed, but there was no name for it. Backup id: " << key;
-        }
-        else if (!ownUser->isattrvalid(attrtype))
-        {
-            LOG_err << "Failed to remove backup name for backup id: " << key;
-        }
-        else
-        {
-            string_map attrMap;
-            attrMap[key] = "";
+        attr_t attrType = ATTR_BACKUP_NAMES;
 
-            std::unique_ptr<TLVstore> tlv;
-            tlv.reset(TLVstore::containerToTLVrecords(oldValue, &client->key));
+        User *ownUser = client->finduser(client->me);
+        const std::string *oldValue = ownUser->getattr(attrType);
 
-            if (User::mergeUserAttribute(attrtype, attrMap, *tlv.get()))
+        if (oldValue && !ownUser->isattrvalid(attrType)) // not fetched yet or outdated
+        {
+            LOG_warn << "Cannot immediately remvoe backup name for backup id: " << key << ". Fetching...";
+            client->getua(ownUser, attrType, 0);
+            client->mSendingBackupName = true;
+        }
+
+        if (client->mSendingBackupName)
+        {
+            // accumulate this update for the future, in order to avoid race conditions
+            // they will be sent upon `upv` completion for the update in progress
+            client->mPendingBackupNames[key] = Base64::btoa("");
+        }
+        else if (oldValue)  // in the event of non-existing attribute, nothing to update
+        {
+            // send backup name for this backup directly
+            std::unique_ptr<TLVstore> tlv { TLVstore::containerToTLVrecords(oldValue, &client->key) };
+
+            string_map attrMap = move(client->mPendingBackupNames);
+            attrMap[key] = Base64::btoa("");
+            if (User::mergeUserAttribute(attrType, attrMap, *tlv.get()))
             {
                 // serialize and encrypt the TLV container
                 std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
-                client->putua(attrtype, (byte *)container->data(), unsigned(container->size()));
+                client->putua(attrType, (byte *)container->data(), unsigned(container->size()));
+
+                client->mSendingBackupName = true;
             }
             else
             {
