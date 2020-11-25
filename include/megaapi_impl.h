@@ -2887,14 +2887,7 @@ protected:
 
 #ifdef ENABLE_SYNC
         map<int, MegaSyncPrivate *> syncMap;    // maps tag to MegaSync objects
-
-        // removes a sync from syncmap and from cache
-        void eraseSync(int tag);
-        map<int, MegaSyncPrivate *>::iterator eraseSyncByIterator(map<int, MegaSyncPrivate *>::iterator it);
-
 #endif
-        std::unique_ptr<MegaBackupMonitor> mHeartBeatMonitor;
-
         int pendingUploads;
         int pendingDownloads;
         int totalUploads;
@@ -3217,8 +3210,6 @@ protected:
         void backupupdate_result(const Error&, handle) override;
         void backupputheartbeat_result(const Error&) override;
         void backupremove_result(const Error&, handle) override;
-        void heartbeat() override;
-        void pause_state_changed() override;
 
 protected:
         // suggest reload due to possible race condition with other clients

@@ -29,6 +29,7 @@
 #include "mega/transfer.h"
 #include "mega/transferslot.h"
 #include "mega/logging.h"
+#include "mega/heartbeats.h"
 
 namespace mega {
 
@@ -1702,10 +1703,19 @@ void LocalNode::prepare()
     treestate(TREESTATE_SYNCING);
 }
 
+void LocalNode::terminated()
+{
+    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, size, 0);
+
+    File::terminated();
+}
+
 // complete a sync upload: complete to //bin if a newer node exists (which
 // would have been caused by a race condition)
 void LocalNode::completed(Transfer* t, LocalNode*)
 {
+    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, 0, size);
+
     // complete to rubbish for later retrieval if the parent node does not
     // exist or is newer
     if (!parent || !parent->node || (node && mtime < node->mtime))

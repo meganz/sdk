@@ -30,6 +30,7 @@
 #include "mega/transfer.h"
 #include "mega/megaclient.h"
 #include "mega/base64.h"
+#include "mega/heartbeats.h"
 
 namespace mega {
 
@@ -637,15 +638,15 @@ std::vector<SyncConfig> SyncConfigBag::all() const
 
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
-Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
-           LocalPath* clocaldebris, Node* remotenode, bool cinshare, int ctag, void *cappdata)
+Sync::Sync(UnifiedSync& us, const char* cdebris,
+           LocalPath* clocaldebris, Node* remotenode, bool cinshare, int ctag)
 : localroot(new LocalNode)
+, mUnifiedSync(us)
 {
     isnetwork = false;
-    client = cclient;
+    client = &mUnifiedSync.mClient;
     tag = ctag;
     inshare = cinshare;
-    appData = cappdata;
     errorCode = NO_SYNC_ERROR;
     tmpfa = NULL;
     initializing = true;
@@ -663,7 +664,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
     fullscan = true;
     scanseqno = 0;
 
-    mLocalPath = config.getLocalPath();
+    mLocalPath = mUnifiedSync.mConfig.getLocalPath();
     LocalPath crootpath = LocalPath::fromPath(mLocalPath, *client->fsaccess);
 
     if (cdebris)
@@ -685,7 +686,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
     dirnotify->sync = this;
 
     // set specified fsfp or get from fs if none
-    const auto cfsfp = config.getLocalFingerprint();
+    const auto cfsfp = mUnifiedSync.mConfig.getLocalFingerprint();
     if (cfsfp)
     {
         fsfp = cfsfp;
@@ -693,7 +694,6 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
     else
     {
         fsfp = dirnotify->fsfingerprint();
-        config.setLocalFingerprint(fsfp);
     }
 
     fsstableids = dirnotify->fsstableids();
@@ -733,8 +733,6 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
         }
     }
 #endif
-
-    sync_it = client->syncs.insert(client->syncs.end(), this);
 
     if (client->dbaccess)
     {
@@ -781,7 +779,6 @@ Sync::~Sync()
 
     delete statecachetable;
 
-    client->syncs.erase(sync_it);
     client->syncactivity = true;
 
     {
@@ -893,10 +890,7 @@ bool Sync::readstatecache()
 
 const SyncConfig& Sync::getConfig() const
 {
-    assert(client->syncConfigs && "Calling getConfig() requires sync configs");
-    const auto config = client->syncConfigs->get(tag);
-    assert(config);
-    return *config;
+    return mUnifiedSync.mConfig;
 }
 
 // remove LocalNode from DB cache
@@ -980,7 +974,7 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError)
         LOG_debug << "Sync state/error changing. from " << state << "/" << errorCode << " to "  << newstate << "/" << newSyncError;
         if (newstate != SYNC_CANCELED)
         {
-            client->changeSyncState(tag, newstate, newSyncError);
+            mUnifiedSync.changeConfigState(newstate, newSyncError);
         }
 
         state = newstate;
@@ -1893,6 +1887,11 @@ void Sync::deletemissing(LocalNode* l)
     }
 }
 
+bool Sync::updateSyncRemoteLocation(Node* n, bool forceCallback)
+{
+    return mUnifiedSync.updateSyncRemoteLocation(n, forceCallback);
+}
+
 bool Sync::movetolocaldebris(LocalPath& localpath)
 {
     char buf[32];
@@ -1950,5 +1949,547 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
 
     return false;
 }
+
+
+UnifiedSync::UnifiedSync(MegaClient& mc, const SyncConfig& c)
+    : mClient(mc), mConfig(c)
+{
+    mNextHeartbeat.reset(new HeartBeatSyncInfo());
+}
+
+
+error UnifiedSync::enableSync(SyncError& syncError, bool resetFingerprint, handle newRemoteNode)
+{
+    assert(!mSync);
+    syncError = NO_SYNC_ERROR;
+
+    if (resetFingerprint)
+    {
+        mConfig.setLocalFingerprint(0); //This will cause the local filesystem fingerprint to be recalculated
+    }
+
+    bool remoteNodeUpdated = false;
+    if (newRemoteNode != UNDEF)
+    {
+        mConfig.setRemoteNode(newRemoteNode);
+        remoteNodeUpdated = true;
+    }
+
+    LocalPath rootpath;
+    std::unique_ptr<FileAccess> openedLocalFolder;
+    Node* remotenode;
+    bool inshare, isnetwork;
+    error e = mClient.checkSyncConfig(mConfig, syncError, rootpath, openedLocalFolder, remotenode, inshare, isnetwork);
+
+    if (!e)
+    {
+        e = startSync(&mClient, DEBRISFOLDER, nullptr, remotenode, inshare, mConfig.getTag(), syncError, isnetwork, false, rootpath, openedLocalFolder);
+        mClient.syncactivity = true;
+    }
+
+    syncstate_t newstate = isSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED;
+    if (!e && mSync) //enabled fine
+    {
+        newstate = mSync->state; //override state with the actual one from the sync
+
+        // note, we only update the remote node handle if successfully added
+        // thus we avoid pairing to a new node if the sync failed.
+        if (remoteNodeUpdated)
+        {
+            updateSyncRemoteLocation(mClient.nodebyhandle(mConfig.getRemoteNode()), true);
+            // updates cache & notice app of this change,
+            // we pass true to force calling the callback: since addsync will have already updated
+            // the cache, and updateSyncRemoteLocation will not detect the change
+        }
+    }
+
+    // change, so that cache is updated & the app gets noticed
+    // we don't fire onDisable in this case (it was not enabled in the first place).
+    changeConfigState(newstate, static_cast<SyncError>(syncError), false);
+
+    mClient.syncs.mHeartBeatMonitor->updateOrRegisterSync(*this);
+
+    return e;
+}
+
+bool UnifiedSync::updateSyncRemoteLocation(Node* n, bool forceCallback)
+{
+    bool changed = false;
+    if (n)
+    {
+        auto newpath = n->displaypath();
+        if (newpath != mConfig.getRemotePath())
+        {
+            mConfig.setRemotePath(newpath);
+            changed = true;
+        }
+
+        if (mConfig.getRemoteNode() != n->nodehandle)
+        {
+            mConfig.setRemoteNode(n->nodehandle);
+            changed = true;
+        }
+    }
+    else //unset remote node: failed!
+    {
+        if (mConfig.getRemoteNode() != UNDEF)
+        {
+            mConfig.setRemoteNode(UNDEF);
+            changed = true;
+        }
+    }
+
+    if (changed || forceCallback)
+    {
+        mClient.app->syncupdate_remote_root_changed(mConfig);
+    }
+
+    //persist
+    mClient.syncs.mSyncConfigDb->insert(mConfig);
+
+    return changed;
+}
+
+
+
+error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* localdebris, Node* remotenode, bool inshare, int tag,
+                             SyncError& syncError, bool isNetwork, bool delayInitialScan, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder)
+{
+    //check we are not in any blocking situation
+    using CType = CacheableStatus::Type;
+    bool overStorage = mClient.mCachedStatus[CType::STATUS_STORAGE] ? (mClient.mCachedStatus[CType::STATUS_STORAGE]->value() >= STORAGE_RED) : false;
+    bool businessExpired = mClient.mCachedStatus[CType::STATUS_BUSINESS] ? (mClient.mCachedStatus[CType::STATUS_BUSINESS]->value() == BIZ_STATUS_EXPIRED) : false;
+    bool blocked = mClient.mCachedStatus[CType::STATUS_BLOCKED] ? (mClient.mCachedStatus[CType::STATUS_BLOCKED]->value()) : false;
+
+    // the order is important here: a user needs to resolve blocked in order to resolve storage
+    if (overStorage)
+    {
+        syncError = STORAGE_OVERQUOTA;
+    }
+    else if (businessExpired)
+    {
+        syncError = BUSINESS_EXPIRED;
+    }
+    else if (blocked)
+    {
+        syncError = ACCOUNT_BLOCKED;
+    }
+
+    if (isAnError(syncError))
+    {
+        // save configuration but avoid creating active sync, and set as temporary disabled:
+        mClient.syncs.saveAndUpdateSyncConfig(&mConfig, SYNC_DISABLED, static_cast<SyncError>(syncError));
+        return API_EFAILED;
+    }
+
+    auto prevFingerprint = mConfig.getLocalFingerprint();
+
+    assert(!mSync);
+    mSync.reset(new Sync(*this, debris, localdebris, remotenode, inshare, tag));
+    mConfig.setLocalFingerprint(mSync->fsfp);
+
+    if (prevFingerprint && prevFingerprint != mConfig.getLocalFingerprint())
+    {
+        LOG_err << "New sync local fingerprint mismatch. Previous: " << prevFingerprint
+            << "  Current: " << mConfig.getLocalFingerprint();
+        mSync->changestate(SYNC_FAILED, LOCAL_FINGERPRINT_MISMATCH); //note, this only causes fireOnSyncXXX if there's a MegaSync object in the map already
+        syncError = LOCAL_FINGERPRINT_MISMATCH;
+        mSync.reset();
+        return API_EFAILED;
+    }
+
+    mSync->isnetwork = isNetwork;
+
+    if (!mSync->fsstableids)
+    {
+        if (mSync->assignfsids())
+        {
+            LOG_info << "Successfully assigned fs IDs for filesystem with unstable IDs";
+        }
+        else
+        {
+            LOG_warn << "Failed to assign some fs IDs for filesystem with unstable IDs";
+        }
+    }
+
+    if (delayInitialScan)
+    {
+        client->syncs.saveAndUpdateSyncConfig(&mConfig, mSync->state, static_cast<SyncError>(syncError));
+    }
+    else
+    {
+        LOG_debug << "Initial scan sync: " << mConfig.getLocalPath();
+
+        if (mSync->scan(&rootpath, openedLocalFolder.get()))
+        {
+            client->syncsup = false;
+            mSync->initializing = false;
+            LOG_debug << "Initial scan finished. New / modified files: " << mSync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
+
+            // Sync constructor now receives the syncConfig as reference, to be able to write -at least- fingerprints for new syncs
+            client->syncs.saveAndUpdateSyncConfig(&mConfig, mSync->state, static_cast<SyncError>(syncError));
+        }
+        else
+        {
+            LOG_err << "Initial scan failed";
+            mSync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED); //note, this only causes fireOnSyncXXX if there's a MegaSync object in the map already
+            syncError = INITIAL_SCAN_FAILED;
+            mSync.reset();
+            return API_EFAILED;
+        }
+    }
+    return API_OK;
+}
+
+
+void UnifiedSync::changeConfigState(syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent)
+{
+    if ((mConfig.getError() != newSyncError) ||
+        (mConfig.getEnabled() != SyncConfig::isEnabled(newstate, newSyncError)))
+    {
+        mClient.syncs.saveAndUpdateSyncConfig(&mConfig, newstate, newSyncError);
+        mClient.app->syncupdate_state(mConfig.getTag(), newstate, newSyncError, fireDisableEvent);
+        mClient.abortbackoff(false);
+    }
+}
+
+Syncs::Syncs(MegaClient& mc)
+    : mClient(mc)
+{
+    mHeartBeatMonitor.reset(new MegaBackupMonitor(&mClient));
+}
+
+void Syncs::clear()
+{
+    mSyncVec.clear();
+    resetSyncConfigDb();
+}
+
+void Syncs::resetSyncConfigDb()
+{
+    mSyncConfigDb.reset();
+    if (mClient.dbaccess && !mClient.uid.empty())
+    {
+        mSyncConfigDb.reset(new SyncConfigBag{ *mClient.dbaccess, *mClient.fsaccess, mClient.rng, mClient.uid });
+    }
+}
+
+
+auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> UnifiedSync*
+{
+    isEmpty = false;
+    mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(mc, c)));
+
+    mSyncConfigDb->insert(c);
+
+
+    return mSyncVec.back().get();
+}
+
+Sync* Syncs::runningSyncByTag(int tag)
+{
+    for (auto& s : mSyncVec)
+    {
+        if (s->mSync && s->mSync->tag == tag)
+        {
+            return s->mSync.get();
+        }
+    }
+    return nullptr;
+}
+
+void Syncs::forEachUnifiedSync(std::function<void(UnifiedSync&)> f)
+{
+    for (auto& s : mSyncVec)
+    {
+        f(*s);
+    }
+}
+
+
+void Syncs::forEachRunningSync(std::function<void(Sync* s)> f)
+{
+    for (auto& s : mSyncVec)
+    {
+        if (s->mSync)
+        {
+            f(s->mSync.get());
+        }
+    }
+}
+
+bool Syncs::forEachRunningSync_shortcircuit(std::function<bool(Sync* s)> f)
+{
+    for (auto& s : mSyncVec)
+    {
+        if (s->mSync)
+        {
+            if (!f(s->mSync.get()))
+            {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+void Syncs::forEachSyncConfig(std::function<void(const SyncConfig&)> f)
+{
+    for (auto& s : mSyncVec)
+    {
+        f(s->mConfig);
+    }
+}
+
+bool Syncs::hasRunningSyncs()
+{
+    for (auto& s : mSyncVec)
+    {
+        if (s->mSync) return true;
+    }
+    return false;
+}
+
+unsigned Syncs::numRunningSyncs()
+{
+    unsigned n = 0;
+    for (auto& s : mSyncVec)
+    {
+        if (s->mSync) ++n;
+    }
+    return n;
+}
+
+Sync* Syncs::firstRunningSync()
+{
+    for (auto& s : mSyncVec)
+    {
+        if (s->mSync) return s->mSync.get();
+    }
+    return nullptr;
+}
+
+void Syncs::stopCancelledFailedDisabled()
+{
+    for (auto& unifiedSync : mSyncVec)
+    {
+        if (unifiedSync->mSync && (
+            unifiedSync->mSync->state == SYNC_CANCELED ||
+            unifiedSync->mSync->state == SYNC_FAILED ||
+            unifiedSync->mSync->state == SYNC_DISABLED))
+        {
+            unifiedSync->mSync.reset();
+        }
+    }
+}
+
+void Syncs::purgeRunningSyncs()
+{
+    for (auto& s : mSyncVec)
+    {
+        if (s->mSync)
+        {
+            s->mSync->changestate(SYNC_CANCELED);
+            s->mSync.reset();
+        }
+    }
+}
+
+void Syncs::disableSyncs(SyncError syncError)
+{
+    bool anySyncDisabled = false;
+    disableSelectedSyncs([&](SyncConfig&, Sync* s){
+
+        if (s)
+        {
+            anySyncDisabled = true;
+            return true;
+        }
+        return false;
+    }, syncError);
+
+    if (anySyncDisabled)
+    {
+        LOG_info << "Disabled syncs. error = " << syncError;
+        mClient.app->syncs_disabled(syncError);
+    }
+}
+
+
+void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError)
+{
+    for (auto i = mSyncVec.size(); i--; )
+    {
+        if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
+        {
+            if (auto sync = mSyncVec[i]->mSync.get())
+            {
+                sync->errorCode = syncError;
+                sync->changestate(SYNC_DISABLED, syncError); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
+                mClient.syncactivity = true;
+            }
+            else
+            {
+                mSyncVec[i]->changeConfigState(SYNC_DISABLED, syncError, false);
+            }
+        }
+    }
+}
+
+
+void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector)
+{
+    for (auto i = mSyncVec.size(); i--; )
+    {
+        if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
+        {
+            removeSyncByIndex(i);
+        }
+    }
+}
+
+void Syncs::removeSyncByIndex(size_t index)
+{
+    if (index < mSyncVec.size())
+    {
+        if (auto& syncPtr = mSyncVec[index]->mSync)
+        {
+            syncPtr->changestate(SYNC_CANCELED);
+
+            if (syncPtr->statecachetable)
+            {
+                syncPtr->statecachetable->remove();
+                delete syncPtr->statecachetable;
+                syncPtr->statecachetable = NULL;
+            }
+            syncPtr.reset(); // deletes sync
+        }
+
+        mSyncConfigDb->removeByTag(mSyncVec[index]->mConfig.getTag());
+        mClient.syncactivity = true;
+        mSyncVec.erase(mSyncVec.begin() + index);
+    }
+}
+
+
+error Syncs::enableSyncByTag(int tag, SyncError& syncError, bool resetFingerprint, handle newRemoteNode)
+{
+    for (auto& s : mSyncVec)
+    {
+        if (s->mConfig.getTag() == tag)
+        {
+            if (!s->mSync)
+            {
+                return s->enableSync(syncError, resetFingerprint, newRemoteNode);
+            }
+            return API_OK;
+        }
+    }
+    return API_ENOENT;
+}
+
+
+
+void Syncs::saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, SyncError newSyncError)
+{
+    auto newConfig = *config;
+
+    newConfig.setEnabled(SyncConfig::isEnabled(newstate, newSyncError));
+    newConfig.setError(newSyncError);
+
+    mSyncConfigDb->insert(newConfig);
+}
+
+// restore all configured syncs that were in a temporary error state (not manually disabled)
+void Syncs::enableResumeableSyncs()
+{
+    bool anySyncRestored = false;
+
+    for (auto& unifiedSync : mSyncVec)
+    {
+        if (!unifiedSync->mSync)
+        {
+            if (unifiedSync->mConfig.isResumable())
+            {
+
+                SyncError syncError = static_cast<SyncError>(!unifiedSync->mConfig.getError());
+                LOG_debug << "Restoring sync: " << unifiedSync->mConfig.getTag() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " old error = " << syncError;
+
+                error e = unifiedSync->enableSync(syncError, false, UNDEF);
+                if (!e)
+                {
+                    anySyncRestored = true;
+                }
+            }
+            else
+            {
+                SyncError syncError = static_cast<SyncError>(!unifiedSync->mConfig.getError());
+                LOG_verbose << "Skipping restoring sync: " << unifiedSync->mConfig.getLocalPath()
+                    << " enabled=" << unifiedSync->mConfig.getEnabled() << " error=" << syncError;
+            }
+        }
+    }
+
+    if (anySyncRestored)
+    {
+        mClient.app->syncs_restored();
+    }
+}
+
+
+void Syncs::resumeResumableSyncsOnStartup()
+{
+    bool firstSyncResumed = false;
+
+    for (auto& config : mSyncConfigDb->all())
+    {
+        mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(mClient, config )));
+    }
+
+    for (auto& unifiedSync : mSyncVec)
+    {
+        if (!unifiedSync->mSync)
+        {
+            SyncError syncError = static_cast<SyncError>(!unifiedSync->mConfig.getError());
+            syncstate_t newstate = isSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED;
+
+            if (!unifiedSync->mConfig.getRemotePath().size()) //should only happen if coming from old cache
+            {
+                auto node = mClient.nodebyhandle(unifiedSync->mConfig.getRemoteNode());
+                unifiedSync->updateSyncRemoteLocation(node, false); //updates cache & notice app of this change
+                if (node)
+                {
+                    auto newpath = node->displaypath();
+                    unifiedSync->mConfig.setRemotePath(newpath);//update loaded config
+                }
+            }
+
+            if (unifiedSync->mConfig.isResumableAtStartup())
+            {
+                if (!firstSyncResumed)
+                {
+                    mClient.app->syncs_about_to_be_resumed();
+                    firstSyncResumed = true;
+                }
+
+#ifdef __APPLE__
+                unifiedSync->mConfig.setLocalFingerprint(0); //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
+#endif
+                LOG_debug << "Resuming cached sync: " << unifiedSync->mConfig.getTag() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << syncError;
+
+                unifiedSync->enableSync(syncError, false, UNDEF);
+
+                LOG_debug << "Sync autoresumed: " << unifiedSync->mConfig.getTag() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << syncError;
+                mClient.app->sync_auto_resume_result(unifiedSync->mConfig, newstate, syncError);
+            }
+
+            mClient.mSyncTag = std::max(mClient.mSyncTag, unifiedSync->mConfig.getTag());
+        }
+    }
+}
+
+
+
+
 } // namespace
 #endif

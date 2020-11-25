@@ -30,6 +30,7 @@
 #include "mega/user.h"
 #include "mega.h"
 #include "mega/mediafileattribute.h"
+#include "mega/heartbeats.h"
 
 namespace mega {
 HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, std::unique_ptr<string> cdata, bool checkAccess)
@@ -989,17 +990,7 @@ bool CommandSetAttr::procresult(Result r)
         Node* node = client->nodebyhandle(h);
         if(node)
         {
-            Sync* sync = NULL;
-            for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-            {
-                if((*it)->tag == tag)
-                {
-                    sync = (*it);
-                    break;
-                }
-            }
-
-            if(sync)
+            if (Sync* sync = client->syncs.runningSyncByTag(tag))
             {
                 client->app->syncupdate_remote_rename(sync, node, pa.c_str());
             }
@@ -1367,17 +1358,7 @@ bool CommandMoveNode::procresult(Result r)
                             {
                                 if (syncop)
                                 {
-                                    Sync* sync = NULL;
-                                    for (sync_list::iterator its = client->syncs.begin(); its != client->syncs.end(); its++)
-                                    {
-                                        if ((*its)->tag == tag)
-                                        {
-                                            sync = (*its);
-                                            break;
-                                        }
-                                    }
-
-                                    if (sync)
+                                    if (Sync* sync = client->syncs.runningSyncByTag(tag))
                                     {
                                         if ((*it)->type == FOLDERNODE)
                                         {
@@ -1423,17 +1404,7 @@ bool CommandMoveNode::procresult(Result r)
             Node *n = client->nodebyhandle(h);
             if(n)
             {
-                Sync *sync = NULL;
-                for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-                {
-                    if((*it)->tag == tag)
-                    {
-                        sync = (*it);
-                        break;
-                    }
-                }
-
-                if(sync)
+                if (Sync* sync = client->syncs.runningSyncByTag(tag))
                 {
                     client->app->syncupdate_remote_move(sync, n, client->nodebyhandle(pp));
                 }
@@ -1882,7 +1853,7 @@ bool CommandLogin::procresult(Result r)
                 }
 
 #ifdef ENABLE_SYNC
-                client->resetSyncConfigs();
+                client->syncs.resetSyncConfigDb();
 #endif
 
                 client->app->login_result(API_OK);
@@ -8166,7 +8137,8 @@ bool CommandFolderLinkInfo::procresult(Result r)
 }
 
 // to register a new backup
-CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle nodeHandle, const string& localFolder, const std::string &deviceId, int state, int subState, const string& extraData)
+CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle nodeHandle, const string& localFolder, const std::string &deviceId, int state, int subState, const string& extraData, std::function<void(Error, handle /*backup id*/)> completion)
+    : mCompletion(completion)
 {
     assert(type != BackupType::INVALID);
 
@@ -8187,7 +8159,8 @@ CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, handle n
 }
 
 // to update an already registered backup
-CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, int state, int subState, const char* extraData)
+CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, int state, int subState, const char* extraData, std::function<void(Error, handle /*backup id*/)> completion)
+    : mCompletion(completion)
 {
     cmd("sp");
 
@@ -8249,6 +8222,8 @@ bool CommandBackupPut::procresult(Result r)
     }
 
     LOG_debug << "backup put result: " << error(e) << " " << backupId;
+
+    if (mCompletion) mCompletion(e, backupId);
 
     if (mUpdate)
     {

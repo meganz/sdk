@@ -382,6 +382,7 @@ struct MEGA_API LocalNode : public File
 
     void prepare() override;
     void completed(Transfer*, LocalNode*) override;
+    void terminated() override;
 
     void setnode(Node*);
 

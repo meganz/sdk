@@ -38,6 +38,7 @@
 #include "mediafileattribute.h"
 #include "useralerts.h"
 #include "user.h"
+#include "sync.h"
 
 namespace mega {
 
@@ -501,14 +502,12 @@ public:
     bool xferpaused[2];
 
 #ifdef ENABLE_SYNC
-    // active syncs
-    sync_list syncs;
+
+    // one unified structure for SyncConfigs, the Syncs that are running, and heartbeat data
+    Syncs syncs;
 
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;
-
-    // A collection of sync configs backed by a database table
-    std::unique_ptr<SyncConfigBag> syncConfigs;
 
     // keep sync configuration after logout
     bool mKeepSyncsAfterLogout = false;
@@ -610,59 +609,25 @@ public:
      * @param delayInitialScan delay the initial scan
      * @return API_OK if added to active syncs. (regular) error otherwise.
      */
-    error addsync(SyncConfig, const char*, LocalPath*, SyncError &syncError, bool delayInitialScan = false, void* = NULL);
+    error checkSyncConfig(const SyncConfig& syncConfig, SyncError& syncError, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, Node*& remotenode, bool& inshare, bool& isnetwork);
+    error addsync(const SyncConfig&, const char*, LocalPath*, SyncError& syncError, bool delayInitialScan, UnifiedSync*& unifiedSync);
 
 
-    // removes an active sync (transition to pre-removal state).
-    // This will entail the removal of the sync cache & configuration cache (see removeSyncConfig)
-    void delsync(Sync*);
 
-    // remove sync configuration. It will remove sync configuration cache & call app's callback sync_removed
-    error removeSyncConfig(int tag);
-    error removeSyncConfigByNodeHandle(handle nodeHandle);
 
-    //// sync config updating & persisting ////
-    // updates in state & error
-    error saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, SyncError syncerror);
-    // updates in remote path/node & calls app's syncupdate_remote_root_changed. passing n=null will remove remote handle and keep last known path
-    bool updateSyncRemoteLocation(const SyncConfig *config, Node *n, bool forceCallback = false); //returns if changed
-    // updates heartbeatID
-    error updateSyncBackupId(int tag, handle newHearBeatID);
+    ////// sync config updating & persisting ////
 
     // transition the cache to failed
     void failSync(Sync* sync, SyncError syncerror);
 
     // disable synchronization. (transition to disable_state)
     // If no error passed, it entails a manual disable: won't be resumed automatically anymore, but it will be kept in cache
-    void disableSync(Sync*, SyncError syncError =  NO_SYNC_ERROR);
     bool disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError);
 
     // fail all active syncs
     void failSyncs(SyncError syncError =  NO_SYNC_ERROR);
 
-    //disable all active syncs
-    // If no error passed, it entails a manual disable: won't be resumed automatically anymore, but it will be kept in cache
-    void disableSyncs(SyncError syncError =  NO_SYNC_ERROR);
 
-    // restore all configured syncs that were in a temporary error state (not manually disabled)
-    void restoreSyncs();
-
-    // attempts to enable a sync. will fill syncError with the SyncError error (if any)
-    // if resetFingeprint is true, it will assign a new Filesystem Fingerprint.
-    // if newRemoteNode is set, it will try to use it to restablish the sync, updating the cached configuration if successful.
-    error enableSync(int tag, SyncError &syncError, bool resetFingerprint = false, mega::handle newRemoteNode = UNDEF);
-    error enableSync(const SyncConfig *syncConfig, SyncError &syncError,
-                     bool resetFingerprint = false, mega::handle newRemoteNode = UNDEF);
-
-    /**
-     * @brief updates the state of a synchronization. it will persist the changes and call app syncupdate_state handler
-     * @param fireDisableEvent passed to the app: if when the change entails a transition to inactive, the transition should be
-     * forwarded to the application listeners
-     * @return error if any
-     */
-    error changeSyncState(const SyncConfig *config, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent);
-    error changeSyncState(int tag, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent = true);
-    error changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent);
 
 
 #endif
@@ -1024,11 +989,7 @@ private:
     static const int MAXPUTFA;
 
 #ifdef ENABLE_SYNC
-    // Resumes all resumable syncs
-    void resumeResumableSyncs();
-
     Sync *getSyncContainingNodeHandle(mega::handle nodeHandle);
-
 #endif
 
     // update time at which next deferred transfer retry kicks in
@@ -1845,7 +1806,6 @@ public:
     std::string getDeviceidHash() const;
 
 #ifdef ENABLE_SYNC
-    void resetSyncConfigs();
     bool getKeepSyncsAfterLogout() const;
     void setKeepSyncsAfterLogout(bool keepSyncsAfterLogout);
 #endif

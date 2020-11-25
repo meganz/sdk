@@ -60,6 +60,7 @@ struct MEGA_API AsyncIOContext;
 
 struct MEGA_API FileSystemAccess;
 class MEGA_API LocalPath;
+class MEGA_API Sync;
 
 class ScopedLengthRestore {
     LocalPath& path;

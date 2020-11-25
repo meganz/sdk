@@ -284,8 +284,6 @@ typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL
 const int FILENODEKEYLENGTH = 32;
 const int FOLDERNODEKEYLENGTH = 16;
 
-typedef list<class Sync*> sync_list;
-
 // persistent resource cache storage
 class Cacheable
 {

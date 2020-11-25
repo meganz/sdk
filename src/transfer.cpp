@@ -535,7 +535,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 
             if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
             {
-                client->disableSyncs(BUSINESS_EXPIRED);
+                client->syncs.disableSyncs(BUSINESS_EXPIRED);
                 alreadyDisabled = true;
             }
 #endif
@@ -757,12 +757,11 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         #ifdef ENABLE_SYNC
                         if((*it)->syncxfer)
                         {
-                            sync_list::iterator it2;
-                            for (it2 = client->syncs.begin(); it2 != client->syncs.end(); it2++)
-                            {
-                                Sync *sync = (*it2);
+                            bool foundOne = false;
+                            client->syncs.forEachRunningSync([&](Sync* sync){
+
                                 LocalNode *localNode = sync->localnodebypath(NULL, localname);
-                                if (localNode)
+                                if (localNode && !foundOne)
                                 {
                                     LOG_debug << "Overwriting a local synced file. Moving the previous one to debris";
 
@@ -772,18 +771,18 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                                         transient_error = client->fsaccess->transient_error;
                                     }
 
-                                    break;
+                                    foundOne = true;
                                 }
-                            }
+                            });
 
-                            if(it2 == client->syncs.end())
+                            if (!foundOne)
                             {
                                 LOG_err << "LocalNode for destination file not found";
 
-                                if(client->syncs.size())
+                                if(client->syncs.hasRunningSyncs())
                                 {
                                     // try to move to debris in the first sync
-                                    if(!client->syncs.front()->movetolocaldebris(localname))
+                                    if(!client->syncs.firstRunningSync()->movetolocaldebris(localname))
                                     {
                                         transient_error = client->fsaccess->transient_error;
                                     }

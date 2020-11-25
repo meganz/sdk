@@ -1308,11 +1308,13 @@ public:
 
 class MEGA_API CommandBackupPut : public Command
 {
+    std::function<void(Error, handle /*backup id*/)> mCompletion;
+
 public:
     bool procresult(Result) override;
 
     // Register a new Sync
-    CommandBackupPut(MegaClient* client, BackupType type, handle nodeHandle, const std::string& localFolder, const std::string& deviceId, int state, int subState, const std::string& extraData);
+    CommandBackupPut(MegaClient* client, BackupType type, handle nodeHandle, const std::string& localFolder, const std::string& deviceId, int state, int subState, const std::string& extraData, std::function<void(Error, handle /*backup id*/)> completion);
 
     // Update a Backup
     // Params that keep the same value are passed with invalid value to avoid to send to the server
@@ -1324,7 +1326,7 @@ public:
     // - state: -1
     // - subState: -1
     // - extraData: nullptr
-    CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData);
+    CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, std::function<void(Error, handle /*backup id*/)> completion);
 
 private:
     bool mUpdate = false;
