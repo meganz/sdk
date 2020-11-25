@@ -1522,7 +1522,7 @@ public:
       , mCipher(SymmCipher::zeroiv)
       , mFSAccess()
       , mRNG()
-      , mConfigKey(Utilities::randomBase64(16))
+      , mConfigKey(Utilities::randomBase64(32))
       , mConfigName(Utilities::randomBase64(16))
       , mIOContext(mCipher,
                    mFSAccess,

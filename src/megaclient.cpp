@@ -5091,11 +5091,24 @@ XBackupConfigStore* MegaClient::xBackupConfigStore()
               nullptr;
           }
 
-          using AttributeStr =
+          // Attribute length valid?
+          if (name == ATTR_XBACKUP_CONFIG_KEY)
+          {
+              using KeyStr =
+                Base64Str<SymmCipher::KEYLENGTH * 2>;
+
+              if (value->size() != KeyStr::STRLEN)
+              {
+                  return nullptr;
+              }
+
+              return value;
+          }
+
+          using NameStr =
             Base64Str<SymmCipher::KEYLENGTH>;
 
-          // Attribute malformed?
-          if (value->size() != AttributeStr::STRLEN)
+          if (value->size() != NameStr::STRLEN)
           {
               return nullptr;
           }

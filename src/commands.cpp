@@ -4151,10 +4151,10 @@ bool CommandGetUserData::procresult(Result r)
                 // Has a key been defined to protect this user's backup configuration databases?
                 if (xBackupConfigKey.empty())
                 {
-                    using KeyStr = Base64Str<SymmCipher::KEYLENGTH>;
+                    using KeyStr = Base64Str<SymmCipher::KEYLENGTH * 2>;
 
                     // Generate key material.
-                    byte bytes[SymmCipher::KEYLENGTH];
+                    byte bytes[SymmCipher::KEYLENGTH * 2];
                     client->rng.genblock(bytes, sizeof(bytes));
 
                     // Key's stored Base64 encoded.

@@ -758,46 +758,6 @@ void HMACSHA256::setkey(const byte* key, const size_t length)
     hmac.SetKey(key, length);
 }
 
-HKDF_HMAC_SHA512::HKDF_HMAC_SHA512()
-  : mHKDF()
-{
-}
-
-bool HKDF_HMAC_SHA512::deriveKey(byte* derivedKey,
-                                 const size_t derivedKeyLength,
-                                 const byte* secret,
-                                 const size_t secretLength,
-                                 const byte* salt,
-                                 const size_t saltLength,
-                                 const byte* info,
-                                 const size_t infoLength) const
-{
-    assert(derivedKey);
-    assert(derivedKeyLength > 0);
-    assert(secret);
-    assert(secretLength > 0);
-    assert(salt || saltLength == 0);
-    assert(info || infoLength == 0);
-
-    try
-    {
-        mHKDF.DeriveKey(derivedKey,
-                        derivedKeyLength,
-                        secret,
-                        secretLength,
-                        salt,
-                        saltLength,
-                        info,
-                        infoLength);
-
-        return true;
-    }
-    catch (...)
-    {
-        return false;
-    }
-}
-
 PBKDF2_HMAC_SHA512::PBKDF2_HMAC_SHA512()
 {
 }

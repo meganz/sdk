@@ -35,7 +35,6 @@
 #include <cryptopp/crc.h>
 #include <cryptopp/nbtheory.h>
 #include <cryptopp/algparam.h>
-#include <cryptopp/hkdf.h>
 #include <cryptopp/hmac.h>
 #include <cryptopp/pwdbased.h>
 
@@ -484,27 +483,6 @@ public:
      */
     void setkey(const byte* key, const size_t length);
 };
-
-/**
- * @brief HDKF HMAC-SHA512 Key Derivation Function.
- */
-class MEGA_API HKDF_HMAC_SHA512
-{
-public:
-    HKDF_HMAC_SHA512();
-
-    bool deriveKey(byte* derivedKey,
-                   const size_t derivedKeyLength,
-                   const byte* secret,
-                   const size_t secretLength,
-                   const byte* salt = NULL,
-                   const size_t saltLength = 0,
-                   const byte* info = NULL,
-                   const size_t infoLength = 0) const;
-
-private:
-    CryptoPP::HKDF<CryptoPP::SHA512> mHKDF;
-}; // HKDF_HMAC_SHA512
 
 /**
  * @brief PBKDF2 HMAC-SHA512 Key Derivation Function.

@@ -2427,55 +2427,25 @@ XBackupConfigIOContext::XBackupConfigIOContext(SymmCipher& cipher,
   , mRNG(rng)
   , mSigner()
 {
-    // Used to alter initial state for key derivation.
-    static const byte auth[] = "authentication";
-    static const byte codec[] = "codec";
-
     // These attributes *must* be sane.
     assert(!key.empty());
     assert(!name.empty());
 
     // Deserialize the key.
     string k = Base64::atob(key);
-    assert(k.size() == SymmCipher::KEYLENGTH);
+    assert(k.size() == SymmCipher::KEYLENGTH * 2);
 
     // Decrypt the key.
     cipher.ecb_decrypt(reinterpret_cast<byte*>(&k[0]), k.size());
 
-    // Generate authentication and encryption keys.
-    HKDF_HMAC_SHA512 hkdf;
-    byte ka[SymmCipher::KEYLENGTH];
-    byte ke[SymmCipher::KEYLENGTH];
-
-    // Derive our authentication key.
-    bool result =
-      hkdf.deriveKey(ka,
-                     sizeof(ka),
-                     reinterpret_cast<const byte*>(&k[0]),
-                     k.size(),
-                     nullptr,
-                     0,
-                     auth,
-                     sizeof(auth));
-    assert(result);
-
-    // Derive our encryption key.
-    result =
-      hkdf.deriveKey(ke,
-                     sizeof(ke),
-                     reinterpret_cast<const byte*>(&k[0]),
-                     k.size(),
-                     nullptr,
-                     0,
-                     codec,
-                     sizeof(codec));
-    assert(result);
-
     // Load the authenticaton key into our internal signer.
-    mSigner.setkey(ka, sizeof(ka));
+    const byte* ka = reinterpret_cast<const byte*>(&k[0]);
+    const byte* ke = &ka[SymmCipher::KEYLENGTH];
+
+    mSigner.setkey(ka, SymmCipher::KEYLENGTH);
 
     // Load the encryption key into our internal cipher.
-    mCipher.setkey(ke);
+    mCipher.setkey(ke, SymmCipher::KEYLENGTH);
 }
 
 XBackupConfigIOContext::~XBackupConfigIOContext()
