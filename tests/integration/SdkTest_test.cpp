@@ -582,7 +582,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_BACKUP_PUT:
         mBackupId = request->getParentHandle();
         if (request->getFlag()) // it's a new backup we just registered
-            mBackupIdToBackupName.push_back({ Base64::atob(request->getName()), mBackupId} );
+            mBackupNameToBackupId.push_back({ Base64::atob(request->getName()), mBackupId} );
         break;
 
     case MegaRequest::TYPE_FETCH_GOOGLE_ADS:
@@ -4748,7 +4748,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
 {
     getAccountsForTest(1);
     LOG_info << "___TEST HeartbeatCommands___";
-    mBackupIdToBackupName.clear();
+    mBackupNameToBackupId.clear();
 
     // setbackup test
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
@@ -4780,16 +4780,16 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     mApi[0].userUpdated = false;
     auto err = synchronousSetBackup(0, backupType, targetNodes[lastIndex], localFolder.c_str(), backupNames[lastIndex].c_str(), state, subState, extraData.c_str());
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
-    ASSERT_EQ(mBackupIdToBackupName.size(), numBackups) << "setBackup didn't regiter all the backups";
+    ASSERT_EQ(mBackupNameToBackupId.size(), numBackups) << "setBackup didn't regiter all the backups";
 
     // wait for notification of user's attribute updated from last setBackup
     ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
 
     for (size_t i = 0; i < numBackups; i++)
     {
-        err = synchronousGetBackupName(0, mBackupIdToBackupName[i].second);
+        err = synchronousGetBackupName(0, mBackupNameToBackupId[i].second);
         ASSERT_EQ(MegaError::API_OK, err) << "getBackupName failed for backup1(error: " << err << ")";
-        ASSERT_EQ(attributeValue, backupNames[i]) << "getBackupName returned incorrect value for backup" << i - 1;
+        ASSERT_EQ(attributeValue, Base64::btoa(backupNames[i])) << "getBackupName returned incorrect value for backup" << i - 1;
     }
 
     // update backup
@@ -4811,17 +4811,17 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     // (automatically updates the user's attribute, removing the entry for the backup id)
     for (size_t i = 0; i < lastIndex; i++)
     {
-        megaApi[0]->removeBackup(mBackupIdToBackupName[i].second);
+        megaApi[0]->removeBackup(mBackupNameToBackupId[i].second);
     }
     mApi[0].userUpdated = false;
-    synchronousRemoveBackup(0, mBackupIdToBackupName[lastIndex].second);
+    synchronousRemoveBackup(0, mBackupNameToBackupId[lastIndex].second);
     // wait for notification of the attr being updated, which occurs after removeBackup() finishes
     ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
 
     // check the backup name is no longer available for the removed backup id (ENOENT)
     for (size_t i = 0; i < numBackups; i++)
     {
-        err = synchronousGetBackupName(0, mBackupIdToBackupName[i].second);
+        err = synchronousGetBackupName(0, mBackupNameToBackupId[i].second);
         ASSERT_EQ(MegaError::API_ENOENT, err) << "removeBackup failed to remove backup name (error: " << err << ")";
     }
 
