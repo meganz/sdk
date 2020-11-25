@@ -6024,6 +6024,7 @@ void MegaClient::sc_userattr()
                             if (*cacheduav != *ituav)
                             {
                                 u->invalidateattr(type);
+                                // some attributes should be fetched upon invalidation
                                 switch(type)
                                 {
                                     case ATTR_KEYRING:
@@ -6031,12 +6032,16 @@ void MegaClient::sc_userattr()
                                         resetKeyring();
                                         break;
                                     }
-                                    case ATTR_AUTHRING:     // fall-through
-                                    case ATTR_AUTHCU255:    // fall-through
-                                    case ATTR_AUTHRSA:
+                                    case ATTR_AUTHRING:         // fall-through
+                                    case ATTR_AUTHCU255:        // fall-through
+                                    case ATTR_AUTHRSA:          // fall-through
+                                    case ATTR_MY_BACKUPS_FOLDER:    // fall-through
+#ifdef ENABLE_SYNC
+                                    case ATTR_BACKUP_NAMES:     // fall-through
+#endif
                                     {
                                         LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
-                                        mAuthRings.erase(type);
+                                        if (User::isAuthring(type)) mAuthRings.erase(type);
                                         getua(u, type, 0);
                                         break;
                                     }
