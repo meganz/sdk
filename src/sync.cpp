@@ -18,7 +18,7 @@
  * You should have received a copy of the license along with this
  * program.
  */
-
+#include <cctype>
 #include <type_traits>
 #include <unordered_set>
 
