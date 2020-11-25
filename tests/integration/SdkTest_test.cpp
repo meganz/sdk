@@ -4777,7 +4777,6 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
 
     // setup a backup (automatically updates the backup name in the user's attribute)
     // Register backup1(don't wait for result)
-    mApi[0].userUpdated = false;
     int backupType = BackupType::CAMERA_UPLOAD;
     megaApi[0]->setBackup(backupType, targetNode, localFolder.c_str(), backupName.c_str(), state, subState, extraData.c_str());
 
@@ -4789,6 +4788,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     //Register backup3(wait for the result)
     string backupName3 = "/SdkBackupNamesTest3";
     extraData = "Test3";
+    mApi[0].userUpdated = false;
     auto err = synchronousSetBackup(0, backupType, targetNode3, localFolder.c_str(), backupName3.c_str(), state, subState, extraData.c_str());
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
     ASSERT_EQ(mBackupIdToBackupName.size(), 3) << "setBackup didn't regiter all the backups";
@@ -4798,7 +4798,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     auto backupId2 = mBackupIdToBackupName[1].second;
     auto backupId3 = mBackupIdToBackupName[2].second;
 
-    mApi[0].userUpdated = false;
+    // wait for notification of user's attribute updated from last setBackup
     ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
     err = synchronousGetBackupName(0, backupId1);
     ASSERT_EQ(MegaError::API_OK, err) << "getBackupName failed for backup1(error: " << err << ")";
