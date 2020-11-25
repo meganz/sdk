@@ -581,6 +581,8 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
   
     case MegaRequest::TYPE_BACKUP_PUT:
         mBackupId = request->getParentHandle();
+        if (request->getName())
+            mBackupIdToBackupName.push_back({ Base64::atob(request->getName()), mBackupId} );
         break;
 
     case MegaRequest::TYPE_FETCH_GOOGLE_ADS:
@@ -4746,6 +4748,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
     LOG_info << "___TEST HeartbeatCommands___";
+    mBackupIdToBackupName.clear();
 
     // setbackup test
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
@@ -4756,23 +4759,58 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
     char foldername[64] = "CommandBackupPutTest";
     ASSERT_NO_FATAL_FAILURE(createFolder(0, foldername, rootnode.get()));
-    
     MegaHandle targetNode = mApi[0].h;
     int state = 1;
     int subState = 3;
 
+    // setup folder for backup2
+    std::unique_ptr<MegaNode> rootnode2{ megaApi[0]->getRootNode() };
+    char foldername2[64] = "CommandBackupPutTest2";
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, foldername2, rootnode.get()));
+    MegaHandle targetNode2 = mApi[0].h;
+
+    // setup folder for backup3
+    std::unique_ptr<MegaNode> rootnode3{ megaApi[0]->getRootNode() };
+    char foldername3[64] = "CommandBackupPutTest3";
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, foldername3, rootnode.get()));
+    MegaHandle targetNode3 = mApi[0].h;
+
     // setup a backup (automatically updates the backup name in the user's attribute)
+    // Register backup1(don't wait for result)
     mApi[0].userUpdated = false;
     int backupType = BackupType::CAMERA_UPLOAD;
-    auto err = synchronousSetBackup(0, backupType, targetNode, localFolder.c_str(), backupName.c_str(), state, subState, extraData.c_str());
-    ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
-    // wait for notification of the attr being updated, which occurs after setBackup() finishes
-    ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
+    megaApi[0]->setBackup(backupType, targetNode, localFolder.c_str(), backupName.c_str(), state, subState, extraData.c_str());
 
-    // retrieve the given backup name
-    err = synchronousGetBackupName(0, mBackupId);
-    ASSERT_EQ(MegaError::API_OK, err) << "getBackupName failed (error: " << err << ")";
-    ASSERT_EQ(attributeValue, backupName) << "getBackupName returned incorrect value";
+    //Register backup2(don't wait for result)
+    string backupName2 = "/SdkBackupNamesTest2";
+    extraData = "Test2";
+    megaApi[0]->setBackup(backupType, targetNode2, localFolder.c_str(), backupName2.c_str(), state, subState, extraData.c_str());
+
+    //Register backup3(wait for the result)
+    string backupName3 = "/SdkBackupNamesTest3";
+    extraData = "Test3";
+    auto err = synchronousSetBackup(0, backupType, targetNode3, localFolder.c_str(), backupName3.c_str(), state, subState, extraData.c_str());
+    ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
+    ASSERT_EQ(mBackupIdToBackupName.size(), 3) << "setBackup didn't regiter all the backups";
+
+    // retrieve the backup ids
+    auto backupId1 = mBackupIdToBackupName[0].second;
+    auto backupId2 = mBackupIdToBackupName[1].second;
+    auto backupId3 = mBackupIdToBackupName[2].second;
+
+    mApi[0].userUpdated = false;
+    ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
+    err = synchronousGetBackupName(0, backupId1);
+    ASSERT_EQ(MegaError::API_OK, err) << "getBackupName failed for backup1(error: " << err << ")";
+    ASSERT_EQ(attributeValue, backupName) << "getBackupName returned incorrect value for backup1";
+
+    err = synchronousGetBackupName(0, backupId2);
+    ASSERT_EQ(MegaError::API_OK, err) << "getBackupName failed for backup2(error: " << err << ")";
+    ASSERT_EQ(attributeValue, backupName2) << "getBackupName returned incorrect value for backup2";
+
+    err = synchronousGetBackupName(0, backupId3);
+    ASSERT_EQ(MegaError::API_OK, err) << "getBackupName failed for backup3(error: " << err << ")";
+    ASSERT_EQ(attributeValue, backupName3) << "getBackupName returned incorrect value for backup3";
 
     // update a backup
     extraData = "Test Update Camera Upload Test";
