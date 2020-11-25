@@ -449,7 +449,8 @@ void SyncApp::fetchnodes_result(const Error &e)
                 SyncConfig syncConfig{syncTag++, local_folder, local_folder, n->nodehandle, remote_folder, 0};
                 SyncError syncError;
 #ifdef ENABLE_SYNC
-                error err = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError);
+                UnifiedSync* unifiedSync;
+                error err = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError, false, unifiedSync);
                 if (err)
                 {
                     LOG_err << "Sync could not be added! " << err << " syncError = " << syncError;
