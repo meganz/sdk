@@ -4780,7 +4780,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     mApi[0].userUpdated = false;
     auto err = synchronousSetBackup(0, backupType, targetNodes[lastIndex], localFolder.c_str(), backupNames[lastIndex].c_str(), state, subState, extraData.c_str());
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
-    ASSERT_EQ(mBackupNameToBackupId.size(), numBackups) << "setBackup didn't regiter all the backups";
+    ASSERT_EQ(mBackupNameToBackupId.size(), numBackups) << "setBackup didn't register all the backups";
 
     // wait for notification of user's attribute updated from last setBackup
     ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
@@ -4788,8 +4788,8 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     for (size_t i = 0; i < numBackups; i++)
     {
         err = synchronousGetBackupName(0, mBackupNameToBackupId[i].second);
-        ASSERT_EQ(MegaError::API_OK, err) << "getBackupName failed for backup1(error: " << err << ")";
-        ASSERT_EQ(attributeValue, Base64::btoa(backupNames[i])) << "getBackupName returned incorrect value for backup" << i - 1;
+        ASSERT_EQ(MegaError::API_OK, err) << "getBackupName failed for backup" << i + 1 << "(error: " << err << ")";
+        ASSERT_EQ(attributeValue, backupNames[i]) << "getBackupName returned incorrect value for backup" << i + 1;
     }
 
     // update backup
