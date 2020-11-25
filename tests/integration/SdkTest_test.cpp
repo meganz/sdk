@@ -809,7 +809,7 @@ bool SdkTest::waitForResponse(bool *responseReceived, unsigned int timeout)
             else if (!connRetried && tWaited > (pollingT * 240))
             {
                 megaApi[0]->retryPendingConnections(true);
-                if (megaApi[1] && megaApi[1]->isLoggedIn())
+                if (megaApi.size() > 1 && megaApi[1] && megaApi[1]->isLoggedIn())
                 {
                     megaApi[1]->retryPendingConnections(true);
                 }
@@ -4746,7 +4746,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
 
 TEST_F(SdkTest, SdkHeartbeatCommands)
 {
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(1);
     LOG_info << "___TEST HeartbeatCommands___";
     mBackupIdToBackupName.clear();
 
