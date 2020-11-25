@@ -23,6 +23,7 @@
 #include <mega/megaclient.h>
 #include <mega/megaapp.h>
 #include <mega/types.h>
+#include <mega/heartbeats.h>
 #include <mega/sync.h>
 #include <mega/filesystem.h>
 
@@ -232,7 +233,8 @@ private:
 struct Fixture
 {
     explicit Fixture(std::string localname)
-    : mSync{mt::makeSync(*mClient, std::move(localname))}
+    : mUnifiedSync{mt::makeSync(*mClient, std::move(localname))}
+    , mSync{mUnifiedSync->mSync}
     {}
 
     MEGA_DISABLE_COPY_MOVE(Fixture)
@@ -242,7 +244,8 @@ struct Fixture
     MockFileSystemAccess mFsAccess{mFsNodes};
     std::shared_ptr<mega::MegaClient> mClient = mt::makeClient(mApp, mFsAccess);
     mega::handlelocalnode_map& mLocalNodes = mClient->fsidnode;
-    std::unique_ptr<mega::Sync> mSync;
+    std::unique_ptr<mega::UnifiedSync> mUnifiedSync;
+    std::unique_ptr<mega::Sync>& mSync;
 
     bool iteratorsCorrect(mega::LocalNode& l) const
     {
