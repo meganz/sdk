@@ -43,6 +43,7 @@ namespace mega {
 
 class SyncConfigBag;
 class XBackupConfig;
+class XBackupConfigIOContext;
 class XBackupConfigStore;
 
 class MEGA_API FetchNodesStats
@@ -1365,6 +1366,9 @@ public:
 
     // Attempts to flush database changes to disk.
     error xBackupConfigStoreFlush();
+
+    // Responsible for securely writing config databases to disk.
+    unique_ptr<XBackupConfigIOContext> mXBackupConfigIOContext;
 
     // Manages this user's external backup configuration databases.
     unique_ptr<XBackupConfigStore> mXBackupConfigStore;

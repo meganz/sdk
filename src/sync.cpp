@@ -2857,15 +2857,11 @@ XBackupConfigDBObserver::~XBackupConfigDBObserver()
 {
 }
 
-XBackupConfigStore::XBackupConfigStore(SymmCipher& cipher,
-                                       FileSystemAccess& fsAccess,
-                                       const string& key,
-                                       const string& name,
-                                       PrnGen& rng)
+XBackupConfigStore::XBackupConfigStore(XBackupConfigIOContext& ioContext)
   : XBackupConfigDBObserver()
-  , XBackupConfigIOContext(cipher, fsAccess, key, name, rng)
   , mDirtyDB()
   , mDriveToDB()
+  , mIOContext(ioContext)
   , mTagToDB()
   , mTargetToDB()
 {
@@ -2987,7 +2983,7 @@ const XBackupConfigMap* XBackupConfigStore::create(const LocalPath& drivePath)
     XBackupConfigDBPtr db(new XBackupConfigDB(drivePath, *this));
 
     // Load existing database, if any.
-    error result = db->read(*this);
+    error result = db->read(mIOContext);
 
     if (result == API_EREAD)
     {
@@ -2998,7 +2994,7 @@ const XBackupConfigMap* XBackupConfigStore::create(const LocalPath& drivePath)
     // Create the database if it didn't already exist.
     if (result == API_ENOENT)
     {
-        if (db->write(*this) == API_EWRITE)
+        if (db->write(mIOContext) == API_EWRITE)
         {
             // Couldn't create the database.
             return nullptr;
@@ -3114,7 +3110,7 @@ const XBackupConfigMap* XBackupConfigStore::open(const LocalPath& drivePath)
     XBackupConfigDBPtr db(new XBackupConfigDB(drivePath, *this));
 
     // Try and load the database from disk.
-    if (db->read(*this) != API_OK)
+    if (db->read(mIOContext) != API_OK)
     {
         // Couldn't load the database.
         return nullptr;
@@ -3154,38 +3150,6 @@ error XBackupConfigStore::remove(const handle targetHandle)
     }
 
     return API_ENOENT;
-}
-
-error XBackupConfigStore::close(XBackupConfigDB& db)
-{
-    // Try and flush the database.
-    const auto result = flush(db);
-
-    // Remove the database from memory.
-    mDriveToDB.erase(db.drivePath());
-
-    // Return flush result.
-    return result;
-}
-
-error XBackupConfigStore::flush(XBackupConfigDB& db)
-{
-    auto i = mDirtyDB.find(&db);
-
-    // Does this database need flushing?
-    if (i == mDirtyDB.end())
-    {
-        // Doesn't need flushing.
-        return API_OK;
-    }
-
-    // Try and write the database to disk.
-    auto result = (*i)->write(*this);
-
-    // Database no longer needs flushing.
-    mDirtyDB.erase(i);
-
-    return result;
 }
 
 void XBackupConfigStore::onAdd(XBackupConfigDB& db, const XBackupConfig& config)
@@ -3229,6 +3193,38 @@ void XBackupConfigStore::onRemove(XBackupConfigDB&, const XBackupConfig& config)
 {
     mTagToDB.erase(config.tag);
     mTargetToDB.erase(config.targetHandle);
+}
+
+error XBackupConfigStore::close(XBackupConfigDB& db)
+{
+    // Try and flush the database.
+    const auto result = flush(db);
+
+    // Remove the database from memory.
+    mDriveToDB.erase(db.drivePath());
+
+    // Return flush result.
+    return result;
+}
+
+error XBackupConfigStore::flush(XBackupConfigDB& db)
+{
+    auto i = mDirtyDB.find(&db);
+
+    // Does this database need flushing?
+    if (i == mDirtyDB.end())
+    {
+        // Doesn't need flushing.
+        return API_OK;
+    }
+
+    // Try and write the database to disk.
+    auto result = (*i)->write(mIOContext);
+
+    // Database no longer needs flushing.
+    mDirtyDB.erase(i);
+
+    return result;
 }
 
 } // namespace

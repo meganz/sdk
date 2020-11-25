@@ -1379,7 +1379,14 @@ public:
         mFSAccess.rmdirlocal(mPath);
     }
 
+    MEGA_DISABLE_COPY_MOVE(Directory);
+
     operator const LocalPath&() const
+    {
+        return mPath;
+    }
+
+    const LocalPath& path() const
     {
         return mPath;
     }
@@ -1446,6 +1453,70 @@ class XBackupConfigTest
   : public Test
 {
 public:
+    class IOContext
+      : public XBackupConfigIOContext
+    {
+    public:
+        IOContext(SymmCipher& cipher,
+                  FileSystemAccess& fsAccess,
+                  const string& key,
+                  const string& name,
+                  PrnGen& rng)
+          : XBackupConfigIOContext(cipher,
+                                   fsAccess,
+                                   key,
+                                   name,
+                                   rng)
+        {
+            // Perform real behavior by default.
+            ON_CALL(*this, get(_, _))
+              .WillByDefault(Invoke(this, &IOContext::getConcrete));
+
+            ON_CALL(*this, read(_, _, _))
+              .WillByDefault(Invoke(this, &IOContext::readConcrete));
+
+            ON_CALL(*this, write(_, _, _))
+              .WillByDefault(Invoke(this, &IOContext::writeConcrete));
+        }
+
+        MOCK_METHOD(error,
+                    get,
+                    (const LocalPath&, vector<unsigned int>&),
+                    (override));
+
+        MOCK_METHOD(error,
+                    read,
+                    (const LocalPath&, string&, const unsigned int),
+                    (override));
+
+        MOCK_METHOD(error,
+                    write,
+                    (const LocalPath&, const string&, const unsigned int),
+                    (override));
+
+    private:
+        // Delegate to real behavior.
+        error getConcrete(const LocalPath& drivePath,
+                          vector<unsigned int>& slots)
+        {
+            return XBackupConfigIOContext::get(drivePath, slots);
+        }
+
+        error readConcrete(const LocalPath& drivePath,
+                           string& data,
+                           const unsigned int slot)
+        {
+            return XBackupConfigIOContext::read(drivePath, data, slot);
+        }
+
+        error writeConcrete(const LocalPath& drivePath,
+                            const string& data,
+                            const unsigned int slot)
+        {
+            return XBackupConfigIOContext::write(drivePath, data, slot);
+        }
+    }; // IOContext
+
     XBackupConfigTest()
       : Test()
       , mCipher(SymmCipher::zeroiv)
@@ -1453,28 +1524,6 @@ public:
       , mRNG()
       , mConfigKey(Utilities::randomBase64(16))
       , mConfigName(Utilities::randomBase64(16))
-    {
-    }
-
-    FSACCESS_CLASS& fsAccess()
-    {
-        return mFSAccess;
-    }
-
-protected:
-    SymmCipher mCipher;
-    FSACCESS_CLASS mFSAccess;
-    PrnGen mRNG;
-    const string mConfigKey;
-    const string mConfigName;
-}; // XBackupConfigTest
-
-class XBackupConfigIOContextTest
-  : public XBackupConfigTest
-{
-public:
-    XBackupConfigIOContextTest()
-      : XBackupConfigTest()
       , mIOContext(mCipher,
                    mFSAccess,
                    mConfigKey,
@@ -1483,18 +1532,38 @@ public:
     {
     }
 
-    const string& configName() const
+    FSACCESS_CLASS& fsAccess()
     {
-        return mConfigName;
+        return mFSAccess;
     }
 
-    XBackupConfigIOContext& ioContext()
+    IOContext& ioContext()
     {
         return mIOContext;
     }
 
-private:
-    XBackupConfigIOContext mIOContext;
+protected:
+    SymmCipher mCipher;
+    FSACCESS_CLASS mFSAccess;
+    PrnGen mRNG;
+    const string mConfigKey;
+    const string mConfigName;
+    NiceMock<IOContext> mIOContext;
+}; // XBackupConfigTest
+
+class XBackupConfigIOContextTest
+  : public XBackupConfigTest
+{
+public:
+    XBackupConfigIOContextTest()
+      : XBackupConfigTest()
+    {
+    }
+
+    const string& configName() const
+    {
+        return mConfigName;
+    }
 }; // XBackupConfigIOContextTest
 
 TEST_F(XBackupConfigIOContextTest, GetBadPath)
@@ -1517,10 +1586,10 @@ TEST_F(XBackupConfigIOContextTest, GetNoSlots)
       XBackupConfigIOContext::BACKUP_CONFIG_DIR;
 
     // Make sure the drive path exists.
-    Directory drivePath(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPath());
 
     // Make sure the backup directory exists.
-    LocalPath backupPath = drivePath;
+    LocalPath backupPath = drive;
 
     backupPath.appendWithSeparator(
       LocalPath::fromPath(BACKUP_DIR, fsAccess()), false);
@@ -1558,7 +1627,7 @@ TEST_F(XBackupConfigIOContextTest, GetNoSlots)
     vector<unsigned int> slots;
 
     // Try and get a list of slots.
-    EXPECT_EQ(ioContext().get(drivePath, slots), API_OK);
+    EXPECT_EQ(ioContext().get(drive, slots), API_OK);
 
     // Slots should be empty.
     EXPECT_TRUE(slots.empty());
@@ -1572,10 +1641,10 @@ TEST_F(XBackupConfigIOContextTest, GetSlotsOrderedByModificationTime)
     const size_t NUM_SLOTS = 3;
 
     // Make sure drive path exists.
-    Directory drivePath(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPath());
 
     // Make sure backup directory exists.
-    LocalPath backupPath = drivePath;
+    LocalPath backupPath = drive;
 
     backupPath.appendWithSeparator(
       LocalPath::fromPath(BACKUP_DIR, fsAccess()), false);
@@ -1614,7 +1683,7 @@ TEST_F(XBackupConfigIOContextTest, GetSlotsOrderedByModificationTime)
     vector<unsigned int> slots;
 
     // Get the slots.
-    EXPECT_EQ(ioContext().get(drivePath, slots), API_OK);
+    EXPECT_EQ(ioContext().get(drive, slots), API_OK);
 
     // Did we retrieve the correct number of slots?
     EXPECT_EQ(slots.size(), NUM_SLOTS);
@@ -1637,10 +1706,10 @@ TEST_F(XBackupConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
     const size_t NUM_SLOTS = 3;
 
     // Make sure drive path exists.
-    Directory drivePath(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPath());
 
     // Make sure backup directory exists.
-    LocalPath backupPath = drivePath;
+    LocalPath backupPath = drive;
 
     backupPath.appendWithSeparator(
       LocalPath::fromPath(BACKUP_DIR, fsAccess()), false);
@@ -1679,7 +1748,7 @@ TEST_F(XBackupConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
     vector<unsigned int> slots;
 
     // Get the slots.
-    EXPECT_EQ(ioContext().get(drivePath, slots), API_OK);
+    EXPECT_EQ(ioContext().get(drive, slots), API_OK);
 
     // Did we retrieve the correct number of slots?
     EXPECT_EQ(slots.size(), NUM_SLOTS);
@@ -1698,15 +1767,15 @@ TEST_F(XBackupConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
 TEST_F(XBackupConfigIOContextTest, Read)
 {
     // Make sure the drive path exists.
-    Directory drivePath(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPath());
 
     // Try writing some data out and reading it back again.
     {
         string read;
         string written = Utilities::randomBytes(64);
 
-        EXPECT_EQ(ioContext().write(drivePath, written, 0), API_OK);
-        EXPECT_EQ(ioContext().read(drivePath, read, 0), API_OK);
+        EXPECT_EQ(ioContext().write(drive, written, 0), API_OK);
+        EXPECT_EQ(ioContext().read(drive, read, 0), API_OK);
         EXPECT_EQ(read, written);
     }
 
@@ -1715,11 +1784,11 @@ TEST_F(XBackupConfigIOContextTest, Read)
         string read;
         string written = Utilities::randomBytes(64);
 
-        EXPECT_EQ(ioContext().read(drivePath, read, 1), API_EREAD);
+        EXPECT_EQ(ioContext().read(drive, read, 1), API_EREAD);
         EXPECT_TRUE(read.empty());
 
-        EXPECT_EQ(ioContext().write(drivePath, written, 1), API_OK);
-        EXPECT_EQ(ioContext().read(drivePath, read, 1), API_OK);
+        EXPECT_EQ(ioContext().write(drive, written, 1), API_OK);
+        EXPECT_EQ(ioContext().read(drive, read, 1), API_OK);
         EXPECT_EQ(read, written);
     }
 }
@@ -1732,10 +1801,10 @@ TEST_F(XBackupConfigIOContextTest, ReadBadData)
     string data;
 
     // Make sure the drive path exists.
-    Directory drivePath(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPath());
 
     // Make sure the backup directory exists.
-    LocalPath backupPath = drivePath;
+    LocalPath backupPath = drive;
 
     backupPath.appendWithSeparator(
       LocalPath::fromPath(BACKUP_DIR, fsAccess()), false);
@@ -1752,12 +1821,12 @@ TEST_F(XBackupConfigIOContextTest, ReadBadData)
 
     // Try loading a file that's too short to be valid.
     EXPECT_TRUE(Utilities::randomFile(slotPath, 1));
-    EXPECT_EQ(ioContext().read(drivePath, data, 0), API_EREAD);
+    EXPECT_EQ(ioContext().read(drive, data, 0), API_EREAD);
     EXPECT_TRUE(data.empty());
 
     // Try loading a file composed entirely of junk.
     EXPECT_TRUE(Utilities::randomFile(slotPath, 128));
-    EXPECT_EQ(ioContext().read(drivePath, data, 0), API_EREAD);
+    EXPECT_EQ(ioContext().read(drive, data, 0), API_EREAD);
     EXPECT_TRUE(data.empty());
 }
 
@@ -1849,28 +1918,6 @@ class XBackupConfigDBTest
   : public XBackupConfigTest
 {
 public:
-    class IOContext
-      : public XBackupConfigIOContext
-    {
-    public:
-        using XBackupConfigIOContext::XBackupConfigIOContext;
-
-        MOCK_METHOD(error,
-                    get,
-                    (const LocalPath&, vector<unsigned int>&),
-                    (override));
-
-        MOCK_METHOD(error,
-                    read,
-                    (const LocalPath&, string&, const unsigned int),
-                    (override));
-
-        MOCK_METHOD(error,
-                    write,
-                    (const LocalPath&, const string&, const unsigned int),
-                    (override));
-    }; // IOContext
-
     class Observer
       : public XBackupConfigDBObserver
     {
@@ -1903,11 +1950,6 @@ public:
     XBackupConfigDBTest()
       : XBackupConfigTest()
       , mDrivePath(Utilities::randomPath())
-      , mIOContext(mCipher,
-                   mFSAccess,
-                   mConfigKey,
-                   mConfigName,
-                   mRNG)
       , mObserver()
     {
     }
@@ -1917,11 +1959,6 @@ public:
         return mDrivePath;
     }
 
-    IOContext& ioContext()
-    {
-        return mIOContext;
-    }
-
     Observer& observer()
     {
         return mObserver;
@@ -1929,7 +1966,6 @@ public:
 
 private:
     const LocalPath mDrivePath;
-    NiceMock<IOContext> mIOContext;
     NiceMock<Observer> mObserver;
 }; // XBackupConfigDBTest
 
@@ -2741,6 +2777,1495 @@ TEST_F(XBackupConfigDBTest, WriteOK)
 
     // Second write will dump data to slot 1.
     EXPECT_EQ(configDB.write(ioContext()), API_OK);
+}
+
+class XBackupConfigStoreTest
+  : public XBackupConfigTest
+{
+public:
+    class ConfigStore
+      : public XBackupConfigStore
+    {
+    public:
+        ConfigStore(XBackupConfigIOContext& ioContext)
+          : XBackupConfigStore(ioContext)
+        {
+            // Perform real behavior by default.
+            ON_CALL(*this, onAdd(_, _))
+              .WillByDefault(Invoke(this, &ConfigStore::onAddConcrete));
+
+            ON_CALL(*this, onChange(_, _, _))
+              .WillByDefault(Invoke(this, &ConfigStore::onChangeConcrete));
+
+            ON_CALL(*this, onDirty(_))
+              .WillByDefault(Invoke(this, &ConfigStore::onDirtyConcrete));
+
+            ON_CALL(*this, onRemove(_, _))
+              .WillByDefault(Invoke(this, &ConfigStore::onRemoveConcrete));
+        }
+
+        // Convenience.
+        using DB = XBackupConfigDB;
+        using Config = XBackupConfig;
+
+        MOCK_METHOD(void,
+                    onAdd,
+                    (DB&, const Config&),
+                    (override));
+
+        MOCK_METHOD(void,
+                    onChange,
+                    (DB&, const Config&, const Config&),
+                    (override));
+
+        MOCK_METHOD(void,
+                    onDirty,
+                    (DB&),
+                    (override));
+
+        MOCK_METHOD(void,
+                    onRemove,
+                    (DB&, const Config&),
+                    (override));
+
+    private:
+        // Delegate to real behavior.
+        void onAddConcrete(DB& db, const Config& config)
+        {
+            return XBackupConfigStore::onAdd(db, config);
+        }
+
+        void onChangeConcrete(DB& db, const Config& from, const Config& to)
+        {
+            return XBackupConfigStore::onChange(db, from, to);
+        }
+
+        void onDirtyConcrete(DB& db)
+        {
+            return XBackupConfigStore::onDirty(db);
+        }
+
+        void onRemoveConcrete(DB& db, const Config& config)
+        {
+            return XBackupConfigStore::onRemove(db, config);
+        }
+    }; // ConfigStore
+
+    XBackupConfigStoreTest()
+      : XBackupConfigTest()
+    {
+    }
+}; // XBackupConfigStoreTest
+
+// Matches a database with a specific path.
+MATCHER_P(DB, drivePath, "")
+{
+    return arg.drivePath() == drivePath;
+}
+
+TEST_F(XBackupConfigStoreTest, Add)
+{
+    // Make sure database is removed.
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    // Create database.
+    StrictMock<ConfigStore> store(ioContext());
+
+    EXPECT_NE(store.create(drive), nullptr);
+
+    // Verify database is open.
+    EXPECT_NE(store.configs(drive), nullptr);
+    EXPECT_TRUE(store.opened(drive));
+
+    // Create config to add to the database.
+    XBackupConfig config;
+
+    config.drivePath = drive;
+    config.tag = 1;
+    config.targetHandle = 2;
+
+    // onAdd should be generated when a new config is added.
+    Expectation onAdd =
+      EXPECT_CALL(store,
+                  onAdd(DB(drive.path()), Eq(config)))
+        .Times(1);
+
+    // onDirty should be generated when a database changes.
+    EXPECT_CALL(store,
+                onDirty(DB(drive.path())))
+      .Times(1)
+      .After(onAdd);
+
+    // Add the config to the database.
+    const auto* c = store.add(config);
+
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, config);
+
+    // Has the database been soiled?
+    EXPECT_TRUE(store.dirty());
+
+    // Can we retrieve the config by tag?
+    EXPECT_EQ(store.get(config.tag), c);
+
+    // Can we retrieve the config by target handle?
+    EXPECT_EQ(store.get(config.targetHandle), c);
+}
+
+TEST_F(XBackupConfigStoreTest, AddToUnknownDatabase)
+{
+    StrictMock<ConfigStore> store(ioContext());
+
+    // No attempt should be made to open an unknown database.
+    EXPECT_CALL(ioContext(), get(_, _)).Times(0);
+    EXPECT_CALL(ioContext(), read(_, _, _)).Times(0);
+    EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
+
+    // Create a config to add to the store.
+    XBackupConfig config;
+
+    config.drivePath = Utilities::randomPath();
+
+    // Can't add a config to an unknown database.
+    EXPECT_EQ(store.add(config), nullptr);
+
+    // Database should remain unknown.
+    EXPECT_EQ(store.configs(config.drivePath), nullptr);
+    EXPECT_FALSE(store.opened(config.drivePath));
+
+    // Store should still have no configs.
+    EXPECT_TRUE(store.configs().empty());
+
+    // Store should not be dirtied.
+    EXPECT_FALSE(store.dirty());
+}
+
+TEST_F(XBackupConfigStoreTest, CloseAll)
+{
+    // Make sure databases are removed.
+    Directory driveA(fsAccess(), Utilities::randomPath());
+    Directory driveB(fsAccess(), Utilities::randomPath());
+
+    // Create store.
+    NiceMock<ConfigStore> store(ioContext());
+
+    // Add databases.
+    EXPECT_NE(store.create(driveA), nullptr);
+    EXPECT_NE(store.create(driveB), nullptr);
+
+    // Verify databases are open.
+    EXPECT_TRUE(store.opened(driveA));
+    EXPECT_TRUE(store.opened(driveB));
+
+    // Dirty the first database.
+    XBackupConfig config;
+
+    config.drivePath = driveA;
+    config.tag = 1;
+
+    EXPECT_NE(store.add(config), nullptr);
+
+    // Verify store is dirty.
+    EXPECT_TRUE(store.dirty());
+
+    // Attempts to write database A should fail.
+    EXPECT_CALL(ioContext(),
+                write(Eq(driveA.path()), _, Eq(1)))
+      .WillOnce(Return(API_EWRITE));
+
+    // Close all databases.
+    EXPECT_EQ(store.close(), API_EWRITE);
+
+    // Store should no longer be dirty.
+    EXPECT_FALSE(store.dirty());
+
+    // Both databases should no longer be present.
+    EXPECT_EQ(store.configs(driveA), nullptr);
+    EXPECT_EQ(store.configs(driveB), nullptr);
+    EXPECT_FALSE(store.opened(driveA));
+    EXPECT_FALSE(store.opened(driveB));
+
+    // Config should no longer be present.
+    EXPECT_EQ(store.get(config.tag), nullptr);
+}
+
+TEST_F(XBackupConfigStoreTest, CloseClean)
+{
+    // Make sure database is removed.
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    // Create store.
+    NiceMock<ConfigStore> store(ioContext());
+
+    // Create a database.
+    ASSERT_NE(store.create(drive), nullptr);
+
+    // Verify database is open.
+    EXPECT_TRUE(store.opened(drive));
+
+    // No writes should occur as the database is clean.
+    EXPECT_CALL(ioContext(),
+                write(Eq(drive.path()), _, Eq(1)))
+      .Times(0);
+
+    // Close the database.
+    EXPECT_EQ(store.close(drive), API_OK);
+
+    // Database should no longer be open.
+    EXPECT_EQ(store.configs(drive), nullptr);
+    EXPECT_FALSE(store.opened(drive));
+}
+
+TEST_F(XBackupConfigStoreTest, CloseDirty)
+{
+    // Make sure database is removed.
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    // Create store.
+    NiceMock<ConfigStore> store(ioContext());
+
+    // Create a database.
+    ASSERT_NE(store.create(drive), nullptr);
+
+    // Verify database is open.
+    EXPECT_TRUE(store.opened(drive));
+
+    // Add a config to the database.
+    XBackupConfig config;
+
+    config.drivePath = drive;
+    config.tag = 1;
+    config.targetHandle = 2;
+
+    // Verify config has been added to database.
+    const auto* c = store.add(config);
+
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, config);
+
+    // Verify config is accessible.
+    EXPECT_EQ(store.get(config.tag), c);
+    EXPECT_EQ(store.get(config.targetHandle), c);
+
+    // Verify database is dirty.
+    EXPECT_TRUE(store.dirty());
+
+    // A single write should be issued to update the dirty database.
+    Expectation write =
+      EXPECT_CALL(ioContext(),
+                  write(Eq(drive.path()), _, Eq(1)))
+        .Times(1);
+
+    // onRemove should be generated when the database's config is removed.
+    EXPECT_CALL(store,
+                onRemove(DB(drive.path()), Eq(config)))
+      .Times(1)
+      .After(write);
+
+    // Close the database.
+    EXPECT_EQ(store.close(drive), API_OK);
+
+    // Database should no longer be available.
+    EXPECT_EQ(store.configs(drive), nullptr);
+    EXPECT_FALSE(store.opened(drive));
+
+    // Config should no longer be accessible.
+    EXPECT_EQ(store.get(config.tag), nullptr);
+    EXPECT_EQ(store.get(config.targetHandle), nullptr);
+}
+
+TEST_F(XBackupConfigStoreTest, CloseDirtyCantWrite)
+{
+    // Make sure database is removed.
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    // Create store.
+    NiceMock<ConfigStore> store(ioContext());
+
+    // Create database.
+    ASSERT_NE(store.create(drive), nullptr);
+
+    // Add a config so the database is dirty.
+    XBackupConfig config;
+
+    config.drivePath = drive;
+    config.tag = 1;
+    config.targetHandle = 2;
+
+    const auto* c = store.add(config);
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, config);
+
+    // Make sure config's been added.
+    EXPECT_EQ(store.get(config.tag), c);
+    EXPECT_EQ(store.get(config.targetHandle), c);
+
+    // Make sure database's dirty.
+    EXPECT_TRUE(store.dirty());
+
+    // Attempts to write the database should fail.
+    EXPECT_CALL(ioContext(),
+                write(Eq(drive.path()), _, Eq(1)))
+      .Times(1)
+      .WillOnce(Return(API_EWRITE));
+
+    // Close the database.
+    EXPECT_EQ(store.close(drive), API_EWRITE);
+
+    // Database should be removed even though we couldn't flush it to disk.
+    EXPECT_EQ(store.configs(drive), nullptr);
+    EXPECT_FALSE(store.opened(drive));
+
+    // Store should no longer be dirty.
+    EXPECT_FALSE(store.dirty());
+
+    // Config should no longer be accessible.
+    EXPECT_EQ(store.get(config.tag), nullptr);
+    EXPECT_EQ(store.get(config.targetHandle), nullptr);
+}
+
+TEST_F(XBackupConfigStoreTest, CloseNoDatabases)
+{
+    StrictMock<ConfigStore> store(ioContext());
+
+    // No attempts should be made to write any database.
+    EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
+
+    // No databases, no writing, no possible error.
+    EXPECT_EQ(store.close(), API_OK);
+}
+
+TEST_F(XBackupConfigStoreTest, CloseUnknownDatabase)
+{
+    StrictMock<ConfigStore> store(ioContext());
+
+    // No attempt should be made to write the database.
+    EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
+
+    const auto drivePath = Utilities::randomPath();
+
+    // Can't close an unknown database.
+    EXPECT_EQ(store.close(drivePath), API_ENOENT);
+
+    // Database should remain unknown.
+    EXPECT_EQ(store.configs(drivePath), nullptr);
+    EXPECT_FALSE(store.opened(drivePath));
+}
+
+TEST_F(XBackupConfigStoreTest, Configs)
+{
+    // Make sure databases are removed.
+    Directory driveA(fsAccess(), Utilities::randomPath());
+    Directory driveB(fsAccess(), Utilities::randomPath());
+
+    NiceMock<ConfigStore> store(ioContext());
+
+    // Add a couple databases.
+    const auto* dA = store.create(driveA);
+    const auto* dB = store.create(driveB);
+
+    EXPECT_EQ(store.configs(driveA), dA);
+    EXPECT_EQ(store.configs(driveB), dB);
+    EXPECT_TRUE(store.opened(driveA));
+    EXPECT_TRUE(store.opened(driveB));
+
+    // Add a couple configs.
+    XBackupConfig configA;
+    XBackupConfig configB;
+
+    configA.drivePath = driveA;
+    configA.tag = 1;
+    configB.drivePath = driveB;
+    configB.tag = 2;
+
+    EXPECT_NE(store.add(configA), nullptr);
+    EXPECT_NE(store.add(configB), nullptr);
+
+    // Has configA been added to database A?
+    ASSERT_NE(dA, nullptr);
+    ASSERT_EQ(dA->size(), 1);
+    EXPECT_EQ(dA->at(configA.tag), configA);
+
+    // Has configB been added to database B?
+    ASSERT_NE(dB, nullptr);
+    ASSERT_EQ(dB->size(), 1);
+    EXPECT_EQ(dB->at(configB.tag), configB);
+
+    // Can we retrieve all configs in a single call?
+    const auto configs = store.configs();
+
+    EXPECT_EQ(configs.size(), 2);
+    EXPECT_EQ(configs.at(configA.tag), configA);
+    EXPECT_EQ(configs.at(configB.tag), configB);
+}
+
+TEST_F(XBackupConfigStoreTest, ConfigsNoDatabases)
+{
+    StrictMock<ConfigStore> store(ioContext());
+
+    EXPECT_TRUE(store.configs().empty());
+}
+
+TEST_F(XBackupConfigStoreTest, ConfigsUnknownDatabase)
+{
+    StrictMock<ConfigStore> store(ioContext());
+
+    // No attempt should be made to open an unknown database.
+    EXPECT_CALL(ioContext(), get(_, _)).Times(0);
+    EXPECT_CALL(ioContext(), read(_, _, _)).Times(0);
+
+    const auto drivePath = Utilities::randomPath();
+
+    // No database? No configs.
+    EXPECT_EQ(store.configs(drivePath), nullptr);
+}
+
+TEST_F(XBackupConfigStoreTest, Create)
+{
+    const auto drivePath = Utilities::randomPath();
+
+    // No slots available for reading.
+    Expectation get =
+      EXPECT_CALL(ioContext(),
+                  get(Eq(drivePath), _))
+        .WillOnce(Return(API_ENOENT));
+
+    // Initial write should succeed.
+    Expectation write =
+      EXPECT_CALL(ioContext(),
+                  write(Eq(drivePath), Eq("[]"), Eq(0)))
+        .After(get)
+        .WillOnce(Return(API_OK));
+
+    // Prepare config store.
+    StrictMock<ConfigStore> store(ioContext());
+
+    // Create the database.
+    const auto* configs = store.create(drivePath);
+
+    // Database should be marked as open.
+    EXPECT_TRUE(store.opened(drivePath));
+
+    // No configs should have been deserialized.
+    ASSERT_NE(configs, nullptr);
+    EXPECT_TRUE(configs->empty());
+
+    // Can we get our hands on this database's configs?
+    EXPECT_EQ(store.configs(drivePath), configs);
+}
+
+TEST_F(XBackupConfigStoreTest, CreateAlreadyOpened)
+{
+    const auto drivePath = Utilities::randomPath();
+
+    // No slots available for reading.
+    Expectation get =
+      EXPECT_CALL(ioContext(),
+                  get(Eq(drivePath), _))
+        .WillOnce(Return(API_ENOENT));
+
+    // Initial write should succeed.
+    Expectation write =
+      EXPECT_CALL(ioContext(),
+                  write(Eq(drivePath), Eq("[]"), Eq(0)))
+        .After(get)
+        .WillOnce(Return(API_OK));
+
+    // Prepare config store.
+    StrictMock<ConfigStore> store(ioContext());
+
+    // Create the database.
+    const auto* configs = store.create(drivePath);
+
+    // Database should be marked as open.
+    EXPECT_TRUE(store.opened(drivePath));
+
+    // No configs should have been deserialized.
+    ASSERT_NE(configs, nullptr);
+    EXPECT_TRUE(configs->empty());
+
+    // Can we get our hands on this database's configs?
+    EXPECT_EQ(store.configs(drivePath), configs);
+
+    // Attempts to re-create the database should fail.
+    EXPECT_EQ(store.create(drivePath), nullptr);
+
+    // Attempts to re-open the database should fail.
+    EXPECT_EQ(store.open(drivePath), nullptr);
+}
+
+TEST_F(XBackupConfigStoreTest, CreateCantReadExisting)
+{
+    const auto drivePath = Utilities::randomPath();
+
+    // Return a single slot for reading.
+    static const vector<unsigned int> slots = {0};
+
+    Expectation get =
+      EXPECT_CALL(ioContext(),
+                  get(Eq(drivePath), _))
+        .WillOnce(DoAll(SetArgReferee<1>(slots),
+                        Return(API_OK)));
+
+    // Reading the slot should fail.
+    EXPECT_CALL(ioContext(),
+                read(Eq(drivePath), _, Eq(0)))
+      .After(get)
+      .WillOnce(Return(API_EREAD));
+
+    StrictMock<ConfigStore> store(ioContext());
+
+    // Try and create the database.
+    EXPECT_EQ(store.create(drivePath), nullptr);
+
+    // Database should remain unknown.
+    EXPECT_EQ(store.configs(drivePath), nullptr);
+    EXPECT_FALSE(store.opened(drivePath));
+}
+
+TEST_F(XBackupConfigStoreTest, CreateCantWrite)
+{
+    const auto drivePath = Utilities::randomPath();
+
+    // No slots available for reading.
+    Expectation get =
+      EXPECT_CALL(ioContext(),
+                  get(Eq(drivePath), _))
+        .WillOnce(Return(API_ENOENT));
+
+    // Initial write should fail.
+    EXPECT_CALL(ioContext(),
+                write(Eq(drivePath), Eq("[]"), Eq(0)))
+      .After(get)
+      .WillOnce(Return(API_EWRITE));
+
+    // Prepare config store.
+    StrictMock<ConfigStore> store(ioContext());
+
+    // Try and create the database.
+    EXPECT_EQ(store.create(drivePath), nullptr);
+
+    // Database should remain unknown.
+    EXPECT_EQ(store.configs(drivePath), nullptr);
+    EXPECT_FALSE(store.opened(drivePath));
+
+    // Store should remain unsoiled.
+    EXPECT_FALSE(store.dirty());
+}
+
+TEST_F(XBackupConfigStoreTest, CreateExisting)
+{
+    const auto drivePath = Utilities::randomPath();
+
+    XBackupConfigMap written;
+
+    // Populate database.
+    {
+        XBackupConfig config;
+
+        config.drivePath = drivePath;
+        config.tag = 1;
+        config.targetHandle = 2;
+
+        written.emplace(config.tag, config);
+    }
+
+    // Serialize database to JSON.
+    JSONWriter writer;
+
+    ioContext().serialize(written, writer);
+
+    // Return a single slot for reading.
+    static const vector<unsigned int> slots = {0};
+
+    Expectation get =
+      EXPECT_CALL(ioContext(),
+                  get(Eq(drivePath), _))
+        .WillOnce(DoAll(SetArgReferee<1>(slots),
+                        Return(API_OK)));
+
+    // Reading the slot should return the generated JSON.
+    Expectation read =
+      EXPECT_CALL(ioContext(),
+                  read(Eq(drivePath), _, Eq(0)))
+        .After(get)
+        .WillOnce(DoAll(SetArgReferee<1>(writer.getstring()),
+                        Return(API_OK)));
+
+    // No write should be generated when loading an existing database.
+    EXPECT_CALL(ioContext(), write(Eq(drivePath), _, _)) .Times(0);
+
+    // Prepare config store.
+    NiceMock<ConfigStore> store(ioContext());
+
+    // onAdd should be generated for each config loaded from disk.
+    EXPECT_CALL(store,
+                onAdd(DB(drivePath), Eq(written.at(1))))
+      .Times(1)
+      .After(read);
+
+    // onDirty should never be generated by a load.
+    EXPECT_CALL(store, onDirty(_)).Times(0);
+
+    // Try creating the database.
+    const auto* configs = store.create(drivePath);
+
+    // The database should now be considered open.
+    EXPECT_TRUE(store.opened(drivePath));
+
+    // Store should never be dirtied by a load.
+    EXPECT_FALSE(store.dirty());
+
+    // Was the existing database correctly deserialized?
+    ASSERT_NE(configs, nullptr);
+    EXPECT_EQ(*configs, written);
+
+    // Can we retrieve this databases configs?
+    EXPECT_EQ(store.configs(drivePath), configs);
+
+    // Can we retrieve the config by tag?
+    EXPECT_EQ(store.get(configs->begin()->first),
+              &configs->begin()->second);
+    
+    // Can we retrieve the config by target handle?
+    EXPECT_EQ(store.get(configs->begin()->second.targetHandle),
+              &configs->begin()->second);
+}
+
+TEST_F(XBackupConfigStoreTest, Destruct)
+{
+    // Nested scope so we can test destruction.
+    {
+        // Make sure database is removed.
+        Directory drive(fsAccess(), Utilities::randomPath());
+
+        // Create store.
+        NiceMock<ConfigStore> store(ioContext());
+
+        // Create database.
+        EXPECT_NE(store.create(drive), nullptr);
+
+        // Dirty database.
+        XBackupConfig config;
+
+        config.drivePath = drive;
+        config.tag = 1;
+
+        EXPECT_NE(store.add(config), nullptr);
+        
+        // Verify store is dirty.
+        EXPECT_TRUE(store.dirty());
+
+        // Database should be flushed when the store is destroyed.
+        EXPECT_CALL(ioContext(),
+                    write(Eq(drive.path()), _, _))
+          .Times(1);
+    }
+}
+
+TEST_F(XBackupConfigStoreTest, FlushAll)
+{
+    // Make sure databases are removed.
+    Directory driveA(fsAccess(), Utilities::randomPath());
+    Directory driveB(fsAccess(), Utilities::randomPath());
+
+    // Create store.
+    NiceMock<ConfigStore> store(ioContext());
+
+    // Add databases.
+    EXPECT_NE(store.create(driveA), nullptr);
+    EXPECT_NE(store.create(driveB), nullptr);
+
+    // Dirty databases.
+    XBackupConfig configA;
+    XBackupConfig configB;
+
+    configA.drivePath = driveA;
+    configA.tag = 1;
+    configB.drivePath = driveB;
+    configB.tag = 2;
+
+    EXPECT_NE(store.add(configA), nullptr);
+    EXPECT_NE(store.add(configB), nullptr);
+
+    // Verify store is dirty.
+    EXPECT_TRUE(store.dirty());
+
+    // Attempts to flush database A should fail.
+    EXPECT_CALL(ioContext(),
+                write(Eq(driveA.path()), _, _))
+      .WillOnce(Return(API_EWRITE));
+
+    // Attempts to flush database B should succeed.
+    EXPECT_CALL(ioContext(),
+                write(Eq(driveB.path()), _, _))
+      .Times(1);
+
+    // Flush the databases.
+    vector<LocalPath> drives;
+
+    EXPECT_EQ(store.flush(drives), API_EWRITE);
+
+    // Have we captured the fact that database A couldn't be flushed?
+    ASSERT_EQ(drives.size(), 1);
+    EXPECT_EQ(drives.back(), driveA);
+
+    // Store should be clean regardless of flush failures.
+    EXPECT_FALSE(store.dirty());
+}
+
+TEST_F(XBackupConfigStoreTest, FlushFail)
+{
+    // Make sure database is removed.
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    // Create store.
+    NiceMock<ConfigStore> store(ioContext());
+
+    // Add database.
+    EXPECT_NE(store.create(drive), nullptr);
+
+    // Dirty database.
+    XBackupConfig config;
+
+    config.drivePath = drive;
+    config.tag = 1;
+
+    EXPECT_NE(store.add(config), nullptr);
+    EXPECT_TRUE(store.dirty());
+
+    // Attempts to write to database A should fail.
+    EXPECT_CALL(ioContext(),
+                write(Eq(drive.path()), _, _))
+      .WillOnce(Return(API_EWRITE));
+
+    // Flushing the database should fail.
+    EXPECT_EQ(store.flush(drive), API_EWRITE);
+
+    // Regardless, store should no longer be dirty.
+    EXPECT_FALSE(store.dirty());
+}
+
+TEST_F(XBackupConfigStoreTest, FlushSpecific)
+{
+    // Make sure databases are removed.
+    Directory driveA(fsAccess(), Utilities::randomPath());
+    Directory driveB(fsAccess(), Utilities::randomPath());
+
+    // Create store.
+    NiceMock<ConfigStore> store(ioContext());
+
+    // Create databases.
+    EXPECT_NE(store.create(driveA), nullptr);
+    EXPECT_NE(store.create(driveB), nullptr);
+
+    // Dirty both databases.
+    XBackupConfig configA;
+    XBackupConfig configB;
+
+    configA.drivePath = driveA;
+    configA.tag = 1;
+    configB.drivePath = driveB;
+    configB.tag = 2;
+
+    EXPECT_NE(store.add(configA), nullptr);
+    EXPECT_NE(store.add(configB), nullptr);
+
+    // Verify databases are dirty.
+    EXPECT_TRUE(store.dirty());
+
+    // Flushing should trigger a write to database A.
+    EXPECT_CALL(ioContext(),
+                write(Eq(driveA.path()), _, _))
+      .Times(1);
+
+    // But since we're being specific, none for database B.
+    EXPECT_CALL(ioContext(),
+                write(Eq(driveB.path()), _, _))
+      .Times(0);
+
+    // Flush database A.
+    EXPECT_EQ(store.flush(driveA), API_OK);
+
+    // Database B is still dirty.
+    EXPECT_TRUE(store.dirty());
+
+    // Flush database A again.
+    // This should be a no-op as it is clean.
+    EXPECT_EQ(store.flush(driveA), API_OK);
+
+    // Verify (and clear) expectations now as database B will be flushed
+    // when the store is destroyed.
+    Mock::VerifyAndClearExpectations(&ioContext());
+}
+
+TEST_F(XBackupConfigStoreTest, FlushNoDatabases)
+{
+    StrictMock<ConfigStore> store(ioContext());
+
+    // No attempts should be made to write any database.
+    EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
+
+    // No databases, no writing, no possible error.
+    EXPECT_EQ(store.flush(), API_OK);
+}
+
+TEST_F(XBackupConfigStoreTest, FlushUnknownDatabase)
+{
+    StrictMock<ConfigStore> store(ioContext());
+
+    // No attempt should be made to write the database.
+    EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
+
+    const auto drivePath = Utilities::randomPath();
+
+    // Can't flush an unknown database.
+    EXPECT_EQ(store.flush(drivePath), API_ENOENT);
+
+    // Database should remain unknown.
+    EXPECT_EQ(store.configs(drivePath), nullptr);
+    EXPECT_FALSE(store.opened(drivePath));
+}
+
+TEST_F(XBackupConfigStoreTest, Open)
+{
+    const auto drivePath = Utilities::randomPath();
+
+    XBackupConfigMap written;
+
+    // Populate database.
+    {
+        XBackupConfig config;
+
+        config.drivePath = drivePath;
+        config.tag = 1;
+        config.targetHandle = 2;
+
+        written.emplace(config.tag, config);
+    }
+
+    // Serialize database to JSON.
+    JSONWriter writer;
+
+    ioContext().serialize(written, writer);
+
+    // Return a single slot for reading.
+    static const vector<unsigned int> slots = {0};
+
+    Expectation get =
+      EXPECT_CALL(ioContext(),
+                  get(Eq(drivePath), _))
+        .Times(1)
+        .WillOnce(DoAll(SetArgReferee<1>(slots),
+                        Return(API_OK)));
+
+    // Return the JSON on read and signal success.
+    Expectation read =
+      EXPECT_CALL(ioContext(),
+                  read(Eq(drivePath), _, Eq(0)))
+        .Times(1)
+        .After(get)
+        .WillOnce(DoAll(SetArgReferee<1>(writer.getstring()),
+                        Return(API_OK)));
+
+    // Create the store.
+    StrictMock<ConfigStore> store(ioContext());
+
+    // onAdd should be generated when we add a config to the store.
+    EXPECT_CALL(store,
+                onAdd(DB(drivePath), Eq(written.at(1))))
+      .Times(1)
+      .After(read);
+
+    // Open the database.
+    const auto* configs = store.open(drivePath);
+
+    ASSERT_NE(configs, nullptr);
+    EXPECT_EQ(*configs, written);
+
+    // Verify database is open.
+    EXPECT_EQ(store.configs(drivePath), configs);
+    EXPECT_TRUE(store.opened(drivePath));
+
+    // Can we retrieve the loaded config by tag?
+    EXPECT_EQ(store.get(configs->begin()->first),
+              &configs->begin()->second);
+
+    // Can we retrieve the loaded config by target handle?
+    EXPECT_EQ(store.get(configs->begin()->second.targetHandle),
+              &configs->begin()->second);
+}
+
+TEST_F(XBackupConfigStoreTest, OpenCantRead)
+{
+    const auto drivePath = Utilities::randomPath();
+
+    // A single slot available for reading.
+    static const vector<unsigned int> slots = {0};
+
+    Expectation get =
+      EXPECT_CALL(ioContext(),
+                  get(Eq(drivePath), _))
+        .Times(1)
+        .WillOnce(DoAll(SetArgReferee<1>(slots),
+                        Return(API_OK)));
+
+    // Attempts to read the slot should fail.
+    EXPECT_CALL(ioContext(),
+                read(Eq(drivePath), _, Eq(0)))
+      .Times(1)
+      .After(get)
+      .WillOnce(Return(API_EREAD));
+
+    // Create the store.
+    StrictMock<ConfigStore> store(ioContext());
+
+    // Try and open the database.
+    EXPECT_EQ(store.open(drivePath), nullptr);
+
+    // Store should not be soiled.
+    EXPECT_FALSE(store.dirty());
+
+    // Database should remain unknown.
+    EXPECT_EQ(store.configs(drivePath), nullptr);
+    EXPECT_FALSE(store.opened(drivePath));
+}
+
+TEST_F(XBackupConfigStoreTest, OpenNoDatabase)
+{
+    const auto drivePath = Utilities::randomPath();
+
+    // No slots available for reading.
+    EXPECT_CALL(ioContext(),
+                get(Eq(drivePath), _))
+      .Times(1)
+      .WillOnce(Return(API_ENOENT));
+
+    // Create store.
+    StrictMock<ConfigStore> store(ioContext());
+
+    // Try and open the database.
+    EXPECT_EQ(store.open(drivePath), nullptr);
+
+    // Store should not be dirty.
+    EXPECT_FALSE(store.dirty());
+
+    // Database should remain unknown.
+    EXPECT_EQ(store.configs(drivePath), nullptr);
+    EXPECT_FALSE(store.opened(drivePath));
+}
+
+TEST_F(XBackupConfigStoreTest, OpenedUnknownDatabase)
+{
+    StrictMock<ConfigStore> store(ioContext());
+
+    // No attempt should be made to read an unknown database.
+    EXPECT_CALL(ioContext(), read(_, _, _)).Times(0);
+
+    EXPECT_FALSE(store.opened(Utilities::randomPath()));
+}
+
+TEST_F(XBackupConfigStoreTest, RemoveByTag)
+{
+    // Make sure database is removed.
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    // Create store.
+    NiceMock<ConfigStore> store(ioContext());
+
+    // Create database.
+    EXPECT_NE(store.create(drive), nullptr);
+
+    // Verify database is open.
+    EXPECT_TRUE(store.opened(drive));
+
+    // Add config to store.
+    XBackupConfig config;
+
+    config.drivePath = drive;
+    config.tag = 1;
+    config.targetHandle = 2;
+
+    EXPECT_NE(store.add(config), nullptr);
+
+    // Flush to make sure database isn't dirty.
+    EXPECT_EQ(store.flush(), API_OK);
+    EXPECT_FALSE(store.dirty());
+
+    // onRemove should be generated when we remove a config.
+    Expectation onRemove =
+      EXPECT_CALL(store,
+                  onRemove(DB(drive.path()), Eq(config)))
+        .Times(1);
+
+    // onDirty should be generated when a database changes.
+    EXPECT_CALL(store,
+                onDirty(DB(drive.path())))
+      .Times(1)
+      .After(onRemove);
+
+    // Remove the config.
+    EXPECT_EQ(store.remove(config.tag), API_OK);
+
+    // Database should be soiled.
+    EXPECT_TRUE(store.dirty());
+
+    // Mappings should be invalidated.
+    EXPECT_EQ(store.get(config.tag), nullptr);
+    EXPECT_EQ(store.get(config.targetHandle), nullptr);
+}
+
+TEST_F(XBackupConfigStoreTest, RemoveByTargetHandle)
+{
+    // Make sure database is removed.
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    // Create store.
+    NiceMock<ConfigStore> store(ioContext());
+
+    // Create database.
+    EXPECT_NE(store.create(drive), nullptr);
+
+    // Verify database is open.
+    EXPECT_TRUE(store.opened(drive));
+
+    // Add config to store.
+    XBackupConfig config;
+
+    config.drivePath = drive;
+    config.tag = 2;
+    config.targetHandle = 3;
+
+    EXPECT_NE(store.add(config), nullptr);
+
+    // Flush to make sure database isn't dirty.
+    EXPECT_EQ(store.flush(), API_OK);
+    EXPECT_FALSE(store.dirty());
+
+    // onRemove should be generated when we remove a config.
+    Expectation onRemove =
+      EXPECT_CALL(store,
+                  onRemove(DB(drive.path()), Eq(config)))
+        .Times(1);
+
+    // onDirty should be generated when a database changes.
+    EXPECT_CALL(store,
+                onDirty(DB(drive.path())))
+      .Times(1)
+      .After(onRemove);
+
+    // Remove the config.
+    EXPECT_EQ(store.remove(config.targetHandle), API_OK);
+
+    // Database should be soiled.
+    EXPECT_TRUE(store.dirty());
+
+    // Mappings should be invalidated.
+    EXPECT_EQ(store.get(config.tag), nullptr);
+    EXPECT_EQ(store.get(config.targetHandle), nullptr);
+}
+
+TEST_F(XBackupConfigStoreTest, RemoveUnknownTag)
+{
+    StrictMock<ConfigStore> store(ioContext());
+
+    // There should be no attempts to write any database.
+    EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
+
+    // Can't remove something we don't know about.
+    EXPECT_EQ(store.remove(0), API_ENOENT);
+
+    // No change? Not dirty.
+    EXPECT_FALSE(store.dirty());
+}
+
+TEST_F(XBackupConfigStoreTest, RemoveUnknownTargetHandle)
+{
+    StrictMock<ConfigStore> store(ioContext());
+
+    // There should be no attempts to write any database.
+    EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
+
+    // Can't remove something we don't know about.
+    const handle targetHandle = 0;
+    EXPECT_EQ(store.remove(targetHandle), API_ENOENT);
+
+    // No change? Not dirty.
+    EXPECT_FALSE(store.dirty());
+}
+
+TEST_F(XBackupConfigStoreTest, Update)
+{
+    // Make sure database is removed.
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    // Create store.
+    NiceMock<ConfigStore> store(ioContext());
+
+    // Create database.
+    EXPECT_NE(store.create(drive), nullptr);
+    EXPECT_NE(store.configs(drive), nullptr);
+    EXPECT_TRUE(store.opened(drive));
+
+    // Create config to add to database.
+    XBackupConfig configBefore;
+
+    configBefore.drivePath = drive;
+    configBefore.tag = 1;
+    configBefore.targetHandle = 2;
+
+    // Add config to database.
+    const auto* c = store.add(configBefore);
+
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, configBefore);
+
+    // Verify config has been added to database.
+    EXPECT_EQ(store.get(configBefore.tag), c);
+    EXPECT_EQ(store.get(configBefore.targetHandle), c);
+
+    // Make sure database is clean.
+    EXPECT_EQ(store.flush(), API_OK);
+
+    // Update config.
+    XBackupConfig configAfter = configBefore;
+
+    configAfter.sourcePath = Utilities::randomPath();
+
+    // onChange should be generated when a config changes.
+    Expectation onChange =
+      EXPECT_CALL(store,
+                  onChange(DB(drive.path()),
+                           Eq(configBefore),
+                           Eq(configAfter)))
+        .Times(1);
+
+    // onDirty should be generated when the database changes.
+    EXPECT_CALL(store,
+                onDirty(DB(drive.path())))
+      .Times(1)
+      .After(onChange);
+
+    // Update the config.
+    EXPECT_EQ(store.add(configAfter), c);
+
+    // Verify config has been updated.
+    EXPECT_EQ(*c, configAfter);
+
+    // Database should be soiled.
+    EXPECT_TRUE(store.dirty());
+
+    // Is the config still accessible by tag?
+    EXPECT_EQ(store.get(configAfter.tag), c);
+
+    // Is the config still accessible by target handle?
+    EXPECT_EQ(store.get(configAfter.targetHandle), c);
+}
+
+TEST_F(XBackupConfigStoreTest, UpdateChangeDrivePath)
+{
+    // Make sure databases are removed.
+    Directory driveA(fsAccess(), Utilities::randomPath());
+    Directory driveB(fsAccess(), Utilities::randomPath());
+
+    // Create store.
+    NiceMock<ConfigStore> store(ioContext());
+
+    // Create databases.
+    EXPECT_NE(store.create(driveA), nullptr);
+    EXPECT_NE(store.create(driveB), nullptr);
+
+    // Verify databases are open.
+    ASSERT_NE(store.configs(driveA), nullptr);
+    ASSERT_NE(store.configs(driveB), nullptr);
+    EXPECT_TRUE(store.opened(driveA));
+    EXPECT_TRUE(store.opened(driveB));
+
+    // Create config.
+    XBackupConfig configBefore;
+
+    configBefore.drivePath = driveA;
+    configBefore.tag = 1;
+    configBefore.targetHandle = 2;
+
+    // Add config to database A.
+    const auto* cA = store.add(configBefore);
+    ASSERT_NE(cA, nullptr);
+    EXPECT_EQ(*cA, configBefore);
+
+    // Database A should be dirty.
+    EXPECT_TRUE(store.dirty());
+
+    // Make sure config is accessible.
+    EXPECT_EQ(store.get(configBefore.tag), cA);
+    EXPECT_EQ(store.get(configBefore.targetHandle), cA);
+
+    // Flush database so store is clean.
+    EXPECT_EQ(store.flush(), API_OK);
+    EXPECT_FALSE(store.dirty());
+
+    // Create updated config.
+    XBackupConfig configAfter = configBefore;
+
+    configAfter.drivePath = driveB;
+
+    // onRemove should be generated when a config is removed.
+    Expectation onRemoveFromA =
+      EXPECT_CALL(store,
+                  onRemove(DB(driveA.path()), Eq(configBefore)))
+        .Times(1);
+
+    // onDirty should be generated when a database changes.
+    Expectation onDirtyA =
+      EXPECT_CALL(store,
+                  onDirty(DB(driveA.path())))
+        .Times(1)
+        .After(onRemoveFromA);
+
+    // onAdd should be generated when a config is added.
+    Expectation onAddToB =
+      EXPECT_CALL(store,
+                  onAdd(DB(driveB.path()), Eq(configAfter)))
+        .Times(1)
+        .After(onDirtyA);
+
+    // onDirty should be generated when a database changes.
+    EXPECT_CALL(store,
+                onDirty(DB(driveB.path())))
+      .Times(1)
+      .After(onAddToB);
+
+    // Update the config.
+    const auto* cB = store.add(configAfter);
+
+    ASSERT_NE(cB, nullptr);
+    EXPECT_EQ(*cB, configAfter);
+
+    // Databases should be dirty.
+    EXPECT_TRUE(store.dirty());
+
+    // Database A should now be empty.
+    EXPECT_TRUE(store.configs(driveA)->empty());
+
+    // Database B should now contain a single config.
+    EXPECT_EQ(store.configs(driveB)->size(), 1);
+
+    // Config still accessible by tag?
+    EXPECT_EQ(store.get(configAfter.tag), cB);
+
+    // Config still accessible by target handle?
+    EXPECT_EQ(store.get(configAfter.targetHandle), cB);
+}
+
+TEST_F(XBackupConfigStoreTest, UpdateChangeTargetHandle)
+{
+    // Make sure database is removed.
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    // Create store.
+    NiceMock<ConfigStore> store(ioContext());
+
+    // Create database.
+    EXPECT_NE(store.create(drive), nullptr);
+    EXPECT_NE(store.configs(drive), nullptr);
+    EXPECT_TRUE(store.opened(drive));
+
+    // Create config to add to database.
+    XBackupConfig configBefore;
+
+    configBefore.drivePath = drive;
+    configBefore.tag = 1;
+    configBefore.targetHandle = 2;
+
+    // Add config to database.
+    const auto* c = store.add(configBefore);
+
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, configBefore);
+
+    // Verify config has been added to database.
+    EXPECT_EQ(store.get(configBefore.tag), c);
+    EXPECT_EQ(store.get(configBefore.targetHandle), c);
+
+    // Make sure database is clean.
+    EXPECT_EQ(store.flush(), API_OK);
+
+    // Update config.
+    XBackupConfig configAfter = configBefore;
+
+    configAfter.targetHandle = 3;
+
+    // onChange should be generated when a config changes.
+    Expectation onChange =
+      EXPECT_CALL(store,
+                  onChange(DB(drive.path()),
+                           Eq(configBefore),
+                           Eq(configAfter)))
+        .Times(1);
+
+    // onDirty should be generated when the database changes.
+    EXPECT_CALL(store,
+                onDirty(DB(drive.path())))
+      .Times(1)
+      .After(onChange);
+
+    // Update the config.
+    EXPECT_EQ(store.add(configAfter), c);
+
+    // Verify config has been updated.
+    EXPECT_EQ(*c, configAfter);
+
+    // Database should be soiled.
+    EXPECT_TRUE(store.dirty());
+
+    // Is the config still accessible by tag?
+    EXPECT_EQ(store.get(configAfter.tag), c);
+
+    // Config should no longer be accessible by old target handle.
+    EXPECT_EQ(store.get(configBefore.targetHandle), nullptr);
+
+    // Is the config accessible under its new target handle?
+    EXPECT_EQ(store.get(configAfter.targetHandle), c);
+}
+
+TEST_F(XBackupConfigStoreTest, UpdateChangeUnknownDrivePath)
+{
+    // Make sure database is removed.
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    // Create store.
+    NiceMock<ConfigStore> store(ioContext());
+
+    // Create database.
+    ASSERT_NE(store.create(drive), nullptr);
+
+    // Verify database has been opened.
+    ASSERT_NE(store.configs(drive), nullptr);
+    EXPECT_TRUE(store.opened(drive));
+
+    // Create config.
+    XBackupConfig configBefore;
+
+    configBefore.drivePath = drive;
+    configBefore.tag = 1;
+    configBefore.targetHandle = 2;
+
+    // Add config to database.
+    const auto* c = store.add(configBefore);
+
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, configBefore);
+
+    // Database should be soiled.
+    EXPECT_TRUE(store.dirty());
+
+    // Make sure config is accessible.
+    EXPECT_EQ(store.get(configBefore.tag), c);
+    EXPECT_EQ(store.get(configBefore.targetHandle), c);
+
+    // Flush so that databases are clean.
+    EXPECT_EQ(store.flush(), API_OK);
+
+    // Create updated config.
+    XBackupConfig configAfter = configBefore;
+
+    configAfter.drivePath = Utilities::randomPath();
+
+    // onRemove should be generated when a config is removed.
+    Expectation onRemove =
+      EXPECT_CALL(store,
+                  onRemove(DB(drive.path()), Eq(configBefore)))
+        .Times(1);
+      
+    // onDirty should be generated when a database is altered.
+    EXPECT_CALL(store,
+                onDirty(DB(drive.path())))
+      .Times(1)
+      .After(onRemove);
+
+    // Move config to an unknown database.
+    EXPECT_EQ(store.add(configAfter), nullptr);
+
+    // Database should be dirty.
+    EXPECT_TRUE(store.dirty());
+
+    // Database should now be empty.
+    EXPECT_TRUE(store.configs(drive)->empty());
+
+    // Config should no longer be accessible.
+    EXPECT_EQ(store.get(configBefore.tag), nullptr);
+    EXPECT_EQ(store.get(configBefore.targetHandle), nullptr);
+}
+
+TEST_F(XBackupConfigStoreTest, UpdateRemoveTargetHandle)
+{
+    // Make sure database is removed.
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    // Create store.
+    NiceMock<ConfigStore> store(ioContext());
+
+    // Create database.
+    EXPECT_NE(store.create(drive), nullptr);
+    EXPECT_NE(store.configs(drive), nullptr);
+    EXPECT_TRUE(store.opened(drive));
+
+    // Create config to add to database.
+    XBackupConfig configBefore;
+
+    configBefore.drivePath = drive;
+    configBefore.tag = 1;
+    configBefore.targetHandle = 2;
+
+    // Add config to database.
+    const auto* c = store.add(configBefore);
+
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, configBefore);
+
+    // Verify config has been added to database.
+    EXPECT_EQ(store.get(configBefore.tag), c);
+    EXPECT_EQ(store.get(configBefore.targetHandle), c);
+
+    // Make sure database is clean.
+    EXPECT_EQ(store.flush(), API_OK);
+
+    // Update config.
+    XBackupConfig configAfter = configBefore;
+
+    configAfter.targetHandle = UNDEF;
+
+    // onChange should be generated when a config changes.
+    Expectation onChange =
+      EXPECT_CALL(store,
+                  onChange(DB(drive.path()),
+                           Eq(configBefore),
+                           Eq(configAfter)))
+        .Times(1);
+
+    // onDirty should be generated when the database changes.
+    EXPECT_CALL(store,
+                onDirty(DB(drive.path())))
+      .Times(1)
+      .After(onChange);
+
+    // Update the config.
+    EXPECT_EQ(store.add(configAfter), c);
+
+    // Verify config has been updated.
+    EXPECT_EQ(*c, configAfter);
+
+    // Database should be soiled.
+    EXPECT_TRUE(store.dirty());
+
+    // Is the config still accessible by tag?
+    EXPECT_EQ(store.get(configAfter.tag), c);
+
+    // Config should no longer be accessible by old target handle.
+    EXPECT_EQ(store.get(configBefore.targetHandle), nullptr);
+
+    // UNDEF should never be a valid mapping.
+    EXPECT_EQ(store.get(UNDEF), nullptr);
 }
 
 } // XBackupConfigTests

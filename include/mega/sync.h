@@ -448,16 +448,11 @@ protected:
 
 class MEGA_API XBackupConfigStore
   : private XBackupConfigDBObserver
-  , private XBackupConfigIOContext
 {
 public:
-    XBackupConfigStore(SymmCipher& cipher,
-                       FileSystemAccess& fsAccess,
-                       const string& key,
-                       const string& name,
-                       PrnGen& rng);
+    XBackupConfigStore(XBackupConfigIOContext& ioContext);
 
-    ~XBackupConfigStore();
+    virtual ~XBackupConfigStore();
 
     MEGA_DISABLE_COPY_MOVE(XBackupConfigStore);
 
@@ -507,6 +502,23 @@ public:
     // Remove config by backup target handle.
     error remove(const handle targetHandle);
 
+protected:
+    // Invoked when a backup config is being added.
+    virtual void onAdd(XBackupConfigDB& db,
+                       const XBackupConfig& config) override;
+
+    // Invoked when a backup config is being changed.
+    virtual void onChange(XBackupConfigDB& db,
+                          const XBackupConfig& from,
+                          const XBackupConfig& to) override;
+
+    // Invoked when a database needs to be written.
+    virtual void onDirty(XBackupConfigDB& db) override;
+
+    // Invoked when a backup config is being removed.
+    virtual void onRemove(XBackupConfigDB& db,
+                          const XBackupConfig& config) override;
+
 private:
     // Close a database.
     error close(XBackupConfigDB& db);
@@ -514,27 +526,14 @@ private:
     // Flush a database to disk.
     error flush(XBackupConfigDB& db);
 
-    // Invoked when a backup config is being added.
-    void onAdd(XBackupConfigDB& db,
-               const XBackupConfig& config) override;
-
-    // Invoked when a backup config is being changed.
-    void onChange(XBackupConfigDB& db,
-                  const XBackupConfig& from,
-                  const XBackupConfig& to) override;
-
-    // Invoked when a database needs to be written.
-    void onDirty(XBackupConfigDB& db) override;
-
-    // Invoked when a backup config is being removed.
-    void onRemove(XBackupConfigDB& db,
-                  const XBackupConfig& config) override;
-
     // Tracks which databases need to be written.
     set<XBackupConfigDB*> mDirtyDB;
 
     // Maps drive path to database.
     map<LocalPath, XBackupConfigDBPtr> mDriveToDB;
+
+    // IO context used to read and write from disk.
+    XBackupConfigIOContext& mIOContext;
 
     // Maps backup tag to database.
     map<int, XBackupConfigDB*> mTagToDB;
