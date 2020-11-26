@@ -8191,7 +8191,7 @@ CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, const st
     if (!extraData.empty())
         arg("e", extraData.c_str());
 
-    mBackupName = backupName;
+    mBackupName = Base64::btoa(backupName);
     tag = client->reqtag;
     mUpdate = false;
 }
@@ -8290,7 +8290,7 @@ bool CommandBackupPut::procresult(Result r)
                         : TLVstore::containerToTLVrecords(oldValue, &client->key) };
 
             string_map attrMap = move(client->mPendingBackupNames);
-            attrMap[key] = Base64::btoa(mBackupName);
+            attrMap[key] = mBackupName;
             if (User::mergeUserAttribute(attrType, attrMap, *tlv.get()))
             {
                 // serialize and encrypt the TLV container
