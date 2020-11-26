@@ -8366,7 +8366,7 @@ bool CommandBackupRemove::procresult(Result r)
 
     // Upon removal of backup successfully --> remove the backup name silently for the user's attribute
     if (r.succeeded())
-    {        
+    {
         std::string key {Base64Str<MegaClient::BACKUPHANDLE>(mBackupId)};
         attr_t attrType = ATTR_BACKUP_NAMES;
 
