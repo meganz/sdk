@@ -4335,7 +4335,8 @@ void MegaClient::removeCaches()
             sync->statecachetable = NULL;
         }
     });
-    if (!mKeepSyncsAfterLogout)
+
+    if (syncs.mSyncConfigDb && !mKeepSyncsAfterLogout)
     {
         syncs.mSyncConfigDb->clear();
     }
