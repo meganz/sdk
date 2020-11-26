@@ -2186,7 +2186,7 @@ auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> UnifiedSync*
     return mSyncVec.back().get();
 }
 
-Sync* Syncs::runningSyncByTag(int tag)
+Sync* Syncs::runningSyncByTag(int tag) const
 {
     for (auto& s : mSyncVec)
     {
