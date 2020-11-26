@@ -352,13 +352,58 @@ int64_t TransferSlot::macsmac_gaps(chunkmac_map* m, size_t g1, size_t g2, size_t
     return m->macsmac_gaps(transfer->transfercipher(), g1, g2, g3, g4);
 }
 
+void TransferSlot::correctNodeMac(int64_t correctMac)
+{
+    // we can't adjust the key directly, so make a new replacemnt node referring to the same file data, but with the fixed key.
+
+    for (file_list::iterator it = transfer->files.begin(); it != transfer->files.end(); it++)
+    {
+        if ((*it)->hprivate && !(*it)->hforeign)
+        {
+            if (Node* n = transfer->client->nodebyhandle((*it)->h))
+            {
+                if (n->type == FILENODE && n->nodekey().size() == FILENODEKEYLENGTH)
+                {
+                    auto k1 = (byte*)n->nodekey().data();
+                    auto k2 = k1 + SymmCipher::KEYLENGTH;
+                    if (transfer->metamac == MemAccess::get<int64_t>((const char*)k2 + sizeof(int64_t)))
+                    {
+                        SymmCipher::xorblock(k2, k1);
+                        MemAccess::set<int64_t>(k2 + sizeof(int64_t), correctMac);
+                        SymmCipher::xorblock(k2, k1);
+
+                        vector<NewNode> nn(1);  // copies with the adjusted key taken from the node to copy
+                        transfer->client->putnodes_prepareCopyNode(&nn[0], n, UNDEF, n->nodehandle);
+                        transfer->client->putnodes(n->parent->nodehandle, move(nn));
+                    }
+                }
+            }
+        }
+    }
+}
+
 bool TransferSlot::checkMetaMacWithMissingLateEntries()
 {
-    // Due to an old bug, some uploads attached a MAC to the node that was missing some MAC entries 
-    // (even though the data was uploaded) - this occurred when a ultoken arrived but one other 
-    // final upload connection had not completed at the local end (even though it must have 
+    // Due to an old bug, some uploads attached a MAC to the node that was missing some MAC entries
+    // (even though the data was uploaded) - this occurred when a ultoken arrived but one other
+    // final upload connection had not completed at the local end (even though it must have
     // completed at the server end).  So the file's data is still complete in the cloud.
     // Here we check if the MAC is one of those with a missing entry (or a few if the connection had multiple chunks)
+
+    // only try to check this if the downloaded file's fingerprint is a match
+    fa.reset();  // close the old one so the file on disk is up to date
+    auto fa = transfer->client->fsaccess->newfileaccess(false);
+    if (fa->fopen(transfer->localfilename, true, false))
+    {
+        FileFingerprint fp;
+        fp.genfingerprint(fa.get());
+
+        if (fp.crc != transfer->crc)
+        {
+            return false;
+        }
+    }
+
 
     // last 3 connections, up to 32MB (ie chunks) each, up to two completing after the one that delivered the ultoken
     size_t end = transfer->chunkmacs.size();
@@ -367,16 +412,16 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
     // first check for the most likely - a single connection gap (or two but completely consecutive making a single gap)
     for (size_t countBack = 1; countBack <= finalN; ++countBack)
     {
-        size_t start1 = end - countBack; 
+        size_t start1 = end - countBack;
         for (size_t len1 = 1; len1 <= 64 && start1 + len1 <= end; ++len1)
         {
             if (transfer->metamac == macsmac_gaps(&transfer->chunkmacs, start1, start1 + len1, end, end))
             {
                 LOG_warn << "Found mac gaps were at " << start1 << " " << len1 << " from " << end;
                 auto correctMac = macsmac(&transfer->chunkmacs);
+                correctNodeMac(correctMac);
                 transfer->currentmetamac = correctMac;
                 transfer->metamac = correctMac;
-                // TODO: update the Node's key to be correct (needs some API additions before enabling)
                 return true;
             }
         }
@@ -398,9 +443,9 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
                     {
                         LOG_warn << "Found mac gaps were at " << start1 << " " << len1 << " " << start2 << " " << len2 << " from " << end;
                         auto correctMac = macsmac(&transfer->chunkmacs);
+                        correctNodeMac(correctMac);
                         transfer->currentmetamac = correctMac;
                         transfer->metamac = correctMac;
-                        // TODO: update the Node's key to be correct (needs some API additions before enabling)
                         return true;
                     }
                 }

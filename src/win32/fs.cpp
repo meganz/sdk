@@ -644,7 +644,9 @@ bool WinFileSystemAccess::cwd(LocalPath& path) const
 
     path.localpath.resize(nRequired);
 
-    return GetCurrentDirectoryW(nRequired, &path.localpath[0]) > 0;
+    auto len = GetCurrentDirectoryW(nRequired, &path.localpath[0]);
+    path.localpath.resize(len);
+    return len > 0;
 #else // WINDOWS_PHONE
     return false;
 #endif // ! WINDOWS_PHONE

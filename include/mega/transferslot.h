@@ -148,6 +148,7 @@ private:
     bool tryRaidRecoveryFromHttpGetError(unsigned i, bool incrementErrors);
     bool checkDownloadTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client);
     bool checkMetaMacWithMissingLateEntries();
+    void correctNodeMac(int64_t correctMac);
 
     // returns true if connection haven't received data recently (set incrementErrors) or if slower than other connections (reset incrementErrors)
     bool testForSlowRaidConnection(unsigned connectionNum, bool& incrementErrors);

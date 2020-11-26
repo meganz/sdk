@@ -528,6 +528,9 @@ public:
     // helper function for preparing a putnodes call for new folders
     void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername);
 
+    // helper function for preparing a putnodes call for new folders
+    void putnodes_prepareCopyNode(NewNode* newnode, Node* toCopy, handle targetParent, handle versionHandle);
+
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
     void putnodes(handle, vector<NewNode>&&, const char * = NULL);

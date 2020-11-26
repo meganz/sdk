@@ -7506,6 +7506,51 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
     makeattr(&tmpnodecipher, newnode->attrstring, attrstring.c_str());
 }
 
+void MegaClient::putnodes_prepareCopyNode(NewNode* newnode, Node* toCopy, handle targetParent, handle versionHandle)
+{
+    // Adapted from TreeProcCopy::proc
+    string attrstring;
+    SymmCipher key;
+
+    newnode->source = NEW_NODE;
+    newnode->type = toCopy->type;
+    newnode->nodehandle = toCopy->nodehandle;
+    newnode->ovhandle = versionHandle;
+    newnode->parenthandle = targetParent;
+
+    if (toCopy->type == FILENODE)
+    {
+        // key of the file copied
+        newnode->nodekey = toCopy->nodekey();
+    }
+    else
+    {
+        // new key for a new folder
+        byte buf[FOLDERNODEKEYLENGTH];
+        rng.genblock(buf, sizeof buf);
+        newnode->nodekey.assign((char*)buf, FOLDERNODEKEYLENGTH);
+    }
+
+    newnode->attrstring.reset(new string);
+    if (newnode->nodekey.size())
+    {
+        key.setkey((const byte*)newnode->nodekey.data(), toCopy->type);
+
+        AttrMap tattrs;
+        tattrs.map = toCopy->attrs.map;
+        nameid rrname = AttrMap::string2nameid("rr");
+        attr_map::iterator it = tattrs.map.find(rrname);
+        if (it != tattrs.map.end())
+        {
+            LOG_debug << "Removing rr attribute";
+            tattrs.map.erase(it);
+        }
+
+        tattrs.getjson(&attrstring);
+        makeattr(&key, newnode->attrstring, attrstring.c_str());
+    }
+}
+
 // send new nodes to API for processing
 void MegaClient::putnodes(handle h, vector<NewNode>&& newnodes, const char *cauth)
 {
