@@ -1353,17 +1353,14 @@ struct StandardClient : public MegaApp
 
     bool syncSet(int tag, SyncInfo& info) const
     {
-        for (const auto* sync : client.syncs)
+        if (const auto* sync = client.syncs.runningSyncByTag(tag))
         {
-            if (sync->tag == tag)
-            {
-                const auto& config = sync->getConfig();
+            const auto& config = sync->getConfig();
 
-                info.h = config.getRemoteNode();
-                info.localpath = config.getLocalPath();
+            info.h = config.getRemoteNode();
+            info.localpath = config.getLocalPath();
 
-                return true;
-            }
+            return true;
         }
 
         return false;
@@ -1434,8 +1431,9 @@ struct StandardClient : public MegaApp
             if (Node* m = drillchildnodebyname(n, subfoldername))
             {
                 SyncConfig syncConfig{syncTag, localpath.u8string(), localpath.u8string(), m->nodehandle, subfoldername, 0};
+                UnifiedSync* unifiedSync;
                 SyncError syncError;
-                error e = client.addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError);  // use syncid as tag
+                error e = client.addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError, false, unifiedSync);  // use syncid as tag
                 if (!e)
                 {
                     return true;
@@ -1448,10 +1446,19 @@ struct StandardClient : public MegaApp
     bool delSync_inthread(const int syncId, const bool keepCache)
     {
         const auto handle = syncSet(syncId).h;
-        const auto node = client.nodebyhandle(handle);
-        EXPECT_TRUE(node);
-        client.delsync(node->localnode->sync);
-        return true;
+        bool removed = false;
+
+        client.syncs.removeSelectedSyncs(
+          [&](SyncConfig& c, Sync*)
+          {
+              const bool matched = c.getRemoteNode() == handle;
+
+              removed |= matched;
+
+              return matched;
+          });
+
+        return removed;
     }
 
     bool recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported)
@@ -1739,12 +1746,7 @@ struct StandardClient : public MegaApp
 
     Sync* syncByTag(int tag)
     {
-        for (Sync* s : client.syncs)
-        {
-            if (s->tag == tag)
-                return s;
-        }
-        return nullptr;
+        return client.syncs.runningSyncByTag(tag);
     }
 
     enum Confirm
@@ -1930,12 +1932,14 @@ struct StandardClient : public MegaApp
 
             thread_do([&syncstates, &any_add_del, this](StandardClient& mc, promise<bool>&)
             {
-                for (auto& sync : mc.client.syncs)
-                {
-                    syncstates.push_back(sync->state);
-                    if (sync->deleteq.size() || sync->insertq.size())
-                        any_add_del = true;
-                }
+                mc.client.syncs.forEachRunningSync(
+                  [&](Sync* s)
+                  {
+                      syncstates.push_back(s->state);
+                      any_add_del |= !s->deleteq.empty();
+                      any_add_del |= !s->insertq.empty();
+                  });
+
                 if (!(client.todebris.empty() && client.tounlink.empty() && client.synccreate.empty()))
                 {
                     any_add_del = true;
@@ -2092,12 +2096,14 @@ void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1
         {
             vn->thread_do([&syncstates, &any_add_del](StandardClient& mc, promise<bool>&)
             {
-                for (auto& sync : mc.client.syncs)
-                {
-                    syncstates.push_back(sync->state);
-                    if (sync->deleteq.size() || sync->insertq.size())
-                        any_add_del = true;
-                }
+                mc.client.syncs.forEachRunningSync(
+                  [&](Sync* s)
+                  {
+                      syncstates.push_back(s->state);
+                      any_add_del |= !s->deleteq.empty();
+                      any_add_del |= !s->insertq.empty();
+                  });
+
                 if (!(mc.client.todebris.empty() && mc.client.tounlink.empty() && mc.client.synccreate.empty()
                     && mc.client.transferlist.transfers[GET].empty() && mc.client.transferlist.transfers[PUT].empty()))
                 {
@@ -2759,13 +2765,15 @@ GTEST_TEST(Sync, BasicSync_MassNotifyFromLocalFolderTree)
         int remaining = 0;
         auto result0 = clientA1.thread_do([&](StandardClient &sc, std::promise<bool> &p)
         {
-            for (auto& s : sc.client.syncs)
-            {
-                for (int q = DirNotify::NUMQUEUES; q--; )
-                {
-                    remaining += s->dirnotify->notifyq[q].size();
-                }
-            }
+            sc.client.syncs.forEachRunningSync(
+              [&](Sync* s)
+              {
+                  for (int q = DirNotify::NUMQUEUES; q--; )
+                  {
+                      remaining += s->dirnotify->notifyq[q].size();
+                  }
+              });
+
             p.set_value(true);
         });
         result0.get();
@@ -4543,8 +4551,24 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     waitonsyncs(std::chrono::seconds(20), &clientA1Steady, &clientA1Resume);
 
     out() << "Stopping full-sync" << endl;
-    future<bool> fb1 = clientA1Steady.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.client.delsync(sc.syncByTag(1)); pb.set_value(true); });
-    future<bool> fb2 = clientA1Resume.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.client.delsync(sc.syncByTag(2)); pb.set_value(true); });
+    auto removeSyncByTag =
+      [](StandardClient& sc, const int tag)
+      {
+          bool removed = false;
+
+          sc.client.syncs.removeSelectedSyncs(
+            [&](SyncConfig& config, Sync*)
+            {
+                const bool matched = config.getTag() == tag;
+                removed |= matched;
+                return matched;
+            });
+
+          return removed;
+      };
+
+    future<bool> fb1 = clientA1Steady.thread_do([&](StandardClient& sc, promise<bool>& pb) { pb.set_value(removeSyncByTag(sc, 1)); });
+    future<bool> fb2 = clientA1Resume.thread_do([&](StandardClient& sc, promise<bool>& pb) { pb.set_value(removeSyncByTag(sc, 2)); });
     ASSERT_TRUE(waitonresults(&fb1, &fb2));
 
     out() << "Setting up each sub-test's Two-way sync of 'f'" << endl;
