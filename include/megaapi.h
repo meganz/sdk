@@ -16080,6 +16080,8 @@ class MegaApi
          * This function uses the default parameters for the MEGA apps, which consider (currently)
          * interactions during the last 30 days and max 10.000 nodes.
          *
+         * You take the ownership of the returned value.
+         *
          * @return List of buckets containing nodes that were added/modifed as a set
          */
         MegaRecentActionBucketList* getRecentActions();
