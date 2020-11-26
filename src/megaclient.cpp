@@ -4311,6 +4311,8 @@ void MegaClient::locallogout(bool removecaches)
     mBizMasters.clear();
     mPublicLinks.clear();
     scpaused = false;
+    mSendingBackupName = false;
+    mPendingBackupNames.clear();
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
     {
