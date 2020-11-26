@@ -581,6 +581,8 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
   
     case MegaRequest::TYPE_BACKUP_PUT:
         mBackupId = request->getParentHandle();
+        if (request->getFlag()) // it's a new backup we just registered
+            mBackupNameToBackupId.push_back({ Base64::atob(request->getName()), mBackupId} );
         break;
 
     case MegaRequest::TYPE_FETCH_GOOGLE_ADS:
@@ -807,7 +809,7 @@ bool SdkTest::waitForResponse(bool *responseReceived, unsigned int timeout)
             else if (!connRetried && tWaited > (pollingT * 240))
             {
                 megaApi[0]->retryPendingConnections(true);
-                if (megaApi[1] && megaApi[1]->isLoggedIn())
+                if (megaApi.size() > 1 && megaApi[1] && megaApi[1]->isLoggedIn())
                 {
                     megaApi[1]->retryPendingConnections(true);
                 }
@@ -4744,43 +4746,59 @@ TEST_F(SdkTest, SdkSimpleCommands)
 
 TEST_F(SdkTest, SdkHeartbeatCommands)
 {
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    getAccountsForTest(1);
     LOG_info << "___TEST HeartbeatCommands___";
+    mBackupNameToBackupId.clear();
 
     // setbackup test
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
     string localFolder = localtestroot.string();
-    string backupName = "/SdkBackupNamesTest";
-    string extraData = "Test Set/GetBackupname APIs";
-
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
-    char foldername[64] = "CommandBackupPutTest";
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, foldername, rootnode.get()));
-    
-    MegaHandle targetNode = mApi[0].h;
+    int backupType = BackupType::CAMERA_UPLOAD;
+    string extraData = "Test Set/GetBackupname APIs";
     int state = 1;
     int subState = 3;
 
-    // setup a backup (automatically updates the backup name in the user's attribute)
+    size_t numBackups = 3;
+    vector<string> backupNames {"/SdkBackupNamesTest1", "/SdkBackupNamesTest2", "/SdkBackupNamesTest3" };
+    vector<string> folderNames {"CommandBackupPutTest1", "CommandBackupPutTest2", "CommandBackupPutTest3" };
+    vector<MegaHandle> targetNodes;
+
+    // create remote folders for each backup
+    for (size_t i = 0; i < numBackups; i++)
+    {
+        ASSERT_NO_FATAL_FAILURE(createFolder(0, folderNames[i].c_str(), rootnode.get()));
+        targetNodes.push_back(mApi[0].h);
+    }
+
+    // set all backups, only wait for completion of the third one
+    size_t lastIndex = numBackups - 1;
+    for (size_t i = 0; i < lastIndex; i++)
+    {
+        megaApi[0]->setBackup(backupType, targetNodes[i], localFolder.c_str(), backupNames[i].c_str(), state, subState, extraData.c_str());
+    }
     mApi[0].userUpdated = false;
-    int backupType = BackupType::CAMERA_UPLOAD;
-    auto err = synchronousSetBackup(0, backupType, targetNode, localFolder.c_str(), backupName.c_str(), state, subState, extraData.c_str());
+    auto err = synchronousSetBackup(0, backupType, targetNodes[lastIndex], localFolder.c_str(), backupNames[lastIndex].c_str(), state, subState, extraData.c_str());
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
-    // wait for notification of the attr being updated, which occurs after setBackup() finishes
+    ASSERT_EQ(mBackupNameToBackupId.size(), numBackups) << "setBackup didn't register all the backups";
+
+    // wait for notification of user's attribute updated from last setBackup
     ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
 
-    // retrieve the given backup name
-    err = synchronousGetBackupName(0, mBackupId);
-    ASSERT_EQ(MegaError::API_OK, err) << "getBackupName failed (error: " << err << ")";
-    ASSERT_EQ(attributeValue, backupName) << "getBackupName returned incorrect value";
+    for (size_t i = 0; i < numBackups; i++)
+    {
+        err = synchronousGetBackupName(0, mBackupNameToBackupId[i].second);
+        ASSERT_EQ(MegaError::API_OK, err) << "getBackupName failed for backup" << i + 1 << "(error: " << err << ")";
+        ASSERT_EQ(attributeValue, backupNames[i]) << "getBackupName returned incorrect value for backup" << i + 1;
+    }
 
-    // update a backup
+    // update backup
     extraData = "Test Update Camera Upload Test";
     err = synchronousUpdateBackup(0, mBackupId, MegaApi::BACKUP_TYPE_INVALID, UNDEF, nullptr, -1, -1, extraData.c_str());
     ASSERT_EQ(MegaError::API_OK, err) << "updateBackup failed (error: " << err << ")";
 
     // give a new name to the backup
-    backupName = "/SdkBackupNames_setBackupName_Test";
+    string backupName = "/SdkBackupNames_setBackupName_Test";
     err = synchronousSetBackupName(0, mBackupId, backupName.c_str());
     ASSERT_EQ(MegaError::API_OK, err) << "setBackupName failed (error: " << err << ")";
 
@@ -4789,29 +4807,39 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     ASSERT_EQ(MegaError::API_OK, err) << "getBackupName failed (error: " << err << ")";
     ASSERT_EQ(attributeValue, backupName) << "setbackupName failed to update the backup name";
 
-    // remove the backup (automatically updates the user's attribute, removing the entry for the backup id)
+    // now remove all backups, only wait for completion of the third one
+    // (automatically updates the user's attribute, removing the entry for the backup id)
+    for (size_t i = 0; i < lastIndex; i++)
+    {
+        megaApi[0]->removeBackup(mBackupNameToBackupId[i].second);
+    }
     mApi[0].userUpdated = false;
-    synchronousRemoveBackup(0, mBackupId);
+    synchronousRemoveBackup(0, mBackupNameToBackupId[lastIndex].second);
     // wait for notification of the attr being updated, which occurs after removeBackup() finishes
     ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
 
     // check the backup name is no longer available for the removed backup id (ENOENT)
-    err = synchronousGetBackupName(0, mBackupId);
-    ASSERT_EQ(MegaError::API_ENOENT, err) << "removeBackup failed to remove backup name (error: " << err << ")";
+    for (size_t i = 0; i < numBackups; i++)
+    {
+        err = synchronousGetBackupName(0, mBackupNameToBackupId[i].second);
+        ASSERT_EQ(MegaError::API_ENOENT, err) << "removeBackup failed to remove backup name (error: " << err << ")";
+    }
 
     // add a backup again
-    err = synchronousSetBackup(0, backupType, targetNode, localFolder.c_str(), backupName.c_str(), state, subState, extraData.c_str());
+    err = synchronousSetBackup(0, backupType, targetNodes[0], localFolder.c_str(), backupNames[0].c_str(), state, subState, extraData.c_str());
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
 
     // check heartbeat
-    err = synchronousSendBackupHeartbeat(0, mBackupId, 1, 10, 1, 1, 0, targetNode);
+    err = synchronousSendBackupHeartbeat(0, mBackupId, 1, 10, 1, 1, 0, targetNodes[0]);
     ASSERT_EQ(MegaError::API_OK, err) << "sendBackupHeartbeat failed (error: " << err << ")";
 
-    // negative test cases
+
+    // --- negative test cases ---
     gTestingInvalidArgs = true;
+
     
     // register the same backup twice: should work fine
-    err = synchronousSetBackup(0, backupType, targetNode, localFolder.c_str(), backupName.c_str(), state, subState, extraData.c_str());
+    err = synchronousSetBackup(0, backupType, targetNodes[0], localFolder.c_str(), backupNames[0].c_str(), state, subState, extraData.c_str());
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
 
     // update a removed backup: should throw an error
@@ -4821,7 +4849,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     ASSERT_NE(MegaError::API_OK, err) << "updateBackup failed (error: " << err << ")";
 
     // create a backup with a big status: should report an error
-    err = synchronousSetBackup(0, backupType, targetNode, localFolder.c_str(), backupName.c_str(), 255/*state*/, subState, extraData.c_str());
+    err = synchronousSetBackup(0, backupType, targetNodes[0], localFolder.c_str(), backupNames[0].c_str(), 255/*state*/, subState, extraData.c_str());
     ASSERT_NE(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
 
     gTestingInvalidArgs = false;

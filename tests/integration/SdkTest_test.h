@@ -202,6 +202,7 @@ public:
     std::unique_ptr<MegaEvent> lastEvent;
 
     MegaHandle mBackupId = UNDEF;
+    std::vector<std::pair<string, MegaHandle> > mBackupNameToBackupId;
 
 protected:
     void SetUp() override;
