@@ -57,9 +57,9 @@ bool User::mergeUserAttribute(attr_t type, const string_map &newValuesMap, TLVst
         }
         if (newValue != currentValue)
         {
-            if (type == ATTR_ALIAS && newValue[0] == '\0')
+            if ((type == ATTR_ALIAS || type == ATTR_BACKUP_NAMES) && newValue[0] == '\0')
             {
-                // alias being removed
+                // alias/backupName being removed
                 tlv.reset(key);
             }
             else
@@ -550,6 +550,10 @@ string User::attr2string(attr_t type)
             attrname = "*!bak";
             break;
 
+        case ATTR_BACKUP_NAMES:
+            attrname = "*!bn";
+            break;
+            
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -694,6 +698,10 @@ string User::attr2longname(attr_t type)
     case ATTR_MY_BACKUPS_FOLDER:
         longname = "ATTR_MY_BACKUPS_FOLDER";
         break;
+
+    case ATTR_BACKUP_NAMES:
+        longname = "ATTR_BACKUP_NAMES";
+        break;
     }
 
     return longname;
@@ -830,6 +838,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_MY_BACKUPS_FOLDER;
     }
+    else if (!strcmp(name, "*!bn"))
+    {
+        return ATTR_BACKUP_NAMES;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -873,6 +885,7 @@ int User::needversioning(attr_t at)
         case ATTR_CAMERA_UPLOADS_FOLDER:
         case ATTR_UNSHAREABLE_KEY:
         case ATTR_DEVICE_NAMES:
+        case ATTR_BACKUP_NAMES:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
@@ -898,6 +911,7 @@ char User::scope(attr_t at)
         case ATTR_ALIAS:
         case ATTR_DEVICE_NAMES:
         case ATTR_MY_BACKUPS_FOLDER:
+        case ATTR_BACKUP_NAMES:
             return '*';
 
         case ATTR_AVATAR:
@@ -1330,6 +1344,10 @@ bool User::setChanged(attr_t at)
 
         case ATTR_MY_BACKUPS_FOLDER:
             changed.myBackupsFolder = true;
+            break;
+
+        case ATTR_BACKUP_NAMES:
+            changed.backupNames = true;
             break;
 
         default:

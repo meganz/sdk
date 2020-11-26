@@ -598,7 +598,8 @@ typedef enum {
     ATTR_AUTHRSA = 28,                      // private - byte array
     ATTR_AUTHCU255 = 29,                    // private - byte array
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
-    ATTR_MY_BACKUPS_FOLDER = 31             // private - byte array - non-versioned
+    ATTR_MY_BACKUPS_FOLDER = 31,            // private - byte array - non-versioned
+    ATTR_BACKUP_NAMES = 32,                 // private - byte array - versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -852,7 +853,7 @@ private:
 
 };
 
-typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3 } BackupType;
+typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3, MEDIA_UPLOAD = 4 } BackupType;
 
 // Holds the config of a sync. Can be extended with future config options
 class SyncConfig : public Cacheable

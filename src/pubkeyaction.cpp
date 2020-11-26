@@ -93,7 +93,7 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
     // node vanished: bail
     if (!(n = client->nodebyhandle(h)))
     {
-        return client->app->share_result(API_ENOENT);
+        return client->app->share_result(API_ENOENT, mWritable);
     }
 
     // do we already have a share key for this node?
@@ -110,15 +110,17 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
     // we have all ingredients ready: the target user's public key, the share
     // key and all nodes to share
     client->restag = tag;
-    client->reqs.add(new CommandSetShare(client, n, u, a, newshare, NULL, selfemail.c_str()));
+    client->reqs.add(new CommandSetShare(client, n, u, a, newshare, NULL, mWritable, selfemail.c_str()));
 }
 
+
 // share node sh with access level sa
-PubKeyActionCreateShare::PubKeyActionCreateShare(handle sh, accesslevel_t sa, int ctag, const char* personal_representation)
+PubKeyActionCreateShare::PubKeyActionCreateShare(handle sh, accesslevel_t sa, int ctag, bool writable, const char* personal_representation)
 {
     h = sh;
     a = sa;
     tag = ctag;
+    mWritable = writable;
 
     if (personal_representation)
     {

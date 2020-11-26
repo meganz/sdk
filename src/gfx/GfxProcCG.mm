@@ -68,7 +68,7 @@ const char* GfxProcCG::supportedformats() {
 bool GfxProcCG::readbitmap(FileAccess* fa, const LocalPath& name, int size) {
     string absolutename;
     NSString *sourcePath;
-    if (PosixFileSystemAccess::appbasepath && !name.beginsWithSeparator('/')) {
+    if (PosixFileSystemAccess::appbasepath && !name.beginsWithSeparator()) {
         absolutename = PosixFileSystemAccess::appbasepath;
         absolutename.append(name.platformEncoded());
         sourcePath = [NSString stringWithCString:absolutename.c_str() encoding:[NSString defaultCStringEncoding]];
