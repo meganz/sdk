@@ -6036,9 +6036,7 @@ void MegaClient::sc_userattr()
                                     case ATTR_AUTHCU255:        // fall-through
                                     case ATTR_AUTHRSA:          // fall-through
                                     case ATTR_MY_BACKUPS_FOLDER:    // fall-through
-#ifdef ENABLE_SYNC
                                     case ATTR_BACKUP_NAMES:     // fall-through
-#endif
                                     {
                                         LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
                                         if (User::isAuthring(type)) mAuthRings.erase(type);
