@@ -82,6 +82,7 @@ struct MEGA_API User : public Cacheable
         bool unshareablekey : 1;    // key to encrypt unshareable node attributes
         bool devicenames : 1; // device names
         bool myBackupsFolder : 1; // target folder for My Backups
+        bool backupNames : 1; // backup names
     } changed;
 
     // user's public key

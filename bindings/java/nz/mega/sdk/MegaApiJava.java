@@ -10811,6 +10811,8 @@ public class MegaApiJava {
      *    - subState: -1
      *    - extraData: nullptr
      *
+     * If you want to update the backup name, use \c MegaApi::setBackupName.	 
+	 *
      * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getParentHandle - Returns the backupId
@@ -10826,8 +10828,7 @@ public class MegaApiJava {
      * @param backupId backup id identifying the backup to be updated
      * @param backupType Local path of the folder
      * @param targetNode MEGA folder to hold the backups
-     * @param localFolder Local path of the folder
-     * @param backupName backup name of remote location
+     * @param localFolder Local path of the folder     
      * @param state backup state
      * @param subState backup subState
      * @param extraData extraData for the backup
@@ -10835,9 +10836,9 @@ public class MegaApiJava {
      *
      */
     public void updateBackup(long backupId, int backupType, long targetNode, String localFolder,
-        String backupName, int state, int subState, String extraData,
+        int state, int subState, String extraData,
         MegaRequestListenerInterface listener) {
-        megaApi.updateBackup(backupId, backupType, targetNode, localFolder, backupName, state,
+        megaApi.updateBackup(backupId, backupType, targetNode, localFolder, state,
             subState, extraData, createDelegateRequestListener(listener));
     }
 

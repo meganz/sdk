@@ -1813,6 +1813,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_DEVICE_NAMES;
     }
+    if (user->changed.backupNames)
+    {
+        changed |= MegaUser::CHANGE_TYPE_BACKUP_NAMES;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -5845,6 +5849,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_ALIAS:
         case MegaApi::USER_ATTR_DEVICE_NAMES:
         case MegaApi::USER_ATTR_MY_BACKUPS_FOLDER:
+        case MegaApi::USER_ATTR_BACKUP_NAMES:
             scope = '*';
             break;
 
@@ -15136,7 +15141,8 @@ void MegaApiImpl::getua_result(error e)
         }
         else if ((request->getParamType() == MegaApi::USER_ATTR_ALIAS
                   || request->getParamType() == MegaApi::USER_ATTR_CAMERA_UPLOADS_FOLDER
-                  || request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES)
+                  || request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES
+                  || request->getParamType() == MegaApi::USER_ATTR_BACKUP_NAMES)
                     && request->getType() == MegaRequest::TYPE_SET_ATTR_USER)
         {
             // The attribute doesn't exists so we have to create it
@@ -15447,20 +15453,21 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 break;
             }
             case MegaApi::USER_ATTR_ALIAS:
+            case MegaApi::USER_ATTR_BACKUP_NAMES:
             {
-                // If a uh was set in the request, we have to find it in the aliases map and return it
-                const char *uh = request->getText();
-                if (uh)
+                // If a handle was set in the request, we have to find it in the corresponding map and return it
+                const char *h = request->getText();
+                if (h)
                 {
-                    const char *buf = stringMap->get(uh);
-                    if (!buf)
+                    string key{h};
+                    if (!tlv->find(key))
                     {
                         e = API_ENOENT;
                         break;
                     }
                     else
                     {
-                        request->setName(Base64::atob(buf).c_str());
+                        request->setName(Base64::atob(tlv->get(key)).c_str());
                     }
                 }
                 break;
@@ -15476,7 +15483,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 request->setName(Base64::atob(buf).c_str());
                 break;
             }
-
+ 
             default:
                 break;
         }
@@ -20216,7 +20223,10 @@ void MegaApiImpl::sendPendingRequests()
 
                 std::unique_ptr<TLVstore> tlv;
                 User *ownUser = client->finduser(client->me);
-                if (type == ATTR_ALIAS || type == ATTR_CAMERA_UPLOADS_FOLDER || type == ATTR_DEVICE_NAMES)
+                if (type == ATTR_ALIAS
+                        || type == ATTR_CAMERA_UPLOADS_FOLDER
+                        || type == ATTR_DEVICE_NAMES
+                        || type == ATTR_BACKUP_NAMES)
                 {
                     if (!ownUser->isattrvalid(type)) // not fetched yet or outdated
                     {
@@ -23096,41 +23106,71 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_BACKUP_PUT:
         {
-            bool isNew = request->getParentHandle() == UNDEF;
+            handle remoteNode = request->getNodeHandle();
+            const char* backupName = request->getName();
+            const char* localFolder = request->getFile();
+            const char* extraData = request->getText();
             int backupType = static_cast<int>(request->getTotalBytes());
-            if (backupType < MegaApi::BACKUP_TYPE_CAMERA_UPLOADS || backupType > MegaApi::BACKUP_TYPE_MEDIA_UPLOADS)
+            BackupType bType = static_cast<BackupType>(backupType);
+            handle backupId = request->getParentHandle();
+
+            bool isNew = request->getFlag();
+            if (isNew) // Register a new sync/backup
             {
-                if (isNew || (!isNew && backupType != MegaApi::BACKUP_TYPE_INVALID))
+                if ((backupType != MegaApi::BACKUP_TYPE_CAMERA_UPLOADS
+                     && backupType != MegaApi::BACKUP_TYPE_MEDIA_UPLOADS)
+                        || !localFolder
+                        || !backupName
+                        || ISUNDEF(remoteNode)
+                        || !ISUNDEF(backupId))  // new backups don't have a backup id yet
                 {
                     e = API_EARGS;
                     break;
                 }
-            }
-            BackupType bType = static_cast<BackupType>(backupType);
 
-            if (isNew) // Register a new sync
-            {
-                string localFolder(binaryToBase64(request->getFile(), strlen(request->getFile())));
-                string extraData(binaryToBase64(request->getText(), strlen(request->getText())));
-                client->reqs.add(new CommandBackupPut(client, bType, request->getNodeHandle(),
-                                                      localFolder, client->getDeviceidHash(),
-                                                      request->getAccess(), request->getNumDetails(), extraData));
+                string localFolderEncrypted(client->cypherTLVTextWithMasterKey("lf", localFolder));
+                string extraDataEncrypted;
+                if (extraData)
+                {
+                    extraDataEncrypted = client->cypherTLVTextWithMasterKey("ed", extraData);
+                }
+
+                client->reqs.add(new CommandBackupPut(client, bType, backupName, remoteNode,
+                                                      localFolderEncrypted.c_str(), client->getDeviceidHash(),
+                                                      request->getAccess(), request->getNumDetails(), extraDataEncrypted));
             }
-            else // update a backup
+            else // update an existing sync/backup
             {
-                const char* file = request->getFile();
-                unique_ptr<char[]> localFolder(file ? binaryToBase64(file, strlen(file)) : nullptr);
-                const char* extra = request->getText();
-                unique_ptr<char[]> extraData(extra ? binaryToBase64(extra, strlen(extra)) : nullptr);
+                if ((backupType != MegaApi::BACKUP_TYPE_CAMERA_UPLOADS
+                     && backupType != MegaApi::BACKUP_TYPE_MEDIA_UPLOADS
+                     && backupType != MegaApi::BACKUP_TYPE_INVALID)
+                        || ISUNDEF(backupId))   // existing backups must have a backup id
+                {
+                    e = API_EARGS;
+                    break;
+                }
+
+                string localFolderEncrypted;
+                if (localFolder)
+                {
+                    localFolderEncrypted = client->cypherTLVTextWithMasterKey("lf", localFolder);
+                }
+
+                string extraDataEncrypted;
+                if (extraData)
+                {
+                    extraDataEncrypted = client->cypherTLVTextWithMasterKey("ed", extraData);
+                }
+
                 client->reqs.add(new CommandBackupPut(client,
                                                       (MegaHandle)request->getParentHandle(), 
                                                       bType,
                                                       request->getNodeHandle(), 
-                                                      localFolder.get(), 
+                                                      localFolderEncrypted.empty() ? nullptr : localFolderEncrypted.c_str(),
                                                       client->getDeviceidHash().c_str(),
                                                       request->getAccess(),
                                                       request->getNumDetails(),
-                                                      extraData.get()));
+                                                      extraDataEncrypted.empty() ? nullptr : extraDataEncrypted.c_str()));
             }
             break;
         }
@@ -23347,10 +23387,12 @@ void MegaApiImpl::setBackup(int backupType, MegaHandle targetNode, const char* l
     request->setTotalBytes(backupType);
     request->setNodeHandle(targetNode);
     request->setFile(localFolder);
-    request->setName(backupName);
+    request->setName(backupName ? Base64::btoa(backupName).c_str() : nullptr);
     request->setAccess(state);
     request->setNumDetails(subState);
     request->setText(extraData);
+    request->setFlag(true); // indicates it's a new backup
+
     requestQueue.push(request);
     waiter->notify();
 }
@@ -23363,7 +23405,7 @@ void MegaApiImpl::removeBackup(MegaHandle backupId, MegaRequestListener *listene
     waiter->notify();
 }
 
-void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener)
+void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_PUT, listener);
     request->setParentHandle(backupId);
@@ -23381,11 +23423,6 @@ void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle t
     if (localFolder)
     {
         request->setFile(localFolder);
-    }
-
-    if (backupName)
-    {
-        request->setName(backupName);
     }
 
     if (state >= 0)
@@ -23417,6 +23454,30 @@ void MegaApiImpl::sendBackupHeartbeat(MegaHandle backupId, int status, int progr
     request->setTransferTag(downs);
     request->setNumber(ts);
     request->setNodeHandle(lastNode);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::getBackupName(MegaHandle backupId, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_BACKUP_NAMES);
+    request->setNodeHandle(backupId);
+    request->setText(Base64Str<MegaClient::BACKUPHANDLE>(backupId));
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setBackupName(MegaHandle backupId, const char* backupName, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    MegaStringMapPrivate stringMap;
+    string buf = backupName ? Base64::btoa(backupName) : Base64::btoa("");    // backup name is null to remove it
+    stringMap.set(Base64Str<MegaClient::BACKUPHANDLE>(backupId), Base64::btoa(buf).c_str());
+    request->setMegaStringMap(&stringMap);
+    request->setParamType(MegaApi::USER_ATTR_BACKUP_NAMES);
+    request->setNodeHandle(backupId);
+    request->setText(backupName);
     requestQueue.push(request);
     waiter->notify();
 }
