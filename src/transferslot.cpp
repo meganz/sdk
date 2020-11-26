@@ -364,17 +364,21 @@ void TransferSlot::correctNodeMac(int64_t correctMac)
             {
                 if (n->type == FILENODE && n->nodekey().size() == FILENODEKEYLENGTH)
                 {
-                    auto k1 = (byte*)n->nodekey().data();
-                    auto k2 = k1 + SymmCipher::KEYLENGTH;
-                    if (transfer->metamac == MemAccess::get<int64_t>((const char*)k2 + sizeof(int64_t)))
+                    if (transfer->client->loggedin() == FULLACCOUNT &&
+                        n->firstancestor()->owner == transfer->client->me)
                     {
-                        SymmCipher::xorblock(k2, k1);
-                        MemAccess::set<int64_t>(k2 + sizeof(int64_t), correctMac);
-                        SymmCipher::xorblock(k2, k1);
+                        auto k1 = (byte*)n->nodekey().data();
+                        auto k2 = k1 + SymmCipher::KEYLENGTH;
+                        if (transfer->metamac == MemAccess::get<int64_t>((const char*)k2 + sizeof(int64_t)))
+                        {
+                            SymmCipher::xorblock(k2, k1);
+                            MemAccess::set<int64_t>(k2 + sizeof(int64_t), correctMac);
+                            SymmCipher::xorblock(k2, k1);
 
-                        vector<NewNode> nn(1);  // copies with the adjusted key taken from the node to copy
-                        transfer->client->putnodes_prepareCopyNode(&nn[0], n, UNDEF, n->nodehandle);
-                        transfer->client->putnodes(n->parent->nodehandle, move(nn));
+                            vector<NewNode> nn(1);  // copies with the adjusted key taken from the node to copy
+                            transfer->client->putnodes_prepareCopyNode(&nn[0], n, UNDEF, n->nodehandle);
+                            transfer->client->putnodes(n->parent->nodehandle, move(nn));
+                        }
                     }
                 }
             }
