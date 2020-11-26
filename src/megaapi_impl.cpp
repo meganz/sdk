@@ -1509,10 +1509,18 @@ void MegaApiImpl::backupFolder(const char *localFolder, const char *backupName, 
 error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) // request created in MegaApiImpl::backupFolder()
 {
     // validate local path and backup name
-    string localPath(request->getFile());
-    string backupName(request->getName());
+    if (!request->getFile())
+    {
+        return API_EARGS;
+    }
 
-    if (backupName.empty()) // get the last leaf of local path
+    string localPath(request->getFile());
+    string backupName;
+    if (request->getName())
+    {
+        backupName.assign(request->getName());
+    }
+    else    // get the last leaf of local path
     {
         // trim trailing path separator(s)
         while (!localPath.empty() && (localPath.back() == '\\' || localPath.back() == '/'))  localPath.pop_back();
@@ -23403,7 +23411,6 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_BACKUP_FOLDER: // request created in MegaApiImpl::backupFolder()
         {
             e = backupFolder_sendPendingRequest(request);
-
             break;
         }
         default:

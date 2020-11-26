@@ -14136,8 +14136,11 @@ class MegaApi
         /**
          * @brief Start backup for the given folder, to "My Backups" remote destination
          *
+         * The backup's folder name is optional. If not provided, it will take the name of the leaf folder of
+         * the local path. In example, for "/home/user/Documents", it will become "Documents".
+         *
          * @param localFolder The local folder to be backed up
-         * @param backupName The remote folder to be used for this backup, i.e. /My Backups/[DEVICE_NAME]/backupName
+         * @param backupName The remote folder to be used for this backup (optional)
          * @param listener MegaRequestListener to track this request
          */
         void backupFolder(const char *localFolder, const char *backupName = nullptr, MegaRequestListener *listener = nullptr);
