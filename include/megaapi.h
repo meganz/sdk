@@ -8582,6 +8582,9 @@ class MegaApi
          * - MegaRequest::getLink - Returns the public link to the folder
          * - MegaRequest::getPassword - Returns the auth link used for writting
          *
+         * If the provided authKey is not valid, onRequestFinish will
+         * be called with the error code MegaError::API_EACCESS.
+         *
          * @param megaFolderLink Public link to a folder in MEGA
          * @param authKey Authentication key to write into the folder link
          * @param listener MegaRequestListener to track this request
