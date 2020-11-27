@@ -2163,6 +2163,7 @@ void Syncs::clear()
 {
     mSyncVec.clear();
     resetSyncConfigDb();
+    isEmpty = true;
 }
 
 void Syncs::resetSyncConfigDb()
@@ -2368,6 +2369,8 @@ void Syncs::removeSyncByIndex(size_t index)
         mSyncConfigDb->removeByTag(mSyncVec[index]->mConfig.getTag());
         mClient.syncactivity = true;
         mSyncVec.erase(mSyncVec.begin() + index);
+
+        isEmpty = mSyncVec.empty();
     }
 }
 
@@ -2444,6 +2447,7 @@ void Syncs::resumeResumableSyncsOnStartup()
     for (auto& config : mSyncConfigDb->all())
     {
         mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(mClient, config )));
+        isEmpty = false;
     }
 
     for (auto& unifiedSync : mSyncVec)

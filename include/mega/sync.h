@@ -44,7 +44,7 @@ int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2,
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
                          LocalPath& localdebris);
 
-//// A collection of sync configs backed by a database table
+// A collection of sync configs backed by a database table
 class MEGA_API SyncConfigBag
 {
 public:

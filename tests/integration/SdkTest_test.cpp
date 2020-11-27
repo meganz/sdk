@@ -25,7 +25,7 @@
 #include "megaapi_impl.h"
 #include <algorithm>
 
-#if (__cplusplus > 201703L)
+#if (__cplusplus >= 201703L)
     #include <filesystem>
     namespace fs = std::filesystem;
     #define USE_FILESYSTEM
@@ -569,7 +569,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_ACCOUNT_DETAILS:
         mApi[apiIndex].accountDetails.reset(mApi[apiIndex].lastError == API_OK ? request->getMegaAccountDetails() : nullptr);
         break;
-  
+
     case MegaRequest::TYPE_BACKUP_PUT:
         mBackupId = request->getParentHandle();
         break;
@@ -4749,11 +4749,11 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
     char foldername[64] = "CommandBackupPutTest";
     ASSERT_NO_FATAL_FAILURE(createFolder(0, foldername, rootnode.get()));
-    
+
     MegaHandle targetNode = mApi[0].h;
     int state = 1;
     int subState = 3;
-    
+
     // setup a backup
     int backupType = MegaApi::BACKUP_TYPE_CAMERA_UPLOADS;
     auto err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
@@ -4779,7 +4779,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
 
     // negative test cases
     gTestingInvalidArgs = true;
-    
+
     // register the same backup twice: should work fine
     err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";

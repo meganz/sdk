@@ -179,7 +179,7 @@ void HeartBeatSyncInfo::updateStatus(UnifiedSync& us)
 
 #endif
 
-//////////////// BackupInfo ////////////////
+////////////// BackupInfo ////////////////
 
 MegaBackupInfo::MegaBackupInfo(BackupType type, string localFolder, handle megaHandle, int state, int substate, std::string extra)
     : mType(type)

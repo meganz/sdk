@@ -2631,11 +2631,7 @@ void MegaClient::exec()
 
                         syncs.stopCancelledFailedDisabled();
 
-                        bool skipTheRest = false;
-
-                        syncs.forEachRunningSync([&](Sync* sync) {
-
-                            if (skipTheRest) return;
+                        syncs.forEachRunningSync_shortcircuit([&](Sync* sync) {
 
                             if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
                             {
@@ -2670,8 +2666,7 @@ void MegaClient::exec()
 
                                         if (syncadding)
                                         {
-                                            skipTheRest = true;
-                                            return; // from lambda
+                                            return false; // from lambda - break loop
                                         }
                                     }
                                     else
@@ -2686,8 +2681,7 @@ void MegaClient::exec()
 
                                         // we interrupt processing the notifyq if the completion
                                         // of a node creation is required to continue
-                                        skipTheRest = true;
-                                        return; // from lambda
+                                        return false; // from lambda - break loop
                                     }
                                 }
 
@@ -2703,6 +2697,7 @@ void MegaClient::exec()
                                     sync->deletemissing(sync->localroot.get());
                                 }
                             }
+                            return true; // continue loop
                         });
 
                         if (syncadding)
@@ -7079,11 +7074,11 @@ void MegaClient::notifypurge(void)
 #ifdef ENABLE_SYNC
 
         // fail active syncs
+        //update sync root node location and trigger failing cases
+        handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
+        // check for renamed/moved sync root folders
         syncs.forEachRunningSync([&](Sync* sync) {
 
-            //update sync root node location and trigger failing cases
-            handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
-            // check for renamed/moved sync root folders
             Node* n = nodebyhandle(sync->getConfig().getRemoteNode());
             if (n && (n->changed.attrs || n->changed.parent || n->changed.removed))
             {

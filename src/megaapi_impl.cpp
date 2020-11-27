@@ -13348,7 +13348,7 @@ void MegaApiImpl::sync_removed(int tag)
     if (it != syncMap.end())
     {
         unique_ptr<MegaSyncPrivate> sync;
-		sync.reset(it->second);
+        sync.reset(it->second);
         syncMap.erase(it);
         fireonSyncDeleted(sync.get());
     }
@@ -21801,9 +21801,8 @@ void MegaApiImpl::sendPendingRequests()
                     {
                         request->setFile(path.c_str());
                     }
-                    found = found || matched;
-                    return matched;
                 }
+                found = found || matched;
                 return matched;
             });
 

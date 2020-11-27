@@ -68,13 +68,14 @@ public:
 
     virtual void updateStatus(UnifiedSync& us) {}
 
-    int32_t mPendingUps = 0;
-    int32_t mPendingDowns = 0;
-
 protected:
     int mStatus = 0;
     double mProgress = 0;
     bool mProgressInvalid = true;
+
+    friend class MegaBackupMonitor;
+    int32_t mPendingUps = 0;
+    int32_t mPendingDowns = 0;
 
     handle mLastItemUpdated = UNDEF; // handle of node most recently updated
 
@@ -97,11 +98,12 @@ class HeartBeatTransferProgressedInfo : public HeartBeatBackupInfo
 public:
     double progress() const override;
 
-    long long mTotalBytes = 0;
-    long long mTransferredBytes = 0;
-
     void adjustTransferCounts(int32_t upcount, int32_t downcount, long long totalBytes, long long transferBytes);
 
+private:
+    friend class MegaBackupMonitor;
+    long long mTotalBytes = 0;
+    long long mTransferredBytes = 0;
 };
 
 #ifdef ENABLE_SYNC
@@ -121,8 +123,6 @@ public:
     MEGA_DISABLE_COPY(HeartBeatSyncInfo)
 
     virtual void updateStatus(UnifiedSync& us) override;
-private:
-
 };
 #endif
 
