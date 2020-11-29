@@ -181,8 +181,9 @@ void HeartBeatSyncInfo::updateStatus(UnifiedSync& us)
 
 ////////////// BackupInfo ////////////////
 
-MegaBackupInfo::MegaBackupInfo(BackupType type, string localFolder, handle megaHandle, int state, int substate, std::string extra)
+MegaBackupInfo::MegaBackupInfo(BackupType type, string backupName, string localFolder, handle megaHandle, int state, int substate, std::string extra)
     : mType(type)
+    , mBackupName(backupName)
     , mLocalFolder(localFolder)
     , mMegaHandle(megaHandle)
     , mState(state)
@@ -195,6 +196,11 @@ MegaBackupInfo::MegaBackupInfo(BackupType type, string localFolder, handle megaH
 BackupType MegaBackupInfo::type() const
 {
     return mType;
+}
+
+string MegaBackupInfo::backupName() const
+{
+    return mBackupName;
 }
 
 string MegaBackupInfo::localFolder() const
@@ -224,7 +230,7 @@ string MegaBackupInfo::extra() const
 
 #ifdef ENABLE_SYNC
 MegaBackupInfoSync::MegaBackupInfoSync(UnifiedSync& us)
-    : MegaBackupInfo(getSyncType(us.mConfig), us.mConfig.getLocalPath(), us.mConfig.getRemoteNode()
+    : MegaBackupInfo(getSyncType(us.mConfig), sync.getName(), us.mConfig.getLocalPath(), us.mConfig.getRemoteNode()
                  , getSyncState(us), getSyncSubstatus(us), getSyncExtraData(us))
 {
 
@@ -335,7 +341,7 @@ void MegaBackupMonitor::registerBackupInfo(const MegaBackupInfo &info, UnifiedSy
     string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", info.localFolder()) );
     string deviceIdHash = mClient->getDeviceidHash();
 
-    mClient->reqs.add(new CommandBackupPut(mClient, info.type(), info.megaHandle(),
+    mClient->reqs.add(new CommandBackupPut(mClient, info.type(), info.backupName(), info.megaHandle(),
                                            localFolderEncrypted.c_str(),
                                            deviceIdHash.c_str(),
                                            info.state(), info.subState(), info.extra().c_str(),

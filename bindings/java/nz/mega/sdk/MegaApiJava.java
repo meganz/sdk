@@ -6387,6 +6387,26 @@ public class MegaApiJava {
     }
 
     /**
+     * Download a file or a folder from MEGA, saving custom app data during the transfer
+     *
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param node MegaNode that identifies the file or folder
+     * @param localPath Destination path for the file or folder
+     * If this path is a local folder, it must end with a '\' or '/' character and the file name
+     * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+     * one of these characters, the file will be downloaded to a file in that path.
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer.
+     */
+    public void startDownloadWithData(MegaNode node, String localPath, String appData){
+        megaApi.startDownloadWithData(node, localPath, appData);
+    }
+
+    /**
      * Download a file or a folder from MEGA, putting the transfer on top of the download queue.
      *
      * If the status of the business account is expired, onTransferFinish will be called with the error
@@ -6405,6 +6425,26 @@ public class MegaApiJava {
      */
     public void startDownloadWithTopPriority(MegaNode node, String localPath, String appData, MegaTransferListenerInterface listener){
         megaApi.startDownloadWithTopPriority(node, localPath, appData, createDelegateTransferListener(listener));
+    }
+
+    /**
+     * Download a file or a folder from MEGA, putting the transfer on top of the download queue.
+     *
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param node MegaNode that identifies the file or folder
+     * @param localPath Destination path for the file or folder
+     * If this path is a local folder, it must end with a '\' or '/' character and the file name
+     * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+     * one of these characters, the file will be downloaded to a file in that path.
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer.
+     */
+    public void startDownloadWithTopPriority(MegaNode node, String localPath, String appData){
+        megaApi.startDownloadWithTopPriority(node, localPath, appData);
     }
 
     /**
@@ -10771,6 +10811,8 @@ public class MegaApiJava {
      *    - subState: -1
      *    - extraData: nullptr
      *
+     * If you want to update the backup name, use \c MegaApi::setBackupName.	 
+	 *
      * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getParentHandle - Returns the backupId
@@ -10786,8 +10828,7 @@ public class MegaApiJava {
      * @param backupId backup id identifying the backup to be updated
      * @param backupType Local path of the folder
      * @param targetNode MEGA folder to hold the backups
-     * @param localFolder Local path of the folder
-     * @param backupName backup name of remote location
+     * @param localFolder Local path of the folder     
      * @param state backup state
      * @param subState backup subState
      * @param extraData extraData for the backup
@@ -10795,9 +10836,9 @@ public class MegaApiJava {
      *
      */
     public void updateBackup(long backupId, int backupType, long targetNode, String localFolder,
-        String backupName, int state, int subState, String extraData,
+        int state, int subState, String extraData,
         MegaRequestListenerInterface listener) {
-        megaApi.updateBackup(backupId, backupType, targetNode, localFolder, backupName, state,
+        megaApi.updateBackup(backupId, backupType, targetNode, localFolder, state,
             subState, extraData, createDelegateRequestListener(listener));
     }
 

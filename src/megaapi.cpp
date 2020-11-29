@@ -1215,6 +1215,11 @@ bool MegaTransfer::isForeignOverquota() const
     return false;
 }
 
+bool MegaTransfer::isForceNewUpload() const
+{
+    return false;
+}
+
 char *MegaTransfer::getLastBytes() const
 {
     return NULL;
@@ -5374,9 +5379,9 @@ void MegaApi::setBackup(int backupType, MegaHandle targetNode, const char* local
     pImpl->setBackup(backupType, targetNode, localFolder, backupName, state, subState, extraData, listener);
 }
 
-void MegaApi::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener)
+void MegaApi::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener* listener)
 {
-    pImpl->updateBackup(backupId, backupType, targetNode, localFolder, backupName, state, subState, extraData, listener);
+    pImpl->updateBackup(backupId, backupType, targetNode, localFolder, state, subState, extraData, listener);
 }
 
 void MegaApi::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
@@ -5387,6 +5392,17 @@ void MegaApi::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
 void MegaApi::sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener)
 {
     pImpl->sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode, listener);
+}
+
+void MegaApi::getBackupName(MegaHandle backupId, MegaRequestListener* listener)
+{
+    pImpl->getBackupName(backupId, listener);
+}
+
+void MegaApi::setBackupName(MegaHandle backupId, const char* backupName, MegaRequestListener* listener)
+{
+    pImpl->setBackupName(backupId, backupName, listener);
+
 }
 
 void MegaApi::fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener)

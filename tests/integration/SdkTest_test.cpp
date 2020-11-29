@@ -364,7 +364,8 @@ int SdkTest::getApiIndex(MegaApi* api)
 
 void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 {
-    if (request->getType() == MegaRequest::TYPE_DELETE)
+    auto type = request->getType();
+    if (type == MegaRequest::TYPE_DELETE)
     {
         return;
     }
@@ -377,7 +378,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     // there could be a race on these getting set?
     LOG_info << "lastError (by request) for MegaApi " << apiIndex << ": " << mApi[apiIndex].lastError;
 
-    switch(request->getType())
+    switch(type)
     {
     case MegaRequest::TYPE_CREATE_FOLDER:
         mApi[apiIndex].h = request->getNodeHandle();
@@ -422,11 +423,19 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         break;
 
     case MegaRequest::TYPE_GET_ATTR_USER:
-        if ( (mApi[apiIndex].lastError == API_OK) && (request->getParamType() != MegaApi::USER_ATTR_AVATAR) )
-        {
-            attributeValue = request->getText();
-        }
 
+        if (mApi[apiIndex].lastError == API_OK && 
+            (request->getParamType() == MegaApi::USER_ATTR_BACKUP_NAMES ||
+             request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES || 
+             request->getParamType() == MegaApi::USER_ATTR_ALIAS))
+        {
+            attributeValue = request->getName();
+        }
+        else if ( (mApi[apiIndex].lastError == API_OK) && (request->getParamType() != MegaApi::USER_ATTR_AVATAR))
+        {
+            attributeValue = request->getText() ? request->getText() : "";
+        }
+        
         if (request->getParamType() == MegaApi::USER_ATTR_AVATAR)
         {
             if (mApi[apiIndex].lastError == API_OK)
@@ -572,6 +581,8 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
     case MegaRequest::TYPE_BACKUP_PUT:
         mBackupId = request->getParentHandle();
+        if (request->getFlag()) // it's a new backup we just registered
+            mBackupNameToBackupId.push_back({ Base64::atob(request->getName()), mBackupId} );
         break;
 
     case MegaRequest::TYPE_FETCH_GOOGLE_ADS:
@@ -626,7 +637,8 @@ void SdkTest::onUsersUpdate(MegaApi* api, MegaUserList *users)
 
         if (u->hasChanged(MegaUser::CHANGE_TYPE_AVATAR)
                 || u->hasChanged(MegaUser::CHANGE_TYPE_FIRSTNAME)
-                || u->hasChanged(MegaUser::CHANGE_TYPE_LASTNAME))
+                || u->hasChanged(MegaUser::CHANGE_TYPE_LASTNAME)
+                || u->hasChanged(MegaUser::CHANGE_TYPE_BACKUP_NAMES))
         {
             mApi[apiIndex].userUpdated = true;
         }
@@ -797,7 +809,7 @@ bool SdkTest::waitForResponse(bool *responseReceived, unsigned int timeout)
             else if (!connRetried && tWaited > (pollingT * 240))
             {
                 megaApi[0]->retryPendingConnections(true);
-                if (megaApi[1] && megaApi[1]->isLoggedIn())
+                if (megaApi.size() > 1 && megaApi[1] && megaApi[1]->isLoggedIn())
                 {
                     megaApi[1]->retryPendingConnections(true);
                 }
@@ -4734,68 +4746,157 @@ TEST_F(SdkTest, SdkSimpleCommands)
 
 TEST_F(SdkTest, SdkHeartbeatCommands)
 {
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    getAccountsForTest(1);
     LOG_info << "___TEST HeartbeatCommands___";
+    mBackupNameToBackupId.clear();
 
     // setbackup test
     fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
-    auto localtestfolder = localtestroot.string();
-    const char* backup = "/CommandBackupPutTest";
-    const char* extra = "Test SetBackup Camera Upload Test";
-    unique_ptr<char[]> localFolder(MegaApiImpl::binaryToBase64(localtestfolder.c_str(), localtestfolder.length()));
-    unique_ptr<char[]> backupName(MegaApiImpl::binaryToBase64(backup, strlen(backup)));
-    unique_ptr<char[]> extraData(MegaApiImpl::binaryToBase64(extra, strlen(extra)));
-
+    string localFolder = localtestroot.string();
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
-    char foldername[64] = "CommandBackupPutTest";
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, foldername, rootnode.get()));
-
-    MegaHandle targetNode = mApi[0].h;
+    int backupType = BackupType::CAMERA_UPLOAD;
+    string extraData = "Test Set/GetBackupname APIs";
     int state = 1;
     int subState = 3;
 
-    // setup a backup
-    int backupType = MegaApi::BACKUP_TYPE_CAMERA_UPLOADS;
-    auto err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
-    ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
+    size_t numBackups = 3;
+    vector<string> backupNames {"/SdkBackupNamesTest1", "/SdkBackupNamesTest2", "/SdkBackupNamesTest3" };
+    vector<string> folderNames {"CommandBackupPutTest1", "CommandBackupPutTest2", "CommandBackupPutTest3" };
+    vector<MegaHandle> targetNodes;
 
-    // update a backup
-    const char* extra2 = "Test Update Camera Upload Test";
-    unique_ptr<char[]> extraData2(MegaApiImpl::binaryToBase64(extra2, strlen(extra2)));
-    err = synchronousUpdateBackup(0, mBackupId, MegaApi::BACKUP_TYPE_INVALID, UNDEF, nullptr, nullptr, -1, -1, extraData2.get());
+    // create remote folders for each backup
+    for (size_t i = 0; i < numBackups; i++)
+    {
+        ASSERT_NO_FATAL_FAILURE(createFolder(0, folderNames[i].c_str(), rootnode.get()));
+        targetNodes.push_back(mApi[0].h);
+    }
+
+    // set all backups, only wait for completion of the third one
+    size_t lastIndex = numBackups - 1;
+    for (size_t i = 0; i < lastIndex; i++)
+    {
+        megaApi[0]->setBackup(backupType, targetNodes[i], localFolder.c_str(), backupNames[i].c_str(), state, subState, extraData.c_str());
+    }
+    mApi[0].userUpdated = false;
+    auto err = synchronousSetBackup(0, backupType, targetNodes[lastIndex], localFolder.c_str(), backupNames[lastIndex].c_str(), state, subState, extraData.c_str());
+    ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
+    ASSERT_EQ(mBackupNameToBackupId.size(), numBackups) << "setBackup didn't register all the backups";
+
+    // wait for notification of user's attribute updated from last setBackup
+    ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
+
+    for (size_t i = 0; i < numBackups; i++)
+    {
+        err = synchronousGetBackupName(0, mBackupNameToBackupId[i].second);
+        ASSERT_EQ(MegaError::API_OK, err) << "getBackupName failed for backup" << i + 1 << "(error: " << err << ")";
+        ASSERT_EQ(attributeValue, backupNames[i]) << "getBackupName returned incorrect value for backup" << i + 1;
+    }
+
+    // update backup
+    extraData = "Test Update Camera Upload Test";
+    err = synchronousUpdateBackup(0, mBackupId, MegaApi::BACKUP_TYPE_INVALID, UNDEF, nullptr, -1, -1, extraData.c_str());
     ASSERT_EQ(MegaError::API_OK, err) << "updateBackup failed (error: " << err << ")";
 
-    // remove an existing backup
-    err = synchronousRemoveBackup(0, mBackupId, nullptr);
-    ASSERT_EQ(MegaError::API_OK, err) << "removeBackup failed (error: " << err << ")";
+    // give a new name to the backup
+    string backupName = "/SdkBackupNames_setBackupName_Test";
+    err = synchronousSetBackupName(0, mBackupId, backupName.c_str());
+    ASSERT_EQ(MegaError::API_OK, err) << "setBackupName failed (error: " << err << ")";
+
+    // check the name of the backup has been updated
+    err = synchronousGetBackupName(0, mBackupId);
+    ASSERT_EQ(MegaError::API_OK, err) << "getBackupName failed (error: " << err << ")";
+    ASSERT_EQ(attributeValue, backupName) << "setbackupName failed to update the backup name";
+
+    // now remove all backups, only wait for completion of the third one
+    // (automatically updates the user's attribute, removing the entry for the backup id)
+    for (size_t i = 0; i < lastIndex; i++)
+    {
+        megaApi[0]->removeBackup(mBackupNameToBackupId[i].second);
+    }
+    mApi[0].userUpdated = false;
+    synchronousRemoveBackup(0, mBackupNameToBackupId[lastIndex].second);
+    // wait for notification of the attr being updated, which occurs after removeBackup() finishes
+    ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
+
+    // check the backup name is no longer available for the removed backup id (ENOENT)
+    for (size_t i = 0; i < numBackups; i++)
+    {
+        err = synchronousGetBackupName(0, mBackupNameToBackupId[i].second);
+        ASSERT_EQ(MegaError::API_ENOENT, err) << "removeBackup failed to remove backup name (error: " << err << ")";
+    }
 
     // add a backup again
-    err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
+    err = synchronousSetBackup(0, backupType, targetNodes[0], localFolder.c_str(), backupNames[0].c_str(), state, subState, extraData.c_str());
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
 
     // check heartbeat
-    err = synchronousSendBackupHeartbeat(0, mBackupId, 1, 10, 1, 1, 0, targetNode);
+    err = synchronousSendBackupHeartbeat(0, mBackupId, 1, 10, 1, 1, 0, targetNodes[0]);
     ASSERT_EQ(MegaError::API_OK, err) << "sendBackupHeartbeat failed (error: " << err << ")";
 
-    // negative test cases
+
+    // --- negative test cases ---
     gTestingInvalidArgs = true;
 
+    
     // register the same backup twice: should work fine
-    err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
+    err = synchronousSetBackup(0, backupType, targetNodes[0], localFolder.c_str(), backupNames[0].c_str(), state, subState, extraData.c_str());
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
 
     // update a removed backup: should throw an error
     err = synchronousRemoveBackup(0, mBackupId, nullptr);
     ASSERT_EQ(MegaError::API_OK, err) << "removeBackup failed (error: " << err << ")";
-    // update the removed backup
-    err = synchronousUpdateBackup(0, mBackupId, BackupType::INVALID, UNDEF, nullptr, nullptr, -1, -1, extraData2.get());
+    err = synchronousUpdateBackup(0, mBackupId, BackupType::INVALID, UNDEF, nullptr, -1, -1, extraData.c_str());
     ASSERT_NE(MegaError::API_OK, err) << "updateBackup failed (error: " << err << ")";
 
     // create a backup with a big status: should report an error
-    err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), 255/*state*/, subState, extraData.get());
+    err = synchronousSetBackup(0, backupType, targetNodes[0], localFolder.c_str(), backupNames[0].c_str(), 255/*state*/, subState, extraData.c_str());
     ASSERT_NE(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
 
     gTestingInvalidArgs = false;
+}
+
+TEST_F(SdkTest, DISABLED_SdkDeviceNames)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST SdkDeviceNames___";
+    
+    // test setter/getter
+    string deviceName = "SdkDeviceNamesTest";
+    auto err = synchronousSetDeviceName(0, deviceName.c_str());
+    ASSERT_EQ(MegaError::API_OK, err) << "setDeviceName failed (error: " << err << ")";
+    err = synchronousGetDeviceName(0);
+    ASSERT_EQ(MegaError::API_OK, err) << "getDeviceName failed (error: " << err << ")";
+    ASSERT_EQ(attributeValue, deviceName) << "getDeviceName returned incorrect value";
+}
+
+TEST_F(SdkTest, DISABLED_SdkUserAlias)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    LOG_info << "___TEST SdkUserAlias___";
+
+    // setup
+    MegaHandle uh = UNDEF;
+    if (auto u = megaApi[0]->getMyUser())
+    {
+        uh = u->getHandle();
+    }
+    else
+    {
+        ASSERT_TRUE(FALSE) << "Cannot find the MegaUser for email: " << mApi[0].email;
+    }
+
+    if (uh == UNDEF)
+    {
+        ASSERT_TRUE(FALSE) << "failed to get user handle for email:" << mApi[0].email;
+    }
+
+    // test setter/getter
+    string alias = "UserAliasTest";
+    auto err = synchronousSetUserAlias(0, uh, Base64::btoa(alias).c_str());
+    ASSERT_EQ(MegaError::API_OK, err) << "setUserAlias failed (error: " << err << ")";
+    err = synchronousGetUserAlias(0, uh);
+    ASSERT_EQ(MegaError::API_OK, err) << "getUserAlias failed (error: " << err << ")";
+    ASSERT_EQ(attributeValue, alias) << "getUserAlias returned incorrect value";
 }
 
 TEST_F(SdkTest, SdkGetCountryCallingCodes)

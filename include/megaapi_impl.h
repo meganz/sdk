@@ -705,6 +705,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         void setStartFirst(bool startFirst);
         void setBackupTransfer(bool backupTransfer);
         void setForeignOverquota(bool backupTransfer);
+        void setForceNewUpload(bool forceNewUpload);
         void setStreamingTransfer(bool streamingTransfer);
         void setLastBytes(char *lastBytes);
         void setLastError(const MegaError *e);
@@ -746,6 +747,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         virtual bool shouldStartFirst() const;
         bool isBackupTransfer() const override;
         bool isForeignOverquota() const override;
+        bool isForceNewUpload() const override;
         char *getLastBytes() const override;
         MegaError getLastError() const override;
         const MegaError *getLastErrorExtended() const override;
@@ -787,6 +789,7 @@ protected:
             bool startFirst : 1;
             bool backupTransfer : 1;
             bool foreignOverquota : 1;
+            bool forceNewUpload : 1;
         };
 
         int64_t startTime;
@@ -2768,9 +2771,12 @@ class MegaApiImpl : public MegaApp
         void dismissBanner(int id, MegaRequestListener *listener);
 
         void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
-        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener);
+
+        void getBackupName(MegaHandle backupId, MegaRequestListener* listener = nullptr);
+        void setBackupName(MegaHandle backupId, const char* backupName, MegaRequestListener* listener = nullptr);
 
         void fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener = nullptr);
         void queryGoogleAds(int adFlags, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);

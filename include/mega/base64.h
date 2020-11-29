@@ -93,11 +93,10 @@ public:
 class MEGA_API URLCodec
 {
     static bool ishexdigit(char c);
-    static bool issafe(char c);
     static unsigned char hexval(char c);
 
-
 public:
+    static bool issafe(char c);
     static void escape(string* plain, string* escaped);
     static void unescape(string* escaped, string* plain);
 };
