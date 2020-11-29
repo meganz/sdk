@@ -4882,12 +4882,12 @@ TEST_F(SdkTest, DISABLED_SdkUserAlias)
     }
     else
     {
-        ASSERT_TRUE(FALSE) << "Cannot find the MegaUser for email: " << mApi[0].email;
+        ASSERT_TRUE(false) << "Cannot find the MegaUser for email: " << mApi[0].email;
     }
 
     if (uh == UNDEF)
     {
-        ASSERT_TRUE(FALSE) << "failed to get user handle for email:" << mApi[0].email;
+        ASSERT_TRUE(false) << "failed to get user handle for email:" << mApi[0].email;
     }
 
     // test setter/getter

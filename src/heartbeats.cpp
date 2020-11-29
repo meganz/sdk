@@ -230,10 +230,14 @@ string MegaBackupInfo::extra() const
 
 #ifdef ENABLE_SYNC
 MegaBackupInfoSync::MegaBackupInfoSync(UnifiedSync& us)
-    : MegaBackupInfo(getSyncType(us.mConfig), sync.getName(), us.mConfig.getLocalPath(), us.mConfig.getRemoteNode()
-                 , getSyncState(us), getSyncSubstatus(us), getSyncExtraData(us))
+    : MegaBackupInfo(getSyncType(us.mConfig),
+                     us.mConfig.getName(),
+                     us.mConfig.getLocalPath(),
+                     us.mConfig.getRemoteNode(),
+                     getSyncState(us),
+                     getSyncSubstatus(us),
+                     getSyncExtraData(us))
 {
-
 }
 
 int MegaBackupInfoSync::calculatePauseActiveState(MegaClient *client)
@@ -328,10 +332,15 @@ void MegaBackupMonitor::updateBackupInfo(handle backupId, const MegaBackupInfo &
     string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", info.localFolder()) );
     string deviceIdHash = mClient->getDeviceidHash();
 
-    mClient->reqs.add(new CommandBackupPut(mClient, info.type(), info.megaHandle(),
+    mClient->reqs.add(new CommandBackupPut(mClient,
+                                           info.type(),
+                                           info.backupName(),
+                                           info.megaHandle(),
                                            localFolderEncrypted.c_str(),
                                            deviceIdHash.c_str(),
-                                           info.state(), info.subState(), info.extra().c_str(),
+                                           info.state(),
+                                           info.subState(),
+                                           info.extra().c_str(),
                                            nullptr));
 }
 
