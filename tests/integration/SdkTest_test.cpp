@@ -4777,6 +4777,8 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     {
         megaApi[0]->setBackup(backupType, targetNodes[i], localFolder.c_str(), backupNames[i].c_str(), state, subState, extraData.c_str());
     }
+
+
     mApi[0].userUpdated = false;
     auto err = synchronousSetBackup(0, backupType, targetNodes[lastIndex], localFolder.c_str(), backupNames[lastIndex].c_str(), state, subState, extraData.c_str());
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
@@ -4787,6 +4789,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
 
     for (size_t i = 0; i < numBackups; i++)
     {
+        attributeValue = "Attribute wasn't updated";
         err = synchronousGetBackupName(0, mBackupNameToBackupId[i].second);
         ASSERT_EQ(MegaError::API_OK, err) << "getBackupName failed for backup" << i + 1 << "(error: " << err << ")";
         ASSERT_EQ(attributeValue, backupNames[i]) << "getBackupName returned incorrect value for backup" << i + 1;
@@ -4803,6 +4806,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     ASSERT_EQ(MegaError::API_OK, err) << "setBackupName failed (error: " << err << ")";
 
     // check the name of the backup has been updated
+    attributeValue = "Attribute wasn't updated";
     err = synchronousGetBackupName(0, mBackupId);
     ASSERT_EQ(MegaError::API_OK, err) << "getBackupName failed (error: " << err << ")";
     ASSERT_EQ(attributeValue, backupName) << "setbackupName failed to update the backup name";
