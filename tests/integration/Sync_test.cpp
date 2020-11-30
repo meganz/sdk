@@ -1429,7 +1429,7 @@ struct StandardClient : public MegaApp
         multimap<string, Model::ModelNode*> ms;
         multimap<string, Node*> ns;
         for (auto& m : mn->kids) ms.emplace(m->name, m.get());
-        for (auto& n2 : client.getChildrens(n)) ns.emplace(n2->displayname(), n2);
+        for (auto& n2 : client.getChildren(n)) ns.emplace(n2->displayname(), n2);
 
         int matched = 0;
         vector<string> matchedlist;
@@ -4220,7 +4220,7 @@ struct TwoWaySyncSymmetryCase
         prefix += string("/") + n->displayname();
         out() << prefix << endl;
         if (n->type == FILENODE) return;
-        for (auto& c : n->client->getChildrens(n))
+        for (auto& c : n->client->getChildren(n))
         {
             PrintRemoteTree(c, prefix);
         }

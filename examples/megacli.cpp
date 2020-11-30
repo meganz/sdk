@@ -1961,7 +1961,7 @@ static void dumptree(Node* n, bool recurse, int depth, const char* title, ofstre
 
     if (n->type != FILENODE)
     {
-        for (Node* node : client->getChildrens(n))
+        for (Node* node : client->getChildren(n))
         {
             dumptree(node, recurse, depth + 1, NULL, toFile);
         }
@@ -2437,14 +2437,14 @@ private:
 
 void getDepthFirstFileHandles(Node* n, deque<handle>& q)
 {
-    for (auto c : client->getChildrens(n))
+    for (auto c : client->getChildren(n))
     {
         if (c->type == FILENODE)
         {
             q.push_back(c->nodehandle);
         }
     }
-    for (auto& c : client->getChildrens(n))
+    for (auto& c : client->getChildren(n))
     {
         if (c->type > FILENODE)
         {
@@ -2488,7 +2488,7 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
     std::vector<Node*> emptyFolders;
     bool empty = true;
     Node* trash = client->nodebyhandle(client->rootnodes[2]);
-    for (auto c : client->getChildrens(n))
+    for (auto c : client->getChildren(n))
     {
         bool subfolderEmpty = recurse_findemptysubfoldertrees(c, moveToTrash);
         if (subfolderEmpty)
@@ -2565,7 +2565,7 @@ bool recursiveCompare(Node* mn, fs::path p)
     auto fileSystemType = client->fsaccess->getlocalfstype(LocalPath::fromPath(path, *client->fsaccess));
     multimap<string, Node*> ms;
     multimap<string, fs::path> ps;
-    for (auto& m : client->getChildrens(mn))
+    for (auto& m : client->getChildren(mn))
     {
         string leafname = m->displayname();
         client->fsaccess->escapefsincompatible(&leafname, fileSystemType);
@@ -3188,7 +3188,7 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
                 return false;
             }
         }
-        for (Node* node : client->getChildrens(n))
+        for (Node* node : client->getChildren(n))
         {
             if (!recursiveget(std::move(newpath), node, folders, queued))
             {
@@ -3209,7 +3209,7 @@ bool regexget(const string& expression, Node* n, unsigned& queued)
         if (n->type == FOLDERNODE || n->type == ROOTNODE)
         {
             DBTableTransactionCommitter committer(client->tctable);
-            for (Node* node : client->getChildrens(n))
+            for (Node* node : client->getChildren(n))
             {
                 if (node->type == FILENODE)
                 {
@@ -3506,7 +3506,7 @@ void exec_rm(autocomplete::ACState& s)
         if (useregex)
         {
             std::regex re(childregexstring);
-            for (Node* c : client->getChildrens(n))
+            for (Node* c : client->getChildren(n))
             {
                 if (std::regex_match(c->displayname(), re))
                 {
@@ -3968,7 +3968,7 @@ void exec_get(autocomplete::ACState& s)
                 else
                 {
                     // ...or all files in the specified folder (non-recursive)
-                    for (Node* node : client->getChildrens(n))
+                    for (Node* node : client->getChildren(n))
                     {
                         if (node->type == FILENODE)
                         {
@@ -4851,7 +4851,7 @@ void exec_getfa(autocomplete::ACState& s)
         }
         else
         {
-            for (Node* node : client->getChildrens(n))
+            for (Node* node : client->getChildren(n))
             {
                 if (node->type == FILENODE && node->hasfileattribute(type))
                 {
@@ -6441,7 +6441,7 @@ void exec_mediainfo(autocomplete::ACState& s)
             case INCOMINGNODE:
             case RUBBISHNODE:
             {
-                for (Node* m : client->getChildrens(n))
+                for (Node* m : client->getChildren(n))
                 {
                     if (m->type == FILENODE && m->hasfileattribute(fa_media))
                     {

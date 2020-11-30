@@ -867,8 +867,8 @@ public:
     // get the handle of the older version for a NewNode
     handle getovhandle(Node *parent, string *name);
 
-    // Load from db node childrens
-    node_list getChildrens(Node*);
+    // Load from db node children
+    node_list getChildren(Node*);
 
     // Get number of children from a node
     size_t getNumberOfChildren(handle);

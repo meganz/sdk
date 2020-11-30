@@ -1105,7 +1105,7 @@ Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
     fsaccess->normalize(&nname);
 
     // TODO Nodes on Demand: it can be implemented with a query to DB
-    node_list nodeList = getChildrens(p);
+    node_list nodeList = getChildren(p);
     for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
     {
         if (!strcmp(nname.c_str(), (*it)->displayname()))
@@ -1140,7 +1140,7 @@ vector<Node*> MegaClient::childnodesbyname(Node* p, const char* name, bool skipf
     fsaccess->normalize(&nname);
 
     // TODO Nodes on Demand: it can be implemented with a query to DB
-    node_list nodeList = getChildrens(p);
+    node_list nodeList = getChildren(p);
     for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
     {
         if (nname == (*it)->displayname())
@@ -7773,7 +7773,7 @@ void MegaClient::removeOutSharesFromSubtree(Node* n)
     }
 
     // TODO Nodes on Demand: Review if it's possible this method with DB method
-    for (auto& c : getChildrens(n))
+    for (auto& c : getChildren(n))
     {
         removeOutSharesFromSubtree(c);
     }
@@ -7808,7 +7808,7 @@ error MegaClient::unlink(Node* n, bool keepversions, int tag, std::function<void
     if (kv)
     {
         Node *newerversion = n->parent;
-        node_list nodeList = getChildrens(n);
+        node_list nodeList = getChildren(n);
         if (nodeList.size())
         {
             Node *olderversion = nodeList.back();
@@ -9682,7 +9682,7 @@ void MegaClient::proctree(Node* n, TreeProc* tp, bool skipinshares, bool skipver
 {
     if (!skipversions || n->type != FILENODE)
     {
-        node_list nodeList = getChildrens(n);
+        node_list nodeList = getChildren(n);
         for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); )
         {
             Node *child = *it++;
@@ -11542,7 +11542,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
             n = Node::unserialize(this, &node.mNode, &dp);
             if (n->type == ROOTNODE)
             {
-                getChildrens(n);
+                getChildren(n);
             }
         }
 
@@ -11561,7 +11561,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
             n = Node::unserialize(this, &node.mNode, &dp, node.mDecrypted);
             if (n->type == ROOTNODE)
             {
-                getChildrens(n);
+                getChildren(n);
             }
         }
 
@@ -13420,7 +13420,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
     string localname;
 
     // build child hash - nameclash resolution: use newest/largest version
-    node_list nodeList = getChildrens(l->node);
+    node_list nodeList = getChildren(l->node);
     for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
     {
         attr_map::iterator ait;
@@ -13764,7 +13764,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
     {
         // corresponding remote node present: build child hash - nameclash
         // resolution: use newest version
-        node_list nodeList = getChildrens(l->node);
+        node_list nodeList = getChildren(l->node);
         for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
         {
             // node must be alive
@@ -14101,7 +14101,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
                             }
 
                             recentVersions++;
-                            node_list nodeList = getChildrens(version);
+                            node_list nodeList = getChildren(version);
                             if (!nodeList.size())
                             {
                                 break;
@@ -14194,7 +14194,7 @@ bool MegaClient::syncup(LocalNode* l, dstime* nds, size_t& parentPending)
 
                 char report[256];
 
-                node_list nodeList = getChildrens(l->node);
+                node_list nodeList = getChildren(l->node);
                 // always report LocalNode's type, name length, mtime, file size
                 sprintf(report, "[%u %u %d %d %d] %d %d %d %d %d %" PRIi64,
                     (int)nchildren.size(),
@@ -15609,9 +15609,9 @@ namespace action_bucket_compare
         if (a->parent != b->parent) return a->parent > b->parent;
 
         // added/updated - distinguish by versioning
-        size_t aChildrens = mc->getNumberOfChildren(a->nodehandle);
-        size_t bChildrens = mc->getNumberOfChildren(b->nodehandle);
-        if (aChildrens != bChildrens) return aChildrens > bChildrens;
+        size_t aChildren = mc->getNumberOfChildren(a->nodehandle);
+        size_t bChildren = mc->getNumberOfChildren(b->nodehandle);
+        if (aChildren != bChildren) return aChildren > bChildren;
 
         // media/nonmedia
         bool a_media = mc->nodeIsMedia(a, nullptr, nullptr);
@@ -15858,7 +15858,7 @@ handle MegaClient::getovhandle(Node *parent, string *name)
     return ovhandle;
 }
 
-node_list MegaClient::getChildrens(Node* node)
+node_list MegaClient::getChildren(Node* node)
 {
     node_list nodeList;
     if (!node || !sctable)

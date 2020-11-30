@@ -10992,7 +10992,7 @@ bool MegaApiImpl::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, boo
 
     if (node->type != FILENODE)
     {
-        node_list nodeList = client->getChildrens(node);
+        node_list nodeList = client->getChildren(node);
         for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); )
         {
             MegaNode *megaNode = MegaNodePrivate::fromNode(*it++);
@@ -11596,7 +11596,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         }
         else
         {
-            node_list list = client->getChildrens(node);
+            node_list list = client->getChildren(node);
             for (node_list::iterator it = list.begin(); it != list.end()
                  && !(cancelToken && cancelToken->isCancelled()); it++)
             {
@@ -12001,7 +12001,7 @@ MegaNode *MegaApiImpl::getNodeByCRC(const char *crc, MegaNode *parent)
     byte binarycrc[sizeof(node->crc)];
     Base64::atob(crc, binarycrc, sizeof(binarycrc));
 
-    node_list nodeList = client->getChildrens(node);
+    node_list nodeList = client->getChildren(node);
     for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
     {
         Node *child = (*it);
@@ -17772,7 +17772,7 @@ int MegaApiImpl::getNumChildFiles(MegaNode* p)
 
     // TODO Nodes on Demand: it can be implemented with a query to DB
     int numFiles = 0;
-    node_list nodeList = client->getChildrens(parent);
+    node_list nodeList = client->getChildren(parent);
     for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
     {
         if ((*it)->type == FILENODE)
@@ -17800,7 +17800,7 @@ int MegaApiImpl::getNumChildFolders(MegaNode* p)
 
     // TODO Nodes on Demand: it can be implemented with a query to DB
     int numFolders = 0;
-    node_list nodeList = client->getChildrens(parent);
+    node_list nodeList = client->getChildren(parent);
     for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); it++)
     {
         if ((*it)->type != FILENODE)
@@ -17826,7 +17826,7 @@ MegaNodeList *MegaApiImpl::getChildren(MegaNode* p, int order)
     Node *parent = client->nodebyhandle(p->getHandle());
     if (parent && parent->type != FILENODE)
     {
-        node_list nodeList = client->getChildrens(parent);
+        node_list nodeList = client->getChildren(parent);
         childrenNodes.reserve(nodeList.size());
         for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); )
         {
@@ -17860,7 +17860,7 @@ MegaNodeList *MegaApiImpl::getVersions(MegaNode *node)
     bool lookingFor = true;
     while (lookingFor)
     {
-        node_list nodeList = client->getChildrens(current);
+        node_list nodeList = client->getChildren(current);
         if (nodeList.empty())
         {
             lookingFor = false;
@@ -17899,7 +17899,7 @@ int MegaApiImpl::getNumVersions(MegaNode *node)
     bool looking = true;
     while (looking)
     {
-        node_list nodeList = client->getChildrens(current);
+        node_list nodeList = client->getChildren(current);
         if (nodeList.empty())
         {
             looking = false;
@@ -17932,7 +17932,7 @@ bool MegaApiImpl::hasVersions(MegaNode *node)
         return false;
     }
 
-    node_list nodeList = client->getChildrens(current);
+    node_list nodeList = client->getChildren(current);
     assert(!nodeList.size()
            || (nodeList.back()->parent == current
                && nodeList.back()->type == FILENODE));
@@ -17971,7 +17971,7 @@ MegaChildrenLists *MegaApiImpl::getFileFolderChildren(MegaNode *p, int order)
     node_vector files;
     node_vector folders;
     // TODO Nodes on Demand: it can be implemented with a query to DB
-    node_list nodeList = client->getChildrens(parent);
+    node_list nodeList = client->getChildren(parent);
     for (node_list::iterator it = nodeList.begin(); it != nodeList.end(); )
     {
         Node *n = *it++;
@@ -20452,16 +20452,16 @@ void MegaApiImpl::sendPendingRequests()
 
                         e = client->setattr(current);
 
-                        node_list childrens = client->getChildrens(current);
-                        if (current->type != FILENODE || !childrens.size())
+                        node_list children = client->getChildren(current);
+                        if (current->type != FILENODE || !children.size())
                         {
                             // If node is a folder or doesn't have any versions
                             break;
                         }
 
                         // Retrieve next node version (all versions must have the same lbl/fav value)
-                        assert(childrens.back()->parent == current);
-                        current = childrens.back();
+                        assert(children.back()->parent == current);
+                        current = children.back();
                     }
                     while (current);
                     break;
