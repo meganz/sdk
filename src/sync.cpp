@@ -888,7 +888,7 @@ bool Sync::readstatecache()
     return false;
 }
 
-const SyncConfig& Sync::getConfig() const
+SyncConfig& Sync::getConfig()
 {
     return mUnifiedSync.mConfig;
 }
@@ -967,7 +967,7 @@ void Sync::cachenodes()
     }
 }
 
-void Sync::changestate(syncstate_t newstate, SyncError newSyncError)
+void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool notifyApp)
 {
     if (newstate != state || newSyncError != errorCode)
     {
@@ -981,7 +981,10 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError)
         errorCode = newSyncError;
         fullscan = false;
 
-        mUnifiedSync.mClient.app->syncupdate_state(mUnifiedSync.mConfig.getTag(), newstate, newSyncError);
+        if (notifyApp)
+        {
+            mUnifiedSync.mClient.app->syncupdate_state(mUnifiedSync.mConfig.getTag(), newstate, newSyncError);
+        }
     }
 }
 
@@ -2080,7 +2083,7 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
     if (isAnError(syncError))
     {
         // save configuration but avoid creating active sync, and set as temporary disabled:
-        mClient.syncs.saveAndUpdateSyncConfig(&mConfig, SYNC_DISABLED, static_cast<SyncError>(syncError));
+        mClient.syncs.saveAndUpdateSyncConfig(mConfig, SYNC_DISABLED, static_cast<SyncError>(syncError));
         return API_EFAILED;
     }
 
@@ -2116,7 +2119,7 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
 
     if (delayInitialScan)
     {
-        client->syncs.saveAndUpdateSyncConfig(&mConfig, mSync->state, static_cast<SyncError>(syncError));
+        client->syncs.saveAndUpdateSyncConfig(mConfig, mSync->state, static_cast<SyncError>(syncError));
     }
     else
     {
@@ -2129,7 +2132,7 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
             LOG_debug << "Initial scan finished. New / modified files: " << mSync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
 
             // Sync constructor now receives the syncConfig as reference, to be able to write -at least- fingerprints for new syncs
-            client->syncs.saveAndUpdateSyncConfig(&mConfig, mSync->state, static_cast<SyncError>(syncError));
+            client->syncs.saveAndUpdateSyncConfig(mConfig, mSync->state, static_cast<SyncError>(syncError));
         }
         else
         {
@@ -2149,7 +2152,7 @@ void UnifiedSync::changeConfigState(syncstate_t newstate, SyncError newSyncError
     if ((mConfig.getError() != newSyncError) ||
         (mConfig.getEnabled() != SyncConfig::isEnabled(newstate, newSyncError)))
     {
-        mClient.syncs.saveAndUpdateSyncConfig(&mConfig, newstate, newSyncError);
+        mClient.syncs.saveAndUpdateSyncConfig(mConfig, newstate, newSyncError);
         mClient.app->syncupdate_state(mConfig.getTag(), newstate, newSyncError, fireDisableEvent);
         mClient.abortbackoff(false);
     }
@@ -2292,8 +2295,10 @@ void Syncs::purgeRunningSyncs()
     {
         if (s->mSync)
         {
-            s->mSync->changestate(SYNC_CANCELED);
+            auto tag = s->mConfig.getTag();
+            s->mSync->changestate(SYNC_CANCELED, NO_SYNC_ERROR, false);
             s->mSync.reset();
+            mClient.app->sync_removed(tag);
         }
     }
 }
@@ -2397,19 +2402,17 @@ error Syncs::enableSyncByTag(int tag, SyncError& syncError, bool resetFingerprin
     return API_ENOENT;
 }
 
-void Syncs::saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, SyncError newSyncError)
+void Syncs::saveAndUpdateSyncConfig(SyncConfig& config, syncstate_t newstate, SyncError newSyncError)
 {
-    auto newConfig = *config;
+    config.setEnabled(SyncConfig::isEnabled(newstate, newSyncError));
+    config.setError(newSyncError);
 
-    newConfig.setEnabled(SyncConfig::isEnabled(newstate, newSyncError));
-    newConfig.setError(newSyncError);
-
-    mSyncConfigDb->insert(newConfig);
+    mSyncConfigDb->insert(config);
 }
 
-void Syncs::saveSyncConfig(const SyncConfig *config)
+void Syncs::saveSyncConfig(const SyncConfig& config)
 {
-    mSyncConfigDb->insert(*config);
+    mSyncConfigDb->insert(config);
 }
 
 // restore all configured syncs that were in a temporary error state (not manually disabled)
@@ -2463,7 +2466,7 @@ void Syncs::resumeResumableSyncsOnStartup()
     {
         if (!unifiedSync->mSync)
         {
-            SyncError syncError = static_cast<SyncError>(!unifiedSync->mConfig.getError());
+            SyncError syncError = unifiedSync->mConfig.getError();
             syncstate_t newstate = isSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED;
 
             if (!unifiedSync->mConfig.getRemotePath().size()) //should only happen if coming from old cache
@@ -2491,10 +2494,16 @@ void Syncs::resumeResumableSyncsOnStartup()
                 LOG_debug << "Resuming cached sync: " << unifiedSync->mConfig.getTag() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << syncError;
 
                 unifiedSync->enableSync(syncError, false, UNDEF);
-
+                if (unifiedSync->mSync) newstate = unifiedSync->mSync->state;
                 LOG_debug << "Sync autoresumed: " << unifiedSync->mConfig.getTag() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << syncError;
-                mClient.app->sync_auto_resume_result(unifiedSync->mConfig, newstate, syncError);
             }
+            else
+            {
+                LOG_debug << "Sync loaded (but not resumed): " << unifiedSync->mConfig.getTag() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << syncError;
+            }
+
+            // call back even if we didn't try to resume it, so the intermediate layer can update its duplicate of sync state objects
+            mClient.app->sync_auto_resume_result(unifiedSync->mConfig, newstate, syncError);
 
             mClient.mSyncTag = std::max(mClient.mSyncTag, unifiedSync->mConfig.getTag());
         }

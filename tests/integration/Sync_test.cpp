@@ -1353,9 +1353,9 @@ struct StandardClient : public MegaApp
 
     bool syncSet(int tag, SyncInfo& info) const
     {
-        if (const auto* sync = client.syncs.runningSyncByTag(tag))
+        if (auto* sync = client.syncs.runningSyncByTag(tag))
         {
-            const auto& config = sync->getConfig();
+            auto& config = sync->getConfig();
 
             info.h = config.getRemoteNode();
             info.localpath = config.getLocalPath();

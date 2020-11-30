@@ -5250,13 +5250,9 @@ TEST_F(SdkTest, FetchGoogleAds)
 void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath)
 {
 
-    std::unique_ptr<MegaSyncList> syncs{megaApi->getSyncs()};
-    for (int i = 0; i < syncs->size(); i++)
-    {
-        RequestTracker removeTracker(megaApi);
-        megaApi->removeSync(syncs->get(i),&removeTracker);
-        ASSERT_EQ(API_OK, removeTracker.waitForResult());
-    }
+    RequestTracker removeTracker(megaApi);
+    megaApi->removeSyncs(&removeTracker);
+    ASSERT_EQ(API_OK, removeTracker.waitForResult());
 
     std::unique_ptr<MegaNode> baseNode{megaApi->getNodeByPath(("/" + basePath.u8string()).c_str())};
     if (baseNode)
@@ -5586,7 +5582,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     removeSync(sync3Path);
 
     // wait for the sync removals to actually take place
-    std::this_thread::sleep_for(std::chrono::seconds{20});
+    std::this_thread::sleep_for(std::chrono::seconds{3});
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_TRUE(checkSyncDisabled(sync2Path));
@@ -5744,7 +5740,7 @@ TEST_F(SdkTest, SyncRemoteNode)
         TestingWithLogErrorAllowanceGuard g;
         // Remove remote folder --> Sync fail
         LOG_verbose << "SyncRemoteNode :  Removing remote node with sync active.";
-        ASSERT_NO_FATAL_FAILURE(deleteNode(0, remoteBaseNode.get()));
+        ASSERT_NO_FATAL_FAILURE(deleteNode(0, remoteBaseNode.get()));                                //  <--- remote node deleted!!
         sync = waitForSyncState(megaApi[0].get(), tagID, MegaSync::SYNC_FAILED);
         ASSERT_TRUE(sync && sync->getState() == MegaSync::SYNC_FAILED);
         ASSERT_EQ(MegaSync::REMOTE_NODE_NOT_FOUND, sync->getError());
@@ -5759,7 +5755,7 @@ TEST_F(SdkTest, SyncRemoteNode)
     }
 
     LOG_verbose << "SyncRemoteNode :  Enabling sync again.";
-    ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, tagID)) << "API Error enabling the sync";
+    ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, tagID)) << "API Error enabling the sync";  //  <--- remote node has been deleted, we should not be able to resume!!
     sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), MegaSync::SYNC_ACTIVE);
     ASSERT_TRUE(sync && sync->getState() == MegaSync::SYNC_ACTIVE);
     ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());

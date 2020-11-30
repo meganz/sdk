@@ -322,7 +322,7 @@ void MegaBackupMonitor::digestPutResult(handle backupId, UnifiedSync* syncPtr)
         if (&us == syncPtr)
         {
             us.mConfig.setBackupId(backupId);
-            mClient->syncs.saveSyncConfig(&us.mConfig);
+            mClient->syncs.saveSyncConfig(us.mConfig);
         }
     });
 }

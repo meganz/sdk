@@ -19987,6 +19987,7 @@ void MegaApiImpl::sendPendingRequests()
             {
                 client->locallogout(false);
                 client->restag = nextTag;
+                assert(syncMap.empty());
                 logout_result(API_OK);
             }
             break;
