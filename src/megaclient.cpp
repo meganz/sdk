@@ -11642,6 +11642,8 @@ bool MegaClient::fetchsc(DbTable* sctable)
     WAIT_CLASS::bumpds();
     fnstats.timeToFirstByte = Waiter::ds - fnstats.startTime;
 
+    bool necessaryCommit = false;
+
     while (hasNext)
     {
         switch (id & 15)
@@ -11658,6 +11660,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
                 assert(!isNodeOnDemandDb);
                 if ((n = Node::unserialize(this, &data, &dp)))
                 {
+                   necessaryCommit = true;
                    sctable->put(n);
                    sctable->del(id);
                 }
@@ -11713,8 +11716,11 @@ bool MegaClient::fetchsc(DbTable* sctable)
         hasNext = sctable->next(&id, &data, &key);
     }
 
-    // Force commit in case of old cache has ben modified in new cache
-    sctable->commit();
+    if (necessaryCommit)
+    {
+        // Force commit in case of old cache has ben modified in new cache
+        sctable->commit();
+    }
     WAIT_CLASS::bumpds();
     fnstats.timeToLastByte = Waiter::ds - fnstats.startTime;
 
