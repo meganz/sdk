@@ -21793,7 +21793,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_REMOVE_SYNCS:
         {
             client->syncs.removeSelectedSyncs([&](SyncConfig& c, Sync* sync) {
-                    return sync != nullptr;
+                    return true;
                 });
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
@@ -21856,8 +21856,8 @@ void MegaApiImpl::sendPendingRequests()
 
                 bool matched = (tag && c.getTag() == tag) ||
                                (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
-                found = found || (matched && s);
-                return matched && s;
+                found = found || matched;  // no need to test s, auto tests check disable of disabled retgurns MegaError::API_OK
+                return matched;
             }, NO_SYNC_ERROR);
 
             if (found)

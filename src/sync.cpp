@@ -980,6 +980,8 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError)
         state = newstate;
         errorCode = newSyncError;
         fullscan = false;
+
+        mUnifiedSync.mClient.app->syncupdate_state(mUnifiedSync.mConfig.getTag(), newstate, newSyncError);
     }
 }
 
@@ -2366,11 +2368,14 @@ void Syncs::removeSyncByIndex(size_t index)
             syncPtr.reset(); // deletes sync
         }
 
-        mSyncConfigDb->removeByTag(mSyncVec[index]->mConfig.getTag());
+        auto tag = mSyncVec[index]->mConfig.getTag();
+        mSyncConfigDb->removeByTag(tag);
         mClient.syncactivity = true;
         mSyncVec.erase(mSyncVec.begin() + index);
 
         isEmpty = mSyncVec.empty();
+
+        mClient.app->sync_removed(tag);
     }
 }
 
@@ -2385,7 +2390,8 @@ error Syncs::enableSyncByTag(int tag, SyncError& syncError, bool resetFingerprin
             {
                 return s->enableSync(syncError, resetFingerprint, newRemoteNode);
             }
-            return API_OK;
+            syncError = ACTIVE_SYNC_BELOW_PATH;
+            return API_EEXIST;
         }
     }
     return API_ENOENT;
