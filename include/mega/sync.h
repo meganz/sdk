@@ -240,6 +240,22 @@ public:
     static const int FILE_UPDATE_MAX_DELAY_SECS;
     static const dstime RECENT_VERSION_INTERVAL_SECS;
 
+    // Change state to (DISABLED, BACKUP_MODIFIED).
+    // Always returns false.
+    bool backupModified();
+
+    // Whether this is a backup sync.
+    bool isBackup() const;
+
+    // Whether this is a backup sync and it is mirroring.
+    bool isMirroring() const;
+
+    // Whether this is a backup sync and it is monitoring.
+    bool isMonitoring() const;
+
+    // Move the sync into the monitoring state.
+    void monitor();
+
     UnifiedSync& mUnifiedSync;
 
 protected :
@@ -247,6 +263,7 @@ protected :
 
 private:
     std::string mLocalPath;
+    SyncBackupState mBackupState;
 };
 
 

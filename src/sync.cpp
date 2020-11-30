@@ -667,6 +667,10 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     mLocalPath = mUnifiedSync.mConfig.getLocalPath();
     LocalPath crootpath = LocalPath::fromPath(mLocalPath, *client->fsaccess);
 
+    mBackupState = mUnifiedSync.mConfig.getType() == SyncConfig::TYPE_BACKUP  
+                   ? SYNC_BACKUP_MIRROR
+                   : SYNC_BACKUP_NONE;
+
     if (cdebris)
     {
         debris = cdebris;
@@ -787,6 +791,34 @@ Sync::~Sync()
         DBTableTransactionCommitter committer(client->tctable);
         localroot.reset();
     }
+}
+
+bool Sync::backupModified()
+{
+    changestate(SYNC_DISABLED, BACKUP_MODIFIED);
+    return false;
+}
+
+bool Sync::isBackup() const
+{
+    return mBackupState != SYNC_BACKUP_NONE;
+}
+
+bool Sync::isMirroring() const
+{
+    return mBackupState == SYNC_BACKUP_MIRROR;
+}
+
+bool Sync::isMonitoring() const
+{
+    return mBackupState == SYNC_BACKUP_MONITOR;
+}
+
+void Sync::monitor()
+{
+    assert(mBackupState == SYNC_BACKUP_MIRROR);
+
+    mBackupState = SYNC_BACKUP_MONITOR;
 }
 
 void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, LocalPath& localpath, LocalNode *p, int maxdepth)
@@ -2430,6 +2462,13 @@ void Syncs::enableResumeableSyncs()
                 error e = unifiedSync->enableSync(syncError, false, UNDEF);
                 if (!e)
                 {
+                    // Only internal backups can be resumed.
+                    if (unifiedSync->mSync->isBackup())
+                    {
+                        // And they should come up in the MONITOR state.
+                        unifiedSync->mSync->monitor();
+                    }
+
                     anySyncRestored = true;
                 }
             }
@@ -2490,7 +2529,16 @@ void Syncs::resumeResumableSyncsOnStartup()
 #endif
                 LOG_debug << "Resuming cached sync: " << unifiedSync->mConfig.getTag() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << syncError;
 
-                unifiedSync->enableSync(syncError, false, UNDEF);
+                error e = unifiedSync->enableSync(syncError, false, UNDEF);
+                if (!e)
+                {
+                    // Only internal backups can be resumed.
+                    if (unifiedSync->mSync->isBackup())
+                    {
+                        // And they should come up in the MONITOR state.
+                        unifiedSync->mSync->monitor();
+                    }
+                }
 
                 LOG_debug << "Sync autoresumed: " << unifiedSync->mConfig.getTag() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << syncError;
                 mClient.app->sync_auto_resume_result(unifiedSync->mConfig, newstate, syncError);

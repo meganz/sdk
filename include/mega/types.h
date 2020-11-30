@@ -332,6 +332,17 @@ typedef enum {
     SYNC_ACTIVE
 } syncstate_t;
 
+typedef enum
+{
+    // Sync is not operating in a backup capacity.
+    SYNC_BACKUP_NONE = 0,
+    // Sync is mirroring the local source.
+    SYNC_BACKUP_MIRROR = 1,
+    // Sync is monitoring (and propagating) local changes.
+    SYNC_BACKUP_MONITOR = 2
+}
+SyncBackupState;
+
 enum SyncError {
     NO_SYNC_ERROR = 0,
     UNKNOWN_ERROR = 1,
@@ -362,6 +373,7 @@ enum SyncError {
     UNKNOWN_TEMPORARY_ERROR = 26,           // Unknown temporary error
     TOO_MANY_ACTION_PACKETS = 27,           // Too many changes in account, local state discarded
     LOGGED_OUT = 28,                        // Logged out
+    BACKUP_MODIFIED = 29                    // Backup has been externally modified.
 };
 
 inline bool isSyncErrorPermanent(SyncError e)
@@ -863,6 +875,7 @@ public:
         TYPE_UP = 0x01, // sync up from local to remote
         TYPE_DOWN = 0x02, // sync down from remote to local
         TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
+        TYPE_BACKUP = 0x04
     };
 
     SyncConfig(int tag,
@@ -959,6 +972,10 @@ public:
     handle getBackupId() const;
     void setBackupId(const handle &backupId);
 
+    // Whether this sync is backed by an external device.
+    void isExternal(bool isExternal);
+    bool isExternal() const;
+
 private:
 
     // Unique identifier. any other field can change (even remote handle),
@@ -967,6 +984,9 @@ private:
 
     // enabled/disabled by the user
     bool mEnabled = true;
+
+    // sync stored on external device.
+    bool mExternal = false;
 
     // the local path of the sync
     std::string mLocalPath;
