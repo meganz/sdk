@@ -12979,10 +12979,10 @@ error MegaClient::checkSyncConfig(const SyncConfig& syncConfig, SyncError &syncE
     inshare = false;
     if (!remotenode)
     {
-        LOG_err << "Sync root does not exist in the cloud: "
-                << syncConfig.getLocalPath()
-                << ": "
-                << LOG_NODEHANDLE(syncConfig.getRemoteNode());
+        LOG_warn << "Sync root does not exist in the cloud: "
+                 << syncConfig.getLocalPath()
+                 << ": "
+                 << LOG_NODEHANDLE(syncConfig.getRemoteNode());
 
         syncError = REMOTE_NODE_NOT_FOUND;
         return API_ENOENT;
