@@ -129,11 +129,6 @@ Transfer::~Transfer()
         client->asyncfopens--;
     }
 
-    if (ultoken)
-    {
-        delete [] ultoken;
-    }
-
     if (finished)
     {
         if (type == GET && !localfilename.empty())
@@ -150,9 +145,10 @@ bool Transfer::serialize(string *d)
 
     d->append((const char*)&type, sizeof(type));
 
-    ll = (unsigned short)localfilename.editStringDirect()->size();
+    const auto& tmpstr = localfilename.platformEncoded();
+    ll = (unsigned short)tmpstr.size();
     d->append((char*)&ll, sizeof(ll));
-    d->append(localfilename.editStringDirect()->data(), ll);
+    d->append(tmpstr.data(), ll);
 
     d->append((const char*)filekey, sizeof(filekey));
     d->append((const char*)&ctriv, sizeof(ctriv));
@@ -180,7 +176,7 @@ bool Transfer::serialize(string *d)
     {
         hasUltoken = 2;
         d->append((const char*)&hasUltoken, sizeof(char));
-        d->append((const char*)ultoken, NewNode::UPLOADTOKENLEN);
+        d->append((const char*)ultoken.get(), NewNode::UPLOADTOKENLEN);
     }
     else
     {
@@ -257,7 +253,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
     memcpy(t->transferkey.data(), ptr, SymmCipher::KEYLENGTH);
     ptr += SymmCipher::KEYLENGTH;
 
-    t->localfilename = LocalPath::fromLocalname(std::string(filepath, ll));
+    t->localfilename = LocalPath::fromPlatformEncoded(std::string(filepath, ll));
 
     if (!t->chunkmacs.unserialize(ptr, end))
     {
@@ -311,8 +307,8 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     if (hasUltoken)
     {
-        t->ultoken = new byte[NewNode::UPLOADTOKENLEN]();
-        memcpy(t->ultoken, ptr, ll);
+        t->ultoken.reset(new byte[NewNode::UPLOADTOKENLEN]());
+        memcpy(t->ultoken.get(), ptr, ll);
         ptr += ll;
     }
 
@@ -500,8 +496,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
     {
         chunkmacs.clear();
         progresscompleted = 0;
-        delete [] ultoken;
-        ultoken = NULL;
+        ultoken.reset();
         pos = 0;
 
         if (slot && slot->fa && (slot->fa->mtime != mtime || slot->fa->size != size))
@@ -566,9 +561,9 @@ void Transfer::addAnyMissingMediaFileAttributes(Node* node, /*const*/ LocalPath&
     assert(type == PUT || (node && node->type == FILENODE));
 
 #ifdef USE_MEDIAINFO
-    char ext[MAXEXTENSIONLEN];
+    string ext;
     if (((type == PUT && size >= 16) || (node && node->nodekey().size() == FILENODEKEYLENGTH && node->size >= 16)) &&
-        client->fsaccess->getextension(localpath, ext, sizeof(ext)) &&
+        client->fsaccess->getextension(localpath, ext) &&
         MediaProperties::isMediaFilenameExt(ext) &&
         !client->mediaFileInfo.mediaCodecsFailed)
     {
@@ -801,42 +796,12 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                             LOG_debug << "The destination file exist (not synced). Saving with a different name";
 
                             // the destination path isn't synced, save with a (x) suffix
-                            string utf8fullname = localname.toPath(*client->fsaccess);
-                            size_t dotindex = utf8fullname.find_last_of('.');
-                            string name;
-                            string extension;
-                            if (dotindex == string::npos)
-                            {
-                                name = utf8fullname;
-                            }
-                            else
-                            {
-                                string separator;
-                                client->fsaccess->local2path(&client->fsaccess->localseparator, &separator);
-                                size_t sepindex = utf8fullname.find_last_of(separator);
-                                if(sepindex == string::npos || sepindex < dotindex)
-                                {
-                                    name = utf8fullname.substr(0, dotindex);
-                                    extension = utf8fullname.substr(dotindex);
-                                }
-                                else
-                                {
-                                    name = utf8fullname;
-                                }
-                            }
-
-                            string suffix;
-                            string newname;
                             LocalPath localnewname;
-                            int num = 0;
+                            unsigned num = 0;
                             do
                             {
                                 num++;
-                                ostringstream oss;
-                                oss << " (" << num << ")";
-                                suffix = oss.str();
-                                newname = name + suffix + extension;
-                                localnewname = LocalPath::fromPath(newname, *client->fsaccess);
+                                localnewname = localname.insertFilenameCounter(num, *client->fsaccess);
                             } while (fa->fopen(localnewname) || fa->type == FOLDERNODE);
 
 
@@ -902,9 +867,9 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                     // set missing node attributes
                     if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
                     {
-                        if (!client->gfxdisabled && client->gfx && client->gfx->isgfx(localname.editStringDirect()) &&
-                                keys.find(n->nodekey()) == keys.end() &&    // this file hasn't been processed yet
-                                client->checkaccess(n, OWNER))
+                        if (!client->gfxdisabled && client->gfx && client->gfx->isgfx(localname) &&
+                            keys.find(n->nodekey()) == keys.end() &&    // this file hasn't been processed yet
+                            client->checkaccess(n, OWNER))
                         {
                             keys.insert(n->nodekey());
 
@@ -918,7 +883,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
 
                                 if (missingattr)
                                 {
-                                    client->gfx->gendimensionsputfa(NULL, localname.editStringDirect(), n->nodehandle, n->nodecipher(), missingattr);
+                                    client->gfx->gendimensionsputfa(NULL, localname, n->nodehandle, n->nodecipher(), missingattr);
                                 }
 
                                 addAnyMissingMediaFileAttributes(n, localname);
@@ -1020,7 +985,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             if (ll)
             {
                 LOG_debug << "Verifying sync upload";
-                synclocalpath = ll->getLocalPath(true);
+                synclocalpath = ll->getLocalPath();
                 localpath = &synclocalpath;
             }
             else

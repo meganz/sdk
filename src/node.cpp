@@ -126,6 +126,13 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     if (ISUNDEF(*client->rootnodes))
     {
         *client->rootnodes = h;
+
+        if (client->loggedIntoWritableFolder())
+        {
+            // If logged into writable folder, we need the sharekey set in the root node
+            // so as to include it in subsequent put nodes
+            sharekey = new SymmCipher(client->key); //we use the "master key", in this case the secret share key
+        }
     }
 
     if (t >= ROOTNODE && t <= RUBBISHNODE)
@@ -366,7 +373,17 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp, bo
     hasLinkCreationTs = MemAccess::get<char>(ptr);
     ptr += sizeof(hasLinkCreationTs);
 
-    for (i = 6; i--;)
+    auto authKeySize = MemAccess::get<char>(ptr);
+
+    ptr += sizeof authKeySize;
+    const char *authKey = nullptr;
+    if (authKeySize)
+    {
+        authKey = ptr;
+        ptr += authKeySize;
+    }
+
+    for (i = 5; i--;)
     {
         if (ptr + (unsigned char)*ptr < end)
         {
@@ -489,7 +506,7 @@ Node* Node::unserialize(MegaClient* client, const string* d, node_vector* dp, bo
             ptr += sizeof(cts);
         }
 
-        plink = new PublicLink(ph, cts, ets, takendown);
+        plink = new PublicLink(ph, cts, ets, takendown, authKey ? authKey : "");
         client->mPublicLinks[n->nodehandle] = plink->ph;
     }
     n->plink = plink;
@@ -607,7 +624,18 @@ bool Node::serialize(string* d)
     char hasLinkCreationTs = plink ? 1 : 0;
     d->append((char*)&hasLinkCreationTs, 1);
 
-    d->append("\0\0\0\0\0", 6); // Use these bytes for extensions
+    if (isExported && plink && plink->mAuthKey.size())
+    {
+        auto authKeySize = (char)plink->mAuthKey.size();
+        d->append((char*)&authKeySize, sizeof(authKeySize));
+        d->append(plink->mAuthKey.data(), authKeySize);
+    }
+    else
+    {
+        d->append("", 1);
+    }
+
+    d->append("\0\0\0\0", 5); // Use these bytes for extensions
 
     if (inshare)
     {
@@ -1180,12 +1208,12 @@ bool Node::isbelow(Node* p) const
     }
 }
 
-void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
+void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const string &authKey)
 {
     if (!plink) // creation
     {
         assert(client->mPublicLinks.find(nodehandle) == client->mPublicLinks.end());
-        plink = new PublicLink(ph, cts, ets, takendown);
+        plink = new PublicLink(ph, cts, ets, takendown, authKey.empty() ? nullptr : authKey.c_str());
     }
     else            // update
     {
@@ -1194,16 +1222,21 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
         plink->cts = cts;
         plink->ets = ets;
         plink->takendown = takendown;
+        plink->mAuthKey = authKey;
     }
     client->mPublicLinks[nodehandle] = ph;
 }
 
-PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown)
+PublicLink::PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey)
 {
     this->ph = ph;
     this->cts = cts;
     this->ets = ets;
     this->takendown = takendown;
+    if (authKey)
+    {
+        this->mAuthKey = authKey;
+    }
 }
 
 PublicLink::PublicLink(PublicLink *plink)
@@ -1212,6 +1245,7 @@ PublicLink::PublicLink(PublicLink *plink)
     this->cts = plink->cts;
     this->ets = plink->ets;
     this->takendown = plink->takendown;
+    this->mAuthKey = plink->mAuthKey;
 }
 
 bool PublicLink::isExpired()
@@ -1448,7 +1482,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
     // enable folder notification
     if (type == FOLDERNODE)
     {
-        sync->dirnotify->addnotify(this, cfullpath.editStringDirect());
+        sync->dirnotify->addnotify(this, cfullpath);
     }
 
     sync->client->syncactivity = true;
@@ -1688,14 +1722,14 @@ LocalNode::~LocalNode()
     slocalname.reset();
 }
 
-LocalPath LocalNode::getLocalPath(bool sdisable) const
+LocalPath LocalNode::getLocalPath() const
 {
     LocalPath lp;
-    getlocalpath(lp, sdisable);
+    getlocalpath(lp);
     return lp;
 }
 
-void LocalNode::getlocalpath(LocalPath& path, bool sdisable, const std::string* localseparator) const
+void LocalNode::getlocalpath(LocalPath& path) const
 {
     if (!sync)
     {
@@ -1710,23 +1744,15 @@ void LocalNode::getlocalpath(LocalPath& path, bool sdisable, const std::string* 
     {
         assert(!l->parent || l->parent->sync == sync);
 
-        // use short name, if available (less likely to overflow MAXPATH,
-        // perhaps faster?) and sdisable not set.  Use localname from the sync root though, as it has the absolute path.
-        if (!sdisable && l->slocalname && l->parent)
-        {
-            path.prependWithSeparator(*l->slocalname, localseparator ? *localseparator : sync->client->fsaccess->localseparator);
-        }
-        else
-        {
-            path.prependWithSeparator(l->localname, localseparator ? *localseparator : sync->client->fsaccess->localseparator);
-        }
+        // sync root has absolute path, the rest are just their leafname
+        path.prependWithSeparator(l->localname);
     }
 }
 
 string LocalNode::localnodedisplaypath(FileSystemAccess& fsa) const
 {
     LocalPath local;
-    getlocalpath(local, true);
+    getlocalpath(local);
     return local.toPath(fsa);
 }
 
@@ -1745,12 +1771,12 @@ LocalNode* LocalNode::childbyname(LocalPath* localname)
 
 void LocalNode::prepare()
 {
-    getlocalpath(transfer->localfilename, true);
+    getlocalpath(transfer->localfilename);
 
     // is this transfer in progress? update file's filename.
     if (transfer->slot && transfer->slot->fa && !transfer->slot->fa->nonblocking_localname.empty())
     {
-        transfer->slot->fa->updatelocalname(transfer->localfilename);
+        transfer->slot->fa->updatelocalname(transfer->localfilename, false);
     }
 
     treestate(TREESTATE_SYNCING);
@@ -1790,7 +1816,7 @@ bool LocalNode::serialize(string* d)
     w.serializehandle(fsid);
     w.serializeu32(parent ? parent->dbid : 0);
     w.serializenodehandle(node ? node->nodehandle : UNDEF);
-    w.serializestring(*localname.editStringDirect());
+    w.serializestring(localname.platformEncoded());
     if (type == FILENODE)
     {
         w.serializebinary((byte*)crc.data(), sizeof(crc));
@@ -1798,7 +1824,9 @@ bool LocalNode::serialize(string* d)
     }
     w.serializebyte(mSyncable);
     w.serializeexpansionflags(1);  // first flag indicates we are storing slocalname.  Storing it is much, much faster than looking it up on startup.
-    w.serializepstr(slocalname ? slocalname->editStringDirect() : nullptr);
+    auto tmpstr = slocalname ? slocalname->platformEncoded() : string();
+    w.serializepstr(slocalname ? &tmpstr : nullptr);
+
     return true;
 }
 
@@ -1867,8 +1895,8 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->fsid = fsid;
     l->fsid_it = sync->client->fsidnode.end();
 
-    l->localname = LocalPath(std::move(localname));
-    l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(std::move(shortname)));
+    l->localname = LocalPath::fromPlatformEncoded(localname);
+    l->slocalname.reset(shortname.empty() ? nullptr : new LocalPath(LocalPath::fromPlatformEncoded(shortname)));
     l->slocalname_in_db = 0 != expansionflags[0];
     l->name = l->localname.toName(*sync->client->fsaccess, sync->mFilesystemType);
 

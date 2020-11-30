@@ -55,6 +55,11 @@ double HeartBeatBackupInfo::progress() const
     return mProgress;
 }
 
+void HeartBeatBackupInfo::invalidateProgress()
+{
+    mProgressInvalid = true;
+}
+
 uint32_t HeartBeatBackupInfo::pendingUps() const
 {
     return mPendingUps;
@@ -118,6 +123,7 @@ void HeartBeatBackupInfo::setStatus(const int &status)
 
 void HeartBeatBackupInfo::setProgress(const double &progress)
 {
+    mProgressInvalid = false;
     mProgress = progress;
     updateLastActionTime();
 }
@@ -228,6 +234,7 @@ void HeartBeatTransferProgressedInfo::clearFinshedTransfers()
 
 void HeartBeatTransferProgressedInfo::setTransferredBytes(long long value)
 {
+    mProgressInvalid = false;
     if (mTransferredBytes != value)
     {
         mTransferredBytes = value;
@@ -237,6 +244,7 @@ void HeartBeatTransferProgressedInfo::setTransferredBytes(long long value)
 
 void HeartBeatTransferProgressedInfo::setTotalBytes(long long value)
 {
+    mProgressInvalid = false;
     if (mTotalBytes != value)
     {
         mTotalBytes = value;
@@ -246,7 +254,7 @@ void HeartBeatTransferProgressedInfo::setTotalBytes(long long value)
 
 double HeartBeatTransferProgressedInfo::progress() const
 {
-    return std::max(0., std::min(1., static_cast<double>(mTransferredBytes) / static_cast<double>(mTotalBytes)));
+    return mProgressInvalid ? -1.0 : std::max(0., std::min(1., static_cast<double>(mTransferredBytes) / static_cast<double>(mTotalBytes)));
 }
 
 #ifdef ENABLE_SYNC
@@ -298,8 +306,9 @@ void HeartBeatSyncInfo::updateStatus(MegaClient *client)
 
 ////////////// BackupInfo ////////////////
 
-MegaBackupInfo::MegaBackupInfo(BackupType type, string localFolder, handle megaHandle, int state, int substate, std::string extra, handle backupId)
+MegaBackupInfo::MegaBackupInfo(BackupType type, string backupName, string localFolder, handle megaHandle, int state, int substate, std::string extra, handle backupId)
     : mType(type)
+    , mBackupName(backupName)
     , mBackupId(backupId)
     , mLocalFolder(localFolder)
     , mMegaHandle(megaHandle)
@@ -313,6 +322,11 @@ MegaBackupInfo::MegaBackupInfo(BackupType type, string localFolder, handle megaH
 BackupType MegaBackupInfo::type() const
 {
     return mType;
+}
+
+string MegaBackupInfo::backupName() const
+{
+    return mBackupName;
 }
 
 handle MegaBackupInfo::backupId() const
@@ -352,7 +366,7 @@ void MegaBackupInfo::setBackupId(const handle &backupId)
 
 #ifdef ENABLE_SYNC
 MegaBackupInfoSync::MegaBackupInfoSync(MegaClient *client, const MegaSync &sync, handle backupid)
-    : MegaBackupInfo(getSyncType(client, sync), sync.getLocalFolder(), sync.getMegaHandle()
+    : MegaBackupInfo(getSyncType(client, sync), sync.getName(), sync.getLocalFolder(), sync.getMegaHandle()
                  , getSyncState(client, sync), getSyncSubstatus(sync), getSyncExtraData(sync), backupid)
 {
 
@@ -509,7 +523,6 @@ void MegaBackupMonitor::digestPutResult(handle backupId)
         return;
     }
     // get the tag from queue of pending puts
-    assert(mPendingBackupPutCallbacks.size());
     auto putResultCallback = mPendingBackupPutCallbacks.front();
     mPendingBackupPutCallbacks.pop_front();
     //call corresponding callback
@@ -534,7 +547,7 @@ void MegaBackupMonitor::registerBackupInfo(const MegaBackupInfo &info)
     string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", info.localFolder()) );
     string deviceIdHash = mClient->getDeviceidHash();
 
-    mClient->reqs.add(new CommandBackupPut(mClient, info.type(), info.megaHandle(),
+    mClient->reqs.add(new CommandBackupPut(mClient, info.type(), info.backupName(), info.megaHandle(),
                                            localFolderEncrypted.c_str(),
                                            deviceIdHash.c_str(),
                                            info.state(), info.subState(), info.extra().c_str()
@@ -743,6 +756,12 @@ void MegaBackupMonitor::calculateStatus(HeartBeatBackupInfo *hbs)
 
 void MegaBackupMonitor::beatBackupInfo(const std::shared_ptr<HeartBeatBackupInfo> &hbs)
 {
+    if (ISUNDEF(hbs->backupId()))
+    {
+        LOG_warn << "Backup not registered yet. Skipping heartbeat...";
+        return;
+    }
+
     auto now = m_time(nullptr);
     auto lapsed = now - hbs->lastBeat();
     if ( (hbs->lastAction() > hbs->lastBeat()) //something happened since last reported!
@@ -752,9 +771,19 @@ void MegaBackupMonitor::beatBackupInfo(const std::shared_ptr<HeartBeatBackupInfo
 
         hbs->setLastBeat(m_time(nullptr));
 
-        auto newCommand = new CommandBackupPutHeartBeat(mClient, hbs->backupId(), hbs->status(),
-                          static_cast<uint8_t>(std::lround(hbs->progress()*100.0)), hbs->pendingUps(), hbs->pendingDowns(),
+        int8_t progress = (hbs->progress() < 0) ? -1 : static_cast<int8_t>(std::lround(hbs->progress()*100.0));
+
+        auto newCommand = new CommandBackupPutHeartBeat(mClient, hbs->backupId(),  static_cast<uint8_t>(hbs->status()),
+                          progress, hbs->pendingUps(), hbs->pendingDowns(),
                           hbs->lastAction(), hbs->lastItemUpdated());
+
+#ifdef ENABLE_SYNC
+        if (hbs->status() == HeartBeatSyncInfo::Status::UPTODATE && progress >= 100)
+        {
+            hbs->invalidateProgress(); // we invalidate progress, so as not to keep on reporting 100% progress after reached up to date
+            // note: new transfer updates will modify the progress and make it valid again
+        }
+#endif
 
         auto runningCommand = hbs->runningCommand();
 

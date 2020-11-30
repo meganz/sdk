@@ -52,40 +52,7 @@ struct MEGA_API FsNodeId
 
 typedef void (*asyncfscallback)(void *);
 
-struct MEGA_API AsyncIOContext
-{
-    enum {
-        NONE, READ, WRITE, OPEN
-    };
-
-    enum {
-        ACCESS_NONE     = 0x00,
-        ACCESS_READ     = 0x01,
-        ACCESS_WRITE    = 0x02
-    };
-
-    AsyncIOContext();
-    virtual ~AsyncIOContext();
-    virtual void finish();
-
-    // results
-    asyncfscallback userCallback;
-    void *userData;
-    bool finished;
-    bool failed;
-    bool retry;
-
-    // parameters
-    int op;
-    int access;
-    m_off_t pos;
-    unsigned len;
-    unsigned pad;
-    byte *buffer;
-    Waiter *waiter;
-    FileAccess *fa;
-};
-
+struct MEGA_API AsyncIOContext;
 
 
 // LocalPath represents a path in the local filesystem, and wraps up common operations in a convenient fashion.
@@ -105,45 +72,77 @@ public:
 
 class MEGA_API LocalPath
 {
-    std::string localpath;
+#if defined(_WIN32)
+    wstring localpath;
+#else
+    string localpath;
+#endif
 
+    // only functions that need to call the OS or 3rdParty libraries - normal code should have no access (or accessor) to localpath
     friend class ScopedLengthRestore;
-    size_t getLength() { return localpath.size(); }
-    void setLength(size_t length) { localpath.resize(length); }
+    friend class WinFileSystemAccess;
+    friend class PosixFileSystemAccess;
+    friend struct WinDirAccess;
+    friend struct WinDirNotify;
+    friend class PosixDirNotify;
+    friend class WinFileAccess;
+    friend class PosixFileAccess;
+    friend void RemoveHiddenFileAttribute(LocalPath& path);
+    friend void AddHiddenFileAttribute(LocalPath& path);
+    friend class GfxProcFreeImage;
+    friend struct FileSystemAccess;
+    friend int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2, const FileSystemAccess& fsaccess);
+#ifdef USE_IOS
+    friend const string adjustBasePath(const LocalPath& name);
+#else
+    friend const string& adjustBasePath(const LocalPath& name);
+#endif
 
 public:
-
     LocalPath() {}
-    explicit LocalPath(std::string&& s) : localpath(std::move(s)) {}
 
-    std::string* editStringDirect();
-    const std::string* editStringDirect() const;
+#ifdef _WIN32
+    typedef wchar_t separator_t;
+    const static separator_t localPathSeparator = L'\\';
+#else
+    typedef char separator_t;
+    const static separator_t localPathSeparator = '/';
+#endif
+
+    // returns the internal representation copied into a string buffer, for backward compatibility
+    string platformEncoded() const;
+
     bool empty() const;
-    void clear() { localpath.clear(); }
-    void erase(size_t pos = 0, size_t count = std::string::npos) { localpath.erase(pos, count); }
-    void truncate(size_t bytePos) { localpath.resize(bytePos); }
-    size_t lastpartlocal(const FileSystemAccess& fsaccess) const;
+    void clear();
+    void erase(size_t pos = 0, size_t count = string::npos);
+    void truncate(size_t bytePos);
+    LocalPath leafName() const;
     void append(const LocalPath& additionalPath);
-    void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways, const std::string& localseparator);
-    void prependWithSeparator(const LocalPath& additionalPath, const std::string& localseparator);
-    void trimNonDriveTrailingSeparator(const FileSystemAccess& fsaccess);
-    bool findNextSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
+    void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways);
+    void prependWithSeparator(const LocalPath& additionalPath);
+    void trimNonDriveTrailingSeparator();
+    bool findNextSeparator(size_t& separatorBytePos) const;
     bool findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const;
-    bool endsInSeparator(const FileSystemAccess& fsaccess) const;
+    bool endsInSeparator() const;
+    bool beginsWithSeparator() const;
+    size_t reportSize() const { return localpath.size() * sizeof(separator_t); } // only for reporting, not logic
 
     // get the index of the leaf name.  A trailing separator is considered part of the leaf.
     size_t getLeafnameByteIndex(const FileSystemAccess& fsaccess) const;
     bool backEqual(size_t bytePos, const LocalPath& compareTo) const;
     LocalPath subpathFrom(size_t bytePos) const;
-    std::string substrTo(size_t bytePos) const;
+    LocalPath subpathTo(size_t bytePos) const;
+
+    LocalPath insertFilenameCounter(unsigned counter, const FileSystemAccess& fsaccess);
 
     void ensureWinExtendedPathLenPrefix();
 
-    bool isContainingPathOf(const LocalPath& path, const FileSystemAccess& fsaccess);
+    bool isContainingPathOf(const LocalPath& path, size_t* subpathIndex = nullptr) const;
+    bool nextPathComponent(size_t& subpathIndex, LocalPath& component) const;
 
     // Return a utf8 representation of the LocalPath (fsaccess is used to do the conversion)
     // No escaping or unescaping is done.
-    std::string toPath(const FileSystemAccess& fsaccess) const;
+    string toPath(const FileSystemAccess& fsaccess) const;
 
     // Return a utf8 representation of the LocalPath, taking into account that the LocalPath
     // may contain escaped characters that are disallowed for the filesystem.
@@ -151,14 +150,17 @@ public:
     std::string toName(const FileSystemAccess& fsaccess, FileSystemType fsType) const;
 
     // Create a Localpath from a utf8 string where no character conversions or escaping is necessary.
-    static LocalPath fromPath(const std::string& path, const FileSystemAccess& fsaccess);
+    static LocalPath fromPath(const string& path, const FileSystemAccess& fsaccess);
 
     // Create a LocalPath from a utf8 string, making any character conversions (escaping) necessary
     // for characters that are disallowed on that filesystem.  fsaccess is used to do the conversion.
-    static LocalPath fromName(std::string path, const FileSystemAccess& fsaccess, FileSystemType fsType);
+    static LocalPath fromName(string path, const FileSystemAccess& fsaccess, FileSystemType fsType);
 
     // Create a LocalPath from a string that was already converted to be appropriate for a local file path.
-    static LocalPath fromLocalname(std::string localname);
+    static LocalPath fromPlatformEncoded(string localname);
+#ifdef WIN32
+    static LocalPath fromPlatformEncoded(wstring&& localname);
+#endif
 
     // Generates a name for a temporary file
     static LocalPath tmpNameLocal(const FileSystemAccess& fsaccess);
@@ -168,12 +170,49 @@ public:
     bool operator<(const LocalPath& p) const { return localpath < p.localpath; }
 };
 
+void AddHiddenFileAttribute(mega::LocalPath& path);
+void RemoveHiddenFileAttribute(mega::LocalPath& path);
+
 inline LocalPath operator+(LocalPath& a, LocalPath& b)
 {
     LocalPath result = a;
     result.append(b);
     return result;
 }
+
+struct MEGA_API AsyncIOContext
+{
+    enum {
+        NONE, READ, WRITE, OPEN
+    };
+
+    enum {
+        ACCESS_NONE     = 0x00,
+        ACCESS_READ     = 0x01,
+        ACCESS_WRITE    = 0x02
+    };
+
+    virtual ~AsyncIOContext();
+    virtual void finish();
+
+    // results
+    asyncfscallback userCallback = nullptr;
+    void *userData = nullptr;
+    bool finished = false;
+    bool failed = false;
+    bool retry = false;
+
+    // parameters
+    int op = NONE;
+    int access = ACCESS_NONE;
+    m_off_t posOfBuffer = 0;
+    unsigned pad = 0;
+    LocalPath openPath;
+    byte* dataBuffer = nullptr;
+    unsigned dataBufferLen = 0;
+    Waiter *waiter = nullptr;
+    FileAccess *fa = nullptr;
+};
 
 // map a request tag with pending paths of temporary files
 typedef map<int, vector<LocalPath> > pendingfiles_map;
@@ -218,16 +257,19 @@ struct MEGA_API FileAccess
 
     // nonblocking open: Only prepares for opening.  Actually stats the file/folder, getting mtime, size, type.
     // Call openf() afterwards to actually open it if required.  For folders, returns false with type==FOLDERNODE.
-    bool fopen(LocalPath&);
+    bool fopen(const LocalPath&);
 
     // check if a local path is a folder
-    bool isfolder(LocalPath&);
+    bool isfolder(const LocalPath& path);
+
+    // check if local path is a file.
+    bool isfile(const LocalPath& path);
 
     // update localname (only has an effect if operating in by-name mode)
-    virtual void updatelocalname(LocalPath&) = 0;
+    virtual void updatelocalname(const LocalPath&, bool force) = 0;
 
     // absolute position read, with NUL padding
-    bool fread(string *, unsigned, unsigned, m_off_t);
+    bool fread(string*, unsigned, unsigned, m_off_t);
 
     // absolute position read to byte buffer
     bool frawread(byte *, unsigned, m_off_t, bool caller_opened = false);
@@ -248,14 +290,14 @@ struct MEGA_API FileAccess
 
     virtual bool asyncavailable() { return false; }
 
-    AsyncIOContext *asyncfopen(LocalPath&);
+    AsyncIOContext *asyncfopen(const LocalPath&);
 
     // non-locking ops: open/close temporary hFile
     bool asyncopenf();
     void asyncclosef();
 
-    AsyncIOContext *asyncfopen(LocalPath&, bool, bool, m_off_t = 0);
-    AsyncIOContext* asyncfread(string *, unsigned, unsigned, m_off_t);
+    AsyncIOContext *asyncfopen(const LocalPath&, bool, bool, m_off_t = 0);
+    AsyncIOContext* asyncfread(string*, unsigned, unsigned, m_off_t);
     AsyncIOContext* asyncfwrite(const byte *, unsigned, m_off_t);
 
 
@@ -361,7 +403,7 @@ public:
     // base path
     LocalPath localbasepath;
 
-    virtual void addnotify(LocalNode*, string*) { }
+    virtual void addnotify(LocalNode*, const LocalPath&) { }
     virtual void delnotify(LocalNode*) { }
 
     void notify(notifyqueue, LocalNode *, LocalPath&&, bool = false);
@@ -385,9 +427,6 @@ public:
 // generic host filesystem access interface
 struct MEGA_API FileSystemAccess : public EventTrigger
 {
-    // local path separator, e.g. "/"
-    string localseparator;
-
     // waiter to notify on filesystem events
     Waiter *waiter;
 
@@ -423,12 +462,11 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual void path2local(const string*, string*) const = 0;
     virtual void local2path(const string*, string*) const = 0;
 
-    // convert MEGA-formatted filename (UTF-8) to local filesystem name; escape
-    // forbidden characters using urlencode
-    void local2name(string*, FileSystemType) const;
-
-    // convert local path to MEGA format (UTF-8) with unescaping
-    void name2local(string*, FileSystemType) const;
+#if defined(_WIN32)
+    // convert MEGA-formatted filename (UTF-8) to local filesystem name
+    virtual void local2path(const std::wstring*, string*) const = 0;
+    virtual void path2local(const string*, std::wstring*) const = 0;
+#endif
 
     // returns a const char pointer that contains the separator character for the target system
     static const char *getPathSeparator();
@@ -440,7 +478,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual void tmpnamelocal(LocalPath&) const = 0;
 
     // obtain local secondary name
-    virtual bool getsname(LocalPath&, LocalPath&) const = 0;
+    virtual bool getsname(const LocalPath&, LocalPath&) const = 0;
 
     // rename file, overwrite target
     virtual bool renamelocal(LocalPath&, LocalPath&, bool = true) = 0;
@@ -466,20 +504,11 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // change working directory
     virtual bool chdirlocal(LocalPath&) const = 0;
 
-    // locate byte offset of last path component
-    virtual size_t lastpartlocal(const string*) const = 0;
-
     // obtain lowercased extension
-    virtual bool getextension(const LocalPath&, char*, size_t) const = 0;
+    virtual bool getextension(const LocalPath&, std::string&) const = 0;
 
     // check if synchronization is supported for a specific path
     virtual bool issyncsupported(LocalPath&, bool* = NULL, SyncError* = nullptr) { return true; }
-
-    // add notification (has to be called for all directories in tree for full crossplatform support)
-    virtual void addnotify(LocalNode*, string*) { }
-
-    // delete notification
-    virtual void delnotify(LocalNode*) { }
 
     // get the absolute path corresponding to a path
     virtual bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) = 0;
@@ -517,6 +546,9 @@ struct MEGA_API FileSystemAccess : public EventTrigger
 
     FileSystemAccess();
     virtual ~FileSystemAccess() { }
+
+    // Get the current working directory.
+    virtual bool cwd(LocalPath& path) const = 0;
 };
 } // namespace
 

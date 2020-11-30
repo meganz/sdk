@@ -116,6 +116,14 @@ using namespace mega;
     return (Retry) self.megaApi->isWaiting();
 }
 
+- (NSNumber *)totalsDownloadBytes {
+    return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalDownloadBytes()];
+}
+
+- (NSNumber *)totalsUploadBytes {
+    return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalUploadBytes()];
+}
+
 - (NSNumber *)totalsDownloadedBytes {
     return [[NSNumber alloc] initWithLongLong:self.megaApi->getTotalDownloadedBytes()];
 }
@@ -1653,12 +1661,28 @@ using namespace mega;
     self.megaApi->startStreaming((node != nil) ? [node getCPtr] : NULL, (startPos != nil) ? [startPos longLongValue] : 0, (size != nil) ? [size longLongValue] : 0, NULL);
 }
 
+- (void)resetTotalDownloads {
+    self.megaApi->resetTotalDownloads();
+}
+
+- (void)resetTotalUploads {
+    self.megaApi->resetTotalUploads();
+}
+
 - (void)cancelTransfer:(MEGATransfer *)transfer delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->cancelTransfer((transfer != nil) ? [transfer getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)cancelTransfer:(MEGATransfer *)transfer {
     self.megaApi->cancelTransfer((transfer != nil) ? [transfer getCPtr] : NULL);
+}
+
+- (void)retryTransfer:(MEGATransfer *)transfer delegate:(id<MEGATransferDelegate>)delegate {
+    self.megaApi->retryTransfer((transfer != nil) ? [transfer getCPtr] : NULL, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
+}
+
+- (void)retryTransfer:(MEGATransfer *)transfer {
+    self.megaApi->retryTransfer((transfer != nil) ? [transfer getCPtr] : NULL);
 }
 
 - (void)moveTransferToFirst:(MEGATransfer *)transfer delegate:(id<MEGARequestDelegate>)delegate {
@@ -2112,6 +2136,7 @@ using namespace mega;
     
     return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchByType(node ? [node getCPtr] : NULL, searchString.UTF8String, cancelToken ? [cancelToken getCPtr] : NULL, recursive, (int)orderType, (int)nodeFormatType, (int)folderTargetType) cMemoryOwn:YES];
 }
+
 - (NSMutableArray *)recentActions {
     MegaRecentActionBucketList *megaRecentActionBucketList = self.megaApi->getRecentActions();
     int count = megaRecentActionBucketList->size();
@@ -2120,6 +2145,8 @@ using namespace mega;
         MEGARecentActionBucket *recentActionBucket = [MEGARecentActionBucket.alloc initWithMegaRecentActionBucket:megaRecentActionBucketList->get(i)->copy() cMemoryOwn:YES];
         [recentActionBucketMutableArray addObject:recentActionBucket];
     }
+    
+    delete megaRecentActionBucketList;
     
     return recentActionBucketMutableArray;
 }
@@ -2493,6 +2520,16 @@ using namespace mega;
 
 - (void)setPushNotificationSettings:(MEGAPushNotificationSettings *)pushNotificationSettings {
     self.megaApi->setPushNotificationSettings(pushNotificationSettings.getCPtr);
+}
+
+#pragma mark - Banner
+
+- (void)getBanners:(id<MEGARequestDelegate>)delegate {
+    self.megaApi -> getBanners([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)dismissBanner:(NSInteger)bannerIdentifier delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi -> dismissBanner((int)bannerIdentifier, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 #pragma mark - Debug

@@ -23,136 +23,167 @@
 
 #ifdef USE_SQLITE
 namespace mega {
-SqliteDbAccess::SqliteDbAccess(string* path)
+
+static LocalPath databasePath(const FileSystemAccess& fsAccess,
+                              const LocalPath& rootPath,
+                              const string& name,
+                              const int version)
 {
-    if (path)
-    {
-        dbpath = *path;
-    }
+    ostringstream osstream;
+
+    osstream << "megaclient_statecache"
+             << version
+             << "_"
+             << name
+             << ".db";
+
+    LocalPath path = rootPath;
+
+    path.appendWithSeparator(
+      LocalPath::fromPath(osstream.str(), fsAccess),
+      false);
+
+    return path;
+}
+
+SqliteDbAccess::SqliteDbAccess(const LocalPath& rootPath)
+  : mRootPath(rootPath)
+{
 }
 
 SqliteDbAccess::~SqliteDbAccess()
 {
 }
 
-DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess* fsaccess, string* name, bool recycleLegacyDB, bool checkAlwaysTransacted)
+DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags)
 {
-    //Each table will use its own database object and its own file
-    sqlite3* db;
-    string dbfile;
-    ostringstream legacyoss;
-    legacyoss << dbpath;
-    legacyoss << "megaclient_statecache";
-    legacyoss << LEGACY_DB_VERSION;
-    legacyoss << "_" << *name << ".db";
-    string legacydbpath = legacyoss.str();
+    auto dbPath = databasePath(fsAccess, mRootPath, name, DB_VERSION);
 
-    ostringstream newoss;
-    newoss << dbpath;
-    newoss << "megaclient_statecache";
-    newoss << DB_VERSION;
-    newoss << "_" << *name << ".db";
-    string currentdbpath = newoss.str();
-
-    
-    auto fa = fsaccess->newfileaccess();
-    auto locallegacydbpath = LocalPath::fromPath(legacydbpath, *fsaccess);
-    bool legacydbavailable = fa->fopen(locallegacydbpath);
-    fa.reset();
-
-    if (legacydbavailable)
     {
-        if (currentDbVersion == LEGACY_DB_VERSION)
+        auto legacyPath = databasePath(fsAccess, mRootPath, name, LEGACY_DB_VERSION);
+        auto fileAccess = fsAccess.newfileaccess();
+
+        if (fileAccess->fopen(legacyPath))
         {
-            LOG_debug << "Using a legacy DB";
-            dbfile = legacydbpath;
-        }
-        else
-        {
-            if (!recycleLegacyDB)
+            LOG_debug << "Found legacy database at: " << legacyPath.toPath(fsAccess);
+
+            if (currentDbVersion == LEGACY_DB_VERSION)
             {
-                LOG_debug << "Legacy DB is outdated. Deleting.";
-                fsaccess->unlinklocal(locallegacydbpath);
+                LOG_debug << "Using a legacy database.";
+                dbPath = std::move(legacyPath);
             }
-            else
+            else if ((flags & DB_OPEN_FLAG_RECYCLE))
             {
-                LOG_debug << "Trying to recycle a legacy DB";
-                auto localcurrentdbpath = LocalPath::fromPath(currentdbpath, *fsaccess);
-                if (fsaccess->renamelocal(locallegacydbpath, localcurrentdbpath, false))
+                LOG_debug << "Trying to recycle a legacy database.";
+
+                if (fsAccess.renamelocal(legacyPath, dbPath, false))
                 {
-                    auto localsuffix = LocalPath::fromPath("-shm", *fsaccess);
+                    auto suffix = LocalPath::fromPath("-shm", fsAccess);
+                    auto from = legacyPath + suffix;
+                    auto to = dbPath + suffix;
 
-                    auto oldfile = locallegacydbpath + localsuffix;
-                    auto newfile = localcurrentdbpath + localsuffix;
-                    fsaccess->renamelocal(oldfile, newfile, true);
+                    fsAccess.renamelocal(from, to);
 
-                    localsuffix = LocalPath::fromPath("-wal", *fsaccess);
-                    oldfile = locallegacydbpath + localsuffix;
-                    newfile = localcurrentdbpath + localsuffix;
-                    fsaccess->renamelocal(oldfile, newfile, true);
-                    LOG_debug << "Legacy DB recycled";
+                    suffix = LocalPath::fromPath("-shm", fsAccess);
+                    from = legacyPath + suffix;
+                    to = dbPath + suffix;
+
+                    fsAccess.renamelocal(from, to);
+
+                    LOG_debug << "Legacy database recycled.";
                 }
                 else
                 {
-                    LOG_debug << "Unable to recycle legacy DB. Deleting.";
-                    fsaccess->unlinklocal(locallegacydbpath);
+                    LOG_debug << "Unable to recycle database, deleting...";
+                    fsAccess.unlinklocal(legacyPath);
                 }
+            }
+            else
+            {
+                LOG_debug << "Deleting outdated legacy database.";
+                fsAccess.unlinklocal(legacyPath);
             }
         }
     }
 
-    if (!dbfile.size())
+    const string dbPathStr = dbPath.toPath(fsAccess);
+    sqlite3* db;
+    int result = sqlite3_open(dbPathStr.c_str(), &db);
+
+    if (result)
     {
-        LOG_debug << "Using an upgraded DB";
-        dbfile = currentdbpath;
-        currentDbVersion = DB_VERSION;
-    }
+        if (db)
+        {
+            sqlite3_close(db);
+        }
 
-    int rc;
-
-    rc = sqlite3_open(dbfile.c_str(), &db);
-
-    if (rc)
-    {
-        return NULL;
+        return nullptr;
     }
 
 #if !(TARGET_OS_IPHONE)
-    sqlite3_exec(db, "PRAGMA journal_mode=WAL;", NULL, NULL, NULL);
-#endif
+    result = sqlite3_exec(db, "PRAGMA journal_mode=WAL;", nullptr, nullptr, nullptr);
+    if (result)
+    {
+        sqlite3_close(db);
+        return nullptr;
+    }
+#endif /* ! TARGET_OS_IPHONE */
 
     string sql = "CREATE TABLE IF NOT EXISTS statecache (id INTEGER PRIMARY KEY ASC NOT NULL, content BLOB NOT NULL)";
 
-    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
-    if (rc)
+    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+    if (result)
     {
-        return NULL;
+        sqlite3_close(db);
+        return nullptr;
     }
 
     sql = "CREATE TABLE IF NOT EXISTS nodes (nodehandle int64 PRIMARY KEY NOT NULL, parenthandle int64, name text, fingerprint BLOB, origFingerprint BLOB, type int, size int64, share int, decrypted int, node BLOB NOT NULL)";
-    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
-    if (rc)
+    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+    if (result)
     {
-        return NULL;
+        sqlite3_close(db);
+        return nullptr;
     }
 
     sql = "CREATE TABLE IF NOT EXISTS vars(name text PRIMARY KEY NOT NULL, value BLOB)";
-    rc = sqlite3_exec(db, sql.c_str(), NULL, NULL, NULL);
-    if (rc)
+    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+    if (result)
     {
-        return NULL;
+        sqlite3_close(db);
+        return nullptr;
     }
 
-    return new SqliteDbTable(rng, db, fsaccess, &dbfile, checkAlwaysTransacted);
+    return new SqliteDbTable(rng,
+                             db,
+                             fsAccess,
+                             dbPathStr, 
+                             (flags & DB_OPEN_FLAG_TRANSACTED) > 0);
 }
 
-SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* cdb, FileSystemAccess *fs, string *filepath, bool checkAlwaysTransacted)
-    : DbTable(rng, checkAlwaysTransacted)
+bool SqliteDbAccess::probe(FileSystemAccess& fsAccess, const string& name) const
 {
-    db = cdb;
-    pStmt = NULL;
-    fsaccess = fs;
-    dbfile = *filepath;
+    auto fileAccess = fsAccess.newfileaccess();
+
+    LocalPath dbPath = databasePath(fsAccess, mRootPath, name, DB_VERSION);
+
+    if (fileAccess->isfile(dbPath))
+    {
+        return true;
+    }
+
+    dbPath = databasePath(fsAccess, mRootPath, name, LEGACY_DB_VERSION);
+
+    return fileAccess->isfile(dbPath);
+}
+
+SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* db, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted)
+  : DbTable(rng, checkAlwaysTransacted)
+  , db(db)
+  , pStmt(nullptr)
+  , dbfile(path)
+  , fsaccess(&fsAccess)
+{
 }
 
 SqliteDbTable::~SqliteDbTable()
@@ -164,13 +195,20 @@ SqliteDbTable::~SqliteDbTable()
         return;
     }
 
-    if (pStmt)
+    sqlite3_finalize(pStmt);
+
+    if (inTransaction())
     {
-        sqlite3_finalize(pStmt);
+        abort();
     }
-    abort();
+
     sqlite3_close(db);
     LOG_debug << "Database closed " << dbfile;
+}
+
+bool SqliteDbTable::inTransaction() const
+{
+    return sqlite3_get_autocommit(db) == 0;
 }
 
 // set cursor to first record
@@ -181,13 +219,21 @@ void SqliteDbTable::rewind()
         return;
     }
 
+    int result;
+
     if (pStmt)
     {
-        sqlite3_reset(pStmt);
+        result = sqlite3_reset(pStmt);
     }
     else
     {
-        sqlite3_prepare(db, "SELECT id, content FROM statecache", -1, &pStmt, NULL);
+        result = sqlite3_prepare(db, "SELECT id, content FROM statecache", -1, &pStmt, NULL);
+    }
+
+    if (result != SQLITE_OK)
+    {
+        LOG_err << "Unable to rewind database: " << dbfile;
+        assert(!"Unable to rewind database.");
     }
 }
 
@@ -210,6 +256,13 @@ bool SqliteDbTable::next(uint32_t* index, string* data)
     {
         sqlite3_finalize(pStmt);
         pStmt = NULL;
+
+        if (rc != SQLITE_DONE)
+        {
+            LOG_err << "Unable to get next record from database: " << dbfile;
+            assert(!"Unable to get next record from database.");
+        }
+
         return false;
     }
 
@@ -231,23 +284,31 @@ bool SqliteDbTable::get(uint32_t index, string* data)
     checkTransaction();
 
     sqlite3_stmt *stmt;
-    bool result = false;
+    int rc;
 
-    if (sqlite3_prepare(db, "SELECT content FROM statecache WHERE id = ?", -1, &stmt, NULL) == SQLITE_OK)
+    rc = sqlite3_prepare(db, "SELECT content FROM statecache WHERE id = ?", -1, &stmt, NULL);
+    if (rc == SQLITE_OK)
     {
-        if (sqlite3_bind_int(stmt, 1, index) == SQLITE_OK)
+        rc = sqlite3_bind_int(stmt, 1, index);
+        if (rc == SQLITE_OK)
         {
-            if (sqlite3_step(stmt) == SQLITE_ROW)
+            rc = sqlite3_step(stmt);
+            if (rc == SQLITE_ROW)
             {
                 data->assign((char*)sqlite3_column_blob(stmt, 0), sqlite3_column_bytes(stmt, 0));
-
-                result = true;
             }
         }
     }
 
     sqlite3_finalize(stmt);
-    return result;
+
+    if (rc != SQLITE_DONE && rc != SQLITE_ROW)
+    {
+        LOG_err << "Unable to get record from database: " << dbfile;
+        assert(!"Unable to get record from database.");
+    }
+
+    return rc == SQLITE_ROW;
 }
 
 bool SqliteDbTable::getNode(handle nodehandle, NodeSerialized &nodeSerialized)
@@ -851,6 +912,13 @@ bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
     }
 
     sqlite3_finalize(stmt);
+
+    if (!result)
+    {
+        LOG_err << "Unable to put record into database: " << dbfile;
+        assert(!"Unable to put record into database.");
+    }
+
     return result;
 }
 
@@ -939,7 +1007,15 @@ bool SqliteDbTable::del(uint32_t index)
 
     sprintf(buf, "DELETE FROM statecache WHERE id = %" PRIu32, index);
 
-    return !sqlite3_exec(db, buf, 0, 0, NULL);
+    if (sqlite3_exec(db, buf, 0, 0, nullptr) != SQLITE_OK)
+    {
+        LOG_err << "Unable to delete record from database: " << dbfile;
+        assert(!"Unable to delete record from database.");
+
+        return false;
+    }
+
+    return true;
 }
 
 bool SqliteDbTable::del(handle nodehandle)
@@ -980,7 +1056,11 @@ void SqliteDbTable::truncate()
 
     checkTransaction();
 
-    sqlite3_exec(db, "DELETE FROM statecache", 0, 0, NULL);
+    if (sqlite3_exec(db, "DELETE FROM statecache", 0, 0, NULL) != API_OK)
+    {
+        LOG_err << "Unable to truncate database: " << dbfile;
+        assert(!"Unable to truncate database.");
+    }
 }
 
 // begin transaction
@@ -992,7 +1072,11 @@ void SqliteDbTable::begin()
     }
 
     LOG_debug << "DB transaction BEGIN " << dbfile;
-    sqlite3_exec(db, "BEGIN", 0, 0, NULL);
+    if (sqlite3_exec(db, "BEGIN", 0, 0, NULL) != SQLITE_OK)
+    {
+        LOG_err << "Unable to begin transaction on database: " << dbfile;
+        assert(!"Unable to begin transaction on database.");
+    }
 }
 
 // commit transaction
@@ -1004,7 +1088,12 @@ void SqliteDbTable::commit()
     }
 
     LOG_debug << "DB transaction COMMIT " << dbfile;
-    sqlite3_exec(db, "COMMIT", 0, 0, NULL);
+
+    if (sqlite3_exec(db, "COMMIT", 0, 0, NULL) != SQLITE_OK)
+    {
+        LOG_err << "Unable to commit transaction on database: " << dbfile;
+        assert(!"Unable to commit transaction on database.");
+    }
 }
 
 // abort transaction
@@ -1016,7 +1105,12 @@ void SqliteDbTable::abort()
     }
 
     LOG_debug << "DB transaction ROLLBACK " << dbfile;
-    sqlite3_exec(db, "ROLLBACK", 0, 0, NULL);
+
+    if (sqlite3_exec(db, "ROLLBACK", 0, 0, NULL) != SQLITE_OK)
+    {
+        LOG_err << "Unable to rollback transaction on database: " << dbfile;
+        assert(!"Unable to rollback transaction on database.");
+    }
 }
 
 void SqliteDbTable::remove()
@@ -1026,11 +1120,13 @@ void SqliteDbTable::remove()
         return;
     }
 
-    if (pStmt)
+    sqlite3_finalize(pStmt);
+
+    if (inTransaction())
     {
-        sqlite3_finalize(pStmt);
+        abort();
     }
-    abort();
+
     sqlite3_close(db);
 
     db = NULL;

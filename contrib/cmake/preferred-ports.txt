@@ -34,3 +34,11 @@ x264/157-3034848280-7
 zlib/1.2.11-5
 opengl/0.0-5
 freeglut/3.0.0-9
+freeimage/3.18.0-8
+libpng/1.6.37-6
+tiff/4.0.10-8
+libwebp/1.0.2-8
+giflib/5.1.4-3
+jxrlib/2019.10.9
+openexr/2.3.0-5
+sdl1/1.2.15-12

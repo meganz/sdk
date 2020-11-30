@@ -10,6 +10,19 @@ extern bool gOutputToCout;
 std::ostream& out();
 enum { THREADS_PER_MEGACLIENT = 3 };
 
+class TestingWithLogErrorAllowanceGuard
+{
+public:
+    TestingWithLogErrorAllowanceGuard()
+    {
+        gTestingInvalidArgs = true;
+    }
+    ~TestingWithLogErrorAllowanceGuard()
+    {
+        gTestingInvalidArgs = false;
+    }
+};
+
 class TestFS
 {
 public:

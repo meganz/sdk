@@ -89,23 +89,23 @@ class SyncApp : public MegaApp, public Logger
     void request_error(error e);
 
 #ifdef ENABLE_SYNC
-    void syncupdate_state(Sync *, syncstate_t);
-    void syncupdate_local_folder_addition(Sync*, LocalNode*, const char *);
-    void syncupdate_local_folder_deletion(Sync*, LocalNode*);
-    void syncupdate_local_file_addition(Sync*, LocalNode*, const char *);
-    void syncupdate_local_file_deletion(Sync*, LocalNode*);
-    void syncupdate_local_file_change(Sync*, LocalNode*, const char *);
-    void syncupdate_local_move(Sync*, LocalNode*, const char*);
-    void syncupdate_get(Sync*, Node*, const char*);
-    void syncupdate_put(Sync*, LocalNode*, const char*);
-    void syncupdate_remote_file_addition(Sync*, Node*);
-    void syncupdate_remote_file_deletion(Sync*, Node*);
-    void syncupdate_remote_folder_addition(Sync*, Node*);
-    void syncupdate_remote_folder_deletion(Sync*, Node*);
-    void syncupdate_remote_copy(Sync*, const char*);
-    void syncupdate_remote_move(Sync*, Node*, Node*);
-    void syncupdate_remote_rename(Sync*sync, Node* n, const char* prevname);
-    void syncupdate_treestate(LocalNode*);
+    void syncupdate_state(int, syncstate_t state, SyncError, bool) override;
+    void syncupdate_local_folder_addition(Sync*, LocalNode*, const char *) override;
+    void syncupdate_local_folder_deletion(Sync*, LocalNode*) override;
+    void syncupdate_local_file_addition(Sync*, LocalNode*, const char *) override;
+    void syncupdate_local_file_deletion(Sync*, LocalNode*) override;
+    void syncupdate_local_file_change(Sync*, LocalNode*, const char *) override;
+    void syncupdate_local_move(Sync*, LocalNode*, const char*) override;
+    void syncupdate_get(Sync*, Node*, const char*) override;
+    void syncupdate_put(Sync*, LocalNode*, const char*) override;
+    void syncupdate_remote_file_addition(Sync*, Node*) override;
+    void syncupdate_remote_file_deletion(Sync*, Node*) override;
+    void syncupdate_remote_folder_addition(Sync*, Node*) override;
+    void syncupdate_remote_folder_deletion(Sync*, Node*) override;
+    void syncupdate_remote_copy(Sync*, const char*) override;
+    void syncupdate_remote_move(Sync*, Node*, Node*) override;
+    void syncupdate_remote_rename(Sync* sync, Node* n, const char* prevname) override;
+    void syncupdate_treestate(LocalNode*) override;
 #endif
 
     Node* nodebypath(const char* ptr, string* user, string* namepart);
@@ -476,7 +476,7 @@ void SyncApp::request_error(error e)
 }
 
 #ifdef ENABLE_SYNC
-void SyncApp::syncupdate_state(Sync*, syncstate_t state)
+void SyncApp::syncupdate_state(int, syncstate_t state, SyncError, bool)
 {
     if (( state == SYNC_CANCELED ) || ( state == SYNC_FAILED ))
     {
@@ -624,19 +624,37 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    // Needed so we can get our hands on the cwd.
+    auto fsAccess = new FSACCESS_CLASS();
+
+    // Where are we?
+    LocalPath currentDir;
+    bool result = fsAccess->cwd(currentDir);
+
+    if (!result)
+    {
+        cerr << "Unable to determine current working directory." << endl;
+        return EXIT_FAILURE;
+    }
+
     // create MegaClient, providing our custom MegaApp and Waiter classes
-    client = new MegaClient(app, new WAIT_CLASS, new HTTPIO_CLASS, new FSACCESS_CLASS,
+    client = new MegaClient(app,
+                            new WAIT_CLASS,
+                            new HTTPIO_CLASS,
+                            fsAccess,
                         #ifdef DBACCESS_CLASS
-                                                    new DBACCESS_CLASS,
+                            new DBACCESS_CLASS(currentDir),
                         #else
-                                                    NULL,
+                            nullptr,
                         #endif
                         #ifdef GFX_CLASS
-                                                    new GFX_CLASS,
+                            new GFX_CLASS,
                         #else
-                                                    NULL,
+                            nullptr,
                         #endif
-                            "N9tSBJDC", "megasimplesync", 2);
+                            "N9tSBJDC",
+                            "megasimplesync",
+                            2);
 
     // if MEGA_DEBUG env variable is set
     if (getenv("MEGA_DEBUG"))
