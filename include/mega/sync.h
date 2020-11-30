@@ -284,6 +284,7 @@ struct Syncs
 
     // updates in state & error
     void saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, SyncError syncerror);
+    void saveSyncConfig(const SyncConfig *config);
 
     Syncs(MegaClient& mc);
 

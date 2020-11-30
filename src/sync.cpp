@@ -2391,8 +2391,6 @@ error Syncs::enableSyncByTag(int tag, SyncError& syncError, bool resetFingerprin
     return API_ENOENT;
 }
 
-
-
 void Syncs::saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, SyncError newSyncError)
 {
     auto newConfig = *config;
@@ -2401,6 +2399,11 @@ void Syncs::saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newsta
     newConfig.setError(newSyncError);
 
     mSyncConfigDb->insert(newConfig);
+}
+
+void Syncs::saveSyncConfig(const SyncConfig *config)
+{
+    mSyncConfigDb->insert(*config);
 }
 
 // restore all configured syncs that were in a temporary error state (not manually disabled)
