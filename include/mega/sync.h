@@ -53,10 +53,10 @@ public:
     MEGA_DISABLE_COPY_MOVE(SyncConfigBag)
 
     // Adds a new sync config or updates if exists already
-    void insert(const SyncConfig& syncConfig);
+    error insert(const SyncConfig& syncConfig);
 
     // Removes a sync config with a given tag
-    bool removeByTag(const int tag);
+    error removeByTag(const int tag);
 
     // Returns the sync config with a given tag
     const SyncConfig* get(const int tag) const;
@@ -266,6 +266,320 @@ private:
     SyncBackupState mBackupState;
 };
 
+class MEGA_API XBackupConfig
+{
+public:
+    XBackupConfig();
+
+    MEGA_DEFAULT_COPY_MOVE(XBackupConfig);
+
+    bool valid() const;
+
+    bool operator==(const XBackupConfig& rhs) const;
+
+    bool operator!=(const XBackupConfig& rhs) const;
+
+    // Absolute path to containing drive.
+    LocalPath drivePath;
+
+    // Relative path to sync root.
+    LocalPath sourcePath;
+    
+    // ID for backup heartbeating.
+    handle heartbeatID;
+
+    // Handle of remote sync target.
+    handle targetHandle;
+
+    // The last error that occured on this sync.
+    SyncError lastError;
+
+    // Identity of sync.
+    int tag;
+
+    // Whether the sync has been enabled by the user.
+    bool enabled;
+}; // XBackupConfig
+
+// Translates an SyncConfig into a XBackupConfig.
+XBackupConfig translate(const MegaClient& client, const SyncConfig &config);
+
+// Translates an XBackupConfig into a SyncConfig.
+SyncConfig translate(const MegaClient& client, const XBackupConfig& config);
+
+// For convenience.
+using XBackupConfigMap = map<int, XBackupConfig>;
+
+class XBackupConfigDBObserver;
+class XBackupConfigIOContext;
+
+class MEGA_API XBackupConfigDB
+{
+public:
+    XBackupConfigDB(const LocalPath& drivePath,
+                    XBackupConfigDBObserver& observer);
+
+    ~XBackupConfigDB();
+
+    MEGA_DISABLE_COPY(XBackupConfigDB);
+
+    MEGA_DEFAULT_MOVE(XBackupConfigDB);
+
+    // Add a new (or update an existing) config.
+    const XBackupConfig* add(const XBackupConfig& config);
+
+    // Remove all configs.
+    void clear();
+
+    // Get current configs.
+    const XBackupConfigMap& configs() const;
+
+    // Path to the drive containing this database.
+    const LocalPath& drivePath() const;
+
+    // Get config by backup tag.
+    const XBackupConfig* get(const int tag) const;
+
+    // Get config by backup target handle.
+    const XBackupConfig* get(const handle targetHandle) const;
+
+    // Read this database from disk.
+    error read(XBackupConfigIOContext& ioContext);
+
+    // Remove config by backup tag.
+    error remove(const int tag);
+
+    // Remove config by backup target handle.
+    error remove(const handle targetHandle);
+
+    // Write this database to disk.
+    error write(XBackupConfigIOContext& ioContext);
+
+private:
+    // Adds a new (or updates an existing) config.
+    const XBackupConfig* add(const XBackupConfig& config,
+                             const bool flush);
+
+    // Removes all configs.
+    void clear(const bool flush);
+
+    // Reads this database from the specified slot on disk.
+    error read(XBackupConfigIOContext& ioContext,
+               const unsigned int slot);
+
+    // Remove config by backup tag.
+    error remove(const int tag, const bool flush);
+
+    // How many times we should be able to write the database before
+    // overwriting earlier versions.
+    static const unsigned int NUM_SLOTS;
+
+    // Path to the drive containing this database.
+    LocalPath mDrivePath;
+
+    // Who we tell about config changes.
+    XBackupConfigDBObserver& mObserver;
+
+    // Maps backup tag to config.
+    XBackupConfigMap mTagToConfig;
+
+    // Maps backup target handle to config.
+    map<handle, XBackupConfig*> mTargetToConfig;
+
+    // Tracks which 'slot' we're writing to.
+    unsigned int mSlot;
+}; // XBackupConfigDB
+
+// Convenience.
+using XBackupConfigDBPtr = unique_ptr<XBackupConfigDB>;
+
+class MEGA_API XBackupConfigIOContext
+{
+public:
+    XBackupConfigIOContext(SymmCipher& cipher,
+                           FileSystemAccess& fsAccess,
+                           const string& key,
+                           const string& name,
+                           PrnGen& rng);
+
+    virtual ~XBackupConfigIOContext();
+
+    MEGA_DISABLE_COPY_MOVE(XBackupConfigIOContext);
+
+    // Deserialize configs from JSON.
+    bool deserialize(XBackupConfigMap& configs,
+                     JSON& reader) const;
+
+    // Determine which slots are present.
+    virtual error get(const LocalPath& drivePath,
+                      vector<unsigned int>& slots);
+
+    // Read data from the specified slot.
+    virtual error read(const LocalPath& drivePath,
+                       string& data,
+                       const unsigned int slot);
+
+    // Serialize configs to JSON.
+    void serialize(const XBackupConfigMap& configs,
+                   JSONWriter& writer) const;
+
+    // Write data to the specified slot.
+    virtual error write(const LocalPath& drivePath,
+                        const string& data,
+                        const unsigned int slot);
+
+    // Name of the backup configuration directory.
+    static const string BACKUP_CONFIG_DIR;
+
+private:
+    // Decrypt data.
+    bool decrypt(const string& in, string& out);
+
+    // Deserialize a config from JSON.
+    bool deserialize(XBackupConfig& config, JSON& reader) const;
+
+    // Encrypt data.
+    string encrypt(const string& data);
+
+    // Serialize a config to JSON.
+    void serialize(const XBackupConfig& config, JSONWriter& writer) const;
+
+    // The cipher protecting the user's configuration databases.
+    SymmCipher mCipher;
+
+    // How we access the filesystem.
+    FileSystemAccess& mFsAccess;
+
+    // Name of this user's configuration databases.
+    LocalPath mName;
+
+    // Pseudo-random number generator.
+    PrnGen& mRNG;
+
+    // Hash used to authenticate configuration databases.
+    HMACSHA256 mSigner;
+}; // XBackupConfigIOContext
+
+class MEGA_API XBackupConfigDBObserver
+{
+public:
+    // Invoked when a backup config is being added.
+    virtual void onAdd(XBackupConfigDB& db,
+                       const XBackupConfig& config) = 0;
+
+    // Invoked when a backup config is being changed.
+    virtual void onChange(XBackupConfigDB& db,
+                          const XBackupConfig& from,
+                          const XBackupConfig& to) = 0;
+
+    // Invoked when a database needs to be written.
+    virtual void onDirty(XBackupConfigDB& db) = 0;
+
+    // Invoked when a backup config is being removed.
+    virtual void onRemove(XBackupConfigDB& db,
+                          const XBackupConfig& config) = 0;
+
+protected:
+    XBackupConfigDBObserver();
+
+    ~XBackupConfigDBObserver();
+}; // XBackupConfigDBObserver
+
+class MEGA_API XBackupConfigStore
+  : private XBackupConfigDBObserver
+{
+public:
+    XBackupConfigStore(XBackupConfigIOContext& ioContext);
+
+    virtual ~XBackupConfigStore();
+
+    MEGA_DISABLE_COPY_MOVE(XBackupConfigStore);
+
+    // Add a new (or update an existing) config.
+    const XBackupConfig* add(const XBackupConfig& config);
+
+    // Close a database.
+    error close(const LocalPath& drivePath);
+
+    // Close all databases.
+    error close();
+
+    // Get configs from a database.
+    const XBackupConfigMap* configs(const LocalPath& drivePath) const;
+
+    // Get all configs.
+    XBackupConfigMap configs() const;
+
+    // Create a new (or open an existing) database.
+    const XBackupConfigMap* create(const LocalPath& drivePath);
+
+    // Whether any databases need flushing.
+    bool dirty() const;
+    
+    // Flush a database to disk.
+    error flush(const LocalPath& drivePath);
+
+    // Flush all databases to disk.
+    error flush(vector<LocalPath>& drivePaths);
+    error flush();
+
+    // Get config by backup tag.
+    const XBackupConfig* get(const int tag) const;
+
+    // Get config by backup target handle.
+    const XBackupConfig* get(const handle targetHandle) const;
+
+    // Open (and add) an existing database.
+    const XBackupConfigMap* open(const LocalPath& drivePath);
+
+    // Check whether a database is open.
+    bool opened(const LocalPath& drivePath) const;
+
+    // Remove config by backup tag.
+    error remove(const int tag);
+
+    // Remove config by backup target handle.
+    error remove(const handle targetHandle);
+
+protected:
+    // Invoked when a backup config is being added.
+    virtual void onAdd(XBackupConfigDB& db,
+                       const XBackupConfig& config) override;
+
+    // Invoked when a backup config is being changed.
+    virtual void onChange(XBackupConfigDB& db,
+                          const XBackupConfig& from,
+                          const XBackupConfig& to) override;
+
+    // Invoked when a database needs to be written.
+    virtual void onDirty(XBackupConfigDB& db) override;
+
+    // Invoked when a backup config is being removed.
+    virtual void onRemove(XBackupConfigDB& db,
+                          const XBackupConfig& config) override;
+
+private:
+    // Close a database.
+    error close(XBackupConfigDB& db);
+
+    // Flush a database to disk.
+    error flush(XBackupConfigDB& db);
+
+    // Tracks which databases need to be written.
+    set<XBackupConfigDB*> mDirtyDB;
+
+    // Maps drive path to database.
+    map<LocalPath, XBackupConfigDBPtr> mDriveToDB;
+
+    // IO context used to read and write from disk.
+    XBackupConfigIOContext& mIOContext;
+
+    // Maps backup tag to database.
+    map<int, XBackupConfigDB*> mTagToDB;
+
+    // Maps backup target handle to database.
+    map<handle, XBackupConfigDB*> mTargetToDB;
+}; // XBackupConfigStore
 
 struct Syncs
 {
@@ -300,8 +614,8 @@ struct Syncs
     void clear();
 
     // updates in state & error
-    void saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, SyncError syncerror);
-    void saveSyncConfig(const SyncConfig *config);
+    error saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, SyncError syncerror);
+    error saveSyncConfig(const SyncConfig *config);
 
     Syncs(MegaClient& mc);
 
@@ -313,16 +627,116 @@ struct Syncs
     // use this existing class for maintaining the db
     unique_ptr<SyncConfigBag> mSyncConfigDb;
 
+    /**
+     * @brief
+     * Add an external backup sync.
+     *
+     * @param config
+     * Config describing the sync to be added.
+     *
+     * @param delayInitialScan
+     * Whether we should delay the inital scan.
+     *
+     * @return
+     * The result of adding the sync.
+     */
+    pair<error, SyncError> backupAdd(const XBackupConfig& config,
+                                     const bool delayInitialScan);
+
+    /**
+     * @brief
+     * Removes a previously opened backup database from memory.
+     *
+     * Note that this function will:
+     * - Flush any pending database changes.
+     * - Remove all contained backup configs from memory.
+     * - Remove the database itself from memory.
+     *
+     * @param drivePath
+     * The drive containing the database to remove.
+     *
+     * @return
+     * The result of removing the backup database.
+     *
+     * API_EARGS
+     * The path is invalid.
+     *
+     * API_EBUSY
+     * There is an active sync on this device.
+     *
+     * API_EFAILED
+     * Encountered an internal error.
+     * 
+     * API_ENOENT
+     * No such database exists in memory.
+     *
+     * API_EWRITE
+     * The database has been removed from memory but it could not
+     * be successfully flushed.
+     *
+     * API_OK
+     * The database was removed from memory.
+     */
+    error backupRemove(const LocalPath& drivePath);
+
+    /**
+     * @brief
+     * Restores backups loaded from an external drive.
+     *
+     * @param configs
+     * A map describing the backups to restore.
+     *
+     * @param delayInitialScan
+     * Whether we should delay the inital scan.
+     *
+     * @return
+     * The result of restoring the external backups.
+     */
+    pair<error, SyncError> backupRestore(const LocalPath& drivePath,
+                                         const XBackupConfigMap& configs,
+                                         const bool delayInitialScan);
+    /**
+     * @brief
+     * Restores backups from an external drive.
+     *
+     * @param drivePath
+     * The drive to restore external backups from.
+     *
+     * @param delayInitialScan
+     * Whether we should delay the inital scan.
+     *
+     * @return
+     * The result of restoring the external backups.
+     */
+    pair<error, SyncError> backupRestore(const LocalPath& drivePath,
+                                         const bool delayInitialScan);
+
+    // Returns a reference to this user's backup configuration store.
+    XBackupConfigStore* backupConfigStore();
+
+    // Whether the store has any changes that need to be written to disk.
+    bool backupConfigStoreDirty();
+
+    // Attempts to flush database changes to disk.
+    error backupConfigStoreFlush();
+
 private:
+    // Responsible for securely writing config databases to disk.
+    unique_ptr<XBackupConfigIOContext> mBackupConfigIOContext;
+
+    // Manages this user's external backup configuration databases.
+    unique_ptr<XBackupConfigStore> mBackupConfigStore;
 
     vector<unique_ptr<UnifiedSync>> mSyncVec;
 
     // remove the Sync and its config.  The sync's Localnode cache is removed
     void removeSyncByIndex(size_t index);
 
+    // Removes a sync config.
+    error removeSyncConfig(const int tag);
+
     MegaClient& mClient;
 };
-
 
 } // namespace
 

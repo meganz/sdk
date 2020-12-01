@@ -211,6 +211,7 @@ typedef enum ErrorCodes
     API_EMASTERONLY = -27,          ///< Access denied for sub-users (only for business accounts)
     API_EBUSINESSPASTDUE = -28,     ///< Business account expired
     API_EPAYWALL = -29,             ///< Over Disk Quota Paywall
+    API_EBUSY = -30                 ///< Resource is busy.
 } error;
 
 class Error
@@ -610,6 +611,8 @@ typedef enum {
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
     ATTR_MY_BACKUPS_FOLDER = 31,            // private - byte array - non-versioned
     ATTR_BACKUP_NAMES = 32,                 // private - byte array - versioned
+    ATTR_XBACKUP_CONFIG_NAME = 33,          // private - unencrypted - char array - versioned
+    ATTR_XBACKUP_CONFIG_KEY = 34            // private - unencrypted - char array - versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -863,7 +866,17 @@ private:
 
 };
 
-typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3, MEDIA_UPLOAD = 4 } BackupType;
+typedef enum
+{
+    INVALID = -1,
+    TWO_WAY = 0,
+    UP_SYNC = 1,
+    DOWN_SYNC = 2,
+    CAMERA_UPLOAD = 3,
+    MEDIA_UPLOAD = 4,
+    BACKUP = 5
+}
+BackupType;
 
 // Holds the config of a sync. Can be extended with future config options
 class SyncConfig : public Cacheable
@@ -877,6 +890,8 @@ public:
         TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
         TYPE_BACKUP = 0x04
     };
+
+    SyncConfig() = default;
 
     SyncConfig(int tag,
                std::string localPath,
@@ -972,9 +987,15 @@ public:
     handle getBackupId() const;
     void setBackupId(const handle &backupId);
 
+    // Whether this a backup sync.
+    bool isBackup() const;
+
     // Whether this sync is backed by an external device.
-    void isExternal(bool isExternal);
     bool isExternal() const;
+
+    // Path to the volume containing this backup.
+    void drivePath(const string& drivePath);
+    const string &drivePath() const;
 
 private:
 
@@ -985,8 +1006,8 @@ private:
     // enabled/disabled by the user
     bool mEnabled = true;
 
-    // sync stored on external device.
-    bool mExternal = false;
+    // Path to the volume containing this backup.
+    string mDrivePath;
 
     // the local path of the sync
     std::string mLocalPath;

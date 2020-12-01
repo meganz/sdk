@@ -33,6 +33,7 @@
 #include "mega/heartbeats.h"
 
 namespace mega {
+
 HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, std::unique_ptr<string> cdata, bool checkAccess)
     : data(move(cdata))
 {
@@ -2940,6 +2941,7 @@ bool CommandPutUA::procresult(Result r)
             LOG_info << "Unshareable key successfully created";
             client->unshareablekey.swap(av);
         }
+
         client->app->putua_result(API_OK);
     }
 
@@ -3617,6 +3619,10 @@ bool CommandGetUserData::procresult(Result r)
     string versionMyBackupsFolder;
     string backupNames;
     string versionBackupNames;
+    string xBackupConfigName;
+    string xBackupConfigNameVersion;
+    string xBackupConfigKey;
+    string xBackupConfigKeyVersion;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -3747,6 +3753,14 @@ bool CommandGetUserData::procresult(Result r)
 
         case MAKENAMEID4('*', '!', 'b', 'n'):
             parseUserAttribute(backupNames, versionBackupNames);
+			break;
+			
+        case MAKENAMEID6('^', '~', 'x', 'b', 'c', 'n'):
+            parseUserAttribute(xBackupConfigName, xBackupConfigNameVersion);
+            break;
+
+        case MAKENAMEID6('^', '~', 'x', 'b', 'c', 'k'):
+            parseUserAttribute(xBackupConfigKey, xBackupConfigKeyVersion);
             break;
 
         case 'b':   // business account's info
@@ -4138,6 +4152,52 @@ bool CommandGetUserData::procresult(Result r)
                     {
                         LOG_err << "Cannot extract TLV records for ATTR_BACKUP_NAMES";
                     }
+                }
+				
+                // Has a name been defined for this user's backup configuration databases?
+                if (xBackupConfigName.empty())
+                {
+                    using NameStr = Base64Str<SymmCipher::KEYLENGTH>;
+
+                    // Generate a sufficiently obscure name.
+                    byte bytes[SymmCipher::KEYLENGTH];
+                    client->rng.genblock(bytes, sizeof(bytes));
+
+                    // Name's simply the above bytes represented as Base64.
+                    NameStr name(bytes);
+
+                    // Persist the new attribute.
+                    client->putua(ATTR_XBACKUP_CONFIG_NAME, name.bytes(), name.size(), 0);
+                }
+                else
+                {
+                    // Let the rest of the SDK know the attribute's changed.
+                    changes += u->updateattr(ATTR_XBACKUP_CONFIG_NAME,
+                                             &xBackupConfigName,
+                                             &xBackupConfigNameVersion);
+                }
+
+                // Has a key been defined to protect this user's backup configuration databases?
+                if (xBackupConfigKey.empty())
+                {
+                    using KeyStr = Base64Str<SymmCipher::KEYLENGTH * 2>;
+
+                    // Generate key material.
+                    byte bytes[SymmCipher::KEYLENGTH * 2];
+                    client->rng.genblock(bytes, sizeof(bytes));
+
+                    // Key's stored Base64 encoded.
+                    KeyStr key(bytes);
+
+                    // Persist the new attribute.
+                    client->putua(ATTR_XBACKUP_CONFIG_KEY, key.bytes(), key.size(), 0);
+                }
+                else
+                {
+                    // Tell the rest of the SDK the attribute's changed.
+                    changes += u->updateattr(ATTR_XBACKUP_CONFIG_KEY,
+                                             &xBackupConfigKey,
+                                             &xBackupConfigKeyVersion);
                 }
 
                 if (changes > 0)

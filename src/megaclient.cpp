@@ -3030,6 +3030,9 @@ void MegaClient::exec()
                 }
             }
         }
+
+        // Flush changes made to external backup configs.
+        syncs.backupConfigStoreFlush();
 #endif
 
         notifypurge();
@@ -7267,16 +7270,16 @@ void MegaClient::notifypurge(void)
 }
 
 // return node pointer derived from node handle
-Node* MegaClient::nodebyhandle(handle h)
+Node* MegaClient::nodebyhandle(handle h) const
 {
-    node_map::iterator it;
+    auto it = nodes.find(h);
 
-    if ((it = nodes.find(h)) != nodes.end())
+    if (it != nodes.end())
     {
         return it->second;
     }
 
-    return NULL;
+    return nullptr;
 }
 
 // server-client deletion
@@ -12991,6 +12994,27 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, SyncError 
 
     return e;
 }
+
+#ifdef ENABLE_SYNC
+
+pair<error, SyncError> MegaClient::backupAdd(const XBackupConfig& config,
+                                             const bool delayInitialScan)
+{
+    return syncs.backupAdd(config, delayInitialScan);
+}
+
+error MegaClient::backupRemove(const LocalPath& drivePath)
+{
+    return syncs.backupRemove(drivePath);
+}
+
+pair<error, SyncError> MegaClient::backupRestore(const LocalPath& drivePath,
+                                                 const bool delayInitialScan)
+{
+    return syncs.backupRestore(drivePath, delayInitialScan);
+}
+
+#endif // ENABLE_SYNC
 
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)

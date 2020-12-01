@@ -616,6 +616,73 @@ public:
      */
     error isLocalPathSyncable(std::string newPath, int newSyncTag = 0, SyncError *syncError = nullptr);
 
+    /**
+     * @brief
+     * Add an external backup sync.
+     *
+     * @param config
+     * Config describing the sync to be added.
+     *
+     * @param delayInitialScan
+     * Whether we should delay the inital scan.
+     *
+     * @return
+     * The result of adding the sync.
+     */
+    pair<error, SyncError> backupAdd(const XBackupConfig& config,
+                                     const bool delayInitialScan = false);
+
+    /**
+     * @brief
+     * Removes a previously opened backup database from memory.
+     *
+     * Note that this function will:
+     * - Flush any pending database changes.
+     * - Remove all contained backup configs from memory.
+     * - Remove the database itself from memory.
+     *
+     * @param drivePath
+     * The drive containing the database to remove.
+     *
+     * @return
+     * The result of removing the backup database.
+     *
+     * API_EARGS
+     * The path is invalid.
+     *
+     * API_EBUSY
+     * There is an active sync on this device.
+     *
+     * API_EFAILED
+     * Encountered an internal error.
+     * 
+     * API_ENOENT
+     * No such database exists in memory.
+     *
+     * API_EWRITE
+     * The database has been removed from memory but it could not
+     * be successfully flushed.
+     *
+     * API_OK
+     * The database was removed from memory.
+     */
+    error backupRemove(const LocalPath& drivePath);
+
+    /**
+     * @brief
+     * Restores backups from an external drive.
+     *
+     * @param drivePath
+     * The drive to restore external backups from.
+     *
+     * @param delayInitialScan
+     * Whether we should delay the inital scan.
+     *
+     * @return
+     * The result of restoring the external backups.
+     */
+    pair<error, SyncError> backupRestore(const LocalPath& drivePath,
+                                         const bool delayInitialScan = false);
 
     /**
      * @brief add sync. Will fill syncError in case there is one.
@@ -1345,7 +1412,7 @@ public:
     // remove node subtree
     void deltree(handle);
 
-    Node* nodebyhandle(handle);
+    Node* nodebyhandle(handle) const;
     Node* nodebyfingerprint(FileFingerprint*);
 #ifdef ENABLE_SYNC
     Node* nodebyfingerprint(LocalNode*);

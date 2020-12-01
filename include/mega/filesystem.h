@@ -286,6 +286,9 @@ struct MEGA_API FileAccess
     // absolute position write
     virtual bool fwrite(const byte *, unsigned, m_off_t) = 0;
 
+    // Truncate a file.
+    virtual bool ftruncate() = 0;
+
     FileAccess(Waiter *waiter);
     virtual ~FileAccess();
 

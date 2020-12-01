@@ -288,6 +288,8 @@ BackupType MegaBackupInfoSync::getSyncType(const SyncConfig& config)
 {
     switch (config.getType())
     {
+    case SyncConfig::Type::TYPE_BACKUP:
+            return BackupType::BACKUP;
     case SyncConfig::Type::TYPE_UP:
             return BackupType::UP_SYNC;
     case SyncConfig::Type::TYPE_DOWN:

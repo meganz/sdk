@@ -43,6 +43,10 @@ public:
     {
         throw NotImplemented{__func__};
     }
+    bool ftruncate() override
+    {
+        throw NotImplemented{__func__};
+    }
     bool sysread(mega::byte *, unsigned, m_off_t) override
     {
         throw NotImplemented{__func__};

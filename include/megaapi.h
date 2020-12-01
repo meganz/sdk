@@ -7712,6 +7712,8 @@ class MegaApi
             USER_ATTR_DEVICE_NAMES = 30,          // private - byte array
             USER_ATTR_MY_BACKUPS_FOLDER = 31,    // private - byte array
             USER_ATTR_BACKUP_NAMES = 32,          // private - byte array
+            USER_ATTR_XBACKUP_CONFIG_NAME = 33,  // private - char array
+            USER_ATTR_XBACKUP_CONFIG_KEY = 34    // private - char array
         };
 
         enum {
