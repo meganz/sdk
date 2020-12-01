@@ -3730,7 +3730,6 @@ error XBackupConfigIOContext::write(const LocalPath& drivePath,
 
 bool XBackupConfigIOContext::decrypt(const string& in, string& out)
 {
-#if 0
     // Handy constants.
     const size_t IV_LENGTH       = SymmCipher::KEYLENGTH;
     const size_t MAC_LENGTH      = 32;
@@ -3764,10 +3763,6 @@ bool XBackupConfigIOContext::decrypt(const string& in, string& out)
                                             in.size() - METADATA_LENGTH,
                                             iv,
                                             &out);
-#endif
-    out = in;
-
-    return true;
 }
 
 bool XBackupConfigIOContext::deserialize(XBackupConfig& config, JSON& reader) const
@@ -3833,7 +3828,6 @@ bool XBackupConfigIOContext::deserialize(XBackupConfig& config, JSON& reader) co
 
 string XBackupConfigIOContext::encrypt(const string& data)
 {
-#if 0
     byte iv[SymmCipher::KEYLENGTH];
 
     // Generate initialization vector.
@@ -3858,9 +3852,6 @@ string XBackupConfigIOContext::encrypt(const string& data)
 
     // We're done.
     return d;
-#endif
-
-    return data;
 }
 
 void XBackupConfigIOContext::serialize(const XBackupConfig& config,
