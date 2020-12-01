@@ -846,12 +846,7 @@ struct StandardClient : public MegaApp
     {
         // shut down any syncs on the same thread, or they stall the client destruction (CancelIo instead of CancelIoEx on the WinDirNotify)
         thread_do([](MegaClient& mc, promise<bool>&) {
-            #ifdef _WIN32
-                // logout stalls in windows due to the issue above
-                mc.purgenodesusersabortsc(false);
-            #else
-                mc.logout();
-            #endif
+            mc.logout();
         });
 
         clientthreadexit = true;
@@ -862,12 +857,7 @@ struct StandardClient : public MegaApp
     void localLogout()
     {
         thread_do([](MegaClient& mc, promise<bool>&) {
-            #ifdef _WIN32
-                // logout stalls in windows due to the issue above
-                mc.purgenodesusersabortsc(false);
-            #else
-                mc.locallogout(false);
-            #endif
+            mc.locallogout(false);
         });
     }
 
