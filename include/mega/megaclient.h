@@ -874,10 +874,10 @@ public:
     handle getovhandle(Node *parent, string *name);
 
     // Load from db node children
-    node_list getChildren(Node*);
+    node_list getChildren(Node *parent);
 
     // Get number of children from a node
-    size_t getNumberOfChildren(handle);
+    size_t getNumberOfChildren(handle parentHandle);
 
     // Get sub tree info (files, folders, size, version)
     NodeCounter getTreeInfoFromNode(handle node, bool isParentFileNode = false);

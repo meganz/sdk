@@ -15914,70 +15914,69 @@ handle MegaClient::getovhandle(Node *parent, string *name)
     return ovhandle;
 }
 
-node_list MegaClient::getChildren(Node* node)
+node_list MegaClient::getChildren(Node* parent)
 {
-    node_list nodeList;
-    if (!node || !sctable)
+    node_list childrenList;
+    if (!parent || !sctable)
     {
-        return nodeList;
+        return childrenList;
     }
 
     // get children's handles and serialized nodes from cache
-    std::map<handle, NodeSerialized> nodeMap;
-    sctable->getChildrenFromNode(node->nodehandle, nodeMap);
+    std::map<handle, NodeSerialized> childrenMap;
+    sctable->getChildrenFromNode(parent->nodehandle, childrenMap);
     node_vector dp;
 
     // get children nodes loaded in RAM (which may not be in cache yet)
     // (upon node's creation, nodes are added to the notification queue, `nodenotify`, but
     // they are not dumped to cache until the notification is done in `notifypurge()`)
-    for (const auto it : node->mChildrenInMemory)
+    for (const auto h : parent->mChildrenInMemory)
     {
-        NodeSerialized n;
-        n.mDecrypted = true;
+        NodeSerialized dummy;
+        dummy.mDecrypted = true;
 
         // add a dummy NodeSerialized in order to add the child's handle to the map
-        // (`n` will not be used, but it's `Node` loaded in memory)
-        nodeMap[it] = n;
+        // (its corresponding `Node`, loaded in memory, will be used)
+        childrenMap[h] = dummy;
     }
 
     // for each children, check if loaded in RAM. Otherwise, unserialize the record from cache
-    for (const auto nodeMapIt : nodeMap)
+    for (const auto child : childrenMap)
     {
         Node* n;
-        auto nodeIt = mNodes.find(nodeMapIt.first);
+        auto nodeIt = mNodes.find(child.first);
         if (nodeIt == mNodes.end())
         {
-            assert(nodeMapIt.second.mNode.length());
-            n = Node::unserialize(this, &nodeMapIt.second.mNode, &dp, nodeMapIt.second.mDecrypted);
+            assert(child.second.mNode.length());
+            n = Node::unserialize(this, &child.second.mNode, &dp, child.second.mDecrypted);
         }
         else
         {
             n = nodeIt->second;
         }
 
-        nodeList.push_back(n);
+        childrenList.push_back(n);
     }
 
-    return nodeList;
+    return childrenList;
 }
 
-size_t MegaClient::getNumberOfChildren(handle node)
+size_t MegaClient::getNumberOfChildren(handle parentHandle)
 {
-    return sctable->getNumberOfChildrenFromNode(node);
+    return sctable->getNumberOfChildrenFromNode(parentHandle);
 }
 
 NodeCounter MegaClient::getTreeInfoFromNode(handle nodehandle, bool isParentFileNode)
 {
     Node* node = nodebyhandleInRam(nodehandle);
     bool isFileNode = node ? (node->type == FILENODE) : sctable->isFileNode(nodehandle);
-    std::vector<handle> nodeHandles;
-    sctable->getChildrenHandlesFromNode(nodehandle, nodeHandles);
+    std::vector<handle> children;
+    sctable->getChildrenHandlesFromNode(nodehandle, children);
     NodeCounter nc;
-    for (handle &h : nodeHandles)
+    for (const handle &h : children)
     {
         nc += getTreeInfoFromNode(h, isFileNode);
     }
-
 
     if (node)
     {
