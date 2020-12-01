@@ -854,6 +854,7 @@ private:
 typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3, MEDIA_UPLOAD = 4 } BackupType;
 
 // Holds the config of a sync. Can be extended with future config options
+class Sync;
 class SyncConfig : public Cacheable
 {
 public:
@@ -917,6 +918,7 @@ public:
 
     // returns the regular expressions
     const std::vector<std::string>& getRegExps() const;
+    void setRegExps(std::vector<std::string>&&);
 
     // returns the type of the sync
     Type getType() const;
@@ -958,6 +960,8 @@ public:
 
     handle getBackupId() const;
     void setBackupId(const handle &backupId);
+
+    syncstate_t calcState(Sync* s) const;
 
 private:
 

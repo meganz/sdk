@@ -424,9 +424,9 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
     case MegaRequest::TYPE_GET_ATTR_USER:
 
-        if (mApi[apiIndex].lastError == API_OK && 
+        if (mApi[apiIndex].lastError == API_OK &&
             (request->getParamType() == MegaApi::USER_ATTR_BACKUP_NAMES ||
-             request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES || 
+             request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES ||
              request->getParamType() == MegaApi::USER_ATTR_ALIAS))
         {
             attributeValue = request->getName();
@@ -435,7 +435,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         {
             attributeValue = request->getText() ? request->getText() : "";
         }
-        
+
         if (request->getParamType() == MegaApi::USER_ATTR_AVATAR)
         {
             if (mApi[apiIndex].lastError == API_OK)
@@ -4841,7 +4841,6 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     // --- negative test cases ---
     gTestingInvalidArgs = true;
 
-    
     // register the same backup twice: should work fine
     err = synchronousSetBackup(0, backupType, targetNodes[0], localFolder.c_str(), backupNames[0].c_str(), state, subState, extraData.c_str());
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
@@ -4863,7 +4862,7 @@ TEST_F(SdkTest, DISABLED_SdkDeviceNames)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkDeviceNames___";
-    
+
     // test setter/getter
     string deviceName = "SdkDeviceNamesTest";
     auto err = synchronousSetDeviceName(0, deviceName.c_str());
@@ -5405,7 +5404,7 @@ TEST_F(SdkTest, SyncBasicOperations)
         TestingWithLogErrorAllowanceGuard g;
 
         ASSERT_EQ(MegaError::API_ENOENT, synchronousEnableSync(0, 999999)); // Hope it doesn't exist.
-        ASSERT_EQ(999999, mApi[0].lastSyncError); // It returns the inexistent tagID (999999), instead of known error code.
+        ASSERT_EQ(MegaSync::UNKNOWN_ERROR, mApi[0].lastSyncError); // MegaApi.h specifies that this contains the error code (not the tag)
         ASSERT_EQ(MegaError::API_EEXIST, synchronousEnableSync(0, sync2.get())); // Currently enabled.
         ASSERT_EQ(MegaSync::ACTIVE_SYNC_BELOW_PATH, mApi[0].lastSyncError);
     }

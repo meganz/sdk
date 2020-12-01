@@ -3149,7 +3149,7 @@ bool CommandGetUA::procresult(Result r)
                                     client->putua(at, (byte *)container->data(), unsigned(container->size()));
                                     client->mPendingBackupNames.clear();
                                 }
-                                else
+                                else if (!client->mPendingBackupNames.empty())
                                 {
                                     LOG_err << "Failed to merge with existing backup names after `uga`";
                                     assert(false);

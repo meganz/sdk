@@ -1068,6 +1068,7 @@ class MegaSyncPrivate : public MegaSync
 {
 public:
     MegaSyncPrivate(const char *path, const char *name, handle nodehandle, int tag);
+    MegaSyncPrivate(const SyncConfig& config, Sync*);
     MegaSyncPrivate(MegaSyncPrivate *sync);
 
     virtual ~MegaSyncPrivate();
@@ -2891,9 +2892,6 @@ protected:
         // sc requests to close existing wsc and immediately retrieve pending actionpackets
         RequestQueue scRequestQueue;
 
-#ifdef ENABLE_SYNC
-        map<int, MegaSyncPrivate *> syncMap;    // maps tag to MegaSync objects
-#endif
         int pendingUploads;
         int pendingDownloads;
         int totalUploads;
@@ -2909,6 +2907,10 @@ protected:
 
 #ifdef ENABLE_SYNC
         set<MegaSyncListener *> syncListeners;
+
+        MegaSyncPrivate* cachedMegaSyncPrivateByTag(int tag);
+        unique_ptr<MegaSyncPrivate> mCachedMegaSyncPrivate;
+        int mCachedMegaSyncPrivateTag = 0;
 #endif
 
         set<MegaGlobalListener *> globalListeners;
@@ -3165,10 +3167,10 @@ protected:
          * @param fireDisableEvent if when the change entails a transition to inactive should call to fireOnSyncDisabled. Should
          * be false when adding a new sync (there was no sync: failure implies no transition)
          */
-        void syncupdate_state(int tag, syncstate_t, SyncError, bool fireDisableEvent = true) override;
+        void syncupdate_state(int tag, syncstate_t, syncstate_t oldstate, bool fireDisableEvent = true) override;
 
         // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded indicating the result of that addition
-        void sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const SyncError &syncError) override;
+        void sync_auto_resume_result(const UnifiedSync& s) override;
 
         // this will fire onSyncStateChange if remote path of the synced node has changed
         virtual void syncupdate_remote_root_changed(const SyncConfig &) override;
