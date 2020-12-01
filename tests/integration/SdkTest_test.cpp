@@ -424,22 +424,24 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
     case MegaRequest::TYPE_GET_ATTR_USER:
 
-        if (mApi[apiIndex].lastError == API_OK && 
-            (request->getParamType() == MegaApi::USER_ATTR_BACKUP_NAMES ||
-             request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES || 
-             request->getParamType() == MegaApi::USER_ATTR_ALIAS))
+        if (mApi[apiIndex].lastError == API_OK)
         {
-            attributeValue = request->getName() ? request->getName() : "";
-            if (request->getParamType() == MegaApi::USER_ATTR_BACKUP_NAMES)
+            if (request->getParamType() == MegaApi::USER_ATTR_BACKUP_NAMES ||
+                request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES ||
+                request->getParamType() == MegaApi::USER_ATTR_ALIAS)
             {
-                mBackupStringMap = request->getMegaStringMap();
+                attributeValue = request->getName() ? request->getName() : "";
+                if (request->getParamType() == MegaApi::USER_ATTR_BACKUP_NAMES)
+                {
+                    mBackupStringMap = request->getMegaStringMap();
+                }
+            }
+            else if (request->getParamType() != MegaApi::USER_ATTR_AVATAR)
+            {
+                attributeValue = request->getText() ? request->getText() : "";
             }
         }
-        else if ( (mApi[apiIndex].lastError == API_OK) && (request->getParamType() != MegaApi::USER_ATTR_AVATAR))
-        {
-            attributeValue = request->getText() ? request->getText() : "";
-        }
-        
+
         if (request->getParamType() == MegaApi::USER_ATTR_AVATAR)
         {
             if (mApi[apiIndex].lastError == API_OK)
