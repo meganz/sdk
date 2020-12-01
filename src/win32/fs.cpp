@@ -28,7 +28,6 @@
 #endif
 
 namespace mega {
-wchar_t gWindowsSeparator(L'\\');
 
 WinFileSystemAccess gWfsa;
 
@@ -501,7 +500,7 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
 
         if (!skipcasecheck)
         {
-            LocalPath filename = namePath.leafName(gWfsa.localseparator);
+            LocalPath filename = namePath.leafName();
 
             if (filename.localpath != wstring(fad.cFileName) &&
                 filename.localpath != wstring(fad.cAlternateFileName) &&
@@ -587,7 +586,7 @@ bool WinFileAccess::fopen_impl(LocalPath& namePath, bool read, bool write, bool 
     if (type == FOLDERNODE)
     {
         ScopedLengthRestore undoStar(namePath);
-        namePath.appendWithSeparator(LocalPath::fromPlatformEncoded(std::string((const char*)(const wchar_t*)L"*", 2)), true, gWindowsSeparator);
+        namePath.appendWithSeparator(LocalPath::fromPlatformEncoded(std::string((const char*)(const wchar_t*)L"*", 2)), true);
 
 #ifdef WINDOWS_PHONE
         hFind = FindFirstFileExW((LPCWSTR)searchName->data(), FindExInfoBasic, &ffd, FindExSearchNameMatch, NULL, 0);
@@ -626,13 +625,29 @@ WinFileSystemAccess::WinFileSystemAccess()
 {
     notifyerr = false;
     notifyfailed = false;
-
-    localseparator = L'\\';
 }
 
 WinFileSystemAccess::~WinFileSystemAccess()
 {
     assert(!dirnotifys.size());
+}
+
+bool WinFileSystemAccess::cwd(LocalPath& path) const
+{
+#ifndef WINDOWS_PHONE
+    DWORD nRequired = GetCurrentDirectoryW(0, nullptr);
+
+    if (!nRequired)
+    {
+        return false;
+    }
+
+    path.localpath.resize(nRequired);
+
+    return GetCurrentDirectoryW(nRequired, &path.localpath[0]) > 0;
+#else // WINDOWS_PHONE
+    return false;
+#endif // ! WINDOWS_PHONE
 }
 
 // append \ to bare Windows drive letter paths
@@ -923,7 +938,7 @@ void WinFileSystemAccess::emptydirlocal(LocalPath& namePath, dev_t basedev)
         WIN32_FIND_DATAW ffd;
         {
             ScopedLengthRestore restoreNamePath2(namePath);
-            namePath.appendWithSeparator(LocalPath::fromPlatformEncoded(L"*"), true, gWfsa.localseparator);
+            namePath.appendWithSeparator(LocalPath::fromPlatformEncoded(L"*"), true);
 
             #ifdef WINDOWS_PHONE
                 hFind = FindFirstFileExW(namePath.localpath.c_str(), FindExInfoBasic, &ffd, FindExSearchNameMatch, NULL, 0);
@@ -947,7 +962,7 @@ void WinFileSystemAccess::emptydirlocal(LocalPath& namePath, dev_t basedev)
                     || ffd.cFileName[2]))))
             {
                 ScopedLengthRestore restoreNamePath3(namePath);
-                namePath.appendWithSeparator(LocalPath::fromPlatformEncoded(ffd.cFileName), true, gWindowsSeparator);
+                namePath.appendWithSeparator(LocalPath::fromPlatformEncoded(ffd.cFileName), true);
                 if (ffd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
                 {
                     emptydirlocal(namePath, currentdev);
@@ -1760,7 +1775,7 @@ bool WinDirAccess::dnext(LocalPath& /*path*/, LocalPath& nameArg, bool /*follows
             nameArg.localpath.assign(ffd.cFileName, wcslen(ffd.cFileName));
             if (!globbase.empty())
             {
-                nameArg.prependWithSeparator(globbase, gWfsa.localseparator);
+                nameArg.prependWithSeparator(globbase);
             }
 
             if (type)
