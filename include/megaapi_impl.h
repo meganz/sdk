@@ -227,6 +227,16 @@ protected:
     std::set<MegaTransferPrivate*> subTransfers;
     int mIncompleteTransfers = { 0 };
     MegaErrorPrivate mLastError = { API_OK };
+    LocalPath::separator_t mLocalSeparator;
+
+    // worker thread
+    std::thread mWorkerThread;
+
+    // thread id of main thread
+    std::thread::id mMainThreadId;
+
+    // number of files pending to be processed (add a transfer for each one)
+    long long mPendingFilesToProcess;
 };
 
 class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveOperation
@@ -245,20 +255,8 @@ public:
 
 protected:
 
-    // worker thread
-    std::thread mWorkerThread;
-
-    // thread id of main thread
-    std::thread::id mMainThreadId;
-
     // if set, symlinks will be followed
     bool mFollowsymlinks;
-
-    // number of folders that are pending to be created in cloud drive
-    int mPendingFolders;
-
-    // number of files pending to be processed (add a transfer for each one)
-    int mPendingFilesToProcess;
 
     // maps tempHandle to definitive handle
     map<handle, handle> mNewNodesResult;
@@ -266,8 +264,18 @@ protected:
     // maps parent handle to vector of LocalPath of it's children
     map<handle, vector<LocalPath>> mFolderToPendingFiles;
 
-    // maps targetHandle of the subtree to a vector of NewNodes
-    vector<pair<handle, vector<NewNode>>> mFolderStructure;
+    struct Tree
+    {
+        Tree(handle th, NewNode nn) // this constructor add the first nn to the vector
+        {
+            targetHandle = th;
+            newNodes.emplace_back(std::move(nn));
+        }
+
+        handle targetHandle;
+        vector<NewNode> newNodes;
+    };
+    vector<Tree> mUploadTrees;
 
     /* Scan entire tree recursively, and retrieve folder structure and files to be uploaded.
      * A putnodes command can only add subtrees under same target, so in case we need to add
@@ -278,7 +286,7 @@ protected:
     /* iterate through all pending files of each uploaded folder, and start all upload transfers */
     void uploadFiles();
     void updateNodeHandles(handle &targetHandle, vector<NewNode> &newnodes);
-    void addNewNodeToVector(handle &targetHandle, handle &parentHandle, const char *folderName);
+    handle addNewNodeToVector(handle &targetHandle, handle parentHandle, const char *folderName);
 };
 
 
@@ -440,18 +448,17 @@ public:
 
 protected:
 
-    // worker thread
-    std::thread mWorkerThread;
+    struct LocalTree
+    {
+        LocalTree(LocalPath lp)
+        {
+            localPath = lp;
+        }
 
-    // thread id of main thread
-    std::thread::id mMainThreadId;
-
-    // number of files pending to be processed (add a transfer for each one)
-    int mPendingFilesToProcess;
-
-    // each element is a pair formed by the folder LocalPath and a vector that contains all children folders
-    std::vector<std::pair<LocalPath, std::vector<unique_ptr<MegaNode>>>> mLocalTree;
-
+        LocalPath localPath;
+        vector<unique_ptr<MegaNode>> childrenNodes;
+    };
+    vector<LocalTree> mLocalTree;
     void scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType);
     void createFolder();
     void downloadFiles(FileSystemType fsType);
