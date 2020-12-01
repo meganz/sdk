@@ -100,7 +100,7 @@ FileSystemType FileSystemAccess::getlocalfstype(const LocalPath& path) const
     LocalPath parentPath(path);
 
     // Remove trailing separator, if any.
-    parentPath.trimNonDriveTrailingSeparator(localseparator);
+    parentPath.trimNonDriveTrailingSeparator();
 
     // Did the path consist solely of that separator?
     if (parentPath.empty())
@@ -353,10 +353,14 @@ bool FileAccess::fopen(const LocalPath& name)
     return sysstat(&mtime, &size);
 }
 
-bool FileAccess::isfolder(LocalPath& name)
+bool FileAccess::isfile(const LocalPath& path)
 {
-    fopen(name);
-    return (type == FOLDERNODE);
+    return fopen(path) && type == FILENODE;
+}
+
+bool FileAccess::isfolder(const LocalPath& path)
+{
+    return fopen(path) && type == FOLDERNODE;
 }
 
 // check if size and mtime are unchanged, then open for reading
@@ -708,9 +712,9 @@ void LocalPath::truncate(size_t bytePos)
     localpath.resize(bytePos);
 }
 
-LocalPath LocalPath::leafName(separator_t localseparator) const
+LocalPath LocalPath::leafName() const
 {
-    auto p = localpath.find_last_of(localseparator);
+    auto p = localpath.find_last_of(localPathSeparator);
     p = p == string::npos ? 0 : p + 1;
     LocalPath result;
     result.localpath = localpath.substr(p, localpath.size() - p);
@@ -738,38 +742,38 @@ std::string LocalPath::platformEncoded() const
 }
 
 
-void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways, separator_t localseparator)
+void LocalPath::appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways)
 {
     if (separatorAlways || localpath.size())
     {
         // still have to be careful about appending a \ to F:\ for example, on windows, which produces an invalid path
-        if (!endsInSeparator(localseparator))
+        if (!endsInSeparator())
         {
-            localpath.append(1, localseparator);
+            localpath.append(1, localPathSeparator);
         }
     }
 
     localpath.append(additionalPath.localpath);
 }
 
-void LocalPath::prependWithSeparator(const LocalPath& additionalPath, separator_t localseparator)
+void LocalPath::prependWithSeparator(const LocalPath& additionalPath)
 {
     // no additional separator if there is already one after
-    if (!localpath.empty() && localpath[0] != localseparator)
+    if (!localpath.empty() && localpath[0] != localPathSeparator)
     {
         // no additional separator if there is already one before
 
-        if (!additionalPath.endsInSeparator(localseparator))
+        if (!additionalPath.endsInSeparator())
         {
-            localpath.insert(0, 1, localseparator);
+            localpath.insert(0, 1, localPathSeparator);
         }
     }
     localpath.insert(0, additionalPath.localpath);
 }
 
-void LocalPath::trimNonDriveTrailingSeparator(separator_t localseparator)
+void LocalPath::trimNonDriveTrailingSeparator()
 {
-    if (endsInSeparator(localseparator))
+    if (endsInSeparator())
     {
         // ok so the last character is a directory separator.  But don't remove it for eg. F:\ on windows
         #ifdef WIN32
@@ -784,26 +788,26 @@ void LocalPath::trimNonDriveTrailingSeparator(separator_t localseparator)
     }
 }
 
-bool LocalPath::findNextSeparator(size_t& separatorBytePos, separator_t localseparator) const
+bool LocalPath::findNextSeparator(size_t& separatorBytePos) const
 {
-    separatorBytePos = localpath.find(localseparator, separatorBytePos);
+    separatorBytePos = localpath.find(localPathSeparator, separatorBytePos);
     return separatorBytePos != string::npos;
 }
 
 bool LocalPath::findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess& fsaccess) const
 {
-    separatorBytePos = localpath.rfind(fsaccess.localseparator, separatorBytePos);
+    separatorBytePos = localpath.rfind(LocalPath::localPathSeparator, separatorBytePos);
     return separatorBytePos != string::npos;
 }
 
-bool LocalPath::endsInSeparator(separator_t localseparator) const
+bool LocalPath::endsInSeparator() const
 {
-    return !localpath.empty() && localpath.back() == localseparator;
+    return !localpath.empty() && localpath.back() == localPathSeparator;
 }
 
-bool LocalPath::beginsWithSeparator(separator_t localseparator) const
+bool LocalPath::beginsWithSeparator() const
 {
-    return !localpath.empty() && localpath.front() == localseparator;
+    return !localpath.empty() && localpath.front() == localPathSeparator;
 }
 
 size_t LocalPath::getLeafnameByteIndex(const FileSystemAccess& fsaccess) const
@@ -812,7 +816,7 @@ size_t LocalPath::getLeafnameByteIndex(const FileSystemAccess& fsaccess) const
 
     while (p && (p -= 1))
     {
-        if (localpath[p] == fsaccess.localseparator)
+        if (localpath[p] == LocalPath::localPathSeparator)
         {
             p += 1;
             break;
@@ -855,7 +859,7 @@ LocalPath LocalPath::subpathTo(size_t bytePos) const
 LocalPath LocalPath::insertFilenameCounter(unsigned counter, const FileSystemAccess& fsaccess)
 {
     size_t dotindex = localpath.find_last_of('.');
-    size_t sepindex = localpath.find_last_of(fsaccess.localseparator);
+    size_t sepindex = localpath.find_last_of(LocalPath::localPathSeparator);
 
     LocalPath result, extension;
 
@@ -936,7 +940,7 @@ LocalPath LocalPath::tmpNameLocal(const FileSystemAccess& fsaccess)
     return lp;
 }
 
-bool LocalPath::isContainingPathOf(const LocalPath& path, separator_t localseparator, size_t* subpathIndex) const
+bool LocalPath::isContainingPathOf(const LocalPath& path, size_t* subpathIndex) const
 {
     if (path.localpath.size() >= localpath.size()
         && !path.localpath.compare(0, localpath.size(), localpath.data(), localpath.size()))
@@ -946,13 +950,13 @@ bool LocalPath::isContainingPathOf(const LocalPath& path, separator_t localsepar
            if (subpathIndex) *subpathIndex = localpath.size();
            return true;
        }
-       else if (path.localpath[localpath.size()] == localseparator)
+       else if (path.localpath[localpath.size()] == localPathSeparator)
        {
            if (subpathIndex) *subpathIndex = localpath.size() + 1;
            return true;
        }
        else if (!localpath.empty() &&
-                path.localpath[localpath.size() - 1] == localseparator)
+                path.localpath[localpath.size() - 1] == localPathSeparator)
        {
            if (subpathIndex) *subpathIndex = localpath.size();
            return true;
@@ -961,9 +965,9 @@ bool LocalPath::isContainingPathOf(const LocalPath& path, separator_t localsepar
     return false;
 }
 
-bool LocalPath::nextPathComponent(size_t& subpathIndex, LocalPath& component, separator_t localseparator) const
+bool LocalPath::nextPathComponent(size_t& subpathIndex, LocalPath& component) const
 {
-    while (subpathIndex < localpath.size() && localpath[subpathIndex] == localseparator)
+    while (subpathIndex < localpath.size() && localpath[subpathIndex] == localPathSeparator)
     {
         ++subpathIndex;
     }
@@ -972,7 +976,7 @@ bool LocalPath::nextPathComponent(size_t& subpathIndex, LocalPath& component, se
     {
         return false;
     }
-    else if (findNextSeparator(subpathIndex, localseparator))
+    else if (findNextSeparator(subpathIndex))
     {
         component.localpath = localpath.substr(start, subpathIndex - start);
         return true;

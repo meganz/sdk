@@ -106,7 +106,7 @@ public:
 
         bool succeeded()
         {
-            return mOutcome != CmdError || error(mError) != API_OK;
+            return mOutcome != CmdError || error(mError) == API_OK;
         }
 
         bool hasJsonArray()
@@ -611,13 +611,14 @@ class MEGA_API CommandSetShare : public Command
     accesslevel_t access;
     string msg;
     string personal_representation;
+    bool mWritable = false;
 
     bool procuserresult(MegaClient*);
 
 public:
     bool procresult(Result) override;
 
-    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, int, const char*, const char* = NULL);
+    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, int, const char*, bool writable, const char* = NULL);
 };
 
 class MEGA_API CommandGetUserData : public Command
@@ -715,11 +716,12 @@ class MEGA_API CommandSetPH : public Command
 {
     handle h;
     m_time_t ets;
+    bool mWritable = false;
 
 public:
     bool procresult(Result) override;
 
-    CommandSetPH(MegaClient*, Node*, int, m_time_t);
+    CommandSetPH(MegaClient*, Node*, int, m_time_t, bool writable = false);
 };
 
 class MEGA_API CommandGetPH : public Command
@@ -1310,7 +1312,7 @@ public:
     bool procresult(Result) override;
 
     // Register a new Sync
-    CommandBackupPut(MegaClient* client, BackupType type, handle nodeHandle, const std::string& localFolder, const std::string& deviceId, int state, int subState, const std::string& extraData);
+    CommandBackupPut(MegaClient* client, BackupType type, const std::string& backupName, handle nodeHandle, const std::string& localFolder, const std::string& deviceId, int state, int subState, const std::string& extraData);
 
     // Update a Backup
     // Params that keep the same value are passed with invalid value to avoid to send to the server
@@ -1326,11 +1328,12 @@ public:
 
 private:
     bool mUpdate = false;
+    string mBackupName;
 };
 
 class MEGA_API CommandBackupRemove : public Command
 {
-    handle id;
+    handle mBackupId;
 
 public:
     bool procresult(Result) override;
@@ -1343,7 +1346,7 @@ class MEGA_API CommandBackupPutHeartBeat : public Command
 public:
     bool procresult(Result) override;
 
-    CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode);
+    CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode);
 };
 
 class MEGA_API CommandGetBanners : public Command

@@ -30,11 +30,10 @@ class DefaultedFileSystemAccess: public mega::FileSystemAccess
 public:
     using FileSystemAccess::getlocalfstype;
 
-    DefaultedFileSystemAccess(mega::LocalPath::separator_t separator = '/')
+    DefaultedFileSystemAccess()
     {
         notifyerr = false;
         notifyfailed = true;
-        localseparator = separator;
     }
     std::unique_ptr<mega::FileAccess> newfileaccess(bool followSymLinks = true) override
     {
@@ -125,6 +124,11 @@ public:
         throw NotImplemented{__func__};
     }
     void addevents(mega::Waiter*, int) override
+    {
+        throw NotImplemented{__func__};
+    }
+
+    bool cwd(mega::LocalPath&) const override
     {
         throw NotImplemented{__func__};
     }
