@@ -8498,7 +8498,7 @@ CommandQueryGoogleAds::CommandQueryGoogleAds(MegaClient* client, int adFlags, ha
 
 #ifdef ENABLE_CHAT
 
-bool CommandStartChatCall::procresult(Command::Result r)
+bool CommandMeetingStart::procresult(Command::Result r)
 {
     if (r.wasErrorOrOK())
     {
@@ -8536,15 +8536,15 @@ bool CommandStartChatCall::procresult(Command::Result r)
     }
 }
 
-CommandStartChatCall::CommandStartChatCall(MegaClient *client, handle chatid, CommandStartChatCallCompletion completion)
+CommandMeetingStart::CommandMeetingStart(MegaClient *client, handle chatid, CommandMeetingStartCompletion completion)
     : mCompletion(completion)
 {
-    cmd("chatStartCall");
+    cmd("mcms");
     arg("chatId", (byte*)&chatid, MegaClient::CHATHANDLE);
     tag = client->reqtag;
 }
 
-bool CommandJoinChatCall::procresult(Command::Result r)
+bool CommandMeetingJoin::procresult(Command::Result r)
 {
     if (r.wasErrorOrOK())
     {
@@ -8577,10 +8577,10 @@ bool CommandJoinChatCall::procresult(Command::Result r)
     }
 }
 
-CommandJoinChatCall::CommandJoinChatCall(MegaClient *client, handle chatid, handle callid, CommandJoinChatCallCompletion completion)
+CommandMeetingJoin::CommandMeetingJoin(MegaClient *client, handle chatid, handle callid, CommandMeetingJoinCompletion completion)
     : mCompletion(completion)
 {
-    cmd("chatJoinCall");
+    cmd("mcmj");
     arg("chatId", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("callId", (byte*)&callid, MegaClient::CHATHANDLE);
 

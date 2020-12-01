@@ -1383,24 +1383,24 @@ public:
 };
 
 #ifdef ENABLE_CHAT
-typedef std::function<void(Error, std::string, handle)> CommandStartChatCallCompletion;
-class MEGA_API CommandStartChatCall : public Command
+typedef std::function<void(Error, std::string, handle)> CommandMeetingStartCompletion;
+class MEGA_API CommandMeetingStart : public Command
 {
-    CommandStartChatCallCompletion mCompletion;
+    CommandMeetingStartCompletion mCompletion;
 public:
     bool procresult(Result) override;
 
-    CommandStartChatCall(MegaClient*, handle chatid, CommandStartChatCallCompletion completion);
+    CommandMeetingStart(MegaClient*, handle chatid, CommandMeetingStartCompletion completion);
 };
 
-typedef std::function<void(Error, std::string)> CommandJoinChatCallCompletion;
-class MEGA_API CommandJoinChatCall : public Command
+typedef std::function<void(Error, std::string)> CommandMeetingJoinCompletion;
+class MEGA_API CommandMeetingJoin : public Command
 {
-    CommandJoinChatCallCompletion mCompletion;
+    CommandMeetingJoinCompletion mCompletion;
 public:
     bool procresult(Result) override;
 
-    CommandJoinChatCall(MegaClient*, handle chatid, handle callid, CommandJoinChatCallCompletion completion);
+    CommandMeetingJoin(MegaClient*, handle chatid, handle callid, CommandMeetingJoinCompletion completion);
 };
 
 #endif

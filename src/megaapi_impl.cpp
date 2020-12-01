@@ -23199,7 +23199,7 @@ void MegaApiImpl::sendPendingRequests()
                break;
             }
 
-            client->reqs.add(new CommandStartChatCall(client, request->getNodeHandle(), [request, this](Error e, std::string sfuUrl, handle callid)
+            client->reqs.add(new CommandMeetingStart(client, request->getNodeHandle(), [request, this](Error e, std::string sfuUrl, handle callid)
             {
                 if (e == API_OK)
                 {
@@ -23219,7 +23219,7 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            client->reqs.add(new CommandJoinChatCall(client, request->getNodeHandle(), request->getParentHandle(), [request, this](Error e, std::string sfuUrl)
+            client->reqs.add(new CommandMeetingJoin(client, request->getNodeHandle(), request->getParentHandle(), [request, this](Error e, std::string sfuUrl)
             {
                 if (e == API_OK)
                 {
