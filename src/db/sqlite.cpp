@@ -696,9 +696,8 @@ NodeCounter SqliteDbTable::getNodeCounter(handle node, bool isParentFile)
     sqlite3_stmt *stmt;
     int64_t size = 0;
     int type = TYPE_UNKNOWN;
-    handle parentHandle = UNDEF;
 
-    if (sqlite3_prepare(db, "SELECT size, type, parentHandle FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL) == SQLITE_OK)
+    if (sqlite3_prepare(db, "SELECT size, type FROM nodes WHERE nodehandle = ?", -1, &stmt, NULL) == SQLITE_OK)
     {
         if (sqlite3_bind_int64(stmt, 1, node) == SQLITE_OK)
         {
@@ -706,10 +705,10 @@ NodeCounter SqliteDbTable::getNodeCounter(handle node, bool isParentFile)
             {
                 size = sqlite3_column_int64(stmt, 0);
                 type = sqlite3_column_int(stmt, 1);
-                parentHandle = sqlite3_column_int64(stmt, 2);
             }
         }
     }
+    sqlite3_finalize(stmt);
 
     if (type == FILENODE)
     {
