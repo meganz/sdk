@@ -22,6 +22,8 @@
 #include "mega/db.h"
 #include "mega/utils.h"
 #include "mega/logging.h"
+#include "mega/node.h"
+#include "mega/share.h"
 
 namespace mega {
 DbTable::DbTable(PrnGen &rng, bool checkAlwaysTransacted)
@@ -110,6 +112,41 @@ void DbTable::resetCommitter()
 void DbTable::checkCommitter(DBTableTransactionCommitter* committer)
 {
     assert(!committer || committer == mTransactionCommitter);
+}
+
+int DbTable::getShareType(Node *node)
+{
+    int shareType = ShareType_t::NO_SHARES;
+
+    if (node->inshare)
+    {
+        shareType |= ShareType_t::IN_SHARES;
+    }
+    else
+    {
+        if (node->outshares)
+        {
+            for (share_map::iterator it = node->outshares->begin(); it != node->outshares->end(); it++)
+            {
+                Share *share = it->second;
+                if (share->user)    // folder links are shares without user
+                {
+                    shareType |= ShareType_t::OUT_SHARES;
+                    break;
+                }
+            }
+        }
+        if (node->pendingshares && node->pendingshares->size())
+        {
+            shareType |= ShareType_t::PENDING_SHARES;
+        }
+        if (node->plink)
+        {
+            shareType |= ShareType_t::LINK;
+        }
+    }
+
+    return shareType;
 }
 
 DbAccess::DbAccess()

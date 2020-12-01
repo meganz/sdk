@@ -519,7 +519,7 @@ bool SqliteDbTable::getNodesWithoutParent(std::vector<NodeSerialized> &nodes)
     return result == SQLITE_DONE ? true : false;
 }
 
-bool SqliteDbTable::getNodesWithSharesOrLink(std::vector<NodeSerialized> &nodes, sharesOrLink_t shareType)
+bool SqliteDbTable::getNodesWithSharesOrLink(std::vector<NodeSerialized> &nodes, ShareType_t shareType)
 {
     if (!db)
     {
@@ -959,28 +959,10 @@ bool SqliteDbTable::put(Node *node)
 
         sqlite3_bind_int(stmt, 6, node->type);
         sqlite3_bind_int64(stmt, 7, node->size);
-        int shareOrLink = 0;
-        if (node->inshare)
-        {
-            shareOrLink |= sharesOrLink_t::IN_SHARES;
-        }
 
-        if (node->outshares && node->outshares->size())
-        {
-            shareOrLink |= sharesOrLink_t::OUT_SHARES;
-        }
+        int shareType = getShareType(node);
+        sqlite3_bind_int(stmt, 8, shareType);
 
-        if (node->pendingshares && node->pendingshares->size())
-        {
-            shareOrLink |= sharesOrLink_t::PENDING_SHARES;
-        }
-
-        if (node->plink)
-        {
-            shareOrLink |= sharesOrLink_t::LINK;
-        }
-
-        sqlite3_bind_int(stmt, 8, shareOrLink);
         sqlite3_bind_int(stmt, 9, !node->attrstring);
         sqlite3_bind_blob(stmt, 10, nodeSerialized.data(), nodeSerialized.size(), SQLITE_STATIC);
 

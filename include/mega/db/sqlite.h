@@ -57,7 +57,7 @@ public:
     bool getNodesByOrigFingerprint(const std::string& fingerprint, std::map<mega::handle, NodeSerialized>& nodes) override;
     bool getNodeByFingerprint(const FileFingerprint& fingerprint, NodeSerialized &node) override;
     bool getNodesWithoutParent(std::vector<NodeSerialized>& nodes) override;
-    bool getNodesWithSharesOrLink(std::vector<NodeSerialized>& nodes, sharesOrLink_t shareType) override;
+    bool getNodesWithSharesOrLink(std::vector<NodeSerialized>& nodes, ShareType_t shareType) override;
     bool getChildrenFromNode(handle parentHandle, std::map<handle, NodeSerialized>& children) override;
     bool getChildrenHandlesFromNode(mega::handle parentHandle, std::vector<handle>&children) override;
     bool getNodesByName(const std::string& name, std::map<mega::handle, NodeSerialized>& nodes) override;

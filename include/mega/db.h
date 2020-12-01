@@ -49,7 +49,7 @@ protected:
     void resetCommitter();
 
 public:
-    typedef enum { NO_SHARES = 0x00, IN_SHARES = 0x01, OUT_SHARES = 0x02, PENDING_SHARES = 0x04, LINK = 0x08} sharesOrLink_t;
+    typedef enum { NO_SHARES = 0x00, IN_SHARES = 0x01, OUT_SHARES = 0x02, PENDING_SHARES = 0x04, LINK = 0x08} ShareType_t;
 
     // for a full sequential get: rewind to first record
     virtual void rewind() = 0;
@@ -67,7 +67,7 @@ public:
     virtual bool getNodesByOrigFingerprint(const std::string& fingerprint, std::map<mega::handle, NodeSerialized>& nodes) = 0;
     virtual bool getNodeByFingerprint(const FileFingerprint& fingerprint, NodeSerialized& node) = 0;
     virtual bool getNodesWithoutParent(std::vector<NodeSerialized>& nodes) = 0;
-    virtual bool getNodesWithSharesOrLink(std::vector<NodeSerialized>& nodes, sharesOrLink_t shareType) = 0;
+    virtual bool getNodesWithSharesOrLink(std::vector<NodeSerialized>& nodes, ShareType_t shareType) = 0;
     virtual bool getChildrenFromNode(handle parentHandle, std::map<handle, NodeSerialized>& children) = 0;
     virtual bool getChildrenHandlesFromNode(handle node, std::vector<handle>& nodes) = 0;
     virtual bool getNodesByName(const std::string& name, std::map<mega::handle, NodeSerialized>& nodes) = 0;
@@ -110,6 +110,8 @@ public:
     virtual bool setVar(const std::string& name, const std::string& value) = 0;
 
     void checkCommitter(DBTableTransactionCommitter*);
+
+    static int getShareType(Node *);
 
     // autoincrement
     uint32_t nextid;
