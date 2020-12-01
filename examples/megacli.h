@@ -213,8 +213,8 @@ struct DemoApp : public MegaApp
     void transfer_complete(Transfer*) override;
 
 #ifdef ENABLE_SYNC
-    void syncupdate_state(int tag, syncstate_t, SyncError, bool fireDisableEvent = true) override;
-    void sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const SyncError &error) override;
+    void syncupdate_state(int tag, syncstate_t, syncstate_t, bool fireDisableEvent = true) override;
+    void sync_auto_resume_result(const UnifiedSync&) override;
     void sync_removed(int tag) override;
 
     void syncupdate_scanning(bool) override;

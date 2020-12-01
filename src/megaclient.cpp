@@ -2493,7 +2493,7 @@ void MegaClient::exec()
                             syncsup = false;
                             sync->initializing = false;
                             LOG_debug << "Initial delayed scan finished. New / modified files: " << sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
-                            syncs.saveAndUpdateSyncConfig(&sync->getConfig(), sync->state, NO_SYNC_ERROR);
+                            syncs.saveAndUpdateSyncConfig(sync->getConfig(), sync->state, NO_SYNC_ERROR);
                         }
                         else
                         {
@@ -11828,13 +11828,7 @@ void MegaClient::fetchnodes(bool nocache)
         scsn.clear();
 
 #ifdef ENABLE_SYNC
-        // lets remove the active syncs. There could be some when enforcing fetchnodes(true)
-        // after API_ETOOMANY (too many action packets)
-        syncs.forEachRunningSync([&](Sync* sync) {
-            sync->changestate(SYNC_CANCELED);//we set it as cancelled. It will be removed from active sync latter on
-            // Note: this does not cause the sync to be removed from syncMap.
-            // However, after processing the new FetchNodes, they will be resumed, overriding the existing ones in the map.
-        });
+        assert(!syncs.hasRunningSyncs()); // not loaded yet - deferred to fetchnodes reply
 #endif
 
         if (!loggedinfolderlink())
@@ -13032,10 +13026,10 @@ error MegaClient::checkSyncConfig(const SyncConfig& syncConfig, SyncError &syncE
     inshare = false;
     if (!remotenode)
     {
-        LOG_err << "Sync root does not exist in the cloud: "
-                << syncConfig.getLocalPath()
-                << ": "
-                << LOG_NODEHANDLE(syncConfig.getRemoteNode());
+        LOG_warn << "Sync root does not exist in the cloud: "
+                 << syncConfig.getLocalPath()
+                 << ": "
+                 << LOG_NODEHANDLE(syncConfig.getRemoteNode());
 
         syncError = REMOTE_NODE_NOT_FOUND;
         return API_ENOENT;

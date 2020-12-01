@@ -853,12 +853,7 @@ struct StandardClient : public MegaApp
     {
         // shut down any syncs on the same thread, or they stall the client destruction (CancelIo instead of CancelIoEx on the WinDirNotify)
         thread_do([](MegaClient& mc, promise<bool>&) {
-            #ifdef _WIN32
-                // logout stalls in windows due to the issue above
-                mc.purgenodesusersabortsc(false);
-            #else
-                mc.logout();
-            #endif
+            mc.logout();
         });
 
         clientthreadexit = true;
@@ -869,12 +864,7 @@ struct StandardClient : public MegaApp
     void localLogout()
     {
         thread_do([](MegaClient& mc, promise<bool>&) {
-            #ifdef _WIN32
-                // logout stalls in windows due to the issue above
-                mc.purgenodesusersabortsc(false);
-            #else
-                mc.locallogout(false);
-            #endif
+            mc.locallogout(false);
         });
     }
 
@@ -886,17 +876,7 @@ struct StandardClient : public MegaApp
 
     void onCallback() { lastcb = chrono::steady_clock::now(); };
 
-    void syncupdate_state(int tag, syncstate_t state, SyncError syncError, bool fireDisableEvent = true) override
-    {
-        onCallback();
-
-        if (logcb)
-        {
-            lock_guard<mutex> g(om);
-            out() << clientname << " syncupdate_state() " << state << " error :" << syncError << endl;
-        }
-    }
-
+    void syncupdate_state(int tag, syncstate_t state, syncstate_t oldstate, bool fireDisableEvent = true) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << " syncupdate_state() " << state << " old :" << oldstate << endl; } }
     void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b << endl; } }
     //void syncupdate_local_folder_addition(Sync* s, LocalNode* ln, const char* cp) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " syncupdate_local_folder_addition() " << lp(ln) << " " << cp << endl; }}
     //void syncupdate_local_folder_deletion(Sync*, LocalNode* ln) override { if (logcb) { onCallback(); lock_guard<mutex> g(om);  out() << clientname << " syncupdate_local_folder_deletion() " << lp(ln) << endl; }}
@@ -1377,9 +1357,9 @@ struct StandardClient : public MegaApp
 
     bool syncSet(int tag, SyncInfo& info) const
     {
-        if (const auto* sync = client.syncs.runningSyncByTag(tag))
+        if (auto* sync = client.syncs.runningSyncByTag(tag))
         {
-            const auto& config = sync->getConfig();
+            auto& config = sync->getConfig();
 
             info.h = config.getRemoteNode();
             info.localpath = config.getLocalPath();

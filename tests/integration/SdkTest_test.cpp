@@ -424,9 +424,9 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
     case MegaRequest::TYPE_GET_ATTR_USER:
 
-        if (mApi[apiIndex].lastError == API_OK && 
+        if (mApi[apiIndex].lastError == API_OK &&
             (request->getParamType() == MegaApi::USER_ATTR_BACKUP_NAMES ||
-             request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES || 
+             request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES ||
              request->getParamType() == MegaApi::USER_ATTR_ALIAS))
         {
             attributeValue = request->getName();
@@ -435,7 +435,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         {
             attributeValue = request->getText() ? request->getText() : "";
         }
-        
+
         if (request->getParamType() == MegaApi::USER_ATTR_AVATAR)
         {
             if (mApi[apiIndex].lastError == API_OK)
@@ -4841,7 +4841,6 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     // --- negative test cases ---
     gTestingInvalidArgs = true;
 
-    
     // register the same backup twice: should work fine
     err = synchronousSetBackup(0, backupType, targetNodes[0], localFolder.c_str(), backupNames[0].c_str(), state, subState, extraData.c_str());
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
@@ -4863,7 +4862,7 @@ TEST_F(SdkTest, DISABLED_SdkDeviceNames)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SdkDeviceNames___";
-    
+
     // test setter/getter
     string deviceName = "SdkDeviceNamesTest";
     auto err = synchronousSetDeviceName(0, deviceName.c_str());
@@ -5250,13 +5249,9 @@ TEST_F(SdkTest, FetchGoogleAds)
 void cleanUp(::mega::MegaApi* megaApi, const fs::path &basePath)
 {
 
-    std::unique_ptr<MegaSyncList> syncs{megaApi->getSyncs()};
-    for (int i = 0; i < syncs->size(); i++)
-    {
-        RequestTracker removeTracker(megaApi);
-        megaApi->removeSync(syncs->get(i),&removeTracker);
-        ASSERT_EQ(API_OK, removeTracker.waitForResult());
-    }
+    RequestTracker removeTracker(megaApi);
+    megaApi->removeSyncs(&removeTracker);
+    ASSERT_EQ(API_OK, removeTracker.waitForResult());
 
     std::unique_ptr<MegaNode> baseNode{megaApi->getNodeByPath(("/" + basePath.u8string()).c_str())};
     if (baseNode)
@@ -5409,7 +5404,7 @@ TEST_F(SdkTest, SyncBasicOperations)
         TestingWithLogErrorAllowanceGuard g;
 
         ASSERT_EQ(MegaError::API_ENOENT, synchronousEnableSync(0, 999999)); // Hope it doesn't exist.
-        ASSERT_EQ(999999, mApi[0].lastSyncError); // It returns the inexistent tagID (999999), instead of known error code.
+        ASSERT_EQ(MegaSync::UNKNOWN_ERROR, mApi[0].lastSyncError); // MegaApi.h specifies that this contains the error code (not the tag)
         ASSERT_EQ(MegaError::API_EEXIST, synchronousEnableSync(0, sync2.get())); // Currently enabled.
         ASSERT_EQ(MegaSync::ACTIVE_SYNC_BELOW_PATH, mApi[0].lastSyncError);
     }
@@ -5586,7 +5581,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     removeSync(sync3Path);
 
     // wait for the sync removals to actually take place
-    std::this_thread::sleep_for(std::chrono::seconds{20});
+    std::this_thread::sleep_for(std::chrono::seconds{3});
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_TRUE(checkSyncDisabled(sync2Path));
@@ -5744,7 +5739,7 @@ TEST_F(SdkTest, SyncRemoteNode)
         TestingWithLogErrorAllowanceGuard g;
         // Remove remote folder --> Sync fail
         LOG_verbose << "SyncRemoteNode :  Removing remote node with sync active.";
-        ASSERT_NO_FATAL_FAILURE(deleteNode(0, remoteBaseNode.get()));
+        ASSERT_NO_FATAL_FAILURE(deleteNode(0, remoteBaseNode.get()));                                //  <--- remote node deleted!!
         sync = waitForSyncState(megaApi[0].get(), tagID, MegaSync::SYNC_FAILED);
         ASSERT_TRUE(sync && sync->getState() == MegaSync::SYNC_FAILED);
         ASSERT_EQ(MegaSync::REMOTE_NODE_NOT_FOUND, sync->getError());
@@ -5758,22 +5753,25 @@ TEST_F(SdkTest, SyncRemoteNode)
         ASSERT_EQ(MegaSync::REMOTE_NODE_NOT_FOUND, sync->getError());
     }
 
-    LOG_verbose << "SyncRemoteNode :  Enabling sync again.";
-    ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, tagID)) << "API Error enabling the sync";
-    sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), MegaSync::SYNC_ACTIVE);
-    ASSERT_TRUE(sync && sync->getState() == MegaSync::SYNC_ACTIVE);
-    ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
-
     {
         TestingWithLogErrorAllowanceGuard g;
-
-        // Check if a locallogout keeps the sync configuration if the remote is removed.
-        LOG_verbose << "SyncRemoteNode :  Removing remote node with sync active.";
-        ASSERT_NO_FATAL_FAILURE(deleteNode(0, remoteBaseNode.get())) << "Error deleting remote basePath";;
-        sync = waitForSyncState(megaApi[0].get(), tagID, MegaSync::SYNC_FAILED);
-        ASSERT_TRUE(sync && sync->getState() == MegaSync::SYNC_FAILED);
-        ASSERT_EQ(MegaSync::REMOTE_NODE_NOT_FOUND, sync->getError());
+        LOG_verbose << "SyncRemoteNode :  Enabling sync again.";
+        ASSERT_EQ(MegaError::API_ENOENT, synchronousEnableSync(0, tagID)) << "API Error enabling the sync";  //  <--- remote node has been deleted, we should not be able to resume!!
     }
+    //sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), MegaSync::SYNC_ACTIVE);
+    //ASSERT_TRUE(sync && sync->getState() == MegaSync::SYNC_ACTIVE);
+    //ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
+
+    //{
+    //    TestingWithLogErrorAllowanceGuard g;
+
+    //    // Check if a locallogout keeps the sync configuration if the remote is removed.
+    //    LOG_verbose << "SyncRemoteNode :  Removing remote node with sync active.";
+    //    ASSERT_NO_FATAL_FAILURE(deleteNode(0, remoteBaseNode.get())) << "Error deleting remote basePath";;
+    //    sync = waitForSyncState(megaApi[0].get(), tagID, MegaSync::SYNC_FAILED);
+    //    ASSERT_TRUE(sync && sync->getState() == MegaSync::SYNC_FAILED);
+    //    ASSERT_EQ(MegaSync::REMOTE_NODE_NOT_FOUND, sync->getError());
+    //}
 
     std::string session = dumpSession();
     ASSERT_NO_FATAL_FAILURE(locallogout());
@@ -5782,8 +5780,9 @@ TEST_F(SdkTest, SyncRemoteNode)
     ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for accout " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
-    sync.reset(megaApi[0]->getSyncByTag(tagID));
-    ASSERT_EQ(string(sync->getMegaFolder()), ("/" / basePath).u8string());
+    // since the node was deleted, path is irrelevant
+    //sync.reset(megaApi[0]->getSyncByTag(tagID));
+    //ASSERT_EQ(string(sync->getMegaFolder()), ("/" / basePath).u8string());
 
     // Remove a failing sync.
     LOG_verbose << "SyncRemoteNode :  Remove failed sync";

@@ -376,7 +376,7 @@ int64_t chunkmac_map::macsmac_gaps(SymmCipher *cipher, size_t g1, size_t g2, siz
     for (chunkmac_map::iterator it = begin(); it != end(); it++, n++)
     {
         if ((n >= g1 && n < g2) || (n >= g3 && n < g4)) continue;
-        
+
         assert(it->first == ChunkedHash::chunkfloor(it->first));
         SymmCipher::xorblock(it->second.mac, mac);
         cipher->ecb_encrypt(mac);
@@ -2352,6 +2352,11 @@ const std::vector<std::string>& SyncConfig::getRegExps() const
     return mRegExps;
 }
 
+void SyncConfig::setRegExps(std::vector<std::string>&& v)
+{
+    mRegExps = std::move(v);
+}
+
 SyncConfig::Type SyncConfig::getType() const
 {
     return mSyncType;
@@ -2429,6 +2434,14 @@ void SyncConfig::drivePath(const string& drivePath)
 const string& SyncConfig::drivePath() const
 {
     return mDrivePath;
+}
+
+
+syncstate_t SyncConfig::calcState(Sync* s) const {
+    return s ? s->state : (
+               getEnabled() && mError != STORAGE_OVERQUOTA && mError != NO_SYNC_ERROR
+                    ? SYNC_FAILED
+                    : SYNC_DISABLED);
 }
 
 // This should be a const-method but can't be due to the broken Cacheable interface.

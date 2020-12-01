@@ -113,7 +113,7 @@ class MEGA_API Sync
 public:
 
     // returns the sync config
-    const SyncConfig& getConfig() const;
+    SyncConfig& getConfig();
 
     MegaClient* client = nullptr;
 
@@ -158,7 +158,7 @@ public:
     void cachenodes();
 
     // change state, signal to application
-    void changestate(syncstate_t, SyncError newSyncError = NO_SYNC_ERROR);
+    void changestate(syncstate_t, SyncError newSyncError = NO_SYNC_ERROR, bool notifyApp = true);
 
     // skip duplicates and self-caused
     bool checkValidNotification(int q, Notification& notification);
@@ -614,8 +614,8 @@ struct Syncs
     void clear();
 
     // updates in state & error
-    error saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, SyncError syncerror);
-    error saveSyncConfig(const SyncConfig *config);
+    error saveAndUpdateSyncConfig(SyncConfig& config, syncstate_t newstate, SyncError syncerror);
+    error saveSyncConfig(const SyncConfig& config);
 
     Syncs(MegaClient& mc);
 

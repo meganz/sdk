@@ -879,6 +879,7 @@ typedef enum
 BackupType;
 
 // Holds the config of a sync. Can be extended with future config options
+class Sync;
 class SyncConfig : public Cacheable
 {
 public:
@@ -945,6 +946,7 @@ public:
 
     // returns the regular expressions
     const std::vector<std::string>& getRegExps() const;
+    void setRegExps(std::vector<std::string>&&);
 
     // returns the type of the sync
     Type getType() const;
@@ -996,6 +998,8 @@ public:
     // Path to the volume containing this backup.
     void drivePath(const string& drivePath);
     const string &drivePath() const;
+
+    syncstate_t calcState(Sync* s) const;
 
 private:
 

@@ -501,9 +501,9 @@ static void syncstat(Sync* sync)
          << " file(s) and " << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
 }
 
-void DemoApp::syncupdate_state(int tag, syncstate_t newstate, SyncError syncError, bool fireDisableEvent)
+void DemoApp::syncupdate_state(int tag, syncstate_t newstate, syncstate_t oldstate, bool fireDisableEvent)
 {
-    cout << "Sync state updated: " << tag << " newstate: " << newstate << " error: " << syncError << endl;
+    cout << "Sync state updated: " << tag << " newstate: " << newstate << " old: " << oldstate << endl;
 
     switch (newstate)
     {
@@ -519,10 +519,10 @@ void DemoApp::syncupdate_state(int tag, syncstate_t newstate, SyncError syncErro
     }
 }
 
-void DemoApp::sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const SyncError &error)
+void DemoApp::sync_auto_resume_result(const UnifiedSync& s)
 {
-    cout << "Sync - auresumed " <<config.getTag() << " " << config.getLocalPath()  << " enabled: "
-         << config.getEnabled()  << " state: " << state << " syncError: " << error << endl;
+    cout << "Sync - auresumed " << s.mConfig.getTag() << " " << s.mConfig.getLocalPath()  << " enabled: "
+         << s.mConfig.getEnabled()  << " state: " << s.mConfig.calcState(s.mSync.get()) << " syncError: " << s.mConfig.getError() << endl;
 }
 
 void DemoApp::sync_removed(int tag)

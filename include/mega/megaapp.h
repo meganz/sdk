@@ -23,6 +23,9 @@
 #define MEGA_APP_H 1
 
 namespace mega {
+
+struct UnifiedSync;
+
 // callback interface
 struct MEGA_API MegaApp
 {
@@ -288,7 +291,7 @@ struct MEGA_API MegaApp
     virtual void transfer_complete(Transfer*) { }
 
     // sync status updates and events
-    virtual void syncupdate_state(int tag, syncstate_t, SyncError, bool = true) { }
+    virtual void syncupdate_state(int tag, syncstate_t, syncstate_t oldstate, bool = true) { }
     virtual void syncupdate_scanning(bool) { }
     virtual void syncupdate_local_folder_addition(Sync*, LocalNode*, const char*) { }
     virtual void syncupdate_local_folder_deletion(Sync*, LocalNode*) { }
@@ -332,7 +335,7 @@ struct MEGA_API MegaApp
     virtual void syncs_about_to_be_resumed() { }
 
     // after an attempt to auto-resume a cache sync
-    virtual void sync_auto_resume_result(const SyncConfig &, const syncstate_t &, const SyncError &) { }
+    virtual void sync_auto_resume_result(const UnifiedSync& s) { }
 
     // after a sync has been removed
     virtual void sync_removed(int tag) { }
