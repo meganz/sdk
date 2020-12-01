@@ -9588,6 +9588,12 @@ class MegaApi
         char* getMyEmail();
 
         /**
+         * @brief Get the timestamp when the account was created
+         * @return Timestamp when the account was created
+         */
+        int64_t getAccountCreationTs();
+
+        /**
          * @brief Returns the user handle of the currently open account
          *
          * If the MegaApi object isn't logged in,

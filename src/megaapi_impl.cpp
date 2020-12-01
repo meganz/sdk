@@ -5394,6 +5394,11 @@ char* MegaApiImpl::getMyEmail()
     return result;
 }
 
+int64_t MegaApiImpl::getAccountCreationTs()
+{
+    return client->accountsince;
+}
+
 char *MegaApiImpl::getMyUserHandle()
 {
     sdkMutex.lock();
