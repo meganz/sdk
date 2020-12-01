@@ -27,6 +27,8 @@
 #import "MEGATimeZoneDetails+init.h"
 #import "MEGAStringList+init.h"
 #import "MEGAPushNotificationSettings+init.h"
+#import "MEGABannerList.h"
+#import "MEGABannerList+init.h"
 
 using namespace mega;
 
@@ -243,6 +245,11 @@ using namespace mega;
     }
     
     return stringTableArray.copy;
+}
+
+- (MEGABannerList *)bannerList {
+    MegaBannerList *bannerList = self.megaRequest->getMegaBannerList() -> copy();
+    return [[MEGABannerList alloc] initWithMegaBannerList:bannerList cMemoryOwn:YES];
 }
 
 @end

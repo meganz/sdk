@@ -170,7 +170,13 @@ using namespace mega;
 }
 
 - (NSString *)publicLink {
-    return self.megaNode ? [[NSString alloc] initWithUTF8String:self.megaNode->getPublicLink()] : nil;
+    const char *val = self.megaNode->getPublicLink();
+    if (!val) return nil;
+    
+    NSString *ret = [NSString stringWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
 }
 
 - (uint64_t)owner {

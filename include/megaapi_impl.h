@@ -123,11 +123,15 @@ class MegaHTTPServer;
 class MegaFTPServer;
 #endif
 
-class MegaDbAccess : public SqliteDbAccess
+class MegaDbAccess
+  : public SqliteDbAccess
 {
-	public:
-		MegaDbAccess(string *basePath = NULL) : SqliteDbAccess(basePath){}
-};
+public:
+    MegaDbAccess(const LocalPath& rootPath)
+      : SqliteDbAccess(rootPath)
+    {
+    }
+}; // MegaDbAccess
 
 class MegaErrorPrivate : public MegaError
 {
@@ -504,6 +508,8 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         MegaNode* getPublicNode() override;
         char *getPublicLink(bool includeKey = true) override;
         int64_t getPublicLinkCreationTime() override;
+        const char * getWritableLinkAuthKey() override;
+
         bool isNewLinkFormat();
         bool isFile() override;
         bool isFolder() override;
@@ -753,6 +759,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         void setStartFirst(bool startFirst);
         void setBackupTransfer(bool backupTransfer);
         void setForeignOverquota(bool backupTransfer);
+        void setForceNewUpload(bool forceNewUpload);
         void setStreamingTransfer(bool streamingTransfer);
         void setLastBytes(char *lastBytes);
         void setLastError(const MegaError *e);
@@ -794,6 +801,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         virtual bool shouldStartFirst() const;
         bool isBackupTransfer() const override;
         bool isForeignOverquota() const override;
+        bool isForceNewUpload() const override;
         char *getLastBytes() const override;
         MegaError getLastError() const override;
         const MegaError *getLastErrorExtended() const override;
@@ -835,6 +843,7 @@ protected:
             bool startFirst : 1;
             bool backupTransfer : 1;
             bool foreignOverquota : 1;
+            bool forceNewUpload : 1;
         };
 
         int64_t startTime;
@@ -2308,7 +2317,7 @@ class MegaApiImpl : public MegaApp
         void sendFileToUser(MegaNode *node, const char* email, MegaRequestListener *listener = NULL);
         void share(MegaNode *node, MegaUser* user, int level, MegaRequestListener *listener = NULL);
         void share(MegaNode* node, const char* email, int level, MegaRequestListener *listener = NULL);
-        void loginToFolder(const char* megaFolderLink, MegaRequestListener *listener = NULL);
+        void loginToFolder(const char* megaFolderLink, const char *authKey = nullptr, MegaRequestListener *listener = NULL);
         void importFileLink(const char* megaFileLink, MegaNode* parent, MegaRequestListener *listener = NULL);
         void decryptPasswordProtectedLink(const char* link, const char* password, MegaRequestListener *listener = NULL);
         void encryptLinkWithPassword(const char* link, const char* password, MegaRequestListener *listener = NULL);
@@ -2349,7 +2358,7 @@ class MegaApiImpl : public MegaApp
         void setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener = NULL);
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
         void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
-        void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
+        void exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
         void fetchNodes(MegaRequestListener *listener = NULL);
         void getPricing(MegaRequestListener *listener = NULL);
@@ -2779,7 +2788,7 @@ class MegaApiImpl : public MegaApp
         bool hasAccessToAttachment(MegaHandle chatid, MegaHandle h, MegaHandle uh);
         const char* getFileAttribute(MegaHandle h);
         void archiveChat(MegaHandle chatid, int archive, MegaRequestListener *listener = NULL);
-        void setChatRetentionTime(MegaHandle chatid, int period, MegaRequestListener *listener = NULL);
+        void setChatRetentionTime(MegaHandle chatid, unsigned int period, MegaRequestListener *listener = NULL);
         void requestRichPreview(const char *url, MegaRequestListener *listener = NULL);
         void chatLinkHandle(MegaHandle chatid, bool del, bool createifmissing, MegaRequestListener *listener = NULL);
         void getChatLinkURL(MegaHandle publichandle, MegaRequestListener *listener = NULL);
@@ -2826,10 +2835,13 @@ class MegaApiImpl : public MegaApp
         void getBanners(MegaRequestListener *listener);
         void dismissBanner(int id, MegaRequestListener *listener);
 
-        void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
-        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
-        void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode);
+        void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener);
+
+        void getBackupName(MegaHandle backupId, MegaRequestListener* listener = nullptr);
+        void setBackupName(MegaHandle backupId, const char* backupName, MegaRequestListener* listener = nullptr);
 
         void fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener = nullptr);
         void queryGoogleAds(int adFlags, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
@@ -3087,8 +3099,8 @@ protected:
         void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride) override;
 
         // share update result
-        void share_result(error) override;
-        void share_result(int, error) override;
+        void share_result(error, bool writable = false) override;
+        void share_result(int, error, bool writable = false) override;
 
         // contact request results
         void setpcr_result(handle, error, opcactions_t) override;
