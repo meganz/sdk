@@ -478,7 +478,7 @@ static void syncstat(Sync* sync)
 
 void DemoApp::syncupdate_state(int tag, syncstate_t newstate, syncstate_t oldstate, bool fireDisableEvent)
 {
-    cout << "Sync state updated: " << tag << " newstate: " << newstate << " error: " << syncError << endl;
+    cout << "Sync state updated: " << tag << " newstate: " << newstate << " old: " << oldstate << endl;
 
     switch (newstate)
     {
@@ -497,7 +497,7 @@ void DemoApp::syncupdate_state(int tag, syncstate_t newstate, syncstate_t oldsta
 void DemoApp::sync_auto_resume_result(const UnifiedSync& s)
 {
     cout << "Sync - auresumed " << s.mConfig.getTag() << " " << s.mConfig.getLocalPath()  << " enabled: "
-         << s.mConfig.getEnabled()  << " state: " << state << " syncError: " << error << endl;
+         << s.mConfig.getEnabled()  << " state: " << s.mConfig.calcState(s.mSync.get()) << " syncError: " << s.mConfig.getError() << endl;
 }
 
 void DemoApp::sync_removed(int tag)
