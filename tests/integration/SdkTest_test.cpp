@@ -429,7 +429,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
              request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES || 
              request->getParamType() == MegaApi::USER_ATTR_ALIAS))
         {
-            attributeValue = request->getName();
+            attributeValue = request->getName() ? request->getName() : ""; 
         }
         else if ( (mApi[apiIndex].lastError == API_OK) && (request->getParamType() != MegaApi::USER_ATTR_AVATAR))
         {
