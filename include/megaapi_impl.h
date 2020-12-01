@@ -227,7 +227,6 @@ protected:
     std::set<MegaTransferPrivate*> subTransfers;
     int mIncompleteTransfers = { 0 };
     MegaErrorPrivate mLastError = { API_OK };
-    LocalPath::separator_t mLocalSeparator;
 };
 
 class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveOperation

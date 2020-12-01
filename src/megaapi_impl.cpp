@@ -36,6 +36,7 @@
 #include <cctype>
 #include <locale>
 #include <thread>
+#include <future>
 
 #ifndef _WIN32
 #ifndef _LARGEFILE64_SOURCE
@@ -25452,7 +25453,6 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->tag = transfer->getTag();
     this->mPendingFolders = 0;
     this->mPendingFilesToProcess = 0;
-    this->mLocalSeparator = client->fsaccess->localseparator;
     this->mFollowsymlinks = client->followsymlinks;
     this->mMainThreadId = std::this_thread::get_id();
     this->megaApi->addRequestListener(this);
@@ -25695,7 +25695,7 @@ void MegaFolderUploadController::scanFolder(handle targetHandle, handle parentHa
     while (da->dnext(localPath, localname, mFollowsymlinks, &dirEntryType))
     {
         ScopedLengthRestore restoreLen(localPath);
-        localPath.appendWithSeparator(localname, false, mLocalSeparator);
+        localPath.appendWithSeparator(localname, false);
         if (dirEntryType == FILENODE)
         {
             // if folder exists, takes it's handle to store new file node in mFolderToPendingFiles map,
@@ -27028,7 +27028,6 @@ MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *megaApi,
     this->pendingTransfers = 0;
     this->tag = transfer->getTag();
     this->mMainThreadId = std::this_thread::get_id();
-    this->mLocalSeparator = client->fsaccess->localseparator;
     this->mPendingFilesToProcess = 0;
     this->megaApi->addRequestListener(this);
 }
@@ -27242,7 +27241,7 @@ void MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpa
         else
         {
             ScopedLengthRestore restoreLen(localpath);
-            localpath.appendWithSeparator(megaApi->getLocalPathFromName(child->getName(), fsType), true, mLocalSeparator);
+            localpath.appendWithSeparator(megaApi->getLocalPathFromName(child->getName(), fsType), true);
             scanFolder(child, localpath, fsType);
         }
     }
@@ -27286,7 +27285,7 @@ void MegaFolderDownloadController::downloadFiles(FileSystemType fsType)
         {
              MegaNode &node = *(nodeVector.at(i).get());
              ScopedLengthRestore restoreLen(localpath);
-             localpath.appendWithSeparator(megaApi->getLocalPathFromName(node.getName(), fsType), true, mLocalSeparator);
+             localpath.appendWithSeparator(megaApi->getLocalPathFromName(node.getName(), fsType), true);
              string utf8path = megaApi->LocalPathToPath(localpath);
              MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), tag, transfer->getAppData(), this);
              transferQueue.push(transferDownload);
