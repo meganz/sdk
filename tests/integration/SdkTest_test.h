@@ -203,7 +203,7 @@ public:
 
     MegaHandle mBackupId = UNDEF;
     std::vector<std::pair<string, MegaHandle> > mBackupNameToBackupId;
-    MegaStringMap* mBackupStringMap = nullptr;
+    std::set<MegaHandle> mBackupIds;
 
 protected:
     void SetUp() override;

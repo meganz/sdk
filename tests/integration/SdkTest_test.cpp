@@ -310,7 +310,8 @@ void SdkTest::Cleanup()
     deleteFile(AVATARDST);
 
     std::vector<std::unique_ptr<RequestTracker>> delSyncTrackers;
-
+    
+    int index = 0;
     for (auto &m : megaApi)
     {
         auto syncs = unique_ptr<MegaSyncList>(m->getSyncs());
@@ -319,6 +320,17 @@ void SdkTest::Cleanup()
             delSyncTrackers.push_back(std::unique_ptr<RequestTracker>(new RequestTracker(m.get())));
             m->removeSync(syncs->get(i), delSyncTrackers.back().get());
         }
+
+        // clear user attributes: backup ids 
+        auto u = m->getMyUser();
+        bool null_pointer = (u == nullptr);
+        ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << mApi[index].email;
+        ASSERT_NO_FATAL_FAILURE(getUserAttribute(u, MegaApi::USER_ATTR_BACKUP_NAMES, maxTimeout, 0));
+        for (auto& b : mBackupIds)
+        {
+            synchronousRemoveBackup(0, b);
+        }
+        mBackupIds.clear();
     }
 
     // wait for delsyncs to complete:
@@ -433,7 +445,19 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
                 attributeValue = request->getName() ? request->getName() : "";
                 if (request->getParamType() == MegaApi::USER_ATTR_BACKUP_NAMES)
                 {
-                    mBackupStringMap = request->getMegaStringMap();
+                    auto backupStringMap = request->getMegaStringMap();
+                    if (backupStringMap)
+                    {
+                        auto keys = backupStringMap->getKeys();
+                        for (int i = 0; i < backupStringMap->size(); ++i)
+                        {
+                            string s(keys->get(i));
+                            MegaHandle h = UNDEF;
+                            Base64::atob(s.c_str(), (::mega::byte*) &h, MegaClient::BACKUPHANDLE);
+                            mBackupIds.insert(h);
+                        }
+                    }
+
                 }
             }
             else if (request->getParamType() != MegaApi::USER_ATTR_AVATAR)
@@ -4849,8 +4873,10 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
 
     // update a removed backup: should throw an error
+    mApi[0].userUpdated = false; 
     err = synchronousRemoveBackup(0, mBackupId, nullptr);
     ASSERT_EQ(MegaError::API_OK, err) << "removeBackup failed (error: " << err << ")";
+    ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
     err = synchronousUpdateBackup(0, mBackupId, BackupType::INVALID, UNDEF, nullptr, -1, -1, extraData.c_str());
     ASSERT_NE(MegaError::API_OK, err) << "updateBackup failed (error: " << err << ")";
 
