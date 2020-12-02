@@ -331,6 +331,7 @@ void SdkTest::Cleanup()
             synchronousRemoveBackup(0, b);
         }
         mBackupIds.clear();
+        ++index;
     }
 
     // wait for delsyncs to complete:
