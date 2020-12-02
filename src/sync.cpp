@@ -3108,6 +3108,10 @@ XBackupConfig translate(const MegaClient& client, const SyncConfig &config)
     result.drivePath = LocalPath::fromPath(drivePath, fsAccess);
     result.sourcePath = LocalPath::fromPath(sourcePath, fsAccess);
 
+    // Ensure paths are normalized.
+    result.drivePath = NormalizeAbsolute(result.drivePath);
+    result.sourcePath = NormalizeRelative(result.sourcePath);
+
     return result;
 }
 
@@ -3119,9 +3123,11 @@ SyncConfig translate(const MegaClient& client, const XBackupConfig& config)
 
     // Source Path
     {
-        LocalPath temp = config.drivePath;
+        LocalPath temp = NormalizeAbsolute(config.drivePath);
 
-        temp.appendWithSeparator(config.sourcePath, false);
+        temp.appendWithSeparator(
+          NormalizeRelative(config.sourcePath),
+          false);
 
         sourcePath = temp.toPath(*client.fsaccess);
     }
@@ -3899,9 +3905,13 @@ XBackupConfigStore::~XBackupConfigStore()
     close();
 }
 
-const XBackupConfig* XBackupConfigStore::add(const XBackupConfig& config)
+const XBackupConfig* XBackupConfigStore::add(XBackupConfig config)
 {
     auto i = mTagToDB.find(config.tag);
+
+    // Ensure paths are normalized.
+    config.drivePath = NormalizeAbsolute(config.drivePath);
+    config.sourcePath = NormalizeRelative(config.sourcePath);
 
     // Is the config already in a database?
     if (i != mTagToDB.end())
@@ -3932,7 +3942,7 @@ const XBackupConfig* XBackupConfigStore::add(const XBackupConfig& config)
 
 error XBackupConfigStore::close(const LocalPath& drivePath)
 {
-    auto i = mDriveToDB.find(drivePath);
+    auto i = mDriveToDB.find(NormalizeAbsolute(drivePath));
 
     // Does the database exist?
     if (i != mDriveToDB.end())
@@ -3968,7 +3978,7 @@ error XBackupConfigStore::close()
 
 const XBackupConfigMap* XBackupConfigStore::configs(const LocalPath& drivePath) const
 {
-    auto i = mDriveToDB.find(drivePath);
+    auto i = mDriveToDB.find(NormalizeAbsolute(drivePath));
 
     // Database exist?
     if (i != mDriveToDB.end())
@@ -4005,8 +4015,11 @@ const XBackupConfigMap* XBackupConfigStore::create(const LocalPath& drivePath)
         return nullptr;
     }
 
+    // Ensure the drive path is normalized.
+    auto path = NormalizeAbsolute(drivePath);
+
     // Create database object.
-    XBackupConfigDBPtr db(new XBackupConfigDB(drivePath, *this));
+    XBackupConfigDBPtr db(new XBackupConfigDB(path, *this));
 
     // Load existing database, if any.
     error result = db->read(mIOContext);
@@ -4028,7 +4041,7 @@ const XBackupConfigMap* XBackupConfigStore::create(const LocalPath& drivePath)
     }
 
     // Add database to the store.
-    auto it = mDriveToDB.emplace(drivePath, std::move(db));
+    auto it = mDriveToDB.emplace(path, std::move(db));
 
     // Return reference to (possibly empty) configs.
     return &it.first->second->configs();
@@ -4041,7 +4054,7 @@ bool XBackupConfigStore::dirty() const
 
 error XBackupConfigStore::flush(const LocalPath& drivePath)
 {
-    auto i = mDriveToDB.find(drivePath);
+    auto i = mDriveToDB.find(NormalizeAbsolute(drivePath));
 
     // Does the database exist?
     if (i != mDriveToDB.end())
@@ -4132,8 +4145,11 @@ const XBackupConfigMap* XBackupConfigStore::open(const LocalPath& drivePath)
         return nullptr;
     }
 
+    // Ensure the drive path is normalized.
+    auto path = NormalizeAbsolute(drivePath);
+
     // Create database object.
-    XBackupConfigDBPtr db(new XBackupConfigDB(drivePath, *this));
+    XBackupConfigDBPtr db(new XBackupConfigDB(path, *this));
 
     // Try and load the database from disk.
     if (db->read(mIOContext) != API_OK)
@@ -4143,7 +4159,7 @@ const XBackupConfigMap* XBackupConfigStore::open(const LocalPath& drivePath)
     }
 
     // Add the database to the store.
-    auto it = mDriveToDB.emplace(drivePath, std::move(db));
+    auto it = mDriveToDB.emplace(path, std::move(db));
 
     // Return reference to (possibly empty) configs.
     return &it.first->second->configs();
@@ -4151,7 +4167,7 @@ const XBackupConfigMap* XBackupConfigStore::open(const LocalPath& drivePath)
 
 bool XBackupConfigStore::opened(const LocalPath& drivePath) const
 {
-    return mDriveToDB.count(drivePath) > 0;
+    return mDriveToDB.count(NormalizeAbsolute(drivePath)) > 0;
 }
 
 error XBackupConfigStore::remove(const int tag)

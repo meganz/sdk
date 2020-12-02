@@ -496,7 +496,7 @@ public:
     MEGA_DISABLE_COPY_MOVE(XBackupConfigStore);
 
     // Add a new (or update an existing) config.
-    const XBackupConfig* add(const XBackupConfig& config);
+    const XBackupConfig* add(XBackupConfig config);
 
     // Close a database.
     error close(const LocalPath& drivePath);
