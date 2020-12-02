@@ -2519,7 +2519,7 @@ XBackupConfigStore* Syncs::backupConfigStore()
           // Attribute present and valid?
           if (!(value && user->isattrvalid(name)))
           {
-              nullptr;
+              return nullptr;
           }
 
           // Attribute length valid?
