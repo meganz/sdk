@@ -22,6 +22,7 @@
 #include <gtest/gtest.h>
 
 #include <mega/utils.h>
+#include <mega/filesystem.h>
 #include "megafs.h"
 
 TEST(utils, hashCombine_integer)
@@ -44,8 +45,8 @@ TEST(Filesystem, NormalizeAbsoluteAddDriveSeparator)
 
     FSACCESS_CLASS fsAccess;
 
-    LocalPath input = LocalPath::fromPath(L"C:", fsAccess);
-    LocalPath expected = LocalPath::fromPath(L"C:\\", fsAccess);
+    LocalPath input = LocalPath::fromPath("C:", fsAccess);
+    LocalPath expected = LocalPath::fromPath("C:\\", fsAccess);
 
     EXPECT_EQ(NormalizeAbsolute(input), expected);
     EXPECT_EQ(NormalizeAbsolute(expected), expected);
@@ -57,8 +58,8 @@ TEST(Filesystem, NormalizeAbsoluteRemoveTrailingSeparator)
 
     FSACCESS_CLASS fsAccess;
 
-    LocalPath input = LocalPath::fromPath(L"C:\\a\\", fsAccess);
-    LocalPath expected = LocalPath::fromPath(L"C:\\a", fsAccess);
+    LocalPath input = LocalPath::fromPath("a\\", fsAccess);
+    LocalPath expected = LocalPath::fromPath("a", fsAccess);
 
     EXPECT_EQ(NormalizeAbsolute(input), expected);
     EXPECT_EQ(NormalizeAbsolute(expected), expected);
@@ -70,8 +71,8 @@ TEST(Filesystem, NormalizeRelativeRemoveLeadingSeparator)
 
     FSACCESS_CLASS fsAccess;
 
-    LocalPath input = LocalPath::fromPath(L"\\a\\b\\", fsAccess);
-    LocalPath expected = LocalPath::fromPath(L"a\\b", fsAccess);
+    LocalPath input = LocalPath::fromPath("\\a\\b\\", fsAccess);
+    LocalPath expected = LocalPath::fromPath("a\\b", fsAccess);
 
     EXPECT_EQ(NormalizeRelative(input), expected);
     EXPECT_EQ(NormalizeRelative(expected), expected);
@@ -83,8 +84,8 @@ TEST(Filesystem, NormalizeRelativeRemoveTrailingSeparator)
 
     FSACCESS_CLASS fsAccess;
 
-    LocalPath input = LocalPath::fromPath(L"a\\b\\", fsAccess);
-    LocalPath expected = LocalPath::fromPath(L"a\\b", fsAccess);
+    LocalPath input = LocalPath::fromPath("a\\b\\", fsAccess);
+    LocalPath expected = LocalPath::fromPath("a\\b", fsAccess);
 
     EXPECT_EQ(NormalizeRelative(input), expected);
     EXPECT_EQ(NormalizeRelative(expected), expected);

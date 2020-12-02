@@ -58,7 +58,7 @@ LocalPath NormalizeAbsolute(const LocalPath& path)
         }
     }
 
-    return path;
+    return result;
 }
 
 WinFileAccess::WinFileAccess(Waiter *w) : FileAccess(w)
