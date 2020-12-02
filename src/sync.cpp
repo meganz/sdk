@@ -3712,8 +3712,8 @@ error XBackupConfigIOContext::write(const LocalPath& drivePath,
         return API_EWRITE;
     }
 
-    // Truncate the file only if necessary.
-    if (fileAccess->size > 0 && !fileAccess->ftruncate())
+    // Ensure the file is empty.
+    if (!fileAccess->ftruncate())
     {
         // Couldn't truncate the file.
         return API_EWRITE;
