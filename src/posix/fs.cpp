@@ -115,6 +115,28 @@ const string& adjustBasePath(const LocalPath& name)
 
 #endif /* ! USE_IOS */
 
+LocalPath NormalizeAbsolute(const LocalPath& path)
+{
+    LocalPath result = path;
+
+    // Convenience.
+    string& raw = result.localpath;
+
+    // Append the root separator if path is empty.
+    if (raw.empty())
+    {
+        raw.push_back('/');
+    }
+
+    // Remove trailing separator if we're not the root.
+    if (raw.size() > 1 && raw.back() == '/')
+    {
+        raw.pop_back();
+    }
+
+    return result;
+}
+
 #ifdef HAVE_AIO_RT
 PosixAsyncIOContext::PosixAsyncIOContext() : AsyncIOContext()
 {

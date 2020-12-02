@@ -25,6 +25,42 @@
 #include "mega/mega_utf8proc.h"
 
 namespace mega {
+
+LocalPath NormalizeRelative(const LocalPath& path)
+{
+#ifdef WIN32
+    using string_type = wstring;
+#else // _WIN32
+    using string_type = string;
+#endif // ! _WIN32
+
+    LocalPath result = path;
+
+    // Convenience.
+    string_type& raw = result.localpath;
+    auto sep = LocalPath::localPathSeparator;
+
+    // Nothing to do if the path's empty.
+    if (raw.empty())
+    {
+        return result;
+    }
+
+    // Remove trailing separator if present.
+    if (raw.back() == sep)
+    {
+        raw.pop_back();
+    }
+
+    // Remove leading separator if present.
+    if (!raw.empty() && raw.front() == sep)
+    {
+        raw.erase(0, 1);
+    }
+
+    return result;
+}
+
 FileSystemAccess::FileSystemAccess()
     : waiter(NULL)
     , skip_errorreport(false)

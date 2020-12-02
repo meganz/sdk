@@ -22,6 +22,7 @@
 #include <gtest/gtest.h>
 
 #include <mega/utils.h>
+#include "megafs.h"
 
 TEST(utils, hashCombine_integer)
 {
@@ -33,5 +34,124 @@ TEST(utils, hashCombine_integer)
 #else
     ASSERT_EQ(2654435811ull, hash);
 #endif
+}
+
+#ifdef _WIN32
+
+TEST(Filesystem, NormalizeAbsoluteAddDriveSeparator)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+
+    LocalPath input = LocalPath::fromPath(L"C:", fsAccess);
+    LocalPath expected = LocalPath::fromPath(L"C:\\", fsAccess);
+
+    EXPECT_EQ(NormalizeAbsolute(input), expected);
+    EXPECT_EQ(NormalizeAbsolute(expected), expected);
+}
+
+TEST(Filesystem, NormalizeAbsoluteRemoveTrailingSeparator)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+
+    LocalPath input = LocalPath::fromPath(L"C:\\a\\", fsAccess);
+    LocalPath expected = LocalPath::fromPath(L"C:\\a", fsAccess);
+
+    EXPECT_EQ(NormalizeAbsolute(input), expected);
+    EXPECT_EQ(NormalizeAbsolute(expected), expected);
+}
+
+TEST(Filesystem, NormalizeRelativeRemoveLeadingSeparator)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+
+    LocalPath input = LocalPath::fromPath(L"\\a\\b\\", fsAccess);
+    LocalPath expected = LocalPath::fromPath(L"a\\b", fsAccess);
+
+    EXPECT_EQ(NormalizeRelative(input), expected);
+    EXPECT_EQ(NormalizeRelative(expected), expected);
+}
+
+TEST(Filesystem, NormalizeRelativeRemoveTrailingSeparator)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+
+    LocalPath input = LocalPath::fromPath(L"a\\b\\", fsAccess);
+    LocalPath expected = LocalPath::fromPath(L"a\\b", fsAccess);
+
+    EXPECT_EQ(NormalizeRelative(input), expected);
+    EXPECT_EQ(NormalizeRelative(expected), expected);
+}
+
+#else // _WIN32
+
+TEST(Filesystem, NormalizeAbsoluteAddRootSeparator)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+
+    LocalPath input = LocalPath::fromPath("", fsAccess);
+    LocalPath expected = LocalPath::fromPath("/", fsAccess);
+
+    EXPECT_EQ(NormalizeAbsolute(input), expected);
+    EXPECT_EQ(NormalizeAbsolute(expected), expected);
+}
+
+TEST(Filesystem, NormalizeAbsoluteRemoveTrailingSeparator)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+
+    LocalPath input = LocalPath::fromPath("a/", fsAccess);
+    LocalPath expected = LocalPath::fromPath("a", fsAccess);
+
+    EXPECT_EQ(NormalizeAbsolute(input), expected);
+    EXPECT_EQ(NormalizeAbsolute(expected), expected);
+}
+
+TEST(Filesystem, NormalizeRelativeRemoveLeadingSeparator)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+
+    LocalPath input = LocalPath::fromPath("/a/b/", fsAccess);
+    LocalPath expected = LocalPath::fromPath("a/b", fsAccess);
+
+    EXPECT_EQ(NormalizeRelative(input), expected);
+    EXPECT_EQ(NormalizeRelative(expected), expected);
+}
+
+TEST(Filesystem, NormalizeRelativeRemoveTrailingSeparator)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+
+    LocalPath input = LocalPath::fromPath("a/b/", fsAccess);
+    LocalPath expected = LocalPath::fromPath("a/b", fsAccess);
+
+    EXPECT_EQ(NormalizeRelative(input), expected);
+    EXPECT_EQ(NormalizeRelative(expected), expected);
+}
+
+#endif // _WIN32
+
+TEST(Filesystem, NormalizeRelativeEmpty)
+{
+    using namespace mega;
+
+    LocalPath path;
+
+    EXPECT_EQ(NormalizeRelative(path), path);
 }
 

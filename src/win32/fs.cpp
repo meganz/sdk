@@ -33,6 +33,34 @@ WinFileSystemAccess gWfsa;
 
 int sanitizedriveletter(std::wstring& localpath);
 
+LocalPath NormalizeAbsolute(const LocalPath& path)
+{
+    LocalPath result = path;
+
+    // Convenience.
+    wstring& raw = result.localpath;
+
+    // Absolute paths should never be empty.
+    assert(!raw.empty());
+
+    // Add a drive separator if necessary.
+    if (raw.back() == L':')
+    {
+        raw.push_back(L'\\');
+    }
+
+    // Remove trailing separator if we're not the root.
+    if (raw.size() > 1 && raw.back() == L'\\')
+    {
+        if (raw[raw.size() - 2] != L':')
+        {
+            raw.pop_back();
+        }
+    }
+
+    return path;
+}
+
 WinFileAccess::WinFileAccess(Waiter *w) : FileAccess(w)
 {
     hFile = INVALID_HANDLE_VALUE;

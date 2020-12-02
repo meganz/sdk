@@ -88,6 +88,8 @@ class MEGA_API LocalPath
     friend class PosixDirNotify;
     friend class WinFileAccess;
     friend class PosixFileAccess;
+    friend LocalPath NormalizeAbsolute(const LocalPath& path);
+    friend LocalPath NormalizeRelative(const LocalPath& path);
     friend void RemoveHiddenFileAttribute(LocalPath& path);
     friend void AddHiddenFileAttribute(LocalPath& path);
     friend class GfxProcFreeImage;
@@ -173,6 +175,30 @@ public:
 
 void AddHiddenFileAttribute(mega::LocalPath& path);
 void RemoveHiddenFileAttribute(mega::LocalPath& path);
+
+/**
+ * @brief
+ * Ensures that a path does not end with a separator.
+ *
+ * @param path
+ * An absolute path to normalize.
+ *
+ * @return
+ * A normalized path.
+ */
+LocalPath NormalizeAbsolute(const LocalPath& path);
+
+/**
+ * @brief
+ * Ensures that a path does not begin or end with a separator.
+ *
+ * @param path
+ * A relative path to normalize.
+ *
+ * @return
+ * A normalized path.
+ */
+LocalPath NormalizeRelative(const LocalPath& path);
 
 inline LocalPath operator+(LocalPath& a, LocalPath& b)
 {
