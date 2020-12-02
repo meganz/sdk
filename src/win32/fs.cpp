@@ -19,6 +19,8 @@
  * program.
  */
 
+#include <cwctype>
+
 #include "mega.h"
 #include <wow64apiset.h>
 
@@ -49,12 +51,21 @@ LocalPath NormalizeAbsolute(const LocalPath& path)
         raw.push_back(L'\\');
     }
 
-    // Remove trailing separator if we're not the root.
-    if (raw.size() > 1 && raw.back() == L'\\')
+    if (raw.size() > 1)
     {
-        if (raw[raw.size() - 2] != L':')
+        // Lowercase drive letter.
+        if (raw[1] == L':')
         {
-            raw.pop_back();
+            raw[0] = std::towlower(raw[0]);
+        }
+        
+        // Remove trailing separator if we're not the root.
+        if (raw.back() == L'\\')
+        {
+            if (raw[raw.size() - 2] != L':')
+            {
+                raw.pop_back();
+            }
         }
     }
 
