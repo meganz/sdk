@@ -53,6 +53,14 @@ using namespace mega;
     return self.megaNode ? [[MEGANode alloc] initWithMegaNode:self.megaNode->copy() cMemoryOwn:YES] : nil;
 }
 
+- (BOOL)isEqual:(id)object {
+    if (![object isKindOfClass:[MEGANode class]]) {
+        return false;
+    }
+    
+    return self.handle == ((MEGANode *)object).handle;
+}
+
 - (MegaNode *)getCPtr {
     return self.megaNode;
 }
