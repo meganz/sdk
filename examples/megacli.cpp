@@ -347,6 +347,23 @@ const char* syncstatename(const syncstate_t state)
     }
 }
 
+const char *synctypename(const SyncConfig::Type type)
+{
+    switch (type)
+    {
+    case SyncConfig::TYPE_BACKUP:
+        return "BACKUP";
+    case SyncConfig::TYPE_DOWN:
+        return "DOWN";
+    case SyncConfig::TYPE_UP:
+        return "UP";
+    case SyncConfig::TYPE_TWOWAY:
+        return "TWOWAY";
+    default:
+        return "UNKNOWN";
+    }
+}
+
 #endif // ENABLE_SYNC
 
 AppFile::AppFile()
@@ -3073,54 +3090,58 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_mv, sequence(text("mv"), remoteFSPath(client, &cwd, "src"), remoteFSPath(client, &cwd, "dst")));
     p->Add(exec_cp, sequence(text("cp"), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
+
 #ifdef ENABLE_SYNC
-    p->Add(exec_backupadd,
-           sequence(text("backup"),
+    p->Add(exec_syncadd,
+           sequence(text("sync"),
+                    text("add"),
+                    localFSFolder("source"),
+                    remoteFSFolder(client, &cwd, "target")));
+
+    p->Add(exec_syncbackupadd,
+           sequence(text("sync"),
+                    text("backup"),
                     text("add"),
                     opt(localFSFolder("drive")),
                     localFSFolder("source"),
                     remoteFSFolder(client, &cwd, "target")));
 
-    p->Add(exec_backuplist,
-           sequence(text("backup"),
-                    text("list"),
-                    opt(either(text("external"),
-                               text("internal")))));
-
-    p->Add(exec_backuplistconfigs,
-           sequence(text("backup"),
-                    text("list"),
-                    text("configs"),
-                    opt(either(text("external"),
-                               text("internal")))));
-
-    p->Add(exec_backupremove,
-           sequence(text("backup"),
+    p->Add(exec_syncbackupremove,
+           sequence(text("sync"),
+                    text("backup"),
                     text("remove"),
                     localFSFolder("drive")));
 
-    p->Add(exec_backupremoveconfig,
-           sequence(text("backup"),
-                    text("remove"),
+    p->Add(exec_syncconfig,
+           sequence(text("sync"),
                     text("config"),
-                    param("id")));
+                    opt(sequence(param("type"),
+                                 opt(sequence(param("forceoverwrite"),
+                                              param("syncdeletions")))))));
 
-    p->Add(exec_backuprestore,
-           sequence(text("backup"),
+    p->Add(exec_syncbackuprestore,
+           sequence(text("sync"),
+                    text("backup"),
                     text("restore"),
                     localFSFolder("drive")));
 
-    p->Add(exec_backupxable,
-           sequence(text("backup"),
+    p->Add(exec_synclist,
+           sequence(text("sync"), text("list")));
+
+    p->Add(exec_syncremove,
+           sequence(text("sync"),
+                    text("remove"),
+                    param("id")));
+
+    p->Add(exec_syncxable,
+           sequence(text("sync"),
                     either(sequence(either(text("disable"), text("fail")),
                                     param("id"),
                                     opt(param("error"))),
                            sequence(text("enable"),
                                     param("id")))));
-
-    p->Add(exec_sync, sequence(text("sync"), opt(either(sequence(localFSPath(), remoteFSPath(client, &cwd, "dst")), param("cancelslot")))));
-    p->Add(exec_syncconfig, sequence(text("syncconfig"), opt(sequence(param("type (TWOWAY/UP/DOWN)"), opt(sequence(param("syncDeletions (ON/OFF)"), param("forceOverwrite (ON/OFF)")))))));
 #endif
+
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(flag("-writable"), param("expiretime"), text("del")))));
     p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
     p->Add(exec_invite, sequence(text("invite"), param("dstemail"), opt(either(param("origemail"), text("del"), text("rmd")))));
@@ -4421,97 +4442,7 @@ void exec_open(autocomplete::ACState& s)
     }
 }
 
-#ifdef ENABLE_SYNC
-void exec_sync(autocomplete::ACState& s)
-{
-    if (s.words.size() == 3)
-    {
-        Node* n = nodebypath(s.words[2].s.c_str());
-
-        if (client->checkaccess(n, FULL))
-        {
-
-            if (!n)
-            {
-                cout << s.words[2].s << ": Not found." << endl;
-            }
-            else if (n->type == FILENODE)
-            {
-                cout << s.words[2].s << ": Remote sync root must be a folder." << endl;
-            }
-            else
-            {
-                static int syncTag = 2027;
-                SyncConfig syncConfig{syncTag++, s.words[1].s, s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.getType(),
-                            newSyncConfig.syncDeletions(), newSyncConfig.forceOverwrite()};
-                SyncError syncError;
-                UnifiedSync* unifiedSync;
-                error e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError, false, unifiedSync);
-
-                if (e)
-                {
-                    cout << "Sync could not be added: " << errorstring(e) << endl;
-                }
-            }
-        }
-        else
-        {
-            cout << s.words[2].s << ": Syncing requires full access to path." << endl;
-        }
-    }
-    else if (s.words.size() == 2)
-    {
-        int i = 0, cancel = atoi(s.words[1].s.c_str());
-
-        client->syncs.removeSelectedSyncs([&](SyncConfig&, Sync* s) {
-
-            if (i++ == cancel)
-            {
-                if (s && s->state > SYNC_CANCELED)
-                {
-                    cout << "Sync " << cancel << " deactivated and removed. tag: " << s->tag << endl;
-                    return true;
-                }
-            }
-            return false;
-        });
-    }
-    else if (s.words.size() == 1)
-    {
-        int i = 0;
-
-        client->syncs.forEachUnifiedSync([&](UnifiedSync& us){
-
-            if (Sync* sync = us.mSync.get())
-            {
-                if (sync->localroot->node)
-                {
-                    string remotepath, localpath;
-                    nodepath(sync->localroot->node->nodehandle, &remotepath);
-                    localpath = sync->localroot->localname.toPath(*client->fsaccess);
-
-                    cout << i << " (" << syncConfigToString(sync->getConfig()) << "): " << localpath << " to " << remotepath << " - "
-                            << syncstatename(sync->state) << ", " << sync->localbytes
-                            << " byte(s) in " << sync->localnodes[FILENODE] << " file(s) and "
-                            << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
-                }
-            }
-            else
-            {
-                string remotepath, localpath;
-                nodepath(us.mConfig.getRemoteNode(), &remotepath);
-                localpath = us.mConfig.getLocalPath();
-
-                cout << i << " (" << syncConfigToString(sync->getConfig()) << "): " << localpath << " to " << remotepath << " - "
-                    << syncstatename(sync->state) << ", " << sync->localbytes
-                    << " byte(s) in " << sync->localnodes[FILENODE] << " file(s) and "
-                    << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
-            }
-            i++;
-        });
-    }
-}
-
+#if 0
 void exec_syncconfig(autocomplete::ACState& s)
 {
     if (s.words.size() == 1)
@@ -8443,7 +8374,93 @@ void exec_banner(autocomplete::ACState& s)
 
 #ifdef ENABLE_SYNC
 
-void exec_backupadd(autocomplete::ACState& s)
+void exec_syncadd(autocomplete::ACState& s)
+{
+    static int SYNC_TAG = 2027;
+
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to create a sync."
+             << endl;
+        return;
+    }
+
+    // sync add source target
+    string sourcePath = s.words[2].s;
+    string targetPath = s.words[3].s;
+
+    // Does the target node exist?
+    auto* targetNode = nodebypath(targetPath.c_str());
+
+    if (!targetNode)
+    {
+        cerr << targetPath
+             << ": Not found."
+             << endl;
+        return;
+    }
+
+    // Does the node denote a directory?
+    if (targetNode->type != FOLDERNODE)
+    {
+        cerr << targetPath
+             << ": Is not a directory."
+             << endl;
+        return;
+    }
+
+    // Do we have full access to the target node?
+    if (!client->checkaccess(targetNode, FULL))
+    {
+        cerr << targetPath
+             << ": Insufficient privileges."
+             << endl;
+        return;
+    }
+
+    // Do we have full access to the target node?
+    if (!client->checkaccess(targetNode, FULL))
+    {
+        cerr << targetPath
+             << ": Insufficient privileges."
+             << endl;
+        return;
+    }
+
+    // Create a suitable sync config.
+    auto config =
+      SyncConfig(SYNC_TAG++,
+                 sourcePath,
+                 sourcePath,
+                 targetNode->nodehandle,
+                 targetPath,
+                 0,
+                 string_vector(),
+                 true,
+                 newSyncConfig.getType(),
+                 newSyncConfig.syncDeletions(),
+                 newSyncConfig.forceOverwrite());
+
+    // Try and add the new sync.
+    UnifiedSync* unifiedSync;
+    SyncError syncError;
+    error result =
+        client->addsync(std::move(config),
+                        DEBRISFOLDER,
+                        nullptr,
+                        syncError,
+                        false,
+                        unifiedSync);
+
+    if (result)
+    {
+        cerr << "Sync could not be added: "
+             << errorstring(result)
+             << endl;
+    }
+}
+
+void exec_syncbackupadd(autocomplete::ACState& s)
 {
     static int BACKUP_TAG = 32768;
 
@@ -8458,12 +8475,12 @@ void exec_backupadd(autocomplete::ACState& s)
     string sourcePath;
     string targetPath;
 
-    if (s.words.size() == 5)
+    if (s.words.size() == 6)
     {
-        // backup add drive source target
-        drivePath  = s.words[2].s;
-        sourcePath = s.words[3].s;
-        targetPath = s.words[4].s;
+        // sync backup add drive source target
+        drivePath  = s.words[3].s;
+        sourcePath = s.words[4].s;
+        targetPath = s.words[5].s;
 
         // Does the drive contain the source?
         if (sourcePath.size() < drivePath.size()
@@ -8481,9 +8498,9 @@ void exec_backupadd(autocomplete::ACState& s)
     }
     else
     {
-        // backup add source target
-        sourcePath = s.words[2].s;
-        targetPath = s.words[3].s;
+        // sync backup add source target
+        sourcePath = s.words[3].s;
+        targetPath = s.words[4].s;
     }
 
     // Does the target node exist?
@@ -8574,136 +8591,7 @@ void exec_backupadd(autocomplete::ACState& s)
     }
 }
 
-// Convenient predicates and utilities.
-struct BackupHelpers
-{
-    // Handy predicates.
-    using Predicate = std::function<bool(const SyncConfig&)>;
-
-    static bool isBackup(const SyncConfig& config)
-    {
-        return config.isBackup();
-    }
-
-    static bool isExternalBackup(const SyncConfig& config)
-    {
-        return config.isBackup() && config.isExternal();
-    }
-
-    static bool isInternalBackup(const SyncConfig& config)
-    {
-        return config.isBackup() && !config.isExternal();
-    }
-
-    static Predicate predicateByName(const string& name)
-    {
-        if (name == "external")
-        {
-            return &BackupHelpers::isExternalBackup;
-        }
-        else if (name == "internal")
-        {
-            return &BackupHelpers::isInternalBackup;
-        }
-
-        return &BackupHelpers::isBackup;
-    }
-
-    static void print(const SyncConfig& config)
-    {
-        // Assume target is undefined.
-        string targetPath = "UNDEFINED";
-
-        // Has a target been defined for this sync?
-        if (config.getRemoteNode() != UNDEF)
-        {
-            targetPath = config.getRemotePath();
-        }
-
-        // Render the config to the user.
-        cout << config.getTag()
-             << ": "
-             << (config.isExternal() ? "EXTERNAL" : "INTERNAL")
-             << ": "
-             << config.getLocalPath()
-             << " -> "
-             << targetPath
-             << endl;
-    }
-}; // BackupHelpers
-
-void exec_backuplist(autocomplete::ACState& s)
-{
-    // Check the user's logged in.
-    if (client->loggedin() != FULLACCOUNT)
-    {
-        cerr << "You must be logged in to list backup syncs."
-             << endl;
-        return;
-    }
-
-    // Assume unfiltered listing.
-    string filterName = "any";
-
-    // backup list [external|internal]
-    if (s.words.size() > 2)
-    {
-        filterName = s.words[2].s;
-    }
-
-    // Get appropriate predicate.
-    auto predicate = BackupHelpers::predicateByName(filterName);
-
-    // Enumerate configured syncs.
-    client->syncs.forEachRunningSync(
-      [&](Sync* sync)
-      {
-          // Get configuration.
-          const auto config = sync->getConfig();
-
-          // Is the user interested in this sync?
-          if (!predicate(config))
-          {
-              // Nope, skip it.
-              return;
-          }
-
-          // Display info about the backup sync.
-          BackupHelpers::print(config);
-      });
-}
-
-void exec_backuplistconfigs(autocomplete::ACState& s)
-{
-    // Assume unfiltered listing.
-    string filterName = "any";
-
-    // backup list configs [external|internal]
-    if (s.words.size() > 3)
-    {
-        filterName = s.words[3].s;
-    }
-
-    // Get suitable predicate.
-    auto predicate = BackupHelpers::predicateByName(filterName);
-
-    // Enumerate sync configurations.
-    client->syncs.forEachSyncConfig(
-      [&](const SyncConfig& config)
-      {
-          // Is the user interested in this config?
-          if (!predicate(config))
-          {
-              // Nope, skip it.
-              return;
-          }
-
-          // Show info about the config.
-          BackupHelpers::print(config);
-      });
-}
-
-void exec_backupremove(autocomplete::ACState& s)
+void exec_syncbackupremove(autocomplete::ACState& s)
 {
     // Are we logged in?
     if (client->loggedin() != FULLACCOUNT)
@@ -8713,9 +8601,9 @@ void exec_backupremove(autocomplete::ACState& s)
         return;
     }
 
-    // backup remove drive
+    // sync backup remove drive
     const auto drivePath =
-      LocalPath::fromPath(s.words[2].s, *client->fsaccess);
+      LocalPath::fromPath(s.words[3].s, *client->fsaccess);
 
     const auto result = client->backupRemove(drivePath);
 
@@ -8727,7 +8615,124 @@ void exec_backupremove(autocomplete::ACState& s)
     }
 }
 
-void exec_backupremoveconfig(autocomplete::ACState& s)
+void exec_syncbackuprestore(autocomplete::ACState& s)
+{
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to restore backup syncs."
+             << endl;
+        return;
+    }
+
+    // sync backup restore drive
+    const auto drivePath =
+      LocalPath::fromPath(s.words[3].s, *client->fsaccess);
+
+    auto result = client->backupRestore(drivePath);
+
+    if (result.first)
+    {
+        cerr << "Unable to restore backups from "
+             << s.words[3].s
+             << ": "
+             << errorstring(result.first)
+             << endl;
+    }
+}
+
+void exec_syncconfig(autocomplete::ACState& s)
+{
+    if (s.words.size() == 2)
+    {
+        // sync config
+        cout << "Current sync config: "
+             << syncConfigToString(newSyncConfig)
+             << endl;
+        return;
+    }
+
+    string forceOverwrite = "off";
+    string syncDeletions = "off";
+    string type = s.words[2].s;
+
+    // sync config [type [forceoverwrite syncdeletions]]
+    if (s.words.size() > 3)
+    {
+        forceOverwrite = s.words[3].s;
+        syncDeletions = s.words[4].s;
+    }
+
+    // Try and deserialize the config.
+    auto result = syncConfigFromStrings(type, forceOverwrite, syncDeletions);
+
+    if (!result.first)
+    {
+        cerr << "Invalid parameters for sync config command." << endl;
+        return;
+    }
+
+    newSyncConfig = result.second;
+
+    cout << "Successfully applied new sync config!" << endl;
+}
+
+void exec_synclist(autocomplete::ACState& s)
+{
+    // Check the user's logged in.
+    if (client->loggedin() != FULLACCOUNT)
+    {
+        cerr << "You must be logged in to list backup syncs."
+             << endl;
+        return;
+    }
+
+    client->syncs.forEachUnifiedSync(
+      [](UnifiedSync& us)
+      {
+          // Convenience.
+          auto& config = us.mConfig;
+          auto& sync = us.mSync;
+
+          // Display name.
+          cout << "Sync "
+               << config.getTag()
+               << "\n";
+            
+          // Display source/target mapping.
+          cout << "  Mapping: "
+               << config.getLocalPath()
+               << " -> "
+               << config.getRemotePath()
+               << "\n";
+
+          if (sync)
+          {
+              // Display status info.
+              cout << "  State: "
+                   << syncstatename(sync->state)
+                   << "\n";
+
+              // Display some usage stats.
+              cout << "  Statistics: "
+                   << sync->localbytes
+                   << " byte(s) across "
+                   << sync->localnodes[FILENODE]
+                   << " file(s) and "
+                   << sync->localnodes[FOLDERNODE]
+                   << " folder(s).\n";
+          }
+
+          // Display sync type.
+          cout << "  Type: "
+               << (config.isExternal() ? "EX" : "IN")
+               << "TERNAL "
+               << synctypename(config.getType())
+               << "\n"
+               << endl;
+      });
+}
+
+void exec_syncremove(autocomplete::ACState& s)
 {
     // Are we logged in?
     if (client->loggedin() != FULLACCOUNT)
@@ -8737,8 +8742,8 @@ void exec_backupremoveconfig(autocomplete::ACState& s)
         return;
     }
 
-    // backup remove config id
-    const auto id = atoi(s.words[3].s.c_str());
+    // sync remove id
+    const auto id = atoi(s.words[2].s.c_str());
 
     // Make sure the sync isn't active.
     if (client->syncs.runningSyncByTag(id))
@@ -8754,8 +8759,7 @@ void exec_backupremoveconfig(autocomplete::ACState& s)
     client->syncs.removeSelectedSyncs(
       [&](SyncConfig& config, Sync*)
       {
-          const bool matched =
-              config.getTag() == id && config.isBackup();
+          auto matched = config.getTag() == id;
 
           found |= matched;
 
@@ -8764,44 +8768,19 @@ void exec_backupremoveconfig(autocomplete::ACState& s)
 
     if (!found)
     {
-        cerr << "No backup config exists with the tag "
+        cerr << "No sync config exists with the tag "
              << id
              << endl;
         return;
     }
 }
 
-void exec_backuprestore(autocomplete::ACState& s)
-{
-    if (client->loggedin() != FULLACCOUNT)
-    {
-        cerr << "You must be logged in to restore backup syncs."
-             << endl;
-        return;
-    }
-
-    // backup restore drive
-    const auto drivePath =
-      LocalPath::fromPath(s.words[2].s, *client->fsaccess);
-
-    auto result = client->backupRestore(drivePath);
-
-    if (result.first)
-    {
-        cerr << "Unable to restore backups from "
-             << s.words[2].s
-             << ": "
-             << errorstring(result.first)
-             << endl;
-    }
-}
-
-void exec_backupxable(autocomplete::ACState& s)
+void exec_syncxable(autocomplete::ACState& s)
 {
     // Are we logged in?
     if (client->loggedin() != FULLACCOUNT)
     {
-        cerr << "You must be logged in to manipulate backup syncs."
+        cerr << "You must be logged in to manipulate syncs."
              << endl;
         return;
     }
@@ -8811,14 +8790,14 @@ void exec_backupxable(autocomplete::ACState& s)
 
     if (command == "enable")
     {
-        // backup enable id
+        // sync enable id
         SyncError syncError;
         error result =
           client->syncs.enableSyncByTag(id, syncError, false, UNDEF);
 
         if (result)
         {
-            cerr << "Unable to enable backup sync: "
+            cerr << "Unable to enable sync: "
                  << errorstring(result)
                  << endl;
         }
@@ -8826,16 +8805,16 @@ void exec_backupxable(autocomplete::ACState& s)
         return;
     }
 
-    // backup disable id [error]
-    // backup fail id [error]
+    // sync disable id [error]
+    // sync fail id [error]
 
     // Find the specified sync.
     auto* sync = client->syncs.runningSyncByTag(id);
 
     // Have we found the backup sync?
-    if (!(sync && sync->isBackup()))
+    if (!sync)
     {
-        cerr << "No backup sync found with the tag "
+        cerr << "No sync found with the tag "
              << id
              << endl;
         return;

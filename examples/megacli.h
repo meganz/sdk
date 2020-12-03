@@ -317,8 +317,6 @@ void exec_rm(autocomplete::ACState& s);
 void exec_mv(autocomplete::ACState& s);
 void exec_cp(autocomplete::ACState& s);
 void exec_du(autocomplete::ACState& s);
-void exec_sync(autocomplete::ACState& s);
-void exec_syncconfig(autocomplete::ACState& s);
 void exec_export(autocomplete::ACState& s);
 void exec_share(autocomplete::ACState& s);
 void exec_invite(autocomplete::ACState& s);
@@ -393,13 +391,14 @@ void exec_banner(autocomplete::ACState& s);
 
 #ifdef ENABLE_SYNC
 
-void exec_backupadd(autocomplete::ACState& s);
-void exec_backuplist(autocomplete::ACState& s);
-void exec_backuplistconfigs(autocomplete::ACState& s);
-void exec_backupremove(autocomplete::ACState& s);
-void exec_backupremoveconfig(autocomplete::ACState& s);
-void exec_backuprestore(autocomplete::ACState& s);
-void exec_backupxable(autocomplete::ACState& s);
+void exec_syncadd(autocomplete::ACState& s);
+void exec_syncbackupadd(autocomplete::ACState& s);
+void exec_syncbackupremove(autocomplete::ACState& s);
+void exec_syncbackuprestore(autocomplete::ACState& s);
+void exec_syncconfig(autocomplete::ACState& s);
+void exec_synclist(autocomplete::ACState& s);
+void exec_syncremove(autocomplete::ACState& s);
+void exec_syncxable(autocomplete::ACState& s);
 
 #endif // ENABLE_SYNC
 
