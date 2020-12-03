@@ -61,6 +61,10 @@ using namespace mega;
     return self.handle == ((MEGANode *)object).handle;
 }
 
+- (NSUInteger)hash {
+    return self.handle;
+}
+
 - (MegaNode *)getCPtr {
     return self.megaNode;
 }
