@@ -641,7 +641,7 @@ struct Syncs
      * The result of adding the sync.
      */
     pair<error, SyncError> backupAdd(const XBackupConfig& config,
-                                     const bool delayInitialScan);
+                                     const bool delayInitialScan = false);
 
     /**
      * @brief
@@ -661,10 +661,10 @@ struct Syncs
      * API_EARGS
      * The path is invalid.
      *
-     * API_EBUSY
+     * API_EFAILED
      * There is an active sync on this device.
      *
-     * API_EFAILED
+     * API_EINTERNAL
      * Encountered an internal error.
      * 
      * API_ENOENT
@@ -709,7 +709,7 @@ struct Syncs
      * The result of restoring the external backups.
      */
     pair<error, SyncError> backupRestore(const LocalPath& drivePath,
-                                         const bool delayInitialScan);
+                                         const bool delayInitialScan = false);
 
     // Returns a reference to this user's backup configuration store.
     XBackupConfigStore* backupConfigStore();

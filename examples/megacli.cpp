@@ -8545,7 +8545,7 @@ void exec_syncbackupadd(autocomplete::ACState& s)
         config.targetHandle = targetNode->nodehandle;
         config.tag = ++BACKUP_TAG;
 
-        auto result = client->backupAdd(config);
+        auto result = client->syncs.backupAdd(config);
 
         if (result.first)
         {
@@ -8603,7 +8603,7 @@ void exec_syncbackupremove(autocomplete::ACState& s)
     const auto drivePath =
       LocalPath::fromPath(s.words[3].s, *client->fsaccess);
 
-    const auto result = client->backupRemove(drivePath);
+    const auto result = client->syncs.backupRemove(drivePath);
 
     if (result)
     {
@@ -8626,7 +8626,7 @@ void exec_syncbackuprestore(autocomplete::ACState& s)
     const auto drivePath =
       LocalPath::fromPath(s.words[3].s, *client->fsaccess);
 
-    auto result = client->backupRestore(drivePath);
+    auto result = client->syncs.backupRestore(drivePath);
 
     if (result.first)
     {

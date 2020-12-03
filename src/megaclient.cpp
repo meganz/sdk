@@ -12993,27 +12993,6 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, SyncError 
     return e;
 }
 
-#ifdef ENABLE_SYNC
-
-pair<error, SyncError> MegaClient::backupAdd(const XBackupConfig& config,
-                                             const bool delayInitialScan)
-{
-    return syncs.backupAdd(config, delayInitialScan);
-}
-
-error MegaClient::backupRemove(const LocalPath& drivePath)
-{
-    return syncs.backupRemove(drivePath);
-}
-
-pair<error, SyncError> MegaClient::backupRestore(const LocalPath& drivePath,
-                                                 const bool delayInitialScan)
-{
-    return syncs.backupRestore(drivePath, delayInitialScan);
-}
-
-#endif // ENABLE_SYNC
-
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)

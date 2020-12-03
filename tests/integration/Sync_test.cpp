@@ -1472,7 +1472,7 @@ struct StandardClient : public MegaApp
         config.tag = tag;
 
         // Try and add the backup.
-        return client.backupAdd(config).first == API_OK;
+        return client.syncs.backupAdd(config).first == API_OK;
     }
 
     bool backupAdd_mainthread(const int tag,
