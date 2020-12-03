@@ -325,10 +325,13 @@ void SdkTest::Cleanup()
         auto u = m->getMyUser();
         bool null_pointer = (u == nullptr);
         ASSERT_FALSE(null_pointer) << "Cannot find the MegaUser for email: " << mApi[index].email;
-        ASSERT_NO_FATAL_FAILURE(getUserAttribute(u, MegaApi::USER_ATTR_BACKUP_NAMES, maxTimeout, 0));
-        for (auto& b : mBackupIds)
+        auto err = synchronousGetUserAttribute(index, u, MegaApi::USER_ATTR_BACKUP_NAMES);
+        if (MegaError::API_OK == err)
         {
-            synchronousRemoveBackup(0, b);
+            for (auto& b : mBackupIds)
+            {
+                synchronousRemoveBackup(0, b);
+            }
         }
         mBackupIds.clear();
         ++index;
