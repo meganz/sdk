@@ -999,7 +999,9 @@ public:
     void drivePath(const string& drivePath);
     const string &drivePath() const;
 
+#ifdef ENABLE_SYNC
     syncstate_t calcState(Sync* s) const;
+#endif // ENABLE_SYNC
 
 private:
 

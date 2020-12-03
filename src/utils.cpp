@@ -2436,6 +2436,7 @@ const string& SyncConfig::drivePath() const
     return mDrivePath;
 }
 
+#ifdef ENABLE_SYNC
 
 syncstate_t SyncConfig::calcState(Sync* s) const {
     return s ? s->state : (
@@ -2443,6 +2444,8 @@ syncstate_t SyncConfig::calcState(Sync* s) const {
                     ? SYNC_FAILED
                     : SYNC_DISABLED);
 }
+
+#endif // ENABLE_SYNC
 
 // This should be a const-method but can't be due to the broken Cacheable interface.
 // Do not mutate members in this function! Hence, we forward to a private const-method.

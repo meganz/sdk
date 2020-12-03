@@ -186,7 +186,6 @@ public:
 private:
     static int calculatePauseActiveState(MegaClient *client);
 };
-#endif
 
 class MegaBackupMonitor
 {
@@ -211,5 +210,7 @@ private:
     void beatBackupInfo(UnifiedSync& us);
     void calculateStatus(HeartBeatBackupInfo *hbs, UnifiedSync& us);
 };
+#endif
+
 }
 

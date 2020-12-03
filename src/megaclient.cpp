@@ -1215,7 +1215,9 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     ,syncfslockretrybt(rng), syncdownbt(rng), syncnaglebt(rng), syncextrabt(rng), syncscanbt(rng)
 #endif
     , mAsyncQueue(*w, workerThreadCount)
+#ifdef ENABLE_SYNC
     , syncs(*this)
+#endif // ENABLE_SYNC
 {
     sctable = NULL;
     pendingsccommit = false;
@@ -3073,7 +3075,9 @@ void MegaClient::exec()
 
         if (btheartbeat.armed())
         {
+#ifdef ENABLE_SYNC
             syncs.mHeartBeatMonitor->beat();
+#endif // ENABLE_SYNC
             btheartbeat.backoff(FREQUENCY_HEARTBEAT_DS);
         }
 
@@ -14980,10 +14984,12 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard, DBTableTransac
         }
     }
 
+#ifdef ENABLE_SYNC
     if (changed)
     {
         syncs.mHeartBeatMonitor->onSyncConfigChanged();
     }
+#endif // ENABLE_SYNC
 }
 
 void MegaClient::setmaxconnections(direction_t d, int num)
