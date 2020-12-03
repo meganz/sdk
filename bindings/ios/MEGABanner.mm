@@ -58,7 +58,7 @@ using namespace mega;
 }
 
 - (NSUInteger)identifier {
-    return self.megaBanner->getId();
+    return (NSUInteger)self.megaBanner->getId();
 }
 
 - (NSString *)title {
