@@ -2239,7 +2239,7 @@ pair<error, SyncError> Syncs::backupAdd(const XBackupConfig& config,
                     << " as there is no config store.";
 
         // Nope and we can't do anything without it.
-        return make_pair(API_EFAILED, NO_SYNC_ERROR);
+        return make_pair(API_EINTERNAL, NO_SYNC_ERROR);
     }
 
     // Try and create (open) the database.
@@ -2306,7 +2306,7 @@ error Syncs::backupRemove(const LocalPath& drivePath)
     if (!store)
     {
         // Nope and we need it.
-        return API_EFAILED;
+        return API_EINTERNAL;
     }
 
     // Get the configs contained on this drive.
@@ -2326,7 +2326,7 @@ error Syncs::backupRemove(const LocalPath& drivePath)
         if (sync && configs->count(sync->tag))
         {
             // Database is still in use.
-            return API_EBUSY;
+            return API_EFAILED;
         }
     }
 
@@ -2462,7 +2462,7 @@ pair<error, SyncError> Syncs::backupRestore(const LocalPath& drivePath,
                     << " as there is no config store.";
 
         // Nope and we can't do anything without it.
-        return make_pair(API_EFAILED, NO_SYNC_ERROR);
+        return make_pair(API_EINTERNAL, NO_SYNC_ERROR);
     }
 
     // Has this drive already been opened?
@@ -3696,7 +3696,7 @@ error XBackupConfigIOContext::write(const LocalPath& drivePath,
     if (!(mFsAccess.mkdirlocal(path) || mFsAccess.target_exists))
     {
         // Couldn't create the directory and it doesn't exist.
-        return API_EFAILED;
+        return API_EWRITE;
     }
 
     // Generate the rest of the path.

@@ -650,10 +650,10 @@ public:
      * API_EARGS
      * The path is invalid.
      *
-     * API_EBUSY
+     * API_EFAILED
      * There is an active sync on this device.
      *
-     * API_EFAILED
+     * API_EINTERNAL
      * Encountered an internal error.
      * 
      * API_ENOENT

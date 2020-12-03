@@ -265,8 +265,6 @@ const char* errorstring(error e)
     {
         case API_OK:
             return "No error";
-        case API_EBUSY:
-            return "Busy";
         case API_EINTERNAL:
             return "Internal error";
         case API_EARGS:
