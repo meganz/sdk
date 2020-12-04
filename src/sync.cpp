@@ -750,7 +750,7 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     }
 #endif
 
-    if (client->dbaccess)
+    if (client->dbaccess && !us.mConfig.isExternal())
     {
         // open state cache table
         handle tableid[3];
@@ -945,6 +945,12 @@ void Sync::statecachedel(LocalNode* l)
         return;
     }
 
+    // Always queue the update even if we don't have a state cache.
+    //
+    // The reasoning here is that our integration tests regularly check the
+    // size of these queues to determine whether a sync is or is not idle.
+    //
+    // The same reasoning applies to statecacheadd(...) below.
     insertq.erase(l);
 
     if (l->dbid)
@@ -971,7 +977,14 @@ void Sync::statecacheadd(LocalNode* l)
 
 void Sync::cachenodes()
 {
-    if (statecachetable && (state == SYNC_ACTIVE || (state == SYNC_INITIALSCAN && insertq.size() > 100)) && (deleteq.size() || insertq.size()))
+    // Purge the queues if we have no state cache.
+    if (!statecachetable)
+    {
+        deleteq.clear();
+        insertq.clear();
+    }
+
+    if ((state == SYNC_ACTIVE || (state == SYNC_INITIALSCAN && insertq.size() > 100)) && (deleteq.size() || insertq.size()))
     {
         LOG_debug << "Saving LocalNode database with " << insertq.size() << " additions and " << deleteq.size() << " deletions";
         statecachetable->begin();
