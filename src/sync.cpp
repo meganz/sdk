@@ -2264,6 +2264,19 @@ pair<error, SyncError> Syncs::backupAdd(const XBackupConfig& config,
         return make_pair(API_EFAILED, NO_SYNC_ERROR);
     }
 
+    // Make sure this backup's tag is unique.
+    if (syncConfigByTag(config.tag))
+    {
+        LOG_verbose << "Unable to add backup "
+                    << sourcePath.toPath(fsAccess)
+                    << " on "
+                    << drivePath.toPath(fsAccess)
+                    << " as a sync already exists with the tag "
+                    << config.tag;
+
+        return make_pair(API_EEXIST, NO_SYNC_ERROR);
+    }
+
     // Try and add the new backup sync.
     UnifiedSync* unifiedSync;
     SyncError syncError;
@@ -2352,18 +2365,38 @@ pair<error, SyncError> Syncs::backupRestore(const LocalPath& drivePath,
     LOG_verbose << "Attempting to restore backup syncs from "
                 << drivePath.toPath(fsAccess);
 
+    size_t numRestored = 0;
+
     // Create a unified sync for each backup config.
     for (auto& it : configs)
     {
+        // Make sure there aren't any syncs with this tag.
+        if (syncConfigByTag(it.second.tag))
+        {
+            LOG_verbose << "Skipping restore of backup "
+                        << it.second.sourcePath.toPath(fsAccess)
+                        << " on "
+                        << drivePath.toPath(fsAccess)
+                        << " as a sync already exists with the tag "
+                        << it.second.tag;
+
+            continue;
+        }
+
         // Translate the config into something we can use.
         auto config = translate(mClient, it.second);
 
         // Create the unified sync.
         mSyncVec.emplace_back(new UnifiedSync(mClient, config));
+
+        // Track how many configs we've restored.
+        ++numRestored;
     }
 
     // Log how many backups we could restore.
     LOG_verbose << "Restored "
+                << numRestored
+                << " out of "
                 << configs.size()
                 << " backup(s) from "
                 << drivePath.toPath(fsAccess);
@@ -2605,6 +2638,19 @@ Sync* Syncs::runningSyncByTag(int tag) const
             return s->mSync.get();
         }
     }
+    return nullptr;
+}
+
+SyncConfig* Syncs::syncConfigByTag(const int tag) const
+{
+    for (auto& s : mSyncVec)
+    {
+        if (s->mConfig.getTag() == tag)
+        {
+            return &s->mConfig;
+        }
+    }
+
     return nullptr;
 }
 

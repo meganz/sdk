@@ -589,6 +589,7 @@ struct Syncs
     unsigned numRunningSyncs();
     Sync* firstRunningSync();
     Sync* runningSyncByTag(int tag) const;
+    SyncConfig* syncConfigByTag(const int tag) const;
 
     void forEachUnifiedSync(std::function<void(UnifiedSync&)> f);
     void forEachRunningSync(std::function<void(Sync* s)>);
