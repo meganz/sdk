@@ -28,6 +28,11 @@
 #include <mutex>
 
 #include "types.h"
+
+#undef SSIZE_MAX
+#include "mega/mega_utf8proc.h"
+#undef SSIZE_MAX
+
 #include "mega/logging.h"
 
 // Needed for Windows Phone (MSVS 2013 - C++ version 9.8)
@@ -404,6 +409,16 @@ public:
 
     static std::string stringToHex(const std::string& input);
     static std::string hexToString(const std::string& input);
+
+    static int32_t toLower(const int32_t c)
+    {
+        return utf8proc_tolower(c);
+    }
+
+    static int32_t toUpper(const int32_t c)
+    {
+        return utf8proc_toupper(c);
+    }
 };
 
 // for pre-c++11 where this version is not defined yet.
@@ -605,6 +620,169 @@ public:
     }
 
 };
+
+template<typename CharT>
+struct UnicodeCodepointIteratorTraits;
+
+template<>
+struct UnicodeCodepointIteratorTraits<char>
+{
+    static ptrdiff_t get(int32_t& codepoint, const char* m, const char* n)
+    {
+        assert(m && n && m < n);
+
+        return utf8proc_iterate(reinterpret_cast<const uint8_t*>(m),
+                                n - m,
+                                &codepoint);
+    }
+
+    static size_t length(const char* s)
+    {
+        assert(s);
+
+        return strlen(s);
+    }
+}; // UnicodeCodepointIteratorTraits<char>
+
+template<>
+struct UnicodeCodepointIteratorTraits<wchar_t>
+{
+    static ptrdiff_t get(int32_t& codepoint, const wchar_t* m, const wchar_t* n)
+    {
+        assert(m && n && m < n);
+
+        // Are we looking at a high surrogate?
+        if ((*m >> 10) == 0x36)
+        {
+            // Is it followed by a low surrogate?
+            if (n - m < 2 || (m[1] >> 10) != 0x37)
+            {
+                // Nope, the string is malformed.
+                return -1;
+            }
+
+            // Compute addend.
+            const int32_t lo = m[1] & 0x3ff;
+            const int32_t hi = *m & 0x3ff;
+            const int32_t addend = (hi << 10) | lo;
+
+            // Store effective code point.
+            codepoint = 0x10000 + addend;
+
+            return 2;
+        }
+
+        // Are we looking at a low surrogate?
+        if ((*m >> 10) == 0x37)
+        {
+            // Then the string is malformed.
+            return -1;
+        }
+
+        // Code point is encoded by a single code unit.
+        codepoint = *m;
+
+        return 1;
+    }
+
+    static size_t length(const wchar_t* s)
+    {
+        assert(s);
+
+        return wcslen(s);
+    }
+}; // UnicodeCodepointIteratorTraits<wchar_t>
+
+template<typename CharT>
+class UnicodeCodepointIterator
+{
+public:
+    using traits_type = UnicodeCodepointIteratorTraits<CharT>;
+
+    UnicodeCodepointIterator(const CharT* s, size_t length)
+      : mCurrent(s)
+      , mEnd(s + length)
+    {
+    }
+
+    explicit UnicodeCodepointIterator(const std::basic_string<CharT>& s)
+      : UnicodeCodepointIterator(s.data(), s.size())
+    {
+    }
+
+    explicit UnicodeCodepointIterator(const CharT* s)
+      : UnicodeCodepointIterator(s, traits_type::length(s))
+    {
+    }
+
+    UnicodeCodepointIterator(const UnicodeCodepointIterator& other)
+      : mCurrent(other.mCurrent)
+      , mEnd(other.mEnd)
+    {
+    }
+
+    UnicodeCodepointIterator()
+      : mCurrent(nullptr)
+      , mEnd(nullptr)
+    {
+    }
+
+    UnicodeCodepointIterator& operator=(const UnicodeCodepointIterator& rhs)
+    {
+        if (this != &rhs)
+        {
+            mCurrent = rhs.mCurrent;
+            mEnd = rhs.mEnd;
+        }
+
+        return *this;
+    }
+
+    bool end() const
+    {
+        return mCurrent == mEnd;
+    }
+
+    int32_t get()
+    {
+        int32_t result = 0;
+
+        if (mCurrent < mEnd)
+        {
+            ptrdiff_t nConsumed = traits_type::get(result, mCurrent, mEnd);
+            assert(nConsumed > 0);
+            mCurrent += nConsumed;
+        }
+
+        return result;
+    }
+
+private:
+    const CharT* mCurrent;
+    const CharT* mEnd;
+}; // UnicodeCodepointIterator<CharT>
+
+template<typename CharT>
+UnicodeCodepointIterator<CharT> unicodeCodepointIterator(const std::basic_string<CharT>& s)
+{
+    return UnicodeCodepointIterator<CharT>(s);
+}
+
+template<typename CharT>
+UnicodeCodepointIterator<CharT> unicodeCodepointIterator(const CharT* s, size_t length)
+{
+    return UnicodeCodepointIterator<CharT>(s, length);
+}
+
+template<typename CharT>
+UnicodeCodepointIterator<CharT> unicodeCodepointIterator(const CharT* s)
+{
+    return UnicodeCodepointIterator<CharT>(s);
+}
+
+int hexval(const int c);
+
+bool islchex(const int c);
 
 } // namespace
 
