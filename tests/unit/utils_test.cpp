@@ -98,6 +98,9 @@ TEST(CharacterSet, IterateUtf16)
 using namespace mega;
 using namespace std;
 
+// Disambiguate between Microsoft's FileSystemType.
+using ::mega::FileSystemType;
+
 class ComparatorTest
   : public ::testing::Test
 {
