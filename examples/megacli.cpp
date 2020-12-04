@@ -4440,36 +4440,6 @@ void exec_open(autocomplete::ACState& s)
     }
 }
 
-#if 0
-void exec_syncconfig(autocomplete::ACState& s)
-{
-    if (s.words.size() == 1)
-    {
-        cout << "Current sync config: " << syncConfigToString(newSyncConfig) << endl;
-    }
-    else if (s.words.size() == 2 || s.words.size() == 4)
-    {
-        auto pair = syncConfigFromStrings(s.words[1].s,
-                (s.words.size() > 2 ? s.words[2].s : "off"),
-                (s.words.size() > 3 ? s.words[3].s : "off"));
-
-        if (pair.first)
-        {
-            newSyncConfig = pair.second;
-            cout << "Successfully applied new sync config!" << endl;
-        }
-        else
-        {
-            cout << "Invalid parameters for syncconfig command." << endl;
-        }
-    }
-    else
-    {
-        assert(false);
-    }
-}
-#endif
-
 #ifdef USE_FILESYSTEM
 void exec_lpwd(autocomplete::ACState& s)
 {
