@@ -8719,6 +8719,16 @@ void exec_synclist(autocomplete::ACState& s)
                    << sync->localnodes[FOLDERNODE]
                    << " folder(s).\n";
           }
+          else
+          {
+              // Display what status info we can.
+              cout << "  Enabled: "
+                   << config.getEnabled()
+                   << "\n"
+                   << "  Last Error: "
+                   << static_cast<int>(config.getError())
+                   << "\n";
+          }
 
           // Display sync type.
           cout << "  Type: "
