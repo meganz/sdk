@@ -10053,7 +10053,7 @@ void MegaClient::notifynode(Node* n)
 
             if (n->changed.removed || n->changed.parent)
             {
-                if (sync.isMonitoring())
+                if (sync.isBackupMonitoring())
                 {
                     sync.backupModified();
                 }
@@ -10094,7 +10094,7 @@ void MegaClient::notifynode(Node* n)
                     {
                         Sync& sync = *n->parent->localnode->sync;
 
-                        if (sync.isMonitoring())
+                        if (sync.isBackupMonitoring())
                         {
                             sync.backupModified();
                         }
@@ -10107,7 +10107,7 @@ void MegaClient::notifynode(Node* n)
                             app->syncupdate_remote_file_addition(&sync, n);
                         }
                     }
-                    else if (n->localnode->sync->isMonitoring())
+                    else if (n->localnode->sync->isBackupMonitoring())
                     {
                         n->localnode->sync->backupModified();
                     }
@@ -10120,7 +10120,7 @@ void MegaClient::notifynode(Node* n)
             }
             else if (!n->changed.removed && n->changed.attrs && n->localnode && n->localnode->name.compare(n->displayname()))
             {
-                if (n->localnode->sync->isMonitoring())
+                if (n->localnode->sync->isBackupMonitoring())
                 {
                     n->localnode->sync->backupModified();
                 }
@@ -13183,7 +13183,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
         return false;
     }
 
-    if (l->sync->isMirroring())
+    if (l->sync->isBackupMirroring())
     {
         bool mirrorStable = true;
 
@@ -13280,7 +13280,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 LOG_warn << "Type changed: " << ll->name << " LNtype: " << ll->type << " Ntype: " << rit->second->type;
                 nchildren.erase(rit);
 
-                if (l->sync->isMirroring())
+                if (l->sync->isBackupMirroring())
                 {
                     // Mirror hasn't stabilized yet.
                     cxt.mActionsPerformed = true;
@@ -13291,7 +13291,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                     // Move the remote into the debris.
                     movetosyncdebris(rit->second, l->sync->inshare);
                 }
-                else if (l->sync->isMonitoring())
+                else if (l->sync->isBackupMonitoring())
                 {
                     // Disable the sync and tell our caller we've failed.
                     return l->sync->backupModified();
@@ -13389,7 +13389,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 }
             }
 
-            if (l->sync->isMirroring())
+            if (l->sync->isBackupMirroring())
             {
                 // Mirror hasn't stabilized.
                 cxt.mActionsPerformed = true;
@@ -13398,7 +13398,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 ll->created = false;
                 ll->deleted = false;
             }
-            else if (l->sync->isMonitoring())
+            else if (l->sync->isBackupMonitoring())
             {
                 // Disable the sync and tell our caller we've failed.
                 return l->sync->backupModified();
@@ -13448,7 +13448,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
         {
             LOG_debug << "has a previous localnode: " << rit->second->localnode->name;
 
-            if (l->sync->isMirroring())
+            if (l->sync->isBackupMirroring())
             {
                 // Mirror hasn't stabilized.
                 cxt.mActionsPerformed = true;
@@ -13459,7 +13459,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 // Move remote into the debris.
                 movetosyncdebris(rit->second, l->sync->inshare);
             }
-            else if (l->sync->isMonitoring())
+            else if (l->sync->isBackupMonitoring())
             {
                 // Disable the sync and tell our caller we've failed.
                 return l->sync->backupModified();
@@ -13532,7 +13532,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                     // download, reconstruct localname in complete()
                     if (download)
                     {
-                        if (l->sync->isMirroring())
+                        if (l->sync->isBackupMirroring())
                         {
                             // Mirror hasn't stabilized.
                             cxt.mActionsPerformed = true;
@@ -13540,7 +13540,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                             // Debris the remote.
                             movetosyncdebris(rit->second, l->sync->inshare);
                         }
-                        else if (l->sync->isMonitoring())
+                        else if (l->sync->isBackupMonitoring())
                         {
                             // Disable sync and let the caller know we've failed.
                             return l->sync->backupModified();
@@ -13566,7 +13566,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 {
                     LOG_debug << "Skipping folder creation over an unscanned file/folder, or the file/folder is not to be synced (special attributes)";
                 }
-                else if (l->sync->isMirroring())
+                else if (l->sync->isBackupMirroring())
                 {
                     // Mirror hasn't stabilized.
                     cxt.mActionsPerformed = true;
@@ -13574,7 +13574,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                     // Remove the remote.
                     movetosyncdebris(rit->second, l->sync->inshare);
                 }
-                else if (l->sync->isMonitoring())
+                else if (l->sync->isBackupMonitoring())
                 {
                     // Disable the sync as we have a mismatch.
                     return l->sync->backupModified();

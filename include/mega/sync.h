@@ -248,10 +248,10 @@ public:
     bool isBackup() const;
 
     // Whether this is a backup sync and it is mirroring.
-    bool isMirroring() const;
+    bool isBackupMirroring() const;
 
     // Whether this is a backup sync and it is monitoring.
-    bool isMonitoring() const;
+    bool isBackupMonitoring() const;
 
     // Move the sync into the monitoring state.
     void monitor();

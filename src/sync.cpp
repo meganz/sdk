@@ -816,12 +816,12 @@ bool Sync::isBackup() const
     return mBackupState != SYNC_BACKUP_NONE;
 }
 
-bool Sync::isMirroring() const
+bool Sync::isBackupMirroring() const
 {
     return mBackupState == SYNC_BACKUP_MIRROR;
 }
 
-bool Sync::isMonitoring() const
+bool Sync::isBackupMonitoring() const
 {
     return mBackupState == SYNC_BACKUP_MONITOR;
 }
