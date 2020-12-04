@@ -2250,21 +2250,7 @@ pair<error, SyncError> Syncs::backupAdd(const XBackupConfig& config,
                     << drivePath.toPath(fsAccess);
 
         // Try and restore any backups in this database.
-        auto result =
-          backupRestore(config.drivePath, *configs, delayInitialScan);
-
-        // Were we able to restore (some) of its backups?
-        if (result.first != API_OK)
-        {
-            // Nope so don't bother trying to add a new backup.
-            LOG_verbose << "Skipping add of backup "
-                        << sourcePath.toPath(fsAccess)
-                        << " on "
-                        << drivePath.toPath(fsAccess)
-                        << " as we could not restore it's database.";
-
-            return result;
-        }
+        backupRestore(config.drivePath, *configs);
     }
     else if (!store->opened(config.drivePath))
     {
@@ -2356,8 +2342,7 @@ error Syncs::backupRemove(const LocalPath& drivePath)
 }
 
 pair<error, SyncError> Syncs::backupRestore(const LocalPath& drivePath,
-                                            const XBackupConfigMap& configs,
-                                            const bool delayInitialScan)
+                                            const XBackupConfigMap& configs)
 {
     using std::make_pair;
 
@@ -2367,9 +2352,6 @@ pair<error, SyncError> Syncs::backupRestore(const LocalPath& drivePath,
     LOG_verbose << "Attempting to restore backup syncs from "
                 << drivePath.toPath(fsAccess);
 
-    // Track which syncs we've added.
-    vector<UnifiedSync*> syncs;
-
     // Create a unified sync for each backup config.
     for (auto& it : configs)
     {
@@ -2378,68 +2360,18 @@ pair<error, SyncError> Syncs::backupRestore(const LocalPath& drivePath,
 
         // Create the unified sync.
         mSyncVec.emplace_back(new UnifiedSync(mClient, config));
-
-        // Record which syncs we've added.
-        syncs.emplace_back(mSyncVec.back().get());
-    }
-
-    // Try and enable each backup sync.
-    size_t numRestored = 0;
-
-    for (auto* sync : syncs)
-    {
-        const auto& config = sync->mConfig;
-
-        // Can we resume this config?
-        if (!config.isResumable())
-        {
-            // Nope, skip it.
-            LOG_verbose << "Skipping restoration of "
-                        << config.getLocalPath()
-                        << " as it is not resumeable.";
-            continue;
-        }
-
-        // Try and enable the backup sync.
-        SyncError syncError;
-        error result = sync->enableSync(syncError, false, UNDEF);
-
-        if (result)
-        {
-            // Nope, record the failure.
-            LOG_verbose << "Unable restore sync at: "
-                        << config.getLocalPath()
-                        << ": error = "
-                        << result
-                        << ", syncError = "
-                        << syncError;
-        }
-        else
-        {
-            // Keep track of how many backups we've restored.
-            ++numRestored;
-        }
     }
 
     // Log how many backups we could restore.
     LOG_verbose << "Restored "
-                << numRestored
-                << " backup(s) out of "
                 << configs.size()
-                << " from "
+                << " backup(s) from "
                 << drivePath.toPath(fsAccess);
 
-    // Consider the function successful if we could restore any backups.
-    if (numRestored || configs.empty())
-    {
-        return make_pair(API_OK, NO_SYNC_ERROR);
-    }
-
-    return make_pair(API_EFAILED, NO_SYNC_ERROR);
+    return make_pair(API_OK, NO_SYNC_ERROR);
 }
 
-pair<error, SyncError> Syncs::backupRestore(const LocalPath& drivePath,
-                                            const bool delayInitialScan)
+pair<error, SyncError> Syncs::backupRestore(const LocalPath& drivePath)
 {
     using std::make_pair;
 
@@ -2480,7 +2412,7 @@ pair<error, SyncError> Syncs::backupRestore(const LocalPath& drivePath,
     if (auto* configs = store->open(drivePath))
     {
         // Try and restore the backups in the database.
-        return backupRestore(drivePath, *configs, delayInitialScan);
+        return backupRestore(drivePath, *configs);
     }
 
     // Couldn't open the database.

@@ -693,8 +693,7 @@ struct Syncs
      * The result of restoring the external backups.
      */
     pair<error, SyncError> backupRestore(const LocalPath& drivePath,
-                                         const XBackupConfigMap& configs,
-                                         const bool delayInitialScan);
+                                         const XBackupConfigMap& configs);
     /**
      * @brief
      * Restores backups from an external drive.
@@ -708,8 +707,7 @@ struct Syncs
      * @return
      * The result of restoring the external backups.
      */
-    pair<error, SyncError> backupRestore(const LocalPath& drivePath,
-                                         const bool delayInitialScan = false);
+    pair<error, SyncError> backupRestore(const LocalPath& drivePath);
 
     // Returns a reference to this user's backup configuration store.
     XBackupConfigStore* backupConfigStore();
