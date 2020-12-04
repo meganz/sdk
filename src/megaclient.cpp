@@ -13199,7 +13199,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
         // Monitor if the mirror is stable.
         if (mirrorStable)
         {
-            l->sync->monitor();
+            l->sync->backupMonitor();
         }
     }
 

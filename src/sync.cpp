@@ -826,7 +826,7 @@ bool Sync::isBackupMonitoring() const
     return mBackupState == SYNC_BACKUP_MONITOR;
 }
 
-void Sync::monitor()
+void Sync::backupMonitor()
 {
     assert(mBackupState == SYNC_BACKUP_MIRROR);
 
@@ -2889,7 +2889,7 @@ void Syncs::enableResumeableSyncs()
                     if (unifiedSync->mSync->isBackup())
                     {
                         // And they should come up in the MONITOR state.
-                        unifiedSync->mSync->monitor();
+                        unifiedSync->mSync->backupMonitor();
                     }
 
                     anySyncRestored = true;
@@ -2959,11 +2959,11 @@ void Syncs::resumeResumableSyncsOnStartup()
                     if (unifiedSync->mSync->isBackup())
                     {
                         // And they should come up in the MONITOR state.
-                        unifiedSync->mSync->monitor();
+                        unifiedSync->mSync->backupMonitor();
                     }
 					
-					// Get actual state from the sync itself.
-					newstate = unifiedSync->mSync->state;
+                    // Get actual state from the sync itself.
+                    newstate = unifiedSync->mSync->state;
                 }
                 LOG_debug << "Sync autoresumed: " << unifiedSync->mConfig.getTag() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << syncError;
             }
