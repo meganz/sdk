@@ -453,7 +453,7 @@ void URLCodec::unescape(string *escaped, string *plain)
 
     while (m < n)
     {
-        if (*m == '%' && n - m > 1)
+        if (*m == '%' && n - m > 2)
         {
             if (ishexdigit(m[1]) && ishexdigit(m[2]))
             {
