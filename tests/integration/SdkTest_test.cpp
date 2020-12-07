@@ -4760,12 +4760,26 @@ TEST_F(SdkTest, SdkBackupFolder)
     ASSERT_EQ(expectedRemotePath, actualRemotePath.get()) << "Wrong remote path for backup";
 
     // Verify that the sync was added
-    MegaSyncList* allSyncs = megaApi[0]->getSyncs();
+    unique_ptr<MegaSyncList> allSyncs{ megaApi[0]->getSyncs() };
     ASSERT_TRUE(allSyncs && allSyncs->size()) << "API reports 0 Sync instances";
     MegaSync* megaSync = allSyncs->get(0);
     ASSERT_EQ(string(remoteBackup), megaSync->getName()) << "Sync instance points to a backup with wrong name";
     ASSERT_EQ(string(actualRemotePath.get()), megaSync->getMegaFolder()) << "Sync instance points to wrong remote path";
     ASSERT_EQ(mApi[0].h, megaSync->getMegaHandle()) << "Sync instance points to wrong MegaHandle";
+
+    // Verify sync after logout / login
+    string session = dumpSession();
+    locallogout();
+    auto tracker = asyncRequestFastLogin(0, session.c_str());
+    ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for accout " << 0;
+    fetchnodes(0, maxTimeout); // auto-resumes one active backup
+    // Verify the sync again
+    allSyncs.reset(megaApi[0]->getSyncs());
+    ASSERT_TRUE(allSyncs && allSyncs->size()) << "API reports 0 Sync instances, after relogin";
+    megaSync = allSyncs->get(0);
+    ASSERT_EQ(string(remoteBackup), megaSync->getName()) << "Sync instance points to a backup with wrong name, after relogin";
+    ASSERT_EQ(string(actualRemotePath.get()), megaSync->getMegaFolder()) << "Sync instance points to wrong remote path, after relogin";
+    ASSERT_EQ(mApi[0].h, megaSync->getMegaHandle()) << "Sync instance points to wrong MegaHandle, after relogin";
 }
 
 TEST_F(SdkTest, SdkSimpleCommands)
