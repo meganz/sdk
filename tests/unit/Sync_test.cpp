@@ -1444,6 +1444,15 @@ public:
         return LocalPath::fromPath(randomBase64(n), mFSAccess);
     }
 
+    static LocalPath separator()
+    {
+#ifdef _WIN32
+        return LocalPath::fromPath("\\", mFSAccess);
+#else // _WIN32
+        return LocalPath::fromPath("/", mFSAccess);
+#endif // ! _WIN32
+    }
+
 private:
     static FSACCESS_CLASS mFSAccess;
     static PrnGen mRNG;
@@ -2917,6 +2926,39 @@ TEST_F(XBackupConfigStoreTest, Add)
     EXPECT_EQ(store.get(config.targetHandle), c);
 }
 
+TEST_F(XBackupConfigStoreTest, AddDenormalized)
+{
+    // Make sure database is removed.
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    // Create store.
+    NiceMock<ConfigStore> store(ioContext());
+
+    // Create database (using normalized path.)
+    ASSERT_NE(store.create(drive), nullptr);
+
+    // Create a normalized config.
+    XBackupConfig configN;
+
+    configN.drivePath = drive;
+    configN.sourcePath = Utilities::randomPath();
+    configN.tag = 1;
+    configN.targetHandle = 2;
+
+    // Create a denormalized config.
+    XBackupConfig configDN = configN;
+
+    configDN.drivePath.append(Utilities::separator());
+    configDN.sourcePath.append(Utilities::separator());
+
+    // Add the denormalized config.
+    const auto* c = store.add(configDN);
+    ASSERT_NE(c, nullptr);
+
+    // Config should've been normalized when it was added to the database.
+    EXPECT_EQ(*c, configN);
+}
+
 TEST_F(XBackupConfigStoreTest, AddToUnknownDatabase)
 {
     StrictMock<ConfigStore> store(ioContext());
@@ -3019,6 +3061,33 @@ TEST_F(XBackupConfigStoreTest, CloseClean)
     // Database should no longer be open.
     EXPECT_EQ(store.configs(drive), nullptr);
     EXPECT_FALSE(store.opened(drive));
+}
+
+TEST_F(XBackupConfigStoreTest, CloseDenormalized)
+{
+    // Make sure database is removed.
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    // Compute denormalized path.
+    LocalPath drivePath = drive;
+    drivePath.append(Utilities::separator());
+
+    // Create store.
+    NiceMock<ConfigStore> store(ioContext());
+
+    // Create database (using normalized path.)
+    ASSERT_NE(store.create(drive), nullptr);
+
+    // Verify database is open.
+    EXPECT_TRUE(store.opened(drive));
+    EXPECT_TRUE(store.opened(drivePath));
+
+    // Close the database (using denormalized path.)
+    EXPECT_EQ(store.close(drivePath), API_OK);
+
+    // Database should no longer be open.
+    EXPECT_FALSE(store.opened(drive));
+    EXPECT_FALSE(store.opened(drivePath));
 }
 
 TEST_F(XBackupConfigStoreTest, CloseDirty)
@@ -3204,6 +3273,30 @@ TEST_F(XBackupConfigStoreTest, Configs)
     EXPECT_EQ(configs.at(configB.tag), configB);
 }
 
+TEST_F(XBackupConfigStoreTest, ConfigsDenormalized)
+{
+    // Make sure database is removed.
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    // Compute denormalized path.
+    LocalPath drivePath = drive;
+    drivePath.append(Utilities::separator());
+
+    // Create store.
+    NiceMock<ConfigStore> store(ioContext());
+
+    // Create database (using normalized path.)
+    auto* configs = store.create(drive);
+    EXPECT_NE(configs, nullptr);
+
+    // Verify database is open.
+    EXPECT_TRUE(store.opened(drive));
+    EXPECT_TRUE(store.opened(drivePath));
+
+    // Retrieve configs using denormalized path.
+    EXPECT_EQ(store.configs(drivePath), configs);
+}
+
 TEST_F(XBackupConfigStoreTest, ConfigsNoDatabases)
 {
     StrictMock<ConfigStore> store(ioContext());
@@ -3261,7 +3354,7 @@ TEST_F(XBackupConfigStoreTest, Create)
 
 TEST_F(XBackupConfigStoreTest, CreateAlreadyOpened)
 {
-    const auto drivePath = Utilities::randomPath();
+    auto drivePath = Utilities::randomPath();
 
     // No slots available for reading.
     Expectation get =
@@ -3296,6 +3389,13 @@ TEST_F(XBackupConfigStoreTest, CreateAlreadyOpened)
     EXPECT_EQ(store.create(drivePath), nullptr);
 
     // Attempts to re-open the database should fail.
+    EXPECT_EQ(store.open(drivePath), nullptr);
+
+    // Repeat the above tests with a denormalized path.
+    drivePath.append(Utilities::separator());
+
+    EXPECT_EQ(store.configs(drivePath), configs);
+    EXPECT_EQ(store.create(drivePath), nullptr);
     EXPECT_EQ(store.open(drivePath), nullptr);
 }
 
@@ -3519,6 +3619,47 @@ TEST_F(XBackupConfigStoreTest, FlushAll)
     EXPECT_FALSE(store.dirty());
 }
 
+TEST_F(XBackupConfigStoreTest, FlushDenormalized)
+{
+    // Make sure database is removed.
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    // Compute denormalized drive path.
+    LocalPath drivePath = drive;
+    drivePath.append(Utilities::separator());
+
+    // Create store.
+    NiceMock<ConfigStore> store(ioContext());
+
+    // Create database (using normalized path.)
+    EXPECT_NE(store.create(drive), nullptr);
+
+    // Dirty the database.
+    XBackupConfig config;
+
+    config.drivePath = drive;
+    config.tag = 1;
+
+    EXPECT_NE(store.add(config), nullptr);
+
+    // Verify database is dirty.
+    EXPECT_TRUE(store.dirty());
+
+    // Make sure database is flushed.
+    EXPECT_CALL(ioContext(),
+                write(Eq(drive.path()), _, _))
+      .Times(1);
+
+    // Flush the database (using denormalized path.)
+    EXPECT_EQ(store.flush(drivePath), API_OK);
+    
+    // Store should no longer be dirty.
+    EXPECT_FALSE(store.dirty());
+
+    // Verify now as the store will write databases upon destruction.
+    Mock::VerifyAndClearExpectations(&ioContext());
+}
+
 TEST_F(XBackupConfigStoreTest, FlushFail)
 {
     // Make sure database is removed.
@@ -3634,7 +3775,7 @@ TEST_F(XBackupConfigStoreTest, FlushUnknownDatabase)
 
 TEST_F(XBackupConfigStoreTest, Open)
 {
-    const auto drivePath = Utilities::randomPath();
+    auto drivePath = Utilities::randomPath();
 
     XBackupConfigMap written;
 
@@ -3699,6 +3840,18 @@ TEST_F(XBackupConfigStoreTest, Open)
     // Can we retrieve the loaded config by target handle?
     EXPECT_EQ(store.get(configs->begin()->second.targetHandle),
               &configs->begin()->second);
+
+    // Shouldn't be able to create an already open database.
+    EXPECT_EQ(store.create(drivePath), nullptr);
+
+    // Shouldn't be able to open an already open database.
+    EXPECT_EQ(store.open(drivePath), nullptr);
+
+    // Repeat the above two tests with a denormalized path.
+    drivePath.append(Utilities::separator());
+
+    EXPECT_EQ(store.create(drivePath), nullptr);
+    EXPECT_EQ(store.open(drivePath), nullptr);
 }
 
 TEST_F(XBackupConfigStoreTest, OpenCantRead)
@@ -3758,6 +3911,28 @@ TEST_F(XBackupConfigStoreTest, OpenNoDatabase)
     // Database should remain unknown.
     EXPECT_EQ(store.configs(drivePath), nullptr);
     EXPECT_FALSE(store.opened(drivePath));
+}
+
+TEST_F(XBackupConfigStoreTest, OpenedDenormalized)
+{
+    // Make sure database is removed.
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    // Compute denormalized path.
+    LocalPath drivePath = drive;
+    drivePath.append(Utilities::separator());
+
+    // Create store.
+    NiceMock<ConfigStore> store(ioContext());
+
+    // Create the database (using normalized path.)
+    ASSERT_NE(store.create(drive), nullptr);
+
+    // Check database is open (using normalized path.)
+    EXPECT_TRUE(store.opened(drive));
+
+    // Check database is open (using denormalized path.)
+    EXPECT_TRUE(store.opened(drivePath));
 }
 
 TEST_F(XBackupConfigStoreTest, OpenedUnknownDatabase)
