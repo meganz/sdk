@@ -14019,6 +14019,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
                     (request->getType() != MegaRequest::TYPE_MOVE) &&
                     (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) &&
                     (request->getType() != MegaRequest::TYPE_RESTORE) &&
+                    (request->getType() != MegaRequest::TYPE_BACKUP_FOLDER) &&
                     (request->getType() != MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD))) return;
 
 #ifdef ENABLE_SYNC
@@ -14057,28 +14058,45 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             return;
         }
 
-        else if (request->getType() == MegaRequest::TYPE_BACKUP_FOLDER)
+        else if (request->getType() == MegaRequest::TYPE_BACKUP_FOLDER && e == API_OK)
         {
-            handle backupHandle = nn.back().nodehandle;
-            const char* deviceName = request->getText(); // cached value
+            handle backupHandle = nn.back().mAddedHandle;
+            request->setNodeHandle(backupHandle);
+            std::unique_ptr<char[]> remotePath{ getNodePathByNodeHandle(nn.back().mAddedHandle) };
+            auto nextSyncTag = client->nextSyncTag();
 
             // create the SyncConfig
-            auto nextSyncTag = client->nextSyncTag();
-            std::unique_ptr<char[]> remotePath{ getNodePathByNodeHandle(backupHandle) };
-            SyncConfig syncConfig{ nextSyncTag, nullptr, deviceName, backupHandle, remotePath.get(),
-                                    0, {}, true, SyncConfig::TYPE_BACKUP };
-
             const char* backupName = request->getName();
             const char* localPath = request->getFile();
+            SyncConfig syncConfig{ nextSyncTag, localPath, backupName, backupHandle, remotePath.get(),
+                                    0, {}, true, SyncConfig::TYPE_BACKUP };
 
-            // create the Sync
+            // add the Sync
             auto sync = make_unique<MegaSyncPrivate>(localPath, backupName, backupHandle, nextSyncTag);
             sync->setListener(request->getSyncListener());
+            SyncError syncError;
+            e = client->addsync(syncConfig, DEBRISFOLDER, NULL, syncError, true, sync.get());
 
-            fireOnSyncAdded(sync.get(), MegaSync::NEW);
+            if (!e || !isSyncErrorPermanent(syncError))
+            {
+                auto newstate = isSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED;
+                sync->setState(newstate);
+                if (!e)
+                {
+                    Sync *s = client->syncs.back();
+                    fsfp_t fsfp = s->fsfp;
+                    sync->setState(s->state); //override state with the actual one from the sync
+                    sync->setLocalFingerprint(fsfp);
+                    request->setNumber(fsfp);
+                }
+                sync->setError(syncError);
+                sync->setMegaFolderYielding(remotePath.release());
+                request->setTransferTag(nextSyncTag);
+                syncMap[nextSyncTag] = sync.get();
 
-            fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-            return;
+                fireOnSyncAdded(sync.release(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
+                e = API_OK; //we don't consider the addsync returned error as an error on the request: the sync was added (although temporarily disabled)
+            }
         }
 
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
