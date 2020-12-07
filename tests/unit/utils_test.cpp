@@ -21,8 +21,9 @@
 
 #include <gtest/gtest.h>
 
-#include <mega/utils.h>
+#include <mega/base64.h>
 #include <mega/filesystem.h>
+#include <mega/utils.h>
 #include "megafs.h"
 
 TEST(utils, hashCombine_integer)
