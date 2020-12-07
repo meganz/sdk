@@ -4780,6 +4780,13 @@ TEST_F(SdkTest, SdkBackupFolder)
     ASSERT_EQ(string(remoteBackup), megaSync->getName()) << "Sync instance points to a backup with wrong name, after relogin";
     ASSERT_EQ(string(actualRemotePath.get()), megaSync->getMegaFolder()) << "Sync instance points to wrong remote path, after relogin";
     ASSERT_EQ(mApi[0].h, megaSync->getMegaHandle()) << "Sync instance points to wrong MegaHandle, after relogin";
+
+    // Remove registered backup
+    RequestTracker removeTracker(megaApi[0].get());
+    megaApi[0]->removeSync(allSyncs->get(0), &removeTracker);
+    ASSERT_EQ(API_OK, removeTracker.waitForResult());
+    allSyncs.reset(megaApi[0]->getSyncs());
+    ASSERT_TRUE(!allSyncs || !allSyncs->size()) << "Registered backup was not removed";
 }
 
 TEST_F(SdkTest, SdkSimpleCommands)
