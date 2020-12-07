@@ -440,29 +440,33 @@ void URLCodec::escape(string *plain, string *escaped)
 
 void URLCodec::unescape(string *escaped, string *plain)
 {
-    if (!escaped || !plain)
+    if (!(escaped && plain))
     {
         return;
     }
 
     plain->clear();
     plain->reserve(escaped->size());
-    int len = (int)escaped->size();
-    for (int i = 0; i < len; i++)
-    {
-        if (escaped->at(i) == '%' && ishexdigit(escaped->at(i + 1)) && ishexdigit(escaped->at(i + 2)))
-        {
-            auto c1 = static_cast<unsigned char>(hexval(escaped->at(i + 1)));
-            auto c2 = static_cast<unsigned char>(hexval(escaped->at(i + 2)));
-            unsigned char c = 0xffu & ((c1 << 4) | c2);
 
-            plain->push_back(c);
-            i += 2;
-        }
-        else
+    const char* m = escaped->c_str();
+    const char* n = m + escaped->size();
+
+    while (m < n)
+    {
+        if (*m == '%' && n - m > 1)
         {
-            plain->push_back(escaped->at(i));
+            if (ishexdigit(m[1]) && ishexdigit(m[2]))
+            {
+                auto c = hexval(m[1]) << 4u | hexval(m[2]);
+
+                plain->push_back(static_cast<char>(c));
+
+                m += 3;
+                continue;
+            }
         }
+
+        plain->push_back(*m++);
     }
 }
 
