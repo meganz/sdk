@@ -407,7 +407,9 @@ bool URLCodec::issafe(char c)
 
 unsigned char URLCodec::hexval(char c)
 {
-    return c > '9' ? (c >= 'a' ? c - 'a' + 10 : c - 'A' + 10) : c - '0';
+    // super clever no-branch code from https://stackoverflow.com/questions/10156409/convert-hex-string-char-to-int/57112610#57112610
+    // works for signed/unsigned char, and for upper or lower case.
+    return (c & 0xF) + (c >> 6) | ((c >> 3) & 0x8);
 }
 
 bool URLCodec::ishexdigit(char c)
