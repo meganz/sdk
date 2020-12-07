@@ -14139,6 +14139,18 @@ class MegaApi
          * The backup's folder name is optional. If not provided, it will take the name of the leaf folder of
          * the local path. In example, for "/home/user/Documents", it will become "Documents".
          *
+         * The associated request type with this request is MegaRequest::TYPE_BACKUP_FOLDER
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the node handle of the remote backup (last leaf, in case
+         *   multiple folders have been created for the remote backup path)
+         * - MegaRequest::getName - Returns the backup name at the remote location
+         * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getText - Returns the device name
+         * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
+         *   if the sync was added with no errors
+         * - MegaRequest::getTransferTag - Returns the tag asociated with the backup
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
          * @param localFolder The local folder to be backed up
          * @param backupName The remote folder to be used for this backup (optional)
          * @param listener MegaRequestListener to track this request
