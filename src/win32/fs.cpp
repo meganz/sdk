@@ -53,12 +53,6 @@ LocalPath NormalizeAbsolute(const LocalPath& path)
 
     if (raw.size() > 1)
     {
-        // Lowercase drive letter.
-        if (raw[1] == L':')
-        {
-            raw[0] = std::towlower(raw[0]);
-        }
-        
         // Remove trailing separator if we're not the root.
         if (raw.back() == L'\\')
         {

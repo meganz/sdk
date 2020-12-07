@@ -46,7 +46,19 @@ TEST(Filesystem, NormalizeAbsoluteAddDriveSeparator)
     FSACCESS_CLASS fsAccess;
 
     LocalPath input = LocalPath::fromPath("C:", fsAccess);
-    LocalPath expected = LocalPath::fromPath("c:\\", fsAccess);
+    LocalPath expected = LocalPath::fromPath("C:\\", fsAccess);
+
+    EXPECT_EQ(NormalizeAbsolute(input), expected);
+    EXPECT_EQ(NormalizeAbsolute(expected), expected);
+
+    input = LocalPath::fromPath("\\\\.\\C:", fsAccess);
+    expected = LocalPath::fromPath("\\\\.\\C:\\", fsAccess);
+
+    EXPECT_EQ(NormalizeAbsolute(input), expected);
+    EXPECT_EQ(NormalizeAbsolute(expected), expected);
+
+    input = LocalPath::fromPath("\\\\?\\C:", fsAccess);
+    expected = LocalPath::fromPath("\\\\?\\C:\\", fsAccess);
 
     EXPECT_EQ(NormalizeAbsolute(input), expected);
     EXPECT_EQ(NormalizeAbsolute(expected), expected);
@@ -60,6 +72,18 @@ TEST(Filesystem, NormalizeAbsoluteRemoveTrailingSeparator)
 
     LocalPath input = LocalPath::fromPath("A\\", fsAccess);
     LocalPath expected = LocalPath::fromPath("A", fsAccess);
+
+    EXPECT_EQ(NormalizeAbsolute(input), expected);
+    EXPECT_EQ(NormalizeAbsolute(expected), expected);
+
+    input = LocalPath::fromPath("\\\\.\\C:\\A\\", fsAccess);
+    expected = LocalPath::fromPath("\\\\.\\C:\\A", fsAccess);
+
+    EXPECT_EQ(NormalizeAbsolute(input), expected);
+    EXPECT_EQ(NormalizeAbsolute(expected), expected);
+
+    input = LocalPath::fromPath("\\\\?\\C:\\A\\", fsAccess);
+    expected = LocalPath::fromPath("\\\\?\\C:\\A", fsAccess);
 
     EXPECT_EQ(NormalizeAbsolute(input), expected);
     EXPECT_EQ(NormalizeAbsolute(expected), expected);
