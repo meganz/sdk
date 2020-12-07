@@ -352,3 +352,44 @@ TEST(Conversion, HexVal)
     }
 }
 
+TEST(URLCodec, Unescape)
+{
+    string input = "a%4a%4Bc";
+    string output;
+
+    URLCodec::unescape(&input, &output);
+    EXPECT_EQ(output, "aJKc");
+}
+
+TEST(URLCodec, UnescapeInvalidEscape)
+{
+    string input;
+    string output;
+
+    // First character is invalid.
+    input = "a%qbc";
+    URLCodec::unescape(&input, &output);
+    EXPECT_EQ(output, "a%qbc");
+
+    // Second character is invalid.
+    input = "a%bqc";
+    URLCodec::unescape(&input, &output);
+    EXPECT_EQ(output, "a%bqc");
+}
+
+TEST(URLCodec, UnescapeShortEscape)
+{
+    string input;
+    string output;
+
+    // No hex digits.
+    input = "a%";
+    URLCodec::unescape(&input, &output);
+    EXPECT_EQ(output, "a%");
+
+    // Single hex digit.
+    input = "a%a";
+    URLCodec::unescape(&input, &output);
+    EXPECT_EQ(output, "a%a");
+}
+
