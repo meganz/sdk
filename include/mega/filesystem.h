@@ -593,6 +593,12 @@ int compareUtf(const string&, bool unescaping1, const LocalPath&, bool unescapin
 int compareUtf(const LocalPath&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
 int compareUtf(const LocalPath&, bool unescaping1, const LocalPath&, bool unescaping2, bool caseInsensitive);
 
+// Same as above except case insensitivity is determined by build platform.
+int platformCompareUtf(const string&, bool unescape1, const string&, bool unescape2);
+int platformCompareUtf(const string&, bool unescape1, const LocalPath&, bool unescape2);
+int platformCompareUtf(const LocalPath&, bool unescape1, const string&, bool unescape2);
+int platformCompareUtf(const LocalPath&, bool unescape1, const LocalPath&, bool unescape2);
+
 } // namespace
 
 #endif
