@@ -1522,17 +1522,11 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     }
     else    // get the last leaf of local path
     {
-        // trim trailing path separator(s)
-        while (!localPath.empty() && (localPath.back() == '\\' || localPath.back() == '/'))  localPath.pop_back();
-
-        // find the last non-trailing separator
-        auto sep = localPath.find_last_of("\\/");
-
-        backupName = sep == string::npos ? localPath : localPath.substr(sep + 1);
+        LocalPath p = LocalPath::fromPath(localPath, *client->fsaccess);
+        LocalPath l = p.leafName();
+        backupName = l.toPath(*client->fsaccess);
         request->setName(backupName.c_str()); // use this in putnodes_result()
     }
-
-    if (localPath.empty()) { return API_EARGS; }
 
 #if defined(_WIN32) && !defined(WINDOWS_PHONE)
     if (!PathIsRelativeA(localPath.c_str()) && ((localPath.size() < 2) || localPath.compare(0, 2, "\\\\")))
@@ -20403,9 +20397,8 @@ void MegaApiImpl::sendPendingRequests()
                 else if (type == ATTR_MY_BACKUPS_FOLDER)
                 {
                     // get back the handle value
-                    string valueAStr(stringMap->get("h"));
-                    const string& valueBStr = Base64::atob(valueAStr);
-                    handle nodeHandle = *((handle*)valueBStr.c_str());
+                    handle nodeHandle = 0;
+                    Base64::atob(stringMap->get("h"), (byte*)&nodeHandle, MegaClient::NODEHANDLE);
 
                     MegaNode* node = getNodeByHandle(nodeHandle);
 
