@@ -20,6 +20,7 @@
  */
 
 #include "mega/base64.h"
+#include "mega/utils.h"
 
 namespace mega {
 // modified base64 conversion (no trailing '=' and '-_' instead of '+/')
@@ -405,13 +406,6 @@ bool URLCodec::issafe(char c)
     return false;
 }
 
-unsigned char URLCodec::hexval(char c)
-{
-    // super clever no-branch code from https://stackoverflow.com/questions/10156409/convert-hex-string-char-to-int/57112610#57112610
-    // works for signed/unsigned char, and for upper or lower case.
-    return (c & 0xF) + (c >> 6) | ((c >> 3) & 0x8);
-}
-
 bool URLCodec::ishexdigit(char c)
 {
     return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
@@ -458,9 +452,9 @@ void URLCodec::unescape(string *escaped, string *plain)
     {
         if (escaped->at(i) == '%' && ishexdigit(escaped->at(i + 1)) && ishexdigit(escaped->at(i + 2)))
         {
-            unsigned char c1 = hexval(escaped->at(i + 1));
-            unsigned char c2 = hexval(escaped->at(i + 2));
-            unsigned char c = 0xFF & ((c1 << 4) | c2);
+            auto c1 = static_cast<unsigned char>(hexval(escaped->at(i + 1)));
+            auto c2 = static_cast<unsigned char>(hexval(escaped->at(i + 2)));
+            unsigned char c = 0xffu & ((c1 << 4) | c2);
 
             plain->push_back(c);
             i += 2;

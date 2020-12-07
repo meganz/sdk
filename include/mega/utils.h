@@ -780,7 +780,10 @@ UnicodeCodepointIterator<CharT> unicodeCodepointIterator(const CharT* s)
     return UnicodeCodepointIterator<CharT>(s);
 }
 
-int hexval(const int c);
+inline int hexval(const int c)
+{
+    return ((c & 0xf) + (c >> 6)) | ((c >> 3) & 0x8);
+}
 
 bool islchex(const int c);
 
