@@ -331,3 +331,24 @@ TEST_F(ComparatorTest, CompareLocalPathAgainstString)
     }
 }
 
+TEST(Conversion, HexVal)
+{
+    // Decimal [0-9]
+    for (int i = 0x30; i < 0x3a; ++i)
+    {
+        EXPECT_EQ(hexval(i), i - 0x30);
+    }
+    
+    // Lowercase hexadecimal [a-f]
+    for (int i = 0x41; i < 0x47; ++i)
+    {
+        EXPECT_EQ(hexval(i), i - 0x37);
+    }
+
+    // Uppercase hexadeimcal [A-F]
+    for (int i = 0x61; i < 0x67; ++i)
+    {
+        EXPECT_EQ(hexval(i), i - 0x57);
+    }
+}
+
