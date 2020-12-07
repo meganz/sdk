@@ -9,3 +9,6 @@ if (WIN32)
 endif()
 
 add_executable(build3rdParty build3rdParty.cpp)
+if (NOT WIN32)
+    target_link_libraries(build3rdParty stdc++fs)
+endif()

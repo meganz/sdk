@@ -133,7 +133,11 @@ try
                     return 1;
                 }
 
-                execute("vcpkg install --triplet " + triplet + " " + port.substr(0, slashpos));
+                #ifdef WIN32
+                    execute("vcpkg install --triplet " + triplet + " " + port.substr(0, slashpos));
+                #else
+                    execute("./vcpkg install --triplet " + triplet + " " + port.substr(0, slashpos));
+                #endif
             }
         }
 
