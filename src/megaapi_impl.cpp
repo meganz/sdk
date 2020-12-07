@@ -1498,7 +1498,6 @@ char *MegaApiImpl::getBlockedPath()
 void MegaApiImpl::backupFolder(const char *localFolder, const char *backupName, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_FOLDER, listener);
-    request->setNodeHandle(0);
     request->setFile(localFolder);
     request->setName(backupName);
 
@@ -1552,7 +1551,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     handle h = 0; // make sure top two bytes are 0
     Base64::atob(handleStr, (byte*)&h, MegaClient::NODEHANDLE);
 
-    if (h == UNDEF) { return API_ENOENT; }
+    if (!h || h == UNDEF) { return API_ENOENT; }
 
     // get Node of remote "My Backups" folder
     Node* myBackupsNode = client->nodebyhandle(h);
@@ -1612,9 +1611,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     backupNameNode.parenthandle = deviceNameNode ? deviceNameNode->nodehandle : newnodes[0].nodehandle;
 
     // create the new node(s)
-    client->putnodes(myBackupsNode->nodehandle, move(newnodes));  // followup in putnodes_result()
-
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+    client->putnodes(deviceNameNode ? deviceNameNode->nodehandle : myBackupsNode->nodehandle, move(newnodes));  // followup in putnodes_result()
 
     return API_OK;
 }
@@ -20414,11 +20411,11 @@ void MegaApiImpl::sendPendingRequests()
                         break;
                     }
 
-                    tlv.reset(TLVstore::containerToTLVrecords(ownUser->getattr(type), &client->key));
+                    const string* attr = ownUser->getattr(type);
+                    if (attr)  tlv.reset(TLVstore::containerToTLVrecords(attr, &client->key));
 
                     if (!tlv) { tlv.reset(new TLVstore); }
                 }
-
                 else
                 {
                     tlv.reset(new TLVstore);
