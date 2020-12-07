@@ -100,6 +100,10 @@ class MEGA_API LocalPath
 #else
     friend const string& adjustBasePath(const LocalPath& name);
 #endif
+    friend int compareUtf(const string&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
+    friend int compareUtf(const string&, bool unescaping1, const LocalPath&, bool unescaping2, bool caseInsensitive);
+    friend int compareUtf(const LocalPath&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
+    friend int compareUtf(const LocalPath&, bool unescaping1, const LocalPath&, bool unescaping2, bool caseInsensitive);
 
 public:
     LocalPath() {}
@@ -480,7 +484,6 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*);
 
     // check if character is lowercase hex ASCII
-    bool islchex(char) const;
     bool isControlChar(unsigned char c) const;
     bool islocalfscompatible(unsigned char, bool isEscape, FileSystemType = FS_UNKNOWN) const;
     void escapefsincompatible(string*, FileSystemType fileSystemType) const;
@@ -582,6 +585,14 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     // Get the current working directory.
     virtual bool cwd(LocalPath& path) const = 0;
 };
+
+bool isCaseInsensitive(const FileSystemType type);
+
+int compareUtf(const string&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
+int compareUtf(const string&, bool unescaping1, const LocalPath&, bool unescaping2, bool caseInsensitive);
+int compareUtf(const LocalPath&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
+int compareUtf(const LocalPath&, bool unescaping1, const LocalPath&, bool unescaping2, bool caseInsensitive);
+
 } // namespace
 
 #endif

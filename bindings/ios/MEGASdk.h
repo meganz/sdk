@@ -267,6 +267,12 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 @property (readonly, nonatomic, nullable) NSString *myEmail;
 
 /**
+ * @brief Date when the account was created
+ *
+ */
+@property (readonly, nonatomic, nullable) NSDate *accountCreationDate;
+
+/**
  * @brief Root node of the account.
  *
  * If you haven't successfully called [MEGASdk fetchNodes] before,

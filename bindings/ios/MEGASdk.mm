@@ -85,6 +85,11 @@ using namespace mega;
     return ret;
 }
 
+- (NSDate *)accountCreationDate {
+    NSTimeInterval accountCreationTs = self.megaApi->getAccountCreationTs();
+    return accountCreationTs ?  [NSDate dateWithTimeIntervalSince1970:accountCreationTs] : nil;
+}
+
 - (MEGANode *)rootNode {
     MegaNode *node = self.megaApi->getRootNode();
     return node ? [[MEGANode alloc] initWithMegaNode:node cMemoryOwn:YES] : nil;
