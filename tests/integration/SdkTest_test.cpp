@@ -422,6 +422,10 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         mApi[apiIndex].h = request->getNodeHandle();
         break;
 
+    case MegaRequest::TYPE_BACKUP_FOLDER:
+        mApi[apiIndex].h = request->getNodeHandle();
+        break;
+
     case MegaRequest::TYPE_GET_ATTR_USER:
 
         if (mApi[apiIndex].lastError == API_OK && 
@@ -431,11 +435,15 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         {
             attributeValue = request->getName();
         }
+        else if ((mApi[apiIndex].lastError == API_OK) && (request->getParamType() == MegaApi::USER_ATTR_MY_BACKUPS_FOLDER))
+        {
+            mApi[apiIndex].h = request->getNodeHandle();
+        }
         else if ( (mApi[apiIndex].lastError == API_OK) && (request->getParamType() != MegaApi::USER_ATTR_AVATAR))
         {
             attributeValue = request->getText() ? request->getText() : "";
         }
-        
+
         if (request->getParamType() == MegaApi::USER_ATTR_AVATAR)
         {
             if (mApi[apiIndex].lastError == API_OK)
@@ -4689,54 +4697,75 @@ TEST_F(SdkTest, SdkBackupFolder)
     getAccountsForTest(1);
     LOG_info << "___TEST BackupFolder___";
 
-    //
+    // Attempt to get My Backups folder;
     // make this work even before the remote API has support for My Backups folder
+    synchronousGetMyBackupsFolder(0);
+    MegaHandle mh = mApi[0].h;
 
     // create My Backups folder
-    fetchnodes(0, maxTimeout);
-    std::unique_ptr<MegaNode> myBkpsNode{ megaApi[0]->getNodeByPath("/My Backups") };
+    unique_ptr<MegaNode> myBkpsNode{ mh && mh != UNDEF ? megaApi[0]->getNodeByHandle(mh)
+                                                       : megaApi[0]->getNodeByPath("/My Backups") };
     if (!myBkpsNode)
     {
-        std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+        // create My Backups folder (default name, just for testing)
+        unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
         const char* folderName = "My Backups";
+        mApi[0].h = 0; // reset this to test its value later
         ASSERT_NO_FATAL_FAILURE(createFolder(0, folderName, rootnode.get()));
 
-        fetchnodes(0, maxTimeout);
-
-        myBkpsNode.reset(megaApi[0]->getNodeByPath("/My Backups"));
-
         // set My Backups handle attr
-        MegaHandle mh = myBkpsNode->getHandle();
+        mh = mApi[0].h;
         int err = synchronousSetMyBackupsFolder(0, mh);
-        ASSERT_TRUE(err == MegaError::API_OK) << "Setting My Backup folder failed (error: " << err << ")";
+        ASSERT_TRUE(err == MegaError::API_OK) << "Setting handle for My Backup folder failed (error: " << err << ")";
+        // read the attribute to make sure it was set
+        mApi[0].h = 0; // reset this to test its value later
         err = synchronousGetMyBackupsFolder(0);
         ASSERT_TRUE(err == MegaError::API_OK);
-
-        // read the attribute to make sure it was set
-        std::unique_ptr<MegaUser> user(megaApi[0]->getMyUser());
-        ASSERT_NO_FATAL_FAILURE(getUserAttribute(user.get(), MegaApi::USER_ATTR_MY_BACKUPS_FOLDER, maxTimeout, 0));
-
-        // look for Device Name attr
-        if (synchronousGetDeviceName(0) != MegaError::API_OK || attributeValue.empty())
-        {
-            auto now = m_time(nullptr);
-            char timebuf[32];
-            strftime(timebuf, sizeof timebuf, "%c", localtime(&now));
-
-            string deviceName = string("Jenkins ") + timebuf;
-            synchronousSetDeviceName(0, deviceName.c_str());
-        }
+        ASSERT_EQ(mh, mApi[0].h) << "Getting handle for My Backup folder failed";
     }
 
-    // make sure Device Name attr was set
-    int err = synchronousGetDeviceName(0);
-    ASSERT_TRUE(err == MegaError::API_OK) << "Getting device name attr failed (error: " << err << ")";
+    // look for Device Name attr
+    string deviceName;
+    if (synchronousGetDeviceName(0) == MegaError::API_OK && !attributeValue.empty())
+    {
+        deviceName = attributeValue;
+    }
+    else
+    {
+        auto now = m_time(nullptr);
+        char timebuf[32];
+        strftime(timebuf, sizeof timebuf, "%c", localtime(&now));
+
+        deviceName = string("Jenkins ") + timebuf;
+        synchronousSetDeviceName(0, deviceName.c_str());
+
+        // make sure Device Name attr was set
+        int err = synchronousGetDeviceName(0);
+        ASSERT_TRUE(err == MegaError::API_OK) << "Getting device name attr failed (error: " << err << ")";
+        ASSERT_EQ(deviceName, attributeValue) << "Getting device name attr failed (wrong value)";
+    }
 
     // request to backup a folder
     string folderToBackup = string(LOCAL_TEST_FOLDER) + "\\LocalBackedUpFolder";
     makeNewTestRoot(folderToBackup.c_str());
-    err = synchronousBackupFolder(0, folderToBackup.c_str(), "RemoteBackupFolder");
+    mApi[0].h = 0;
+    const char* remoteBackup = "RemoteBackupFolder";
+    int err = synchronousBackupFolder(0, folderToBackup.c_str(), remoteBackup);
     ASSERT_TRUE(err == MegaError::API_OK) << "Backup folder failed (error: " << err << ")";
+
+    // Verify that the remote path was created as expected
+    unique_ptr<char[]> myBackupsFolder{ megaApi[0]->getNodePathByNodeHandle(mh) };
+    string expectedRemotePath = string(myBackupsFolder.get()) + '/' + deviceName + '/' + remoteBackup;
+    unique_ptr<char[]> actualRemotePath{ megaApi[0]->getNodePathByNodeHandle(mApi[0].h) };
+    ASSERT_EQ(expectedRemotePath, actualRemotePath.get()) << "Wrong remote path for backup";
+
+    // Verify that the sync was added
+    MegaSyncList* allSyncs = megaApi[0]->getSyncs();
+    ASSERT_TRUE(allSyncs && allSyncs->size()) << "API reports 0 Sync instances";
+    MegaSync* megaSync = allSyncs->get(0);
+    ASSERT_EQ(string(remoteBackup), megaSync->getName()) << "Sync instance points to a backup with wrong name";
+    ASSERT_EQ(string(actualRemotePath.get()), megaSync->getMegaFolder()) << "Sync instance points to wrong remote path";
+    ASSERT_EQ(mApi[0].h, megaSync->getMegaHandle()) << "Sync instance points to wrong MegaHandle";
 }
 
 TEST_F(SdkTest, SdkSimpleCommands)
