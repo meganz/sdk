@@ -3057,7 +3057,6 @@ XBackupConfig::XBackupConfig()
 bool XBackupConfig::valid() const
 {
     return !(drivePath.empty()
-             || sourcePath.empty()
              || targetHandle == UNDEF);
 }
 
@@ -3065,6 +3064,7 @@ bool XBackupConfig::operator==(const XBackupConfig& rhs) const
 {
     return drivePath == rhs.drivePath
            && sourcePath == rhs.sourcePath
+           && targetPath == rhs.targetPath
            && heartbeatID == rhs.heartbeatID
            && targetHandle == rhs.targetHandle
            && lastError == rhs.lastError
@@ -3090,6 +3090,7 @@ XBackupConfig translate(const MegaClient& client, const SyncConfig &config)
     result.lastError = config.getError();
     result.tag = config.getTag();
     result.targetHandle = config.getRemoteNode();
+    result.targetPath = config.getRemotePath();
 
     const auto& drivePath = config.drivePath();
     const auto sourcePath = config.getLocalPath().substr(drivePath.size());
@@ -3110,7 +3111,6 @@ SyncConfig translate(const MegaClient& client, const XBackupConfig& config)
 {
     string drivePath = config.drivePath.toPath(*client.fsaccess);
     string sourcePath;
-    string targetPath;
 
     // Source Path
     {
@@ -3123,24 +3123,13 @@ SyncConfig translate(const MegaClient& client, const XBackupConfig& config)
         sourcePath = temp.toPath(*client.fsaccess);
     }
 
-    // Target Path
-    if (config.targetHandle != UNDEF)
-    {
-        const auto* targetNode =
-          client.nodebyhandle(config.targetHandle);
-
-        assert(targetNode);
-
-        targetPath = targetNode->displaypath();
-    }
-
     // Build config.
     auto result =
       SyncConfig(config.tag,
                  sourcePath,
                  sourcePath,
                  config.targetHandle,
-                 std::move(targetPath),
+                 config.targetPath,
                  0,
                  string_vector(),
                  config.enabled,
@@ -3770,6 +3759,7 @@ bool XBackupConfigIOContext::deserialize(XBackupConfig& config, JSON& reader) co
     const auto TYPE_SOURCE_PATH   = MAKENAMEID2('s', 'p');
     const auto TYPE_TAG           = MAKENAMEID1('t');
     const auto TYPE_TARGET_HANDLE = MAKENAMEID2('t', 'h');
+    const auto TYPE_TARGET_PATH   = MAKENAMEID2('t', 'p');
 
     for ( ; ; )
     {
@@ -3811,6 +3801,10 @@ bool XBackupConfigIOContext::deserialize(XBackupConfig& config, JSON& reader) co
         case TYPE_TARGET_HANDLE:
             config.targetHandle =
               reader.gethandle(sizeof(handle));
+            break;
+
+        case TYPE_TARGET_PATH:
+            reader.storebinary(&config.targetPath);
             break;
 
         default:
@@ -3857,14 +3851,17 @@ void XBackupConfigIOContext::serialize(const XBackupConfig& config,
     // Encode path to avoid escaping issues.
     const string sourcePath =
       Base64::btoa(config.sourcePath.toPath(mFsAccess));
+    const string targetPath =
+      Base64::btoa(config.targetPath);
 
     writer.beginobject();
 
     writer.arg("sp", sourcePath);
     writer.arg("hb", config.heartbeatID, sizeof(handle));
     writer.arg("th", config.targetHandle, sizeof(handle));
+    writer.arg("tp", targetPath);
     writer.arg("le", config.lastError);
-    writer.arg("t", config.tag);
+    writer.arg("t",  config.tag);
     writer.arg("en", config.enabled);
 
     writer.endobject();

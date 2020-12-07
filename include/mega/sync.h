@@ -284,6 +284,9 @@ public:
 
     // Relative path to sync root.
     LocalPath sourcePath;
+
+    // Absolute path to remote sync target.
+    string targetPath;
     
     // ID for backup heartbeating.
     handle heartbeatID;

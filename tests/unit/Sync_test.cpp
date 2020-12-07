@@ -1402,7 +1402,7 @@ private:
 class Utilities
 {
 public:
-    static string randomBase64(const size_t n)
+    static string randomBase64(const size_t n = 16)
     {
         return Base64::btoa(randomBytes(n));
     }
@@ -1859,6 +1859,7 @@ TEST_F(XBackupConfigIOContextTest, Serialize)
         config.sourcePath = Utilities::randomPath();
         config.tag = 1;
         config.targetHandle = UNDEF;
+        config.targetPath = Utilities::randomBase64();
 
         written.emplace(config.tag, config);
 
@@ -1868,6 +1869,7 @@ TEST_F(XBackupConfigIOContextTest, Serialize)
         config.sourcePath = Utilities::randomPath();
         config.tag = 2;
         config.targetHandle = 3;
+        config.targetPath = Utilities::randomBase64();
 
         written.emplace(config.tag, config);
     }
