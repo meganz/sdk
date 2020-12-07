@@ -4787,6 +4787,14 @@ TEST_F(SdkTest, SdkBackupFolder)
     ASSERT_EQ(API_OK, removeTracker.waitForResult());
     allSyncs.reset(megaApi[0]->getSyncs());
     ASSERT_TRUE(!allSyncs || !allSyncs->size()) << "Registered backup was not removed";
+
+    // Request to backup another folder
+    // this time, the remote folder structure is already there
+    string folderToBackup2 = string(LOCAL_TEST_FOLDER) + "\\LocalBackedUpFolder2";
+    makeNewTestRoot(folderToBackup2.c_str());
+    const char* remoteBackup2 = "RemoteBackupFolder2";
+    err = synchronousBackupFolder(0, folderToBackup2.c_str(), remoteBackup2);
+    ASSERT_TRUE(err == MegaError::API_OK) << "Backup folder 2 failed (error: " << err << ")";
 }
 
 TEST_F(SdkTest, SdkSimpleCommands)
