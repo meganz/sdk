@@ -419,6 +419,24 @@ public:
     {
         return utf8proc_toupper(c);
     }
+
+    // Platform-independent case-insensitive comparison.
+    static int icasecmp(const std::string& lhs,
+                        const std::string& rhs,
+                        const size_t length);
+
+    static int icasecmp(const std::wstring& lhs,
+                        const std::wstring& rhs,
+                        const size_t length);
+
+    // Same as above but only case-insensitive on Windows.
+    static int pcasecmp(const std::string& lhs,
+                        const std::string& rhs,
+                        const size_t length);
+
+    static int pcasecmp(const std::wstring& lhs,
+                        const std::wstring& rhs,
+                        const size_t length);
 };
 
 // for pre-c++11 where this version is not defined yet.
