@@ -2449,7 +2449,7 @@ public:
                         }
                         break;
                     }
-                    // otherwise fall through
+                    // fall-through
 
                 default:
                     client->json.storeobject();
@@ -8439,35 +8439,43 @@ void exec_syncbackupadd(autocomplete::ACState& s)
         return;
     }
 
-    string drivePath;
-    string sourcePath;
+    // Convenience.
+    auto& fsAccess = *client->fsaccess;
+
+    LocalPath drivePath;
+    LocalPath sourcePath;
     string targetPath;
 
     if (s.words.size() == 6)
     {
         // sync backup add drive source target
-        drivePath  = s.words[3].s;
-        sourcePath = s.words[4].s;
+        drivePath  = LocalPath::fromPath(s.words[3].s, fsAccess);
+        sourcePath = LocalPath::fromPath(s.words[4].s, fsAccess);
         targetPath = s.words[5].s;
 
+        // Normalize to remove trailing separators.
+        drivePath = NormalizeAbsolute(drivePath);
+        sourcePath = NormalizeAbsolute(sourcePath);
+
         // Does the drive contain the source?
-        if (sourcePath.size() < drivePath.size()
-            || sourcePath.compare(0, drivePath.size(), drivePath))
+        size_t pos;
+
+        if (!drivePath.isContainingPathOf(sourcePath, &pos))
         {
-            cerr << sourcePath
+            cerr << sourcePath.toPath(fsAccess)
                  << ": Not contained within: "
-                 << drivePath
+                 << drivePath.toPath(fsAccess)
                  << endl;
             return;
         }
 
         // Remove the drive from the source.
-        sourcePath.erase(0, drivePath.size());
+        sourcePath.erase(0, pos);
     }
     else
     {
         // sync backup add source target
-        sourcePath = s.words[3].s;
+        sourcePath = LocalPath::fromPath(s.words[3].s, fsAccess);
         targetPath = s.words[4].s;
     }
 
@@ -8506,10 +8514,8 @@ void exec_syncbackupadd(autocomplete::ACState& s)
         // External
         XBackupConfig config;
 
-        config.drivePath =
-          LocalPath::fromPath(drivePath, *client->fsaccess);
-        config.sourcePath = 
-          LocalPath::fromPath(sourcePath, *client->fsaccess);
+        config.drivePath = drivePath;
+        config.sourcePath = sourcePath; 
 
         config.enabled = true;
         config.targetHandle = targetNode->nodehandle;
@@ -8531,8 +8537,8 @@ void exec_syncbackupadd(autocomplete::ACState& s)
     // Internal
     auto config =
       SyncConfig(++BACKUP_TAG,
-                 sourcePath,
-                 sourcePath,
+                 sourcePath.toPath(fsAccess),
+                 sourcePath.toPath(fsAccess),
                  targetNode->nodehandle,
                  targetPath,
                  0,
