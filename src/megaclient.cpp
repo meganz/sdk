@@ -5987,11 +5987,13 @@ void MegaClient::sc_userattr()
                                         resetKeyring();
                                         break;
                                     }
-                                    case ATTR_AUTHRING:         // fall-through
-                                    case ATTR_AUTHCU255:        // fall-through
-                                    case ATTR_AUTHRSA:          // fall-through
-                                    case ATTR_MY_BACKUPS_FOLDER:    // fall-through
-                                    case ATTR_BACKUP_NAMES:     // fall-through
+                                    case ATTR_AUTHRING:            // fall-through
+                                    case ATTR_AUTHCU255:           // fall-through
+                                    case ATTR_AUTHRSA:             // fall-through
+                                    case ATTR_MY_BACKUPS_FOLDER:   // fall-through
+                                    case ATTR_BACKUP_NAMES:        // fall-through
+                                    case ATTR_XBACKUP_CONFIG_KEY:  // fall-through
+                                    case ATTR_XBACKUP_CONFIG_NAME: // fall-through
                                     {
                                         LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
                                         if (User::isAuthring(type)) mAuthRings.erase(type);
