@@ -439,6 +439,76 @@ TEST(URLCodec, UnescapeShortEscape)
 }
 
 
+TEST(Filesystem, isContainingPathOf)
+{
+    using namespace mega;
+
+#ifdef _WIN32
+#define SEP "\\"
+#else // _WIN32
+#define SEP "/"
+#endif // ! _WIN32
+
+    FSACCESS_CLASS fsAccess;
+
+    LocalPath lhs;
+    LocalPath rhs;
+    size_t pos;
+
+    // lhs does not contain rhs.
+    pos = -1;
+    lhs = LocalPath::fromPath("a" SEP "b", fsAccess);
+    rhs = LocalPath::fromPath("a" SEP "c", fsAccess);
+
+    EXPECT_FALSE(lhs.isContainingPathOf(rhs, &pos));
+    EXPECT_EQ(pos, -1);
+
+    // lhs does not contain rhs.
+    // they do, however, share a common prefix.
+    pos = -1;
+    lhs = LocalPath::fromPath("a", fsAccess);
+    rhs = LocalPath::fromPath("ab", fsAccess);
+
+    EXPECT_FALSE(lhs.isContainingPathOf(rhs, &pos));
+    EXPECT_EQ(pos, -1);
+
+    // lhs contains rhs.
+    // no trailing separator.
+    pos = -1;
+    lhs = LocalPath::fromPath("a", fsAccess);
+    rhs = LocalPath::fromPath("a" SEP "b", fsAccess);
+
+    EXPECT_TRUE(lhs.isContainingPathOf(rhs, &pos));
+    EXPECT_EQ(pos, 2);
+
+    // trailing separator.
+    pos = -1;
+    lhs = LocalPath::fromPath("a" SEP, fsAccess);
+    rhs = LocalPath::fromPath("a" SEP "b", fsAccess);
+
+    EXPECT_TRUE(lhs.isContainingPathOf(rhs, &pos));
+    EXPECT_EQ(pos, 2);
+
+    // lhs contains itself.
+    pos = -1;
+    lhs = LocalPath::fromPath("a" SEP "b", fsAccess);
+
+    EXPECT_TRUE(lhs.isContainingPathOf(lhs, &pos));
+    EXPECT_EQ(pos, 3);
+
+#ifdef _WIN32
+    // case insensitive.
+    pos = -1;
+    lhs = LocalPath::fromPath("a" SEP "B", fsAccess);
+    rhs = LocalPath::fromPath("A" SEP "b", fsAccess);
+
+    EXPECT_TRUE(lhs.isContainingPathOf(rhs, &pos));
+    EXPECT_EQ(pos, 3);
+#endif // _WIN32
+
+#undef SEP
+}
+
 #ifdef _WIN32
 
 TEST(Filesystem, NormalizeAbsoluteAddDriveSeparator)

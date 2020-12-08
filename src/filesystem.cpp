@@ -1176,8 +1176,11 @@ LocalPath LocalPath::tmpNameLocal(const FileSystemAccess& fsaccess)
 
 bool LocalPath::isContainingPathOf(const LocalPath& path, size_t* subpathIndex) const
 {
+    assert(!empty());
+    assert(!path.empty());
+
     if (path.localpath.size() >= localpath.size()
-        && !path.localpath.compare(0, localpath.size(), localpath.data(), localpath.size()))
+        && !Utils::pcasecmp(path.localpath, localpath, localpath.size()))
     {
        if (path.localpath.size() == localpath.size())
        {
