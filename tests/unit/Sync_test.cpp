@@ -1491,20 +1491,11 @@ public:
               .WillByDefault(Invoke(this, &IOContext::writeConcrete));
         }
 
-        MOCK_METHOD(error,
-                    get,
-                    (const LocalPath&, vector<unsigned int>&),
-                    (override));
+        MOCK_METHOD2(get, error(const LocalPath&, vector<unsigned int>&));
 
-        MOCK_METHOD(error,
-                    read,
-                    (const LocalPath&, string&, const unsigned int),
-                    (override));
+        MOCK_METHOD3(read, error(const LocalPath&, string&, const unsigned int));
 
-        MOCK_METHOD(error,
-                    write,
-                    (const LocalPath&, const string&, const unsigned int),
-                    (override));
+        MOCK_METHOD3(write, error(const LocalPath&, const string&, const unsigned int));
 
     private:
         // Delegate to real behavior.
@@ -1940,25 +1931,13 @@ public:
         using Config = XBackupConfig;
         using DB = XBackupConfigDB;
 
-        MOCK_METHOD(void,
-                    onAdd,
-                    (DB&, const Config&),
-                    (override));
+        MOCK_METHOD2(onAdd, void(DB&, const Config&));
 
-        MOCK_METHOD(void,
-                    onChange,
-                    (DB&, const Config&, const Config&),
-                    (override));
+        MOCK_METHOD3(onChange, void(DB&, const Config&, const Config&));
 
-        MOCK_METHOD(void,
-                    onDirty,
-                    (DB&),
-                    (override));
+        MOCK_METHOD1(onDirty, void(DB&));
 
-        MOCK_METHOD(void,
-                    onRemove,
-                    (DB&, const Config&),
-                    (override));
+        MOCK_METHOD2(onRemove, void(DB&, const Config&));
     }; // Observer
 
     XBackupConfigDBTest()
@@ -2822,25 +2801,13 @@ public:
         using DB = XBackupConfigDB;
         using Config = XBackupConfig;
 
-        MOCK_METHOD(void,
-                    onAdd,
-                    (DB&, const Config&),
-                    (override));
+        MOCK_METHOD2(onAdd, void(DB&, const Config&));
 
-        MOCK_METHOD(void,
-                    onChange,
-                    (DB&, const Config&, const Config&),
-                    (override));
+        MOCK_METHOD3(onChange, void(DB&, const Config&, const Config&));
 
-        MOCK_METHOD(void,
-                    onDirty,
-                    (DB&),
-                    (override));
+        MOCK_METHOD1(onDirty, void(DB&));
 
-        MOCK_METHOD(void,
-                    onRemove,
-                    (DB&, const Config&),
-                    (override));
+        MOCK_METHOD2(onRemove, void(DB&, const Config&));
 
     private:
         // Delegate to real behavior.
