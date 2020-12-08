@@ -9,6 +9,7 @@ openssl-unix/c303dd024e2dc03a0665ddffbb12a1077933e649
 #openssl-uwp/c303dd024e2dc03a0665ddffbb12a1077933e649
 openssl-windows/c303dd024e2dc03a0665ddffbb12a1077933e649
 sqlite3/c303dd024e2dc03a0665ddffbb12a1077933e649
+zlib/c303dd024e2dc03a0665ddffbb12a1077933e649
 
 # mediainfo, customized with constrained functionality (determine media properties such as track length, codec, etc)
 libmediainfo/19.09
@@ -19,7 +20,6 @@ ffmpeg/c303dd024e2dc03a0665ddffbb12a1077933e649
 
 #freeimage and its dependencies (image preview/thumbnail generation)
 freeimage/c303dd024e2dc03a0665ddffbb12a1077933e649
-zlib/c303dd024e2dc03a0665ddffbb12a1077933e649
 libpng/c303dd024e2dc03a0665ddffbb12a1077933e649
 libjpeg-turbo/c303dd024e2dc03a0665ddffbb12a1077933e649
 tiff/c303dd024e2dc03a0665ddffbb12a1077933e649
