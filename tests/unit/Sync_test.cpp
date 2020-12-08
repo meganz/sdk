@@ -1436,7 +1436,7 @@ public:
         const string data = randomBytes(n);
         const byte* bytes = reinterpret_cast<const byte*>(&data[0]);
 
-        return fileAccess->fwrite(bytes, n, 0x0);
+        return fileAccess->fwrite(bytes, static_cast<unsigned>(n), 0x0);
     }
 
     static LocalPath randomPath(const size_t n = 16)
@@ -2199,7 +2199,7 @@ TEST_F(XBackupConfigDBTest, Read)
 
     // Capture the JSON and signal write success.
     EXPECT_CALL(ioContext(),
-                write(Eq(drivePath()), _, Eq(0)))
+                write(Eq(drivePath()), _, Eq(0u)))
       .WillOnce(DoAll(SaveArg<1>(&json),
                       Return(API_OK)));
 
@@ -2222,7 +2222,7 @@ TEST_F(XBackupConfigDBTest, Read)
     // Read should return the captured JSON.
     Expectation read =
       EXPECT_CALL(ioContext(),
-                  read(Eq(drivePath()), _, Eq(0)))
+                  read(Eq(drivePath()), _, Eq(0u)))
         .After(get)
         .WillOnce(DoAll(SetArgReferee<1>(json),
                         Return(API_OK)));
@@ -2296,7 +2296,7 @@ TEST_F(XBackupConfigDBTest, ReadEmptyClearsDatabase)
     // Read yields an empty database.
     Expectation read =
       EXPECT_CALL(ioContext(),
-                  read(Eq(drivePath()), _, Eq(0)))
+                  read(Eq(drivePath()), _, Eq(0u)))
         .After(get)
         .WillOnce(DoAll(SetArgReferee<1>("[]"),
                         Return(API_OK)));
@@ -2351,7 +2351,7 @@ TEST_F(XBackupConfigDBTest, ReadUpdatesDatabase)
     string json;
 
     EXPECT_CALL(ioContext(),
-                write(Eq(drivePath()), _, Eq(0)))
+                write(Eq(drivePath()), _, Eq(0u)))
       .WillOnce(DoAll(SaveArg<1>(&json),
                       Return(API_OK)));
 
@@ -2377,7 +2377,7 @@ TEST_F(XBackupConfigDBTest, ReadUpdatesDatabase)
     // Read should return the captured JSON.
     Expectation read =
       EXPECT_CALL(ioContext(),
-                  read(Eq(drivePath()), _, Eq(0)))
+                  read(Eq(drivePath()), _, Eq(0u)))
         .After(get)
         .WillOnce(DoAll(SetArgReferee<1>(json),
                         Return(API_OK)));
@@ -2425,19 +2425,19 @@ TEST_F(XBackupConfigDBTest, ReadTriesAllAvailableSlots)
     // Attempts to read slots 1 and 2 should fail.
     Expectation read1 =
       EXPECT_CALL(ioContext(),
-                  read(Eq(drivePath()), _, Eq(1)))
+                  read(Eq(drivePath()), _, Eq(1u)))
       .After(get)
       .WillOnce(Return(API_EREAD));
 
     Expectation read2 =
       EXPECT_CALL(ioContext(),
-                  read(Eq(drivePath()), _, Eq(2)))
+                  read(Eq(drivePath()), _, Eq(2u)))
       .After(read1)
       .WillOnce(Return(API_EREAD));
 
     // Reading slot 3 should succeed.
     EXPECT_CALL(ioContext(),
-                read(Eq(drivePath()), _, Eq(3)))
+                read(Eq(drivePath()), _, Eq(3u)))
       .After(read2)
       .WillOnce(DoAll(SetArgReferee<1>("[]"),
                       Return(API_OK)));
@@ -2759,7 +2759,7 @@ TEST_F(XBackupConfigDBTest, WriteFail)
 
     // Any attempt to write to slot 0 will fail.
     EXPECT_CALL(ioContext(),
-                write(Eq(drivePath()), _, Eq(0)))
+                write(Eq(drivePath()), _, Eq(0u)))
       .Times(2)
       .WillRepeatedly(Return(API_EWRITE));
 
@@ -2777,12 +2777,12 @@ TEST_F(XBackupConfigDBTest, WriteOK)
     // Writes to slot 0 should succeed.
     Expectation write0 =
       EXPECT_CALL(ioContext(),
-                  write(Eq(drivePath()), _, Eq(0)))
+                  write(Eq(drivePath()), _, Eq(0u)))
       .WillOnce(Return(API_OK));
 
     // Writes to slot 1 should succeed.
     EXPECT_CALL(ioContext(),
-                write(Eq(drivePath()), _, Eq(1)))
+                write(Eq(drivePath()), _, Eq(1u)))
       .After(write0)
       .WillOnce(Return(API_OK));
 
@@ -3017,7 +3017,7 @@ TEST_F(XBackupConfigStoreTest, CloseAll)
 
     // Attempts to write database A should fail.
     EXPECT_CALL(ioContext(),
-                write(Eq(driveA.path()), _, Eq(1)))
+                write(Eq(driveA.path()), _, Eq(1u)))
       .WillOnce(Return(API_EWRITE));
 
     // Close all databases.
@@ -3052,7 +3052,7 @@ TEST_F(XBackupConfigStoreTest, CloseClean)
 
     // No writes should occur as the database is clean.
     EXPECT_CALL(ioContext(),
-                write(Eq(drive.path()), _, Eq(1)))
+                write(Eq(drive.path()), _, Eq(1u)))
       .Times(0);
 
     // Close the database.
@@ -3127,7 +3127,7 @@ TEST_F(XBackupConfigStoreTest, CloseDirty)
     // A single write should be issued to update the dirty database.
     Expectation write =
       EXPECT_CALL(ioContext(),
-                  write(Eq(drive.path()), _, Eq(1)))
+                  write(Eq(drive.path()), _, Eq(1u)))
         .Times(1);
 
     // onRemove should be generated when the database's config is removed.
@@ -3179,7 +3179,7 @@ TEST_F(XBackupConfigStoreTest, CloseDirtyCantWrite)
 
     // Attempts to write the database should fail.
     EXPECT_CALL(ioContext(),
-                write(Eq(drive.path()), _, Eq(1)))
+                write(Eq(drive.path()), _, Eq(1u)))
       .Times(1)
       .WillOnce(Return(API_EWRITE));
 
@@ -3331,7 +3331,7 @@ TEST_F(XBackupConfigStoreTest, Create)
     // Initial write should succeed.
     Expectation write =
       EXPECT_CALL(ioContext(),
-                  write(Eq(drivePath), Eq("[]"), Eq(0)))
+                  write(Eq(drivePath), Eq("[]"), Eq(0u)))
         .After(get)
         .WillOnce(Return(API_OK));
 
@@ -3365,7 +3365,7 @@ TEST_F(XBackupConfigStoreTest, CreateAlreadyOpened)
     // Initial write should succeed.
     Expectation write =
       EXPECT_CALL(ioContext(),
-                  write(Eq(drivePath), Eq("[]"), Eq(0)))
+                  write(Eq(drivePath), Eq("[]"), Eq(0u)))
         .After(get)
         .WillOnce(Return(API_OK));
 
@@ -3414,7 +3414,7 @@ TEST_F(XBackupConfigStoreTest, CreateCantReadExisting)
 
     // Reading the slot should fail.
     EXPECT_CALL(ioContext(),
-                read(Eq(drivePath), _, Eq(0)))
+                read(Eq(drivePath), _, Eq(0u)))
       .After(get)
       .WillOnce(Return(API_EREAD));
 
@@ -3440,7 +3440,7 @@ TEST_F(XBackupConfigStoreTest, CreateCantWrite)
 
     // Initial write should fail.
     EXPECT_CALL(ioContext(),
-                write(Eq(drivePath), Eq("[]"), Eq(0)))
+                write(Eq(drivePath), Eq("[]"), Eq(0u)))
       .After(get)
       .WillOnce(Return(API_EWRITE));
 
@@ -3492,7 +3492,7 @@ TEST_F(XBackupConfigStoreTest, CreateExisting)
     // Reading the slot should return the generated JSON.
     Expectation read =
       EXPECT_CALL(ioContext(),
-                  read(Eq(drivePath), _, Eq(0)))
+                  read(Eq(drivePath), _, Eq(0u)))
         .After(get)
         .WillOnce(DoAll(SetArgReferee<1>(writer.getstring()),
                         Return(API_OK)));
@@ -3808,7 +3808,7 @@ TEST_F(XBackupConfigStoreTest, Open)
     // Return the JSON on read and signal success.
     Expectation read =
       EXPECT_CALL(ioContext(),
-                  read(Eq(drivePath), _, Eq(0)))
+                  read(Eq(drivePath), _, Eq(0u)))
         .Times(1)
         .After(get)
         .WillOnce(DoAll(SetArgReferee<1>(writer.getstring()),
@@ -3870,7 +3870,7 @@ TEST_F(XBackupConfigStoreTest, OpenCantRead)
 
     // Attempts to read the slot should fail.
     EXPECT_CALL(ioContext(),
-                read(Eq(drivePath), _, Eq(0)))
+                read(Eq(drivePath), _, Eq(0u)))
       .Times(1)
       .After(get)
       .WillOnce(Return(API_EREAD));
