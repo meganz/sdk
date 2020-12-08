@@ -13185,7 +13185,7 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
 // returns false if any local fs op failed transiently
 bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
 {
-    static const dstime MONITOR_DELAY_DS = 5;
+    static const dstime MONITOR_DELAY_SEC = 5;
 
     SyncdownContext cxt;
 
@@ -13228,7 +13228,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
     // Otherwise, mirror is not yet stable.
     //
     // Set a timer to force another syncdown in the future.
-    syncmonitorbt.backoff(MONITOR_DELAY_DS);
+    syncmonitorbt.backoff(MONITOR_DELAY_SEC * 10);
     syncmonitorretry = true;
 
     return true;
