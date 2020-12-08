@@ -738,6 +738,16 @@ public:
         return *this;
     }
 
+    bool operator==(const UnicodeCodepointIterator& rhs) const
+    {
+        return mCurrent == rhs.mCurrent && mEnd == rhs.mEnd;
+    }
+
+    bool operator!=(const UnicodeCodepointIterator& rhs) const
+    {
+        return !(*this == rhs);
+    }
+
     bool end() const
     {
         return mCurrent == mEnd;
@@ -752,6 +762,31 @@ public:
             ptrdiff_t nConsumed = traits_type::get(result, mCurrent, mEnd);
             assert(nConsumed > 0);
             mCurrent += nConsumed;
+        }
+
+        return result;
+    }
+    
+    bool match(const int32_t character)
+    {
+        if (peek() != character)
+        {
+            return false;
+        }
+
+        (void)get();
+
+        return true;
+    }
+
+    int32_t peek() const
+    {
+        int32_t result = 0;
+
+        if (mCurrent < mEnd)
+        {
+            ptrdiff_t nConsumed = traits_type::get(result, mCurrent, mEnd);
+            assert(nConsumed > 0);
         }
 
         return result;

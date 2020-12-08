@@ -68,11 +68,59 @@ bool isEscape(UnicodeCodepointIterator<CharT> it)
            && islchex(it.get());
 }
 
+#ifdef _WIN32
+
+template<typename CharT>
+UnicodeCodepointIterator<CharT> skipPrefix(const UnicodeCodepointIterator<CharT>& it)
+{
+    auto i = it;
+
+    // Match leading \\.
+    if (!(i.match('\\') && i.match('\\')))
+    {
+        return it;
+    }
+
+    // Match . or ?
+    switch (i.peek())
+    {
+    case '.':
+    case '?':
+        (void)i.get();
+        break;
+    default:
+        return it;
+    }
+
+    // Match \.
+    if (!i.match('\\'))
+    {
+        return it;
+    }
+
+    auto j = i;
+
+    // Match drive letter.
+    if (j.get() && j.match(':'))
+    {
+        return i;
+    }
+
+    return it;
+}
+
+#endif // _WIN32
+
 template<typename CharT, typename CharU, typename UnaryOperation>
 int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
                UnicodeCodepointIterator<CharU> first2, bool unescaping2,
                UnaryOperation transform)
 {
+#ifdef _WIN32
+    first1 = skipPrefix(first1);
+    first2 = skipPrefix(first2);
+#endif // _WIN32
+
     while (!(first1.end() || first2.end()))
     {
         int c1;

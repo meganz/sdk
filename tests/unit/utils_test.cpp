@@ -214,6 +214,28 @@ TEST_F(ComparatorTest, CompareLocalPaths)
         lhs = fromPath("a%qb%");
 
         EXPECT_EQ(compare(lhs, lhs), 0);
+
+#ifdef _WIN32
+        // Non-UNC prefixes should be skipped.
+        lhs = fromPath("\\\\?\\C:\\");
+        rhs = fromPath("C:\\");
+
+        EXPECT_EQ(compare(lhs, rhs), 0);
+        EXPECT_EQ(compare(rhs, lhs), 0);
+
+        lhs = fromPath("\\\\.\\C:\\");
+        rhs = fromPath("C:\\");
+
+        EXPECT_EQ(compare(lhs, rhs), 0);
+        EXPECT_EQ(compare(rhs, lhs), 0);
+
+        // Prefixes should only be removed from absolute paths.
+        lhs = fromPath("\\\\?\\X");
+        rhs = fromPath("X");
+
+        EXPECT_NE(compare(lhs, rhs), 0);
+        EXPECT_NE(compare(rhs, lhs), 0);
+#endif // _WIN32
     }
 
     // Filesystem-specific
@@ -309,6 +331,28 @@ TEST_F(ComparatorTest, CompareLocalPathAgainstString)
         rhs = "a%qb%r";
 
         EXPECT_EQ(compare(lhs, rhs), 0);
+
+#ifdef _WIN32
+        // Non-UNC prefixes should be skipped.
+        lhs = fromPath("\\\\?\\C:\\");
+        rhs = "C:\\";
+
+        EXPECT_EQ(compare(lhs, rhs), 0);
+        EXPECT_EQ(compare(rhs, lhs), 0);
+
+        lhs = fromPath("\\\\.\\C:\\");
+        rhs = "C:\\";
+
+        EXPECT_EQ(compare(lhs, rhs), 0);
+        EXPECT_EQ(compare(rhs, lhs), 0);
+
+        // Prefixes should only be removed from absolute paths.
+        lhs = fromPath("\\\\?\\X");
+        rhs = "X";
+
+        EXPECT_NE(compare(lhs, rhs), 0);
+        EXPECT_NE(compare(rhs, lhs), 0);
+#endif // _WIN32
     }
 
     // Filesystem-specific
