@@ -1153,6 +1153,7 @@ void MegaClient::init()
     syncdebrisadding = false;
     syncdebrisminute = 0;
     syncscanfailed = false;
+    syncmonitorretry = false;
     syncfslockretry = false;
     syncfsopsfailed = false;
     syncdownretry = false;
@@ -1207,7 +1208,7 @@ void MegaClient::init()
 MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, DbAccess* d, GfxProc* g, const char* k, const char* u, unsigned workerThreadCount)
     : useralerts(*this), btugexpiration(rng), btcs(rng), btbadhost(rng), btworkinglock(rng), btsc(rng), btpfa(rng), btheartbeat(rng)
 #ifdef ENABLE_SYNC
-    ,syncfslockretrybt(rng), syncdownbt(rng), syncnaglebt(rng), syncextrabt(rng), syncscanbt(rng)
+    ,syncfslockretrybt(rng), syncdownbt(rng), syncnaglebt(rng), syncextrabt(rng), syncscanbt(rng), syncmonitorbt(rng)
 #endif
     , mAsyncQueue(*w, workerThreadCount)
 #ifdef ENABLE_SYNC
@@ -2543,6 +2544,13 @@ void MegaClient::exec()
             syncops = true;
         }
 
+        // sync timer: try to transition into mirroring mode.
+        if (syncmonitorretry && syncmonitorbt.armed())
+        {
+            syncmonitorretry = false;
+            syncdownrequired = true;
+        }
+
         // sync timer: file change upload delay timeouts (Nagle algorithm)
         if (syncnagleretry && syncnaglebt.armed())
         {
@@ -3258,6 +3266,12 @@ int MegaClient::preparewait()
         if (syncscanfailed)
         {
             syncscanbt.update(&nds);
+        }
+
+        // sync monitor timer.
+        if (syncmonitorretry)
+        {
+            syncmonitorbt.update(&nds);
         }
 
         // retrying of transient failed read ops
@@ -13169,6 +13183,8 @@ void MegaClient::addchild(remotenode_map* nchildren, string* name, Node* n, list
 // returns false if any local fs op failed transiently
 bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
 {
+    static const dstime MONITOR_DELAY_DS = 5;
+
     SyncdownContext cxt;
 
     cxt.mActionsPerformed = false;
@@ -13178,25 +13194,40 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
         return false;
     }
 
-    if (l->sync->isBackupMirroring())
+    if (!l->sync->isBackupMirroring())
     {
-        bool mirrorStable = true;
-
-        // SCs must have been processed.
-        mirrorStable &= statecurrent;
-
-        // Syncdown must not have performed any actions.
-        mirrorStable &= !cxt.mActionsPerformed;
-
-        // Scan queue must be empty.
-        mirrorStable &= mirrorStable && l->sync->dirnotify->empty();
-
-        // Monitor if the mirror is stable.
-        if (mirrorStable)
-        {
-            l->sync->backupMonitor();
-        }
+        return true;
     }
+
+    bool mirrorStable = true;
+
+    // SCs must have been processed.
+    mirrorStable &= statecurrent;
+
+    // Syncdown must not have performed any actions.
+    mirrorStable &= !cxt.mActionsPerformed;
+
+    // Scan queue must be empty.
+    mirrorStable &= mirrorStable && l->sync->dirnotify->empty();
+
+    // Monitor if the mirror is stable.
+    if (mirrorStable)
+    {
+        // Transition to monitor state.
+        l->sync->backupMonitor();
+
+        // Cancel any active monitor timer.
+        syncmonitorbt.reset();
+        syncmonitorretry = false;
+
+        return true;
+    }
+
+    // Otherwise, mirror is not yet stable.
+    //
+    // Set a timer to force another syncdown in the future.
+    syncmonitorbt.backoff(MONITOR_DELAY_DS);
+    syncmonitorretry = true;
 
     return true;
 }

@@ -562,6 +562,19 @@ protected:
                           const XBackupConfig& config) override;
 
 private:
+    // How we compare drive paths.
+    struct DrivePathComparator
+    {
+        bool operator()(const LocalPath& lhs, const LocalPath& rhs) const
+        {
+            return platformCompareUtf(lhs, false, rhs, false) < 0;
+        }
+    }; // DrivePathComparator
+
+    // Convenience.
+    using DrivePathToDBMap =
+      std::map<LocalPath, XBackupConfigDBPtr, DrivePathComparator>;
+
     // Close a database.
     error close(XBackupConfigDB& db);
 
@@ -572,7 +585,7 @@ private:
     set<XBackupConfigDB*> mDirtyDB;
 
     // Maps drive path to database.
-    map<LocalPath, XBackupConfigDBPtr> mDriveToDB;
+    DrivePathToDBMap mDriveToDB;
 
     // IO context used to read and write from disk.
     XBackupConfigIOContext& mIOContext;
