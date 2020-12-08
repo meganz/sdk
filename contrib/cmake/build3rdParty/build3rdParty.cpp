@@ -1,6 +1,7 @@
 #include <iostream>
 #include <filesystem>
 #include <vector>
+#include <map>
 #include <string>
 #include <fstream>
 
@@ -26,11 +27,12 @@ namespace fs = std::experimental::filesystem;
 
 bool build = false;
 bool setup = false;
+bool removeUnusedPorts = false;
 fs::path portsFile;
 fs::path sdkRootPath;
 string triplet;
 
-vector<string> ports;
+map<string, string> ports;
 
 fs::path initialDir = fs::current_path();
 fs::path vcpkgDir = fs::current_path() / "vcpkg";
@@ -78,16 +80,10 @@ try
                 exit(1);
             }
 
-            for (auto port : ports)
+            for (auto portPair : ports)
             {
-                auto slashpos = port.find("/");
-                if (slashpos == string::npos)
-                {
-                    cout << "bad port: " << port << endl;
-                    return 1;
-                }
-                string portname = port.substr(0, slashpos);
-                string portversion = port.substr(slashpos + 1);
+                const string& portname = portPair.first;
+                const string& portversion = portPair.second;
 
                 if (fs::is_directory(fs::path("ports") / portname))
                 {
@@ -109,6 +105,17 @@ try
                 }
             }
 
+            if (removeUnusedPorts)
+            {
+                for (auto dir = fs::directory_iterator(vcpkgDir / "ports"); dir != fs::directory_iterator(); ++dir)
+                {
+                    if (ports.find(dir->path().filename().u8string()) == ports.end())
+                    {
+                        fs::remove_all(dir->path());
+                    }
+                }
+            }
+
         }
         else if (build)
         {
@@ -124,19 +131,12 @@ try
             }
 
 
-            for (auto port : ports)
+            for (auto portPair : ports)
             {
-                auto slashpos = port.find("/");
-                if (slashpos == string::npos)
-                {
-                    cout << "bad port: " << port << endl;
-                    return 1;
-                }
-
                 #ifdef WIN32
-                    execute("vcpkg install --triplet " + triplet + " " + port.substr(0, slashpos));
+                    execute("vcpkg install --triplet " + triplet + " " + portPair.first);
                 #else
-                    execute("./vcpkg install --triplet " + triplet + " " + port.substr(0, slashpos));
+                    execute("./vcpkg install --triplet " + triplet + " " + portPair.first);
                 #endif
             }
         }
@@ -167,7 +167,7 @@ void execute(string command)
 
 bool showSyntax()
 {
-    cout << "build3rdParty --setup --ports <ports override file> --triplet <triplet> --sdkroot <path>" << endl;
+    cout << "build3rdParty --setup [--removeunusedports] --ports <ports override file> --triplet <triplet> --sdkroot <path>" << endl;
     cout << "build3rdParty --build --ports <ports override file> --triplet <triplet>" << endl;
     return false;
 }
@@ -176,7 +176,7 @@ bool readCommandLine(int argc, char* argv[])
 {
     if (argc <= 1) return showSyntax();
 
-    std::vector<char*> myargv1(argv, argv + argc);
+    std::vector<char*> myargv1(argv + 1, argv + argc);
     std::vector<char*> myargv2;
 
     for (auto it = myargv1.begin(); it != myargv1.end(); ++it)
@@ -204,6 +204,11 @@ bool readCommandLine(int argc, char* argv[])
             setup = true;
             argc -= 1;
         }
+        else if (std::string(*it) == "--removeunusedports" && setup)
+        {
+            removeUnusedPorts = true;
+            argc -= 1;
+        }
         else if (std::string(*it) == "--build")
         {
             build = true;
@@ -215,9 +220,9 @@ bool readCommandLine(int argc, char* argv[])
         }
     }
 
-    if (myargv2.empty())
+    if (!myargv2.empty())
     {
-        cout << "unknown parameter: " << myargv2[1] << endl;
+        cout << "unknown parameter: " << myargv2[0] << endl;
         return false;
     }
 
@@ -236,10 +241,34 @@ bool readCommandLine(int argc, char* argv[])
     {
         string s;
         getline(portsIn, s);
+
+        // remove comments
+        auto hashpos = s.find("#");
+        if (hashpos != string::npos) s.erase(hashpos);
+
+        // remove whitespace
         while (!s.empty() && (s.front() == ' ' || s.front() == '\t')) s.erase(0, 1);
         while (!s.empty() && (s.back() == ' ' || s.back() == '\t')) s.pop_back();
-        if (s.empty() || s[0] == '#') continue;
-        ports.push_back(s);
+        if (s.empty()) continue;
+
+        // extract port/version map
+        auto slashpos = s.find("/");
+        if (slashpos == string::npos)
+        {
+            cout << "bad port: " << s << endl;
+            return 1;
+        }
+        string portname = s.substr(0, slashpos);
+        string portversion = s.substr(slashpos + 1);
+
+        auto existing = ports.find(portname);
+        if (existing != ports.end() && existing->second != portversion)
+        {
+            cout << "conflicting port versions: " << portname << " " << existing->second << " " << portversion << endl;
+            return 1;
+        }
+        ports[portname] = portversion;
+
     }
 
     return true;
