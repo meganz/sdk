@@ -3279,9 +3279,6 @@ error XBackupConfigDB::write(XBackupConfigIOContext& ioContext)
 const XBackupConfig* XBackupConfigDB::add(const XBackupConfig& config,
                                           const bool flush)
 {
-    // Sanity check.
-    assert(config.drivePath == mDrivePath);
-
     auto it = mTagToConfig.find(config.tag);
 
     // Do we already have a config with this tag?
@@ -3901,11 +3898,18 @@ const XBackupConfig* XBackupConfigStore::add(XBackupConfig config)
     config.drivePath = NormalizeAbsolute(config.drivePath);
     config.sourcePath = NormalizeRelative(config.sourcePath);
 
+    // For comparing paths.
+    static auto equal =
+      [](const LocalPath& lhs, const LocalPath& rhs)
+      {
+          return platformCompareUtf(lhs, false, rhs, false) == 0;
+      };
+
     // Is the config already in a database?
     if (i != mTagToDB.end())
     {
         // Is the config moving between databases?
-        if (i->second->drivePath() == config.drivePath)
+        if (equal(i->second->drivePath(), config.drivePath))
         {
             // Nope, just update the config.
             return i->second->add(config);
