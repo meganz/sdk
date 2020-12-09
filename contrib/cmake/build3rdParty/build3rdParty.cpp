@@ -21,6 +21,10 @@ namespace fs = std::experimental::filesystem;
 #include <experimental/filesystem>
 namespace fs = std::experimental::filesystem;
 #endif
+#else
+//for mac
+#include <filesystem>
+namespace fs = std::__fs::filesystem;
 #endif
 
 
