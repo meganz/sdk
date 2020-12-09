@@ -2296,6 +2296,7 @@ class MegaApiImpl : public MegaApp
         void setUserAttribute(int type, const MegaStringMap* value, MegaRequestListener *listener = NULL);
         void getRubbishBinAutopurgePeriod(MegaRequestListener *listener = NULL);
         void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
+        const char* getDeviceId() const;
         void getDeviceName(MegaRequestListener *listener = NULL);
         void setDeviceName(const char* deviceName, MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);

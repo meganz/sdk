@@ -2844,6 +2844,11 @@ void MegaApi::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listen
     pImpl->setRubbishBinAutopurgePeriod(days, listener);
 }
 
+const char* MegaApi::getDeviceId() const
+{
+    return pImpl->getDeviceId();
+}
+
 void MegaApi::getDeviceName(MegaRequestListener *listener)
 {
     pImpl->getDeviceName(listener);

@@ -12123,6 +12123,15 @@ class MegaApi
         void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Returns the id of this device
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return The id of this device
+         */
+        const char* getDeviceId() const;
+
+        /**
          * @brief Returns the name set for this device
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
