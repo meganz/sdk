@@ -1444,9 +1444,12 @@ void LocalNode::setnode(Node* cnode)
 {
     deleted = false;
 
-    if (cnode) cnode->localnode.reset();
     node.reset();
-    node.crossref(cnode, this);
+    if (cnode)
+    {
+        cnode->localnode.reset();
+        node.crossref(cnode, this);
+    }
 }
 
 void LocalNode::setnotseen(int newnotseen)
