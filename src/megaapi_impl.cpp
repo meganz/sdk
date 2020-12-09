@@ -1555,10 +1555,8 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(handleContainerStr, &client->key));
     if (!tlvRecords || !tlvRecords->find("h")) { return API_EINTERNAL; }
 
-    std::unique_ptr<MegaStringMap> stringMap(new MegaStringMapPrivate(tlvRecords->getMap(), true));
-    const char *handleStr = stringMap->get("h");
     handle h = 0; // make sure top two bytes are 0
-    Base64::atob(handleStr, (byte*)&h, MegaClient::NODEHANDLE);
+    memcpy(&h, tlvRecords->get("h").c_str(), MegaClient::NODEHANDLE);
 
     if (!h || h == UNDEF) { return API_ENOENT; }
 
@@ -1580,8 +1578,6 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
 
     const string& deviceName = tlvRecords->get(deviceId);
     if (deviceName.empty()) { return API_EINCOMPLETE; }
-
-    request->setText(deviceName.c_str()); // cache this to use it in putnodes_result()
 
     vector<NewNode> newnodes;
     nameid attrId = AttrMap::string2nameid("dev-id"); // "device-id" would be too long
