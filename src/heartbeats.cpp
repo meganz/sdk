@@ -30,16 +30,6 @@ HeartBeatBackupInfo::HeartBeatBackupInfo()
 {
 }
 
-Command *HeartBeatBackupInfo::runningCommand() const
-{
-    return mRunningCommand;
-}
-
-void HeartBeatBackupInfo::setRunningCommand(Command *runningCommand)
-{
-    mRunningCommand = runningCommand;
-}
-
 int HeartBeatBackupInfo::status() const
 {
     return mStatus;
@@ -108,14 +98,6 @@ void HeartBeatBackupInfo::setLastBeat(const m_time_t &lastBeat)
 m_time_t HeartBeatBackupInfo::lastBeat() const
 {
     return mLastBeat;
-}
-
-void HeartBeatBackupInfo::onCommandToBeDeleted(Command *command)
-{
-    if (mRunningCommand == command)
-    {
-        mRunningCommand = nullptr;
-    }
 }
 
 ////////// HeartBeatTransferProgressedInfo ////////
@@ -437,19 +419,7 @@ void MegaBackupMonitor::beatBackupInfo(UnifiedSync& us)
         }
 #endif
 
-        auto runningCommand = hbs->runningCommand();
-
-        if (runningCommand && !runningCommand->getRead()) //replace existing command
-        {
-            LOG_warn << "Detected a yet unprocessed beat: replacing data with current";
-            // instead of appending a new command, and potentially hammering, we just update the existing command with the updated input
-            runningCommand->replaceWith(*newCommand);
-        }
-        else // append new command
-        {
-            hbs->setRunningCommand(newCommand);
-            mClient->reqs.add(newCommand);
-        }
+        mClient->reqs.add(newCommand);
     }
 }
 void MegaBackupMonitor::beat()

@@ -34,17 +34,8 @@ struct JSON;
 struct MegaApp;
 // request command component
 
-class MEGA_API CommandListener
-{
-public:
-    virtual void onCommandToBeDeleted(Command *) = 0;
-};
-
-
 class MEGA_API Command
 {
-    std::vector<std::weak_ptr<CommandListener>> mListeners;
-
     error result;
 
 protected:
@@ -55,8 +46,6 @@ protected:
 
 public:
     MegaClient* client; // non-owning
-
-    void addListener(const std::shared_ptr<CommandListener> &listener);
 
     int tag;
 
@@ -160,8 +149,6 @@ public:
     bool checkError(Error &errorDetails, JSON &json);
 
     MEGA_DEFAULT_COPY_MOVE(Command)
-    bool getRead() const; //if already read
-    void replaceWith(Command &command);
 };
 
 // list of new file attributes to write
