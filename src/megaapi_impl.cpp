@@ -1608,7 +1608,11 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     NewNode& backupNameNode = newnodes.back();
 
     client->putnodes_prepareOneFolder(&backupNameNode, backupName, addAttrsFunc);
-    backupNameNode.parenthandle = deviceNameNode ? deviceNameNode->nodehandle : newnodes[0].nodehandle;
+    if (!deviceNameNode)
+    {
+        // Set parent handle if part of the new nodes array (it cannot be from an existing node)
+        backupNameNode.parenthandle = newnodes[0].nodehandle;
+    }
 
     // create the new node(s)
     client->putnodes(deviceNameNode ? deviceNameNode->nodehandle : myBackupsNode->nodehandle, move(newnodes));  // followup in putnodes_result()
