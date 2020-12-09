@@ -14831,7 +14831,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 auto fa = fsaccess->newfileaccess();
                 auto localpath = t->localfilename.toPath(*fsaccess);
 
-                if (!fa->fopen(t->localfilename))
+                if (t->localfilename.empty() || !fa->fopen(t->localfilename))
                 {
                     if (d == PUT)
                     {

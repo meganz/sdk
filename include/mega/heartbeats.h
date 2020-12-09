@@ -36,7 +36,7 @@ struct UnifiedSync;
  * This class holds the information that will be heartbeated
  */
 
-class HeartBeatBackupInfo : public CommandListener
+class HeartBeatBackupInfo
 {
 public:
     HeartBeatBackupInfo();
@@ -55,10 +55,6 @@ public:
 
     virtual handle lastItemUpdated() const;
 
-    virtual Command *runningCommand() const;
-    virtual void setRunningCommand(Command *runningCommand);
-
-    virtual void onCommandToBeDeleted(Command *command) override;
     virtual m_time_t lastBeat() const;
     virtual void setLastBeat(const m_time_t &lastBeat);
     virtual void setLastAction(const m_time_t &lastAction);
@@ -81,8 +77,6 @@ protected:
 
     m_time_t mLastAction = -1;   //timestamps of the last action
     m_time_t mLastBeat = -1;     //timestamps of the last beat
-
-    Command *mRunningCommand = nullptr;
 
     void updateLastActionTime();
 };
