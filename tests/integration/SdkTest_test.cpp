@@ -4753,6 +4753,12 @@ TEST_F(SdkTest, SdkBackupFolder)
     int err = synchronousBackupFolder(0, folderToBackup.c_str(), remoteBackup);
     ASSERT_TRUE(err == MegaError::API_OK) << "Backup folder failed (error: " << err << ")";
 
+    // verify node attribute
+    std::unique_ptr<MegaNode> backupNode(megaApi[0]->getNodeByHandle(mApi[0].h));
+    const char* deviceIdFromNode = backupNode->getDeviceId();
+    std::unique_ptr<const char[]> deviceIdFromApi{ megaApi[0]->getDeviceId() };
+    ASSERT_STREQ(deviceIdFromNode, deviceIdFromApi.get());
+
     // Verify that the remote path was created as expected
     unique_ptr<char[]> myBackupsFolder{ megaApi[0]->getNodePathByNodeHandle(mh) };
     string expectedRemotePath = string(myBackupsFolder.get()) + '/' + deviceName + '/' + remoteBackup;
