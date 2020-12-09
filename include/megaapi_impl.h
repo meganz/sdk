@@ -484,6 +484,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         bool isInShare() override;
         std::string* getSharekey();
         MegaHandle getOwner() const override;
+        const char* getDeviceId() const override;
 
 #ifdef ENABLE_SYNC
         bool isSyncDeleted() override;
@@ -515,6 +516,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         std::string fileattrstring;
         std::string privateAuth;
         std::string publicAuth;
+        std::string deviceId;
         const char *chatAuth;
         int tag;
         int changed;

@@ -418,6 +418,10 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
                     mLabel = static_cast<nodelabel_t>(lbl);
                 }
             }
+            else if (it->first == AttrMap::string2nameid("dev-id"))
+            {
+                deviceId = it->second;
+            }
         }
     }
 
@@ -991,6 +995,11 @@ int MegaNodePrivate::getChanges()
 MegaHandle MegaNodePrivate::getOwner() const
 {
     return owner;
+}
+
+const char* MegaNodePrivate::getDeviceId() const
+{
+    return deviceId.c_str();
 }
 
 const unsigned int MegaApiImpl::MAX_SESSION_LENGTH = 64;

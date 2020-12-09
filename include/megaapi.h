@@ -1114,6 +1114,17 @@ class MegaNode
         virtual MegaHandle getOwner() const;
 
         /**
+         * @brief Returns the device id stored as a Node attribute of a Backup folder.
+         * It will be an empty string for other nodes.
+         *
+         * The MegaNode object retains the ownership of the returned string, it will be valid until
+         * the MegaNode object is deleted.
+         *
+         * @return The device id associated with the Node of a Backup folder.
+         */
+        virtual const char* getDeviceId() const;
+
+        /**
          * @brief Provides a serialization of the MegaNode object
          *
          * @note This function is intended to use ONLY with MegaNode objects obtained from

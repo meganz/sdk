@@ -647,6 +647,11 @@ MegaHandle MegaNode::getOwner() const
     return INVALID_HANDLE;
 }
 
+const char* MegaNode::getDeviceId() const
+{
+    return nullptr;
+}
+
 char *MegaNode::serialize()
 {
     return NULL;
