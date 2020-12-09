@@ -8594,6 +8594,9 @@ class MegaApi
          * - MegaRequest::getLink - Returns the public link to the folder
          * - MegaRequest::getPassword - Returns the auth link used for writting
          *
+         * If the provided authKey is not valid, onRequestFinish will
+         * be called with the error code MegaError::API_EACCESS.
+         *
          * @param megaFolderLink Public link to a folder in MEGA
          * @param authKey Authentication key to write into the folder link
          * @param listener MegaRequestListener to track this request
@@ -9595,6 +9598,12 @@ class MegaApi
          * @return Email of the account
          */
         char* getMyEmail();
+
+        /**
+         * @brief Get the timestamp when the account was created
+         * @return Timestamp when the account was created
+         */
+        int64_t getAccountCreationTs();
 
         /**
          * @brief Returns the user handle of the currently open account

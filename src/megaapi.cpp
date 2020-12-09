@@ -1821,6 +1821,11 @@ char *MegaApi::getMyEmail()
     return pImpl->getMyEmail();
 }
 
+int64_t MegaApi::getAccountCreationTs()
+{
+    return pImpl->getAccountCreationTs();
+}
+
 char *MegaApi::getMyUserHandle()
 {
     return pImpl->getMyUserHandle();

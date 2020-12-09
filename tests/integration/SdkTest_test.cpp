@@ -20,33 +20,11 @@
  */
 
 #include "test.h"
+#include "stdfs.h"
 #include "SdkTest_test.h"
 #include "mega/testhooks.h"
 #include "megaapi_impl.h"
 #include <algorithm>
-
-#if (__cplusplus > 201703L)
-    #include <filesystem>
-    namespace fs = std::filesystem;
-    #define USE_FILESYSTEM
-#elif (__cplusplus >= 201700L)
-    #include <experimental/filesystem>
-    namespace fs = std::experimental::filesystem;
-    #define USE_FILESYSTEM
-#elif (__clang_major__ >= 11)
-    #include <filesystem>
-    namespace fs = std::__fs::filesystem;
-    #define USE_FILESYSTEM
-#elif !defined(__MINGW32__) && !defined(__ANDROID__) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
-    #define USE_FILESYSTEM
-    #ifdef WIN32
-        #include <filesystem>
-        namespace fs = std::experimental::filesystem;
-    #else
-        #include <experimental/filesystem>
-        namespace fs = std::experimental::filesystem;
-    #endif
-#endif
 
 #ifdef WIN32
 #define LOCAL_TEST_FOLDER "c:\\tmp\\synctests"
@@ -310,7 +288,8 @@ void SdkTest::Cleanup()
     deleteFile(AVATARDST);
 
     std::vector<std::unique_ptr<RequestTracker>> delSyncTrackers;
-
+    
+    int index = 0;
     for (auto &m : megaApi)
     {
         auto syncs = unique_ptr<MegaSyncList>(m->getSyncs());
@@ -319,6 +298,21 @@ void SdkTest::Cleanup()
             delSyncTrackers.push_back(std::unique_ptr<RequestTracker>(new RequestTracker(m.get())));
             m->removeSync(syncs->get(i), delSyncTrackers.back().get());
         }
+
+        // clear user attributes: backup ids 
+        if (auto u = m->getMyUser())
+        {
+            auto err = synchronousGetUserAttribute(index, u, MegaApi::USER_ATTR_BACKUP_NAMES);
+            if (MegaError::API_OK == err)
+            {
+                for (auto& b : mBackupIds)
+                {
+                    synchronousRemoveBackup(0, b);
+                }
+            }
+        }
+        mBackupIds.clear();
+        ++index;
     }
 
     // wait for delsyncs to complete:
@@ -428,20 +422,38 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
 
     case MegaRequest::TYPE_GET_ATTR_USER:
 
-        if (mApi[apiIndex].lastError == API_OK && 
-            (request->getParamType() == MegaApi::USER_ATTR_BACKUP_NAMES ||
-             request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES || 
-             request->getParamType() == MegaApi::USER_ATTR_ALIAS))
+        if (mApi[apiIndex].lastError == API_OK)
         {
-            attributeValue = request->getName();
-        }
-        else if ((mApi[apiIndex].lastError == API_OK) && (request->getParamType() == MegaApi::USER_ATTR_MY_BACKUPS_FOLDER))
-        {
-            mApi[apiIndex].h = request->getNodeHandle();
-        }
-        else if ( (mApi[apiIndex].lastError == API_OK) && (request->getParamType() != MegaApi::USER_ATTR_AVATAR))
-        {
-            attributeValue = request->getText() ? request->getText() : "";
+            if (request->getParamType() == MegaApi::USER_ATTR_BACKUP_NAMES ||
+                request->getParamType() == MegaApi::USER_ATTR_DEVICE_NAMES ||
+                request->getParamType() == MegaApi::USER_ATTR_ALIAS)
+            {
+                attributeValue = request->getName() ? request->getName() : "";
+                if (request->getParamType() == MegaApi::USER_ATTR_BACKUP_NAMES)
+                {
+                    auto backupStringMap = request->getMegaStringMap();
+                    if (backupStringMap)
+                    {
+                        auto keys = backupStringMap->getKeys();
+                        for (int i = 0; i < backupStringMap->size(); ++i)
+                        {
+                            string s(keys->get(i));
+                            MegaHandle h = UNDEF;
+                            Base64::atob(s.c_str(), (::mega::byte*) &h, MegaClient::BACKUPHANDLE);
+                            mBackupIds.insert(h);
+                        }
+                    }
+
+                }
+            }
+            else if (request->getParamType() == MegaApi::USER_ATTR_MY_BACKUPS_FOLDER)
+            {
+                mApi[apiIndex].h = request->getNodeHandle();
+            }
+            else if (request->getParamType() != MegaApi::USER_ATTR_AVATAR)
+            {
+                attributeValue = request->getText() ? request->getText() : "";
+            }
         }
 
         if (request->getParamType() == MegaApi::USER_ATTR_AVATAR)
@@ -4962,8 +4974,10 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
 
     // update a removed backup: should throw an error
+    mApi[0].userUpdated = false; 
     err = synchronousRemoveBackup(0, mBackupId, nullptr);
     ASSERT_EQ(MegaError::API_OK, err) << "removeBackup failed (error: " << err << ")";
+    ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
     err = synchronousUpdateBackup(0, mBackupId, BackupType::INVALID, UNDEF, nullptr, -1, -1, extraData.c_str());
     ASSERT_NE(MegaError::API_OK, err) << "updateBackup failed (error: " << err << ")";
 
@@ -5001,12 +5015,12 @@ TEST_F(SdkTest, DISABLED_SdkUserAlias)
     }
     else
     {
-        ASSERT_TRUE(FALSE) << "Cannot find the MegaUser for email: " << mApi[0].email;
+        ASSERT_TRUE(false) << "Cannot find the MegaUser for email: " << mApi[0].email;
     }
 
     if (uh == UNDEF)
     {
-        ASSERT_TRUE(FALSE) << "failed to get user handle for email:" << mApi[0].email;
+        ASSERT_TRUE(false) << "failed to get user handle for email:" << mApi[0].email;
     }
 
     // test setter/getter

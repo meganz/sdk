@@ -667,11 +667,6 @@ int MegaClient::nextSyncTag(int increment)
     return ++mSyncTag;
 }
 
-int MegaClient::hexval(char c)
-{
-    return c > '9' ? c - 'a' + 10 : c - '0';
-}
-
 void MegaClient::exportDatabase(string filename)
 {
     FILE *fp = NULL;
@@ -8998,6 +8993,20 @@ error MegaClient::folderaccess(const char *folderlink, const char *authKey)
     error e;
     if ((e = parsepubliclink(folderlink, h, folderkey, true)) == API_OK)
     {
+        if (authKey)
+        {
+            auto ptr = authKey;
+            while (*ptr)
+            {
+                if (!URLCodec::issafe(*ptr))
+                {
+                    LOG_warn << "Authkey is not valid";
+                    return API_EACCESS;
+                }
+                ptr++;
+            }
+        }
+
         setrootnode(h, authKey);
         key.setkey(folderkey);
     }
@@ -15104,7 +15113,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 auto fa = fsaccess->newfileaccess();
                 auto localpath = t->localfilename.toPath(*fsaccess);
 
-                if (!fa->fopen(t->localfilename))
+                if (t->localfilename.empty() || !fa->fopen(t->localfilename))
                 {
                     if (d == PUT)
                     {

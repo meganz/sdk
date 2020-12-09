@@ -745,6 +745,8 @@ bool PosixFileSystemAccess::cwd(LocalPath& path) const
         buf.resize(buf.size() << 1);
     }
 
+    buf.resize(strlen(buf.c_str()));
+
     return true;
 }
 

@@ -2881,13 +2881,13 @@ bool CommandPutUAVer::procresult(Result r)
                         // serialize and encrypt the TLV container
                         std::unique_ptr<std::string> container(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
                         client->putua(at, (byte *)container->data(), unsigned(container->size()));
-                        client->mPendingBackupNames.clear();
                     }
                     else
                     {
-                        LOG_err << "Failed to merge with existing backup names after `upv`";
-                        assert(false);
+                        LOG_warn << "No changes to merge into existing backup names after `upv`";
+                        client->mSendingBackupName = false;
                     }
+                    client->mPendingBackupNames.clear();
                 }
             }
 
@@ -3176,13 +3176,13 @@ bool CommandGetUA::procresult(Result r)
                                     // serialize and encrypt the TLV container
                                     std::unique_ptr<std::string> container(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
                                     client->putua(at, (byte *)container->data(), unsigned(container->size()));
-                                    client->mPendingBackupNames.clear();
                                 }
                                 else
                                 {
-                                    LOG_err << "Failed to merge with existing backup names after `uga`";
-                                    assert(false);
+                                    LOG_warn << "No changes to merge into existing backup names after `uga`";
+                                    client->mSendingBackupName = false;
                                 }
+                                client->mPendingBackupNames.clear();
                             }
                             break;
                         }
@@ -8346,13 +8346,12 @@ bool CommandBackupPut::procresult(Result r)
                 client->putua(attrType, (byte *)container->data(), unsigned(container->size()));
 
                 client->mSendingBackupName = true;
-                client->mPendingBackupNames.clear();
             }
             else
             {
-                LOG_err << "Failed to merge with existing backup names with the new one for backup id: " << backupId;
-                assert(false);
+                LOG_warn << "No changes to merge into existing backup names with the new one for backup id: " << backupId;
             }
+            client->mPendingBackupNames.clear();
         }
     }
 
@@ -8446,13 +8445,12 @@ bool CommandBackupRemove::procresult(Result r)
                 client->putua(attrType, (byte *)container->data(), unsigned(container->size()));
 
                 client->mSendingBackupName = true;
-                client->mPendingBackupNames.clear();
             }
             else
             {
-                LOG_err << "Failed to merge with existing backup names with the new one for backup id: " << key;
-                assert(false);
+                LOG_warn << "No changes to merge into existing backup names after removal of backup id: " << key;
             }
+            client->mPendingBackupNames.clear();
         }
     }
 

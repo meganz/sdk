@@ -2220,6 +2220,7 @@ class MegaApiImpl : public MegaApp
         int isLoggedIn();
         void whyAmIBlocked(bool logout, MegaRequestListener *listener = NULL);
         char* getMyEmail();
+        int64_t getAccountCreationTs();
         char* getMyUserHandle();
         MegaHandle getMyUserHandleBinary();
         MegaUser *getMyUser();
