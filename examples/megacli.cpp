@@ -3100,9 +3100,11 @@ autocomplete::ACN autocompleteSyntax()
            sequence(text("sync"),
                     text("backup"),
                     text("add"),
-                    opt(localFSFolder("drive")),
-                    localFSFolder("source"),
-                    remoteFSFolder(client, &cwd, "target")));
+                    either(sequence(localFSFolder("drive"),
+                                    localFSFolder("source"),
+                                    remoteFSFolder(client, &cwd, "target")),
+                           sequence(localFSFolder("source"),
+                                    remoteFSFolder(client, &cwd, "target")))));
 
     p->Add(exec_syncbackupremove,
            sequence(text("sync"),
