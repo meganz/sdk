@@ -13526,7 +13526,7 @@ void MegaApiImpl::sync_removed(int tag)
 
 void MegaApiImpl::sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const SyncError &syncError)
 {
-    MegaSyncPrivate *sync = new MegaSyncPrivate(config.getLocalPath().c_str(), config.getName().c_str(), config.getRemoteNode(), config.getTag());
+    MegaSyncPrivate *sync = new MegaSyncPrivate(config.getLocalPath().c_str(), config.getName().c_str(), config.getRemoteNode(), config.getTag(), config.getType());
 
     sync->setLocalFingerprint(static_cast<long long>(config.getLocalFingerprint()));
     sync->setMegaFolder(config.getRemotePath().c_str());
@@ -14082,7 +14082,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
                                     0, {}, true, SyncConfig::TYPE_BACKUP };
 
             // add the Sync
-            auto sync = make_unique<MegaSyncPrivate>(localPath, backupName, backupHandle, nextSyncTag);
+            auto sync = make_unique<MegaSyncPrivate>(localPath, backupName, backupHandle, nextSyncTag, SyncConfig::TYPE_BACKUP);
             sync->setListener(request->getSyncListener());
             SyncError syncError;
             e = client->addsync(syncConfig, DEBRISFOLDER, NULL, syncError, true, sync.get());
@@ -21813,7 +21813,7 @@ void MegaApiImpl::sendPendingRequests()
             const char *name = request->getName();
 
             auto nextSyncTag = client->nextSyncTag();
-            MegaSyncPrivate *sync = new MegaSyncPrivate(localPath, name, node->nodehandle, nextSyncTag);
+            MegaSyncPrivate *sync = new MegaSyncPrivate(localPath, name, node->nodehandle, nextSyncTag, type);
             sync->setListener(request->getSyncListener());
             sync->setRegExp(request->getRegExp());
 
@@ -24679,7 +24679,7 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
 }
 
 #ifdef ENABLE_SYNC
-MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle nodehandle, int tag)
+MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle nodehandle, int tag, SyncConfig::Type type)
 {
     this->tag = tag;
     this->megaHandle = nodehandle;
@@ -24701,6 +24701,7 @@ MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle node
     this->regExp = NULL;
     this->listener = NULL;
     this->mError = 0;
+    this->mType = static_cast<SyncType>(type);
 }
 
 MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
@@ -24719,6 +24720,7 @@ MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
     this->setListener(sync->getListener());
     this->setRegExp(sync->getRegExp());
     this->setError(sync->getError());
+    this->setType(sync->getType());
 }
 
 MegaSyncPrivate::~MegaSyncPrivate()
@@ -25067,6 +25069,16 @@ int MegaSyncPrivate::getError() const
 void MegaSyncPrivate::setError(int error)
 {
     mError = error;
+}
+
+int MegaSyncPrivate::getType() const
+{
+    return mType;
+}
+
+void MegaSyncPrivate::setType(MegaSync::SyncType type)
+{
+    mType = type;
 }
 
 void MegaSyncPrivate::disable(int error)

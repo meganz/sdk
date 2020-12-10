@@ -5774,6 +5774,11 @@ int MegaSync::getError() const
     return MegaSync::Error::NO_SYNC_ERROR;
 }
 
+int MegaSync::getType() const
+{
+    return MegaSync::SyncType::TYPE_UNKNOWN;
+}
+
 bool MegaSync::isEnabled() const
 {
     return true;

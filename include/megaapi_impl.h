@@ -1069,7 +1069,7 @@ private:
 class MegaSyncPrivate : public MegaSync
 {
 public:
-    MegaSyncPrivate(const char *path, const char *name, handle nodehandle, int tag);
+    MegaSyncPrivate(const char *path, const char *name, handle nodehandle, int tag, SyncConfig::Type type);
     MegaSyncPrivate(MegaSyncPrivate *sync);
 
     virtual ~MegaSyncPrivate();
@@ -1100,6 +1100,9 @@ public:
     virtual int getError() const;
     void setError(int error);
 
+    int getType() const override;
+    void setType(SyncType type);
+
     void disable(int error = NO_SYNC_ERROR); //disable. NO_SYNC_ERROR = user disable
 
     virtual bool isEnabled() const; //enabled by user
@@ -1116,10 +1119,10 @@ protected:
     long long fingerprint;
     MegaSyncListener *listener;
     int state; //this refers to status (initialscan/active/failed/canceled/disabled)
+    SyncType mType = TYPE_UNKNOWN;
 
     //holds error cause
     int mError;
-
 };
 
 

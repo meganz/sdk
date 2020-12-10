@@ -5353,6 +5353,15 @@ public:
         NEW_TEMP_DISABLED = 6, // new sync added as temporarily disabled due to a temporary error
     };
 
+    enum SyncType
+    {
+        TYPE_UNKNOWN = 0x00,
+        TYPE_UP = 0x01, // sync up from local to remote
+        TYPE_DOWN = 0x02, // sync down from remote to local
+        TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
+        TYPE_BACKUP, // special sync up from local to remote, automatically disabled when remote changed
+    };
+
     virtual ~MegaSync();
 
     /**
@@ -5481,6 +5490,14 @@ public:
      */
     virtual int getError() const;
 
+    /**
+     * @brief Get the type of sync
+     *
+     * See possible values in MegaSync::SyncType.
+     *
+     * @return Type of sync
+     */
+    virtual int getType() const;
 
     /**
      * @brief Returns if the sync is set as enabled by the user
