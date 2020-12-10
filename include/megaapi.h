@@ -14176,7 +14176,6 @@ class MegaApi
          * @return Path of the file that is blocking the sync engine, or NULL if it isn't blocked
          */
         char *getBlockedPath();
-#endif
 
         /**
          * @brief Start backup for the given folder, to "My Backups" remote destination
@@ -14216,6 +14215,7 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void backupFolder(const char *localFolder, const char *backupName = nullptr, MegaRequestListener *listener = nullptr);
+#endif
 
         /**
          * @brief Get the backup identified with a tag
