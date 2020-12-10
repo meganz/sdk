@@ -3478,13 +3478,13 @@ void MegaApi::setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
     pImpl->setExcludedRegularExpressions(sync, regExp);
 }
 #endif
-#endif
-
 
 void MegaApi::backupFolder(const char *localFolder, const char *backupName, MegaRequestListener *listener)
 {
     pImpl->syncFolder(localFolder, backupName, INVALID_HANDLE, SyncConfig::Type::TYPE_BACKUP, nullptr, listener);
 }
+#endif
+
 
 MegaBackup *MegaApi::getBackupByTag(int tag)
 {
