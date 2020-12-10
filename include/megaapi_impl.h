@@ -1237,8 +1237,6 @@ class MegaRequestPrivate : public MegaRequest
         void setMegaStringList(MegaStringList* stringList);
 
 #ifdef ENABLE_SYNC
-        void setSyncListener(MegaSyncListener *syncListener);
-        MegaSyncListener *getSyncListener() const;
         void setRegExp(MegaRegExp *regExp);
         virtual MegaRegExp *getRegExp() const;
 #endif
@@ -1274,7 +1272,6 @@ protected:
         long long transferredBytes;
         MegaRequestListener *listener;
 #ifdef ENABLE_SYNC
-        MegaSyncListener *syncListener;
         MegaRegExp *regExp;
 #endif
         MegaBackupListener *backupListener;
@@ -2066,9 +2063,6 @@ class RequestQueue
         MegaRequestPrivate * pop();
         MegaRequestPrivate * front();
         void removeListener(MegaRequestListener *listener);
-#ifdef ENABLE_SYNC
-        void removeListener(MegaSyncListener *listener);
-#endif
         void removeListener(MegaBackupListener *listener);
 };
 
@@ -2117,10 +2111,6 @@ class MegaApiImpl : public MegaApp
         void addTransferListener(MegaTransferListener* listener);
         void addBackupListener(MegaBackupListener* listener);
         void addGlobalListener(MegaGlobalListener* listener);
-#ifdef ENABLE_SYNC
-        void addSyncListener(MegaSyncListener *listener);
-        void removeSyncListener(MegaSyncListener *listener);
-#endif
         void removeListener(MegaListener* listener);
         void removeRequestListener(MegaRequestListener* listener);
         void removeTransferListener(MegaTransferListener* listener);
@@ -2889,6 +2879,7 @@ protected:
         // sc requests to close existing wsc and immediately retrieve pending actionpackets
         RequestQueue scRequestQueue;
 
+        std::unique_ptr<MegaBackupMonitor> mHeartBeatMonitor;
         int pendingUploads;
         int pendingDownloads;
         int totalUploads;
@@ -2902,14 +2893,9 @@ protected:
         set<MegaTransferListener *> transferListeners;
         set<MegaBackupListener *> backupListeners;
 
-#ifdef ENABLE_SYNC
-        set<MegaSyncListener *> syncListeners;
-
         MegaSyncPrivate* cachedMegaSyncPrivateByTag(int tag);
         unique_ptr<MegaSyncPrivate> mCachedMegaSyncPrivate;
         int mCachedMegaSyncPrivateTag = 0;
-#endif
-
         set<MegaGlobalListener *> globalListeners;
         set<MegaListener *> listeners;
         retryreason_t waitingRequest;
