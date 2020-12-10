@@ -102,8 +102,8 @@ struct UnifiedSync
 private:
     friend class Sync;
     friend struct Syncs;
-    error startSync(MegaClient* client, const char* debris, LocalPath* localdebris, Node* remotenode, bool inshare, int tag, SyncError& syncError, bool isNetwork, bool delayInitialScan, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder);
-    void changeConfigState(syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent = true);
+    error startSync(MegaClient* client, const char* debris, LocalPath* localdebris, Node* remotenode, bool inshare, SyncError& syncError, bool isNetwork, bool delayInitialScan, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder);
+    void changeConfigState(SyncError newSyncError, bool newEnabledFlag, bool fireDisableEvent);
     bool updateSyncRemoteLocation(Node* n, bool forceCallback);
 };
 
@@ -158,7 +158,7 @@ public:
     void cachenodes();
 
     // change state, signal to application
-    void changestate(syncstate_t, SyncError newSyncError = NO_SYNC_ERROR, bool notifyApp = true);
+    void changestate(syncstate_t, SyncError newSyncError, bool newEnableFlag, bool notifyApp);
 
     // skip duplicates and self-caused
     bool checkValidNotification(int q, Notification& notification);
@@ -211,10 +211,6 @@ public:
 
     // does the filesystem have stable IDs? (FAT does not)
     bool fsstableids = false;
-
-    // Error that causes a cancellation
-    SyncError errorCode = NO_SYNC_ERROR;
-    Error apiErrorCode; //in case a cancellation is caused by a regular error (unused)
 
     // true if the sync hasn't loaded cached LocalNodes yet
     bool initializing = true;
@@ -271,10 +267,10 @@ struct Syncs
     error enableSyncByTag(int tag, SyncError& syncError, bool resetFingerprint, handle newRemoteNode);
 
     // disable all active syncs.  Cache is kept
-    void disableSyncs(SyncError syncError = NO_SYNC_ERROR);
+    void disableSyncs(SyncError syncError, bool newEnabledFlag);
 
     // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted
-    void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError);
+    void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag);
 
     // Called via MegaApi::removeSync - cache files are deleted
     void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
@@ -283,7 +279,7 @@ struct Syncs
     void clear();
 
     // updates in state & error
-    void saveAndUpdateSyncConfig(SyncConfig& config, syncstate_t newstate, SyncError syncerror);
+    void saveAndUpdateSyncConfig(SyncConfig& config, SyncError newSyncError, bool newEnabledFlag);
     void saveSyncConfig(const SyncConfig& config);
 
     Syncs(MegaClient& mc);

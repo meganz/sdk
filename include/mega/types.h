@@ -890,9 +890,6 @@ public:
     // whether this sync can be resumed
     bool isResumable() const;
 
-    // whether this sync should be resumed at startup
-    bool isResumableAtStartup() const;
-
     // wether this sync has errors (was inactive)
     bool hasError() const;
 
@@ -955,13 +952,8 @@ public:
     // sets if enabled by the user
     void setEnabled(bool enabled);
 
-    // check if a sync would be enabled according to the sync state and error
-    static bool isEnabled(syncstate_t state, SyncError syncError);
-
     handle getBackupId() const;
     void setBackupId(const handle &backupId);
-
-    syncstate_t calcState(Sync* s) const;
 
 private:
 

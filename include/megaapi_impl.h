@@ -1069,7 +1069,7 @@ class MegaSyncPrivate : public MegaSync
 public:
     MegaSyncPrivate(const char *path, const char *name, handle nodehandle, int tag);
     MegaSyncPrivate(const SyncConfig& config, Sync*);
-    MegaSyncPrivate(MegaSyncPrivate *sync);
+    MegaSyncPrivate(MegaSyncPrivate*);
 
     virtual ~MegaSyncPrivate();
 
@@ -1088,11 +1088,7 @@ public:
     void setLocalFingerprint(long long fingerprint);
     virtual int getTag() const;
     void setTag(int tag);
-    void setListener(MegaSyncListener *listener);
-    MegaSyncListener *getListener();
-    virtual int getState() const;
 
-    void setState(int state);
     virtual MegaRegExp* getRegExp() const;
     void setRegExp(MegaRegExp *regExp);
 
@@ -1113,11 +1109,11 @@ protected:
     MegaRegExp *regExp;
     int tag;
     long long fingerprint;
-    MegaSyncListener *listener;
-    int state; //this refers to status (initialscan/active/failed/canceled/disabled)
 
     //holds error cause
     int mError;
+    bool mEnabled = false;
+    bool mActive = false;
 
 };
 
@@ -3159,19 +3155,14 @@ protected:
 #ifdef ENABLE_SYNC
         // sync status updates and events
 
-        /**
-         * @brief updates sync state and fires changes corresponding callbacks:
-         * - fireOnSyncStateChanged: this will be fired regardless
-         * - firOnSyncDisabled: when transitioning from active to inactive sync
-         * - fireOnSyncEnabled: when transitioning from inactive to active sync
-         * @param tag
-         * @param fireDisableEvent if when the change entails a transition to inactive should call to fireOnSyncDisabled. Should
-         * be false when adding a new sync (there was no sync: failure implies no transition)
-         */
-        void syncupdate_state(int tag, syncstate_t, syncstate_t oldstate, bool fireDisableEvent = true) override;
+        // calls fireOnSyncStateChanged
+        void syncupdate_stateconfig(int tag) override;
+
+        // calls firOnSyncDisabled or fireOnSyncEnabled
+        void syncupdate_active(int tag, bool active) override;
 
         // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded indicating the result of that addition
-        void sync_auto_resume_result(const UnifiedSync& s) override;
+        void sync_auto_resume_result(const UnifiedSync& s, bool attempted) override;
 
         // this will fire onSyncStateChange if remote path of the synced node has changed
         virtual void syncupdate_remote_root_changed(const SyncConfig &) override;

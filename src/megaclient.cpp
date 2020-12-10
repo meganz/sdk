@@ -457,7 +457,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                 if (n->localnode && (n->localnode->sync->state == SYNC_ACTIVE || n->localnode->sync->state == SYNC_INITIALSCAN))
                 {
                     LOG_warn << "Existing inbound share sync or part thereof lost full access";
-                    n->localnode->sync->changestate(SYNC_FAILED, SHARE_NON_FULL_ACCESS);
+                    n->localnode->sync->changestate(SYNC_FAILED, SHARE_NON_FULL_ACCESS, false, true);
                 }
             } while ((n = n->parent));
 
@@ -466,7 +466,7 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
                 if (sync->inshare && (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN) && !checkaccess(sync->localroot->node, FULL))
                 {
                     LOG_warn << "Existing inbound share sync lost full access";
-                    sync->changestate(SYNC_FAILED, SHARE_NON_FULL_ACCESS);
+                    sync->changestate(SYNC_FAILED, SHARE_NON_FULL_ACCESS, false, true);
                 }
             });
 
@@ -2463,7 +2463,7 @@ void MegaClient::exec()
                 {
                     LOG_err << "Local fingerprint mismatch. Previous: " << sync->fsfp
                             << "  Current: " << current;
-                    sync->changestate(SYNC_FAILED, current ? LOCAL_FINGERPRINT_MISMATCH : LOCAL_PATH_UNAVAILABLE);
+                    sync->changestate(SYNC_FAILED, current ? LOCAL_FINGERPRINT_MISMATCH : LOCAL_PATH_UNAVAILABLE, false, true);
                 }
             }
         });
@@ -2488,13 +2488,12 @@ void MegaClient::exec()
                             syncsup = false;
                             sync->initializing = false;
                             LOG_debug << "Initial delayed scan finished. New / modified files: " << sync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
-                            syncs.saveAndUpdateSyncConfig(sync->getConfig(), sync->state, NO_SYNC_ERROR);
                         }
                         else
                         {
                             LOG_err << "Initial delayed scan failed";
                             failSync(sync, INITIAL_SCAN_FAILED);
-                            sync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED); //note, this only causes fireOnSyncXXX if there's a MegaSync object in the map already
+                            sync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED, false, true); //note, this only causes fireOnSyncXXX if there's a MegaSync object in the map already
                         }
 
                         syncactivity = true;
@@ -2682,7 +2681,7 @@ void MegaClient::exec()
 
                                 if (sync->state == SYNC_INITIALSCAN && q == DirNotify::DIREVENTS && !sync->dirnotify->notifyq[q].size())
                                 {
-                                    sync->changestate(SYNC_ACTIVE);
+                                    sync->changestate(SYNC_ACTIVE, NO_SYNC_ERROR, true, true);
 
                                     // scan for items that were deleted while the sync was stopped
                                     // FIXME: defer this until RETRY queue is processed
@@ -2782,7 +2781,7 @@ void MegaClient::exec()
                         if (!sync->localroot->node)
                         {
                             LOG_err << "The remote root node doesn't exist";
-                            sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND);
+                            sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true);
                         }
                     });
 
@@ -2972,7 +2971,7 @@ void MegaClient::exec()
                         if (!sync->localroot->node)
                         {
                             LOG_err << "The remote root node doesn't exist";
-                            sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND);
+                            sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true);
                         }
                         else
                         {
@@ -4134,7 +4133,7 @@ void MegaClient::locallogout(bool removecaches)
         if (mKeepSyncsAfterLogout)
         {
             //disableSyncs in a temporarily state: so that they will be resumed when relogin
-            syncs.disableSyncs(LOGGED_OUT);
+            syncs.disableSyncs(LOGGED_OUT, true);
         }
         else
         {
@@ -5307,7 +5306,7 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         app->notify_storage(ststatus);
         if (status == STORAGE_RED || status == STORAGE_PAYWALL) //transitioning to OQ
         {
-            syncs.disableSyncs(STORAGE_OVERQUOTA);
+            syncs.disableSyncs(STORAGE_OVERQUOTA, true);
         }
 #endif
 
@@ -6939,7 +6938,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
 #ifdef ENABLE_SYNC
         if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired
         {
-            syncs.disableSyncs(BUSINESS_EXPIRED);
+            syncs.disableSyncs(BUSINESS_EXPIRED, true);  // do try to resume again on start
         }
         if (prevBizStatus == BIZ_STATUS_EXPIRED) //taransitioning to not expired
         {
@@ -11178,7 +11177,7 @@ void MegaClient::block(bool fromServerClientResponse)
     LOG_verbose << "Blocking MegaClient, fromServerClientResponse: " << fromServerClientResponse;
     setBlocked(true);
 #ifdef ENABLE_SYNC
-    syncs.disableSyncs(ACCOUNT_BLOCKED);
+    syncs.disableSyncs(ACCOUNT_BLOCKED, false);
 #endif
 }
 
@@ -14195,8 +14194,7 @@ void MegaClient::putnodes_sync_result(error e, vector<NewNode>& nn)
 
         if (e && e != API_EEXPIRED && nn[nni].localnode && nn[nni].localnode->sync)
         {
-            nn[nni].localnode->sync->apiErrorCode = e;
-            nn[nni].localnode->sync->changestate(SYNC_FAILED, PUT_NODES_ERROR);
+            nn[nni].localnode->sync->changestate(SYNC_FAILED, PUT_NODES_ERROR, false, true);
         }
     }
 
@@ -14486,20 +14484,20 @@ void MegaClient::failSync(Sync* sync, SyncError syncerror)
 {
     LOG_err << "Failing sync: " << sync->getConfig().getLocalPath() << " error = " << syncerror;
 
-    sync->changestate(SYNC_FAILED, syncerror); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
+    sync->changestate(SYNC_FAILED, syncerror, false, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
 
     syncactivity = true;
 }
 
 
-bool MegaClient::disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError)
+bool MegaClient::disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError, bool newEnabledFlag)
 {
     auto sync = getSyncContainingNodeHandle(nodeHandle);
     if (sync)
     {
         syncs.disableSelectedSyncs([&](SyncConfig&, Sync* s) {
             return s == sync;
-        }, syncError);
+        }, syncError, newEnabledFlag);
     }
     return false;
 }
@@ -14526,7 +14524,7 @@ Sync * MegaClient::getSyncContainingNodeHandle(mega::handle nodeHandle)
 void MegaClient::failSyncs(SyncError syncError)
 {
     syncs.forEachRunningSync([&](Sync* sync) {
-        sync->changestate(SYNC_FAILED, syncError); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
+        sync->changestate(SYNC_FAILED, syncError, false, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
     });
     syncactivity = true;
 }

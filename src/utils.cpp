@@ -2283,22 +2283,9 @@ void SyncConfig::setEnabled(bool enabled)
     mEnabled = enabled;
 }
 
-bool SyncConfig::isEnabled(syncstate_t state, SyncError syncError)
-{
-    return state != SYNC_CANCELED && (state != SYNC_DISABLED || syncError != NO_SYNC_ERROR);
-}
-
 bool SyncConfig::isResumable() const
 {
     return mEnabled && !isSyncErrorPermanent(mError);
-}
-
-bool SyncConfig::isResumableAtStartup() const
-{
-    return mEnabled && (!isAnError(mError)
-                        || mError == LOGGED_OUT
-                        || mError == UNKNOWN_TEMPORARY_ERROR
-                        || mError == FOREIGN_TARGET_OVERSTORAGE); //temporary errors that don't have an asociated restore functionality
 }
 
 bool SyncConfig::hasError() const
@@ -2414,14 +2401,6 @@ void SyncConfig::setBackupId(const handle &backupId)
 {
     mBackupId = backupId;
 }
-
-syncstate_t SyncConfig::calcState(Sync* s) const {
-    return s ? s->state : (
-               getEnabled() && mError != STORAGE_OVERQUOTA && mError != NO_SYNC_ERROR
-                    ? SYNC_FAILED
-                    : SYNC_DISABLED);
-}
-
 
 // This should be a const-method but can't be due to the broken Cacheable interface.
 // Do not mutate members in this function! Hence, we forward to a private const-method.

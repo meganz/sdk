@@ -453,7 +453,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 #ifdef ENABLE_SYNC
             if (f->syncxfer)
             {
-                client->disableSyncContainingNode(f->h, FOREIGN_TARGET_OVERSTORAGE);
+                client->disableSyncContainingNode(f->h, FOREIGN_TARGET_OVERSTORAGE, true);  // still try to resume at startup
             }
 #endif
             removeTransferFile(API_EOVERQUOTA, f, &committer);
@@ -535,7 +535,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 
             if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
             {
-                client->syncs.disableSyncs(BUSINESS_EXPIRED);
+                client->syncs.disableSyncs(BUSINESS_EXPIRED, true); // still try to resume on start
                 alreadyDisabled = true;
             }
 #endif

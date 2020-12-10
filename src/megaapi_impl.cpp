@@ -13089,25 +13089,27 @@ MegaSyncPrivate* MegaApiImpl::cachedMegaSyncPrivateByTag(int tag)
     return mCachedMegaSyncPrivate.get();
 }
 
-void MegaApiImpl::syncupdate_state(int tag, syncstate_t newstate, syncstate_t oldstate, bool fireDisableEvent)
+void MegaApiImpl::syncupdate_stateconfig(int tag)
 {
     mCachedMegaSyncPrivate.reset();
 
     if (auto megaSync = cachedMegaSyncPrivateByTag(tag))
     {
-        LOG_debug << "Sync state change: " << newstate << " was: " << oldstate << " Path: " << megaSync->getLocalFolder();
-
-        bool wasActive = oldstate >= 0;
-        bool isActive = newstate >= 0;
-
         fireOnSyncStateChanged(megaSync);
+    }
+}
 
-        if (fireDisableEvent && (wasActive && !isActive) )
+void MegaApiImpl::syncupdate_active(int tag, bool active)
+{
+    mCachedMegaSyncPrivate.reset();
+
+    if (auto megaSync = cachedMegaSyncPrivateByTag(tag))
+    {
+        if (!active)
         {
             fireOnSyncDisabled(megaSync);
         }
-
-        if (!wasActive && isActive)
+        else
         {
             fireOnSyncEnabled(megaSync);
         }
@@ -13375,23 +13377,19 @@ void MegaApiImpl::sync_removed(int tag)
     }
 }
 
-void MegaApiImpl::sync_auto_resume_result(const UnifiedSync& s)
+void MegaApiImpl::sync_auto_resume_result(const UnifiedSync& s, bool attempted)
 {
     mCachedMegaSyncPrivate.reset();
 
-    unique_ptr<MegaSyncPrivate> sync(new MegaSyncPrivate(s.mConfig, s.mSync.get()));
+    auto megaSync = cachedMegaSyncPrivateByTag(s.mConfig.getTag());
 
-    bool failedToResume = s.mConfig.isResumableAtStartup() && !sync->isActive(); //the sync could not be resumed
-    bool attemptedReenabling = s.mConfig.isResumableAtStartup() && s.mConfig.hasError();
-
-
-    if (attemptedReenabling && s.mConfig.isResumableAtStartup()) //attempted to re-enable
+    if (attempted)
     {
-        fireOnSyncAdded(sync.get(), failedToResume ? MegaSync::REENABLED_FAILED : MegaSync::FROM_CACHE_REENABLED);
+        fireOnSyncAdded(megaSync, !s.mSync ? MegaSync::FROM_CACHE_FAILED_TO_RESUME : MegaSync::FROM_CACHE_REENABLED);
     }
     else //resumed as was
     {
-        fireOnSyncAdded(sync.get(), failedToResume ? MegaSync::FROM_CACHE_FAILED_TO_RESUME : MegaSync::FROM_CACHE);
+        fireOnSyncAdded(megaSync, MegaSync::FROM_CACHE);
     }
 }
 
@@ -16681,12 +16679,6 @@ void MegaApiImpl::fireOnSyncStateChanged(MegaSyncPrivate *sync)
     {
         (*it++)->onSyncStateChanged(api, sync);
     }
-
-    MegaSyncListener* listener = sync->getListener();
-    if(listener)
-    {
-        listener->onSyncStateChanged(api, sync);
-    }
 }
 
 void MegaApiImpl::fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event)
@@ -16700,13 +16692,6 @@ void MegaApiImpl::fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event)
     {
         (*it++)->onSyncEvent(api, sync, event);
     }
-
-    MegaSyncListener* listener = sync->getListener();
-    if(listener)
-    {
-        listener->onSyncEvent(api, sync, event);
-    }
-
     delete event;
 }
 
@@ -16722,12 +16707,6 @@ void MegaApiImpl::fireOnSyncAdded(MegaSyncPrivate *sync, int additionState)
     {
         (*it++)->onSyncAdded(api, sync, additionState);
     }
-
-    MegaSyncListener* listener = sync->getListener();
-    if(listener)
-    {
-        listener->onSyncAdded(api, sync, additionState);
-    }
 }
 
 void MegaApiImpl::fireOnSyncDisabled(MegaSyncPrivate *sync)
@@ -16740,12 +16719,6 @@ void MegaApiImpl::fireOnSyncDisabled(MegaSyncPrivate *sync)
     for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
     {
         (*it++)->onSyncDisabled(api, sync);
-    }
-
-    MegaSyncListener* listener = sync->getListener();
-    if(listener)
-    {
-        listener->onSyncDisabled(api, sync);
     }
 }
 
@@ -16760,12 +16733,6 @@ void MegaApiImpl::fireOnSyncEnabled(MegaSyncPrivate *sync)
     {
         (*it++)->onSyncEnabled(api, sync);
     }
-
-    MegaSyncListener* listener = sync->getListener();
-    if(listener)
-    {
-        listener->onSyncEnabled(api, sync);
-    }
 }
 
 void MegaApiImpl::fireonSyncDeleted(MegaSyncPrivate *sync)
@@ -16778,12 +16745,6 @@ void MegaApiImpl::fireonSyncDeleted(MegaSyncPrivate *sync)
     for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
     {
         (*it++)->onSyncDeleted(api, sync);
-    }
-
-    MegaSyncListener* listener = sync->getListener();
-    if(listener)
-    {
-        listener->onSyncDeleted(api, sync);
     }
 }
 
@@ -16812,11 +16773,6 @@ void MegaApiImpl::fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *loca
         (*it++)->onSyncFileStateChanged(api, sync, localPath, newState);
     }
 
-    MegaSyncListener* listener = sync->getListener();
-    if(listener)
-    {
-        listener->onSyncFileStateChanged(api, sync, localPath, newState);
-    }
 }
 
 #endif
@@ -21513,7 +21469,6 @@ void MegaApiImpl::sendPendingRequests()
 
             auto nextSyncTag = client->nextSyncTag();
             unique_ptr<MegaSyncPrivate> sync(new MegaSyncPrivate(localPath, name, node->nodehandle, nextSyncTag));
-            sync->setListener(request->getSyncListener());
             sync->setRegExp(request->getRegExp());
 
             SyncError syncError = NO_SYNC_ERROR;
@@ -21535,12 +21490,9 @@ void MegaApiImpl::sendPendingRequests()
             request->setNumDetails(syncError);
             if (!e || !isSyncErrorPermanent(syncError))
             {
-                auto newstate = isSyncErrorPermanent(syncError) ? SYNC_FAILED : SYNC_DISABLED;
-                sync->setState(newstate);
                 if (!e && unifiedSync && unifiedSync->mSync)
                 {
                     fsfp_t fsfp = unifiedSync->mSync->fsfp;
-                    sync->setState(unifiedSync->mSync->state); //override state with the actual one from the sync
                     sync->setLocalFingerprint(fsfp);
                     request->setNumber(fsfp);
                 }
@@ -21774,7 +21726,7 @@ void MegaApiImpl::sendPendingRequests()
                                (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
                 found = found || matched;  // no need to test s, auto tests check disable of disabled retgurns MegaError::API_OK
                 return matched;
-            }, NO_SYNC_ERROR);
+            }, NO_SYNC_ERROR, false);
 
             if (found)
             {
@@ -24309,6 +24261,8 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
 
 #ifdef ENABLE_SYNC
 MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle nodehandle, int tag)
+    : mActive(false)
+    , mEnabled(false)
 {
     this->tag = tag;
     this->megaHandle = nodehandle;
@@ -24325,14 +24279,14 @@ MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle node
         setName(path);
     }
     this->megaFolder = NULL;
-    this->state = SYNC_INITIALSCAN;
     this->fingerprint = 0;
     this->regExp = NULL;
-    this->listener = NULL;
     this->mError = 0;
 }
 
 MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr)
+    : mActive(false)
+    , mEnabled(false)
 {
     this->tag = config.getTag();
     this->megaHandle = config.getRemoteNode();
@@ -24351,7 +24305,6 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr)
     this->megaFolder = NULL;
     this->fingerprint = 0;
     this->regExp = NULL;
-    this->listener = NULL;
 
     setLocalFingerprint(static_cast<long long>(config.getLocalFingerprint()));
     setMegaFolder(config.getRemotePath().c_str());
@@ -24365,11 +24318,12 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr)
         setRegExp(re.get());
     }
 
-    setState(config.calcState(syncPtr));
     setError(config.getError());
 }
 
 MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
+    : mActive(sync->mActive)
+    , mEnabled(sync->mEnabled)
 {
     this->regExp = NULL;
     this->setTag(sync->getTag());
@@ -24381,8 +24335,6 @@ MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
     this->setMegaFolder(sync->getMegaFolder());
     this->setMegaHandle(sync->getMegaHandle());
     this->setLocalFingerprint(sync->getLocalFingerprint());
-    this->setState(sync->getState());
-    this->setListener(sync->getListener());
     this->setRegExp(sync->getRegExp());
     this->setError(sync->getError());
 }
@@ -24479,26 +24431,6 @@ int MegaSyncPrivate::getTag() const
 void MegaSyncPrivate::setTag(int tag)
 {
     this->tag = tag;
-}
-
-void MegaSyncPrivate::setListener(MegaSyncListener *listener)
-{
-    this->listener = listener;
-}
-
-MegaSyncListener *MegaSyncPrivate::getListener()
-{
-    return this->listener;
-}
-
-int MegaSyncPrivate::getState() const
-{
-    return state;
-}
-
-void MegaSyncPrivate::setState(int state)
-{
-    this->state = state;
 }
 
 MegaRegExpPrivate::MegaRegExpPrivate()
@@ -24737,23 +24669,23 @@ void MegaSyncPrivate::setError(int error)
 
 void MegaSyncPrivate::disable(int error)
 {
-    setState(SYNC_DISABLED);
+    mEnabled = false;
     setError(error);
 }
 
 bool MegaSyncPrivate::isEnabled() const
 {
-    return state != SYNC_CANCELED && (state != SYNC_DISABLED || mError != NO_SYNC_ERROR );
+    return mEnabled;;
 }
 
 bool MegaSyncPrivate::isActive() const
 {
-    return state != SYNC_FAILED && state != SYNC_CANCELED && state != SYNC_DISABLED;
+    return mActive;
 }
 
 bool MegaSyncPrivate::isTemporaryDisabled() const
 {
-    return state == SYNC_DISABLED && mError != NO_SYNC_ERROR;
+    return mEnabled && !mActive;
 }
 
 
