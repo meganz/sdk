@@ -3143,7 +3143,6 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     this->transfer = 0;
     this->listener = listener;
 #ifdef ENABLE_SYNC
-    this->syncListener = NULL;
     this->regExp = NULL;
 #endif
     this->backupListener = NULL;
@@ -3265,7 +3264,6 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
 #ifdef ENABLE_SYNC
     this->regExp = NULL;
     this->setRegExp(request->getRegExp());
-    this->syncListener = request->getSyncListener();
 #endif
     this->backupListener = request->getBackupListener();
     this->megaPricing = (MegaPricingPrivate *)request->getPricing();
@@ -3454,15 +3452,6 @@ void MegaRequestPrivate::setMegaStringList(MegaStringList* stringList)
 
 
 #ifdef ENABLE_SYNC
-void MegaRequestPrivate::setSyncListener(MegaSyncListener *syncListener)
-{
-    this->syncListener = syncListener;
-}
-
-MegaSyncListener *MegaRequestPrivate::getSyncListener() const
-{
-    return syncListener;
-}
 MegaRegExp *MegaRequestPrivate::getRegExp() const
 {
     return regExp;
@@ -16246,38 +16235,6 @@ void MegaApiImpl::addGlobalListener(MegaGlobalListener* listener)
     sdkMutex.unlock();
 }
 
-#ifdef ENABLE_SYNC
-void MegaApiImpl::addSyncListener(MegaSyncListener *listener)
-{
-    if(!listener) return;
-
-    sdkMutex.lock();
-    syncListeners.insert(listener);
-    sdkMutex.unlock();
-}
-
-void MegaApiImpl::removeSyncListener(MegaSyncListener *listener)
-{
-    if(!listener) return;
-
-    sdkMutex.lock();
-    syncListeners.erase(listener);
-
-    std::map<int, MegaSyncPrivate*>::iterator it = syncMap.begin();
-    while(it != syncMap.end())
-    {
-        MegaSyncPrivate* sync = it->second;
-        if(sync->getListener() == listener)
-            sync->setListener(NULL);
-
-        it++;
-    }
-    requestQueue.removeListener(listener);
-
-    sdkMutex.unlock();
-}
-#endif
-
 void MegaApiImpl::removeListener(MegaListener* listener)
 {
     if(!listener) return;
@@ -16772,17 +16729,6 @@ void MegaApiImpl::fireOnSyncStateChanged(MegaSyncPrivate *sync)
     {
         (*it++)->onSyncStateChanged(api, sync);
     }
-
-    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
-    {
-        (*it++)->onSyncStateChanged(api, sync);
-    }
-
-    MegaSyncListener* listener = sync->getListener();
-    if(listener)
-    {
-        listener->onSyncStateChanged(api, sync);
-    }
 }
 
 void MegaApiImpl::fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event)
@@ -16790,17 +16736,6 @@ void MegaApiImpl::fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event)
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncEvent(api, sync, event);
-    }
-
-    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
-    {
-        (*it++)->onSyncEvent(api, sync, event);
-    }
-
-    MegaSyncListener* listener = sync->getListener();
-    if(listener)
-    {
-        listener->onSyncEvent(api, sync, event);
     }
 
     delete event;
@@ -16813,17 +16748,6 @@ void MegaApiImpl::fireOnSyncAdded(MegaSyncPrivate *sync, int additionState)
     {
         (*it++)->onSyncAdded(api, sync, additionState);
     }
-
-    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
-    {
-        (*it++)->onSyncAdded(api, sync, additionState);
-    }
-
-    MegaSyncListener* listener = sync->getListener();
-    if(listener)
-    {
-        listener->onSyncAdded(api, sync, additionState);
-    }
 }
 
 void MegaApiImpl::fireOnSyncDisabled(MegaSyncPrivate *sync)
@@ -16831,17 +16755,6 @@ void MegaApiImpl::fireOnSyncDisabled(MegaSyncPrivate *sync)
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncDisabled(api, sync);
-    }
-
-    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
-    {
-        (*it++)->onSyncDisabled(api, sync);
-    }
-
-    MegaSyncListener* listener = sync->getListener();
-    if(listener)
-    {
-        listener->onSyncDisabled(api, sync);
     }
 }
 
@@ -16851,17 +16764,6 @@ void MegaApiImpl::fireOnSyncEnabled(MegaSyncPrivate *sync)
     {
         (*it++)->onSyncEnabled(api, sync);
     }
-
-    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
-    {
-        (*it++)->onSyncEnabled(api, sync);
-    }
-
-    MegaSyncListener* listener = sync->getListener();
-    if(listener)
-    {
-        listener->onSyncEnabled(api, sync);
-    }
 }
 
 void MegaApiImpl::fireonSyncDeleted(MegaSyncPrivate *sync)
@@ -16869,17 +16771,6 @@ void MegaApiImpl::fireonSyncDeleted(MegaSyncPrivate *sync)
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncDeleted(api, sync);
-    }
-
-    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
-    {
-        (*it++)->onSyncDeleted(api, sync);
-    }
-
-    MegaSyncListener* listener = sync->getListener();
-    if(listener)
-    {
-        listener->onSyncDeleted(api, sync);
     }
 }
 
@@ -16901,17 +16792,6 @@ void MegaApiImpl::fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *loca
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncFileStateChanged(api, sync, localPath, newState);
-    }
-
-    for(set<MegaSyncListener *>::iterator it = syncListeners.begin(); it != syncListeners.end() ;)
-    {
-        (*it++)->onSyncFileStateChanged(api, sync, localPath, newState);
-    }
-
-    MegaSyncListener* listener = sync->getListener();
-    if(listener)
-    {
-        listener->onSyncFileStateChanged(api, sync, localPath, newState);
     }
 }
 
@@ -21624,7 +21504,6 @@ void MegaApiImpl::sendPendingRequests()
 
             auto nextSyncTag = client->nextSyncTag();
             MegaSyncPrivate *sync = new MegaSyncPrivate(localPath, name, node->nodehandle, nextSyncTag);
-            sync->setListener(request->getSyncListener());
             sync->setRegExp(request->getRegExp());
 
             SyncError syncError = NO_SYNC_ERROR;
@@ -23717,24 +23596,6 @@ void RequestQueue::removeListener(MegaRequestListener *listener)
     mutex.unlock();
 }
 
-#ifdef ENABLE_SYNC
-void RequestQueue::removeListener(MegaSyncListener *listener)
-{
-    mutex.lock();
-
-    std::deque<MegaRequestPrivate *>::iterator it = requests.begin();
-    while(it != requests.end())
-    {
-        MegaRequestPrivate *request = (*it);
-        if(request->getSyncListener()==listener)
-            request->setSyncListener(NULL);
-        it++;
-    }
-
-    mutex.unlock();
-}
-#endif
-
 void RequestQueue::removeListener(MegaBackupListener *listener)
 {
     mutex.lock();
@@ -24509,7 +24370,6 @@ MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle node
     this->state = SYNC_INITIALSCAN;
     this->fingerprint = 0;
     this->regExp = NULL;
-    this->listener = NULL;
     this->mError = 0;
 }
 
@@ -24526,7 +24386,6 @@ MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
     this->setMegaHandle(sync->getMegaHandle());
     this->setLocalFingerprint(sync->getLocalFingerprint());
     this->setState(sync->getState());
-    this->setListener(sync->getListener());
     this->setRegExp(sync->getRegExp());
     this->setError(sync->getError());
 }
@@ -24623,16 +24482,6 @@ int MegaSyncPrivate::getTag() const
 void MegaSyncPrivate::setTag(int tag)
 {
     this->tag = tag;
-}
-
-void MegaSyncPrivate::setListener(MegaSyncListener *listener)
-{
-    this->listener = listener;
-}
-
-MegaSyncListener *MegaSyncPrivate::getListener()
-{
-    return this->listener;
 }
 
 int MegaSyncPrivate::getState() const
