@@ -29,6 +29,10 @@
     #include <filesystem>
     namespace fs = std::filesystem;
     #define USE_FILESYSTEM
+#elif (__cplusplus >= 201700L)
+    #include <experimental/filesystem>
+    namespace fs = std::experimental::filesystem;
+    #define USE_FILESYSTEM
 #elif (__clang_major__ >= 11)
     #include <filesystem>
     namespace fs = std::__fs::filesystem;
@@ -569,6 +573,10 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_BACKUP_PUT:
         mBackupId = request->getParentHandle();
         break;
+
+    case MegaRequest::TYPE_FETCH_GOOGLE_ADS:
+        mApi[apiIndex].mStringMap.reset(mApi[apiIndex].lastError == API_OK ? request->getMegaStringMap()->copy() : nullptr);
+            break;
     }
 }
 
@@ -2658,7 +2666,7 @@ TEST_F(SdkTest, SdkTestShareKeys)
 
 string localpathToUtf8Leaf(const LocalPath& itemlocalname, FSACCESS_CLASS& fsa)
 {
-    return itemlocalname.leafName(fsa.localseparator).toPath(fsa);
+    return itemlocalname.leafName().toPath(fsa);
 }
 
 LocalPath fspathToLocal(const fs::path& p, FSACCESS_CLASS& fsa)
@@ -2789,7 +2797,7 @@ TEST_F(SdkTest, SdkTestFolderIteration)
                 std::unique_ptr<FileAccess> iterate_fopen_fa(fsa.newfileaccess(false));
 
                 LocalPath localpath = localdir;
-                localpath.appendWithSeparator(itemlocalname, true, fsa.localseparator);
+                localpath.appendWithSeparator(itemlocalname, true);
 
                 ASSERT_TRUE(plain_fopen_fa->fopen(localpath, true, false));
                 plain_fopen[leafNameUtf8] = *plain_fopen_fa;
@@ -2816,7 +2824,7 @@ TEST_F(SdkTest, SdkTestFolderIteration)
                 std::unique_ptr<FileAccess> iterate_follow_fopen_fa(fsa.newfileaccess(true));
 
                 LocalPath localpath = localdir;
-                localpath.appendWithSeparator(itemlocalname, true, fsa.localseparator);
+                localpath.appendWithSeparator(itemlocalname, true);
 
                 ASSERT_TRUE(plain_follow_fopen_fa->fopen(localpath, true, false));
                 plain_follow_fopen[leafNameUtf8] = *plain_follow_fopen_fa;
@@ -4747,14 +4755,14 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     int subState = 3;
     
     // setup a backup
-    int backupType = BackupType::CAMERA_UPLOAD;
+    int backupType = MegaApi::BACKUP_TYPE_CAMERA_UPLOADS;
     auto err = synchronousSetBackup(0, backupType, targetNode, localFolder.get(), backupName.get(), state, subState, extraData.get());
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
 
     // update a backup
     const char* extra2 = "Test Update Camera Upload Test";
     unique_ptr<char[]> extraData2(MegaApiImpl::binaryToBase64(extra2, strlen(extra2)));
-    err = synchronousUpdateBackup(0, mBackupId, BackupType::INVALID, UNDEF, nullptr, nullptr, -1, -1, extraData2.get());
+    err = synchronousUpdateBackup(0, mBackupId, MegaApi::BACKUP_TYPE_INVALID, UNDEF, nullptr, nullptr, -1, -1, extraData2.get());
     ASSERT_EQ(MegaError::API_OK, err) << "updateBackup failed (error: " << err << ")";
 
     // remove an existing backup
@@ -5110,6 +5118,26 @@ TEST_F(SdkTest, DISABLED_RecursiveDownloadWithLogout)
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
     fs::remove_all(uploadpath, ec);
     fs::remove_all(downloadpath, ec);
+}
+
+TEST_F(SdkTest, QueryGoogleAds)
+{
+    LOG_info << "___TEST QueryGoogleAds";
+    getAccountsForTest(1);
+    int err = synchronousQueryGoogleAds(0, MegaApi::GOOGLE_ADS_FORCE_ADS);
+    ASSERT_EQ(MegaError::API_OK, err) << "Query Google Ads failed (error: " << err << ")";
+}
+
+TEST_F(SdkTest, FetchGoogleAds)
+{
+    LOG_info << "___TEST FetchGoogleAds";
+    getAccountsForTest(1);
+    std::unique_ptr<MegaStringList> stringList = std::unique_ptr<MegaStringList>(MegaStringList::createInstance());
+    stringList->add("and0");
+    stringList->add("ios0");
+    int err = synchronousFetchGoogleAds(0, MegaApi::GOOGLE_ADS_FORCE_ADS, stringList.get());
+    ASSERT_EQ(MegaError::API_OK, err) << "Fetch Google Ads failed (error: " << err << ")";
+    ASSERT_EQ(mApi[0].mStringMap->size(), 2);
 }
 
 #ifdef ENABLE_SYNC

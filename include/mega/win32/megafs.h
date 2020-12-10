@@ -94,6 +94,8 @@ public:
     WinFileSystemAccess();
     ~WinFileSystemAccess();
 
+    bool cwd(LocalPath& path) const override;
+
     std::set<WinDirNotify*> dirnotifys;
 };
 

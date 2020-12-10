@@ -773,6 +773,17 @@ class MegaNode
         virtual int64_t getPublicLinkCreationTime();
 
         /**
+         * @brief Returns authentication key for a writable folder.
+         *
+         * The MegaNode object retains the ownership of the returned string. It will
+         * be valid until the MegaNode object is deleted.
+         *
+         * @return authentication key for a writable folder. If there is no authentication key,
+         * nullptr shall be returned.
+         */
+        virtual const char * getWritableLinkAuthKey();
+
+        /**
          * @brief Returns true if this node represents a file (type == TYPE_FILE)
          * @return true if this node represents a file, otherwise false
          */
@@ -2235,6 +2246,13 @@ public:
 class MegaStringList
 {
 public:
+    /**
+     * @brief Creates a new instance of MegaStringList
+     *
+     * @return A pointer to the superclass of the private object
+     */
+    static MegaStringList *createInstance();
+
     virtual ~MegaStringList();
 
     virtual MegaStringList *copy() const;
@@ -2257,6 +2275,13 @@ public:
      * @return Number of strings in the list
      */
     virtual int size() const;
+
+    /**
+     * @brief Add element to the list
+     *
+     * @param value String to add to list
+     */
+    virtual void add(const char* value);
 };
 
 /**
@@ -2985,6 +3010,7 @@ class MegaRequest
             TYPE_SEND_DEV_COMMAND,
             TYPE_GET_BANNERS, TYPE_DISMISS_BANNER,
             TYPE_BACKUP_PUT, TYPE_BACKUP_REMOVE, TYPE_BACKUP_PUT_HEART_BEAT,
+            TYPE_FETCH_GOOGLE_ADS, TYPE_QUERY_GOOGLE_ADS,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -3080,6 +3106,8 @@ class MegaRequest
          * - MegaApi::setBackup - Returns the target node of the backup
          * - MegaApi::updateBackup - Returns the target node of the backup
          * - MegaApi::sendBackupHeartbeat - Returns the last node backed up
+         * - MegaApi::fetchGoogleAds - Returns public handle that the user is visiting (optionally)
+         * - MegaApi::queryGoogleAds - Returns public handle that the user is visiting (optionally)
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3215,6 +3243,7 @@ class MegaRequest
          *
          * This value is valid for these requests:
          * - MegaApi::login - Returns the password of the account
+         * - MegaApi::loginToFolder - Returns the authentication key to write in public folder
          * - MegaApi::fastLogin - Returns the hash of the email
          * - MegaApi::createAccount - Returns the password for the account
          * - MegaApi::confirmAccount - Returns the password for the account
@@ -3257,7 +3286,6 @@ class MegaRequest
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::getUserData - Returns the private RSA key of the account, Base64-encoded
-         *
          * @return Private key related to the request
          */
         virtual const char* getPrivateKey() const;
@@ -3417,6 +3445,8 @@ class MegaRequest
          * - MegaApi::sendChatStats - Returns the connection port
          * - MegaApi::dismissBanner - Returns the timestamp of the request
          * - MegaApi::sendBackupHeartbeat - Returns the time associated with the request
+         * - MegaApi::fetchGoogleAds - Returns a bitmap flag used to communicate with the API
+         * - MegaApi::queryGoogleAds - Returns a bitmap flag used to communicate with the API
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3435,6 +3465,7 @@ class MegaRequest
          * - MegaApi::retryPendingConnections - Returns if request are disconnected
          * - MegaApi::pauseTransfers - Returns true if transfers were paused, false if they were resumed
          * - MegaApi::createChat - Creates a chat for one or more participants
+         * - MegaApi::exportNode - Makes the folder writable
          * - MegaApi::fetchnodes - Return true if logged in into a folder and the provided key is invalid.
          * - MegaApi::getPublicNode - Return true if the provided key along the link is invalid.
          * - MegaApi::pauseTransfer - Returns true if the transfer has to be pause or false if it has to be resumed
@@ -3632,6 +3663,7 @@ class MegaRequest
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
          * - MegaApi::getUserAttribute - Returns the attribute value
+         * - MegaApi::fetchGoogleAds - Returns google ads
          *
          * @return String map including the key-value pairs of the attribute
          */
@@ -3711,6 +3743,19 @@ class MegaRequest
          * @return List of all Smart Banners available for current user
          */
         virtual MegaBannerList* getMegaBannerList() const;
+
+        /**
+         * @brief Returns the string list
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::fetchGoogleAds - A list of the adslot ids to fetch
+         *
+         * @return String list
+         */
+        virtual MegaStringList* getMegaStringList() const;
 };
 
 /**
@@ -4107,6 +4152,13 @@ class MegaTransfer
          * @return true if the transfer has failed with API_EOVERQUOTA and the target is foreign.
          */
         virtual bool isForeignOverquota() const;
+
+        /**
+         * @brief Returns true if the transfer may force a new upload.
+         *
+         * @return true if the transfer can force a new upload.
+         */
+        virtual bool isForceNewUpload() const;
 
         /**
          * @brief Returns true is this is a streaming transfer
@@ -7753,6 +7805,25 @@ class MegaApi
             ACCOUNT_BLOCKED_VERIFICATION_EMAIL = 700,       // temporary blocked, require email verification
         };
 
+        enum {
+            BACKUP_TYPE_INVALID = -1,
+            BACKUP_TYPE_TWO_WAY_SYNC = 0,
+            BACKUP_TYPE_UP_SYNC = 1,
+            BACKUP_TYPE_DOWN_SYNC = 2,
+            BACKUP_TYPE_CAMERA_UPLOADS = 3,
+            BACKUP_TYPE_MEDIA_UPLOADS = 4,   // Android has a secondary CU
+        };
+
+        enum {
+            GOOGLE_ADS_DEFAULT = 0x0,                        // If you don't want to set any overrides/flags, then please provide 0
+            GOOGLE_ADS_FORCE_ADS = 0x200,                    // Force enable ads regardless of any other factors.
+            GOOGLE_ADS_IGNORE_MEGA = 0x400,                  // Show ads even if the current user or file owner is a MEGA employee.
+            GOOGLE_ADS_IGNORE_COUNTRY = 0x800,               // Show ads even if the user is not within an enabled country.
+            GOOGLE_ADS_IGNORE_IP = 0x1000,                   // Show ads even if the user is on a blacklisted IP (MEGA ips).
+            GOOGLE_ADS_IGNORE_PRO = 0x2000,                  // Show ads even if the current user or file owner is a PRO user.
+            GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000,         // Ignore the rollout logic which only servers ads to 10% of users based on their IP.
+        };
+
         /**
          * @brief Constructor suitable for most applications
          * @param appKey AppKey of your application
@@ -8496,6 +8567,23 @@ class MegaApi
          */
         void loginToFolder(const char* megaFolderLink, MegaRequestListener *listener = NULL);
 
+        /**
+         * @brief Log in to a public folder using a folder link
+         *
+         * After a successful login, you should call MegaApi::fetchNodes to get filesystem and
+         * start working with the folder.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_LOGIN.
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getEmail - Retuns the string "FOLDER"
+         * - MegaRequest::getLink - Returns the public link to the folder
+         * - MegaRequest::getPassword - Returns the auth link used for writting
+         *
+         * @param megaFolderLink Public link to a folder in MEGA
+         * @param authKey Authentication key to write into the folder link
+         * @param listener MegaRequestListener to track this request
+         */
+        void loginToFolder(const char* megaFolderLink, const char *authKey, MegaRequestListener *listener = NULL);
         /**
          * @brief Log in to a MEGA account using precomputed keys
          *
@@ -11080,6 +11168,51 @@ class MegaApi
          * @note A Unix timestamp represents the number of seconds since 00:00 hours, Jan 1, 1970 UTC
          */
         void exportNode(MegaNode *node, int64_t expireTime, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Generate a public link of a file/folder in MEGA
+         *
+         * The associated request type with this request is MegaRequest::TYPE_EXPORT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getAccess - Returns true
+         * - MegaRequest::getFlag - Returns true if writable
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - Public link
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node MegaNode to get the public link
+         * @param writable if the link should be writable.
+         * @param listener MegaRequestListener to track this request
+         */
+        void exportNode(MegaNode *node, bool writable, MegaRequestListener *listener);
+
+        /**
+         * @brief Generate a public link of a file/folder in MEGA
+         *
+         * The associated request type with this request is MegaRequest::TYPE_EXPORT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node
+         * - MegaRequest::getAccess - Returns true
+         * - MegaRequest::getFlag - Returns true if writable
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getLink - Public link
+         *
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
+         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * @param node MegaNode to get the public link
+         * @param expireTime Unix timestamp until the public link will be valid
+         * @param writable if the link should be writable.
+         * @param listener MegaRequestListener to track this request
+         */
+        void exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener);
 
         /**
          * @brief Stop sharing a file/folder
@@ -15947,6 +16080,8 @@ class MegaApi
          * This function uses the default parameters for the MEGA apps, which consider (currently)
          * interactions during the last 30 days and max 10.000 nodes.
          *
+         * You take the ownership of the returned value.
+         *
          * @return List of buckets containing nodes that were added/modifed as a set
          */
         MegaRecentActionBucketList* getRecentActions();
@@ -17792,7 +17927,7 @@ class MegaApi
          * The associated request type with this request is MegaRequest::TYPE_SET_RETENTION_TIME
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the chat identifier
-         * - MegaRequest::getNumdetails - Returns the retention timeframe
+         * - MegaRequest::getTotalBytes - Returns the retention timeframe
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EARGS - If the chatid is invalid
@@ -17803,7 +17938,7 @@ class MegaApi
          * @param period retention timeframe in seconds, after which older messages in the chat are automatically deleted
          * @param listener MegaRequestListener to track this request
          */
-        void setChatRetentionTime(MegaHandle chatid, int period, MegaRequestListener *listener = NULL);
+        void setChatRetentionTime(MegaHandle chatid, unsigned period, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Request rich preview information for specified URL
@@ -18248,12 +18383,20 @@ class MegaApi
         void dismissBanner(int id, MegaRequestListener *listener = nullptr);
 
         /**
-         * @brief Starts a backup of a local folder into a remote location
+         * @brief Registers a backup to display in Backup Centre
+         *
+         * Apps should register backups, like CameraUploads, in order to be listed in the
+         * BackupCentre. The client should send heartbeats to indicate the progress of the
+         * backup (see \c MegaApi::sendBackupHeartbeats).
+         *
+         * Possible types of backups:
+         *  BACKUP_TYPE_CAMERA_UPLOADS = 3,
+         *  BACKUP_TYPE_MEDIA_UPLOADS = 4,   // Android has a secondary CU
          *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the target node of the backup
-         * - MegaRequest::getName - Returns the device id hash of the backup source device
+         * - MegaRequest::getName - Returns the backup name of the remote location
          * - MegaRequest::getAccess - Returns the backup state
          * - MegaRequest::getFile - Returns the path of the local folder
          * - MegaRequest::getText - Returns the extraData associated with the request
@@ -18264,21 +18407,25 @@ class MegaApi
          * @param backupType back up type requested for the service
          * @param targetNode MEGA folder to hold the backups
          * @param localFolder Local path of the folder
-         * @param deviceId device id hash of source device
+         * @param backupName backup name for remote location
          * @param state state
          * @param subState subState
          * @param extraData extraData
          * @param listener MegaRequestListener to track this request
-         *
         */
-        void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
 
         /**
-         * @brief Update an existing backup
+         * @brief Update the information about a registered backup for Backup Centre
+         *
+         * Possible types of backups:
+         *  BACKUP_TYPE_INVALID = -1,
+         *  BACKUP_TYPE_CAMERA_UPLOADS = 3,
+         *  BACKUP_TYPE_MEDIA_UPLOADS = 4,   // Android has a secondary CU
          *
          *  Params that keep the same value are passed with invalid value to avoid to send to the server
          *    Invalid values:
-         *    - type: BackupType::INVALID
+         *    - type: BACKUP_TYPE_INVALID
          *    - nodeHandle: UNDEF
          *    - localFolder: nullptr
          *    - deviceId: nullptr
@@ -18291,7 +18438,7 @@ class MegaApi
          * - MegaRequest::getParentHandle - Returns the backupId
          * - MegaRequest::getTotalBytes - Returns the backup type
          * - MegaRequest::getNodeHandle - Returns the target node of the backup
-         * - MegaRequest::getName - Returns the device id hash of the backup source device
+         * - MegaRequest::getName - Returns the backup name of the remote location
          * - MegaRequest::getFile - Returns the path of the local folder
          * - MegaRequest::getAccess - Returns the backup state
          * - MegaRequest::getNumDetails - Returns the backup substate
@@ -18302,17 +18449,19 @@ class MegaApi
          * @param backupType Local path of the folder
          * @param targetNode MEGA folder to hold the backups
          * @param localFolder Local path of the folder
-         * @param deviceId device id hash of source device
+         * @param backupName backup name of remote location
          * @param state backup state 
          * @param subState backup subState
          * @param extraData extraData for the backup
          * @param listener MegaRequestListener to track this request
-         *
         */
-        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
         
         /**
-         * @brief Remove a backup
+         * @brief Unregister a backup already registered for the Backup Centre
+         *
+         * This method allows to remove a backup from the list of backups displayed in the
+         * Backup Centre. @see \c MegaApi::setBackup.
          *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_REMOVE
          * Valid data in the MegaRequest object received on callbacks:
@@ -18321,33 +18470,95 @@ class MegaApi
          *
          * @param backupId backup id identifying the backup to be removed
          * @param listener MegaRequestListener to track this request
-         *
         */
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
         
         /**
-         * @brief Get heartbeat associated with an existing backup
+         * @brief Send heartbeat associated with an existing backup
+         *
+         * The client should call this method regularly for every registered backup, in order to
+         * inform about the status of the backup.
+         *
+         * Progress, last timestamp and last node are not always meaningful (ie. when the Camera
+         * Uploads starts a new batch, there isn't a last node, or when the CU up to date and
+         * inactive for long time, the progress doesn't make sense). In consequence, these parameters
+         * are optional. They will not be sent to API if they take the following values:
+         * - lastNode = INVALID_HANDLE
+         * - lastTs = -1
+         * - progress = -1
          *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParentHandle - Returns the backupId
          * - MegaRequest::getAccess - Returns the backup state
          * - MegaRequest::getNumDetails - Returns the backup substate
-         * - MegaRequest::getParamType - Returns the number of backup files uploaded
-         * - MegaRequest::getTransferTag - Returns the number of backup files downloaded
-         * - MegaRequest::getNumber - Returns the time associated with the request
-         * - MegaRequest::getNodeHandle - Returns the last target node handled
+         * - MegaRequest::getParamType - Returns the number of pending upload transfers
+         * - MegaRequest::getTransferTag - Returns the number of pending download transfers
+         * - MegaRequest::getNumber - Returns the last action timestamp
+         * - MegaRequest::getNodeHandle - Returns the last node handle to be synced
          *
          * @param backupId backup id identifying the backup
          * @param state backup state
          * @param progress backup progress 
-         * @param ups uploads performed for the backup
-         * @param downs downloads performed for the backup
-         * @param ts time
+         * @param ups Number of pending upload transfers
+         * @param downs Number of pending download transfers
+         * @param ts Last action timestamp
+         * @param lastNode Last node handle to be synced 
          * @param listener MegaRequestListener to track this request
-         *
         */
-        void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode);
+        void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Fetch Google ads
+         *
+         * The associated request type with this request is MegaRequest::TYPE_FETCH_GOOGLE_ADS
+         * Valid data in the MegaRequest object received on callbacks:
+         *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+         *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
+         *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+         *
+         * When the error code is MegaError::API_OK:
+         * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
+         *
+         * @param adFlags A bitmap flag used to communicate with the API
+         * Valid values are:
+         *      - GOOGLE_ADS_DEFAULT = 0x0
+         *      - GOOGLE_ADS_FORCE_ADS = 0x200
+         *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+         *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+         *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+         *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+         *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000
+         * @param adUnits A list of the adslot ids to fetch
+         * @param publicHandle Provide the public handle that the user is visiting
+         * @param listener MegaRequestListener to track this request
+         */
+        void fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Check if Google ads should show or not
+         *
+         * The associated request type with this request is MegaRequest::TYPE_QUERY_GOOGLE_ADS
+         * Valid data in the MegaRequest object received on callbacks:
+         *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+         *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+         *
+         * When the error code is MegaError::API_OK:
+         * - MegaRequest::getNumDetails Return if ads should be show or not
+         *
+         * @param adFlags A bitmap flag used to communicate with the API
+         * Valid values are:
+         *      - GOOGLE_ADS_DEFAULT = 0x0
+         *      - GOOGLE_ADS_FORCE_ADS = 0x200
+         *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+         *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+         *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+         *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+         *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT 0x4000
+         * @param publicHandle Provide the public handle that the user is visiting
+         * @param listener MegaRequestListener to track this request
+         */
+        void queryGoogleAds(int adFlags, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
 
  private:
         MegaApiImpl *pImpl;

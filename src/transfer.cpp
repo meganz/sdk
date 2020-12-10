@@ -985,7 +985,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             if (ll)
             {
                 LOG_debug << "Verifying sync upload";
-                synclocalpath = ll->getLocalPath(true);
+                synclocalpath = ll->getLocalPath();
                 localpath = &synclocalpath;
             }
             else

@@ -124,6 +124,8 @@ public:
 
     PosixFileSystemAccess(int = -1);
     ~PosixFileSystemAccess();
+
+    bool cwd(LocalPath& path) const override;
 };
 
 #ifdef HAVE_AIO_RT

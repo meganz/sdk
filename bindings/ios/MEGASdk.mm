@@ -2136,6 +2136,7 @@ using namespace mega;
     
     return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchByType(node ? [node getCPtr] : NULL, searchString.UTF8String, cancelToken ? [cancelToken getCPtr] : NULL, recursive, (int)orderType, (int)nodeFormatType, (int)folderTargetType) cMemoryOwn:YES];
 }
+
 - (NSMutableArray *)recentActions {
     MegaRecentActionBucketList *megaRecentActionBucketList = self.megaApi->getRecentActions();
     int count = megaRecentActionBucketList->size();
@@ -2144,6 +2145,8 @@ using namespace mega;
         MEGARecentActionBucket *recentActionBucket = [MEGARecentActionBucket.alloc initWithMegaRecentActionBucket:megaRecentActionBucketList->get(i)->copy() cMemoryOwn:YES];
         [recentActionBucketMutableArray addObject:recentActionBucket];
     }
+    
+    delete megaRecentActionBucketList;
     
     return recentActionBucketMutableArray;
 }
@@ -2517,6 +2520,16 @@ using namespace mega;
 
 - (void)setPushNotificationSettings:(MEGAPushNotificationSettings *)pushNotificationSettings {
     self.megaApi->setPushNotificationSettings(pushNotificationSettings.getCPtr);
+}
+
+#pragma mark - Banner
+
+- (void)getBanners:(id<MEGARequestDelegate>)delegate {
+    self.megaApi -> getBanners([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)dismissBanner:(NSInteger)bannerIdentifier delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi -> dismissBanner((int)bannerIdentifier, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 #pragma mark - Debug
