@@ -11,6 +11,9 @@ openssl-windows/c303dd024e2dc03a0665ddffbb12a1077933e649
 sqlite3/c303dd024e2dc03a0665ddffbb12a1077933e649
 zlib/c303dd024e2dc03a0665ddffbb12a1077933e649
 
+# needed by the SDK if enabling serving/streaming (outgoing) files via http/s or include a an ftp server
+libuv/c303dd024e2dc03a0665ddffbb12a1077933e649
+
 # mediainfo, customized with constrained functionality (determine media properties such as track length, codec, etc)
 libmediainfo/19.09
 libzen/0.4.37
@@ -62,6 +65,5 @@ gtest/c303dd024e2dc03a0665ddffbb12a1077933e649
 #mbedtls/c303dd024e2dc03a0665ddffbb12a1077933e649
 #nghttp2/c303dd024e2dc03a0665ddffbb12a1077933e649
 #opencl/c303dd024e2dc03a0665ddffbb12a1077933e649
-#libuv/c303dd024e2dc03a0665ddffbb12a1077933e649
 #libvpx/c303dd024e2dc03a0665ddffbb12a1077933e649
 #libevent/c303dd024e2dc03a0665ddffbb12a1077933e649
