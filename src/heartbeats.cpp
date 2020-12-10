@@ -423,13 +423,13 @@ BackupType MegaBackupInfoSync::getSyncType(MegaClient *client, const MegaSync &s
     {
         switch (config->getType())
         {
-        case SyncConfig::Type::TYPE_UP:
+        case SyncConfig::TYPE_UP:
                 return BackupType::UP_SYNC;
-        case SyncConfig::Type::TYPE_DOWN:
+        case SyncConfig::TYPE_DOWN:
                 return BackupType::DOWN_SYNC;
-        case SyncConfig::Type::TYPE_TWOWAY:
+        case SyncConfig::TYPE_TWOWAY:
                 return BackupType::TWO_WAY;
-        case SyncConfig::Type::TYPE_BACKUP:
+        case SyncConfig::TYPE_BACKUP:
                 return BackupType::BACKUP_UPLOAD;
         default:
                 return BackupType::INVALID;

@@ -8794,7 +8794,7 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHand
 
 void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    syncFolder(localFolder, name, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::Type::TYPE_TWOWAY, regExp, listener);
+    syncFolder(localFolder, name, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, regExp, listener);
 }
 
 void MegaApiImpl::copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
@@ -14069,7 +14069,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
         }
         else if (request->getType() == MegaRequest::TYPE_ADD_SYNC && e == API_OK)
         {
-            // folders for the new backup has been created -> now proceed with the sync
+            // folders for the new backup have been created -> now proceed with the sync
             handle backupHandle = nn.back().mAddedHandle;
             request->setNodeHandle(backupHandle);
             std::unique_ptr<char[]> remotePath{ getNodePathByNodeHandle(nn.back().mAddedHandle) };
@@ -21796,7 +21796,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_ADD_SYNC:
         {
             SyncConfig::Type type = static_cast<SyncConfig::Type>(request->getParamType());
-            if (type == SyncConfig::Type::TYPE_BACKUP)
+            if (type == SyncConfig::TYPE_BACKUP)
             {
                 e = backupFolder_sendPendingRequest(request);
                 break;
@@ -24720,7 +24720,7 @@ MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
     this->setListener(sync->getListener());
     this->setRegExp(sync->getRegExp());
     this->setError(sync->getError());
-    this->setType(sync->getType());
+    this->setType(static_cast<SyncType>(sync->getType()));
 }
 
 MegaSyncPrivate::~MegaSyncPrivate()
