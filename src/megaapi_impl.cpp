@@ -14072,7 +14072,6 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
 
             // add the Sync
             auto sync = make_unique<MegaSyncPrivate>(localPath, backupName, backupHandle, nextSyncTag, SyncConfig::TYPE_BACKUP);
-            sync->setListener(request->getSyncListener());
             SyncError syncError;
             e = client->addsync(syncConfig, DEBRISFOLDER, NULL, syncError, true, sync.get());
 
