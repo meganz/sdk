@@ -1502,17 +1502,6 @@ char *MegaApiImpl::getBlockedPath()
     sdkMutex.unlock();
     return path;
 }
-#endif
-
-void MegaApiImpl::backupFolder(const char *localFolder, const char *backupName, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_FOLDER, listener);
-    request->setFile(localFolder);
-    request->setName(backupName);
-
-    requestQueue.push(request);
-    waiter->notify();  // followup in MegaApiImpl::backupFolder_sendPendingRequest()
-}
 
 error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) // request created in MegaApiImpl::backupFolder()
 {
@@ -1624,6 +1613,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
 
     return API_OK;
 }
+#endif
 
 MegaBackup *MegaApiImpl::getBackupByTag(int tag)
 {
@@ -4124,7 +4114,6 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_BACKUP_PUT_HEART_BEAT: return "BACKUP_PUT_HEART_BEAT";
         case TYPE_FETCH_GOOGLE_ADS: return "FETCH_GOOGLE_ADS";
         case TYPE_QUERY_GOOGLE_ADS: return "QUERY_GOOGLE_ADS";
-        case TYPE_BACKUP_FOLDER: return "BACKUP_FOLDER";
     }
     return "UNKNOWN";
 }
@@ -8774,7 +8763,7 @@ MegaNode *MegaApiImpl::getSyncedNode(const LocalPath& path)
     return node;
 }
 
-void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, MegaRegExp *regExp, MegaRequestListener *listener)
+void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, SyncConfig::Type type, MegaRegExp *regExp, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC, listener);
     request->setNodeHandle(megaHandle);
@@ -8796,6 +8785,7 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHand
     {
         request->setName(request->getFile());
     }
+    request->setParamType(type);
 
     request->setRegExp(regExp);
     requestQueue.push(request);
@@ -8804,7 +8794,7 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHand
 
 void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    syncFolder(localFolder, name, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, regExp, listener);
+    syncFolder(localFolder, name, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::Type::TYPE_TWOWAY, regExp, listener);
 }
 
 void MegaApiImpl::copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
@@ -14039,7 +14029,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
                     (request->getType() != MegaRequest::TYPE_MOVE) &&
                     (request->getType() != MegaRequest::TYPE_CREATE_ACCOUNT) &&
                     (request->getType() != MegaRequest::TYPE_RESTORE) &&
-                    (request->getType() != MegaRequest::TYPE_BACKUP_FOLDER) &&
+                    (request->getType() != MegaRequest::TYPE_ADD_SYNC) &&
                     (request->getType() != MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD))) return;
 
 #ifdef ENABLE_SYNC
@@ -14077,9 +14067,9 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));    // even if import fails, notify account was successfuly created anyway
             return;
         }
-
-        else if (request->getType() == MegaRequest::TYPE_BACKUP_FOLDER && e == API_OK)
+        else if (request->getType() == MegaRequest::TYPE_ADD_SYNC && e == API_OK)
         {
+            // folders for the new backup has been created -> now proceed with the sync
             handle backupHandle = nn.back().mAddedHandle;
             request->setNodeHandle(backupHandle);
             std::unique_ptr<char[]> remotePath{ getNodePathByNodeHandle(nn.back().mAddedHandle) };
@@ -21805,6 +21795,13 @@ void MegaApiImpl::sendPendingRequests()
 #ifdef ENABLE_SYNC
         case MegaRequest::TYPE_ADD_SYNC:
         {
+            SyncConfig::Type type = static_cast<SyncConfig::Type>(request->getParamType());
+            if (type == SyncConfig::Type::TYPE_BACKUP)
+            {
+                e = backupFolder_sendPendingRequest(request);
+                break;
+            }
+
             const char *localPath = request->getFile();
             Node *node = client->nodebyhandle(request->getNodeHandle());
             if(!node || (node->type==FILENODE) || !localPath)
@@ -23434,11 +23431,6 @@ void MegaApiImpl::sendPendingRequests()
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));
-            break;
-        }
-        case MegaRequest::TYPE_BACKUP_FOLDER: // request created in MegaApiImpl::backupFolder()
-        {
-            e = backupFolder_sendPendingRequest(request);
             break;
         }
         default:

@@ -416,7 +416,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         mApi[apiIndex].h = request->getNodeHandle();
         break;
 
-    case MegaRequest::TYPE_BACKUP_FOLDER:
+    case MegaRequest::TYPE_ADD_SYNC:
         mApi[apiIndex].h = request->getNodeHandle();
         break;
 

@@ -3024,7 +3024,6 @@ class MegaRequest
             TYPE_GET_BANNERS, TYPE_DISMISS_BANNER,
             TYPE_BACKUP_PUT, TYPE_BACKUP_REMOVE, TYPE_BACKUP_PUT_HEART_BEAT,
             TYPE_FETCH_GOOGLE_ADS, TYPE_QUERY_GOOGLE_ADS,
-            TYPE_BACKUP_FOLDER, // separate symbol, for "My Backups"
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -14168,7 +14167,7 @@ class MegaApi
          * The backup's folder name is optional. If not provided, it will take the name of the leaf folder of
          * the local path. In example, for "/home/user/Documents", it will become "Documents".
          *
-         * The associated request type with this request is MegaRequest::TYPE_BACKUP_FOLDER
+         * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
          * Valid data in the MegaRequest object received on all callbacks:
          * - MegaRequest::getName - Returns the backup name at the remote location
          * - MegaRequest::getFile - Returns the path of the local folder
