@@ -14056,6 +14056,8 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));    // even if import fails, notify account was successfuly created anyway
             return;
         }
+
+#ifdef ENABLE_SYNC
         else if (request->getType() == MegaRequest::TYPE_ADD_SYNC && e == API_OK)
         {
             // folders for the new backup have been created -> now proceed with the sync
@@ -14096,6 +14098,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
                 e = API_OK; //we don't consider the addsync returned error as an error on the request: the sync was added (although temporarily disabled)
             }
         }
+#endif // ENABLE_SYNC
 
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
     }
