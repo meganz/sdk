@@ -516,7 +516,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         std::string fileattrstring;
         std::string privateAuth;
         std::string publicAuth;
-        std::string deviceId;
+        std::string mDeviceId;
         const char *chatAuth;
         int tag;
         int changed;
