@@ -5962,11 +5962,11 @@ TEST_F(SdkTest, SyncPaths)
     int tagID = sync->getTag();
     ASSERT_EQ(MegaError::API_OK, synchronousDisableSync(0, tagID)) << "API Error disabling sync";
     sync = waitForSyncState(megaApi[0].get(), tagID, MegaSync::SYNC_DISABLED);
-    ASSERT_TRUE(sync && sync->getState() == MegaSync::SYNC_DISABLED);
+    ASSERT_TRUE(sync && !sync->isEnabled());
 
     ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, (fs::current_path() / "symlink_1A").u8string().c_str(), remoteNodeSym.get())) << "API Error adding a new sync";
     std::unique_ptr<MegaSync> syncSym = waitForSyncState(megaApi[0].get(), remoteNodeSym.get(), true, true, MegaSync::NO_SYNC_ERROR);
-    ASSERT_TRUE(syncSym && syncSym->getState() == MegaSync::SYNC_ACTIVE);
+    ASSERT_TRUE(syncSym && syncSym->isActive());
 
     LOG_verbose << "SyncPersistence :  Adding a file and checking if it is synced,";
     createFile((localPath / "level_1A" / fs::u8path(fileNameStr.c_str())).u8string(), false);
