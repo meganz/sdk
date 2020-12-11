@@ -6059,7 +6059,7 @@ TEST_F(SdkTest, SyncOQTransitions)
         LOG_verbose << "SyncOQTransitions :  Check that Sync is disabled due to OQ.";
         ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Needed to ensure we know we are in OQ
         sync = waitForSyncState(megaApi[0].get(), tagID, false, false, MegaSync::STORAGE_OVERQUOTA);
-        ASSERT_TRUE(sync && !sync->isEnabled());
+        ASSERT_TRUE(sync && sync->isEnabled() && !sync->isActive());   // for overquota, we don't disable (it will try to start again on app restart), but it's no longer active.
         ASSERT_EQ(MegaSync::STORAGE_OVERQUOTA, sync->getError());
 
         LOG_verbose << "SyncOQTransitions :  Check that Sync could not be enabled while disabled due to OQ.";
