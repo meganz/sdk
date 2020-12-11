@@ -5120,14 +5120,6 @@ private:
 class MegaSync
 {
 public:
-    enum
-    {
-        SYNC_DISABLED = -3, //user disabled (if no syncError, otherwise automatically disabled . i.e SYNC_TEMPORARY_DISABLED)
-        SYNC_FAILED = -2,
-        SYNC_CANCELED = -1, //removed
-        SYNC_INITIALSCAN = 0,
-        SYNC_ACTIVE
-    };
 
     enum Error
     {
@@ -5237,30 +5229,6 @@ public:
      * @return Identifier of the synchronization
      */
     virtual int getTag() const;
-
-    /**
-     * @brief Get the state of the synchronization
-     *
-     * Possible values are:
-     * - SYNC_DISABLED
-     * The synchronization has been disabled by the user or temporarily disabled for a transient reason
-     *
-     * - SYNC_FAILED = -2
-     * The synchronization has failed and has been disabled
-     *
-     * - SYNC_CANCELED = -1,
-     * The synchronization is being removed
-     *
-     * - SYNC_INITIALSCAN = 0,
-     * The synchronization is doing the initial scan
-     *
-     * - SYNC_ACTIVE
-     * The synchronization is active
-     *
-     * @return State of the synchronization
-     */
-    virtual int getState() const;
-
 
     /**
      * @brief Get the error of a synchronization

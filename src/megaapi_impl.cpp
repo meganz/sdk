@@ -24194,8 +24194,8 @@ MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle node
 }
 
 MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr)
-    : mActive(false)
-    , mEnabled(false)
+    : mActive(syncPtr && syncPtr->state >= 0)
+    , mEnabled(config.getEnabled())
 {
     this->tag = config.getTag();
     this->megaHandle = config.getRemoteNode();

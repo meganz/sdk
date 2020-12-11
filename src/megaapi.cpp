@@ -5737,11 +5737,6 @@ int MegaSync::getTag() const
     return 0;
 }
 
-int MegaSync::getState() const
-{
-    return MegaSync::SYNC_FAILED;
-}
-
 int MegaSync::getError() const
 {
     return MegaSync::Error::NO_SYNC_ERROR;
