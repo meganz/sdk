@@ -1557,17 +1557,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     const string& deviceId = client->getDeviceid();
     if (deviceId.empty()) { return API_EINCOMPLETE; }
 
-    // get `DEVICE_NAME`, from user attributes
-    if (!u->isattrvalid(ATTR_DEVICE_NAMES)) { return API_EINCOMPLETE; }
-    const string* deviceNameContainerStr = u->getattr(ATTR_DEVICE_NAMES);
-    if (!deviceNameContainerStr) { return API_EINCOMPLETE; }
-
-    tlvRecords.reset(TLVstore::containerToTLVrecords(deviceNameContainerStr, &client->key));
-    if (!tlvRecords || !tlvRecords->find(deviceId)) { return API_EINCOMPLETE; }
-
-    const string& deviceName = tlvRecords->get(deviceId);
-    if (deviceName.empty()) { return API_EINCOMPLETE; }
-
+    // prepare for new nodes
     vector<NewNode> newnodes;
     nameid attrId = AttrMap::string2nameid("dev-id"); // "device-id" would be too long
     std::function<void(AttrMap& attrs)> addAttrsFunc = [=](AttrMap& attrs)
@@ -1576,20 +1566,25 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     };
 
     // serch for remote folder "My Backups"/`DEVICE_NAME`/
-    Node* deviceNameNode = client->childnodebyname(myBackupsNode, deviceName.c_str(), false);
+    Node* deviceNameNode = client->childnodebyattribute(myBackupsNode, attrId, deviceId.c_str());
     if (deviceNameNode) // validate this node
     {
         if (deviceNameNode->type != FOLDERNODE) { return API_EACCESS; }
-
-        // get 'dev-id' tag
-        const auto& childAttrs = deviceNameNode->attrs.map;
-        auto found = childAttrs.find(attrId);
-
-        // a folder without the attribute, or with it but with different value, will not be accessed
-        if (found == childAttrs.end() || found->second != deviceId) { return API_EACCESS; }
     }
     else // create `DEVICE_NAME` remote dir
     {
+        // get `DEVICE_NAME`, from user attributes
+        if (!u->isattrvalid(ATTR_DEVICE_NAMES)) { return API_EINCOMPLETE; }
+        const string* deviceNameContainerStr = u->getattr(ATTR_DEVICE_NAMES);
+        if (!deviceNameContainerStr) { return API_EINCOMPLETE; }
+
+        tlvRecords.reset(TLVstore::containerToTLVrecords(deviceNameContainerStr, &client->key));
+        if (!tlvRecords || !tlvRecords->find(deviceId)) { return API_EINCOMPLETE; }
+
+        const string& deviceName = tlvRecords->get(deviceId);
+        if (deviceName.empty()) { return API_EINCOMPLETE; }
+
+        // add a new node for it
         newnodes.emplace_back();
         NewNode& newNode = newnodes.back();
 
