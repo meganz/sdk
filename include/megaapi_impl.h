@@ -3194,7 +3194,6 @@ protected:
 
         void backupput_result(const Error&, handle backupId) override;
         void backupupdate_result(const Error&, handle) override;
-        void backupputheartbeat_result(const Error&) override;
         void backupremove_result(const Error&, handle) override;
 
 protected:

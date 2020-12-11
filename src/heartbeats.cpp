@@ -88,11 +88,13 @@ void HeartBeatBackupInfo::setLastAction(const m_time_t &lastAction)
 void HeartBeatBackupInfo::updateLastActionTime()
 {
     setLastAction(m_time(nullptr));
+    mModified = true;
 }
 
 void HeartBeatBackupInfo::setLastBeat(const m_time_t &lastBeat)
 {
     mLastBeat = lastBeat;
+    mModified = false;
 }
 
 m_time_t HeartBeatBackupInfo::lastBeat() const
@@ -394,12 +396,10 @@ void MegaBackupMonitor::beatBackupInfo(UnifiedSync& us)
         return;
     }
 
-    auto& hbs = us.mNextHeartbeat;
+    std::shared_ptr<HeartBeatSyncInfo> hbs = us.mNextHeartbeat;
 
-    auto now = m_time(nullptr);
-    auto lapsed = now - hbs->lastBeat();
-    if ( (hbs->lastAction() > hbs->lastBeat()) //something happened since last reported!
-         || lapsed > MAX_HEARBEAT_SECS_DELAY) // max delay happened. Beating: Sicherheitsfahrschaltung!
+    if ( !hbs->mSending && (hbs->mModified
+         || m_time(nullptr) - hbs->lastBeat() > MAX_HEARBEAT_SECS_DELAY))
     {
         calculateStatus(hbs.get(), us); //we asume this is costly: only do it when beating
 
@@ -407,9 +407,13 @@ void MegaBackupMonitor::beatBackupInfo(UnifiedSync& us)
 
         int8_t progress = (hbs->progress() < 0) ? -1 : static_cast<int8_t>(std::lround(hbs->progress()*100.0));
 
+        hbs->mSending = true;
         auto newCommand = new CommandBackupPutHeartBeat(mClient, us.mConfig.getBackupId(),  static_cast<uint8_t>(hbs->status()),
                           progress, hbs->mPendingUps, hbs->mPendingDowns,
-                          hbs->lastAction(), hbs->lastItemUpdated());
+                          hbs->lastAction(), hbs->lastItemUpdated(),
+                          [hbs](Error){
+                               hbs->mSending = false;
+                          });
 
 #ifdef ENABLE_SYNC
         if (hbs->status() == HeartBeatSyncInfo::Status::UPTODATE && progress >= 100)

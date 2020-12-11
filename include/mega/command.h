@@ -1332,10 +1332,11 @@ public:
 
 class MEGA_API CommandBackupPutHeartBeat : public Command
 {
+    std::function<void(Error)> mCompletion;
 public:
     bool procresult(Result) override;
 
-    CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode);
+    CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode, std::function<void(Error)>);
 };
 
 class MEGA_API CommandGetBanners : public Command

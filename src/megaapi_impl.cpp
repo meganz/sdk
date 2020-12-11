@@ -13451,15 +13451,6 @@ void MegaApiImpl::backupupdate_result(const Error& e, handle backupId)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::backupputheartbeat_result(const Error& e)
-{
-    if (requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if (!request || (request->getType() != MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT)) return;
-
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-}
-
 void MegaApiImpl::backupremove_result(const Error& e, handle backupId)
 {
     if (requestMap.find(client->restag) == requestMap.end()) return;
@@ -22897,7 +22888,10 @@ void MegaApiImpl::sendPendingRequests()
                                                            (uint32_t)request->getParamType(),
                                                            (uint32_t)request->getTransferTag(),
                                                            request->getNumber(),
-                                                           request->getNodeHandle()));
+                                                           request->getNodeHandle(),
+                                                           [this, request](Error e){
+                                                                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                                                           }));
             break;
         }
         case MegaRequest::TYPE_FETCH_GOOGLE_ADS:
