@@ -5961,7 +5961,7 @@ TEST_F(SdkTest, SyncPaths)
     // Disable the first one, create again the one with the symlink, check that it is working and check if the first fails when enabled.
     int tagID = sync->getTag();
     ASSERT_EQ(MegaError::API_OK, synchronousDisableSync(0, tagID)) << "API Error disabling sync";
-    sync = waitForSyncState(megaApi[0].get(), tagID, MegaSync::SYNC_DISABLED);
+    sync = waitForSyncState(megaApi[0].get(), tagID, false, false, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && !sync->isEnabled());
 
     ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, (fs::current_path() / "symlink_1A").u8string().c_str(), remoteNodeSym.get())) << "API Error adding a new sync";
