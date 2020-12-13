@@ -4989,7 +4989,7 @@ const int INVALID_SYNC_TAG = 0;
  * @brief Provides information about a synchronization event
  *
  * This object is provided in callbacks related to the synchronization engine
- * (MegaListener::onSyncEvent MegaSyncListener::onSyncEvent)
+ * (MegaListener::onSyncEvent)
  */
 class MegaSyncEvent
 {
@@ -5116,188 +5116,10 @@ private:
 
 /**
  * @brief Provides information about a synchronization
- *
- * Developers can use listeners (MegaListener, MegaSyncListener)
- * to track the progress of each synchronization. MegaSync objects are provided in callbacks sent
- * to these listeners and allow developers to know the state of the synchronizations and their parameters
- * and their results.
- *
- * The implementation will receive callbacks from an internal worker thread.
- *
- **/
-class MegaSyncListener
-{
-public:
-    /**
-     * @brief This function is called when the state of a synced file or folder changes
-     *
-     * Possible values for the state are:
-     * - MegaApi::STATE_SYNCED = 1
-     * The file is synced with the MEGA account
-     *
-     * - MegaApi::STATE_PENDING = 2
-     * The file isn't synced with the MEGA account. It's waiting to be synced.
-     *
-     * - MegaApi::STATE_SYNCING = 3
-     * The file is being synced with the MEGA account
-     *
-     * The SDK retains the ownership of the sync and localPath parameters.
-     * Don't use them after this functions returns.
-     *
-     * @param api MegaApi object that is synchronizing files
-     * @param sync MegaSync object related that manages the file
-     * @param localPath Local path of the file or folder
-     * @param newState New state of the file
-     */
-    virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *localPath, int newState);
-
-    /**
-     * @brief This function is called when the state of the synchronization changes
-     *
-     * The SDK calls this function when the state of the synchronization changes. you can use
-     * MegaSync::getState to get the new state of the synchronization
-     * and MegaSync::getError to get the error if any.
-     *
-     * Notice, for changes that imply other callbacks, expect that the SDK
-     * will call onSyncStateChanged first, so that you can update your model only using this one.
-     *
-     * The SDK retains the ownership of the sync parameter.
-     * Don't use it after this functions returns.
-     *
-     * @param api MegaApi object that is synchronizing files
-     * @param sync MegaSync object that has changed its state
-     */
-    virtual void onSyncStateChanged(MegaApi *api, MegaSync *sync);
-
-    /**
-     * @brief This function is called when there is a synchronization event
-     *
-     * Synchronization events can be local deletions, local additions, remote deletions,
-     * remote additions, etc. See MegaSyncEvent to know the full list of event types
-     *
-     * @param api MegaApi object that is synchronizing files
-     * @param sync MegaSync object that detects the event
-     * @param event Information about the event
-     *
-     * The SDK retains the ownership of the sync and event parameters.
-     * Don't use them after this functions returns.
-     *
-     * This parameter will be deleted just after the callback. If you want to save it use
-     * MegaSyncEvent::copy
-     */
-    virtual void onSyncEvent(MegaApi *api, MegaSync *sync, MegaSyncEvent *event);
-
-    /**
-     * @brief This callback will be called when a sync is added
-     *
-     * The SDK will call this after loading (and attempt to resume) syncs from cache or whenever a new
-     * Synchronization is configured.
-     *
-     * Notice that adding a sync will not cause onSyncStateChanged to be called.
-     *
-     * As to the additionState can be:
-     * - MegaSync::SyncAdded::NEW = 1
-     * Sync added anew and activated
-     *
-     * - MegaSync::SyncAdded::FROM_CACHE = 2
-     * Sync loaded from cache. If the sync was enabled, it will be enabled.
-     *
-     * - MegaSync::SyncAdded::FROM_CACHE_FAILED_TO_RESUME = 3
-     * Sync loaded from cache, but failed to be resumed.
-     *
-     * - MegaSync::SyncAdded::FROM_CACHE_REENABLED = 4
-     * Sync loaded from cache, and reenabled. The sync was temporary disabled but could be succesfully
-     * resumed
-     *
-     * - MegaSync::SyncAdded::REENABLED_FAILED = 5
-     * Sync loaded from cache and attempted to be reenabled. The sync will have the error for that
-     *
-     * - MegaSync::SyncAdded::NEW_DISABLED = 6
-     * Sync added anew, but set as temporarily disabled due to a temporary error
-     *
-     * The SDK retains the ownership of the sync parameter.
-     * Don't use it after this functions returns.
-     *
-     * @param sync MegaSync object representing a sync
-     * @param api MegaApi object that is synchronizing files
-     * @param additionState conditions in which the sync is added
-     */
-    virtual void onSyncAdded(MegaApi *api, MegaSync *sync, int additionState);
-
-    /**
-     * @brief This callback will be called when a sync is disabled.
-     *
-     * This can happen in the following situations
-     *
-     * - There’s a condition that cause the sync to fail
-     *
-     * - There’s a condition that cause the sync to be temporarily disabled
-     *
-     * - The users tries to disable a sync that had been previously failed permanently
-     *
-     * - The users tries to disable a sync that had been previously temporarily disabled.
-     *
-     * - The user tries to disable a sync that was active
-     *
-     * - The sdk tries to resume a sync that had been temporarily disabled and a failure happens
-     * This does not imply a transition from active to inactive, but the callback is necessary to inform the user
-     * that the sync is no longer in a temporary error, but in a fatal one.
-     *
-     * The SDK retains the ownership of the sync parameter.
-     * Don't use it after this functions returns.
-     *
-     * @param api MegaApi object that is synchronizing files
-     * @param sync MegaSync object representing a sync
-     */
-    virtual void onSyncDisabled(MegaApi *api, MegaSync *sync);
-
-    /**
-     * @brief This callback will be called when a sync is enabled.
-     *
-     * This can happen in the following situations
-     *
-     * - The users enables a sync that was disabled
-     *
-     * - The sdk tries resumes a sync that had been temporarily disabled
-     *
-     * The SDK retains the ownership of the sync parameter.
-     * Don't use it after this functions returns.
-     *
-     * @param api MegaApi object that is synchronizing files
-     * @param sync MegaSync object representing a sync
-     */
-    virtual void onSyncEnabled(MegaApi *api, MegaSync *sync);
-
-    /**
-     * @brief This callback will be called when a sync is removed.
-     *
-     * This entail that the sync is completely removed from cache
-     *
-     * The SDK retains the ownership of the sync parameter.
-     * Don't use it after this functions returns.
-     *
-     * @param api MegaApi object that is synchronizing files
-     * @param sync MegaSync object representing a sync
-     */
-    virtual void onSyncDeleted(MegaApi *api, MegaSync *sync);
-
-
-};
-
-/**
- * @brief Provides information about a synchronization
  */
 class MegaSync
 {
 public:
-    enum
-    {
-        SYNC_DISABLED = -3, //user disabled (if no syncError, otherwise automatically disabled . i.e SYNC_TEMPORARY_DISABLED)
-        SYNC_FAILED = -2,
-        SYNC_CANCELED = -1, //removed
-        SYNC_INITIALSCAN = 0,
-        SYNC_ACTIVE
-    };
 
     enum Error
     {
@@ -5407,30 +5229,6 @@ public:
      * @return Identifier of the synchronization
      */
     virtual int getTag() const;
-
-    /**
-     * @brief Get the state of the synchronization
-     *
-     * Possible values are:
-     * - SYNC_DISABLED
-     * The synchronization has been disabled by the user or temporarily disabled for a transient reason
-     *
-     * - SYNC_FAILED = -2
-     * The synchronization has failed and has been disabled
-     *
-     * - SYNC_CANCELED = -1,
-     * The synchronization is being removed
-     *
-     * - SYNC_INITIALSCAN = 0,
-     * The synchronization is doing the initial scan
-     *
-     * - SYNC_ACTIVE
-     * The synchronization is active
-     *
-     * @return State of the synchronization
-     */
-    virtual int getState() const;
-
 
     /**
      * @brief Get the error of a synchronization
@@ -7958,20 +7756,6 @@ class MegaApi
          * @param listener Listener that will receive global events
          */
         void addGlobalListener(MegaGlobalListener* listener);
-
-#ifdef ENABLE_SYNC
-        /**
-         * @brief Add a listener for all events related to synchronizations
-         * @param listener Listener that will receive synchronization events
-         */
-        void addSyncListener(MegaSyncListener *listener);
-
-        /**
-         * @brief Unregister a synchronization listener
-         * @param listener Objet that will be unregistered
-         */
-        void removeSyncListener(MegaSyncListener *listener);
-#endif
 
         /**
          * @brief Add a listener for all events related to backups
@@ -18413,6 +18197,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
          * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the backupId
          * - MegaRequest::getNodeHandle - Returns the target node of the backup
          * - MegaRequest::getName - Returns the backup name of the remote location
          * - MegaRequest::getAccess - Returns the backup state
@@ -18466,7 +18251,7 @@ class MegaApi
          * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          *
          * @param backupId backup id identifying the backup to be updated
-         * @param backupType Local path of the folder
+         * @param backupType back up type requested for the service
          * @param targetNode MEGA folder to hold the backups
          * @param localFolder Local path of the folder
          * @param state backup state 

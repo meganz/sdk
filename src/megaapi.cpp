@@ -4011,18 +4011,6 @@ void MegaApi::addGlobalListener(MegaGlobalListener* listener)
     pImpl->addGlobalListener(listener);
 }
 
-#ifdef ENABLE_SYNC
-void MegaApi::addSyncListener(MegaSyncListener *listener)
-{
-    pImpl->addSyncListener(listener);
-}
-
-void MegaApi::removeSyncListener(MegaSyncListener *listener)
-{
-    pImpl->removeSyncListener(listener);
-}
-#endif
-
 void MegaApi::addBackupListener(MegaBackupListener *listener)
 {
     pImpl->addBackupListener(listener);
@@ -5749,11 +5737,6 @@ int MegaSync::getTag() const
     return 0;
 }
 
-int MegaSync::getState() const
-{
-    return MegaSync::SYNC_FAILED;
-}
-
 int MegaSync::getError() const
 {
     return MegaSync::Error::NO_SYNC_ERROR;
@@ -5881,27 +5864,6 @@ void MegaSyncList::addSync(MegaSync *sync)
 {
 
 }
-
-void MegaSyncListener::onSyncFileStateChanged(MegaApi *, MegaSync *, string *, int)
-{ }
-
-void MegaSyncListener::onSyncStateChanged(MegaApi *, MegaSync *)
-{ }
-
-void MegaSyncListener::onSyncEvent(MegaApi *, MegaSync *, MegaSyncEvent *)
-{ }
-
-void MegaSyncListener::onSyncAdded(MegaApi *, MegaSync *, int additionState)
-{ }
-
-void MegaSyncListener::onSyncDisabled(MegaApi *, MegaSync *)
-{ }
-
-void MegaSyncListener::onSyncEnabled(MegaApi *, MegaSync *)
-{ }
-
-void MegaSyncListener::onSyncDeleted(MegaApi *, MegaSync *)
-{ }
 
 MegaSyncEvent::~MegaSyncEvent()
 { }

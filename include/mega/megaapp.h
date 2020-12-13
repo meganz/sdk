@@ -291,7 +291,8 @@ struct MEGA_API MegaApp
     virtual void transfer_complete(Transfer*) { }
 
     // sync status updates and events
-    virtual void syncupdate_state(int tag, syncstate_t, syncstate_t oldstate, bool = true) { }
+    virtual void syncupdate_stateconfig(int tag) { }
+    virtual void syncupdate_active(int tag, bool active) { }
     virtual void syncupdate_scanning(bool) { }
     virtual void syncupdate_local_folder_addition(Sync*, LocalNode*, const char*) { }
     virtual void syncupdate_local_folder_deletion(Sync*, LocalNode*) { }
@@ -335,7 +336,7 @@ struct MEGA_API MegaApp
     virtual void syncs_about_to_be_resumed() { }
 
     // after an attempt to auto-resume a cache sync
-    virtual void sync_auto_resume_result(const UnifiedSync& s) { }
+    virtual void sync_auto_resume_result(const UnifiedSync& s, bool attempted) { }
 
     // after a sync has been removed
     virtual void sync_removed(int tag) { }
@@ -416,7 +417,6 @@ struct MEGA_API MegaApp
 
     virtual void backupput_result(const Error&, handle /*backup id*/) { }
     virtual void backupupdate_result(const Error&, handle /*backup id*/) { }
-    virtual void backupputheartbeat_result(const Error&) { }
     virtual void backupremove_result(const Error&, handle /*backup id*/) { }
 
     virtual void getbanners_result(error) { }

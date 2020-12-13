@@ -64,6 +64,9 @@ public:
 
     virtual void updateStatus(UnifiedSync& us) {}
 
+    bool mModified = false;
+    bool mSending = false;
+
 protected:
     int mStatus = 0;
     double mProgress = 0;

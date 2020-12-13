@@ -516,28 +516,29 @@ static void syncstat(Sync* sync)
          << " file(s) and " << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
 }
 
-void DemoApp::syncupdate_state(int tag, syncstate_t newstate, syncstate_t oldstate, bool fireDisableEvent)
+void DemoApp::syncupdate_stateconfig(int tag)
 {
-    cout << "Sync state updated: " << tag << " newstate: " << newstate << " old: " << oldstate << endl;
-
-    switch (newstate)
-    {
-        case SYNC_ACTIVE:
-            cout << "Sync is now active" << endl;
-            break;
-
-        case SYNC_FAILED:
-            cout << "Sync failed." << endl;
-
-        default:
-            ;
-    }
+    cout << "Sync config updated: " << tag << endl;
 }
 
-void DemoApp::sync_auto_resume_result(const UnifiedSync& s)
+
+void DemoApp::syncupdate_active(int tag, bool active)
 {
-    cout << "Sync - auresumed " << s.mConfig.getTag() << " " << s.mConfig.getLocalPath()  << " enabled: "
-         << s.mConfig.getEnabled()  << " state: " << s.mConfig.calcState(s.mSync.get()) << " syncError: " << s.mConfig.getError() << endl;
+    cout << "Sync is now active: " << active << endl;
+}
+
+void DemoApp::sync_auto_resume_result(const UnifiedSync& s, bool attempted)
+{
+    if (attempted)
+    {
+        cout << "Sync - autoresumed " << s.mConfig.getTag() << " " << s.mConfig.getLocalPath()  << " enabled: "
+             << s.mConfig.getEnabled()  << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
+    }
+    else
+    {
+        cout << "Sync - autoloaded " << s.mConfig.getTag() << " " << s.mConfig.getLocalPath() << " enabled: "
+            << s.mConfig.getEnabled() << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
+    }
 }
 
 void DemoApp::sync_removed(int tag)
@@ -8828,7 +8829,8 @@ void exec_syncxable(autocomplete::ACState& s)
       {
           return s == sync;
       },
-      static_cast<SyncError>(error));
+      static_cast<SyncError>(error),
+      false);
 }
 
 #endif // ENABLE_SYNC

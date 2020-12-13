@@ -636,7 +636,7 @@ public:
 
     // disable synchronization. (transition to disable_state)
     // If no error passed, it entails a manual disable: won't be resumed automatically anymore, but it will be kept in cache
-    bool disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError);
+    bool disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError, bool newEnabledFlag);
 
     // fail all active syncs
     void failSyncs(SyncError syncError =  NO_SYNC_ERROR);

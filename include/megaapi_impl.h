@@ -1069,7 +1069,7 @@ class MegaSyncPrivate : public MegaSync
 public:
     MegaSyncPrivate(const char *path, const char *name, handle nodehandle, int tag);
     MegaSyncPrivate(const SyncConfig& config, Sync*);
-    MegaSyncPrivate(MegaSyncPrivate *sync);
+    MegaSyncPrivate(MegaSyncPrivate*);
 
     virtual ~MegaSyncPrivate();
 
@@ -1088,11 +1088,7 @@ public:
     void setLocalFingerprint(long long fingerprint);
     virtual int getTag() const;
     void setTag(int tag);
-    void setListener(MegaSyncListener *listener);
-    MegaSyncListener *getListener();
-    virtual int getState() const;
 
-    void setState(int state);
     virtual MegaRegExp* getRegExp() const;
     void setRegExp(MegaRegExp *regExp);
 
@@ -1113,11 +1109,11 @@ protected:
     MegaRegExp *regExp;
     int tag;
     long long fingerprint;
-    MegaSyncListener *listener;
-    int state; //this refers to status (initialscan/active/failed/canceled/disabled)
 
     //holds error cause
     int mError;
+    bool mEnabled = false;
+    bool mActive = false;
 
 };
 
@@ -1241,8 +1237,6 @@ class MegaRequestPrivate : public MegaRequest
         void setMegaStringList(MegaStringList* stringList);
 
 #ifdef ENABLE_SYNC
-        void setSyncListener(MegaSyncListener *syncListener);
-        MegaSyncListener *getSyncListener() const;
         void setRegExp(MegaRegExp *regExp);
         virtual MegaRegExp *getRegExp() const;
 #endif
@@ -1278,7 +1272,6 @@ protected:
         long long transferredBytes;
         MegaRequestListener *listener;
 #ifdef ENABLE_SYNC
-        MegaSyncListener *syncListener;
         MegaRegExp *regExp;
 #endif
         MegaBackupListener *backupListener;
@@ -2070,9 +2063,6 @@ class RequestQueue
         MegaRequestPrivate * pop();
         MegaRequestPrivate * front();
         void removeListener(MegaRequestListener *listener);
-#ifdef ENABLE_SYNC
-        void removeListener(MegaSyncListener *listener);
-#endif
         void removeListener(MegaBackupListener *listener);
 };
 
@@ -2121,10 +2111,6 @@ class MegaApiImpl : public MegaApp
         void addTransferListener(MegaTransferListener* listener);
         void addBackupListener(MegaBackupListener* listener);
         void addGlobalListener(MegaGlobalListener* listener);
-#ifdef ENABLE_SYNC
-        void addSyncListener(MegaSyncListener *listener);
-        void removeSyncListener(MegaSyncListener *listener);
-#endif
         void removeListener(MegaListener* listener);
         void removeRequestListener(MegaRequestListener* listener);
         void removeTransferListener(MegaTransferListener* listener);
@@ -2893,6 +2879,7 @@ protected:
         // sc requests to close existing wsc and immediately retrieve pending actionpackets
         RequestQueue scRequestQueue;
 
+        std::unique_ptr<MegaBackupMonitor> mHeartBeatMonitor;
         int pendingUploads;
         int pendingDownloads;
         int totalUploads;
@@ -2906,14 +2893,9 @@ protected:
         set<MegaTransferListener *> transferListeners;
         set<MegaBackupListener *> backupListeners;
 
-#ifdef ENABLE_SYNC
-        set<MegaSyncListener *> syncListeners;
-
         MegaSyncPrivate* cachedMegaSyncPrivateByTag(int tag);
         unique_ptr<MegaSyncPrivate> mCachedMegaSyncPrivate;
         int mCachedMegaSyncPrivateTag = 0;
-#endif
-
         set<MegaGlobalListener *> globalListeners;
         set<MegaListener *> listeners;
         retryreason_t waitingRequest;
@@ -3159,19 +3141,14 @@ protected:
 #ifdef ENABLE_SYNC
         // sync status updates and events
 
-        /**
-         * @brief updates sync state and fires changes corresponding callbacks:
-         * - fireOnSyncStateChanged: this will be fired regardless
-         * - firOnSyncDisabled: when transitioning from active to inactive sync
-         * - fireOnSyncEnabled: when transitioning from inactive to active sync
-         * @param tag
-         * @param fireDisableEvent if when the change entails a transition to inactive should call to fireOnSyncDisabled. Should
-         * be false when adding a new sync (there was no sync: failure implies no transition)
-         */
-        void syncupdate_state(int tag, syncstate_t, syncstate_t oldstate, bool fireDisableEvent = true) override;
+        // calls fireOnSyncStateChanged
+        void syncupdate_stateconfig(int tag) override;
+
+        // calls firOnSyncDisabled or fireOnSyncEnabled
+        void syncupdate_active(int tag, bool active) override;
 
         // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded indicating the result of that addition
-        void sync_auto_resume_result(const UnifiedSync& s) override;
+        void sync_auto_resume_result(const UnifiedSync& s, bool attempted) override;
 
         // this will fire onSyncStateChange if remote path of the synced node has changed
         virtual void syncupdate_remote_root_changed(const SyncConfig &) override;
@@ -3217,7 +3194,6 @@ protected:
 
         void backupput_result(const Error&, handle backupId) override;
         void backupupdate_result(const Error&, handle) override;
-        void backupputheartbeat_result(const Error&) override;
         void backupremove_result(const Error&, handle) override;
 
 protected:
