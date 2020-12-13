@@ -18195,6 +18195,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
          * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the backupId
          * - MegaRequest::getNodeHandle - Returns the target node of the backup
          * - MegaRequest::getName - Returns the backup name of the remote location
          * - MegaRequest::getAccess - Returns the backup state
@@ -18248,7 +18249,7 @@ class MegaApi
          * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          *
          * @param backupId backup id identifying the backup to be updated
-         * @param backupType Local path of the folder
+         * @param backupType back up type requested for the service
          * @param targetNode MEGA folder to hold the backups
          * @param localFolder Local path of the folder
          * @param state backup state 
