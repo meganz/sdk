@@ -170,9 +170,9 @@ public:
     static void gzipCompressOnRotate(LocalPath localPath, LocalPath destinationLocalPath)
     {
         MegaFileSystemAccess * fsAccess = new MegaFileSystemAccess();
-        auto fileAccess = fsAccess->newfileaccess();
 
-        if (!fileAccess->fopen(localPath, true, false))
+        std::ifstream file(localPath.localpath.c_str(), std::ofstream::out);
+        if (!file.is_open())
         {
             std::cerr << "Unable to open log file for reading: " << localPath.toPath(*fsAccess) << std::endl;
             delete fsAccess;
@@ -188,33 +188,20 @@ public:
         if (!gzfile)
         {
             std::cerr << "Unable to open gzfile for writing: " << localPath.toPath(*fsAccess) << std::endl;
-            fileAccess.reset();
             delete fsAccess;
             return;
         }
 
-        fileAccess->openf();
-        std::string buffer;
-        buffer.resize(1024);
-        memset((void*)buffer.data(), 0, 1024);
-        size_t pos = 0;
-        while (fileAccess->frawread((byte*)buffer.data(), 1024, pos))
+        std::string line;
+        while (std::getline(file, line))
         {
-            if (gzwrite(gzfile.get(), buffer.data(), 1024) == -1)
+            line.push_back('\n');
+            if (gzputs(gzfile.get(), line.c_str()) == -1)
             {
                 std::cerr << "Unable to compress log file: " << localPath.toPath(*fsAccess) << std::endl;
-                fileAccess.reset();
-                delete fsAccess;
                 return;
             }
-
-            pos += 1024;
-            memset((void*)buffer.data(), 0, 1024);
         }
-
-        gzfile.reset();
-        fileAccess->closef();
-        fileAccess.reset();
 
         fsAccess->unlinklocal(localPath);
         delete fsAccess;
@@ -262,10 +249,10 @@ private:
                     }
                 }
                 else
-                {
+                {                   
                     LocalPath nextFileName = logArchiveNumbered_getFilename(fileName, i + 1);
                     LocalPath nextPath = logsPath;
-                    nextPath.appendWithSeparator(toRenameFileName, false);
+                    nextPath.appendWithSeparator(nextFileName, false);
                     if (!fsAccess->renamelocal(toRenamePath, nextPath, true))
                     {
                         std::cerr << "Error renaming log file " << i << std::endl;
