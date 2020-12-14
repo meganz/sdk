@@ -30,6 +30,10 @@
 #include "megaapi.h"
 #include "mega/mediafileattribute.h"
 
+#ifdef USE_ROTATIVEPERFORMANCELOGGER
+#include "mega/rotativeperformancelogger.h"
+#endif
+
 #include <iomanip>
 #include <algorithm>
 #include <functional>
@@ -5647,6 +5651,15 @@ void MegaApiImpl::setLoggingName(const char* loggingName)
     }
     sdkMutex.unlock();
 }
+
+#ifdef USE_ROTATIVEPERFORMANCELOGGER
+void MegaApiImpl::setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut, long int archivedFilesAgeSeconds)
+{
+    mega::RotativePerformanceLogger::Instance().initialize(logPath, logFileName, logToStdOut);
+    mega::RotativePerformanceLogger::Instance().setArchiveTimestamps(archivedFilesAgeSeconds);
+    MegaApiImpl::addLoggerClass(&mega::RotativePerformanceLogger::Instance());
+}
+#endif
 
 long long MegaApiImpl::getSDKtime()
 {
@@ -23945,7 +23958,6 @@ bool MegaErrorPrivate::hasExtraInfo() const
 
 long long MegaErrorPrivate::getUserStatus() const
 {
-    return mUserStatus;
 }
 
 long long MegaErrorPrivate::getLinkStatus() const
