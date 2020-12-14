@@ -508,9 +508,6 @@ public:
 
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;
-
-    // keep sync configuration after logout
-    bool mKeepSyncsAfterLogout = false;
 #endif
     // backup names pending to be sent
     string_map mPendingBackupNames;
@@ -1813,11 +1810,6 @@ public:
     std::string getDeviceid() const;
 
     std::string getDeviceidHash() const;
-
-#ifdef ENABLE_SYNC
-    bool getKeepSyncsAfterLogout() const;
-    void setKeepSyncsAfterLogout(bool keepSyncsAfterLogout);
-#endif
 
     void loadCacheableStatus(std::shared_ptr<CacheableStatus> status);
 

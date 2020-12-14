@@ -5149,7 +5149,6 @@ public:
         ACCOUNT_BLOCKED= 25, // Account blocked
         UNKNOWN_TEMPORARY_ERROR = 26, // unknown temporary error
         TOO_MANY_ACTION_PACKETS = 27, // Too many changes in account, local state discarded
-        LOGGED_OUT = 28, // Logged out
     };
 
     enum Warning
@@ -5265,7 +5264,6 @@ public:
      *  - ACCOUNT_BLOCKED = 25: Account blocked
      *  - UNKNOWN_TEMPORARY_ERROR = 26: Unknown temporary error
      *  - TOO_MANY_ACTION_PACKETS = 27: Too many changes in account, local state discarded
-     *  - LOGGED_OUT = 28: Logged out
      *
      * @return Error of a synchronization
      */
@@ -13568,16 +13566,6 @@ class MegaApi
          */
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
 
-        /**
-         * @brief Enable keeping sync configuration after logout
-         *
-         * By default, sync configurations are removed upon logout. Enabling this will
-         * keep configurations so that new sessions will restore syncs configured previously.
-         *
-         * @param enable True to keep sync configurations after logout.
-         */
-        void setKeepSyncsAfterLogout(bool enable);
-
 #ifdef USE_PCRE
         /**
          * @brief Synchronize a local folder and a folder in MEGA, having an exclusion list
@@ -18288,13 +18276,13 @@ class MegaApi
          * @param backupType back up type requested for the service
          * @param targetNode MEGA folder to hold the backups
          * @param localFolder Local path of the folder
-         * @param state backup state 
+         * @param state backup state
          * @param subState backup subState
          * @param extraData A binary array converted into B64 (optional)
          * @param listener MegaRequestListener to track this request
         */
         void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
-        
+
         /**
          * @brief Unregister a backup already registered for the Backup Centre
          *
@@ -18310,7 +18298,7 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
         */
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
-        
+
         /**
          * @brief Send heartbeat associated with an existing backup
          *
@@ -18337,11 +18325,11 @@ class MegaApi
          *
          * @param backupId backup id identifying the backup
          * @param state backup state
-         * @param progress backup progress 
+         * @param progress backup progress
          * @param ups Number of pending upload transfers
          * @param downs Number of pending download transfers
          * @param ts Last action timestamp
-         * @param lastNode Last node handle to be synced 
+         * @param lastNode Last node handle to be synced
          * @param listener MegaRequestListener to track this request
         */
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener = nullptr);

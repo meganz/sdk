@@ -8682,11 +8682,6 @@ void MegaApiImpl::copyCachedStatus(int storageStatus, int blockStatus, int busin
     waiter->notify();
 }
 
-void MegaApiImpl::setKeepSyncsAfterLogout(bool enable)
-{
-    client->setKeepSyncsAfterLogout(enable);
-}
-
 void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
