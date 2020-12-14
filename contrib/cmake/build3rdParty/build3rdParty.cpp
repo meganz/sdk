@@ -189,34 +189,28 @@ bool readCommandLine(int argc, char* argv[])
         {
             if (++it == myargv1.end()) return showSyntax();
             portsFile = *it;
-            argc -= 2;
         }
         else if (std::string(*it) == "--triplet")
         {
             if (++it == myargv1.end()) return showSyntax();
             triplet = *it;
-            argc -= 2;
         }
         else if (std::string(*it) == "--sdkroot")
         {
             if (++it == myargv1.end()) return showSyntax();
             sdkRootPath = *it;
-            argc -= 2;
         }
         else if (std::string(*it) == "--setup")
         {
             setup = true;
-            argc -= 1;
         }
         else if (std::string(*it) == "--removeunusedports" && setup)
         {
             removeUnusedPorts = true;
-            argc -= 1;
         }
         else if (std::string(*it) == "--build")
         {
             build = true;
-            argc -= 1;
         }
         else
         {
