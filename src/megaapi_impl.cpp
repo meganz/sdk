@@ -24097,6 +24097,7 @@ bool MegaErrorPrivate::hasExtraInfo() const
 
 long long MegaErrorPrivate::getUserStatus() const
 {
+    return mUserStatus;
 }
 
 long long MegaErrorPrivate::getLinkStatus() const
