@@ -605,16 +605,24 @@ public:
      */
     error isLocalPathSyncable(std::string newPath, int newSyncTag = 0, SyncError *syncError = nullptr);
 
+    /**
+     * @brief check config. Will fill syncError in the SyncConfig case there is one.
+     * Will fill syncWarning in the SyncConfig case there is one.
+     * Does not persist the sync configuration.
+     * @param syncError filled with SyncError with the sync error that prevented the addition
+     * @param delayInitialScan delay the initial scan
+     * @return API_OK if added to active syncs. (regular) error otherwise.
+     */
+    error checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, Node*& remotenode, bool& inshare, bool& isnetwork);
 
     /**
-     * @brief add sync. Will fill syncError in case there is one.
+     * @brief add sync. Will fill syncError/syncWarning in case there is one.
      * It will persist the sync configuration if everything goes fine.
      * @param syncError filled with SyncError with the sync error that prevented the addition
      * @param delayInitialScan delay the initial scan
      * @return API_OK if added to active syncs. (regular) error otherwise.
      */
-    error checkSyncConfig(const SyncConfig& syncConfig, SyncError& syncError, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, Node*& remotenode, bool& inshare, bool& isnetwork);
-    error addsync(const SyncConfig&, const char*, LocalPath*, SyncError& syncError, bool delayInitialScan, UnifiedSync*& unifiedSync);
+    error addsync(SyncConfig&, const char*, LocalPath*, bool delayInitialScan, UnifiedSync*& unifiedSync);
 
 
 

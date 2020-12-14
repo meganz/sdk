@@ -1400,8 +1400,7 @@ struct StandardClient : public MegaApp
             {
                 SyncConfig syncConfig{syncTag, localpath.u8string(), localpath.u8string(), m->nodehandle, subfoldername, 0};
                 UnifiedSync* unifiedSync;
-                SyncError syncError;
-                error e = client.addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError, false, unifiedSync);  // use syncid as tag
+                error e = client.addsync(syncConfig, DEBRISFOLDER, NULL, false, unifiedSync);  // use syncid as tag
                 if (!e)
                 {
                     return true;

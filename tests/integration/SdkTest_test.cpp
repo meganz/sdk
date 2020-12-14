@@ -6106,7 +6106,7 @@ TEST_F(SdkTest, SyncOQTransitions)
         ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
         ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Needed to ensure we know we are in OQ
         sync = waitForSyncState(megaApi[0].get(), tagID, false, false, MegaSync::STORAGE_OVERQUOTA);
-        ASSERT_TRUE(sync && !sync->isEnabled());
+        ASSERT_TRUE(sync && sync->isEnabled());
         ASSERT_EQ(MegaSync::STORAGE_OVERQUOTA, sync->getError());
     }
 

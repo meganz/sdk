@@ -1649,11 +1649,14 @@ DirNotify* WinFileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& ig
     return new WinDirNotify(localpath, ignore, this, waiter);
 }
 
-bool WinFileSystemAccess::issyncsupported(LocalPath& localpathArg, bool *isnetwork, SyncError *syncError)
+bool WinFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)
 {
     WCHAR VBoxSharedFolderFS[] = L"VBoxSharedFolderFS";
     std::wstring path, fsname;
     bool result = true;
+    isnetwork = false;
+    syncError = NO_SYNC_ERROR;
+    syncWarning = NO_SYNC_WARNING;
 
 #ifndef WINDOWS_PHONE
     path.resize(MAX_PATH * sizeof(WCHAR));
@@ -1665,10 +1668,7 @@ bool WinFileSystemAccess::issyncsupported(LocalPath& localpathArg, bool *isnetwo
         if (!memcmp(fsname.data(), VBoxSharedFolderFS, sizeof(VBoxSharedFolderFS)))
         {
             LOG_warn << "VBoxSharedFolderFS is not supported because it doesn't provide ReadDirectoryChanges() nor unique file identifiers";
-            if (syncError)
-            {
-                *syncError = VBOXSHAREDFOLDER_UNSUPPORTED;
-            }
+            syncError = VBOXSHAREDFOLDER_UNSUPPORTED;
             result = false;
         }
         else if ((!memcmp(fsname.data(), L"FAT", 6) || !memcmp(fsname.data(), L"exFAT", 10))) // TODO: have these checks for !windows too
@@ -1678,31 +1678,21 @@ bool WinFileSystemAccess::issyncsupported(LocalPath& localpathArg, bool *isnetwo
                         "that can cause synchronization problems (e.g. when daylight saving changes), "
                         "so it's strongly recommended that you only sync folders formatted with more "
                         "reliable filesystems like NTFS (more information at https://help.mega.nz/megasync/syncing.html#can-i-sync-fat-fat32-partitions-under-windows.";
-            if (syncError)
-            {
-                *syncError = LOCAL_IS_FAT;
-            }
-
+            syncWarning = LOCAL_IS_FAT;
         }
         else if (!memcmp(fsname.data(), L"HGFS", 8))
         {
             LOG_warn << "You are syncing a local folder shared with VMWare. Those folders do not support filesystem notifications "
             "so MEGAsync will have to be continuously scanning to detect changes in your files and folders. "
             "Please use a different folder if possible to reduce the CPU usage.";
-            if (syncError)
-            {
-                *syncError = LOCAL_IS_HGFS;
-            }
+            syncWarning = LOCAL_IS_HGFS;
         }
     }
 
     if (GetDriveTypeW(path.data()) == DRIVE_REMOTE)
     {
         LOG_debug << "Network folder detected";
-        if (isnetwork)
-        {
-            *isnetwork = true;
-        }
+        isnetwork = true;
     }
 
     string utf8fsname;

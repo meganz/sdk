@@ -5146,12 +5146,17 @@ public:
         REMOTE_NODE_INSIDE_RUBBISH = 20, // Attempted to be added in rubbish
         VBOXSHAREDFOLDER_UNSUPPORTED = 21, // Found unsupported VBoxSharedFolderFS
         LOCAL_PATH_SYNC_COLLISION = 22, //Local path includes a synced path or is included within one
-        LOCAL_IS_FAT = 23, // Found FAT (not a failure per se)
-        LOCAL_IS_HGFS= 24, // Found HGFS (not a failure per se)
         ACCOUNT_BLOCKED= 25, // Account blocked
         UNKNOWN_TEMPORARY_ERROR = 26, // unknown temporary error
         TOO_MANY_ACTION_PACKETS = 27, // Too many changes in account, local state discarded
         LOGGED_OUT = 28, // Logged out
+    };
+
+    enum Warning
+    {
+        NO_SYNC_WARNING = 0,
+        LOCAL_IS_FAT = 23, // Found FAT (not a failure per se)
+        LOCAL_IS_HGFS= 24, // Found HGFS (not a failure per se)
     };
 
     enum SyncAdded
@@ -5257,8 +5262,6 @@ public:
      *  - REMOTE_NODE_INSIDE_RUBBISH = 20: Attempted to be added in rubbish
      *  - VBOXSHAREDFOLDER_UNSUPPORTED = 21: Found unsupported VBoxSharedFolderFS
      *  - LOCAL_PATH_SYNC_COLLISION = 22: Local path includes a synced path or is included within one
-     *  - LOCAL_IS_FAT = 23: Found FAT (not a failure per se)
-     *  - LOCAL_IS_HGFS = 24: Found HGFS (not a failure per se)
      *  - ACCOUNT_BLOCKED = 25: Account blocked
      *  - UNKNOWN_TEMPORARY_ERROR = 26: Unknown temporary error
      *  - TOO_MANY_ACTION_PACKETS = 27: Too many changes in account, local state discarded
@@ -5268,6 +5271,17 @@ public:
      */
     virtual int getError() const;
 
+    /**
+     * @brief Get the warning of a synchronization
+     *
+     * Possible values are:
+     *  - NO_SYNC_WARNING = 0: No warning
+     *  - LOCAL_IS_FAT = 23: Found FAT (not a failure per se)
+     *  - LOCAL_IS_HGFS = 24: Found HGFS (not a failure per se)
+     *
+     * @return Warning of a synchronization
+     */
+    virtual int getWarning() const;
 
     /**
      * @brief Returns if the sync is set as enabled by the user
@@ -5318,6 +5332,28 @@ public:
      * @return Description associated with the error code
      */
     static const char *getMegaSyncErrorCode(int errorCode);
+
+    /**
+     * @brief Returns a readable description of the sync warning
+     *
+     * This function returns a pointer to a statically allocated buffer.
+     * You don't have to free the returned pointer
+     *
+     * @return Readable description of the warning
+     */
+    const char * getMegaSyncWarningCode();
+
+    /**
+     * @brief Provides the warning description associated with a sync warning code
+     *
+     * This function returns a pointer to a statically allocated buffer.
+     * You don't have to free the returned pointer
+     *
+     * @param warningCode Warning code for which the description will be returned
+     * @return Description associated with the warning code
+     */
+    static const char *getMegaSyncWarningCode(int warningCode);
+
 };
 
 

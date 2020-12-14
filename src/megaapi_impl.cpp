@@ -21395,14 +21395,11 @@ void MegaApiImpl::sendPendingRequests()
             unique_ptr<MegaSyncPrivate> sync(new MegaSyncPrivate(localPath, name, node->nodehandle, nextSyncTag));
             sync->setRegExp(request->getRegExp());
 
-            SyncError syncError = NO_SYNC_ERROR;
-
             std::unique_ptr<char []> remotePath{getNodePathByNodeHandle(request->getNodeHandle())};
             if (!remotePath)
             {
                 e = API_ENOENT;
-                syncError = REMOTE_NODE_NOT_FOUND;
-                request->setNumDetails(syncError);
+                request->setNumDetails(REMOTE_NODE_NOT_FOUND);
                 break;
             }
 
@@ -21410,9 +21407,9 @@ void MegaApiImpl::sendPendingRequests()
                                   0, regExpToVector(request->getRegExp())};
 
             UnifiedSync* unifiedSync = nullptr;
-            e = client->addsync(syncConfig, DEBRISFOLDER, NULL, syncError, true, unifiedSync);
-            request->setNumDetails(syncError);
-            if (!e || !isSyncErrorPermanent(syncError))
+            e = client->addsync(syncConfig, DEBRISFOLDER, NULL, true, unifiedSync);
+            request->setNumDetails(syncConfig.getError());
+            if (unifiedSync)
             {
                 if (!e && unifiedSync && unifiedSync->mSync)
                 {
@@ -21420,7 +21417,6 @@ void MegaApiImpl::sendPendingRequests()
                     sync->setLocalFingerprint(fsfp);
                     request->setNumber(fsfp);
                 }
-                sync->setError(syncError);
                 sync->setMegaFolderYielding(remotePath.release());
                 request->setTransferTag(nextSyncTag);
 
@@ -21434,13 +21430,11 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_ENABLE_SYNC:
         {
             auto tag = request->getNumDetails();
-            SyncError syncError = NO_SYNC_ERROR;
+            UnifiedSync* sync = nullptr;
 
-            e = client->syncs.enableSyncByTag(tag, syncError, true, UNDEF);
-            // Note: in case this fails with a non temporary error, this sets the sync
-            // to FAILED (which oddly entails: isEnabled = true: from the user perspective it has been enabled)
+            e = client->syncs.enableSyncByTag(tag, true, sync);
 
-            request->setNumDetails(e == API_ENOENT ? UNKNOWN_ERROR : syncError);  // tag not found.  Putting tag in here risks the tag matching some genuine error code.
+            request->setNumDetails(sync ? sync->mConfig.getError() : UNKNOWN_ERROR);
 
             if (!e) //sync added (enabled) fine
             {
@@ -24172,6 +24166,8 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
 MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle nodehandle, int tag)
     : mActive(false)
     , mEnabled(false)
+    , mError(0)
+    , mWarning(0)
 {
     this->tag = tag;
     this->megaHandle = nodehandle;
@@ -24190,7 +24186,6 @@ MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle node
     this->megaFolder = NULL;
     this->fingerprint = 0;
     this->regExp = NULL;
-    this->mError = 0;
 }
 
 MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr)
@@ -24228,6 +24223,7 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr)
     }
 
     setError(config.getError());
+    setWarning(config.getWarning());
 }
 
 MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
@@ -24246,6 +24242,7 @@ MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
     this->setLocalFingerprint(sync->getLocalFingerprint());
     this->setRegExp(sync->getRegExp());
     this->setError(sync->getError());
+    this->setWarning(sync->getWarning());
 }
 
 MegaSyncPrivate::~MegaSyncPrivate()
@@ -24574,6 +24571,16 @@ int MegaSyncPrivate::getError() const
 void MegaSyncPrivate::setError(int error)
 {
     mError = error;
+}
+
+int MegaSyncPrivate::getWarning() const
+{
+    return mWarning;
+}
+
+void MegaSyncPrivate::setWarning(int warning)
+{
+    mWarning = warning;
 }
 
 void MegaSyncPrivate::disable(int error)

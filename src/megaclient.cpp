@@ -12939,7 +12939,7 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, SyncError 
             LocalPath otherLocallyEncodedAbsolutePath;
             fsaccess->expanselocalpath(otherLocallyEncodedPath, otherLocallyEncodedAbsolutePath);
 
-            if (config.getEnabled() && !isAnError(config.getError()) &&
+            if (config.getEnabled() && !config.getError() &&
                     ( newLocallyEncodedAbsolutePath.isContainingPathOf(otherLocallyEncodedAbsolutePath)
                       || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath)
                     ) )
@@ -12960,14 +12960,16 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, SyncError 
 // check sync path, add sync if folder
 // disallow nested syncs (there is only one LocalNode pointer per node)
 // (FIXME: perform the same check for local paths!)
-error MegaClient::checkSyncConfig(const SyncConfig& syncConfig, SyncError &syncError, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, Node*& remotenode, bool& inshare, bool& isnetwork)
+error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, Node*& remotenode, bool& inshare, bool& isnetwork)
 {
 #ifdef ENABLE_SYNC
 
     // Checking for conditions where we would not even add the sync config
     // Though, if the config is already present but now invalid for one of these reasonse, we don't remove it
 
-    syncError = NO_SYNC_ERROR;
+    syncConfig.mEnabled = true;
+    syncConfig.mError = NO_SYNC_ERROR;
+    syncConfig.mWarning = NO_SYNC_WARNING;
 
     remotenode = nodebyhandle(syncConfig.getRemoteNode());
     inshare = false;
@@ -12978,13 +12980,13 @@ error MegaClient::checkSyncConfig(const SyncConfig& syncConfig, SyncError &syncE
                  << ": "
                  << LOG_NODEHANDLE(syncConfig.getRemoteNode());
 
-        syncError = REMOTE_NODE_NOT_FOUND;
+        syncConfig.mError = REMOTE_NODE_NOT_FOUND;
         return API_ENOENT;
     }
 
-    error e = isnodesyncable(remotenode, &inshare, &syncError);
-    if (e)
+    if (error e = isnodesyncable(remotenode, &inshare, &syncConfig.mError))
     {
+        syncConfig.mEnabled = false;
         return e;
     }
 
@@ -12993,13 +12995,11 @@ error MegaClient::checkSyncConfig(const SyncConfig& syncConfig, SyncError &syncE
     rootpath.trimNonDriveTrailingSeparator();
 
     isnetwork = false;
-    if (!fsaccess->issyncsupported(rootpath, &isnetwork, &syncError))
+    if (!fsaccess->issyncsupported(rootpath, isnetwork, syncConfig.mError, syncConfig.mWarning))
     {
         LOG_warn << "Unsupported filesystem";
-        if (!isAnError(syncError))
-        {
-            syncError = UNSUPPORTED_FILE_SYSTEM;
-        }
+        syncConfig.mError = UNSUPPORTED_FILE_SYSTEM;
+        syncConfig.mEnabled = false;
         return API_EFAILED;
     }
 
@@ -13015,47 +13015,45 @@ error MegaClient::checkSyncConfig(const SyncConfig& syncConfig, SyncError &syncE
             // so that the app does not need to carry that burden.
             // Although it might not be required given the following test does expands the configured
             // paths to use canonical paths when checking for path collisions:
-            e = isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.getTag(), &syncError);
+            error e = isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.getTag(), &syncConfig.mError);
             if (e)
             {
                 LOG_warn << "Local path not syncable: ";
-                if (!isAnError(syncError))
-                {
-                    syncError = LOCAL_PATH_UNAVAILABLE;
-                }
+                syncConfig.mError = LOCAL_PATH_UNAVAILABLE;
+                syncConfig.mEnabled = false;
                 return API_EFAILED;
             }
-
-            e = API_OK;
-
         }
         else
         {
-            syncError = INVALID_LOCAL_TYPE;
-            e = API_EACCESS;    // cannot sync individual files
+            syncConfig.mError = INVALID_LOCAL_TYPE;
+            syncConfig.mEnabled = false;
+            return API_EACCESS;    // cannot sync individual files
         }
     }
     else
     {
-        e = openedLocalFolder->retry ? API_ETEMPUNAVAIL : API_ENOENT;
-        syncError = openedLocalFolder->retry ? LOCAL_PATH_TEMPORARY_UNAVAILABLE : LOCAL_PATH_UNAVAILABLE;
+        syncConfig.mError = openedLocalFolder->retry ? LOCAL_PATH_TEMPORARY_UNAVAILABLE : LOCAL_PATH_UNAVAILABLE;
+        syncConfig.mEnabled = false;
+        return openedLocalFolder->retry ? API_ETEMPUNAVAIL : API_ENOENT;
     }
 
-    return e;
+    return API_OK;
 #else
+    syncConfig.mEnabled = false;
     return API_EINCOMPLETE;
 #endif
 }
 
 
-error MegaClient::addsync(const SyncConfig& config, const char* debris, LocalPath* localdebris, SyncError& syncError, bool delayInitialScan, UnifiedSync*& unifiedSync)
+error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* localdebris, bool delayInitialScan, UnifiedSync*& unifiedSync)
 {
     unifiedSync = nullptr;
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
     Node* remotenode;
     bool inshare, isnetwork;
-    error e = checkSyncConfig(config, syncError, rootpath, openedLocalFolder, remotenode, inshare, isnetwork);
+    error e = checkSyncConfig(config, rootpath, openedLocalFolder, remotenode, inshare, isnetwork);
 
     if (!e)
     {
@@ -13063,10 +13061,12 @@ error MegaClient::addsync(const SyncConfig& config, const char* debris, LocalPat
         // if we got this far, the syncConfig is kept (in db and in memory)
         unifiedSync = syncs.appendNewSync(config, *this);
 
-        e = unifiedSync->enableSync(syncError, false, UNDEF);
+        e = unifiedSync->enableSync(false);
 
         syncactivity = true;
+        config = unifiedSync->mConfig;  // so the caller can easily check the config they passed in
     }
+
     return e;
 }
 

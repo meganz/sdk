@@ -1094,6 +1094,8 @@ public:
 
     virtual int getError() const;
     void setError(int error);
+    virtual int getWarning() const;
+    void setWarning(int warning);
 
     void disable(int error = NO_SYNC_ERROR); //disable. NO_SYNC_ERROR = user disable
 
@@ -1112,6 +1114,7 @@ protected:
 
     //holds error cause
     int mError;
+    int mWarning;
     bool mEnabled = false;
     bool mActive = false;
 

@@ -97,13 +97,13 @@ struct UnifiedSync
     UnifiedSync(MegaClient&, const SyncConfig&);
 
     // Try to create and start the Sync
-    error enableSync(SyncError& syncError, bool resetFingerprint, handle newRemoteNode);
+    error enableSync(bool resetFingerprint);
 
 private:
     friend class Sync;
     friend struct Syncs;
-    error startSync(MegaClient* client, const char* debris, LocalPath* localdebris, Node* remotenode, bool inshare, SyncError& syncError, bool isNetwork, bool delayInitialScan, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder);
-    void changeConfigState(SyncError newSyncError, bool newEnabledFlag, bool fireDisableEvent);
+    error startSync(MegaClient* client, const char* debris, LocalPath* localdebris, Node* remotenode, bool inshare, bool isNetwork, bool delayInitialScan, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder);
+    void changedConfigState(bool fireDisableEvent);
     bool updateSyncRemoteLocation(Node* n, bool forceCallback);
 };
 
@@ -264,7 +264,7 @@ struct Syncs
     void stopCancelledFailedDisabled();
     void resumeResumableSyncsOnStartup();
     void enableResumeableSyncs();
-    error enableSyncByTag(int tag, SyncError& syncError, bool resetFingerprint, handle newRemoteNode);
+    error enableSyncByTag(int tag, bool resetFingerprint, UnifiedSync*&);
 
     // disable all active syncs.  Cache is kept
     void disableSyncs(SyncError syncError, bool newEnabledFlag);
@@ -279,7 +279,6 @@ struct Syncs
     void clear();
 
     // updates in state & error
-    void saveAndUpdateSyncConfig(SyncConfig& config, SyncError newSyncError, bool newEnabledFlag);
     void saveSyncConfig(const SyncConfig& config);
 
     Syncs(MegaClient& mc);

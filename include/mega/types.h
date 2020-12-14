@@ -356,45 +356,18 @@ enum SyncError {
     REMOTE_NODE_INSIDE_RUBBISH = 20,        // Attempted to be added in rubbish
     VBOXSHAREDFOLDER_UNSUPPORTED = 21,      // Found unsupported VBoxSharedFolderFS
     LOCAL_PATH_SYNC_COLLISION = 22,         // Local path includes a synced path or is included within one
-    LOCAL_IS_FAT = 23,                      // Found FAT (not a failure per se)
-    LOCAL_IS_HGFS= 24,                      // Found HGFS (not a failure per se)
     ACCOUNT_BLOCKED= 25,                    // Account blocked
     UNKNOWN_TEMPORARY_ERROR = 26,           // Unknown temporary error
     TOO_MANY_ACTION_PACKETS = 27,           // Too many changes in account, local state discarded
     LOGGED_OUT = 28,                        // Logged out
 };
 
-inline bool isSyncErrorPermanent(SyncError e)
-{
-    switch (e)
-    {
-    case NO_SYNC_ERROR:
-    case LOGGED_OUT: //syncs may be restored after relogging
-    case UNKNOWN_TEMPORARY_ERROR:
-    case STORAGE_OVERQUOTA:
-    case BUSINESS_EXPIRED:
-    case FOREIGN_TARGET_OVERSTORAGE:
-    case ACCOUNT_BLOCKED:
-    case LOCAL_IS_FAT:
-    case LOCAL_IS_HGFS:
-        return false;
-    default:
-        return true;
-    }
-}
+enum SyncWarning {
+    NO_SYNC_WARNING = 0,
+    LOCAL_IS_FAT = 23,                      // Found FAT (not a failure per se)
+    LOCAL_IS_HGFS= 24,                      // Found HGFS (not a failure per se)
+};
 
-inline bool isAnError(SyncError e)
-{
-    switch (e)
-    {
-    case NO_SYNC_ERROR:
-    case LOCAL_IS_FAT:
-    case LOCAL_IS_HGFS:
-        return false;
-    default:
-        return true;
-    }
-}
 
 typedef enum { SYNCDEL_NONE, SYNCDEL_DELETED, SYNCDEL_INFLIGHT, SYNCDEL_BIN,
                SYNCDEL_DEBRIS, SYNCDEL_DEBRISDAY, SYNCDEL_FAILED } syncdel_t;
@@ -878,6 +851,7 @@ public:
                const bool syncDeletions = false,
                const bool forceOverwrite = false,
                const SyncError error = NO_SYNC_ERROR,
+               const SyncWarning warning = NO_SYNC_WARNING,
                handle hearBeatID = UNDEF
             );
 
@@ -887,10 +861,7 @@ public:
     // returns unique identifier
     void setTag(int tag);
 
-    // whether this sync can be resumed
-    bool isResumable() const;
-
-    // wether this sync has errors (was inactive)
+    // whether this sync has errors (was inactive)
     bool hasError() const;
 
     // returns the local path of the sync
@@ -942,6 +913,7 @@ public:
 
     // get error code (errors can be temporary/fatal/mere warnings)
     SyncError getError() const;
+    SyncWarning getWarning() const;
 
     // sets the error
     void setError(SyncError value);
@@ -1000,6 +972,15 @@ private:
     // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
     bool serialize(std::string& data) const;
 
+    // Warning if creation was successful but the user should know something
+    SyncWarning mWarning;
+    friend struct UnifiedSync;
+    friend class MegaClient; // until functions are moved to Sync.cpp
+    
+    // notified/saved state
+    SyncError mKnownError = NO_SYNC_ERROR;
+    bool mKnownEnabled = false;
+    bool mEverKnown = false;
 };
 
 // cross reference pointers.  For the case where two classes have pointers to each other, and they should

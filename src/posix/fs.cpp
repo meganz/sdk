@@ -1842,6 +1842,14 @@ DirNotify* PosixFileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& 
     return dirnotify;
 }
 
+bool PosixFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)
+{
+    isnetwork = false;
+    syncError = NO_SYNC_ERROR;
+    syncWarning = NO_SYNC_WARNING;
+    return true;
+}
+
 bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType& type) const
 {
 #if defined(__linux__) || defined(__ANDROID__)
