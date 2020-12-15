@@ -13031,7 +13031,11 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
             if (e)
             {
                 LOG_warn << "Local path not syncable: ";
-                syncConfig.mError = LOCAL_PATH_UNAVAILABLE;
+
+                if (syncConfig.mError == NO_SYNC_ERROR)
+                {
+                    syncConfig.mError = LOCAL_PATH_UNAVAILABLE;
+                }
                 syncConfig.mEnabled = false;
                 return API_EFAILED;
             }
