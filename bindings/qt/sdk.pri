@@ -711,3 +711,8 @@ win32-msvc {
     SOURCES += src/win32/drivenotifywin.cpp
     LIBS += -lwbemuuid
 }
+unix {
+    DEFINES += HAVE_DRIVE_NOTIFY
+    HEADERS += include/mega/posix/drivenotifyposix.h
+    SOURCES += src/posix/drivenotifyposix.cpp
+}

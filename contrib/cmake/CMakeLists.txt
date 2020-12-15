@@ -526,6 +526,9 @@ ELSE(WIN32)
     IF(APPLE)
         SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/src/osx/osxutils.mm )
     ENDIF()
+    IF(HAVE_DRIVE_NOTIFY)
+        SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/include/mega/posix/drivenotifyposix.h ${MegaDir}/src/posix/drivenotifyposix.cpp)
+    ENDIF(HAVE_DRIVE_NOTIFY)
 
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/posix)
 
