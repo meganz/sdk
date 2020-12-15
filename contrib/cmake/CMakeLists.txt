@@ -469,7 +469,26 @@ endif(USE_THIRDPARTY_FROM_VCPKG)
 # Migration from autotools note: there was a check that determined if libmediainfo was compiled with UNICODE.
 set(UNICODE 1)
 
+# Prepare to test for DriveNotify support
+unset(HAVE_DRIVE_NOTIFY CACHE)
+
 if(WIN32)
+
+    # Test for WMI / WBEM / DriveNotify support
+    include(CheckCXXSourceCompiles)
+    set (CMAKE_REQUIRED_LIBRARIES "wbemuuid")
+    check_cxx_source_compiles("
+    #include <wbemcli.h>
+    int main()
+    {
+        // Dummy call, just to force pulling in wbemuuid lib
+        CoCreateInstance(CLSID_WbemLocator, 0, 0, IID_IWbemLocator, nullptr);
+        return 0;
+    }" HAVE_DRIVE_NOTIFY)
+
+    IF(NOT HAVE_DRIVE_NOTIFY)
+        message(WARNING "DriveNotify was disabled (HAVE_DRIVE_NOTIFY not defined)!")
+    ENDIF()
     
     add_definitions(-D_CRT_SECURE_NO_WARNINGS -DCURL_STATICLIB -DCARES_STATICLIB -DWIN32_LEAN_AND_MEAN -DSODIUM_STATIC -DPCRE_STATICWIN32 -D_CONSOLE )
     SET(Mega_PlatformSpecificIncludes ${MegaDir}/include/mega/$<IF:${USE_CURL},wincurl,win32>)
@@ -477,6 +496,9 @@ if(WIN32)
     IF(USE_LIBUV)
         SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} Kernel32.lib Iphlpapi.lib Userenv.lib Psapi.lib )
     ENDIF(USE_LIBUV)
+    IF(HAVE_DRIVE_NOTIFY)
+        SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} wbemuuid)
+    ENDIF(HAVE_DRIVE_NOTIFY)
 
     SET(Mega_PlatformSpecificFiles ${MegaDir}/src/win32/console.cpp
     ${MegaDir}/src/win32/consolewaiter.cpp 
@@ -485,6 +507,9 @@ if(WIN32)
     ${MegaDir}/src/win32/waiter.cpp 
     $<${USE_CPPTHREAD}:${MegaDir}/src/thread/cppthread.cpp>
     )
+    IF(HAVE_DRIVE_NOTIFY)
+        SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/include/mega/win32/drivenotifywin.h ${MegaDir}/src/win32/drivenotifywin.cpp)
+    ENDIF(HAVE_DRIVE_NOTIFY)
 
 ELSE(WIN32)
 
@@ -614,6 +639,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/node.h
             ${MegaDir}/include/mega/mediafileattribute.h
             ${MegaDir}/include/mega/mega_glob.h
+            ${MegaDir}/include/mega/drivenotify.h
             ${MegaDir}/include/mega.h
             ${MegaDir}/src/attrmap.cpp 
             ${MegaDir}/src/autocomplete.cpp 
@@ -720,6 +746,11 @@ target_compile_definitions(Mega PUBLIC
                 $<${USE_CPPTHREAD}:USE_CPPTHREAD>
                 $<${USE_QT}:USE_QT>
                 $<${USE_PDFIUM}:HAVE_PDFIUM>)
+
+if (HAVE_DRIVE_NOTIFY)
+target_compile_definitions(Mega PUBLIC
+                HAVE_DRIVE_NOTIFY=1)
+endif(HAVE_DRIVE_NOTIFY)
 
 if (WIN32)
     target_link_libraries(Mega PUBLIC crypt32.lib)

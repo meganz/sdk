@@ -443,7 +443,8 @@ HEADERS  += include/mega.h \
             include/mega/mega_zxcvbn.h \
             include/mega/mediafileattribute.h \
             include/mega/raid.h \
-            include/mega/testhooks.h
+            include/mega/testhooks.h \
+            include/mega/drivenotify.h
 
 CONFIG(USE_MEGAAPI) {
     HEADERS += bindings/qt/QTMegaRequestListener.h \
@@ -699,4 +700,14 @@ macx {
    LIBS += -framework SystemConfiguration
    
    vcpkg:LIBS += -liconv -framework CoreServices -framework CoreFoundation -framework AudioUnit -framework AudioToolbox -framework CoreAudio -framework CoreMedia -framework VideoToolbox -framework ImageIO -framework CoreVideo 
+}
+
+# DriveNotify settings
+win32-msvc {
+    # Allegedly not supported by non-msvc compilers.
+    # Cmake is better at testing this, as it supports compilation test.
+    DEFINES += HAVE_DRIVE_NOTIFY
+    HEADERS += include/mega/win32/drivenotifywin.h
+    SOURCES += src/win32/drivenotifywin.cpp
+    LIBS += -lwbemuuid
 }
