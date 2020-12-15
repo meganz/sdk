@@ -20,6 +20,7 @@
  */
 
 #include "mega.h"
+#include "mega/drivenotify.h"
 #include "megacli.h"
 #include <fstream>
 
@@ -3163,6 +3164,9 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_setmaxconnections, sequence(text("setmaxconnections"), either(text("put"), text("get")), opt(wholenumber(4))));
     p->Add(exec_metamac, sequence(text("metamac"), localFSPath(), remoteFSPath(client, &cwd)));
     p->Add(exec_banner, sequence(text("banner"), either(text("get"), sequence(text("dismiss"), param("id")))));
+
+    p->Add(exec_notifydrive, sequence(text("notifydrive"), opt(either(wholenumber(60),
+        sequence(either(text("connect"), text("disconnect")), opt(wholenumber(60)))))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -6651,6 +6655,134 @@ void exec_enabletransferresumption(autocomplete::ACState& s)
         cout << "transfer resumption enabled" << endl;
     }
 }
+
+void exec_notifydrive(autocomplete::ACState& s)
+{
+#ifndef HAVE_DRIVE_NOTIFY
+    std::cout << "Failed! This functionality was disabled at compile time." << std::endl;
+#else
+
+    int timeout = 60; // seconds
+    bool showConnected = true;
+    bool showDisconnected = true;
+
+    // notifydrive [N|connect|disconnect]
+    if (s.words.size() == 2)
+    {
+        int t = 0;
+        try
+        {
+            t = stoi(s.words[1].s);
+        }
+        catch (...) {}
+
+        if (t)
+        {
+            timeout = t;
+        }
+        else
+        {
+            if (s.words[1].s == "connect")
+            {
+                showDisconnected = false;
+            }
+            else
+            {
+                showConnected = false;
+            }
+        }
+    }
+
+    // notifydrive [connect|disconnect] N
+    else if (s.words.size() == 3)
+    {
+        int t = 0;
+        try
+        {
+            t = stoi(s.words[2].s);
+        }
+        catch (...) {}
+
+        if (t)
+        {
+            timeout = t;
+        }
+
+        if (s.words[1].s == "connect")
+        {
+            showDisconnected = false;
+        }
+        else
+        {
+            showConnected = false;
+        }
+    }
+
+    // Inform about what will happen
+    cout << "Waiting for one drive " << (!showConnected ?   "disconnect" :
+                                        (!showDisconnected ? "connect" :
+                                                             "connect-disconnect"))
+        << " event, for at most " << timeout << " seconds..." << endl;
+
+    // info-to-string function
+    auto infoToStr = [](const DriveInfo& info)
+    {
+        std::wostringstream out;
+        out << L"\tmountPoint: " << info.mountPoint << endl
+            << L"\tlocation: " << info.location << endl
+            << L"\tdescription: " << info.description << endl
+            << L"\tsize: " << info.size << endl
+            << L"\tvolumeSerialNumber: " << info.volumeSerialNumber << endl
+            << L"\tdriveType: " << info.driveType << endl
+            << L"\tmediaType: " << info.mediaType << endl;
+
+        // dumb string conversion;
+        wstring outWStr = out.str();
+        string outStr(outWStr.begin(), outWStr.end());
+
+        return outStr;
+    };
+
+    // prepare for "connected" notification
+    std::atomic_bool connected(false);
+    DriveNotify::NotificationFunc fConnect;
+    if (showConnected)  fConnect = [&connected, &infoToStr](DriveInfo&& info) mutable
+    {
+        std::cout << "Drive connected:\n" << infoToStr(info);
+
+        connected.store(true);
+    };
+
+    // prepare for "disconnected" notification
+    std::atomic_bool disconnected(false);
+    DriveNotify::NotificationFunc fDisconnect;
+    if (showDisconnected)  fDisconnect = [&disconnected, &infoToStr](DriveInfo&& info) mutable
+    {
+        std::cout << "Drive disconnected:\n" << infoToStr(info);
+
+        disconnected.store(true);
+    };
+
+    // create a notifier
+    DriveNotify dn;
+    if (!dn.start(fConnect, fDisconnect))
+    {
+        std::cout << "Failed starting notifications" << std::endl;
+        return;
+    }
+
+    // check for notifications until timeout
+    for (int i = 0; i < timeout; ++i)
+    {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+
+        if ((!showConnected || connected.load()) && (!showDisconnected || disconnected.load()))
+            break;
+    }
+
+#endif // HAVE_DRIVE_NOTIFY
+}
+
 
 // callback for non-EAGAIN request-level errors
 // in most cases, retrying is futile, so the application exits
