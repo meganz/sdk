@@ -5825,6 +5825,9 @@ TEST_F(SdkTest, SyncPersistence)
     LOG_info << "___TEST SyncPersistence___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
+    // Make sure session ID is invalidated.
+    gSessionIDs[0] = "invalid";
+
     fs::path basePath = "SyncPersistence";
     const auto localPath = fs::current_path() / basePath;
 
