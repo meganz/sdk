@@ -5310,13 +5310,25 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         }
 #endif
 
-        if (previousStatus == STORAGE_RED || previousStatus == STORAGE_PAYWALL) //transition from OQ
+        switch (previousStatus)
         {
+        case STORAGE_UNKNOWN:
+            if (!(status == STORAGE_GREEN || status == STORAGE_ORANGE))
+            {
+                break;
+            }
+            // fall-through
+        case STORAGE_PAYWALL:
+        case STORAGE_RED:
+            // Transition from OQ.
 #ifdef ENABLE_SYNC
-            syncs.enableResumeableSyncs(); //STORAGE_OVERQUOTA
-#endif
+            syncs.enableResumeableSyncs();
+#endif // ENABLE_SYNC
             abortbackoff(true);
+        default:
+            break;
         }
+
         return true;
     }
     return false;
