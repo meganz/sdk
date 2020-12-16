@@ -214,21 +214,12 @@ public class MegaApiJava {
     public final static int SEARCH_TARGET_ROOTNODE = MegaApi.SEARCH_TARGET_ROOTNODE;
     public final static int SEARCH_TARGET_ALL = MegaApi.SEARCH_TARGET_ALL;
 
+    public final static int BACKUP_TYPE_INVALID = MegaApi.BACKUP_TYPE_INVALID;
+    public final static int BACKUP_TYPE_TWO_WAY_SYNC = MegaApi.BACKUP_TYPE_TWO_WAY_SYNC;
+    public final static int BACKUP_TYPE_UP_SYNC = MegaApi.BACKUP_TYPE_UP_SYNC;
+    public final static int BACKUP_TYPE_DOWN_SYNC = MegaApi.BACKUP_TYPE_DOWN_SYNC;
     public final static int BACKUP_TYPE_CAMERA_UPLOAD = MegaApi.BACKUP_TYPE_CAMERA_UPLOADS;
     public final static int BACKUP_TYPE_MEDIA_UPLOADS = MegaApi.BACKUP_TYPE_MEDIA_UPLOADS;
-
-    public final static int CU_SYNC_STATE_ACTIVE = 1;
-    public final static int CU_SYNC_STATE_FAILED = 2;
-    public final static int CU_SYNC_STATE_DISABLED = 4;
-    public final static int CU_SYNC_STATE_PAUSE_UP = 5;
-    public final static int CU_SYNC_STATE_PAUSE_FULL = 7;
-    public final static int CU_SYNC_STATE_UNKNOWN = 8;
-
-    public final static int CU_SYNC_STATUS_UPTODATE = 1;
-    public final static int CU_SYNC_STATUS_SYNCING = CU_SYNC_STATUS_UPTODATE + 1;
-    public final static int CU_SYNC_STATUS_PENDING = CU_SYNC_STATUS_SYNCING + 1;
-    public final static int CU_SYNC_STATUS_INACTIVE = CU_SYNC_STATUS_PENDING + 1;
-    public final static int CU_SYNC_STATUS_UNKNOWN = CU_SYNC_STATUS_INACTIVE + 1;
 
     MegaApi getMegaApi()
     {
@@ -10770,10 +10761,23 @@ public class MegaApiJava {
     }
 
     /**
-     * Starts a backup of a local folder into a remote location
+     * @brief Registers a backup to display in Backup Centre
+     *
+     * Apps should register backups, like CameraUploads, in order to be listed in the
+     * BackupCentre. The client should send heartbeats to indicate the progress of the
+     * backup (see \c MegaApi::sendBackupHeartbeats).
+     *
+     * Possible types of backups:
+     *  BACKUP_TYPE_CAMERA_UPLOADS = 3,
+     *  BACKUP_TYPE_MEDIA_UPLOADS = 4,   // Android has a secondary CU
+     *
+     * Note that the backup name is not registered in the API as part of the data of this
+     * backup. It will be stored in a user's attribute after this request finished. For
+     * more information, see \c MegaApi::setBackupName and MegaApi::getBackupName.
      *
      * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
      * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns the backupId
      * - MegaRequest::getNodeHandle - Returns the target node of the backup
      * - MegaRequest::getName - Returns the backup name of the remote location
      * - MegaRequest::getAccess - Returns the backup state
@@ -10781,15 +10785,16 @@ public class MegaApiJava {
      * - MegaRequest::getText - Returns the extraData associated with the request
      * - MegaRequest::getTotalBytes - Returns the backup type
      * - MegaRequest::getNumDetails - Returns the backup substate
+     * - MegaRequest::getFlag - Returns true
      * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
      *
      * @param backupType back up type requested for the service
      * @param targetNode MEGA folder to hold the backups
      * @param localFolder Local path of the folder
-     * @param backupName backup name for remote location
+     * @param backupName Name of the backup
      * @param state state
      * @param subState subState
-     * @param extraData extraData
+     * @param extraData A binary array converted into B64 (optional)
      * @param listener MegaRequestListener to track this request
      */
     public void setBackup(int backupType, long targetNode, String localFolder, String backupName,
@@ -10799,11 +10804,16 @@ public class MegaApiJava {
     }
 
     /**
-     * Update an existing backup
+     * @brief Update the information about a registered backup for Backup Centre
+     *
+     * Possible types of backups:
+     *  BACKUP_TYPE_INVALID = -1,
+     *  BACKUP_TYPE_CAMERA_UPLOADS = 3,
+     *  BACKUP_TYPE_MEDIA_UPLOADS = 4,   // Android has a secondary CU
      *
      *  Params that keep the same value are passed with invalid value to avoid to send to the server
      *    Invalid values:
-     *    - type: BackupType::INVALID
+     *    - type: BACKUP_TYPE_INVALID
      *    - nodeHandle: UNDEF
      *    - localFolder: nullptr
      *    - deviceId: nullptr
@@ -10811,14 +10821,13 @@ public class MegaApiJava {
      *    - subState: -1
      *    - extraData: nullptr
      *
-     * If you want to update the backup name, use \c MegaApi::setBackupName.	 
-	 *
+     * If you want to update the backup name, use \c MegaApi::setBackupName.
+     *
      * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getParentHandle - Returns the backupId
      * - MegaRequest::getTotalBytes - Returns the backup type
      * - MegaRequest::getNodeHandle - Returns the target node of the backup
-     * - MegaRequest::getName - Returns the backup name of the remote location
      * - MegaRequest::getFile - Returns the path of the local folder
      * - MegaRequest::getAccess - Returns the backup state
      * - MegaRequest::getNumDetails - Returns the backup substate
@@ -10826,14 +10835,13 @@ public class MegaApiJava {
      * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
      *
      * @param backupId backup id identifying the backup to be updated
-     * @param backupType Local path of the folder
+     * @param backupType back up type requested for the service
      * @param targetNode MEGA folder to hold the backups
-     * @param localFolder Local path of the folder     
+     * @param localFolder Local path of the folder
      * @param state backup state
      * @param subState backup subState
-     * @param extraData extraData for the backup
+     * @param extraData A binary array converted into B64 (optional)
      * @param listener MegaRequestListener to track this request
-     *
      */
     public void updateBackup(long backupId, int backupType, long targetNode, String localFolder,
         int state, int subState, String extraData,
@@ -10843,7 +10851,10 @@ public class MegaApiJava {
     }
 
     /**
-     * Remove a backup
+     * @brief Unregister a backup already registered for the Backup Centre
+     *
+     * This method allows to remove a backup from the list of backups displayed in the
+     * Backup Centre. @see \c MegaApi::setBackup.
      *
      * The associated request type with this request is MegaRequest::TYPE_BACKUP_REMOVE
      * Valid data in the MegaRequest object received on callbacks:
@@ -10852,23 +10863,23 @@ public class MegaApiJava {
      *
      * @param backupId backup id identifying the backup to be removed
      * @param listener MegaRequestListener to track this request
-     *
      */
     public void removeBackup(long backupId, MegaRequestListenerInterface listener) {
         megaApi.removeBackup(backupId, createDelegateRequestListener(listener));
     }
 
     /**
-     * Send heartbeat associated with an existing backup
+     * @brief Send heartbeat associated with an existing backup
      *
      * The client should call this method regularly for every registered backup, in order to
      * inform about the status of the backup.
      *
-     * Progress and last node are not always meaningful (ie. when the Camera Uploads starts a new
-     * batch, there isn't a last node, or when the Camera Uploads up to date and inactive for
-     * long time, the progress doesn't make sense). In consequence, these two parameters are
-     * optional by passing:
+     * Progress, last timestamp and last node are not always meaningful (ie. when the Camera
+     * Uploads starts a new batch, there isn't a last node, or when the CU up to date and
+     * inactive for long time, the progress doesn't make sense). In consequence, these parameters
+     * are optional. They will not be sent to API if they take the following values:
      * - lastNode = INVALID_HANDLE
+     * - lastTs = -1
      * - progress = -1
      *
      * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT
@@ -10882,7 +10893,7 @@ public class MegaApiJava {
      * - MegaRequest::getNodeHandle - Returns the last node handle to be synced
      *
      * @param backupId backup id identifying the backup
-     * @param status backup state
+     * @param state backup state
      * @param progress backup progress
      * @param ups Number of pending upload transfers
      * @param downs Number of pending download transfers
