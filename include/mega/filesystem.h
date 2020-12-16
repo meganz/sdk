@@ -92,7 +92,9 @@ class MEGA_API LocalPath
     friend class GfxProcFreeImage;
     friend struct FileSystemAccess;
     friend int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2, const FileSystemAccess& fsaccess);
+#ifdef USE_ROTATIVEPERFORMANCELOGGER
     friend class RotativePerformanceLoggerLoggingThread;
+#endif
 #ifdef USE_IOS
     friend const string adjustBasePath(const LocalPath& name);
 #else

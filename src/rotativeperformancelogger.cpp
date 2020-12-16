@@ -134,7 +134,7 @@ class RotativePerformanceLoggerLoggingThread
     bool logExit = false;
     bool flushLog = false;
     bool closeLog = false;
-    bool forceRenew = false; //to force removal of all logs and create an empty MEGAsync.log
+    bool forceRenew = false; //to force removal of all logs and create an empty new log
     int flushOnLevel = MegaApi::LOG_LEVEL_WARNING;
     std::chrono::seconds logFlushPeriod = std::chrono::seconds(10);
     std::chrono::steady_clock::time_point nextFlushTime = std::chrono::steady_clock::now() + logFlushPeriod;
@@ -421,7 +421,7 @@ private:
                 fsAccess->renamelocal(fileNameFullPath, newNameZipping, true);
 
                 std::thread t([=]() {
-                    std::lock_guard<std::mutex> g(logRotationMutex); // prevent another rotation while we work on this file (in case of unfortunate timing with bug report etc)
+                    std::lock_guard<std::mutex> g(logRotationMutex); // prevent another rotation while we work on this file
                     gzipCompressOnRotate(newNameZipping, newNameDone);
                 });
                 t.detach();
