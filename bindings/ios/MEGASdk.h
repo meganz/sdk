@@ -51,6 +51,11 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+/**
+ * @brief MEGAIsBeingLogoutNotification will be published before app starts logout.
+ */
+extern NSString * const MEGAIsBeingLogoutNotification;
+
 typedef uint64_t MEGAHandle;
 
 typedef NS_ENUM (NSInteger, MEGASortOrderType) {
