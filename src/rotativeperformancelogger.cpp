@@ -67,37 +67,37 @@ using DirectLogFunction = std::function <void (std::ostream *)>;
 
 struct LogLinkedList
 {
-    LogLinkedList* next = nullptr;
-    unsigned allocated = 0;
-    unsigned used = 0;
-    int lastmessage = -1;
-    int lastmessageRepeats = 0;
-    bool oomGap = false;
+    LogLinkedList* mNext = nullptr;
+    unsigned mAllocated = 0;
+    unsigned mUsed = 0;
+    int mLastMessage = -1;
+    int mLastMessageRepeats = 0;
+    bool mOomGap = false;
     DirectLogFunction *mDirectLoggingFunction = nullptr; // we cannot use a non pointer due to the malloc allocation of new entries
     std::promise<void>* mCompletionPromise = nullptr; // we cannot use a unique_ptr due to the malloc allocation of new entries
-    char message[1];
+    char mMessage[1];
 
     static LogLinkedList* create(LogLinkedList* prev, size_t size)
     {
         LogLinkedList* entry = (LogLinkedList*)malloc(size);
         if (entry)
         {
-            entry->next = nullptr;
-            entry->allocated = unsigned(size - sizeof(LogLinkedList));
-            entry->used = 0;
-            entry->lastmessage = -1;
-            entry->lastmessageRepeats = 0;
-            entry->oomGap = false;
+            entry->mNext = nullptr;
+            entry->mAllocated = unsigned(size - sizeof(LogLinkedList));
+            entry->mUsed = 0;
+            entry->mLastMessage = -1;
+            entry->mLastMessageRepeats = 0;
+            entry->mOomGap = false;
             entry->mDirectLoggingFunction = nullptr;
             entry->mCompletionPromise = nullptr;
-            prev->next = entry;
+            prev->mNext = entry;
         }
         return entry;
     }
 
     bool messageFits(size_t size)
     {
-        return used + size + 2 < allocated;
+        return mUsed + size + 2 < mAllocated;
     }
 
     bool needsDirectOutput()
@@ -108,9 +108,9 @@ struct LogLinkedList
     void append(const char* s, unsigned int n = 0)
     {
         n = n ? n : unsigned(strlen(s));
-        assert(used + n + 1 < allocated);
-        strcpy(message + used, s);
-        used += n;
+        assert(mUsed + n + 1 < mAllocated);
+        strcpy(mMessage + mUsed, s);
+        mUsed += n;
     }
 
     void notifyWaiter()
@@ -125,21 +125,21 @@ struct LogLinkedList
 
 class RotativePerformanceLoggerLoggingThread
 {
-    std::unique_ptr<std::thread> logThread;
-    std::condition_variable logConditionVariable;
-    std::mutex logMutex;
-    std::mutex logRotationMutex;
-    LogLinkedList logListFirst;
-    LogLinkedList* logListLast = &logListFirst;
-    bool logExit = false;
-    bool flushLog = false;
-    bool closeLog = false;
-    bool forceRenew = false; //to force removal of all logs and create an empty new log
-    int flushOnLevel = MegaApi::LOG_LEVEL_WARNING;
-    std::chrono::seconds logFlushPeriod = std::chrono::seconds(10);
-    std::chrono::steady_clock::time_point nextFlushTime = std::chrono::steady_clock::now() + logFlushPeriod;
-    MegaFileSystemAccess * fsAccess;
-    ArchiveType archiveType = archiveTypeTimestamp;
+    std::unique_ptr<std::thread> mLogThread;
+    std::condition_variable mLogConditionVariable;
+    std::mutex mLogMutex;
+    std::mutex mLogRotationMutex;
+    LogLinkedList mLogListFirst;
+    LogLinkedList* mLogListLast = &mLogListFirst;
+    bool mLogExit = false;
+    bool mFlushLog = false;
+    bool mCloseLog = false;
+    bool mForceRenew = false; //to force removal of all logs and create an empty new log
+    int mFlushOnLevel = MegaApi::LOG_LEVEL_WARNING;
+    std::chrono::seconds mLogFlushPeriod = std::chrono::seconds(10);
+    std::chrono::steady_clock::time_point mNextFlushTime = std::chrono::steady_clock::now() + mLogFlushPeriod;
+    MegaFileSystemAccess * mFsAccess;
+    ArchiveType mArchiveType = archiveTypeTimestamp;
     long int archiveMaxFileAgeSeconds = 30 * 86400; // one month
 
     friend RotativePerformanceLogger;
@@ -147,19 +147,19 @@ class RotativePerformanceLoggerLoggingThread
 public:
     RotativePerformanceLoggerLoggingThread()
     {
-        fsAccess = new MegaFileSystemAccess();
+        mFsAccess = new MegaFileSystemAccess();
     }
 
     ~RotativePerformanceLoggerLoggingThread()
     {
-        delete fsAccess;
+        delete mFsAccess;
     }
 
     void startLoggingThread(const LocalPath& logsPath, const LocalPath& fileName)
     {
-        if (!logThread)
+        if (!mLogThread)
         {
-            logThread.reset(new std::thread([this, logsPath, fileName]() {
+            mLogThread.reset(new std::thread([this, logsPath, fileName]() {
                 logThreadFunction(logsPath, fileName);
             }));
         }
@@ -223,7 +223,7 @@ private:
             LocalPath toDeletePath = logsPath;
             toDeletePath.appendWithSeparator(toDeleteFileName, false);
 
-            if (!fsAccess->unlinklocal(toDeletePath))
+            if (!mFsAccess->unlinklocal(toDeletePath))
             {
                 std::cerr << "Error removing log file " << i << std::endl;
             }
@@ -238,12 +238,12 @@ private:
             LocalPath toRenamePath = logsPath;
             toRenamePath.appendWithSeparator(toRenameFileName, false);
 
-            auto fileAccess = fsAccess->newfileaccess();
+            auto fileAccess = mFsAccess->newfileaccess();
             if (fileAccess->fopen(toRenamePath, true, false))
             {
                 if (i + 1 >= MAX_ROTATE_LOGS)
                 {
-                    if (!fsAccess->unlinklocal(toRenamePath))
+                    if (!mFsAccess->unlinklocal(toRenamePath))
                     {
                         std::cerr << "Error removing log file " << i << std::endl;
                     }
@@ -253,7 +253,7 @@ private:
                     LocalPath nextFileName = logArchiveNumbered_getFilename(fileName, i + 1);
                     LocalPath nextPath = logsPath;
                     nextPath.appendWithSeparator(nextFileName, false);
-                    if (!fsAccess->renamelocal(toRenamePath, nextPath, true))
+                    if (!mFsAccess->renamelocal(toRenamePath, nextPath, true))
                     {
                         std::cerr << "Error renaming log file " << i << std::endl;
                     }
@@ -274,17 +274,17 @@ private:
             LocalPath logsPath, LocalPath fileName,
             const std::function< void(LocalPath, LocalPath) > & walker)
     {
-        FileSystemType fsType = fsAccess->getlocalfstype(logsPath);
-         std::string logFileName = fileName.toName(*fsAccess, fsType);
+        FileSystemType fsType = mFsAccess->getlocalfstype(logsPath);
+         std::string logFileName = fileName.toName(*mFsAccess, fsType);
          if (!logFileName.empty())
          {
              LocalPath leafNamePath;
-             DirAccess* da = fsAccess->newdiraccess();
+             DirAccess* da = mFsAccess->newdiraccess();
              nodetype_t dirEntryType;
              da->dopen(&logsPath, NULL, false);
              while (da->dnext(logsPath, leafNamePath, false, &dirEntryType))
              {
-                 std::string leafName = leafNamePath.toName(*fsAccess, fsType);
+                 std::string leafName = leafNamePath.toName(*mFsAccess, fsType);
                  if (leafName.size() > logFileName.size())
                  {
                      auto res = std::mismatch(logFileName.begin(), logFileName.end(), leafName.begin());
@@ -306,9 +306,9 @@ private:
         {
             LocalPath leafNameFullPath = logsPath;
             leafNameFullPath.appendWithSeparator(leafNamePath, false);
-            if (!fsAccess->unlinklocal(leafNameFullPath))
+            if (!mFsAccess->unlinklocal(leafNameFullPath))
             {
-                std::cerr << "Error removing log file " << leafNameFullPath.toPath(*fsAccess) << std::endl;
+                std::cerr << "Error removing log file " << leafNameFullPath.toPath(*mFsAccess) << std::endl;
             }
         });
     }
@@ -322,7 +322,7 @@ private:
                     logsPath, fileName,
                     [this, currentTimestamp, archiveMaxFileAgeSeconds](const LocalPath& logsPath,const LocalPath& leafNamePath)
         {
-            std::string leafName = leafNamePath.toPath(*fsAccess);
+            std::string leafName = leafNamePath.toPath(*mFsAccess);
             std::regex rgx(".*\\.([0-9]+)\\.gz");
             std::smatch match;
             if (std::regex_match(leafName, match, rgx)
@@ -334,9 +334,9 @@ private:
                 {
                     LocalPath leafNameFullPath = logsPath;
                     leafNameFullPath.appendWithSeparator(leafNamePath, false);
-                    if (!fsAccess->unlinklocal(leafNameFullPath))
+                    if (!mFsAccess->unlinklocal(leafNameFullPath))
                     {
-                        std::cerr << "Error removing log file " << leafNameFullPath.toPath(*fsAccess) << std::endl;
+                        std::cerr << "Error removing log file " << leafNameFullPath.toPath(*mFsAccess) << std::endl;
                     }
                 }
             }
@@ -345,14 +345,14 @@ private:
 
     LocalPath logArchive_getNewFilename(LocalPath fileName)
     {
-        return archiveType == archiveTypeNumbered
+        return mArchiveType == archiveTypeNumbered
                 ? logArchiveNumbered_getFilename(fileName, 0)
                 : logArchiveTimestamp_getFilename(fileName);
     }
 
     void logArchive_cleanUpFiles(LocalPath logsPath, LocalPath fileName)
     {
-        if (archiveType == archiveTypeNumbered)
+        if (mArchiveType == archiveTypeNumbered)
         {
             logArchiveNumbered_cleanUpFiles(logsPath, fileName);
         }
@@ -364,7 +364,7 @@ private:
 
     void logArchive_rotateFiles(LocalPath logsPath, LocalPath fileName)
     {
-        if (archiveType == archiveTypeNumbered)
+        if (mArchiveType == archiveTypeNumbered)
         {
             logArchiveNumbered_rotateFiles(logsPath, fileName);
         }
@@ -385,30 +385,30 @@ private:
         long long outFileSize = outputFile.tellp();
         std::error_code ec;
 
-        while (!logExit)
+        while (!mLogExit)
         {
-            if (forceRenew)
+            if (mForceRenew)
             {
-                std::lock_guard<std::mutex> g(logRotationMutex);
+                std::lock_guard<std::mutex> g(mLogRotationMutex);
                 logArchive_cleanUpFiles(logsPath, fileName);
 
                 outputFile.close();
 
 
-                if (!fsAccess->unlinklocal(fileNameFullPath))
+                if (!mFsAccess->unlinklocal(fileNameFullPath))
                 {
-                    std::cerr << "Error removing log file " << fileNameFullPath.toPath(*fsAccess) << std::endl;
+                    std::cerr << "Error removing log file " << fileNameFullPath.toPath(*mFsAccess) << std::endl;
                 }
 
                 outputFile.open(fileNameFullPath.localpath.c_str(), std::ofstream::out);
 
                 outFileSize = 0;
 
-                forceRenew = false;
+                mForceRenew = false;
             }
             else if (outFileSize > MAX_FILESIZE_MB*1024*1024)
             {
-                std::lock_guard<std::mutex> g(logRotationMutex);
+                std::lock_guard<std::mutex> g(mLogRotationMutex);
                 logArchive_rotateFiles(logsPath, fileName);
 
                 auto newNameDone = logsPath;
@@ -417,11 +417,11 @@ private:
                 newNameZipping.append(LocalPath::fromPlatformEncoded(".zipping"));
 
                 outputFile.close();
-                fsAccess->unlinklocal(newNameZipping);
-                fsAccess->renamelocal(fileNameFullPath, newNameZipping, true);
+                mFsAccess->unlinklocal(newNameZipping);
+                mFsAccess->renamelocal(fileNameFullPath, newNameZipping, true);
 
                 std::thread t([=]() {
-                    std::lock_guard<std::mutex> g(logRotationMutex); // prevent another rotation while we work on this file
+                    std::lock_guard<std::mutex> g(mLogRotationMutex); // prevent another rotation while we work on this file
                     gzipCompressOnRotate(newNameZipping, newNameDone);
                 });
                 t.detach();
@@ -433,15 +433,15 @@ private:
             LogLinkedList* newMessages = nullptr;
             bool topLevelMemoryGap = false;
             {
-                std::unique_lock<std::mutex> lock(logMutex);
-                logConditionVariable.wait_for(lock, std::chrono::milliseconds(500), [this, &newMessages, &topLevelMemoryGap]() {
-                        if (forceRenew || logListFirst.next || logExit || flushLog || closeLog)
+                std::unique_lock<std::mutex> lock(mLogMutex);
+                mLogConditionVariable.wait_for(lock, std::chrono::milliseconds(500), [this, &newMessages, &topLevelMemoryGap]() {
+                        if (mForceRenew || mLogListFirst.mNext || mLogExit || mFlushLog || mCloseLog)
                         {
-                            newMessages = logListFirst.next;
-                            logListFirst.next = nullptr;
-                            logListLast = &logListFirst;
-                            topLevelMemoryGap = logListFirst.oomGap;
-                            logListFirst.oomGap = false;
+                            newMessages = mLogListFirst.mNext;
+                            mLogListFirst.mNext = nullptr;
+                            mLogListLast = &mLogListFirst;
+                            topLevelMemoryGap = mLogListFirst.mOomGap;
+                            mLogListFirst.mOomGap = false;
                             return true;
                         }
                         else return false;
@@ -459,7 +459,7 @@ private:
             while (newMessages)
             {
                 auto p = newMessages;
-                newMessages = newMessages->next;
+                newMessages = newMessages->mNext;
                 if (outputFile)
                 {
                     if (p->needsDirectOutput())
@@ -468,9 +468,9 @@ private:
                     }
                     else
                     {
-                        outputFile << p->message;
-                        outFileSize += p->used;
-                        if (p->oomGap)
+                        outputFile << p->mMessage;
+                        outFileSize += p->mUsed;
+                        if (p->mOomGap)
                         {
                             outputFile << "<log gap - out of logging memory at this point>\n";
                         }
@@ -485,25 +485,25 @@ private:
                     }
                     else
                     {
-                        std::cout << p->message;
+                        std::cout << p->mMessage;
                     }
                     std::cout << std::flush; //always flush into stdout (DEBUG mode)
                 }
                 p->notifyWaiter();
                 free(p);
             }
-            if (flushLog || nextFlushTime <= std::chrono::steady_clock::now())
+            if (mFlushLog || mNextFlushTime <= std::chrono::steady_clock::now())
             {
-                flushLog = false;
+                mFlushLog = false;
                 outputFile.flush();
                 if (RotativePerformanceLogger::Instance().mLogToStdout)
                 {
                     std::cout << std::flush;
                 }
-                nextFlushTime = std::chrono::steady_clock::now() + logFlushPeriod;
+                mNextFlushTime = std::chrono::steady_clock::now() + mLogFlushPeriod;
             }
 
-            if (closeLog)
+            if (mCloseLog)
             {
                 outputFile.close();
                 return;  // This request means we have received a termination signal; close and exit the thread as quick & clean as possible
@@ -522,12 +522,12 @@ RotativePerformanceLogger::~RotativePerformanceLogger()
 {
     MegaApi::removeLoggerObject(this); // after this no more calls to RotativePerformanceLogger::log
     {
-        std::lock_guard<std::mutex> g(g_loggingThread->logMutex);
-        g_loggingThread->logExit = true;
-        g_loggingThread->logConditionVariable.notify_one();
+        std::lock_guard<std::mutex> g(mLoggingThread->mLogMutex);
+        mLoggingThread->mLogExit = true;
+        mLoggingThread->mLogConditionVariable.notify_one();
     }
-    g_loggingThread->logThread->join();
-    g_loggingThread->logThread.reset();
+    mLoggingThread->mLogThread->join();
+    mLoggingThread->mLogThread.reset();
 }
 
 void RotativePerformanceLogger::initialize(const char * logsPath, const char * logFileName, bool logToStdout)
@@ -540,8 +540,8 @@ void RotativePerformanceLogger::initialize(const char * logsPath, const char * l
     MegaFileSystemAccess *fsAccess = new MegaFileSystemAccess();
     fsAccess->mkdirlocal(logsPathLocalPath, false);
 
-    g_loggingThread.reset(new RotativePerformanceLoggerLoggingThread());
-    g_loggingThread->startLoggingThread(logsPathLocalPath, logFileNameLocalPath);
+    mLoggingThread.reset(new RotativePerformanceLoggerLoggingThread());
+    mLoggingThread->startLoggingThread(logsPathLocalPath, logFileNameLocalPath);
 
     MegaApi::setLogLevel(MegaApi::LOG_LEVEL_MAX);
     MegaApi::addLoggerObject(this);
@@ -554,19 +554,19 @@ RotativePerformanceLogger& RotativePerformanceLogger::Instance() {
 
 void RotativePerformanceLogger::setArchiveNumbered()
 {
-    g_loggingThread->archiveType = archiveTypeNumbered;
+    mLoggingThread->mArchiveType = archiveTypeNumbered;
 }
 
 void RotativePerformanceLogger::setArchiveTimestamps(long int maxFileAgeSeconds)
 {
-    g_loggingThread->archiveType = archiveTypeTimestamp;
-    g_loggingThread->archiveMaxFileAgeSeconds = maxFileAgeSeconds;
+    mLoggingThread->mArchiveType = archiveTypeTimestamp;
+    mLoggingThread->archiveMaxFileAgeSeconds = maxFileAgeSeconds;
 }
 
 inline void twodigit(char*& s, int n)
 {
-    *s++ = (char) (n / 10 + '0');
-    *s++ = (char) (n % 10 + '0');
+    *s++ = static_cast<char>(n / 10 + '0');
+    *s++ = static_cast<char>(n % 10 + '0');
 }
 
 char* filltime(char* s, struct tm*  gmt, int microsec)
@@ -583,12 +583,12 @@ char* filltime(char* s, struct tm*  gmt, int microsec)
     *s++ = ':';
     twodigit(s, gmt->tm_sec);
     *s++ = '.';
-    s[5] = (char) (microsec % 10 + '0');
-    s[4] = (char) ((microsec /= 10) % 10 + '0');
-    s[3] = (char) ((microsec /= 10) % 10 + '0');
-    s[2] = (char) ((microsec /= 10) % 10 + '0');
-    s[1] = (char) ((microsec /= 10) % 10 + '0');
-    s[0] = (char) ((microsec /= 10) % 10 + '0');
+    s[5] = static_cast<char>(microsec % 10 + '0');
+    s[4] = static_cast<char>((microsec /= 10) % 10 + '0');
+    s[3] = static_cast<char>((microsec /= 10) % 10 + '0');
+    s[2] = static_cast<char>((microsec /= 10) % 10 + '0');
+    s[1] = static_cast<char>((microsec /= 10) % 10 + '0');
+    s[0] = static_cast<char>((microsec /= 10) % 10 + '0');
     s += 6;
     *s++ = ' ';
     *s = 0;
@@ -637,7 +637,7 @@ void RotativePerformanceLogger::log(const char*, int loglevel, const char*, cons
                          )
 
 {
-    g_loggingThread->log(loglevel, message
+    mLoggingThread->log(loglevel, message
 #ifdef ENABLE_LOG_PERFORMANCE
                         , directMessages, directMessagesSizes, numberMessages
 #endif
@@ -676,33 +676,33 @@ void RotativePerformanceLoggerLoggingThread::log(int loglevel, const char *messa
     bool notify = false;
 
     {
-        std::unique_ptr<std::lock_guard<std::mutex>> g(new std::lock_guard<std::mutex>(logMutex));
+        std::unique_ptr<std::lock_guard<std::mutex>> g(new std::lock_guard<std::mutex>(mLogMutex));
 
-        bool isRepeat = !direct && logListLast != &logListFirst &&
-                        logListLast->lastmessage >= 0 &&
-                        !strncmp(message, logListLast->message + logListLast->lastmessage, messageLen);
+        bool isRepeat = !direct && mLogListLast != &mLogListFirst &&
+                        mLogListLast->mLastMessage >= 0 &&
+                        !strncmp(message, mLogListLast->mMessage + mLogListLast->mLastMessage, messageLen);
 
         if (isRepeat)
         {
-            ++logListLast->lastmessageRepeats;
+            ++mLogListLast->mLastMessageRepeats;
         }
         else
         {
-            unsigned reportRepeats = logListLast != &logListFirst ? logListLast->lastmessageRepeats : 0;
+            unsigned reportRepeats = mLogListLast != &mLogListFirst ? mLogListLast->mLastMessageRepeats : 0;
             if (reportRepeats)
             {
                 lineLen += 30;
-                logListLast->lastmessageRepeats = 0;
+                mLogListLast->mLastMessageRepeats = 0;
             }
 
             if (direct)
             {
-                if (LogLinkedList* newentry = LogLinkedList::create(logListLast, 1 + sizeof(LogLinkedList))) //create a new "empty" element
+                if (LogLinkedList* newentry = LogLinkedList::create(mLogListLast, 1 + sizeof(LogLinkedList))) //create a new "empty" element
                 {
-                    logListLast = newentry;
+                    mLogListLast = newentry;
                     std::promise<void> promise;
-                    logListLast->mCompletionPromise = &promise;
-                    auto future = logListLast->mCompletionPromise->get_future();
+                    mLogListLast->mCompletionPromise = &promise;
+                    auto future = mLogListLast->mCompletionPromise->get_future();
                     DirectLogFunction func = [&timebuf, &threadname, &loglevelstring, &directMessages, &directMessagesSizes, numberMessages](std::ostream *oss)
                     {
                         *oss << timebuf << threadname << loglevelstring;
@@ -714,11 +714,11 @@ void RotativePerformanceLoggerLoggingThread::log(int loglevel, const char *messa
                         *oss << std::endl;
                     };
 
-                    logListLast->mDirectLoggingFunction = &func;
+                    mLogListLast->mDirectLoggingFunction = &func;
 
                     g.reset(); //to liberate the mutex and let the logging thread call the logging function
 
-                    logConditionVariable.notify_one();
+                    mLogConditionVariable.notify_one();
 
                     //wait for until logging thread completes the outputting
                     future.get();
@@ -726,45 +726,45 @@ void RotativePerformanceLoggerLoggingThread::log(int loglevel, const char *messa
                 }
                 else
                 {
-                    logListLast->oomGap = true;
+                    mLogListLast->mOomGap = true;
                 }
 
             }
             else
             {
-                if (logListLast == &logListFirst || logListLast->oomGap || !logListLast->messageFits(lineLen))
+                if (mLogListLast == &mLogListFirst || mLogListLast->mOomGap || !mLogListLast->messageFits(lineLen))
                 {
-                    if (LogLinkedList* newentry = LogLinkedList::create(logListLast, std::max<size_t>(lineLen, 8192) + sizeof(LogLinkedList) + 10))
+                    if (LogLinkedList* newentry = LogLinkedList::create(mLogListLast, std::max<size_t>(lineLen, 8192) + sizeof(LogLinkedList) + 10))
                     {
-                        logListLast = newentry;
+                        mLogListLast = newentry;
                     }
                     else
                     {
-                        logListLast->oomGap = true;
+                        mLogListLast->mOomGap = true;
                     }
                 }
-                if (!logListLast->oomGap)
+                if (!mLogListLast->mOomGap)
                 {
                     if (reportRepeats)
                     {
                         char repeatbuf[31]; // this one can occur very frequently with many in a row: cURL DEBUG: schannel: failed to decrypt data, need more data
                         int n = snprintf(repeatbuf, 30, "[repeated x%u]\n", reportRepeats);
-                        logListLast->append(repeatbuf, n);
+                        mLogListLast->append(repeatbuf, n);
                     }
-                    logListLast->append(timebuf, LOG_TIME_CHARS);
-                    logListLast->append(threadname, unsigned(threadnameLen));
-                    logListLast->append(loglevelstring, LOG_LEVEL_CHARS);
-                    logListLast->lastmessage = logListLast->used;
-                    logListLast->append(message, unsigned(messageLen));
-                    logListLast->append("\n", 1);
-                    notify = logListLast->used + 1024 > logListLast->allocated;
+                    mLogListLast->append(timebuf, LOG_TIME_CHARS);
+                    mLogListLast->append(threadname, unsigned(threadnameLen));
+                    mLogListLast->append(loglevelstring, LOG_LEVEL_CHARS);
+                    mLogListLast->mLastMessage = mLogListLast->mUsed;
+                    mLogListLast->append(message, unsigned(messageLen));
+                    mLogListLast->append("\n", 1);
+                    notify = mLogListLast->mUsed + 1024 > mLogListLast->mAllocated;
                 }
             }
         }
 
-        if (loglevel <= flushOnLevel)
+        if (loglevel <= mFlushOnLevel)
         {
-            flushLog = true;
+            mFlushLog = true;
         }
     }
 
@@ -775,15 +775,15 @@ void RotativePerformanceLoggerLoggingThread::log(int loglevel, const char *messa
         // Still, this notify call was taking 1% when notifying on every log line, so let the other thead
         // wake up by itself every 500ms without notify for the common case.
         // But still wake it if our memory block is getting full
-        logConditionVariable.notify_one();
+        mLogConditionVariable.notify_one();
     }
 }
 
 bool RotativePerformanceLogger::cleanLogs()
 {
-    std::lock_guard<std::mutex> g(g_loggingThread->logMutex);
-    g_loggingThread->forceRenew = true;
-    g_loggingThread->logConditionVariable.notify_one();
+    std::lock_guard<std::mutex> g(mLoggingThread->mLogMutex);
+    mLoggingThread->mForceRenew = true;
+    mLoggingThread->mLogConditionVariable.notify_one();
     return true;
 }
 
@@ -791,16 +791,16 @@ void RotativePerformanceLogger::flushAndClose()
 {
     try
     {
-        g_loggingThread->log(MegaApi::LOG_LEVEL_FATAL, "***CRASH DETECTED: FLUSHING AND CLOSING***");
+        mLoggingThread->log(MegaApi::LOG_LEVEL_FATAL, "***CRASH DETECTED: FLUSHING AND CLOSING***");
 
     }
     catch (const std::exception& e)
     {
         std::cerr << "Unhandle exception on flushAndClose: "<< e.what() << std::endl;
     }
-    g_loggingThread->flushLog = true;
-    g_loggingThread->closeLog = true;
-    g_loggingThread->logConditionVariable.notify_one();
+    mLoggingThread->mFlushLog = true;
+    mLoggingThread->mCloseLog = true;
+    mLoggingThread->mLogConditionVariable.notify_one();
     // This is called on crash so the app may be unstable. Don't assume the thread is working properly.
     // It might be the one that crashed.  Just give it 1 second to complete
 #ifdef WIN32

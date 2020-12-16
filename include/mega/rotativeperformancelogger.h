@@ -61,7 +61,7 @@ public:
     bool cleanLogs();
 
 private:
-    std::unique_ptr<RotativePerformanceLoggerLoggingThread> g_loggingThread;
+    std::unique_ptr<RotativePerformanceLoggerLoggingThread> mLoggingThread;
 };
 
 }
