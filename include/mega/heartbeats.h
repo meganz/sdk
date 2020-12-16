@@ -132,7 +132,7 @@ public:
     MegaBackupInfo(BackupType type, string backupName, string localFolder, handle megaHandle, int state, int substate, string extra);
 
     BackupType type() const;
-    
+
     string backupName() const;
 
     string localFolder() const;
@@ -203,10 +203,13 @@ private:
     mega::MegaClient *mClient = nullptr;
 
     void updateBackupInfo(handle backupId, const MegaBackupInfo &info);
+
+#ifdef ENABLE_SYNC
     void registerBackupInfo(const MegaBackupInfo &info, UnifiedSync* syncPtr);
 
     void beatBackupInfo(UnifiedSync& us);
     void calculateStatus(HeartBeatBackupInfo *hbs, UnifiedSync& us);
+#endif
 };
 }
 

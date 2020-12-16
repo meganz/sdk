@@ -2896,9 +2896,12 @@ protected:
         set<MegaTransferListener *> transferListeners;
         set<MegaBackupListener *> backupListeners;
 
+#ifdef ENABLE_SYNC
         MegaSyncPrivate* cachedMegaSyncPrivateByTag(int tag);
         unique_ptr<MegaSyncPrivate> mCachedMegaSyncPrivate;
         int mCachedMegaSyncPrivateTag = 0;
+#endif
+
         set<MegaGlobalListener *> globalListeners;
         set<MegaListener *> listeners;
         retryreason_t waitingRequest;

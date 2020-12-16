@@ -288,18 +288,20 @@ void SdkTest::Cleanup()
     deleteFile(AVATARDST);
 
     std::vector<std::unique_ptr<RequestTracker>> delSyncTrackers;
-    
+
     int index = 0;
     for (auto &m : megaApi)
     {
+#ifdef ENABLE_SYNC
         auto syncs = unique_ptr<MegaSyncList>(m->getSyncs());
         for (int i = syncs->size(); i--; )
         {
             delSyncTrackers.push_back(std::unique_ptr<RequestTracker>(new RequestTracker(m.get())));
             m->removeSync(syncs->get(i), delSyncTrackers.back().get());
         }
+#endif
 
-        // clear user attributes: backup ids 
+        // clear user attributes: backup ids
         if (auto u = m->getMyUser())
         {
             auto err = synchronousGetUserAttribute(index, u, MegaApi::USER_ATTR_BACKUP_NAMES);
@@ -924,7 +926,7 @@ void SdkTest::getAccountsForTest(unsigned howMany)
         }
         ASSERT_LT((size_t) 0, mApi[index].pwd.length()) << "Set test account " << index << " password at the environment variable $" << envVarPass[index];
 
-        megaApi[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), int(0), unsigned(THREADS_PER_MEGACLIENT)));
+        megaApi[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(index).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
         mApi[index].megaApi = megaApi[index].get();
 
         megaApi[index]->setLoggingName(to_string(index).c_str());
@@ -4056,7 +4058,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                 exitresumecount += 1;
                 WaitMillisec(100);
 
-                megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), int(0), unsigned(THREADS_PER_MEGACLIENT)));
+                megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
                 mApi[0].megaApi = megaApi[0].get();
                 megaApi[0]->addListener(this);
                 megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 30); // should take 30 seconds, not counting exit/resume session
@@ -4858,7 +4860,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
 
     // update a removed backup: should throw an error
-    mApi[0].userUpdated = false; 
+    mApi[0].userUpdated = false;
     err = synchronousRemoveBackup(0, mBackupId, nullptr);
     ASSERT_EQ(MegaError::API_OK, err) << "removeBackup failed (error: " << err << ")";
     ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));

@@ -302,6 +302,7 @@ MegaBackupMonitor::MegaBackupMonitor(MegaClient *client)
 
 void MegaBackupMonitor::digestPutResult(handle backupId, UnifiedSync* syncPtr)
 {
+#ifdef ENABLE_SYNC
     mClient->syncs.forEachUnifiedSync([&](UnifiedSync& us){
         if (&us == syncPtr)
         {
@@ -309,6 +310,7 @@ void MegaBackupMonitor::digestPutResult(handle backupId, UnifiedSync* syncPtr)
             mClient->syncs.saveSyncConfig(us.mConfig);
         }
     });
+#endif
 }
 
 void MegaBackupMonitor::updateBackupInfo(handle backupId, const MegaBackupInfo &info)
@@ -328,6 +330,7 @@ void MegaBackupMonitor::updateBackupInfo(handle backupId, const MegaBackupInfo &
                                            nullptr));
 }
 
+#ifdef ENABLE_SYNC
 
 void MegaBackupMonitor::registerBackupInfo(const MegaBackupInfo &info, UnifiedSync* syncPtr)
 {
@@ -341,7 +344,6 @@ void MegaBackupMonitor::registerBackupInfo(const MegaBackupInfo &info, UnifiedSy
                                            [this, syncPtr](Error e, handle h){ if (!e) digestPutResult(h, syncPtr); }));
 }
 
-#ifdef ENABLE_SYNC
 
 void MegaBackupMonitor::updateOrRegisterSync(UnifiedSync& us)
 {
@@ -369,15 +371,12 @@ bool  MegaBackupInfoSync::operator==(const MegaBackupInfoSync& o) const
             mSubState == o.mSubState &&
             mExtra == o.mExtra;
 }
-#endif
 
 void MegaBackupMonitor::onSyncConfigChanged()
 {
-#ifdef ENABLE_SYNC
     mClient->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
         updateOrRegisterSync(us);
     });
-#endif
 }
 
 void MegaBackupMonitor::calculateStatus(HeartBeatBackupInfo *hbs, UnifiedSync& us)
@@ -426,6 +425,9 @@ void MegaBackupMonitor::beatBackupInfo(UnifiedSync& us)
         mClient->reqs.add(newCommand);
     }
 }
+
+#endif
+
 void MegaBackupMonitor::beat()
 {
 #ifdef ENABLE_SYNC
