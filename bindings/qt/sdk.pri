@@ -237,10 +237,33 @@ CONFIG(USE_PDFIUM) {
     vcpkg:INCLUDEPATH += $$THIRDPARTY_VCPKG_PATH/include/pdfium
     vcpkg:LIBS += -lpdfium -lfreetype$$DEBUG_SUFFIX -ljpeg$$DEBUG_SUFFIX_WO -lopenjp2  -llcms$$DEBUG_SUFFIX 
 
-    #make sure we get the vcpkg built icu libraries and not a system one with the same name
-    debug:vcpkg:LIBS += -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuucd -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuiod
-    !debug:vcpkg:LIBS += -l$$THIRDPARTY_VCPKG_PATH/lib/icuuc$$DEBUG_SUFFIX_WO.lib -l$$THIRDPARTY_VCPKG_PATH/lib/icuio$$DEBUG_SUFFIX_WO.lib
-    #vcpkg:QMAKE_LFLAGS_WINDOWS += /VERBOSE
+    win32 {
+        #make sure we get the vcpkg built icu libraries and not a system one with the same name
+        debug:vcpkg:LIBS += -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuucd -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuiod
+        !debug:vcpkg:LIBS += -l$$THIRDPARTY_VCPKG_PATH/lib/icuuc$$DEBUG_SUFFIX_WO.lib -l$$THIRDPARTY_VCPKG_PATH/lib/icuio$$DEBUG_SUFFIX_WO.lib
+        #vcpkg:QMAKE_LFLAGS_WINDOWS += /VERBOSE
+    }
+    else {
+        # Make sure we use the vcpkg provided libs by specifying their paths.
+       vcpkg:debug {
+            # icu doesn't build debug libs with 'd' suffix, but check anyway
+            exists($$THIRDPARTY_VCPKG_PATH/debug/lib/libicuuc$$DEBUG_SUFFIX.a) {
+                LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuuc$$DEBUG_SUFFIX.a
+            }
+            else {
+                LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuuc.a
+            }
+            exists($$THIRDPARTY_VCPKG_PATH/debug/lib/libicuio$$DEBUG_SUFFIX.a) {
+                LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuio$$DEBUG_SUFFIX.a
+            }
+            else {
+                LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuio.a
+            }
+        }
+        else {
+            LIBS += $$THIRDPARTY_VCPKG_PATH/lib/libicuuc.a $$THIRDPARTY_VCPKG_PATH/lib/libicuio.a
+        }
+    }
 
     vcpkg:unix:!macx:LIBS += -lpng -lharfbuzz #freetype dependencies. ideally we could use pkg-config to get these
     # is it needed? win has it, mac does not -licuin$$DEBUG_SUFFIX_WO
