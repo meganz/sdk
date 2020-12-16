@@ -288,7 +288,7 @@ void SdkTest::Cleanup()
     deleteFile(AVATARDST);
 
     std::vector<std::unique_ptr<RequestTracker>> delSyncTrackers;
-
+    
     int index = 0;
     for (auto &m : megaApi)
     {
@@ -299,7 +299,7 @@ void SdkTest::Cleanup()
             m->removeSync(syncs->get(i), delSyncTrackers.back().get());
         }
 
-        // clear user attributes: backup ids
+        // clear user attributes: backup ids 
         if (auto u = m->getMyUser())
         {
             auto err = synchronousGetUserAttribute(index, u, MegaApi::USER_ATTR_BACKUP_NAMES);
@@ -4858,7 +4858,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
 
     // update a removed backup: should throw an error
-    mApi[0].userUpdated = false;
+    mApi[0].userUpdated = false; 
     err = synchronousRemoveBackup(0, mBackupId, nullptr);
     ASSERT_EQ(MegaError::API_OK, err) << "removeBackup failed (error: " << err << ")";
     ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
@@ -5819,6 +5819,7 @@ TEST_F(SdkTest, SyncPersistence)
 {
     // What we are going to test here:
     // - locallogut -> Syncs kept
+    // - logout with setKeepSyncsAfterLogout(true) -> Syncs kept
     // - logout -> Syncs removed
 
     LOG_info << "___TEST SyncPersistence___";
@@ -5859,6 +5860,25 @@ TEST_F(SdkTest, SyncPersistence)
     sync = waitForSyncState(megaApi[0].get(), tagID, true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
     ASSERT_EQ(remoteFolder, string(sync->getMegaFolder()));
+
+    // Check if a logout with setKeepSyncsAfterLogout(true) keeps the sync configured.
+    megaApi[0]->setKeepSyncsAfterLogout(true);
+    ASSERT_NO_FATAL_FAILURE(logout(0));
+    auto trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
+    ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for accout " << 0;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    sync = waitForSyncState(megaApi[0].get(), tagID, true, true, MegaSync::NO_SYNC_ERROR);
+    ASSERT_TRUE(sync && sync->isActive());
+    ASSERT_EQ(remoteFolder, string(sync->getMegaFolder()));
+
+    // Check if a logout with setKeepSyncsAfterLogout(false) doesn't keep the sync configured.
+    megaApi[0]->setKeepSyncsAfterLogout(false);
+    ASSERT_NO_FATAL_FAILURE(logout(0));
+    trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
+    ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for accout " << 0;
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    sync.reset(megaApi[0]->getSyncByTag(tagID));
+    ASSERT_EQ(sync, nullptr);
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
 }

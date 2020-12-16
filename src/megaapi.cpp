@@ -3315,6 +3315,11 @@ void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessS
     pImpl->copyCachedStatus(storageStatus, blockStatus, businessStatus, listener);
 }
 
+void MegaApi::setKeepSyncsAfterLogout(bool enable)
+{
+    pImpl->setKeepSyncsAfterLogout(enable);
+}
+
 #ifdef USE_PCRE
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
@@ -5816,6 +5821,8 @@ const char* MegaSync::getMegaSyncErrorCode(int errorCode)
         return "Your account is blocked";
     case MegaSync::Error::UNKNOWN_TEMPORARY_ERROR:
         return "Unknown temporary error";
+    case MegaSync::Error::LOGGED_OUT:
+        return "Session closed";
     case MegaSync::Error::TOO_MANY_ACTION_PACKETS:
         return "Too many changes in account, local state invalid";
     default:

@@ -1262,6 +1262,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     syncadding = 0;
     currsyncid = 0;
     totalLocalNodes = 0;
+    mKeepSyncsAfterLogout = false;
 #endif
 
     pendingcs = NULL;
@@ -1370,6 +1371,19 @@ MegaClient::~MegaClient()
     delete tctable;
     delete dbaccess;
 }
+
+#ifdef ENABLE_SYNC
+
+bool MegaClient::getKeepSyncsAfterLogout() const
+{
+    return mKeepSyncsAfterLogout;
+}
+
+void MegaClient::setKeepSyncsAfterLogout(bool keepSyncsAfterLogout)
+{
+    mKeepSyncsAfterLogout = keepSyncsAfterLogout;
+}
+#endif
 
 std::string MegaClient::getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
 {
@@ -4116,7 +4130,15 @@ void MegaClient::locallogout(bool removecaches)
     if (removecaches)
     {
 #ifdef ENABLE_SYNC
-     	syncs.removeSelectedSyncs([](SyncConfig&, Sync* s){ return s != nullptr; });
+        if (mKeepSyncsAfterLogout)
+        {
+            //disableSyncs in a temporarily state: so that they will be resumed when relogin
+            syncs.disableSyncs(LOGGED_OUT, true);
+        }
+        else
+        {
+        	syncs.removeSelectedSyncs([](SyncConfig&, Sync* s){ return s != nullptr; });
+        }
 #endif
         removeCaches();
     }
@@ -4303,7 +4325,7 @@ void MegaClient::removeCaches()
         }
     });
 
-    if (syncs.mSyncConfigDb)
+    if (syncs.mSyncConfigDb && !mKeepSyncsAfterLogout)
     {
         syncs.mSyncConfigDb->clear();
     }
