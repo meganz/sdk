@@ -85,7 +85,7 @@ void PosixWaiter::bumpmaxfd(int fd)
 
 // checks if an unfiltered fd is set
 // FIXME: use bitwise & instead of scanning
-bool PosixWaiter::fd_filter(int nfds, MEGA_FD_SET_T* fds, MEGA_FD_SET_T* ignorefds) const
+bool PosixWaiter::fd_filter(int nfds, mega_fd_set_t* fds, mega_fd_set_t* ignorefds) const
 {
     while (nfds--)
     {

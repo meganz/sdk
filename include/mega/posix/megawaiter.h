@@ -29,7 +29,7 @@
     #define MEGA_FD_ZERO FD_ZERO
     #define MEGA_FD_SET FD_SET
     #define MEGA_FD_ISSET FD_ISSET
-    #define MEGA_FD_SET_T fd_set
+    typedef fd_set mega_fd_set_t;
 #else
 
     #define MEGA_FD_ZERO PosixWaiter::clear_fdset
@@ -39,7 +39,7 @@
     #define POLLIN_SET  (POLLRDNORM | POLLRDBAND | POLLIN | POLLHUP | POLLERR) // Ready for reading
     #define POLLOUT_SET (POLLWRBAND | POLLWRNORM | POLLOUT | POLLERR) // Ready for writing
     #define POLLEX_SET  (POLLPRI) // Exceptional condition
-    #define MEGA_FD_SET_T std::set<int>
+    typedef std::set<int> mega_fd_set_t ;
 
 #endif
 
@@ -51,26 +51,26 @@ struct PosixWaiter : public Waiter
 
     int maxfd;
 
-    MEGA_FD_SET_T rfds, wfds, efds;
-    MEGA_FD_SET_T ignorefds;
+    mega_fd_set_t rfds, wfds, efds;
+    mega_fd_set_t ignorefds;
 
 #ifdef USE_POLL
 
-    static void clear_fdset(MEGA_FD_SET_T *s)
+    static void clear_fdset(mega_fd_set_t *s)
     {
         s->clear();
     }
-    static void fdset(int fd, MEGA_FD_SET_T *s)
+    static void fdset(int fd, mega_fd_set_t *s)
     {
         s->insert(fd);
     }
-    static bool fdisset(int fd, MEGA_FD_SET_T *s)
+    static bool fdisset(int fd, mega_fd_set_t *s)
     {
         return s->find(fd) != s->end();
     }
 #endif
 
-    bool fd_filter(int nfds, MEGA_FD_SET_T* fds, MEGA_FD_SET_T* ignorefds) const;
+    bool fd_filter(int nfds, mega_fd_set_t* fds, mega_fd_set_t* ignorefds) const;
 
     void init(dstime);
     int wait();

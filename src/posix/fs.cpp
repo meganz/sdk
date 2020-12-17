@@ -930,7 +930,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     char* path;
     Sync* pathsync[2];
     sync_list::iterator it;
-    MEGA_FD_SET_T rfds;
+    mega_fd_set_t rfds;
     timeval tv = { 0, 0 };
     struct stat statbuf;
     static char rsrc[] = "/..namedfork/rsrc";

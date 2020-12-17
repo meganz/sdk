@@ -1293,6 +1293,12 @@ AM_CONDITIONAL([USE_LIBMEDIAINFO], [test "x$libmediainfo" = "xtrue"])
 openssl=false
 cares=false
 if test "x$WIN32" = "xno" ; then
+
+    AC_ARG_WITH([poll],
+      AS_HELP_STRING(--with-poll use poll instead of select in posix waiter),
+      AC_DEFINE(USE_POLL, [1], [Define to use poll instead of select in posix waiter]),
+    )
+
     if test "$HAVE_PTHREAD" = "yes"; then
         SAVE_LDFLAGS="-pthread $SAVE_LDFLAGS"
         LDFLAGS="-pthread $LDFLAGS"
