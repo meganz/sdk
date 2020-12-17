@@ -22,7 +22,8 @@
  * Public License, see http://www.gnu.org/copyleft/gpl.txt for details.
  */
 
-#pragma once
+#ifndef ROTATIVEPERFORMANCELOGGER_H
+#define ROTATIVEPERFORMANCELOGGER_H
 
 #include <atomic>
 #include <memory>
@@ -35,7 +36,7 @@
 namespace mega {
 
 class RotativePerformanceLoggerLoggingThread;
-class RotativePerformanceLogger : public mega::MegaLogger
+class RotativePerformanceLogger : public MegaLogger
 {
 private:
     RotativePerformanceLogger();
@@ -65,3 +66,5 @@ private:
 };
 
 }
+
+#endif //ROTATIVEPERFORMANCELOGGER_H

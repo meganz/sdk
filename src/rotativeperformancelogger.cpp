@@ -22,8 +22,6 @@
  * Public License, see http://www.gnu.org/copyleft/gpl.txt for details.
  */
 
-#include "mega/rotativeperformancelogger.h"
-
 #include <cstring>
 #include <string>
 #include <fstream>
@@ -41,6 +39,7 @@
 #include <zlib.h>
 
 #include "megaapi_impl.h"
+#include "mega/rotativeperformancelogger.h"
 
 #ifdef WIN32
 #include <windows.h>
