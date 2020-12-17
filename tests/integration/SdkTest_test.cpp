@@ -4731,31 +4731,35 @@ TEST_F(SdkTest, SdkSimpleCommands)
     ASSERT_EQ(MegaError::API_OK, err) << "Get extended account details failed (error: " << err << ")";
     ASSERT_TRUE(!!mApi[0].accountDetails) << "Invalid accout details"; // some simple validation
 
-    // killSession()
-    gSessionIDs[0] = "invalid";
-    int numSessions = mApi[0].accountDetails->getNumSessions();
-    for (int i = 0; i < numSessions; ++i)
-    {
-        // look for current session
-        std::unique_ptr<MegaAccountSession> session(mApi[0].accountDetails->getSession(i));
-        if (session->isCurrent())
-        {
-            err = synchronousKillSession(0, session->getHandle());
-            ASSERT_EQ(MegaError::API_OK, err) << "Kill session failed for current session (error: " << err << ")";
 
-            break;
-        }
-    }
+    // killSession will be tested in a separate test.  This one is unreliable because sometimes
+    // the sc channel gets response first wtih -15 for the batch, and locallogout()s the client.
 
-    gTestingInvalidArgs = true;
-    err = synchronousKillSession(0, 0 /*INVALID_HANDLE + 1*/);  // INVALID_HANDLE is special and means kill all (in the intermediate layer) - so +1 for a (probably) really invalid handle
-    ASSERT_EQ(MegaError::API_ESID, err) << "Kill session for unknown sessions shoud fail with API_ESID (error: " << err << ")";
-    gTestingInvalidArgs = false;
+    //// killSession()
+    //gSessionIDs[0] = "invalid";
+    //int numSessions = mApi[0].accountDetails->getNumSessions();
+    //for (int i = 0; i < numSessions; ++i)
+    //{
+    //    // look for current session
+    //    std::unique_ptr<MegaAccountSession> session(mApi[0].accountDetails->getSession(i));
+    //    if (session->isCurrent())
+    //    {
+    //        err = synchronousKillSession(0, session->getHandle());
+    //        ASSERT_EQ(MegaError::API_OK, err) << "Kill session failed for current session (error: " << err << ")";
 
-    // getMiscFlags() -- not logged in
-    logout(0);
-    err = synchronousGetMiscFlags(0);
-    ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
+    //        break;
+    //    }
+    //}
+
+    //gTestingInvalidArgs = true;
+    //err = synchronousKillSession(0, 0 /*INVALID_HANDLE + 1*/);  // INVALID_HANDLE is special and means kill all (in the intermediate layer) - so +1 for a (probably) really invalid handle
+    //ASSERT_EQ(MegaError::API_ESID, err) << "Kill session for unknown sessions shoud fail with API_ESID (error: " << err << ")";
+    //gTestingInvalidArgs = false;
+
+    //// getMiscFlags() -- not logged in
+    //logout(0);
+    //err = synchronousGetMiscFlags(0);
+    //ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
 }
 
 TEST_F(SdkTest, SdkHeartbeatCommands)

@@ -1361,6 +1361,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
 MegaClient::~MegaClient()
 {
+    LOG_debug << clientname << "~MegaClient running";
     destructorRunning = true;
     locallogout(false);
 
@@ -1370,6 +1371,7 @@ MegaClient::~MegaClient()
     delete statusTable;
     delete tctable;
     delete dbaccess;
+    LOG_debug << clientname << "~MegaClient completing";
 }
 
 #ifdef ENABLE_SYNC

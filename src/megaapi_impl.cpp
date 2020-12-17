@@ -5302,10 +5302,13 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 
 MegaApiImpl::~MegaApiImpl()
 {
+    auto clientname = client->clientname;
+    LOG_debug << clientname << "~MegaApiImpl running";
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DELETE);
     requestQueue.push(request);
     waiter->notify();
     thread.join();
+    assert(client == nullptr);
 
     delete mPushSettings;
     delete mTimezones;
@@ -5322,7 +5325,9 @@ MegaApiImpl::~MegaApiImpl()
     delete httpio;
 #endif
 
+    LOG_debug << clientname << "~MegaApiImpl firing delete request completion";
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+    LOG_debug << clientname << "~MegaApiImpl completing";
 }
 
 MegaApiImpl* MegaApiImpl::ImplOf(MegaApi* api)
@@ -6394,6 +6399,7 @@ void MegaApiImpl::loop()
 
     sdkMutex.lock();
     delete client;
+    client = nullptr;
     sdkMutex.unlock();
 }
 
@@ -16264,7 +16270,7 @@ MegaUserList *MegaApiImpl::getCurrentUsers()
 void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
 {
     activeRequest = request;
-    LOG_info << "Request (" << request->getRequestString() << ") starting";
+    LOG_info << client->clientname << "Request (" << request->getRequestString() << ") starting";
     for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ;)
     {
         (*it++)->onRequestStart(api, request);
@@ -16291,11 +16297,11 @@ void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, unique_ptr<Me
 
     if(e->getErrorCode())
     {
-        LOG_warn << "Request (" << request->getRequestString() << ") finished with error: " << e->getErrorString();
+        LOG_warn << (client ? client->clientname : "") << "Request (" << request->getRequestString() << ") finished with error: " << e->getErrorString();
     }
     else
     {
-        LOG_info << "Request (" << request->getRequestString() << ") finished";
+        LOG_info << (client ? client->clientname : "") << "Request (" << request->getRequestString() << ") finished";
     }
 
     for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ;)
