@@ -844,12 +844,7 @@ struct StandardClient : public MegaApp
     {
         // shut down any syncs on the same thread, or they stall the client destruction (CancelIo instead of CancelIoEx on the WinDirNotify)
         thread_do([](MegaClient& mc, promise<bool>&) {
-            #ifdef _WIN32
-                // logout stalls in windows due to the issue above
-                mc.purgenodesusersabortsc(false);
-            #else
-                mc.logout();
-            #endif
+            mc.logout();
         });
 
         clientthreadexit = true;
@@ -860,12 +855,7 @@ struct StandardClient : public MegaApp
     void localLogout()
     {
         thread_do([](MegaClient& mc, promise<bool>&) {
-            #ifdef _WIN32
-                // logout stalls in windows due to the issue above
-                mc.purgenodesusersabortsc(false);
-            #else
-                mc.locallogout(false);
-            #endif
+            mc.locallogout(false);
         });
     }
 
@@ -4528,10 +4518,10 @@ TEST(Sync, RemotesWithEscapesSynchronizeCorrectly)
 
     // Let's try with escaped control sequences.
     ASSERT_TRUE(fs::create_directories(syncRoot / "dd%250a"));
-    model.addfolder("x/dd\n");
+    model.addfolder("x/dd%0a");
 
     ASSERT_TRUE(createNameFile(syncRoot, "ff%250a"));
-    model.addfile("x/ff\n", "ff%250a");
+    model.addfile("x/ff%0a", "ff%250a");
 
     // Wait for sync and confirm model.
     waitonsyncs(TIMEOUT, &cd);
@@ -4539,10 +4529,10 @@ TEST(Sync, RemotesWithEscapesSynchronizeCorrectly)
 
     // Remotely delete the nodes with control sequences.
     ASSERT_TRUE(cd.deleteremote("x/dd%0a"));
-    model.movetosynctrash("x/dd\n", "x");
+    model.movetosynctrash("x/dd%0a", "x");
 
     ASSERT_TRUE(cd.deleteremote("x/ff%0a"));
-    model.movetosynctrash("x/ff\n", "x");
+    model.movetosynctrash("x/ff%0a", "x");
 
     // Wait for sync and confirm model.
     waitonsyncs(TIMEOUT, &cd);
