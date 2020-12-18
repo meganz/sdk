@@ -76,6 +76,7 @@ struct MEGA_API NewNode : public NodeCore
     std::unique_ptr<string> fileattributes;
 
     bool added = false;
+    handle mAddedHandle = UNDEF;
 };
 
 struct MEGA_API PublicLink
@@ -84,8 +85,9 @@ struct MEGA_API PublicLink
     m_time_t cts;
     m_time_t ets;
     bool takendown;
+    string mAuthKey;
 
-    PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown);
+    PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey = nullptr);
     PublicLink(PublicLink *plink);
 
     bool isExpired();
@@ -245,7 +247,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     node_set::iterator tounlink_it;
 #endif
 
-    // source tag
+    // source tag.  The tag of the request or transfer that last modified this node (available in MegaApi)
     int tag = 0;
 
     // check if node is below this node
@@ -254,7 +256,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // handle of public link for the node
     PublicLink* plink = nullptr;
 
-    void setpubliclink(handle, m_time_t, m_time_t, bool);
+    void setpubliclink(handle, m_time_t, m_time_t, bool, const string &authKey = {});
 
     bool serialize(string*) override;
     static Node* unserialize(MegaClient*, const string*, node_vector*);
@@ -366,8 +368,8 @@ struct MEGA_API LocalNode : public File
     localnode_set::iterator notseen_it{};
 
     // build full local path to this node
-    void getlocalpath(LocalPath&, bool sdisable = false, const std::string* localseparator = nullptr) const;
-    LocalPath getLocalPath(bool sdisable = false) const;
+    void getlocalpath(LocalPath&) const;
+    LocalPath getLocalPath() const;
     string localnodedisplaypath(FileSystemAccess& fsa) const;
 
     // return child node by name

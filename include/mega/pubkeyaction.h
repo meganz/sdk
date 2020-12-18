@@ -45,11 +45,12 @@ class MEGA_API PubKeyActionCreateShare : public PubKeyAction
     handle h;   // node to create share on
     accesslevel_t a;    // desired access level
     string selfemail;  // optional personal representation when sharing to a non-contact
+    bool mWritable = false;
 
 public:
     void proc(MegaClient*, User*);
 
-    PubKeyActionCreateShare(handle, accesslevel_t, int, const char* = NULL);
+    PubKeyActionCreateShare(handle, accesslevel_t, int, bool writable, const char* = NULL);
 };
 
 class MEGA_API PubKeyActionSendShareKey : public PubKeyAction
@@ -64,13 +65,12 @@ public:
 
 class MEGA_API PubKeyActionPutNodes : public PubKeyAction
 {
-    NewNode* nn;    // nodes to add
-    int nc;         // number of nodes to add
+    vector<NewNode> nn;    // nodes to add
 
 public:
     void proc(MegaClient*, User*);
 
-    PubKeyActionPutNodes(NewNode*, int, int);
+    PubKeyActionPutNodes(vector<NewNode>&&, int);
 };
 
 class MEGA_API PubKeyActionNotifyApp : public PubKeyAction

@@ -32,9 +32,8 @@ const int GfxProc::dimensionsavatar[][2] = {
     { 250, 0 }      // AVATAR250X250: square thumbnail, cropped from near center
 };
 
-bool GfxProc::isgfx(string* localfilename)
+bool GfxProc::isgfx(const LocalPath& localfilename)
 {
-    char ext[8];
     const char* supported;
 
     if (!(supported = supportedformats()))
@@ -42,12 +41,13 @@ bool GfxProc::isgfx(string* localfilename)
         return true;
     }
 
-    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localfilename), ext, sizeof ext))
+    string ext;
+    if (client->fsaccess->getextension(localfilename, ext))
     {
         const char* ptr;
 
         // FIXME: use hash
-        if ((ptr = strstr(supported, ext)) && ptr[strlen(ext)] == '.')
+        if ((ptr = strstr(supported, ext.c_str())) && ptr[ext.size()] == '.')
         {
             return true;
         }
@@ -56,9 +56,8 @@ bool GfxProc::isgfx(string* localfilename)
     return false;
 }
 
-bool GfxProc::isvideo(string *localfilename)
+bool GfxProc::isvideo(const LocalPath& localfilename)
 {
-    char ext[8];
     const char* supported;
 
     if (!(supported = supportedvideoformats()))
@@ -66,12 +65,13 @@ bool GfxProc::isvideo(string *localfilename)
         return false;
     }
 
-    if (client->fsaccess->getextension(LocalPath::fromLocalname(*localfilename), ext, sizeof ext))
+    string ext;
+    if (client->fsaccess->getextension(localfilename, ext))
     {
         const char* ptr;
 
         // FIXME: use hash
-        if ((ptr = strstr(supported, ext)) && ptr[strlen(ext)] == '.')
+        if ((ptr = strstr(supported, ext.c_str())) && ptr[ext.size()] == '.')
         {
             return true;
         }
@@ -116,7 +116,7 @@ void GfxProc::loop()
             LOG_debug << "Processing media file: " << job->h;
 
             // (this assumes that the width of the largest dimension is max)
-            if (readbitmap(NULL, &job->localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
+            if (readbitmap(NULL, job->localfilename, dimensions[sizeof dimensions/sizeof dimensions[0]-1][0]))
             {
                 for (unsigned i = 0; i < job->imagetypes.size(); i++)
                 {
@@ -276,27 +276,25 @@ void GfxProc::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
 
         px = (w - rw) / 2;
         py = (h - rw) / 3;
-        
+
         rh = rw;
     }
 }
 
 // load bitmap image, generate all designated sizes, attach to specified upload/node handle
 // FIXME: move to a worker thread to keep the engine nonblocking
-int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, string* localfilename, handle th, SymmCipher* key, int missing, bool checkAccess)
+int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, const LocalPath& localfilename, handle th, SymmCipher* key, int missing, bool checkAccess)
 {
     if (SimpleLogger::logCurrentLevel >= logDebug)
     {
-        string utf8path;
-        client->fsaccess->local2path(localfilename, &utf8path);
-        LOG_debug << "Creating thumb/preview for " << utf8path;
+        LOG_debug << "Creating thumb/preview for " << localfilename.toPath(*client->fsaccess);
     }
 
     GfxJob *job = new GfxJob();
     job->h = th;
     job->flag = checkAccess;
     memcpy(job->key, key->key, SymmCipher::KEYLENGTH);
-    job->localfilename = *localfilename;
+    job->localfilename = localfilename;
     for (fatype i = sizeof dimensions/sizeof dimensions[0]; i--; )
     {
         if (missing & (1 << i))
@@ -311,12 +309,15 @@ int GfxProc::gendimensionsputfa(FileAccess* /*fa*/, string* localfilename, handl
         return 0;
     }
 
+    // get the count before it might be popped off and processed already
+    auto count = int(job->imagetypes.size());
+
     requests.push(job);
     waiter.notify();
-    return int(job->imagetypes.size());
+    return count;
 }
 
-bool GfxProc::savefa(string *localfilepath, int width, int height, string *localdstpath)
+bool GfxProc::savefa(const LocalPath& localfilepath, int width, int height, LocalPath& localdstpath)
 {
     if (!isgfx(localfilepath))
     {
@@ -350,9 +351,8 @@ bool GfxProc::savefa(string *localfilepath, int width, int height, string *local
     }
 
     auto f = client->fsaccess->newfileaccess();
-    auto localpath = LocalPath::fromLocalname(*localdstpath);
-    client->fsaccess->unlinklocal(localpath);
-    if (!f->fopen(localpath, false, true))
+    client->fsaccess->unlinklocal(localdstpath);
+    if (!f->fopen(localdstpath, false, true))
     {
         return false;
     }

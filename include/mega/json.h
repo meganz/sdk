@@ -81,6 +81,53 @@ struct MEGA_API JSON
     bool isNumericError(error& e);
 };
 
+class MEGA_API JSONWriter
+{
+public:
+    JSONWriter();
+
+    MEGA_DEFAULT_COPY_MOVE(JSONWriter);
+
+    void cmd(const char*);
+    void notself(MegaClient*);
+
+    void arg(const char*, const string&, int = 1);
+    void arg(const char*, const char*, int = 1);
+    void arg(const char*, handle, int);
+    void arg(const char*, const byte*, int);
+    void arg(const char*, m_off_t);
+    void addcomma();
+    void appendraw(const char*);
+    void appendraw(const char*, int);
+    void beginarray();
+    void beginarray(const char*);
+    void endarray();
+    void beginobject();
+    void beginobject(const char*);
+    void endobject();
+    void element(int);
+    void element(handle, int = sizeof(handle));
+    void element(const byte*, int);
+    void element(const char*);
+
+    void openobject();
+    void closeobject();
+
+    const byte* getbytes() const;
+    const string& getstring() const;
+
+    size_t size() const;
+
+private:
+    static const int MAXDEPTH = 8;
+
+    int elements();
+
+    string mJson;
+    std::array<signed char, MAXDEPTH> mLevels;
+    signed char mLevel;
+}; // JSONWriter
+
 } // namespace
 
 #endif

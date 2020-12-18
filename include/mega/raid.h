@@ -35,9 +35,9 @@ namespace mega {
     // Holds the latest download data received.   Raid-aware.   Suitable for file transfers, or direct streaming.
     // For non-raid files, supplies the received buffer back to the same connection for writing to file (having decrypted and mac'd it),
     // effectively the same way it worked before raid.
-    // For raid files, collects up enough input buffers until it can combine them to make a piece of the output file. 
-    // Once a piece of the output is reconstructed the caller can access it with getAsyncOutputBufferPointer().  
-    // Once that piece is no longer needed, call bufferWriteCompleted to indicate that it can be deallocated. 
+    // For raid files, collects up enough input buffers until it can combine them to make a piece of the output file.
+    // Once a piece of the output is reconstructed the caller can access it with getAsyncOutputBufferPointer().
+    // Once that piece is no longer needed, call bufferWriteCompleted to indicate that it can be deallocated.
     class MEGA_API RaidBufferManager
     {
     public:
@@ -46,7 +46,7 @@ namespace mega {
             m_off_t pos;
             HttpReq::http_buf_t buf;  // owned here
             chunkmac_map chunkmacs;
-            
+
             std::condition_variable finalizedCV;
             bool finalized = false;
 
@@ -65,6 +65,12 @@ namespace mega {
 
         // indicate if the file is raid or not.  Most variation due to raid/non-raid is captured in this class
         bool isRaid() const;
+
+        // Is this the connection we are not using
+        bool isUnusedRaidConection(unsigned connectionNum) const;
+
+        // Is this connection unable to continue currently because other connections are too far behind
+        bool isRaidConnectionProgressBlocked(unsigned connectionNum) const;
 
         // in case URLs expire, use this to update them and keep downloading without wasting any data
         void updateUrlsAndResetPos(const std::vector<std::string>& tempUrls);
@@ -100,10 +106,7 @@ namespace mega {
         static m_off_t raidPartSize(unsigned part, m_off_t fullfilesize);
 
         // report a failed connection.  The function tries to switch to 5 connection raid or a different 5 connections.  Two fails without progress and we should fail the transfer as usual
-        bool tryRaidHttpGetErrorRecovery(unsigned errorConnectionNum);
-
-        // check to see if all other channels than the one specified are up to date with data and so we could go faster with 5 connections rather than 6.
-        bool connectionRaidPeersAreAllPaused(unsigned slowConnection);
+        bool tryRaidHttpGetErrorRecovery(unsigned errorConnectionNum, bool incrementErrors);
 
         // indicate that this connection has responded with headers, and see if we now know which is the slowest connection, and make that the unused one
         bool detectSlowestRaidConnection(unsigned thisConnection, unsigned& slowestConnection);
@@ -139,29 +142,29 @@ namespace mega {
 
         // a connection is paused if it reads too far ahead of others.  This prevents excessive buffer usage
         bool connectionPaused[RAIDPARTS];
-        
+
         // for raid, how far through the raid part we are currently
         m_off_t raidrequestpartpos[RAIDPARTS];
-        
+
         // for raid, the http requested data before combining
         std::deque<FilePiece*> raidinputparts[RAIDPARTS];
 
         // the data to output currently, per connection, raid or non-raid.  re-accessible in case retries are needed
         std::map<unsigned, std::shared_ptr<FilePiece>> asyncoutputbuffers;
-        
+
         // piece to carry over to the next combine operation, when we don't get pieces that match the chunkceil boundaries
         FilePiece leftoverchunk;
 
         // the point we are at in the raid input parts.  raidinputparts buffers contain data from this point in their part.
         m_off_t raidpartspos;
-        
+
         // the point we are at in the output file.  asyncoutputbuffers contain data from this point.
         m_off_t outputfilepos;
 
         // the point we started at in the output file.
         m_off_t startfilepos;
 
-        // In the case of resuming a file, the point we got to in the output might not line up nicely with a sector in an input part.  
+        // In the case of resuming a file, the point we got to in the output might not line up nicely with a sector in an input part.
         // This field allows us to start reading on a sector boundary but skip outputting data until we match where we got to last time.
         size_t resumewastedbytes;
 
@@ -233,7 +236,7 @@ namespace mega {
         friend class DebugTestHook;
     };
 
-    
+
 
 } // namespace
 

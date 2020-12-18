@@ -21,8 +21,8 @@
 
 #include "mega/raid.h"
 
-#include "mega/transfer.h" 
-#include "mega/testhooks.h" 
+#include "mega/transfer.h"
+#include "mega/testhooks.h"
 #include "mega.h" // for thread definitions
 
 #undef min //avoids issues with std::min
@@ -238,6 +238,17 @@ bool RaidBufferManager::isRaid() const
     assert(raidKnown);
     return is_raid;
 }
+
+bool RaidBufferManager::isUnusedRaidConection(unsigned connectionNum) const
+{
+    return connectionNum == unusedRaidConnection;
+}
+
+bool RaidBufferManager::isRaidConnectionProgressBlocked(unsigned connectionNum) const
+{
+    return connectionPaused[connectionNum];
+}
+
 
 const std::string& RaidBufferManager::tempURL(unsigned connectionNum)
 {
@@ -652,7 +663,7 @@ bool RaidBufferManager::FilePiece::finalize(bool parallel, m_off_t filesize, int
 
     m_off_t endpos = ChunkedHash::chunkceil(startpos, finalpos);
     unsigned chunksize = static_cast<unsigned>(endpos - startpos);
-    
+
     while (chunksize)
     {
         m_off_t chunkid = ChunkedHash::chunkfloor(startpos);
@@ -706,11 +717,14 @@ void TransferBufferManager::finalize(FilePiece& r)
 }
 
 
-bool RaidBufferManager::tryRaidHttpGetErrorRecovery(unsigned errorConnectionNum)
+bool RaidBufferManager::tryRaidHttpGetErrorRecovery(unsigned errorConnectionNum, bool incrementErrors)
 {
     assert(isRaid());
 
-    raidHttpGetErrorCount[errorConnectionNum] += 1;
+    if (incrementErrors)
+    {
+        raidHttpGetErrorCount[errorConnectionNum] += 1;
+    }
 
     g_faultyServers.add(tempurls[errorConnectionNum]);
 
@@ -749,26 +763,6 @@ bool RaidBufferManager::tryRaidHttpGetErrorRecovery(unsigned errorConnectionNum)
     {
         return false;
     }
-}
-
-bool RaidBufferManager::connectionRaidPeersAreAllPaused(unsigned slowConnection)
-{
-    if (!isRaid())
-    {
-        return false;
-    }
-
-    // see if one connection is stalled or running much slower than the others, in which case try the other 5 instead
-    // (if already using 5 connections and all of them are paused, except slowConnection, the unusedRaidConnection will
-    // be started again and the slowConnection will become the new unusedRaidConnection)
-    for (unsigned j = RAIDPARTS; j--; )
-    {
-        if (j != slowConnection && j != unusedRaidConnection && !connectionPaused[j])
-        {
-            return false;
-        }
-    }
-    return true;
 }
 
 bool RaidBufferManager::detectSlowestRaidConnection(unsigned thisConnection, unsigned& slowestConnection)
@@ -867,7 +861,7 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
             m_off_t speedsize = std::min<m_off_t>(maxsize, uploadSpeed * 2 / 3);    // two seconds of data over 3 connections
             m_off_t sizesize = transfer->size > 32 * 1024 * 1024 ? 8 * 1024 * 1024 : 0;  // start with large-ish portions for large files.
             m_off_t targetsize = std::max<m_off_t>(sizesize, speedsize);
-            
+
             while (npos < transfer->pos + targetsize && npos < transfer->size)
             {
                 npos = ChunkedHash::chunkceil(npos, transfer->size);

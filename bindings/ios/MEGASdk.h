@@ -68,7 +68,27 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeVideoAsc,
     MEGASortOrderTypeVideoDesc,
     MEGASortOrderTypeLinkCreationAsc,
-    MEGASortOrderTypeLinkCreationDesc
+    MEGASortOrderTypeLinkCreationDesc,
+    MEGASortOrderTypeLabelAsc,
+    MEGASortOrderTypeLabelDesc,
+    MEGASortOrderTypeFavouriteAsc,
+    MEGASortOrderTypeFavouriteDesc
+};
+
+typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
+    MEGANodeFormatTypeUnknown = 0,
+    MEGANodeFormatTypePhoto,
+    MEGANodeFormatTypeAudio,
+    MEGANodeFormatTypeVideo,
+    MEGANodeFormatTypeDocument,
+};
+
+typedef NS_ENUM (NSInteger, MEGAFolderTargetType) {
+    MEGAFolderTargetTypeInShare = 0,
+    MEGAFolderTargetTypeOutShare,
+    MEGAFolderTargetTypePublicLink,
+    MEGAFolderTargetTypeRootNode,
+    MEGAFolderTargetTypeAll,
 };
 
 typedef NS_ENUM (NSInteger, MEGAEventType) {
@@ -119,7 +139,10 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
     MEGANodeAttributeDuration       = 0,
-    MEGANodeAttributeCoordinates    = 1
+    MEGANodeAttributeCoordinates    = 1,
+    MEGANodeAttributeOriginalFingerprint = 2,
+    MEGANodeAttributeLabel = 3,
+    MEGANodeAttributeFav = 4
 };
 
 typedef NS_ENUM(NSInteger, MEGAPaymentMethod) {
@@ -314,6 +337,18 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  */
 @property (readonly, nonatomic) Retry waiting;
 
+/*
+ * @brief Get the total bytes of started downloads
+ * @return Total bytes of started downloads
+ *
+ * The count starts with the creation of MegaApi and is reset with calls to [MEGASdk resetTotalDownloads]
+ * or just before a log in or a log out.
+ *
+ * Function related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ */
+@property (readonly, nonatomic) NSNumber *totalsDownloadBytes __attribute__((deprecated("They could change or be removed in the current form.")));
+
 /**
  * @brief Total downloaded bytes since the creation of the MEGASdk object.
  *
@@ -321,6 +356,19 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * provide more data and avoid race conditions. They could change or be removed in the current form.
  */
 @property (readonly, nonatomic) NSNumber *totalsDownloadedBytes __attribute__((deprecated("They could change or be removed in the current form.")));
+
+/**
+ * Get the total bytes of started uploads
+ * @return Total bytes of started uploads
+ *
+ * The count starts with the creation of MegaApi and is reset with calls to [MEGASdk resetTotalDownloads]
+ * or just before a log in or a log out.
+ *
+ * Function related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ *
+ */
+@property (readonly, nonatomic) NSNumber *totalsUploadBytes __attribute__((deprecated("They could change or be removed in the current form.")));
 
 /**
  * @brief Total uploaded bytes since the creation of the MEGASdk object.
@@ -3169,6 +3217,111 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (NSString *)buildPublicLinkForHandle:(NSString *)publicHandle key:(NSString *)key isFolder:(BOOL)isFolder;
 
 /**
+ * @brief Set node label as a node attribute.
+ * Valid values for label attribute are:
+ *  - MEGANodeLabelRed = 1
+ *  - MEGANodeLabelOrange = 2
+ *  - MEGANodeLabelYellow = 3
+ *  - MEGANodeLabelGreen = 4
+ *  - MEGANodeLabelBlue = 5
+ *  - MEGANodeLabelPurple = 6
+ *  - MEGANodeLabelGrey = 7
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns the label for the node
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeLabel
+ *
+ * @param node Node that will receive the information.
+ * @param label Label of the node
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setNodeLabel:(MEGANode *)node label:(MEGANodeLabel)label delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set node label as a node attribute.
+ * Valid values for label attribute are:
+ *  - MEGANodeLabelRed = 1
+ *  - MEGANodeLabelOrange = 2
+ *  - MEGANodeLabelYellow = 3
+ *  - MEGANodeLabelGreen = 4
+ *  - MEGANodeLabelBlue = 5
+ *  - MEGANodeLabelPurple = 6
+ *  - MEGANodeLabelGrey = 7
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns the label for the node
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeLabel
+ *
+ * @param node Node that will receive the information.
+ * @param label Label of the node
+ */
+- (void)setNodeLabel:(MEGANode *)node label:(MEGANodeLabel)label;
+
+/**
+ * @brief Remove node label
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeLabel
+ *
+ * @param node Node that will receive the information.
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)resetNodeLabel:(MEGANode *)node delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Remove node label
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeLabel
+ *
+ * @param node Node that will receive the information.
+ */
+- (void)resetNodeLabel:(MEGANode *)node;
+
+/**
+ * @brief Set node favourite as a node attribute.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns 1 if node is set as favourite, otherwise return 0
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeFav
+ *
+ * @param node Node that will receive the information.
+ * @param favourite if YES set node as favourite, otherwise remove the attribute
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set node favourite as a node attribute.
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node that receive the attribute
+ * - [MEGARequest numDetails] - Returns 1 if node is set as favourite, otherwise return 0
+ * - [MEGARequest flag] - Returns YES (official attribute)
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeFav
+ *
+ * @param node Node that will receive the information.
+ * @param favourite if YES set node as favourite, otherwise remove the attribute
+ */
+- (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite;
+
+/**
  * @brief Set the GPS coordinates of image files as a node attribute.
  *
  * To remove the existing coordinates, set both the latitude and longitude to nil.
@@ -5847,6 +6000,25 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (void)startStreamingNode:(MEGANode *)node startPos:(NSNumber *)startPos size:(NSNumber *)size;
 
 /**
+ * @brief Reset the number of total downloads
+ * This function resets the number returned by [MEGASdk totalDownloads]
+ *
+ * @deprecated Function related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ *
+ */
+- (void)resetTotalDownloads __attribute__((deprecated("They could change or be removed in the current form.")));
+
+/**
+ * @brief Reset the number of total uploads
+ * This function resets the number returned by [MEGASdk totalUploads]
+ *
+ * @deprecated Function related to statistics will be reviewed in future updates to
+ * provide more data and avoid race conditions. They could change or be removed in the current form.
+ */
+- (void)resetTotalUploads __attribute__((deprecated("They could change or be removed in the current form.")));
+
+/**
  * @brief Cancel a transfer.
  *
  * When a transfer is cancelled, it will finish and will provide the error code
@@ -5882,6 +6054,39 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *
  */
 - (void)cancelTransfer:(MEGATransfer *)transfer;
+
+/**
+* @brief Retry a transfer
+*
+* This function allows to start a transfer based on a MEGATransfer object. It can be used,
+* for example, to retry transfers that finished with an error. To do it, you can retain the
+* MEGATransfer object in onTransferFinish (calling [MEGATransfer clone] to take the ownership)
+* and use it later with this function.
+*
+* If the transfer parameter is nil or is not of type MEGATransferTypeDownload or
+* MEGATransferTypeUpload (transfers started with [MEGASdk startDownload] or
+* [MEGASdk startUpload) the function returns without doing anything.
+*
+* @param transfer Transfer to be retried
+* @param delegate MEGATransferDelegate to track this transfer
+*/
+- (void)retryTransfer:(MEGATransfer *)transfer delegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+* @brief Retry a transfer
+*
+* This function allows to start a transfer based on a MEGATransfer object. It can be used,
+* for example, to retry transfers that finished with an error. To do it, you can retain the
+* MEGATransfer object in onTransferFinish (calling [MEGATransfer clone] to take the ownership)
+* and use it later with this function.
+*
+* If the transfer parameter is nil or is not of type MEGATransferTypeDownload or
+* MEGATransferTypeUpload (transfers started with [MEGASdk startDownload] or
+* [MEGASdk startUpload) the function returns without doing anything.
+*
+* @param transfer Transfer to be retried
+*/
+- (void)retryTransfer:(MEGATransfer *)transfer;
 
 /**
 * @brief Move a transfer to the top of the transfer queue
@@ -6447,6 +6652,22 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * - MEGASortOrderTypeVideoDesc = 14
  * Sort with videos first, then by date descending
  *
+ * - MEGASortOrderTypeLinkCreationAsc = 15
+ *
+ * - MEGASortOrderTypeLinkCreationDesc = 16
+ *
+ * - MEGASortOrderTypeLabelAsc = 17
+ * Sort by color label, ascending
+ *
+ * - MEGASortOrderTypeLabelDesc = 18
+ * Sort by color label, descending
+ *
+ * - MEGASortOrderTypeFavouriteAsc = 19
+ * Sort nodes with favourite attr first
+ *
+ * - MEGASortOrderTypeFavouriteDesc = 20
+ * Sort nodes with favourite attr last
+ *
  * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
  * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
  * They will be eventually removed.
@@ -6571,6 +6792,22 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *
  * - MEGASortOrderTypeVideoDesc = 14
  * Sort with videos first, then by date descending
+ *
+ * - MEGASortOrderTypeLinkCreationAsc = 15
+ *
+ * - MEGASortOrderTypeLinkCreationDesc = 16
+ *
+ * - MEGASortOrderTypeLabelAsc = 17
+ * Sort by color label, ascending
+ *
+ * - MEGASortOrderTypeLabelDesc = 18
+ * Sort by color label, descending
+ *
+ * - MEGASortOrderTypeFavouriteAsc = 19
+ * Sort nodes with favourite attr first
+ *
+ * - MEGASortOrderTypeFavouriteDesc = 20
+ * Sort nodes with favourite attr last
  *
  * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
  * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
@@ -6952,6 +7189,8 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 /**
  * @brief Check if a node has an access level.
  *
+ * @deprecated Use checkAccessErrorExtendedForNode
+ *
  * @param node Node to check.
  * @param level Access level to check.
  * Valid values for this parameter are:
@@ -6970,7 +7209,30 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (MEGAError *)checkAccessForNode:(MEGANode *)node level:(MEGAShareType)level;
 
 /**
+ * @brief Check if a node has an access level
+ *
+ * @param node Node to check
+ * @param level Access level to check
+ * Valid values for this parameter are:
+ * - MEGAShareTypeAccessOwner
+ * - MEGAShareTypeAccessFull
+ * - MEGAShareTypeAccessReadWrite
+ * - MEGAShareTypeAccessRead
+ *
+ * @return Error with the result.
+ * Valid values for the error code are:
+ * - MEGAErrorTypeApiOk - The node has the required access level
+ * - MEGAErrorTypeApiEAccess - The node doesn't have the required access level
+ * - MEGAErrorTypeApiENoent - The node doesn't exist in the account
+ * - MEGAErrorTypeApiEArgs - Invalid parameters
+ */
+- (MEGAError *)checkAccessErrorExtendedForNode:(MEGANode *)node level:(MEGAShareType)level;
+
+/**
  * @brief Check if a node can be moved to a target node.
+ *
+ * @deprecated User checkMoveErrorExtendedForNode
+ *
  * @param node Node to check.
  * @param target Target for the move operation.
  * @return MEGAError object with the result:
@@ -6982,6 +7244,21 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * - MEGAErrorTypeApiEArgs - Invalid parameters
  */
 - (MEGAError *)checkMoveForNode:(MEGANode *)node target:(MEGANode *)target;
+
+/**
+ * @brief Check if a node can be moved to a target node.
+ *
+ * @param node Node to check.
+ * @param target Target for the move operation.
+ * @return MEGAError object with the result:
+ * Valid values for the error code are:
+ * - MEGAErrorTypeApiOk - The node can be moved to the target
+ * - MEGAErrorTypeApiEAccess - The node can't be moved because of permissions problems
+ * - MEGAErrorTypeApiECircular - The node can't be moved because that would create a circular linkage
+ * - MEGAErrorTypeApiENoent - The node or the target doesn't exist in the account
+ * - MEGAErrorTypeApiEArgs - Invalid parameters
+ */
+- (MEGAError *)checkMoveErrorExtendedForNode:(MEGANode *)node target:(MEGANode *)target;
 
 /**
  * @brief Check if a node is in the Rubbish bin tree
@@ -7062,6 +7339,22 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * - MEGASortOrderTypeVideoDesc = 14
  * Sort with videos first, then by date descending
  *
+ * - MEGASortOrderTypeLinkCreationAsc = 15
+ *
+ * - MEGASortOrderTypeLinkCreationDesc = 16
+ *
+ * - MEGASortOrderTypeLabelAsc = 17
+ * Sort by color label, ascending
+ *
+ * - MEGASortOrderTypeLabelDesc = 18
+ * Sort by color label, descending
+ *
+ * - MEGASortOrderTypeFavouriteAsc = 19
+ * Sort nodes with favourite attr first
+ *
+ * - MEGASortOrderTypeFavouriteDesc = 20
+ * Sort nodes with favourite attr last
+ *
  * @deprecated MEGASortOrderTypeAlphabeticalAsc and MEGASortOrderTypeAlphabeticalDesc
  * are equivalent to MEGASortOrderTypeDefaultAsc and MEGASortOrderTypeDefaultDesc.
  * They will be eventually removed.
@@ -7081,6 +7374,91 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * @return List of nodes that contain the desired string in their name.
  */
 - (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node searchString:(NSString *)searchString;
+
+/**
+ * @brief Search nodes containing a search string in their name.
+ *
+ * The search is case-insensitive.
+ *
+ * @param node The parent node of the tree to explore.
+ * @param searchString Search string. The search is case-insensitive.
+ * If the search string is not provided but nodeFormatType has any value apart from MEGANodeFormatTypeUnknown
+ * this method will return a list that contains nodes of the same type as provided.
+ * @param cancelToken MEGACancelToken to be able to cancel the processing at any time.
+ * @param recursive YES if you want to seach recursively in the node tree.
+ * NO if you want to seach in the children of the node only
+ * @param orderType MEGASortOrderType for the returned list.
+ * Valid values for this parameter are:
+ * - MEGASortOrderTypeNone = 0
+ * Undefined order
+ *
+ * - MEGASortOrderTypeDefaultAsc = 1
+ * Folders first in alphabetical order, then files in the same order
+ *
+ * - MEGASortOrderTypeDefaultDesc = 2
+ * Files first in reverse alphabetical order, then folders in the same order
+ *
+ * - MEGASortOrderTypeSizeAsc = 3
+ * Sort by size, ascending
+ *
+ * - MEGASortOrderTypeSizeDesc = 4
+ * Sort by size, descending
+ *
+ * - MEGASortOrderTypeCreationAsc = 5
+ *  Sort by creation time in MEGA, ascending
+ *
+ * - MEGASortOrderTypeCreationDesc = 6
+ * Sort by creation time in MEGA, descending
+ *
+ * - MEGASortOrderTypeModificationAsc = 7
+ * Sort by modification time of the original file, ascending
+ *
+ * - MEGASortOrderTypeModificationDesc = 8
+ * Sort by modification time of the original file, descending
+ *
+ * - MEGASortOrderTypeAlphabeticalAsc = 9
+ * Same behavior than MEGASortOrderTypeDefaultAsc
+ *
+ * - MEGASortOrderTypeAlphabeticalDesc = 10
+ * Same behavior than MEGASortOrderTypeDefaultDesc
+ *
+ * - MEGASortOrderTypePhotoAsc = 11
+ * Sort with photos first, then by date ascending
+ *
+ * - MEGASortOrderTypePhotoDesc = 12
+ * Sort with photos first, then by date descending
+ *
+ * - MEGASortOrderTypeVideoAsc = 13
+ * Sort with videos first, then by date ascending
+ *
+ * - MEGASortOrderTypeVideoDesc = 14
+ * Sort with videos first, then by date descending
+ *
+ * @param nodeFormatType Type of nodes requested in the search
+ * Valid values for this parameter are:
+ * - MEGANodeFormatTypeUnknown = 0
+ * - MEGANodeFormatTypePhoto = 1
+ * - MEGANodeFormatTypeAudio = 2
+ * - MEGANodeFormatTypeVideo = 3
+ * - MEGANodeFormatTypeDocument = 4
+ *
+ * @param folderTargetType Target type where this method will search
+ * Valid values for this parameter are
+ * - MEGAFolderTargetTypeInShare = 0
+ * - MEGAFolderTargetTypeOutShare = 1
+ * - MEGAFolderTargetTypePublicLink = 2
+ * - MEGAFolderTargetTypeRootNode = 3
+ * - MEGAFolderTargetTypeAll = 4
+ *
+ * @return List of nodes that contain the desired string in their name.
+ */
+- (MEGANodeList *)nodeListSearchForNode:(MEGANode *)node
+                           searchString:(nullable NSString *)searchString
+                            cancelToken:(MEGACancelToken *)cancelToken
+                              recursive:(BOOL)recursive
+                              orderType:(MEGASortOrderType)orderType
+                         nodeFormatType:(MEGANodeFormatType)nodeFormatType
+                       folderTargetType:(MEGAFolderTargetType)folderTargetType;
 
 /**
  * @brief Return an array of buckets, each bucket containing a list of recently added/modified nodes
@@ -8316,6 +8694,34 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 *  - Webclient: [99600, 99800]
 */
 - (void)sendEvent:(NSInteger)eventType message:(NSString *)message;
+
+#pragma mark - Banner
+
+/**
+ * @brief Requests a list of all Smart Banners available for current user.
+ *
+ * The response value is stored as a MegaBannerList.
+ *
+ * The associated request type with this request is MEGARequestTypeGetBanners
+ * Valid data in the MegaRequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - MEGABannerList: to get the list of banners
+ *
+ * On the onRequestFinish error, the error code associated to the MegaError can be:
+ * - MEGAErrorTypeApiEAccess - If called with no user being logged in.
+ * - MEGAErrorTypeApiEInternal - If the internally used user attribute exists but can't be decoded.
+ * - MEGAErrorTypeApiENoent - If there are no banners to return to the user.
+ *
+ * @param listener MEGARequestDelegate to track this request
+ */
+- (void)getBanners:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief No longer show the Smart Banner with the specified id to the current user.
+ *
+ * The associated request type with this request is MEGARequestTypeDismissBanner
+ */
+- (void)dismissBanner:(NSInteger)bannerIdentifier delegate:(id<MEGARequestDelegate>)delegate;
 
 @end
 

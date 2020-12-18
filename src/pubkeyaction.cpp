@@ -25,14 +25,13 @@
 
 namespace mega {
 PubKeyAction::PubKeyAction()
-{ 
-    cmd = NULL; 
+{
+    cmd = NULL;
 }
 
-PubKeyActionPutNodes::PubKeyActionPutNodes(NewNode* newnodes, int numnodes, int ctag)
+PubKeyActionPutNodes::PubKeyActionPutNodes(vector<NewNode>&& newnodes, int ctag)
+    : nn(move(newnodes))
 {
-    nn = newnodes;
-    nc = numnodes;
     tag = ctag;
 }
 
@@ -44,17 +43,18 @@ void PubKeyActionPutNodes::proc(MegaClient* client, User* u)
         int t;
 
         // re-encrypt all node keys to the user's public key
-        for (int i = nc; i--;)
+        for (size_t i = nn.size(); i--;)
         {
             if (!(t = u->pubk.encrypt(client->rng, (const byte*)nn[i].nodekey.data(), nn[i].nodekey.size(), buf, sizeof buf)))
             {
-                return client->app->putnodes_result(API_EINTERNAL, USER_HANDLE, nn);
+                client->app->putnodes_result(API_EINTERNAL, USER_HANDLE, nn);
+                return;
             }
 
             nn[i].nodekey.assign((char*)buf, t);
         }
 
-        client->reqs.add(new CommandPutNodes(client, UNDEF, u->uid.c_str(), nn, nc, tag));
+        client->reqs.add(new CommandPutNodes(client, UNDEF, u->uid.c_str(), move(nn), tag));
     }
     else
     {
@@ -93,7 +93,7 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
     // node vanished: bail
     if (!(n = client->nodebyhandle(h)))
     {
-        return client->app->share_result(API_ENOENT);
+        return client->app->share_result(API_ENOENT, mWritable);
     }
 
     // do we already have a share key for this node?
@@ -110,15 +110,17 @@ void PubKeyActionCreateShare::proc(MegaClient* client, User* u)
     // we have all ingredients ready: the target user's public key, the share
     // key and all nodes to share
     client->restag = tag;
-    client->reqs.add(new CommandSetShare(client, n, u, a, newshare, NULL, selfemail.c_str()));
+    client->reqs.add(new CommandSetShare(client, n, u, a, newshare, NULL, mWritable, selfemail.c_str()));
 }
 
+
 // share node sh with access level sa
-PubKeyActionCreateShare::PubKeyActionCreateShare(handle sh, accesslevel_t sa, int ctag, const char* personal_representation)
+PubKeyActionCreateShare::PubKeyActionCreateShare(handle sh, accesslevel_t sa, int ctag, bool writable, const char* personal_representation)
 {
     h = sh;
     a = sa;
     tag = ctag;
+    mWritable = writable;
 
     if (personal_representation)
     {

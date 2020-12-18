@@ -22,11 +22,6 @@ import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-import mega.privacy.android.app.MegaApplication;
-import mega.privacy.android.app.R;
-
-import static nz.mega.sdk.MegaError.*;
-
 /**
  * Java Application Programming Interface (API) to access MEGA SDK services on a MEGA account or shared public folder.
  * <p>
@@ -116,11 +111,14 @@ public class MegaApiJava {
 
     public final static int NODE_ATTR_DURATION = MegaApi.NODE_ATTR_DURATION;
     public final static int NODE_ATTR_COORDINATES = MegaApi.NODE_ATTR_COORDINATES;
+    public final static int NODE_ATTR_LABEL = MegaApi.NODE_ATTR_LABEL;
+    public final static int NODE_ATTR_FAV = MegaApi.NODE_ATTR_FAV;
 
     public final static int PAYMENT_METHOD_BALANCE = MegaApi.PAYMENT_METHOD_BALANCE;
     public final static int PAYMENT_METHOD_PAYPAL = MegaApi.PAYMENT_METHOD_PAYPAL;
     public final static int PAYMENT_METHOD_ITUNES = MegaApi.PAYMENT_METHOD_ITUNES;
     public final static int PAYMENT_METHOD_GOOGLE_WALLET = MegaApi.PAYMENT_METHOD_GOOGLE_WALLET;
+    public final static int PAYMENT_METHOD_HUAWEI_WALLET = MegaApi.PAYMENT_METHOD_HUAWEI_WALLET;
     public final static int PAYMENT_METHOD_BITCOIN = MegaApi.PAYMENT_METHOD_BITCOIN;
     public final static int PAYMENT_METHOD_UNIONPAY = MegaApi.PAYMENT_METHOD_UNIONPAY;
     public final static int PAYMENT_METHOD_FORTUMO = MegaApi.PAYMENT_METHOD_FORTUMO;
@@ -189,6 +187,10 @@ public class MegaApiJava {
     public final static int ORDER_VIDEO_DESC = MegaApi.ORDER_VIDEO_DESC;
     public final static int ORDER_LINK_CREATION_ASC = MegaApi.ORDER_LINK_CREATION_ASC;
     public final static int ORDER_LINK_CREATION_DESC = MegaApi.ORDER_LINK_CREATION_DESC;
+    public final static int ORDER_LABEL_ASC = MegaApi.ORDER_LABEL_ASC;
+    public final static int ORDER_LABEL_DESC = MegaApi.ORDER_LABEL_DESC;
+    public final static int ORDER_FAV_ASC = MegaApi.ORDER_FAV_ASC;
+    public final static int ORDER_FAV_DESC = MegaApi.ORDER_FAV_DESC;
 
     public final static int TCP_SERVER_DENY_ALL = MegaApi.TCP_SERVER_DENY_ALL;
     public final static int TCP_SERVER_ALLOW_ALL = MegaApi.TCP_SERVER_ALLOW_ALL;
@@ -200,7 +202,33 @@ public class MegaApiJava {
     public final static int HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS = MegaApi.HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS;
     public final static int HTTP_SERVER_ALLOW_LAST_LOCAL_LINK = MegaApi.HTTP_SERVER_ALLOW_LAST_LOCAL_LINK;
 
+    public final static int FILE_TYPE_DEFAULT = MegaApi.FILE_TYPE_DEFAULT;
+    public final static int FILE_TYPE_PHOTO = MegaApi.FILE_TYPE_PHOTO;
+    public final static int FILE_TYPE_AUDIO = MegaApi.FILE_TYPE_AUDIO;
+    public final static int FILE_TYPE_VIDEO = MegaApi.FILE_TYPE_VIDEO;
+    public final static int FILE_TYPE_DOCUMENT = MegaApi.FILE_TYPE_DOCUMENT;
 
+    public final static int SEARCH_TARGET_INSHARE = MegaApi.SEARCH_TARGET_INSHARE;
+    public final static int SEARCH_TARGET_OUTSHARE = MegaApi.SEARCH_TARGET_OUTSHARE;
+    public final static int SEARCH_TARGET_PUBLICLINK = MegaApi.SEARCH_TARGET_PUBLICLINK;
+    public final static int SEARCH_TARGET_ROOTNODE = MegaApi.SEARCH_TARGET_ROOTNODE;
+    public final static int SEARCH_TARGET_ALL = MegaApi.SEARCH_TARGET_ALL;
+
+    public final static int BACKUP_TYPE_CAMERA_UPLOAD = MegaApi.BACKUP_TYPE_CAMERA_UPLOADS;
+    public final static int BACKUP_TYPE_MEDIA_UPLOADS = MegaApi.BACKUP_TYPE_MEDIA_UPLOADS;
+
+    public final static int CU_SYNC_STATE_ACTIVE = 1;
+    public final static int CU_SYNC_STATE_FAILED = 2;
+    public final static int CU_SYNC_STATE_DISABLED = 4;
+    public final static int CU_SYNC_STATE_PAUSE_UP = 5;
+    public final static int CU_SYNC_STATE_PAUSE_FULL = 7;
+    public final static int CU_SYNC_STATE_UNKNOWN = 8;
+
+    public final static int CU_SYNC_STATUS_UPTODATE = 1;
+    public final static int CU_SYNC_STATUS_SYNCING = CU_SYNC_STATUS_UPTODATE + 1;
+    public final static int CU_SYNC_STATUS_PENDING = CU_SYNC_STATUS_SYNCING + 1;
+    public final static int CU_SYNC_STATUS_INACTIVE = CU_SYNC_STATUS_PENDING + 1;
+    public final static int CU_SYNC_STATUS_UNKNOWN = CU_SYNC_STATUS_INACTIVE + 1;
 
     MegaApi getMegaApi()
     {
@@ -2091,11 +2119,14 @@ public class MegaApiJava {
      * Valid data in the MegaRequest object received in onRequestFinish when the error code
      * is MegaError::API_OK:
      * - MegaRequest::getNumber - Returns the id of the PSA (useful to call MegaApi::setPSA later)
+     * Depending on the format of the PSA, the request may additionally return, for the new format:
+     * - MegaRequest::getEmail - Returns the URL (or an empty string)
+     * ...or for the old format:
      * - MegaRequest::getName - Returns the title of the PSA
      * - MegaRequest::getText - Returns the text of the PSA
      * - MegaRequest::getFile - Returns the URL of the image of the PSA
-     * - MegaRequest::getPassword - Returns the text for the possitive button (or an empty string)
-     * - MegaRequest::getLink - Returns the link for the possitive button (or an empty string)
+     * - MegaRequest::getPassword - Returns the text for the positive button (or an empty string)
+     * - MegaRequest::getLink - Returns the link for the positive button (or an empty string)
      *
      * If there isn't any new PSA to show, onRequestFinish will be called with the error
      * code MegaError::API_ENOENT
@@ -2103,35 +2134,8 @@ public class MegaApiJava {
      * @param listener MegaRequestListener to track this request
      * @see MegaApi::setPSA
      */
-    void getPSA(MegaRequestListenerInterface listener){
-        megaApi.getPSA(createDelegateRequestListener(listener));
-    }
-
-    /**
-     * Get the next PSA (Public Service Announcement) that should be shown to the user
-     *
-     * After the PSA has been accepted or dismissed by the user, app should
-     * use MegaApi::setPSA to notify API servers about this event and
-     * do not get the same PSA again in the next call to this function.
-     *
-     * The associated request type with this request is MegaRequest::TYPE_GET_PSA.
-     *
-     * Valid data in the MegaRequest object received in onRequestFinish when the error code
-     * is MegaError::API_OK:
-     * - MegaRequest::getNumber - Returns the id of the PSA (useful to call MegaApi::setPSA later)
-     * - MegaRequest::getName - Returns the title of the PSA
-     * - MegaRequest::getText - Returns the text of the PSA
-     * - MegaRequest::getFile - Returns the URL of the image of the PSA
-     * - MegaRequest::getPassword - Returns the text for the possitive button (or an empty string)
-     * - MegaRequest::getLink - Returns the link for the possitive button (or an empty string)
-     *
-     * If there isn't any new PSA to show, onRequestFinish will be called with the error
-     * code MegaError::API_ENOENT
-     *
-     * @see MegaApi::setPSA
-     */
-    void getPSA(){
-        megaApi.getPSA();
+    public void getPSAWithUrl(MegaRequestListenerInterface listener){
+        megaApi.getPSAWithUrl(createDelegateRequestListener(listener));
     }
 
     /**
@@ -2148,7 +2152,7 @@ public class MegaApiJava {
      *
      * @see MegaApi::getPSA
      */
-    void setPSA(int id, MegaRequestListenerInterface listener){
+    public void setPSA(int id, MegaRequestListenerInterface listener){
         megaApi.setPSA(id, createDelegateRequestListener(listener));
     }
 
@@ -2165,7 +2169,7 @@ public class MegaApiJava {
      *
      * @see MegaApi::getPSA
      */
-    void setPSA(int id){
+    public void setPSA(int id){
         megaApi.setPSA(id);
     }
 
@@ -4175,6 +4179,125 @@ public class MegaApiJava {
     }
 
     /**
+     * Set node label as a node attribute.
+     * Valid values for label attribute are:
+     *  - MegaNode::NODE_LBL_UNKNOWN = 0
+     *  - MegaNode::NODE_LBL_RED = 1
+     *  - MegaNode::NODE_LBL_ORANGE = 2
+     *  - MegaNode::NODE_LBL_YELLOW = 3
+     *  - MegaNode::NODE_LBL_GREEN = 4
+     *  - MegaNode::NODE_LBL_BLUE = 5
+     *  - MegaNode::NODE_LBL_PURPLE = 6
+     *  - MegaNode::NODE_LBL_GREY = 7
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumDetails - Returns the label for the node
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_LABEL
+     *
+     * @param node Node that will receive the information.
+     * @param label Label of the node
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setNodeLabel(MegaNode node, int label, MegaRequestListenerInterface listener){
+        megaApi.setNodeLabel(node, label, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set node label as a node attribute.
+     * Valid values for label attribute are:
+     *  - MegaNode::NODE_LBL_UNKNOWN = 0
+     *  - MegaNode::NODE_LBL_RED = 1
+     *  - MegaNode::NODE_LBL_ORANGE = 2
+     *  - MegaNode::NODE_LBL_YELLOW = 3
+     *  - MegaNode::NODE_LBL_GREEN = 4
+     *  - MegaNode::NODE_LBL_BLUE = 5
+     *  - MegaNode::NODE_LBL_PURPLE = 6
+     *  - MegaNode::NODE_LBL_GREY = 7
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumDetails - Returns the label for the node
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_LABEL
+     *
+     * @param node Node that will receive the information.
+     * @param label Label of the node
+     */
+    public void setNodeLabel(MegaNode node, int label){
+        megaApi.setNodeLabel(node, label);
+    }
+
+    /**
+     * Remove node label
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_LABEL
+     *
+     * @param node Node that will receive the information.
+     * @param listener MegaRequestListener to track this request
+     */
+    public void resetNodeLabel(MegaNode node, MegaRequestListenerInterface listener){
+        megaApi.resetNodeLabel(node, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Remove node label
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_LABEL
+     *
+     * @param node Node that will receive the information.
+     */
+    public void resetNodeLabel(MegaNode node){
+        megaApi.resetNodeLabel(node);
+    }
+
+    /**
+     * Set node favourite as a node attribute.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumDetails - Returns 1 if node is set as favourite, otherwise return 0
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_FAV
+     *
+     * @param node Node that will receive the information.
+     * @param favourite if true set node as favourite, otherwise remove the attribute
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setNodeFavourite(MegaNode node, boolean favourite, MegaRequestListenerInterface listener){
+        megaApi.setNodeFavourite(node, favourite, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Set node favourite as a node attribute.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_NODE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the handle of the node that receive the attribute
+     * - MegaRequest::getNumDetails - Returns 1 if node is set as favourite, otherwise return 0
+     * - MegaRequest::getFlag - Returns true (official attribute)
+     * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_FAV
+     *
+     * @param node Node that will receive the information.
+     * @param favourite if true set node as favourite, otherwise remove the attribute
+     */
+    public void setNodeFavourite(MegaNode node, boolean favourite){
+        megaApi.setNodeFavourite(node, favourite);
+    }
+
+    /**
      * Generate a public link of a file/folder in MEGA
      *
      * The associated request type with this request is MegaRequest::TYPE_EXPORT
@@ -6156,6 +6279,57 @@ public class MegaApiJava {
     }
 
     /**
+     * Upload a file or a folder, putting the transfer on top of the upload queue
+     *
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath Local path of the file or folder
+     * @param parent Parent node for the file or folder in the MEGA account
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer. If a transfer is started with exactly the same data
+     * (local path and target parent) as another one in the transfer queue, the new transfer
+     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+     * the appData of the old transfer, using a '!' separator if the old transfer had already
+     * appData.
+     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+     * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+     * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+     * @param fileName Custom file name for the file or folder in MEGA
+     * @param listener MegaTransferListener to track this transfer
+     */
+    public void startUploadWithTopPriority(String localPath, MegaNode parent, String appData, boolean isSourceTemporary, String fileName, MegaTransferListenerInterface listener){
+        megaApi.startUploadWithTopPriority(localPath, parent, appData, isSourceTemporary, fileName, createDelegateTransferListener(listener));
+    }
+
+    /**
+     * Upload a file or a folder, putting the transfer on top of the upload queue
+     *
+     *If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param localPath Local path of the file or folder
+     * @param parent Parent node for the file or folder in the MEGA account
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer. If a transfer is started with exactly the same data
+     * (local path and target parent) as another one in the transfer queue, the new transfer
+     * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+     * the appData of the old transfer, using a '!' separator if the old transfer had already
+     * appData.
+     * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+     * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+     * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+     * @param fileName Custom file name for the file or folder in MEGA
+     */
+    public void startUploadWithTopPriority(String localPath, MegaNode parent, String appData, boolean isSourceTemporary, String fileName){
+        megaApi.startUploadWithTopPriority(localPath, parent, appData, isSourceTemporary, fileName);
+    }
+
+    /**
      * Download a file or a folder from MEGA
      *
      *If the status of the business account is expired, onTransferFinish will be called with the error
@@ -6213,6 +6387,26 @@ public class MegaApiJava {
     }
 
     /**
+     * Download a file or a folder from MEGA, saving custom app data during the transfer
+     *
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param node MegaNode that identifies the file or folder
+     * @param localPath Destination path for the file or folder
+     * If this path is a local folder, it must end with a '\' or '/' character and the file name
+     * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+     * one of these characters, the file will be downloaded to a file in that path.
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer.
+     */
+    public void startDownloadWithData(MegaNode node, String localPath, String appData){
+        megaApi.startDownloadWithData(node, localPath, appData);
+    }
+
+    /**
      * Download a file or a folder from MEGA, putting the transfer on top of the download queue.
      *
      * If the status of the business account is expired, onTransferFinish will be called with the error
@@ -6231,6 +6425,26 @@ public class MegaApiJava {
      */
     public void startDownloadWithTopPriority(MegaNode node, String localPath, String appData, MegaTransferListenerInterface listener){
         megaApi.startDownloadWithTopPriority(node, localPath, appData, createDelegateTransferListener(listener));
+    }
+
+    /**
+     * Download a file or a folder from MEGA, putting the transfer on top of the download queue.
+     *
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param node MegaNode that identifies the file or folder
+     * @param localPath Destination path for the file or folder
+     * If this path is a local folder, it must end with a '\' or '/' character and the file name
+     * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+     * one of these characters, the file will be downloaded to a file in that path.
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer.
+     */
+    public void startDownloadWithTopPriority(MegaNode node, String localPath, String appData){
+        megaApi.startDownloadWithTopPriority(node, localPath, appData);
     }
 
     /**
@@ -6290,6 +6504,400 @@ public class MegaApiJava {
      */
     public void cancelTransfer(MegaTransfer transfer) {
         megaApi.cancelTransfer(transfer);
+    }
+
+    /**
+     * Move a transfer one position up in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_UP
+     *
+     * @param transfer Transfer to move
+     * @param listener MegaRequestListener to track this request
+     */
+    public void moveTransferUp(MegaTransfer transfer, MegaRequestListenerInterface listener) {
+        megaApi.moveTransferUp(transfer, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a transfer one position up in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_UP
+     *
+     * @param transfer Transfer to move
+     */
+    public void moveTransferUp(MegaTransfer transfer) {
+        megaApi.moveTransferUp(transfer);
+    }
+
+    /**
+     * Move a transfer one position up in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_UP
+     *
+     * @param transferTag Tag of the transfer to move
+     * @param listener    MegaRequestListener to track this request
+     */
+    public void moveTransferUpByTag(int transferTag, MegaRequestListenerInterface listener) {
+        megaApi.moveTransferUpByTag(transferTag, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a transfer one position up in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_UP
+     *
+     * @param transferTag Tag of the transfer to move
+     */
+    public void moveTransferUpByTag(int transferTag) {
+        megaApi.moveTransferUpByTag(transferTag);
+    }
+
+    /**
+     * Move a transfer one position down in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_DOWN
+     *
+     * @param transfer Transfer to move
+     * @param listener MegaRequestListener to track this request
+     */
+    public void moveTransferDown(MegaTransfer transfer, MegaRequestListenerInterface listener) {
+        megaApi.moveTransferDown(transfer, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a transfer one position down in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_DOWN
+     *
+     * @param transfer Transfer to move
+     */
+    public void moveTransferDown(MegaTransfer transfer) {
+        megaApi.moveTransferDown(transfer);
+    }
+
+    /**
+     * Move a transfer one position down in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_DOWN
+     *
+     * @param transferTag Tag of the transfer to move
+     * @param listener    MegaRequestListener to track this request
+     */
+    public void moveTransferDownByTag(int transferTag, MegaRequestListenerInterface listener) {
+        megaApi.moveTransferDownByTag(transferTag, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a transfer one position down in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_DOWN
+     *
+     * @param transferTag Tag of the transfer to move
+     */
+    public void moveTransferDownByTag(int transferTag) {
+        megaApi.moveTransferDownByTag(transferTag);
+    }
+
+    /**
+     * Move a transfer to the top of the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_TOP
+     *
+     * @param transfer Transfer to move
+     * @param listener MegaRequestListener to track this request
+     */
+    public void moveTransferToFirst(MegaTransfer transfer, MegaRequestListenerInterface listener) {
+        megaApi.moveTransferToFirst(transfer, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a transfer to the top of the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_TOP
+     *
+     * @param transfer Transfer to move
+     */
+    public void moveTransferToFirst(MegaTransfer transfer) {
+        megaApi.moveTransferToFirst(transfer);
+    }
+
+    /**
+     * Move a transfer to the top of the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_TOP
+     *
+     * @param transferTag Tag of the transfer to move
+     * @param listener    MegaRequestListener to track this request
+     */
+    public void moveTransferToFirstByTag(int transferTag, MegaRequestListenerInterface listener) {
+        megaApi.moveTransferToFirstByTag(transferTag, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a transfer to the top of the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_TOP
+     *
+     * @param transferTag Tag of the transfer to move
+     */
+    public void moveTransferToFirstByTag(int transferTag) {
+        megaApi.moveTransferToFirstByTag(transferTag);
+    }
+
+    /**
+     * Move a transfer to the bottom of the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_BOTTOM
+     *
+     * @param transfer Transfer to move
+     * @param listener MegaRequestListener to track this request
+     */
+    public void moveTransferToLast(MegaTransfer transfer, MegaRequestListenerInterface listener) {
+        megaApi.moveTransferToLast(transfer, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a transfer to the bottom of the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_BOTTOM
+     *
+     * @param transfer Transfer to move
+     */
+    public void moveTransferToLast(MegaTransfer transfer) {
+        megaApi.moveTransferToLast(transfer);
+    }
+
+    /**
+     * Move a transfer to the bottom of the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_BOTTOM
+     *
+     * @param transferTag Tag of the transfer to move
+     * @param listener    MegaRequestListener to track this request
+     */
+    public void moveTransferToLastByTag(int transferTag, MegaRequestListenerInterface listener) {
+        megaApi.moveTransferToLastByTag(transferTag, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a transfer to the bottom of the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_BOTTOM
+     *
+     * @param transferTag Tag of the transfer to move
+     */
+    public void moveTransferToLastByTag(int transferTag) {
+        megaApi.moveTransferToLastByTag(transferTag);
+    }
+
+    /**
+     * Move a transfer before another one in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns false (it means that it's a manual move)
+     * - MegaRequest::getNumber - Returns the tag of the transfer with the target position
+     *
+     * @param transfer     Transfer to move
+     * @param prevTransfer Transfer with the target position
+     * @param listener     MegaRequestListener to track this request
+     */
+    public void moveTransferBefore(MegaTransfer transfer, MegaTransfer prevTransfer, MegaRequestListenerInterface listener) {
+        megaApi.moveTransferBefore(transfer, prevTransfer, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a transfer before another one in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns false (it means that it's a manual move)
+     * - MegaRequest::getNumber - Returns the tag of the transfer with the target position
+     *
+     * @param transfer     Transfer to move
+     * @param prevTransfer Transfer with the target position
+     */
+    public void moveTransferBefore(MegaTransfer transfer, MegaTransfer prevTransfer) {
+        megaApi.moveTransferBefore(transfer, prevTransfer);
+    }
+
+    /**
+     * Move a transfer before another one in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns false (it means that it's a manual move)
+     * - MegaRequest::getNumber - Returns the tag of the transfer with the target position
+     *
+     * @param transferTag     Tag of the transfer to move
+     * @param prevTransferTag Tag of the transfer with the target position
+     * @param listener        MegaRequestListener to track this request
+     */
+    public void moveTransferBeforeByTag(int transferTag, int prevTransferTag, MegaRequestListenerInterface listener) {
+        megaApi.moveTransferBeforeByTag(transferTag, prevTransferTag, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a transfer before another one in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns false (it means that it's a manual move)
+     * - MegaRequest::getNumber - Returns the tag of the transfer with the target position
+     *
+     * @param transferTag     Tag of the transfer to move
+     * @param prevTransferTag Tag of the transfer with the target position
+     */
+    public void moveTransferBeforeByTag(int transferTag, int prevTransferTag) {
+        megaApi.moveTransferBeforeByTag(transferTag, prevTransferTag);
     }
 
     /**
@@ -8318,6 +8926,456 @@ public class MegaApiJava {
         return nodeListToArray(megaApi.search(searchString));
     }
 
+    /**
+     * Allow to search nodes with the following options:
+     * - Search given a parent node of the tree to explore, or on the contrary search in a
+     *   specific target (root nodes, inshares, outshares, public links)
+     * - Search recursively
+     * - Containing a search string in their name
+     * - Filter by the type of the node
+     * - Order the returned list
+     *
+     * If node is provided, it will be the parent node of the tree to explore,
+     * search string and/or nodeType can be added to search parameters
+     *
+     * If node and searchString are not provided, and node type is not valid, this method will
+     * return an empty list.
+     *
+     * If parameter type is different of MegaApi::FILE_TYPE_DEFAULT, the following values for parameter
+     * order are invalid: MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
+     * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
+     *
+     * The search is case-insensitive. If the search string is not provided but type has any value
+     * defined at nodefiletype_t (except FILE_TYPE_DEFAULT),
+     * this method will return a list that contains nodes of the same type as provided.
+     *
+     * You take the ownership of the returned value.
+     *
+     * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+     * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+     * this method returns.
+     *
+     * @param node The parent node of the tree to explore
+     * @param searchString Search string. The search is case-insensitive
+     * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+     * @param recursive True if you want to seach recursively in the node tree.
+     * False if you want to seach in the children of the node only
+     * @param order Order for the returned list
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     * Undefined order
+     *
+     * - MegaApi::ORDER_DEFAULT_ASC = 1
+     * Folders first in alphabetical order, then files in the same order
+     *
+     * - MegaApi::ORDER_DEFAULT_DESC = 2
+     * Files first in reverse alphabetical order, then folders in the same order
+     *
+     * - MegaApi::ORDER_SIZE_ASC = 3
+     * Sort by size, ascending
+     *
+     * - MegaApi::ORDER_SIZE_DESC = 4
+     * Sort by size, descending
+     *
+     * - MegaApi::ORDER_CREATION_ASC = 5
+     * Sort by creation time in MEGA, ascending
+     *
+     * - MegaApi::ORDER_CREATION_DESC = 6
+     * Sort by creation time in MEGA, descending
+     *
+     * - MegaApi::ORDER_MODIFICATION_ASC = 7
+     * Sort by modification time of the original file, ascending
+     *
+     * - MegaApi::ORDER_MODIFICATION_DESC = 8
+     * Sort by modification time of the original file, descending
+     *
+     * - MegaApi::ORDER_PHOTO_ASC = 11
+     * Sort with photos first, then by date ascending
+     *
+     * - MegaApi::ORDER_PHOTO_DESC = 12
+     * Sort with photos first, then by date descending
+     *
+     * - MegaApi::ORDER_VIDEO_ASC = 13
+     * Sort with videos first, then by date ascending
+     *
+     * - MegaApi::ORDER_VIDEO_DESC = 14
+     * Sort with videos first, then by date descending
+     *
+     * - MegaApi::ORDER_LABEL_ASC = 17
+     * Sort by color label, ascending
+     *
+     * - MegaApi::ORDER_LABEL_DESC = 18
+     * Sort by color label, descending
+     *
+     * - MegaApi::ORDER_FAV_ASC = 19
+     * Sort nodes with favourite attr first
+     *
+     * - MegaApi::ORDER_FAV_DESC = 20
+     * Sort nodes with favourite attr last
+     *
+     * @param type Type of nodes requested in the search
+     * Valid values for this parameter are:
+     * - MegaApi::FILE_TYPE_DEFAULT = 0  --> all types
+     * - MegaApi::FILE_TYPE_PHOTO = 1
+     * - MegaApi::FILE_TYPE_AUDIO = 2
+     * - MegaApi::FILE_TYPE_VIDEO = 3
+     * - MegaApi::FILE_TYPE_DOCUMENT = 4
+     *
+     * @param target Target type where this method will search
+     * Valid values for this parameter are
+     * - SEARCH_TARGET_INSHARE = 0
+     * - SEARCH_TARGET_OUTSHARE = 1
+     * - SEARCH_TARGET_PUBLICLINK = 2
+     * - SEARCH_TARGET_ROOTNODE = 3
+     * - SEARCH_TARGET_ALL = 4
+     *
+     * @return List of nodes that match with the search parameters
+     */
+    public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
+                                            MegaCancelToken cancelToken, boolean recursive, int order, int type, int target) {
+        return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive,
+                order, type, target));
+    }
+
+    /**
+     * Allow to search nodes with the following options:
+     * - Search in a specific target (root nodes, inshares, outshares, public links)
+     * - Filter by the type of the node
+     * - Order the returned list
+     *
+     * If node type is not valid, this method will return an empty list.
+     *
+     * If parameter type is different of MegaApi::FILE_TYPE_DEFAULT, the following values for parameter
+     * order are invalid: MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
+     * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
+     *
+     * The search is case-insensitive. If the type has any value defined at nodefiletype_t
+     * (except FILE_TYPE_DEFAULT), this method will return a list
+     * that contains nodes of the same type as provided.
+     *
+     * You take the ownership of the returned value.
+     *
+     * @param order Order for the returned list
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     * Undefined order
+     *
+     * - MegaApi::ORDER_DEFAULT_ASC = 1
+     * Folders first in alphabetical order, then files in the same order
+     *
+     * - MegaApi::ORDER_DEFAULT_DESC = 2
+     * Files first in reverse alphabetical order, then folders in the same order
+     *
+     * - MegaApi::ORDER_SIZE_ASC = 3
+     * Sort by size, ascending
+     *
+     * - MegaApi::ORDER_SIZE_DESC = 4
+     * Sort by size, descending
+     *
+     * - MegaApi::ORDER_CREATION_ASC = 5
+     * Sort by creation time in MEGA, ascending
+     *
+     * - MegaApi::ORDER_CREATION_DESC = 6
+     * Sort by creation time in MEGA, descending
+     *
+     * - MegaApi::ORDER_MODIFICATION_ASC = 7
+     * Sort by modification time of the original file, ascending
+     *
+     * - MegaApi::ORDER_MODIFICATION_DESC = 8
+     * Sort by modification time of the original file, descending
+     *
+     * - MegaApi::ORDER_PHOTO_ASC = 11
+     * Sort with photos first, then by date ascending
+     *
+     * - MegaApi::ORDER_PHOTO_DESC = 12
+     * Sort with photos first, then by date descending
+     *
+     * - MegaApi::ORDER_VIDEO_ASC = 13
+     * Sort with videos first, then by date ascending
+     *
+     * - MegaApi::ORDER_VIDEO_DESC = 14
+     * Sort with videos first, then by date descending
+     *
+     * - MegaApi::ORDER_LABEL_ASC = 17
+     * Sort by color label, ascending
+     *
+     * - MegaApi::ORDER_LABEL_DESC = 18
+     * Sort by color label, descending
+     *
+     * - MegaApi::ORDER_FAV_ASC = 19
+     * Sort nodes with favourite attr first
+     *
+     * - MegaApi::ORDER_FAV_DESC = 20
+     * Sort nodes with favourite attr last
+     *
+     * @param type Type of nodes requested in the search
+     * Valid values for this parameter are:
+     * - MegaApi::FILE_TYPE_DEFAULT = 0  --> all types
+     * - MegaApi::FILE_TYPE_PHOTO = 1
+     * - MegaApi::FILE_TYPE_AUDIO = 2
+     * - MegaApi::FILE_TYPE_VIDEO = 3
+     * - MegaApi::FILE_TYPE_DOCUMENT = 4
+     *
+     * @param target Target type where this method will search
+     * Valid values for this parameter are
+     * - SEARCH_TARGET_INSHARE = 0
+     * - SEARCH_TARGET_OUTSHARE = 1
+     * - SEARCH_TARGET_PUBLICLINK = 2
+     * - SEARCH_TARGET_ROOTNODE = 3
+     * - SEARCH_TARGET_ALL = 4
+     *
+     * @return List of nodes that match with the search parameters
+     */
+    public ArrayList<MegaNode> searchByType(int order, int type, int target) {
+        return nodeListToArray(megaApi.searchByType(null, null, null, true,
+                order, type, target));
+    }
+
+    /**
+     * Allow to search nodes with the following options:
+     * - Search given a parent node of the tree to explore
+     * - Search recursively
+     * - Containing a search string in their name
+     * - Filter by the type of the node
+     * - Order the returned list
+     *
+     * If node is provided, it will be the parent node of the tree to explore,
+     * search string and/or nodeType can be added to search parameters
+     *
+     * If node and searchString are not provided, and node type is not valid, this method will
+     * return an empty list.
+     *
+     * If parameter type is different of MegaApi::FILE_TYPE_DEFAULT, the following values for parameter
+     * order are invalid: MegaApi::ORDER_PHOTO_ASC, MegaApi::ORDER_PHOTO_DESC,
+     * MegaApi::ORDER_VIDEO_ASC, MegaApi::ORDER_VIDEO_DESC
+     *
+     * The search is case-insensitive. If the search string is not provided but type has any value
+     * defined at nodefiletype_t (except FILE_TYPE_DEFAULT),
+     * this method will return a list that contains nodes of the same type as provided.
+     *
+     * You take the ownership of the returned value.
+     *
+     * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+     * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+     * this method returns.
+     *
+     * @param node The parent node of the tree to explore
+     * @param searchString Search string. The search is case-insensitive
+     * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+     * @param recursive True if you want to seach recursively in the node tree.
+     * False if you want to seach in the children of the node only
+     * @param order Order for the returned list
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     * Undefined order
+     *
+     * - MegaApi::ORDER_DEFAULT_ASC = 1
+     * Folders first in alphabetical order, then files in the same order
+     *
+     * - MegaApi::ORDER_DEFAULT_DESC = 2
+     * Files first in reverse alphabetical order, then folders in the same order
+     *
+     * - MegaApi::ORDER_SIZE_ASC = 3
+     * Sort by size, ascending
+     *
+     * - MegaApi::ORDER_SIZE_DESC = 4
+     * Sort by size, descending
+     *
+     * - MegaApi::ORDER_CREATION_ASC = 5
+     * Sort by creation time in MEGA, ascending
+     *
+     * - MegaApi::ORDER_CREATION_DESC = 6
+     * Sort by creation time in MEGA, descending
+     *
+     * - MegaApi::ORDER_MODIFICATION_ASC = 7
+     * Sort by modification time of the original file, ascending
+     *
+     * - MegaApi::ORDER_MODIFICATION_DESC = 8
+     * Sort by modification time of the original file, descending
+     *
+     * - MegaApi::ORDER_PHOTO_ASC = 11
+     * Sort with photos first, then by date ascending
+     *
+     * - MegaApi::ORDER_PHOTO_DESC = 12
+     * Sort with photos first, then by date descending
+     *
+     * - MegaApi::ORDER_VIDEO_ASC = 13
+     * Sort with videos first, then by date ascending
+     *
+     * - MegaApi::ORDER_VIDEO_DESC = 14
+     * Sort with videos first, then by date descending
+     *
+     * - MegaApi::ORDER_LABEL_ASC = 17
+     * Sort by color label, ascending
+     *
+     * - MegaApi::ORDER_LABEL_DESC = 18
+     * Sort by color label, descending
+     *
+     * - MegaApi::ORDER_FAV_ASC = 19
+     * Sort nodes with favourite attr first
+     *
+     * - MegaApi::ORDER_FAV_DESC = 20
+     * Sort nodes with favourite attr last
+     *
+     * @param type Type of nodes requested in the search
+     * Valid values for this parameter are:
+     * - MegaApi::FILE_TYPE_DEFAULT = 0  --> all types
+     * - MegaApi::FILE_TYPE_PHOTO = 1
+     * - MegaApi::FILE_TYPE_AUDIO = 2
+     * - MegaApi::FILE_TYPE_VIDEO = 3
+     * - MegaApi::FILE_TYPE_DOCUMENT = 4
+     *
+     * @return List of nodes that match with the search parameters
+     */
+    public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
+                                            MegaCancelToken cancelToken, boolean recursive, int order, int type) {
+        return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive,
+                order, type));
+    }
+
+    /**
+     * Allow to search nodes with the following options:
+     * - Search given a parent node of the tree to explore
+     * - Search recursively
+     * - Containing a search string in their name
+     * - Order the returned list
+     *
+     * If node is provided, it will be the parent node of the tree to explore,
+     * search string can be added to search parameters
+     *
+     * If node and searchString are not provided, this method will
+     * return an empty list.
+     *
+     * You take the ownership of the returned value.
+     *
+     * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+     * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+     * this method returns.
+     *
+     * @param node The parent node of the tree to explore
+     * @param searchString Search string. The search is case-insensitive
+     * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+     * @param recursive True if you want to seach recursively in the node tree.
+     * False if you want to seach in the children of the node only
+     * @param order Order for the returned list
+     * Valid values for this parameter are:
+     * - MegaApi::ORDER_NONE = 0
+     * Undefined order
+     *
+     * - MegaApi::ORDER_DEFAULT_ASC = 1
+     * Folders first in alphabetical order, then files in the same order
+     *
+     * - MegaApi::ORDER_DEFAULT_DESC = 2
+     * Files first in reverse alphabetical order, then folders in the same order
+     *
+     * - MegaApi::ORDER_SIZE_ASC = 3
+     * Sort by size, ascending
+     *
+     * - MegaApi::ORDER_SIZE_DESC = 4
+     * Sort by size, descending
+     *
+     * - MegaApi::ORDER_CREATION_ASC = 5
+     * Sort by creation time in MEGA, ascending
+     *
+     * - MegaApi::ORDER_CREATION_DESC = 6
+     * Sort by creation time in MEGA, descending
+     *
+     * - MegaApi::ORDER_MODIFICATION_ASC = 7
+     * Sort by modification time of the original file, ascending
+     *
+     * - MegaApi::ORDER_MODIFICATION_DESC = 8
+     * Sort by modification time of the original file, descending
+     *
+     * - MegaApi::ORDER_PHOTO_ASC = 11
+     * Sort with photos first, then by date ascending
+     *
+     * - MegaApi::ORDER_PHOTO_DESC = 12
+     * Sort with photos first, then by date descending
+     *
+     * - MegaApi::ORDER_VIDEO_ASC = 13
+     * Sort with videos first, then by date ascending
+     *
+     * - MegaApi::ORDER_VIDEO_DESC = 14
+     * Sort with videos first, then by date descending
+     *
+     * - MegaApi::ORDER_LABEL_ASC = 17
+     * Sort by color label, ascending
+     *
+     * - MegaApi::ORDER_LABEL_DESC = 18
+     * Sort by color label, descending
+     *
+     * - MegaApi::ORDER_FAV_ASC = 19
+     * Sort nodes with favourite attr first
+     *
+     * - MegaApi::ORDER_FAV_DESC = 20
+     * Sort nodes with favourite attr last
+     *
+     * @return List of nodes that match with the search parameters
+     */
+    public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
+                                            MegaCancelToken cancelToken, boolean recursive, int order) {
+        return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive,
+                order));
+    }
+
+    /**
+     * Allow to search nodes with the following options:
+     * - Search given a parent node of the tree to explore
+     * - Search recursively
+     * - Containing a search string in their name
+     *
+     * If node is provided, it will be the parent node of the tree to explore,
+     * search string can be added to search parameters
+     *
+     * If node and searchString are not provided, this method will
+     * return an empty list.
+     *
+     * You take the ownership of the returned value.
+     *
+     * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+     * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+     * this method returns.
+     *
+     * @param node The parent node of the tree to explore
+     * @param searchString Search string. The search is case-insensitive
+     * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+     * @param recursive True if you want to seach recursively in the node tree.
+     * False if you want to seach in the children of the node only
+     *
+     * @return List of nodes that match with the search parameters
+     */
+    public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
+                                            MegaCancelToken cancelToken, boolean recursive) {
+        return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken, recursive));
+    }
+
+    /**
+     * Allow to search nodes with the following options:
+     * - Search given a parent node of the tree to explore
+     * - Containing a search string in their name
+     *
+     * If node is provided, it will be the parent node of the tree to explore,
+     * search string can be added to search parameters
+     *
+     * If node and searchString are not provided, this method will
+     * return an empty list.
+     *
+     * You take the ownership of the returned value.
+     *
+     * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
+     * to MegaCancelToken::setCancelFlag(true). If a valid object is passed, it must be kept alive until
+     * this method returns.
+     *
+     * @param node The parent node of the tree to explore
+     * @param searchString Search string. The search is case-insensitive
+     * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
+     *
+     * @return List of nodes that match with the search parameters
+     */
+    public ArrayList<MegaNode> searchByType(MegaNode node, String searchString,
+                                            MegaCancelToken cancelToken) {
+        return nodeListToArray(megaApi.searchByType(node, searchString, cancelToken));
+    }
 
     /**
      * Return a list of buckets, each bucket containing a list of recently added/modified nodes
@@ -9397,6 +10455,62 @@ public class MegaApiJava {
     public void getPublicLinkInformation(String megaFolderLink) {
         megaApi.getPublicLinkInformation(megaFolderLink);
     }
+
+    /**
+     * Requests a list of all Smart Banners available for current user.
+     *
+     * The response value is stored as a MegaBannerList.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_BANNERS
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaBannerList: the list of banners
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EACCESS - If called with no user being logged in.
+     * - MegaError::API_EINTERNAL - If the internally used user attribute exists but can't be decoded.
+     * - MegaError::API_ENOENT if there are no banners to return to the user.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getBanners(MegaRequestListenerInterface listener) {
+        megaApi.getBanners(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Requests a list of all Smart Banners available for current user.
+     *
+     * The response value is stored as a MegaBannerList.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_BANNERS
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaBannerList: the list of banners
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EACCESS - If called with no user being logged in.
+     * - MegaError::API_EINTERNAL - If the internally used user attribute exists but can't be decoded.
+     * - MegaError::API_ENOENT if there are no banners to return to the user.
+     */
+    public void getBanners() {
+        megaApi.getBanners();
+    }
+
+    /**
+     * No longer show the Smart Banner with the specified id to the current user.
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void dismissBanner(int id, MegaRequestListenerInterface listener) {
+        megaApi.dismissBanner(id, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * No longer show the Smart Banner with the specified id to the current user.
+     */
+    public void dismissBanner(int id) {
+        megaApi.dismissBanner(id);
+    }
     
     /****************************************************************************************************/
     // INTERNAL METHODS
@@ -9557,6 +10671,16 @@ public class MegaApiJava {
     }
 
     /**
+     * Returns whether notifications about a chat have to be generated.
+     *
+     * @param chatid MegaHandle that identifies the chat room.
+     * @return true if notification has to be created.
+     */
+    public boolean isChatNotifiable(long chatid) {
+        return megaApi.isChatNotifiable(chatid);
+    }
+
+    /**
      * Provide a phone number to get verification code.
      *
      * @param phoneNumber the phone number to receive the txt with verification code.
@@ -9646,109 +10770,128 @@ public class MegaApiJava {
     }
 
     /**
-     * Gets the translated string of an error received in a request.
+     * Starts a backup of a local folder into a remote location
      *
-     * @param error MegaError received in the request
-     * @return The translated string
+     * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getNodeHandle - Returns the target node of the backup
+     * - MegaRequest::getName - Returns the backup name of the remote location
+     * - MegaRequest::getAccess - Returns the backup state
+     * - MegaRequest::getFile - Returns the path of the local folder
+     * - MegaRequest::getText - Returns the extraData associated with the request
+     * - MegaRequest::getTotalBytes - Returns the backup type
+     * - MegaRequest::getNumDetails - Returns the backup substate
+     * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * @param backupType back up type requested for the service
+     * @param targetNode MEGA folder to hold the backups
+     * @param localFolder Local path of the folder
+     * @param backupName backup name for remote location
+     * @param state state
+     * @param subState subState
+     * @param extraData extraData
+     * @param listener MegaRequestListener to track this request
      */
-    public static String getTranslatedErrorString(MegaError error) {
-        MegaApplication app = MegaApplication.getInstance();
-        if (app == null) {
-            return error.getErrorString();
-        }
+    public void setBackup(int backupType, long targetNode, String localFolder, String backupName,
+        int state, int subState, String extraData, MegaRequestListenerInterface listener) {
+        megaApi.setBackup(backupType, targetNode, localFolder, backupName, state, subState,
+            extraData, createDelegateRequestListener(listener));
+    }
 
-        if (error.getErrorCode() > 0) {
-            return app.getString(R.string.api_error_http);
-        }
+    /**
+     * Update an existing backup
+     *
+     *  Params that keep the same value are passed with invalid value to avoid to send to the server
+     *    Invalid values:
+     *    - type: BackupType::INVALID
+     *    - nodeHandle: UNDEF
+     *    - localFolder: nullptr
+     *    - deviceId: nullptr
+     *    - state: -1
+     *    - subState: -1
+     *    - extraData: nullptr
+     *
+     * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns the backupId
+     * - MegaRequest::getTotalBytes - Returns the backup type
+     * - MegaRequest::getNodeHandle - Returns the target node of the backup
+     * - MegaRequest::getName - Returns the backup name of the remote location
+     * - MegaRequest::getFile - Returns the path of the local folder
+     * - MegaRequest::getAccess - Returns the backup state
+     * - MegaRequest::getNumDetails - Returns the backup substate
+     * - MegaRequest::getText - Returns the extraData associated with the request
+     * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * @param backupId backup id identifying the backup to be updated
+     * @param backupType Local path of the folder
+     * @param targetNode MEGA folder to hold the backups
+     * @param localFolder Local path of the folder
+     * @param backupName backup name of remote location
+     * @param state backup state
+     * @param subState backup subState
+     * @param extraData extraData for the backup
+     * @param listener MegaRequestListener to track this request
+     *
+     */
+    public void updateBackup(long backupId, int backupType, long targetNode, String localFolder,
+        String backupName, int state, int subState, String extraData,
+        MegaRequestListenerInterface listener) {
+        megaApi.updateBackup(backupId, backupType, targetNode, localFolder, backupName, state,
+            subState, extraData, createDelegateRequestListener(listener));
+    }
 
-        switch (error.getErrorCode()) {
-            case API_OK:
-                return app.getString(R.string.api_ok);
-            case API_EINTERNAL:
-                return app.getString(R.string.api_einternal);
-            case API_EARGS:
-                return app.getString(R.string.api_eargs);
-            case API_EAGAIN:
-                return app.getString(R.string.api_eagain);
-            case API_ERATELIMIT:
-                return app.getString(R.string.api_eratelimit);
-            case API_EFAILED:
-                return app.getString(R.string.api_efailed);
-            case API_ETOOMANY:
-                if (error.getErrorString().equals("Terms of Service breached")) {
-                    return app.getString(R.string.api_etoomany_ec_download);
-                } else if (error.getErrorString().equals("Too many concurrent connections or transfers")){
-                    return app.getString(R.string.api_etoomay);
-                } else {
-                    return error.getErrorString();
-                }
-            case API_ERANGE:
-                return app.getString(R.string.api_erange);
-            case API_EEXPIRED:
-                return app.getString(R.string.api_eexpired);
-            case API_ENOENT:
-                return app.getString(R.string.api_enoent);
-            case API_ECIRCULAR:
-                if (error.getErrorString().equals("Upload produces recursivity")) {
-                    return app.getString(R.string.api_ecircular_ec_upload);
-                } else if (error.getErrorString().equals("Circular linkage detected")){
-                    return app.getString(R.string.api_ecircular);
-                } else {
-                    return error.getErrorString();
-                }
-            case API_EACCESS:
-                return app.getString(R.string.api_eaccess);
-            case API_EEXIST:
-                return app.getString(R.string.api_eexist);
-            case API_EINCOMPLETE:
-                return app.getString(R.string.api_eincomplete);
-            case API_EKEY:
-                return app.getString(R.string.api_ekey);
-            case API_ESID:
-                return app.getString(R.string.api_esid);
-            case API_EBLOCKED:
-                if (error.getErrorString().equals("Not accessible due to ToS/AUP violation")) {
-                    return app.getString(R.string.api_eblocked_ec_import_ec_download);
-                } else if (error.getErrorString().equals("Blocked")) {
-                    return app.getString(R.string.api_eblocked);
-                } else {
-                    return error.getErrorString();
-                }
-            case API_EOVERQUOTA:
-                return app.getString(R.string.api_eoverquota);
-            case API_ETEMPUNAVAIL:
-                return app.getString(R.string.api_etempunavail);
-            case API_ETOOMANYCONNECTIONS:
-                return app.getString(R.string.api_etoomanyconnections);
-            case API_EWRITE:
-                return app.getString(R.string.api_ewrite);
-            case API_EREAD:
-                return app.getString(R.string.api_eread);
-            case API_EAPPKEY:
-                return app.getString(R.string.api_eappkey);
-            case API_ESSL:
-                return app.getString(R.string.api_essl);
-            case API_EGOINGOVERQUOTA:
-                return app.getString(R.string.api_egoingoverquota);
-            case API_EMFAREQUIRED:
-                return app.getString(R.string.api_emfarequired);
-            case API_EMASTERONLY:
-                return app.getString(R.string.api_emasteronly);
-            case API_EBUSINESSPASTDUE:
-                return app.getString(R.string.api_ebusinesspastdue);
-            case PAYMENT_ECARD:
-                return app.getString(R.string.payment_ecard);
-            case PAYMENT_EBILLING:
-                return app.getString(R.string.payment_ebilling);
-            case PAYMENT_EFRAUD:
-                return app.getString(R.string.payment_efraud);
-            case PAYMENT_ETOOMANY:
-                return app.getString(R.string.payment_etoomay);
-            case PAYMENT_EBALANCE:
-                return app.getString(R.string.payment_ebalance);
-            case PAYMENT_EGENERIC:
-            default:
-                return app.getString(R.string.payment_egeneric_api_error_unknown);
-        }
+    /**
+     * Remove a backup
+     *
+     * The associated request type with this request is MegaRequest::TYPE_BACKUP_REMOVE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns the backupId
+     * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * @param backupId backup id identifying the backup to be removed
+     * @param listener MegaRequestListener to track this request
+     *
+     */
+    public void removeBackup(long backupId, MegaRequestListenerInterface listener) {
+        megaApi.removeBackup(backupId, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Send heartbeat associated with an existing backup
+     *
+     * The client should call this method regularly for every registered backup, in order to
+     * inform about the status of the backup.
+     *
+     * Progress and last node are not always meaningful (ie. when the Camera Uploads starts a new
+     * batch, there isn't a last node, or when the Camera Uploads up to date and inactive for
+     * long time, the progress doesn't make sense). In consequence, these two parameters are
+     * optional by passing:
+     * - lastNode = INVALID_HANDLE
+     * - progress = -1
+     *
+     * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns the backupId
+     * - MegaRequest::getAccess - Returns the backup state
+     * - MegaRequest::getNumDetails - Returns the backup substate
+     * - MegaRequest::getParamType - Returns the number of pending upload transfers
+     * - MegaRequest::getTransferTag - Returns the number of pending download transfers
+     * - MegaRequest::getNumber - Returns the last action timestamp
+     * - MegaRequest::getNodeHandle - Returns the last node handle to be synced
+     *
+     * @param backupId backup id identifying the backup
+     * @param status backup state
+     * @param progress backup progress
+     * @param ups Number of pending upload transfers
+     * @param downs Number of pending download transfers
+     * @param ts Last action timestamp
+     * @param lastNode Last node handle to be synced
+     * @param listener MegaRequestListener to track this request
+     */
+    public void sendBackupHeartbeat(long backupId, int status, int progress, int ups, int downs,
+            long ts, long lastNode, MegaRequestListenerInterface listener) {
+        megaApi.sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode,
+                createDelegateRequestListener(listener));
     }
 }

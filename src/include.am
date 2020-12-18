@@ -71,6 +71,7 @@ EXTRA_DIST = src/mega_utf8proc_data.c
 if BUILD_MEGAAPI
 src_libmega_la_SOURCES += src/megaapi_impl.cpp
 src_libmega_la_SOURCES += src/megaapi.cpp
+src_libmega_la_SOURCES += src/heartbeats.cpp
 endif
 
 if USE_FREEIMAGE
@@ -88,7 +89,7 @@ endif
 # IOS specific
 if USE_IOS
 src_libmega_la_SOURCES += src/gfx/GfxProcCG.mm
-else 
+else
 if DARWIN
 # MacOS specific
 src_libmega_la_OBJCXXFLAGS = $(src_libmega_la_CXXFLAGS)

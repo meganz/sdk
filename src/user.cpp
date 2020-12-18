@@ -84,7 +84,7 @@ bool User::serialize(string* d)
     d->reserve(d->size() + 100 + attrmap.storagesize(10));
 
     d->append((char*)&userhandle, sizeof userhandle);
-    
+
     // FIXME: use m_time_t & Serialize64 instead
     ts = ctime;
     d->append((char*)&ts, sizeof ts);
@@ -418,7 +418,7 @@ string User::attr2string(attr_t type)
 
     // Special second character (optional)
     // ! only store a single copy and do not keep a history of changes
-    // ~ only store one time (ignore subsequent updates, and no history of course) 
+    // ~ only store one time (ignore subsequent updates, and no history of course)
 
     switch(type)
     {
@@ -546,6 +546,10 @@ string User::attr2string(attr_t type)
             attrname =  "*!dn";
             break;
 
+        case ATTR_MY_BACKUPS_FOLDER:
+            attrname = "*!bak";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -658,7 +662,7 @@ string User::attr2longname(attr_t type)
     case ATTR_GEOLOCATION:
         longname = "GEOLOCATION";
         break;
-            
+
     case ATTR_UNSHAREABLE_KEY:
         longname = "UNSHAREABLE_KEY";
         break;
@@ -678,13 +682,17 @@ string User::attr2longname(attr_t type)
     case ATTR_PUSH_SETTINGS:
         longname = "PUSH_SETTINGS";
         break;
-            
+
     case ATTR_ALIAS:
         longname = "ALIAS";
         break;
 
     case ATTR_DEVICE_NAMES:
         longname = "DEVICE_NAMES";
+        break;
+
+    case ATTR_MY_BACKUPS_FOLDER:
+        longname = "ATTR_MY_BACKUPS_FOLDER";
         break;
     }
 
@@ -818,6 +826,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_DEVICE_NAMES;
     }
+    else if (!strcmp(name, "*!bak"))
+    {
+        return ATTR_MY_BACKUPS_FOLDER;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -860,6 +872,7 @@ int User::needversioning(attr_t at)
         case ATTR_CAMERA_UPLOADS_FOLDER:
         case ATTR_UNSHAREABLE_KEY:
         case ATTR_DEVICE_NAMES:
+        case ATTR_MY_BACKUPS_FOLDER:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
@@ -884,6 +897,7 @@ char User::scope(attr_t at)
         case ATTR_UNSHAREABLE_KEY:
         case ATTR_ALIAS:
         case ATTR_DEVICE_NAMES:
+        case ATTR_MY_BACKUPS_FOLDER:
             return '*';
 
         case ATTR_AVATAR:
@@ -1312,6 +1326,10 @@ bool User::setChanged(attr_t at)
 
         case ATTR_DEVICE_NAMES:
             changed.devicenames = true;
+            break;
+
+        case ATTR_MY_BACKUPS_FOLDER:
+            changed.myBackupsFolder = true;
             break;
 
         default:

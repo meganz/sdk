@@ -52,6 +52,14 @@ goto doBuild
 
 :copyPort
 echo %1 %2
+
+For %%A in (%1) do (
+    Set VER=%%~nxA
+)
+
+if "%VER%" == "latest" echo "Using latest from vcpkg ports"
+if "%VER%" == "latest" exit /b 0
+
 set mydir=%1
 for /D %%A in (%mydir%/..) do set PORTNAME=%%~nA
 if not exist  %2\%PORTNAME%-OLD ren %2\%PORTNAME% %PORTNAME%-OLD
@@ -113,7 +121,7 @@ exit /b 0
     echo  The triplet files ending -mega set v140, please adjust to your requirements.
 
     echo.
-    echo If using pdfium, follow the instructions in 3rdparty_deps.txt to get the source code
+    echo If using pdfium, follow the instructions in 3rdparty_deps.txt to get the source code first before running this script
     echo.
     echo From your 3rdParty/vcpkg folder (or with vcpkg in your environment PATH), run this script (in its proper location) with the desired TRIPLET as the parameter.  (usually x64-windows-mega or x86-windows-mega)
     echo.

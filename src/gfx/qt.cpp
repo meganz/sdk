@@ -66,7 +66,7 @@ namespace mega {
 
 QByteArray *GfxProcQT::formatstring = NULL;
 
-#ifdef HAVE_FFMPEG
+#if defined(HAVE_FFMPEG) || defined(HAVE_PDFIUM)
 std::mutex GfxProcQT::gfxMutex;
 #endif
 
@@ -421,11 +421,12 @@ bool pdfiumLoadAttempted = false;
 GfxProcQT::GfxProcQT()
 {
 #ifdef HAVE_FFMPEG
-    gfxMutex.lock();
+    { // scope for the lock guard
+    std::lock_guard<std::mutex> g(gfxMutex);
     av_register_all();
     avcodec_register_all();
 //    av_log_set_level(AV_LOG_VERBOSE);
-    gfxMutex.unlock();
+    }
 #endif
 
 #ifdef HAVE_PDFIUM
@@ -479,7 +480,7 @@ GfxProcQT::GfxProcQT()
     }
 #endif
 
-    gfxMutex.lock();
+    std::lock_guard<std::mutex> g(gfxMutex);
     FPDF_LIBRARY_CONFIG config;
     config.version = 2;
     config.m_pUserFontPaths = NULL;
@@ -503,7 +504,6 @@ GfxProcQT::GfxProcQT()
         dir.remove(dirFile);
     }
 #endif
-    gfxMutex.unlock();
 #endif
     image = NULL;
     orientation = -1;
@@ -518,29 +518,23 @@ GfxProcQT::~GfxProcQT()
     if (pdfiumLoadedOk)
 #endif
     {
-        gfxMutex.lock();
+        std::lock_guard<std::mutex> g(gfxMutex);
         FPDF_DestroyLibrary();
-        gfxMutex.unlock();
     }
 #endif
 }
 
-bool GfxProcQT::readbitmap(FileAccess*, string* localname, int)
+bool GfxProcQT::readbitmap(FileAccess*, const LocalPath& localname, int)
 {
 #ifdef _WIN32
-    localname->append("", 1);
-    imagePath = QString::fromWCharArray((wchar_t *)localname->c_str());
+    imagePath = QString::fromUtf8(localname.toPath(*client->fsaccess).c_str());
     if(imagePath.startsWith(QString::fromUtf8("\\\\?\\")))
         imagePath = imagePath.mid(4);
 #else
-    imagePath = QString::fromUtf8(localname->c_str());
+    imagePath = QString::fromUtf8(localname.toPath(*client->fsaccess).c_str());
 #endif
 
     image = readbitmapQT(w, h, orientation, imageType, imagePath);
-
-#ifdef _WIN32
-    localname->resize(localname->size()-1);
-#endif
 
     return (image != NULL);
 }
