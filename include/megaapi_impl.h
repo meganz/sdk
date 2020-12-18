@@ -2769,6 +2769,9 @@ class MegaApiImpl : public MegaApp
         void fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener = nullptr);
         void queryGoogleAds(int adFlags, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
 
+        void setCookieSettings(int settings, MegaRequestListener *listener = nullptr);
+        void getCookieSettings(MegaRequestListener *listener = nullptr);
+
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e, DBTableTransactionCommitter& committer);
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
@@ -3271,6 +3274,10 @@ protected:
         bool hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const;
 
         friend class MegaBackgroundMediaUploadPrivate;
+
+private:
+        void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);
+        void getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
 };
 
 class MegaHashSignatureImpl
