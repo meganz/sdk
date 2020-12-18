@@ -78,6 +78,9 @@ private:
 
 struct UnifiedSync
 {
+    // Reference to client
+    MegaClient& mClient;
+
     // We always have a config
     SyncConfig mConfig;
 
@@ -89,9 +92,6 @@ struct UnifiedSync
 
     // The next detail heartbeat to send to the backup centre
     std::shared_ptr<HeartBeatSyncInfo> mNextHeartbeat;
-
-    // Reference to client
-    MegaClient& mClient;
 
     // ctor/dtor
     UnifiedSync(MegaClient&, const SyncConfig&);
