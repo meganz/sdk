@@ -275,6 +275,8 @@ public:
 
     static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
+    string getWritableLinkAuthKey(handle node);
+
 #ifdef ENABLE_CHAT
     // all chats
     textchat_map chats;
@@ -388,8 +390,8 @@ public:
     // extract public handle and key from a public file/folder link
     error parsepubliclink(const char *link, handle &ph, byte *key, bool isFolderLink);
 
-    // set folder link: node, key
-    error folderaccess(const char*folderlink);
+    // set folder link: node, key. authKey is the authentication key to be able to write into the folder
+    error folderaccess(const char*folderlink, const char *authKey);
 
     // open exported file link (op=0 -> download, op=1 fetch data)
     void openfilelink(handle ph, const byte *key, int op);
@@ -536,6 +538,11 @@ public:
     bool nodeIsInActiveSync(Node* n);
 
 #endif
+    // backup names pending to be sent
+    string_map mPendingBackupNames;
+
+    // true if setting the backup name for any backup id is in progress
+    bool mSendingBackupName = false;
 
     // if set, symlinks will be followed except in recursive deletions
     // (give the user ample warning about possible sync repercussions)
@@ -593,15 +600,15 @@ public:
     error removecontact(const char*, visibility_t = HIDDEN);
 
     // add/remove/update outgoing share
-    void setshare(Node*, const char*, accesslevel_t, const char*, int tag, std::function<void(Error)> completion);
+    void setshare(Node*, const char*, accesslevel_t, bool writable, const char*, int tag, std::function<void(Error, bool writable)> completion);
 
     // Add/delete/remind outgoing pending contact request
     void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);
     void updatepcr(handle, ipcactions_t);
 
     // export node link or remove existing exported link for this node
-    error exportnode(Node*, int, m_time_t, int tag, std::function<void(Error, handle, handle)> completion);
-    void getpubliclink(Node* n, int del, m_time_t ets, int tag, std::function<void(Error, handle, handle)> completion); // auxiliar method to add req
+    error exportnode(Node*, int, m_time_t, bool writable, int tag, std::function<void(Error, handle, handle)> completion);
+    void getpubliclink(Node* n, int del, m_time_t ets, bool writable, int tag, std::function<void(Error, handle, handle)> completion); // auxiliar method to add req
 
     // add timer
     error addtimer(TimerWithBackoff *twb);
@@ -883,7 +890,7 @@ public:
     void chatlinkjoin(handle publichandle, const char *unifiedkey);
 
     // set retention time for a chatroom in seconds, after which older messages in the chat are automatically deleted
-    void setchatretentiontime(handle chatid, int period);
+    void setchatretentiontime(handle chatid, unsigned period);
 #endif
 
     // get mega achievements
@@ -991,6 +998,9 @@ public:
     // backoff for the expiration of cached user data
     BackoffTimer btugexpiration;
 
+    // if logged into writable folder
+    bool loggedIntoWritableFolder() const;
+
 private:
     BackoffTimer btcs;
     BackoffTimer btbadhost;
@@ -1012,6 +1022,8 @@ private:
 
     bool pendingscTimedOut = false;
 
+    // if logged into writable folder
+    bool mLoggedIntoWritableFolder = false;
 
     // badhost report
     HttpReq* badhostcs;
@@ -1643,6 +1655,7 @@ public:
     static const int CHATHANDLE = 8;
     static const int SESSIONHANDLE = 8;
     static const int PURCHASEHANDLE = 8;
+    static const int BACKUPHANDLE = 8;
     static const int CONTACTLINKHANDLE = 6;
     static const int CHATLINKHANDLE = 6;
 
@@ -1736,7 +1749,7 @@ public:
 
     // set authentication context, either a session ID or a exported folder node handle
     void setsid(const byte*, unsigned);
-    void setrootnode(handle);
+    void setrootnode(handle, const char *authKey = nullptr);
 
     bool setlang(string *code);
 

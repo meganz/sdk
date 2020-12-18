@@ -480,11 +480,16 @@ public:
     MockDbAccess(std::vector<std::pair<uint32_t, std::string>>& data)
         : mData{data}
     {}
-    mega::DbTable* open(mega::PrnGen &rng, mega::FileSystemAccess*, std::string*, bool recycleLegacyDB, bool checkAlwaysTransacted) override
+    mega::DbTable* open(mega::PrnGen &rng, mega::FileSystemAccess&, const std::string&, const int flags) override
     {
-        auto table = new MockDbTable{rng, checkAlwaysTransacted};
+        auto table = new MockDbTable{rng, (flags & mega::DB_OPEN_FLAG_TRANSACTED) > 0};
         table->mData = &mData;
         return table;
+    }
+
+    bool probe(mega::FileSystemAccess&, const string&) const override
+    {
+        return true;
     }
 
 private:

@@ -115,7 +115,7 @@ public:
 
         bool succeeded()
         {
-            return mOutcome != CmdError || error(mError) != API_OK;
+            return mOutcome != CmdError || error(mError) == API_OK;
         }
 
         bool hasJsonArray()
@@ -643,15 +643,17 @@ class MEGA_API CommandSetShare : public Command
     accesslevel_t access;
     string msg;
     string personal_representation;
+    bool mWritable = false;
 
-    std::function<void(Error)> completion;
+
+    std::function<void(Error, bool writable)> completion;
 
     bool procuserresult(MegaClient*);
 
 public:
     bool procresult(Result) override;
 
-    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, int, const char*, const char*, int tag, std::function<void(Error)> f);
+    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, int, const char*, bool writable, const char*, int tag, std::function<void(Error, bool writable)> f);
 };
 
 class MEGA_API CommandGetUserData : public Command
@@ -749,12 +751,13 @@ class MEGA_API CommandSetPH : public Command
 {
     handle h;
     m_time_t ets;
+    bool mWritable = false;
     std::function<void(Error, handle, handle)> completion;
 
 public:
     bool procresult(Result) override;
 
-    CommandSetPH(MegaClient*, Node*, int, m_time_t, int ctag, std::function<void(Error, handle, handle)> f);
+    CommandSetPH(MegaClient*, Node*, int, m_time_t, bool writable, int ctag, std::function<void(Error, handle, handle)> f);
 };
 
 class MEGA_API CommandGetPH : public Command
@@ -1126,7 +1129,7 @@ class MEGA_API CommandSetChatRetentionTime : public Command
 public:
     bool procresult(Result) override;
 
-    CommandSetChatRetentionTime(MegaClient*, handle , int);
+    CommandSetChatRetentionTime(MegaClient*, handle , unsigned);
 
 protected:
     handle mChatid;
@@ -1345,7 +1348,7 @@ public:
     bool procresult(Result) override;
 
     // Register a new Sync
-    CommandBackupPut(MegaClient* client, BackupType type, handle nodeHandle, const std::string& localFolder, const std::string& deviceId, int state, int subState, const std::string& extraData);
+    CommandBackupPut(MegaClient* client, BackupType type, const std::string& backupName, handle nodeHandle, const std::string& localFolder, const std::string& deviceId, int state, int subState, const std::string& extraData);
 
     // Update a Backup
     // Params that keep the same value are passed with invalid value to avoid to send to the server
@@ -1361,11 +1364,12 @@ public:
 
 private:
     bool mUpdate = false;
+    string mBackupName;
 };
 
 class MEGA_API CommandBackupRemove : public Command
 {
-    handle id;
+    handle mBackupId;
 
 public:
     bool procresult(Result) override;
@@ -1378,7 +1382,7 @@ class MEGA_API CommandBackupPutHeartBeat : public Command
 public:
     bool procresult(Result) override;
 
-    CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode);
+    CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode);
 };
 
 class MEGA_API CommandGetBanners : public Command
@@ -1395,6 +1399,26 @@ public:
     bool procresult(Result) override;
 
     CommandDismissBanner(MegaClient*, int id, m_time_t ts);
+};
+
+typedef std::function<void(Error, string_map)> CommandFetchGoogleAdsCompletion;
+class MEGA_API CommandFetchGoogleAds : public Command
+{
+    CommandFetchGoogleAdsCompletion mCompletion;
+public:
+    bool procresult(Result) override;
+
+    CommandFetchGoogleAds(MegaClient*, int adFlags, const std::vector<std::string>& adUnits, handle publicHandle, CommandFetchGoogleAdsCompletion completion);
+};
+
+typedef std::function<void(Error, int)> CommandQueryGoogleAdsCompletion;
+class MEGA_API CommandQueryGoogleAds : public Command
+{
+    CommandQueryGoogleAdsCompletion mCompletion;
+public:
+    bool procresult(Result) override;
+
+    CommandQueryGoogleAds(MegaClient*, int adFlags, handle publicHandle, CommandQueryGoogleAdsCompletion completion);
 };
 
 } // namespace

@@ -78,7 +78,7 @@ public:
     bool mkdirlocal(LocalPath&, bool) override;
     bool setmtimelocal(LocalPath&, m_time_t) override;
     bool chdirlocal(LocalPath&) const override;
-    bool getextension(const LocalPath&, char*, size_t) const override;
+    bool getextension(const LocalPath&, string&) const override;
     bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) override;
 
     void addevents(Waiter*, int) override;
@@ -93,6 +93,8 @@ public:
 
     WinFileSystemAccess();
     ~WinFileSystemAccess();
+
+    bool cwd(LocalPath& path) const override;
 
     std::set<WinDirNotify*> dirnotifys;
 };

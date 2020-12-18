@@ -450,6 +450,7 @@ class chunkmac_map : public map<m_off_t, ChunkMAC>
 {
 public:
     int64_t macsmac(SymmCipher *cipher);
+    int64_t macsmac_gaps(SymmCipher *cipher, size_t g1, size_t g2, size_t g3, size_t g4);
     void serialize(string& d) const;
     bool unserialize(const char*& ptr, const char* end);
     void calcprogress(m_off_t size, m_off_t& chunkpos, m_off_t& completedprogress, m_off_t* lastblockprogress = nullptr);
@@ -781,7 +782,10 @@ UnicodeCodepointIterator<CharT> unicodeCodepointIterator(const CharT* s)
     return UnicodeCodepointIterator<CharT>(s);
 }
 
-int hexval(const int c);
+inline int hexval(const int c)
+{
+    return ((c & 0xf) + (c >> 6)) | ((c >> 3) & 0x8);
+}
 
 bool islchex(const int c);
 

@@ -32,7 +32,7 @@
 #include <readline/history.h>
 #endif
 
-#if (__cplusplus >= 201700L)
+#if (__cplusplus >= 201703L)
     #include <filesystem>
     namespace fs = std::filesystem;
     #define USE_FILESYSTEM
@@ -694,7 +694,7 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time
     if (!targetfolder.empty())
     {
         string s = targetfolder;
-        localname.prependWithSeparator(LocalPath::fromPath(s, *client->fsaccess), client->fsaccess->localseparator);
+        localname.prependWithSeparator(LocalPath::fromPath(s, *client->fsaccess));
     }
 }
 
@@ -709,8 +709,7 @@ AppFilePut::AppFilePut(const LocalPath& clocalname, handle ch, const char* ctarg
     // target user
     targetuser = ctargetuser;
 
-    // erase path component
-    name = clocalname.leafName(client->fsaccess->localseparator).toName(*client->fsaccess);
+    name = clocalname.leafName().toName(*client->fsaccess);
 }
 
 // user addition/update (users never get deleted)
@@ -1457,7 +1456,11 @@ static char* line;
 
 static AccountDetails account;
 
+// Current remote directory.
 static handle cwd = UNDEF;
+
+// Where we were on the local filesystem when megacli started.
+static LocalPath startDir;
 
 static const char* rootnodenames[] =
 { "ROOT", "INBOX", "RUBBISH" };
@@ -2936,7 +2939,7 @@ void exec_timelocal(autocomplete::ACState& s)
         cout << "wrong number of arguments for : " << s.words[1].s << endl;
         return;
     }
-    
+
     m_time_t set_time = 0;
 
     if (!get)
@@ -3002,7 +3005,8 @@ autocomplete::ACN autocompleteSyntax()
     std::unique_ptr<Either> p(new Either("      "));
 
     p->Add(exec_apiurl, sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
-    p->Add(exec_login, sequence(text("login"), either(sequence(param("email"), opt(param("password"))), exportedLink(false, true), param("session"), sequence(text("autoresume"), opt(param("id"))))));
+    p->Add(exec_login, sequence(text("login"), either(sequence(param("email"), opt(param("password"))),
+                                                      sequence(exportedLink(false, true), opt(param("auth_key"))), param("session"), sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
     p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name")), param("confirmationlink"))));
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
@@ -3051,7 +3055,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_syncpause, sequence(text("syncpause"), param("id")));
     p->Add(exec_syncresume, sequence(text("syncresume"), param("id")));
 #endif
-    p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(param("expiretime"), text("del")))));
+    p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(flag("-writable"), param("expiretime"), text("del")))));
     p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
     p->Add(exec_invite, sequence(text("invite"), param("dstemail"), opt(either(param("origemail"), text("del"), text("rmd")))));
 
@@ -3061,7 +3065,11 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_showpcr, sequence(text("showpcr")));
     p->Add(exec_users, sequence(text("users"), opt(sequence(contactEmail(client), text("del")))));
     p->Add(exec_getua, sequence(text("getua"), param("attrname"), opt(contactEmail(client))));
-    p->Add(exec_putua, sequence(text("putua"), param("attrname"), opt(either(text("del"), sequence(text("set"), param("string")), sequence(text("load"), localFSFile())))));
+    p->Add(exec_putua, sequence(text("putua"), param("attrname"), opt(either(
+                                                                          text("del"),
+                                                                          sequence(text("set"), param("string")),
+                                                                          sequence(text("map"), param("key"), param("value")),
+                                                                          sequence(text("load"), localFSFile())))));
 #ifdef DEBUG
     p->Add(exec_delua, sequence(text("delua"), param("attrname")));
     p->Add(exec_devcommand, sequence(text("devcommand"), param("subcommand"), opt(param("email"))));
@@ -4071,7 +4079,7 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
 
 string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 {
-    return itemlocalname.leafName(client->fsaccess->localseparator).toPath(*client->fsaccess);
+    return itemlocalname.leafName().toPath(*client->fsaccess);
 }
 
 void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder)
@@ -4094,7 +4102,7 @@ void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder)
                 cout << "Queueing " << leafNameUtf8 << "..." << endl;
             }
             auto newpath = localname;
-            newpath.appendWithSeparator(itemlocalleafname, true, client->fsaccess->localseparator);
+            newpath.appendWithSeparator(itemlocalleafname, true);
             uploadLocalPath(type, leafNameUtf8, newpath, cloudFolder, "", committer, total, true);
         }
         if (gVerboseMode)
@@ -4126,7 +4134,7 @@ void exec_put(autocomplete::ACState& s)
         n = client->nodebyhandle(target);
     }
 
-    if (client->loggedin() == NOTLOGGEDIN && !targetuser.size())
+    if (client->loggedin() == NOTLOGGEDIN && !targetuser.size() && !client->loggedIntoWritableFolder())
     {
         cout << "Not logged in." << endl;
 
@@ -4313,30 +4321,32 @@ void exec_open(autocomplete::ACState& s)
 #endif
             // create a new MegaClient with a different MegaApp to process callbacks
             // from the client logged into a folder. Reuse the waiter and httpio
-            clientFolder = new MegaClient(new DemoAppFolder, client->waiter,
-                                            client->httpio, new FSACCESS_CLASS,
+            clientFolder = new MegaClient(new DemoAppFolder,
+                                          client->waiter,
+                                          client->httpio,
+                                          new FSACCESS_CLASS,
                 #ifdef DBACCESS_CLASS
-                                            new DBACCESS_CLASS,
+                                          new DBACCESS_CLASS(startDir),
                 #else
-                                            NULL,
+                                          NULL,
                 #endif
                 #ifdef GFX_CLASS
-                                            gfx,
+                                          gfx,
                 #else
-                                            NULL,
+                                          NULL,
                 #endif
-                                            "Gk8DyQBS",
-                                            "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
-                                            "." TOSTRING(MEGA_MINOR_VERSION)
-                                            "." TOSTRING(MEGA_MICRO_VERSION),
-                                            2);
+                                          "Gk8DyQBS",
+                                          "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
+                                          "." TOSTRING(MEGA_MINOR_VERSION)
+                                          "." TOSTRING(MEGA_MICRO_VERSION),
+                                          2);
         }
         else
         {
             clientFolder->logout();
         }
 
-        return clientFolder->app->login_result(clientFolder->folderaccess(s.words[1].s.c_str()));
+        return clientFolder->app->login_result(clientFolder->folderaccess(s.words[1].s.c_str(), nullptr));
     }
     else
     {
@@ -4660,7 +4670,8 @@ void exec_login(autocomplete::ACState& s)
                 const char* ptr;
                 if ((ptr = strchr(s.words[1].s.c_str(), '#')))  // folder link indicator
                 {
-                    return client->app->login_result(client->folderaccess(s.words[1].s.c_str()));
+                    const char *authKey = s.words.size() == 3 ? s.words[2].s.c_str() : nullptr;
+                    return client->app->login_result(client->folderaccess(s.words[1].s.c_str(), authKey));
                 }
                 else
                 {
@@ -4685,7 +4696,7 @@ void exec_login(autocomplete::ACState& s)
         else
         {
             cout << "      login email [password]" << endl
-                << "      login exportedfolderurl#key" << endl
+                << "      login exportedfolderurl#key [authKey]" << endl
                 << "      login session" << endl;
         }
     }
@@ -4727,6 +4738,8 @@ void exec_mount(autocomplete::ACState& s)
 
 void exec_share(autocomplete::ACState& s)
 {
+    bool writable = false;
+
     switch (s.words.size())
     {
     case 1:		// list all shares (incoming and outgoing)
@@ -4809,7 +4822,7 @@ void exec_share(autocomplete::ACState& s)
                     }
                 }
 
-                client->setshare(n, s.words[2].s.c_str(), a, personal_representation, gNextClientTag++, [](Error e){
+                client->setshare(n, s.words[2].s.c_str(), a, writable, personal_representation, gNextClientTag++, [](Error e, bool){
                     if (e)
                     {
                         cout << "Share creation/modification request failed (" << errorstring(e) << ")" << endl;
@@ -5064,7 +5077,6 @@ void exec_putua(autocomplete::ACState& s)
         if (s.words[2].s == "set")
         {
             client->putua(attrtype, (const byte*)s.words[3].s.c_str(), unsigned(s.words[3].s.size()));
-
             return;
         }
         else if (s.words[2].s == "set64")
@@ -5091,6 +5103,53 @@ void exec_putua(autocomplete::ACState& s)
             }
 
             return;
+        }
+    }
+    else if (s.words.size() == 5)
+    {
+        if (s.words[2].s == "map")  // putua <attrtype> map <attrKey> <attrValue>
+        {
+            if (attrtype == ATTR_BACKUP_NAMES
+                    || attrtype == ATTR_DEVICE_NAMES
+                    || attrtype == ATTR_ALIAS)
+            {
+                std::string key = s.words[3].s;
+                std::string value = Base64::btoa(s.words[4].s);
+                string_map attrMap;
+                attrMap[key] = value;
+
+                std::unique_ptr<TLVstore> tlv;
+
+                User *ownUser = client->finduser(client->me);
+                const std::string *oldValue = ownUser->getattr(attrtype);
+                if (!oldValue)  // attr doesn't exist -> create it
+                {
+                    tlv.reset(new TLVstore());
+                    tlv->set(key, value);
+                }
+                else if (!ownUser->isattrvalid(attrtype)) // not fetched yet or outdated
+                {
+                    cout << "User attribute is versioned (need to know current version first). ";
+                    cout << "Fetch the attribute first" << endl;
+                    return;
+                }
+                else
+                {
+                    tlv.reset(TLVstore::containerToTLVrecords(oldValue, &client->key));
+
+                    if (!User::mergeUserAttribute(attrtype, attrMap, *tlv.get()))
+                    {
+                        cout << "Failed to merge with existing values" << endl;
+                        return;
+                    }
+                }
+
+                // serialize and encrypt the TLV container
+                std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
+                client->putua(attrtype, (byte *)container->data(), unsigned(container->size()));
+
+                return;
+            }
         }
     }
 }
@@ -5857,6 +5916,9 @@ void exec_export(autocomplete::ACState& s)
     int deltmp = 0;
     int etstmp = 0;
 
+    bool writable = s.extractflag("-writable");
+
+
     if ((n = nodebypath(s.words[1].s.c_str())))
     {
         if (s.words.size() > 2)
@@ -5872,7 +5934,7 @@ void exec_export(autocomplete::ACState& s)
         cout << "Exporting..." << endl;
 
         error e;
-        if ((e = client->exportnode(n, deltmp, etstmp, gNextClientTag++, [](Error e, handle h, handle ph){
+        if ((e = client->exportnode(n, deltmp, etstmp, writable, gNextClientTag++, [](Error e, handle h, handle ph){
             exportnode_result(e, h, ph);
         })))
         {
@@ -6536,8 +6598,8 @@ void exec_mediainfo(autocomplete::ACState& s)
         MediaProperties mp;
         auto localFilename = LocalPath::fromPath(s.words[2].s, *client->fsaccess);
 
-        char ext[8];
-        if (client->fsaccess->getextension(localFilename, ext, sizeof(ext)) && MediaProperties::isMediaFilenameExt(ext))
+        string ext;
+        if (client->fsaccess->getextension(localFilename, ext) && MediaProperties::isMediaFilenameExt(ext))
         {
             mp.extractMediaPropertyFileAttributes(localFilename, client->fsaccess);
                                 uint32_t dummykey[4] = { 1, 2, 3, 4 };  // check encode/decode
@@ -7209,14 +7271,32 @@ void exportnode_result(Error e, handle h, handle ph)
             return;
         }
 
+        string publicLink;
         if (n->type == FILENODE)
         {
-            cout << MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey().data())) << endl;
+            publicLink = MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey().data()));
         }
         else
         {
-            cout << MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key)) << endl;
+            publicLink = MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key));
         }
+
+        cout << publicLink;
+
+        if (n->plink)
+        {
+            string authKey = n->plink->mAuthKey;
+
+            if (authKey.size())
+            {
+                string authToken(publicLink);
+                authToken = authToken.substr(strlen("https://mega.nz/folder/")).append(":").append(authKey);
+                cout << "\n          AuthToken = " << authToken;
+            }
+        }
+
+        cout << endl;
+
     }
     else
     {
@@ -8237,6 +8317,16 @@ int main()
     gfx->startProcessingThread();
 #endif
 
+    // Needed so we can get the cwd.
+    auto fsAccess = new FSACCESS_CLASS();
+
+    // Where are we?
+    if (!fsAccess->cwd(startDir))
+    {
+        cerr << "Unable to determine current working directory." << endl;
+        return EXIT_FAILURE;
+    }
+
     // instantiate app components: the callback processor (DemoApp),
     // the HTTP I/O engine (WinHttpIO) and the MegaClient itself
     client = new MegaClient(new DemoApp,
@@ -8245,9 +8335,10 @@ int main()
 #else
                             new CONSOLE_WAIT_CLASS,
 #endif
-                            new HTTPIO_CLASS, new FSACCESS_CLASS,
+                            new HTTPIO_CLASS,
+                            fsAccess,
 #ifdef DBACCESS_CLASS
-                            new DBACCESS_CLASS,
+                            new DBACCESS_CLASS(startDir),
 #else
                             NULL,
 #endif

@@ -89,12 +89,12 @@ bool PosixFileAccess::mFoundASymlink = false;
 
 #ifdef USE_IOS
 
-static string adjustBasePath(const LocalPath& name)
+const string adjustBasePath(const LocalPath& name)
 {
     // return a temporary variable that the caller can optionally use c_str on (in that expression)
     if (PosixFileSystemAccess::appbasepath)
     {
-        if (!name.beginsWithSeparator('/'))
+        if (!name.beginsWithSeparator())
         {
             string absolutename = PosixFileSystemAccess::appbasepath;
             absolutename.append(name.localpath);
@@ -627,8 +627,6 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
     defaultfilepermissions = 0600;
     defaultfolderpermissions = 0700;
 
-    localseparator = '/';
-
 #ifdef USE_IOS
     if (!appbasepath)
     {
@@ -731,6 +729,27 @@ PosixFileSystemAccess::~PosixFileSystemAccess()
     }
 }
 
+bool PosixFileSystemAccess::cwd(LocalPath& path) const
+{
+    string& buf = path.localpath;
+
+    buf.resize(128);
+
+    while (!getcwd(&buf[0], buf.size()))
+    {
+        if (errno != ERANGE)
+        {
+            return false;
+        }
+
+        buf.resize(buf.size() << 1);
+    }
+
+    buf.resize(strlen(buf.c_str()));
+
+    return true;
+}
+
 // wake up from filesystem updates
 void PosixFileSystemAccess::addevents(Waiter* w, int /*flags*/)
 {
@@ -796,7 +815,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                 if (lastname.size() < ignore->size()
                                  || memcmp(lastname.c_str(), ignore->data(), ignore->size())
                                  || (lastname.size() > ignore->size()
-                                  && lastname[ignore->size()] != localseparator))
+                                  && lastname[ignore->size()] != LocalPath::localPathSeparator))
                                 {
                                     // previous IN_MOVED_FROM is not followed by the
                                     // corresponding IN_MOVED_TO, so was actually a deletion
@@ -830,7 +849,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                 if (insize < ignore->size()
                                  || memcmp(in->name, ignore->data(), ignore->size())
                                  || (insize > ignore->size()
-                                  && in->name[ignore->size()] != localseparator))
+                                  && in->name[ignore->size()] != LocalPath::localPathSeparator))
                                 {
                                     LOG_debug << "Filesystem notification. Root: " << it->second->name << "   Path: " << in->name;
 
@@ -857,7 +876,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
             if (lastname.size() < ignore->size()
              || memcmp(lastname.c_str(), ignore->data(), ignore->size())
              || (lastname.size() > ignore->size()
-              && lastname[ignore->size()] != localseparator))
+              && lastname[ignore->size()] != LocalPath::localPathSeparator))
             {
                 LOG_debug << "Filesystem notification. Root: " << lastlocalnode->name << "   Path: " << lastname;
 
@@ -1229,7 +1248,7 @@ void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
                 {
                     ScopedLengthRestore restore(name);
 
-                    name.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true, pfsa.localseparator);
+                    name.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true);
 
 #ifdef USE_IOS
                     const string nameStr = adjustBasePath(name);
@@ -1355,18 +1374,18 @@ bool PosixFileSystemAccess::chdirlocal(LocalPath& name) const
 }
 
 // return lowercased ASCII file extension, including the . separator
-bool PosixFileSystemAccess::getextension(const LocalPath& filename, char* extension, size_t size) const
+bool PosixFileSystemAccess::getextension(const LocalPath& filename, std::string &extension) const
 {
     const std::string* str = &filename.localpath;
     const char* ptr = str->data() + str->size();
     char c;
 
-    size = std::min(size - 1, str->size());
-
-    for (unsigned i = 0; i < size; i++)
+    for (unsigned i = 0; i < str->size(); i++)
     {
         if (*--ptr == '.')
         {
+            extension.reserve(i+1);
+
             unsigned j = 0;
             for (; j <= i; j++)
             {
@@ -1377,11 +1396,8 @@ bool PosixFileSystemAccess::getextension(const LocalPath& filename, char* extens
                 // tolower()
                 if (c >= 'A' && c <= 'Z') c |= ' ';
 
-                extension[j] = c;
+                extension.push_back(c);
             }
-
-            extension[j] = 0;
-
             return true;
         }
     }
@@ -1977,7 +1993,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
 
         if (*d->d_name != '.' || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2])))
         {
-            path.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true, pfsa.localseparator);
+            path.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true);
 
 #ifdef USE_IOS
             const string pathStr = adjustBasePath(path);

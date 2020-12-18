@@ -67,15 +67,14 @@ const char* GfxProcCG::supportedformats() {
 
 bool GfxProcCG::readbitmap(FileAccess* fa, const LocalPath& name, int size) {
     string absolutename;
-    if (PosixFileSystemAccess::appbasepath) {
-        if (!name.beginsWithSeparator(fa->localseparator)) {
-            absolutename = PosixFileSystemAccess::appbasepath;
-            absolutename.append(name.platformEncoded());
-            name = &absolutename;
-        }
+    NSString *sourcePath;
+    if (PosixFileSystemAccess::appbasepath && !name.beginsWithSeparator()) {
+        absolutename = PosixFileSystemAccess::appbasepath;
+        absolutename.append(name.platformEncoded());
+        sourcePath = [NSString stringWithCString:absolutename.c_str() encoding:[NSString defaultCStringEncoding]];
+    } else {
+        sourcePath = [NSString stringWithCString:name.platformEncoded().c_str() encoding:[NSString defaultCStringEncoding]];
     }
-
-    NSString *sourcePath = [NSString stringWithCString:name.platformEncoded().c_str() encoding:[NSString defaultCStringEncoding]];
     NSURL *sourceURL = [NSURL fileURLWithPath:sourcePath isDirectory:NO];
     if (sourceURL == nil) {
         return false;

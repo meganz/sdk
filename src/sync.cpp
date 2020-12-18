@@ -74,13 +74,12 @@ auto ScanService::scan(const LocalNode& target, LocalPath targetPath) -> Request
 {
     // For convenience.
     const auto& debris = target.sync->localdebris;
-    const auto& separator = target.sync->client->fsaccess->localseparator;
 
     // Create a request to represent the scan.
     auto request = std::make_shared<ScanRequest>(mCookie, target, targetPath);
 
     // Have we been asked to scan the debris?
-    request->mComplete = debris.isContainingPathOf(targetPath, separator);
+    request->mComplete = debris.isContainingPathOf(targetPath);
 
     // Don't bother scanning the debris.
     if (!request->mComplete)
@@ -97,7 +96,7 @@ auto ScanService::scan(const LocalNode& target, LocalPath targetPath) -> Request
 
 auto ScanService::scan(const LocalNode& target) -> RequestPtr
 {
-    return scan(target, target.getLocalPath(true));
+    return scan(target, target.getLocalPath());
 }
 
 ScanService::ScanRequest::ScanRequest(const std::shared_ptr<Cookie>& cookie,
@@ -338,10 +337,9 @@ void ScanService::Worker::scan(ScanRequestPtr request)
 {
     // For convenience.
     const auto& debris = request->mDebrisPath;
-    const auto& separator = mFsAccess->localseparator;
 
     // Don't bother processing the debris directory.
-    if (debris.isContainingPathOf(request->mTargetPath, separator))
+    if (debris.isContainingPathOf(request->mTargetPath))
     {
         LOG_debug << "Skipping scan of debris directory.";
         return;
@@ -383,10 +381,10 @@ void ScanService::Worker::scan(ScanRequestPtr request)
     while (dirAccess->dnext(path, name, request->mFollowSymLinks))
     {
         ScopedLengthRestore restorer(path);
-        path.appendWithSeparator(name, false, separator);
+        path.appendWithSeparator(name, false);
 
         // Except the debris...
-        if (debris.isContainingPathOf(path, separator))
+        if (debris.isContainingPathOf(path))
         {
             continue;
         }
@@ -406,11 +404,11 @@ void ScanService::Worker::scan(ScanRequestPtr request)
 SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng, const std::string& id)
 {
     std::string dbname = "syncconfigsv2_" + id;
-    mTable.reset(dbaccess.open(rng, &fsaccess, &dbname, false, false));
+    mTable.reset(dbaccess.open(rng, fsaccess, dbname));
     if (!mTable)
     {
-        LOG_err << "Unable to open DB table: " << dbname;
-        assert(false);
+        LOG_warn << "Unable to open database: " << dbname;
+        // no syncs configured --> no database
         return;
     }
 
@@ -583,7 +581,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
 
         dirnotify.reset(client->fsaccess->newdirnotify(crootpath, localdebris, client->waiter));
 
-        localdebris.prependWithSeparator(crootpath, client->fsaccess->localseparator);
+        localdebris.prependWithSeparator(crootpath);
     }
     else
     {
@@ -666,7 +664,7 @@ Sync::Sync(MegaClient* cclient, SyncConfig &config, const char* cdebris,
             dbname.resize(sizeof tableid * 4 / 3 + 3);
             dbname.resize(Base64::btoa((byte*)tableid, sizeof tableid, (char*)dbname.c_str()));
 
-            statecachetable = client->dbaccess->open(client->rng, client->fsaccess, &dbname, false, false);
+            statecachetable = client->dbaccess->open(client->rng, *client->fsaccess, dbname);
 
             readstatecache();
         }
@@ -743,7 +741,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
     {
         ScopedLengthRestore restoreLen(localpath);
 
-        localpath.appendWithSeparator(it->second->localname, true, client->fsaccess->localseparator);
+        localpath.appendWithSeparator(it->second->localname, true);
 
         LocalNode* l = it->second;
         handle fsid = l->fsid;
@@ -962,7 +960,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
     {
         // verify matching localroot prefix - this should always succeed for
         // internal use
-        if (!localroot->localname.isContainingPathOf(localpath, client->fsaccess->localseparator, &subpathIndex))
+        if (!localroot->localname.isContainingPathOf(localpath, &subpathIndex))
         {
             if (parent)
             {
@@ -978,7 +976,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
 
     LocalPath component;
 
-    while (localpath.nextPathComponent(subpathIndex, component, client->fsaccess->localseparator))
+    while (localpath.nextPathComponent(subpathIndex, component))
     {
         if (parent)
         {
@@ -997,7 +995,7 @@ LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, Local
                 auto remainder = localpath.subpathFrom(subpathIndex);
                 if (!remainder.empty())
                 {
-                    outpath->appendWithSeparator(remainder, false, client->fsaccess->localseparator);
+                    outpath->appendWithSeparator(remainder, false);
                 }
             }
 
@@ -1183,7 +1181,7 @@ struct ProgressingMonitor
             if (i != sf.stalledLocalPaths.end()) --i;
             if (i == sf.stalledLocalPaths.end() && !sf.stalledLocalPaths.empty()) i = --sf.stalledLocalPaths.end();
             if (i == sf.stalledLocalPaths.end() ||
-                !i->first.isContainingPathOf(p, client->fsaccess->localseparator))
+                !i->first.isContainingPathOf(p))
             {
                 sf.stalledLocalPaths[p] = r;
             }
@@ -1249,7 +1247,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
             // logic to detect files being updated in the local computer moving the original file
             // to another location as a temporary backup
             if (sourceLocalNode->type == FILENODE &&
-                client->checkIfFileIsChanging(*row.fsNode, sourceLocalNode->getLocalPath(true)))
+                client->checkIfFileIsChanging(*row.fsNode, sourceLocalNode->getLocalPath()))
             {
                 // if we revist here and the file is still the same after enough time, we'll move it
                 rowResult = false;
@@ -1347,7 +1345,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
                                   << "Renaming node: " << sourceCloudNode->displaypath()
                                   << " to " << newName  << logTriplet(row, fullPath);
                         client->setattr(sourceCloudNode, attr_map('n', newName), 0);
-                        client->app->syncupdate_local_move(this, sourceLocalNode->getLocalPath(true), fullPath);
+                        client->app->syncupdate_local_move(this, sourceLocalNode->getLocalPath(), fullPath);
                         rowResult = false;
                         return true;
                     }
@@ -1376,7 +1374,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
                         {
                             // command sent, now we wait for the actinpacket updates, later we will recognise
                             // the row as synced from fsNode, cloudNode and update the syncNode from those
-                            client->app->syncupdate_local_move(this, sourceLocalNode->getLocalPath(true), fullPath);
+                            client->app->syncupdate_local_move(this, sourceLocalNode->getLocalPath(), fullPath);
 
                             assert(sourceLocalNode->moveSourceApplyingToCloud);
                             assert(row.syncNode->moveTargetApplyingToCloud);
@@ -1396,7 +1394,7 @@ bool Sync::checkLocalPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
                     if (!sourceCloudNode) SYNC_verbose << client->clientname << "Source parent cloud node doesn't exist yet" << logTriplet(row, fullPath);
                     if (!targetCloudNode) SYNC_verbose << client->clientname << "Target parent cloud node doesn't exist yet" << logTriplet(row, fullPath);
 
-                    monitor.waitingLocal(sourceLocalNode->getLocalPath(true), SyncWaitReason::MoveNeedsTargetFolder);
+                    monitor.waitingLocal(sourceLocalNode->getLocalPath(), SyncWaitReason::MoveNeedsTargetFolder);
                     monitor.waitingLocal(fullPath, SyncWaitReason::MoveNeedsTargetFolder);
 
                     row.suppressRecursion = true;
@@ -1507,7 +1505,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
         sourceLocalNode->treestate(TREESTATE_SYNCING);
         if (row.syncNode) row.syncNode->treestate(TREESTATE_SYNCING);
 
-        LocalPath sourcePath = sourceLocalNode->getLocalPath(true);
+        LocalPath sourcePath = sourceLocalNode->getLocalPath();
         Node* oldCloudParent = sourceLocalNode->parent ?
                                client->nodeByHandle(sourceLocalNode->parent->syncedCloudNodeHandle) :
                                nullptr;
@@ -1527,7 +1525,7 @@ bool Sync::checkCloudPathForMovesRenames(syncRow& row, syncRow& parentRow, Local
         {
             // todo: move anything at this path to sync debris first?  Old algo didn't though
 
-            client->app->syncupdate_local_move(this, sourceLocalNode->getLocalPath(true), fullPath);
+            client->app->syncupdate_local_move(this, sourceLocalNode->getLocalPath(), fullPath);
 
             if (!row.syncNode)
             {
@@ -1815,7 +1813,7 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
         }
 
         day = buf;
-        localdebris.appendWithSeparator(LocalPath::fromPath(day, *client->fsaccess), true, client->fsaccess->localseparator);
+        localdebris.appendWithSeparator(LocalPath::fromPath(day, *client->fsaccess), true);
 
         if (i > -3)
         {
@@ -1823,7 +1821,7 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
             havedir = client->fsaccess->mkdirlocal(localdebris, false) || client->fsaccess->target_exists;
         }
 
-        localdebris.appendWithSeparator(localpath.subpathFrom(localpath.getLeafnameByteIndex(*client->fsaccess)), true, client->fsaccess->localseparator);
+        localdebris.appendWithSeparator(localpath.subpathFrom(localpath.getLeafnameByteIndex(*client->fsaccess)), true);
 
         client->fsaccess->skip_errorreport = i == -3;  // we expect a problem on the first one when the debris folders or debris day folders don't exist yet
         if (client->fsaccess->renamelocal(localpath, localdebris, false))
@@ -1898,7 +1896,7 @@ void Sync::recursiveCollectNameConflicts(syncRow& row, list<NameConflict>& ncs)
             }
             if (!childRow.fsClashingNames.empty())
             {
-                nc.localPath = row.syncNode ? row.syncNode->getLocalPath(true) : LocalPath();
+                nc.localPath = row.syncNode ? row.syncNode->getLocalPath() : LocalPath();
                 for (FSNode* n : childRow.fsClashingNames)
                 {
                     nc.clashingLocalNames.push_back(n->localname);
@@ -2437,7 +2435,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
     static char clientOfInterest[100] = "clientA2 \0";
     static char folderOfInterest[100] = "f_2\0";
     if (string(clientOfInterest) == client->clientname)
-    if (string(folderOfInterest) == fullPath.leafName(client->fsaccess->localseparator).toPath(*client->fsaccess))
+    if (string(folderOfInterest) == fullPath.leafName().toPath(*client->fsaccess))
     {
         clientOfInterest[99] = 0;  // breakpoint opporunity here
     }
@@ -2464,21 +2462,21 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
             ScopedLengthRestore restoreLen(fullPath);
             if (childRow.fsNode)
             {
-                fullPath.appendWithSeparator(childRow.fsNode->localname, true, client->fsaccess->localseparator);
+                fullPath.appendWithSeparator(childRow.fsNode->localname, true);
             }
             else if (childRow.syncNode)
             {
-                fullPath.appendWithSeparator(childRow.syncNode->localname, true, client->fsaccess->localseparator);
+                fullPath.appendWithSeparator(childRow.syncNode->localname, true);
             }
             else if (childRow.cloudNode)
             {
-                fullPath.appendWithSeparator(LocalPath::fromName(childRow.cloudNode->displayname(), *client->fsaccess, mFilesystemType), true, client->fsaccess->localseparator);
+                fullPath.appendWithSeparator(LocalPath::fromName(childRow.cloudNode->displayname(), *client->fsaccess, mFilesystemType), true);
             }
 
-            if (!(!childRow.syncNode || childRow.syncNode->getLocalPath(true) == fullPath))
+            if (!(!childRow.syncNode || childRow.syncNode->getLocalPath() == fullPath))
             {
-                auto s = childRow.syncNode->getLocalPath(true);
-                assert(!childRow.syncNode || 0 == compareUtf(childRow.syncNode->getLocalPath(true), true, fullPath, true, false));
+                auto s = childRow.syncNode->getLocalPath();
+                assert(!childRow.syncNode || 0 == compareUtf(childRow.syncNode->getLocalPath(), true, fullPath, true, false));
             }
 
             if (!fsstableids && !row.syncNode->unstableFsidAssigned)
@@ -2506,7 +2504,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
                 {
 
 #ifdef DEBUG
-                    if (string(folderOfInterest) == fullPath.leafName(client->fsaccess->localseparator).toPath(*client->fsaccess))
+                    if (string(folderOfInterest) == fullPath.leafName().toPath(*client->fsaccess))
                     if (string(clientOfInterest) == client->clientname)
                     {
                         clientOfInterest[99] = 0;  // breakpoint opporunity here
@@ -2535,7 +2533,7 @@ bool Sync::recursiveSync(syncRow& row, LocalPath& fullPath, DBTableTransactionCo
 
 #ifdef DEBUG
                     if (string(clientOfInterest) == client->clientname &&
-                        string(folderOfInterest) == fullPath.leafName(client->fsaccess->localseparator).toPath(*client->fsaccess))
+                        string(folderOfInterest) == fullPath.leafName().toPath(*client->fsaccess))
                     {
                         clientOfInterest[99] = 0;  // breakpoint opporunity here
                     }
@@ -2625,7 +2623,7 @@ string Sync::logTriplet(syncRow& row, LocalPath& fullPath)
     ostringstream s;
     s << " triplet:" <<
         " " << (row.cloudNode ? row.cloudNode->displaypath() : "(null)") <<
-        " " << (row.syncNode ? row.syncNode->getLocalPath(true).toPath(*client->fsaccess) : "(null)") <<
+        " " << (row.syncNode ? row.syncNode->getLocalPath().toPath(*client->fsaccess) : "(null)") <<
         " " << (row.fsNode ? fullPath.toPath(*client->fsaccess) : "(null)");
     return s.str();
 }
@@ -3132,7 +3130,7 @@ bool Sync::resolve_downsync(syncRow& row, syncRow& parentRow, LocalPath& fullPat
             if (client->fsaccess->mkdirlocal(fullPath))
             {
                 assert(row.syncNode);
-                assert(row.syncNode->localname == fullPath.leafName(client->fsaccess->localseparator));
+                assert(row.syncNode->localname == fullPath.leafName());
 
                 // Update our records of what we know is on disk for this (parent) LocalNode.
                 // This allows the next level of folders to be created too
@@ -3324,7 +3322,7 @@ LocalNode* MegaClient::findLocalNodeByFsid(mega::handle fsid, nodetype_t type, c
         // todo: come back for other matches?
         if (!extraCheck || extraCheck(it->second))
         {
-            LOG_verbose << clientname << "findLocalNodeByFsid - found at: " << it->second->getLocalPath(true).toPath(*fsaccess);
+            LOG_verbose << clientname << "findLocalNodeByFsid - found at: " << it->second->getLocalPath().toPath(*fsaccess);
             return it->second;
         }
     }
@@ -3340,7 +3338,7 @@ LocalNode* MegaClient::findLocalNodeByNodeHandle(NodeHandle h)
     for (auto it = range.first; it != range.second; ++it)
     {
         // check the file/folder actually exists on disk for this LocalNode
-        LocalPath lp = it->second->getLocalPath(true);
+        LocalPath lp = it->second->getLocalPath();
 
         auto prevfa = fsaccess->newfileaccess(false);
         bool exists = prevfa->fopen(lp);

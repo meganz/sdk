@@ -89,8 +89,9 @@ struct MEGA_API PublicLink
     m_time_t cts;
     m_time_t ets;
     bool takendown;
+    string mAuthKey;
 
-    PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown);
+    PublicLink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const char *authKey = nullptr);
     PublicLink(PublicLink *plink);
 
     bool isExpired();
@@ -300,16 +301,13 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // handle of public link for the node
     PublicLink* plink = nullptr;
 
-    void setpubliclink(handle, m_time_t, m_time_t, bool);
+    void setpubliclink(handle, m_time_t, m_time_t, bool, const string &authKey = {});
 
     bool serialize(string*) override;
     static Node* unserialize(MegaClient*, const string*, node_vector*);
 
     Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
-
-    // Retrieve the node's canonical name.
-    string canonicalname() const;
 
     // Retrieve the node's name.
     string name() const;
@@ -579,8 +577,8 @@ public:
     localnode_set::iterator notseen_it{};
 
     // build full local path to this node
-    void getlocalpath(LocalPath&, bool sdisable = false) const;
-    LocalPath getLocalPath(bool sdisable = false) const;
+    void getlocalpath(LocalPath&) const;
+    LocalPath getLocalPath() const;
     string localnodedisplaypath(FileSystemAccess& fsa) const;
 
     // return child node by name

@@ -24,6 +24,7 @@
 
 
 #include "test.h"
+#include "stdfs.h"
 #include <mega.h>
 #include "gtest/gtest.h"
 #include <stdio.h>
@@ -42,25 +43,6 @@
 
 using namespace ::mega;
 using namespace ::std;
-
-#if (__cplusplus >= 201700L)
-    #include <filesystem>
-    namespace fs = std::filesystem;
-    #define USE_FILESYSTEM
-#elif (__clang_major__ >= 11)
-    #include <filesystem>
-    namespace fs = std::__fs::filesystem;
-    #define USE_FILESYSTEM
-#elif !defined(__MINGW32__) && !defined(__ANDROID__) && (!defined(__GNUC__) || (__GNUC__*100+__GNUC_MINOR__) >= 503)
-    #define USE_FILESYSTEM
-    #ifdef WIN32
-        #include <filesystem>
-        namespace fs = std::experimental::filesystem;
-    #else
-        #include <experimental/filesystem>
-        namespace fs = std::experimental::filesystem;
-    #endif
-#endif
 
 #ifdef WIN32
     #define LOCAL_TEST_FOLDER "c:\\tmp\\synctests"
@@ -830,19 +812,24 @@ struct StandardClient : public MegaApp
         : client_dbaccess_path(ensureDir(basepath / name))
         , httpio(new HTTPIO_CLASS)
         , fsaccess(new FSACCESS_CLASS)
-        , client(this, &waiter, httpio.get(), fsaccess.get(),
+        , client(this,
+                 &waiter,
+                 httpio.get(),
+                 fsaccess.get(),
 #ifdef DBACCESS_CLASS
-            new DBACCESS_CLASS(&client_dbaccess_path),
+                 new DBACCESS_CLASS(LocalPath::fromPath(client_dbaccess_path, *fsaccess)),
 #else
-            NULL,
+                 NULL,
 #endif
 #ifdef GFX_CLASS
-            &gfx,
+                 &gfx,
 #else
-            NULL,
+                 NULL,
 #endif
-            "N9tSBJDC", USER_AGENT.c_str(), THREADS_PER_MEGACLIENT )
-        , clientname(name + " ")
+                 "N9tSBJDC",
+                 USER_AGENT.c_str(),
+                 THREADS_PER_MEGACLIENT)
+        , clientname(name)
         , fsBasePath(basepath / fs::u8path(name))
         , resultproc(*this)
         , clientthread([this]() { threadloop(); })
@@ -1594,10 +1581,7 @@ struct StandardClient : public MegaApp
 
         if (depth)
         {
-            string mname = client.fsaccess->canonicalize(mn->name);
-            string rname = client.fsaccess->canonicalize(n->displayname());
-
-            if (mname != rname)
+            if (0 != compareUtf(mn->name, false, n->displayname(), false, false))
             {
                 out() << "Node name mismatch: " << mn->path() << " " << n->displaypath() << endl;
                 return false;
@@ -1620,13 +1604,11 @@ struct StandardClient : public MegaApp
         multimap<string, Node*> ns;
         for (auto& m : mn->kids)
         {
-            string name = client.fsaccess->canonicalize(m->name);
-            ms.emplace(std::move(name), m.get());
+            ms.emplace(m->name, m.get());
         }
         for (auto& n2 : n->children)
         {
-            string name = client.fsaccess->canonicalize(n2->displayname());
-            ns.emplace(std::move(name), n2);
+            ns.emplace(n2->displayname(), n2);
         }
 
         int matched = 0;
@@ -1691,8 +1673,7 @@ struct StandardClient : public MegaApp
 
         if (depth)
         {
-            string name = client.fsaccess->canonicalize(mn->name);
-            if (name != n->name)
+            if (0 != compareUtf(mn->name, false, n->name, false, false))
             {
                 out() << "LocalNode name mismatch: " << mn->path() << " " << n->name << endl;
                 return false;
@@ -1705,7 +1686,7 @@ struct StandardClient : public MegaApp
             return false;
         }
 
-        auto localpath = n->getLocalPath(false).toName(*client.fsaccess);
+        auto localpath = n->getLocalPath().toName(*client.fsaccess);
         string n_localname = n->localname.toName(*client.fsaccess);
         if (n_localname.size())
         {
@@ -1725,15 +1706,14 @@ struct StandardClient : public MegaApp
         Node* syncedNode = client.nodeByHandle(n->syncedCloudNodeHandle);
         if (depth && syncedNode)
         {
-            string name = client.fsaccess->canonicalize(syncedNode->displayname());
-            EXPECT_EQ(name, n->name);
+            EXPECT_TRUE(0 == compareUtf(syncedNode->displayname(), false, n->name, false, false)) << "Localnode's associated Node vs model node name mismatch: '" << syncedNode->displayname() << "', '" << n->name << "'";
         }
         if (depth && mn->parent)
         {
             EXPECT_EQ(mn->parent->type, Model::ModelNode::folder);
             EXPECT_EQ(n->parent->type, FOLDERNODE);
 
-            string parentpath = n->parent->getLocalPath(false).toName(*client.fsaccess);
+            string parentpath = n->parent->getLocalPath().toName(*client.fsaccess);
             EXPECT_EQ(localpath.substr(0, parentpath.size()), parentpath);
         }
         Node* parentSyncedNode = n->parent ? client.nodeByHandle(n->parent->syncedCloudNodeHandle) : nullptr;
@@ -1749,8 +1729,7 @@ struct StandardClient : public MegaApp
         multimap<string, LocalNode*> ns;
         for (auto& m : mn->kids)
         {
-            string name = client.fsaccess->canonicalize(m->name);
-            ms.emplace(std::move(name), m.get());
+            ms.emplace(m->name, m.get());
         }
         for (auto& n2 : n->children)
         {
@@ -1816,12 +1795,7 @@ struct StandardClient : public MegaApp
 
         if (depth)
         {
-            string lname = p.filename().u8string();
-            string mname = client.fsaccess->canonicalize(mn->name);
-
-            client.fsaccess->unescapefsincompatible(&lname);
-
-            if (lname != mname)
+            if (0 != compareUtf(p.filename().u8string(), true, mn->name, false, false))
             {
                 out() << "filesystem name mismatch: " << mn->path() << " " << p << endl;
                 return false;
@@ -1858,8 +1832,7 @@ struct StandardClient : public MegaApp
 
         for (auto& m : mn->kids)
         {
-            string name = client.fsaccess->canonicalize(m->name);
-            ms.emplace(std::move(name), m.get());
+            ms.emplace(m->name, m.get());
         }
 
         for (fs::directory_iterator pi(p); pi != fs::directory_iterator(); ++pi)
@@ -2131,11 +2104,11 @@ struct StandardClient : public MegaApp
         pb.set_value(false);
     }
 
-    void exportnode(Node* n, int del, m_time_t expiry, promise<Error>& pb)
+    void exportnode(Node* n, int del, m_time_t expiry, bool writable, promise<Error>& pb)
     {
         resultproc.prepresult(COMPLETION, ++next_request_tag,
             [&](){
-                error e = client.exportnode(n, del, expiry, client.reqtag, [&](Error e, handle, handle){ pb.set_value(e); });
+                error e = client.exportnode(n, del, expiry, writable, client.reqtag, [&](Error e, handle, handle){ pb.set_value(e); });
                 if (e)
                 {
                     pb.set_value(e);
@@ -2143,10 +2116,10 @@ struct StandardClient : public MegaApp
             }, nullptr);  // no need to match callbacks with requests when we use completion functions
     }
 
-    void getpubliclink(Node* n, int del, m_time_t expiry, promise<Error>& pb)
+    void getpubliclink(Node* n, int del, m_time_t expiry, bool writable, promise<Error>& pb)
     {
         resultproc.prepresult(COMPLETION, ++next_request_tag,
-            [&](){ client.getpubliclink(n, del, expiry, client.reqtag, [&](Error e, handle, handle){ pb.set_value(e); }); },
+            [&](){ client.getpubliclink(n, del, expiry, writable, client.reqtag, [&](Error e, handle, handle){ pb.set_value(e); }); },
             nullptr);
     }
 
@@ -3519,10 +3492,10 @@ GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
 
     // resume A1 session (with sync), see if A2 nodes and localnodes get in sync again
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
-    ASSERT_TRUE(pclientA1->login_fetchnodes(string((char*)session, sessionsize), sync1path.u8string()));
+    ASSERT_TRUE(pclientA1->login_fetchnodes(string((char*)session, sessionsize)));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
     waitonsyncs([&pclientA1](int64_t millisecNoActivity, int64_t millisecNoSyncing){
-            map<string, SyncWaitReason> stalledNodePaths; 
+            map<string, SyncWaitReason> stalledNodePaths;
             map<LocalPath, SyncWaitReason> stalledLocalPaths;
             std::lock_guard<std::recursive_mutex> lg(pclientA1->clientMutex);
             return millisecNoActivity > 3000 && pclientA1->client.syncStallDetected(stalledNodePaths, stalledLocalPaths);
@@ -3831,24 +3804,24 @@ GTEST_TEST(SdkCore, ExerciseCommands)
 
     // try to get a link on an existing unshared folder
     promise<Error> pe1, pe1a, pe2, pe3, pe4;
-    standardclient.getpubliclink(n2, 0, 0, pe1);
+    standardclient.getpubliclink(n2, 0, 0, false, pe1);
     ASSERT_EQ(API_EACCESS, pe1.get_future().get());
 
     // create on existing node
-    standardclient.exportnode(n2, 0, 0, pe1a);
+    standardclient.exportnode(n2, 0, 0, false, pe1a);
     ASSERT_EQ(API_OK, pe1a.get_future().get());
 
     // get link on existing shared folder node, with link already  (different command response)
-    standardclient.getpubliclink(n2, 0, 0, pe2);
+    standardclient.getpubliclink(n2, 0, 0, false, pe2);
     ASSERT_EQ(API_OK, pe2.get_future().get());
 
     // delete existing link on node
-    standardclient.getpubliclink(n2, 1, 0, pe3);
+    standardclient.getpubliclink(n2, 1, 0, false, pe3);
     ASSERT_EQ(API_OK, pe3.get_future().get());
 
     // create on non existent node
     n2->nodehandle = UNDEF;
-    standardclient.getpubliclink(n2, 0, 0, pe4);
+    standardclient.getpubliclink(n2, 0, 0, false, pe4);
     ASSERT_EQ(API_EACCESS, pe4.get_future().get());
 }
 
@@ -4097,7 +4070,7 @@ TEST(Sync, DetectsAndReportsNameClashes)
     list<NameConflict> conflicts;
     ASSERT_TRUE(client.conflictsDetected(conflicts));
     ASSERT_EQ(conflicts.size(), 2u);
-    ASSERT_EQ(conflicts.back().localPath, LocalPath::fromPath("d", *client.fsaccess).prependNewWithSeparator(client.syncByTag(0)->localroot->localname, client.fsaccess->localseparator));
+    ASSERT_EQ(conflicts.back().localPath, LocalPath::fromPath("d", *client.fsaccess).prependNewWithSeparator(client.syncByTag(0)->localroot->localname));
     ASSERT_EQ(conflicts.back().clashingLocalNames.size(), 2u);
     ASSERT_EQ(conflicts.back().clashingLocalNames[0], LocalPath::fromPath("f%30", *client.fsaccess));
     ASSERT_EQ(conflicts.back().clashingLocalNames[1], LocalPath::fromPath("f0", *client.fsaccess));
@@ -4117,8 +4090,8 @@ TEST(Sync, DetectsAndReportsNameClashes)
     ASSERT_TRUE(client.conflictsDetected(conflicts));
     ASSERT_GE(conflicts.size(), 1u);
     ASSERT_EQ(conflicts.front().localPath, LocalPath::fromPath("e", *client.fsaccess)
-        .prependNewWithSeparator(LocalPath::fromPath("d", *client.fsaccess), client.fsaccess->localseparator)
-        .prependNewWithSeparator(client.syncByTag(0)->localroot->localname, client.fsaccess->localseparator));
+        .prependNewWithSeparator(LocalPath::fromPath("d", *client.fsaccess))
+        .prependNewWithSeparator(client.syncByTag(0)->localroot->localname));
     ASSERT_EQ(conflicts.front().clashingLocalNames.size(), 2u);
     ASSERT_EQ(conflicts.front().clashingLocalNames[0], LocalPath::fromPath("g%30", *client.fsaccess));
     ASSERT_EQ(conflicts.front().clashingLocalNames[1], LocalPath::fromPath("g0", *client.fsaccess));

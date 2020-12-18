@@ -746,6 +746,28 @@ TEST(Serialization, Node_forFile_withoutShares)
     checkDeserializedNode(*dn, *n);
 }
 
+TEST(Serialization, Node_forFile_withoutShares_withAuthKey)
+{
+    MockClient client;
+    auto& parent = mt::makeNode(*client.cli, mega::FOLDERNODE, 43);
+    std::unique_ptr<mega::Node> n{&mt::makeNode(*client.cli, mega::FILENODE, 42, &parent)};
+    n->size = 12;
+    n->owner = 88;
+    n->ctime = 44;
+    n->attrs.map = {
+        {101, "foo"},
+        {102, "bar"},
+    };
+    n->fileattrstring = "blah";
+    n->plink = new mega::PublicLink{n->nodehandle, 1, 2, false, "someAuthKey"};
+    std::string data;
+    ASSERT_TRUE(n->serialize(&data));
+    ASSERT_EQ(142u, data.size());
+    mega::node_vector dp;
+    auto dn = mega::Node::unserialize(client.cli.get(), &data, &dp);
+    checkDeserializedNode(*dn, *n);
+}
+
 TEST(Serialization, Node_forFile_withoutShares_32bit)
 {
     MockClient client;

@@ -49,6 +49,8 @@
 #import <set>
 #import <pthread.h>
 
+NSString * const MEGAIsBeingLogoutNotification = @"nz.mega.isBeingLogout";
+
 using namespace mega;
 
 @interface MEGASdk () {
@@ -83,6 +85,11 @@ using namespace mega;
     
     delete [] val;
     return ret;
+}
+
+- (NSDate *)accountCreationDate {
+    NSTimeInterval accountCreationTs = self.megaApi->getAccountCreationTs();
+    return accountCreationTs ?  [NSDate dateWithTimeIntervalSince1970:accountCreationTs] : nil;
 }
 
 - (MEGANode *)rootNode {
@@ -582,10 +589,12 @@ using namespace mega;
 }
 
 - (void)logoutWithDelegate:(id<MEGARequestDelegate>)delegate {
+    [NSNotificationCenter.defaultCenter postNotificationName:MEGAIsBeingLogoutNotification object:nil];
     self.megaApi->logout([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)logout {
+    [NSNotificationCenter.defaultCenter postNotificationName:MEGAIsBeingLogoutNotification object:nil];
     self.megaApi->logout();
 }
 
@@ -2136,6 +2145,7 @@ using namespace mega;
     
     return [MEGANodeList.alloc initWithNodeList:self.megaApi->searchByType(node ? [node getCPtr] : NULL, searchString.UTF8String, cancelToken ? [cancelToken getCPtr] : NULL, recursive, (int)orderType, (int)nodeFormatType, (int)folderTargetType) cMemoryOwn:YES];
 }
+
 - (NSMutableArray *)recentActions {
     MegaRecentActionBucketList *megaRecentActionBucketList = self.megaApi->getRecentActions();
     int count = megaRecentActionBucketList->size();
@@ -2144,6 +2154,8 @@ using namespace mega;
         MEGARecentActionBucket *recentActionBucket = [MEGARecentActionBucket.alloc initWithMegaRecentActionBucket:megaRecentActionBucketList->get(i)->copy() cMemoryOwn:YES];
         [recentActionBucketMutableArray addObject:recentActionBucket];
     }
+    
+    delete megaRecentActionBucketList;
     
     return recentActionBucketMutableArray;
 }
@@ -2517,6 +2529,34 @@ using namespace mega;
 
 - (void)setPushNotificationSettings:(MEGAPushNotificationSettings *)pushNotificationSettings {
     self.megaApi->setPushNotificationSettings(pushNotificationSettings.getCPtr);
+}
+
+#pragma mark - Banner
+
+- (void)getBanners:(id<MEGARequestDelegate>)delegate {
+    self.megaApi -> getBanners([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)dismissBanner:(NSInteger)bannerIdentifier delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi -> dismissBanner((int)bannerIdentifier, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+#pragma mark - Backup Heartbeat
+
+- (void)registerBackup:(BackUpType)type targetNode:(MEGANode *)node folderPath:(NSString *)path name:(NSString *)name state:(BackUpState)state delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setBackup((int)type, node.handle, path.UTF8String, name.UTF8String, (int)state, 0, NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(NSString *)path state:(BackUpState)state delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->updateBackup(backupId, (int)type, node.handle, path.UTF8String, (int)state, 0, NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)unregisterBackup:(MEGAHandle)backupId delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->removeBackup(backupId, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)sendBackupHeartbeat:(MEGAHandle)backupId status:(BackupHeartbeatStatus)status progress:(NSInteger)progress pendingUploadCount:(NSUInteger)pendingUploadCount lastActionDate:(NSDate *)lastActionDate lastBackupNode:(MEGANode *)lastBackupNode delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->sendBackupHeartbeat(backupId, (int)status, (int)progress, (int)pendingUploadCount, 0, (long long)[lastActionDate timeIntervalSince1970], lastBackupNode.handle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 #pragma mark - Debug
