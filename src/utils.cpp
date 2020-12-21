@@ -2261,8 +2261,8 @@ SyncConfig::SyncConfig(int tag,
     , mSyncDeletions{syncDeletions}
     , mForceOverwrite{forceOverwrite}
     , mError{error}
-    , mWarning{warning}
     , mBackupId(hearBeatID)
+    , mWarning{warning}
 {}
 
 
