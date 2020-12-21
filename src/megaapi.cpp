@@ -1658,6 +1658,8 @@ void MegaGlobalListener::onReloadNeeded(MegaApi *)
 { }
 void MegaGlobalListener::onEvent(MegaApi *api, MegaEvent *event)
 { }
+void MegaGlobalListener::onDrivePresenceChanged(MegaApi* api, bool present, const char* rootPathInUtf8)
+{ }
 MegaGlobalListener::~MegaGlobalListener()
 { }
 
@@ -5406,6 +5408,16 @@ void MegaApi::fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle pu
 void MegaApi::queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaRequestListener *listener)
 {
     pImpl->queryGoogleAds(adFlags, publicHandle, listener);
+}
+
+bool MegaApi::startDriveMonitor()
+{
+    return pImpl->startDriveMonitor();
+}
+
+void MegaApi::stopDriveMonitor()
+{
+    pImpl->stopDriveMonitor();
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)

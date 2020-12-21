@@ -3133,6 +3133,14 @@ void MegaClient::exec()
         LOG_info << performanceStats.report(false, httpio, waiter, reqs);
     }
 #endif
+
+#ifdef USE_DRIVE_NOTIFICATIONS
+    // check for Drive [dis]connects
+    for (auto di = mDriveInfoCollector.get(); !di.first.empty(); di = mDriveInfoCollector.get())
+    {
+        app->drive_presence_changed(di.second, LocalPath::fromPlatformEncoded(move(di.first)));
+    }
+#endif
 }
 
 // get next event time from all subsystems, then invoke the waiter if needed

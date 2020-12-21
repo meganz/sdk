@@ -38,6 +38,7 @@
 #include "mediafileattribute.h"
 #include "useralerts.h"
 #include "user.h"
+#include "driveinfocollector.h"
 
 namespace mega {
 
@@ -951,7 +952,20 @@ public:
     // if logged into writable folder
     bool loggedIntoWritableFolder() const;
 
+#ifdef USE_DRIVE_NOTIFICATIONS
+    bool startDriveMonitor()
+    {
+        auto notify = std::bind(&Waiter::notify, waiter);
+        return mDriveInfoCollector.start(notify);
+    }
+
+    void stopDriveMonitor() { mDriveInfoCollector.stop(); }
+#endif
+
 private:
+#ifdef USE_DRIVE_NOTIFICATIONS
+    DriveInfoCollector mDriveInfoCollector;
+#endif
     BackoffTimer btcs;
     BackoffTimer btbadhost;
     BackoffTimer btworkinglock;

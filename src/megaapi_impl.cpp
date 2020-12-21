@@ -23385,6 +23385,32 @@ void MegaApiImpl::queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaReque
     waiter->notify();
 }
 
+#ifdef USE_DRIVE_NOTIFICATIONS
+void MegaApiImpl::drive_presence_changed(bool appeared, const LocalPath& driveRoot)
+{
+    for (auto it = globalListeners.begin(); it != globalListeners.end(); ++it)
+    {
+        (*it)->onDrivePresenceChanged(api, appeared, driveRoot.platformEncoded().c_str());
+    }
+}
+#endif
+
+bool MegaApp::startDriveMonitor()
+{
+#ifdef USE_DRIVE_NOTIFICATIONS
+    return client->startDriveMonitor();
+#else
+    return false;
+#endif
+}
+
+void MegaApp::stopDriveMonitor()
+{
+#ifdef USE_DRIVE_NOTIFICATIONS
+    client->stopDriveMonitor();
+#endif
+}
+
 void TreeProcCopy::allocnodes()
 {
     nn.resize(nc);

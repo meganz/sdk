@@ -271,6 +271,11 @@ struct DemoApp : public MegaApp
     void notify_retry(dstime, retryreason_t) override;
 
     string getExtraInfoErrorString(const Error&);
+
+protected:
+#ifdef USE_DRIVE_NOTIFICATIONS
+    void drive_presence_changed(bool appeared, const LocalPath& driveRoot) override;
+#endif // USE_DRIVE_NOTIFICATIONS
 };
 
 struct DemoAppFolder : public DemoApp
