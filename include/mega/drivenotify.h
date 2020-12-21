@@ -21,7 +21,7 @@
 
 #pragma once
 
-#ifdef HAVE_DRIVE_NOTIFY
+#ifdef USE_DRIVE_NOTIFICATIONS
 
 #include <functional>
 #include <string>
@@ -82,4 +82,4 @@ namespace mega {
 }
 #endif
 
-#endif // HAVE_DRIVE_NOTIFY
+#endif // USE_DRIVE_NOTIFICATIONS

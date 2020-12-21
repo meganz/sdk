@@ -19,7 +19,7 @@
  * program.
  */
 
-#ifdef HAVE_DRIVE_NOTIFY
+#ifdef USE_DRIVE_NOTIFICATIONS
 
 
 #include <combaseapi.h>
@@ -476,4 +476,4 @@ namespace mega {
 
 } // namespace
 
-#endif // HAVE_DRIVE_NOTIFY
+#endif // USE_DRIVE_NOTIFICATIONS

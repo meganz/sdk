@@ -21,7 +21,7 @@
 
 #pragma once
 
-#ifdef HAVE_DRIVE_NOTIFY
+#ifdef USE_DRIVE_NOTIFICATIONS
 
 // Include "mega/drivenotify.h" where needed.
 // This header cannot be used by itself.
@@ -87,4 +87,4 @@ namespace mega {
 
 } // namespace
 
-#endif // HAVE_DRIVE_NOTIFY
+#endif // USE_DRIVE_NOTIFICATIONS

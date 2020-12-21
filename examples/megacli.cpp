@@ -6658,7 +6658,7 @@ void exec_enabletransferresumption(autocomplete::ACState& s)
 
 void exec_notifydrive(autocomplete::ACState& s)
 {
-#ifndef HAVE_DRIVE_NOTIFY
+#ifndef USE_DRIVE_NOTIFICATIONS
     std::cout << "Failed! This functionality was disabled at compile time." << std::endl;
 #else
 
