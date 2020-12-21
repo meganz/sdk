@@ -1547,7 +1547,7 @@ public:
 
     bool requestLock;
     dstime disconnecttimestamp;
-    dstime lastDispatchTransfersDs = 0;
+    dstime nextDispatchTransfersDs = 0;
 
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t, vector<NewNode>*, int, bool applykeys);
