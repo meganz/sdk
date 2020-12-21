@@ -51,7 +51,8 @@ namespace mega {
     void DriveInfoCollector::stop()
     {
         mNotifier.stop();
-        mInfoQueue.swap(decltype(mInfoQueue)()); // clear the container
+        decltype(mInfoQueue) temp;
+        mInfoQueue.swap(temp); // clear the container
     }
 
 
