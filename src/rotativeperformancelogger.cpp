@@ -301,7 +301,7 @@ private:
     {
         logArchiveTimestamp_walkArchivedFiles(
                     logsPath, fileName,
-                    [this](const LocalPath& logsPath,const LocalPath& leafNamePath)
+                    [this](const LocalPath& logsPath, const LocalPath& leafNamePath)
         {
             LocalPath leafNameFullPath = logsPath;
             leafNameFullPath.appendWithSeparator(leafNamePath, false);
