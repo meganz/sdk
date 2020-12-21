@@ -448,8 +448,8 @@ void SyncApp::fetchnodes_result(const Error &e)
 
                 SyncConfig syncConfig{syncTag++, local_folder, local_folder, n->nodehandle, remote_folder, 0};
 #ifdef ENABLE_SYNC
-                UnifiedSync* unifiedSync;
-                error err = client->addsync(syncConfig, DEBRISFOLDER, NULL, false, unifiedSync);
+                SyncManager* syncManager;
+                error err = client->addsync(syncConfig, DEBRISFOLDER, NULL, false, syncManager);
                 if (err)
                 {
                     LOG_err << "Sync could not be added! " << err << " syncError = " << syncConfig.getError();

@@ -1413,7 +1413,7 @@ MegaSync *MegaApiImpl::getSyncByTag(int tag)
     SdkMutexGuard g(sdkMutex);
 
     unique_ptr<MegaSync> ret;
-    client->syncs.forEachUnifiedSync([&](UnifiedSync& s){
+    client->syncs.forEachSyncManager([&](SyncManager& s){
         if (s.mConfig.getTag() == tag)
         {
             ret.reset(new MegaSyncPrivate(s.mConfig, s.mSync.get()));
@@ -1434,7 +1434,7 @@ MegaSync *MegaApiImpl::getSyncByNode(MegaNode *node)
     MegaHandle nodeHandle = node->getHandle();
 
     unique_ptr<MegaSync> ret;
-    client->syncs.forEachUnifiedSync([&](UnifiedSync& s) {
+    client->syncs.forEachSyncManager([&](SyncManager& s) {
         if (s.mConfig.getRemoteNode() == nodeHandle)
         {
             ret.reset(new MegaSyncPrivate(s.mConfig, s.mSync.get()));
@@ -1454,7 +1454,7 @@ MegaSync *MegaApiImpl::getSyncByPath(const char *localPath)
     SdkMutexGuard g(sdkMutex);
 
     unique_ptr<MegaSync> ret;
-    client->syncs.forEachUnifiedSync([&](UnifiedSync& s) {
+    client->syncs.forEachSyncManager([&](SyncManager& s) {
         if (s.mConfig.getLocalPath() == localPath)
         {
             ret.reset(new MegaSyncPrivate(s.mConfig, s.mSync.get()));
@@ -8741,7 +8741,7 @@ MegaSyncList *MegaApiImpl::getSyncs()
     SdkMutexGuard g(sdkMutex);
     vector<MegaSyncPrivate*> vMegaSyncs;
 
-    client->syncs.forEachUnifiedSync([&](UnifiedSync& s) {
+    client->syncs.forEachSyncManager([&](SyncManager& s) {
         vMegaSyncs.push_back(new MegaSyncPrivate(s.mConfig, s.mSync.get()));
     });
 
@@ -8861,7 +8861,7 @@ void MegaApiImpl::setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regE
     }
 
     SdkMutexGuard g(sdkMutex);
-    client->syncs.forEachUnifiedSync([&](UnifiedSync& s) {
+    client->syncs.forEachSyncManager([&](SyncManager& s) {
         if (s.mConfig.getTag() == sync->getTag())
         {
             s.mConfig.setRegExps(regExpToVector(regExp));
@@ -13073,7 +13073,7 @@ MegaSyncPrivate* MegaApiImpl::cachedMegaSyncPrivateByTag(int tag)
     mCachedMegaSyncPrivate.reset();
     mCachedMegaSyncPrivateTag = 0;
 
-    client->syncs.forEachUnifiedSync([&](UnifiedSync& s) {
+    client->syncs.forEachSyncManager([&](SyncManager& s) {
         if (s.mConfig.getTag() == tag)
         {
             mCachedMegaSyncPrivate.reset(new MegaSyncPrivate(s.mConfig, s.mSync.get()));
@@ -13372,7 +13372,7 @@ void MegaApiImpl::sync_removed(int tag)
     }
 }
 
-void MegaApiImpl::sync_auto_resume_result(const UnifiedSync& s, bool attempted)
+void MegaApiImpl::sync_auto_resume_result(const SyncManager& s, bool attempted)
 {
     mCachedMegaSyncPrivate.reset();
 
@@ -21414,14 +21414,14 @@ void MegaApiImpl::sendPendingRequests()
             SyncConfig syncConfig{nextSyncTag, localPath, name, request->getNodeHandle(), remotePath.get(),
                                   0, regExpToVector(request->getRegExp())};
 
-            UnifiedSync* unifiedSync = nullptr;
-            e = client->addsync(syncConfig, DEBRISFOLDER, NULL, true, unifiedSync);
+            SyncManager* syncManager = nullptr;
+            e = client->addsync(syncConfig, DEBRISFOLDER, NULL, true, syncManager);
             request->setNumDetails(syncConfig.getError());
-            if (unifiedSync)
+            if (syncManager)
             {
-                if (!e && unifiedSync && unifiedSync->mSync)
+                if (!e && syncManager && syncManager->mSync)
                 {
-                    fsfp_t fsfp = unifiedSync->mSync->fsfp;
+                    fsfp_t fsfp = syncManager->mSync->fsfp;
                     sync->setLocalFingerprint(fsfp);
                     request->setNumber(fsfp);
                 }
@@ -21438,7 +21438,7 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_ENABLE_SYNC:
         {
             auto tag = request->getNumDetails();
-            UnifiedSync* sync = nullptr;
+            SyncManager* sync = nullptr;
 
             e = client->syncs.enableSyncByTag(tag, true, sync);
 

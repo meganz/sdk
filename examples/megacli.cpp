@@ -487,7 +487,7 @@ void DemoApp::syncupdate_active(int tag, bool active)
     cout << "Sync is now active: " << active << endl;
 }
 
-void DemoApp::sync_auto_resume_result(const UnifiedSync& s, bool attempted)
+void DemoApp::sync_auto_resume_result(const SyncManager& s, bool attempted)
 {
     if (attempted)
     {
@@ -4376,8 +4376,8 @@ void exec_sync(autocomplete::ACState& s)
                 static int syncTag = 2027;
                 SyncConfig syncConfig{syncTag++, s.words[1].s, s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.getType(),
                             newSyncConfig.syncDeletions(), newSyncConfig.forceOverwrite()};
-                UnifiedSync* unifiedSync;
-                error e = client->addsync(syncConfig, DEBRISFOLDER, NULL, false, unifiedSync);
+                SyncManager* syncManager;
+                error e = client->addsync(syncConfig, DEBRISFOLDER, NULL, false, syncManager);
 
                 if (e)
                 {
@@ -4411,7 +4411,7 @@ void exec_sync(autocomplete::ACState& s)
     {
         int i = 0;
 
-        client->syncs.forEachUnifiedSync([&](UnifiedSync& us){
+        client->syncs.forEachSyncManager([&](SyncManager& us){
 
             static const char* syncstatenames[] =
             { "disabled", "failed", "cancelled", "Initial scan, please wait", "Active", "Failed" };

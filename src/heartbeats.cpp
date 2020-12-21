@@ -135,7 +135,7 @@ HeartBeatSyncInfo::HeartBeatSyncInfo()
     mStatus = HeartBeatSyncInfo::Status::UNKNOWN;
 }
 
-void HeartBeatSyncInfo::updateStatus(UnifiedSync& us)
+void HeartBeatSyncInfo::updateStatus(SyncManager& us)
 {
     HeartBeatSyncInfo::Status status = HeartBeatSyncInfo::Status::INACTIVE;
 
@@ -213,7 +213,7 @@ string MegaBackupInfo::extra() const
 }
 
 #ifdef ENABLE_SYNC
-MegaBackupInfoSync::MegaBackupInfoSync(UnifiedSync& us)
+MegaBackupInfoSync::MegaBackupInfoSync(SyncManager& us)
     : MegaBackupInfo(getSyncType(us.mConfig),
                      us.mConfig.getName(),
                      us.mConfig.getLocalPath(),
@@ -245,7 +245,7 @@ int MegaBackupInfoSync::calculatePauseActiveState(MegaClient *client)
 }
 
 
-int MegaBackupInfoSync::getSyncState(UnifiedSync& us)
+int MegaBackupInfoSync::getSyncState(SyncManager& us)
 {
     SyncError error = us.mConfig.getError();
     syncstate_t state = us.mSync ? us.mSync->state : SYNC_FAILED;
@@ -283,12 +283,12 @@ BackupType MegaBackupInfoSync::getSyncType(const SyncConfig& config)
     }
 }
 
-int MegaBackupInfoSync::getSyncSubstatus(UnifiedSync& us)
+int MegaBackupInfoSync::getSyncSubstatus(SyncManager& us)
 {
     return us.mConfig.getError();
 }
 
-string MegaBackupInfoSync::getSyncExtraData(UnifiedSync&)
+string MegaBackupInfoSync::getSyncExtraData(SyncManager&)
 {
     return string();
 }
@@ -300,10 +300,10 @@ MegaBackupMonitor::MegaBackupMonitor(MegaClient *client)
 {
 }
 
-void MegaBackupMonitor::digestPutResult(handle backupId, UnifiedSync* syncPtr)
+void MegaBackupMonitor::digestPutResult(handle backupId, SyncManager* syncPtr)
 {
 #ifdef ENABLE_SYNC
-    mClient->syncs.forEachUnifiedSync([&](UnifiedSync& us){
+    mClient->syncs.forEachSyncManager([&](SyncManager& us){
         if (&us == syncPtr)
         {
             us.mConfig.setBackupId(backupId);
@@ -332,7 +332,7 @@ void MegaBackupMonitor::updateBackupInfo(handle backupId, const MegaBackupInfo &
 
 #ifdef ENABLE_SYNC
 
-void MegaBackupMonitor::registerBackupInfo(const MegaBackupInfo &info, UnifiedSync* syncPtr)
+void MegaBackupMonitor::registerBackupInfo(const MegaBackupInfo &info, SyncManager* syncPtr)
 {
     string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", info.localFolder()) );
     string deviceIdHash = mClient->getDeviceidHash();
@@ -345,7 +345,7 @@ void MegaBackupMonitor::registerBackupInfo(const MegaBackupInfo &info, UnifiedSy
 }
 
 
-void MegaBackupMonitor::updateOrRegisterSync(UnifiedSync& us)
+void MegaBackupMonitor::updateOrRegisterSync(SyncManager& us)
 {
     MegaBackupInfoSync currentInfo(us);
 
@@ -374,17 +374,17 @@ bool  MegaBackupInfoSync::operator==(const MegaBackupInfoSync& o) const
 
 void MegaBackupMonitor::onSyncConfigChanged()
 {
-    mClient->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
+    mClient->syncs.forEachSyncManager([&](SyncManager& us) {
         updateOrRegisterSync(us);
     });
 }
 
-void MegaBackupMonitor::calculateStatus(HeartBeatBackupInfo *hbs, UnifiedSync& us)
+void MegaBackupMonitor::calculateStatus(HeartBeatBackupInfo *hbs, SyncManager& us)
 {
    hbs->updateStatus(us);
 }
 
-void MegaBackupMonitor::beatBackupInfo(UnifiedSync& us)
+void MegaBackupMonitor::beatBackupInfo(SyncManager& us)
 {
     // send registration or update in case we missed it
     updateOrRegisterSync(us);
@@ -431,7 +431,7 @@ void MegaBackupMonitor::beatBackupInfo(UnifiedSync& us)
 void MegaBackupMonitor::beat()
 {
 #ifdef ENABLE_SYNC
-    mClient->syncs.forEachUnifiedSync([&](UnifiedSync& us){
+    mClient->syncs.forEachSyncManager([&](SyncManager& us){
         beatBackupInfo(us);
     });
 #endif
