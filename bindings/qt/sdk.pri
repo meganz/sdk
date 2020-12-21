@@ -96,6 +96,10 @@ CONFIG(USE_AUTOCOMPLETE) {
     HEADERS += include/mega/autocomplete.h
 }
 
+CONFIG(USE_POLL) {
+    DEFINES += USE_POLL
+}
+
 CONFIG(USE_CONSOLE) {
     win32 {
 
