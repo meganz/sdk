@@ -20,7 +20,6 @@
  */
 
 #include "mega.h"
-#include "mega/drivenotify.h"
 #include "megacli.h"
 #include <fstream>
 
@@ -3165,7 +3164,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_metamac, sequence(text("metamac"), localFSPath(), remoteFSPath(client, &cwd)));
     p->Add(exec_banner, sequence(text("banner"), either(text("get"), sequence(text("dismiss"), param("id")))));
 
-    p->Add(exec_notifydrive, sequence(text("notifydrive"), opt(wholenumber(60))));
+    p->Add(exec_drivenotificationson, sequence(text("drivenotificationson")));
+    p->Add(exec_drivenotificationsoff, sequence(text("drivenotificationsoff")));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -6656,71 +6656,35 @@ void exec_enabletransferresumption(autocomplete::ACState& s)
 }
 
 
-#ifdef USE_DRIVE_NOTIFICATIONS
-static std::atomic_int externalDriveEventCount{ 0 };
-#endif
-
-void exec_notifydrive(autocomplete::ACState& s)
+void exec_drivenotificationson(autocomplete::ACState&)
 {
-#ifndef USE_DRIVE_NOTIFICATIONS
-    std::cout << "Failed! This functionality was disabled at compile time." << std::endl;
-#else
-
-    int timeout = 30; // seconds
-
-    // notifydrive [N]
-    if (s.words.size() == 2)
-    {
-        int t = 0;
-        try
-        {
-            t = stoi(s.words[1].s);
-        }
-        catch (...) {}
-
-        if (t)
-        {
-            timeout = t;
-        }
-    }
-
-    // Inform about what will happen
-    cout << "Waiting for 2 external drive events, for about " << timeout << " seconds..." << endl;
-
-    externalDriveEventCount = 0;
-
+#ifdef USE_DRIVE_NOTIFICATIONS
     // start receiving notifications
     if (!client->app->startDriveMonitor())
     {
         // return immediately, when this functionality was not implemented
         std::cout << "Failed starting drive notifications" << std::endl;
-        return;
     }
-
-    // check for notifications until timeout
-    for (int i = 0; i < timeout; ++i)
-    {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-
-        if (externalDriveEventCount >= 2)  break;
-    }
-
-    client->app->stopDriveMonitor();
-
-    if (externalDriveEventCount < 2)  std::cout << "Timeout." << std::endl;
-
+#else
+    std::cout << "Failed! This functionality was disabled at compile time." << std::endl;
 #endif // USE_DRIVE_NOTIFICATIONS
 }
-
 
 #ifdef USE_DRIVE_NOTIFICATIONS
 void DemoApp::drive_presence_changed(bool appeared, const LocalPath& driveRoot)
 {
     std::cout << "Drive " << (appeared ? "connected" : "disconnected") << ": " << driveRoot.platformEncoded() << endl;
-
-    ++externalDriveEventCount;
 }
 #endif // USE_DRIVE_NOTIFICATIONS
+
+void exec_drivenotificationsoff(autocomplete::ACState&)
+{
+#ifdef USE_DRIVE_NOTIFICATIONS
+    client->app->stopDriveMonitor();
+#else
+    std::cout << "Failed! This functionality was disabled at compile time." << std::endl;
+#endif // USE_DRIVE_NOTIFICATIONS
+}
 
 
 // callback for non-EAGAIN request-level errors
