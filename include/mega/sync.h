@@ -30,8 +30,8 @@
 namespace mega {
 
 class HeartBeatSyncInfo;
-class MegaBackupInfoSync;
-class MegaBackupMonitor;
+class BackupInfoSync;
+class BackupMonitor;
 class MegaClient;
 
 // Searching from the back, this function compares path1 and path2 character by character and
@@ -88,7 +88,7 @@ struct SyncManager
     unique_ptr<Sync> mSync;
 
     // High level info about this sync, sent to backup centre
-    std::unique_ptr<MegaBackupInfoSync> mBackupInfo;
+    std::unique_ptr<BackupInfoSync> mBackupInfo;
 
     // The next detail heartbeat to send to the backup centre
     std::shared_ptr<HeartBeatSyncInfo> mNextHeartbeat;
@@ -286,7 +286,7 @@ struct Syncs
     // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
     bool isEmpty = true;
 
-    unique_ptr<MegaBackupMonitor> mHeartBeatMonitor;
+    unique_ptr<BackupMonitor> mHeartBeatMonitor;
 
     // use this existing class for maintaining the db
     unique_ptr<SyncConfigBag> mSyncConfigDb;

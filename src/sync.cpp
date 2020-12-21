@@ -2154,7 +2154,7 @@ void SyncManager::changedConfigState(bool fireDisableEvent)
 Syncs::Syncs(MegaClient& mc)
     : mClient(mc)
 {
-    mHeartBeatMonitor.reset(new MegaBackupMonitor(&mClient));
+    mHeartBeatMonitor.reset(new BackupMonitor(&mClient));
 }
 
 void Syncs::clear()
