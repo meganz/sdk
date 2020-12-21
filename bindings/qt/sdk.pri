@@ -297,7 +297,14 @@ CONFIG(USE_FFMPEG) {
 
     unix:!macx {
     
-        vcpkg:LIBS += -lavformat -lavcodec -lavutil -lswscale -lswresample
+        vcpkg {
+            LIBS += -lavformat -lavcodec -lavutil -lswscale
+            # On Linux, vcpkg provides libavresample instead of libswresample
+            unix:!macx : LIBS += -lavresample
+            else {
+                LIBS += -lswresample
+            }
+        }
         else {
             exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg):exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libavcodec.a) {
             DEFINES += HAVE_FFMPEG
