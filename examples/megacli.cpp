@@ -4411,12 +4411,12 @@ void exec_sync(autocomplete::ACState& s)
     {
         int i = 0;
 
-        client->syncs.forEachSyncManager([&](SyncManager& us){
+        client->syncs.forEachSyncManager([&](SyncManager& sm){
 
             static const char* syncstatenames[] =
             { "disabled", "failed", "cancelled", "Initial scan, please wait", "Active", "Failed" };
 
-            if (Sync* sync = us.mSync.get())
+            if (Sync* sync = sm.mSync.get())
             {
                 if (sync->localroot->node)
                 {
@@ -4433,8 +4433,8 @@ void exec_sync(autocomplete::ACState& s)
             else
             {
                 string remotepath, localpath;
-                nodepath(us.mConfig.getRemoteNode(), &remotepath);
-                localpath = us.mConfig.getLocalPath();
+                nodepath(sm.mConfig.getRemoteNode(), &remotepath);
+                localpath = sm.mConfig.getLocalPath();
 
                 cout << i << " (" << syncConfigToString(sync->getConfig()) << "): " << localpath << " to " << remotepath << " - "
                     << syncstatenames[sync->state + 3] << ", " << sync->localbytes

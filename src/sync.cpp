@@ -638,10 +638,10 @@ std::vector<SyncConfig> SyncConfigBag::all() const
 
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
-Sync::Sync(SyncManager& us, const char* cdebris,
+Sync::Sync(SyncManager& sm, const char* cdebris,
            LocalPath* clocaldebris, Node* remotenode, bool cinshare, int ctag)
 : localroot(new LocalNode)
-, mSyncManager(us)
+, mSyncManager(sm)
 {
     isnetwork = false;
     client = &mSyncManager.mClient;

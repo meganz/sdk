@@ -62,7 +62,7 @@ public:
     virtual void setProgress(const double &progress);
     virtual void setLastSyncedItem(const handle &lastItemUpdated);
 
-    virtual void updateStatus(SyncManager& us) {}
+    virtual void updateStatus(SyncManager& sm) {}
 
     bool mModified = false;
     bool mSending = false;
@@ -119,7 +119,7 @@ public:
     HeartBeatSyncInfo();
     MEGA_DISABLE_COPY(HeartBeatSyncInfo)
 
-    virtual void updateStatus(SyncManager& us) override;
+    virtual void updateStatus(SyncManager& sm) override;
 };
 #endif
 
@@ -169,7 +169,7 @@ public:
         PAUSE_DOWN = 6,         // Active but download transfers paused in the SDK
         PAUSE_FULL = 7,         // Active but transfers paused in the SDK
     };
-    BackupInfoSync(SyncManager&);
+    BackupInfoSync(SyncManager&syncManager);
 
     void updatePauseState(MegaClient *client);
 
@@ -207,8 +207,8 @@ private:
 #ifdef ENABLE_SYNC
     void registerBackupInfo(const BackupInfo &info, SyncManager* syncPtr);
 
-    void beatBackupInfo(SyncManager& us);
-    void calculateStatus(HeartBeatBackupInfo *hbs, SyncManager& us);
+    void beatBackupInfo(SyncManager& sm);
+    void calculateStatus(HeartBeatBackupInfo *hbs, SyncManager& sm);
 #endif
 };
 }

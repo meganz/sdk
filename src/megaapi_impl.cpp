@@ -1434,10 +1434,10 @@ MegaSync *MegaApiImpl::getSyncByNode(MegaNode *node)
     MegaHandle nodeHandle = node->getHandle();
 
     unique_ptr<MegaSync> ret;
-    client->syncs.forEachSyncManager([&](SyncManager& s) {
-        if (s.mConfig.getRemoteNode() == nodeHandle)
+    client->syncs.forEachSyncManager([&](SyncManager& sm) {
+        if (sm.mConfig.getRemoteNode() == nodeHandle)
         {
-            ret.reset(new MegaSyncPrivate(s.mConfig, s.mSync.get()));
+            ret.reset(new MegaSyncPrivate(sm.mConfig, sm.mSync.get()));
         }
     });
 
@@ -1454,10 +1454,10 @@ MegaSync *MegaApiImpl::getSyncByPath(const char *localPath)
     SdkMutexGuard g(sdkMutex);
 
     unique_ptr<MegaSync> ret;
-    client->syncs.forEachSyncManager([&](SyncManager& s) {
-        if (s.mConfig.getLocalPath() == localPath)
+    client->syncs.forEachSyncManager([&](SyncManager& sm) {
+        if (sm.mConfig.getLocalPath() == localPath)
         {
-            ret.reset(new MegaSyncPrivate(s.mConfig, s.mSync.get()));
+            ret.reset(new MegaSyncPrivate(sm.mConfig, sm.mSync.get()));
         }
     });
 
@@ -8741,8 +8741,8 @@ MegaSyncList *MegaApiImpl::getSyncs()
     SdkMutexGuard g(sdkMutex);
     vector<MegaSyncPrivate*> vMegaSyncs;
 
-    client->syncs.forEachSyncManager([&](SyncManager& s) {
-        vMegaSyncs.push_back(new MegaSyncPrivate(s.mConfig, s.mSync.get()));
+    client->syncs.forEachSyncManager([&](SyncManager& sm) {
+        vMegaSyncs.push_back(new MegaSyncPrivate(sm.mConfig, sm.mSync.get()));
     });
 
     MegaSyncList *syncList = new MegaSyncListPrivate(vMegaSyncs.data(), int(vMegaSyncs.size()));
@@ -8861,11 +8861,11 @@ void MegaApiImpl::setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regE
     }
 
     SdkMutexGuard g(sdkMutex);
-    client->syncs.forEachSyncManager([&](SyncManager& s) {
-        if (s.mConfig.getTag() == sync->getTag())
+    client->syncs.forEachSyncManager([&](SyncManager& sm) {
+        if (sm.mConfig.getTag() == sync->getTag())
         {
-            s.mConfig.setRegExps(regExpToVector(regExp));
-            client->syncs.saveSyncConfig(s.mConfig);
+            sm.mConfig.setRegExps(regExpToVector(regExp));
+            client->syncs.saveSyncConfig(sm.mConfig);
         }
      });
 
@@ -13073,10 +13073,10 @@ MegaSyncPrivate* MegaApiImpl::cachedMegaSyncPrivateByTag(int tag)
     mCachedMegaSyncPrivate.reset();
     mCachedMegaSyncPrivateTag = 0;
 
-    client->syncs.forEachSyncManager([&](SyncManager& s) {
-        if (s.mConfig.getTag() == tag)
+    client->syncs.forEachSyncManager([&](SyncManager& sm) {
+        if (sm.mConfig.getTag() == tag)
         {
-            mCachedMegaSyncPrivate.reset(new MegaSyncPrivate(s.mConfig, s.mSync.get()));
+            mCachedMegaSyncPrivate.reset(new MegaSyncPrivate(sm.mConfig, sm.mSync.get()));
             mCachedMegaSyncPrivateTag = tag;
         }
     });
@@ -13372,15 +13372,15 @@ void MegaApiImpl::sync_removed(int tag)
     }
 }
 
-void MegaApiImpl::sync_auto_resume_result(const SyncManager& s, bool attempted)
+void MegaApiImpl::sync_auto_resume_result(const SyncManager& sm, bool attempted)
 {
     mCachedMegaSyncPrivate.reset();
 
-    auto megaSync = cachedMegaSyncPrivateByTag(s.mConfig.getTag());
+    auto megaSync = cachedMegaSyncPrivateByTag(sm.mConfig.getTag());
 
     if (attempted)
     {
-        fireOnSyncAdded(megaSync, !s.mSync ? MegaSync::FROM_CACHE_FAILED_TO_RESUME : MegaSync::FROM_CACHE_REENABLED);
+        fireOnSyncAdded(megaSync, !sm.mSync ? MegaSync::FROM_CACHE_FAILED_TO_RESUME : MegaSync::FROM_CACHE_REENABLED);
     }
     else //resumed as was
     {
@@ -21438,11 +21438,11 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_ENABLE_SYNC:
         {
             auto tag = request->getNumDetails();
-            SyncManager* sync = nullptr;
+            SyncManager* syncManager = nullptr;
 
-            e = client->syncs.enableSyncByTag(tag, true, sync);
+            e = client->syncs.enableSyncByTag(tag, true, syncManager);
 
-            request->setNumDetails(sync ? sync->mConfig.getError() : UNKNOWN_ERROR);
+            request->setNumDetails(syncManager ? syncManager->mConfig.getError() : UNKNOWN_ERROR);
 
             if (!e) //sync added (enabled) fine
             {
