@@ -172,6 +172,7 @@ namespace mega {
             // send notification
             if (eventType == DRIVE_CONNECTED_EVENT && driveConnected)
             {
+                p.connected = true;
                 driveConnected(move(p));
             }
 
@@ -309,8 +310,10 @@ namespace mega {
         if (FAILED(result))  return propStr;
 
         if (propVariant.vt != VT_NULL)
+        {
             propStr = propVariant.bstrVal;
-        VariantClear(&propVariant);
+            VariantClear(&propVariant);
+        }
 
         return propStr;
     }

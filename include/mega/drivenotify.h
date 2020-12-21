@@ -42,13 +42,17 @@ namespace mega {
         std::wstring description;             // Local Fixed Disk     Removable Disk        Network Connection
         uint32_t     driveType = 0;           // 3    (Fixed)         2      (Removable)    4      (Network)
         uint32_t     mediaType = 0;           // 12   (Fixed HD)      0/null (Unknown)      0/null (Unknown)
+
+        bool         connected = false;
     };
 
 
 
     // Interface for receiving drive [dis]connection events, and notifying futher.
     //
-    // Windows: "mega/win32/drivenotify.h" contains the platform specific definition.
+    // Platform specific implementations:
+    // - DriveNotifyWin;
+    // - DriveNotifyPosix.
     class IDriveNotify
     {
     public:
