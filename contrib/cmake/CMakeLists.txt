@@ -625,6 +625,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/mediafileattribute.h
             ${MegaDir}/include/mega/mega_glob.h
             ${MegaDir}/include/mega/drivenotify.h
+            ${MegaDir}/include/mega/driveinfocollector.h
             ${MegaDir}/include/mega.h
             ${MegaDir}/src/attrmap.cpp 
             ${MegaDir}/src/autocomplete.cpp 
@@ -674,6 +675,7 @@ add_library(Mega STATIC
             $<${USE_LIBUV}:${MegaDir}/src/mega_evt_tls.cpp> 
             $<${USE_QT}:${MegaDir}/src/gfx/qt.cpp>
             $<${USE_QT}:${MegaDir}/src/thread/qtthread.cpp >
+            $<${USE_DRIVE_NOTIFICATIONS}:${MegaDir}/src/driveinfocollector.cpp>
             )
 
 target_include_directories(Mega PRIVATE ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
