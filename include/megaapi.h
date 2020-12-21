@@ -9739,6 +9739,24 @@ class MegaApi
          */
         void setLoggingName(const char* loggingName);
 
+#ifdef USE_ROTATIVEPERFORMANCELOGGER
+        /**
+         * @brief Enable rotative performance logger
+         *
+         * Rotative performance logger is a logger that optimizes performance by carrying
+         * most of the logging tasks (write to file, duplicate log detection, log archive
+         * rotation, compression and cleanup) in a separate background thread.
+         * Also provides log rotation: archived log files are suffixed with the timestamp
+         * of the moment when they are created. For more information about log archive
+         * control see RotativePerformanceLogger::setArchiveTimestamps().
+         *
+         * @param logPath Log base directory for both active log file and archived logs
+         * @param logFileName Log file name (without path).¡
+         * @param logToStdOut if true, logs are also output to standard output
+         * @param archivedFilesAgeSeconds Number of seconds before archived files are removed. Defaults to one month.
+         */
+        static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut = true, long int archivedFilesAgeSeconds = 30 * 86400);
+#endif
         /**
          * @brief Create a folder in the MEGA account
          *
