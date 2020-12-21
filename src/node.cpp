@@ -1705,7 +1705,7 @@ void LocalNode::prepare()
 
 void LocalNode::terminated()
 {
-    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, size, 0);
+    sync->mSyncManager.mNextHeartbeat->adjustTransferCounts(-1, 0, size, 0);
 
     File::terminated();
 }
@@ -1714,7 +1714,7 @@ void LocalNode::terminated()
 // would have been caused by a race condition)
 void LocalNode::completed(Transfer* t, LocalNode*)
 {
-    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, 0, size);
+    sync->mSyncManager.mNextHeartbeat->adjustTransferCounts(-1, 0, 0, size);
 
     // complete to rubbish for later retrieval if the parent node does not
     // exist or is newer

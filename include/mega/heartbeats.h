@@ -29,7 +29,7 @@
 namespace mega
 {
 
-struct UnifiedSync;
+struct SyncManager;
 
 /**
  * @brief The HeartBeatBackupInfo class
@@ -62,7 +62,7 @@ public:
     virtual void setProgress(const double &progress);
     virtual void setLastSyncedItem(const handle &lastItemUpdated);
 
-    virtual void updateStatus(UnifiedSync& us) {}
+    virtual void updateStatus(SyncManager& us) {}
 
     bool mModified = false;
     bool mSending = false;
@@ -119,7 +119,7 @@ public:
     HeartBeatSyncInfo();
     MEGA_DISABLE_COPY(HeartBeatSyncInfo)
 
-    virtual void updateStatus(UnifiedSync& us) override;
+    virtual void updateStatus(SyncManager& us) override;
 };
 #endif
 
@@ -169,14 +169,14 @@ public:
         PAUSE_DOWN = 6,         // Active but download transfers paused in the SDK
         PAUSE_FULL = 7,         // Active but transfers paused in the SDK
     };
-    MegaBackupInfoSync(UnifiedSync&);
+    MegaBackupInfoSync(SyncManager&);
 
     void updatePauseState(MegaClient *client);
 
     static BackupType getSyncType(const SyncConfig& config);
-    static int getSyncState (UnifiedSync&);
-    static int getSyncSubstatus (UnifiedSync&);
-    string getSyncExtraData(UnifiedSync&);
+    static int getSyncState (SyncManager&);
+    static int getSyncSubstatus (SyncManager&);
+    string getSyncExtraData(SyncManager&);
 
     bool operator==(const MegaBackupInfoSync& o) const;
 
@@ -193,10 +193,10 @@ public:
     void beat(); // produce heartbeats!
 
     void onSyncConfigChanged();
-    void updateOrRegisterSync(UnifiedSync&);
+    void updateOrRegisterSync(SyncManager&);
 
 private:
-    void digestPutResult(handle backupId, UnifiedSync* syncPtr);
+    void digestPutResult(handle backupId, SyncManager* syncPtr);
 
     static constexpr int MAX_HEARBEAT_SECS_DELAY = 60*30; // max time to wait before a heartbeat for unchanged backup
 
@@ -205,10 +205,10 @@ private:
     void updateBackupInfo(handle backupId, const MegaBackupInfo &info);
 
 #ifdef ENABLE_SYNC
-    void registerBackupInfo(const MegaBackupInfo &info, UnifiedSync* syncPtr);
+    void registerBackupInfo(const MegaBackupInfo &info, SyncManager* syncPtr);
 
-    void beatBackupInfo(UnifiedSync& us);
-    void calculateStatus(HeartBeatBackupInfo *hbs, UnifiedSync& us);
+    void beatBackupInfo(SyncManager& us);
+    void calculateStatus(HeartBeatBackupInfo *hbs, SyncManager& us);
 #endif
 };
 }
