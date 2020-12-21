@@ -137,21 +137,16 @@ class RotativePerformanceLoggerLoggingThread
     int mFlushOnLevel = MegaApi::LOG_LEVEL_WARNING;
     std::chrono::seconds mLogFlushPeriod = std::chrono::seconds(10);
     std::chrono::steady_clock::time_point mNextFlushTime = std::chrono::steady_clock::now() + mLogFlushPeriod;
-    MegaFileSystemAccess * mFsAccess;
+    unique_ptr<MegaFileSystemAccess> mFsAccess;
     ArchiveType mArchiveType = archiveTypeTimestamp;
     long int archiveMaxFileAgeSeconds = 30 * 86400; // one month
 
     friend RotativePerformanceLogger;
 
 public:
-    RotativePerformanceLoggerLoggingThread()
+    RotativePerformanceLoggerLoggingThread() :
+        mFsAccess(new MegaFileSystemAccess())
     {
-        mFsAccess = new MegaFileSystemAccess();
-    }
-
-    ~RotativePerformanceLoggerLoggingThread()
-    {
-        delete mFsAccess;
     }
 
     void startLoggingThread(const LocalPath& logsPath, const LocalPath& fileName)
@@ -168,13 +163,12 @@ public:
 
     static void gzipCompressOnRotate(LocalPath localPath, LocalPath destinationLocalPath)
     {
-        MegaFileSystemAccess * fsAccess = new MegaFileSystemAccess();
+        std::unique_ptr<MegaFileSystemAccess> fsAccess(new MegaFileSystemAccess());
 
         std::ifstream file(localPath.localpath.c_str(), std::ofstream::out);
         if (!file.is_open())
         {
             std::cerr << "Unable to open log file for reading: " << localPath.toPath(*fsAccess) << std::endl;
-            delete fsAccess;
             return;
         }
 
@@ -187,7 +181,6 @@ public:
         if (!gzfile)
         {
             std::cerr << "Unable to open gzfile for writing: " << localPath.toPath(*fsAccess) << std::endl;
-            delete fsAccess;
             return;
         }
 
@@ -203,18 +196,17 @@ public:
         }
 
         fsAccess->unlinklocal(localPath);
-        delete fsAccess;
     }
 
 private:
-    LocalPath logArchiveNumbered_getFilename(LocalPath baseFileName, int logNumber)
+    LocalPath logArchiveNumbered_getFilename(const LocalPath& baseFileName, int logNumber)
     {
         LocalPath newFileName = baseFileName;
         newFileName.append(LocalPath::fromPlatformEncoded("." + SSTR(logNumber) + ".gz"));
         return newFileName;
     }
 
-    void logArchiveNumbered_cleanUpFiles(LocalPath logsPath, LocalPath fileName)
+    void logArchiveNumbered_cleanUpFiles(const LocalPath& logsPath, const LocalPath& fileName)
     {
         for (int i = MAX_ROTATE_LOGS_TODELETE; i--; )
         {
@@ -229,7 +221,7 @@ private:
         }
     }
 
-    void logArchiveNumbered_rotateFiles(LocalPath logsPath, LocalPath fileName)
+    void logArchiveNumbered_rotateFiles(const LocalPath& logsPath, const LocalPath& fileName)
     {
         for (int i = MAX_ROTATE_LOGS_TODELETE; i--; )
         {
@@ -261,7 +253,7 @@ private:
         }
     }
 
-    LocalPath logArchiveTimestamp_getFilename(LocalPath baseFileName)
+    LocalPath logArchiveTimestamp_getFilename(const LocalPath& baseFileName)
     {
         std::time_t timestamp = std::time(nullptr);
         LocalPath newFileName = baseFileName;
@@ -270,8 +262,8 @@ private:
     }
 
     void logArchiveTimestamp_walkArchivedFiles(
-            LocalPath logsPath, LocalPath fileName,
-            const std::function< void(LocalPath, LocalPath) > & walker)
+            const LocalPath& logsPath, const LocalPath& fileName,
+            const std::function< void(const LocalPath&, const LocalPath&) > & walker)
     {
         FileSystemType fsType = mFsAccess->getlocalfstype(logsPath);
          std::string logFileName = fileName.toName(*mFsAccess, fsType);
@@ -280,8 +272,9 @@ private:
              LocalPath leafNamePath;
              DirAccess* da = mFsAccess->newdiraccess();
              nodetype_t dirEntryType;
-             da->dopen(&logsPath, NULL, false);
-             while (da->dnext(logsPath, leafNamePath, false, &dirEntryType))
+             LocalPath logsPathCopy(logsPath);
+             da->dopen(&logsPathCopy, NULL, false);
+             while (da->dnext(logsPathCopy, leafNamePath, false, &dirEntryType))
              {
                  std::string leafName = leafNamePath.toName(*mFsAccess, fsType);
                  if (leafName.size() > logFileName.size())
@@ -297,7 +290,7 @@ private:
          }
     }
 
-    void logArchiveTimestamp_cleanUpFiles(LocalPath logsPath, LocalPath fileName)
+    void logArchiveTimestamp_cleanUpFiles(const LocalPath& logsPath, const LocalPath& fileName)
     {
         logArchiveTimestamp_walkArchivedFiles(
                     logsPath, fileName,
@@ -312,7 +305,7 @@ private:
         });
     }
 
-    void logArchiveTimestamp_rotateFiles(LocalPath logsPath, LocalPath fileName)
+    void logArchiveTimestamp_rotateFiles(const LocalPath& logsPath, const LocalPath& fileName)
     {
         long int currentTimestamp = static_cast<long int> (std::time(nullptr));
         long int archiveMaxFileAgeSeconds = this->archiveMaxFileAgeSeconds;
@@ -342,14 +335,14 @@ private:
         });
     }
 
-    LocalPath logArchive_getNewFilename(LocalPath fileName)
+    LocalPath logArchive_getNewFilename(const LocalPath& fileName)
     {
         return mArchiveType == archiveTypeNumbered
                 ? logArchiveNumbered_getFilename(fileName, 0)
                 : logArchiveTimestamp_getFilename(fileName);
     }
 
-    void logArchive_cleanUpFiles(LocalPath logsPath, LocalPath fileName)
+    void logArchive_cleanUpFiles(const LocalPath& logsPath, const LocalPath& fileName)
     {
         if (mArchiveType == archiveTypeNumbered)
         {
@@ -361,7 +354,7 @@ private:
         }
     }
 
-    void logArchive_rotateFiles(LocalPath logsPath, LocalPath fileName)
+    void logArchive_rotateFiles(const LocalPath& logsPath, const LocalPath& fileName)
     {
         if (mArchiveType == archiveTypeNumbered)
         {
@@ -382,7 +375,6 @@ private:
 
         outputFile << "----------------------------- program start -----------------------------\n";
         long long outFileSize = outputFile.tellp();
-        std::error_code ec;
 
         while (!mLogExit)
         {
@@ -536,7 +528,7 @@ void RotativePerformanceLogger::initialize(const char * logsPath, const char * l
 
     mLogToStdout = logToStdout;
 
-    MegaFileSystemAccess *fsAccess = new MegaFileSystemAccess();
+    unique_ptr<MegaFileSystemAccess> fsAccess(new MegaFileSystemAccess());
     fsAccess->mkdirlocal(logsPathLocalPath, false);
 
     mLoggingThread.reset(new RotativePerformanceLoggerLoggingThread());
@@ -562,72 +554,88 @@ void RotativePerformanceLogger::setArchiveTimestamps(long int maxFileAgeSeconds)
     mLoggingThread->archiveMaxFileAgeSeconds = maxFileAgeSeconds;
 }
 
-inline void twodigit(char*& s, int n)
+
+class RotativePerformanceLoggerHelper
 {
-    *s++ = static_cast<char>(n / 10 + '0');
-    *s++ = static_cast<char>(n % 10 + '0');
-}
+private:
+    std::mutex mThreadNameMutex;
+    std::map<std::thread::id, std::string> mThreadNames;
+    struct tm mLastTm;
+    time_t mLastT = 0;
+    std::thread::id mLastThreadId;
+    const char* mLastThreadName;
 
-char* filltime(char* s, struct tm*  gmt, int microsec)
-{
-    twodigit(s, gmt->tm_mday);
-    *s++ = '/';
-    twodigit(s, gmt->tm_mon + 1);
-    *s++ = '/';
-    twodigit(s, gmt->tm_year % 100);
-    *s++ = '-';
-    twodigit(s, gmt->tm_hour);
-    *s++ = ':';
-    twodigit(s, gmt->tm_min);
-    *s++ = ':';
-    twodigit(s, gmt->tm_sec);
-    *s++ = '.';
-    s[5] = static_cast<char>(microsec % 10 + '0');
-    s[4] = static_cast<char>((microsec /= 10) % 10 + '0');
-    s[3] = static_cast<char>((microsec /= 10) % 10 + '0');
-    s[2] = static_cast<char>((microsec /= 10) % 10 + '0');
-    s[1] = static_cast<char>((microsec /= 10) % 10 + '0');
-    s[0] = static_cast<char>((microsec /= 10) % 10 + '0');
-    s += 6;
-    *s++ = ' ';
-    *s = 0;
-    return s;
-}
-
-std::mutex threadNameMutex;
-std::map<std::thread::id, std::string> threadNames;
-struct tm lastTm;
-time_t lastT = 0;
-std::thread::id lastThreadId;
-const char* lastThreadName;
-
-void cacheThreadNameAndTimeT(time_t t, struct tm& gmt, const char*& threadname)
-{
-    std::lock_guard<std::mutex> g(threadNameMutex);
-
-    if (t != lastT)
+    RotativePerformanceLoggerHelper()
     {
-        lastTm = *std::gmtime(&t);
-        lastT = t;
-    }
-    gmt = lastTm;
-
-    if (lastThreadId == std::this_thread::get_id())
-    {
-        threadname = lastThreadName;
-        return;
     }
 
-    auto& entry = threadNames[std::this_thread::get_id()];
-    if (entry.empty())
+public:
+    static RotativePerformanceLoggerHelper& Instance()
     {
-        std::ostringstream s;
-        s << std::this_thread::get_id() << " ";
-        entry = s.str();
+        static RotativePerformanceLoggerHelper myInstance;
+        return myInstance;
     }
-    threadname = lastThreadName = entry.c_str();
-    lastThreadId = std::this_thread::get_id();
-}
+
+    void cacheThreadNameAndTimeT(time_t t, struct tm& gmt, const char*& threadname)
+    {
+        std::lock_guard<std::mutex> g(mThreadNameMutex);
+
+        if (t != mLastT)
+        {
+            mLastTm = *std::gmtime(&t);
+            mLastT = t;
+        }
+        gmt = mLastTm;
+
+        if (mLastThreadId == std::this_thread::get_id())
+        {
+            threadname = mLastThreadName;
+            return;
+        }
+
+        auto& entry = mThreadNames[std::this_thread::get_id()];
+        if (entry.empty())
+        {
+            std::ostringstream s;
+            s << std::this_thread::get_id() << " ";
+            entry = s.str();
+        }
+        threadname = mLastThreadName = entry.c_str();
+        mLastThreadId = std::this_thread::get_id();
+    }
+
+    static inline void twodigit(char*& s, int n)
+    {
+        *s++ = static_cast<char>(n / 10 + '0');
+        *s++ = static_cast<char>(n % 10 + '0');
+    }
+
+    static char* filltime(char* s, struct tm*  gmt, int microsec)
+    {
+        twodigit(s, gmt->tm_mday);
+        *s++ = '/';
+        twodigit(s, gmt->tm_mon + 1);
+        *s++ = '/';
+        twodigit(s, gmt->tm_year % 100);
+        *s++ = '-';
+        twodigit(s, gmt->tm_hour);
+        *s++ = ':';
+        twodigit(s, gmt->tm_min);
+        *s++ = ':';
+        twodigit(s, gmt->tm_sec);
+        *s++ = '.';
+        s[5] = static_cast<char>(microsec % 10 + '0');
+        s[4] = static_cast<char>((microsec /= 10) % 10 + '0');
+        s[3] = static_cast<char>((microsec /= 10) % 10 + '0');
+        s[2] = static_cast<char>((microsec /= 10) % 10 + '0');
+        s[1] = static_cast<char>((microsec /= 10) % 10 + '0');
+        s[0] = static_cast<char>((microsec /= 10) % 10 + '0');
+        s += 6;
+        *s++ = ' ';
+        *s = 0;
+        return s;
+    }
+};
 
 void RotativePerformanceLogger::log(const char*, int loglevel, const char*, const char *message
 #ifdef ENABLE_LOG_PERFORMANCE
@@ -653,10 +661,10 @@ void RotativePerformanceLoggerLoggingThread::log(int loglevel, const char *messa
 
     struct tm gmt;
     const char* threadname;
-    cacheThreadNameAndTimeT(t, gmt, threadname);
+    RotativePerformanceLoggerHelper::Instance().cacheThreadNameAndTimeT(t, gmt, threadname);
 
     auto microsec = std::chrono::duration_cast<std::chrono::microseconds>(now - std::chrono::system_clock::from_time_t(t));
-    filltime(timebuf, &gmt, (int)microsec.count() % 1000000);
+    RotativePerformanceLoggerHelper::filltime(timebuf, &gmt, (int)microsec.count() % 1000000);
 
     const char* loglevelstring = "     ";
     switch (loglevel) // keeping these at 4 chars makes nice columns, easy to read
