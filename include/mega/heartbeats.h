@@ -171,8 +171,6 @@ public:
     };
     MegaBackupInfoSync(UnifiedSync&);
 
-    void updatePauseState(MegaClient *client);
-
     static BackupType getSyncType(const SyncConfig& config);
     static int getSyncState (UnifiedSync&);
     static int getSyncSubstatus (UnifiedSync&);
@@ -208,7 +206,6 @@ private:
     void registerBackupInfo(const MegaBackupInfo &info, UnifiedSync* syncPtr);
 
     void beatBackupInfo(UnifiedSync& us);
-    void calculateStatus(HeartBeatBackupInfo *hbs, UnifiedSync& us);
 #endif
 };
 }
