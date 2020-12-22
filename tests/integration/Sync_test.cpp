@@ -1398,7 +1398,7 @@ struct StandardClient : public MegaApp
             {
                 SyncConfig syncConfig{syncTag, localpath.u8string(), localpath.u8string(), m->nodehandle, subfoldername, 0};
                 UnifiedSync* unifiedSync;
-                error e = client.addsync(syncConfig, DEBRISFOLDER, NULL, false, unifiedSync);  // use syncid as tag
+                error e = client.addsync(syncConfig, DEBRISFOLDER, NULL, false, unifiedSync, true);  // use syncid as tag
                 if (!e)
                 {
                     return true;
