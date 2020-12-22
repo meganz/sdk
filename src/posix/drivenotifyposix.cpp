@@ -19,10 +19,10 @@
  * program.
  */
 
-#ifdef HAVE_DRIVE_NOTIFY
+#ifdef USE_DRIVE_NOTIFICATIONS
 
 
-#include "mega/driveinfocollector.h"
+#include "mega/drivenotify.h"
 
 
 
@@ -51,4 +51,4 @@ namespace mega {
 
 } // namespace
 
-#endif // HAVE_DRIVE_NOTIFY
+#endif // USE_DRIVE_NOTIFICATIONS

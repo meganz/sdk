@@ -28,7 +28,7 @@
 #include <wrl/client.h> // ComPtr
 #include <unknwn.h>
 
-#include "mega/driveinfocollector.h"
+#include "mega/drivenotify.h"
 
 using namespace std;
 using namespace Microsoft::WRL; // ComPtr

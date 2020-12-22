@@ -1,5 +1,5 @@
 /**
- * @file driveinfocollector.cpp
+ * @file drivenotify.cpp
  * @brief Mega SDK various utilities and helper classes
  *
  * (c) 2013-2020 by Mega Limited, Auckland, New Zealand
@@ -22,7 +22,7 @@
 #ifdef USE_DRIVE_NOTIFICATIONS
 
 
-#include "mega/driveinfocollector.h"
+#include "mega/drivenotify.h"
 
 using namespace std;
 
@@ -30,7 +30,7 @@ using namespace std;
 
 namespace mega {
 
-    bool DriveInfoCollectorBase::start(function<void()> notify)
+    bool DriveNotify::start(function<void()> notify)
     {
         lock_guard<mutex> lock(mSyncAccessMutex);
 
@@ -46,7 +46,7 @@ namespace mega {
 
 
 
-    void DriveInfoCollectorBase::stop()
+    void DriveNotify::stop()
     {
         stopNotifier();
         decltype(mInfoQueue) temp;
@@ -55,7 +55,7 @@ namespace mega {
 
 
 
-    pair<wstring, bool> DriveInfoCollectorBase::get()
+    pair<wstring, bool> DriveNotify::get()
     {
         // sync access
         lock_guard<mutex> lock(mSyncAccessMutex);
@@ -73,7 +73,7 @@ namespace mega {
 
 
 
-    void DriveInfoCollectorBase::add(DriveInfo&& info)
+    void DriveNotify::add(DriveInfo&& info)
     {
         // sync access
         lock_guard<mutex> lock(mSyncAccessMutex);

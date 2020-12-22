@@ -21,9 +21,9 @@
 
 #pragma once
 
-#ifdef HAVE_DRIVE_NOTIFY
+#ifdef USE_DRIVE_NOTIFICATIONS
 
-// Include "mega/driveinfocollector.h" where needed.
+// Include "mega/drivenotify.h" where needed.
 // This header cannot be used by itself.
 
 
@@ -32,7 +32,7 @@ namespace mega {
     // Posix: Platform specific definition
     //
     // Not implemented.
-    class DriveNotifyPosix : public DriveInfoCollectorBase
+    class DriveNotifyPosix : public DriveNotify
     {
     public:
         ~DriveNotifyPosix() override;
@@ -44,4 +44,4 @@ namespace mega {
 
 } // namespace
 
-#endif // HAVE_DRIVE_NOTIFY
+#endif // USE_DRIVE_NOTIFICATIONS

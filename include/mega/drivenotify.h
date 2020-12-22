@@ -1,5 +1,5 @@
 /**
- * @file mega/driveinfocollector.h
+ * @file mega/drivenotify.h
  * @brief Mega SDK various utilities and helper classes
  *
  * (c) 2013-2020 by Mega Limited, Auckland, New Zealand
@@ -55,7 +55,7 @@ namespace mega {
     // Platform specific implementations:
     // - DriveNotifyWin;
     // - DriveNotifyPosix.
-    class DriveInfoCollectorBase
+    class DriveNotify
     {
     public:
         bool start(std::function<void()> notify);
@@ -64,7 +64,7 @@ namespace mega {
         std::pair<std::wstring, bool> get();
 
         // This will most likely need to be overridden to call stop().
-        virtual ~DriveInfoCollectorBase() = default;
+        virtual ~DriveNotify() = default;
 
     protected:
         virtual bool startNotifier() = 0;

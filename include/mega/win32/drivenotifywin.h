@@ -23,7 +23,7 @@
 
 #ifdef USE_DRIVE_NOTIFICATIONS
 
-// Include "mega/driveinfocollector.h" where needed.
+// Include "mega/drivenotify.h" where needed.
 // This header cannot be used by itself.
 
 #include <map>
@@ -36,7 +36,7 @@ namespace mega {
     // Windows: Platform specific definition
     //
     // Uses WMI. Use 'wbemtest' tool to run WQL queries, for testing and comparison.
-    class DriveNotifyWin : public DriveInfoCollectorBase
+    class DriveNotifyWin : public DriveNotify
     {
     public:
         DriveNotifyWin() : mStop(false) {}

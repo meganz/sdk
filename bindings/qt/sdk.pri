@@ -457,7 +457,7 @@ HEADERS  += include/mega.h \
             include/mega/mediafileattribute.h \
             include/mega/raid.h \
             include/mega/testhooks.h \
-            include/mega/driveinfocollector.h
+            include/mega/drivenotify.h
 
 CONFIG(USE_MEGAAPI) {
     HEADERS += bindings/qt/QTMegaRequestListener.h \
@@ -729,5 +729,5 @@ CONFIG(USE_DRIVE_NOTIFICATIONS) {
         SOURCES += src/posix/drivenotifyposix.cpp
     }
 
-    SOURCES += src/driveinfocollector.cpp
+    SOURCES += src/drivenotify.cpp
 }

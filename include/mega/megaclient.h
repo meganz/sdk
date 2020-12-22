@@ -38,7 +38,7 @@
 #include "mediafileattribute.h"
 #include "useralerts.h"
 #include "user.h"
-#include "driveinfocollector.h"
+#include "drivenotify.h"
 
 namespace mega {
 
