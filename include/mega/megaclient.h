@@ -606,8 +606,8 @@ public:
     error isLocalPathSyncable(std::string newPath, int newSyncTag = 0, SyncError *syncError = nullptr);
 
     /**
-     * @brief check config. Will fill syncError in the SyncConfig case there is one.
-     * Will fill syncWarning in the SyncConfig case there is one.
+     * @brief check config. Will fill syncError in the SyncConfig in case there is one.
+     * Will fill syncWarning in the SyncConfig in case there is one.
      * Does not persist the sync configuration.
      * Does not add the syncConfig.
      * Reference parameters are filled in while checking syncConfig, for the benefit of addSync() which calls it.
@@ -623,7 +623,7 @@ public:
      * @param debris Name of the debris folder on this platform (perhaps we could just use the macro)
      * @param localdebris Alternate debris folder path - not used at all to my knowledge
      * @param delayInitialScan delay the initial scan
-     * @param unifiedSync If the syncConfig is added, this parameter wll be filled in with a pointer to the created UnifiedSync.
+     * @param unifiedSync If the syncConfig is added, this parameter will be filled in with a pointer to the created UnifiedSync.
      * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
      */
     error addsync(SyncConfig& syncConfig, const char* debris, LocalPath* localdebris, bool delayInitialScan, UnifiedSync*& unifiedSync);

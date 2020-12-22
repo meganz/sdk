@@ -1960,6 +1960,34 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
     return false;
 }
 
+m_off_t Sync::getInflightProgress()
+{
+    m_off_t progressSum = 0;
+
+    for (auto tslot : client->tslots)
+    {
+        for (auto file : tslot->transfer->files)
+        {
+            if (auto ln = dynamic_cast<LocalNode*>(file))
+            {
+                if (ln->sync == this)
+                {
+                    progressSum += tslot->progressreported;
+                }
+            }
+            else if (auto sfg = dynamic_cast<SyncFileGet*>(file))
+            {
+                if (sfg->sync == this)
+                {
+                    progressSum += tslot->progressreported;
+                }
+            }
+        }
+    }
+
+    return progressSum;
+}
+
 
 UnifiedSync::UnifiedSync(MegaClient& mc, const SyncConfig& c)
     : mClient(mc), mConfig(c)
@@ -2167,7 +2195,7 @@ void Syncs::clear()
 void Syncs::resetSyncConfigDb()
 {
     mSyncConfigDb.reset();
-    if (mClient.dbaccess && !mClient.uid.empty())
+    if (mClient.dbaccess && mClient.loggedin() == FULLACCOUNT)
     {
         mSyncConfigDb.reset(new SyncConfigBag{ *mClient.dbaccess, *mClient.fsaccess, mClient.rng, mClient.uid });
     }
@@ -2441,6 +2469,8 @@ void Syncs::enableResumeableSyncs()
 
 void Syncs::resumeResumableSyncsOnStartup()
 {
+    if (mClient.loggedinfolderlink()) return;
+
     bool firstSyncResumed = false;
 
     for (auto& config : mSyncConfigDb->all())
