@@ -3481,7 +3481,7 @@ void MegaApi::setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
 
 void MegaApi::backupFolder(const char *localFolder, const char *backupName, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, backupName, INVALID_HANDLE, SyncConfig::Type::TYPE_BACKUP, nullptr, listener);
+    pImpl->syncFolder(localFolder, backupName, INVALID_HANDLE, SyncConfig::TYPE_BACKUP, nullptr, listener);
 }
 #endif
 

@@ -4789,7 +4789,7 @@ TEST_F(SdkTest, SdkBackupFolder)
     string session = dumpSession();
     locallogout();
     auto tracker = asyncRequestFastLogin(0, session.c_str());
-    ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for accout " << 0;
+    ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
     fetchnodes(0, maxTimeout); // auto-resumes one active backup
     // Verify the sync again
     allSyncs.reset(megaApi[0]->getSyncs());
@@ -6244,4 +6244,3 @@ TEST_F(SdkTest, SyncOQTransitions)
 }
 
 #endif
-

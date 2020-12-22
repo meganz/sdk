@@ -6905,8 +6905,7 @@ void MegaApiImpl::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *li
 
 const char* MegaApiImpl::getDeviceId() const
 {
-    auto id = MegaApi::strdup(client->getDeviceid().c_str());
-    return id;
+    return MegaApi::strdup(client->getDeviceid().c_str());
 }
 
 void MegaApiImpl::getDeviceName(MegaRequestListener *listener)
@@ -14051,7 +14050,6 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));    // even if import fails, notify account was successfuly created anyway
             return;
         }
-
 #ifdef ENABLE_SYNC
         else if (request->getType() == MegaRequest::TYPE_ADD_SYNC && e == API_OK)
         {
@@ -20295,7 +20293,6 @@ void MegaApiImpl::sendPendingRequests()
                         tlv.reset(TLVstore::containerToTLVrecords(ownUser->getattr(type), &client->key));
                     }
                 }
-
                 else if (type == ATTR_MY_BACKUPS_FOLDER)
                 {
                     // get back the handle value
