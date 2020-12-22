@@ -395,5 +395,4 @@ void exec_querytransferquota(autocomplete::ACState& s);
 void exec_metamac(autocomplete::ACState& s);
 void exec_resetverifiedphonenumber(autocomplete::ACState& s);
 void exec_banner(autocomplete::ACState& s);
-void exec_drivenotificationson(autocomplete::ACState& s);
-void exec_drivenotificationsoff(autocomplete::ACState& s);
+void exec_drivenotifications(autocomplete::ACState& s);

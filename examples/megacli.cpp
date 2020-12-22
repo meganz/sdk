@@ -3164,8 +3164,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_metamac, sequence(text("metamac"), localFSPath(), remoteFSPath(client, &cwd)));
     p->Add(exec_banner, sequence(text("banner"), either(text("get"), sequence(text("dismiss"), param("id")))));
 
-    p->Add(exec_drivenotificationson, sequence(text("drivenotificationson")));
-    p->Add(exec_drivenotificationsoff, sequence(text("drivenotificationsoff")));
+    p->Add(exec_drivenotifications, sequence(text("drivenotificationson"), either(text("on"), text("off"))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -6656,11 +6655,16 @@ void exec_enabletransferresumption(autocomplete::ACState& s)
 }
 
 
-void exec_drivenotificationson(autocomplete::ACState&)
+void exec_drivenotifications(autocomplete::ACState& s)
 {
 #ifdef USE_DRIVE_NOTIFICATIONS
+    if (s.words[1].s == "off")
+    {
+        client->app->stopDriveMonitor();
+    }
+
     // start receiving notifications
-    if (!client->app->startDriveMonitor())
+    else if (!client->app->startDriveMonitor())
     {
         // return immediately, when this functionality was not implemented
         std::cout << "Failed starting drive notifications" << std::endl;
@@ -6676,15 +6680,6 @@ void DemoApp::drive_presence_changed(bool appeared, const LocalPath& driveRoot)
     std::cout << "Drive " << (appeared ? "connected" : "disconnected") << ": " << driveRoot.platformEncoded() << endl;
 }
 #endif // USE_DRIVE_NOTIFICATIONS
-
-void exec_drivenotificationsoff(autocomplete::ACState&)
-{
-#ifdef USE_DRIVE_NOTIFICATIONS
-    client->app->stopDriveMonitor();
-#else
-    std::cout << "Failed! This functionality was disabled at compile time." << std::endl;
-#endif // USE_DRIVE_NOTIFICATIONS
-}
 
 
 // callback for non-EAGAIN request-level errors
