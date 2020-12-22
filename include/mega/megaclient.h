@@ -626,9 +626,10 @@ public:
      * @param unifiedSync If the syncConfig is added, this parameter will be filled in with a pointer to the created UnifiedSync.
      * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
      */
-    error addsync(SyncConfig& syncConfig, const char* debris, LocalPath* localdebris, bool delayInitialScan, UnifiedSync*& unifiedSync);
+    error addsync(SyncConfig& syncConfig, const char* debris, LocalPath* localdebris, bool delayInitialScan,
+                  std::function<void(UnifiedSync *, const SyncError &, error)> completion);
 
-
+    error copySyncConfig(SyncConfig& config, std::function<void(mega::UnifiedSync *, const SyncError &, error)> completion);
 
 
     ////// sync config updating & persisting ////

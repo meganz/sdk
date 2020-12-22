@@ -21400,10 +21400,10 @@ void MegaApiImpl::sendPendingRequests()
             const char *name = request->getName();
 
             auto nextSyncTag = client->nextSyncTag();
-            unique_ptr<MegaSyncPrivate> sync(new MegaSyncPrivate(localPath, name, node->nodehandle, nextSyncTag));
+            auto sync = std::make_shared<MegaSyncPrivate>(localPath, name, node->nodehandle, nextSyncTag);
             sync->setRegExp(request->getRegExp());
 
-            std::unique_ptr<char []> remotePath{getNodePathByNodeHandle(request->getNodeHandle())};
+            std::shared_ptr<char []> remotePath{getNodePathByNodeHandle(request->getNodeHandle())};
             if (!remotePath)
             {
                 e = API_ENOENT;
@@ -21414,25 +21414,34 @@ void MegaApiImpl::sendPendingRequests()
             SyncConfig syncConfig{nextSyncTag, localPath, name, request->getNodeHandle(), remotePath.get(),
                                   0, regExpToVector(request->getRegExp())};
 
-            UnifiedSync* unifiedSync = nullptr;
-            e = client->addsync(syncConfig, DEBRISFOLDER, NULL, true, unifiedSync);
-            request->setNumDetails(syncConfig.getError());
-            if (unifiedSync)
+            client->addsync(syncConfig, DEBRISFOLDER, NULL, true,
+                                [this, request, sync, remotePath, nextSyncTag](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
             {
-                if (!e && unifiedSync && unifiedSync->mSync)
+                request->setNumDetails(syncError);
+
+                if (!e && !unifiedSync)
+                {
+                    e = API_ENOENT;
+                }
+
+                if (e)
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                    return;
+                }
+
+                if (unifiedSync->mSync)
                 {
                     fsfp_t fsfp = unifiedSync->mSync->fsfp;
                     sync->setLocalFingerprint(fsfp);
                     request->setNumber(fsfp);
                 }
-                sync->setMegaFolderYielding(remotePath.release());
+                sync->setMegaFolder(remotePath.get());
                 request->setTransferTag(nextSyncTag);
 
                 fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
-                e = API_OK; //we don't consider the addsync returned error as an error on the request: the sync was added (although temporarily disabled)
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-                break;
-            }
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));//we don't consider the addsync returned error as an error on the request: the sync was added (although temporarily disabled)
+            });
             break;
         }
         case MegaRequest::TYPE_ENABLE_SYNC:
@@ -21509,13 +21518,23 @@ void MegaApiImpl::sendPendingRequests()
                 syncConfig.setError(syncError);
             }
 
-            client->syncs.appendNewSync(syncConfig, *client);
-
-            if (!e)
+            client->copySyncConfig(syncConfig, [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
             {
-                request->setTransferTag(nextSyncTag);
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-            }
+
+                if (!e && !unifiedSync)
+                {
+                    e = API_ENOENT;
+                }
+
+                if (unifiedSync)
+                {
+                    request->setTransferTag(unifiedSync->mConfig.getTag());
+                }
+
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            });
+
+
             break;
         }
         case MegaRequest::TYPE_COPY_CACHED_STATUS:

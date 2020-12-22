@@ -13066,26 +13066,96 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 }
 
 
-error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* localdebris, bool delayInitialScan, UnifiedSync*& unifiedSync)
+//TODO: config should now be const, and it cannot be expected to be modified as it was in previous code before async completion after sp
+error MegaClient::copySyncConfig(SyncConfig& config, std::function<void(mega::UnifiedSync *, const SyncError &, error)> completion)
 {
-    unifiedSync = nullptr;
+    string localFolderEncrypted(cypherTLVTextWithMasterKey("lf", config.getLocalPath()) );
+    string deviceIdHash = getDeviceidHash();
+    string extraData; // Empty extra data for the moment, in the future, any should come in config
+
+    reqs.add( new CommandBackupPut(this, MegaBackupInfoSync::getSyncType(config)
+                                   , config.getName().c_str(), config.getRemoteNode(),
+                                   localFolderEncrypted.c_str(), deviceIdHash.c_str()
+                                   , MegaBackupInfoSync::getSyncState(config, this)
+                                   , config.getError()
+                                   , extraData
+                                   , [this, config, completion](Error e, handle h)
+    {
+        if (h == UNDEF && !e)
+        {
+            e = API_EFAILED;
+        }
+
+        if (e)
+        {
+            completion(nullptr, config.getError(), e);
+        }
+        else
+        {
+            UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
+
+            completion(unifiedSync, unifiedSync->mConfig.getError(), e);
+        }
+    }));
+}
+
+//TODO: config should now be const, and it cannot be expected to be modified as it was in previous code before async completion after sp
+error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* localdebris, bool delayInitialScan,
+                          std::function<void(mega::UnifiedSync *, const SyncError &, error)> completion)
+{
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
     Node* remotenode;
     bool inshare, isnetwork;
     error e = checkSyncConfig(config, rootpath, openedLocalFolder, remotenode, inshare, isnetwork);
 
-    if (!e)
+    if (e)
     {
-
-        // if we got this far, the syncConfig is kept (in db and in memory)
-        unifiedSync = syncs.appendNewSync(config, *this);
-
-        e = unifiedSync->enableSync(false);
-
-        syncactivity = true;
-        config = unifiedSync->mConfig;  // so the caller can easily check the config they passed in
+        completion(nullptr, config.getError(), e);
     }
+    else
+    {
+        string localFolderEncrypted(cypherTLVTextWithMasterKey("lf", config.getLocalPath()) );
+        string deviceIdHash = getDeviceidHash();
+        string extraData; // Empty extra data for the moment, in the future, any should come in SyncConfig
+
+        reqs.add( new CommandBackupPut(this, MegaBackupInfoSync::getSyncType(config)
+                                       , config.getName().c_str(), config.getRemoteNode(),
+                                               localFolderEncrypted.c_str(), deviceIdHash.c_str()
+                                       , MegaBackupInfoSync::getSyncState(config, this)
+                                       , config.getError()
+                                       , extraData
+                                       , [this, config, completion](Error e, handle h)
+        {
+            if (h == UNDEF && !e)
+            {
+                e = API_EFAILED;
+            }
+
+            if (e)
+            {
+                completion(nullptr, config.getError(), e);
+            }
+            else
+            {
+
+
+                // if we got this far, the syncConfig is kept (in db and in memory)
+                auto newConfig = config; //TODO: need copying due to constness of config. which is unexpectedly const
+                newConfig.setBackupId(h);
+
+                //TODO: remove MegaBackupMonitor::updateOrRegisterSync "Register" code path and backupId control
+                UnifiedSync *unifiedSync = syncs.appendNewSync(newConfig, *this);
+
+                e = unifiedSync->enableSync(false);
+
+                syncactivity = true;
+
+                completion(unifiedSync, unifiedSync->mConfig.getError(), e);
+            }
+        }));
+
+ }
 
     return e;
 }
