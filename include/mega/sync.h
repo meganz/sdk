@@ -206,6 +206,9 @@ public:
     // move file or folder to localdebris
     bool movetolocaldebris(LocalPath& localpath);
 
+    // get progress for heartbeats
+    m_off_t getInflightProgress();
+
     // original filesystem fingerprint
     fsfp_t fsfp = 0;
 
