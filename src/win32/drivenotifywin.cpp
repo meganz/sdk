@@ -28,7 +28,7 @@
 #include <wrl/client.h> // ComPtr
 #include <unknwn.h>
 
-#include "mega/drivenotify.h"
+#include "mega/driveinfocollector.h"
 
 using namespace std;
 using namespace Microsoft::WRL; // ComPtr
@@ -60,18 +60,18 @@ namespace mega {
     // DriveNotifyWin
     /////////////////////////////////////////////
 
-    bool DriveNotifyWin::start(NotificationFunc driveDisconnected, NotificationFunc driveConnected)
+    bool DriveNotifyWin::startNotifier()
     {
-        if (mEventSinkThread.joinable() || (!driveDisconnected && !driveConnected))  return false;
+        if (mEventSinkThread.joinable())  return false;
 
-        mEventSinkThread = thread(&DriveNotifyWin::doInThread, this, driveDisconnected, driveConnected);
+        mEventSinkThread = thread(&DriveNotifyWin::doInThread, this);
 
         return true;
     }
 
 
 
-    void DriveNotifyWin::stop()
+    void DriveNotifyWin::stopNotifier()
     {
         if (!mEventSinkThread.joinable())  return;
 
@@ -82,7 +82,7 @@ namespace mega {
 
 
 
-    bool DriveNotifyWin::doInThread(NotificationFunc driveConnected, NotificationFunc driveDisconnected)
+    bool DriveNotifyWin::doInThread()
     {
         // init com
         if (!WinWmi::InitializeCom())  return false;
@@ -168,18 +168,9 @@ namespace mega {
 
             // get drive properties
             DriveInfo p = WinWmi::GetVolumeProperties(pDriveInfo.Get());
+            p.connected = eventType == DRIVE_CONNECTED_EVENT;
 
-            // send notification
-            if (eventType == DRIVE_CONNECTED_EVENT && driveConnected)
-            {
-                p.connected = true;
-                driveConnected(move(p));
-            }
-
-            else if (eventType == DRIVE_DISCONNECTED_EVENT && driveDisconnected)
-            {
-                driveDisconnected(move(p));
-            }
+            add(move(p));
 
             VariantClear(&evPropVariant);
         }

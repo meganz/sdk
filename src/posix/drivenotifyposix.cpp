@@ -22,7 +22,7 @@
 #ifdef HAVE_DRIVE_NOTIFY
 
 
-#include "mega/drivenotify.h"
+#include "mega/driveinfocollector.h"
 
 
 
@@ -32,14 +32,14 @@ namespace mega {
     // DriveNotifyPosix
     /////////////////////////////////////////////
 
-    bool DriveNotifyPosix::start(NotificationFunc driveDisconnected, NotificationFunc driveConnected)
+    bool DriveNotifyPosix::startNotifier()
     {
         return false;
     }
 
 
 
-    void DriveNotifyPosix::stop()
+    void DriveNotifyPosix::stopNotifier()
     {
     }
 

@@ -457,7 +457,6 @@ HEADERS  += include/mega.h \
             include/mega/mediafileattribute.h \
             include/mega/raid.h \
             include/mega/testhooks.h \
-            include/mega/drivenotify.h \
             include/mega/driveinfocollector.h
 
 CONFIG(USE_MEGAAPI) {

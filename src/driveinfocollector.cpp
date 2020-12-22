@@ -30,14 +30,12 @@ using namespace std;
 
 namespace mega {
 
-    bool DriveInfoCollector::start(function<void()> notify)
+    bool DriveInfoCollectorBase::start(function<void()> notify)
     {
-        auto addInfo = bind(&DriveInfoCollector::add, this, placeholders::_1);
-
         lock_guard<mutex> lock(mSyncAccessMutex);
 
         // start the notifier
-        bool started = mNotifier.start(addInfo, addInfo);
+        bool started = startNotifier();
         if (started)
         {
             mNotifyOnInfo = notify;
@@ -48,16 +46,16 @@ namespace mega {
 
 
 
-    void DriveInfoCollector::stop()
+    void DriveInfoCollectorBase::stop()
     {
-        mNotifier.stop();
+        stopNotifier();
         decltype(mInfoQueue) temp;
         mInfoQueue.swap(temp); // clear the container
     }
 
 
 
-    pair<wstring, bool> DriveInfoCollector::get()
+    pair<wstring, bool> DriveInfoCollectorBase::get()
     {
         // sync access
         lock_guard<mutex> lock(mSyncAccessMutex);
@@ -75,7 +73,7 @@ namespace mega {
 
 
 
-    void DriveInfoCollector::add(DriveInfo&& info)
+    void DriveInfoCollectorBase::add(DriveInfo&& info)
     {
         // sync access
         lock_guard<mutex> lock(mSyncAccessMutex);

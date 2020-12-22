@@ -626,7 +626,6 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/node.h
             ${MegaDir}/include/mega/mediafileattribute.h
             ${MegaDir}/include/mega/mega_glob.h
-            ${MegaDir}/include/mega/drivenotify.h
             ${MegaDir}/include/mega/driveinfocollector.h
             ${MegaDir}/include/mega.h
             ${MegaDir}/src/attrmap.cpp 

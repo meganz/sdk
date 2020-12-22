@@ -23,7 +23,7 @@
 
 #ifdef USE_DRIVE_NOTIFICATIONS
 
-// Include "mega/drivenotify.h" where needed.
+// Include "mega/driveinfocollector.h" where needed.
 // This header cannot be used by itself.
 
 #include <map>
@@ -36,20 +36,18 @@ namespace mega {
     // Windows: Platform specific definition
     //
     // Uses WMI. Use 'wbemtest' tool to run WQL queries, for testing and comparison.
-    class DriveNotifyWin : public IDriveNotify
+    class DriveNotifyWin : public DriveInfoCollectorBase
     {
     public:
-        // Start the thread that will send notifications for every drive [dis]connection.
-        bool start(NotificationFunc driveConnected, NotificationFunc driveDisconnected) override;
-
-        // Stop the thread that sends notifications for every drive [dis]connection.
-        void stop() override;
-
         DriveNotifyWin() : mStop(false) {}
         ~DriveNotifyWin() override { stop(); }
 
+    protected:
+        bool startNotifier() override;
+        void stopNotifier() override;
+
     private:
-        bool doInThread(NotificationFunc driveRemoved, NotificationFunc driveAdded);
+        bool doInThread();
 
         std::atomic_bool mStop;
         std::thread mEventSinkThread;

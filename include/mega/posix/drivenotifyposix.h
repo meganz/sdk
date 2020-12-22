@@ -23,7 +23,7 @@
 
 #ifdef HAVE_DRIVE_NOTIFY
 
-// Include "mega/drivenotify.h" where needed.
+// Include "mega/driveinfocollector.h" where needed.
 // This header cannot be used by itself.
 
 
@@ -32,14 +32,14 @@ namespace mega {
     // Posix: Platform specific definition
     //
     // Not implemented.
-    class DriveNotifyPosix : public IDriveNotify
+    class DriveNotifyPosix : public DriveInfoCollectorBase
     {
     public:
-        bool start(NotificationFunc driveConnected, NotificationFunc driveDisconnected) override;
+        ~DriveNotifyPosix() override;
 
-        void stop();
-
-        ~DriveNotifyPosix();
+    protected:
+        bool startNotifier() override;
+        void stopNotifier() override;
     };
 
 } // namespace
