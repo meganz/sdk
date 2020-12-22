@@ -4757,11 +4757,11 @@ TEST_F(SdkTest, SdkBackupFolder)
     }
 
     // request to backup a folder
-    string folderToBackup = string(LOCAL_TEST_FOLDER) + "\\LocalBackedUpFolder";
-    makeNewTestRoot(folderToBackup.c_str());
+    string localFolderPath = string(LOCAL_TEST_FOLDER) + "\\LocalBackedUpFolder";
+    makeNewTestRoot(localFolderPath.c_str());
     mApi[0].h = 0;
-    const char* remoteBackup = "RemoteBackupFolder";
-    int err = synchronousBackupFolder(0, folderToBackup.c_str(), remoteBackup);
+    const char* backupName = "RemoteBackupFolder";
+    int err = synchronousBackupFolder(0, localFolderPath.c_str(), backupName);
     ASSERT_TRUE(err == MegaError::API_OK) << "Backup folder failed (error: " << err << ")";
 
     // verify node attribute
@@ -4772,17 +4772,27 @@ TEST_F(SdkTest, SdkBackupFolder)
 
     // Verify that the remote path was created as expected
     unique_ptr<char[]> myBackupsFolder{ megaApi[0]->getNodePathByNodeHandle(mh) };
-    string expectedRemotePath = string(myBackupsFolder.get()) + '/' + deviceName + '/' + remoteBackup;
+    string expectedRemotePath = string(myBackupsFolder.get()) + '/' + deviceName + '/' + backupName;
     unique_ptr<char[]> actualRemotePath{ megaApi[0]->getNodePathByNodeHandle(mApi[0].h) };
     ASSERT_EQ(expectedRemotePath, actualRemotePath.get()) << "Wrong remote path for backup";
 
     // Verify that the sync was added
     unique_ptr<MegaSyncList> allSyncs{ megaApi[0]->getSyncs() };
     ASSERT_TRUE(allSyncs && allSyncs->size()) << "API reports 0 Sync instances";
-    MegaSync* megaSync = allSyncs->get(0);
-    ASSERT_EQ(string(remoteBackup), megaSync->getName()) << "Sync instance points to a backup with wrong name";
-    ASSERT_EQ(string(actualRemotePath.get()), megaSync->getMegaFolder()) << "Sync instance points to wrong remote path";
-    ASSERT_EQ(mApi[0].h, megaSync->getMegaHandle()) << "Sync instance points to wrong MegaHandle";
+    bool found = false;
+    for (int i = 0; i < allSyncs->size(); ++i)
+    {
+        MegaSync* megaSync = allSyncs->get(i);
+        if (megaSync->getType() == MegaSync::TYPE_BACKUP &&
+            megaSync->getMegaHandle() == mApi[0].h &&
+            !strcmp(megaSync->getName(), backupName) &&
+            !strcmp(megaSync->getMegaFolder(), actualRemotePath.get()))
+        {
+            found = true;
+            break;
+        }
+    }
+    ASSERT_EQ(found, true) << "Sync instance could not be found";
 
     // Verify sync after logout / login
     string session = dumpSession();
@@ -4793,10 +4803,20 @@ TEST_F(SdkTest, SdkBackupFolder)
     // Verify the sync again
     allSyncs.reset(megaApi[0]->getSyncs());
     ASSERT_TRUE(allSyncs && allSyncs->size()) << "API reports 0 Sync instances, after relogin";
-    megaSync = allSyncs->get(0);
-    ASSERT_EQ(string(remoteBackup), megaSync->getName()) << "Sync instance points to a backup with wrong name, after relogin";
-    ASSERT_EQ(string(actualRemotePath.get()), megaSync->getMegaFolder()) << "Sync instance points to wrong remote path, after relogin";
-    ASSERT_EQ(mApi[0].h, megaSync->getMegaHandle()) << "Sync instance points to wrong MegaHandle, after relogin";
+    found = false;
+    for (int i = 0; i < allSyncs->size(); ++i)
+    {
+        MegaSync* megaSync = allSyncs->get(i);
+        if (megaSync->getType() == MegaSync::TYPE_BACKUP &&
+            megaSync->getMegaHandle() == mApi[0].h &&
+            !strcmp(megaSync->getName(), backupName) &&
+            !strcmp(megaSync->getMegaFolder(), actualRemotePath.get()))
+        {
+            found = true;
+            break;
+        }
+    }
+    ASSERT_EQ(found, true) << "Sync instance could not be found, after logout & login";
 
     // Remove registered backup
     RequestTracker removeTracker(megaApi[0].get());
@@ -4807,10 +4827,10 @@ TEST_F(SdkTest, SdkBackupFolder)
 
     // Request to backup another folder
     // this time, the remote folder structure is already there
-    string folderToBackup2 = string(LOCAL_TEST_FOLDER) + "\\LocalBackedUpFolder2";
-    makeNewTestRoot(folderToBackup2.c_str());
-    const char* remoteBackup2 = "RemoteBackupFolder2";
-    err = synchronousBackupFolder(0, folderToBackup2.c_str(), remoteBackup2);
+    string localFolderPath2 = string(LOCAL_TEST_FOLDER) + "\\LocalBackedUpFolder2";
+    makeNewTestRoot(localFolderPath2.c_str());
+    const char* backupName2 = "RemoteBackupFolder2";
+    err = synchronousBackupFolder(0, localFolderPath2.c_str(), backupName2);
     ASSERT_TRUE(err == MegaError::API_OK) << "Backup folder 2 failed (error: " << err << ")";
 }
 
@@ -5691,7 +5711,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
         //loginBySessionId(0, session);
         auto tracker = asyncRequestFastLogin(0, session.c_str());
-        ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for accout " << 0;
+        ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
     };
 
     LOG_verbose << " SyncResumptionAfterFetchNodes : syncying folders";
