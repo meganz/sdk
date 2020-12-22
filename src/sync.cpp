@@ -2195,7 +2195,7 @@ void Syncs::clear()
 void Syncs::resetSyncConfigDb()
 {
     mSyncConfigDb.reset();
-    if (mClient.dbaccess && !mClient.uid.empty())
+    if (mClient.dbaccess && mClient.loggedin() == FULLACCOUNT)
     {
         mSyncConfigDb.reset(new SyncConfigBag{ *mClient.dbaccess, *mClient.fsaccess, mClient.rng, mClient.uid });
     }
@@ -2469,6 +2469,8 @@ void Syncs::enableResumeableSyncs()
 
 void Syncs::resumeResumableSyncsOnStartup()
 {
+    if (mClient.loggedinfolderlink()) return;
+
     bool firstSyncResumed = false;
 
     for (auto& config : mSyncConfigDb->all())

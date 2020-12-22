@@ -319,8 +319,8 @@ void MegaBackupMonitor::updateBackupInfo(handle backupId, const MegaBackupInfo &
     string deviceIdHash = mClient->getDeviceidHash();
 
     mClient->reqs.add(new CommandBackupPut(mClient,
+                                           backupId,
                                            info.type(),
-                                           info.backupName(),
                                            info.megaHandle(),
                                            localFolderEncrypted.c_str(),
                                            deviceIdHash.c_str(),

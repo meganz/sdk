@@ -3148,7 +3148,7 @@ bool CommandGetUA::procresult(Result r)
                                     std::unique_ptr<std::string> container(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
                                     client->putua(at, (byte *)container->data(), unsigned(container->size()));
                                 }
-                                else if (!client->mPendingBackupNames.empty())
+                                else
                                 {
                                     LOG_warn << "No changes to merge into existing backup names after `uga`";
                                     client->mSendingBackupName = false;
@@ -8327,8 +8327,6 @@ bool CommandBackupPut::procresult(Result r)
             client->mPendingBackupNames.clear();
         }
     }
-
-    LOG_debug << "backup put result: " << error(e) << " " << backupId;
 
     if (mCompletion) mCompletion(e, backupId);
 
