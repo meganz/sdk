@@ -208,7 +208,6 @@ private:
     void registerBackupInfo(const MegaBackupInfo &info, UnifiedSync* syncPtr);
 
     void beatBackupInfo(UnifiedSync& us);
-    void calculateStatus(HeartBeatBackupInfo *hbs, UnifiedSync& us);
 #endif
 };
 }

@@ -379,11 +379,6 @@ void MegaBackupMonitor::onSyncConfigChanged()
     });
 }
 
-void MegaBackupMonitor::calculateStatus(HeartBeatBackupInfo *hbs, UnifiedSync& us)
-{
-   hbs->updateStatus(us);
-}
-
 void MegaBackupMonitor::beatBackupInfo(UnifiedSync& us)
 {
     // send registration or update in case we missed it
@@ -400,8 +395,7 @@ void MegaBackupMonitor::beatBackupInfo(UnifiedSync& us)
     if ( !hbs->mSending && (hbs->mModified
          || m_time(nullptr) - hbs->lastBeat() > MAX_HEARBEAT_SECS_DELAY))
     {
-        calculateStatus(hbs.get(), us); //we asume this is costly: only do it when beating
-
+        hbs->updateStatus(us);  //we asume this is costly: only do it when beating
         hbs->setLastBeat(m_time(nullptr));
 
         m_off_t inflightProgress = 0;
