@@ -3164,7 +3164,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_metamac, sequence(text("metamac"), localFSPath(), remoteFSPath(client, &cwd)));
     p->Add(exec_banner, sequence(text("banner"), either(text("get"), sequence(text("dismiss"), param("id")))));
 
-    p->Add(exec_drivenotifications, sequence(text("drivenotificationson"), either(text("on"), text("off"))));
+    p->Add(exec_drivemonitor, sequence(text("drivemonitor"), either(text("on"), text("off"))));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -6655,7 +6655,7 @@ void exec_enabletransferresumption(autocomplete::ACState& s)
 }
 
 
-void exec_drivenotifications(autocomplete::ACState& s)
+void exec_drivemonitor(autocomplete::ACState& s)
 {
 #ifdef USE_DRIVE_NOTIFICATIONS
     if (s.words[1].s == "off")
