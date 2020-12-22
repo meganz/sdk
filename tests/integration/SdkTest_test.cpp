@@ -4715,8 +4715,7 @@ TEST_F(SdkTest, SdkBackupFolder)
     MegaHandle mh = mApi[0].h;
 
     // create My Backups folder
-    unique_ptr<MegaNode> myBkpsNode{ mh && mh != UNDEF ? megaApi[0]->getNodeByHandle(mh)
-                                                       : megaApi[0]->getNodeByPath("/My Backups") };
+    unique_ptr<MegaNode> myBkpsNode{ mh && mh != INVALID_HANDLE ? megaApi[0]->getNodeByHandle(mh) : nullptr };
     if (!myBkpsNode)
     {
         // create My Backups folder (default name, just for testing)
