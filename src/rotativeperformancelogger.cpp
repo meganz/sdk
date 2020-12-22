@@ -310,9 +310,11 @@ private:
         long int currentTimestamp = static_cast<long int> (std::time(nullptr));
         long int archiveMaxFileAgeSeconds = this->archiveMaxFileAgeSeconds;
 
+        std::vector<std::pair<long int, LocalPath>> archivedTimestampsPathPairs;
+
         logArchiveTimestamp_walkArchivedFiles(
                     logsPath, fileName,
-                    [this, currentTimestamp, archiveMaxFileAgeSeconds](const LocalPath& logsPath,const LocalPath& leafNamePath)
+                    [this, currentTimestamp, archiveMaxFileAgeSeconds, &archivedTimestampsPathPairs](const LocalPath& logsPath,const LocalPath& leafNamePath)
         {
             std::string leafName = leafNamePath.toPath(*mFsAccess);
             std::regex rgx(".*\\.([0-9]+)\\.gz");
@@ -322,17 +324,45 @@ private:
             {
                 std::string leafTimestampString = match[1].str();
                 long int leafTimestamp = std::stol(leafTimestampString);
+                LocalPath leafNameFullPath = logsPath;
+                leafNameFullPath.appendWithSeparator(leafNamePath, false);
                 if (currentTimestamp - leafTimestamp > archiveMaxFileAgeSeconds)
                 {
-                    LocalPath leafNameFullPath = logsPath;
-                    leafNameFullPath.appendWithSeparator(leafNamePath, false);
                     if (!mFsAccess->unlinklocal(leafNameFullPath))
                     {
                         std::cerr << "Error removing log file " << leafNameFullPath.toPath(*mFsAccess) << std::endl;
                     }
                 }
+                else
+                {
+                    archivedTimestampsPathPairs.push_back(std::make_pair(leafTimestamp, leafNameFullPath));
+                }
             }
         });
+
+        int extraFileNumber = static_cast<int>(archivedTimestampsPathPairs.size()) - MAX_ROTATE_LOGS;
+        if (extraFileNumber > 0)
+        {
+            std::sort(archivedTimestampsPathPairs.begin(), archivedTimestampsPathPairs.end(),
+                [](const std::pair<long int, LocalPath>& a, const std::pair<long int, LocalPath>& b)
+                {
+                    return a.first < b.first;
+                }
+            );
+
+            for (auto archivedTimestampsPathPair : archivedTimestampsPathPairs) {
+                if (extraFileNumber <= 0) break;
+                LocalPath& leafNameFullPathToDelete = archivedTimestampsPathPair.second;
+                if (!mFsAccess->unlinklocal(leafNameFullPathToDelete))
+                {
+                    std::cerr << "Error removing log file " << leafNameFullPathToDelete.toPath(*mFsAccess) << std::endl;
+                }
+                else
+                {
+                    --extraFileNumber;
+                }
+            }
+        }
     }
 
     LocalPath logArchive_getNewFilename(const LocalPath& fileName)
