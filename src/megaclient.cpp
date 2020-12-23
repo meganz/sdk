@@ -1830,7 +1830,7 @@ void MegaClient::exec()
                             if (fetchingnodes && fnstats.timeToFirstByte == NEVER
                                     && pendingcs->bufpos > 10)
                             {
-								WAIT_CLASS::bumpds();
+                                WAIT_CLASS::bumpds();
                                 fnstats.timeToFirstByte = WAIT_CLASS::ds - fnstats.startTime;
                             }
 
@@ -1853,7 +1853,7 @@ void MegaClient::exec()
                             {
                                 if (fetchingnodes && fnstats.timeToFirstByte == NEVER)
                                 {
-									WAIT_CLASS::bumpds();
+                                    WAIT_CLASS::bumpds();
                                     fnstats.timeToFirstByte = WAIT_CLASS::ds - fnstats.startTime;
                                 }
 
@@ -4135,7 +4135,7 @@ void MegaClient::locallogout(bool removecaches)
         }
         else
         {
-        	syncs.removeSelectedSyncs([](SyncConfig&, Sync* s){ return s != nullptr; });
+            syncs.removeSelectedSyncs([](SyncConfig&, Sync* s){ return s != nullptr; });
         }
 #endif
         removeCaches();
@@ -4246,10 +4246,10 @@ void MegaClient::locallogout(bool removecaches)
     {
         for (int i = 2; i--; )
         {
-    	    for (faf_map::iterator it = cit->second->fafs[i].begin(); it != cit->second->fafs[i].end(); it++)
-    	    {
+            for (faf_map::iterator it = cit->second->fafs[i].begin(); it != cit->second->fafs[i].end(); it++)
+            {
                 delete it->second;
-    	    }
+            }
         }
 
         delete cit->second;
@@ -13094,7 +13094,7 @@ error MegaClient::copySyncConfig(SyncConfig& config, std::function<void(mega::Un
 }
 
 //TODO: config should now be const, and it cannot be expected to be modified as it was in previous code before async completion after sp
-error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* localdebris, bool delayInitialScan,
+error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* localdebris, bool delayInitialScan, bool notifyApp,
                           std::function<void(mega::UnifiedSync *, const SyncError &, error)> completion)
 {
     LocalPath rootpath;
@@ -13119,7 +13119,7 @@ error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* loc
                                        , MegaBackupInfoSync::getSyncState(config, this)
                                        , config.getError()
                                        , extraData
-                                       , [this, config, completion](Error e, handle h)
+                                       , [this, config, completion, notifyApp](Error e, handle h)
         {
             if (h == UNDEF && !e)
             {
@@ -13140,7 +13140,7 @@ error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* loc
                 //TODO: remove MegaBackupMonitor::updateOrRegisterSync "Register" code path and backupId control
                 UnifiedSync *unifiedSync = syncs.appendNewSync(newConfig, *this);
 
-                e = unifiedSync->enableSync(false);
+                e = unifiedSync->enableSync(false, notifyApp);
 
                 syncactivity = true;
 

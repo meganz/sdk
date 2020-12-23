@@ -97,13 +97,13 @@ struct UnifiedSync
     UnifiedSync(MegaClient&, const SyncConfig&);
 
     // Try to create and start the Sync
-    error enableSync(bool resetFingerprint);
+    error enableSync(bool resetFingerprint, bool notifyApp);
 
 private:
     friend class Sync;
     friend struct Syncs;
     error startSync(MegaClient* client, const char* debris, LocalPath* localdebris, Node* remotenode, bool inshare, bool isNetwork, bool delayInitialScan, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder);
-    void changedConfigState(bool fireDisableEvent);
+    void changedConfigState(bool notifyApp);
     bool updateSyncRemoteLocation(Node* n, bool forceCallback);
 };
 

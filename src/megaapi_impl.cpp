@@ -8927,7 +8927,7 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
 
         if (sync->localnodebypath(NULL, localpath, &parent) || parent)
         {
-            if (sync->localdebris.isContainingPathOf(localpath))
+            if (!sync->localdebris.isContainingPathOf(localpath))
             {
                 auto temp = localpath.leafName();
                 auto name = temp.toName(*fsAccess, sync->mFilesystemType);
@@ -21421,7 +21421,7 @@ void MegaApiImpl::sendPendingRequests()
             SyncConfig syncConfig{localPath, name, request->getNodeHandle(), remotePath.get(),
                                   0, regExpToVector(request->getRegExp())};
 
-            client->addsync(syncConfig, DEBRISFOLDER, NULL, true,
+            client->addsync(syncConfig, DEBRISFOLDER, NULL, true, false,
                                 [this, request, sync, remotePath](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
             {
                 request->setNumDetails(syncError);
@@ -21444,7 +21444,7 @@ void MegaApiImpl::sendPendingRequests()
                     request->setNumber(fsfp);
                 }
                 sync->setMegaFolder(remotePath.get());
-                request->setParentHandle(unifiedSync->mConfig.getTag()); //TODO: doc
+                request->setParentHandle(unifiedSync->mConfig.getTag());
 
                 fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));//we don't consider the addsync returned error as an error on the request: the sync was added (although temporarily disabled)
