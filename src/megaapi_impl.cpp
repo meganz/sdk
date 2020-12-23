@@ -20009,8 +20009,7 @@ void MegaApiImpl::sendPendingRequests()
                 if (client->statusTable)
                 {
                     client->statusTable->remove();
-                    delete client->statusTable;
-                    client->statusTable = NULL;
+                    client->statusTable.reset();
                 }
 
                 nocache = false;
