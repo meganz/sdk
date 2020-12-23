@@ -352,7 +352,6 @@ private:
 
             for (auto &archivedTimestampsPathPair : archivedTimestampsPathPairs)
             {
-                if (extraFileNumber <= 0) break;
                 LocalPath& leafNameFullPathToDelete = archivedTimestampsPathPair.second;
                 if (!mFsAccess->unlinklocal(leafNameFullPathToDelete))
                 {
@@ -360,7 +359,7 @@ private:
                 }
                 else
                 {
-                    --extraFileNumber;
+                    if (--extraFileNumber <= 0) break;
                 }
             }
         }
