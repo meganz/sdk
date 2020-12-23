@@ -3287,7 +3287,7 @@ protected:
 
 private:
         void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);
-        void getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
+        error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
 #ifdef ENABLE_SYNC
         error backupFolder_sendPendingRequest(MegaRequestPrivate* request);
 #endif

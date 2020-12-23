@@ -15505,7 +15505,7 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
 
         case MegaApi::USER_ATTR_COOKIE_SETTINGS:
             {
-                getCookieSettings_getua_result(data, len, request);
+                e = getCookieSettings_getua_result(data, len, request);
             }
             break;
 
@@ -23620,7 +23620,7 @@ void MegaApiImpl::getCookieSettings(MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request)
+error MegaApiImpl::getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request)
 {
     // make a copy to make sure we don't read too much from a non-null terminated string
     unique_ptr<char[]> buff(new char[len + 1]);
@@ -23633,12 +23633,17 @@ void MegaApiImpl::getCookieSettings_getua_result(byte* data, unsigned len, MegaR
     long value = strtol(startptr, &endptr, 10);
 
     // validate the value
+    error e = API_OK;
     if (endptr == startptr || *endptr != '\0' || value == LONG_MAX || value == LONG_MIN)
     {
         value = -1;
+        LOG_err << "Invalid value for Cookie Settings bitmap";
+        e = API_EINTERNAL;
     }
 
     request->setNumDetails(int(value));
+
+    return e;
 }
 
 void TreeProcCopy::allocnodes()
