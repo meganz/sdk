@@ -23646,6 +23646,11 @@ error MegaApiImpl::getCookieSettings_getua_result(byte* data, unsigned len, Mega
     return e;
 }
 
+bool MegaApiImpl::cookieBannerEnabled()
+{
+    return client->mCookieBannerEnabled;
+}
+
 void TreeProcCopy::allocnodes()
 {
     nn.resize(nc);

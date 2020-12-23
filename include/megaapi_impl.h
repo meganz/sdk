@@ -2781,6 +2781,7 @@ class MegaApiImpl : public MegaApp
 
         void setCookieSettings(int settings, MegaRequestListener *listener = nullptr);
         void getCookieSettings(MegaRequestListener *listener = nullptr);
+        bool cookieBannerEnabled();
 
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e, DBTableTransactionCommitter& committer);

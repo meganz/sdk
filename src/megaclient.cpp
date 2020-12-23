@@ -8674,6 +8674,9 @@ error MegaClient::readmiscflags(JSON *json)
         case MAKENAMEID4('n', 'l', 'f', 'e'):   // new link format enabled
             mNewLinkFormat = static_cast<bool>(json->getint());
             break;
+        case MAKENAMEID4('c', 's', 'p', 'e'):   // cookie banner enabled
+            mCookieBannerEnabled = bool(json->getint());
+            break;
         case EOO:
             return API_OK;
         default:

@@ -5440,6 +5440,11 @@ void MegaApi::getCookieSettings(MegaRequestListener *listener)
     pImpl->getCookieSettings(listener);
 }
 
+bool MegaApi::cookieBannerEnabled()
+{
+    return pImpl->cookieBannerEnabled();
+}
+
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
     pImpl = new MegaHashSignatureImpl(base64Key);
