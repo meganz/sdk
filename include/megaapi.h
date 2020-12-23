@@ -18532,7 +18532,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
-         *  - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_COOKIE_SEETINGS
+         *  - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_COOKIE_SETTINGS
          *  - MegaRequest::getNumDetails - Return a bitmap with cookie settings
          *  - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          *
