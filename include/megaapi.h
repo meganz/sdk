@@ -18567,6 +18567,8 @@ class MegaApi
          *
          * On the onRequestFinish error, the error code associated to the MegaError can be:
          * - MegaError::API_EINTERNAL - If the value for cookie settings bitmap was invalid
+         *
+         * @param listener MegaRequestListener to track this request
          */
         void getCookieSettings(MegaRequestListener *listener = nullptr);
 
