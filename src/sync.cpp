@@ -530,6 +530,7 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
     auto insertOrUpdate = [this](const uint32_t id, const SyncConfig& syncConfig)
     {
         std::string data;
+        assert(syncConfig.getTag() != UNDEF && "tag is undefined when trying to persist syncConfig");
         const_cast<SyncConfig&>(syncConfig).serialize(&data);
         DBTableTransactionCommitter committer{mTable.get()};
         if (!mTable->put(id, &data)) // put either inserts or updates
@@ -542,7 +543,7 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
         return true;
     };
 
-    map<int, SyncConfig>::iterator syncConfigIt = mSyncConfigs.find(syncConfig.getTag());
+    auto syncConfigIt = mSyncConfigs.find(syncConfig.getTag());
     if (syncConfigIt == mSyncConfigs.end()) // syncConfig is new
     {
         if (mTable)
@@ -574,7 +575,7 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
     }
 }
 
-bool SyncConfigBag::removeByTag(const int tag)
+bool SyncConfigBag::removeByTag(const handle tag)
 {
     auto syncConfigPair = mSyncConfigs.find(tag);
     if (syncConfigPair != mSyncConfigs.end())
@@ -595,7 +596,7 @@ bool SyncConfigBag::removeByTag(const int tag)
     return false;
 }
 
-const SyncConfig* SyncConfigBag::get(const int tag) const
+const SyncConfig* SyncConfigBag::get(const handle tag) const
 {
     auto syncConfigPair = mSyncConfigs.find(tag);
     if (syncConfigPair != mSyncConfigs.end())
@@ -639,7 +640,7 @@ std::vector<SyncConfig> SyncConfigBag::all() const
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(UnifiedSync& us, const char* cdebris,
-           LocalPath* clocaldebris, Node* remotenode, bool cinshare, int ctag)
+           LocalPath* clocaldebris, Node* remotenode, bool cinshare, handle ctag)
 : localroot(new LocalNode)
 , mUnifiedSync(us)
 {
@@ -2213,7 +2214,7 @@ auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> UnifiedSync*
     return mSyncVec.back().get();
 }
 
-Sync* Syncs::runningSyncByTag(int tag) const
+Sync* Syncs::runningSyncByTag(handle tag) const
 {
     for (auto& s : mSyncVec)
     {
@@ -2408,7 +2409,7 @@ void Syncs::removeSyncByIndex(size_t index)
 }
 
 
-error Syncs::enableSyncByTag(int tag, bool resetFingerprint, UnifiedSync*& syncPtrRef)
+error Syncs::enableSyncByTag(handle tag, bool resetFingerprint, UnifiedSync*& syncPtrRef)
 {
     for (auto& s : mSyncVec)
     {
@@ -2517,8 +2518,6 @@ void Syncs::resumeResumableSyncsOnStartup()
                 LOG_debug << "Sync loaded (but not resumed): " << unifiedSync->mConfig.getTag() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
                 mClient.app->sync_auto_resume_result(*unifiedSync, false);
             }
-
-            mClient.mSyncTag = std::max(mClient.mSyncTag, unifiedSync->mConfig.getTag());
         }
     }
 }

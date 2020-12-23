@@ -4982,7 +4982,7 @@ public:
 /**
  * @brief INVALID_SYNC_TAG Invalid value for a sync tag
  */
-const int INVALID_SYNC_TAG = 0;
+const auto INVALID_SYNC_TAG = INVALID_HANDLE;
 
 
 /**
@@ -5233,7 +5233,7 @@ public:
      *
      * @return Identifier of the synchronization
      */
-    virtual int getTag() const;
+    virtual MegaHandle getTag() const;
 
     /**
      * @brief Get the error of a synchronization
@@ -13396,7 +13396,7 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
          * if the sync was added with no errors
-         * - MegaRequest::getTransferTag - Returns the sync tag
+         * - MegaRequest::getParentTag - Returns the sync tag
          *
          * @param localFolder Local folder
          * @param name Name given to the sync
@@ -13424,7 +13424,7 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
          * if the sync was added with no errors
-         * - MegaRequest::getTransferTag - Returns the sync tag
+         * - MegaRequest::getParentTag - Returns the sync tag
          *
          * @param localFolder Local folder
          * @param megaFolder MEGA folder
@@ -13451,7 +13451,7 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
          * if the sync was added with no errors
-         * - MegaRequest::getTransferTag - Returns the sync tag
+         * - MegaRequest::getParentTag - Returns the sync tag
          *
          * @param localFolder Local folder
          * @param megaHandle Handle of MEGA folder
@@ -13478,7 +13478,7 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
          * if the sync was added with no errors
-         * - MegaRequest::getTransferTag - Returns the sync tag
+         * - MegaRequest::getParentTag - Returns the sync tag
          *
          * @param localFolder Local folder
          * @param name Name given to the sync
@@ -13502,12 +13502,12 @@ class MegaApi
          * - MegaRequest::getName - Returns the name of the sync
          * - MegaRequest::getLink - Returns the path of the remote folder
          * - MegaRequest::getNumber - Returns the local filesystem fingreprint
-         * - MegaRequest::setNumDetails - Returns if sync is temporarily disabled
+         * - MegaRequest::getNumDetails - Returns if sync is temporarily disabled
          * - MegaRequest::getFlag - if sync is enabled
 
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getTransferTag - tag assigned to the sync (MegaApi::copySyncDataToCache)
+         * - MegaRequest::getParentTag - tag assigned to the sync (MegaApi::copySyncDataToCache)
          *
          * @param localFolder Local folder
          * @param name Name given to the sync
@@ -13534,12 +13534,12 @@ class MegaApi
          * - MegaRequest::getName - Returns the name of the sync
          * - MegaRequest::getLink - Returns the path of the remote folder
          * - MegaRequest::getNumber - Returns the local filesystem fingreprint
-         * - MegaRequest::setNumDetails - Returns if sync is temporarily disabled
+         * - MegaRequest::getNumDetails - Returns if sync is temporarily disabled
          * - MegaRequest::getFlag - if sync is enabled
 
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getTransferTag - tag assigned to the sync (MegaApi::copySyncDataToCache)
+         * - MegaRequest::getParentTag - tag assigned to the sync (MegaApi::copySyncDataToCache)
          *
          * @param localFolder Local folder
          * @param megaHandle MEGA folder
@@ -13596,7 +13596,7 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
          * if the sync was added with no errors
-         * - MegaRequest::getTransferTag - Returns the sync tag
+         * - MegaRequest::getParentTag - Returns the sync tag
          *
          * @param localFolder Local folder
          * @param megaFolder MEGA folder
@@ -13621,7 +13621,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
          * - MegaRequest::getFlag - Returns true
-         * - MegaRequest::getNumDetails - Returns sync tag
+         * - MegaRequest::getParentHandle - Returns sync tag
          * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
          *
          * @param megaFolder MEGA folder
@@ -13640,14 +13640,14 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNumDetails - Returns sync tag
+         * - MegaRequest::getParentHandle - Returns sync tag
          * - MegaRequest::getFlag - Returns true
          * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
          *
          * @param syncTag tag identifying the Sync
          * @param listener MegaRequestListener to track this request
          */
-        void removeSync(int syncTag, MegaRequestListener *listener = NULL);
+        void removeSync(MegaHandle syncTag, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Remove a synced folder
@@ -13660,7 +13660,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNumDetails - Returns sync tag
+         * - MegaRequest::getParentHandle - Returns sync tag
          * - MegaRequest::getFlag - Returns true
          * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
          *
@@ -13699,12 +13699,12 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_DISABLE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNumDetails - Returns sync tag
+         * - MegaRequest::getParentHandle - Returns sync tag
          *
          * @param syncTag tag identifying the Sync
          * @param listener MegaRequestListener to track this request
          */
-        void disableSync(int tag, MegaRequestListener *listener = NULL);
+        void disableSync(MegaHandle tag, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Disable a synced folder
@@ -13717,7 +13717,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_DISABLE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNumDetails - Returns sync tag
+         * - MegaRequest::getParentHandle - Returns sync tag
          *
          * @param sync Synchronization to disable
          * @param listener MegaRequestListener to track this request
@@ -13732,7 +13732,7 @@ class MegaApi
         *
         * The associated request type with this request is MegaRequest::TYPE_ENABLE_SYNC
         * Valid data in the MegaRequest object received on callbacks:
-        * - MegaRequest::getNumDetails - Returns the sync error (MegaSync::Error) in case of failure
+        * - MegaRequest::getParentHandle - Returns the sync error (MegaSync::Error) in case of failure
         *
         * @param sync Synchronization to enable
         * @param listener MegaRequestListener to track this request
@@ -13747,12 +13747,12 @@ class MegaApi
         *
         * The associated request type with this request is MegaRequest::TYPE_ENABLE_SYNC
         * Valid data in the MegaRequest object received on callbacks:
-        * - MegaRequest::getNumDetails - Returns the sync error (MegaSync::Error) in case of failure
+        * - MegaRequest::getParentHandle - Returns the sync error (MegaSync::Error) in case of failure
         *
         * @param syncTag tag identifying the Sync
         * @param listener MegaRequestListener to track this request
         */
-        void enableSync(int tag, MegaRequestListener *listener = NULL);
+        void enableSync(MegaHandle tag, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Remove all active synced folders
@@ -13913,7 +13913,7 @@ class MegaApi
          * @param tag Tag that identifies the synchronization
          * @return Synchronization identified by the tag
          */
-        MegaSync *getSyncByTag(int tag);
+        MegaSync *getSyncByTag(MegaHandle tag);
 
         /**
          * @brief getSyncByNode Get the synchronization associated with a node

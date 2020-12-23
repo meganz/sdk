@@ -603,7 +603,7 @@ public:
      * @param syncError filled with SyncError with the sync error that makes the node unsyncable
      * @return API_OK if syncable. (regular) error otherwise
      */
-    error isLocalPathSyncable(std::string newPath, int newSyncTag = 0, SyncError *syncError = nullptr);
+    error isLocalPathSyncable(std::string newPath, handle newSyncTag = UNDEF, SyncError *syncError = nullptr);
 
     /**
      * @brief check config. Will fill syncError in the SyncConfig in case there is one.
@@ -1214,7 +1214,7 @@ public:
     int reqtag;
 
     // current sync tag
-    int mSyncTag;
+    handle mSyncTag;
 
     // user maps: by handle and by case-normalized e-mail address
     uh_map uhindex;

@@ -839,8 +839,7 @@ public:
         TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
     };
 
-    SyncConfig(int tag,
-               std::string localPath,
+    SyncConfig(std::string localPath,
                std::string syncName,
                const handle remoteNode,
                const std::string &remotePath,
@@ -856,10 +855,10 @@ public:
             );
 
     // returns unique identifier
-    int getTag() const;
+    handle getTag() const;
 
     // returns unique identifier
-    void setTag(int tag);
+    void setTag(handle tag);
 
     // whether this sync has errors (was inactive)
     bool hasError() const;
@@ -929,10 +928,6 @@ public:
 
 private:
 
-    // Unique identifier. any other field can change (even remote handle),
-    // and we want to keep disabled configurations saved: e.g: remote handle changed
-    int mTag;
-
     // enabled/disabled by the user
     bool mEnabled = true;
 
@@ -966,6 +961,8 @@ private:
     // failure cause (disable/failure cause).
     SyncError mError;
 
+    // Unique identifier. any other field can change (even remote handle),
+    // and we want to keep disabled configurations saved: e.g: remote handle changed
     // id for heartbeating
     handle mBackupId;
 

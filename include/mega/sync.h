@@ -56,10 +56,10 @@ public:
     void insert(const SyncConfig& syncConfig);
 
     // Removes a sync config with a given tag
-    bool removeByTag(const int tag);
+    bool removeByTag(const handle tag);
 
     // Returns the sync config with a given tag
-    const SyncConfig* get(const int tag) const;
+    const SyncConfig* get(const handle tag) const;
 
     // Returns the first sync config found with a remote handle
     const SyncConfig* getByNodeHandle(handle nodeHandle) const;
@@ -72,7 +72,7 @@ public:
 
 private:
     std::unique_ptr<DbTable> mTable; // table for caching the sync configs
-    std::map<int, SyncConfig> mSyncConfigs; // map of tag to sync configs
+    std::map<handle, SyncConfig> mSyncConfigs; // map of tag to sync configs
 };
 
 
@@ -191,7 +191,7 @@ public:
     int scanseqno = 0;
 
     // notified nodes originating from this sync bear this tag
-    int tag = 0;
+    handle tag = UNDEF;
 
     // debris path component relative to the base path
     string debris;
@@ -230,7 +230,7 @@ public:
 
     // flag to optimize destruction by skipping calls to treestate()
     bool mDestructorRunning = false;
-    Sync(UnifiedSync&, const char*, LocalPath*, Node*, bool, int);
+    Sync(UnifiedSync&, const char*, LocalPath*, Node*, bool, handle);
     ~Sync();
 
     static const int SCANNING_DELAY_DS;
@@ -256,7 +256,7 @@ struct Syncs
     bool hasRunningSyncs();
     unsigned numRunningSyncs();
     Sync* firstRunningSync();
-    Sync* runningSyncByTag(int tag) const;
+    Sync* runningSyncByTag(handle tag) const;
 
     void forEachUnifiedSync(std::function<void(UnifiedSync&)> f);
     void forEachRunningSync(std::function<void(Sync* s)>);
@@ -267,7 +267,7 @@ struct Syncs
     void stopCancelledFailedDisabled();
     void resumeResumableSyncsOnStartup();
     void enableResumeableSyncs();
-    error enableSyncByTag(int tag, bool resetFingerprint, UnifiedSync*&);
+    error enableSyncByTag(handle tag, bool resetFingerprint, UnifiedSync*&);
 
     // disable all active syncs.  Cache is kept
     void disableSyncs(SyncError syncError, bool newEnabledFlag);

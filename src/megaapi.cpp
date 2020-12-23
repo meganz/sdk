@@ -3334,12 +3334,12 @@ void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
 
 void MegaApi::removeSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->removeSync(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
+    pImpl->removeSyncById(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
 }
 
-void MegaApi::removeSync(int tag, MegaRequestListener *listener)
+void MegaApi::removeSync(MegaHandle tag, MegaRequestListener *listener)
 {
-    pImpl->removeSync(tag, listener);
+    pImpl->removeSyncById(tag, listener);
 }
 
 void MegaApi::disableSync(MegaNode *megaFolder, MegaRequestListener *listener)
@@ -3349,22 +3349,22 @@ void MegaApi::disableSync(MegaNode *megaFolder, MegaRequestListener *listener)
 
 void MegaApi::disableSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->disableSync(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
+    pImpl->disableSyncById(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
 }
 
 void MegaApi::enableSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->enableSync(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
+    pImpl->enableSyncById(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
 }
 
-void MegaApi::enableSync(int tag, MegaRequestListener *listener)
+void MegaApi::enableSync(MegaHandle tag, MegaRequestListener *listener)
 {
-    pImpl->enableSync(tag, listener);
+    pImpl->enableSyncById(tag, listener);
 }
 
-void MegaApi::disableSync(int tag, MegaRequestListener *listener)
+void MegaApi::disableSync(MegaHandle tag, MegaRequestListener *listener)
 {
-    pImpl->disableSync(tag, listener);
+    pImpl->disableSyncById(tag, listener);
 }
 
 void MegaApi::removeSyncs(MegaRequestListener *listener)
@@ -3397,7 +3397,7 @@ char *MegaApi::getBlockedPath()
     return pImpl->getBlockedPath();
 }
 
-MegaSync *MegaApi::getSyncByTag(int tag)
+MegaSync *MegaApi::getSyncByTag(MegaHandle tag)
 {
     return pImpl->getSyncByTag(tag);
 }
@@ -5732,9 +5732,9 @@ long long MegaSync::getLocalFingerprint() const
     return 0;
 }
 
-int MegaSync::getTag() const
+MegaHandle MegaSync::getTag() const
 {
-    return 0;
+    return INVALID_HANDLE;
 }
 
 int MegaSync::getError() const

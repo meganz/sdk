@@ -661,12 +661,6 @@ int MegaClient::nextreqtag()
     return ++reqtag;
 }
 
-int MegaClient::nextSyncTag(int increment)
-{
-    mSyncTag += increment;
-    return ++mSyncTag;
-}
-
 void MegaClient::exportDatabase(string filename)
 {
     FILE *fp = NULL;
@@ -1331,7 +1325,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
     nextuh = 0;
     reqtag = 0;
-    mSyncTag = 0;
+    mSyncTag = UNDEF;
 
     badhostcs = NULL;
 
@@ -12931,7 +12925,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
 #endif
 }
 
-error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, SyncError *syncError)
+error MegaClient::isLocalPathSyncable(string newPath, handle newSyncTag, SyncError *syncError)
 {
     if (!newPath.size())
     {
@@ -13138,7 +13132,6 @@ error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* loc
             }
             else
             {
-
 
                 // if we got this far, the syncConfig is kept (in db and in memory)
                 auto newConfig = config; //TODO: need copying due to constness of config. which is unexpectedly const
@@ -14241,10 +14234,12 @@ void MegaClient::syncupdate()
                 // this assert fails for the case of two different files uploaded to the same path, and both putnodes occurring in the same exec()
                 assert(localNode->type == FOLDERNODE
                        || localNode->h == localNode->parent->node->nodehandle); // if it's a file, it should match
+
+                auto nextTag = nextreqtag();
                 reqs.add(new CommandPutNodes(this,
                                                 localNode->parent->node->nodehandle,
                                                 NULL, move(nn),
-                                                localNode->sync->tag,
+                                                nextTag, //assign a new unused reqtag
                                                 PUTNODES_SYNC));
 
                 syncactivity = true;
@@ -14301,7 +14296,7 @@ void MegaClient::movetosyncdebris(Node* dn, bool unlink)
     // detach node from LocalNode
     if (dn->localnode)
     {
-        dn->tag = dn->localnode->sync->tag;
+        dn->tag = nextreqtag(); //assign a new unused reqtag
         dn->localnode->node = NULL;
         dn->localnode = NULL;
     }
