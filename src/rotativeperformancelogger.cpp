@@ -350,7 +350,8 @@ private:
                 }
             );
 
-            for (auto archivedTimestampsPathPair : archivedTimestampsPathPairs) {
+            for (auto &archivedTimestampsPathPair : archivedTimestampsPathPairs)
+            {
                 if (extraFileNumber <= 0) break;
                 LocalPath& leafNameFullPathToDelete = archivedTimestampsPathPair.second;
                 if (!mFsAccess->unlinklocal(leafNameFullPathToDelete))
