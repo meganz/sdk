@@ -18553,7 +18553,8 @@ class MegaApi
          *  - MegaRequest::getParamType - Returns the value USER_ATTR_COOKIE_SETTINGS
          *  - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          *
-         * When the error code is MegaError::API_OK:
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
          * - MegaRequest::getNumDetails Return the bitmap with cookie settings
          *   Valid bits are:
          *      - Bit 0: essential
