@@ -299,6 +299,17 @@ if test "x$enable_megaapi" != "xno"; then
 fi
 AM_CONDITIONAL([BUILD_MEGAAPI], [test "x$enable_megaapi" = "xyes"])
 
+# Rotative Performance Logger
+AC_ARG_ENABLE(rotative-performance-logger,
+    AS_HELP_STRING([--enable-rotative-performance-logger], [enable Rotative Performance Logger [default=no]]),
+    [enable_rotative_performance_logger=${enableval}],
+    [enable_rotative_performance_logger=no])
+if test "x$enable_rotative_performance_logger" = "xyes"; then
+    AC_DEFINE(USE_ROTATIVEPERFORMANCELOGGER, 1, [Defined if Rotative Performance Logger enabled])
+    AC_DEFINE(ENABLE_LOG_PERFORMANCE, 1, [Defined if Rotative Performance Logger enabled])
+fi
+AM_CONDITIONAL([USE_ROTATIVEPERFORMANCELOGGER], [test "x$enable_rotative_performance_logger" = "xyes"])
+
 # Java
 AC_MSG_CHECKING([if building Java bindings])
 AC_ARG_ENABLE(java,
@@ -2061,6 +2072,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   chat:             $enable_chat
   MEGA API          $enable_megaapi
   example apps:     $enable_examples
+  Rot Perf Logger:  $enable_rotative_performance_logger
 
   inotify:          $enable_inotify
   posix threads:    $enable_posix_threads

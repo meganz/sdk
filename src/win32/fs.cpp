@@ -725,7 +725,7 @@ void WinFileSystemAccess::path2local(const string* path, std::wstring* local) co
     int len = MultiByteToWideChar(CP_UTF8, 0,
         path->c_str(),
         -1,
-        local->data(),
+        const_cast<wchar_t*>(local->data()),
         int(local->size()));
     if (len)
     {
@@ -776,13 +776,13 @@ bool WinFileSystemAccess::getsname(const LocalPath& namePath, LocalPath& snamePa
     DWORD r = DWORD(name.size());
     sname.resize(r);
 
-    DWORD rr = GetShortPathNameW(name.data(), sname.data(), r);
+    DWORD rr = GetShortPathNameW(name.data(), const_cast<wchar_t*>(sname.data()), r);
 
     sname.resize(rr);
 
     if (rr >= r)
     {
-        rr = GetShortPathNameW(name.data(), sname.data(), rr);
+        rr = GetShortPathNameW(name.data(), const_cast<wchar_t*>(sname.data()), rr);
         sname.resize(rr);
     }
 
@@ -797,7 +797,8 @@ bool WinFileSystemAccess::getsname(const LocalPath& namePath, LocalPath& snamePa
     // we are only interested in the path's last component
     wchar_t* ptr;
 
-    if ((ptr = wcsrchr(sname.data(), L'\\')) || (ptr = wcsrchr(sname.data(), L':')))
+    if ((ptr = wcsrchr(const_cast<wchar_t*>(sname.data()), L'\\')) ||
+        (ptr = wcsrchr(const_cast<wchar_t*>(sname.data()), L':')))
     {
         sname.erase(0, ptr - sname.data() + 1);
     }
@@ -1121,7 +1122,7 @@ bool WinFileSystemAccess::expanselocalpath(LocalPath& pathArg, LocalPath& absolu
     }
 
     absolutepathArg.localpath.resize(len);
-    int newlen = GetFullPathNameW(pathArg.localpath.data(), len, absolutepathArg.localpath.data(), NULL);
+    int newlen = GetFullPathNameW(pathArg.localpath.data(), len, const_cast<wchar_t*>(absolutepathArg.localpath.data()), NULL);
     if (newlen <= 0 || newlen >= len)
     {
         absolutepathArg.localpath = pathArg.localpath;
@@ -1505,12 +1506,12 @@ WinDirNotify::WinDirNotify(LocalPath& localbasepath, const LocalPath& ignore, Wi
     std::wstring longname;
     auto r = localbasepath.localpath.size() + 20;
     longname.resize(r);
-    auto rr = GetLongPathNameW(localbasepath.localpath.data(), longname.data(), DWORD(r));
+    auto rr = GetLongPathNameW(localbasepath.localpath.data(), const_cast<wchar_t*>(longname.data()), DWORD(r));
 
     longname.resize(rr);
     if (rr >= r)
     {
-        rr = GetLongPathNameW(localbasepath.localpath.data(), longname.data(), rr);
+        rr = GetLongPathNameW(localbasepath.localpath.data(), const_cast<wchar_t*>(longname.data()), rr);
         longname.resize(rr);
     }
 
@@ -1594,7 +1595,7 @@ bool WinFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType& 
     wstring mountPoint(MAX_PATH + 1, L'\0');
 
     if (!GetVolumePathNameW(path.localpath.c_str(),
-                            mountPoint.data(),
+                            const_cast<wchar_t*>(mountPoint.data()),
                             MAX_PATH + 1))
     {
         return type = FS_UNKNOWN, false;
@@ -1657,7 +1658,7 @@ bool WinFileSystemAccess::issyncsupported(LocalPath& localpathArg, bool *isnetwo
     path.resize(MAX_PATH * sizeof(WCHAR));
     fsname.resize(MAX_PATH * sizeof(WCHAR));
 
-    if (GetVolumePathNameW(localpathArg.localpath.data(), path.data(), MAX_PATH)
+    if (GetVolumePathNameW(localpathArg.localpath.data(), const_cast<wchar_t*>(path.data()), MAX_PATH)
         && GetVolumeInformationW((LPCWSTR)path.data(), NULL, 0, NULL, NULL, NULL, (LPWSTR)fsname.data(), MAX_PATH))
     {
         if (!memcmp(fsname.data(), VBoxSharedFolderFS, sizeof(VBoxSharedFolderFS)))
