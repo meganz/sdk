@@ -4377,7 +4377,7 @@ void exec_sync(autocomplete::ACState& s)
                 SyncConfig syncConfig{syncTag++, s.words[1].s, s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.getType(),
                             newSyncConfig.syncDeletions(), newSyncConfig.forceOverwrite()};
                 UnifiedSync* unifiedSync;
-                error e = client->addsync(syncConfig, DEBRISFOLDER, NULL, false, unifiedSync);
+                error e = client->addsync(syncConfig, DEBRISFOLDER, NULL, false, unifiedSync, true);
 
                 if (e)
                 {

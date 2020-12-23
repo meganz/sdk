@@ -1996,7 +1996,7 @@ UnifiedSync::UnifiedSync(MegaClient& mc, const SyncConfig& c)
 }
 
 
-error UnifiedSync::enableSync(bool resetFingerprint)
+error UnifiedSync::enableSync(bool resetFingerprint, bool notifyApp)
 {
     assert(!mSync);
     mConfig.mError = NO_SYNC_ERROR;
@@ -2015,13 +2015,13 @@ error UnifiedSync::enableSync(bool resetFingerprint)
     if (e)
     {
         mConfig.mEnabled = false;
-        changedConfigState(true);
+        changedConfigState(notifyApp);
         return e;
     }
 
     e = startSync(&mClient, DEBRISFOLDER, nullptr, remotenode, inshare, isnetwork, false, rootpath, openedLocalFolder);
     mClient.syncactivity = true;
-    changedConfigState(true);
+    changedConfigState(notifyApp);
 
     mClient.syncs.mHeartBeatMonitor->updateOrRegisterSync(*this);
 
@@ -2162,7 +2162,7 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
 }
 
 
-void UnifiedSync::changedConfigState(bool fireDisableEvent)
+void UnifiedSync::changedConfigState(bool notifyApp)
 {
     if (!mConfig.mEverKnown ||
         (mConfig.mError != mConfig.mKnownError) ||
@@ -2171,7 +2171,10 @@ void UnifiedSync::changedConfigState(bool fireDisableEvent)
         LOG_debug << "Sync enabled/error changing. from " << mConfig.mKnownEnabled << "/" << mConfig.mKnownError << " to "  << mConfig.getEnabled() << "/" << mConfig.mError;
 
         mClient.syncs.saveSyncConfig(mConfig);
-        mClient.app->syncupdate_stateconfig(mConfig.getTag());
+        if (notifyApp)
+        {
+            mClient.app->syncupdate_stateconfig(mConfig.getTag());
+        }
         mClient.abortbackoff(false);
 
         mConfig.mKnownError = mConfig.mError;
@@ -2417,7 +2420,7 @@ error Syncs::enableSyncByTag(int tag, bool resetFingerprint, UnifiedSync*& syncP
             syncPtrRef = s.get();
             if (!s->mSync)
             {
-                return s->enableSync(resetFingerprint);
+                return s->enableSync(resetFingerprint, true);
             }
             s->mConfig.setError(ACTIVE_SYNC_BELOW_PATH);
             s->mConfig.setEnabled(false);
@@ -2446,7 +2449,7 @@ void Syncs::enableResumeableSyncs()
                 SyncError syncError = unifiedSync->mConfig.getError();
                 LOG_debug << "Restoring sync: " << unifiedSync->mConfig.getTag() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " old error = " << syncError;
 
-                error e = unifiedSync->enableSync(false);
+                error e = unifiedSync->enableSync(false, true);
                 if (!e)
                 {
                     anySyncRestored = true;
@@ -2507,7 +2510,7 @@ void Syncs::resumeResumableSyncsOnStartup()
 #endif
                 LOG_debug << "Resuming cached sync: " << unifiedSync->mConfig.getTag() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
 
-                unifiedSync->enableSync(false);
+                unifiedSync->enableSync(false, true);
                 LOG_debug << "Sync autoresumed: " << unifiedSync->mConfig.getTag() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
 
                 mClient.app->sync_auto_resume_result(*unifiedSync, true);

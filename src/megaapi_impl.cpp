@@ -8927,7 +8927,7 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
 
         if (sync->localnodebypath(NULL, localpath, &parent) || parent)
         {
-            if (sync->localdebris.isContainingPathOf(localpath))
+            if (!sync->localdebris.isContainingPathOf(localpath))
             {
                 auto temp = localpath.leafName();
                 auto name = temp.toName(*fsAccess, sync->mFilesystemType);
@@ -21400,8 +21400,6 @@ void MegaApiImpl::sendPendingRequests()
             const char *name = request->getName();
 
             auto nextSyncTag = client->nextSyncTag();
-            unique_ptr<MegaSyncPrivate> sync(new MegaSyncPrivate(localPath, name, node->nodehandle, nextSyncTag));
-            sync->setRegExp(request->getRegExp());
 
             std::unique_ptr<char []> remotePath{getNodePathByNodeHandle(request->getNodeHandle())};
             if (!remotePath)
@@ -21415,17 +21413,12 @@ void MegaApiImpl::sendPendingRequests()
                                   0, regExpToVector(request->getRegExp())};
 
             UnifiedSync* unifiedSync = nullptr;
-            e = client->addsync(syncConfig, DEBRISFOLDER, NULL, true, unifiedSync);
+            e = client->addsync(syncConfig, DEBRISFOLDER, NULL, true, unifiedSync, false);  // notifyApp = false since so we don't notify until after fireOnSyncAdded
             request->setNumDetails(syncConfig.getError());
             if (unifiedSync)
             {
-                if (!e && unifiedSync && unifiedSync->mSync)
-                {
-                    fsfp_t fsfp = unifiedSync->mSync->fsfp;
-                    sync->setLocalFingerprint(fsfp);
-                    request->setNumber(fsfp);
-                }
-                sync->setMegaFolderYielding(remotePath.release());
+                unique_ptr<MegaSyncPrivate> sync(new MegaSyncPrivate(unifiedSync->mConfig, unifiedSync->mSync.get()));
+                request->setNumber(sync->getLocalFingerprint());
                 request->setTransferTag(nextSyncTag);
 
                 fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);

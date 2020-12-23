@@ -13066,7 +13066,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 }
 
 
-error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* localdebris, bool delayInitialScan, UnifiedSync*& unifiedSync)
+error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* localdebris, bool delayInitialScan, UnifiedSync*& unifiedSync, bool notifyApp)
 {
     unifiedSync = nullptr;
     LocalPath rootpath;
@@ -13081,7 +13081,7 @@ error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* loc
         // if we got this far, the syncConfig is kept (in db and in memory)
         unifiedSync = syncs.appendNewSync(config, *this);
 
-        e = unifiedSync->enableSync(false);
+        e = unifiedSync->enableSync(false, notifyApp);
 
         syncactivity = true;
         config = unifiedSync->mConfig;  // so the caller can easily check the config they passed in
