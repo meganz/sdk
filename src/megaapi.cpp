@@ -647,6 +647,11 @@ MegaHandle MegaNode::getOwner() const
     return INVALID_HANDLE;
 }
 
+const char* MegaNode::getDeviceId() const
+{
+    return nullptr;
+}
+
 char *MegaNode::serialize()
 {
     return NULL;
@@ -2851,6 +2856,11 @@ void MegaApi::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listen
     pImpl->setRubbishBinAutopurgePeriod(days, listener);
 }
 
+const char* MegaApi::getDeviceId() const
+{
+    return pImpl->getDeviceId();
+}
+
 void MegaApi::getDeviceName(MegaRequestListener *listener)
 {
     pImpl->getDeviceName(listener);
@@ -3297,12 +3307,12 @@ void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequ
 
 void MegaApi::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, name, megaHandle, NULL, listener);
+    pImpl->syncFolder(localFolder, name, megaHandle, SyncConfig::TYPE_TWOWAY, NULL, listener);
 }
 
 void MegaApi::syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, nullptr, megaHandle, NULL, listener);
+    pImpl->syncFolder(localFolder, nullptr, megaHandle, SyncConfig::TYPE_TWOWAY, NULL, listener);
 }
 
 void MegaApi::copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
@@ -3475,6 +3485,11 @@ void MegaApi::setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
     pImpl->setExcludedRegularExpressions(sync, regExp);
 }
 #endif
+
+void MegaApi::backupFolder(const char *localFolder, const char *backupName, MegaRequestListener *listener)
+{
+    pImpl->syncFolder(localFolder, backupName, INVALID_HANDLE, SyncConfig::TYPE_BACKUP, nullptr, listener);
+}
 #endif
 
 
@@ -5752,6 +5767,11 @@ int MegaSync::getState() const
 int MegaSync::getError() const
 {
     return MegaSync::Error::NO_SYNC_ERROR;
+}
+
+int MegaSync::getType() const
+{
+    return MegaSync::SyncType::TYPE_UNKNOWN;
 }
 
 bool MegaSync::isEnabled() const
