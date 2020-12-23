@@ -30,63 +30,60 @@
 
 namespace mega {
 
-
-    // Structure containing relevant Drive info.
-    // Windows: information is provided by Windows Management Instrumentation (WMI), Microsoft's implementation of WBEM.
-    struct DriveInfo                          //    Local               Removable/USB          Network
-    {
-        using StringType =
+// Structure containing relevant Drive info.
+// Windows: information is provided by Windows Management Instrumentation (WMI), Microsoft's implementation of WBEM.
+struct DriveInfo                          //    Local               Removable/USB          Network
+{
+    using StringType =
 #ifdef _WIN32
-        std::wstring;
+    std::wstring;
 #else
-        std::string;
+    std::string;
 #endif
 
-        StringType mountPoint;                // C:                   E:                    F:
-        std::wstring location;                // ""/null              ""/null               \\host\f
-        std::wstring volumeSerialNumber;      // EE82D138             0EEE1DE2              A01A541C
+    StringType mountPoint;                // C:                   E:                    F:
+    std::wstring location;                // ""/null              ""/null               \\host\f
+    std::wstring volumeSerialNumber;      // EE82D138             0EEE1DE2              A01A541C
 
-        // probably less useful
-        std::wstring size;                    // 1005343207424        31020957696           843572047872
-        std::wstring description;             // Local Fixed Disk     Removable Disk        Network Connection
-        uint32_t     driveType = 0;           // 3    (Fixed)         2      (Removable)    4      (Network)
-        uint32_t     mediaType = 0;           // 12   (Fixed HD)      0/null (Unknown)      0/null (Unknown)
+    // probably less useful
+    std::wstring size;                    // 1005343207424        31020957696           843572047872
+    std::wstring description;             // Local Fixed Disk     Removable Disk        Network Connection
+    uint32_t     driveType = 0;           // 3    (Fixed)         2      (Removable)    4      (Network)
+    uint32_t     mediaType = 0;           // 12   (Fixed HD)      0/null (Unknown)      0/null (Unknown)
 
-        bool         connected = false;
-    };
+    bool         connected = false;
+};
 
 
+// Interface for receiving drive [dis]connection events, and notifying futher.
+//
+// Platform specific implementations:
+// - DriveNotifyWin;
+// - DriveNotifyPosix.
+class DriveNotify
+{
+public:
+    bool start(std::function<void()> notify);
+    void stop();
 
-    // Interface for receiving drive [dis]connection events, and notifying futher.
-    //
-    // Platform specific implementations:
-    // - DriveNotifyWin;
-    // - DriveNotifyPosix.
-    class DriveNotify
-    {
-    public:
-        bool start(std::function<void()> notify);
-        void stop();
+std::pair<DriveInfo::StringType, bool> get();
 
-    std::pair<DriveInfo::StringType, bool> get();
+    // This will most likely need to be overridden to call stop().
+    virtual ~DriveNotify() = default;
 
-        // This will most likely need to be overridden to call stop().
-        virtual ~DriveNotify() = default;
+protected:
+    virtual bool startNotifier() = 0;
+    virtual void stopNotifier() = 0;
+    void add(DriveInfo&& info);
 
-    protected:
-        virtual bool startNotifier() = 0;
-        virtual void stopNotifier() = 0;
-        void add(DriveInfo&& info);
+private:
+    std::queue<DriveInfo> mInfoQueue;
+    std::mutex mSyncAccessMutex;
 
-    private:
-        std::queue<DriveInfo> mInfoQueue;
-        std::mutex mSyncAccessMutex;
-
-        std::function<void()> mNotifyOnInfo;
-    };
+    std::function<void()> mNotifyOnInfo;
+};
 
 } // namespace mega
-
 
 
 #ifdef _WIN32

@@ -26,8 +26,6 @@
 
 using namespace std;
 
-
-
 namespace mega {
 
     bool DriveNotify::start(function<void()> notify)
@@ -44,8 +42,6 @@ namespace mega {
         return started;
     }
 
-
-
     void DriveNotify::stop()
     {
         stopNotifier();
@@ -53,15 +49,13 @@ namespace mega {
         mInfoQueue.swap(temp); // clear the container
     }
 
-
-
     std::pair<DriveInfo::StringType, bool> DriveNotify::get()
     {
         // sync access
         lock_guard<mutex> lock(mSyncAccessMutex);
 
         // no entry, return invalid data
-        if (mInfoQueue.empty())  return pair<string, bool>();
+        if (mInfoQueue.empty())  return pair<DriveInfo::StringType, bool>();
 
         // get the oldest entry
         const DriveInfo& drive = mInfoQueue.front();
@@ -70,8 +64,6 @@ namespace mega {
 
         return info;
     }
-
-
 
     void DriveNotify::add(DriveInfo&& info)
     {
