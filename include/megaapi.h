@@ -18528,10 +18528,11 @@ class MegaApi
         /**
          * @brief Set a bitmap to indicate whether some cookies are enabled or not
          *
-         * The associated request type with this request is MegaRequest::TYPE_SET_COOKIE_SETTINGS
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          *  - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_COOKIE_SEETINGS
          *  - MegaRequest::getNumDetails - Return a bitmap with cookie settings
+         *  - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          *
          * @param settings A bitmap with cookie settings
          * Valid bits are:
@@ -18547,9 +18548,10 @@ class MegaApi
         /**
          * @brief Get a bitmap to indicate whether some cookies are enabled or not
          *
-         * The associated request type with this request is MegaRequest::TYPE_GET_COOKIE_SETTINGS
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
-         *  - MegaRequest::getNumDetails A bitmap to indicate which cookies are enabled or not
+         *  - MegaRequest::getParamType - Returns the value USER_ATTR_COOKIE_SETTINGS
+         *  - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          *
          * When the error code is MegaError::API_OK:
          * - MegaRequest::getNumDetails Return the bitmap with cookie settings
@@ -18559,6 +18561,9 @@ class MegaApi
          *      - Bit 2: analytics
          *      - Bit 3: ads
          *      - Bit 4: thirdparty
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EINTERNAL - If the value for cookie settings bitmap was invalid
          */
         void getCookieSettings(MegaRequestListener *listener = nullptr);
 
