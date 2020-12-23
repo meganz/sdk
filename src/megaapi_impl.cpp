@@ -23408,22 +23408,6 @@ void MegaApiImpl::drive_presence_changed(bool appeared, const LocalPath& driveRo
 }
 #endif
 
-bool MegaApp::startDriveMonitor()
-{
-#ifdef USE_DRIVE_NOTIFICATIONS
-    return client->startDriveMonitor();
-#else
-    return false;
-#endif
-}
-
-void MegaApp::stopDriveMonitor()
-{
-#ifdef USE_DRIVE_NOTIFICATIONS
-    client->stopDriveMonitor();
-#endif
-}
-
 void TreeProcCopy::allocnodes()
 {
     nn.resize(nc);

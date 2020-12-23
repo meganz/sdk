@@ -5419,12 +5419,16 @@ void MegaApi::queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaRequestLi
 
 bool MegaApi::startDriveMonitor()
 {
-    return pImpl->startDriveMonitor();
+    return pImpl->MegaApp::client->startDriveMonitor();
+    // Use explicit scope, as both MegaApp and MegaApiImpl have a `client` member.
+    // Only MegaApp::client is public.
 }
 
 void MegaApi::stopDriveMonitor()
 {
-    pImpl->stopDriveMonitor();
+    pImpl->MegaApp::client->stopDriveMonitor();
+    // Use explicit scope, as both MegaApp and MegaApiImpl have a `client` member.
+    // Only MegaApp::client is public.
 }
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)

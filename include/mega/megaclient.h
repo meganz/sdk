@@ -952,15 +952,11 @@ public:
     // if logged into writable folder
     bool loggedIntoWritableFolder() const;
 
-#ifdef USE_DRIVE_NOTIFICATIONS
-    bool startDriveMonitor()
-    {
-        auto notify = std::bind(&Waiter::notify, waiter);
-        return mDriveInfoCollector.start(notify);
-    }
+    // start receiving external drive [dis]connect notifications
+    bool startDriveMonitor();
 
-    void stopDriveMonitor() { mDriveInfoCollector.stop(); }
-#endif
+    // stop receiving external drive [dis]connect notifications
+    void stopDriveMonitor();
 
 private:
 #ifdef USE_DRIVE_NOTIFICATIONS

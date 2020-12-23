@@ -15963,6 +15963,23 @@ void MegaClient::getwelcomepdf()
     reqs.add(new CommandGetWelcomePDF(this));
 }
 
+bool MegaClient::startDriveMonitor()
+{
+#ifdef USE_DRIVE_NOTIFICATIONS
+    auto notify = std::bind(&Waiter::notify, waiter);
+    return mDriveInfoCollector.start(notify);
+#else
+    return false;
+#endif
+}
+
+void MegaClient::stopDriveMonitor()
+{
+#ifdef USE_DRIVE_NOTIFICATIONS
+    mDriveInfoCollector.stop();
+#endif
+}
+
 #ifdef MEGA_MEASURE_CODE
 std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Waiter* waiter, const RequestDispatcher& reqs)
 {

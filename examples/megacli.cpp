@@ -6660,11 +6660,11 @@ void exec_drivemonitor(autocomplete::ACState& s)
 #ifdef USE_DRIVE_NOTIFICATIONS
     if (s.words[1].s == "off")
     {
-        client->app->stopDriveMonitor();
+        client->stopDriveMonitor();
     }
 
     // start receiving notifications
-    else if (!client->app->startDriveMonitor())
+    else if (!client->startDriveMonitor())
     {
         // return immediately, when this functionality was not implemented
         std::cout << "Failed starting drive notifications" << std::endl;

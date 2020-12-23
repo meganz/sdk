@@ -428,8 +428,6 @@ struct MEGA_API MegaApp
     virtual ~MegaApp() { }
 
     // External drive notifications
-    bool startDriveMonitor();
-    void stopDriveMonitor();
     virtual void drive_presence_changed(bool appeared, const LocalPath& driveRoot) { }
 };
 } // namespace
