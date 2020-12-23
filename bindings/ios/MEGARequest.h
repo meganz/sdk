@@ -165,6 +165,8 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeBackupPut,
     MEGARequestTypeBackupRemove,
     MEGARequestTypeBackupPutHeartbeat,
+    MEGARequestTypeFetchGoogleAds,
+    MEGARequestTypeQueryGoogleAds,
     TotalOfRequestTypes
 };
 
