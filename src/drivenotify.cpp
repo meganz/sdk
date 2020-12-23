@@ -55,17 +55,17 @@ namespace mega {
 
 
 
-    pair<wstring, bool> DriveNotify::get()
+    std::pair<DriveInfo::StringType, bool> DriveNotify::get()
     {
         // sync access
         lock_guard<mutex> lock(mSyncAccessMutex);
 
         // no entry, return invalid data
-        if (mInfoQueue.empty())  return pair<wstring, bool>();
+        if (mInfoQueue.empty())  return pair<string, bool>();
 
         // get the oldest entry
         const DriveInfo& drive = mInfoQueue.front();
-        pair<wstring, bool> info(move(drive.mountPoint), drive.connected);
+        pair<DriveInfo::StringType, bool> info(move(drive.mountPoint), drive.connected);
         mInfoQueue.pop();
 
         return info;

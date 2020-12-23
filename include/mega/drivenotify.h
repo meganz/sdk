@@ -34,8 +34,15 @@ namespace mega {
     // Structure containing relevant Drive info.
     // Windows: information is provided by Windows Management Instrumentation (WMI), Microsoft's implementation of WBEM.
     struct DriveInfo                          //    Local               Removable/USB          Network
-    {                                         //
-        std::wstring mountPoint;              // C:                   E:                    F:
+    {
+        using StringType =
+#ifdef _WIN32
+        std::wstring;
+#else
+        std::string;
+#endif
+
+        StringType mountPoint;                // C:                   E:                    F:
         std::wstring location;                // ""/null              ""/null               \\host\f
         std::wstring volumeSerialNumber;      // EE82D138             0EEE1DE2              A01A541C
 
@@ -61,7 +68,7 @@ namespace mega {
         bool start(std::function<void()> notify);
         void stop();
 
-        std::pair<std::wstring, bool> get();
+    std::pair<DriveInfo::StringType, bool> get();
 
         // This will most likely need to be overridden to call stop().
         virtual ~DriveNotify() = default;
