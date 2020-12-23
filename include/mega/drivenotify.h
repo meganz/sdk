@@ -66,7 +66,7 @@ public:
     bool start(std::function<void()> notify);
     void stop();
 
-std::pair<DriveInfo::StringType, bool> get();
+    std::pair<DriveInfo::StringType, bool> get();
 
     // This will most likely need to be overridden to call stop().
     virtual ~DriveNotify() = default;
