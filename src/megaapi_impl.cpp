@@ -23398,6 +23398,18 @@ void MegaApiImpl::queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaReque
     waiter->notify();
 }
 
+bool MegaApiImpl::startDriveMonitor()
+{
+    SdkMutexGuard g(sdkMutex);
+    return client->startDriveMonitor();
+}
+
+void MegaApiImpl::stopDriveMonitor()
+{
+    SdkMutexGuard g(sdkMutex);
+    client->stopDriveMonitor();
+}
+
 #ifdef USE_DRIVE_NOTIFICATIONS
 void MegaApiImpl::drive_presence_changed(bool appeared, const LocalPath& driveRoot)
 {
