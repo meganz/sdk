@@ -45,7 +45,7 @@ namespace mega {
 
 
 
-    ~DriveNotifyPosix::DriveNotifyPosix()
+    DriveNotifyPosix::~DriveNotifyPosix()
     {
     }
 
