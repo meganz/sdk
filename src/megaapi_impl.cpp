@@ -8927,7 +8927,7 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
 
         if (sync->localnodebypath(NULL, localpath, &parent) || parent)
         {
-            if (sync->localdebris.isContainingPathOf(localpath))
+            if (!sync->localdebris.isContainingPathOf(localpath))
             {
                 auto temp = localpath.leafName();
                 auto name = temp.toName(*fsAccess, sync->mFilesystemType);
