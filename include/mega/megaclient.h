@@ -1154,13 +1154,13 @@ public:
     bool pendingsccommit;
 
     // transfer cache table
-    DbTable* tctable;
+    unique_ptr<DbTable> tctable;
 
     // during processing of request responses, transfer table updates can be wrapped up in a single begin/commit
     DBTableTransactionCommitter* mTctableRequestCommitter = nullptr;
 
     // status cache table for logged in user. For data pertaining status which requires immediate commits
-    DbTable* statusTable;
+    unique_ptr<DbTable> statusTable;
 
     // scsn as read from sctable
     handle cachedscsn;

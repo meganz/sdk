@@ -126,8 +126,8 @@ public:
         }
     }
 
-    explicit DBTableTransactionCommitter(DbTable* t)
-        : mTable(t)
+    explicit DBTableTransactionCommitter(unique_ptr<DbTable>& t)
+        : mTable(t.get())
     {
         if (mTable)
         {
@@ -141,6 +141,7 @@ public:
             }
         }
     }
+
 
     MEGA_DISABLE_COPY_MOVE(DBTableTransactionCommitter)
 };

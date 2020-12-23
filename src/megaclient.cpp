@@ -1367,8 +1367,6 @@ MegaClient::~MegaClient()
     delete pendingcs;
     delete badhostcs;
     delete sctable;
-    delete statusTable;
-    delete tctable;
     delete dbaccess;
 }
 
@@ -4234,8 +4232,7 @@ void MegaClient::locallogout(bool removecaches)
     sctable = NULL;
     pendingsccommit = false;
 
-    delete statusTable;
-    statusTable = NULL;
+    statusTable.reset();
 
     me = UNDEF;
     uid.clear();
@@ -4397,8 +4394,7 @@ void MegaClient::removeCaches()
     if (statusTable)
     {
         statusTable->remove();
-        delete statusTable;
-        statusTable = NULL;
+        statusTable.reset();
     }
 
 #ifdef ENABLE_SYNC
@@ -9316,7 +9312,7 @@ void MegaClient::openStatusTable()
         {
             dbname.insert(0, "status_");
 
-            statusTable = dbaccess->open(rng, *fsaccess, dbname);
+            statusTable.reset(dbaccess->open(rng, *fsaccess, dbname));
         }
     }
 }
@@ -11674,8 +11670,7 @@ void MegaClient::closetc(bool remove)
     {
         tctable->remove();
     }
-    delete tctable;
-    tctable = NULL;
+    tctable.reset();
 }
 
 void MegaClient::enabletransferresumption(const char *loggedoutid)
@@ -11711,7 +11706,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
 
     dbname.insert(0, "transfers_");
 
-    tctable =dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED);
+    tctable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED));
     if (!tctable)
     {
         return;
@@ -11805,7 +11800,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     }
     dbname.insert(0, "transfers_");
 
-    tctable = dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED);
+    tctable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED));
     if (!tctable)
     {
         return;
@@ -11843,7 +11838,7 @@ void MegaClient::fetchnodes(bool nocache)
     openStatusTable();
 
     // only initial load from local cache
-    if (loggedin() == FULLACCOUNT && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable) && fetchStatusTable(statusTable))
+    if (loggedin() == FULLACCOUNT && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable) && fetchStatusTable(statusTable.get()))
     {
         WAIT_CLASS::bumpds();
         fnstats.mode = FetchNodesStats::MODE_DB;
