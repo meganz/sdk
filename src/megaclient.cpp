@@ -4268,6 +4268,7 @@ void MegaClient::locallogout(bool removecaches)
     nsr_enabled = false;
     aplvp_enabled = false;
     mNewLinkFormat = false;
+    mCookieBannerEnabled = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     mSmsVerifiedPhone.clear();
     loggingout = 0;
