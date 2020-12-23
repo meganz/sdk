@@ -80,6 +80,10 @@ CONFIG(USE_MEGAAPI) {
   }
 }
 
+CONFIG(USE_ROTATIVEPERFORMANCELOGGER) {
+  SOURCES += src/rotativeperformancelogger.cpp
+}
+
 !win32 {
     QMAKE_CXXFLAGS += -std=c++11 -Wextra -Wconversion -Wno-unused-parameter
 
@@ -94,6 +98,10 @@ CONFIG(USE_MEGAAPI) {
 CONFIG(USE_AUTOCOMPLETE) {
     SOURCES += src/autocomplete.cpp
     HEADERS += include/mega/autocomplete.h
+}
+
+CONFIG(USE_POLL) {
+    DEFINES += USE_POLL
 }
 
 CONFIG(USE_CONSOLE) {
@@ -355,6 +363,11 @@ CONFIG(USE_WEBRTC) {
         LIBS += -lwebrtc -ldl
         }
     }
+}
+
+CONFIG(USE_ROTATIVEPERFORMANCELOGGER) {
+    DEFINES += USE_ROTATIVEPERFORMANCELOGGER
+    DEFINES += ENABLE_LOG_PERFORMANCE
 }
 
 win32 {

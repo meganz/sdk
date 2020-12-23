@@ -54,7 +54,17 @@ using namespace mega;
 }
 
 - (MEGAShare *)shareAtIndex:(NSInteger)index {
-    return self.shareList ? [[MEGAShare alloc] initWithMegaShare:self.shareList->get((int)index)->copy() cMemoryOwn:YES] : nil;
+    if (self.shareList == NULL) {
+        return nil;
+    }
+    
+    MegaShare *share = self.shareList->get((int)index);
+    
+    if (share) {
+        return [[MEGAShare alloc] initWithMegaShare:share->copy() cMemoryOwn:YES];
+    } else {
+        return nil;
+    }
 }
 
 - (NSNumber *)size {
