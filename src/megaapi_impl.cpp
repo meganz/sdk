@@ -13180,11 +13180,11 @@ void MegaApiImpl::syncupdate_local_file_change(Sync *sync, LocalNode *, const ch
     LOG_debug << "Sync - local file change detected: " << path;
     client->abortbackoff(false);
 
-    if (auto ms = cachedMegaSyncPrivateByTag(sync->tag))
+    if (auto megaSync = cachedMegaSyncPrivateByTag(sync->tag))
     {
         MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FILE_CHANGED);
         event->setPath(path);
-        fireOnSyncEvent(ms, event);
+        fireOnSyncEvent(megaSync, event);
     }
 }
 
@@ -21642,7 +21642,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 bool matched = (tag && c.getTag() == tag) ||
                                (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
-                found = found || matched;  // no need to test s, auto tests check disable of disabled retgurns MegaError::API_OK
+                found = found || matched;  // no need to test s, auto tests check disable of disabled returns MegaError::API_OK
                 return matched;
             }, NO_SYNC_ERROR, false);
 
@@ -24166,8 +24166,6 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
 MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle nodehandle, int tag)
     : mActive(false)
     , mEnabled(false)
-    , mError(0)
-    , mWarning(0)
 {
     this->tag = tag;
     this->megaHandle = nodehandle;

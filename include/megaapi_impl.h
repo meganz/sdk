@@ -1113,11 +1113,11 @@ protected:
     long long fingerprint;
 
     //holds error cause
-    int mError;
-    int mWarning;
-    bool mEnabled = false;
-    bool mActive = false;
+    int mError = NO_SYNC_ERROR;
+    int mWarning = NO_SYNC_WARNING;
 
+    bool mActive = false;
+    bool mEnabled = false;
 };
 
 
