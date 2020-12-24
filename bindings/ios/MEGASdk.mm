@@ -861,6 +861,14 @@ using namespace mega;
     self.megaApi->getPSA();
 }
 
+- (void)getPSAIncludingUrlWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getPSAWithUrl([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getPSAIncludingUrl {
+    self.megaApi->getPSAWithUrl();
+}
+
 - (void)setPSAWithIdentifier:(NSInteger)identifier delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setPSA((int)identifier, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
