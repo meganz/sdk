@@ -516,7 +516,7 @@ SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, Prn
         }
         syncConfig->dbid = tableId;
 
-        mSyncConfigs.insert(std::make_pair(syncConfig->getTag(), *syncConfig));
+        mSyncConfigs.insert(std::make_pair(syncConfig->getBackupId(), *syncConfig));
         if (tableId > mTable->nextid)
         {
             mTable->nextid = tableId;
@@ -530,7 +530,7 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
     auto insertOrUpdate = [this](const uint32_t id, const SyncConfig& syncConfig)
     {
         std::string data;
-        assert(syncConfig.getTag() != UNDEF && "tag is undefined when trying to persist syncConfig");
+        assert(syncConfig.getBackupId() != UNDEF && "backupId is undefined when trying to persist syncConfig");
         const_cast<SyncConfig&>(syncConfig).serialize(&data);
         DBTableTransactionCommitter committer{mTable.get()};
         if (!mTable->put(id, &data)) // put either inserts or updates
@@ -543,7 +543,7 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
         return true;
     };
 
-    auto syncConfigIt = mSyncConfigs.find(syncConfig.getTag());
+    auto syncConfigIt = mSyncConfigs.find(syncConfig.getBackupId());
     if (syncConfigIt == mSyncConfigs.end()) // syncConfig is new
     {
         if (mTable)
@@ -553,7 +553,7 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
                 return;
             }
         }
-        auto insertPair = mSyncConfigs.insert(std::make_pair(syncConfig.getTag(), syncConfig));
+        auto insertPair = mSyncConfigs.insert(std::make_pair(syncConfig.getBackupId(), syncConfig));
         if (mTable)
         {
             insertPair.first->second.dbid = mTable->nextid;
@@ -575,9 +575,9 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
     }
 }
 
-bool SyncConfigBag::removeByTag(const handle tag)
+bool SyncConfigBag::removeByBackupId(const handle backupId)
 {
-    auto syncConfigPair = mSyncConfigs.find(tag);
+    auto syncConfigPair = mSyncConfigs.find(backupId);
     if (syncConfigPair != mSyncConfigs.end())
     {
         if (mTable)
@@ -646,7 +646,6 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
 {
     isnetwork = false;
     client = &mUnifiedSync.mClient;
-    tag = ctag;
     inshare = cinshare;
     tmpfa = NULL;
     initializing = true;
@@ -981,7 +980,7 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
             bool nowActive = newstate == SYNC_ACTIVE;
             if (wasActive != nowActive)
             {
-                mUnifiedSync.mClient.app->syncupdate_active(getConfig().getTag(), nowActive);
+                mUnifiedSync.mClient.app->syncupdate_active(getConfig().getBackupId(), nowActive);
             }
         }
     }
@@ -2105,7 +2104,7 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
     auto prevFingerprint = mConfig.getLocalFingerprint();
 
     assert(!mSync);
-    mSync.reset(new Sync(*this, debris, localdebris, remotenode, inshare, mConfig.getTag()));
+    mSync.reset(new Sync(*this, debris, localdebris, remotenode, inshare, mConfig.getBackupId()));
     mConfig.setLocalFingerprint(mSync->fsfp);
 
     if (prevFingerprint && prevFingerprint != mConfig.getLocalFingerprint())
@@ -2174,7 +2173,7 @@ void UnifiedSync::changedConfigState(bool notifyApp)
         mClient.syncs.saveSyncConfig(mConfig);
         if (notifyApp)
         {
-            mClient.app->syncupdate_stateconfig(mConfig.getTag());
+            mClient.app->syncupdate_stateconfig(mConfig.getBackupId());
         }
         mClient.abortbackoff(false);
 
@@ -2217,11 +2216,11 @@ auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> UnifiedSync*
     return mSyncVec.back().get();
 }
 
-Sync* Syncs::runningSyncByTag(handle tag) const
+Sync* Syncs::runningSyncByBackupId(handle backupId) const
 {
     for (auto& s : mSyncVec)
     {
-        if (s->mSync && s->mSync->tag == tag)
+        if (s->mSync && s->mConfig.getBackupId() == backupId)
         {
             return s->mSync.get();
         }
@@ -2320,10 +2319,10 @@ void Syncs::purgeRunningSyncs()
     {
         if (s->mSync)
         {
-            auto tag = s->mConfig.getTag();
+            auto backupId = s->mConfig.getBackupId();
             s->mSync->changestate(SYNC_CANCELED, NO_SYNC_ERROR, false, false);
             s->mSync.reset();
-            mClient.app->sync_removed(tag);
+            mClient.app->sync_removed(backupId);
         }
     }
 }
@@ -2400,10 +2399,10 @@ void Syncs::removeSyncByIndex(size_t index)
         }
 
         // call back before actual removal (intermediate layer may need to make a temp copy to call client app)
-        auto tag = mSyncVec[index]->mConfig.getTag();
-        mClient.app->sync_removed(tag);
+        auto backupId = mSyncVec[index]->mConfig.getBackupId();
+        mClient.app->sync_removed(backupId);
 
-        mSyncConfigDb->removeByTag(tag);
+        mSyncConfigDb->removeByBackupId(backupId);
         mClient.syncactivity = true;
         mSyncVec.erase(mSyncVec.begin() + index);
 
@@ -2416,7 +2415,7 @@ error Syncs::enableSyncByTag(handle tag, bool resetFingerprint, UnifiedSync*& sy
 {
     for (auto& s : mSyncVec)
     {
-        if (s->mConfig.getTag() == tag)
+        if (s->mConfig.getBackupId() == tag)
         {
             syncPtrRef = s.get();
             if (!s->mSync)
@@ -2448,7 +2447,7 @@ void Syncs::enableResumeableSyncs()
             if (unifiedSync->mConfig.getEnabled())
             {
                 SyncError syncError = unifiedSync->mConfig.getError();
-                LOG_debug << "Restoring sync: " << unifiedSync->mConfig.getTag() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " old error = " << syncError;
+                LOG_debug << "Restoring sync: " << unifiedSync->mConfig.getBackupId() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " old error = " << syncError;
 
                 error e = unifiedSync->enableSync(false, true);
                 if (!e)
@@ -2509,16 +2508,16 @@ void Syncs::resumeResumableSyncsOnStartup()
 #ifdef __APPLE__
                 unifiedSync->mConfig.setLocalFingerprint(0); //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
 #endif
-                LOG_debug << "Resuming cached sync: " << unifiedSync->mConfig.getTag() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
+                LOG_debug << "Resuming cached sync: " << unifiedSync->mConfig.getBackupId() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
 
                 unifiedSync->enableSync(false, true);
-                LOG_debug << "Sync autoresumed: " << unifiedSync->mConfig.getTag() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
+                LOG_debug << "Sync autoresumed: " << unifiedSync->mConfig.getBackupId() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
 
                 mClient.app->sync_auto_resume_result(*unifiedSync, true);
             }
             else
             {
-                LOG_debug << "Sync loaded (but not resumed): " << unifiedSync->mConfig.getTag() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
+                LOG_debug << "Sync loaded (but not resumed): " << unifiedSync->mConfig.getBackupId() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
                 mClient.app->sync_auto_resume_result(*unifiedSync, false);
             }
         }

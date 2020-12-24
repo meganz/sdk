@@ -854,12 +854,6 @@ public:
                handle hearBeatID = UNDEF
             );
 
-    // returns unique identifier
-    handle getTag() const;
-
-    // returns unique identifier
-    void setTag(handle tag);
-
     // whether this sync has errors (was inactive)
     bool hasError() const;
 
@@ -973,7 +967,7 @@ private:
     SyncWarning mWarning;
     friend struct UnifiedSync;
     friend class MegaClient; // until functions are moved to Sync.cpp
-    
+
     // notified/saved state
     SyncError mKnownError = NO_SYNC_ERROR;
     bool mKnownEnabled = false;

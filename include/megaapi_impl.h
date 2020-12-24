@@ -2425,7 +2425,7 @@ class MegaApiImpl : public MegaApp
         bool isIndexing();
         bool isSyncing();
 
-        MegaSync *getSyncByTag(mega::MegaHandle tag);
+        MegaSync *getSyncByBackupId(mega::MegaHandle backupId);
         MegaSync *getSyncByNode(MegaNode *node);
         MegaSync *getSyncByPath(const char * localPath);
         char *getBlockedPath();
@@ -2898,9 +2898,9 @@ protected:
         set<MegaBackupListener *> backupListeners;
 
 #ifdef ENABLE_SYNC
-        MegaSyncPrivate* cachedMegaSyncPrivateByTag(handle tag);
+        MegaSyncPrivate* cachedMegaSyncPrivateByBackupId(handle backupId);
         unique_ptr<MegaSyncPrivate> mCachedMegaSyncPrivate;
-        MegaHandle mCachedMegaSyncPrivateTag = UNDEF;
+        MegaHandle mCachedMegaSyncPrivateBackupId = UNDEF;
 #endif
 
         set<MegaGlobalListener *> globalListeners;

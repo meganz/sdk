@@ -276,7 +276,6 @@ int MegaBackupInfoSync::getSyncState(SyncError error, syncstate_t state, MegaCli
 int MegaBackupInfoSync::getSyncState(const SyncConfig& config, MegaClient *client)
 {
     auto error = config.getError();
-    syncstate_t state;
     if (!error)
     {
         if (config.getEnabled())

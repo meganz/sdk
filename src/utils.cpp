@@ -2263,12 +2263,6 @@ SyncConfig::SyncConfig(std::string localPath,
     , mWarning{warning}
 {}
 
-
-mega::handle SyncConfig::getTag() const
-{
-    return mBackupId;
-}
-
 bool SyncConfig::getEnabled() const
 {
     return mEnabled;

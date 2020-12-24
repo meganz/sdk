@@ -55,11 +55,11 @@ public:
     // Adds a new sync config or updates if exists already
     void insert(const SyncConfig& syncConfig);
 
-    // Removes a sync config with a given tag
-    bool removeByTag(const handle tag);
+    // Removes a sync config with a given backupId
+    bool removeByBackupId(const handle backupId);
 
-    // Returns the sync config with a given tag
-    const SyncConfig* get(const handle tag) const;
+    // Returns the sync config with a given backupId
+    const SyncConfig* get(const handle backupId) const;
 
     // Returns the first sync config found with a remote handle
     const SyncConfig* getByNodeHandle(handle nodeHandle) const;
@@ -72,7 +72,7 @@ public:
 
 private:
     std::unique_ptr<DbTable> mTable; // table for caching the sync configs
-    std::map<handle, SyncConfig> mSyncConfigs; // map of tag to sync configs
+    std::map<handle, SyncConfig> mSyncConfigs; // map of backupId to sync configs
 };
 
 
@@ -190,9 +190,6 @@ public:
     // notification batch starts)
     int scanseqno = 0;
 
-    // notified nodes originating from this sync bear this tag
-    handle tag = UNDEF;
-
     // debris path component relative to the base path
     string debris;
     LocalPath localdebris;
@@ -256,7 +253,7 @@ struct Syncs
     bool hasRunningSyncs();
     unsigned numRunningSyncs();
     Sync* firstRunningSync();
-    Sync* runningSyncByTag(handle tag) const;
+    Sync* runningSyncByBackupId(handle tag) const;
 
     void forEachUnifiedSync(std::function<void(UnifiedSync&)> f);
     void forEachRunningSync(std::function<void(Sync* s)>);

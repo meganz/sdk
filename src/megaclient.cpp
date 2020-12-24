@@ -1325,7 +1325,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
     nextuh = 0;
     reqtag = 0;
-    mSyncTag = UNDEF;
 
     badhostcs = NULL;
 
@@ -12925,7 +12924,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
 #endif
 }
 
-error MegaClient::isLocalPathSyncable(string newPath, handle newSyncTag, SyncError *syncError)
+error MegaClient::isLocalPathSyncable(string newPath, handle excludeBackupId, SyncError *syncError)
 {
     if (!newPath.size())
     {
@@ -12943,7 +12942,7 @@ error MegaClient::isLocalPathSyncable(string newPath, handle newSyncTag, SyncErr
     error e = API_OK;
     syncs.forEachSyncConfig([&](const SyncConfig& config){
 
-        if (config.getTag() != newSyncTag)
+        if (config.getBackupId() != excludeBackupId && excludeBackupId != UNDEF) // for the check inside addsync() when it's already present
         {
             LocalPath otherLocallyEncodedPath = LocalPath::fromPath(config.getLocalPath(), *fsaccess);
             LocalPath otherLocallyEncodedAbsolutePath;
@@ -12954,7 +12953,6 @@ error MegaClient::isLocalPathSyncable(string newPath, handle newSyncTag, SyncErr
                       || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath)
                     ) )
             {
-
                 if (syncError)
                 {
                     *syncError = LOCAL_PATH_SYNC_COLLISION;
@@ -13025,7 +13023,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
             // so that the app does not need to carry that burden.
             // Although it might not be required given the following test does expands the configured
             // paths to use canonical paths when checking for path collisions:
-            error e = isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.getTag(), &syncConfig.mError);
+            error e = isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.getBackupId(), &syncConfig.mError);
             if (e)
             {
                 LOG_warn << "Local path not syncable: ";
@@ -13035,7 +13033,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
                     syncConfig.mError = LOCAL_PATH_UNAVAILABLE;
                 }
                 syncConfig.mEnabled = false;
-                return API_EFAILED;
+                return e;  // eg. API_EARGS
             }
         }
         else
@@ -13061,7 +13059,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 
 
 //TODO: config should now be const, and it cannot be expected to be modified as it was in previous code before async completion after sp
-error MegaClient::copySyncConfig(SyncConfig& config, std::function<void(mega::UnifiedSync *, const SyncError &, error)> completion)
+void MegaClient::copySyncConfig(SyncConfig& config, std::function<void(mega::UnifiedSync *, const SyncError &, error)> completion)
 {
     string localFolderEncrypted(cypherTLVTextWithMasterKey("lf", config.getLocalPath()) );
     string deviceIdHash = getDeviceidHash();
@@ -13148,7 +13146,7 @@ error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* loc
             }
         }));
 
- }
+    }
 
     return e;
 }
