@@ -2506,7 +2506,7 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * @brief Get the next PSA (Public Service Announcement) that should be shown to the user
  *
  * After the PSA has been accepted or dismissed by the user, app should
- * use [MEGASdk setPSAWithIdentifier:] [MEGASdk setPSAWithIdentifier:delegate:] to notify API servers about
+ * use [MEGASdk setPSAWithIdentifier:] or [MEGASdk setPSAWithIdentifier:delegate:] to notify API servers about
  * this event and do not get the same PSA again in the next call to this function.
  *
  * The associated request type with this request is MEGARequestTypeGetPSA.
