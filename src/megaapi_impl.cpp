@@ -13066,18 +13066,16 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
 
 MegaSyncPrivate* MegaApiImpl::cachedMegaSyncPrivateByTag(int tag)
 {
-    if (tag == mCachedMegaSyncPrivateTag && mCachedMegaSyncPrivate)
+    if (mCachedMegaSyncPrivate && tag == mCachedMegaSyncPrivate->getTag())
     {
         return mCachedMegaSyncPrivate.get();
     }
     mCachedMegaSyncPrivate.reset();
-    mCachedMegaSyncPrivateTag = 0;
 
     client->syncs.forEachUnifiedSync([&](UnifiedSync& s) {
         if (s.mConfig.getTag() == tag)
         {
             mCachedMegaSyncPrivate.reset(new MegaSyncPrivate(s.mConfig, s.mSync.get()));
-            mCachedMegaSyncPrivateTag = tag;
         }
     });
 

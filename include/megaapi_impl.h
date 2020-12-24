@@ -2899,7 +2899,6 @@ protected:
 #ifdef ENABLE_SYNC
         MegaSyncPrivate* cachedMegaSyncPrivateByTag(int tag);
         unique_ptr<MegaSyncPrivate> mCachedMegaSyncPrivate;
-        int mCachedMegaSyncPrivateTag = 0;
 #endif
 
         set<MegaGlobalListener *> globalListeners;
