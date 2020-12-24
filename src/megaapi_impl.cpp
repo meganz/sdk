@@ -21409,7 +21409,7 @@ void MegaApiImpl::sendPendingRequests()
             auto sync = std::make_shared<MegaSyncPrivate>(localPath, name, node->nodehandle);
             sync->setRegExp(request->getRegExp());
 
-            std::shared_ptr<char []> remotePath{getNodePathByNodeHandle(request->getNodeHandle())};
+            std::unique_ptr<char[]> remotePath{getNodePathByNodeHandle(request->getNodeHandle())};
             if (!remotePath)
             {
                 e = API_ENOENT;
@@ -21422,7 +21422,7 @@ void MegaApiImpl::sendPendingRequests()
                                   0, regExpToVector(request->getRegExp())};
 
             client->addsync(syncConfig, DEBRISFOLDER, NULL, true, false,
-                                [this, request, sync, remotePath](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
+                                [this, request, sync](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
             {
                 request->setNumDetails(syncError);
 
@@ -21431,23 +21431,20 @@ void MegaApiImpl::sendPendingRequests()
                     e = API_ENOENT;
                 }
 
-                if (e)
+                if (unifiedSync)
                 {
-                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-                    return;
-                }
+                    if (unifiedSync->mSync)
+                    {
+                        fsfp_t fsfp = unifiedSync->mSync->fsfp;
+                        sync->setLocalFingerprint(fsfp);
+                        request->setNumber(fsfp);
+                    }
+                    sync->setMegaFolder(unifiedSync->mConfig.getRemotePath().c_str());
+                    request->setParentHandle(unifiedSync->mConfig.getBackupId());
 
-                if (unifiedSync->mSync)
-                {
-                    fsfp_t fsfp = unifiedSync->mSync->fsfp;
-                    sync->setLocalFingerprint(fsfp);
-                    request->setNumber(fsfp);
+                    fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
                 }
-                sync->setMegaFolder(remotePath.get());
-                request->setParentHandle(unifiedSync->mConfig.getBackupId());
-
-                fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));//we don't consider the addsync returned error as an error on the request: the sync was added (although temporarily disabled)
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             });
             break;
         }
