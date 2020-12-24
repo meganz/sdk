@@ -14614,6 +14614,10 @@ void MegaApiImpl::logout_result(error e)
         mPushSettings = NULL;
         delete mTimezones;
         mTimezones = NULL;
+
+#ifdef ENABLE_SYNC
+        mCachedMegaSyncPrivate.reset();
+#endif
     }
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
@@ -19810,9 +19814,6 @@ void MegaApiImpl::sendPendingRequests()
             {
                 client->locallogout(false);
                 client->restag = nextTag;
-#ifdef ENABLE_SYNC
-                mCachedMegaSyncPrivate.reset();
-#endif
                 logout_result(API_OK);
             }
             break;
