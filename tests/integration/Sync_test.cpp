@@ -2019,7 +2019,7 @@ struct StandardClient : public MegaApp
         return true;
     }
 
-    //bool setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, int syncid)
+    //bool setupSync_mainthread(const std::string& localsyncrootfolder, const std::string& remotesyncrootfolder, handle syncid)
     //{
     //    //SyncConfig config{(fsBasePath / fs::u8path(localsyncrootfolder)).u8string(), drillchildnodebyname(gettestbasenode(), remotesyncrootfolder)->nodehandle, 0};
     //    return setupSync_mainthread(localsyncrootfolder, remotesyncrootfolder, syncid);
@@ -2040,7 +2040,7 @@ struct StandardClient : public MegaApp
         return fb.get();
     }
 
-    bool delSync_mainthread(int syncTag, bool keepCache = false)
+    bool delSync_mainthread(handle syncTag, bool keepCache = false)
     {
         future<bool> fb = thread_do<bool>([=](StandardClient& mc, PromiseBoolSP pb) { pb->set_value(mc.delSync_inthread(syncTag, keepCache)); });
         return fb.get();
