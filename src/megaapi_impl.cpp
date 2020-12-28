@@ -14004,6 +14004,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
 
                 fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                return;
             }
         }
 #endif // ENABLE_SYNC
