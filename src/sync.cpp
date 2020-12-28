@@ -2164,8 +2164,7 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
 
 void UnifiedSync::changedConfigState(bool notifyApp)
 {
-    if (!mConfig.mEverKnown ||
-        (mConfig.mError != mConfig.mKnownError) ||
+    if ((mConfig.mError != mConfig.mKnownError) ||
         (mConfig.getEnabled() != mConfig.mKnownEnabled))
     {
         LOG_debug << "Sync enabled/error changing. from " << mConfig.mKnownEnabled << "/" << mConfig.mKnownError << " to "  << mConfig.getEnabled() << "/" << mConfig.mError;
@@ -2204,14 +2203,12 @@ void Syncs::resetSyncConfigDb()
     }
 }
 
-
 auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> UnifiedSync*
 {
     isEmpty = false;
     mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(mc, c)));
 
     mSyncConfigDb->insert(c);
-
 
     return mSyncVec.back().get();
 }
@@ -2235,7 +2232,6 @@ void Syncs::forEachUnifiedSync(std::function<void(UnifiedSync&)> f)
         f(*s);
     }
 }
-
 
 void Syncs::forEachRunningSync(std::function<void(Sync* s)> f)
 {
@@ -2347,7 +2343,6 @@ void Syncs::disableSyncs(SyncError syncError, bool newEnabledFlag)
     }
 }
 
-
 void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag)
 {
     for (auto i = mSyncVec.size(); i--; )
@@ -2368,7 +2363,6 @@ void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selecto
         }
     }
 }
-
 
 void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector)
 {
@@ -2409,7 +2403,6 @@ void Syncs::removeSyncByIndex(size_t index)
         isEmpty = mSyncVec.empty();
     }
 }
-
 
 error Syncs::enableSyncByTag(int tag, bool resetFingerprint, UnifiedSync*& syncPtrRef)
 {
@@ -2468,7 +2461,6 @@ void Syncs::enableResumeableSyncs()
         mClient.app->syncs_restored();
     }
 }
-
 
 void Syncs::resumeResumableSyncsOnStartup()
 {

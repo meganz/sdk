@@ -12981,7 +12981,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 #ifdef ENABLE_SYNC
 
     // Checking for conditions where we would not even add the sync config
-    // Though, if the config is already present but now invalid for one of these reasonse, we don't remove it
+    // Though, if the config is already present but now invalid for one of these reasons, we don't remove it
 
     syncConfig.mEnabled = true;
     syncConfig.mError = NO_SYNC_ERROR;
