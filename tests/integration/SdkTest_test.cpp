@@ -36,6 +36,35 @@ using namespace std;
 
 MegaFileSystemAccess fileSystemAccess;
 
+template<typename T>
+class ScopedValue {
+public:
+    ScopedValue(T& what, T value)
+      : mLastValue(std::move(what))
+      , mWhat(what)
+    {
+        what = std::move(value);
+    }
+
+    ~ScopedValue()
+    {
+        mWhat = std::move(mLastValue);
+    }
+
+    MEGA_DISABLE_COPY(ScopedValue);
+    MEGA_DEFAULT_MOVE(ScopedValue);
+
+private:
+    T mLastValue;
+    T& mWhat;
+}; // ScopedValue<T>
+
+template<typename T>
+ScopedValue<T> makeScopedValue(T& what, T value)
+{
+    return ScopedValue<T>(what, std::move(value));
+}
+
 #ifdef _WIN32
 DWORD ThreadId()
 {
@@ -418,6 +447,10 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
         mApi[apiIndex].h = request->getNodeHandle();
         break;
 
+    case MegaRequest::TYPE_ADD_SYNC:
+        mApi[apiIndex].h = request->getNodeHandle();
+        break;
+
     case MegaRequest::TYPE_GET_ATTR_USER:
 
         if (mApi[apiIndex].lastError == API_OK)
@@ -443,6 +476,10 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
                     }
 
                 }
+            }
+            else if (request->getParamType() == MegaApi::USER_ATTR_MY_BACKUPS_FOLDER)
+            {
+                mApi[apiIndex].h = request->getNodeHandle();
             }
             else if (request->getParamType() != MegaApi::USER_ATTR_AVATAR)
             {
@@ -897,9 +934,8 @@ void SdkTest::deleteFile(string filename)
     fs::remove(p, ignoredEc);
 }
 
-const char* envVarAccount[] = {"MEGA_EMAIL", "MEGA_EMAIL_AUX", "MEGA_EMAIL_AUX2"};
-const char* envVarPass[] = {"MEGA_PWD", "MEGA_PWD_AUX", "MEGA_PWD_AUX2"};
-
+string_vector envVarAccount = {"MEGA_EMAIL", "MEGA_EMAIL_AUX", "MEGA_EMAIL_AUX2"};
+string_vector envVarPass    = {"MEGA_PWD",   "MEGA_PWD_AUX",   "MEGA_PWD_AUX2"};
 
 void SdkTest::getAccountsForTest(unsigned howMany)
 {
@@ -914,13 +950,13 @@ void SdkTest::getAccountsForTest(unsigned howMany)
 
     for (unsigned index = 0; index < howMany; ++index)
     {
-        if (const char *buf = getenv(envVarAccount[index]))
+        if (const char *buf = getenv(envVarAccount[index].c_str()))
         {
             mApi[index].email.assign(buf);
         }
         ASSERT_LT((size_t) 0, mApi[index].email.length()) << "Set test account " << index << " username at the environment variable $" << envVarAccount[index];
 
-        if (const char* buf = getenv(envVarPass[index]))
+        if (const char* buf = getenv(envVarPass[index].c_str()))
         {
             mApi[index].pwd.assign(buf);
         }
@@ -1265,6 +1301,67 @@ bool veryclose(double a, double b)
     }
     double ratio = fabs(diff / denom);
     return ratio * 1000000 < 1;
+}
+
+TEST_F(SdkTest, SdkTestKillSession)
+{
+    // Convenience.
+    using MegaAccountSessionPtr =
+      std::unique_ptr<MegaAccountSession>;
+
+    // Make sure environment variable are restored.
+    auto accounts = makeScopedValue(envVarAccount, string_vector(2, "MEGA_EMAIL"));
+    auto passwords = makeScopedValue(envVarPass, string_vector(2, "MEGA_PWD"));
+
+    // Get two sessions for the same account.
+    getAccountsForTest(2);
+
+    // Make sure the sessions aren't reused.
+    gSessionIDs[0] = "invalid";
+    gSessionIDs[1] = "invalid";
+
+    // Get our hands on the second client's session.
+    MegaHandle sessionHandle = UNDEF;
+
+    auto result = synchronousGetExtendedAccountDetails(1, true);
+    ASSERT_EQ(result, MegaError::API_OK)
+      << "GetExtendedAccountDetails failed (error: "
+      << result
+      << ")";
+
+    for (int i = 0; i < mApi[1].accountDetails->getNumSessions(); )
+    {
+        MegaAccountSessionPtr session;
+
+        session.reset(mApi[1].accountDetails->getSession(i++));
+
+        if (session->isCurrent())
+        {
+            sessionHandle = session->getHandle();
+            break;
+        }
+    }
+
+    // Were we able to retrieve the second client's session handle?
+    ASSERT_NE(sessionHandle, UNDEF)
+      << "Unable to get second client's session handle.";
+
+    // Kill the second client's session (via the first.)
+    result = synchronousKillSession(0, sessionHandle);
+    ASSERT_EQ(result, MegaError::API_OK)
+      << "Unable to kill second client's session (error: "
+      << result
+      << ")";
+
+    // Wait for the second client to become logged out.
+    ASSERT_TRUE(WaitFor([&]()
+                        {
+                            return mApi[1].megaApi->isLoggedIn()  == 0;
+                        },
+                        8 * 1000));
+
+    // Log out the primary account.
+    logout(0);
 }
 
 /**
@@ -4698,6 +4795,136 @@ TEST_F(SdkTest, SdkGetBanners)
     ASSERT_TRUE(err == MegaError::API_OK || err == MegaError::API_ENOENT) << "Get banners failed (error: " << err << ")";
 }
 
+TEST_F(SdkTest, SdkBackupFolder)
+{
+    getAccountsForTest(1);
+    LOG_info << "___TEST BackupFolder___";
+
+    // Attempt to get My Backups folder;
+    // make this work even before the remote API has support for My Backups folder
+    synchronousGetMyBackupsFolder(0);
+    MegaHandle mh = mApi[0].h;
+
+    // create My Backups folder
+    unique_ptr<MegaNode> myBkpsNode{ mh && mh != INVALID_HANDLE ? megaApi[0]->getNodeByHandle(mh) : nullptr };
+    if (!myBkpsNode)
+    {
+        // create My Backups folder (default name, just for testing)
+        unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+        const char* folderName = "My Backups";
+        mApi[0].h = 0; // reset this to test its value later
+        ASSERT_NO_FATAL_FAILURE(createFolder(0, folderName, rootnode.get()));
+
+        // set My Backups handle attr
+        mh = mApi[0].h;
+        int err = synchronousSetMyBackupsFolder(0, mh);
+        ASSERT_TRUE(err == MegaError::API_OK) << "Setting handle for My Backup folder failed (error: " << err << ")";
+        // read the attribute to make sure it was set
+        mApi[0].h = 0; // reset this to test its value later
+        err = synchronousGetMyBackupsFolder(0);
+        ASSERT_TRUE(err == MegaError::API_OK);
+        ASSERT_EQ(mh, mApi[0].h) << "Getting handle for My Backup folder failed";
+    }
+
+    // look for Device Name attr
+    string deviceName;
+    if (synchronousGetDeviceName(0) == MegaError::API_OK && !attributeValue.empty())
+    {
+        deviceName = attributeValue;
+    }
+    else
+    {
+        auto now = m_time(nullptr);
+        char timebuf[32];
+        strftime(timebuf, sizeof timebuf, "%c", localtime(&now));
+
+        deviceName = string("Jenkins ") + timebuf;
+        synchronousSetDeviceName(0, deviceName.c_str());
+
+        // make sure Device Name attr was set
+        int err = synchronousGetDeviceName(0);
+        ASSERT_TRUE(err == MegaError::API_OK) << "Getting device name attr failed (error: " << err << ")";
+        ASSERT_EQ(deviceName, attributeValue) << "Getting device name attr failed (wrong value)";
+    }
+
+    // request to backup a folder
+    string localFolderPath = string(LOCAL_TEST_FOLDER) + "\\LocalBackedUpFolder";
+    makeNewTestRoot(localFolderPath.c_str());
+    mApi[0].h = 0;
+    const char* backupName = "RemoteBackupFolder";
+    int err = synchronousBackupFolder(0, localFolderPath.c_str(), backupName);
+    ASSERT_TRUE(err == MegaError::API_OK) << "Backup folder failed (error: " << err << ")";
+
+    // verify node attribute
+    std::unique_ptr<MegaNode> backupNode(megaApi[0]->getNodeByHandle(mApi[0].h));
+    const char* deviceIdFromNode = backupNode->getDeviceId();
+    std::unique_ptr<const char[]> deviceIdFromApi{ megaApi[0]->getDeviceId() };
+    ASSERT_STREQ(deviceIdFromNode, deviceIdFromApi.get());
+
+    // Verify that the remote path was created as expected
+    unique_ptr<char[]> myBackupsFolder{ megaApi[0]->getNodePathByNodeHandle(mh) };
+    string expectedRemotePath = string(myBackupsFolder.get()) + '/' + deviceName + '/' + backupName;
+    unique_ptr<char[]> actualRemotePath{ megaApi[0]->getNodePathByNodeHandle(mApi[0].h) };
+    ASSERT_EQ(expectedRemotePath, actualRemotePath.get()) << "Wrong remote path for backup";
+
+    // Verify that the sync was added
+    unique_ptr<MegaSyncList> allSyncs{ megaApi[0]->getSyncs() };
+    ASSERT_TRUE(allSyncs && allSyncs->size()) << "API reports 0 Sync instances";
+    bool found = false;
+    for (int i = 0; i < allSyncs->size(); ++i)
+    {
+        MegaSync* megaSync = allSyncs->get(i);
+        if (megaSync->getType() == MegaSync::TYPE_BACKUP &&
+            megaSync->getMegaHandle() == mApi[0].h &&
+            !strcmp(megaSync->getName(), backupName) &&
+            !strcmp(megaSync->getMegaFolder(), actualRemotePath.get()))
+        {
+            found = true;
+            break;
+        }
+    }
+    ASSERT_EQ(found, true) << "Sync instance could not be found";
+
+    // Verify sync after logout / login
+    string session = dumpSession();
+    locallogout();
+    auto tracker = asyncRequestFastLogin(0, session.c_str());
+    ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
+    fetchnodes(0, maxTimeout); // auto-resumes one active backup
+    // Verify the sync again
+    allSyncs.reset(megaApi[0]->getSyncs());
+    ASSERT_TRUE(allSyncs && allSyncs->size()) << "API reports 0 Sync instances, after relogin";
+    found = false;
+    for (int i = 0; i < allSyncs->size(); ++i)
+    {
+        MegaSync* megaSync = allSyncs->get(i);
+        if (megaSync->getType() == MegaSync::TYPE_BACKUP &&
+            megaSync->getMegaHandle() == mApi[0].h &&
+            !strcmp(megaSync->getName(), backupName) &&
+            !strcmp(megaSync->getMegaFolder(), actualRemotePath.get()))
+        {
+            found = true;
+            break;
+        }
+    }
+    ASSERT_EQ(found, true) << "Sync instance could not be found, after logout & login";
+
+    // Remove registered backup
+    RequestTracker removeTracker(megaApi[0].get());
+    megaApi[0]->removeSync(allSyncs->get(0), &removeTracker);
+    ASSERT_EQ(API_OK, removeTracker.waitForResult());
+    allSyncs.reset(megaApi[0]->getSyncs());
+    ASSERT_TRUE(!allSyncs || !allSyncs->size()) << "Registered backup was not removed";
+
+    // Request to backup another folder
+    // this time, the remote folder structure is already there
+    string localFolderPath2 = string(LOCAL_TEST_FOLDER) + "\\LocalBackedUpFolder2";
+    makeNewTestRoot(localFolderPath2.c_str());
+    const char* backupName2 = "RemoteBackupFolder2";
+    err = synchronousBackupFolder(0, localFolderPath2.c_str(), backupName2);
+    ASSERT_TRUE(err == MegaError::API_OK) << "Backup folder 2 failed (error: " << err << ")";
+}
+
 TEST_F(SdkTest, SdkSimpleCommands)
 {
     getAccountsForTest(1);
@@ -4726,40 +4953,10 @@ TEST_F(SdkTest, SdkSimpleCommands)
     err = synchronousCleanRubbishBin(0);
     ASSERT_TRUE(err == MegaError::API_OK || err == MegaError::API_ENOENT) << "Clean rubbish bin failed (error: " << err << ")";
 
-    // getExtendedAccountDetails()
-    err = synchronousGetExtendedAccountDetails(0, true);
-    ASSERT_EQ(MegaError::API_OK, err) << "Get extended account details failed (error: " << err << ")";
-    ASSERT_TRUE(!!mApi[0].accountDetails) << "Invalid accout details"; // some simple validation
-
-
-    // killSession will be tested in a separate test.  This one is unreliable because sometimes
-    // the sc channel gets response first wtih -15 for the batch, and locallogout()s the client.
-
-    //// killSession()
-    //gSessionIDs[0] = "invalid";
-    //int numSessions = mApi[0].accountDetails->getNumSessions();
-    //for (int i = 0; i < numSessions; ++i)
-    //{
-    //    // look for current session
-    //    std::unique_ptr<MegaAccountSession> session(mApi[0].accountDetails->getSession(i));
-    //    if (session->isCurrent())
-    //    {
-    //        err = synchronousKillSession(0, session->getHandle());
-    //        ASSERT_EQ(MegaError::API_OK, err) << "Kill session failed for current session (error: " << err << ")";
-
-    //        break;
-    //    }
-    //}
-
-    //gTestingInvalidArgs = true;
-    //err = synchronousKillSession(0, 0 /*INVALID_HANDLE + 1*/);  // INVALID_HANDLE is special and means kill all (in the intermediate layer) - so +1 for a (probably) really invalid handle
-    //ASSERT_EQ(MegaError::API_ESID, err) << "Kill session for unknown sessions shoud fail with API_ESID (error: " << err << ")";
-    //gTestingInvalidArgs = false;
-
-    //// getMiscFlags() -- not logged in
-    //logout(0);
-    //err = synchronousGetMiscFlags(0);
-    //ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
+    // getMiscFlags() -- not logged in
+    logout(0);
+    err = synchronousGetMiscFlags(0);
+    ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
 }
 
 TEST_F(SdkTest, SdkHeartbeatCommands)
@@ -5578,7 +5775,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
         //loginBySessionId(0, session);
         auto tracker = asyncRequestFastLogin(0, session.c_str());
-        ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for accout " << 0;
+        ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
     };
 
     LOG_verbose << " SyncResumptionAfterFetchNodes : syncying folders";
@@ -6137,4 +6334,3 @@ TEST_F(SdkTest, SyncOQTransitions)
 }
 
 #endif
-

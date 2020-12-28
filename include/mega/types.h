@@ -824,7 +824,7 @@ private:
 
 };
 
-typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3, MEDIA_UPLOAD = 4 } BackupType;
+typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3, MEDIA_UPLOAD = 4, BACKUP_UPLOAD } BackupType;
 
 // Holds the config of a sync. Can be extended with future config options
 class Sync;
@@ -837,6 +837,7 @@ public:
         TYPE_UP = 0x01, // sync up from local to remote
         TYPE_DOWN = 0x02, // sync down from remote to local
         TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
+        TYPE_BACKUP, // special sync up from local to remote, automatically disabled when remote changed
     };
 
     SyncConfig(int tag,

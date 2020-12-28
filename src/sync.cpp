@@ -531,7 +531,7 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
     {
         std::string data;
         const_cast<SyncConfig&>(syncConfig).serialize(&data);
-        DBTableTransactionCommitter committer{mTable.get()};
+        DBTableTransactionCommitter committer{mTable};
         if (!mTable->put(id, &data)) // put either inserts or updates
         {
             LOG_err << "Incomplete database put at id: " << mTable->nextid;
@@ -581,7 +581,7 @@ bool SyncConfigBag::removeByTag(const int tag)
     {
         if (mTable)
         {
-            DBTableTransactionCommitter committer{mTable.get()};
+            DBTableTransactionCommitter committer{mTable};
             if (!mTable->del(syncConfigPair->second.dbid))
             {
                 LOG_err << "Incomplete database del at id: " << syncConfigPair->second.dbid;
