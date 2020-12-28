@@ -991,12 +991,8 @@ bool CommandSetAttr::procresult(Result r)
         if(node)
         {
             // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
-            client->syncs.forEachRunningSync([&](Sync* s) {
-                    if (s->localroot->node &&
-                        node->isbelow(s->localroot->node))
-                    {
-                        client->app->syncupdate_remote_rename(s, node, pa.c_str());
-                    }
+            client->syncs.forEachRunningSyncContainingNode(node, [&](Sync* s) {
+                    client->app->syncupdate_remote_rename(s, node, pa.c_str());
                 });
         }
     }
@@ -1363,18 +1359,14 @@ bool CommandMoveNode::procresult(Result r)
                                 if (syncop)
                                 {
                                     // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
-                                    client->syncs.forEachRunningSync([&](Sync* s) {
-                                        if (s->localroot->node &&
-                                            n->isbelow(s->localroot->node))
+                                    client->syncs.forEachRunningSyncContainingNode(n, [&](Sync* s) {
+                                        if ((*it)->type == FOLDERNODE)
                                         {
-                                            if ((*it)->type == FOLDERNODE)
-                                            {
-                                                s->client->app->syncupdate_remote_folder_deletion(s, n);
-                                            }
-                                            else
-                                            {
-                                                s->client->app->syncupdate_remote_file_deletion(s, n);
-                                            }
+                                            s->client->app->syncupdate_remote_folder_deletion(s, n);
+                                        }
+                                        else
+                                        {
+                                            s->client->app->syncupdate_remote_file_deletion(s, n);
                                         }
                                     });
                                 }
@@ -1413,13 +1405,9 @@ bool CommandMoveNode::procresult(Result r)
             if(n)
             {
                 // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
-                client->syncs.forEachRunningSync([&](Sync* s) {
-                    if (s->localroot->node &&
-                        n->isbelow(s->localroot->node))
-                    {
-                        client->app->syncupdate_remote_move(s, n, client->nodebyhandle(pp));
-                    }
-                    });
+                client->syncs.forEachRunningSyncContainingNode(n, [&](Sync* s) {
+                    client->app->syncupdate_remote_move(s, n, client->nodebyhandle(pp));
+                });
             }
         }
 #endif

@@ -2248,6 +2248,21 @@ void Syncs::forEachRunningSync(std::function<void(Sync* s)> f)
     }
 }
 
+void Syncs::forEachRunningSyncContainingNode(Node* node, std::function<void(Sync* s)> f)
+{
+    for (auto& s : mSyncVec)
+    {
+        if (s->mSync)
+        {
+            if (s->mSync->localroot->node &&
+                node->isbelow(s->mSync->localroot->node))
+            {
+                f(s->mSync.get());
+            }
+        }
+    }
+}
+
 bool Syncs::forEachRunningSync_shortcircuit(std::function<bool(Sync* s)> f)
 {
     for (auto& s : mSyncVec)
