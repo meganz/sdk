@@ -477,7 +477,7 @@ static void syncstat(Sync* sync)
 
 void DemoApp::syncupdate_stateconfig(handle backupId)
 {
-    cout << "Sync config updated: " << backupId << endl;
+    cout << "Sync config updated: " << toHandle(backupId) << endl;
 }
 
 
@@ -502,7 +502,7 @@ void DemoApp::sync_auto_resume_result(const UnifiedSync& s, bool attempted)
 
 void DemoApp::sync_removed(handle backupId)
 {
-    cout << "Sync - removed: " << backupId << endl;
+    cout << "Sync - removed: " << toHandle(backupId) << endl;
 
 }
 
@@ -4381,7 +4381,7 @@ void exec_sync(autocomplete::ACState& s)
                         [](mega::UnifiedSync* us, const SyncError&, error e){
                             if (us && us->mSync)
                             {
-                                cout << "Sync added and running. backupId = " << us->mConfig.getBackupId();
+                                cout << "Sync added and running. backupId = " << toHandle(us->mConfig.getBackupId());
                             }
                             else if (us)
                             {
@@ -4431,7 +4431,7 @@ void exec_sync(autocomplete::ACState& s)
                     nodepath(sync->localroot->node->nodehandle, &remotepath);
                     localpath = sync->localroot->localname.toPath(*client->fsaccess);
 
-                    cout << us.mConfig.getBackupId() << " (" << syncConfigToString(sync->getConfig()) << "): " << localpath << " to " << remotepath << " - "
+                    cout << toHandle(us.mConfig.getBackupId()) << " (" << syncConfigToString(sync->getConfig()) << "): " << localpath << " to " << remotepath << " - "
                             << syncstatenames[sync->state + 3] << ", " << sync->localbytes
                             << " byte(s) in " << sync->localnodes[FILENODE] << " file(s) and "
                             << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
@@ -4443,7 +4443,7 @@ void exec_sync(autocomplete::ACState& s)
                 nodepath(us.mConfig.getRemoteNode(), &remotepath);
                 localpath = us.mConfig.getLocalPath();
 
-                cout << us.mConfig.getBackupId() << " (" << syncConfigToString(sync->getConfig()) << "): " << localpath << " to " << remotepath << " - "
+                cout << toHandle(us.mConfig.getBackupId()) << " (" << syncConfigToString(sync->getConfig()) << "): " << localpath << " to " << remotepath << " - "
                     << syncstatenames[sync->state + 3] << ", " << sync->localbytes
                     << " byte(s) in " << sync->localnodes[FILENODE] << " file(s) and "
                     << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
