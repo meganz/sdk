@@ -1257,6 +1257,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     ssrs_enabled = false;
     nsr_enabled = false;
     aplvp_enabled = false;
+    mCookieBannerEnabled = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     loggingout = 0;
     loggedout = false;
