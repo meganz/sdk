@@ -606,8 +606,8 @@ public:
     error isLocalPathSyncable(std::string newPath, int newSyncTag = 0, SyncError *syncError = nullptr);
 
     /**
-     * @brief check config. Will fill syncError in the SyncConfig case there is one.
-     * Will fill syncWarning in the SyncConfig case there is one.
+     * @brief check config. Will fill syncError in the SyncConfig in case there is one.
+     * Will fill syncWarning in the SyncConfig in case there is one.
      * Does not persist the sync configuration.
      * Does not add the syncConfig.
      * Reference parameters are filled in while checking syncConfig, for the benefit of addSync() which calls it.
@@ -624,12 +624,10 @@ public:
      * @param localdebris Alternate debris folder path - not used at all to my knowledge
      * @param delayInitialScan delay the initial scan
      * @param syncManager If the syncConfig is added, this parameter wll be filled in with a pointer to the created SyncManager.
+     * @param notifyApp whether the syncupdate_stateconfig callback should be called at this stage or not
      * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
      */
-    error addsync(SyncConfig& syncConfig, const char* debris, LocalPath* localdebris, bool delayInitialScan, SyncManager*& syncManager);
-
-
-
+    error addsync(SyncConfig& syncConfig, const char* debris, LocalPath* localdebris, bool delayInitialScan, SyncManager*& syncManager, bool notifyApp);
 
     ////// sync config updating & persisting ////
 

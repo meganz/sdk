@@ -48,7 +48,7 @@ public:
 
     virtual int status() const;
 
-    virtual double progress() const;
+    virtual double progress(m_off_t inflightProgress) const;
     virtual void invalidateProgress();
 
     virtual m_time_t lastAction() const;
@@ -93,7 +93,7 @@ protected:
 class HeartBeatTransferProgressedInfo : public HeartBeatBackupInfo
 {
 public:
-    double progress() const override;
+    double progress(m_off_t inflightProgress) const override;
 
     void adjustTransferCounts(int32_t upcount, int32_t downcount, long long totalBytes, long long transferBytes);
 
@@ -171,8 +171,6 @@ public:
     };
     BackupInfoSync(SyncManager&syncManager);
 
-    void updatePauseState(MegaClient *client);
-
     static BackupType getSyncType(const SyncConfig& config);
     static int getSyncState (SyncManager&);
     static int getSyncSubstatus (SyncManager&);
@@ -208,7 +206,6 @@ private:
     void registerBackupInfo(const BackupInfo &info, SyncManager* syncPtr);
 
     void beatBackupInfo(SyncManager& sm);
-    void calculateStatus(HeartBeatBackupInfo *hbs, SyncManager& sm);
 #endif
 };
 }

@@ -449,7 +449,7 @@ void SyncApp::fetchnodes_result(const Error &e)
                 SyncConfig syncConfig{syncTag++, local_folder, local_folder, n->nodehandle, remote_folder, 0};
 #ifdef ENABLE_SYNC
                 SyncManager* syncManager;
-                error err = client->addsync(syncConfig, DEBRISFOLDER, NULL, false, syncManager);
+                error err = client->addsync(syncConfig, DEBRISFOLDER, NULL, false, syncManager, false);
                 if (err)
                 {
                     LOG_err << "Sync could not be added! " << err << " syncError = " << syncConfig.getError();

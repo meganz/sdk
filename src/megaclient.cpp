@@ -2780,7 +2780,7 @@ void MegaClient::exec()
                     syncs.forEachRunningSync([&](Sync* sync) {
 
                         // make sure that the remote synced folder still exists
-                        if (!sync->localroot->node)
+                        if (!sync->localroot->node && sync->state != SYNC_FAILED)
                         {
                             LOG_err << "The remote root node doesn't exist";
                             sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true);
@@ -12981,7 +12981,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 #ifdef ENABLE_SYNC
 
     // Checking for conditions where we would not even add the sync config
-    // Though, if the config is already present but now invalid for one of these reasonse, we don't remove it
+    // Though, if the config is already present but now invalid for one of these reasons, we don't remove it
 
     syncConfig.mEnabled = true;
     syncConfig.mError = NO_SYNC_ERROR;
@@ -13066,7 +13066,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 }
 
 
-error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* localdebris, bool delayInitialScan, SyncManager*& syncManager)
+error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* localdebris, bool delayInitialScan, SyncManager*& syncManager, bool notifyApp)
 {
     syncManager = nullptr;
     LocalPath rootpath;
@@ -13081,7 +13081,7 @@ error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* loc
         // if we got this far, the syncConfig is kept (in db and in memory)
         syncManager = syncs.appendNewSync(config, *this);
 
-        e = syncManager->enableSync(false);
+        e = syncManager->enableSync(false, notifyApp);
 
         syncactivity = true;
         config = syncManager->mConfig;  // so the caller can easily check the config they passed in

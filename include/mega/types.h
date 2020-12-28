@@ -980,7 +980,6 @@ private:
     // notified/saved state
     SyncError mKnownError = NO_SYNC_ERROR;
     bool mKnownEnabled = false;
-    bool mEverKnown = false;
 };
 
 // cross reference pointers.  For the case where two classes have pointers to each other, and they should

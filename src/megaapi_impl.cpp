@@ -8927,7 +8927,7 @@ bool MegaApiImpl::isSyncable(const char *path, long long size)
 
         if (sync->localnodebypath(NULL, localpath, &parent) || parent)
         {
-            if (sync->localdebris.isContainingPathOf(localpath))
+            if (!sync->localdebris.isContainingPathOf(localpath))
             {
                 auto temp = localpath.leafName();
                 auto name = temp.toName(*fsAccess, sync->mFilesystemType);
@@ -13066,18 +13066,16 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
 
 MegaSyncPrivate* MegaApiImpl::cachedMegaSyncPrivateByTag(int tag)
 {
-    if (tag == mCachedMegaSyncPrivateTag && mCachedMegaSyncPrivate)
+    if (mCachedMegaSyncPrivate && tag == mCachedMegaSyncPrivate->getTag())
     {
         return mCachedMegaSyncPrivate.get();
     }
     mCachedMegaSyncPrivate.reset();
-    mCachedMegaSyncPrivateTag = 0;
 
     client->syncs.forEachSyncManager([&](SyncManager& sm) {
         if (sm.mConfig.getTag() == tag)
         {
             mCachedMegaSyncPrivate.reset(new MegaSyncPrivate(sm.mConfig, sm.mSync.get()));
-            mCachedMegaSyncPrivateTag = tag;
         }
     });
 
@@ -13182,11 +13180,11 @@ void MegaApiImpl::syncupdate_local_file_change(Sync *sync, LocalNode *, const ch
     LOG_debug << "Sync - local file change detected: " << path;
     client->abortbackoff(false);
 
-    if (auto ms = cachedMegaSyncPrivateByTag(sync->tag))
+    if (auto megaSync = cachedMegaSyncPrivateByTag(sync->tag))
     {
         MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FILE_CHANGED);
         event->setPath(path);
-        fireOnSyncEvent(ms, event);
+        fireOnSyncEvent(megaSync, event);
     }
 }
 
@@ -14616,6 +14614,10 @@ void MegaApiImpl::logout_result(error e)
         mPushSettings = NULL;
         delete mTimezones;
         mTimezones = NULL;
+
+#ifdef ENABLE_SYNC
+        mCachedMegaSyncPrivate.reset();
+#endif
     }
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
@@ -19812,9 +19814,6 @@ void MegaApiImpl::sendPendingRequests()
             {
                 client->locallogout(false);
                 client->restag = nextTag;
-#ifdef ENABLE_SYNC
-                mCachedMegaSyncPrivate.reset();
-#endif
                 logout_result(API_OK);
             }
             break;
@@ -21400,8 +21399,6 @@ void MegaApiImpl::sendPendingRequests()
             const char *name = request->getName();
 
             auto nextSyncTag = client->nextSyncTag();
-            unique_ptr<MegaSyncPrivate> sync(new MegaSyncPrivate(localPath, name, node->nodehandle, nextSyncTag));
-            sync->setRegExp(request->getRegExp());
 
             std::unique_ptr<char []> remotePath{getNodePathByNodeHandle(request->getNodeHandle())};
             if (!remotePath)
@@ -21415,17 +21412,13 @@ void MegaApiImpl::sendPendingRequests()
                                   0, regExpToVector(request->getRegExp())};
 
             SyncManager* syncManager = nullptr;
-            e = client->addsync(syncConfig, DEBRISFOLDER, NULL, true, syncManager);
+            e = client->addsync(syncConfig, DEBRISFOLDER, NULL, true, syncManager, false);  // notifyApp = false since so we don't notify until after fireOnSyncAdded
+
             request->setNumDetails(syncConfig.getError());
             if (syncManager)
             {
-                if (!e && syncManager && syncManager->mSync)
-                {
-                    fsfp_t fsfp = syncManager->mSync->fsfp;
-                    sync->setLocalFingerprint(fsfp);
-                    request->setNumber(fsfp);
-                }
-                sync->setMegaFolderYielding(remotePath.release());
+                unique_ptr<MegaSyncPrivate> sync(new MegaSyncPrivate(syncManager->mConfig, syncManager->mSync.get()));
+                request->setNumber(sync->getLocalFingerprint());
                 request->setTransferTag(nextSyncTag);
 
                 fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
@@ -21650,7 +21643,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 bool matched = (tag && c.getTag() == tag) ||
                                (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
-                found = found || matched;  // no need to test s, auto tests check disable of disabled retgurns MegaError::API_OK
+                found = found || matched;  // no need to test s, auto tests check disable of disabled returns MegaError::API_OK
                 return matched;
             }, NO_SYNC_ERROR, false);
 
@@ -24174,8 +24167,6 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
 MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle nodehandle, int tag)
     : mActive(false)
     , mEnabled(false)
-    , mError(0)
-    , mWarning(0)
 {
     this->tag = tag;
     this->megaHandle = nodehandle;

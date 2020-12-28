@@ -1960,6 +1960,34 @@ bool Sync::movetolocaldebris(LocalPath& localpath)
     return false;
 }
 
+m_off_t Sync::getInflightProgress()
+{
+    m_off_t progressSum = 0;
+
+    for (auto tslot : client->tslots)
+    {
+        for (auto file : tslot->transfer->files)
+        {
+            if (auto ln = dynamic_cast<LocalNode*>(file))
+            {
+                if (ln->sync == this)
+                {
+                    progressSum += tslot->progressreported;
+                }
+            }
+            else if (auto sfg = dynamic_cast<SyncFileGet*>(file))
+            {
+                if (sfg->sync == this)
+                {
+                    progressSum += tslot->progressreported;
+                }
+            }
+        }
+    }
+
+    return progressSum;
+}
+
 
 SyncManager::SyncManager(MegaClient& mc, const SyncConfig& c)
     : mClient(mc), mConfig(c)
@@ -1968,7 +1996,7 @@ SyncManager::SyncManager(MegaClient& mc, const SyncConfig& c)
 }
 
 
-error SyncManager::enableSync(bool resetFingerprint)
+error SyncManager::enableSync(bool resetFingerprint, bool notifyApp)
 {
     assert(!mSync);
     mConfig.mError = NO_SYNC_ERROR;
@@ -1987,13 +2015,13 @@ error SyncManager::enableSync(bool resetFingerprint)
     if (e)
     {
         mConfig.mEnabled = false;
-        changedConfigState(true);
+        changedConfigState(notifyApp);
         return e;
     }
 
     e = startSync(&mClient, DEBRISFOLDER, nullptr, remotenode, inshare, isnetwork, false, rootpath, openedLocalFolder);
     mClient.syncactivity = true;
-    changedConfigState(true);
+    changedConfigState(notifyApp);
 
     mClient.syncs.mHeartBeatMonitor->updateOrRegisterSync(*this);
 
@@ -2133,17 +2161,18 @@ error SyncManager::startSync(MegaClient* client, const char* debris, LocalPath* 
     return API_OK;
 }
 
-
-void SyncManager::changedConfigState(bool fireDisableEvent)
+void SyncManager::changedConfigState(bool notifyApp)
 {
-    if (!mConfig.mEverKnown ||
-        (mConfig.mError != mConfig.mKnownError) ||
+    if ((mConfig.mError != mConfig.mKnownError) ||
         (mConfig.getEnabled() != mConfig.mKnownEnabled))
     {
         LOG_debug << "Sync enabled/error changing. from " << mConfig.mKnownEnabled << "/" << mConfig.mKnownError << " to "  << mConfig.getEnabled() << "/" << mConfig.mError;
 
         mClient.syncs.saveSyncConfig(mConfig);
-        mClient.app->syncupdate_stateconfig(mConfig.getTag());
+        if (notifyApp)
+        {
+            mClient.app->syncupdate_stateconfig(mConfig.getTag());
+        }
         mClient.abortbackoff(false);
 
         mConfig.mKnownError = mConfig.mError;
@@ -2167,12 +2196,11 @@ void Syncs::clear()
 void Syncs::resetSyncConfigDb()
 {
     mSyncConfigDb.reset();
-    if (mClient.dbaccess && !mClient.uid.empty())
+    if (mClient.dbaccess && mClient.loggedin() == FULLACCOUNT)
     {
         mSyncConfigDb.reset(new SyncConfigBag{ *mClient.dbaccess, *mClient.fsaccess, mClient.rng, mClient.uid });
     }
 }
-
 
 auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> SyncManager*
 {
@@ -2180,7 +2208,6 @@ auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> SyncManager*
     mSyncVec.push_back(unique_ptr<SyncManager>(new SyncManager(mc, c)));
 
     mSyncConfigDb->insert(c);
-
 
     return mSyncVec.back().get();
 }
@@ -2204,7 +2231,6 @@ void Syncs::forEachSyncManager(std::function<void(SyncManager&)> f)
         f(*s);
     }
 }
-
 
 void Syncs::forEachRunningSync(std::function<void(Sync* s)> f)
 {
@@ -2316,7 +2342,6 @@ void Syncs::disableSyncs(SyncError syncError, bool newEnabledFlag)
     }
 }
 
-
 void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag)
 {
     for (auto i = mSyncVec.size(); i--; )
@@ -2337,7 +2362,6 @@ void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selecto
         }
     }
 }
-
 
 void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector)
 {
@@ -2379,7 +2403,6 @@ void Syncs::removeSyncByIndex(size_t index)
     }
 }
 
-
 error Syncs::enableSyncByTag(int tag, bool resetFingerprint, SyncManager*& syncPtrRef)
 {
     for (auto& s : mSyncVec)
@@ -2389,7 +2412,7 @@ error Syncs::enableSyncByTag(int tag, bool resetFingerprint, SyncManager*& syncP
             syncPtrRef = s.get();
             if (!s->mSync)
             {
-                return s->enableSync(resetFingerprint);
+                return s->enableSync(resetFingerprint, true);
             }
             s->mConfig.setError(ACTIVE_SYNC_BELOW_PATH);
             s->mConfig.setEnabled(false);
@@ -2418,7 +2441,7 @@ void Syncs::enableResumeableSyncs()
                 SyncError syncError = syncManager->mConfig.getError();
                 LOG_debug << "Restoring sync: " << syncManager->mConfig.getTag() << " " << syncManager->mConfig.getLocalPath() << " fsfp= " << syncManager->mConfig.getLocalFingerprint() << " old error = " << syncError;
 
-                error e = syncManager->enableSync(false);
+                error e = syncManager->enableSync(false, true);
                 if (!e)
                 {
                     anySyncRestored = true;
@@ -2438,9 +2461,10 @@ void Syncs::enableResumeableSyncs()
     }
 }
 
-
 void Syncs::resumeResumableSyncsOnStartup()
 {
+    if (mClient.loggedinfolderlink()) return;
+
     bool firstSyncResumed = false;
 
     for (auto& config : mSyncConfigDb->all())
@@ -2477,7 +2501,7 @@ void Syncs::resumeResumableSyncsOnStartup()
 #endif
                 LOG_debug << "Resuming cached sync: " << syncManager->mConfig.getTag() << " " << syncManager->mConfig.getLocalPath() << " fsfp= " << syncManager->mConfig.getLocalFingerprint() << " error = " << syncManager->mConfig.getError();
 
-                syncManager->enableSync(false);
+                syncManager->enableSync(false, true);
                 LOG_debug << "Sync autoresumed: " << syncManager->mConfig.getTag() << " " << syncManager->mConfig.getLocalPath() << " fsfp= " << syncManager->mConfig.getLocalFingerprint() << " error = " << syncManager->mConfig.getError();
 
                 mClient.app->sync_auto_resume_result(*syncManager, true);

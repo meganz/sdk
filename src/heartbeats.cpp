@@ -35,9 +35,9 @@ int HeartBeatBackupInfo::status() const
     return mStatus;
 }
 
-double HeartBeatBackupInfo::progress() const
+double HeartBeatBackupInfo::progress(m_off_t inflightProgress) const
 {
-    return mProgress;
+    return mProgress + inflightProgress;
 }
 
 void HeartBeatBackupInfo::invalidateProgress()
@@ -103,9 +103,9 @@ m_time_t HeartBeatBackupInfo::lastBeat() const
 }
 
 ////////// HeartBeatTransferProgressedInfo ////////
-double HeartBeatTransferProgressedInfo::progress() const
+double HeartBeatTransferProgressedInfo::progress(m_off_t inflightProgress) const
 {
-    return mProgressInvalid ? -1.0 : std::max(0., std::min(1., static_cast<double>(mTransferredBytes) / static_cast<double>(mTotalBytes)));
+    return mProgressInvalid ? -1.0 : std::max(0., std::min(1., static_cast<double>((mTransferredBytes + inflightProgress)) / static_cast<double>(mTotalBytes)));
 }
 
 void HeartBeatTransferProgressedInfo::adjustTransferCounts(int32_t upcount, int32_t downcount, long long totalBytes, long long transferBytes)
@@ -319,8 +319,8 @@ void BackupMonitor::updateBackupInfo(handle backupId, const BackupInfo &info)
     string deviceIdHash = mClient->getDeviceidHash();
 
     mClient->reqs.add(new CommandBackupPut(mClient,
+                                           backupId,
                                            info.type(),
-                                           info.backupName(),
                                            info.megaHandle(),
                                            localFolderEncrypted.c_str(),
                                            deviceIdHash.c_str(),
@@ -379,11 +379,6 @@ void BackupMonitor::onSyncConfigChanged()
     });
 }
 
-void BackupMonitor::calculateStatus(HeartBeatBackupInfo *hbs, SyncManager& sm)
-{
-   hbs->updateStatus(sm);
-}
-
 void BackupMonitor::beatBackupInfo(SyncManager& syncManager)
 {
     // send registration or update in case we missed it
@@ -400,11 +395,16 @@ void BackupMonitor::beatBackupInfo(SyncManager& syncManager)
     if ( !hbs->mSending && (hbs->mModified
          || m_time(nullptr) - hbs->lastBeat() > MAX_HEARBEAT_SECS_DELAY))
     {
-        calculateStatus(hbs.get(), syncManager); //we asume this is costly: only do it when beating
-
+        hbs->updateStatus(syncManager);  //we asume this is costly: only do it when beating
         hbs->setLastBeat(m_time(nullptr));
 
-        int8_t progress = (hbs->progress() < 0) ? -1 : static_cast<int8_t>(std::lround(hbs->progress()*100.0));
+        m_off_t inflightProgress = 0;
+        if (syncManager.mSync)
+        {
+            inflightProgress = syncManager.mSync->getInflightProgress();
+        }
+
+        int8_t progress = (hbs->progress(inflightProgress) < 0) ? -1 : static_cast<int8_t>(std::lround(hbs->progress(inflightProgress)*100.0));
 
         hbs->mSending = true;
         auto newCommand = new CommandBackupPutHeartBeat(mClient, syncManager.mConfig.getBackupId(),  static_cast<uint8_t>(hbs->status()),
