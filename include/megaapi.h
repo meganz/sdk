@@ -1114,6 +1114,17 @@ class MegaNode
         virtual MegaHandle getOwner() const;
 
         /**
+         * @brief Returns the device id stored as a Node attribute of a Backup folder.
+         * It will be an empty string for other nodes.
+         *
+         * The MegaNode object retains the ownership of the returned string, it will be valid until
+         * the MegaNode object is deleted.
+         *
+         * @return The device id associated with the Node of a Backup folder.
+         */
+        virtual const char* getDeviceId() const;
+
+        /**
          * @brief Provides a serialization of the MegaNode object
          *
          * @note This function is intended to use ONLY with MegaNode objects obtained from
@@ -5172,6 +5183,15 @@ public:
         NEW_TEMP_DISABLED = 6, // new sync added as temporarily disabled due to a temporary error
     };
 
+    enum SyncType
+    {
+        TYPE_UNKNOWN = 0x00,
+        TYPE_UP = 0x01, // sync up from local to remote
+        TYPE_DOWN = 0x02, // sync down from remote to local
+        TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
+        TYPE_BACKUP, // special sync up from local to remote, automatically disabled when remote changed
+    };
+
     virtual ~MegaSync();
 
     /**
@@ -5300,6 +5320,14 @@ public:
      */
     virtual int getError() const;
 
+    /**
+     * @brief Get the type of sync
+     *
+     * See possible values in MegaSync::SyncType.
+     *
+     * @return Type of sync
+     */
+    virtual int getType() const;
 
     /**
      * @brief Returns if the sync is set as enabled by the user
@@ -11954,6 +11982,15 @@ class MegaApi
         void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Returns the id of this device
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return The id of this device
+         */
+        const char* getDeviceId() const;
+
+        /**
          * @brief Returns the name set for this device
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
@@ -13973,6 +14010,45 @@ class MegaApi
          * @return Path of the file that is blocking the sync engine, or NULL if it isn't blocked
          */
         char *getBlockedPath();
+
+        /**
+         * @brief Start backup for the given folder, to "My Backups" remote destination
+         *
+         * The backup's folder name is optional. If not provided, it will take the name of the leaf folder of
+         * the local path. In example, for "/home/user/Documents", it will become "Documents".
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getName - Returns the backup name at the remote location
+         * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Returns the node handle of the remote backup (last leaf, in case
+         *   multiple folders have been created for the remote backup path)
+         * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
+         *   if the sync was added with no errors
+         * - MegaRequest::getTransferTag - Returns the tag asociated with the backup
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - If the local folder was not set.
+         * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
+         * or the attribute was invalid, or /"My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
+         * wrong 'dev-id' tag.
+         * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a record containing
+         * the handle.
+         * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user attribute was invalid
+         * - or the node could not be found.
+         * - MegaError::API_EINCOMPLETE - If device id was not set, or if current user did not have an attribute for
+         * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
+         * or device name was empty.
+         *
+         * @param localFolder The local folder to be backed up
+         * @param backupName The remote folder to be used for this backup (optional)
+         * @param listener MegaRequestListener to track this request
+         */
+        void backupFolder(const char *localFolder, const char *backupName = nullptr, MegaRequestListener *listener = nullptr);
 #endif
 
         /**

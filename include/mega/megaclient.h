@@ -530,7 +530,7 @@ public:
     handle uploadhandle(int);
 
     // helper function for preparing a putnodes call for new folders
-    void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername);
+    void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void (AttrMap&)> addAttrs = nullptr);
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
@@ -1154,13 +1154,13 @@ public:
     bool pendingsccommit;
 
     // transfer cache table
-    DbTable* tctable;
+    unique_ptr<DbTable> tctable;
 
     // during processing of request responses, transfer table updates can be wrapped up in a single begin/commit
     DBTableTransactionCommitter* mTctableRequestCommitter = nullptr;
 
     // status cache table for logged in user. For data pertaining status which requires immediate commits
-    DbTable* statusTable;
+    unique_ptr<DbTable> statusTable;
 
     // scsn as read from sctable
     handle cachedscsn;
@@ -1547,7 +1547,7 @@ public:
 
     bool requestLock;
     dstime disconnecttimestamp;
-    dstime lastDispatchTransfersDs = 0;
+    dstime nextDispatchTransfersDs = 0;
 
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t, vector<NewNode>*, int, bool applykeys);
@@ -1585,6 +1585,7 @@ public:
     bool warnlevel();
 
     Node* childnodebyname(Node*, const char*, bool = false);
+    Node* childnodebyattribute(Node*, nameid, const char*);
     void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
 
