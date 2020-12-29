@@ -2014,7 +2014,7 @@ error UnifiedSync::enableSync(bool resetFingerprint, bool notifyApp)
 
     if (e)
     {
-        mConfig.mEnabled = false;
+        // error and enable flag were already changed
         changedConfigState(notifyApp);
         return e;
     }
