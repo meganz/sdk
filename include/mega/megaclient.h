@@ -635,7 +635,7 @@ public:
     void failSync(Sync* sync, SyncError syncerror);
 
     // disable synchronization. syncError specifies why we are disabling it.
-    // newEnabledFlag specifys whether we will try to auto-resume it on eg. app restart
+    // newEnabledFlag specifies whether we will try to auto-resume it on eg. app restart
     void disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError, bool newEnabledFlag);
 
     // fail all active syncs

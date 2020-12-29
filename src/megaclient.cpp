@@ -11859,10 +11859,10 @@ void MegaClient::fetchnodes(bool nocache)
         // If there are syncs present at this time, this is a reload-account request.
         // We will start by fetching a cached tree which likely won't match our current
         // state/scsn.  And then we will apply actionpackets until we are up to date.
-        // Those actionpackets may be repeats of actionpackets alrady applied to the sync
+        // Those actionpackets may be repeats of actionpackets already applied to the sync
         // or they may be new ones that were not previously applied.
         // So, neither applying nor not applying actionpackets is correct. So, disable the syncs
-        // The sync rework branch, when ready, will be able to cope with this situation.
+        // TODO: the sync rework branch, when ready, will be able to cope with this situation.
         syncs.disableSyncs(WHOLE_ACCOUNT_REFETCHED, false);
 #endif
 
@@ -13114,7 +13114,6 @@ error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* loc
 
     if (!e)
     {
-
         // if we got this far, the syncConfig is kept (in db and in memory)
         unifiedSync = syncs.appendNewSync(config, *this);
 
