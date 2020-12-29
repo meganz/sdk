@@ -171,14 +171,6 @@ if (USE_QT)
 
 endif(USE_QT)
 
-# currently supported scenarios for getting 3rd party libraries:
-#  - vcpkg built dependencies (there are some scripts in this folder to build those)
-#  - libraries from the system, installed via eg. apt-get on linux
-
-if (APPLE AND NOT NO_READLINE)
-    include_directories( BEFORE SYSTEM "${Mega3rdPartyDir}/vcpkg/readline-8.0" )
-endif()
-
 if (USE_THIRDPARTY_FROM_VCPKG) #vcpkg or system
 
     #determine VCPKG triplet
@@ -276,10 +268,10 @@ function(ImportStaticLibrary libName includeDir lib32debug lib32release lib64deb
     set_property(TARGET ${libName} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${includeDir})
     if(build_64_bit)
         set_property(TARGET ${libName} PROPERTY IMPORTED_LOCATION_DEBUG ${lib64debug})
-        set_property(TARGET ${libName} PROPERTY IMPORTED_LOCATION_RELEASE  ${lib64release})
+        set_property(TARGET ${libName} PROPERTY IMPORTED_LOCATION  ${lib64release})
     else(build_64_bit)
         set_property(TARGET ${libName} PROPERTY IMPORTED_LOCATION_DEBUG ${lib32debug})
-        set_property(TARGET ${libName} PROPERTY IMPORTED_LOCATION_RELEASE  ${lib32release})
+        set_property(TARGET ${libName} PROPERTY IMPORTED_LOCATION  ${lib32release})
     endif(build_64_bit)
 endfunction(ImportStaticLibrary)
 
@@ -294,7 +286,7 @@ function(ImportALibrary libName includeDir) #receives also libfileDebug & libfil
             set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION_DEBUG ${libfile})
             set(d 2)
         else()
-            set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION_RELEASE  ${libfile})
+            set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION  ${libfile})
             set(d 1)
         endif()
     endforeach(libfile)
@@ -322,9 +314,23 @@ function(ImportHeaderLibrary libName includeDir)
     set_property(TARGET ${libName} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${includeDir})
 endfunction(ImportHeaderLibrary)
 
+# currently supported scenarios for getting 3rd party libraries:
+#  - vcpkg built dependencies (there are some scripts in this folder to build those)
+#  - libraries from the system, installed via eg. apt-get on linux
+#  - manually sourced libs like gnu readline on macOS, which is not available in vcpkg
+
 if (APPLE AND NOT NO_READLINE)
-    ImportALibrary(macgnureadline  "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/libreadline.a" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/libreadline.a")
-    ImportALibrary(macgnuhistory   "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/libhistory.a" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/libhistory.a" )
+    include_directories( BEFORE SYSTEM "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/include" )
+endif()
+
+# for configuring readline-8.0 on macOS:
+# $ cd 3rdParty/vcpkg && wget https://ftp.gnu.org/gnu/readline/readline-8.0.tar.gz
+# $ tar -xzvf readline-8.0.tar.gz && cd readline-8.0
+# $ ./configure --prefix=$PWD/readline/
+# $ make install
+if (APPLE AND NOT NO_READLINE)
+    ImportALibrary(macgnureadline  "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/include" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/lib/libreadline.a" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/lib/libreadline.a")
+    ImportALibrary(macgnuhistory   "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/include" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/lib/libhistory.a" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/lib/libhistory.a" )
 endif()
 
 if (USE_THIRDPARTY_FROM_VCPKG)
