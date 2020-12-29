@@ -3160,10 +3160,10 @@ protected:
         // sync status updates and events
 
         // calls fireOnSyncStateChanged
-        void syncupdate_stateconfig(handle tag) override;
+        void syncupdate_stateconfig(handle backupId) override;
 
         // calls firOnSyncDisabled or fireOnSyncEnabled
-        void syncupdate_active(handle tag, bool active) override;
+        void syncupdate_active(handle backupId, bool active) override;
 
         // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded indicating the result of that addition
         void sync_auto_resume_result(const UnifiedSync& us, bool attempted) override;
