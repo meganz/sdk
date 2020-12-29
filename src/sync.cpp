@@ -2111,7 +2111,7 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
     {
         LOG_err << "New sync local fingerprint mismatch. Previous: " << prevFingerprint
             << "  Current: " << mConfig.getLocalFingerprint();
-        mSync->changestate(SYNC_FAILED, LOCAL_FINGERPRINT_MISMATCH, false, true); //note, this only causes fireOnSyncXXX if there's a MegaSync object in the map already
+        mSync->changestate(SYNC_FAILED, LOCAL_FINGERPRINT_MISMATCH, false, true);
         mConfig.mError = LOCAL_FINGERPRINT_MISMATCH;
         mConfig.mEnabled = false;
         mSync.reset();
@@ -2152,7 +2152,7 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
         else
         {
             LOG_err << "Initial scan failed";
-            mSync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED, mConfig.getEnabled(), true); //note, this only causes fireOnSyncXXX if there's a MegaSync object in the map already
+            mSync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED, mConfig.getEnabled(), true);
 
             mSync.reset();
             return API_EFAILED;

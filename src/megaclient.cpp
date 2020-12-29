@@ -2289,11 +2289,19 @@ void MegaClient::exec()
 
         if (scsn.stopped() || mBlocked || scpaused || !statecurrent || !syncsup)
         {
+
+            char jsonsc_pos[50] = { 0 };
+            if (jsonsc.pos)
+            {
+                // this string can be massive and we can output this frequently, so just show a little bit of it
+                strncpy_s(jsonsc_pos, jsonsc.pos, sizeof(jsonsc_pos)-1);
+            }
+
             LOG_verbose << " Megaclient exec is pending resolutions."
                         << " scpaused=" << scpaused
                         << " stopsc=" << scsn.stopped()
                         << " mBlocked=" << mBlocked
-                        << " jsonsc.pos=" << jsonsc.pos
+                        << " jsonsc.pos=" << jsonsc_pos
                         << " syncsup=" << syncsup
                         << " statecurrent=" << statecurrent
                         << " syncadding=" << syncadding
@@ -2517,7 +2525,7 @@ void MegaClient::exec()
                         {
                             LOG_err << "Initial delayed scan failed";
                             failSync(sync, INITIAL_SCAN_FAILED);
-                            sync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED, false, true); //note, this only causes fireOnSyncXXX if there's a MegaSync object in the map already
+                            sync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED, false, true);
                         }
 
                         syncactivity = true;
@@ -3086,13 +3094,13 @@ void MegaClient::exec()
             }
         }
 
+#ifdef ENABLE_SYNC
         if (btheartbeat.armed())
         {
-#ifdef ENABLE_SYNC
             syncs.mHeartBeatMonitor->beat();
-#endif
             btheartbeat.backoff(FREQUENCY_HEARTBEAT_DS);
         }
+#endif
 
         for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
         {
@@ -4914,7 +4922,7 @@ void MegaClient::initsc()
     {
         bool complete;
 
-        sctable->begin();
+        assert(sctable->inTransaction());
         sctable->truncate();
 
         // 1. write current scsn
@@ -4982,7 +4990,9 @@ void MegaClient::initStatusTable()
 {
     if (statusTable)
     {
-        statusTable->begin();
+        // statusTable is different from sctable in that we begin/commit with each change
+        assert(!statusTable->inTransaction());
+        DBTableTransactionCommitter committer(statusTable);
         statusTable->truncate();
     }
 }
@@ -9240,6 +9250,11 @@ void MegaClient::opensctable()
             sctable = dbaccess->open(rng, *fsaccess, dbname);
             pendingsccommit = false;
         }
+
+        // sctable always has a transaction started.
+        // We only commit once we have an up to date SCSN and the table state matches it.
+        sctable->begin();
+        assert(sctable->inTransaction());
     }
 }
 
@@ -11800,7 +11815,7 @@ void MegaClient::fetchnodes(bool nocache)
         restag = reqtag;
         statecurrent = false;
 
-        sctable->begin();
+        assert(sctable->inTransaction());
         pendingsccommit = false;
 
         // allow sc requests to start
@@ -11841,7 +11856,14 @@ void MegaClient::fetchnodes(bool nocache)
         scsn.clear();
 
 #ifdef ENABLE_SYNC
-        assert(!syncs.hasRunningSyncs()); // not loaded yet - deferred to fetchnodes reply
+        // If there are syncs present at this time, this is a reload-account request.
+        // We will start by fetching a cached tree which likely won't match our current
+        // state/scsn.  And then we will apply actionpackets until we are up to date.
+        // Those actionpackets may be repeats of actionpackets alrady applied to the sync
+        // or they may be new ones that were not previously applied.
+        // So, neither applying nor not applying actionpackets is correct. So, disable the syncs
+        // The sync rework branch, when ready, will be able to cope with this situation.
+        syncs.disableSyncs(WHOLE_ACCOUNT_REFETCHED, false);
 #endif
 
         if (!loggedinfolderlink())

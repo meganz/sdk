@@ -360,6 +360,7 @@ enum SyncError {
     UNKNOWN_TEMPORARY_ERROR = 26,           // Unknown temporary error
     TOO_MANY_ACTION_PACKETS = 27,           // Too many changes in account, local state discarded
     LOGGED_OUT = 28,                        // Logged out
+    WHOLE_ACCOUNT_REFETCHED = 29,           // The whole accoutn was reloaded, missed actionpacket changes could not have been applied
 };
 
 enum SyncWarning {
@@ -977,7 +978,7 @@ private:
     SyncWarning mWarning;
     friend struct UnifiedSync;
     friend class MegaClient; // until functions are moved to Sync.cpp
-    
+
     // notified/saved state
     SyncError mKnownError = NO_SYNC_ERROR;
     bool mKnownEnabled = false;
