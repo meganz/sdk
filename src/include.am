@@ -86,6 +86,10 @@ if USE_LIBUV
 src_libmega_la_SOURCES += src/mega_http_parser.cpp
 endif
 
+if USE_ROTATIVEPERFORMANCELOGGER
+src_libmega_la_SOURCES += src/rotativeperformancelogger.cpp
+endif
+
 # IOS specific
 if USE_IOS
 src_libmega_la_SOURCES += src/gfx/GfxProcCG.mm

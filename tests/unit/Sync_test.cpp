@@ -1289,6 +1289,11 @@ public:
         mData->clear();
     }
 
+    bool inTransaction() const override
+    {
+        return true;
+    }
+
     std::vector<std::pair<uint32_t, std::string>>* mData = nullptr;
 
 private:

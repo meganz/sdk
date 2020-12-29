@@ -444,20 +444,20 @@ void SyncApp::fetchnodes_result(const Error &e)
             }
             else
             {
-                SyncConfig syncConfig{local_folder, local_folder, n->nodehandle, remote_folder, 0};
 #ifdef ENABLE_SYNC
+                SyncConfig syncConfig{local_folder, local_folder, n->nodehandle, remote_folder, 0};
                 client->addsync(syncConfig, DEBRISFOLDER, NULL, false, false,
-                    [](mega::UnifiedSync*, const SyncError& serr, error err){
-                        if (err)
-                        {
-                            LOG_err << "Sync could not be added! " << err << " syncError = " << serr;
-                            exit(1);
-                        }
-                        else
-                        {
-                            LOG_info << "Sync started !";
-                        }
-                    });
+                                [](mega::UnifiedSync*, const SyncError& serr, error err) {
+                    if (err)
+                    {
+                        LOG_err << "Sync could not be added! " << err << " syncError = " << serr;
+                        exit(1);
+                    }
+                    else
+                    {
+                        LOG_info << "Sync started !";
+                    }
+                });
 #endif
             }
         }

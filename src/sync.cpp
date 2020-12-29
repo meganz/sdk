@@ -532,7 +532,7 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
         std::string data;
         assert(syncConfig.getBackupId() != UNDEF && "backupId is undefined when trying to persist syncConfig");
         const_cast<SyncConfig&>(syncConfig).serialize(&data);
-        DBTableTransactionCommitter committer{mTable.get()};
+        DBTableTransactionCommitter committer{mTable};
         if (!mTable->put(id, &data)) // put either inserts or updates
         {
             LOG_err << "Incomplete database put at id: " << mTable->nextid;
@@ -582,7 +582,7 @@ bool SyncConfigBag::removeByBackupId(const handle backupId)
     {
         if (mTable)
         {
-            DBTableTransactionCommitter committer{mTable.get()};
+            DBTableTransactionCommitter committer{mTable};
             if (!mTable->del(syncConfigPair->second.dbid))
             {
                 LOG_err << "Incomplete database del at id: " << syncConfigPair->second.dbid;
@@ -2111,7 +2111,7 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
     {
         LOG_err << "New sync local fingerprint mismatch. Previous: " << prevFingerprint
             << "  Current: " << mConfig.getLocalFingerprint();
-        mSync->changestate(SYNC_FAILED, LOCAL_FINGERPRINT_MISMATCH, false, true); //note, this only causes fireOnSyncXXX if there's a MegaSync object in the map already
+        mSync->changestate(SYNC_FAILED, LOCAL_FINGERPRINT_MISMATCH, false, true);
         mConfig.mError = LOCAL_FINGERPRINT_MISMATCH;
         mConfig.mEnabled = false;
         mSync.reset();
@@ -2152,7 +2152,7 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
         else
         {
             LOG_err << "Initial scan failed";
-            mSync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED, mConfig.getEnabled(), true); //note, this only causes fireOnSyncXXX if there's a MegaSync object in the map already
+            mSync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED, mConfig.getEnabled(), true);
 
             mSync.reset();
             return API_EFAILED;
@@ -2161,11 +2161,9 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
     return API_OK;
 }
 
-
 void UnifiedSync::changedConfigState(bool notifyApp)
 {
-    if (!mConfig.mEverKnown ||
-        (mConfig.mError != mConfig.mKnownError) ||
+    if ((mConfig.mError != mConfig.mKnownError) ||
         (mConfig.getEnabled() != mConfig.mKnownEnabled))
     {
         LOG_debug << "Sync enabled/error changing. from " << mConfig.mKnownEnabled << "/" << mConfig.mKnownError << " to "  << mConfig.getEnabled() << "/" << mConfig.mError;
@@ -2185,7 +2183,7 @@ void UnifiedSync::changedConfigState(bool notifyApp)
 Syncs::Syncs(MegaClient& mc)
     : mClient(mc)
 {
-    mHeartBeatMonitor.reset(new MegaBackupMonitor(&mClient));
+    mHeartBeatMonitor.reset(new BackupMonitor(&mClient));
 }
 
 void Syncs::clear()
@@ -2204,14 +2202,12 @@ void Syncs::resetSyncConfigDb()
     }
 }
 
-
 auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> UnifiedSync*
 {
     isEmpty = false;
     mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(mc, c)));
 
     mSyncConfigDb->insert(c);
-
 
     return mSyncVec.back().get();
 }
@@ -2235,7 +2231,6 @@ void Syncs::forEachUnifiedSync(std::function<void(UnifiedSync&)> f)
         f(*s);
     }
 }
-
 
 void Syncs::forEachRunningSync(std::function<void(Sync* s)> f)
 {
@@ -2362,7 +2357,6 @@ void Syncs::disableSyncs(SyncError syncError, bool newEnabledFlag)
     }
 }
 
-
 void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag)
 {
     for (auto i = mSyncVec.size(); i--; )
@@ -2383,7 +2377,6 @@ void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selecto
         }
     }
 }
-
 
 void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector)
 {
@@ -2425,7 +2418,6 @@ void Syncs::removeSyncByIndex(size_t index)
     }
 }
 
-
 error Syncs::enableSyncByTag(handle tag, bool resetFingerprint, UnifiedSync*& syncPtrRef)
 {
     for (auto& s : mSyncVec)
@@ -2437,8 +2429,6 @@ error Syncs::enableSyncByTag(handle tag, bool resetFingerprint, UnifiedSync*& sy
             {
                 return s->enableSync(resetFingerprint, true);
             }
-            s->mConfig.setError(ACTIVE_SYNC_BELOW_PATH);
-            s->mConfig.setEnabled(false);
             return API_EEXIST;
         }
     }
@@ -2483,7 +2473,6 @@ void Syncs::enableResumeableSyncs()
         mClient.app->syncs_restored();
     }
 }
-
 
 void Syncs::resumeResumableSyncsOnStartup()
 {

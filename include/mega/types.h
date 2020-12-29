@@ -356,16 +356,17 @@ enum SyncError {
     REMOTE_NODE_INSIDE_RUBBISH = 20,        // Attempted to be added in rubbish
     VBOXSHAREDFOLDER_UNSUPPORTED = 21,      // Found unsupported VBoxSharedFolderFS
     LOCAL_PATH_SYNC_COLLISION = 22,         // Local path includes a synced path or is included within one
-    ACCOUNT_BLOCKED= 25,                    // Account blocked
-    UNKNOWN_TEMPORARY_ERROR = 26,           // Unknown temporary error
-    TOO_MANY_ACTION_PACKETS = 27,           // Too many changes in account, local state discarded
-    LOGGED_OUT = 28,                        // Logged out
+    ACCOUNT_BLOCKED= 23,                    // Account blocked
+    UNKNOWN_TEMPORARY_ERROR = 24,           // Unknown temporary error
+    TOO_MANY_ACTION_PACKETS = 25,           // Too many changes in account, local state discarded
+    LOGGED_OUT = 26,                        // Logged out
+    WHOLE_ACCOUNT_REFETCHED = 27,           // The whole account was reloaded, missed actionpacket changes could not have been applied
 };
 
 enum SyncWarning {
     NO_SYNC_WARNING = 0,
-    LOCAL_IS_FAT = 23,                      // Found FAT (not a failure per se)
-    LOCAL_IS_HGFS= 24,                      // Found HGFS (not a failure per se)
+    LOCAL_IS_FAT = 1,                      // Found FAT (not a failure per se)
+    LOCAL_IS_HGFS = 2,                      // Found HGFS (not a failure per se)
 };
 
 
@@ -824,7 +825,7 @@ private:
 
 };
 
-typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3, MEDIA_UPLOAD = 4 } BackupType;
+typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3, MEDIA_UPLOAD = 4, BACKUP_UPLOAD } BackupType;
 
 // Holds the config of a sync. Can be extended with future config options
 class Sync;
@@ -837,6 +838,7 @@ public:
         TYPE_UP = 0x01, // sync up from local to remote
         TYPE_DOWN = 0x02, // sync down from remote to local
         TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
+        TYPE_BACKUP, // special sync up from local to remote, automatically disabled when remote changed
     };
 
     SyncConfig(std::string localPath,
@@ -971,7 +973,6 @@ private:
     // notified/saved state
     SyncError mKnownError = NO_SYNC_ERROR;
     bool mKnownEnabled = false;
-    bool mEverKnown = false;
 };
 
 // cross reference pointers.  For the case where two classes have pointers to each other, and they should

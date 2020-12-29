@@ -121,7 +121,7 @@ int attempts = 0;
 
 struct NewSyncConfig
 {
-    SyncConfig::Type type = SyncConfig::Type::TYPE_TWOWAY;
+    SyncConfig::Type type = SyncConfig::TYPE_TWOWAY;
     bool syncDeletions = true;
     bool forceOverwrite = false;
 
@@ -4372,26 +4372,26 @@ void exec_sync(autocomplete::ACState& s)
             }
             else
             {
+                cout << "Adding sync..." << endl;
+
                 SyncConfig syncConfig{s.words[1].s, s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.getType(),
                             newSyncConfig.syncDeletions(), newSyncConfig.forceOverwrite()};
 
-                cout << "Adding sync..." << endl;
-
                 client->addsync(syncConfig, DEBRISFOLDER, NULL, false, false,
-                        [](mega::UnifiedSync* us, const SyncError&, error e){
-                            if (us && us->mSync)
-                            {
-                                cout << "Sync added and running. backupId = " << toHandle(us->mConfig.getBackupId());
-                            }
-                            else if (us)
-                            {
-                                cout << "Sync config added but could not be started: " << errorstring(e) << endl;
-                            }
-                            else
-                            {
-                                cout << "Sync config could not be started: " << errorstring(e) << endl;
-                            }
-                        });
+                                [](mega::UnifiedSync* us, const SyncError&, error e) {
+                    if (us && us->mSync)
+                    {
+                        cout << "Sync added and running. backupId = " << toHandle(us->mConfig.getBackupId());
+                    }
+                    else if (us)
+                    {
+                        cout << "Sync config added but could not be started: " << errorstring(e) << endl;
+                    }
+                    else
+                    {
+                        cout << "Sync config could not be started: " << errorstring(e) << endl;
+                    }
+                });
             }
         }
         else
@@ -4443,10 +4443,7 @@ void exec_sync(autocomplete::ACState& s)
                 nodepath(us.mConfig.getRemoteNode(), &remotepath);
                 localpath = us.mConfig.getLocalPath();
 
-                cout << toHandle(us.mConfig.getBackupId()) << " (" << syncConfigToString(sync->getConfig()) << "): " << localpath << " to " << remotepath << " - "
-                    << syncstatenames[sync->state + 3] << ", " << sync->localbytes
-                    << " byte(s) in " << sync->localnodes[FILENODE] << " file(s) and "
-                    << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
+                cout << toHandle(us.mConfig.getBackupId()) << " (" << syncConfigToString(us.mConfig) << "): " << localpath << " to " << remotepath << " - not running" << endl;
             }
         });
     }

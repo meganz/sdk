@@ -484,6 +484,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         bool isInShare() override;
         std::string* getSharekey();
         MegaHandle getOwner() const override;
+        const char* getDeviceId() const override;
 
 #ifdef ENABLE_SYNC
         bool isSyncDeleted() override;
@@ -515,6 +516,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         std::string fileattrstring;
         std::string privateAuth;
         std::string publicAuth;
+        std::string mDeviceId;
         const char *chatAuth;
         int tag;
         int changed;
@@ -1067,9 +1069,9 @@ private:
 class MegaSyncPrivate : public MegaSync
 {
 public:
-    MegaSyncPrivate(const char *path, const char *name, handle nodehandle);
+    MegaSyncPrivate(const char *path, const char *name, handle nodehandle, SyncConfig::Type type);
     MegaSyncPrivate(const SyncConfig& config, Sync*);
-    MegaSyncPrivate(MegaSyncPrivate*);
+    MegaSyncPrivate(MegaSyncPrivate *sync);
 
     virtual ~MegaSyncPrivate();
 
@@ -1097,6 +1099,9 @@ public:
     virtual int getWarning() const;
     void setWarning(int warning);
 
+    int getType() const override;
+    void setType(SyncType type);
+
     void disable(int error = NO_SYNC_ERROR); //disable. NO_SYNC_ERROR = user disable
 
     virtual bool isEnabled() const; //enabled by user
@@ -1111,14 +1116,16 @@ protected:
     MegaRegExp *regExp;
     long long fingerprint;
 
+    SyncType mType = TYPE_UNKNOWN;
+
     //holds error cause
-    int mError;
-    int mWarning;
-    bool mEnabled = false;
-    bool mActive = false;
+    int mError = NO_SYNC_ERROR;
+    int mWarning = NO_SYNC_WARNING;
 
     MegaHandle mBackupId;
 
+    bool mActive = false;
+    bool mEnabled = false;
 };
 
 
@@ -2233,8 +2240,10 @@ class MegaApiImpl : public MegaApp
         static void removeLoggerClass(MegaLogger *megaLogger);
         static void setLogToConsole(bool enable);
         static void log(int logLevel, const char* message, const char *filename = NULL, int line = -1);
-
         void setLoggingName(const char* loggingName);
+#ifdef USE_ROTATIVEPERFORMANCELOGGER
+        static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut, long int archivedFilesAgeSeconds);
+#endif
 
         bool platformSetRLimitNumFile(int newNumFileLimit) const;
 
@@ -2286,6 +2295,7 @@ class MegaApiImpl : public MegaApp
         void setUserAttribute(int type, const MegaStringMap* value, MegaRequestListener *listener = NULL);
         void getRubbishBinAutopurgePeriod(MegaRequestListener *listener = NULL);
         void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
+        const char* getDeviceId() const;
         void getDeviceName(MegaRequestListener *listener = NULL);
         void setDeviceName(const char* deviceName, MegaRequestListener *listener = NULL);
         void getUserEmail(MegaHandle handle, MegaRequestListener *listener = NULL);
@@ -2394,7 +2404,7 @@ class MegaApiImpl : public MegaApp
         //Sync
         int syncPathState(string *path);
         MegaNode *getSyncedNode(const LocalPath& path);
-        void syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, MegaRegExp *regExp = NULL, MegaRequestListener* listener = NULL);
+        void syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, SyncConfig::Type type, MegaRegExp *regExp = NULL, MegaRequestListener* listener = NULL);
         void syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRegExp *regExp = NULL, MegaRequestListener* listener = NULL);
         void copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
                                           long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener = NULL);
@@ -2431,6 +2441,8 @@ class MegaApiImpl : public MegaApp
         char *getBlockedPath();
         void setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp);
 #endif
+
+        void backupFolder(const char *localFolder, const char *backupName = nullptr, MegaRequestListener *listener = nullptr);
 
         MegaBackup *getBackupByTag(int tag);
         MegaBackup *getBackupByNode(MegaNode *node);
@@ -2883,7 +2895,7 @@ protected:
         // sc requests to close existing wsc and immediately retrieve pending actionpackets
         RequestQueue scRequestQueue;
 
-        std::unique_ptr<MegaBackupMonitor> mHeartBeatMonitor;
+        std::unique_ptr<BackupMonitor> mHeartBeatMonitor;
         int pendingUploads;
         int pendingDownloads;
         int totalUploads;
@@ -2900,7 +2912,6 @@ protected:
 #ifdef ENABLE_SYNC
         MegaSyncPrivate* cachedMegaSyncPrivateByBackupId(handle backupId);
         unique_ptr<MegaSyncPrivate> mCachedMegaSyncPrivate;
-        MegaHandle mCachedMegaSyncPrivateBackupId = UNDEF;
 #endif
 
         set<MegaGlobalListener *> globalListeners;
@@ -3155,7 +3166,7 @@ protected:
         void syncupdate_active(handle tag, bool active) override;
 
         // this will fill syncMap with a new MegaSyncPrivate, and fire onSyncAdded indicating the result of that addition
-        void sync_auto_resume_result(const UnifiedSync& s, bool attempted) override;
+        void sync_auto_resume_result(const UnifiedSync& us, bool attempted) override;
 
         // this will fire onSyncStateChange if remote path of the synced node has changed
         virtual void syncupdate_remote_root_changed(const SyncConfig &) override;
@@ -3265,6 +3276,12 @@ protected:
         bool hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const;
 
         friend class MegaBackgroundMediaUploadPrivate;
+
+private:
+#ifdef ENABLE_SYNC
+        error backupFolder_sendPendingRequest(MegaRequestPrivate* request);
+#endif
+
 };
 
 class MegaHashSignatureImpl
