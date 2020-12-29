@@ -2161,7 +2161,6 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
     return API_OK;
 }
 
-
 void UnifiedSync::changedConfigState(bool notifyApp)
 {
     if ((mConfig.mError != mConfig.mKnownError) ||
@@ -2184,7 +2183,7 @@ void UnifiedSync::changedConfigState(bool notifyApp)
 Syncs::Syncs(MegaClient& mc)
     : mClient(mc)
 {
-    mHeartBeatMonitor.reset(new MegaBackupMonitor(&mClient));
+    mHeartBeatMonitor.reset(new BackupMonitor(&mClient));
 }
 
 void Syncs::clear()

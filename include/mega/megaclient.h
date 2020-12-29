@@ -623,11 +623,12 @@ public:
      * @param debris Name of the debris folder on this platform (perhaps we could just use the macro)
      * @param localdebris Alternate debris folder path - not used at all to my knowledge
      * @param delayInitialScan delay the initial scan
-     * @param unifiedSync If the syncConfig is added, this parameter will be filled in with a pointer to the created UnifiedSync.
+     * @param unifiedSync If the syncConfig is added, this parameter wll be filled in with a pointer to the created UnifiedSync.
      * @param notifyApp whether the syncupdate_stateconfig callback should be called at this stage or not
      * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
      */
     error addsync(SyncConfig& syncConfig, const char* debris, LocalPath* localdebris, bool delayInitialScan, UnifiedSync*& unifiedSync, bool notifyApp);
+
 
     ////// sync config updating & persisting ////
 
