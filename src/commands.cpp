@@ -3646,6 +3646,8 @@ bool CommandGetUserData::procresult(Result r)
     string versionMyBackupsFolder;
     string backupNames;
     string versionBackupNames;
+    string cookieSettings;
+    string versionCookieSettings;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -3934,6 +3936,10 @@ bool CommandGetUserData::procresult(Result r)
             break;
         }
 
+        case MAKENAMEID5('^', '!', 'c', 's', 'p'):
+            parseUserAttribute(cookieSettings, versionCookieSettings);
+            break;
+
         case EOO:
         {
             assert(me == client->me);
@@ -4168,6 +4174,11 @@ bool CommandGetUserData::procresult(Result r)
                     {
                         LOG_err << "Cannot extract TLV records for ATTR_BACKUP_NAMES";
                     }
+                }
+
+                if (!cookieSettings.empty())
+                {
+                    changes += u->updateattr(ATTR_COOKIE_SETTINGS, &cookieSettings, &versionCookieSettings);
                 }
 
                 if (changes > 0)
