@@ -2294,7 +2294,7 @@ void MegaClient::exec()
             if (jsonsc.pos)
             {
                 // this string can be massive and we can output this frequently, so just show a little bit of it
-                strncpy_s(jsonsc_pos, jsonsc.pos, sizeof(jsonsc_pos)-1);
+                strncpy(jsonsc_pos, jsonsc.pos, sizeof(jsonsc_pos)-1);
             }
 
             LOG_verbose << " Megaclient exec is pending resolutions."
