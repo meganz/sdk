@@ -3701,7 +3701,6 @@ bool CommandGetUserData::procresult(Result r)
             break;
 
         case MAKENAMEID5('f', 'l', 'a', 'g', 's'):
-            client->mCookieBannerEnabled = false; // init this flag, in case it was not received
             if (client->json.enterobject())
             {
                 if (client->readmiscflags(&client->json) != API_OK)
