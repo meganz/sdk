@@ -1231,9 +1231,9 @@ namespace
 void test_SyncConfigBag(mega::SyncConfigBag& bag)
 {
     ASSERT_TRUE(bag.all().empty());
-    const mega::SyncConfig config1{127, "foo", "foo", 41, "remote", 122, {}, true, mega::SyncConfig::Type::TYPE_TWOWAY, false, true, mega::LOCAL_FINGERPRINT_MISMATCH};
+    const mega::SyncConfig config1{127, "foo", "foo", 41, "remote", 122, {}, true, mega::SyncConfig::TYPE_TWOWAY, false, true, mega::LOCAL_FINGERPRINT_MISMATCH};
     bag.insert(config1);
-    const mega::SyncConfig config2{128, "bar", "bar", 42, "remote", 123, {}, false, mega::SyncConfig::Type::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
+    const mega::SyncConfig config2{128, "bar", "bar", 42, "remote", 123, {}, false, mega::SyncConfig::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
     bag.insert(config2);
     const std::vector<mega::SyncConfig> expConfigs1{config1, config2};
     //ASSERT_EQ(expConfigs1, bag.all());
@@ -1289,6 +1289,11 @@ public:
     void truncate() override
     {
         mData->clear();
+    }
+
+    bool inTransaction() const override
+    {
+        return true;
     }
 
     std::vector<std::pair<uint32_t, std::string>>* mData = nullptr;

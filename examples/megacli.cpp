@@ -121,7 +121,7 @@ int attempts = 0;
 
 struct NewSyncConfig
 {
-    SyncConfig::Type type = SyncConfig::Type::TYPE_TWOWAY;
+    SyncConfig::Type type = SyncConfig::TYPE_TWOWAY;
     bool syncDeletions = true;
     bool forceOverwrite = false;
 
@@ -4437,10 +4437,7 @@ void exec_sync(autocomplete::ACState& s)
                 nodepath(us.mConfig.getRemoteNode(), &remotepath);
                 localpath = us.mConfig.getLocalPath();
 
-                cout << i << " (" << syncConfigToString(sync->getConfig()) << "): " << localpath << " to " << remotepath << " - "
-                    << syncstatenames[sync->state + 3] << ", " << sync->localbytes
-                    << " byte(s) in " << sync->localnodes[FILENODE] << " file(s) and "
-                    << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
+                cout << i << " (" << syncConfigToString(us.mConfig) << "): " << localpath << " to " << remotepath << " - not running" << endl;
             }
             i++;
         });

@@ -360,6 +360,7 @@ enum SyncError {
     UNKNOWN_TEMPORARY_ERROR = 24,           // Unknown temporary error
     TOO_MANY_ACTION_PACKETS = 25,           // Too many changes in account, local state discarded
     LOGGED_OUT = 26,                        // Logged out
+    WHOLE_ACCOUNT_REFETCHED = 27,           // The whole account was reloaded, missed actionpacket changes could not have been applied
 };
 
 enum SyncWarning {
@@ -824,7 +825,7 @@ private:
 
 };
 
-typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3, MEDIA_UPLOAD = 4 } BackupType;
+typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3, MEDIA_UPLOAD = 4, BACKUP_UPLOAD } BackupType;
 
 // Holds the config of a sync. Can be extended with future config options
 class Sync;
@@ -837,6 +838,7 @@ public:
         TYPE_UP = 0x01, // sync up from local to remote
         TYPE_DOWN = 0x02, // sync down from remote to local
         TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
+        TYPE_BACKUP, // special sync up from local to remote, automatically disabled when remote changed
     };
 
     SyncConfig(int tag,
@@ -976,7 +978,7 @@ private:
     SyncWarning mWarning;
     friend struct UnifiedSync;
     friend class MegaClient; // until functions are moved to Sync.cpp
-    
+
     // notified/saved state
     SyncError mKnownError = NO_SYNC_ERROR;
     bool mKnownEnabled = false;

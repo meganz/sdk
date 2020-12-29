@@ -278,6 +278,8 @@ BackupType BackupInfoSync::getSyncType(const SyncConfig& config)
             return BackupType::DOWN_SYNC;
     case SyncConfig::Type::TYPE_TWOWAY:
             return BackupType::TWO_WAY;
+    case SyncConfig::TYPE_BACKUP:
+            return BackupType::BACKUP_UPLOAD;
     default:
             return BackupType::INVALID;
     }

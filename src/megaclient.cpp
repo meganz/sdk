@@ -1110,6 +1110,29 @@ Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
     return found;
 }
 
+// returns a matching child node that has the given attribute with the given value
+Node* MegaClient::childnodebyattribute(Node* p, nameid attrId, const char* attrValue)
+{
+    if (!p || p->type == FILENODE)
+    {
+        return nullptr;
+    }
+
+    for (auto it = p->children.begin(); it != p->children.end(); it++)
+    {
+        // find the attribute
+        const auto& attrMap = (*it)->attrs.map;
+        auto found = attrMap.find(attrId);
+
+        if (found != attrMap.end() && found->second == attrValue)
+        {
+            return *it;
+        }
+    }
+
+    return nullptr;
+}
+
 // returns all the matching child nodes by UTF-8 name
 vector<Node*> MegaClient::childnodesbyname(Node* p, const char* name, bool skipfolders)
 {
@@ -1191,6 +1214,7 @@ void MegaClient::init()
 
     abortlockrequest();
     transferHttpCounter = 0;
+    nextDispatchTransfersDs = 0;
 
     jsonsc.pos = NULL;
     insca = false;
@@ -1368,8 +1392,6 @@ MegaClient::~MegaClient()
     delete pendingcs;
     delete badhostcs;
     delete sctable;
-    delete statusTable;
-    delete tctable;
     delete dbaccess;
     LOG_debug << clientname << "~MegaClient completing";
 }
@@ -2267,11 +2289,19 @@ void MegaClient::exec()
 
         if (scsn.stopped() || mBlocked || scpaused || !statecurrent || !syncsup)
         {
+
+            char jsonsc_pos[50] = { 0 };
+            if (jsonsc.pos)
+            {
+                // this string can be massive and we can output this frequently, so just show a little bit of it
+                strncpy(jsonsc_pos, jsonsc.pos, sizeof(jsonsc_pos)-1);
+            }
+
             LOG_verbose << " Megaclient exec is pending resolutions."
                         << " scpaused=" << scpaused
                         << " stopsc=" << scsn.stopped()
                         << " mBlocked=" << mBlocked
-                        << " jsonsc.pos=" << jsonsc.pos
+                        << " jsonsc.pos=" << jsonsc_pos
                         << " syncsup=" << syncsup
                         << " statecurrent=" << statecurrent
                         << " syncadding=" << syncadding
@@ -2407,11 +2437,8 @@ void MegaClient::exec()
         }
 
         // fill transfer slots from the queue
-        if (lastDispatchTransfersDs != Waiter::ds)
+        if (nextDispatchTransfersDs <= Waiter::ds)
         {
-            // don't run this too often or it may use a lot of cpu without starting new transfers, if the list is long
-            lastDispatchTransfersDs = Waiter::ds;
-
             size_t lastCount = 0;
             size_t transferCount = transfers[GET].size() + transfers[PUT].size();
             do
@@ -2424,6 +2451,9 @@ void MegaClient::exec()
                 // if we are cancelling a lot of transfers (eg. nodes to download were deleted), keep going. Avoid stalling when no transfers are active and all queued fail
                 transferCount = transfers[GET].size() + transfers[PUT].size();
             } while (transferCount < lastCount);
+
+            // don't run this too often or it may use a lot of cpu without starting new transfers, if the list is long
+            nextDispatchTransfersDs = transferCount ? Waiter::ds + 1 : 0;
         }
 
 #ifndef EMSCRIPTEN
@@ -2495,7 +2525,7 @@ void MegaClient::exec()
                         {
                             LOG_err << "Initial delayed scan failed";
                             failSync(sync, INITIAL_SCAN_FAILED);
-                            sync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED, false, true); //note, this only causes fireOnSyncXXX if there's a MegaSync object in the map already
+                            sync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED, false, true);
                         }
 
                         syncactivity = true;
@@ -3064,13 +3094,13 @@ void MegaClient::exec()
             }
         }
 
+#ifdef ENABLE_SYNC
         if (btheartbeat.armed())
         {
-#ifdef ENABLE_SYNC
             syncs.mHeartBeatMonitor->beat();
-#endif
             btheartbeat.backoff(FREQUENCY_HEARTBEAT_DS);
         }
+#endif
 
         for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
         {
@@ -3167,6 +3197,12 @@ int MegaClient::preparewait()
 
         // retry transferslots
         transferSlotsBackoff.update(&nds, false);
+
+        // newly queued transfers
+        if (nextDispatchTransfersDs)
+        {
+            nds = nextDispatchTransfersDs > Waiter::ds ? nextDispatchTransfersDs : Waiter::ds;
+        }
 
         for (pendinghttp_map::iterator it = pendinghttp.begin(); it != pendinghttp.end(); it++)
         {
@@ -4151,8 +4187,7 @@ void MegaClient::locallogout(bool removecaches)
     sctable = NULL;
     pendingsccommit = false;
 
-    delete statusTable;
-    statusTable = NULL;
+    statusTable.reset();
 
     me = UNDEF;
     uid.clear();
@@ -4314,8 +4349,7 @@ void MegaClient::removeCaches()
     if (statusTable)
     {
         statusTable->remove();
-        delete statusTable;
-        statusTable = NULL;
+        statusTable.reset();
     }
 
 #ifdef ENABLE_SYNC
@@ -4888,7 +4922,7 @@ void MegaClient::initsc()
     {
         bool complete;
 
-        sctable->begin();
+        assert(sctable->inTransaction());
         sctable->truncate();
 
         // 1. write current scsn
@@ -4956,7 +4990,9 @@ void MegaClient::initStatusTable()
 {
     if (statusTable)
     {
-        statusTable->begin();
+        // statusTable is different from sctable in that we begin/commit with each change
+        assert(!statusTable->inTransaction());
+        DBTableTransactionCommitter committer(statusTable);
         statusTable->truncate();
     }
 }
@@ -5986,6 +6022,7 @@ void MegaClient::sc_userattr()
                                     case ATTR_AUTHRSA:          // fall-through
                                     case ATTR_MY_BACKUPS_FOLDER:    // fall-through
                                     case ATTR_BACKUP_NAMES:     // fall-through
+                                    case ATTR_DEVICE_NAMES:     // fall-through
                                     {
                                         LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
                                         if (User::isAuthring(type)) mAuthRings.erase(type);
@@ -7401,7 +7438,7 @@ error MegaClient::setattr(Node* n, const char *prevattr)
     return API_OK;
 }
 
-void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername)
+void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void(AttrMap&)> addAttrs)
 {
     string attrstring;
     byte buf[FOLDERNODEKEYLENGTH];
@@ -7422,6 +7459,9 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 
     fsaccess->normalize(&foldername);
     attrs.map['n'] = foldername;
+
+    // add custom attributes
+    if (addAttrs)  addAttrs(attrs);
 
     // JSON-encode object and encrypt attribute string
     attrs.getjson(&attrstring);
@@ -9210,6 +9250,11 @@ void MegaClient::opensctable()
             sctable = dbaccess->open(rng, *fsaccess, dbname);
             pendingsccommit = false;
         }
+
+        // sctable always has a transaction started.
+        // We only commit once we have an up to date SCSN and the table state matches it.
+        sctable->begin();
+        assert(sctable->inTransaction());
     }
 }
 
@@ -9234,7 +9279,7 @@ void MegaClient::openStatusTable()
         {
             dbname.insert(0, "status_");
 
-            statusTable = dbaccess->open(rng, *fsaccess, dbname);
+            statusTable.reset(dbaccess->open(rng, *fsaccess, dbname));
         }
     }
 }
@@ -11590,8 +11635,7 @@ void MegaClient::closetc(bool remove)
     {
         tctable->remove();
     }
-    delete tctable;
-    tctable = NULL;
+    tctable.reset();
 }
 
 void MegaClient::enabletransferresumption(const char *loggedoutid)
@@ -11627,7 +11671,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
 
     dbname.insert(0, "transfers_");
 
-    tctable =dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED);
+    tctable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED));
     if (!tctable)
     {
         return;
@@ -11721,7 +11765,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     }
     dbname.insert(0, "transfers_");
 
-    tctable = dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED);
+    tctable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED));
     if (!tctable)
     {
         return;
@@ -11759,7 +11803,7 @@ void MegaClient::fetchnodes(bool nocache)
     openStatusTable();
 
     // only initial load from local cache
-    if (loggedin() == FULLACCOUNT && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable) && fetchStatusTable(statusTable))
+    if (loggedin() == FULLACCOUNT && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable) && fetchStatusTable(statusTable.get()))
     {
         WAIT_CLASS::bumpds();
         fnstats.mode = FetchNodesStats::MODE_DB;
@@ -11771,7 +11815,7 @@ void MegaClient::fetchnodes(bool nocache)
         restag = reqtag;
         statecurrent = false;
 
-        sctable->begin();
+        assert(sctable->inTransaction());
         pendingsccommit = false;
 
         // allow sc requests to start
@@ -11812,7 +11856,14 @@ void MegaClient::fetchnodes(bool nocache)
         scsn.clear();
 
 #ifdef ENABLE_SYNC
-        assert(!syncs.hasRunningSyncs()); // not loaded yet - deferred to fetchnodes reply
+        // If there are syncs present at this time, this is a reload-account request.
+        // We will start by fetching a cached tree which likely won't match our current
+        // state/scsn.  And then we will apply actionpackets until we are up to date.
+        // Those actionpackets may be repeats of actionpackets already applied to the sync
+        // or they may be new ones that were not previously applied.
+        // So, neither applying nor not applying actionpackets is correct. So, disable the syncs
+        // TODO: the sync rework branch, when ready, will be able to cope with this situation.
+        syncs.disableSyncs(WHOLE_ACCOUNT_REFETCHED, false);
 #endif
 
         if (!loggedinfolderlink())
@@ -12813,24 +12864,10 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
         return API_EACCESS;
     }
 
-    Node* n;
-    bool inshare;
-
     // any active syncs below?
     bool anyBelow = false;
-    syncs.forEachRunningSync([&](Sync* sync) {
-
-        if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
-        {
-            n = sync->localroot->node;
-
-            do {
-                if (n == remotenode)
-                {
-                    anyBelow = true;
-                }
-            } while ((n = n->parent));
-        }
+    syncs.forEachRunningSyncContainingNode(remotenode, [&](Sync* sync) {
+        anyBelow = true;
     });
 
     if (anyBelow)
@@ -12840,8 +12877,8 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
     }
 
     // any active syncs above? or node within //bin or inside non full access inshare
-    n = remotenode;
-    inshare = false;
+    Node* n = remotenode;
+    bool inshare = false;
 
     handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
 
@@ -13077,7 +13114,6 @@ error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* loc
 
     if (!e)
     {
-
         // if we got this far, the syncConfig is kept (in db and in memory)
         unifiedSync = syncs.appendNewSync(config, *this);
 
@@ -14510,7 +14546,7 @@ void MegaClient::failSync(Sync* sync, SyncError syncerror)
 }
 
 
-bool MegaClient::disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError, bool newEnabledFlag)
+void MegaClient::disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError, bool newEnabledFlag)
 {
     auto sync = getSyncContainingNodeHandle(nodeHandle);
     if (sync)
@@ -14519,7 +14555,6 @@ bool MegaClient::disableSyncContainingNode(mega::handle nodeHandle, SyncError sy
             return s == sync;
         }, syncError, newEnabledFlag);
     }
-    return false;
 }
 
 Sync * MegaClient::getSyncContainingNodeHandle(mega::handle nodeHandle)
@@ -14743,6 +14778,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             app->transfer_added(t);
             app->file_added(f);
             looprequested = true;
+
 
             if (overquotauntil && overquotauntil > Waiter::ds && d != PUT)
             {

@@ -531,7 +531,7 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
     {
         std::string data;
         const_cast<SyncConfig&>(syncConfig).serialize(&data);
-        DBTableTransactionCommitter committer{mTable.get()};
+        DBTableTransactionCommitter committer{mTable};
         if (!mTable->put(id, &data)) // put either inserts or updates
         {
             LOG_err << "Incomplete database put at id: " << mTable->nextid;
@@ -581,7 +581,7 @@ bool SyncConfigBag::removeByTag(const int tag)
     {
         if (mTable)
         {
-            DBTableTransactionCommitter committer{mTable.get()};
+            DBTableTransactionCommitter committer{mTable};
             if (!mTable->del(syncConfigPair->second.dbid))
             {
                 LOG_err << "Incomplete database del at id: " << syncConfigPair->second.dbid;
@@ -2111,7 +2111,7 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
     {
         LOG_err << "New sync local fingerprint mismatch. Previous: " << prevFingerprint
             << "  Current: " << mConfig.getLocalFingerprint();
-        mSync->changestate(SYNC_FAILED, LOCAL_FINGERPRINT_MISMATCH, false, true); //note, this only causes fireOnSyncXXX if there's a MegaSync object in the map already
+        mSync->changestate(SYNC_FAILED, LOCAL_FINGERPRINT_MISMATCH, false, true);
         mConfig.mError = LOCAL_FINGERPRINT_MISMATCH;
         mConfig.mEnabled = false;
         mSync.reset();
@@ -2152,7 +2152,7 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
         else
         {
             LOG_err << "Initial scan failed";
-            mSync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED, mConfig.getEnabled(), true); //note, this only causes fireOnSyncXXX if there's a MegaSync object in the map already
+            mSync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED, mConfig.getEnabled(), true);
 
             mSync.reset();
             return API_EFAILED;
@@ -2239,6 +2239,21 @@ void Syncs::forEachRunningSync(std::function<void(Sync* s)> f)
         if (s->mSync)
         {
             f(s->mSync.get());
+        }
+    }
+}
+
+void Syncs::forEachRunningSyncContainingNode(Node* node, std::function<void(Sync* s)> f)
+{
+    for (auto& s : mSyncVec)
+    {
+        if (s->mSync)
+        {
+            if (s->mSync->localroot->node &&
+                node->isbelow(s->mSync->localroot->node))
+            {
+                f(s->mSync.get());
+            }
         }
     }
 }
@@ -2414,8 +2429,6 @@ error Syncs::enableSyncByTag(int tag, bool resetFingerprint, UnifiedSync*& syncP
             {
                 return s->enableSync(resetFingerprint, true);
             }
-            s->mConfig.setError(ACTIVE_SYNC_BELOW_PATH);
-            s->mConfig.setEnabled(false);
             return API_EEXIST;
         }
     }
