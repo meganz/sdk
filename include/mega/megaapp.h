@@ -24,7 +24,7 @@
 
 namespace mega {
 
-struct SyncManager;
+struct UnifiedSync;
 
 // callback interface
 struct MEGA_API MegaApp
@@ -336,7 +336,7 @@ struct MEGA_API MegaApp
     virtual void syncs_about_to_be_resumed() { }
 
     // after an attempt to auto-resume a cache sync
-    virtual void sync_auto_resume_result(const SyncManager& s, bool attempted) { }
+    virtual void sync_auto_resume_result(const UnifiedSync& s, bool attempted) { }
 
     // after a sync has been removed
     virtual void sync_removed(int tag) { }

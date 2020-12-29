@@ -135,13 +135,13 @@ HeartBeatSyncInfo::HeartBeatSyncInfo()
     mStatus = HeartBeatSyncInfo::Status::UNKNOWN;
 }
 
-void HeartBeatSyncInfo::updateStatus(SyncManager& sm)
+void HeartBeatSyncInfo::updateStatus(UnifiedSync& us)
 {
     HeartBeatSyncInfo::Status status = HeartBeatSyncInfo::Status::INACTIVE;
 
-    if (sm.mSync)
+    if (us.mSync)
     {
-        switch(sm.mSync->localroot->ts)
+        switch(us.mSync->localroot->ts)
         {
         case TREESTATE_SYNCED:
             status = HeartBeatSyncInfo::Status::UPTODATE;
@@ -213,14 +213,14 @@ string BackupInfo::extra() const
 }
 
 #ifdef ENABLE_SYNC
-BackupInfoSync::BackupInfoSync(SyncManager& syncManager)
-    : BackupInfo(getSyncType(syncManager.mConfig),
-                     syncManager.mConfig.getName(),
-                     syncManager.mConfig.getLocalPath(),
-                     syncManager.mConfig.getRemoteNode(),
-                     getSyncState(syncManager),
-                     getSyncSubstatus(syncManager),
-                     getSyncExtraData(syncManager))
+BackupInfoSync::BackupInfoSync(UnifiedSync& us)
+    : BackupInfo(getSyncType(us.mConfig),
+                     us.mConfig.getName(),
+                     us.mConfig.getLocalPath(),
+                     us.mConfig.getRemoteNode(),
+                     getSyncState(us),
+                     getSyncSubstatus(us),
+                     getSyncExtraData(us))
 {
 }
 
@@ -245,10 +245,10 @@ int BackupInfoSync::calculatePauseActiveState(MegaClient *client)
 }
 
 
-int BackupInfoSync::getSyncState(SyncManager& syncManager)
+int BackupInfoSync::getSyncState(UnifiedSync& us)
 {
-    SyncError error = syncManager.mConfig.getError();
-    syncstate_t state = syncManager.mSync ? syncManager.mSync->state : SYNC_FAILED;
+    SyncError error = us.mConfig.getError();
+    syncstate_t state = us.mSync ? us.mSync->state : SYNC_FAILED;
 
     if (state == SYNC_DISABLED && error != NO_SYNC_ERROR)
     {
@@ -256,7 +256,7 @@ int BackupInfoSync::getSyncState(SyncManager& syncManager)
     }
     else if (state != SYNC_FAILED && state != SYNC_CANCELED && state != SYNC_DISABLED)
     {
-        return calculatePauseActiveState(&syncManager.mClient);
+        return calculatePauseActiveState(&us.mClient);
     }
     else if (!(state != SYNC_CANCELED && (state != SYNC_DISABLED || error != NO_SYNC_ERROR)))
     {
@@ -283,12 +283,12 @@ BackupType BackupInfoSync::getSyncType(const SyncConfig& config)
     }
 }
 
-int BackupInfoSync::getSyncSubstatus(SyncManager& sm)
+int BackupInfoSync::getSyncSubstatus(UnifiedSync& us)
 {
-    return sm.mConfig.getError();
+    return us.mConfig.getError();
 }
 
-string BackupInfoSync::getSyncExtraData(SyncManager&)
+string BackupInfoSync::getSyncExtraData(UnifiedSync&)
 {
     return string();
 }
@@ -300,14 +300,14 @@ BackupMonitor::BackupMonitor(MegaClient *client)
 {
 }
 
-void BackupMonitor::digestPutResult(handle backupId, SyncManager* syncPtr)
+void BackupMonitor::digestPutResult(handle backupId, UnifiedSync* syncPtr)
 {
 #ifdef ENABLE_SYNC
-    mClient->syncs.forEachSyncManager([&](SyncManager& sm){
-        if (&sm == syncPtr)
+    mClient->syncs.forEachUnifiedSync([&](UnifiedSync& us){
+        if (&us == syncPtr)
         {
-            sm.mConfig.setBackupId(backupId);
-            mClient->syncs.saveSyncConfig(sm.mConfig);
+            us.mConfig.setBackupId(backupId);
+            mClient->syncs.saveSyncConfig(us.mConfig);
         }
     });
 #endif
@@ -332,7 +332,7 @@ void BackupMonitor::updateBackupInfo(handle backupId, const BackupInfo &info)
 
 #ifdef ENABLE_SYNC
 
-void BackupMonitor::registerBackupInfo(const BackupInfo &info, SyncManager* syncPtr)
+void BackupMonitor::registerBackupInfo(const BackupInfo &info, UnifiedSync* syncPtr)
 {
     string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", info.localFolder()) );
     string deviceIdHash = mClient->getDeviceidHash();
@@ -345,20 +345,20 @@ void BackupMonitor::registerBackupInfo(const BackupInfo &info, SyncManager* sync
 }
 
 
-void BackupMonitor::updateOrRegisterSync(SyncManager& syncManager)
+void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
 {
-    BackupInfoSync currentInfo(syncManager);
+    BackupInfoSync currentInfo(us);
 
-    if (!syncManager.mBackupInfo && syncManager.mConfig.getBackupId() == UNDEF) // not registered yet
+    if (!us.mBackupInfo && ISUNDEF(us.mConfig.getBackupId())) // not registered yet
     {
-        syncManager.mBackupInfo = ::mega::make_unique<BackupInfoSync>(syncManager);
-        registerBackupInfo(currentInfo, &syncManager);
+        us.mBackupInfo = ::mega::make_unique<BackupInfoSync>(us);
+        registerBackupInfo(currentInfo, &us);
     }
-    else if (syncManager.mConfig.getBackupId() != UNDEF  &&
-           (!syncManager.mBackupInfo || !(currentInfo == *syncManager.mBackupInfo)))
+    else if (!ISUNDEF(us.mConfig.getBackupId()) &&
+           (!us.mBackupInfo || !(currentInfo == *us.mBackupInfo)))
     {
-        updateBackupInfo(syncManager.mConfig.getBackupId(), currentInfo); //queue update comand
-        syncManager.mBackupInfo = ::mega::make_unique<BackupInfoSync>(syncManager);
+        updateBackupInfo(us.mConfig.getBackupId(), currentInfo); //queue update comand
+        us.mBackupInfo = ::mega::make_unique<BackupInfoSync>(us);
     }
 }
 
@@ -374,40 +374,40 @@ bool  BackupInfoSync::operator==(const BackupInfoSync& o) const
 
 void BackupMonitor::onSyncConfigChanged()
 {
-    mClient->syncs.forEachSyncManager([&](SyncManager& sm) {
-        updateOrRegisterSync(sm);
+    mClient->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
+        updateOrRegisterSync(us);
     });
 }
 
-void BackupMonitor::beatBackupInfo(SyncManager& syncManager)
+void BackupMonitor::beatBackupInfo(UnifiedSync& us)
 {
     // send registration or update in case we missed it
-    updateOrRegisterSync(syncManager);
+    updateOrRegisterSync(us);
 
-    if (!syncManager.mBackupInfo || syncManager.mConfig.getBackupId() == UNDEF)
+    if (!us.mBackupInfo || ISUNDEF(us.mConfig.getBackupId()))
     {
         LOG_warn << "Backup not registered yet. Skipping heartbeat...";
         return;
     }
 
-    std::shared_ptr<HeartBeatSyncInfo> hbs = syncManager.mNextHeartbeat;
+    std::shared_ptr<HeartBeatSyncInfo> hbs = us.mNextHeartbeat;
 
     if ( !hbs->mSending && (hbs->mModified
          || m_time(nullptr) - hbs->lastBeat() > MAX_HEARBEAT_SECS_DELAY))
     {
-        hbs->updateStatus(syncManager);  //we asume this is costly: only do it when beating
+        hbs->updateStatus(us);  //we asume this is costly: only do it when beating
         hbs->setLastBeat(m_time(nullptr));
 
         m_off_t inflightProgress = 0;
-        if (syncManager.mSync)
+        if (us.mSync)
         {
-            inflightProgress = syncManager.mSync->getInflightProgress();
+            inflightProgress = us.mSync->getInflightProgress();
         }
 
         int8_t progress = (hbs->progress(inflightProgress) < 0) ? -1 : static_cast<int8_t>(std::lround(hbs->progress(inflightProgress)*100.0));
 
         hbs->mSending = true;
-        auto newCommand = new CommandBackupPutHeartBeat(mClient, syncManager.mConfig.getBackupId(),  static_cast<uint8_t>(hbs->status()),
+        auto newCommand = new CommandBackupPutHeartBeat(mClient, us.mConfig.getBackupId(),  static_cast<uint8_t>(hbs->status()),
                           progress, hbs->mPendingUps, hbs->mPendingDowns,
                           hbs->lastAction(), hbs->lastItemUpdated(),
                           [hbs](Error){
@@ -431,8 +431,8 @@ void BackupMonitor::beatBackupInfo(SyncManager& syncManager)
 void BackupMonitor::beat()
 {
 #ifdef ENABLE_SYNC
-    mClient->syncs.forEachSyncManager([&](SyncManager& sm){
-        beatBackupInfo(sm);
+    mClient->syncs.forEachUnifiedSync([&](UnifiedSync& us){
+        beatBackupInfo(us);
     });
 #endif
 }

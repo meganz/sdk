@@ -1397,8 +1397,9 @@ struct StandardClient : public MegaApp
             if (Node* m = drillchildnodebyname(n, subfoldername))
             {
                 SyncConfig syncConfig{syncTag, localpath.u8string(), localpath.u8string(), m->nodehandle, subfoldername, 0};
-                SyncManager* syncManager;
-                error e = client.addsync(syncConfig, DEBRISFOLDER, NULL, false, syncManager, true);  // use syncid as tag
+
+                UnifiedSync* unifiedSync;
+                error e = client.addsync(syncConfig, DEBRISFOLDER, NULL, false, unifiedSync, true);  // use syncid as tag
                 if (!e)
                 {
                     return true;

@@ -13066,9 +13066,9 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 }
 
 
-error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* localdebris, bool delayInitialScan, SyncManager*& syncManager, bool notifyApp)
+error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* localdebris, bool delayInitialScan, UnifiedSync*& unifiedSync, bool notifyApp)
 {
-    syncManager = nullptr;
+    unifiedSync = nullptr;
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
     Node* remotenode;
@@ -13079,12 +13079,12 @@ error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* loc
     {
 
         // if we got this far, the syncConfig is kept (in db and in memory)
-        syncManager = syncs.appendNewSync(config, *this);
+        unifiedSync = syncs.appendNewSync(config, *this);
 
-        e = syncManager->enableSync(false, notifyApp);
+        e = unifiedSync->enableSync(false, notifyApp);
 
         syncactivity = true;
-        config = syncManager->mConfig;  // so the caller can easily check the config they passed in
+        config = unifiedSync->mConfig;  // so the caller can easily check the config they passed in
     }
 
     return e;
@@ -14153,7 +14153,7 @@ void MegaClient::syncupdate()
                 nextreqtag();
                 startxfer(PUT, l, committer);
 
-                l->sync->mSyncManager.mNextHeartbeat->adjustTransferCounts(1, 0, l->size, 0);
+                l->sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(1, 0, l->size, 0);
 
                 tmppath = l->getLocalPath().toPath(*fsaccess);
                 app->syncupdate_put(l->sync, l, tmppath.c_str());

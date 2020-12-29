@@ -76,7 +76,7 @@ private:
 };
 
 
-struct SyncManager
+struct UnifiedSync
 {
     // Reference to client
     MegaClient& mClient;
@@ -94,7 +94,7 @@ struct SyncManager
     std::shared_ptr<HeartBeatSyncInfo> mNextHeartbeat;
 
     // ctor/dtor
-    SyncManager(MegaClient&, const SyncConfig&);
+    UnifiedSync(MegaClient&, const SyncConfig&);
 
     // Try to create and start the Sync
     error enableSync(bool resetFingerprint, bool notifyApp);
@@ -230,7 +230,7 @@ public:
 
     // flag to optimize destruction by skipping calls to treestate()
     bool mDestructorRunning = false;
-    Sync(SyncManager&, const char*, LocalPath*, Node*, bool, int);
+    Sync(UnifiedSync&, const char*, LocalPath*, Node*, bool, int);
     ~Sync();
 
     static const int SCANNING_DELAY_DS;
@@ -239,7 +239,7 @@ public:
     static const int FILE_UPDATE_MAX_DELAY_SECS;
     static const dstime RECENT_VERSION_INTERVAL_SECS;
 
-    SyncManager& mSyncManager;
+    UnifiedSync& mUnifiedSync;
 
 protected :
     bool readstatecache();
@@ -251,14 +251,14 @@ private:
 
 struct Syncs
 {
-    SyncManager* appendNewSync(const SyncConfig&, MegaClient& mc);
+    UnifiedSync* appendNewSync(const SyncConfig&, MegaClient& mc);
 
     bool hasRunningSyncs();
     unsigned numRunningSyncs();
     Sync* firstRunningSync();
     Sync* runningSyncByTag(int tag) const;
 
-    void forEachSyncManager(std::function<void(SyncManager&)> f);
+    void forEachUnifiedSync(std::function<void(UnifiedSync&)> f);
     void forEachRunningSync(std::function<void(Sync* s)>);
     bool forEachRunningSync_shortcircuit(std::function<bool(Sync* s)>);
     void forEachSyncConfig(std::function<void(const SyncConfig&)>);
@@ -267,7 +267,7 @@ struct Syncs
     void stopCancelledFailedDisabled();
     void resumeResumableSyncsOnStartup();
     void enableResumeableSyncs();
-    error enableSyncByTag(int tag, bool resetFingerprint, SyncManager*&);
+    error enableSyncByTag(int tag, bool resetFingerprint, UnifiedSync*&);
 
     // disable all active syncs.  Cache is kept
     void disableSyncs(SyncError syncError, bool newEnabledFlag);
@@ -296,7 +296,7 @@ struct Syncs
 
 private:
 
-    vector<unique_ptr<SyncManager>> mSyncVec;
+    vector<unique_ptr<UnifiedSync>> mSyncVec;
 
     // remove the Sync and its config.  The sync's Localnode cache is removed
     void removeSyncByIndex(size_t index);

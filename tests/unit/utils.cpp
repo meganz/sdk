@@ -80,7 +80,7 @@ mega::Node& makeNode(mega::MegaClient& client, const mega::nodetype_t type, cons
 }
 
 #ifdef ENABLE_SYNC
-std::unique_ptr<mega::SyncManager> makeSync(mega::MegaClient& client, const std::string& localname)
+std::unique_ptr<mega::UnifiedSync> makeSync(mega::MegaClient& client, const std::string& localname)
 {
     mega::FSACCESS_CLASS fsaccess;
     std::string localdebris = gLocalDebris;
@@ -88,12 +88,12 @@ std::unique_ptr<mega::SyncManager> makeSync(mega::MegaClient& client, const std:
     auto localdebrisLP = ::mega::LocalPath::fromPath(localdebris, fsaccess);
     mega::SyncConfig config{127, localname, localname, n.nodehandle, std::string(), 0};
 
-    auto us = new mega::SyncManager(client, config);
+    auto us = new mega::UnifiedSync(client, config);
 
     us->mSync.reset(new mega::Sync(*us, nullptr, &localdebrisLP, &n, false, 0));
     us->mSync->state = mega::SYNC_CANCELED;
 
-    return std::unique_ptr<mega::SyncManager>(us);
+    return std::unique_ptr<mega::UnifiedSync>(us);
 }
 
 std::unique_ptr<mega::LocalNode> makeLocalNode(mega::Sync& sync, mega::LocalNode& parent,

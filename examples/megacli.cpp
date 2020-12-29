@@ -487,7 +487,7 @@ void DemoApp::syncupdate_active(int tag, bool active)
     cout << "Sync is now active: " << active << endl;
 }
 
-void DemoApp::sync_auto_resume_result(const SyncManager& s, bool attempted)
+void DemoApp::sync_auto_resume_result(const UnifiedSync& s, bool attempted)
 {
     if (attempted)
     {
@@ -4376,8 +4376,9 @@ void exec_sync(autocomplete::ACState& s)
                 static int syncTag = 2027;
                 SyncConfig syncConfig{syncTag++, s.words[1].s, s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.getType(),
                             newSyncConfig.syncDeletions(), newSyncConfig.forceOverwrite()};
-                SyncManager* syncManager;
-                error e = client->addsync(syncConfig, DEBRISFOLDER, NULL, false, syncManager, true);
+
+                UnifiedSync* unifiedSync;
+                error e = client->addsync(syncConfig, DEBRISFOLDER, NULL, false, unifiedSync, true);
 
                 if (e)
                 {
@@ -4411,12 +4412,12 @@ void exec_sync(autocomplete::ACState& s)
     {
         int i = 0;
 
-        client->syncs.forEachSyncManager([&](SyncManager& sm){
+        client->syncs.forEachUnifiedSync([&](UnifiedSync& us){
 
             static const char* syncstatenames[] =
             { "disabled", "failed", "cancelled", "Initial scan, please wait", "Active", "Failed" };
 
-            if (Sync* sync = sm.mSync.get())
+            if (Sync* sync = us.mSync.get())
             {
                 if (sync->localroot->node)
                 {
@@ -4433,8 +4434,8 @@ void exec_sync(autocomplete::ACState& s)
             else
             {
                 string remotepath, localpath;
-                nodepath(sm.mConfig.getRemoteNode(), &remotepath);
-                localpath = sm.mConfig.getLocalPath();
+                nodepath(us.mConfig.getRemoteNode(), &remotepath);
+                localpath = us.mConfig.getLocalPath();
 
                 cout << i << " (" << syncConfigToString(sync->getConfig()) << "): " << localpath << " to " << remotepath << " - "
                     << syncstatenames[sync->state + 3] << ", " << sync->localbytes

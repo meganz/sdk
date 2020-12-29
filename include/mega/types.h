@@ -974,7 +974,7 @@ private:
 
     // Warning if creation was successful but the user should know something
     SyncWarning mWarning;
-    friend struct SyncManager;
+    friend struct UnifiedSync;
     friend class MegaClient; // until functions are moved to Sync.cpp
     
     // notified/saved state
