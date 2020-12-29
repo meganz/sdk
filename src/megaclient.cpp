@@ -12864,24 +12864,10 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
         return API_EACCESS;
     }
 
-    Node* n;
-    bool inshare;
-
     // any active syncs below?
     bool anyBelow = false;
-    syncs.forEachRunningSync([&](Sync* sync) {
-
-        if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
-        {
-            n = sync->localroot->node;
-
-            do {
-                if (n == remotenode)
-                {
-                    anyBelow = true;
-                }
-            } while ((n = n->parent));
-        }
+    syncs.forEachRunningSyncContainingNode(remotenode, [&](Sync* sync) {
+        anyBelow = true;
     });
 
     if (anyBelow)
@@ -12891,8 +12877,8 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
     }
 
     // any active syncs above? or node within //bin or inside non full access inshare
-    n = remotenode;
-    inshare = false;
+    Node* n = remotenode;
+    bool inshare = false;
 
     handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
 
@@ -14561,7 +14547,7 @@ void MegaClient::failSync(Sync* sync, SyncError syncerror)
 }
 
 
-bool MegaClient::disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError, bool newEnabledFlag)
+void MegaClient::disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError, bool newEnabledFlag)
 {
     auto sync = getSyncContainingNodeHandle(nodeHandle);
     if (sync)
@@ -14570,7 +14556,6 @@ bool MegaClient::disableSyncContainingNode(mega::handle nodeHandle, SyncError sy
             return s == sync;
         }, syncError, newEnabledFlag);
     }
-    return false;
 }
 
 Sync * MegaClient::getSyncContainingNodeHandle(mega::handle nodeHandle)

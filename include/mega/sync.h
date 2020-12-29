@@ -261,6 +261,7 @@ struct Syncs
     void forEachUnifiedSync(std::function<void(UnifiedSync&)> f);
     void forEachRunningSync(std::function<void(Sync* s)>);
     bool forEachRunningSync_shortcircuit(std::function<bool(Sync* s)>);
+    void forEachRunningSyncContainingNode(Node* node, std::function<void(Sync* s)> f);
     void forEachSyncConfig(std::function<void(const SyncConfig&)>);
 
     void purgeRunningSyncs();
