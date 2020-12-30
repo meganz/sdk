@@ -667,11 +667,6 @@ int MegaClient::nextSyncTag(int increment)
     return ++mSyncTag;
 }
 
-int MegaClient::hexval(char c)
-{
-    return c > '9' ? c - 'a' + 10 : c - '0';
-}
-
 void MegaClient::exportDatabase(string filename)
 {
     FILE *fp = NULL;
@@ -1115,6 +1110,29 @@ Node* MegaClient::childnodebyname(Node* p, const char* name, bool skipfolders)
     return found;
 }
 
+// returns a matching child node that has the given attribute with the given value
+Node* MegaClient::childnodebyattribute(Node* p, nameid attrId, const char* attrValue)
+{
+    if (!p || p->type == FILENODE)
+    {
+        return nullptr;
+    }
+
+    for (auto it = p->children.begin(); it != p->children.end(); it++)
+    {
+        // find the attribute
+        const auto& attrMap = (*it)->attrs.map;
+        auto found = attrMap.find(attrId);
+
+        if (found != attrMap.end() && found->second == attrValue)
+        {
+            return *it;
+        }
+    }
+
+    return nullptr;
+}
+
 // returns all the matching child nodes by UTF-8 name
 vector<Node*> MegaClient::childnodesbyname(Node* p, const char* name, bool skipfolders)
 {
@@ -1196,6 +1214,7 @@ void MegaClient::init()
 
     abortlockrequest();
     transferHttpCounter = 0;
+    nextDispatchTransfersDs = 0;
 
     jsonsc.pos = NULL;
     insca = false;
@@ -1372,8 +1391,6 @@ MegaClient::~MegaClient()
     delete pendingcs;
     delete badhostcs;
     delete sctable;
-    delete statusTable;
-    delete tctable;
     delete dbaccess;
 }
 
@@ -2418,11 +2435,8 @@ void MegaClient::exec()
         }
 
         // fill transfer slots from the queue
-        if (lastDispatchTransfersDs != Waiter::ds)
+        if (nextDispatchTransfersDs <= Waiter::ds)
         {
-            // don't run this too often or it may use a lot of cpu without starting new transfers, if the list is long
-            lastDispatchTransfersDs = Waiter::ds;
-
             size_t lastCount = 0;
             size_t transferCount = transfers[GET].size() + transfers[PUT].size();
             do
@@ -2435,6 +2449,9 @@ void MegaClient::exec()
                 // if we are cancelling a lot of transfers (eg. nodes to download were deleted), keep going. Avoid stalling when no transfers are active and all queued fail
                 transferCount = transfers[GET].size() + transfers[PUT].size();
             } while (transferCount < lastCount);
+
+            // don't run this too often or it may use a lot of cpu without starting new transfers, if the list is long
+            nextDispatchTransfersDs = transferCount ? Waiter::ds + 1 : 0;
         }
 
 #ifndef EMSCRIPTEN
@@ -3188,6 +3205,12 @@ int MegaClient::preparewait()
 
         // retry transferslots
         transferSlotsBackoff.update(&nds, false);
+
+        // newly queued transfers
+        if (nextDispatchTransfersDs)
+        {
+            nds = nextDispatchTransfersDs > Waiter::ds ? nextDispatchTransfersDs : Waiter::ds;
+        }
 
         for (pendinghttp_map::iterator it = pendinghttp.begin(); it != pendinghttp.end(); it++)
         {
@@ -4233,8 +4256,7 @@ void MegaClient::locallogout(bool removecaches)
     sctable = NULL;
     pendingsccommit = false;
 
-    delete statusTable;
-    statusTable = NULL;
+    statusTable.reset();
 
     me = UNDEF;
     uid.clear();
@@ -4396,8 +4418,7 @@ void MegaClient::removeCaches()
     if (statusTable)
     {
         statusTable->remove();
-        delete statusTable;
-        statusTable = NULL;
+        statusTable.reset();
     }
 
 #ifdef ENABLE_SYNC
@@ -6055,6 +6076,7 @@ void MegaClient::sc_userattr()
                                     case ATTR_AUTHRSA:          // fall-through
                                     case ATTR_MY_BACKUPS_FOLDER:    // fall-through
                                     case ATTR_BACKUP_NAMES:     // fall-through
+                                    case ATTR_DEVICE_NAMES:     // fall-through
                                     {
                                         LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
                                         if (User::isAuthring(type)) mAuthRings.erase(type);
@@ -7482,7 +7504,7 @@ error MegaClient::setattr(Node* n, const char *prevattr)
     return API_OK;
 }
 
-void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername)
+void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void(AttrMap&)> addAttrs)
 {
     string attrstring;
     byte buf[FOLDERNODEKEYLENGTH];
@@ -7503,6 +7525,9 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
 
     fsaccess->normalize(&foldername);
     attrs.map['n'] = foldername;
+
+    // add custom attributes
+    if (addAttrs)  addAttrs(attrs);
 
     // JSON-encode object and encrypt attribute string
     attrs.getjson(&attrstring);
@@ -9315,7 +9340,7 @@ void MegaClient::openStatusTable()
         {
             dbname.insert(0, "status_");
 
-            statusTable = dbaccess->open(rng, *fsaccess, dbname);
+            statusTable.reset(dbaccess->open(rng, *fsaccess, dbname));
         }
     }
 }
@@ -11673,8 +11698,7 @@ void MegaClient::closetc(bool remove)
     {
         tctable->remove();
     }
-    delete tctable;
-    tctable = NULL;
+    tctable.reset();
 }
 
 void MegaClient::enabletransferresumption(const char *loggedoutid)
@@ -11710,7 +11734,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
 
     dbname.insert(0, "transfers_");
 
-    tctable =dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED);
+    tctable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED));
     if (!tctable)
     {
         return;
@@ -11804,7 +11828,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     }
     dbname.insert(0, "transfers_");
 
-    tctable = dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED);
+    tctable.reset(dbaccess->open(rng, *fsaccess, dbname, DB_OPEN_FLAG_RECYCLE | DB_OPEN_FLAG_TRANSACTED));
     if (!tctable)
     {
         return;
@@ -11842,7 +11866,7 @@ void MegaClient::fetchnodes(bool nocache)
     openStatusTable();
 
     // only initial load from local cache
-    if (loggedin() == FULLACCOUNT && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable) && fetchStatusTable(statusTable))
+    if (loggedin() == FULLACCOUNT && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable) && fetchStatusTable(statusTable.get()))
     {
         WAIT_CLASS::bumpds();
         fnstats.mode = FetchNodesStats::MODE_DB;
@@ -15123,7 +15147,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 auto fa = fsaccess->newfileaccess();
                 auto localpath = t->localfilename.toPath(*fsaccess);
 
-                if (!fa->fopen(t->localfilename))
+                if (t->localfilename.empty() || !fa->fopen(t->localfilename))
                 {
                     if (d == PUT)
                     {
@@ -15196,6 +15220,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             app->transfer_added(t);
             app->file_added(f);
             looprequested = true;
+
 
             if (overquotauntil && overquotauntil > Waiter::ds && d != PUT)
             {

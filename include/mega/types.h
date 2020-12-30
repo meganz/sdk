@@ -721,6 +721,16 @@ typedef enum { BIZ_STATUS_UNKNOWN = -2, BIZ_STATUS_EXPIRED = -1, BIZ_STATUS_INAC
 typedef enum { BIZ_MODE_UNKNOWN = -1, BIZ_MODE_SUBUSER = 0, BIZ_MODE_MASTER = 1 } BizMode;
 
 typedef enum {
+    ACCOUNT_TYPE_UNKNOWN = -1,
+    ACCOUNT_TYPE_FREE = 0,
+    ACCOUNT_TYPE_PROI = 1,
+    ACCOUNT_TYPE_PROII = 2,
+    ACCOUNT_TYPE_PROIII = 3,
+    ACCOUNT_TYPE_LITE = 4,
+    ACCOUNT_TYPE_BUSINESS = 100,
+} AccountType;
+
+typedef enum {
     AUTH_METHOD_UNKNOWN     = -1,
     AUTH_METHOD_SEEN        = 0,
     AUTH_METHOD_FINGERPRINT = 1,    // used only for AUTHRING_ED255
@@ -856,7 +866,7 @@ private:
 
 };
 
-typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3, MEDIA_UPLOAD = 4 } BackupType;
+typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3, MEDIA_UPLOAD = 4, BACKUP_UPLOAD } BackupType;
 
 // Holds the config of a sync. Can be extended with future config options
 class SyncConfig : public Cacheable
@@ -868,6 +878,7 @@ public:
         TYPE_UP = 0x01, // sync up from local to remote
         TYPE_DOWN = 0x02, // sync down from remote to local
         TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
+        TYPE_BACKUP, // special sync up from local to remote, automatically disabled when remote changed
     };
 
     SyncConfig(int tag,

@@ -1114,6 +1114,17 @@ class MegaNode
         virtual MegaHandle getOwner() const;
 
         /**
+         * @brief Returns the device id stored as a Node attribute of a Backup folder.
+         * It will be an empty string for other nodes.
+         *
+         * The MegaNode object retains the ownership of the returned string, it will be valid until
+         * the MegaNode object is deleted.
+         *
+         * @return The device id associated with the Node of a Backup folder.
+         */
+        virtual const char* getDeviceId() const;
+
+        /**
          * @brief Provides a serialization of the MegaNode object
          *
          * @note This function is intended to use ONLY with MegaNode objects obtained from
@@ -4989,7 +5000,7 @@ const int INVALID_SYNC_TAG = 0;
  * @brief Provides information about a synchronization event
  *
  * This object is provided in callbacks related to the synchronization engine
- * (MegaListener::onSyncEvent MegaSyncListener::onSyncEvent)
+ * (MegaListener::onSyncEvent)
  */
 class MegaSyncEvent
 {
@@ -5116,176 +5127,6 @@ private:
 
 /**
  * @brief Provides information about a synchronization
- *
- * Developers can use listeners (MegaListener, MegaSyncListener)
- * to track the progress of each synchronization. MegaSync objects are provided in callbacks sent
- * to these listeners and allow developers to know the state of the synchronizations and their parameters
- * and their results.
- *
- * The implementation will receive callbacks from an internal worker thread.
- *
- **/
-class MegaSyncListener
-{
-public:
-    /**
-     * @brief This function is called when the state of a synced file or folder changes
-     *
-     * Possible values for the state are:
-     * - MegaApi::STATE_SYNCED = 1
-     * The file is synced with the MEGA account
-     *
-     * - MegaApi::STATE_PENDING = 2
-     * The file isn't synced with the MEGA account. It's waiting to be synced.
-     *
-     * - MegaApi::STATE_SYNCING = 3
-     * The file is being synced with the MEGA account
-     *
-     * The SDK retains the ownership of the sync and localPath parameters.
-     * Don't use them after this functions returns.
-     *
-     * @param api MegaApi object that is synchronizing files
-     * @param sync MegaSync object related that manages the file
-     * @param localPath Local path of the file or folder
-     * @param newState New state of the file
-     */
-    virtual void onSyncFileStateChanged(MegaApi *api, MegaSync *sync, std::string *localPath, int newState);
-
-    /**
-     * @brief This function is called when the state of the synchronization changes
-     *
-     * The SDK calls this function when the state of the synchronization changes. you can use
-     * MegaSync::getState to get the new state of the synchronization
-     * and MegaSync::getError to get the error if any.
-     *
-     * Notice, for changes that imply other callbacks, expect that the SDK
-     * will call onSyncStateChanged first, so that you can update your model only using this one.
-     *
-     * The SDK retains the ownership of the sync parameter.
-     * Don't use it after this functions returns.
-     *
-     * @param api MegaApi object that is synchronizing files
-     * @param sync MegaSync object that has changed its state
-     */
-    virtual void onSyncStateChanged(MegaApi *api, MegaSync *sync);
-
-    /**
-     * @brief This function is called when there is a synchronization event
-     *
-     * Synchronization events can be local deletions, local additions, remote deletions,
-     * remote additions, etc. See MegaSyncEvent to know the full list of event types
-     *
-     * @param api MegaApi object that is synchronizing files
-     * @param sync MegaSync object that detects the event
-     * @param event Information about the event
-     *
-     * The SDK retains the ownership of the sync and event parameters.
-     * Don't use them after this functions returns.
-     *
-     * This parameter will be deleted just after the callback. If you want to save it use
-     * MegaSyncEvent::copy
-     */
-    virtual void onSyncEvent(MegaApi *api, MegaSync *sync, MegaSyncEvent *event);
-
-    /**
-     * @brief This callback will be called when a sync is added
-     *
-     * The SDK will call this after loading (and attempt to resume) syncs from cache or whenever a new
-     * Synchronization is configured.
-     *
-     * Notice that adding a sync will not cause onSyncStateChanged to be called.
-     *
-     * As to the additionState can be:
-     * - MegaSync::SyncAdded::NEW = 1
-     * Sync added anew and activated
-     *
-     * - MegaSync::SyncAdded::FROM_CACHE = 2
-     * Sync loaded from cache. If the sync was enabled, it will be enabled.
-     *
-     * - MegaSync::SyncAdded::FROM_CACHE_FAILED_TO_RESUME = 3
-     * Sync loaded from cache, but failed to be resumed.
-     *
-     * - MegaSync::SyncAdded::FROM_CACHE_REENABLED = 4
-     * Sync loaded from cache, and reenabled. The sync was temporary disabled but could be succesfully
-     * resumed
-     *
-     * - MegaSync::SyncAdded::REENABLED_FAILED = 5
-     * Sync loaded from cache and attempted to be reenabled. The sync will have the error for that
-     *
-     * - MegaSync::SyncAdded::NEW_DISABLED = 6
-     * Sync added anew, but set as temporarily disabled due to a temporary error
-     *
-     * The SDK retains the ownership of the sync parameter.
-     * Don't use it after this functions returns.
-     *
-     * @param sync MegaSync object representing a sync
-     * @param api MegaApi object that is synchronizing files
-     * @param additionState conditions in which the sync is added
-     */
-    virtual void onSyncAdded(MegaApi *api, MegaSync *sync, int additionState);
-
-    /**
-     * @brief This callback will be called when a sync is disabled.
-     *
-     * This can happen in the following situations
-     *
-     * - There’s a condition that cause the sync to fail
-     *
-     * - There’s a condition that cause the sync to be temporarily disabled
-     *
-     * - The users tries to disable a sync that had been previously failed permanently
-     *
-     * - The users tries to disable a sync that had been previously temporarily disabled.
-     *
-     * - The user tries to disable a sync that was active
-     *
-     * - The sdk tries to resume a sync that had been temporarily disabled and a failure happens
-     * This does not imply a transition from active to inactive, but the callback is necessary to inform the user
-     * that the sync is no longer in a temporary error, but in a fatal one.
-     *
-     * The SDK retains the ownership of the sync parameter.
-     * Don't use it after this functions returns.
-     *
-     * @param api MegaApi object that is synchronizing files
-     * @param sync MegaSync object representing a sync
-     */
-    virtual void onSyncDisabled(MegaApi *api, MegaSync *sync);
-
-    /**
-     * @brief This callback will be called when a sync is enabled.
-     *
-     * This can happen in the following situations
-     *
-     * - The users enables a sync that was disabled
-     *
-     * - The sdk tries resumes a sync that had been temporarily disabled
-     *
-     * The SDK retains the ownership of the sync parameter.
-     * Don't use it after this functions returns.
-     *
-     * @param api MegaApi object that is synchronizing files
-     * @param sync MegaSync object representing a sync
-     */
-    virtual void onSyncEnabled(MegaApi *api, MegaSync *sync);
-
-    /**
-     * @brief This callback will be called when a sync is removed.
-     *
-     * This entail that the sync is completely removed from cache
-     *
-     * The SDK retains the ownership of the sync parameter.
-     * Don't use it after this functions returns.
-     *
-     * @param api MegaApi object that is synchronizing files
-     * @param sync MegaSync object representing a sync
-     */
-    virtual void onSyncDeleted(MegaApi *api, MegaSync *sync);
-
-
-};
-
-/**
- * @brief Provides information about a synchronization
  */
 class MegaSync
 {
@@ -5340,6 +5181,15 @@ public:
         FROM_CACHE_REENABLED  = 4, // restored from cache: reenabled after some failure: implies change in state
         REENABLED_FAILED = 5, //attempt to reenable lead to a failure: might not imply change in state, and does not change "active" state
         NEW_TEMP_DISABLED = 6, // new sync added as temporarily disabled due to a temporary error
+    };
+
+    enum SyncType
+    {
+        TYPE_UNKNOWN = 0x00,
+        TYPE_UP = 0x01, // sync up from local to remote
+        TYPE_DOWN = 0x02, // sync down from remote to local
+        TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
+        TYPE_BACKUP, // special sync up from local to remote, automatically disabled when remote changed
     };
 
     virtual ~MegaSync();
@@ -5470,6 +5320,14 @@ public:
      */
     virtual int getError() const;
 
+    /**
+     * @brief Get the type of sync
+     *
+     * See possible values in MegaSync::SyncType.
+     *
+     * @return Type of sync
+     */
+    virtual int getType() const;
 
     /**
      * @brief Returns if the sync is set as enabled by the user
@@ -7957,20 +7815,6 @@ class MegaApi
          */
         void addGlobalListener(MegaGlobalListener* listener);
 
-#ifdef ENABLE_SYNC
-        /**
-         * @brief Add a listener for all events related to synchronizations
-         * @param listener Listener that will receive synchronization events
-         */
-        void addSyncListener(MegaSyncListener *listener);
-
-        /**
-         * @brief Unregister a synchronization listener
-         * @param listener Objet that will be unregistered
-         */
-        void removeSyncListener(MegaSyncListener *listener);
-#endif
-
         /**
          * @brief Add a listener for all events related to backups
          * @param listener Listener that will receive backup events
@@ -9588,6 +9432,12 @@ class MegaApi
         char* getMyEmail();
 
         /**
+         * @brief Get the timestamp when the account was created
+         * @return Timestamp when the account was created
+         */
+        int64_t getAccountCreationTs();
+
+        /**
          * @brief Returns the user handle of the currently open account
          *
          * If the MegaApi object isn't logged in,
@@ -9906,6 +9756,24 @@ class MegaApi
          */
         void setLoggingName(const char* loggingName);
 
+#ifdef USE_ROTATIVEPERFORMANCELOGGER
+        /**
+         * @brief Enable rotative performance logger
+         *
+         * Rotative performance logger is a logger that optimizes performance by carrying
+         * most of the logging tasks (write to file, duplicate log detection, log archive
+         * rotation, compression and cleanup) in a separate background thread.
+         * Also provides log rotation: archived log files are suffixed with the timestamp
+         * of the moment when they are created. For more information about log archive
+         * control see RotativePerformanceLogger::setArchiveTimestamps().
+         *
+         * @param logPath Log base directory for both active log file and archived logs
+         * @param logFileName Log file name (without path).¡
+         * @param logToStdOut if true, logs are also output to standard output
+         * @param archivedFilesAgeSeconds Number of seconds before archived files are removed. Defaults to one month.
+         */
+        static void setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut = true, long int archivedFilesAgeSeconds = 30 * 86400);
+#endif
         /**
          * @brief Create a folder in the MEGA account
          *
@@ -12114,6 +11982,15 @@ class MegaApi
         void setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listener = NULL);
 
         /**
+         * @brief Returns the id of this device
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return The id of this device
+         */
+        const char* getDeviceId() const;
+
+        /**
          * @brief Returns the name set for this device
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
@@ -14133,6 +14010,45 @@ class MegaApi
          * @return Path of the file that is blocking the sync engine, or NULL if it isn't blocked
          */
         char *getBlockedPath();
+
+        /**
+         * @brief Start backup for the given folder, to "My Backups" remote destination
+         *
+         * The backup's folder name is optional. If not provided, it will take the name of the leaf folder of
+         * the local path. In example, for "/home/user/Documents", it will become "Documents".
+         *
+         * The associated request type with this request is MegaRequest::TYPE_ADD_SYNC
+         * Valid data in the MegaRequest object received on all callbacks:
+         * - MegaRequest::getName - Returns the backup name at the remote location
+         * - MegaRequest::getFile - Returns the path of the local folder
+         * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNodeHandle - Returns the node handle of the remote backup (last leaf, in case
+         *   multiple folders have been created for the remote backup path)
+         * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
+         *   if the sync was added with no errors
+         * - MegaRequest::getTransferTag - Returns the tag asociated with the backup
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EARGS - If the local folder was not set.
+         * - MegaError::API_EACCESS - If the user was invalid, or did not have an attribute for "My Backups" folder,
+         * or the attribute was invalid, or /"My Backups"/`DEVICE_NAME` existed but was not a folder, or it had the
+         * wrong 'dev-id' tag.
+         * - MegaError::API_EINTERNAL - If the user attribute for "My Backups" folder did not have a record containing
+         * the handle.
+         * - MegaError::API_ENOENT - If the handle of "My Backups" folder contained in the user attribute was invalid
+         * - or the node could not be found.
+         * - MegaError::API_EINCOMPLETE - If device id was not set, or if current user did not have an attribute for
+         * device name, or the attribute was invalid, or the attribute did not contain a record for the device name,
+         * or device name was empty.
+         *
+         * @param localFolder The local folder to be backed up
+         * @param backupName The remote folder to be used for this backup (optional)
+         * @param listener MegaRequestListener to track this request
+         */
+        void backupFolder(const char *localFolder, const char *backupName = nullptr, MegaRequestListener *listener = nullptr);
 #endif
 
         /**
@@ -18405,6 +18321,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
          * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getParentHandle - Returns the backupId
          * - MegaRequest::getNodeHandle - Returns the target node of the backup
          * - MegaRequest::getName - Returns the backup name of the remote location
          * - MegaRequest::getAccess - Returns the backup state
@@ -18458,7 +18375,7 @@ class MegaApi
          * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
          *
          * @param backupId backup id identifying the backup to be updated
-         * @param backupType Local path of the folder
+         * @param backupType back up type requested for the service
          * @param targetNode MEGA folder to hold the backups
          * @param localFolder Local path of the folder
          * @param state backup state 

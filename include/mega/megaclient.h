@@ -530,7 +530,7 @@ public:
     handle uploadhandle(int);
 
     // helper function for preparing a putnodes call for new folders
-    void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername);
+    void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void (AttrMap&)> addAttrs = nullptr);
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
@@ -906,6 +906,9 @@ public:
     // storage status
     storagestatus_t ststatus;
 
+    // account type: Free|Pro Lite|Pro I|Pro II|Pro III|Business
+    AccountType mAccountType = ACCOUNT_TYPE_UNKNOWN;
+
     // cacheable status
     std::map<int64_t, std::shared_ptr<CacheableStatus>> mCachedStatus;
 
@@ -1154,13 +1157,13 @@ public:
     bool pendingsccommit;
 
     // transfer cache table
-    DbTable* tctable;
+    unique_ptr<DbTable> tctable;
 
     // during processing of request responses, transfer table updates can be wrapped up in a single begin/commit
     DBTableTransactionCommitter* mTctableRequestCommitter = nullptr;
 
     // status cache table for logged in user. For data pertaining status which requires immediate commits
-    DbTable* statusTable;
+    unique_ptr<DbTable> statusTable;
 
     // scsn as read from sctable
     handle cachedscsn;
@@ -1553,7 +1556,7 @@ public:
 
     bool requestLock;
     dstime disconnecttimestamp;
-    dstime lastDispatchTransfersDs = 0;
+    dstime nextDispatchTransfersDs = 0;
 
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t, vector<NewNode>*, int, bool applykeys);
@@ -1591,6 +1594,7 @@ public:
     bool warnlevel();
 
     Node* childnodebyname(Node*, const char*, bool = false);
+    Node* childnodebyattribute(Node*, nameid, const char*);
     void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
 
@@ -1721,9 +1725,6 @@ public:
 
     // hash password
     error pw_key(const char*, byte*) const;
-
-    // convert hex digit to number
-    static int hexval(char);
 
     // Since it's quite expensive to create a SymmCipher, these are provided to use for quick operations - just set the key and use.
     SymmCipher tmpnodecipher;

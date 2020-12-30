@@ -745,6 +745,8 @@ bool PosixFileSystemAccess::cwd(LocalPath& path) const
         buf.resize(buf.size() << 1);
     }
 
+    buf.resize(strlen(buf.c_str()));
+
     return true;
 }
 
@@ -755,8 +757,8 @@ void PosixFileSystemAccess::addevents(Waiter* w, int /*flags*/)
     {
         PosixWaiter* pw = (PosixWaiter*)w;
 
-        FD_SET(notifyfd, &pw->rfds);
-        FD_SET(notifyfd, &pw->ignorefds);
+        MEGA_FD_SET(notifyfd, &pw->rfds);
+        MEGA_FD_SET(notifyfd, &pw->ignorefds);
 
         pw->bumpmaxfd(notifyfd);
     }
@@ -775,7 +777,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     PosixWaiter* pw = (PosixWaiter*)w;
     string *ignore;
 
-    if (FD_ISSET(notifyfd, &pw->rfds))
+    if (MEGA_FD_ISSET(notifyfd, &pw->rfds))
     {
         char buf[sizeof(struct inotify_event) + NAME_MAX + 1];
         int p, l;
@@ -928,7 +930,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     char* path;
     Sync* pathsync[2];
     sync_list::iterator it;
-    fd_set rfds;
+    mega_fd_set_t rfds;
     timeval tv = { 0, 0 };
     struct stat statbuf;
     static char rsrc[] = "/..namedfork/rsrc";
@@ -936,8 +938,8 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
     for (;;)
     {
-        FD_ZERO(&rfds);
-        FD_SET(notifyfd, &rfds);
+        MEGA_FD_ZERO(&rfds);
+        MEGA_FD_SET(notifyfd, &rfds);
 
         // ensure nonblocking behaviour
         if (select(notifyfd + 1, &rfds, NULL, NULL, &tv) <= 0) break;

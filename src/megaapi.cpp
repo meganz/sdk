@@ -647,6 +647,11 @@ MegaHandle MegaNode::getOwner() const
     return INVALID_HANDLE;
 }
 
+const char* MegaNode::getDeviceId() const
+{
+    return nullptr;
+}
+
 char *MegaNode::serialize()
 {
     return NULL;
@@ -1816,6 +1821,11 @@ char *MegaApi::getMyEmail()
     return pImpl->getMyEmail();
 }
 
+int64_t MegaApi::getAccountCreationTs()
+{
+    return pImpl->getAccountCreationTs();
+}
+
 char *MegaApi::getMyUserHandle()
 {
     return pImpl->getMyUserHandle();
@@ -1929,6 +1939,13 @@ long long MegaApi::getSDKtime()
 {
     return pImpl->getSDKtime();
 }
+
+#ifdef USE_ROTATIVEPERFORMANCELOGGER
+void MegaApi::setUseRotativePerformanceLogger(const char * logPath, const char * logFileName, bool logToStdOut, long int archivedFilesAgeSeconds)
+{
+    MegaApiImpl::setUseRotativePerformanceLogger(logPath, logFileName, logToStdOut, archivedFilesAgeSeconds);
+}
+#endif
 
 char *MegaApi::getStringHash(const char* base64pwkey, const char* inBuf)
 {
@@ -2839,6 +2856,11 @@ void MegaApi::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listen
     pImpl->setRubbishBinAutopurgePeriod(days, listener);
 }
 
+const char* MegaApi::getDeviceId() const
+{
+    return pImpl->getDeviceId();
+}
+
 void MegaApi::getDeviceName(MegaRequestListener *listener)
 {
     pImpl->getDeviceName(listener);
@@ -3285,12 +3307,12 @@ void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequ
 
 void MegaApi::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, name, megaHandle, NULL, listener);
+    pImpl->syncFolder(localFolder, name, megaHandle, SyncConfig::TYPE_TWOWAY, NULL, listener);
 }
 
 void MegaApi::syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, nullptr, megaHandle, NULL, listener);
+    pImpl->syncFolder(localFolder, nullptr, megaHandle, SyncConfig::TYPE_TWOWAY, NULL, listener);
 }
 
 void MegaApi::copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
@@ -3463,6 +3485,11 @@ void MegaApi::setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
     pImpl->setExcludedRegularExpressions(sync, regExp);
 }
 #endif
+
+void MegaApi::backupFolder(const char *localFolder, const char *backupName, MegaRequestListener *listener)
+{
+    pImpl->syncFolder(localFolder, backupName, INVALID_HANDLE, SyncConfig::TYPE_BACKUP, nullptr, listener);
+}
 #endif
 
 
@@ -4005,18 +4032,6 @@ void MegaApi::addGlobalListener(MegaGlobalListener* listener)
 {
     pImpl->addGlobalListener(listener);
 }
-
-#ifdef ENABLE_SYNC
-void MegaApi::addSyncListener(MegaSyncListener *listener)
-{
-    pImpl->addSyncListener(listener);
-}
-
-void MegaApi::removeSyncListener(MegaSyncListener *listener)
-{
-    pImpl->removeSyncListener(listener);
-}
-#endif
 
 void MegaApi::addBackupListener(MegaBackupListener *listener)
 {
@@ -5754,6 +5769,11 @@ int MegaSync::getError() const
     return MegaSync::Error::NO_SYNC_ERROR;
 }
 
+int MegaSync::getType() const
+{
+    return MegaSync::SyncType::TYPE_UNKNOWN;
+}
+
 bool MegaSync::isEnabled() const
 {
     return true;
@@ -5876,27 +5896,6 @@ void MegaSyncList::addSync(MegaSync *sync)
 {
 
 }
-
-void MegaSyncListener::onSyncFileStateChanged(MegaApi *, MegaSync *, string *, int)
-{ }
-
-void MegaSyncListener::onSyncStateChanged(MegaApi *, MegaSync *)
-{ }
-
-void MegaSyncListener::onSyncEvent(MegaApi *, MegaSync *, MegaSyncEvent *)
-{ }
-
-void MegaSyncListener::onSyncAdded(MegaApi *, MegaSync *, int additionState)
-{ }
-
-void MegaSyncListener::onSyncDisabled(MegaApi *, MegaSync *)
-{ }
-
-void MegaSyncListener::onSyncEnabled(MegaApi *, MegaSync *)
-{ }
-
-void MegaSyncListener::onSyncDeleted(MegaApi *, MegaSync *)
-{ }
 
 MegaSyncEvent::~MegaSyncEvent()
 { }

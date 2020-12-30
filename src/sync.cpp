@@ -530,7 +530,7 @@ void SyncConfigBag::insert(const SyncConfig& syncConfig)
     {
         std::string data;
         const_cast<SyncConfig&>(syncConfig).serialize(&data);
-        DBTableTransactionCommitter committer{mTable.get()};
+        DBTableTransactionCommitter committer{mTable};
         if (!mTable->put(id, &data)) // put either inserts or updates
         {
             LOG_err << "Incomplete database put at id: " << mTable->nextid;
@@ -580,7 +580,7 @@ bool SyncConfigBag::removeByTag(const int tag)
     {
         if (mTable)
         {
-            DBTableTransactionCommitter committer{mTable.get()};
+            DBTableTransactionCommitter committer{mTable};
             if (!mTable->del(syncConfigPair->second.dbid))
             {
                 LOG_err << "Incomplete database del at id: " << syncConfigPair->second.dbid;
@@ -1256,7 +1256,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                 // if it's a file, size and mtime must match to qualify
                 if (l->type != FILENODE || (l->size == fa->size && l->mtime == fa->mtime))
                 {
-                    LOG_verbose << "Cached localnode is still valid. Type: " << l->type << "  Size: " << l->size << "  Mtime: " << l->mtime;
+                    LOG_verbose << "Cached localnode is still valid. Type: " << l->type << "  Size: " << l->size << "  Mtime: " << l->mtime << " fsid " << (fa->fsidvalid ? toHandle(fa->fsid) : "NO");
                     l->scanseqno = scanseqno;
 
                     if (l->type == FOLDERNODE)
@@ -1462,7 +1462,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                     && ((it->second->type != FILENODE && !wejustcreatedthisfolder)
                         || (it->second->mtime == fa->mtime && it->second->size == fa->size)))
                 {
-                    LOG_debug << client->clientname << "Move detected by fsid in checkpath. Type: " << it->second->type << " new path: " << path << " old localnode: " << it->second->localnodedisplaypath(*client->fsaccess);
+                    LOG_debug << client->clientname << "Move detected by fsid " << toHandle(fa->fsid) << " in checkpath. Type: " << it->second->type << " new path: " << path << " old localnode: " << it->second->localnodedisplaypath(*client->fsaccess);
 
                     if (fa->type == FILENODE && backoffds)
                     {
@@ -1599,7 +1599,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
                 else
                 {
                     // this is a new node: add
-                    LOG_debug << "New localnode.  Parent: " << (parent ? parent->name : "NO");
+                    LOG_debug << "New localnode.  Parent: " << (parent ? parent->name : "NO") << " fsid " << (fa->fsidvalid ? toHandle(fa->fsid) : "NO");
                     l = new LocalNode;
                     l->init(this, fa->type, parent, *localpathNew, client->fsaccess->fsShortname(*localpathNew));
 
