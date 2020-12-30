@@ -5786,9 +5786,10 @@ void MegaClient::readtree(JSON* j, Node* priorActionpacketDeletedNode, bool& fir
                     break;
 
                 case MAKENAMEID2('f', '2'):
-                    if (mCurrentSeqtagSeen)
+                    if (auto putnodesCmd = dynamic_cast<CommandPutNodes*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
                     {
-                        readnodes(j, 1, PUTNODES_APP, NULL, 0, true, nullptr, nullptr);  // do apply keys to received nodes only as we go for command response, much much faster for many small responses
+                        // new nodes can appear in copied version lists too
+                        readnodes(j, 1, putnodesCmd->source, &putnodesCmd->nn, putnodesCmd->tag, true, nullptr, nullptr);
                     }
                     else
                     {

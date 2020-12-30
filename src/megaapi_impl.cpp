@@ -19765,7 +19765,7 @@ void MegaApiImpl::sendPendingRequests()
             if(!node) { e = API_EARGS; break; }
 
 			bool writable = request->getFlag();
-            e = client->exportnode(node, !request->getAccess(), writable, request->getFlag(), nextTag, [this, request, writable](Error e, handle h, handle ph){
+            e = client->exportnode(node, !request->getAccess(), request->getNumber(), writable, nextTag, [this, request, writable](Error e, handle h, handle ph){
 
                 if (e || !request->getAccess()) // disable export doesn't return h and ph
                 {

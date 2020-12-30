@@ -487,7 +487,7 @@ public:
         return table;
     }
 
-    bool probe(mega::FileSystemAccess&, const string&) const override
+    bool probe(mega::FileSystemAccess&, const mega::string&) const override
     {
         return true;
     }

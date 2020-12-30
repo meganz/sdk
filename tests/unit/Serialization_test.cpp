@@ -754,7 +754,8 @@ TEST(Serialization, Node_forFile_withoutShares_withAuthKey)
     n->size = 12;
     n->owner = 88;
     n->ctime = 44;
-    n->attrs.map = {
+    using namespace mega;
+    n->attrs.map = map<nameid, string>{
         {101, "foo"},
         {102, "bar"},
     };

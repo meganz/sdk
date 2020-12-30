@@ -38,26 +38,26 @@ TEST(utils, hashCombine_integer)
 #endif
 }
 
-TEST(Filesystem, CanonicalizeRemoteName)
-{
-    using namespace mega;
-
-    string name;
-
-    // Raw control characters should be escaped.
-    name.push_back('\0');
-    name.push_back('\7');
-
-    // Everything else should remain unchanged.
-    name.append("%00%07%%31");
-
-    // Canonicalize the name.
-    FSACCESS_CLASS fsAccess;
-    fsAccess.canonicalize(&name);
-
-    // Was the name canonicalized correctly?
-    ASSERT_EQ(name, "%00%07%00%07%%31");
-}
+//TEST(Filesystem, CanonicalizeRemoteName)
+//{
+//    using namespace mega;
+//
+//    string name;
+//
+//    // Raw control characters should be escaped.
+//    name.push_back('\0');
+//    name.push_back('\7');
+//
+//    // Everything else should remain unchanged.
+//    name.append("%00%07%%31");
+//
+//    // Canonicalize the name.
+//    FSACCESS_CLASS fsAccess;
+//    fsAccess.canonicalize(&name);
+//
+//    // Was the name canonicalized correctly?
+//    ASSERT_EQ(name, "%00%07%00%07%%31");
+//}
 
 TEST(Filesystem, ControlCharactersRemainEscapedOnlyWhenNecessary)
 {
