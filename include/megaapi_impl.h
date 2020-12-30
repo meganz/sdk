@@ -239,13 +239,13 @@ protected:
     long long mPendingFilesToProcess;
 };
 
+class TransferQueue;
 class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveOperation
 {
 public:
     MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
     void start(MegaNode* node) override;
     void cancel() override;
-    void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e) override;
     void onTransferStart(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
@@ -266,27 +266,31 @@ protected:
 
     struct Tree
     {
-        Tree(handle th, NewNode nn) // this constructor add the first nn to the vector
-        {
-            targetHandle = th;
-            newNodes.emplace_back(std::move(nn));
-        }
+        // represents the node  of the current tree
+        unique_ptr<MegaNode> megaNode;
 
-        handle targetHandle;
-        vector<NewNode> newNodes;
+        // temporal handle assigned to new folder that will be created
+        handle tmpCreateFolderHandle = UNDEF;
+
+        // if we need to create a folder, this is present
+        NewNode newnode;
+
+        // files to upload to this folder
+        vector<LocalPath> files;
+
+        // subfolders
+        vector<unique_ptr<Tree>> subtrees;
     };
-    vector<Tree> mUploadTrees;
+    Tree mUploadTree;
 
     /* Scan entire tree recursively, and retrieve folder structure and files to be uploaded.
      * A putnodes command can only add subtrees under same target, so in case we need to add
      * subtrees under different targets, this method will generate a subtree for each one
      */
-    void scanFolder(handle targetHandle, handle parentHandle, LocalPath& localPath, std::string folderName);
-    void createFolder();
+    void scanFolder(Tree& tree, LocalPath& localPath);
+    bool createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, bool inSubnodesOfCreate);
     /* iterate through all pending files of each uploaded folder, and start all upload transfers */
-    void uploadFiles();
-    void updateNodeHandles(handle &targetHandle, vector<NewNode> &newnodes);
-    handle addNewNodeToVector(handle &targetHandle, handle parentHandle, const char *folderName);
+    void uploadFiles(Tree& tree, TransferQueue& transferQueue);
 };
 
 
