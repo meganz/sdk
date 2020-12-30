@@ -2870,19 +2870,6 @@ void MegaTransferPrivate::startRecursiveOperation(unique_ptr<MegaRecursiveOperat
     recursiveOperation->start(node);
 }
 
-void MegaTransferPrivate::endRecursiveOperation()
-{
-    if (!recursiveOperation)
-    {
-        LOG_warn << "Can't complete MegaRecursiveOperation, because object has been removed previously";
-        return;
-    }
-
-    getType() == MegaTransfer::TYPE_UPLOAD
-        ? (static_cast<MegaFolderUploadController*> (recursiveOperation.get()))->complete()
-        : (static_cast<MegaFolderDownloadController*> (recursiveOperation.get()))->complete();
-}
-
 long long MegaTransferPrivate::getPlaceInQueue() const
 {
     return placeInQueue;
@@ -4008,7 +3995,6 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_BACKUP_PUT_HEART_BEAT: return "BACKUP_PUT_HEART_BEAT";
         case TYPE_FETCH_GOOGLE_ADS: return "FETCH_GOOGLE_ADS";
         case TYPE_QUERY_GOOGLE_ADS: return "QUERY_GOOGLE_ADS";
-        case TYPE_END_RECURSIVE_OPERATION: return "END_RECURSIVE_OPERATION";
     }
     return "UNKNOWN";
 }
@@ -8448,17 +8434,6 @@ MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNo
     }
 
     return transfer;
-}
-
-void MegaApiImpl::endRecursiveOperation(MegaTransfer *t, MegaRequestListener *listener)
-{
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_END_RECURSIVE_OPERATION, listener);
-    if (t)
-    {
-        request->setTransferTag(t->getTag());
-    }
-    requestQueue.push(request);
-    waiter->notify();
 }
 
 void MegaApiImpl::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
@@ -21418,20 +21393,6 @@ void MegaApiImpl::sendPendingRequests()
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }
-
-        case MegaRequest::TYPE_END_RECURSIVE_OPERATION:
-        {
-            int transferTag = request->getTransferTag();
-            MegaTransferPrivate *megaTransfer = getMegaTransferPrivate(transferTag);
-            if (!megaTransfer)
-            {
-                e = API_ENOENT;
-                break;
-            }
-
-            megaTransfer->endRecursiveOperation();
-            break;
-        }
         case MegaRequest::TYPE_CANCEL_TRANSFER:
         {
             int transferTag = request->getTransferTag();
@@ -25481,8 +25442,7 @@ void MegaFolderUploadController::start(MegaNode*)
 
         if (isCompleted() || mIncompleteTransfers)
         {
-            // if we call endRecursiveOperation after uploadFiles, we may incur in a double free for this object
-            megaApi->endRecursiveOperation(transfer);
+            // TODO: implement it
             return;
         }
 
@@ -25588,11 +25548,6 @@ void MegaFolderUploadController::cancel()
 
 void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
 {
-    if (request->getType() != MegaRequest::TYPE_END_RECURSIVE_OPERATION)
-    {
-        return;
-    }
-
     if (e->getErrorCode())
     {
         LOG_err << " MegaFolderUploadController, error completing recursive operation";
@@ -25650,7 +25605,7 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
 
         if (isCompleted())
         {
-            megaApi->endRecursiveOperation(transfer);
+            // TODO: implement it
         }
     }
 }
@@ -27095,8 +27050,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
         createFolder();
         if (isCompleted())
         {
-            // if we call endRecursiveOperation after downloadFiles, we may incur in a double free for this object
-            megaApi->endRecursiveOperation(transfer);
+            // TODO: implement it
             return;
         }
         downloadFiles(fsType);
@@ -27326,11 +27280,6 @@ void MegaFolderDownloadController::complete()
 
 void MegaFolderDownloadController::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
 {
-    if (request->getType() != MegaRequest::TYPE_END_RECURSIVE_OPERATION)
-    {
-        return;
-    }
-
     if (e->getErrorCode())
     {
         LOG_err << " MegaFolderDownloadController, error completing recursive operation";
@@ -27387,7 +27336,7 @@ void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, 
         }
         if (isCompleted())
         {
-            megaApi->endRecursiveOperation(transfer);
+            // TODO: implement it
         }
     }
 }

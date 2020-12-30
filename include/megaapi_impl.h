@@ -820,7 +820,6 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         static MegaTransferPrivate* unserialize(string*);
 
         void startRecursiveOperation(unique_ptr<MegaRecursiveOperation>, MegaNode* node); // takes ownership of both
-        void endRecursiveOperation();
         long long getPlaceInQueue() const;
         void setPlaceInQueue(long long value);
 
@@ -2420,7 +2419,6 @@ class MegaApiImpl : public MegaApp
         void setStreamingMinimumRate(int bytesPerSecond);
         void retryTransfer(MegaTransfer *transfer, MegaTransferListener *listener = NULL);
         void cancelTransfer(MegaTransfer *transfer, MegaRequestListener *listener=NULL);
-        void endRecursiveOperation(MegaTransfer *t, MegaRequestListener *listener=NULL);
         void cancelTransferByTag(int transferTag, MegaRequestListener *listener = NULL);
         void cancelTransfers(int direction, MegaRequestListener *listener=NULL);
         void pauseTransfers(bool pause, int direction, MegaRequestListener* listener=NULL);
