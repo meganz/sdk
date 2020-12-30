@@ -2246,7 +2246,7 @@ SyncConfig::SyncConfig(int tag,
                        const Type syncType,
                        const bool syncDeletions,
                        const bool forceOverwrite,
-                       const SyncError error, 
+                       const SyncError error,
                        const SyncWarning warning,
                        mega::handle hearBeatID)
     : mTag{tag}
@@ -2426,42 +2426,23 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     uint32_t syncType;
     bool syncDeletions;
     bool forceOverwrite;
-    uint32_t error;
-    handle heartBeatID;
+    uint32_t error = NO_SYNC_ERROR;
+    handle heartBeatID = UNDEF;
+    unsigned char expansionflags[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
     CacheableReader reader{data};
-    if (!reader.unserializei64(tag))
+    if (!reader.unserializei64(tag) ||
+        !reader.unserializebool(enabled) ||
+        !reader.unserializestring(localPath) ||
+        !reader.unserializestring(name) ||
+        !reader.unserializehandle(remoteNode) ||
+        !reader.unserializestring(remotePath) ||
+        !reader.unserializefsfp(fingerprint) ||
+        !reader.unserializeu32(regExpCount))
     {
-        return {};
+        return nullptr;
     }
-    if (!reader.unserializebool(enabled))
-    {
-        return {};
-    }
-    if (!reader.unserializestring(localPath))
-    {
-        return {};
-    }
-    if (!reader.unserializestring(name))
-    {
-        return {};
-    }
-    if (!reader.unserializehandle(remoteNode))
-    {
-        return {};
-    }
-    if (!reader.unserializestring(remotePath))
-    {
-        return {};
-    }
-    if (!reader.unserializefsfp(fingerprint))
-    {
-        return {};
-    }
-    if (!reader.unserializeu32(regExpCount))
-    {
-        return {};
-    }
+
     for (uint32_t i = 0; i < regExpCount; ++i)
     {
         std::string regExp;
@@ -2471,26 +2452,34 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
         }
         regExps.push_back(std::move(regExp));
     }
-    if (!reader.unserializeu32(syncType))
+
+    if (!reader.unserializeu32(syncType) ||
+        !reader.unserializebool(syncDeletions) ||
+        !reader.unserializebool(forceOverwrite))
     {
-        return {};
+        return nullptr;
     }
-    if (!reader.unserializebool(syncDeletions))
+
+    // error was added without an expansion flag to indicate if it's present, so go by remaining space
+    if (reader.hasdataleft())
     {
-        return {};
+        if (!reader.unserializeu32(error)) return nullptr;
+
+        // heartbeatID was added without an expansion flag to indicate if it's present, so go by remaining space
+        if (reader.hasdataleft())
+        {
+            if (!reader.unserializehandle(heartBeatID)) return nullptr;
+
+            // expansion flags were added at this point
+            if (reader.hasdataleft())
+            {
+                reader.unserializeexpansionflags(expansionflags, 0);
+            }
+        }
     }
-    if (!reader.unserializebool(forceOverwrite))
-    {
-        return {};
-    }
-    if (!reader.unserializeu32(error))
-    {
-        return {};
-    }
-    if (!reader.unserializehandle(heartBeatID))
-    {
-        return {};
-    }
+
+    // when future fields are added, unserialize that field here.  Check the next expansion flag first, of course.
+
     auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{static_cast<int>(tag), std::move(localPath), std::move(name),
                     remoteNode, std::move(remotePath), fingerprint, std::move(regExps), enabled,
                     static_cast<Type>(syncType), syncDeletions,
