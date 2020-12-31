@@ -25757,6 +25757,12 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
     for (auto& t : tree.subtrees)
     {
         assert(newnodes.size() <= MAXNODESUPLOAD);
+        if (newnodes.size() >= MAXNODESUPLOAD)
+        {
+           // avoid iterating through tree structure when a batch has reached the limit of nodes
+           break;
+        }
+
         if (!t->megaNode) // if meganode didn't exist yet, search it by temporal nodeHandle in mNewNodesResult
         {
             auto it = mNewNodesResult.find(t->tmpCreateFolderHandle);
