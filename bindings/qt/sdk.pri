@@ -274,7 +274,7 @@ CONFIG(USE_PDFIUM) {
 
     vcpkg:unix:!macx:LIBS += -lpng -lharfbuzz #freetype dependencies. ideally we could use pkg-config to get these
     # is it needed? win has it, mac does not -licuin$$DEBUG_SUFFIX_WO
-    vcpkg:win32:LIBS += -lGdi32
+    vcpkg:win32:LIBS += -lGdi32  -llibpng16$$DEBUG_SUFFIX
     vcpkg:DEFINES += HAVE_PDFIUM
 
     !vcpkg {
