@@ -25750,52 +25750,79 @@ void MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
     recursive--;
 }
 
-void MegaFolderUploadController::createFolder()
+bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, bool inSubnodesOfCreate)
 {
-    for (auto it = mUploadTrees.begin(); it != mUploadTrees.end(); it++)
+    // recurse until we find one that is not yet sent
+    for (auto& t : tree.subtrees)
     {
-        assert(it->newNodes.size());
-        handle targetHandle = it->targetHandle;
-        vector<NewNode> &newnodes = it->newNodes;
-
-        if (it != mUploadTrees.begin())
+        assert(newnodes.size() <= MAXNODESUPLOAD);
+        if (!t->megaNode) // if meganode didn't exist yet, search it by temporal nodeHandle in mNewNodesResult
         {
-            // skip first iteration, as there are no previous putnodes results to be processed
-            updateNodeHandles(targetHandle, newnodes);
+            auto it = mNewNodesResult.find(t->tmpCreateFolderHandle);
+            if (it != mNewNodesResult.end())
+            {
+                // we have found node by temp nodeHandle
+                t->megaNode.reset(megaApi->getNodeByHandle(it->second));
+            }
         }
 
-        std::promise<bool> promise; // use a promise for each putnodes
-        megaApi->createRemoteFolder(targetHandle, move(newnodes), "NULL", [this, &promise](const Error& e, targettype_t t, vector<NewNode>& nn)
+        // if node doesn't exists yet and we haven't exceeded the limit per batch
+        if (!t->megaNode && newnodes.size() < MAXNODESUPLOAD)
         {
-            // lambda function that will be executed as completion function in putnodes procresult
-            if (e)
+            if (!inSubnodesOfCreate)
             {
-                if (e == API_EARGS)
-                {
-                    LOG_err << "PutNodes failed with EARGS upon folder upload";
-                    //megaApi->sendEvent(99454, "PutNodes failed with EARGS upon folder upload");
-                }
-                mIncompleteTransfers++;
+                t->newnode.parenthandle = UNDEF;
             }
-            else
-            {
-                for (auto &n: nn)
-                {
-                    // map temp node handle to definitive one
-                    mNewNodesResult[n.nodehandle] = n.mAddedHandle;
-                }
-            }
-            mLastError = e;
-            promise.set_value (true); // unlock worker thread by fulfilling promise
-        });
+            newnodes.push_back(std::move(t->newnode));
+        }
 
-        promise.get_future().get(); // get locked until future value can be retrieved
-        if (mIncompleteTransfers)
+        if (createNextFolderBatch(*t, newnodes, !newnodes.empty()))
         {
-            // some putnodes has failed, so we have to cancel folder upload due to folder structure is incomplete
-            return;
+            if (!inSubnodesOfCreate)
+            {
+                // we found enough and sent this batch already
+                return true;
+            }
         }
     }
+
+    if (!inSubnodesOfCreate && !newnodes.empty())
+    {
+        megaApi->createRemoteFolder(tree.megaNode->getHandle(), std::move(newnodes), "NULL",  /// todo:  is that "null" really supposed to be a string?
+            [this](const Error& e, targettype_t t, vector<NewNode>& nn)
+            {
+                // lambda function that will be executed as completion function in putnodes procresult
+                if (e)
+                {
+                    // todo:  shouldn't the first error terminate the whole operation?
+                    mIncompleteTransfers++;
+                    mLastError = e;
+                }
+                else
+                {
+                    for (auto& n : nn)
+                    {
+                        // map temp node handle to definitive one
+                        mNewNodesResult[n.nodehandle] = n.mAddedHandle;
+                    }
+
+                    // start the next batch, if there are any left
+                    vector<NewNode> newnodes;
+                    if (createNextFolderBatch(mUploadTree, newnodes, false))
+                    {
+                        // new putnodes is on its way (with completion pending)
+                    }
+                    else
+                    {
+                        TransferQueue transferQueue;
+                        uploadFiles(mUploadTree, transferQueue);
+                        megaApi->sendPendingTransfers(&transferQueue);
+                    }
+                }
+            });
+        return true;
+    }
+    return false;
 }
 
 // this method updates temp nodeHandles, with those received in previous putnodes commands.
