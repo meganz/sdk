@@ -250,7 +250,6 @@ public:
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
     ~MegaFolderUploadController();
-    bool isCompleted();
     void complete();
 
 protected:

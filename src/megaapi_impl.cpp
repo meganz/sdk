@@ -25474,7 +25474,6 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->recursive = 0;
     this->pendingTransfers = 0;
     this->tag = transfer->getTag();
-    this->mPendingFilesToProcess = 0;
     this->mFollowsymlinks = client->followsymlinks;
     this->mMainThreadId = std::this_thread::get_id();
     this->megaApi->addRequestListener(this);
@@ -25496,19 +25495,42 @@ void MegaFolderUploadController::start(MegaNode*)
         return;
     }
 
+    // set transfer target node as megaNode of root tree (mUploadTree)
+    mUploadTree.megaNode.reset(parent.release());
+
+    // create a subtree for the folder that we want to upload
+    unique_ptr<Tree> newTreeNode(new Tree);
     LocalPath path = LocalPath::fromPath(transfer->getPath(), *client->fsaccess);
+    auto leaf = path.leafName().toPath(*client->fsaccess);
+
+    // if folder node already exists in remote, set it as new subtree's megaNode, otherwise call putnodes_prepareOneFolder
+    newTreeNode->megaNode.reset(megaApi->getChildNode(mUploadTree.megaNode.get(), leaf.c_str()));
+    if (!newTreeNode->megaNode)
+    {
+        client->putnodes_prepareOneFolder(&newTreeNode->newnode, leaf);
+        newTreeNode->newnode.nodehandle = newTreeNode->tmpCreateFolderHandle = client->nextUploadId();
+        newTreeNode->newnode.parenthandle = UNDEF;
+    }
+
+    // add the tree above, to subtrees vector for root tree
+    mUploadTree.subtrees.push_back(std::move(newTreeNode));
+
     mWorkerThread = std::thread ([this, path]() {
-        LocalPath localpath = std::move(path);
-        scanFolder(transfer->getParentHandle(), transfer->getParentHandle(), localpath, transfer->getFileName());
-        createFolder();
+        // recurse all subfolders on disk, building up tree structure to match
+        // not yet existing folders get a temporary upload id instead of a handle
+        LocalPath lp = path;
+        scanFolder(*mUploadTree.subtrees.front(), lp);
 
-        if (isCompleted() || mIncompleteTransfers)
+        // create folders in batches, not too many at once
+        vector<NewNode> newnodes;
+        if (!createNextFolderBatch(mUploadTree, newnodes, false))
         {
-            // TODO: implement it
-            return;
+            // no folders to create so start uploads
+            // otherwise the folder completion function will start them
+            TransferQueue transferQueue;
+            uploadFiles(mUploadTree, transferQueue);
+            megaApi->sendPendingTransfers(&transferQueue);
         }
-
-        uploadFiles();
     });
 }
 
@@ -25608,14 +25630,6 @@ void MegaFolderUploadController::cancel()
     transfer = nullptr;  // no final callback for this one since it is being destroyed now
 }
 
-void MegaFolderUploadController::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
-{
-    if (e->getErrorCode())
-    {
-        LOG_err << " MegaFolderUploadController, error completing recursive operation";
-    }
-}
-
 void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
     subTransfers.insert(static_cast<MegaTransferPrivate*>(t));
@@ -25664,11 +25678,7 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
             mLastError = *e;
             mIncompleteTransfers++;
         }
-
-        if (isCompleted())
-        {
-            // TODO: implement it
-        }
+        complete();
     }
 }
 
@@ -25853,14 +25863,6 @@ void MegaFolderUploadController::uploadFiles()
    {
       megaApi->sendPendingTransfers(&transferQueue);
    }
-}
-
-bool MegaFolderUploadController::isCompleted()
-{
-    return (!cancelled
-            && !recursive
-            && !pendingTransfers
-            && !mPendingFilesToProcess);
 }
 
 void MegaFolderUploadController::complete()
