@@ -27037,12 +27037,8 @@ void MegaFolderDownloadController::start(MegaNode *node)
             delete node;
         }
         createFolder();
-        if (isCompleted())
-        {
-            // TODO: implement it
-            return;
-        }
         downloadFiles(fsType);
+        complete();
     });
 }
 
@@ -27236,7 +27232,6 @@ void MegaFolderDownloadController::downloadFiles(FileSystemType fsType)
          }
     }
 
-    assert(pendingTransfers);
     if (pendingTransfers)
     {
         megaApi->sendPendingTransfers(&transferQueue);
@@ -27304,10 +27299,7 @@ void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, 
             mLastError = *e;
             mIncompleteTransfers++;
         }
-        if (isCompleted())
-        {
-            // TODO: implement it
-        }
+        complete();
     }
 }
 
