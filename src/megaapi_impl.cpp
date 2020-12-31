@@ -25528,7 +25528,7 @@ void MegaFolderUploadController::start(MegaNode*)
             // no folders to create so start uploads
             // otherwise the folder completion function will start them
             TransferQueue transferQueue;
-            uploadFiles(mUploadTree, transferQueue);
+            genUploadTransfersForFiles(mUploadTree, transferQueue);
             megaApi->sendPendingTransfers(&transferQueue);
             complete();  //check for completion
         }
@@ -25813,7 +25813,7 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
                     {
                         // no pending folders to create, start uploading files
                         TransferQueue transferQueue;
-                        uploadFiles(mUploadTree, transferQueue);
+                        genUploadTransfersForFiles(mUploadTree, transferQueue);
                         megaApi->sendPendingTransfers(&transferQueue);
                         complete(); //check for completion
                     }
@@ -25824,7 +25824,7 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
     return false;
 }
 
-void MegaFolderUploadController::uploadFiles(Tree& tree, TransferQueue& transferQueue)
+void MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, TransferQueue& transferQueue)
 {
     for (const auto& localpath : tree.files)
     {
@@ -25838,7 +25838,7 @@ void MegaFolderUploadController::uploadFiles(Tree& tree, TransferQueue& transfer
 
     for (auto& t : tree.subtrees)
     {
-        uploadFiles(*t, transferQueue);
+        genUploadTransfersForFiles(*t, transferQueue);
     }
 }
 

@@ -289,7 +289,7 @@ protected:
     void scanFolder(Tree& tree, LocalPath& localPath);
     bool createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, bool inSubnodesOfCreate);
     /* iterate through all pending files of each uploaded folder, and start all upload transfers */
-    void uploadFiles(Tree& tree, TransferQueue& transferQueue);
+    void genUploadTransfersForFiles(Tree& tree, TransferQueue& transferQueue);
 };
 
 
