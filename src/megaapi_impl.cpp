@@ -25523,7 +25523,7 @@ void MegaFolderUploadController::start(MegaNode*)
 
         // create folders in batches, not too many at once
         vector<NewNode> newnodes;
-        if (!createNextFolderBatch(mUploadTree, newnodes, false))
+        if (!createNextFolderBatch(mUploadTree, newnodes, true))
         {
             // no folders to create so start uploads
             // otherwise the folder completion function will start them
@@ -25751,7 +25751,7 @@ void MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
     recursive--;
 }
 
-bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, bool inSubnodesOfCreate)
+bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, bool isBatchRootLevel)
 {
     // recurse until we find one that is not yet sent
     for (auto& t : tree.subtrees)
@@ -25770,16 +25770,19 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
         // if node doesn't exists yet and we haven't exceeded the limit per batch
         if (!t->megaNode && newnodes.size() < MAXNODESUPLOAD)
         {
-            if (!inSubnodesOfCreate)
+            if (isBatchRootLevel)
             {
+                /* the parent of the root newNode (for current batch) must already exists in remote,
+                 * so parent handle for root newNode must be UNDEF */
                 t->newnode.parenthandle = UNDEF;
             }
             newnodes.push_back(std::move(t->newnode));
         }
 
-        if (createNextFolderBatch(*t, newnodes, !newnodes.empty()))
+        // if newnodes contains at least one newNode, isBatchRootLevel will be false
+        if (createNextFolderBatch(*t, newnodes, newnodes.empty()))
         {
-            if (!inSubnodesOfCreate)
+            if (isBatchRootLevel)
             {
                 // we found enough and sent this batch already
                 return true;
@@ -25787,7 +25790,7 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
         }
     }
 
-    if (!inSubnodesOfCreate && !newnodes.empty())
+    if (isBatchRootLevel && !newnodes.empty())
     {
         megaApi->createRemoteFolder(tree.megaNode->getHandle(), std::move(newnodes), "NULL",  /// todo:  is that "null" really supposed to be a string?
             [this](const Error& e, targettype_t t, vector<NewNode>& nn)
@@ -25809,7 +25812,7 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
 
                     // start the next batch, if there are any left
                     vector<NewNode> newnodes;
-                    if (!createNextFolderBatch(mUploadTree, newnodes, false))
+                    if (!createNextFolderBatch(mUploadTree, newnodes, true))
                     {
                         // no pending folders to create, start uploading files
                         TransferQueue transferQueue;

@@ -287,7 +287,7 @@ protected:
      * subtrees under different targets, this method will generate a subtree for each one
      */
     void scanFolder(Tree& tree, LocalPath& localPath);
-    bool createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, bool inSubnodesOfCreate);
+    bool createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, bool isBatchRootLevel);
     /* iterate through all pending files of each uploaded folder, and start all upload transfers */
     void genUploadTransfersForFiles(Tree& tree, TransferQueue& transferQueue);
 };
