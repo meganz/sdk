@@ -25530,6 +25530,7 @@ void MegaFolderUploadController::start(MegaNode*)
             TransferQueue transferQueue;
             uploadFiles(mUploadTree, transferQueue);
             megaApi->sendPendingTransfers(&transferQueue);
+            complete();  //check for completion
         }
     });
 }
@@ -25808,15 +25809,13 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
 
                     // start the next batch, if there are any left
                     vector<NewNode> newnodes;
-                    if (createNextFolderBatch(mUploadTree, newnodes, false))
+                    if (!createNextFolderBatch(mUploadTree, newnodes, false))
                     {
-                        // new putnodes is on its way (with completion pending)
-                    }
-                    else
-                    {
+                        // no pending folders to create, start uploading files
                         TransferQueue transferQueue;
                         uploadFiles(mUploadTree, transferQueue);
                         megaApi->sendPendingTransfers(&transferQueue);
+                        complete(); //check for completion
                     }
                 }
             });
