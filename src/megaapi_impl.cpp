@@ -25684,12 +25684,17 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
 
 MegaFolderUploadController::~MegaFolderUploadController()
 {
-    assert(mMainThreadId == std::this_thread::get_id());
-    if (mMainThreadId != std::this_thread::get_id())
+    if (mMainThreadId == std::this_thread::get_id())
     {
-        LOG_err << "MegaFolderUploadController dtor is being called from worker thread";
+        LOG_debug << "MegaFolderUploadController dtor is being called from main thread";
+        mWorkerThread.join();
     }
-    mWorkerThread.join();
+    else
+    {
+        LOG_debug << "MegaFolderUploadController dtor is being called from worker thread";
+        mWorkerThread.detach();
+    }
+
     megaApi->removeRequestListener(this);
     //we shouldn't need to dettach as transfer listener: all listened transfer should have been cancelled/completed
 }
