@@ -26975,12 +26975,17 @@ MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *megaApi,
 
 MegaFolderDownloadController::~MegaFolderDownloadController()
 {
-    assert(mMainThreadId == std::this_thread::get_id());
-    if (mMainThreadId != std::this_thread::get_id())
+    if (mMainThreadId == std::this_thread::get_id())
     {
-        LOG_err << "MegaFolderDownloadController dtor is being called from worker thread";
+        LOG_debug << "MegaFolderDownloadController dtor is being called from main thread";
+        mWorkerThread.join();
     }
-    mWorkerThread.join();
+    else
+    {
+        LOG_debug << "MegaFolderDownloadController dtor is being called from worker thread";
+        mWorkerThread.detach();
+    }
+
     megaApi->removeRequestListener(this);
 }
 
