@@ -26970,7 +26970,6 @@ MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *megaApi,
     this->pendingTransfers = 0;
     this->tag = transfer->getTag();
     this->mMainThreadId = std::this_thread::get_id();
-    this->mPendingFilesToProcess = 0;
     this->megaApi->addRequestListener(this);
 }
 
@@ -27177,7 +27176,6 @@ void MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpa
             // Add child node to vector in mLocalTree at index we have stored it's localPath
             ::mega::unique_ptr<MegaNode> childNode (child->copy());
             mLocalTree.at(index).childrenNodes.push_back(std::move(childNode));
-            mPendingFilesToProcess++;
         }
         else
         {
@@ -27206,7 +27204,6 @@ void MegaFolderDownloadController::createFolder()
         {
             mIncompleteTransfers++;
             it = mLocalTree.erase(it); // remove all it's children nodes
-            mPendingFilesToProcess -= it->childrenNodes.size();
             continue;
         }
         ++it;
@@ -27231,7 +27228,6 @@ void MegaFolderDownloadController::downloadFiles(FileSystemType fsType)
              MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), tag, transfer->getAppData(), this);
              transferQueue.push(transferDownload);
              pendingTransfers++;
-             mPendingFilesToProcess--;
          }
     }
 
@@ -27242,25 +27238,17 @@ void MegaFolderDownloadController::downloadFiles(FileSystemType fsType)
     }
 }
 
-bool MegaFolderDownloadController::isCompleted()
-{
-    return (!cancelled && !recursive && !pendingTransfers && !mPendingFilesToProcess);
-}
-
 void MegaFolderDownloadController::complete()
 {
-    if (!transfer)
+    if (!cancelled && !recursive && !pendingTransfers && transfer)
     {
-        return;
+        LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
+        mLocalTree.clear();
+        transfer->setState(MegaTransfer::STATE_COMPLETED);
+        transfer->setLastError(&mLastError);
+        DBTableTransactionCommitter committer(client->tctable);
+        megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(!mIncompleteTransfers ? API_OK : API_EINCOMPLETE), committer);
     }
-
-    assert(mMainThreadId == std::this_thread::get_id());
-    LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
-    mLocalTree.clear();
-    transfer->setState(MegaTransfer::STATE_COMPLETED);
-    transfer->setLastError(&mLastError);
-    DBTableTransactionCommitter committer(client->tctable);
-    megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(!mIncompleteTransfers ? API_OK : API_EINCOMPLETE), committer);
 }
 
 void MegaFolderDownloadController::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)

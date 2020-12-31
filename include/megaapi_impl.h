@@ -234,9 +234,6 @@ protected:
 
     // thread id of main thread
     std::thread::id mMainThreadId;
-
-    // number of files pending to be processed (add a transfer for each one)
-    long long mPendingFilesToProcess;
 };
 
 class TransferQueue;
@@ -446,7 +443,6 @@ public:
     void onTransferStart(MegaApi *, MegaTransfer *t) override;
     void onTransferUpdate(MegaApi *, MegaTransfer *t) override;
     void onTransferFinish(MegaApi*, MegaTransfer *t, MegaError *e) override;
-    bool isCompleted();
     void complete();
 
 protected:
