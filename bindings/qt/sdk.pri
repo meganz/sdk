@@ -547,7 +547,7 @@ else {
         }
 
         vcpkg {
-            LIBS += -ljpeg$$DEBUG_SUFFIX -ltiff$$DEBUG_SUFFIX -lpng16$$DEBUG_SUFFIX \
+            LIBS += -ljpeg$$DEBUG_SUFFIX -ltiff$$DEBUG_SUFFIX -llibpng16$$DEBUG_SUFFIX \
             -lIlmImf-2_3$$UNDERSCORE_DEBUG_SUFFIX -lIex-2_3$$UNDERSCORE_DEBUG_SUFFIX -lIlmThread-2_3$$UNDERSCORE_DEBUG_SUFFIX \
             -lIexMath-2_3$$UNDERSCORE_DEBUG_SUFFIX -lIlmImfUtil-2_3$$UNDERSCORE_DEBUG_SUFFIX -lImath-2_3$$UNDERSCORE_DEBUG_SUFFIX \
             -llibwebpmux$$DEBUG_SUFFIX -lwebpdecoder$$DEBUG_SUFFIX -lwebpdemux$$DEBUG_SUFFIX -lwebp$$DEBUG_SUFFIX \
