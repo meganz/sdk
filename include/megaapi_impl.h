@@ -439,7 +439,6 @@ public:
     ~MegaFolderDownloadController();
     void start(MegaNode *node) override;
     void cancel() override;
-    void onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e) override;
     void onTransferStart(MegaApi *, MegaTransfer *t) override;
     void onTransferUpdate(MegaApi *, MegaTransfer *t) override;
     void onTransferFinish(MegaApi*, MegaTransfer *t, MegaError *e) override;

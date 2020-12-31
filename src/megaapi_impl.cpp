@@ -27251,14 +27251,6 @@ void MegaFolderDownloadController::complete()
     }
 }
 
-void MegaFolderDownloadController::onRequestFinish(MegaApi *, MegaRequest *request, MegaError *e)
-{
-    if (e->getErrorCode())
-    {
-        LOG_err << " MegaFolderDownloadController, error completing recursive operation";
-    }
-}
-
 void MegaFolderDownloadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
     subTransfers.insert(static_cast<MegaTransferPrivate*>(t));
