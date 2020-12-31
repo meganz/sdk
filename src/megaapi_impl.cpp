@@ -25699,7 +25699,7 @@ MegaFolderUploadController::~MegaFolderUploadController()
     //we shouldn't need to dettach as transfer listener: all listened transfer should have been cancelled/completed
 }
 
-void MegaFolderUploadController::scanFolder(handle targetHandle, handle parentHandle, LocalPath& localPath, std::string folderName)
+void MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
 {
     recursive++;
     unique_ptr<DirAccess> da(megaApi->getNewDirAccess());
@@ -25712,21 +25712,6 @@ void MegaFolderUploadController::scanFolder(handle targetHandle, handle parentHa
         return;
     }
 
-    handle newNodeHandle = UNDEF;
-    unique_ptr<MegaNode> parentNode(megaApi->getNodeByHandle(parentHandle));
-    unique_ptr<MegaNode> folder(megaApi->getChildNode(parentNode.get(), folderName.c_str()));
-    bool folderExists = folder && folder->getType() == FOLDERNODE;
-    if (!folderExists)
-    {
-        /* If newNode couldn't be allocated into a vector whose target is the current targetHandle,
-         * it will be added into a vector whose target is it's parent, and targetHandle will be updated.
-         *
-         * In the case described above, the updated target handle will only affect to the current folder and it's descendants
-         */
-        newNodeHandle = addNewNodeToVector(targetHandle, parentHandle, folderName.c_str());
-    }
-
-    assert(folderExists || newNodeHandle != UNDEF);
     LocalPath localname;
     nodetype_t dirEntryType;
     FileSystemType fsType = megaApi->getLocalfstypeFromPath(localPath);
@@ -25736,19 +25721,30 @@ void MegaFolderUploadController::scanFolder(handle targetHandle, handle parentHa
         localPath.appendWithSeparator(localname, false);
         if (dirEntryType == FILENODE)
         {
-            // if folder exists, takes it's handle to store new file node in mFolderToPendingFiles map,
-            // otherwise takes temporal nodehandle
-            mPendingFilesToProcess++;
-            (folderExists)
-                ? mFolderToPendingFiles[folder->getHandle()].emplace_back(localPath)
-                : mFolderToPendingFiles[newNodeHandle].emplace_back(localPath);
+            tree.files.push_back(localPath);
         }
         else if (dirEntryType == FOLDERNODE)
         {
+            // generate new subtree
+            string folderName = megaApi->LocalPathToName(localname, fsType);
+            unique_ptr<Tree> newTreeNode(new Tree);
+            newTreeNode->megaNode.reset(megaApi->getChildNode(tree.megaNode.get(), folderName.c_str()));
+
             // if folder exists, call scanFolderNode with folder handle as target handle for the new subtree
-            (folderExists)
-                ? scanFolder(folder->getHandle(), folder->getHandle(), localPath, megaApi->LocalPathToName(localname, fsType))
-                : scanFolder(targetHandle, newNodeHandle, localPath, megaApi->LocalPathToName(localname, fsType));
+            bool existsRemotely = newTreeNode->megaNode && newTreeNode->megaNode->getType() == dirEntryType;
+            if (!existsRemotely)
+            {
+                // generate fresh random key and node attributes
+                client->putnodes_prepareOneFolder(&newTreeNode->newnode, folderName);  // todo: strictly speaking, this is not thread safe because of the client's RNG - this class should get its own, probably, and that method be a static/global function
+
+                // set nodeHandle
+                newTreeNode->newnode.nodehandle = newTreeNode->tmpCreateFolderHandle = client->nextUploadId();
+
+                // set parent handle for newnodes batch (if it's parent exists remotely, set to UNDEF, otherwise use it's temporal nodeHandle)
+                newTreeNode->newnode.parenthandle = tree.megaNode ? UNDEF : tree.tmpCreateFolderHandle;
+            }
+            scanFolder(*newTreeNode, localPath);
+            tree.subtrees.push_back(std::move(newTreeNode));
         }
     }
     recursive--;
