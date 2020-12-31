@@ -25845,81 +25845,16 @@ void MegaFolderUploadController::uploadFiles(Tree& tree, TransferQueue& transfer
 
 void MegaFolderUploadController::complete()
 {
-    if (!transfer)
+    if (!cancelled && !recursive && !pendingTransfers && transfer)
     {
-        return;
+        LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
+        mUploadTree.files.clear();
+        mFolderToPendingFiles.clear();
+        transfer->setState(MegaTransfer::STATE_COMPLETED);
+        transfer->setLastError(&mLastError);
+        DBTableTransactionCommitter committer(client->tctable);
+        megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(!mIncompleteTransfers ? API_OK : API_EINCOMPLETE), committer);
     }
-
-    assert(mMainThreadId == std::this_thread::get_id());
-    LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
-    mUploadTrees.clear();
-    mFolderToPendingFiles.clear();
-    transfer->setState(MegaTransfer::STATE_COMPLETED);
-    transfer->setLastError(&mLastError);
-    DBTableTransactionCommitter committer(client->tctable);
-    megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(!mIncompleteTransfers ? API_OK : API_EINCOMPLETE), committer);
-}
-
-/* This method creates a new node and add it to a vector of NewNodes.
- *
- * If all NewNode vectors are full for the specified target as param, it will try to add it
- * into an existing vector, whose target is the parent of the newNode.
- * If all existing vectors described in the line above are full, it will create a new one.
- */
-handle MegaFolderUploadController::addNewNodeToVector(handle &targetHandle, handle parentHandle, const char *folderName)
-{
-    handle newNodeHandle;
-    NewNode newnode;
-    SymmCipher key;
-
-    // generate fresh random key and node attributes
-    client->putnodes_prepareOneFolder(&newnode, folderName);
-
-    // set nodeHandle
-    newnode.nodehandle = newNodeHandle = client->nextUploadId();
-
-    // set parent handle if different from target handle of the subtree
-    newnode.parenthandle = (targetHandle != parentHandle)
-            ? parentHandle
-            : UNDEF;
-
-    bool isInserted = false;
-    for (size_t i = 0; i < mUploadTrees.size(); i++) // find a tree whose target is targetHandle
-    {
-        Tree &tree = mUploadTrees.at(i);
-        if (tree.targetHandle == targetHandle && tree.newNodes.size() < MAXNODESUPLOAD)
-        {
-            // add a new node into an existing NewNodes vector, if it doesn't exceeds MAXNODESUPLOAD
-            tree.newNodes.emplace_back(std::move(newnode));
-            isInserted = true;
-            break;
-        }
-    }
-
-    if (!isInserted) // if newnode couldn't be inserted, we need to insert into a subtree whose target is the parent of the NewNode
-    {
-        targetHandle = parentHandle;  // set targetHandle to the parent handle of the NewNode
-        newnode.parenthandle = UNDEF; // set newNode parent to UNDEF (as it's subtree targethandle now)
-
-        for (size_t i = 0; i < mUploadTrees.size(); i++)
-        {
-            Tree &tree = mUploadTrees.at(i);
-            if (tree.targetHandle == targetHandle && tree.newNodes.size() < MAXNODESUPLOAD)
-            {
-                // add a new node into an existing NewNodes vector, if it doesn't exceeds MAXNODESUPLOAD
-                tree.newNodes.emplace_back(std::move(newnode));
-                isInserted = true;
-                break;
-            }
-        }
-
-        if (!isInserted) // if all existing subtrees whose target is the parent of newNode are full, add a new one
-        {
-            Tree tree = Tree(targetHandle, std::move(newnode));
-            mUploadTrees.emplace_back(std::move(tree));
-        }
-    }
-    return newNodeHandle;
 }
 
 MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char* filename, bool attendPastBackups, const char *speriod, int64_t period, int maxBackups)
