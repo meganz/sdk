@@ -25804,9 +25804,10 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
                 // lambda function that will be executed as completion function in putnodes procresult
                 if (e)
                 {
-                    // todo:  shouldn't the first error terminate the whole operation?
                     mIncompleteTransfers++;
                     mLastError = e;
+                    complete();
+                    return;
                 }
                 else
                 {
@@ -25853,7 +25854,7 @@ void MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
 
 void MegaFolderUploadController::complete()
 {
-    if (!cancelled && !recursive && !pendingTransfers && transfer)
+    if ((!cancelled && !recursive && !pendingTransfers && transfer) || mIncompleteTransfers)
     {
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         mUploadTree.files.clear();
