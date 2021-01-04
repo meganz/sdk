@@ -8528,7 +8528,7 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * - MEGAErrorTypeApiOk is returned upon success.
  *
  * @param contacts An NSArray containing user contacts (NSDictionary "phoneNumber":"userName").
- * @param listener MEGARequestDelegate to track this request
+ * @param delegate MEGARequestDelegate to track this request
  */
 - (void)getRegisteredContacts:(NSArray<NSDictionary *> *)contacts delegate:(id<MEGARequestDelegate>)delegate;
 
@@ -8752,7 +8752,7 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * - MEGAErrorTypeApiEInternal - If the internally used user attribute exists but can't be decoded.
  * - MEGAErrorTypeApiENoent - If there are no banners to return to the user.
  *
- * @param listener MEGARequestDelegate to track this request
+ * @param delegate MEGARequestDelegate to track this request
  */
 - (void)getBanners:(id<MEGARequestDelegate>)delegate;
 
@@ -8856,7 +8856,7 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * - [MEGARequest getNodeHandle] - Returns the last node handle to be synced
  *
  * @param backupId backup id identifying the backup
- * @param state BackupHeartbeatStatus type backup state
+ * @param status BackupHeartbeatStatus type backup state
  * @param progress backup progress
  * @param pendingUploadCount Count of pending upload transfers
  * @param lastActionDate Last action date
