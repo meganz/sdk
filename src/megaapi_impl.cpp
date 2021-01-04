@@ -25530,7 +25530,7 @@ void MegaFolderUploadController::start(MegaNode*)
             TransferQueue transferQueue;
             genUploadTransfersForFiles(mUploadTree, transferQueue);
             megaApi->sendPendingTransfers(&transferQueue);
-            complete();  //check for completion
+            checkCompletion();  //check for completion
         }
     });
 }
@@ -25679,7 +25679,7 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
             mLastError = *e;
             mIncompleteTransfers++;
         }
-        complete();
+        checkCompletion();
     }
 }
 
@@ -25806,7 +25806,7 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
                 {
                     mIncompleteTransfers++;
                     mLastError = e;
-                    complete();
+                    checkCompletion();
                     return;
                 }
                 else
@@ -25825,7 +25825,7 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
                         TransferQueue transferQueue;
                         genUploadTransfersForFiles(mUploadTree, transferQueue);
                         megaApi->sendPendingTransfers(&transferQueue);
-                        complete(); //check for completion
+                        checkCompletion(); //check for completion
                     }
                 }
             });
@@ -25852,9 +25852,9 @@ void MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
     }
 }
 
-void MegaFolderUploadController::complete()
+void MegaFolderUploadController::checkCompletion()
 {
-    if ((!cancelled && !recursive && !pendingTransfers && transfer) || mIncompleteTransfers)
+    if (!cancelled && ((!recursive && !pendingTransfers && transfer) || mIncompleteTransfers))
     {
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
@@ -27040,7 +27040,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
         {
             downloadFiles(fsType);
         }
-        complete();
+        checkCompletion();
     });
 }
 
@@ -27240,9 +27240,9 @@ void MegaFolderDownloadController::downloadFiles(FileSystemType fsType)
     }
 }
 
-void MegaFolderDownloadController::complete()
+void MegaFolderDownloadController::checkCompletion()
 {
-    if ((!cancelled && !recursive && !pendingTransfers && transfer) || mIncompleteTransfers)
+    if (!cancelled && ((!recursive && !pendingTransfers && transfer) || mIncompleteTransfers))
     {
         LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
@@ -27300,7 +27300,7 @@ void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, 
             mLastError = *e;
             mIncompleteTransfers++;
         }
-        complete();
+        checkCompletion();
     }
 }
 
