@@ -27038,7 +27038,10 @@ void MegaFolderDownloadController::start(MegaNode *node)
             delete node;
         }
         createFolder();
-        downloadFiles(fsType);
+        if (!mIncompleteTransfers && !mLocalTree.empty())
+        {
+            downloadFiles(fsType);
+        }
         complete();
     });
 }
@@ -27205,8 +27208,8 @@ void MegaFolderDownloadController::createFolder()
         if (mLastError.getErrorCode() && mLastError.getErrorCode() != API_EEXIST)
         {
             mIncompleteTransfers++;
-            it = mLocalTree.erase(it); // remove all it's children nodes
-            continue;
+            mLocalTree.clear();
+            return;
         }
         ++it;
     }
@@ -27241,7 +27244,7 @@ void MegaFolderDownloadController::downloadFiles(FileSystemType fsType)
 
 void MegaFolderDownloadController::complete()
 {
-    if (!cancelled && !recursive && !pendingTransfers && transfer)
+    if ((!cancelled && !recursive && !pendingTransfers && transfer) || mIncompleteTransfers)
     {
         LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         mLocalTree.clear();
