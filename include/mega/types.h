@@ -1062,8 +1062,12 @@ public:
         }
     }
 
-    TO* operator->() const { return ptr; }
-    operator TO*() const { return ptr; }
+    void store_unchecked(TO* p) { ptr = p; }
+    TO*  release_unchecked() { auto p = ptr; ptr = nullptr; return p;  }
+
+    TO* get()              { return ptr; }
+    TO* operator->() const { assert(ptr != (void*)~0); return ptr; }
+    operator TO*() const   { assert(ptr != (void*)~0); return ptr; }
 
     // no copying
     crossref_ptr(const crossref_ptr&) = delete;

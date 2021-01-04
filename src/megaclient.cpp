@@ -10170,8 +10170,7 @@ void MegaClient::notifynode(Node* n)
             }
 
             n->localnode->deleted = true;
-            n->localnode->node = NULL;
-            n->localnode = NULL;
+            n->localnode.reset();
         }
         else
         {
@@ -10206,7 +10205,7 @@ void MegaClient::notifynode(Node* n)
                     else
                     {
                         app->syncupdate_remote_move(n->localnode->sync, n,
-                            n->localnode->parent ? n->localnode->parent->node : NULL);
+                            n->localnode->parent ? n->localnode->parent->node.get() : nullptr);
                     }
                 }
             }
@@ -13438,7 +13437,9 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                         stopxfer(rit->second->localnode, &committer);  // TODO: can we have one transaction for recursing through syncdown() ?
                     }
 
-                    rit->second->localnode = (LocalNode*)~0;
+                    // we will iterate all the nchildren next, and check this marker pointer is reset.
+                    rit->second->localnode.reset();
+                    rit->second->localnode.store_unchecked((LocalNode*)~0);
                 }
             }
             else
@@ -13584,7 +13585,14 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                         }
                     }
                     f.reset();
-                    rit->second->localnode = NULL;
+                    if (rit->second->localnode.get() == (LocalNode*)~0)
+                    {
+                        rit->second->localnode.store_unchecked(nullptr);
+                    }
+                    else
+                    {
+                        rit->second->localnode.reset();
+                    }
 
                     // start fetching this node, unless fetch is already in progress
                     // FIXME: to cover renames that occur during the
@@ -13644,6 +13652,12 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                     LOG_debug << "Non transient error creating folder";
                 }
             }
+        }
+
+        if (rit->second->localnode.get() == (LocalNode*)~0)
+        {
+            // make sure we are not leaving this marker pointer in the localnode
+            rit->second->localnode.store_unchecked(nullptr);
         }
     }
 
@@ -14389,8 +14403,7 @@ void MegaClient::movetosyncdebris(Node* dn, bool unlink)
     if (dn->localnode)
     {
         dn->tag = dn->localnode->sync->tag;
-        dn->localnode->node = NULL;
-        dn->localnode = NULL;
+        dn->localnode.reset();
     }
 
     Node* n = dn;
