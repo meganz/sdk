@@ -25857,8 +25857,6 @@ void MegaFolderUploadController::complete()
     if ((!cancelled && !recursive && !pendingTransfers && transfer) || mIncompleteTransfers)
     {
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
-        mUploadTree.files.clear();
-        mFolderToPendingFiles.clear();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
         transfer->setLastError(&mLastError);
         DBTableTransactionCommitter committer(client->tctable);
@@ -27247,7 +27245,6 @@ void MegaFolderDownloadController::complete()
     if ((!cancelled && !recursive && !pendingTransfers && transfer) || mIncompleteTransfers)
     {
         LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
-        mLocalTree.clear();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
         transfer->setLastError(&mLastError);
         DBTableTransactionCommitter committer(client->tctable);
