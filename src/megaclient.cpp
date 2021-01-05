@@ -12918,6 +12918,14 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
     return API_OK;
 }
 
+// this method provides a temporal handle useful to indicate putnodes()-local parent linkage
+handle MegaClient::nextUploadId()
+{
+    return mCurrUploadId = (mCurrUploadId + 1 <= 0xFFFFFFFFFFFF)
+            ? mCurrUploadId + 1
+            : 0;
+}
+
 #ifdef ENABLE_SYNC
 
 error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *syncError)
@@ -13262,14 +13270,6 @@ handle MegaClient::nextsyncid()
     }
 
     return currsyncid;
-}
-
-// this method provides a temporal handle useful to indicate putnodes()-local parent linkage
-handle MegaClient::nextUploadId()
-{
-    return mCurrUploadId = (mCurrUploadId + 1 <= 0xFFFFFFFFFFFF)
-            ? mCurrUploadId + 1
-            : 0;
 }
 
 // recursively stop all transfers

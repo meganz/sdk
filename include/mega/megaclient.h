@@ -588,6 +588,9 @@ public:
     // add timer
     error addtimer(TimerWithBackoff *twb);
 
+    // generates a temporal nodeHandle for uploads from App
+    handle nextUploadId();
+
 #ifdef ENABLE_SYNC
     /**
      * @brief is node syncable
@@ -1414,9 +1417,6 @@ public:
 
     // temporal nodeHandle for uploads from App
     handle mCurrUploadId;
-
-    // generates a temporal nodeHandle for uploads from App
-    handle nextUploadId();
 
 #ifdef ENABLE_SYNC
     // sync debris folder name in //bin
