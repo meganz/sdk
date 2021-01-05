@@ -2516,7 +2516,6 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * - [MEGARequest number] - Returns the id of the PSA (useful to call [MEGASdk setPSAWithIdentifier:]
  *                          [MEGASdk setPSAWithIdentifier:delegate:] later)
  * - [MEGARequest email] - Returns the URL (or an empty string)
- * ...or for the old format:
  * - [MEGARequest name] - Returns the title of the PSA
  * - [MEGARequest text] - Returns the text of the PSA
  * - [MEGARequest file] - Returns the URL of the image of the PSA
@@ -2529,7 +2528,7 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * @param delegate MEGARequestDelegate to track this request
  * @see [MEGASdk setPSAWithIdentifier:] [MEGASdk setPSAWithIdentifier:delegate:]
  */
-- (void)getPSAIncludingUrlWithDelegate:(id<MEGARequestDelegate>)delegate;
+- (void)getURLPublicServiceAnnouncementWithDelegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get the next PSA (Public Service Announcement) that should be shown to the user
@@ -2545,7 +2544,6 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * - [MEGARequest number] - Returns the id of the PSA (useful to call [MEGASdk setPSAWithIdentifier:]
  *                          [MEGASdk setPSAWithIdentifier:delegate:] later)
  * - [MEGARequest email] - Returns the URL (or an empty string)
- * ...or for the old format:
  * - [MEGARequest name] - Returns the title of the PSA
  * - [MEGARequest text] - Returns the text of the PSA
  * - [MEGARequest file] - Returns the URL of the image of the PSA
@@ -2557,7 +2555,7 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  *
  * @see [MEGASdk setPSAWithIdentifier:] [MEGASdk setPSAWithIdentifier:delegate:]
  */
-- (void)getPSAIncludingUrl;
+- (void)getURLPublicServiceAnnouncement;
 
 /**
  * @brief Notify API servers that a PSA (Public Service Announcement) has been already seen

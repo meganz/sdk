@@ -861,11 +861,11 @@ using namespace mega;
     self.megaApi->getPSA();
 }
 
-- (void)getPSAIncludingUrlWithDelegate:(id<MEGARequestDelegate>)delegate {
+- (void)getURLPublicServiceAnnouncementWithDelegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->getPSAWithUrl([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)getPSAIncludingUrl {
+- (void)getURLPublicServiceAnnouncement {
     self.megaApi->getPSAWithUrl();
 }
 
