@@ -8424,30 +8424,6 @@ void MegaApiImpl::startTimer( int64_t period, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener)
-{
-    MegaTransferPrivate *transfer = createUploadTransfer(startFirst, localPath, parent, fileName, targetUser, mtime, folderTransferTag, isBackup, appData, isSourceFileTemporary, forceNewUpload, fsType, listener);
-    transferQueue.push(transfer);
-    waiter->notify();
-}
-
-void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener)
-{ return startUpload(startFirst, localPath, parent, fileName, nullptr, mtime, folderTransferTag, isBackup, appData, isSourceFileTemporary, forceNewUpload, fsType, listener); }
-
-void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, FileSystemType fsType, MegaTransferListener *listener)
-{ return startUpload(false, localPath, parent, (const char *)NULL, -1, 0, false, NULL, false, false, fsType, listener); }
-
-void MegaApiImpl::startUpload(const char *localPath, MegaNode *parent, int64_t mtime,FileSystemType fsType, MegaTransferListener *listener)
-{ return startUpload(false, localPath, parent, (const char *)NULL, mtime, 0, false, NULL, false, false, fsType, listener); }
-
-void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, FileSystemType fsType, MegaTransferListener *listener)
-{ return startUpload(false, localPath, parent, fileName, -1, 0, false, NULL, false, false, fsType, listener); }
-
-void MegaApiImpl::startUploadForSupport(const char *localPath, bool isSourceTemporary, FileSystemType fsType, MegaTransferListener *listener)
-{
-    return startUpload(true, localPath, nullptr, nullptr, "pGTOqu7_Fek", -1, 0, false, nullptr, isSourceTemporary, false, fsType, listener);
-}
-
 MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst, const char *localPath, MegaNode *parent, const char *fileName, const char *targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char *appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener *listener)
 {
     if (fsType == FS_UNKNOWN && localPath)
@@ -8506,6 +8482,38 @@ MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst, const ch
 
     transfer->setForceNewUpload(forceNewUpload);
     return transfer;
+}
+
+void MegaApiImpl::startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char* appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener* listener)
+{
+    MegaTransferPrivate* transfer = createUploadTransfer(startFirst, localPath, parent, fileName, targetUser, mtime, folderTransferTag, isBackup, appData, isSourceFileTemporary, forceNewUpload, fsType, listener);
+    transferQueue.push(transfer);
+    waiter->notify();
+}
+
+void MegaApiImpl::startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, int64_t mtime, int folderTransferTag, bool isBackup, const char* appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, MegaTransferListener* listener)
+{
+    return startUpload(startFirst, localPath, parent, fileName, nullptr, mtime, folderTransferTag, isBackup, appData, isSourceFileTemporary, forceNewUpload, fsType, listener);
+}
+
+void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, FileSystemType fsType, MegaTransferListener* listener)
+{
+    return startUpload(false, localPath, parent, (const char*)NULL, -1, 0, false, NULL, false, false, fsType, listener);
+}
+
+void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, int64_t mtime, FileSystemType fsType, MegaTransferListener* listener)
+{
+    return startUpload(false, localPath, parent, (const char*)NULL, mtime, 0, false, NULL, false, false, fsType, listener);
+}
+
+void MegaApiImpl::startUpload(const char* localPath, MegaNode* parent, const char* fileName, FileSystemType fsType, MegaTransferListener* listener)
+{
+    return startUpload(false, localPath, parent, fileName, -1, 0, false, NULL, false, false, fsType, listener);
+}
+
+void MegaApiImpl::startUploadForSupport(const char* localPath, bool isSourceTemporary, FileSystemType fsType, MegaTransferListener* listener)
+{
+    return startUpload(true, localPath, nullptr, nullptr, "pGTOqu7_Fek", -1, 0, false, nullptr, isSourceTemporary, false, fsType, listener);
 }
 
 void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener)
@@ -11804,7 +11812,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
     {
         return new MegaNodeListPrivate();
     }
-    
+
     MegaNodeList *nodeList = nullptr;
     if (n)
     {
@@ -15701,7 +15709,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 request->setName(Base64::atob(buf).c_str());
                 break;
             }
- 
+
             default:
                 break;
         }
@@ -23321,9 +23329,9 @@ void MegaApiImpl::sendPendingRequests()
                 }
 
                 client->reqs.add(new CommandBackupPut(client,
-                                                      (MegaHandle)request->getParentHandle(), 
+                                                      (MegaHandle)request->getParentHandle(),
                                                       bType,
-                                                      request->getNodeHandle(), 
+                                                      request->getNodeHandle(),
                                                       localFolderEncrypted.empty() ? nullptr : localFolderEncrypted.c_str(),
                                                       client->getDeviceidHash().c_str(),
                                                       request->getAccess(),
@@ -23339,13 +23347,13 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT:
         {
-            client->reqs.add(new CommandBackupPutHeartBeat(client, 
-                                                           (MegaHandle)request->getParentHandle(), 
+            client->reqs.add(new CommandBackupPutHeartBeat(client,
+                                                           (MegaHandle)request->getParentHandle(),
                                                            (uint8_t)request->getAccess(),
                                                            (uint8_t)request->getNumDetails(),
                                                            (uint32_t)request->getParamType(),
                                                            (uint32_t)request->getTransferTag(),
-                                                           request->getNumber(), 
+                                                           request->getNumber(),
                                                            request->getNodeHandle()));
             break;
         }
