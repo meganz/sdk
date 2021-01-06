@@ -5438,7 +5438,8 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 
     //Start blocking thread
     threadExit = 0;
-    thread.start(threadEntryPoint, this);
+    thread = std::thread([this](){ threadEntryPoint(this); } );
+    threadId = thread.get_id();
 }
 
 MegaApiImpl::~MegaApiImpl()
@@ -9829,18 +9830,21 @@ void MegaApiImpl::httpServerRemoveListener(MegaTransferListener *listener)
 
 void MegaApiImpl::fireOnStreamingStart(MegaTransferPrivate *transfer)
 {
+    assert(threadId == std::this_thread::get_id());
     for(set<MegaTransferListener *>::iterator it = httpServerListeners.begin(); it != httpServerListeners.end() ; it++)
         (*it)->onTransferStart(api, transfer);
 }
 
 void MegaApiImpl::fireOnStreamingTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
+    assert(threadId == std::this_thread::get_id());
     for(set<MegaTransferListener *>::iterator it = httpServerListeners.begin(); it != httpServerListeners.end() ; it++)
         (*it)->onTransferTemporaryError(api, transfer, e.get());
 }
 
 void MegaApiImpl::fireOnStreamingFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
+    assert(threadId == std::this_thread::get_id());
     if(e->getErrorCode())
     {
         LOG_warn << "Streaming request finished with error: " << e->getErrorString();
@@ -10144,18 +10148,21 @@ void MegaApiImpl::ftpServerRemoveListener(MegaTransferListener *listener)
 
 void MegaApiImpl::fireOnFtpStreamingStart(MegaTransferPrivate *transfer)
 {
+    assert(threadId == std::this_thread::get_id());
     for(set<MegaTransferListener *>::iterator it = ftpServerListeners.begin(); it != ftpServerListeners.end() ; it++)
         (*it)->onTransferStart(api, transfer);
 }
 
 void MegaApiImpl::fireOnFtpStreamingTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
+    assert(threadId == std::this_thread::get_id());
     for(set<MegaTransferListener *>::iterator it = ftpServerListeners.begin(); it != ftpServerListeners.end() ; it++)
         (*it)->onTransferTemporaryError(api, transfer, e.get());
 }
 
 void MegaApiImpl::fireOnFtpStreamingFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
+    assert(threadId == std::this_thread::get_id());
     if(e->getErrorCode())
     {
         LOG_warn << "Streaming request finished with error: " << e->getErrorString();
@@ -16591,6 +16598,7 @@ MegaUserList *MegaApiImpl::getCurrentUsers()
 
 void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
 {
+    assert(threadId == std::this_thread::get_id());
     activeRequest = request;
     LOG_info << "Request (" << request->getRequestString() << ") starting";
     for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ;)
@@ -16614,6 +16622,7 @@ void MegaApiImpl::fireOnRequestStart(MegaRequestPrivate *request)
 
 void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, unique_ptr<MegaErrorPrivate> e)
 {
+    assert(threadId == std::this_thread::get_id());
     activeRequest = request;
     activeError = e.get();
 
@@ -16651,6 +16660,7 @@ void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate *request, unique_ptr<Me
 
 void MegaApiImpl::fireOnRequestUpdate(MegaRequestPrivate *request)
 {
+    assert(threadId == std::this_thread::get_id());
     activeRequest = request;
 
     for(set<MegaRequestListener *>::iterator it = requestListeners.begin(); it != requestListeners.end() ;)
@@ -16674,6 +16684,7 @@ void MegaApiImpl::fireOnRequestUpdate(MegaRequestPrivate *request)
 
 void MegaApiImpl::fireOnRequestTemporaryError(MegaRequestPrivate *request, unique_ptr<MegaErrorPrivate> e)
 {
+    assert(threadId == std::this_thread::get_id());
     activeRequest = request;
     activeError = e.get();
 
@@ -16701,6 +16712,7 @@ void MegaApiImpl::fireOnRequestTemporaryError(MegaRequestPrivate *request, uniqu
 
 void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
 {
+    assert(threadId == std::this_thread::get_id());
     activeTransfer = transfer;
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
@@ -16726,6 +16738,7 @@ void MegaApiImpl::fireOnTransferStart(MegaTransferPrivate *transfer)
 
 void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e, DBTableTransactionCommitter& committer)
 {
+    assert(threadId == std::this_thread::get_id());
     activeTransfer = transfer;
     activeError = e.get();
     notificationNumber++;
@@ -16776,6 +16789,7 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
 
 void MegaApiImpl::fireOnTransferTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e)
 {
+    assert(threadId == std::this_thread::get_id());
     activeTransfer = transfer;
     activeError = e.get();
     notificationNumber++;
@@ -16810,6 +16824,7 @@ MegaClient *MegaApiImpl::getMegaClient()
 
 void MegaApiImpl::fireOnTransferUpdate(MegaTransferPrivate *transfer)
 {
+    assert(threadId == std::this_thread::get_id());
     activeTransfer = transfer;
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
@@ -16835,6 +16850,7 @@ void MegaApiImpl::fireOnTransferUpdate(MegaTransferPrivate *transfer)
 
 bool MegaApiImpl::fireOnTransferData(MegaTransferPrivate *transfer)
 {
+    assert(threadId == std::this_thread::get_id());
     activeTransfer = transfer;
     notificationNumber++;
     transfer->setNotificationNumber(notificationNumber);
@@ -16852,6 +16868,7 @@ bool MegaApiImpl::fireOnTransferData(MegaTransferPrivate *transfer)
 
 void MegaApiImpl::fireOnUsersUpdate(MegaUserList *users)
 {
+    assert(threadId == std::this_thread::get_id());
     activeUsers = users;
 
     for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
@@ -16868,6 +16885,7 @@ void MegaApiImpl::fireOnUsersUpdate(MegaUserList *users)
 
 void MegaApiImpl::fireOnUserAlertsUpdate(MegaUserAlertList *userAlerts)
 {
+    assert(threadId == std::this_thread::get_id());
     activeUserAlerts = userAlerts;
 
     for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
@@ -16884,6 +16902,7 @@ void MegaApiImpl::fireOnUserAlertsUpdate(MegaUserAlertList *userAlerts)
 
 void MegaApiImpl::fireOnContactRequestsUpdate(MegaContactRequestList *requests)
 {
+    assert(threadId == std::this_thread::get_id());
     activeContactRequests = requests;
 
     for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
@@ -16900,6 +16919,7 @@ void MegaApiImpl::fireOnContactRequestsUpdate(MegaContactRequestList *requests)
 
 void MegaApiImpl::fireOnNodesUpdate(MegaNodeList *nodes)
 {
+    assert(threadId == std::this_thread::get_id());
     activeNodes = nodes;
 
     for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
@@ -16916,6 +16936,7 @@ void MegaApiImpl::fireOnNodesUpdate(MegaNodeList *nodes)
 
 void MegaApiImpl::fireOnAccountUpdate()
 {
+    assert(threadId == std::this_thread::get_id());
     for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
     {
         (*it++)->onAccountUpdate(api);
@@ -16928,6 +16949,7 @@ void MegaApiImpl::fireOnAccountUpdate()
 
 void MegaApiImpl::fireOnReloadNeeded()
 {
+    assert(threadId == std::this_thread::get_id());
     for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
     {
         (*it++)->onReloadNeeded(api);
@@ -16941,6 +16963,7 @@ void MegaApiImpl::fireOnReloadNeeded()
 
 void MegaApiImpl::fireOnEvent(MegaEventPrivate *event)
 {
+    assert(threadId == std::this_thread::get_id());
     for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
     {
         (*it++)->onEvent(api, event);
@@ -16957,6 +16980,7 @@ void MegaApiImpl::fireOnEvent(MegaEventPrivate *event)
 #ifdef ENABLE_SYNC
 void MegaApiImpl::fireOnSyncStateChanged(MegaSyncPrivate *sync)
 {
+    assert(threadId == std::this_thread::get_id());
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncStateChanged(api, sync);
@@ -16965,6 +16989,7 @@ void MegaApiImpl::fireOnSyncStateChanged(MegaSyncPrivate *sync)
 
 void MegaApiImpl::fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event)
 {
+    assert(threadId == std::this_thread::get_id());
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncEvent(api, sync, event);
@@ -16976,6 +17001,7 @@ void MegaApiImpl::fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event)
 
 void MegaApiImpl::fireOnSyncAdded(MegaSyncPrivate *sync, int additionState)
 {
+    assert(threadId == std::this_thread::get_id());
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncAdded(api, sync, additionState);
@@ -16984,6 +17010,7 @@ void MegaApiImpl::fireOnSyncAdded(MegaSyncPrivate *sync, int additionState)
 
 void MegaApiImpl::fireOnSyncDisabled(MegaSyncPrivate *sync)
 {
+    assert(threadId == std::this_thread::get_id());
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncDisabled(api, sync);
@@ -16992,6 +17019,7 @@ void MegaApiImpl::fireOnSyncDisabled(MegaSyncPrivate *sync)
 
 void MegaApiImpl::fireOnSyncEnabled(MegaSyncPrivate *sync)
 {
+    assert(threadId == std::this_thread::get_id());
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncEnabled(api, sync);
@@ -17000,6 +17028,7 @@ void MegaApiImpl::fireOnSyncEnabled(MegaSyncPrivate *sync)
 
 void MegaApiImpl::fireonSyncDeleted(MegaSyncPrivate *sync)
 {
+    assert(threadId == std::this_thread::get_id());
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncDeleted(api, sync);
@@ -17008,6 +17037,7 @@ void MegaApiImpl::fireonSyncDeleted(MegaSyncPrivate *sync)
 
 void MegaApiImpl::fireOnGlobalSyncStateChanged()
 {
+    assert(threadId == std::this_thread::get_id());
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onGlobalSyncStateChanged(api);
@@ -17021,6 +17051,7 @@ void MegaApiImpl::fireOnGlobalSyncStateChanged()
 
 void MegaApiImpl::fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState)
 {
+    assert(threadId == std::this_thread::get_id());
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncFileStateChanged(api, sync, localPath, newState);
@@ -17047,6 +17078,7 @@ void MegaApiImpl::eraseSync(int tag)
 
 void MegaApiImpl::fireOnBackupStateChanged(MegaBackupController *backup)
 {
+    assert(threadId == std::this_thread::get_id());
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onBackupStateChanged(api, backup);
@@ -17067,6 +17099,7 @@ void MegaApiImpl::fireOnBackupStateChanged(MegaBackupController *backup)
 
 void MegaApiImpl::fireOnBackupStart(MegaBackupController *backup)
 {
+    assert(threadId == std::this_thread::get_id());
     for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
     {
         (*it++)->onBackupStart(api, backup);
@@ -17087,6 +17120,7 @@ void MegaApiImpl::fireOnBackupStart(MegaBackupController *backup)
 
 void MegaApiImpl::fireOnBackupFinish(MegaBackupController *backup, unique_ptr<MegaErrorPrivate> e)
 {
+    assert(threadId == std::this_thread::get_id());
     for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
     {
         (*it++)->onBackupFinish(api, backup, e.get());
@@ -17106,6 +17140,7 @@ void MegaApiImpl::fireOnBackupFinish(MegaBackupController *backup, unique_ptr<Me
 
 void MegaApiImpl::fireOnBackupTemporaryError(MegaBackupController *backup, unique_ptr<MegaErrorPrivate> e)
 {
+    assert(threadId == std::this_thread::get_id());
     for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
     {
         (*it++)->onBackupTemporaryError(api, backup, e.get());
@@ -17125,6 +17160,7 @@ void MegaApiImpl::fireOnBackupTemporaryError(MegaBackupController *backup, uniqu
 
 void MegaApiImpl::fireOnBackupUpdate(MegaBackupController *backup)
 {
+    assert(threadId == std::this_thread::get_id());
 //    notificationNumber++; //TODO: should we use notificationNumber for backups??
 
     for(set<MegaBackupListener *>::iterator it = backupListeners.begin(); it != backupListeners.end() ;)
@@ -17149,6 +17185,7 @@ void MegaApiImpl::fireOnBackupUpdate(MegaBackupController *backup)
 
 void MegaApiImpl::fireOnChatsUpdate(MegaTextChatList *chats)
 {
+    assert(threadId == std::this_thread::get_id());
     for(set<MegaGlobalListener *>::iterator it = globalListeners.begin(); it != globalListeners.end() ;)
     {
         (*it++)->onChatsUpdate(api, chats);
@@ -18665,12 +18702,11 @@ void MegaApiImpl::updateBackups()
 
 void MegaApiImpl::executeOnThread(std::function<void()> f)
 {
-    sdkMutex.lock();
+    SdkMutexGuard guard(sdkMutex);
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_EXECUTE_ON_THREAD, nullptr);
     request->functionToExecute = std::move(f);
     requestQueue.push_front(request);  // these operations are part of requests that already queued, and should occur before other requests; queue at front
     waiter->notify();
-
 }
 
 unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue)
@@ -19183,36 +19219,6 @@ void MegaApiImpl::removeRecursively(const char *path)
         WinFileSystemAccess::emptydirlocal(localpath);
     }
 #endif
-}
-
-LocalPath MegaApiImpl::getLocalPathFromName(const char *name, FileSystemType fsType)
-{
-    SdkMutexGuard g(sdkMutex);
-    return LocalPath::fromName(name, *client->fsaccess, fsType);
-}
-
-string MegaApiImpl::LocalPathToPath(const LocalPath &localpath)
-{
-    SdkMutexGuard g(sdkMutex);
-    return localpath.toPath(*client->fsaccess);
-}
-
-string MegaApiImpl::LocalPathToName(LocalPath &localpath, FileSystemType fsType)
-{
-    SdkMutexGuard g(sdkMutex);
-    return localpath.toName(*client->fsaccess, fsType);
-}
-
-FileSystemType MegaApiImpl::getLocalfstypeFromPath(const LocalPath& localpath)
-{
-    SdkMutexGuard g(sdkMutex);
-    return client->fsaccess->getlocalfstype(localpath);
-}
-
-DirAccess* MegaApiImpl::getNewDirAccess()
-{
-    SdkMutexGuard g(sdkMutex);
-    return client->fsaccess->newdiraccess();
 }
 
 error MegaApiImpl::processAbortBackupRequest(MegaRequestPrivate *request, error e)
@@ -25490,6 +25496,8 @@ bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
 }
 
 MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer)
+    : MegaRecursiveOperation(megaApi->getMegaClient())
+    , fsaccess(new FSACCESS_CLASS())
 {
     this->megaApi = megaApi;
     this->transfer = transfer;
@@ -25497,9 +25505,8 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->recursive = 0;
     this->pendingTransfers = 0;
     this->tag = transfer->getTag();
-    this->mFollowsymlinks = megaApi->getMegaClient()->followsymlinks;
     this->mMainThreadId = std::this_thread::get_id();
-    this->megaApi->addRequestListener(this);
+    this->mFollowsymlinks = megaapiThreadClient()->followsymlinks;
 }
 
 void MegaFolderUploadController::start(MegaNode*)
@@ -25546,21 +25553,27 @@ void MegaFolderUploadController::start(MegaNode*)
 
         if (!cancelled)
         {
-            // create folders in batches, not too many at once
-            vector<NewNode> newnodes;
-            if (!createNextFolderBatch(mUploadTree, newnodes, true))
-            {
-                // no folders to create so start uploads
-                // otherwise the folder completion function will start them
-                TransferQueue transferQueue;
-                genUploadTransfersForFiles(mUploadTree, transferQueue);
-                megaApi->sendPendingTransfers(&transferQueue);
+            megaApi->executeOnThread([this]() {
 
-                // checkCompletion must be called on the megaapi's thread, as it calls onFire functions
-                megaApi->executeOnThread([this](){
-                    checkCompletion();  //check for completion
-                });
-            }
+                // these next parts must run on megaApi's thread again, as
+                // genUploadTransfersForFiles or checkCompletion may call the fireOnXYZ() functions
+                if (!cancelled)
+                {
+                    // create folders in batches, not too many at once
+                    vector<NewNode> newnodes;
+                    if (!createNextFolderBatch(mUploadTree, newnodes, true))
+                    {
+                        // no folders to create so start uploads
+                        // otherwise the folder completion function will start them
+                        TransferQueue transferQueue;
+                        genUploadTransfersForFiles(mUploadTree, transferQueue);
+                        megaApi->sendPendingTransfers(&transferQueue);
+
+                        // checkCompletion must be called on the megaapi's thread, as it calls onFire functions
+                        checkCompletion();  //check for completion
+                    }
+                }
+            });
         }
     });
 }
@@ -25734,9 +25747,11 @@ MegaFolderUploadController::~MegaFolderUploadController()
 {
     assert(mMainThreadId == std::this_thread::get_id());
     LOG_debug << "MegaFolderUploadController dtor is being called from main thread";
-    mWorkerThread.join();
+    if (mWorkerThread.joinable())
+    {
+        mWorkerThread.join();
+    }
 
-    megaApi->removeRequestListener(this);
     //we shouldn't need to dettach as transfer listener: all listened transfer should have been cancelled/completed
 }
 
@@ -25744,10 +25759,10 @@ void MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
 {
     assert(mMainThreadId != std::this_thread::get_id());
     recursive++;
-    unique_ptr<DirAccess> da(megaApi->getNewDirAccess());
+    unique_ptr<DirAccess> da(fsaccess->newdiraccess());
     if (!da->dopen(&localPath, nullptr, false))
     {
-        LOG_err << "Can't open local directory" << megaApi->LocalPathToPath(localPath);
+        LOG_err << "Can't open local directory" << localPath.toPath(*fsaccess);
         recursive--;
         mLastError = API_EACCESS;
         mIncompleteTransfers++;
@@ -25756,7 +25771,7 @@ void MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
 
     LocalPath localname;
     nodetype_t dirEntryType;
-    FileSystemType fsType = megaApi->getLocalfstypeFromPath(localPath);
+    FileSystemType fsType = fsaccess->getlocalfstype(localPath);
     while (!cancelled && da->dnext(localPath, localname, mFollowsymlinks, &dirEntryType))
     {
         ScopedLengthRestore restoreLen(localPath);
@@ -25768,7 +25783,7 @@ void MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
         else if (dirEntryType == FOLDERNODE)
         {
             // generate new subtree
-            string folderName = megaApi->LocalPathToName(localname, fsType);
+            string folderName = localname.toName(*fsaccess, fsType);
             unique_ptr<Tree> newTreeNode(new Tree);
             newTreeNode->megaNode.reset(megaApi->getChildNode(tree.megaNode.get(), folderName.c_str()));
 
@@ -25777,7 +25792,7 @@ void MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
             if (!existsRemotely)
             {
                 // generate fresh random key and node attributes
-                MegaClient::putnodes_prepareOneFolder(&newTreeNode->newnode, folderName, rng, tmpnodecipher);  // todo: strictly speaking, this is not thread safe because of the client's RNG - this class should get its own, probably, and that method be a static/global function
+                MegaClient::putnodes_prepareOneFolder(&newTreeNode->newnode, folderName, rng, tmpnodecipher);
 
                 // set nodeHandle
                 newTreeNode->newnode.nodehandle = newTreeNode->tmpCreateFolderHandle = nextUploadId();
@@ -25880,8 +25895,8 @@ void MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
 {
     for (const auto& localpath : tree.files)
     {
-        FileSystemType fsType = megaApi->getLocalfstypeFromPath(localpath);
-        MegaTransferPrivate *transfer = megaApi->createUploadTransfer(false, megaApi->LocalPathToPath(localpath).c_str(),
+        FileSystemType fsType = fsaccess->getlocalfstype(localpath);
+        MegaTransferPrivate *transfer = megaApi->createUploadTransfer(false, localpath.toPath(*fsaccess).c_str(),
                                                                       tree.megaNode.get(), nullptr, (const char*)NULL,
                                                                       -1, tag, false, NULL, false, false, fsType, this);
         transferQueue.push(transfer);
@@ -27009,6 +27024,8 @@ MegaClient* MegaRecursiveOperation::megaapiThreadClient()
 }
 
 MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer)
+    : MegaRecursiveOperation(megaApi->client)
+    , fsaccess(new FSACCESS_CLASS())
 {
     this->megaApi = megaApi;
     this->transfer = transfer;
@@ -27017,23 +27034,16 @@ MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *megaApi,
     this->pendingTransfers = 0;
     this->tag = transfer->getTag();
     this->mMainThreadId = std::this_thread::get_id();
-    this->megaApi->addRequestListener(this);
 }
 
 MegaFolderDownloadController::~MegaFolderDownloadController()
 {
-    if (mMainThreadId == std::this_thread::get_id())
+    assert(mMainThreadId == std::this_thread::get_id());
+    LOG_debug << "MegaFolderDownloadController dtor is being called from main thread";
+    if (mWorkerThread.joinable())
     {
-        LOG_debug << "MegaFolderDownloadController dtor is being called from main thread";
         mWorkerThread.join();
     }
-    else
-    {
-        LOG_debug << "MegaFolderDownloadController dtor is being called from worker thread";
-        mWorkerThread.detach();
-    }
-
-    megaApi->removeRequestListener(this);
 }
 
 void MegaFolderDownloadController::start(MegaNode *node)
@@ -27088,13 +27098,18 @@ void MegaFolderDownloadController::start(MegaNode *node)
         {
             createFolder();
         }
-        if (!cancelled && !mIncompleteTransfers && !mLocalTree.empty())
+        if (!cancelled)
         {
-            downloadFiles(fsType);
-        }
-        megaApi->executeOnThread([this](){
-            checkCompletion();  //check for completion
-        });
+            megaApi->executeOnThread([this, fsType]() {
+
+                if (!cancelled && !mIncompleteTransfers && !mLocalTree.empty())
+                {
+                    // downloadFiles must run on the megaApi thread, as it may call fireOnTransferXYZ()
+                    downloadFiles(fsType);
+                }
+                checkCompletion();  //check for completion
+            });
+         }
     });
 }
 
@@ -27220,7 +27235,7 @@ void MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpa
 
     if (!children)
     {
-        LOG_err << "Child nodes not found: " << megaApi->LocalPathToPath(localpath);
+        LOG_err << "Child nodes not found: " << localpath.toPath(*fsaccess);
         recursive--;
         mLastError = API_ENOENT;
         mIncompleteTransfers++;
@@ -27239,7 +27254,7 @@ void MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpa
         else
         {
             ScopedLengthRestore restoreLen(localpath);
-            localpath.appendWithSeparator(megaApi->getLocalPathFromName(child->getName(), fsType), true);
+            localpath.appendWithSeparator(LocalPath::fromName(child->getName(), *fsaccess, fsType), true);
             scanFolder(child, localpath, fsType);
         }
     }
@@ -27282,8 +27297,8 @@ void MegaFolderDownloadController::downloadFiles(FileSystemType fsType)
         {
              MegaNode &node = *(childrenNodes.at(i).get());
              ScopedLengthRestore restoreLen(localpath);
-             localpath.appendWithSeparator(megaApi->getLocalPathFromName(node.getName(), fsType), true);
-             string utf8path = megaApi->LocalPathToPath(localpath);
+             localpath.appendWithSeparator(LocalPath::fromName(node.getName(), *fsaccess, fsType), true);
+             string utf8path = localpath.toPath(*fsaccess);
              MegaTransferPrivate *transferDownload = megaApi->createDownloadTransfer(false, &node, utf8path.c_str(), tag, transfer->getAppData(), this);
              transferQueue.push(transferDownload);
              pendingTransfers++;

@@ -211,6 +211,7 @@ class MegaSizeProcessor : public MegaTreeProcessor
 class MegaRecursiveOperation
 {
 public:
+    MegaRecursiveOperation(MegaClient* c) : mMegaapiThreadClient(c) {}
     virtual ~MegaRecursiveOperation() = default;
     virtual void start(MegaNode* node) = 0;
     virtual void cancel() = 0;
@@ -243,7 +244,7 @@ private:
 };
 
 class TransferQueue;
-class MegaFolderUploadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveOperation
+class MegaFolderUploadController : public MegaTransferListener, public MegaRecursiveOperation
 {
 public:
     MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
@@ -256,6 +257,7 @@ public:
     void checkCompletion();
 
 protected:
+    unique_ptr<FileSystemAccess> fsaccess;
 
     // if set, symlinks will be followed
     bool mFollowsymlinks;
@@ -448,7 +450,7 @@ public:
     void setValid(bool value);
 };
 
-class MegaFolderDownloadController : public MegaRequestListener, public MegaTransferListener, public MegaRecursiveOperation
+class MegaFolderDownloadController : public MegaTransferListener, public MegaRecursiveOperation
 {
 public:
     MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
@@ -461,6 +463,7 @@ public:
     void checkCompletion();
 
 protected:
+    unique_ptr<FileSystemAccess> fsaccess;
 
     struct LocalTree
     {
@@ -2573,12 +2576,6 @@ class MegaApiImpl : public MegaApp
         long long getSize(MegaNode *node);
         static void removeRecursively(const char *path);
 
-        LocalPath getLocalPathFromName(const char *name, FileSystemType fsType);
-        string LocalPathToPath(const LocalPath &localpath);
-        string LocalPathToName(LocalPath &localpath, FileSystemType fsType);
-        FileSystemType getLocalfstypeFromPath(const LocalPath& path);
-        DirAccess* getNewDirAccess();
-
         //Fingerprint
         char *getFingerprint(const char *filePath);
         char *getFingerprint(MegaNode *node);
@@ -2932,7 +2929,8 @@ protected:
         void processTransferRemoved(Transfer *tr, MegaTransferPrivate *transfer, const Error &e);
 
         MegaApi *api;
-        MegaThread thread;
+        std::thread thread;
+        std::thread::id threadId;
         MegaClient *client;
         MegaHttpIO *httpio;
         MegaWaiter *waiter;
