@@ -1593,7 +1593,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
         newnodes.emplace_back();
         NewNode& newNode = newnodes.back();
 
-        client->putnodes_prepareOneFolder(&newNode, deviceName, addAttrsFunc);
+        client->putnodes_prepareOneFolder(&newNode, deviceName, client->rng, client->tmpnodecipher, addAttrsFunc);
         newNode.nodehandle = AttrMap::string2nameid("dummy"); // any value should do, let's make it somewhat "readable"
     }
 
@@ -1601,7 +1601,7 @@ error MegaApiImpl::backupFolder_sendPendingRequest(MegaRequestPrivate* request) 
     newnodes.emplace_back();
     NewNode& backupNameNode = newnodes.back();
 
-    client->putnodes_prepareOneFolder(&backupNameNode, backupName, addAttrsFunc);
+    client->putnodes_prepareOneFolder(&backupNameNode, backupName, client->rng, client->tmpnodecipher, addAttrsFunc);
     if (!deviceNameNode)
     {
         // Set parent handle if part of the new nodes array (it cannot be from an existing node)
@@ -18663,6 +18663,16 @@ void MegaApiImpl::updateBackups()
     }
 }
 
+void MegaApiImpl::executeOnThread(std::function<void()> f)
+{
+    sdkMutex.lock();
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_EXECUTE_ON_THREAD, nullptr);
+    request->functionToExecute = std::move(f);
+    requestQueue.push_front(request);  // these operations are part of requests that already queued, and should occur before other requests; queue at front
+    waiter->notify();
+
+}
+
 unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue)
 {
     auto t0 = std::chrono::steady_clock::now();
@@ -19399,6 +19409,12 @@ void MegaApiImpl::sendPendingRequests()
         error e = API_OK;
         switch (request->getType())
         {
+        case MegaRequest::TYPE_EXECUTE_ON_THREAD:
+            request->functionToExecute();
+            delete request;
+            request = nullptr;
+            break;
+
         case MegaRequest::TYPE_LOGIN:
         {
             const char *login = request->getEmail();
@@ -25476,13 +25492,12 @@ bool MegaTreeProcCopy::processMegaNode(MegaNode *n)
 MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer)
 {
     this->megaApi = megaApi;
-    this->client = megaApi->getMegaClient();
     this->transfer = transfer;
     this->listener = transfer->getListener();
     this->recursive = 0;
     this->pendingTransfers = 0;
     this->tag = transfer->getTag();
-    this->mFollowsymlinks = client->followsymlinks;
+    this->mFollowsymlinks = megaApi->getMegaClient()->followsymlinks;
     this->mMainThreadId = std::this_thread::get_id();
     this->megaApi->addRequestListener(this);
 }
@@ -25498,7 +25513,7 @@ void MegaFolderUploadController::start(MegaNode*)
     if (!parent)
     {
         transfer->setState(MegaTransfer::STATE_FAILED);
-        DBTableTransactionCommitter committer(client->tctable);
+        DBTableTransactionCommitter committer(megaapiThreadClient()->tctable);
         megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EARGS), committer);
         return;
     }
@@ -25508,15 +25523,15 @@ void MegaFolderUploadController::start(MegaNode*)
 
     // create a subtree for the folder that we want to upload
     unique_ptr<Tree> newTreeNode(new Tree);
-    LocalPath path = LocalPath::fromPath(transfer->getPath(), *client->fsaccess);
-    auto leaf = path.leafName().toPath(*client->fsaccess);
+    LocalPath path = LocalPath::fromPath(transfer->getPath(), *megaapiThreadClient()->fsaccess);
+    auto leaf = path.leafName().toPath(*megaapiThreadClient()->fsaccess);
 
     // if folder node already exists in remote, set it as new subtree's megaNode, otherwise call putnodes_prepareOneFolder
     newTreeNode->megaNode.reset(megaApi->getChildNode(mUploadTree.megaNode.get(), leaf.c_str()));
     if (!newTreeNode->megaNode)
     {
-        client->putnodes_prepareOneFolder(&newTreeNode->newnode, leaf);
-        newTreeNode->newnode.nodehandle = newTreeNode->tmpCreateFolderHandle = client->nextUploadId();
+        MegaClient::putnodes_prepareOneFolder(&newTreeNode->newnode, leaf, rng, tmpnodecipher);
+        newTreeNode->newnode.nodehandle = newTreeNode->tmpCreateFolderHandle = nextUploadId();
         newTreeNode->newnode.parenthandle = UNDEF;
     }
 
@@ -25529,23 +25544,42 @@ void MegaFolderUploadController::start(MegaNode*)
         LocalPath lp = path;
         scanFolder(*mUploadTree.subtrees.front(), lp);
 
-        // create folders in batches, not too many at once
-        vector<NewNode> newnodes;
-        if (!createNextFolderBatch(mUploadTree, newnodes, true))
+        if (!cancelled)
         {
-            // no folders to create so start uploads
-            // otherwise the folder completion function will start them
-            TransferQueue transferQueue;
-            genUploadTransfersForFiles(mUploadTree, transferQueue);
-            megaApi->sendPendingTransfers(&transferQueue);
-            checkCompletion();  //check for completion
+            // create folders in batches, not too many at once
+            vector<NewNode> newnodes;
+            if (!createNextFolderBatch(mUploadTree, newnodes, true))
+            {
+                // no folders to create so start uploads
+                // otherwise the folder completion function will start them
+                TransferQueue transferQueue;
+                genUploadTransfersForFiles(mUploadTree, transferQueue);
+                megaApi->sendPendingTransfers(&transferQueue);
+
+                // checkCompletion must be called on the megaapi's thread, as it calls onFire functions
+                megaApi->executeOnThread([this](){
+                    checkCompletion();  //check for completion
+                });
+            }
         }
     });
 }
 
+// this method provides a temporal handle useful to indicate putnodes()-local parent linkage
+handle MegaFolderUploadController::nextUploadId()
+{
+    return mCurrUploadId = (mCurrUploadId + 1 <= 0xFFFFFFFFFFFF)
+        ? mCurrUploadId + 1
+        : 0;
+}
+
+
 void MegaFolderUploadController::cancel()
 {
+    assert(mMainThreadId == std::this_thread::get_id());
+
     cancelled = true; //we dont want to further checkcompletion, and produce multile fireOnTransferFinish -> multiple deletions
+    mWorkerThread.join();
 
     //remove subtransfers from pending transferQueue
     megaApi->cancelPendingTransfersByFolderTag(tag);
@@ -25553,10 +25587,12 @@ void MegaFolderUploadController::cancel()
     //remove ongoing subtransfers
     long long cancelledSubTransfers = 0;
     std::unique_ptr<DBTableTransactionCommitter> insideCommiter;
-    DBTableTransactionCommitter *committer = client->tctable ? client->tctable->getTransactionCommitter() : nullptr;
+    DBTableTransactionCommitter *committer = megaapiThreadClient()->tctable ?
+                                             megaapiThreadClient()->tctable->getTransactionCommitter() :
+                                             nullptr;
     if (!committer)
     {
-        insideCommiter.reset(new DBTableTransactionCommitter(client->tctable));
+        insideCommiter.reset(new DBTableTransactionCommitter(megaapiThreadClient()->tctable));
         committer = insideCommiter.get();
     }
 
@@ -25600,7 +25636,7 @@ void MegaFolderUploadController::cancel()
                 {
                     if (!this->transfer->getDoNotStopSubTransfers())
                     {
-                        client->stopxfer(file, committer);
+                        megaapiThreadClient()->stopxfer(file, committer);
                     }
                     else
                     {
@@ -25641,6 +25677,7 @@ void MegaFolderUploadController::cancel()
 
 void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
 {
+    assert(mMainThreadId == std::this_thread::get_id());
     subTransfers.insert(static_cast<MegaTransferPrivate*>(t));
     assert(transfer);
     if (transfer)
@@ -25655,6 +25692,7 @@ void MegaFolderUploadController::onTransferStart(MegaApi *, MegaTransfer *t)
 
 void MegaFolderUploadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 {
+    assert(mMainThreadId == std::this_thread::get_id());
     assert(transfer);
     if (transfer)
     {
@@ -25670,6 +25708,7 @@ void MegaFolderUploadController::onTransferUpdate(MegaApi *, MegaTransfer *t)
 
 void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, MegaError *e)
 {
+    assert(mMainThreadId == std::this_thread::get_id());
     subTransfers.erase(static_cast<MegaTransferPrivate*>(t));
     pendingTransfers--;
     assert(transfer);
@@ -25693,16 +25732,9 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
 
 MegaFolderUploadController::~MegaFolderUploadController()
 {
-    if (mMainThreadId == std::this_thread::get_id())
-    {
-        LOG_debug << "MegaFolderUploadController dtor is being called from main thread";
-        mWorkerThread.join();
-    }
-    else
-    {
-        LOG_debug << "MegaFolderUploadController dtor is being called from worker thread";
-        mWorkerThread.detach();
-    }
+    assert(mMainThreadId == std::this_thread::get_id());
+    LOG_debug << "MegaFolderUploadController dtor is being called from main thread";
+    mWorkerThread.join();
 
     megaApi->removeRequestListener(this);
     //we shouldn't need to dettach as transfer listener: all listened transfer should have been cancelled/completed
@@ -25710,6 +25742,7 @@ MegaFolderUploadController::~MegaFolderUploadController()
 
 void MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
 {
+    assert(mMainThreadId != std::this_thread::get_id());
     recursive++;
     unique_ptr<DirAccess> da(megaApi->getNewDirAccess());
     if (!da->dopen(&localPath, nullptr, false))
@@ -25724,7 +25757,7 @@ void MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
     LocalPath localname;
     nodetype_t dirEntryType;
     FileSystemType fsType = megaApi->getLocalfstypeFromPath(localPath);
-    while (da->dnext(localPath, localname, mFollowsymlinks, &dirEntryType))
+    while (!cancelled && da->dnext(localPath, localname, mFollowsymlinks, &dirEntryType))
     {
         ScopedLengthRestore restoreLen(localPath);
         localPath.appendWithSeparator(localname, false);
@@ -25744,10 +25777,10 @@ void MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
             if (!existsRemotely)
             {
                 // generate fresh random key and node attributes
-                client->putnodes_prepareOneFolder(&newTreeNode->newnode, folderName);  // todo: strictly speaking, this is not thread safe because of the client's RNG - this class should get its own, probably, and that method be a static/global function
+                MegaClient::putnodes_prepareOneFolder(&newTreeNode->newnode, folderName, rng, tmpnodecipher);  // todo: strictly speaking, this is not thread safe because of the client's RNG - this class should get its own, probably, and that method be a static/global function
 
                 // set nodeHandle
-                newTreeNode->newnode.nodehandle = newTreeNode->tmpCreateFolderHandle = client->nextUploadId();
+                newTreeNode->newnode.nodehandle = newTreeNode->tmpCreateFolderHandle = nextUploadId();
 
                 // set parent handle for newnodes batch (if it's parent exists remotely, set to UNDEF, otherwise use it's temporal nodeHandle)
                 newTreeNode->newnode.parenthandle = tree.megaNode ? UNDEF : tree.tmpCreateFolderHandle;
@@ -25806,7 +25839,8 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
 
     if (isBatchRootLevel && !newnodes.empty())
     {
-        megaApi->createRemoteFolder(tree.megaNode->getHandle(), std::move(newnodes), "NULL",  /// todo:  is that "null" really supposed to be a string?
+        // the lambda will be exeuted on the megaapi's thread
+        megaApi->createRemoteFolder(tree.megaNode->getHandle(), std::move(newnodes), nullptr,
             [this](const Error& e, targettype_t t, vector<NewNode>& nn)
             {
                 // lambda function that will be executed as completion function in putnodes procresult
@@ -25862,12 +25896,13 @@ void MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
 
 void MegaFolderUploadController::checkCompletion()
 {
+    assert(mMainThreadId == std::this_thread::get_id());
     if (!cancelled && ((!recursive && !pendingTransfers && transfer) || mIncompleteTransfers))
     {
         LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
         transfer->setLastError(&mLastError);
-        DBTableTransactionCommitter committer(client->tctable);
+        DBTableTransactionCommitter committer(megaapiThreadClient()->tctable);
         megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(!mIncompleteTransfers ? API_OK : API_EINCOMPLETE), committer);
     }
 }
@@ -26967,10 +27002,15 @@ MegaBackupController::~MegaBackupController()
     }
 }
 
+MegaClient* MegaRecursiveOperation::megaapiThreadClient()
+{
+    assert(mMainThreadId == std::this_thread::get_id());
+    return mMegaapiThreadClient;
+}
+
 MegaFolderDownloadController::MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer)
 {
     this->megaApi = megaApi;
-    this->client = megaApi->getMegaClient();
     this->transfer = transfer;
     this->listener = transfer->getListener();
     this->recursive = 0;
@@ -26998,6 +27038,7 @@ MegaFolderDownloadController::~MegaFolderDownloadController()
 
 void MegaFolderDownloadController::start(MegaNode *node)
 {
+    assert(mMainThreadId == std::this_thread::get_id());
     transfer->setFolderTransferTag(-1);
     transfer->setStartTime(Waiter::ds);
     transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -27010,7 +27051,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
         if (!node)
         {
             LOG_debug << "Folder download failed. Node not found";
-            DBTableTransactionCommitter committer(client->tctable);
+            DBTableTransactionCommitter committer(megaapiThreadClient()->tctable);
             megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_ENOENT), committer);
             return;
         }
@@ -27019,22 +27060,22 @@ void MegaFolderDownloadController::start(MegaNode *node)
     LocalPath path;
     if (transfer->getParentPath())
     {
-        path = LocalPath::fromPath(transfer->getParentPath(), *client->fsaccess);
+        path = LocalPath::fromPath(transfer->getParentPath(), *megaapiThreadClient()->fsaccess);
     }
     else
     {
-        path = LocalPath::fromPath(".", *client->fsaccess);
-        path.appendWithSeparator(LocalPath::fromPath("", *client->fsaccess), true);
+        path = LocalPath::fromPath(".", *megaapiThreadClient()->fsaccess);
+        path.appendWithSeparator(LocalPath::fromPath("", *megaapiThreadClient()->fsaccess), true);
     }
 
-    FileSystemType fsType = client->fsaccess->getlocalfstype(path);
+    FileSystemType fsType = megaapiThreadClient()->fsaccess->getlocalfstype(path);
     const LocalPath &name = (!transfer->getFileName())
-         ? LocalPath::fromName(node->getName(), *client->fsaccess, fsType)
-         : LocalPath::fromName(transfer->getFileName(), *client->fsaccess, fsType);
+         ? LocalPath::fromName(node->getName(), *megaapiThreadClient()->fsaccess, fsType)
+         : LocalPath::fromName(transfer->getFileName(), *megaapiThreadClient()->fsaccess, fsType);
 
     path.appendWithSeparator(name, true);
     path.ensureWinExtendedPathLenPrefix();
-    transfer->setPath(path.toPath(*client->fsaccess).c_str());
+    transfer->setPath(path.toPath(*megaapiThreadClient()->fsaccess).c_str());
 
     mWorkerThread = std::thread ([this, deleteNode, node, fsType, path]() {
         LocalPath localPath = std::move(path);
@@ -27043,18 +27084,25 @@ void MegaFolderDownloadController::start(MegaNode *node)
         {
             delete node;
         }
-        createFolder();
-        if (!mIncompleteTransfers && !mLocalTree.empty())
+        if (!cancelled)
+        {
+            createFolder();
+        }
+        if (!cancelled && !mIncompleteTransfers && !mLocalTree.empty())
         {
             downloadFiles(fsType);
         }
-        checkCompletion();
+        megaApi->executeOnThread([this](){
+            checkCompletion();  //check for completion
+        });
     });
 }
 
 void MegaFolderDownloadController::cancel()
 {
+    assert(mMainThreadId == std::this_thread::get_id());
     cancelled = true; //we dont want to further checkcompletion, and produce multile fireOnTransferFinish -> multiple deletions
+    mWorkerThread.join();
 
     //remove subtransfers from pending transferQueue
     megaApi->cancelPendingTransfersByFolderTag(tag);
@@ -27063,10 +27111,10 @@ void MegaFolderDownloadController::cancel()
     long long cancelledSubTransfers = 0;
 
     std::unique_ptr<DBTableTransactionCommitter> insideCommiter;
-    DBTableTransactionCommitter *committer = client->tctable ? client->tctable->getTransactionCommitter() : nullptr;
+    DBTableTransactionCommitter *committer = megaapiThreadClient()->tctable ? megaapiThreadClient()->tctable->getTransactionCommitter() : nullptr;
     if (!committer)
     {
-        insideCommiter.reset(new DBTableTransactionCommitter(client->tctable));
+        insideCommiter.reset(new DBTableTransactionCommitter(megaapiThreadClient()->tctable));
         committer = insideCommiter.get();
     }
 
@@ -27108,7 +27156,7 @@ void MegaFolderDownloadController::cancel()
                 {
                     if (!this->transfer->getDoNotStopSubTransfers())
                     {
-                        client->stopxfer(file, committer);
+                        megaapiThreadClient()->stopxfer(file, committer);
                     }
                     else
                     {
@@ -27179,7 +27227,7 @@ void MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpa
         return;
     }
 
-    for (int i = 0; i < children->size(); i++)
+    for (int i = 0; !cancelled && i < children->size(); i++)
     {
         MegaNode *child = children->get(i);
         if (child->getType() == MegaNode::TYPE_FILE)
@@ -27250,12 +27298,13 @@ void MegaFolderDownloadController::downloadFiles(FileSystemType fsType)
 
 void MegaFolderDownloadController::checkCompletion()
 {
+    assert(mMainThreadId == std::this_thread::get_id());
     if (!cancelled && ((!recursive && !pendingTransfers && transfer) || mIncompleteTransfers))
     {
         LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
         transfer->setState(MegaTransfer::STATE_COMPLETED);
         transfer->setLastError(&mLastError);
-        DBTableTransactionCommitter committer(client->tctable);
+        DBTableTransactionCommitter committer(megaapiThreadClient()->tctable);
         megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(!mIncompleteTransfers ? API_OK : API_EINCOMPLETE), committer);
     }
 }

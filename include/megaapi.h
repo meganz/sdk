@@ -3024,6 +3024,7 @@ class MegaRequest
             TYPE_GET_BANNERS, TYPE_DISMISS_BANNER,
             TYPE_BACKUP_PUT, TYPE_BACKUP_REMOVE, TYPE_BACKUP_PUT_HEART_BEAT,
             TYPE_FETCH_GOOGLE_ADS, TYPE_QUERY_GOOGLE_ADS,
+            TYPE_EXECUTE_ON_THREAD,
             TOTAL_OF_REQUEST_TYPES
         };
 
@@ -18378,13 +18379,13 @@ class MegaApi
          * @param backupType back up type requested for the service
          * @param targetNode MEGA folder to hold the backups
          * @param localFolder Local path of the folder
-         * @param state backup state 
+         * @param state backup state
          * @param subState backup subState
          * @param extraData A binary array converted into B64 (optional)
          * @param listener MegaRequestListener to track this request
         */
         void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
-        
+
         /**
          * @brief Unregister a backup already registered for the Backup Centre
          *
@@ -18400,7 +18401,7 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
         */
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
-        
+
         /**
          * @brief Send heartbeat associated with an existing backup
          *
@@ -18427,11 +18428,11 @@ class MegaApi
          *
          * @param backupId backup id identifying the backup
          * @param state backup state
-         * @param progress backup progress 
+         * @param progress backup progress
          * @param ups Number of pending upload transfers
          * @param downs Number of pending download transfers
          * @param ts Last action timestamp
-         * @param lastNode Last node handle to be synced 
+         * @param lastNode Last node handle to be synced
          * @param listener MegaRequestListener to track this request
         */
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener = nullptr);

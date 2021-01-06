@@ -4060,7 +4060,7 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
         else
         {
             vector<NewNode> nn(1);
-            client->putnodes_prepareOneFolder(&nn[0], name);
+            client->putnodes_prepareOneFolder(&nn[0], name, client->rng, client->tmpnodecipher);
 
             gOnPutNodeTag[gNextClientTag] = [localname](Node* parent) {
                 auto tmp = localname;
@@ -4805,7 +4805,7 @@ void exec_mkdir(autocomplete::ACState& s)
             if (newname.size())
             {
                 vector<NewNode> nn(1);
-                client->putnodes_prepareOneFolder(&nn[0], newname);
+                client->putnodes_prepareOneFolder(&nn[0], newname, client->rng, client->tmpnodecipher);
                 client->putnodes(n->nodehandle, move(nn));
             }
             else if (allowDuplicate && n->parent && n->parent->nodehandle != UNDEF)
@@ -4815,7 +4815,7 @@ void exec_mkdir(autocomplete::ACState& s)
                 auto pos = leafname.find_last_of("/");
                 if (pos != string::npos) leafname.erase(0, pos + 1);
                 vector<NewNode> nn(1);
-                client->putnodes_prepareOneFolder(&nn[0], leafname);
+                client->putnodes_prepareOneFolder(&nn[0], leafname, client->rng, client->tmpnodecipher);
                 client->putnodes(n->parent->nodehandle, move(nn));
             }
             else

@@ -1063,7 +1063,7 @@ struct StandardClient : public MegaApp
     void uploadFolderTree_recurse(handle parent, handle& h, const fs::path& p, vector<NewNode>& newnodes)
     {
         NewNode n;
-        client.putnodes_prepareOneFolder(&n, p.filename().u8string());
+        client.putnodes_prepareOneFolder(&n, p.filename().u8string(), client.rng, client.tmpnodecipher);
         handle thishandle = n.nodehandle = h++;
         n.parenthandle = parent;
         newnodes.emplace_back(std::move(n));
@@ -1176,7 +1176,7 @@ struct StandardClient : public MegaApp
     NewNode makeSubfolder(const string& utf8Name)
     {
         NewNode newnode;
-        client.putnodes_prepareOneFolder(&newnode, utf8Name);
+        client.putnodes_prepareOneFolder(&newnode, utf8Name, client.rng, client.tmpnodecipher);
         return newnode;
     }
 
@@ -3467,10 +3467,10 @@ GTEST_TEST(Sync, PutnodesForMultipleFolders)
 
     vector<NewNode> newnodes(4);
 
-    standardclient.client.putnodes_prepareOneFolder(&newnodes[0], "folder1");
-    standardclient.client.putnodes_prepareOneFolder(&newnodes[1], "folder2");
-    standardclient.client.putnodes_prepareOneFolder(&newnodes[2], "folder2.1");
-    standardclient.client.putnodes_prepareOneFolder(&newnodes[3], "folder2.2");
+    standardclient.client.putnodes_prepareOneFolder(&newnodes[0], "folder1", standardclient.client.rng, standardclient.client.tmpnodecipher);
+    standardclient.client.putnodes_prepareOneFolder(&newnodes[1], "folder2", standardclient.client.rng, standardclient.client.tmpnodecipher);
+    standardclient.client.putnodes_prepareOneFolder(&newnodes[2], "folder2.1", standardclient.client.rng, standardclient.client.tmpnodecipher);
+    standardclient.client.putnodes_prepareOneFolder(&newnodes[3], "folder2.2", standardclient.client.rng, standardclient.client.tmpnodecipher);
 
     newnodes[1].nodehandle = newnodes[2].parenthandle = newnodes[3].parenthandle = 2;
 

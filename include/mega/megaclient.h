@@ -451,10 +451,10 @@ public:
     error setattr(Node*, const char* prevattr = NULL);
 
     // prefix and encrypt attribute json
-    void makeattr(SymmCipher*, string*, const char*, int = -1) const;
+    static void makeattr(SymmCipher*, string*, const char*, int = -1);
 
     // convenience version of the above (frequently we are passing a NodeBase's attrstring)
-    void makeattr(SymmCipher*, const std::unique_ptr<string>&, const char*, int = -1) const;
+    static void makeattr(SymmCipher*, const std::unique_ptr<string>&, const char*, int = -1);
 
     // check node access level
     int checkaccess(Node*, accesslevel_t);
@@ -530,7 +530,7 @@ public:
     handle uploadhandle(int);
 
     // helper function for preparing a putnodes call for new folders
-    void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void (AttrMap&)> addAttrs = nullptr);
+    static void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher tmpnodecipher, std::function<void (AttrMap&)> addAttrs = nullptr);
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
@@ -587,9 +587,6 @@ public:
 
     // add timer
     error addtimer(TimerWithBackoff *twb);
-
-    // generates a temporal nodeHandle for uploads from App
-    handle nextUploadId();
 
 #ifdef ENABLE_SYNC
     /**
@@ -1414,9 +1411,6 @@ public:
 
     // maps node handle to public handle
     std::map<handle, handle> mPublicLinks;
-
-    // temporal nodeHandle for uploads from App
-    handle mCurrUploadId;
 
 #ifdef ENABLE_SYNC
     // sync debris folder name in //bin

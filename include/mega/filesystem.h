@@ -478,7 +478,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     static const char *getPathSeparator();
 
     //Normalize UTF-8 string
-    void normalize(string *) const;
+    static void normalize(string *);
 
     // generate local temporary file name
     virtual void tmpnamelocal(LocalPath&) const = 0;

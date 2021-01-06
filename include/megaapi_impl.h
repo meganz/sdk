@@ -217,7 +217,6 @@ public:
 
 protected:
     MegaApiImpl *megaApi;
-    MegaClient *client;
     MegaTransferPrivate *transfer;
     MegaTransferListener *listener;
     int recursive;
@@ -232,8 +231,15 @@ protected:
     // worker thread
     std::thread mWorkerThread;
 
-    // thread id of main thread
+    // thread id of MegaApiImpl thread
     std::thread::id mMainThreadId;
+
+    // it's only safe to use this client ptr when on the MegaApiImpl's thread
+    MegaClient* megaapiThreadClient();
+
+private:
+    // client ptr to only be used from the megaApi's thread
+    MegaClient* mMegaapiThreadClient;
 };
 
 class TransferQueue;
@@ -259,6 +265,16 @@ protected:
 
     // maps parent handle to vector of LocalPath of it's children
     map<handle, vector<LocalPath>> mFolderToPendingFiles;
+
+    // Random number generator and cipher to avoid using client's which would cause threading corruption
+    PrnGen rng;
+    SymmCipher tmpnodecipher;
+
+    // temporal nodeHandle for uploads from App
+    handle mCurrUploadId = 1;
+
+    // generates a temporal nodeHandle for uploads from App
+    handle nextUploadId();
 
     struct Tree
     {
@@ -1353,6 +1369,9 @@ protected:
 
     private:
         unique_ptr<MegaBannerListPrivate> mBannerList;
+
+    public:
+        std::function<void()> functionToExecute;
 };
 
 class MegaEventPrivate : public MegaEvent
@@ -3190,6 +3209,9 @@ protected:
         void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;
         void dismissbanner_result(error e) override;
 
+        // for internal use - for worker threads to run something on megaapi's thread, such as calls to onFire() functinos
+        void executeOnThread(std::function<void()>);
+
 #ifdef ENABLE_CHAT
         // chat-related commandsresult
         void chatcreate_result(TextChat *, error) override;
@@ -3349,7 +3371,6 @@ private:
 #ifdef ENABLE_SYNC
         error backupFolder_sendPendingRequest(MegaRequestPrivate* request);
 #endif
-
 };
 
 class MegaHashSignatureImpl

@@ -1264,7 +1264,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     cachedug = false;
     minstreamingrate = -1;
     ephemeralSession = false;
-    mCurrUploadId = 0;
 
 #ifndef EMSCRIPTEN
     autodownport = true;
@@ -7448,7 +7447,7 @@ void MegaClient::handleauth(handle h, byte* auth)
 }
 
 // make attribute string; add magic number prefix
-void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json, int l) const
+void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json, int l)
 {
     if (l < 0)
     {
@@ -7469,7 +7468,7 @@ void MegaClient::makeattr(SymmCipher* key, string* attrstring, const char* json,
     delete[] buf;
 }
 
-void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrstring, const char* json, int l) const
+void MegaClient::makeattr(SymmCipher* key, const std::unique_ptr<string>& attrstring, const char* json, int l)
 {
     makeattr(key, attrstring.get(), json, l);
 }
@@ -7504,7 +7503,7 @@ error MegaClient::setattr(Node* n, const char *prevattr)
     return API_OK;
 }
 
-void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void(AttrMap&)> addAttrs)
+void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, PrnGen& rng, SymmCipher tmpnodecipher, std::function<void(AttrMap&)> addAttrs)
 {
     string attrstring;
     byte buf[FOLDERNODEKEYLENGTH];
@@ -7523,7 +7522,7 @@ void MegaClient::putnodes_prepareOneFolder(NewNode* newnode, std::string foldern
     // generate fresh attribute object with the folder name
     AttrMap attrs;
 
-    fsaccess->normalize(&foldername);
+    FileSystemAccess::normalize(&foldername);
     attrs.map['n'] = foldername;
 
     // add custom attributes
@@ -12916,14 +12915,6 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 {
     bttimers.push_back(twb);
     return API_OK;
-}
-
-// this method provides a temporal handle useful to indicate putnodes()-local parent linkage
-handle MegaClient::nextUploadId()
-{
-    return mCurrUploadId = (mCurrUploadId + 1 <= 0xFFFFFFFFFFFF)
-            ? mCurrUploadId + 1
-            : 0;
 }
 
 #ifdef ENABLE_SYNC
