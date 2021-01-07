@@ -8248,7 +8248,7 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 Node::copystring(n->attrstring.get(), a);
                 n->setkeyfromjson(k);
 
-                // folder link access: first returned record defines root node and identity 
+                // folder link access: first returned record defines root node and identity
 				// (this code used to be in Node::Node but is not suitable for session resume)
                 if (ISUNDEF(*rootnodes))
                 {
@@ -9254,12 +9254,12 @@ int MegaClient::dumpsession(string& session)
             SymmCipher cipher;
             cipher.setkey((const byte *)sessionkey.data(), int(sessionkey.size()));
             cipher.ecb_encrypt(key.key, k);
-            memcpy(session.data()+1, k, sizeof k);
+            memcpy(const_cast<char*>(session.data())+1, k, sizeof k);
         }
         else
         {
             session.resize(sizeof key.key);
-            memcpy(session.data(), key.key, sizeof key.key);
+            memcpy(const_cast<char*>(session.data()), key.key, sizeof key.key);
         }
 
         session.append(sid.data(), sid.size());
