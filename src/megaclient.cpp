@@ -13026,6 +13026,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
                  << LOG_NODEHANDLE(syncConfig.getRemoteNode());
 
         syncConfig.mError = REMOTE_NODE_NOT_FOUND;
+        syncConfig.mEnabled = false;
         return API_ENOENT;
     }
 

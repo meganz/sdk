@@ -511,6 +511,14 @@ SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, Prn
         if (!syncConfig)
         {
             LOG_err << "Unable to unserialize sync config at id: " << tableId;
+            LOG_err << "Sync config record was " << data.size() << ": " << Utils::stringToHex(data);
+
+            {
+                // remove the reocrd so we can recover in jenkins tests (which fail at the assert())
+                DBTableTransactionCommitter committer{ mTable };
+                mTable->del(tableId);
+            }
+
             assert(false);
             continue;
         }
@@ -2014,7 +2022,7 @@ error UnifiedSync::enableSync(bool resetFingerprint, bool notifyApp)
 
     if (e)
     {
-        mConfig.mEnabled = false;
+        // error and enable flag were already changed
         changedConfigState(notifyApp);
         return e;
     }
