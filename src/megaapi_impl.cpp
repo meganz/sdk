@@ -19417,6 +19417,9 @@ void MegaApiImpl::sendPendingRequests()
         {
         case MegaRequest::TYPE_EXECUTE_ON_THREAD:
             request->functionToExecute();
+            requestMap.erase(request->getTag());
+            activeRequest = nullptr;
+            activeError = nullptr;
             delete request;
             request = nullptr;
             break;
