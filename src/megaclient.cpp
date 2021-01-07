@@ -496,12 +496,13 @@ void MegaClient::setrootnode(handle h, const char *authKey)
 
     auth = "&n=";
     auth.append(buf);
-    publichandle = h;
+    publichandle = h;   // folder link handle (different than root node handle)
+    publichandleWriteAuth.clear();
 
     if (authKey && strlen(authKey))
     {
         auth.append(authKey); //nodehandle+authkey
-        mLoggedIntoWritableFolder = true;
+        publichandleWriteAuth = authKey;
     }
 
     if (accountauth.size())
@@ -4261,6 +4262,7 @@ void MegaClient::locallogout(bool removecaches)
     uid.clear();
     unshareablekey.clear();
     publichandle = UNDEF;
+    publichandleWriteAuth.clear();
     cachedscsn = UNDEF;
     achievements_enabled = false;
     isNewSession = false;
@@ -4306,7 +4308,6 @@ void MegaClient::locallogout(bool removecaches)
     pendingcs = NULL;
     scsn.clear();
     mBlocked = false;
-    mLoggedIntoWritableFolder = false;
     mBlockedSet = false;
 
     for (putfa_list::iterator it = queuedfa.begin(); it != queuedfa.end(); it++)
@@ -7560,7 +7561,7 @@ void MegaClient::putnodes(const char* user, vector<NewNode>&& newnodes)
 int MegaClient::checkaccess(Node* n, accesslevel_t a)
 {
     // writable folder link access is supposed to be full
-    if (mLoggedIntoWritableFolder)
+    if (loggedIntoWritableFolder())
     {
         return a <= FULL;
     }
@@ -8246,6 +8247,20 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 n->attrstring.reset(new string);
                 Node::copystring(n->attrstring.get(), a);
                 n->setkeyfromjson(k);
+
+                // folder link access: first returned record defines root node and identity 
+				// (this code used to be in Node::Node but is not suitable for session resume)
+                if (ISUNDEF(*rootnodes))
+                {
+                    *rootnodes = h;
+
+                    if (loggedIntoWritableFolder())
+                    {
+                        // If logged into writable folder, we need the sharekey set in the root node
+                        // so as to include it in subsequent put nodes
+                        n->sharekey = new SymmCipher(key); //we use the "master key", in this case the secret share key
+                    }
+                }
 
                 if (!ISUNDEF(su))
                 {
@@ -9011,7 +9026,18 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool 
     return API_EARGS;
 }
 
-error MegaClient::folderaccess(const char *folderlink, const char *authKey)
+void MegaClient::checkForResumeableSCDatabase()
+{
+    // see if we can resume from an already cached set of nodes for this folder
+    opensctable();
+    string t;
+    if (sctable && sctable->get(CACHEDSCSN, &t) && t.size() == sizeof cachedscsn)
+    {
+        cachedscsn = MemAccess::get<handle>(t.data());
+    }
+}
+
+error MegaClient::folderaccess(const char *folderlink, const char * authKey)
 {
     handle h = UNDEF;
     byte folderkey[FOLDERNODEKEYLENGTH];
@@ -9112,10 +9138,10 @@ void MegaClient::getpubkey(const char *user)
 }
 
 // resume session - load state from local cache, if available
-void MegaClient::login(const byte* session, int size)
+void MegaClient::login(string session)
 {
     int sessionversion = 0;
-    if (size == sizeof key.key + SIDLEN + 1)
+    if (session.size() == sizeof key.key + SIDLEN + 1)
     {
         sessionversion = session[0];
 
@@ -9126,23 +9152,17 @@ void MegaClient::login(const byte* session, int size)
             return;
         }
 
-        session++;
-        size--;
+        session.erase(0, 1);
     }
 
-    if (size == sizeof key.key + SIDLEN)
+    if (session.size() == sizeof key.key + SIDLEN)
     {
         string t;
 
-        key.setkey(session);
-        setsid(session + sizeof key.key, size - sizeof key.key);
+        key.setkey((const byte*)session.data());
+        setsid((const byte*)session.data() + sizeof key.key, SIDLEN);
 
-        opensctable();
-
-        if (sctable && sctable->get(CACHEDSCSN, &t) && t.size() == sizeof cachedscsn)
-        {
-            cachedscsn = MemAccess::get<handle>(t.data());
-        }
+        checkForResumeableSCDatabase();
 
         byte sek[SymmCipher::KEYLENGTH];
         rng.genblock(sek, sizeof sek);
@@ -9150,6 +9170,41 @@ void MegaClient::login(const byte* session, int size)
         reqs.add(new CommandLogin(this, NULL, NULL, 0, sek, sessionversion));
         getuserdata();
         fetchtimezone();
+    }
+    else if (!session.empty() && session[0] == 2)
+    {
+        // folder link - read only or writable
+
+        CacheableReader cr(session);
+
+        byte v;
+        handle ph, rh;
+        byte k[FOLDERNODEKEYLENGTH];
+        string a1, a2, padding;
+        byte expansions[8];
+
+        if (!cr.unserializebyte(v) ||
+            !cr.unserializenodehandle(ph) ||
+            !cr.unserializenodehandle(rh) ||
+            !cr.unserializebinary(k, sizeof(k)) ||
+            !cr.unserializeexpansionflags(expansions, 3) ||
+            (expansions[0] && !cr.unserializestring(a1)) ||
+            (expansions[1] && !cr.unserializestring(a2)) ||
+            (expansions[2] && !cr.unserializestring(padding)) ||
+            cr.hasdataleft())
+        {
+            restag = reqtag;
+            app->login_result(API_EARGS);
+        }
+        else
+        {
+            accountauth = a2;
+            setrootnode(ph, a1.c_str());
+            *rootnodes = rh;
+            key.setkey(k, FOLDERNODE);
+            checkForResumeableSCDatabase();
+            app->login_result(API_OK);
+        }
     }
     else
     {
@@ -9178,45 +9233,66 @@ error MegaClient::validatepwd(const byte *pwkey)
     return API_OK;
 }
 
-int MegaClient::dumpsession(byte* session, size_t size)
+int MegaClient::dumpsession(string& session)
 {
-    if (loggedin() == NOTLOGGEDIN)
-    {
-        return 0;
-    }
+    session.clear();
 
-    if (size < sid.size() + sizeof key.key)
+    if (!loggedinfolderlink())
     {
-        return API_ERANGE;
-    }
-
-    if (sessionkey.size())
-    {
-        if (size < sid.size() + sizeof key.key + 1)
+        if (loggedin() == NOTLOGGEDIN)
         {
-            return API_ERANGE;
+            return 0;
         }
 
-        size = sid.size() + sizeof key.key + 1;
+        if (sessionkey.size())
+        {
+            session.resize(sizeof key.key + 1);
 
-        session[0] = 1;
-        session++;
+            session[0] = 1;
 
-        byte k[SymmCipher::KEYLENGTH];
-        SymmCipher cipher;
-        cipher.setkey((const byte *)sessionkey.data(), int(sessionkey.size()));
-        cipher.ecb_encrypt(key.key, k);
-        memcpy(session, k, sizeof k);
+            byte k[SymmCipher::KEYLENGTH];
+            SymmCipher cipher;
+            cipher.setkey((const byte *)sessionkey.data(), int(sessionkey.size()));
+            cipher.ecb_encrypt(key.key, k);
+            memcpy(session.data()+1, k, sizeof k);
+        }
+        else
+        {
+            session.resize(sizeof key.key);
+            memcpy(session.data(), key.key, sizeof key.key);
+        }
+
+        session.append(sid.data(), sid.size());
     }
     else
     {
-        size = sid.size() + sizeof key.key;
-        memcpy(session, key.key, sizeof key.key);
+        // Folder link sessions are identifed by type 2.
+        // Read-only and writeable links are supported
+        // As is the accountAuth if used
+
+        CacheableWriter cw(session);
+
+        cw.serializebyte(2);
+        cw.serializenodehandle(publichandle);
+        cw.serializenodehandle(*rootnodes);
+        cw.serializebinary(key.key, sizeof(key.key));
+        cw.serializeexpansionflags(!publichandleWriteAuth.empty(), !accountauth.empty(), true);
+
+        if (!publichandleWriteAuth.empty())
+        {
+            cw.serializestring(publichandleWriteAuth);
+        }
+
+        if (!accountauth.empty())
+        {
+            cw.serializestring(accountauth);
+        }
+
+        // make sure the final length is not equal to the old pre-versioned session length
+        string padding(session.size() <= sizeof key.key + SIDLEN ? sizeof key.key + SIDLEN - session.size() + 3 : 1, 'P');
+        cw.serializestring(padding);
     }
-
-    memcpy(session + sizeof key.key, sid.data(), sid.size());
-
-    return int(size);
+    return int(session.size());
 }
 
 void MegaClient::resendverificationemail()
@@ -11864,7 +11940,9 @@ void MegaClient::fetchnodes(bool nocache)
     openStatusTable();
 
     // only initial load from local cache
-    if (loggedin() == FULLACCOUNT && !nodes.size() && sctable && !ISUNDEF(cachedscsn) && fetchsc(sctable) && fetchStatusTable(statusTable.get()))
+    if ((loggedin() == FULLACCOUNT || loggedIntoFolder() ) &&
+        !nodes.size() && sctable && !ISUNDEF(cachedscsn) &&
+        fetchsc(sctable) && fetchStatusTable(statusTable.get()))
     {
         WAIT_CLASS::bumpds();
         fnstats.mode = FetchNodesStats::MODE_DB;
@@ -11882,6 +11960,16 @@ void MegaClient::fetchnodes(bool nocache)
         // allow sc requests to start
         scsn.setScsn(cachedscsn);
         LOG_info << "Session loaded from local cache. SCSN: " << scsn.text();
+
+        if (loggedIntoWritableFolder())
+        {
+            // If logged into writable folder, we need the sharekey set in the root node
+            // so as to include it in subsequent put nodes
+            if (Node* n = nodebyhandle(*rootnodes))
+            {
+                n->sharekey = new SymmCipher(key); //we use the "master key", in this case the secret share key
+            }
+        }
 
 #ifdef ENABLE_SYNC
 #ifndef __ANDROID__
@@ -12192,48 +12280,50 @@ void MegaClient::initializekeys()
 
 void MegaClient::loadAuthrings()
 {
-    mFetchingAuthrings = true;
-
-    std::set<attr_t> attrs { ATTR_AUTHRING, ATTR_AUTHCU255, ATTR_AUTHRSA };
-    for (auto at : attrs)
+    if (User* ownUser = finduser(me))
     {
-        User *ownUser = finduser(me);
-        const string *av = ownUser->getattr(at);
-        if (av)
+        mFetchingAuthrings = true;
+
+        std::set<attr_t> attrs { ATTR_AUTHRING, ATTR_AUTHCU255, ATTR_AUTHRSA };
+        for (auto at : attrs)
         {
-            if (ownUser->isattrvalid(at))
+            const string *av = ownUser->getattr(at);
+            if (av)
             {
-                std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &key));
-                if (tlvRecords)
+                if (ownUser->isattrvalid(at))
                 {
-                    mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
-                    LOG_info << "Authring succesfully loaded from cache: " << User::attr2string(at);
+                    std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(av, &key));
+                    if (tlvRecords)
+                    {
+                        mAuthRings.emplace(at, AuthRing(at, *tlvRecords));
+                        LOG_info << "Authring succesfully loaded from cache: " << User::attr2string(at);
+                    }
+                    else
+                    {
+                        LOG_err << "Failed to decrypt " << User::attr2string(at) << " from cached attribute";
+                    }
+
+                    continue;
                 }
                 else
                 {
-                    LOG_err << "Failed to decrypt " << User::attr2string(at) << " from cached attribute";
+                    LOG_warn << User::attr2string(at) << "  found in cache, but out of date. Fetching...";
                 }
-
-                continue;
             }
             else
             {
-                LOG_warn << User::attr2string(at) << "  found in cache, but out of date. Fetching...";
+                LOG_warn << User::attr2string(at) << " not found in cache. Fetching...";
             }
+
+            getua(ownUser, at, 0);
         }
-        else
+
+        // if all authrings were loaded from cache...
+        if (mAuthRings.size() == attrs.size())
         {
-            LOG_warn << User::attr2string(at) << " not found in cache. Fetching...";
+            mFetchingAuthrings = false;
+            fetchContactsKeys();
         }
-
-        getua(ownUser, at, 0);
-    }
-
-    // if all authrings were loaded from cache...
-    if (mAuthRings.size() == attrs.size())
-    {
-        mFetchingAuthrings = false;
-        fetchContactsKeys();
     }
 }
 
@@ -15791,9 +15881,14 @@ handle MegaClient::getovhandle(Node *parent, string *name)
     return ovhandle;
 }
 
+bool MegaClient::loggedIntoFolder() const
+{
+    return !ISUNDEF(publichandle);
+}
+
 bool MegaClient::loggedIntoWritableFolder() const
 {
-    return mLoggedIntoWritableFolder;
+    return !ISUNDEF(publichandle) && !publichandleWriteAuth.empty();
 }
 
 void MegaClient::userfeedbackstore(const char *message)

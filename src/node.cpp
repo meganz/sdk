@@ -75,20 +75,6 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
 
     client->nodes[h] = this;
 
-    // folder link access: first returned record defines root node and
-    // identity
-    if (ISUNDEF(*client->rootnodes))
-    {
-        *client->rootnodes = h;
-
-        if (client->loggedIntoWritableFolder())
-        {
-            // If logged into writable folder, we need the sharekey set in the root node
-            // so as to include it in subsequent put nodes
-            sharekey = new SymmCipher(client->key); //we use the "master key", in this case the secret share key
-        }
-    }
-
     if (t >= ROOTNODE && t <= RUBBISHNODE)
     {
         client->rootnodes[t - ROOTNODE] = h;

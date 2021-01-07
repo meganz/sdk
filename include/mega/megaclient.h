@@ -335,7 +335,7 @@ public:
     void fastlogin(const char*, const byte*, uint64_t);
 
     // session login: binary session, bytecount
-    void login(const byte*, int);
+    void login(string session);
 
     // check password
     error validatepwd(const byte *);
@@ -365,7 +365,7 @@ public:
     void unblock();
 
     // dump current session
-    int dumpsession(byte*, size_t);
+    int dumpsession(string&);
 
     // create a copy of the current session
     void copysession();
@@ -388,8 +388,11 @@ public:
     // extract public handle and key from a public file/folder link
     error parsepubliclink(const char *link, handle &ph, byte *key, bool isFolderLink);
 
+    // open the SC database and get the SCSN from it
+    void checkForResumeableSCDatabase();
+
     // set folder link: node, key. authKey is the authentication key to be able to write into the folder
-    error folderaccess(const char*folderlink, const char *authKey);
+    error folderaccess(const char*folderlink, const char* authKey);
 
     // open exported file link (op=0 -> download, op=1 fetch data)
     void openfilelink(handle ph, const byte *key, int op);
@@ -951,6 +954,9 @@ public:
     // backoff for the expiration of cached user data
     BackoffTimer btugexpiration;
 
+    // if logged into public folder (which might optionally be writable)
+    bool loggedIntoFolder() const;
+
     // if logged into writable folder
     bool loggedIntoWritableFolder() const;
 
@@ -975,9 +981,6 @@ private:
 
     bool pendingscTimedOut = false;
 
-    // if logged into writable folder
-    bool mLoggedIntoWritableFolder = false;
-
     // badhost report
     HttpReq* badhostcs;
 
@@ -996,8 +999,11 @@ private:
     // lang URI component for API requests
     string lang;
 
-    // public handle being used
+    // public handle being used (logged into public folder, read-only or writable)
     handle publichandle;
+
+    // when logged into a public folder, this auth string enables writing
+    string publichandleWriteAuth;
 
     // API response JSON object
     JSON response;

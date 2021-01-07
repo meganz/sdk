@@ -2939,7 +2939,7 @@ void exec_timelocal(autocomplete::ACState& s)
         cout << "wrong number of arguments for : " << s.words[1].s << endl;
         return;
     }
-    
+
     m_time_t set_time = 0;
 
     if (!get)
@@ -3005,8 +3005,10 @@ autocomplete::ACN autocompleteSyntax()
     std::unique_ptr<Either> p(new Either("      "));
 
     p->Add(exec_apiurl, sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
-    p->Add(exec_login, sequence(text("login"), either(sequence(param("email"), opt(param("password"))),
-                                                      sequence(exportedLink(false, true), opt(param("auth_key"))), param("session"), sequence(text("autoresume"), opt(param("id"))))));
+    p->Add(exec_login, sequence(text("login"), opt(flag("-fresh")), either(sequence(param("email"), opt(param("password"))),
+                                                      sequence(exportedLink(false, true), opt(param("auth_key"))),
+                                                      param("session"),
+                                                      sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
     p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name")), param("confirmationlink"))));
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
@@ -3598,6 +3600,10 @@ void exec_mv(autocomplete::ACState& s)
                             {
                                 cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
                             }
+                        }
+                        else
+                        {
+                            cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
                         }
                     }
                 }
@@ -4507,6 +4513,8 @@ void exec_mfae(autocomplete::ACState& s)
 
 void exec_login(autocomplete::ACState& s)
 {
+    //bool fresh = s.extractflag("-fresh");
+
     if (client->loggedin() == NOTLOGGEDIN)
     {
         if (s.words.size() > 1)
@@ -4519,14 +4527,8 @@ void exec_login(autocomplete::ACState& s)
                 file >> session;
                 if (file.is_open() && session.size())
                 {
-                    byte sessionraw[64];
-                    if (session.size() < sizeof sessionraw * 4 / 3)
-                    {
-                        int size = Base64::atob(session.c_str(), sessionraw, sizeof sessionraw);
-
-                        cout << "Resuming session..." << endl;
-                        return client->login(sessionraw, size);
-                    }
+                    cout << "Resuming session..." << endl;
+                    return client->login(Base64::atob(session));
                 }
                 cout << "Failed to get a valid session id from file " << filename << endl;
             }
@@ -4553,17 +4555,7 @@ void exec_login(autocomplete::ACState& s)
                 }
                 else
                 {
-                    byte session[64];
-                    int size;
-
-                    if (s.words[1].s.size() < sizeof session * 4 / 3)
-                    {
-                        size = Base64::atob(s.words[1].s.c_str(), session, sizeof session);
-
-                        cout << "Resuming session..." << endl;
-
-                        return client->login(session, size);
-                    }
+                    return client->login(Base64::atob(s.words[1].s));
                 }
 
                 cout << "Invalid argument. Please specify a valid e-mail address, "
@@ -6217,15 +6209,12 @@ void exec_recover(autocomplete::ACState& s)
 
 void exec_session(autocomplete::ACState& s)
 {
-    byte session[64];
-    int size;
+    string session;
 
-    size = client->dumpsession(session, sizeof session);
+    int size = client->dumpsession(session);
 
     if (size > 0)
     {
-        Base64Str<sizeof session> buf(session, size);
-
         if ((s.words.size() == 2 || s.words.size() == 3) && s.words[1].s == "autoresume")
         {
             string filename = "megacli_autoresume_session" + (s.words.size() == 3 ? "_" + s.words[2].s : "");
@@ -6236,13 +6225,13 @@ void exec_session(autocomplete::ACState& s)
             }
             else
             {
-                file << buf;
+                file << Base64::btoa(session);
                 cout << "Your (secret) session is saved in file '" << filename << "'" << endl;
             }
         }
         else
         {
-            cout << "Your (secret) session is: " << buf << endl;
+            cout << "Your (secret) session is: " << Base64::btoa(session) << endl;
         }
     }
     else if (!size)
