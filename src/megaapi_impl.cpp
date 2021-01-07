@@ -13992,11 +13992,8 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             SyncConfig syncConfig{ localPath, backupName, backupHandle, remotePath.get(),
                                     0, regExpToVector(regExp), true, SyncConfig::TYPE_BACKUP };
 
-            auto sync = std::make_shared<MegaSyncPrivate>(localPath, backupName, backupHandle, SyncConfig::TYPE_BACKUP);
-            sync->setRegExp(regExp);
-
             client->addsync(syncConfig, DEBRISFOLDER, NULL, true, false,
-                                [this, request, sync](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
+                                [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
             {
                 request->setNumDetails(syncError);
 
@@ -14010,11 +14007,11 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
                     if (unifiedSync->mSync)
                     {
                         fsfp_t fsfp = unifiedSync->mSync->fsfp;
-                        sync->setLocalFingerprint(fsfp);
                         request->setNumber(fsfp);
                     }
-                    sync->setMegaFolder(unifiedSync->mConfig.getRemotePath().c_str());
                     request->setParentHandle(unifiedSync->mConfig.getBackupId());
+
+                    auto sync = ::mega::make_unique<MegaSyncPrivate>(unifiedSync->mConfig, unifiedSync->mSync.get());
 
                     fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
                 }
@@ -21605,9 +21602,6 @@ void MegaApiImpl::sendPendingRequests()
 
             const char *name = request->getName();
 
-            auto sync = std::make_shared<MegaSyncPrivate>(localPath, name, node->nodehandle, SyncConfig::TYPE_BACKUP);
-            sync->setRegExp(request->getRegExp());
-
             std::unique_ptr<char[]> remotePath{getNodePathByNodeHandle(request->getNodeHandle())};
             if (!remotePath)
             {
@@ -21621,7 +21615,7 @@ void MegaApiImpl::sendPendingRequests()
                                   0, regExpToVector(request->getRegExp())};
 
             client->addsync(syncConfig, DEBRISFOLDER, NULL, true, false,
-                                [this, request, sync](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
+                                [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
             {
                 request->setNumDetails(syncError);
 
@@ -21635,11 +21629,11 @@ void MegaApiImpl::sendPendingRequests()
                     if (unifiedSync->mSync)
                     {
                         fsfp_t fsfp = unifiedSync->mSync->fsfp;
-                        sync->setLocalFingerprint(fsfp);
                         request->setNumber(fsfp);
                     }
-                    sync->setMegaFolder(unifiedSync->mConfig.getRemotePath().c_str());
                     request->setParentHandle(unifiedSync->mConfig.getBackupId());
+
+                    auto sync = ::mega::make_unique<MegaSyncPrivate>(unifiedSync->mConfig, unifiedSync->mSync.get());
 
                     fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
                 }
