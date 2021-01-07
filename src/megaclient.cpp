@@ -15888,7 +15888,7 @@ bool MegaClient::loggedIntoFolder() const
 
 bool MegaClient::loggedIntoWritableFolder() const
 {
-    return !ISUNDEF(publichandle) && !publichandleWriteAuth.empty();
+    return loggedIntoFolder() && !publichandleWriteAuth.empty();
 }
 
 void MegaClient::userfeedbackstore(const char *message)
