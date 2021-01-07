@@ -4150,6 +4150,13 @@ class MegaTransfer
         virtual bool isSyncTransfer() const;
 
         /**
+         * @brief Returns true if this transfer corresponds to a folder upload/download
+         *
+         * @return true if this transfer corresponds to a folder upload/download, otherwise false
+         */
+        virtual bool isRecursiveOperation() const;
+
+        /**
          * @brief Returns true if this transfer belongs to the backups engine
          *
          * This data is important to know if the transfer will resume when enableTransferResumption is called.

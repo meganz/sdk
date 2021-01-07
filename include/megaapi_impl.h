@@ -814,6 +814,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         virtual MegaNode *getPublicNode() const;
         MegaNode *getPublicMegaNode() const override;
         bool isSyncTransfer() const override;
+        bool isRecursiveOperation() const override;
         bool isStreamingTransfer() const override;
         bool isFinished() const override;
         virtual bool isSourceFileTemporary() const;

@@ -1200,6 +1200,11 @@ bool MegaTransfer::isSyncTransfer() const
 	return false;
 }
 
+bool MegaTransfer::isRecursiveOperation() const
+{
+    return false;
+}
+
 bool MegaTransfer::isStreamingTransfer() const
 {
 	return false;

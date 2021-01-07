@@ -2484,6 +2484,11 @@ bool MegaTransferPrivate::isSyncTransfer() const
     return syncTransfer;
 }
 
+bool MegaTransferPrivate::isRecursiveOperation() const
+{
+    return recursiveOperation.operator bool();
+}
+
 bool MegaTransferPrivate::isStreamingTransfer() const
 {
     return streamingTransfer;
@@ -16771,7 +16776,7 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
     }
 
     MegaTransferListener* listener = transfer->getListener();
-    if(listener)
+    if (listener && !transfer->isRecursiveOperation())
     {
         listener->onTransferFinish(api, transfer, e.get());
     }
