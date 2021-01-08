@@ -506,6 +506,7 @@ SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, Prn
     std::string data;
     while (mTable->next(&tableId, &data))
     {
+        LOG_debug << "unserialized data: " << Utils::stringToHex(data);
         auto syncConfig = SyncConfig::unserialize(data);
         if (!syncConfig)
         {

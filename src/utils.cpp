@@ -2437,34 +2437,42 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     CacheableReader reader{data};
     if (!reader.unserializei64(tag))
     {
+        LOG_err << "unserialize error at tag";
         return {};
     }
     if (!reader.unserializebool(enabled))
     {
+        LOG_err << "unserialize error at enabled";
         return {};
     }
     if (!reader.unserializestring(localPath))
     {
+        LOG_err << "unserialize error at localPath";
         return {};
     }
     if (!reader.unserializestring(name))
     {
+        LOG_err << "unserialize error at name";
         return {};
     }
     if (!reader.unserializehandle(remoteNode))
     {
+        LOG_err << "unserialize error at remoteNode";
         return {};
     }
     if (!reader.unserializestring(remotePath))
     {
+        LOG_err << "unserialize error at remotePath";
         return {};
     }
     if (!reader.unserializefsfp(fingerprint))
     {
+        LOG_err << "unserialize error at fingerprint";
         return {};
     }
     if (!reader.unserializeu32(regExpCount))
     {
+        LOG_err << "unserialize error at regExpCount";
         return {};
     }
     for (uint32_t i = 0; i < regExpCount; ++i)
@@ -2472,28 +2480,34 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
         std::string regExp;
         if (!reader.unserializestring(regExp))
         {
+            LOG_err << "unserialize error at regExp";
             return {};
         }
         regExps.push_back(std::move(regExp));
     }
     if (!reader.unserializeu32(syncType))
     {
+        LOG_err << "unserialize error at syncType";
         return {};
     }
     if (!reader.unserializebool(syncDeletions))
     {
+        LOG_err << "unserialize error at syncDeletions";
         return {};
     }
     if (!reader.unserializebool(forceOverwrite))
     {
+        LOG_err << "unserialize error at forceOverwrite";
         return {};
     }
     if (!reader.unserializeu32(error))
     {
+        LOG_err << "unserialize error at error";
         return {};
     }
     if (!reader.unserializehandle(heartBeatID))
     {
+        LOG_err << "unserialize error at heartBeatID";
         return {};
     }
     auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{static_cast<int>(tag), std::move(localPath), std::move(name),
