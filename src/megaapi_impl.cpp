@@ -27134,7 +27134,10 @@ void MegaFolderDownloadController::start(MegaNode *node)
                     // downloadFiles must run on the megaApi thread, as it may call fireOnTransferXYZ()
                     downloadFiles(fsType);
                 }
-                checkCompletion();  //check for completion
+                else
+                {
+                    checkCompletion();
+                }
             });
          }
     });
@@ -27335,6 +27338,10 @@ void MegaFolderDownloadController::downloadFiles(FileSystemType fsType)
     if (pendingTransfers)
     {
         megaApi->sendPendingTransfers(&transferQueue);
+    }
+    else
+    {
+        checkCompletion();
     }
 }
 
