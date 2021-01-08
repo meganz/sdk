@@ -933,9 +933,6 @@ public:
     // root URL for chat stats
     static string CHATSTATSURL;
 
-    // account auth for public folders
-    string accountauth;
-
     // file that is blocking the sync engine
     LocalPath blockedfile;
 
@@ -993,17 +990,20 @@ private:
     // unique request ID
     char reqid[10];
 
-    // auth URI component for API requests
-    string auth;
-
     // lang URI component for API requests
     string lang;
 
-    // public handle being used (logged into public folder, read-only or writable)
-    handle publichandle;
+    struct FolderLink {
+        // public handle of the folder link ('&n=' param in the POST)
+        handle mPublicHandle = UNDEF;
 
-    // when logged into a public folder, this auth string enables writing
-    string publichandleWriteAuth;
+        // auth token that enables writing into the folder link (appended to the `n` param in POST)
+        string mWriteAuth;      // (optional, only for writable links)
+
+        // auth token that relates the usage of the folder link to a user's session id ('&sid=' param in the POST)
+        string mAccountAuth;    // (optional, set by the app)
+    };
+    FolderLink mFolderLink;
 
     // API response JSON object
     JSON response;
@@ -1699,17 +1699,19 @@ public:
     static void stringhash(const char*, byte*, SymmCipher*);
     static uint64_t stringhash64(string*, SymmCipher*);
 
-    // set authentication context, either a session ID or a exported folder node handle
-    void setsid(const byte*, unsigned);
-    void setrootnode(handle, const char *authKey = nullptr);
+    // builds the authentication URI to be sent in POST requests
+    string getAuthURI(bool supressSID = false);
 
     bool setlang(string *code);
 
-    // returns the handle of the root node if the account is logged into a public folder, otherwise UNDEF.
-    handle getrootpublicfolder();
+    // sets the auth token to be used when logged into a folder link
+    void setFolderLinkAccountAuth(const char *auth);
 
     // returns the public handle of the folder link if the account is logged into a public folder, otherwise UNDEF.
-    handle getpublicfolderhandle();
+    handle getFolderLinkPublicHandle();
+
+    // check if there is a valid folder link (rootnode received and the valid key)
+    bool isValidFolderLink();
 
     //returns the top-level node for a node
     Node *getrootnode(Node*);

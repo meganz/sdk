@@ -6229,22 +6229,9 @@ char *MegaApiImpl::getAccountAuth()
 
 void MegaApiImpl::setAccountAuth(const char *auth)
 {
-    sdkMutex.lock();
-    if (!auth)
-    {
-        client->accountauth.clear();
-    }
-    else
-    {
-        client->accountauth = auth;
-    }
+    SdkMutexGuard g(sdkMutex);
 
-    handle h = client->getrootpublicfolder();
-    if (h != UNDEF)
-    {
-        client->setrootnode(h);
-    }
-    sdkMutex.unlock();
+    client->setFolderLinkAccountAuth(auth);
 }
 
 void MegaApiImpl::createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener)
@@ -11287,7 +11274,7 @@ void MegaApiImpl::authorizeMegaNodePrivate(MegaNodePrivate *node)
         }
         else
         {
-            h = MegaApiImpl::handleToBase64(client->getrootpublicfolder());
+            h = MegaApiImpl::handleToBase64(client->rootnodes[0]);
             node->setPublicAuth(h);
         }
         delete [] h;
@@ -13810,16 +13797,12 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
 
         if (e == API_OK)
         {
-            // check if we fetched a folder link and the key is invalid
-            handle h = client->getrootpublicfolder();
-            if (h != UNDEF)
+            assert(!ISUNDEF(client->rootnodes[0]));    // is folder link fetched properly?
+
+            request->setNodeHandle(client->getFolderLinkPublicHandle());
+            if (client->isValidFolderLink())    // is the key for the folder link valid?
             {
-                request->setNodeHandle(client->getpublicfolderhandle());
-                Node *n = client->nodebyhandle(h);
-                if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
-                {
-                    request->setFlag(true);
-                }
+                request->setFlag(true);
             }
         }
 
@@ -13848,16 +13831,12 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
     {
         if (e == API_OK)
         {
-            // check if we fetched a folder link and the key is invalid
-            handle h = client->getrootpublicfolder();
-            if (h != UNDEF)
+            assert(!ISUNDEF(client->rootnodes[0]));    // is folder link fetched properly?
+
+            request->setNodeHandle(client->getFolderLinkPublicHandle());
+            if (client->isValidFolderLink())    // is the key for the folder link valid?
             {
-                request->setNodeHandle(client->getpublicfolderhandle());
-                Node *n = client->nodebyhandle(h);
-                if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
-                {
-                    request->setFlag(true);
-                }
+                request->setFlag(true);
             }
         }
 

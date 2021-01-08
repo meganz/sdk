@@ -475,42 +475,6 @@ void MegaClient::mergenewshare(NewShare *s, bool notify)
     }
 }
 
-// configure for full account session access
-void MegaClient::setsid(const byte* newsid, unsigned len)
-{
-    auth = "&sid=";
-
-    size_t t = auth.size();
-    auth.resize(t + len * 4 / 3 + 4);
-    auth.resize(t + Base64::btoa(newsid, len, (char*)(auth.c_str() + t)));
-
-    sid.assign((const char*)newsid, len);
-}
-
-// configure for exported folder links access
-void MegaClient::setrootnode(handle h, const char *authKey)
-{
-    char buf[12];
-
-    Base64::btoa((byte*)&h, NODEHANDLE, buf);
-
-    auth = "&n=";
-    auth.append(buf);
-    publichandle = h;   // folder link handle (different than root node handle)
-    publichandleWriteAuth.clear();
-
-    if (authKey && strlen(authKey))
-    {
-        auth.append(authKey); //nodehandle+authkey
-        publichandleWriteAuth = authKey;
-    }
-
-    if (accountauth.size())
-    {
-        auth.append("&sid=");
-        auth.append(accountauth);
-    }
-}
 
 bool MegaClient::setlang(string *code)
 {
@@ -526,22 +490,39 @@ bool MegaClient::setlang(string *code)
     return false;
 }
 
-handle MegaClient::getrootpublicfolder()
+void MegaClient::setFolderLinkAccountAuth(const char *auth)
 {
-    // if we logged into a folder...
-    if (auth.find("&n=") != auth.npos)
+    if (auth)
     {
-        return rootnodes[0];
+        mFolderLink.mAccountAuth = auth;
     }
     else
     {
-        return UNDEF;
+        mFolderLink.mAccountAuth.clear();
     }
 }
 
-handle MegaClient::getpublicfolderhandle()
+handle MegaClient::getFolderLinkPublicHandle()
 {
-    return publichandle;
+    return mFolderLink.mPublicHandle;
+}
+
+bool MegaClient::isValidFolderLink()
+{
+    if (!ISUNDEF(mFolderLink.mPublicHandle))
+    {
+        handle h = rootnodes[0];   // is the actual rootnode handle received?
+        if (!ISUNDEF(h))
+        {
+            Node *n = nodebyhandle(h);
+            if (n && (n->attrs.map.find('n') == n->attrs.map.end()))    // is it decrypted? (valid key)
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 Node *MegaClient::getrootnode(Node *node)
@@ -1241,7 +1222,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     tctable = NULL;
     statusTable = nullptr;
     me = UNDEF;
-    publichandle = UNDEF;
     followsymlinks = false;
     usealtdownport = false;
     usealtupport = false;
@@ -2087,10 +2067,7 @@ void MegaClient::exec()
 
                     pendingcs->posturl.append("cs?id=");
                     pendingcs->posturl.append(reqid, sizeof reqid);
-                    if (!suppressSID)
-                    {
-                        pendingcs->posturl.append(auth);
-                    }
+                    pendingcs->posturl.append(getAuthURI(suppressSID));
                     pendingcs->posturl.append(appkey);
 
                     string version = "v=2";
@@ -2345,7 +2322,7 @@ void MegaClient::exec()
                 pendingscUserAlerts->posturl = APIURL;
                 pendingscUserAlerts->posturl.append("sc");  // notifications/useralerts on sc rather than wsc, no timeout
                 pendingscUserAlerts->posturl.append("?c=50");
-                pendingscUserAlerts->posturl.append(auth);
+                pendingscUserAlerts->posturl.append(getAuthURI());
                 pendingscUserAlerts->type = REQ_JSON;
                 pendingscUserAlerts->post(this);
             }
@@ -2366,8 +2343,7 @@ void MegaClient::exec()
                 pendingsc->protect = true;
                 pendingsc->posturl.append("?sn=");
                 pendingsc->posturl.append(scsn.text());
-
-                pendingsc->posturl.append(auth);
+                pendingsc->posturl.append(getAuthURI());
 
                 pendingsc->type = REQ_JSON;
                 pendingsc->post(this);
@@ -3085,14 +3061,15 @@ void MegaClient::exec()
 
         if (!workinglockcs && requestLock && btworkinglock.armed())
         {
-            if (!auth.empty())
+            string auth = getAuthURI();
+            if (auth.size())
             {
                 LOG_debug << "Sending lock request";
                 workinglockcs.reset(new HttpReq());
                 workinglockcs->logname = clientname + "accountBusyCheck ";
                 workinglockcs->posturl = APIURL;
                 workinglockcs->posturl.append("cs?");
-                workinglockcs->posturl.append(auth);
+                workinglockcs->posturl.append(getAuthURI());
                 workinglockcs->posturl.append("&wlt=1");
                 workinglockcs->type = REQ_JSON;
                 workinglockcs->post(this);
@@ -4261,8 +4238,9 @@ void MegaClient::locallogout(bool removecaches)
     me = UNDEF;
     uid.clear();
     unshareablekey.clear();
-    publichandle = UNDEF;
-    publichandleWriteAuth.clear();
+    mFolderLink.mPublicHandle = UNDEF;
+    mFolderLink.mWriteAuth.clear();
+    mFolderLink.mAccountAuth.clear();
     cachedscsn = UNDEF;
     achievements_enabled = false;
     isNewSession = false;
@@ -4378,8 +4356,6 @@ void MegaClient::locallogout(bool removecaches)
     mPrivKey.clear();
     pubk.resetkey();
     resetKeyring();
-    memset((char*)auth.c_str(), 0, auth.size());
-    auth.clear();
     sessionkey.clear();
     accountversion = 0;
     accountsalt.clear();
@@ -9057,9 +9033,10 @@ error MegaClient::folderaccess(const char *folderlink, const char * authKey)
                 }
                 ptr++;
             }
+            mFolderLink.mWriteAuth = authKey;
         }
-
-        setrootnode(h, authKey);
+        mFolderLink.mPublicHandle = h;
+        // mFolderLink.mAccountAuth remain unchanged, since it can be reused for multiple links
         key.setkey(folderkey);
     }
 
@@ -9160,7 +9137,7 @@ void MegaClient::login(string session)
         string t;
 
         key.setkey((const byte*)session.data());
-        setsid((const byte*)session.data() + sizeof key.key, SIDLEN);
+        sid.assign((const char*)session.data() + sizeof key.key, SIDLEN);
 
         checkForResumeableSCDatabase();
 
@@ -9177,19 +9154,19 @@ void MegaClient::login(string session)
 
         CacheableReader cr(session);
 
-        byte v;
-        handle ph, rh;
+        byte sessionVersion;
+        handle publicHandle, rootnode;
         byte k[FOLDERNODEKEYLENGTH];
-        string a1, a2, padding;
+        string writeAuth, accountAuth, padding;
         byte expansions[8];
 
-        if (!cr.unserializebyte(v) ||
-            !cr.unserializenodehandle(ph) ||
-            !cr.unserializenodehandle(rh) ||
+        if (!cr.unserializebyte(sessionVersion) ||
+            !cr.unserializenodehandle(publicHandle) ||
+            !cr.unserializenodehandle(rootnode) ||
             !cr.unserializebinary(k, sizeof(k)) ||
             !cr.unserializeexpansionflags(expansions, 3) ||
-            (expansions[0] && !cr.unserializestring(a1)) ||
-            (expansions[1] && !cr.unserializestring(a2)) ||
+            (expansions[0] && !cr.unserializestring(writeAuth)) ||
+            (expansions[1] && !cr.unserializestring(accountAuth)) ||
             (expansions[2] && !cr.unserializestring(padding)) ||
             cr.hasdataleft())
         {
@@ -9198,11 +9175,15 @@ void MegaClient::login(string session)
         }
         else
         {
-            accountauth = a2;
-            setrootnode(ph, a1.c_str());
-            *rootnodes = rh;
+            mFolderLink.mPublicHandle = publicHandle;
+            mFolderLink.mWriteAuth = writeAuth;
+            mFolderLink.mAccountAuth = accountAuth;
+
+            rootnodes[0] = rootnode;
             key.setkey(k, FOLDERNODE);
+
             checkForResumeableSCDatabase();
+
             app->login_result(API_OK);
         }
     }
@@ -9273,19 +9254,19 @@ int MegaClient::dumpsession(string& session)
         CacheableWriter cw(session);
 
         cw.serializebyte(2);
-        cw.serializenodehandle(publichandle);
+        cw.serializenodehandle(mFolderLink.mPublicHandle);
         cw.serializenodehandle(*rootnodes);
         cw.serializebinary(key.key, sizeof(key.key));
-        cw.serializeexpansionflags(!publichandleWriteAuth.empty(), !accountauth.empty(), true);
+        cw.serializeexpansionflags(!mFolderLink.mWriteAuth.empty(), !mFolderLink.mAccountAuth.empty(), true);
 
-        if (!publichandleWriteAuth.empty())
+        if (!mFolderLink.mWriteAuth.empty())
         {
-            cw.serializestring(publichandleWriteAuth);
+            cw.serializestring(mFolderLink.mWriteAuth);
         }
 
-        if (!accountauth.empty())
+        if (!mFolderLink.mAccountAuth.empty())
         {
-            cw.serializestring(accountauth);
+            cw.serializestring(mFolderLink.mAccountAuth);
         }
 
         // make sure the final length is not equal to the old pre-versioned session length
@@ -9383,7 +9364,7 @@ void MegaClient::opensctable()
         else if (loggedinfolderlink())
         {
             dbname.resize(NODEHANDLE * 4 / 3 + 3);
-            dbname.resize(Base64::btoa((const byte*)&publichandle, NODEHANDLE, (char*)dbname.c_str()));
+            dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
         }
 
         if (dbname.size())
@@ -9408,7 +9389,7 @@ void MegaClient::openStatusTable()
         else if (loggedinfolderlink())
         {
             dbname.resize(NODEHANDLE * 4 / 3 + 3);
-            dbname.resize(Base64::btoa((const byte*)&publichandle, NODEHANDLE, (char*)dbname.c_str()));
+            dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
         }
 
         if (dbname.size())
@@ -11305,7 +11286,7 @@ error MegaClient::encryptlink(const char *link, const char *pwd, string *encrypt
 
 bool MegaClient::loggedinfolderlink()
 {
-    return !ISUNDEF(publichandle);
+    return !ISUNDEF(mFolderLink.mPublicHandle);
 }
 
 sessiontype_t MegaClient::loggedin()
@@ -11792,7 +11773,7 @@ void MegaClient::enabletransferresumption(const char *loggedoutid)
     else if (loggedinfolderlink())
     {
         dbname.resize(NODEHANDLE * 4 / 3 + 3);
-        dbname.resize(Base64::btoa((const byte*)&publichandle, NODEHANDLE, (char*)dbname.c_str()));
+        dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
         tckey = key;
     }
     else
@@ -11894,7 +11875,7 @@ void MegaClient::disabletransferresumption(const char *loggedoutid)
     else if (loggedinfolderlink())
     {
         dbname.resize(NODEHANDLE * 4 / 3 + 3);
-        dbname.resize(Base64::btoa((const byte*)&publichandle, NODEHANDLE, (char*)dbname.c_str()));
+        dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
     }
     else
     {
@@ -15883,12 +15864,36 @@ handle MegaClient::getovhandle(Node *parent, string *name)
 
 bool MegaClient::loggedIntoFolder() const
 {
-    return !ISUNDEF(publichandle);
+    return !ISUNDEF(mFolderLink.mPublicHandle);
 }
 
 bool MegaClient::loggedIntoWritableFolder() const
 {
-    return !ISUNDEF(publichandle) && !publichandleWriteAuth.empty();
+    return loggedIntoFolder() && !mFolderLink.mWriteAuth.empty();
+}
+
+std::string MegaClient::getAuthURI(bool supressSID)
+{
+    string auth;
+
+    if (loggedIntoFolder())
+    {
+        auth.append("&n=");
+        auth.append(Base64Str<NODEHANDLE>(mFolderLink.mPublicHandle));
+        auth.append(mFolderLink.mWriteAuth);
+        if (!supressSID && !mFolderLink.mAccountAuth.empty())
+        {
+            auth.append("&sid=");
+            auth.append(mFolderLink.mAccountAuth);
+        }
+    }
+    else if (!supressSID && !sid.empty())
+    {
+        auth.append("&sid=");
+        auth.append(Base64::btoa(sid));
+    }
+
+    return auth;
 }
 
 void MegaClient::userfeedbackstore(const char *message)

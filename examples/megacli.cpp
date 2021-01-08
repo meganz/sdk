@@ -1156,18 +1156,14 @@ void DemoApp::fetchnodes_result(const Error& e)
     else
     {
         // check if we fetched a folder link and the key is invalid
-        handle h = client->getrootpublicfolder();
-        if (h != UNDEF)
+        if (client->isValidFolderLink())
         {
-            Node *n = client->nodebyhandle(h);
-            if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
-            {
-                cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
-            }
-            else
-            {
-                cout << "Folder link loaded correctly." << endl;
-            }
+            cout << "Folder link loaded correctly." << endl;
+        }
+        else
+        {
+            assert(client->nodebyhandle(client->rootnodes[0]));   // node is there, but cannot be decrypted
+            cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
         }
 
         if (pdf_to_import)
@@ -3969,7 +3965,7 @@ void exec_get(autocomplete::ACState& s)
                     // node from public folder link
                     if (index != string::npos && s.words[1].s.substr(0, index).find("@") == string::npos)
                     {
-                        handle h = clientFolder->getrootpublicfolder();
+                        handle h = clientFolder->rootnodes[0];
                         char *pubauth = new char[12];
                         Base64::btoa((byte*)&h, MegaClient::NODEHANDLE, pubauth);
                         f->pubauth = pubauth;
@@ -8222,14 +8218,9 @@ void DemoAppFolder::fetchnodes_result(const Error& e)
     else
     {
         // check if we fetched a folder link and the key is invalid
-        handle h = clientFolder->getrootpublicfolder();
-        if (h != UNDEF)
+        if (clientFolder->isValidFolderLink())
         {
-            Node *n = clientFolder->nodebyhandle(h);
-            if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
-            {
-                cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
-            }
+            cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
         }
         else
         {
