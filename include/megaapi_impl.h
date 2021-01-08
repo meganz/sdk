@@ -2159,6 +2159,7 @@ class TransferQueue
         void push(MegaTransferPrivate *transfer);
         void push_front(MegaTransferPrivate *transfer);
         MegaTransferPrivate * pop();
+        bool empty();
 
         /**
          * @brief pops and returns transfer up to the designated one

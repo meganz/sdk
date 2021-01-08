@@ -5449,8 +5449,10 @@ void MegaApiImpl::init(MegaApi *api, const char *appKey, MegaGfxProcessor* proce
 
 MegaApiImpl::~MegaApiImpl()
 {
-    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DELETE);
-    requestQueue.push(request);
+    // the fireOnFinish won't be called for this one, so delete it ourselves
+    auto shutdownRequest = ::mega::make_unique<MegaRequestPrivate>(MegaRequest::TYPE_DELETE);
+
+    requestQueue.push(shutdownRequest.get());
     waiter->notify();
     thread.join();
 
@@ -5468,8 +5470,6 @@ MegaApiImpl::~MegaApiImpl()
 #ifndef DONT_RELEASE_HTTPIO
     delete httpio;
 #endif
-
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
 }
 
 MegaApiImpl* MegaApiImpl::ImplOf(MegaApi* api)
@@ -7741,7 +7741,7 @@ void MegaApiImpl::abortPendingActions(error preverror)
     {
         if (request->getType() == MegaRequest::TYPE_DELETE)
         {
-            continue; // this request is finished at MegaApiImpl dtor
+            continue; // this request is deleted in MegaApiImpl dtor, its finish is the Impl destructor exiting.
         }
         fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(preverror));
     }
@@ -16776,7 +16776,7 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
     }
 
     MegaTransferListener* listener = transfer->getListener();
-    if (listener && !transfer->isRecursiveOperation())
+    if (listener /*&& !transfer->isRecursiveOperation()*/)
     {
         listener->onTransferFinish(api, transfer, e.get());
     }
@@ -19404,17 +19404,20 @@ void MegaApiImpl::sendPendingRequests()
             client->abortbackoff(false);
         }
 
-        if (!request->getTag())
+        if (request->getType() != MegaRequest::TYPE_EXECUTE_ON_THREAD)
         {
-            nextTag = client->nextreqtag();
-            request->setTag(nextTag);
-            requestMap[nextTag] = request;
-            fireOnRequestStart(request);
-        }
-        else
-        {
-            // this case happens when we queue requests already started
-            nextTag = request->getTag();
+            if (!request->getTag())
+            {
+                nextTag = client->nextreqtag();
+                request->setTag(nextTag);
+                requestMap[nextTag] = request;
+                fireOnRequestStart(request);
+            }
+            else
+            {
+                // this case happens when we queue requests already started
+                nextTag = request->getTag();
+            }
         }
 
         error e = API_OK;
@@ -23760,30 +23763,32 @@ TransferQueue::TransferQueue()
 
 void TransferQueue::push(MegaTransferPrivate *transfer)
 {
-    mutex.lock();
+    std::lock_guard<std::mutex> g(mutex);
     transfers.push_back(transfer);
     transfer->setPlaceInQueue(++lastPushedTransferTag);
-    mutex.unlock();
 }
 
 void TransferQueue::push_front(MegaTransferPrivate *transfer)
 {
-    mutex.lock();
+    std::lock_guard<std::mutex> g(mutex);
     transfers.push_front(transfer);
-    mutex.unlock();
+}
+
+bool TransferQueue::empty()
+{
+    std::lock_guard<std::mutex> g(mutex);
+    return transfers.empty();
 }
 
 MegaTransferPrivate *TransferQueue::pop()
 {
-    mutex.lock();
+    std::lock_guard<std::mutex> g(mutex);
     if(transfers.empty())
     {
-        mutex.unlock();
         return NULL;
     }
     MegaTransferPrivate *transfer = transfers.front();
     transfers.pop_front();
-    mutex.unlock();
     return transfer;
 }
 
@@ -23814,6 +23819,13 @@ std::vector<MegaTransferPrivate *> TransferQueue::popUpTo(int lastQueuedTransfer
 
 void TransferQueue::removeWithFolderTag(int folderTag, std::function<void(MegaTransferPrivate *)> callback)
 {
+    // We need to lock the mutex or it's not safe to iterate transfers.
+    // However this is risky because we are making callbacks with it locked
+    // We shouldn't cause a deadlock wih the impl mutex because that one is always locked before calling here.
+    // However the callback (including its calls to fireOnXYZ() ) must be careful not to lock any mutex which
+    // may have been locked during other MegaApi function calls.
+    std::lock_guard<std::mutex> g(mutex);
+
     for (auto it = transfers.begin(); it != transfers.end();)
     {
         if ((*it)->getFolderTransferTag() == folderTag)
@@ -23833,7 +23845,7 @@ void TransferQueue::removeWithFolderTag(int folderTag, std::function<void(MegaTr
 
 void TransferQueue::removeListener(MegaTransferListener *listener)
 {
-    mutex.lock();
+    std::lock_guard<std::mutex> g(mutex);
 
     std::deque<MegaTransferPrivate *>::iterator it = transfers.begin();
     while(it != transfers.end())
@@ -23843,8 +23855,6 @@ void TransferQueue::removeListener(MegaTransferListener *listener)
             transfer->setListener(NULL);
         it++;
     }
-
-    mutex.unlock();
 }
 
 RequestQueue::RequestQueue()
@@ -23853,48 +23863,42 @@ RequestQueue::RequestQueue()
 
 void RequestQueue::push(MegaRequestPrivate *request)
 {
-    mutex.lock();
+    std::lock_guard<std::mutex> g(mutex);
     requests.push_back(request);
-    mutex.unlock();
 }
 
 void RequestQueue::push_front(MegaRequestPrivate *request)
 {
-    mutex.lock();
+    std::lock_guard<std::mutex> g(mutex);
     requests.push_front(request);
-    mutex.unlock();
 }
 
 MegaRequestPrivate *RequestQueue::pop()
 {
-    mutex.lock();
+    std::lock_guard<std::mutex> g(mutex);
     if(requests.empty())
     {
-        mutex.unlock();
         return NULL;
     }
     MegaRequestPrivate *request = requests.front();
     requests.pop_front();
-    mutex.unlock();
     return request;
 }
 
 MegaRequestPrivate *RequestQueue::front()
 {
-    mutex.lock();
+    std::lock_guard<std::mutex> g(mutex);
     if(requests.empty())
     {
-        mutex.unlock();
         return NULL;
     }
     MegaRequestPrivate *request = requests.front();
-    mutex.unlock();
     return request;
 }
 
 void RequestQueue::removeListener(MegaRequestListener *listener)
 {
-    mutex.lock();
+    std::lock_guard<std::mutex> g(mutex);
 
     std::deque<MegaRequestPrivate *>::iterator it = requests.begin();
     while(it != requests.end())
@@ -23904,13 +23908,11 @@ void RequestQueue::removeListener(MegaRequestListener *listener)
             request->setListener(NULL);
         it++;
     }
-
-    mutex.unlock();
 }
 
 void RequestQueue::removeListener(MegaBackupListener *listener)
 {
-    mutex.lock();
+    std::lock_guard<std::mutex> g(mutex);
 
     std::deque<MegaRequestPrivate *>::iterator it = requests.begin();
     while(it != requests.end())
@@ -23920,8 +23922,6 @@ void RequestQueue::removeListener(MegaBackupListener *listener)
             request->setBackupListener(NULL);
         it++;
     }
-
-    mutex.unlock();
 }
 
 MegaHashSignatureImpl::MegaHashSignatureImpl(const char *base64Key)
@@ -25515,6 +25515,8 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
     this->tag = transfer->getTag();
     this->mMainThreadId = std::this_thread::get_id();
     this->mFollowsymlinks = megaapiThreadClient()->followsymlinks;
+
+    assert(mMainThreadId == megaApi->threadId);
 }
 
 void MegaFolderUploadController::start(MegaNode*)
@@ -25575,10 +25577,17 @@ void MegaFolderUploadController::start(MegaNode*)
                         // otherwise the folder completion function will start them
                         TransferQueue transferQueue;
                         genUploadTransfersForFiles(mUploadTree, transferQueue);
-                        megaApi->sendPendingTransfers(&transferQueue);
 
-                        // checkCompletion must be called on the megaapi's thread, as it calls onFire functions
-                        checkCompletion();  //check for completion
+                        if (transferQueue.empty())
+                        {
+                            checkCompletion();
+                        }
+                        else
+                        {
+                            // completion will occur on the last transfer's onFinish callback
+                            // (at which time this object is deleted)
+                            megaApi->sendPendingTransfers(&transferQueue);
+                        }
                     }
                 }
             });
@@ -25890,7 +25899,17 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
                         TransferQueue transferQueue;
                         genUploadTransfersForFiles(mUploadTree, transferQueue);
                         megaApi->sendPendingTransfers(&transferQueue);
-                        checkCompletion(); //check for completion
+
+                        if (transferQueue.empty())
+                        {
+                            checkCompletion();
+                        }
+                        else
+                        {
+                            // completion will occur on the last transfer's onFinish callback
+                            // (at which time this object is deleted)
+                            megaApi->sendPendingTransfers(&transferQueue);
+                        }
                     }
                 }
             });
