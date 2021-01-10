@@ -1006,9 +1006,6 @@ const char* MegaNodePrivate::getDeviceId() const
     return mDeviceId.c_str();
 }
 
-const unsigned int MegaApiImpl::MAX_SESSION_LENGTH = 64;
-
-
 MegaBackgroundMediaUploadPrivate::MegaBackgroundMediaUploadPrivate(MegaApi* capi)
     : api(MegaApiImpl::ImplOf(capi))
 {
@@ -6205,65 +6202,36 @@ void MegaApiImpl::login(const char *login, const char *password, MegaRequestList
 
 char *MegaApiImpl::dumpSession()
 {
-    sdkMutex.lock();
-    byte session[MAX_SESSION_LENGTH];
-    char* buf = NULL;
-    int size;
-    size = client->dumpsession(session, sizeof session);
-    if (size > 0)
+    SdkMutexGuard g(sdkMutex);
+    string session;
+    if (client->dumpsession(session))
     {
-        buf = new char[sizeof(session) * 4 / 3 + 4];
-        Base64::btoa(session, size, buf);
+        return MegaApi::strdup(Base64::btoa(session).c_str());
     }
-
-    sdkMutex.unlock();
-    return buf;
+    return nullptr;
 }
 
 char *MegaApiImpl::getSequenceNumber()
 {
-    sdkMutex.lock();
-
-    char *scsn = MegaApi::strdup(client->scsn.text());
-
-    sdkMutex.unlock();
-
-    return scsn;
+    SdkMutexGuard g(sdkMutex);
+    return MegaApi::strdup(client->scsn.text());
 }
 
 char *MegaApiImpl::getAccountAuth()
 {
-    sdkMutex.lock();
-    char* buf = NULL;
-
+    SdkMutexGuard g(sdkMutex);
     if (client->loggedin())
     {
-        buf = new char[MAX_SESSION_LENGTH * 4 / 3 + 4];
-        Base64::btoa((const byte *)client->sid.data(), int(client->sid.size()), buf);
+        return MegaApi::strdup(Base64::btoa(client->sid).c_str());
     }
-
-    sdkMutex.unlock();
-    return buf;
+    return nullptr;
 }
 
 void MegaApiImpl::setAccountAuth(const char *auth)
 {
-    sdkMutex.lock();
-    if (!auth)
-    {
-        client->accountauth.clear();
-    }
-    else
-    {
-        client->accountauth = auth;
-    }
+    SdkMutexGuard g(sdkMutex);
 
-    handle h = client->getrootpublicfolder();
-    if (h != UNDEF)
-    {
-        client->setrootnode(h);
-    }
-    sdkMutex.unlock();
+    client->setFolderLinkAccountAuth(auth);
 }
 
 void MegaApiImpl::createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener)
@@ -11306,7 +11274,7 @@ void MegaApiImpl::authorizeMegaNodePrivate(MegaNodePrivate *node)
         }
         else
         {
-            h = MegaApiImpl::handleToBase64(client->getrootpublicfolder());
+            h = MegaApiImpl::handleToBase64(client->rootnodes[0]);
             node->setPublicAuth(h);
         }
         delete [] h;
@@ -11762,7 +11730,7 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
     {
         return new MegaNodeListPrivate();
     }
-    
+
     MegaNodeList *nodeList = nullptr;
     if (n)
     {
@@ -13829,16 +13797,12 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
 
         if (e == API_OK)
         {
-            // check if we fetched a folder link and the key is invalid
-            handle h = client->getrootpublicfolder();
-            if (h != UNDEF)
+            assert(!ISUNDEF(client->rootnodes[0]));    // is folder link fetched properly?
+
+            request->setNodeHandle(client->getFolderLinkPublicHandle());
+            if (client->isValidFolderLink())    // is the key for the folder link valid?
             {
-                request->setNodeHandle(client->getpublicfolderhandle());
-                Node *n = client->nodebyhandle(h);
-                if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
-                {
-                    request->setFlag(true);
-                }
+                request->setFlag(true);
             }
         }
 
@@ -13867,16 +13831,12 @@ void MegaApiImpl::fetchnodes_result(const Error &e)
     {
         if (e == API_OK)
         {
-            // check if we fetched a folder link and the key is invalid
-            handle h = client->getrootpublicfolder();
-            if (h != UNDEF)
+            assert(!ISUNDEF(client->rootnodes[0]));    // is folder link fetched properly?
+
+            request->setNodeHandle(client->getFolderLinkPublicHandle());
+            if (client->isValidFolderLink())    // is the key for the folder link valid?
             {
-                request->setNodeHandle(client->getpublicfolderhandle());
-                Node *n = client->nodebyhandle(h);
-                if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
-                {
-                    request->setFlag(true);
-                }
+                request->setFlag(true);
             }
         }
 
@@ -15659,7 +15619,7 @@ void MegaApiImpl::getua_result(TLVstore *tlv, attr_t type)
                 request->setName(Base64::atob(buf).c_str());
                 break;
             }
- 
+
             default:
                 break;
         }
@@ -19344,9 +19304,7 @@ void MegaApiImpl::sendPendingRequests()
             client->locallogout(false);
             if (sessionKey)
             {
-                byte session[MAX_SESSION_LENGTH];
-                int size = Base64::atob(sessionKey, (byte *)session, sizeof session);
-                client->login(session, size);
+                client->login(Base64::atob(string(sessionKey)));
             }
             else if (login && (base64pwkey || password) && !megaFolderLink)
             {
@@ -23243,9 +23201,9 @@ void MegaApiImpl::sendPendingRequests()
                 }
 
                 client->reqs.add(new CommandBackupPut(client,
-                                                      (MegaHandle)request->getParentHandle(), 
+                                                      (MegaHandle)request->getParentHandle(),
                                                       bType,
-                                                      request->getNodeHandle(), 
+                                                      request->getNodeHandle(),
                                                       localFolderEncrypted.empty() ? nullptr : localFolderEncrypted.c_str(),
                                                       client->getDeviceidHash().c_str(),
                                                       request->getAccess(),
@@ -23261,13 +23219,13 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT:
         {
-            client->reqs.add(new CommandBackupPutHeartBeat(client, 
-                                                           (MegaHandle)request->getParentHandle(), 
+            client->reqs.add(new CommandBackupPutHeartBeat(client,
+                                                           (MegaHandle)request->getParentHandle(),
                                                            (uint8_t)request->getAccess(),
                                                            (uint8_t)request->getNumDetails(),
                                                            (uint32_t)request->getParamType(),
                                                            (uint32_t)request->getTransferTag(),
-                                                           request->getNumber(), 
+                                                           request->getNumber(),
                                                            request->getNodeHandle()));
             break;
         }

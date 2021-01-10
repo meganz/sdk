@@ -2808,8 +2808,6 @@ class MegaApiImpl : public MegaApp
         bool tryLockMutexFor(long long time);
 
 protected:
-        static const unsigned int MAX_SESSION_LENGTH;
-
         void init(MegaApi *api, const char *appKey, MegaGfxProcessor* processor, const char *basePath /*= NULL*/, const char *userAgent /*= NULL*/, int fseventsfd /*= -1*/, unsigned clientWorkerThreadCount /*= 1*/);
 
         static void *threadEntryPoint(void *param);

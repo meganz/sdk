@@ -1804,7 +1804,7 @@ bool CommandLogin::procresult(Result r)
 
                 if (len_tsid)
                 {
-                    client->setsid(sidbuf, MegaClient::SIDLEN);
+                    client->sid.assign((const char *)sidbuf, MegaClient::SIDLEN);
 
                     // account does not have an RSA keypair set: verify
                     // password using symmetric challenge
@@ -1866,7 +1866,7 @@ bool CommandLogin::procresult(Result r)
                             return true;
                         }
 
-                        client->setsid(sidbuf, MegaClient::SIDLEN);
+                        client->sid.assign((const char *)sidbuf, MegaClient::SIDLEN);
                     }
                 }
 
@@ -5128,7 +5128,7 @@ bool CommandResumeEphemeralSession::procresult(Result r)
                     return false;
                 }
 
-                client->setsid(sidbuf, sizeof sidbuf);
+                client->sid.assign((const char *)sidbuf, sizeof sidbuf);
 
                 client->key.setkey(pw);
                 client->key.ecb_decrypt(keybuf);
