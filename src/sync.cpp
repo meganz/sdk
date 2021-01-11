@@ -504,6 +504,7 @@ SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, Prn
 
     uint32_t tableId;
     std::string data;
+    bool err = false;
     while (mTable->next(&tableId, &data))
     {
         LOG_debug << "unserialized data: " << Utils::stringToHex(data);
@@ -514,12 +515,12 @@ SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, Prn
             LOG_err << "Sync config record was " << data.size() << ": " << Utils::stringToHex(data);
 
             {
-                // remove the reocrd so we can recover in jenkins tests (which fail at the assert())
+                // remove the record so we can recover in jenkins tests (which fail at the assert())
                 DBTableTransactionCommitter committer{ mTable };
                 mTable->del(tableId);
             }
 
-            assert(false);
+            err = true; // allow to remove all malformed records from cache, before assert fails
             continue;
         }
         syncConfig->dbid = tableId;
@@ -529,6 +530,11 @@ SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, Prn
         {
             mTable->nextid = tableId;
         }
+    }
+
+    if (err)
+    {
+        assert(false);
     }
     ++mTable->nextid;
 }
