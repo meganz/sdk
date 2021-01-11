@@ -148,19 +148,19 @@ static std::string syncConfigToString(const SyncConfig& config)
         return desc;
     };
 
-    std::string description;
+    std::string description(Base64Str<MegaClient::BACKUPHANDLE>(config.getBackupId()));
     if (config.getType() == SyncConfig::TYPE_TWOWAY)
     {
-        description = "TWOWAY";
+        description.append(" TWOWAY");
     }
     else if (config.getType() == SyncConfig::TYPE_UP)
     {
-        description = "UP";
+        description.append(" UP");
         description += getOptions(config);
     }
     else if (config.getType() == SyncConfig::TYPE_DOWN)
     {
-        description = "DOWN";
+        description.append(" DOWN");
         description += getOptions(config);
     }
     return description;
@@ -4404,7 +4404,8 @@ void exec_sync(autocomplete::ACState& s)
     }
     else if (s.words.size() == 2)
     {
-        handle cancelBackupId = atoll(s.words[1].s.c_str());
+        handle cancelBackupId;
+        Base64::atob(s.words[1].s.c_str(), (byte*)&cancelBackupId, MegaClient::BACKUPHANDLE);
 
         client->syncs.removeSelectedSyncs([&](SyncConfig& sc, Sync* s) {
 
@@ -4434,7 +4435,7 @@ void exec_sync(autocomplete::ACState& s)
                     nodepath(sync->localroot->node->nodehandle, &remotepath);
                     localpath = sync->localroot->localname.toPath(*client->fsaccess);
 
-                    cout << toHandle(us.mConfig.getBackupId()) << " (" << syncConfigToString(sync->getConfig()) << "): " << localpath << " to " << remotepath << " - "
+                    cout << syncConfigToString(sync->getConfig()) << ": " << localpath << " to " << remotepath << " - "
                             << syncstatenames[sync->state + 3] << ", " << sync->localbytes
                             << " byte(s) in " << sync->localnodes[FILENODE] << " file(s) and "
                             << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
@@ -4446,7 +4447,7 @@ void exec_sync(autocomplete::ACState& s)
                 nodepath(us.mConfig.getRemoteNode(), &remotepath);
                 localpath = us.mConfig.getLocalPath();
 
-                cout << toHandle(us.mConfig.getBackupId()) << " (" << syncConfigToString(us.mConfig) << "): " << localpath << " to " << remotepath << " - not running" << endl;
+                cout << syncConfigToString(us.mConfig) << ": " << localpath << " to " << remotepath << " - not running" << endl;
             }
         });
     }
