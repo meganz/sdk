@@ -5764,14 +5764,14 @@ int MegaSync::getTag() const
     return 0;
 }
 
-int MegaSync::getState() const
-{
-    return MegaSync::SYNC_FAILED;
-}
-
 int MegaSync::getError() const
 {
     return MegaSync::Error::NO_SYNC_ERROR;
+}
+
+int MegaSync::getWarning() const
+{
+    return MegaSync::Warning::NO_SYNC_WARNING;
 }
 
 int MegaSync::getType() const
@@ -5849,10 +5849,6 @@ const char* MegaSync::getMegaSyncErrorCode(int errorCode)
         return "Unsupported VBoxSharedFolderFS filesystem";
     case MegaSync::Error::LOCAL_PATH_SYNC_COLLISION:
         return "Local path collides with an existing sync";
-    case MegaSync::Error::LOCAL_IS_FAT:
-        return "Local filesystem is FAT";
-    case MegaSync::Error::LOCAL_IS_HGFS:
-        return "Local filesystem is HGFS";
     case MegaSync::Error::ACCOUNT_BLOCKED:
         return "Your account is blocked";
     case MegaSync::Error::UNKNOWN_TEMPORARY_ERROR:
@@ -5866,6 +5862,25 @@ const char* MegaSync::getMegaSyncErrorCode(int errorCode)
     }
 }
 
+const char* MegaSync::getMegaSyncWarningCode()
+{
+    return MegaSync::getMegaSyncWarningCode(getWarning());
+}
+
+const char* MegaSync::getMegaSyncWarningCode(int warningCode)
+{
+    switch(warningCode)
+    {
+    case MegaSync::Warning::NO_SYNC_WARNING:
+        return "No error";
+    case MegaSync::Warning::LOCAL_IS_FAT:
+        return "Local filesystem is FAT";
+    case MegaSync::Warning::LOCAL_IS_HGFS:
+        return "Local filesystem is HGFS";
+    default:
+        return "Undefined warning";
+    }
+}
 
 MegaSyncList *MegaSyncList::createInstance()
 {

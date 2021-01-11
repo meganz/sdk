@@ -60,6 +60,7 @@ struct MEGA_API AsyncIOContext;
 
 struct MEGA_API FileSystemAccess;
 class MEGA_API LocalPath;
+class MEGA_API Sync;
 
 class ScopedLengthRestore {
     LocalPath& path;
@@ -514,7 +515,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool getextension(const LocalPath&, std::string&) const = 0;
 
     // check if synchronization is supported for a specific path
-    virtual bool issyncsupported(LocalPath&, bool* = NULL, SyncError* = nullptr) { return true; }
+    virtual bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) = 0;
 
     // get the absolute path corresponding to a path
     virtual bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) = 0;

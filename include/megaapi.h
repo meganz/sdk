@@ -5139,14 +5139,6 @@ private:
 class MegaSync
 {
 public:
-    enum
-    {
-        SYNC_DISABLED = -3, //user disabled (if no syncError, otherwise automatically disabled . i.e SYNC_TEMPORARY_DISABLED)
-        SYNC_FAILED = -2,
-        SYNC_CANCELED = -1, //removed
-        SYNC_INITIALSCAN = 0,
-        SYNC_ACTIVE
-    };
 
     enum Error
     {
@@ -5173,12 +5165,18 @@ public:
         REMOTE_NODE_INSIDE_RUBBISH = 20, // Attempted to be added in rubbish
         VBOXSHAREDFOLDER_UNSUPPORTED = 21, // Found unsupported VBoxSharedFolderFS
         LOCAL_PATH_SYNC_COLLISION = 22, //Local path includes a synced path or is included within one
-        LOCAL_IS_FAT = 23, // Found FAT (not a failure per se)
-        LOCAL_IS_HGFS= 24, // Found HGFS (not a failure per se)
-        ACCOUNT_BLOCKED= 25, // Account blocked
-        UNKNOWN_TEMPORARY_ERROR = 26, // unknown temporary error
-        TOO_MANY_ACTION_PACKETS = 27, // Too many changes in account, local state discarded
-        LOGGED_OUT = 28, // Logged out
+        ACCOUNT_BLOCKED= 23, // Account blocked
+        UNKNOWN_TEMPORARY_ERROR = 24, // unknown temporary error
+        TOO_MANY_ACTION_PACKETS = 25, // Too many changes in account, local state discarded
+        LOGGED_OUT = 26, // Logged out
+        WHOLE_ACCOUNT_REFETCHED = 27, // The whole account was reloaded, missed actionpacket changes could not have been applied
+    };
+
+    enum Warning
+    {
+        NO_SYNC_WARNING = 0,
+        LOCAL_IS_FAT = 1, // Found FAT (not a failure per se)
+        LOCAL_IS_HGFS= 2, // Found HGFS (not a failure per se)
     };
 
     enum SyncAdded
@@ -5267,30 +5265,6 @@ public:
     virtual int getTag() const;
 
     /**
-     * @brief Get the state of the synchronization
-     *
-     * Possible values are:
-     * - SYNC_DISABLED
-     * The synchronization has been disabled by the user or temporarily disabled for a transient reason
-     *
-     * - SYNC_FAILED = -2
-     * The synchronization has failed and has been disabled
-     *
-     * - SYNC_CANCELED = -1,
-     * The synchronization is being removed
-     *
-     * - SYNC_INITIALSCAN = 0,
-     * The synchronization is doing the initial scan
-     *
-     * - SYNC_ACTIVE
-     * The synchronization is active
-     *
-     * @return State of the synchronization
-     */
-    virtual int getState() const;
-
-
-    /**
      * @brief Get the error of a synchronization
      *
      * Possible values are:
@@ -5317,16 +5291,26 @@ public:
      *  - REMOTE_NODE_INSIDE_RUBBISH = 20: Attempted to be added in rubbish
      *  - VBOXSHAREDFOLDER_UNSUPPORTED = 21: Found unsupported VBoxSharedFolderFS
      *  - LOCAL_PATH_SYNC_COLLISION = 22: Local path includes a synced path or is included within one
-     *  - LOCAL_IS_FAT = 23: Found FAT (not a failure per se)
-     *  - LOCAL_IS_HGFS = 24: Found HGFS (not a failure per se)
-     *  - ACCOUNT_BLOCKED = 25: Account blocked
-     *  - UNKNOWN_TEMPORARY_ERROR = 26: Unknown temporary error
-     *  - TOO_MANY_ACTION_PACKETS = 27: Too many changes in account, local state discarded
-     *  - LOGGED_OUT = 28: Logged out
+     *  - ACCOUNT_BLOCKED = 23: Account blocked
+     *  - UNKNOWN_TEMPORARY_ERROR = 24: Unknown temporary error
+     *  - TOO_MANY_ACTION_PACKETS = 25: Too many changes in account, local state discarded
+     *  - LOGGED_OUT = 26: Logged out
      *
      * @return Error of a synchronization
      */
     virtual int getError() const;
+
+    /**
+     * @brief Get the warning of a synchronization
+     *
+     * Possible values are:
+     *  - NO_SYNC_WARNING = 0: No warning
+     *  - LOCAL_IS_FAT = 1: Found FAT (not a failure per se)
+     *  - LOCAL_IS_HGFS = 2: Found HGFS (not a failure per se)
+     *
+     * @return Warning of a synchronization
+     */
+    virtual int getWarning() const;
 
     /**
      * @brief Get the type of sync
@@ -5386,6 +5370,28 @@ public:
      * @return Description associated with the error code
      */
     static const char *getMegaSyncErrorCode(int errorCode);
+
+    /**
+     * @brief Returns a readable description of the sync warning
+     *
+     * This function returns a pointer to a statically allocated buffer.
+     * You don't have to free the returned pointer
+     *
+     * @return Readable description of the warning
+     */
+    const char * getMegaSyncWarningCode();
+
+    /**
+     * @brief Provides the warning description associated with a sync warning code
+     *
+     * This function returns a pointer to a statically allocated buffer.
+     * You don't have to free the returned pointer
+     *
+     * @param warningCode Warning code for which the description will be returned
+     * @return Description associated with the warning code
+     */
+    static const char *getMegaSyncWarningCode(int warningCode);
+
 };
 
 
@@ -9383,7 +9389,6 @@ class MegaApi
          * - MegaRequest::getNumber - Returns the id of the PSA (useful to call MegaApi::setPSA later)
          * Depending on the format of the PSA, the request may additionally return, for the new format:
          * - MegaRequest::getEmail - Returns the URL (or an empty string))
-         * ...or for the old format:
          * - MegaRequest::getName - Returns the title of the PSA
          * - MegaRequest::getText - Returns the text of the PSA
          * - MegaRequest::getFile - Returns the URL of the image of the PSA

@@ -75,6 +75,9 @@ public:
     // permanantly remove all database info
     virtual void remove() = 0;
 
+    // whether an unmatched begin() has been issued
+    virtual bool inTransaction() const = 0;
+
     void checkCommitter(DBTableTransactionCommitter*);
 
     // autoincrement

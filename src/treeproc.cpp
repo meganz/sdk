@@ -126,7 +126,7 @@ void LocalTreeProcMove::proc(MegaClient*, LocalNode* localnode)
     if (recreate)
     {
         localnode->created = false;
-        localnode->node = NULL;
+        localnode->node.reset();
     }
 
     nc++;
@@ -143,11 +143,7 @@ void LocalTreeProcUpdateTransfers::proc(MegaClient *, LocalNode *localnode)
 
 void LocalTreeProcUnlinkNodes::proc(MegaClient *, LocalNode *localnode)
 {
-    if (localnode->node)
-    {
-        localnode->node->localnode = NULL;
-        localnode->node = NULL;
-    }
+    localnode->node.reset();
 }
 
 #endif

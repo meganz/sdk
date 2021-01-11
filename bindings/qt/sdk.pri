@@ -65,10 +65,11 @@ SOURCES += src/attrmap.cpp \
     src/mega_zxcvbn.cpp \
     src/mediafileattribute.cpp \
     src/raid.cpp \
-    src/testhooks.cpp
+    src/testhooks.cpp \
+    src/heartbeats.cpp
 
 CONFIG(USE_MEGAAPI) {
-  SOURCES += src/megaapi.cpp src/megaapi_impl.cpp src/heartbeats.cpp
+  SOURCES += src/megaapi.cpp src/megaapi_impl.cpp
 
 
   CONFIG(qt) {
