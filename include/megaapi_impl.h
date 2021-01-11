@@ -226,7 +226,6 @@ protected:
     bool cancelled = false;
     std::set<MegaTransferPrivate*> subTransfers;
     int mIncompleteTransfers = 0;
-    //LocalPath::separator_t mLocalSeparator;
 
     // worker thread
     std::thread mWorkerThread;
