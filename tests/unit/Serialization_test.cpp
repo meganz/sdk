@@ -383,10 +383,11 @@ TEST(Serialization, LocalNode_forFolder_withoutParent_withoutNode)
     l.setfsid(10, client.cli->fsidnode);
     std::string data;
     ASSERT_TRUE(l.serialize(&data));
-#ifndef WIN32    
+#ifndef WIN32
     ASSERT_EQ(45u, data.size());
 #endif
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
+    dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
     checkDeserializedLocalNode(*dl, l);
 }
 
@@ -409,6 +410,7 @@ TEST(Serialization, LocalNode_forFile_withoutNode)
     ASSERT_EQ(65u, data.size());
 #endif
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
+    dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -430,6 +432,7 @@ TEST(Serialization, LocalNode_forFile_withoutNode_withMaxMtime)
     ASSERT_EQ(69u, data.size());
 #endif
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
+    dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -446,6 +449,7 @@ TEST(Serialization, LocalNode_forFolder_withoutParent)
     ASSERT_EQ(45u, data.size());
 #endif
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
+    dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
     checkDeserializedLocalNode(*dl, l);
 }
 
@@ -460,13 +464,14 @@ TEST(Serialization, LocalNode_forFolder)
     l->parent_dbid = l->parent->dbid;
     auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42);
     l->setfsid(10, client.cli->fsidnode);
-    l->node = &n;
+    l->setnode(&n);
     std::string data;
     ASSERT_TRUE(l->serialize(&data));
 #ifndef WIN32
     ASSERT_EQ(44u, data.size());
 #endif
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
+    dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -482,7 +487,7 @@ TEST(Serialization, LocalNode_forFolder_32bit)
     l->parent_dbid = l->parent->dbid;
     auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42);
     l->setfsid(10, client.cli->fsidnode);
-    l->node = &n;
+    l->setnode(&n);
 
     // This is the result of serialization on 32bit Windows
     const std::array<unsigned char, 42> rawData = {
@@ -496,6 +501,7 @@ TEST(Serialization, LocalNode_forFolder_32bit)
     const std::string data(reinterpret_cast<const char*>(rawData.data()), rawData.size());
 
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
+    dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -509,7 +515,7 @@ TEST(Serialization, LocalNode_forFolder_oldLocalNodeWithoutSyncable)
     l->parent_dbid = l->parent->dbid;
     auto& n = mt::makeNode(*client.cli, mega::FOLDERNODE, 42);
     l->setfsid(10, client.cli->fsidnode);
-    l->node = &n;
+    l->setnode(&n);
 
     // This array represents an old LocalNode without extension bytes
     const std::array<unsigned char, 33> rawData = {
@@ -522,6 +528,7 @@ TEST(Serialization, LocalNode_forFolder_oldLocalNodeWithoutSyncable)
     const std::string data(reinterpret_cast<const char*>(rawData.data()), rawData.size());
 
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
+    dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -533,7 +540,7 @@ TEST(Serialization, LocalNode_forFile)
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FILENODE, "sweet");
     l->mSyncable = false;
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
-    l->node = &n;
+    l->setnode(&n);
     l->size = 1;
     l->setfsid(10, client.cli->fsidnode);
     l->parent->dbid = 13;
@@ -544,6 +551,7 @@ TEST(Serialization, LocalNode_forFile)
     ASSERT_TRUE(l->serialize(&data));
     ASSERT_EQ(61u, data.size());
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
+    dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -554,7 +562,7 @@ TEST(Serialization, LocalNode_forFiles_oldLocalNodeWithoutSyncable)
     auto& sync = us->mSync;
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FILENODE, "sweet");
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
-    l->node = &n;
+    l->setnode(&n);
     l->size = 1;
     l->setfsid(10, client.cli->fsidnode);
     l->parent->dbid = 13;
@@ -573,6 +581,7 @@ TEST(Serialization, LocalNode_forFiles_oldLocalNodeWithoutSyncable)
     const std::string data(rawData.data(), rawData.size());
 
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
+    dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -584,7 +593,7 @@ TEST(Serialization, LocalNode_forFile_32bit)
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FILENODE, "sweet");
     l->mSyncable = false;
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
-    l->node = &n;
+    l->setnode(&n);
     l->size = 1;
     l->setfsid(10, client.cli->fsidnode);
     l->parent->dbid = 13;
@@ -603,6 +612,7 @@ TEST(Serialization, LocalNode_forFile_32bit)
     const std::string data(rawData.data(), rawData.size());
 
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
+    dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
     checkDeserializedLocalNode(*dl, *l);
 }
 #endif

@@ -1023,8 +1023,8 @@ struct StandardClient : public MegaApp
     void loginFromSession(const string& session, PromiseBoolSP pb)
     {
         resultproc.prepresult(LOGIN, ++next_request_tag,
-            [&](){ client.login((byte*)session.data(), (int)session.size()); },
-            [pb](error e) { pb->set_value(!e);  return true; });
+            [&](){ client.login(session); },
+            [&pb](error e) { pb->set_value(!e);  return true; });
     }
 
     void cloudCopyTreeAs(Node* n1, Node* n2, std::string newname, PromiseBoolSP pb)
@@ -3052,8 +3052,8 @@ GTEST_TEST(Sync, BasicSync_RemoveLocalNodeBeforeSessionResume)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 
     // save session
-    ::mega::byte session[64];
-    int sessionsize = pclientA1->client.dumpsession(session, sizeof session);
+    string session;
+    pclientA1->client.dumpsession(session);
 
     // logout (but keep caches)
     fs::path sync1path = pclientA1->syncSet(backupId1).localpath;
@@ -3065,7 +3065,7 @@ GTEST_TEST(Sync, BasicSync_RemoveLocalNodeBeforeSessionResume)
 
     // resume session, see if nodes and localnodes get in sync
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
-    ASSERT_TRUE(pclientA1->login_fetchnodes(string((char*)session, sessionsize)));
+    ASSERT_TRUE(pclientA1->login_fetchnodes(session));
 
     waitonsyncs(std::chrono::seconds(4), pclientA1.get(), &clientA2);
 
@@ -3171,8 +3171,8 @@ GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteCh
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model2.findnode("f"), backupId2));
 
     out() << "********************* save session A1" << endl;
-    ::mega::byte session[64];
-    int sessionsize = pclientA1->client.dumpsession(session, sizeof session);
+    string session;
+    pclientA1->client.dumpsession(session);
 
     out() << "*********************  logout A1 (but keep caches on disk)" << endl;
     fs::path sync1path = pclientA1->syncSet(backupId1).localpath;
@@ -3206,7 +3206,7 @@ GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteCh
 
     out() << "*********************  resume A1 session (with sync), see if A2 nodes and localnodes get in sync again" << endl;
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
-    ASSERT_TRUE(pclientA1->login_fetchnodes(string((char*)session, sessionsize)));
+    ASSERT_TRUE(pclientA1->login_fetchnodes(session));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
     waitonsyncs(DEFAULTWAIT, pclientA1.get(), &clientA2);
 
@@ -3242,9 +3242,9 @@ GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 
     // save session A1
-    ::mega::byte session[64];
-    int sessionsize = pclientA1->client.dumpsession(session, sizeof session);
-    fs::path sync1path = pclientA1->syncSet(backupId1).localpath;
+    string session;
+    pclientA1->client.dumpsession(session);
+    fs::path sync1path = pclientA1->syncSet(1).localpath;
 
     // logout A1 (but keep caches on disk)
     pclientA1->localLogout();
@@ -3261,7 +3261,7 @@ GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
 
     // resume A1 session (with sync), see if A2 nodes and localnodes get in sync again
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
-    ASSERT_TRUE(pclientA1->login_fetchnodes(string((char*)session, sessionsize)));
+    ASSERT_TRUE(pclientA1->login_fetchnodes(session));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
     waitonsyncs(std::chrono::seconds(10), pclientA1.get(), &clientA2);
 
@@ -4631,9 +4631,8 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     }
 
     // save session and local log out A1R to set up for resume
-    ::mega::byte session[64];
-    int sessionsize = 0;
-    sessionsize = clientA1Resume.client.dumpsession(session, sizeof session);
+    string session;
+    clientA1Resume.client.dumpsession(session);
     clientA1Resume.localLogout();
 
     int paused = 0;
@@ -4659,7 +4658,7 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     CatchupClients(&clientA1Steady, &clientA2);
 
     // resume A1R session (with sync), see if A2 nodes and localnodes get in sync again
-    ASSERT_TRUE(clientA1Resume.login_fetchnodes(string((char*)session, sessionsize)));
+    ASSERT_TRUE(clientA1Resume.login_fetchnodes(session));
     ASSERT_EQ(clientA1Resume.basefolderhandle, clientA2.basefolderhandle);
 
     int resumed = 0;

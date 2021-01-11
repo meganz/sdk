@@ -807,7 +807,7 @@ void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, Lo
         localpath.appendWithSeparator(it->second->localname, true);
 
         LocalNode* l = it->second;
-        Node* node = l->node;
+        Node* node = l->node.release_unchecked();
         handle fsid = l->fsid;
         m_off_t size = l->size;
 
