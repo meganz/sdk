@@ -27,6 +27,14 @@
 // This header cannot be used by itself.
 
 
+#include <thread>
+#include <atomic>
+#include <map>
+
+struct udev;
+struct udev_monitor;
+struct udev_device;
+
 namespace mega {
 
     // Posix: Platform specific definition
@@ -40,6 +48,20 @@ namespace mega {
     protected:
         bool startNotifier() override;
         void stopNotifier() override;
+
+    private:
+        void cacheMountedPartitions();
+        bool isRemovable(udev_device* part);
+        void doInThread();
+        void evaluateDevice(udev_device* dev);  // dev must Not be null
+        std::string getMountPoint(const std::string& device);
+
+        std::atomic_bool mStop;
+        std::thread mEventSinkThread;
+
+        udev* mUdev = nullptr;
+        udev_monitor* mUdevMon = nullptr;
+        std::map<std::string, std::string> mMounted;
     };
 
 } // namespace
