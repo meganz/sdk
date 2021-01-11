@@ -13224,7 +13224,7 @@ error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* loc
                                        , BackupInfoSync::getSyncState(config, this)
                                        , config.getError()
                                        , extraData
-                                       , [this, config, completion, notifyApp](Error e, handle h) {
+                                       , [this, config, completion, notifyApp](Error e, handle h) mutable {
             if (h == UNDEF && !e)
             {
                 e = API_EFAILED;
@@ -13238,11 +13238,10 @@ error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* loc
             {
 
                 // if we got this far, the syncConfig is kept (in db and in memory)
-                auto newConfig = config; //TODO: need copying due to constness of config. which is unexpectedly const
-                newConfig.setBackupId(h);
+                config.setBackupId(h);
 
                 //TODO: remove BackupMonitor::updateOrRegisterSync "Register" code path and backupId control
-                UnifiedSync *unifiedSync = syncs.appendNewSync(newConfig, *this);
+                UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
 
                 e = unifiedSync->enableSync(false, notifyApp);
 
