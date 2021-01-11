@@ -25622,7 +25622,7 @@ bool MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
                 // set parent handle for newnodes batch (if it's parent exists remotely, set to UNDEF, otherwise use it's temporal nodeHandle)
                 newTreeNode->newnode.parenthandle = tree.megaNode ? UNDEF : tree.tmpCreateFolderHandle;
             }
-            if (scanFolder(*newTreeNode, localPath))
+            if (!scanFolder(*newTreeNode, localPath))
             {
                 recursive--;
                 return false;
