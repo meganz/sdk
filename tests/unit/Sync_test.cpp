@@ -23,6 +23,7 @@
 #include <mega/megaclient.h>
 #include <mega/megaapp.h>
 #include <mega/types.h>
+#include <mega/heartbeats.h>
 #include <mega/sync.h>
 #include <mega/filesystem.h>
 
@@ -232,7 +233,8 @@ private:
 struct Fixture
 {
     explicit Fixture(std::string localname)
-    : mSync{mt::makeSync(*mClient, std::move(localname))}
+    : mUnifiedSync{mt::makeSync(*mClient, std::move(localname))}
+    , mSync{mUnifiedSync->mSync}
     {}
 
     MEGA_DISABLE_COPY_MOVE(Fixture)
@@ -242,7 +244,8 @@ struct Fixture
     MockFileSystemAccess mFsAccess{mFsNodes};
     std::shared_ptr<mega::MegaClient> mClient = mt::makeClient(mApp, mFsAccess);
     mega::handlelocalnode_map& mLocalNodes = mClient->fsidnode;
-    std::unique_ptr<mega::Sync> mSync;
+    std::unique_ptr<mega::UnifiedSync> mUnifiedSync;
+    std::unique_ptr<mega::Sync>& mSync;
 
     bool iteratorsCorrect(mega::LocalNode& l) const
     {
@@ -1102,7 +1105,7 @@ void test_SyncConfig_serialization(const mega::SyncConfig& config)
 TEST(Sync, SyncConfig_defaultOptions)
 {
     const mega::SyncConfig config{127, "foo", "foo", 42, "remote",123};
-    ASSERT_TRUE(config.isResumable());
+    ASSERT_TRUE(config.getEnabled());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
     ASSERT_EQ(123, config.getLocalFingerprint());
@@ -1119,7 +1122,7 @@ TEST(Sync, SyncConfig_defaultOptions_inactive)
 {
     mega::SyncConfig config{127, "foo", "foo", 42, "remote",123};
     config.setEnabled(false);
-    ASSERT_FALSE(config.isResumable());
+    ASSERT_FALSE(config.getEnabled());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
     ASSERT_EQ(123, config.getLocalFingerprint());
@@ -1136,7 +1139,7 @@ TEST(Sync, SyncConfig_defaultOptions_butWithRegExps)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
     const mega::SyncConfig config{127, "foo", "foo", 42, "remote",123, regExps};
-    ASSERT_TRUE(config.isResumable());
+    ASSERT_TRUE(config.getEnabled());
     ASSERT_EQ(127, config.getTag());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
@@ -1154,7 +1157,7 @@ TEST(Sync, SyncConfig_upSync_syncDelFalse_overwriteFalse)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
     const mega::SyncConfig config{127, "foo", "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_UP};
-    ASSERT_TRUE(config.isResumable());
+    ASSERT_TRUE(config.getEnabled());
     ASSERT_EQ(127, config.getTag());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
@@ -1172,7 +1175,7 @@ TEST(Sync, SyncConfig_upSync_syncDelTrue_overwriteTrue)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
     const mega::SyncConfig config{127, "foo", "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_UP, true, true};
-    ASSERT_TRUE(config.isResumable());
+    ASSERT_TRUE(config.getEnabled());
     ASSERT_EQ(127, config.getTag());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
@@ -1190,7 +1193,7 @@ TEST(Sync, SyncConfig_downSync_syncDelFalse_overwriteFalse)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
     const mega::SyncConfig config{127, "foo", "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_DOWN};
-    ASSERT_TRUE(config.isResumable());
+    ASSERT_TRUE(config.getEnabled());
     ASSERT_EQ(127, config.getTag());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
@@ -1208,7 +1211,7 @@ TEST(Sync, SyncConfig_downSync_syncDelTrue_overwriteTrue)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
     const mega::SyncConfig config{127, "foo", "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_DOWN, true, true};
-    ASSERT_TRUE(config.isResumable());
+    ASSERT_TRUE(config.getEnabled());
     ASSERT_EQ(127, config.getTag());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
@@ -1286,6 +1289,11 @@ public:
     void truncate() override
     {
         mData->clear();
+    }
+
+    bool inTransaction() const override
+    {
+        return true;
     }
 
     std::vector<std::pair<uint32_t, std::string>>* mData = nullptr;
