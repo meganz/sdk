@@ -48,7 +48,7 @@ public:
 
     virtual int status() const;
 
-    virtual double progress() const;
+    virtual double progress(m_off_t inflightProgress) const;
     virtual void invalidateProgress();
 
     virtual m_time_t lastAction() const;
@@ -72,7 +72,7 @@ protected:
     double mProgress = 0;
     bool mProgressInvalid = true;
 
-    friend class MegaBackupMonitor;
+    friend class BackupMonitor;
     int32_t mPendingUps = 0;
     int32_t mPendingDowns = 0;
 
@@ -93,12 +93,12 @@ protected:
 class HeartBeatTransferProgressedInfo : public HeartBeatBackupInfo
 {
 public:
-    double progress() const override;
+    double progress(m_off_t inflightProgress) const override;
 
     void adjustTransferCounts(int32_t upcount, int32_t downcount, long long totalBytes, long long transferBytes);
 
 private:
-    friend class MegaBackupMonitor;
+    friend class BackupMonitor;
     long long mTotalBytes = 0;
     long long mTransferredBytes = 0;
 };
@@ -126,13 +126,13 @@ public:
 /**
  * @brief Information for registration/update of a backup
  */
-class MegaBackupInfo
+class BackupInfo
 {
 public:
-    MegaBackupInfo(BackupType type, string backupName, string localFolder, handle megaHandle, int state, int substate, string extra);
+    BackupInfo(BackupType type, string backupName, string localFolder, handle megaHandle, int state, int substate, string extra);
 
     BackupType type() const;
-    
+
     string backupName() const;
 
     string localFolder() const;
@@ -156,7 +156,7 @@ protected:
 };
 
 #ifdef ENABLE_SYNC
-class MegaBackupInfoSync : public MegaBackupInfo
+class BackupInfoSync : public BackupInfo
 {
 public:
     enum State
@@ -169,25 +169,24 @@ public:
         PAUSE_DOWN = 6,         // Active but download transfers paused in the SDK
         PAUSE_FULL = 7,         // Active but transfers paused in the SDK
     };
-    MegaBackupInfoSync(UnifiedSync&);
 
-    void updatePauseState(MegaClient *client);
+    BackupInfoSync(UnifiedSync&);
 
     static BackupType getSyncType(const SyncConfig& config);
     static int getSyncState (UnifiedSync&);
     static int getSyncSubstatus (UnifiedSync&);
     string getSyncExtraData(UnifiedSync&);
 
-    bool operator==(const MegaBackupInfoSync& o) const;
+    bool operator==(const BackupInfoSync& o) const;
 
 private:
     static int calculatePauseActiveState(MegaClient *client);
 };
 
-class MegaBackupMonitor
+class BackupMonitor
 {
 public:
-    explicit MegaBackupMonitor(MegaClient * client);
+    explicit BackupMonitor(MegaClient * client);
 
     void beat(); // produce heartbeats!
 
@@ -201,11 +200,12 @@ private:
 
     mega::MegaClient *mClient = nullptr;
 
-    void updateBackupInfo(handle backupId, const MegaBackupInfo &info);
-    void registerBackupInfo(const MegaBackupInfo &info, UnifiedSync* syncPtr);
+    void updateBackupInfo(handle backupId, const BackupInfo &info);
 
+#ifdef ENABLE_SYNC
+    void registerBackupInfo(const BackupInfo &info, UnifiedSync* syncPtr);
     void beatBackupInfo(UnifiedSync& us);
-    void calculateStatus(HeartBeatBackupInfo *hbs, UnifiedSync& us);
+#endif
 };
 #endif
 

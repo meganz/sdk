@@ -892,6 +892,7 @@ int User::needversioning(attr_t at)
         case ATTR_GEOLOCATION:
         case ATTR_MY_CHAT_FILES_FOLDER:
         case ATTR_PUSH_SETTINGS:
+        case ATTR_MY_BACKUPS_FOLDER:
         case ATTR_XBACKUP_CONFIG_NAME:
         case ATTR_XBACKUP_CONFIG_KEY:
             return 0;
@@ -910,7 +911,6 @@ int User::needversioning(attr_t at)
         case ATTR_CAMERA_UPLOADS_FOLDER:
         case ATTR_UNSHAREABLE_KEY:
         case ATTR_DEVICE_NAMES:
-        case ATTR_MY_BACKUPS_FOLDER:
         case ATTR_BACKUP_NAMES:
             return 1;
 

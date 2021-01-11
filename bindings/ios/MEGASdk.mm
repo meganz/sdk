@@ -49,6 +49,8 @@
 #import <set>
 #import <pthread.h>
 
+NSString * const MEGAIsBeingLogoutNotification = @"nz.mega.isBeingLogout";
+
 using namespace mega;
 
 @interface MEGASdk () {
@@ -587,10 +589,12 @@ using namespace mega;
 }
 
 - (void)logoutWithDelegate:(id<MEGARequestDelegate>)delegate {
+    [NSNotificationCenter.defaultCenter postNotificationName:MEGAIsBeingLogoutNotification object:nil];
     self.megaApi->logout([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)logout {
+    [NSNotificationCenter.defaultCenter postNotificationName:MEGAIsBeingLogoutNotification object:nil];
     self.megaApi->logout();
 }
 
@@ -855,6 +859,10 @@ using namespace mega;
 
 - (void)getPSA{
     self.megaApi->getPSA();
+}
+
+- (void)getURLPublicServiceAnnouncementWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getPSAWithUrl([self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)setPSAWithIdentifier:(NSInteger)identifier delegate:(id<MEGARequestDelegate>)delegate {

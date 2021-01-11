@@ -539,12 +539,12 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
 #else
             if (readable)
             {
-                FD_SET(info.fd, &((PosixWaiter *)waiter)->rfds);
+                MEGA_FD_SET(info.fd, &((PosixWaiter *)waiter)->rfds);
                 ((PosixWaiter *)waiter)->bumpmaxfd(info.fd);
             }
             if (writeable)
             {
-                FD_SET(info.fd, &((PosixWaiter *)waiter)->wfds);
+                MEGA_FD_SET(info.fd, &((PosixWaiter *)waiter)->wfds);
                 ((PosixWaiter *)waiter)->bumpmaxfd(info.fd);
             }
 #endif
@@ -587,13 +587,13 @@ void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 
         if (info.mode & SockInfo::READ)
         {
-            FD_SET(info.fd, &((PosixWaiter *)waiter)->rfds);
+            MEGA_FD_SET(info.fd, &((PosixWaiter *)waiter)->rfds);
             ((PosixWaiter *)waiter)->bumpmaxfd(info.fd);
         }
 
         if (info.mode & SockInfo::WRITE)
         {
-            FD_SET(info.fd, &((PosixWaiter *)waiter)->wfds);
+            MEGA_FD_SET(info.fd, &((PosixWaiter *)waiter)->wfds);
             ((PosixWaiter *)waiter)->bumpmaxfd(info.fd);
         }
 #endif
@@ -644,8 +644,8 @@ void CurlHttpIO::processaresevents()
     CodeCounter::ScopeTimer ccst(countProcessAresEventsCode);
 
 #ifndef _WIN32
-    fd_set *rfds = &((PosixWaiter *)waiter)->rfds;
-    fd_set *wfds = &((PosixWaiter *)waiter)->wfds;
+    auto *rfds = &((PosixWaiter *)waiter)->rfds;
+    auto *wfds = &((PosixWaiter *)waiter)->wfds;
 #endif
 
     for (auto& mapPair : aressockets)
@@ -663,11 +663,11 @@ void CurlHttpIO::processaresevents()
             ares_process_fd(ares, read ? info.fd : ARES_SOCKET_BAD, write ? info.fd : ARES_SOCKET_BAD);
         }
 #else
-        if (((info.mode & SockInfo::READ) && FD_ISSET(info.fd, rfds)) || ((info.mode & SockInfo::WRITE) && FD_ISSET(info.fd, wfds)))
+        if (((info.mode & SockInfo::READ) && MEGA_FD_ISSET(info.fd, rfds)) || ((info.mode & SockInfo::WRITE) && MEGA_FD_ISSET(info.fd, wfds)))
         {
             ares_process_fd(ares,
-                            ((info.mode & SockInfo::READ) && FD_ISSET(info.fd, rfds)) ? info.fd : ARES_SOCKET_BAD,
-                            ((info.mode & SockInfo::WRITE) && FD_ISSET(info.fd, wfds)) ? info.fd : ARES_SOCKET_BAD);
+                            ((info.mode & SockInfo::READ) && MEGA_FD_ISSET(info.fd, rfds)) ? info.fd : ARES_SOCKET_BAD,
+                            ((info.mode & SockInfo::WRITE) && MEGA_FD_ISSET(info.fd, wfds)) ? info.fd : ARES_SOCKET_BAD);
         }
 #endif
     }
@@ -684,8 +684,8 @@ void CurlHttpIO::processcurlevents(direction_t d)
     CodeCounter::ScopeTimer ccst(countProcessCurlEventsCode);
 
 #ifndef _WIN32
-    fd_set *rfds = &((PosixWaiter *)waiter)->rfds;
-    fd_set *wfds = &((PosixWaiter *)waiter)->wfds;
+    auto *rfds = &((PosixWaiter *)waiter)->rfds;
+    auto *wfds = &((PosixWaiter *)waiter)->wfds;
 #endif
 
     int dummy = 0;
@@ -709,11 +709,11 @@ void CurlHttpIO::processcurlevents(direction_t d)
                                    | (write ? CURL_CSELECT_OUT : 0), &dummy);
         }
 #else
-        if (((info.mode & SockInfo::READ) && FD_ISSET(info.fd, rfds)) || ((info.mode & SockInfo::WRITE) && FD_ISSET(info.fd, wfds)))
+        if (((info.mode & SockInfo::READ) && MEGA_FD_ISSET(info.fd, rfds)) || ((info.mode & SockInfo::WRITE) && MEGA_FD_ISSET(info.fd, wfds)))
         {
             curl_multi_socket_action(curlm[d], info.fd,
-                                     (((info.mode & SockInfo::READ) && FD_ISSET(info.fd, rfds)) ? CURL_CSELECT_IN : 0)
-                                     | (((info.mode & SockInfo::WRITE) && FD_ISSET(info.fd, wfds)) ? CURL_CSELECT_OUT : 0),
+                                     (((info.mode & SockInfo::READ) && MEGA_FD_ISSET(info.fd, rfds)) ? CURL_CSELECT_IN : 0)
+                                     | (((info.mode & SockInfo::WRITE) && MEGA_FD_ISSET(info.fd, wfds)) ? CURL_CSELECT_OUT : 0),
                                      &dummy);
         }
 #endif

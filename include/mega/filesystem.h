@@ -95,6 +95,9 @@ class MEGA_API LocalPath
     friend class GfxProcFreeImage;
     friend struct FileSystemAccess;
     friend int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2, const FileSystemAccess& fsaccess);
+#ifdef USE_ROTATIVEPERFORMANCELOGGER
+    friend class RotativePerformanceLoggerLoggingThread;
+#endif
 #ifdef USE_IOS
     friend const string adjustBasePath(const LocalPath& name);
 #else
@@ -543,7 +546,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool getextension(const LocalPath&, std::string&) const = 0;
 
     // check if synchronization is supported for a specific path
-    virtual bool issyncsupported(LocalPath&, bool* = NULL, SyncError* = nullptr) { return true; }
+    virtual bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) = 0;
 
     // get the absolute path corresponding to a path
     virtual bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) = 0;

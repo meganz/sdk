@@ -1776,7 +1776,7 @@ bool CommandLogin::procresult(Result r)
 
                 if (len_tsid)
                 {
-                    client->setsid(sidbuf, MegaClient::SIDLEN);
+                    client->sid.assign((const char *)sidbuf, MegaClient::SIDLEN);
 
                     // account does not have an RSA keypair set: verify
                     // password using symmetric challenge
@@ -1838,7 +1838,7 @@ bool CommandLogin::procresult(Result r)
                             return true;
                         }
 
-                        client->setsid(sidbuf, MegaClient::SIDLEN);
+                        client->sid.assign((const char *)sidbuf, MegaClient::SIDLEN);
                     }
                 }
 
@@ -3150,7 +3150,7 @@ bool CommandGetUA::procresult(Result r)
                                     std::unique_ptr<std::string> container(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
                                     client->putua(at, (byte *)container->data(), unsigned(container->size()));
                                 }
-                                else if (!client->mPendingBackupNames.empty())
+                                else
                                 {
                                     LOG_warn << "No changes to merge into existing backup names after `uga`";
                                     client->mSendingBackupName = false;
@@ -4709,6 +4709,16 @@ bool CommandGetUserQuota::procresult(Result r)
                     }
                 }
 
+                if (mPro && client->mAccountType != details->pro_level)
+                {
+                    // Pro level can change without a payment (ie. with coupons or by helpdesk)
+                    // and in those cases, the `psts` packet is not triggered. However, the SDK
+                    // should notify the app and resume transfers, etc.
+                    client->mAccountType = static_cast<AccountType>(details->pro_level);
+                    client->app->account_updated();
+                    client->abortbackoff(true);
+                }
+
                 client->app->account_details(details, mStorage, mTransfer, mPro, false, false, false);
                 return true;
 
@@ -5149,7 +5159,7 @@ bool CommandResumeEphemeralSession::procresult(Result r)
                     return false;
                 }
 
-                client->setsid(sidbuf, sizeof sidbuf);
+                client->sid.assign((const char *)sidbuf, sizeof sidbuf);
 
                 client->key.setkey(pw);
                 client->key.ecb_decrypt(keybuf);
@@ -8387,8 +8397,6 @@ bool CommandBackupPut::procresult(Result r)
             client->mPendingBackupNames.clear();
         }
     }
-
-    LOG_debug << "backup put result: " << error(e) << " " << backupId;
 
     if (mCompletion) mCompletion(e, backupId);
 

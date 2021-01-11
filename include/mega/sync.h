@@ -30,8 +30,8 @@
 namespace mega {
 
 class HeartBeatSyncInfo;
-class MegaBackupInfoSync;
-class MegaBackupMonitor;
+class BackupInfoSync;
+class BackupMonitor;
 class MegaClient;
 
 // Searching from the back, this function compares path1 and path2 character by character and
@@ -78,6 +78,9 @@ private:
 
 struct UnifiedSync
 {
+    // Reference to client
+    MegaClient& mClient;
+
     // We always have a config
     SyncConfig mConfig;
 
@@ -85,25 +88,22 @@ struct UnifiedSync
     unique_ptr<Sync> mSync;
 
     // High level info about this sync, sent to backup centre
-    std::unique_ptr<MegaBackupInfoSync> mBackupInfo;
+    std::unique_ptr<BackupInfoSync> mBackupInfo;
 
     // The next detail heartbeat to send to the backup centre
     std::shared_ptr<HeartBeatSyncInfo> mNextHeartbeat;
-
-    // Reference to client
-    MegaClient& mClient;
 
     // ctor/dtor
     UnifiedSync(MegaClient&, const SyncConfig&);
 
     // Try to create and start the Sync
-    error enableSync(SyncError& syncError, bool resetFingerprint, handle newRemoteNode);
+    error enableSync(bool resetFingerprint, bool notifyApp);
 
 private:
     friend class Sync;
     friend struct Syncs;
-    error startSync(MegaClient* client, const char* debris, LocalPath* localdebris, Node* remotenode, bool inshare, SyncError& syncError, bool isNetwork, bool delayInitialScan, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder);
-    void changeConfigState(SyncError newSyncError, bool newEnabledFlag, bool fireDisableEvent);
+    error startSync(MegaClient* client, const char* debris, LocalPath* localdebris, Node* remotenode, bool inshare, bool isNetwork, bool delayInitialScan, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder);
+    void changedConfigState(bool notifyApp);
     bool updateSyncRemoteLocation(Node* n, bool forceCallback);
 };
 
@@ -206,6 +206,9 @@ public:
     // move file or folder to localdebris
     bool movetolocaldebris(LocalPath& localpath);
 
+    // get progress for heartbeats
+    m_off_t getInflightProgress();
+
     // original filesystem fingerprint
     fsfp_t fsfp = 0;
 
@@ -292,6 +295,9 @@ public:
 
     // The last error that occured on this sync.
     SyncError lastError;
+
+    // The last warning that occured on this sync.
+    SyncWarning lastWarning;
 
     // Identity of sync.
     int tag;
@@ -606,13 +612,14 @@ struct Syncs
     void forEachUnifiedSync(std::function<void(UnifiedSync&)> f);
     void forEachRunningSync(std::function<void(Sync* s)>);
     bool forEachRunningSync_shortcircuit(std::function<bool(Sync* s)>);
+    void forEachRunningSyncContainingNode(Node* node, std::function<void(Sync* s)> f);
     void forEachSyncConfig(std::function<void(const SyncConfig&)>);
 
     void purgeRunningSyncs();
     void stopCancelledFailedDisabled();
     void resumeResumableSyncsOnStartup();
     void enableResumeableSyncs();
-    error enableSyncByTag(int tag, SyncError& syncError, bool resetFingerprint, handle newRemoteNode);
+    error enableSyncByTag(int tag, bool resetFingerprint, UnifiedSync*&);
 
     // disable all active syncs.  Cache is kept
     void disableSyncs(SyncError syncError, bool newEnabledFlag);
@@ -627,7 +634,6 @@ struct Syncs
     void clear();
 
     // updates in state & error
-    error saveAndUpdateSyncConfig(SyncConfig& config, SyncError newSyncError, bool newEnabledFlag);
     error saveSyncConfig(const SyncConfig& config);
 
     Syncs(MegaClient& mc);
@@ -635,7 +641,7 @@ struct Syncs
     // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
     bool isEmpty = true;
 
-    unique_ptr<MegaBackupMonitor> mHeartBeatMonitor;
+    unique_ptr<BackupMonitor> mHeartBeatMonitor;
 
     // use this existing class for maintaining the db
     unique_ptr<SyncConfigBag> mSyncConfigDb;

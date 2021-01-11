@@ -35,9 +35,9 @@ int HeartBeatBackupInfo::status() const
     return mStatus;
 }
 
-double HeartBeatBackupInfo::progress() const
+double HeartBeatBackupInfo::progress(m_off_t inflightProgress) const
 {
-    return mProgress;
+    return mProgress + inflightProgress;
 }
 
 void HeartBeatBackupInfo::invalidateProgress()
@@ -103,9 +103,9 @@ m_time_t HeartBeatBackupInfo::lastBeat() const
 }
 
 ////////// HeartBeatTransferProgressedInfo ////////
-double HeartBeatTransferProgressedInfo::progress() const
+double HeartBeatTransferProgressedInfo::progress(m_off_t inflightProgress) const
 {
-    return mProgressInvalid ? -1.0 : std::max(0., std::min(1., static_cast<double>(mTransferredBytes) / static_cast<double>(mTotalBytes)));
+    return mProgressInvalid ? -1.0 : std::max(0., std::min(1., static_cast<double>((mTransferredBytes + inflightProgress)) / static_cast<double>(mTotalBytes)));
 }
 
 void HeartBeatTransferProgressedInfo::adjustTransferCounts(int32_t upcount, int32_t downcount, long long totalBytes, long long transferBytes)
@@ -165,7 +165,7 @@ void HeartBeatSyncInfo::updateStatus(UnifiedSync& us)
 
 ////////////// BackupInfo ////////////////
 
-MegaBackupInfo::MegaBackupInfo(BackupType type, string backupName, string localFolder, handle megaHandle, int state, int substate, std::string extra)
+BackupInfo::BackupInfo(BackupType type, string backupName, string localFolder, handle megaHandle, int state, int substate, std::string extra)
     : mType(type)
     , mBackupName(backupName)
     , mLocalFolder(localFolder)
@@ -177,44 +177,44 @@ MegaBackupInfo::MegaBackupInfo(BackupType type, string backupName, string localF
 
 }
 
-BackupType MegaBackupInfo::type() const
+BackupType BackupInfo::type() const
 {
     return mType;
 }
 
-string MegaBackupInfo::backupName() const
+string BackupInfo::backupName() const
 {
     return mBackupName;
 }
 
-string MegaBackupInfo::localFolder() const
+string BackupInfo::localFolder() const
 {
     return mLocalFolder;
 }
 
-handle MegaBackupInfo::megaHandle() const
+handle BackupInfo::megaHandle() const
 {
     return mMegaHandle;
 }
 
-int MegaBackupInfo::state() const
+int BackupInfo::state() const
 {
     return mState;
 }
 
-int MegaBackupInfo::subState() const
+int BackupInfo::subState() const
 {
     return mSubState;
 }
 
-string MegaBackupInfo::extra() const
+string BackupInfo::extra() const
 {
     return mExtra;
 }
 
 #ifdef ENABLE_SYNC
-MegaBackupInfoSync::MegaBackupInfoSync(UnifiedSync& us)
-    : MegaBackupInfo(getSyncType(us.mConfig),
+BackupInfoSync::BackupInfoSync(UnifiedSync& us)
+    : BackupInfo(getSyncType(us.mConfig),
                      us.mConfig.getName(),
                      us.mConfig.getLocalPath(),
                      us.mConfig.getRemoteNode(),
@@ -224,7 +224,7 @@ MegaBackupInfoSync::MegaBackupInfoSync(UnifiedSync& us)
 {
 }
 
-int MegaBackupInfoSync::calculatePauseActiveState(MegaClient *client)
+int BackupInfoSync::calculatePauseActiveState(MegaClient *client)
 {
     auto pauseDown = client->xferpaused[GET];
     auto pauseUp = client->xferpaused[PUT];
@@ -245,7 +245,7 @@ int MegaBackupInfoSync::calculatePauseActiveState(MegaClient *client)
 }
 
 
-int MegaBackupInfoSync::getSyncState(UnifiedSync& us)
+int BackupInfoSync::getSyncState(UnifiedSync& us)
 {
     SyncError error = us.mConfig.getError();
     syncstate_t state = us.mSync ? us.mSync->state : SYNC_FAILED;
@@ -268,41 +268,42 @@ int MegaBackupInfoSync::getSyncState(UnifiedSync& us)
     }
 }
 
-BackupType MegaBackupInfoSync::getSyncType(const SyncConfig& config)
+BackupType BackupInfoSync::getSyncType(const SyncConfig& config)
 {
     switch (config.getType())
     {
-    case SyncConfig::Type::TYPE_BACKUP:
-            return BackupType::BACKUP;
     case SyncConfig::Type::TYPE_UP:
             return BackupType::UP_SYNC;
     case SyncConfig::Type::TYPE_DOWN:
             return BackupType::DOWN_SYNC;
     case SyncConfig::Type::TYPE_TWOWAY:
             return BackupType::TWO_WAY;
+    case SyncConfig::TYPE_BACKUP:
+            return BackupType::BACKUP_UPLOAD;
     default:
             return BackupType::INVALID;
     }
 }
 
-int MegaBackupInfoSync::getSyncSubstatus(UnifiedSync& us)
+int BackupInfoSync::getSyncSubstatus(UnifiedSync& us)
 {
     return us.mConfig.getError();
 }
 
-string MegaBackupInfoSync::getSyncExtraData(UnifiedSync&)
+string BackupInfoSync::getSyncExtraData(UnifiedSync&)
 {
     return string();
 }
 
 ////////////// MegaBackupMonitor ////////////////
-MegaBackupMonitor::MegaBackupMonitor(MegaClient *client)
+BackupMonitor::BackupMonitor(MegaClient *client)
     : mClient(client)
 {
 }
 
-void MegaBackupMonitor::digestPutResult(handle backupId, UnifiedSync* syncPtr)
+void BackupMonitor::digestPutResult(handle backupId, UnifiedSync* syncPtr)
 {
+#ifdef ENABLE_SYNC
     mClient->syncs.forEachUnifiedSync([&](UnifiedSync& us){
         if (&us == syncPtr)
         {
@@ -310,16 +311,17 @@ void MegaBackupMonitor::digestPutResult(handle backupId, UnifiedSync* syncPtr)
             mClient->syncs.saveSyncConfig(us.mConfig);
         }
     });
+#endif
 }
 
-void MegaBackupMonitor::updateBackupInfo(handle backupId, const MegaBackupInfo &info)
+void BackupMonitor::updateBackupInfo(handle backupId, const BackupInfo &info)
 {
     string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", info.localFolder()) );
     string deviceIdHash = mClient->getDeviceidHash();
 
     mClient->reqs.add(new CommandBackupPut(mClient,
+                                           backupId,
                                            info.type(),
-                                           info.backupName(),
                                            info.megaHandle(),
                                            localFolderEncrypted.c_str(),
                                            deviceIdHash.c_str(),
@@ -329,8 +331,9 @@ void MegaBackupMonitor::updateBackupInfo(handle backupId, const MegaBackupInfo &
                                            nullptr));
 }
 
+#ifdef ENABLE_SYNC
 
-void MegaBackupMonitor::registerBackupInfo(const MegaBackupInfo &info, UnifiedSync* syncPtr)
+void BackupMonitor::registerBackupInfo(const BackupInfo &info, UnifiedSync* syncPtr)
 {
     string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", info.localFolder()) );
     string deviceIdHash = mClient->getDeviceidHash();
@@ -342,24 +345,25 @@ void MegaBackupMonitor::registerBackupInfo(const MegaBackupInfo &info, UnifiedSy
                                            [this, syncPtr](Error e, handle h){ if (!e) digestPutResult(h, syncPtr); }));
 }
 
-void MegaBackupMonitor::updateOrRegisterSync(UnifiedSync& us)
-{
-    MegaBackupInfoSync currentInfo(us);
 
-    if (!us.mBackupInfo && us.mConfig.getBackupId() == UNDEF) // not registered yet
+void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
+{
+    BackupInfoSync currentInfo(us);
+
+    if (!us.mBackupInfo && ISUNDEF(us.mConfig.getBackupId())) // not registered yet
     {
-        us.mBackupInfo = ::mega::make_unique<MegaBackupInfoSync>(us);
+        us.mBackupInfo = ::mega::make_unique<BackupInfoSync>(us);
         registerBackupInfo(currentInfo, &us);
     }
-    else if (us.mConfig.getBackupId() != UNDEF  &&
+    else if (!ISUNDEF(us.mConfig.getBackupId()) &&
            (!us.mBackupInfo || !(currentInfo == *us.mBackupInfo)))
     {
         updateBackupInfo(us.mConfig.getBackupId(), currentInfo); //queue update comand
-        us.mBackupInfo = ::mega::make_unique<MegaBackupInfoSync>(us);
+        us.mBackupInfo = ::mega::make_unique<BackupInfoSync>(us);
     }
 }
 
-bool  MegaBackupInfoSync::operator==(const MegaBackupInfoSync& o) const
+bool  BackupInfoSync::operator==(const BackupInfoSync& o) const
 {
     return  mType == o.mType &&
             mLocalFolder == o.mLocalFolder &&
@@ -369,24 +373,19 @@ bool  MegaBackupInfoSync::operator==(const MegaBackupInfoSync& o) const
             mExtra == o.mExtra;
 }
 
-void MegaBackupMonitor::onSyncConfigChanged()
+void BackupMonitor::onSyncConfigChanged()
 {
     mClient->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
         updateOrRegisterSync(us);
     });
 }
 
-void MegaBackupMonitor::calculateStatus(HeartBeatBackupInfo *hbs, UnifiedSync& us)
-{
-   hbs->updateStatus(us);
-}
-
-void MegaBackupMonitor::beatBackupInfo(UnifiedSync& us)
+void BackupMonitor::beatBackupInfo(UnifiedSync& us)
 {
     // send registration or update in case we missed it
     updateOrRegisterSync(us);
 
-    if (!us.mBackupInfo || us.mConfig.getBackupId() == UNDEF)
+    if (!us.mBackupInfo || ISUNDEF(us.mConfig.getBackupId()))
     {
         LOG_warn << "Backup not registered yet. Skipping heartbeat...";
         return;
@@ -397,11 +396,16 @@ void MegaBackupMonitor::beatBackupInfo(UnifiedSync& us)
     if ( !hbs->mSending && (hbs->mModified
          || m_time(nullptr) - hbs->lastBeat() > MAX_HEARBEAT_SECS_DELAY))
     {
-        calculateStatus(hbs.get(), us); //we asume this is costly: only do it when beating
-
+        hbs->updateStatus(us);  //we asume this is costly: only do it when beating
         hbs->setLastBeat(m_time(nullptr));
 
-        int8_t progress = (hbs->progress() < 0) ? -1 : static_cast<int8_t>(std::lround(hbs->progress()*100.0));
+        m_off_t inflightProgress = 0;
+        if (us.mSync)
+        {
+            inflightProgress = us.mSync->getInflightProgress();
+        }
+
+        int8_t progress = (hbs->progress(inflightProgress) < 0) ? -1 : static_cast<int8_t>(std::lround(hbs->progress(inflightProgress)*100.0));
 
         hbs->mSending = true;
         auto newCommand = new CommandBackupPutHeartBeat(mClient, us.mConfig.getBackupId(),  static_cast<uint8_t>(hbs->status()),
@@ -420,11 +424,16 @@ void MegaBackupMonitor::beatBackupInfo(UnifiedSync& us)
         mClient->reqs.add(newCommand);
     }
 }
-void MegaBackupMonitor::beat()
+
+#endif
+
+void BackupMonitor::beat()
 {
+#ifdef ENABLE_SYNC
     mClient->syncs.forEachUnifiedSync([&](UnifiedSync& us){
         beatBackupInfo(us);
     });
+#endif
 }
 
 #endif

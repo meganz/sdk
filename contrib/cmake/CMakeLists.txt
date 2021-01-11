@@ -1,4 +1,4 @@
-# This file enables building with cmake 
+# This file enables building with cmake
 #
 # use cases
 #  - generate a visual studio solution and projects, eg: cmake . -G "Visual Studio 15 2017"
@@ -35,6 +35,7 @@ set (USE_SODIUM 1 CACHE STRING "")
 set (ENABLE_SYNC 1 CACHE STRING "")
 set (ENABLE_CHAT 0 CACHE STRING "")
 set (ENABLE_LOG_PERFORMANCE 0 CACHE STRING "")
+set (USE_ROTATIVEPERFORMANCELOGGER 0 CACHE STRING "")
 set (HAVE_FFMPEG 1 CACHE STRING "")
 set (USE_WEBRTC 0 CACHE STRING "")
 set (USE_LIBUV 0 CACHE STRING "")
@@ -598,6 +599,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/backofftimer.h
             ${MegaDir}/include/mega/raid.h
             ${MegaDir}/include/mega/logging.h
+            ${MegaDir}/include/mega/rotativeperformancelogger.h
             ${MegaDir}/include/mega/file.h
             ${MegaDir}/include/mega/sync.h
             ${MegaDir}/include/mega/heartbeats.h
@@ -664,6 +666,7 @@ add_library(Mega STATIC
             $<${USE_LIBUV}:${MegaDir}/src/mega_evt_tls.cpp> 
             $<${USE_QT}:${MegaDir}/src/gfx/qt.cpp>
             $<${USE_QT}:${MegaDir}/src/thread/qtthread.cpp >
+            $<${USE_ROTATIVEPERFORMANCELOGGER}:${MegaDir}/src/rotativeperformancelogger.cpp >
             )
 
 target_include_directories(Mega PRIVATE ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
@@ -712,8 +715,10 @@ target_compile_definitions(Mega PUBLIC
                 $<${USE_CURL}:USE_CURL> 
                 $<${USE_SODIUM}:USE_SODIUM>
                 $<${ENABLE_SYNC}:ENABLE_SYNC> 
-                $<${ENABLE_CHAT}:ENABLE_CHAT> 
+                $<${ENABLE_CHAT}:ENABLE_CHAT>
                 $<${ENABLE_LOG_PERFORMANCE}:ENABLE_LOG_PERFORMANCE>
+                $<${USE_ROTATIVEPERFORMANCELOGGER}:USE_ROTATIVEPERFORMANCELOGGER>
+                $<${USE_ROTATIVEPERFORMANCELOGGER}:ENABLE_LOG_PERFORMANCE>
                 $<${NO_READLINE}:NO_READLINE>
                 $<${USE_FREEIMAGE}:USE_FREEIMAGE> 
                 $<${HAVE_FFMPEG}:HAVE_FFMPEG>

@@ -51,6 +51,11 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+/**
+ * @brief MEGAIsBeingLogoutNotification will be published before app starts logout.
+ */
+extern NSString * const MEGAIsBeingLogoutNotification;
+
 typedef uint64_t MEGAHandle;
 
 typedef NS_ENUM (NSInteger, MEGASortOrderType) {
@@ -2496,6 +2501,34 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * @see [MEGASdk setPSAWithIdentifier:] [MEGASdk setPSAWithIdentifier:delegate:]
  */
 - (void)getPSA;
+
+/**
+ * @brief Get the next PSA (Public Service Announcement) that should be shown to the user
+ *
+ * After the PSA has been accepted or dismissed by the user, app should
+ * use [MEGASdk setPSAWithIdentifier:] or [MEGASdk setPSAWithIdentifier:delegate:] to notify API servers about
+ * this event and do not get the same PSA again in the next call to this function.
+ *
+ * The associated request type with this request is MEGARequestTypeGetPSA.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest number] - Returns the id of the PSA (useful to call [MEGASdk setPSAWithIdentifier:]
+ *                          [MEGASdk setPSAWithIdentifier:delegate:] later)
+ * - [MEGARequest email] - Returns the URL (or an empty string)
+ * - [MEGARequest name] - Returns the title of the PSA
+ * - [MEGARequest text] - Returns the text of the PSA
+ * - [MEGARequest file] - Returns the URL of the image of the PSA
+ * - [MEGARequest password] - Returns the text for the possitive button (or an empty string)
+ * - [MEGARequest link] - Returns the link for the possitive button (or an empty string)
+ *
+ * If there isn't any new PSA to show, onRequestFinish will be called with the error
+ * code MEGAErrorTypeApiENoent
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ * @see [MEGASdk setPSAWithIdentifier:] [MEGASdk setPSAWithIdentifier:delegate:]
+ */
+- (void)getURLPublicServiceAnnouncementWithDelegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Notify API servers that a PSA (Public Service Announcement) has been already seen
@@ -8523,7 +8556,7 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * - MEGAErrorTypeApiOk is returned upon success.
  *
  * @param contacts An NSArray containing user contacts (NSDictionary "phoneNumber":"userName").
- * @param listener MEGARequestDelegate to track this request
+ * @param delegate MEGARequestDelegate to track this request
  */
 - (void)getRegisteredContacts:(NSArray<NSDictionary *> *)contacts delegate:(id<MEGARequestDelegate>)delegate;
 
@@ -8747,7 +8780,7 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * - MEGAErrorTypeApiEInternal - If the internally used user attribute exists but can't be decoded.
  * - MEGAErrorTypeApiENoent - If there are no banners to return to the user.
  *
- * @param listener MEGARequestDelegate to track this request
+ * @param delegate MEGARequestDelegate to track this request
  */
 - (void)getBanners:(id<MEGARequestDelegate>)delegate;
 
@@ -8851,7 +8884,7 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * - [MEGARequest getNodeHandle] - Returns the last node handle to be synced
  *
  * @param backupId backup id identifying the backup
- * @param state BackupHeartbeatStatus type backup state
+ * @param status BackupHeartbeatStatus type backup state
  * @param progress backup progress
  * @param pendingUploadCount Count of pending upload transfers
  * @param lastActionDate Last action date

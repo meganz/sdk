@@ -41,11 +41,15 @@ bool MEGAFileInputStream::read(char *buffer, size_t size) {
         return false;
     }
     
-    if (buffer == NULL) {
-        [this->fileHandle seekToFileOffset:currentOffset + size];
+    @try {
+        if (buffer == NULL) {
+            [this->fileHandle seekToFileOffset:currentOffset + size];
+            return true;
+        }
+        
+        memcpy(buffer, [this->fileHandle readDataOfLength:size].bytes, size);
         return true;
+    } @catch (NSException *exception) {
+        return false;
     }
-    
-    memcpy(buffer, [this->fileHandle readDataOfLength:size].bytes, size);
-    return true;
 }

@@ -90,6 +90,7 @@ public:
     DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*) override;
 
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
+    bool issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning);
 
     void tmpnamelocal(LocalPath&) const override;
 

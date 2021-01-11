@@ -1148,7 +1148,7 @@ LocalPath LocalPath::fromPlatformEncoded(string path)
     assert(!(path.size() % 2));
     LocalPath p;
     p.localpath.resize(path.size() / sizeof(wchar_t));
-    memcpy(p.localpath.data(), path.data(), p.localpath.size() * sizeof(wchar_t));
+    memcpy(const_cast<wchar_t*>(p.localpath.data()), path.data(), p.localpath.size() * sizeof(wchar_t));
     return p;
 #else
     LocalPath p;
