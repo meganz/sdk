@@ -44,13 +44,13 @@ if [ "$1" == "clean" ]; then
 fi
 
 pushd "${WEBRTC_SRC}" > /dev/null
-if [ "9863f3d246e2da7a2e1f42bbc5757f6af5ec5682" != "`git rev-parse HEAD`" ]; then
+if [ "9c99b7964fabb16a022293ffbd2804f9b46551f6" != "`git rev-parse HEAD`" ]; then
   echo ""
   echo "* WARNING!!"
-  echo "* You are not using our recommended commit of WebRTC: 9863f3d246e2da7a2e1f42bbc5757f6af5ec5682 (branch-heads/m76)"
+  echo "* You are not using our recommended commit of WebRTC: 9c99b7964fabb16a022293ffbd2804f9b46551f6 (branch-heads/m76)"
   echo "* Please consider to switch to that commit this way (in the src folder of WebRTC):"
   echo ""
-  echo "  git checkout 9863f3d246e2da7a2e1f42bbc5757f6af5ec5682"
+  echo "  git checkout 9c99b7964fabb16a022293ffbd2804f9b46551f6"
   echo "  gclient sync"
   echo ""
   read -p "* Do you want to continue anyway? (y|N) " -n 1 c
@@ -153,10 +153,6 @@ if [ ! -e "${CURRENTPATH}/lib/libwebsockets.a" ]; then
 
 else
   echo "* libwebsockets already configured"
-fi
-
-if ! patch -R -p0 -s -f --dry-run ${WEBRTC_SRC}/api/jsep.h < ../../patches/webrtc_jsep_h.patch; then
-  patch -p0 ${WEBRTC_SRC}/api/jsep.h < ../../patches/webrtc_jsep_h.patch
 fi
 
 #link lib/* into libs if libs is not symlink
