@@ -324,6 +324,8 @@ public:
     XBackupConfigDB(const LocalPath& drivePath,
                     XBackupConfigDBObserver& observer);
 
+    XBackupConfigDB(const LocalPath& drivePath);
+
     ~XBackupConfigDB();
 
     MEGA_DISABLE_COPY(XBackupConfigDB);
@@ -383,7 +385,7 @@ private:
     LocalPath mDrivePath;
 
     // Who we tell about config changes.
-    XBackupConfigDBObserver& mObserver;
+    XBackupConfigDBObserver* mObserver;
 
     // Maps backup tag to config.
     XBackupConfigMap mTagToConfig;

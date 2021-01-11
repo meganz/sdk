@@ -3172,7 +3172,16 @@ const unsigned int XBackupConfigDB::NUM_SLOTS = 2;
 XBackupConfigDB::XBackupConfigDB(const LocalPath& drivePath,
                                  XBackupConfigDBObserver& observer)
   : mDrivePath(drivePath)
-  , mObserver(observer)
+  , mObserver(&observer)
+  , mTagToConfig()
+  , mTargetToConfig()
+  , mSlot(0)
+{
+}
+
+XBackupConfigDB::XBackupConfigDB(const LocalPath& drivePath)
+  : mDrivePath(drivePath)
+  , mObserver(nullptr)
   , mTagToConfig()
   , mTargetToConfig()
   , mSlot(0)
@@ -3314,14 +3323,17 @@ const XBackupConfig* XBackupConfigDB::add(const XBackupConfig& config,
             return &it->second;
         }
 
-        // Tell the observer a config's changed.
-        mObserver.onChange(*this, it->second, config);
-
-        // Tell the observer we need to be written.
-        if (flush)
+        if (mObserver)
         {
-            // But only if this change should be flushed.
-            mObserver.onDirty(*this);
+            // Tell the observer a config's changed.
+            mObserver->onChange(*this, it->second, config);
+
+            // Tell the observer we need to be written.
+            if (flush)
+            {
+                // But only if this change should be flushed.
+                mObserver->onDirty(*this);
+            }
         }
 
         // Remove the existing config from the target index.
@@ -3355,16 +3367,19 @@ const XBackupConfig* XBackupConfigDB::add(const XBackupConfig& config,
         mTargetToConfig.emplace(config.targetHandle, &result.first->second);
     }
 
-    // Tell the observer we've added a config.
-    mObserver.onAdd(*this, config);
-
-    // Tell the observer we need to be written.
-    if (flush)
+    if (mObserver)
     {
-        // But only if this change should be flushed.
-        mObserver.onDirty(*this);
+        // Tell the observer we've added a config.
+        mObserver->onAdd(*this, config);
+
+        // Tell the observer we need to be written.
+        if (flush)
+        {
+            // But only if this change should be flushed.
+            mObserver->onDirty(*this);
+        }
     }
-    
+
     // We're done.
     return &result.first->second;
 }
@@ -3378,17 +3393,20 @@ void XBackupConfigDB::clear(const bool flush)
         return;
     }
 
-    // Tell the observer we've removed the configs.
-    for (auto& it : mTagToConfig)
+    if (mObserver)
     {
-        mObserver.onRemove(*this, it.second);
-    }
+        // Tell the observer we've removed the configs.
+        for (auto& it : mTagToConfig)
+        {
+            mObserver->onRemove(*this, it.second);
+        }
 
-    // Tell the observer we need to be written.
-    if (flush)
-    {
-        // But only if these changes should be flushed.
-        mObserver.onDirty(*this);
+        // Tell the observer we need to be written.
+        if (flush)
+        {
+            // But only if these changes should be flushed.
+            mObserver->onDirty(*this);
+        }
     }
 
     // Clear the backup target handle index.
@@ -3458,14 +3476,17 @@ error XBackupConfigDB::remove(const int tag, const bool flush)
         return API_ENOENT;
     }
 
-    // Tell the observer we've removed a config.
-    mObserver.onRemove(*this, it->second);
-
-    // Tell the observer we need to be written.
-    if (flush)
+    if (mObserver)
     {
-        // But only if this change should be flushed.
-        mObserver.onDirty(*this);
+        // Tell the observer we've removed a config.
+        mObserver->onRemove(*this, it->second);
+
+        // Tell the observer we need to be written.
+        if (flush)
+        {
+            // But only if this change should be flushed.
+            mObserver->onDirty(*this);
+        }
     }
 
     // Remove the config from the target handle index.
