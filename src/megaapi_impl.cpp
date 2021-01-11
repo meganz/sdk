@@ -13977,7 +13977,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
                 }
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             });
-
+            return;
         }
 #endif // ENABLE_SYNC
 
