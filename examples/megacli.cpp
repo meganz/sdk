@@ -1157,18 +1157,14 @@ void DemoApp::fetchnodes_result(const Error& e)
     else
     {
         // check if we fetched a folder link and the key is invalid
-        handle h = client->getrootpublicfolder();
-        if (h != UNDEF)
+        if (client->isValidFolderLink())
         {
-            Node *n = client->nodebyhandle(h);
-            if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
-            {
-                cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
-            }
-            else
-            {
-                cout << "Folder link loaded correctly." << endl;
-            }
+            cout << "Folder link loaded correctly." << endl;
+        }
+        else
+        {
+            assert(client->nodebyhandle(client->rootnodes[0]));   // node is there, but cannot be decrypted
+            cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
         }
 
         if (pdf_to_import)
@@ -3006,8 +3002,10 @@ autocomplete::ACN autocompleteSyntax()
     std::unique_ptr<Either> p(new Either("      "));
 
     p->Add(exec_apiurl, sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
-    p->Add(exec_login, sequence(text("login"), either(sequence(param("email"), opt(param("password"))),
-                                                      sequence(exportedLink(false, true), opt(param("auth_key"))), param("session"), sequence(text("autoresume"), opt(param("id"))))));
+    p->Add(exec_login, sequence(text("login"), opt(flag("-fresh")), either(sequence(param("email"), opt(param("password"))),
+                                                      sequence(exportedLink(false, true), opt(param("auth_key"))),
+                                                      param("session"),
+                                                      sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
     p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name")), param("confirmationlink"))));
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
@@ -3600,6 +3598,10 @@ void exec_mv(autocomplete::ACState& s)
                                 cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
                             }
                         }
+                        else
+                        {
+                            cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
+                        }
                     }
                 }
                 else
@@ -3964,7 +3966,7 @@ void exec_get(autocomplete::ACState& s)
                     // node from public folder link
                     if (index != string::npos && s.words[1].s.substr(0, index).find("@") == string::npos)
                     {
-                        handle h = clientFolder->getrootpublicfolder();
+                        handle h = clientFolder->rootnodes[0];
                         char *pubauth = new char[12];
                         Base64::btoa((byte*)&h, MegaClient::NODEHANDLE, pubauth);
                         f->pubauth = pubauth;
@@ -4512,6 +4514,8 @@ void exec_mfae(autocomplete::ACState& s)
 
 void exec_login(autocomplete::ACState& s)
 {
+    //bool fresh = s.extractflag("-fresh");
+
     if (client->loggedin() == NOTLOGGEDIN)
     {
         if (s.words.size() > 1)
@@ -4524,14 +4528,8 @@ void exec_login(autocomplete::ACState& s)
                 file >> session;
                 if (file.is_open() && session.size())
                 {
-                    byte sessionraw[64];
-                    if (session.size() < sizeof sessionraw * 4 / 3)
-                    {
-                        int size = Base64::atob(session.c_str(), sessionraw, sizeof sessionraw);
-
-                        cout << "Resuming session..." << endl;
-                        return client->login(sessionraw, size);
-                    }
+                    cout << "Resuming session..." << endl;
+                    return client->login(Base64::atob(session));
                 }
                 cout << "Failed to get a valid session id from file " << filename << endl;
             }
@@ -4558,17 +4556,7 @@ void exec_login(autocomplete::ACState& s)
                 }
                 else
                 {
-                    byte session[64];
-                    int size;
-
-                    if (s.words[1].s.size() < sizeof session * 4 / 3)
-                    {
-                        size = Base64::atob(s.words[1].s.c_str(), session, sizeof session);
-
-                        cout << "Resuming session..." << endl;
-
-                        return client->login(session, size);
-                    }
+                    return client->login(Base64::atob(s.words[1].s));
                 }
 
                 cout << "Invalid argument. Please specify a valid e-mail address, "
@@ -6222,15 +6210,12 @@ void exec_recover(autocomplete::ACState& s)
 
 void exec_session(autocomplete::ACState& s)
 {
-    byte session[64];
-    int size;
+    string session;
 
-    size = client->dumpsession(session, sizeof session);
+    int size = client->dumpsession(session);
 
     if (size > 0)
     {
-        Base64Str<sizeof session> buf(session, size);
-
         if ((s.words.size() == 2 || s.words.size() == 3) && s.words[1].s == "autoresume")
         {
             string filename = "megacli_autoresume_session" + (s.words.size() == 3 ? "_" + s.words[2].s : "");
@@ -6241,13 +6226,13 @@ void exec_session(autocomplete::ACState& s)
             }
             else
             {
-                file << buf;
+                file << Base64::btoa(session);
                 cout << "Your (secret) session is saved in file '" << filename << "'" << endl;
             }
         }
         else
         {
-            cout << "Your (secret) session is: " << buf << endl;
+            cout << "Your (secret) session is: " << Base64::btoa(session) << endl;
         }
     }
     else if (!size)
@@ -8238,14 +8223,9 @@ void DemoAppFolder::fetchnodes_result(const Error& e)
     else
     {
         // check if we fetched a folder link and the key is invalid
-        handle h = clientFolder->getrootpublicfolder();
-        if (h != UNDEF)
+        if (clientFolder->isValidFolderLink())
         {
-            Node *n = clientFolder->nodebyhandle(h);
-            if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
-            {
-                cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
-            }
+            cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
         }
         else
         {

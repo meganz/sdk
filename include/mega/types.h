@@ -690,6 +690,16 @@ typedef enum { BIZ_STATUS_UNKNOWN = -2, BIZ_STATUS_EXPIRED = -1, BIZ_STATUS_INAC
 typedef enum { BIZ_MODE_UNKNOWN = -1, BIZ_MODE_SUBUSER = 0, BIZ_MODE_MASTER = 1 } BizMode;
 
 typedef enum {
+    ACCOUNT_TYPE_UNKNOWN = -1,
+    ACCOUNT_TYPE_FREE = 0,
+    ACCOUNT_TYPE_PROI = 1,
+    ACCOUNT_TYPE_PROII = 2,
+    ACCOUNT_TYPE_PROIII = 3,
+    ACCOUNT_TYPE_LITE = 4,
+    ACCOUNT_TYPE_BUSINESS = 100,
+} AccountType;
+
+typedef enum {
     AUTH_METHOD_UNKNOWN     = -1,
     AUTH_METHOD_SEEN        = 0,
     AUTH_METHOD_FINGERPRINT = 1,    // used only for AUTHRING_ED255
@@ -1027,8 +1037,12 @@ public:
         }
     }
 
-    TO* operator->() const { return ptr; }
-    operator TO*() const { return ptr; }
+    void store_unchecked(TO* p) { ptr = p; }
+    TO*  release_unchecked() { auto p = ptr; ptr = nullptr; return p;  }
+
+    TO* get()              { return ptr; }
+    TO* operator->() const { assert(ptr != (void*)~0); return ptr; }
+    operator TO*() const   { assert(ptr != (void*)~0); return ptr; }
 
     // no copying
     crossref_ptr(const crossref_ptr&) = delete;

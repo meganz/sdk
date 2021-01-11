@@ -9381,7 +9381,6 @@ class MegaApi
          * - MegaRequest::getNumber - Returns the id of the PSA (useful to call MegaApi::setPSA later)
          * Depending on the format of the PSA, the request may additionally return, for the new format:
          * - MegaRequest::getEmail - Returns the URL (or an empty string))
-         * ...or for the old format:
          * - MegaRequest::getName - Returns the title of the PSA
          * - MegaRequest::getText - Returns the text of the PSA
          * - MegaRequest::getFile - Returns the URL of the image of the PSA

@@ -48,7 +48,6 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     parent = NULL;
 
 #ifdef ENABLE_SYNC
-    localnode = NULL;
     syncget = NULL;
 
     syncdeleted = SYNCDEL_NONE;
@@ -76,20 +75,6 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     Node* p;
 
     client->nodes[h] = this;
-
-    // folder link access: first returned record defines root node and
-    // identity
-    if (ISUNDEF(*client->rootnodes))
-    {
-        *client->rootnodes = h;
-
-        if (client->loggedIntoWritableFolder())
-        {
-            // If logged into writable folder, we need the sharekey set in the root node
-            // so as to include it in subsequent put nodes
-            sharekey = new SymmCipher(client->key); //we use the "master key", in this case the secret share key
-        }
-    }
 
     if (t >= ROOTNODE && t <= RUBBISHNODE)
     {
@@ -204,7 +189,7 @@ Node::~Node()
     if (localnode)
     {
         localnode->deleted = true;
-        localnode->node = NULL;
+        localnode.reset();
     }
 
     // in case this node is currently being transferred for syncing: abort transfer
@@ -1366,7 +1351,7 @@ void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPat
 {
     sync = csync;
     parent = NULL;
-    node = NULL;
+    node.reset();
     notseen = 0;
     deleted = false;
     created = false;
@@ -1478,18 +1463,13 @@ treestate_t LocalNode::checkstate()
 
 void LocalNode::setnode(Node* cnode)
 {
-    if (node && (node != cnode) && node->localnode)
-    {
-        node->localnode = NULL;
-    }
-
     deleted = false;
 
-    node = cnode;
-
-    if (node)
+    node.reset();
+    if (cnode)
     {
-        node->localnode = this;
+        cnode->localnode.reset();
+        node.crossref(cnode, this);
     }
 }
 
@@ -1632,7 +1612,7 @@ LocalNode::~LocalNode()
         // shutting down
         if (sync->state < SYNC_INITIALSCAN)
         {
-            node->localnode = NULL;
+            node.reset();
         }
         else
         {
@@ -1834,7 +1814,7 @@ LocalNode* LocalNode::unserialize(Sync* sync, const string* d)
     l->mtime = mtime;
     l->isvalid = true;
 
-    l->node = sync->client->nodebyhandle(h);
+    l->node.store_unchecked(sync->client->nodebyhandle(h));
     l->parent = nullptr;
     l->sync = sync;
     l->mSyncable = syncable == 1;
