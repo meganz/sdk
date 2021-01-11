@@ -339,7 +339,7 @@ struct MEGA_API MegaApp
     virtual void sync_auto_resume_result(const UnifiedSync& s, bool attempted) { }
 
     // after a sync has been removed
-    virtual void sync_removed(handle tag) { }
+    virtual void sync_removed(handle backupId) { }
 
     // suggest reload due to possible race condition with other clients
     virtual void reload(const char*) { }

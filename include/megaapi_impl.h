@@ -1077,26 +1077,26 @@ public:
 
     virtual MegaSync *copy();
 
-    virtual MegaHandle getMegaHandle() const;
+    MegaHandle getMegaHandle() const override;
     void setMegaHandle(MegaHandle handle);
-    virtual const char* getLocalFolder() const;
+    const char* getLocalFolder() const override;
     void setLocalFolder(const char*path);
-    virtual const char* getName() const;
+    const char* getName() const override;
     void setName(const char*name);
-    virtual const char* getMegaFolder() const;
+    const char* getMegaFolder() const override;
     void setMegaFolder(const char *path);
     void setMegaFolderYielding(char *path); //MEGAsync acquires the ownership of path
-    virtual long long getLocalFingerprint() const;
+    long long getLocalFingerprint() const override;
     void setLocalFingerprint(long long fingerprint);
-    virtual MegaHandle getTag() const;
+    MegaHandle getTag() const override;
     void setTag(MegaHandle tag);
 
-    virtual MegaRegExp* getRegExp() const;
+    MegaRegExp* getRegExp() const;
     void setRegExp(MegaRegExp *regExp);
 
-    virtual int getError() const;
+    int getError() const override;
     void setError(int error);
-    virtual int getWarning() const;
+    int getWarning() const override;
     void setWarning(int warning);
 
     int getType() const override;
@@ -1104,9 +1104,9 @@ public:
 
     void disable(int error = NO_SYNC_ERROR); //disable. NO_SYNC_ERROR = user disable
 
-    virtual bool isEnabled() const; //enabled by user
-    virtual bool isActive() const; //not disabled by user nor failed (nor being removed)
-    virtual bool isTemporaryDisabled() const; //disabled automatically for a transient reason
+    bool isEnabled() const override; //enabled by user
+    bool isActive() const override; //not disabled by user nor failed (nor being removed)
+    bool isTemporaryDisabled() const override; //disabled automatically for a transient reason
 
 protected:
     MegaHandle megaHandle;
@@ -1122,7 +1122,7 @@ protected:
     int mError = NO_SYNC_ERROR;
     int mWarning = NO_SYNC_WARNING;
 
-    MegaHandle mBackupId;
+    handle mBackupId = UNDEF;
 
     bool mActive = false;
     bool mEnabled = false;
@@ -2411,10 +2411,10 @@ class MegaApiImpl : public MegaApp
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
         void setKeepSyncsAfterLogout(bool enable);
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
-        void removeSyncById(handle syncTag, MegaRequestListener *listener=NULL);
+        void removeSyncById(handle backupId, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
-        void disableSyncById(handle syncTag, MegaRequestListener *listener = NULL);
-        void enableSyncById(handle syncTag, MegaRequestListener *listener = NULL);
+        void disableSyncById(handle backupId, MegaRequestListener *listener = NULL);
+        void enableSyncById(handle backupId, MegaRequestListener *listener = NULL);
         MegaSyncList *getSyncs();
 
         int getNumActiveSyncs();
@@ -3179,7 +3179,7 @@ protected:
         virtual void syncs_about_to_be_resumed() override;
 
         // removes the sync from syncMap and fires onSyncDeleted callback
-        void sync_removed(handle tag) override;
+        void sync_removed(handle backupId) override;
 
         void syncupdate_scanning(bool scanning) override;
         void syncupdate_local_folder_addition(Sync* sync, LocalNode *localNode, const char *path) override;

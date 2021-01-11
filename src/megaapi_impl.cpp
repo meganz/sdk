@@ -8804,10 +8804,10 @@ void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener)
     waiter->notify();
 }
 
-void MegaApiImpl::removeSyncById(handle syncTag, MegaRequestListener *listener)
+void MegaApiImpl::removeSyncById(handle backupId, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
-    request->setParentHandle(syncTag);
+    request->setParentHandle(backupId);
     request->setFlag(true);
     requestQueue.push(request);
     waiter->notify();
@@ -8821,19 +8821,19 @@ void MegaApiImpl::disableSync(handle nodehandle, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::disableSyncById(handle syncTag, MegaRequestListener *listener)
+void MegaApiImpl::disableSyncById(handle backupId, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DISABLE_SYNC, listener);
-    request->setParentHandle(syncTag);
+    request->setParentHandle(backupId);
     request->setFlag(false);
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::enableSyncById(handle syncTag, MegaRequestListener *listener)
+void MegaApiImpl::enableSyncById(handle backupId, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ENABLE_SYNC, listener);
-    request->setParentHandle(syncTag);
+    request->setParentHandle(backupId);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -13466,9 +13466,9 @@ bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, LocalPath& localpa
     return result;
 }
 
-void MegaApiImpl::sync_removed(handle tag)
+void MegaApiImpl::sync_removed(handle backupId)
 {
-    if (auto megaSync = cachedMegaSyncPrivateByBackupId(tag))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(backupId))
     {
         fireonSyncDeleted(megaSync);
         mCachedMegaSyncPrivate.reset();
@@ -24342,9 +24342,9 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
 
 #ifdef ENABLE_SYNC
 MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle nodehandle, SyncConfig::Type type)
-    : mActive(false)
+    : mType(static_cast<SyncType>(type))
+    , mActive(false)
     , mEnabled(false)
-    , mType(static_cast<SyncType>(type))
 {
     this->megaHandle = nodehandle;
     this->localFolder = NULL;
@@ -24365,9 +24365,10 @@ MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle node
 }
 
 MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr)
-    : mActive(syncPtr && syncPtr->state >= 0)
+    : mType(static_cast<SyncType>(config.getType()))
+    , mActive(syncPtr && syncPtr->state >= 0)
     , mEnabled(config.getEnabled())
-    , mType(static_cast<SyncType>(config.getType()))
+
 {
     this->megaHandle = config.getRemoteNode();
     this->localFolder = NULL;
@@ -24405,9 +24406,9 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr)
 }
 
 MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
-    : mActive(sync->mActive)
+    : mType(sync->mType)
+    , mActive(sync->mActive)
     , mEnabled(sync->mEnabled)
-    , mType(sync->mType)
 {
     this->regExp = NULL;
     this->setTag(sync->getTag());
@@ -24513,9 +24514,9 @@ MegaHandle MegaSyncPrivate::getTag() const
     return mBackupId;
 }
 
-void MegaSyncPrivate::setTag(MegaHandle tag)
+void MegaSyncPrivate::setTag(MegaHandle id)
 {
-    this->mBackupId = tag;
+    this->mBackupId = id;
 }
 
 MegaRegExpPrivate::MegaRegExpPrivate()

@@ -298,9 +298,6 @@ public:
     // ID tag of the next request
     int nextreqtag();
 
-    // ID tag of the next sync
-    int nextSyncTag(int increment = 0);
-
     // corresponding ID tag of the currently executing callback
     int restag;
 
