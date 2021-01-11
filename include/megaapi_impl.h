@@ -225,9 +225,8 @@ protected:
     int pendingTransfers;
     bool cancelled = false;
     std::set<MegaTransferPrivate*> subTransfers;
-    int mIncompleteTransfers = { 0 };
-    MegaErrorPrivate mLastError = { API_OK };
-    LocalPath::separator_t mLocalSeparator;
+    int mIncompleteTransfers = 0;
+    //LocalPath::separator_t mLocalSeparator;
 
     // worker thread
     std::thread mWorkerThread;
@@ -254,7 +253,7 @@ public:
     void onTransferUpdate(MegaApi *api, MegaTransfer *transfer) override;
     void onTransferFinish(MegaApi* api, MegaTransfer *transfer, MegaError *e) override;
     ~MegaFolderUploadController();
-    void checkCompletion();
+    void complete(Error e);
 
 protected:
     unique_ptr<FileSystemAccess> fsaccess;
@@ -301,7 +300,7 @@ protected:
      * A putnodes command can only add subtrees under same target, so in case we need to add
      * subtrees under different targets, this method will generate a subtree for each one
      */
-    void scanFolder(Tree& tree, LocalPath& localPath);
+    bool scanFolder(Tree& tree, LocalPath& localPath);
     bool createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, bool isBatchRootLevel);
     /* iterate through all pending files of each uploaded folder, and start all upload transfers */
     void genUploadTransfersForFiles(Tree& tree, TransferQueue& transferQueue);
@@ -460,7 +459,7 @@ public:
     void onTransferStart(MegaApi *, MegaTransfer *t) override;
     void onTransferUpdate(MegaApi *, MegaTransfer *t) override;
     void onTransferFinish(MegaApi*, MegaTransfer *t, MegaError *e) override;
-    void checkCompletion();
+    void complete(Error e);
 
 protected:
     unique_ptr<FileSystemAccess> fsaccess;
@@ -476,8 +475,8 @@ protected:
         vector<unique_ptr<MegaNode>> childrenNodes;
     };
     vector<LocalTree> mLocalTree;
-    void scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType);
-    void createFolder();
+    bool scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType);
+    Error createFolder();
     void downloadFiles(FileSystemType fsType);
 };
 
@@ -2319,7 +2318,7 @@ class MegaApiImpl : public MegaApp
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         bool createLocalFolder(const char *path);
         void createRemoteFolder(handle h, vector<NewNode>&& newnodes, const char *cauth, std::function<void(const Error&, targettype_t , vector<NewNode>&)> f);
-        MegaErrorPrivate createLocalFolder(LocalPath & localPath);
+        static Error createLocalFolder_unlocked(LocalPath & localPath, FileSystemAccess& fsaccess);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
         void moveNode(MegaNode* node, MegaNode* newParent, const char *newName, MegaRequestListener *listener = NULL);
         void copyNode(MegaNode* node, MegaNode *newParent, MegaRequestListener *listener = NULL);

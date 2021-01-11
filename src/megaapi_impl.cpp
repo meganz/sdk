@@ -6588,26 +6588,25 @@ bool MegaApiImpl::createLocalFolder(const char *path)
     return success;
 }
 
-MegaErrorPrivate MegaApiImpl::createLocalFolder(LocalPath & localPath)
+Error MegaApiImpl::createLocalFolder_unlocked(LocalPath & localPath,  FileSystemAccess& fsaccess)
 {
-    SdkMutexGuard g(sdkMutex);
-    auto da = client->fsaccess->newfileaccess();
+    auto da = fsaccess.newfileaccess();
     if (!da->fopen(localPath, true, false))
     {
-        if (!client->fsaccess->mkdirlocal(localPath))
+        if (!fsaccess.mkdirlocal(localPath))
         {
-            LOG_err << "Unable to create folder: " << localPath.toPath(*client->fsaccess);
+            LOG_err << "Unable to create folder: " << localPath.toPath(fsaccess);
             return API_EWRITE;
         }
     }
     else if (da->type == FILENODE)
     {
-        LOG_err << "Local file detected where there should be a folder: " << localPath.toPath(*client->fsaccess);
+        LOG_err << "Local file detected where there should be a folder: " << localPath.toPath(fsaccess);
         return API_EARGS;
     }
     else
     {
-        LOG_debug << "Already existing folder detected: " << localPath.toPath(*client->fsaccess);
+        LOG_debug << "Already existing folder detected: " << localPath.toPath(fsaccess);
         return API_EEXIST;
     }
     return API_OK;
@@ -25559,16 +25558,22 @@ void MegaFolderUploadController::start(MegaNode*)
         // recurse all subfolders on disk, building up tree structure to match
         // not yet existing folders get a temporary upload id instead of a handle
         LocalPath lp = path;
-        scanFolder(*mUploadTree.subtrees.front(), lp);
+        bool fullyScanned = scanFolder(*mUploadTree.subtrees.front(), lp);
 
         if (!cancelled)
         {
-            megaApi->executeOnThread([this]() {
+            megaApi->executeOnThread([this, fullyScanned]() {
 
                 // these next parts must run on megaApi's thread again, as
                 // genUploadTransfersForFiles or checkCompletion may call the fireOnXYZ() functions
                 if (!cancelled)
                 {
+                    if (!fullyScanned)
+                    {
+                        complete(API_EACCESS);
+                        return;
+                    }
+
                     // create folders in batches, not too many at once
                     vector<NewNode> newnodes;
                     if (!createNextFolderBatch(mUploadTree, newnodes, true))
@@ -25580,7 +25585,7 @@ void MegaFolderUploadController::start(MegaNode*)
 
                         if (transferQueue.empty())
                         {
-                            checkCompletion();
+                            complete(API_OK);
                         }
                         else
                         {
@@ -25609,7 +25614,10 @@ void MegaFolderUploadController::cancel()
     assert(mMainThreadId == std::this_thread::get_id());
 
     cancelled = true; //we dont want to further checkcompletion, and produce multile fireOnTransferFinish -> multiple deletions
-    mWorkerThread.join();
+    if (mWorkerThread.joinable())
+    {
+        mWorkerThread.join();
+    }
 
     //remove subtransfers from pending transferQueue
     megaApi->cancelPendingTransfersByFolderTag(tag);
@@ -25751,12 +25759,14 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
         transfer->setSpeed(t->getSpeed());
         transfer->setMeanSpeed(t->getMeanSpeed());
         megaApi->fireOnTransferUpdate(transfer);
-        if (e->getErrorCode() != API_OK)
-        {
-            mLastError = *e;
-            mIncompleteTransfers++;
-        }
-        checkCompletion();
+    }
+    if (e->getErrorCode() != API_OK)
+    {
+        mIncompleteTransfers++;
+    }
+    if (!pendingTransfers && !cancelled)
+    {
+        complete(mIncompleteTransfers ? API_EINCOMPLETE : API_OK);
     }
 }
 
@@ -25772,7 +25782,7 @@ MegaFolderUploadController::~MegaFolderUploadController()
     //we shouldn't need to dettach as transfer listener: all listened transfer should have been cancelled/completed
 }
 
-void MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
+bool MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
 {
     assert(mMainThreadId != std::this_thread::get_id());
     recursive++;
@@ -25781,9 +25791,7 @@ void MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
     {
         LOG_err << "Can't open local directory" << localPath.toPath(*fsaccess);
         recursive--;
-        mLastError = API_EACCESS;
-        mIncompleteTransfers++;
-        return;
+        return false;
     }
 
     LocalPath localname;
@@ -25817,11 +25825,16 @@ void MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
                 // set parent handle for newnodes batch (if it's parent exists remotely, set to UNDEF, otherwise use it's temporal nodeHandle)
                 newTreeNode->newnode.parenthandle = tree.megaNode ? UNDEF : tree.tmpCreateFolderHandle;
             }
-            scanFolder(*newTreeNode, localPath);
+            if (scanFolder(*newTreeNode, localPath))
+            {
+                recursive--;
+                return false;
+            }
             tree.subtrees.push_back(std::move(newTreeNode));
         }
     }
     recursive--;
+    return true;
 }
 
 bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, bool isBatchRootLevel)
@@ -25878,10 +25891,7 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
                 // lambda function that will be executed as completion function in putnodes procresult
                 if (e)
                 {
-                    mIncompleteTransfers++;
-                    mLastError = e;
-                    checkCompletion();
-                    return;
+                    complete(e);
                 }
                 else
                 {
@@ -25898,11 +25908,10 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
                         // no pending folders to create, start uploading files
                         TransferQueue transferQueue;
                         genUploadTransfersForFiles(mUploadTree, transferQueue);
-                        megaApi->sendPendingTransfers(&transferQueue);
 
                         if (transferQueue.empty())
                         {
-                            checkCompletion();
+                            complete(API_OK);
                         }
                         else
                         {
@@ -25936,17 +25945,14 @@ void MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
     }
 }
 
-void MegaFolderUploadController::checkCompletion()
+void MegaFolderUploadController::complete(Error e)
 {
     assert(mMainThreadId == std::this_thread::get_id());
-    if (!cancelled && ((!recursive && !pendingTransfers && transfer) || mIncompleteTransfers))
-    {
-        LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
-        transfer->setState(MegaTransfer::STATE_COMPLETED);
-        transfer->setLastError(&mLastError);
-        DBTableTransactionCommitter committer(megaapiThreadClient()->tctable);
-        megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(!mIncompleteTransfers ? API_OK : API_EINCOMPLETE), committer);
-    }
+
+    LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
+    transfer->setState(MegaTransfer::STATE_COMPLETED);
+    DBTableTransactionCommitter committer(megaapiThreadClient()->tctable);
+    megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(e), committer);
 }
 
 MegaBackupController::MegaBackupController(MegaApiImpl *megaApi, int tag, int folderTransferTag, handle parenthandle, const char* filename, bool attendPastBackups, const char *speriod, int64_t period, int maxBackups)
@@ -27081,18 +27087,17 @@ void MegaFolderDownloadController::start(MegaNode *node)
     transfer->setState(MegaTransfer::STATE_QUEUED);
     megaApi->fireOnTransferStart(transfer);
 
-    bool deleteNode = false;
+    unique_ptr<MegaNode> autoDelNode;
     if (!node)
     {
         node = megaApi->getNodeByHandle(transfer->getNodeHandle());
+        autoDelNode.reset(node);
         if (!node)
         {
             LOG_debug << "Folder download failed. Node not found";
-            DBTableTransactionCommitter committer(megaapiThreadClient()->tctable);
-            megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_ENOENT), committer);
+            complete(API_ENOENT);
             return;
         }
-        deleteNode = true;
     }
     LocalPath path;
     if (transfer->getParentPath())
@@ -27114,40 +27119,49 @@ void MegaFolderDownloadController::start(MegaNode *node)
     path.ensureWinExtendedPathLenPrefix();
     transfer->setPath(path.toPath(*megaapiThreadClient()->fsaccess).c_str());
 
-    mWorkerThread = std::thread ([this, deleteNode, node, fsType, path]() {
-        LocalPath localPath = std::move(path);
-        scanFolder(node, localPath, fsType);
-        if (deleteNode)
-        {
-            delete node;
-        }
-        if (!cancelled)
-        {
-            createFolder();
-        }
-        if (!cancelled)
-        {
-            megaApi->executeOnThread([this, fsType]() {
+    // for download scan is just checking nodes, we can do this all in one quick pass
+    if (!scanFolder(node, path, fsType))
+    {
+        complete(API_EINTERNAL);   // inconsistent node state
+    }
+    else
+    {
+        mWorkerThread = std::thread ([this, node, fsType, path]() {
+            LocalPath localPath = std::move(path);
+        
+            if (!cancelled)
+            {
+                // local folder creation runs on the download worker thread
+                Error e = createFolder();
+                if (e)
+                {
+                    complete(e);
+                    return;
+                }
+            }
+            if (!cancelled)
+            {
+                megaApi->executeOnThread([this, fsType]() {
 
-                if (!cancelled && !mIncompleteTransfers && !mLocalTree.empty())
-                {
-                    // downloadFiles must run on the megaApi thread, as it may call fireOnTransferXYZ()
-                    downloadFiles(fsType);
-                }
-                else
-                {
-                    checkCompletion();
-                }
-            });
-         }
-    });
+                    if (!cancelled)
+                    {
+                        // downloadFiles must run on the megaApi thread, as it may call fireOnTransferXYZ()
+                        downloadFiles(fsType);
+                    }
+                });
+             }
+        });
+    }
 }
 
 void MegaFolderDownloadController::cancel()
 {
     assert(mMainThreadId == std::this_thread::get_id());
     cancelled = true; //we dont want to further checkcompletion, and produce multile fireOnTransferFinish -> multiple deletions
-    mWorkerThread.join();
+    if (mWorkerThread.joinable())
+    {
+        mWorkerThread.join();
+    }
 
     //remove subtransfers from pending transferQueue
     megaApi->cancelPendingTransfersByFolderTag(tag);
@@ -27240,8 +27254,9 @@ void MegaFolderDownloadController::cancel()
     transfer = nullptr;  // no final callback for this one since it is being destroyed now
 }
 
-void MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpath, FileSystemType fsType)
+bool MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpath, FileSystemType fsType)
 {
+    assert(mMainThreadId == std::this_thread::get_id());
     recursive++;
     size_t index = 0;
     if (node->getType() == FOLDERNODE)
@@ -27252,7 +27267,7 @@ void MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpa
     }
 
     MegaNodeList *children = nullptr;
-    bool deleteChildren = false;
+    unique_ptr<MegaNodeList> autoDelChildren;
     if (node->isForeign())
     {
         children = node->getChildren();
@@ -27260,16 +27275,14 @@ void MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpa
     else
     {
         children = megaApi->getChildren(node, MegaApi::ORDER_NONE);  // no order is much faster for a very large folder (or nested folders with large subfolders)
-        deleteChildren = true;
+        autoDelChildren.reset(children);
     }
 
     if (!children)
     {
         LOG_err << "Child nodes not found: " << localpath.toPath(*fsaccess);
         recursive--;
-        mLastError = API_ENOENT;
-        mIncompleteTransfers++;
-        return;
+        return false;
     }
 
     for (int i = 0; !cancelled && i < children->size(); i++)
@@ -27285,37 +27298,39 @@ void MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpa
         {
             ScopedLengthRestore restoreLen(localpath);
             localpath.appendWithSeparator(LocalPath::fromName(child->getName(), *fsaccess, fsType), true);
-            scanFolder(child, localpath, fsType);
+            if (!scanFolder(child, localpath, fsType))
+            {
+                recursive--;
+                return false;
+            }
         }
     }
-
     recursive--;
-    if (deleteChildren)
-    {
-        delete children;
-    }
+    return true;
 }
 
-void MegaFolderDownloadController::createFolder()
+Error MegaFolderDownloadController::createFolder()
 {
-    // Create all local directories in one shot
+    // Create all local directories in one shot (on the download worker thread)
+    assert(mMainThreadId != std::this_thread::get_id());
     auto it = mLocalTree.begin();
     while (it != mLocalTree.end())
     {
         LocalPath &localpath = it->localPath;
-        mLastError = megaApi->createLocalFolder(localpath);
-        if (mLastError.getErrorCode() && mLastError.getErrorCode() != API_EEXIST)
+        Error e = MegaApiImpl::createLocalFolder_unlocked(localpath, *fsaccess);
+        if (e && e != API_EEXIST)
         {
-            mIncompleteTransfers++;
             mLocalTree.clear();
-            return;
+            return e;
         }
         ++it;
     }
+    return API_OK;
 }
 
 void MegaFolderDownloadController::downloadFiles(FileSystemType fsType)
 {
+    assert(mMainThreadId == std::this_thread::get_id());
     TransferQueue transferQueue;
     // Add all download transfers in one shot
     for (auto it = mLocalTree.begin(); it != mLocalTree.end(); it++)
@@ -27341,21 +27356,18 @@ void MegaFolderDownloadController::downloadFiles(FileSystemType fsType)
     }
     else
     {
-        checkCompletion();
+        complete(API_OK);
     }
 }
 
-void MegaFolderDownloadController::checkCompletion()
+void MegaFolderDownloadController::complete(Error e)
 {
     assert(mMainThreadId == std::this_thread::get_id());
-    if (!cancelled && ((!recursive && !pendingTransfers && transfer) || mIncompleteTransfers))
-    {
-        LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
-        transfer->setState(MegaTransfer::STATE_COMPLETED);
-        transfer->setLastError(&mLastError);
-        DBTableTransactionCommitter committer(megaapiThreadClient()->tctable);
-        megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(!mIncompleteTransfers ? API_OK : API_EINCOMPLETE), committer);
-    }
+
+    LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
+    transfer->setState(MegaTransfer::STATE_COMPLETED);
+    DBTableTransactionCommitter committer(megaapiThreadClient()->tctable);
+    megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(e), committer);
 }
 
 void MegaFolderDownloadController::onTransferStart(MegaApi *, MegaTransfer *t)
@@ -27401,12 +27413,14 @@ void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, 
         transfer->setSpeed(t->getSpeed());
         transfer->setMeanSpeed(t->getMeanSpeed());
         megaApi->fireOnTransferUpdate(transfer);
-        if (e->getErrorCode())
-        {
-            mLastError = *e;
-            mIncompleteTransfers++;
-        }
-        checkCompletion();
+    }
+    if (e->getErrorCode() != API_OK)
+    {
+        mIncompleteTransfers++;
+    }
+    if (!pendingTransfers && !cancelled)
+    {
+        complete(mIncompleteTransfers ? API_EINCOMPLETE : API_OK);
     }
 }
 
