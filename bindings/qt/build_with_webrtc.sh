@@ -47,7 +47,7 @@ pushd "${WEBRTC_SRC}" > /dev/null
 if [ "9c99b7964fabb16a022293ffbd2804f9b46551f6" != "`git rev-parse HEAD`" ]; then
   echo ""
   echo "* WARNING!!"
-  echo "* You are not using our recommended commit of WebRTC: 9c99b7964fabb16a022293ffbd2804f9b46551f6 (branch-heads/m76)"
+  echo "* You are not using our recommended commit of WebRTC: 9c99b7964fabb16a022293ffbd2804f9b46551f6 (branch-heads/4322)"
   echo "* Please consider to switch to that commit this way (in the src folder of WebRTC):"
   echo ""
   echo "  git checkout 9c99b7964fabb16a022293ffbd2804f9b46551f6"
