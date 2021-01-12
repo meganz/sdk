@@ -1088,8 +1088,8 @@ public:
     void setMegaFolderYielding(char *path); //MEGAsync acquires the ownership of path
     long long getLocalFingerprint() const override;
     void setLocalFingerprint(long long fingerprint);
-    MegaHandle getTag() const override;
-    void setTag(MegaHandle tag);
+    MegaHandle getBackupId() const override;
+    void setBackupId(MegaHandle backupId);
 
     MegaRegExp* getRegExp() const;
     void setRegExp(MegaRegExp *regExp);

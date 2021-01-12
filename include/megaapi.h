@@ -5249,7 +5249,7 @@ public:
      *
      * @return Identifier of the synchronization
      */
-    virtual MegaHandle getTag() const;
+    virtual MegaHandle getBackupId() const;
 
     /**
      * @brief Get the error of a synchronization

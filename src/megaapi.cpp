@@ -3351,7 +3351,7 @@ void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
 
 void MegaApi::removeSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->removeSyncById(sync ? sync->getTag() : INVALID_HANDLE, listener);
+    pImpl->removeSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener);
 }
 
 void MegaApi::removeSync(MegaHandle backupId, MegaRequestListener *listener)
@@ -3366,12 +3366,12 @@ void MegaApi::disableSync(MegaNode *megaFolder, MegaRequestListener *listener)
 
 void MegaApi::disableSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->disableSyncById(sync ? sync->getTag() : INVALID_HANDLE, listener);
+    pImpl->disableSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener);
 }
 
 void MegaApi::enableSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->enableSyncById(sync ? sync->getTag() : INVALID_HANDLE, listener);
+    pImpl->enableSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener);
 }
 
 void MegaApi::enableSync(MegaHandle backupId, MegaRequestListener *listener)
@@ -5754,7 +5754,7 @@ long long MegaSync::getLocalFingerprint() const
     return 0;
 }
 
-MegaHandle MegaSync::getTag() const
+MegaHandle MegaSync::getBackupId() const
 {
     return INVALID_HANDLE;
 }

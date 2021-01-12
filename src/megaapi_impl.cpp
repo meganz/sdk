@@ -8964,7 +8964,7 @@ void MegaApiImpl::setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regE
 
     SdkMutexGuard g(sdkMutex);
     client->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
-        if (us.mConfig.getBackupId() == sync->getTag())
+        if (us.mConfig.getBackupId() == sync->getBackupId())
         {
             us.mConfig.setRegExps(regExpToVector(regExp));
             client->syncs.saveSyncConfig(us.mConfig);
@@ -13171,7 +13171,7 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
 
 MegaSyncPrivate* MegaApiImpl::cachedMegaSyncPrivateByBackupId(handle backupId)
 {
-    if (mCachedMegaSyncPrivate && backupId == mCachedMegaSyncPrivate->getTag())
+    if (mCachedMegaSyncPrivate && backupId == mCachedMegaSyncPrivate->getBackupId())
     {
         return mCachedMegaSyncPrivate.get();
     }
@@ -16780,7 +16780,7 @@ void MegaApiImpl::fireOnEvent(MegaEventPrivate *event)
 #ifdef ENABLE_SYNC
 void MegaApiImpl::fireOnSyncStateChanged(MegaSyncPrivate *sync)
 {
-    assert(sync->getTag() != INVALID_HANDLE);
+    assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncStateChanged(api, sync);
@@ -16789,7 +16789,7 @@ void MegaApiImpl::fireOnSyncStateChanged(MegaSyncPrivate *sync)
 
 void MegaApiImpl::fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event)
 {
-    assert(sync->getTag() != INVALID_HANDLE);
+    assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncEvent(api, sync, event);
@@ -16801,7 +16801,7 @@ void MegaApiImpl::fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event)
 
 void MegaApiImpl::fireOnSyncAdded(MegaSyncPrivate *sync, int additionState)
 {
-    assert(sync->getTag() != INVALID_HANDLE);
+    assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncAdded(api, sync, additionState);
@@ -16810,7 +16810,7 @@ void MegaApiImpl::fireOnSyncAdded(MegaSyncPrivate *sync, int additionState)
 
 void MegaApiImpl::fireOnSyncDisabled(MegaSyncPrivate *sync)
 {
-    assert(sync->getTag() != INVALID_HANDLE);
+    assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncDisabled(api, sync);
@@ -16819,7 +16819,7 @@ void MegaApiImpl::fireOnSyncDisabled(MegaSyncPrivate *sync)
 
 void MegaApiImpl::fireOnSyncEnabled(MegaSyncPrivate *sync)
 {
-    assert(sync->getTag() != INVALID_HANDLE);
+    assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncEnabled(api, sync);
@@ -16828,7 +16828,7 @@ void MegaApiImpl::fireOnSyncEnabled(MegaSyncPrivate *sync)
 
 void MegaApiImpl::fireonSyncDeleted(MegaSyncPrivate *sync)
 {
-    assert(sync->getTag() != INVALID_HANDLE);
+    assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncDeleted(api, sync);
@@ -16850,7 +16850,7 @@ void MegaApiImpl::fireOnGlobalSyncStateChanged()
 
 void MegaApiImpl::fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState)
 {
-    assert(sync->getTag() != INVALID_HANDLE);
+    assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncFileStateChanged(api, sync, localPath, newState);
@@ -24399,7 +24399,7 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr)
     setError(config.getError());
     setWarning(config.getWarning());
 
-    setTag(config.getBackupId());
+    setBackupId(config.getBackupId());
 }
 
 MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
@@ -24408,7 +24408,7 @@ MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
     , mEnabled(sync->mEnabled)
 {
     this->regExp = NULL;
-    this->setTag(sync->getTag());
+    this->setBackupId(sync->getBackupId());
     this->localFolder = NULL;
     this->mName = NULL;
     this->setLocalFolder(sync->getLocalFolder());
@@ -24506,14 +24506,14 @@ void MegaSyncPrivate::setLocalFingerprint(long long fingerprint)
     this->fingerprint = fingerprint;
 }
 
-MegaHandle MegaSyncPrivate::getTag() const
+MegaHandle MegaSyncPrivate::getBackupId() const
 {
     return mBackupId;
 }
 
-void MegaSyncPrivate::setTag(MegaHandle id)
+void MegaSyncPrivate::setBackupId(MegaHandle backupId)
 {
-    this->mBackupId = id;
+    this->mBackupId = backupId;
 }
 
 MegaRegExpPrivate::MegaRegExpPrivate()
