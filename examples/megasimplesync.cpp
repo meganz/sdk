@@ -89,7 +89,7 @@ class SyncApp : public MegaApp, public Logger
     void request_error(error e);
 
 #ifdef ENABLE_SYNC
-    void syncupdate_state(int, syncstate_t state, SyncError, bool) override;
+    void syncupdate_stateconfig(int tag) override;
     void syncupdate_local_folder_addition(Sync*, LocalNode*, const char *) override;
     void syncupdate_local_folder_deletion(Sync*, LocalNode*) override;
     void syncupdate_local_file_addition(Sync*, LocalNode*, const char *) override;
@@ -447,12 +447,12 @@ void SyncApp::fetchnodes_result(const Error &e)
                 static int syncTag = 2027;
 
                 SyncConfig syncConfig{syncTag++, local_folder, local_folder, n->nodehandle, remote_folder, 0};
-                SyncError syncError;
 #ifdef ENABLE_SYNC
-                error err = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError);
+                UnifiedSync* unifiedSync;
+                error err = client->addsync(syncConfig, DEBRISFOLDER, NULL, false, unifiedSync, false);
                 if (err)
                 {
-                    LOG_err << "Sync could not be added! " << err << " syncError = " << syncError;
+                    LOG_err << "Sync could not be added! " << err << " syncError = " << syncConfig.getError();
                     exit(1);
                 }
 
@@ -476,17 +476,9 @@ void SyncApp::request_error(error e)
 }
 
 #ifdef ENABLE_SYNC
-void SyncApp::syncupdate_state(int, syncstate_t state, SyncError, bool)
+void SyncApp::syncupdate_stateconfig(int tag)
 {
-    if (( state == SYNC_CANCELED ) || ( state == SYNC_FAILED ))
-    {
-        LOG_err << "FATAL: Sync failed !";
-        exit(1);
-    }
-    else if (state == SYNC_ACTIVE)
-    {
-        LOG_info << "Sync is now active";
-    }
+    LOG_info << "Sync config updated: " << tag;
 }
 
 // sync update callbacks are for informational purposes only and must not

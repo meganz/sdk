@@ -65,10 +65,11 @@ SOURCES += src/attrmap.cpp \
     src/mega_zxcvbn.cpp \
     src/mediafileattribute.cpp \
     src/raid.cpp \
-    src/testhooks.cpp
+    src/testhooks.cpp \
+    src/heartbeats.cpp
 
 CONFIG(USE_MEGAAPI) {
-  SOURCES += src/megaapi.cpp src/megaapi_impl.cpp src/heartbeats.cpp
+  SOURCES += src/megaapi.cpp src/megaapi_impl.cpp
 
 
   CONFIG(qt) {
@@ -78,6 +79,10 @@ CONFIG(USE_MEGAAPI) {
         bindings/qt/QTMegaListener.cpp \
         bindings/qt/QTMegaEvent.cpp
   }
+}
+
+CONFIG(USE_ROTATIVEPERFORMANCELOGGER) {
+  SOURCES += src/rotativeperformancelogger.cpp
 }
 
 !win32 {
@@ -94,6 +99,10 @@ CONFIG(USE_MEGAAPI) {
 CONFIG(USE_AUTOCOMPLETE) {
     SOURCES += src/autocomplete.cpp
     HEADERS += include/mega/autocomplete.h
+}
+
+CONFIG(USE_POLL) {
+    DEFINES += USE_POLL
 }
 
 CONFIG(USE_CONSOLE) {
@@ -355,6 +364,11 @@ CONFIG(USE_WEBRTC) {
         LIBS += -lwebrtc -ldl
         }
     }
+}
+
+CONFIG(USE_ROTATIVEPERFORMANCELOGGER) {
+    DEFINES += USE_ROTATIVEPERFORMANCELOGGER
+    DEFINES += ENABLE_LOG_PERFORMANCE
 }
 
 win32 {

@@ -25,6 +25,7 @@
 
 #include <mega.h>
 #include <megaapi.h>
+#include <mega/heartbeats.h>
 
 #include "DefaultedFileSystemAccess.h"
 #include "utils.h"
@@ -365,7 +366,8 @@ void checkDeserializedLocalNode(const mega::LocalNode& dl, const mega::LocalNode
 TEST(Serialization, LocalNode_shortData)
 {
     MockClient client;
-    auto sync = mt::makeSync(*client.cli, "wicked");
+    auto us = mt::makeSync(*client.cli, "wicked");
+    auto& sync = us->mSync;
     std::string data = "I am too short";
     auto dl = std::unique_ptr<mega::LocalNode>{mega::LocalNode::unserialize(sync.get(), &data)};
     ASSERT_EQ(nullptr, dl);
@@ -374,7 +376,8 @@ TEST(Serialization, LocalNode_shortData)
 TEST(Serialization, LocalNode_forFolder_withoutParent_withoutNode)
 {
     MockClient client;
-    auto sync = mt::makeSync(*client.cli, "wicked");
+    auto us = mt::makeSync(*client.cli, "wicked");
+    auto& sync = us->mSync;
     auto& l = *sync->localroot;
     l.mSyncable = false;
     l.setfsid(10, client.cli->fsidnode);
@@ -391,7 +394,8 @@ TEST(Serialization, LocalNode_forFolder_withoutParent_withoutNode)
 TEST(Serialization, LocalNode_forFile_withoutNode)
 {
     MockClient client;
-    auto sync = mt::makeSync(*client.cli, "wicked");
+    auto us = mt::makeSync(*client.cli, "wicked");
+    auto& sync = us->mSync;
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FILENODE, "sweet");
     l->mSyncable = false;
     l->size = 124;
@@ -413,7 +417,8 @@ TEST(Serialization, LocalNode_forFile_withoutNode)
 TEST(Serialization, LocalNode_forFile_withoutNode_withMaxMtime)
 {
     MockClient client;
-    auto sync = mt::makeSync(*client.cli, "wicked");
+    auto us = mt::makeSync(*client.cli, "wicked");
+    auto& sync = us->mSync;
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FILENODE, "sweet");
     l->size = 124;
     l->setfsid(10, client.cli->fsidnode);
@@ -434,7 +439,8 @@ TEST(Serialization, LocalNode_forFile_withoutNode_withMaxMtime)
 TEST(Serialization, LocalNode_forFolder_withoutParent)
 {
     MockClient client;
-    auto sync = mt::makeSync(*client.cli, "wicked");
+    auto us = mt::makeSync(*client.cli, "wicked");
+    auto& sync = us->mSync;
     auto& l = *sync->localroot;
     l.setfsid(10, client.cli->fsidnode);
     std::string data;
@@ -450,7 +456,8 @@ TEST(Serialization, LocalNode_forFolder_withoutParent)
 TEST(Serialization, LocalNode_forFolder)
 {
     MockClient client;
-    auto sync = mt::makeSync(*client.cli, "wicked");
+    auto us = mt::makeSync(*client.cli, "wicked");
+    auto& sync = us->mSync;
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FOLDERNODE, "sweet");
     l->mSyncable = false;
     l->parent->dbid = 13;
@@ -472,7 +479,8 @@ TEST(Serialization, LocalNode_forFolder)
 TEST(Serialization, LocalNode_forFolder_32bit)
 {
     MockClient client;
-    auto sync = mt::makeSync(*client.cli, "wicked");
+    auto us = mt::makeSync(*client.cli, "wicked");
+    auto& sync = us->mSync;
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FOLDERNODE, "sweet");
     l->mSyncable = false;
     l->parent->dbid = 13;
@@ -500,7 +508,8 @@ TEST(Serialization, LocalNode_forFolder_32bit)
 TEST(Serialization, LocalNode_forFolder_oldLocalNodeWithoutSyncable)
 {
     MockClient client;
-    auto sync = mt::makeSync(*client.cli, "wicked");
+    auto us = mt::makeSync(*client.cli, "wicked");
+    auto& sync = us->mSync;
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FOLDERNODE, "sweet");
     l->parent->dbid = 13;
     l->parent_dbid = l->parent->dbid;
@@ -526,7 +535,8 @@ TEST(Serialization, LocalNode_forFolder_oldLocalNodeWithoutSyncable)
 TEST(Serialization, LocalNode_forFile)
 {
     MockClient client;
-    auto sync = mt::makeSync(*client.cli, "wicked");
+    auto us = mt::makeSync(*client.cli, "wicked");
+    auto& sync = us->mSync;
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FILENODE, "sweet");
     l->mSyncable = false;
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
@@ -548,7 +558,8 @@ TEST(Serialization, LocalNode_forFile)
 TEST(Serialization, LocalNode_forFiles_oldLocalNodeWithoutSyncable)
 {
     MockClient client;
-    auto sync = mt::makeSync(*client.cli, "wicked");
+    auto us = mt::makeSync(*client.cli, "wicked");
+    auto& sync = us->mSync;
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FILENODE, "sweet");
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
     l->setnode(&n);
@@ -577,7 +588,8 @@ TEST(Serialization, LocalNode_forFiles_oldLocalNodeWithoutSyncable)
 TEST(Serialization, LocalNode_forFile_32bit)
 {
     MockClient client;
-    auto sync = mt::makeSync(*client.cli, "wicked");
+    auto us = mt::makeSync(*client.cli, "wicked");
+    auto& sync = us->mSync;
     auto l = mt::makeLocalNode(*sync, *sync->localroot, mega::FILENODE, "sweet");
     l->mSyncable = false;
     auto& n = mt::makeNode(*client.cli, mega::FILENODE, 42);
