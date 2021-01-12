@@ -288,6 +288,15 @@ if test x$enable_sync = xyes; then
 fi
 
 
+# Drive Notifications
+AC_ARG_ENABLE(drive-notifications,
+    AS_HELP_STRING([--disable-drive-notifications], [disable drive notifications support]),
+    [], [enable_drive_notifications=yes])
+AS_IF([test "x$enable_drive_notifications" != "xno"], [
+    AC_DEFINE(USE_DRIVE_NOTIFICATIONS, 1, [Define to enable drive notifications])
+])
+
+
 # MEGA API
 AC_ARG_ENABLE(megaapi,
     AS_HELP_STRING([--disable-megaapi], [disable MEGA API support]),
@@ -2073,6 +2082,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   MEGA API          $enable_megaapi
   example apps:     $enable_examples
   Rot Perf Logger:  $enable_rotative_performance_logger
+  Drive Notif:      $enable_drive_notifications
 
   inotify:          $enable_inotify
   posix threads:    $enable_posix_threads
