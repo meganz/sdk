@@ -27,6 +27,7 @@
 #import "MEGATimeZoneDetails.h"
 #import "MEGAStringList.h"
 #import "MEGAPushNotificationSettings.h"
+#import "MEGABannerList.h"
 
 typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeLogin,
@@ -161,6 +162,9 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeSendDevCommand,
     MEGARequestTypeGetBanners,
     MEGARequestTypeDismissBanner,
+    MEGARequestTypeBackupPut,
+    MEGARequestTypeBackupRemove,
+    MEGARequestTypeBackupPutHeartbeat,
     TotalOfRequestTypes
 };
 
@@ -536,6 +540,16 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
  *
  */
 @property (readonly, nonatomic) NSArray<NSArray<NSString *> *> *stringTableArray;
+
+
+/**
+ * @brief Gets the banners response from a request mapped into MEGABannerList.
+ *
+ * This value is valid for these requests:
+ * - [MEGASdk getBanners:] - Obtains the user's banner in MEGA.
+ *
+ */
+@property (readonly, nonatomic) MEGABannerList *bannerList;
 
 /**
  * @brief Creates a copy of this MEGARequest object

@@ -38,6 +38,7 @@
 #include "mediafileattribute.h"
 #include "useralerts.h"
 #include "user.h"
+#include "sync.h"
 
 namespace mega {
 
@@ -273,6 +274,8 @@ public:
 
     static string getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key);
 
+    string getWritableLinkAuthKey(handle node);
+
 #ifdef ENABLE_CHAT
     // all chats
     textchat_map chats;
@@ -333,7 +336,7 @@ public:
     void fastlogin(const char*, const byte*, uint64_t);
 
     // session login: binary session, bytecount
-    void login(const byte*, int);
+    void login(string session);
 
     // check password
     error validatepwd(const byte *);
@@ -363,7 +366,7 @@ public:
     void unblock();
 
     // dump current session
-    int dumpsession(byte*, size_t);
+    int dumpsession(string&);
 
     // create a copy of the current session
     void copysession();
@@ -386,8 +389,11 @@ public:
     // extract public handle and key from a public file/folder link
     error parsepubliclink(const char *link, handle &ph, byte *key, bool isFolderLink);
 
-    // set folder link: node, key
-    error folderaccess(const char*folderlink);
+    // open the SC database and get the SCSN from it
+    void checkForResumeableSCDatabase();
+
+    // set folder link: node, key. authKey is the authentication key to be able to write into the folder
+    error folderaccess(const char*folderlink, const char* authKey);
 
     // open exported file link (op=0 -> download, op=1 fetch data)
     void openfilelink(handle ph, const byte *key, int op);
@@ -499,19 +505,21 @@ public:
     bool xferpaused[2];
 
 #ifdef ENABLE_SYNC
-    // active syncs
-    sync_list syncs;
+
+    // one unified structure for SyncConfigs, the Syncs that are running, and heartbeat data
+    Syncs syncs;
 
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;
 
-    // A collection of sync configs backed by a database table
-    std::unique_ptr<SyncConfigBag> syncConfigs;
-
     // keep sync configuration after logout
     bool mKeepSyncsAfterLogout = false;
-
 #endif
+    // backup names pending to be sent
+    string_map mPendingBackupNames;
+
+    // true if setting the backup name for any backup id is in progress
+    bool mSendingBackupName = false;
 
     // if set, symlinks will be followed except in recursive deletions
     // (give the user ample warning about possible sync repercussions)
@@ -524,7 +532,7 @@ public:
     handle uploadhandle(int);
 
     // helper function for preparing a putnodes call for new folders
-    void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername);
+    void putnodes_prepareOneFolder(NewNode* newnode, std::string foldername, std::function<void (AttrMap&)> addAttrs = nullptr);
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
@@ -569,15 +577,15 @@ public:
     error removecontact(const char*, visibility_t = HIDDEN);
 
     // add/remove/update outgoing share
-    void setshare(Node*, const char*, accesslevel_t, const char* = NULL);
+    void setshare(Node*, const char*, accesslevel_t, bool writable = false, const char* = NULL);
 
     // Add/delete/remind outgoing pending contact request
     void setpcr(const char*, opcactions_t, const char* = NULL, const char* = NULL, handle = UNDEF);
     void updatepcr(handle, ipcactions_t);
 
     // export node link or remove existing exported link for this node
-    error exportnode(Node*, int, m_time_t);
-    void getpubliclink(Node* n, int del, m_time_t ets); // auxiliar method to add req
+    error exportnode(Node*, int, m_time_t, bool writable = false);
+    void getpubliclink(Node* n, int del, m_time_t ets, bool writable = false); // auxiliar method to add req
 
     // add timer
     error addtimer(TimerWithBackoff *twb);
@@ -600,67 +608,44 @@ public:
      */
     error isLocalPathSyncable(std::string newPath, int newSyncTag = 0, SyncError *syncError = nullptr);
 
+    /**
+     * @brief check config. Will fill syncError in the SyncConfig in case there is one.
+     * Will fill syncWarning in the SyncConfig in case there is one.
+     * Does not persist the sync configuration.
+     * Does not add the syncConfig.
+     * Reference parameters are filled in while checking syncConfig, for the benefit of addSync() which calls it.
+     * @return And error code if there are problems serious enough with the syncconfig that it should not be added.
+     *         Otherwise, API_OK
+     */
+    error checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, Node*& remotenode, bool& inshare, bool& isnetwork);
 
     /**
-     * @brief add sync. Will fill syncError in case there is one.
-     * It will persist the sync configuration if everything goes fine.
-     * @param syncError filled with SyncError with the sync error that prevented the addition
+     * @brief add sync. Will fill syncError/syncWarning in the SyncConfig in case there are any.
+     * It will persist the sync configuration if its call to checkSyncConfig succeeds
+     * @param syncConfig the Config to attempt to add
+     * @param debris Name of the debris folder on this platform (perhaps we could just use the macro)
+     * @param localdebris Alternate debris folder path - not used at all to my knowledge
      * @param delayInitialScan delay the initial scan
-     * @return API_OK if added to active syncs. (regular) error otherwise.
+     * @param unifiedSync If the syncConfig is added, this parameter wll be filled in with a pointer to the created UnifiedSync.
+     * @param notifyApp whether the syncupdate_stateconfig callback should be called at this stage or not
+     * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
      */
-    error addsync(SyncConfig, const char*, LocalPath*, SyncError &syncError, bool delayInitialScan = false, void* = NULL);
+    error addsync(SyncConfig& syncConfig, const char* debris, LocalPath* localdebris, bool delayInitialScan, UnifiedSync*& unifiedSync, bool notifyApp);
 
 
-    // removes an active sync (transition to pre-removal state).
-    // This will entail the removal of the sync cache & configuration cache (see removeSyncConfig)
-    void delsync(Sync*);
-
-    // remove sync configuration. It will remove sync configuration cache & call app's callback sync_removed
-    error removeSyncConfig(int tag);
-    error removeSyncConfigByNodeHandle(handle nodeHandle);
-
-    //// sync config updating & persisting ////
-    // updates in state & error
-    error saveAndUpdateSyncConfig(const SyncConfig *config, syncstate_t newstate, SyncError syncerror);
-    // updates in remote path/node & calls app's syncupdate_remote_root_changed. passing n=null will remove remote handle and keep last known path
-    bool updateSyncRemoteLocation(const SyncConfig *config, Node *n, bool forceCallback = false); //returns if changed
-    // updates heartbeatID
-    error updateSyncBackupId(int tag, handle newHearBeatID);
+    ////// sync config updating & persisting ////
 
     // transition the cache to failed
     void failSync(Sync* sync, SyncError syncerror);
 
-    // disable synchronization. (transition to disable_state)
-    // If no error passed, it entails a manual disable: won't be resumed automatically anymore, but it will be kept in cache
-    void disableSync(Sync*, SyncError syncError =  NO_SYNC_ERROR);
-    bool disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError);
+    // disable synchronization. syncError specifies why we are disabling it.
+    // newEnabledFlag specifies whether we will try to auto-resume it on eg. app restart
+    void disableSyncContainingNode(mega::handle nodeHandle, SyncError syncError, bool newEnabledFlag);
 
     // fail all active syncs
     void failSyncs(SyncError syncError =  NO_SYNC_ERROR);
 
-    //disable all active syncs
-    // If no error passed, it entails a manual disable: won't be resumed automatically anymore, but it will be kept in cache
-    void disableSyncs(SyncError syncError =  NO_SYNC_ERROR);
 
-    // restore all configured syncs that were in a temporary error state (not manually disabled)
-    void restoreSyncs();
-
-    // attempts to enable a sync. will fill syncError with the SyncError error (if any)
-    // if resetFingeprint is true, it will assign a new Filesystem Fingerprint.
-    // if newRemoteNode is set, it will try to use it to restablish the sync, updating the cached configuration if successful.
-    error enableSync(int tag, SyncError &syncError, bool resetFingerprint = false, mega::handle newRemoteNode = UNDEF);
-    error enableSync(const SyncConfig *syncConfig, SyncError &syncError,
-                     bool resetFingerprint = false, mega::handle newRemoteNode = UNDEF);
-
-    /**
-     * @brief updates the state of a synchronization. it will persist the changes and call app syncupdate_state handler
-     * @param fireDisableEvent passed to the app: if when the change entails a transition to inactive, the transition should be
-     * forwarded to the application listeners
-     * @return error if any
-     */
-    error changeSyncState(const SyncConfig *config, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent);
-    error changeSyncState(int tag, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent = true);
-    error changeSyncStateByNodeHandle(mega::handle nodeHandle, syncstate_t newstate, SyncError newSyncError, bool fireDisableEvent);
 
 
 #endif
@@ -831,7 +816,7 @@ public:
     void chatlinkjoin(handle publichandle, const char *unifiedkey);
 
     // set retention time for a chatroom in seconds, after which older messages in the chat are automatically deleted
-    void setchatretentiontime(handle chatid, int period);
+    void setchatretentiontime(handle chatid, unsigned period);
 #endif
 
     // get mega achievements
@@ -900,6 +885,9 @@ public:
     // storage status
     storagestatus_t ststatus;
 
+    // account type: Free|Pro Lite|Pro I|Pro II|Pro III|Business
+    AccountType mAccountType = ACCOUNT_TYPE_UNKNOWN;
+
     // cacheable status
     std::map<int64_t, std::shared_ptr<CacheableStatus>> mCachedStatus;
 
@@ -921,9 +909,6 @@ public:
     // root URL for chat stats
     static string CHATSTATSURL;
 
-    // account auth for public folders
-    string accountauth;
-
     // file that is blocking the sync engine
     LocalPath blockedfile;
 
@@ -941,6 +926,12 @@ public:
 
     // backoff for the expiration of cached user data
     BackoffTimer btugexpiration;
+
+    // if logged into public folder (which might optionally be writable)
+    bool loggedIntoFolder() const;
+
+    // if logged into writable folder
+    bool loggedIntoWritableFolder() const;
 
 private:
     BackoffTimer btcs;
@@ -963,7 +954,6 @@ private:
 
     bool pendingscTimedOut = false;
 
-
     // badhost report
     HttpReq* badhostcs;
 
@@ -976,14 +966,20 @@ private:
     // unique request ID
     char reqid[10];
 
-    // auth URI component for API requests
-    string auth;
-
     // lang URI component for API requests
     string lang;
 
-    // public handle being used
-    handle publichandle;
+    struct FolderLink {
+        // public handle of the folder link ('&n=' param in the POST)
+        handle mPublicHandle = UNDEF;
+
+        // auth token that enables writing into the folder link (appended to the `n` param in POST)
+        string mWriteAuth;      // (optional, only for writable links)
+
+        // auth token that relates the usage of the folder link to a user's session id ('&sid=' param in the POST)
+        string mAccountAuth;    // (optional, set by the app)
+    };
+    FolderLink mFolderLink;
 
     // API response JSON object
     JSON response;
@@ -1017,11 +1013,7 @@ private:
     static const int MAXPUTFA;
 
 #ifdef ENABLE_SYNC
-    // Resumes all resumable syncs
-    void resumeResumableSyncs();
-
     Sync *getSyncContainingNodeHandle(mega::handle nodeHandle);
-
 #endif
 
     // update time at which next deferred transfer retry kicks in
@@ -1143,13 +1135,13 @@ public:
     bool pendingsccommit;
 
     // transfer cache table
-    DbTable* tctable;
+    unique_ptr<DbTable> tctable;
 
     // during processing of request responses, transfer table updates can be wrapped up in a single begin/commit
     DBTableTransactionCommitter* mTctableRequestCommitter = nullptr;
 
     // status cache table for logged in user. For data pertaining status which requires immediate commits
-    DbTable* statusTable;
+    unique_ptr<DbTable> statusTable;
 
     // scsn as read from sctable
     handle cachedscsn;
@@ -1536,7 +1528,7 @@ public:
 
     bool requestLock;
     dstime disconnecttimestamp;
-    dstime lastDispatchTransfersDs = 0;
+    dstime nextDispatchTransfersDs = 0;
 
     // process object arrays by the API server
     int readnodes(JSON*, int, putsource_t, vector<NewNode>*, int, bool applykeys);
@@ -1574,6 +1566,7 @@ public:
     bool warnlevel();
 
     Node* childnodebyname(Node*, const char*, bool = false);
+    Node* childnodebyattribute(Node*, nameid, const char*);
     void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
 
@@ -1586,6 +1579,7 @@ public:
     static const int CHATHANDLE = 8;
     static const int SESSIONHANDLE = 8;
     static const int PURCHASEHANDLE = 8;
+    static const int BACKUPHANDLE = 8;
     static const int CONTACTLINKHANDLE = 6;
     static const int CHATLINKHANDLE = 6;
 
@@ -1677,17 +1671,19 @@ public:
     static void stringhash(const char*, byte*, SymmCipher*);
     static uint64_t stringhash64(string*, SymmCipher*);
 
-    // set authentication context, either a session ID or a exported folder node handle
-    void setsid(const byte*, unsigned);
-    void setrootnode(handle);
+    // builds the authentication URI to be sent in POST requests
+    string getAuthURI(bool supressSID = false);
 
     bool setlang(string *code);
 
-    // returns the handle of the root node if the account is logged into a public folder, otherwise UNDEF.
-    handle getrootpublicfolder();
+    // sets the auth token to be used when logged into a folder link
+    void setFolderLinkAccountAuth(const char *auth);
 
     // returns the public handle of the folder link if the account is logged into a public folder, otherwise UNDEF.
-    handle getpublicfolderhandle();
+    handle getFolderLinkPublicHandle();
+
+    // check if there is a valid folder link (rootnode received and the valid key)
+    bool isValidFolderLink();
 
     //returns the top-level node for a node
     Node *getrootnode(Node*);
@@ -1703,9 +1699,6 @@ public:
 
     // hash password
     error pw_key(const char*, byte*) const;
-
-    // convert hex digit to number
-    static int hexval(char);
 
     // Since it's quite expensive to create a SymmCipher, these are provided to use for quick operations - just set the key and use.
     SymmCipher tmpnodecipher;
@@ -1837,7 +1830,6 @@ public:
     std::string getDeviceidHash() const;
 
 #ifdef ENABLE_SYNC
-    void resetSyncConfigs();
     bool getKeepSyncsAfterLogout() const;
     void setKeepSyncsAfterLogout(bool keepSyncsAfterLogout);
 #endif

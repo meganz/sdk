@@ -26,6 +26,7 @@
 #include "mega/sync.h"
 #include "mega/command.h"
 #include "mega/logging.h"
+#include "mega/heartbeats.h"
 
 namespace mega {
 File::File()
@@ -456,6 +457,8 @@ SyncFileGet::SyncFileGet(Sync* csync, Node* cn, const LocalPath& clocalname)
 
     syncxfer = true;
     n->syncget = this;
+
+    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, 1, size, 0) ;
 }
 
 SyncFileGet::~SyncFileGet()
@@ -484,12 +487,12 @@ void SyncFileGet::prepare()
                 transfer->localfilename = sync->localdebris;
                 sync->client->fsaccess->mkdirlocal(transfer->localfilename, true);
 
-                transfer->localfilename.appendWithSeparator(tmpname, true, sync->client->fsaccess->localseparator);
+                transfer->localfilename.appendWithSeparator(tmpname, true);
                 sync->client->fsaccess->mkdirlocal(transfer->localfilename);
 
                 // lock it
                 LocalPath lockname = LocalPath::fromName("lock", *sync->client->fsaccess, sync->mFilesystemType);
-                transfer->localfilename.appendWithSeparator(lockname, true, sync->client->fsaccess->localseparator);
+                transfer->localfilename.appendWithSeparator(lockname, true);
 
                 if (sync->tmpfa->fopen(transfer->localfilename, false, true))
                 {
@@ -508,7 +511,7 @@ void SyncFileGet::prepare()
         if (sync->tmpfa)
         {
             transfer->localfilename = sync->localdebris;
-            transfer->localfilename.appendWithSeparator(tmpname, true, sync->client->fsaccess->localseparator);
+            transfer->localfilename.appendWithSeparator(tmpname, true);
         }
         else
         {
@@ -517,7 +520,7 @@ void SyncFileGet::prepare()
 
         LocalPath tmpfilename;
         sync->client->fsaccess->tmpnamelocal(tmpfilename);
-        transfer->localfilename.appendWithSeparator(tmpfilename, true, sync->client->fsaccess->localseparator);
+        transfer->localfilename.appendWithSeparator(tmpfilename, true);
     }
 
     if (n->parent && n->parent->localnode)
@@ -569,7 +572,7 @@ void SyncFileGet::updatelocalname()
         if (n->parent && n->parent->localnode)
         {
             localname = n->parent->localnode->getLocalPath();
-            localname.appendWithSeparator(LocalPath::fromName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true, sync->client->fsaccess->localseparator);
+            localname.appendWithSeparator(LocalPath::fromName(ait->second, *sync->client->fsaccess, sync->mFilesystemType), true);
         }
     }
 }
@@ -577,6 +580,8 @@ void SyncFileGet::updatelocalname()
 // add corresponding LocalNode (by path), then self-destruct
 void SyncFileGet::completed(Transfer*, LocalNode*)
 {
+    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, 0, size);
+
     LocalNode *ll = sync->checkpath(NULL, &localname, nullptr, nullptr, false, nullptr);
     if (ll && ll != (LocalNode*)~0 && n
             && (*(FileFingerprint *)ll) == (*(FileFingerprint *)n))
@@ -592,6 +597,8 @@ void SyncFileGet::completed(Transfer*, LocalNode*)
 
 void SyncFileGet::terminated()
 {
+    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, -size, 0);
+
     delete this;
 }
 #endif

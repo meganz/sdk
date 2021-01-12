@@ -1,4 +1,4 @@
-# This file enables building with cmake 
+# This file enables building with cmake
 #
 # use cases
 #  - generate a visual studio solution and projects, eg: cmake . -G "Visual Studio 15 2017"
@@ -12,7 +12,9 @@
 
 # check the ./build3rdParty.cmd script in this folder for how to (relatively) easily build the dependencies, typically in a 3rdParty folder outside of the SDK repo.
 
-cmake_minimum_required(VERSION 3.7.2)
+cmake_minimum_required(VERSION 3.15)
+cmake_policy(SET CMP0091 NEW)   # for msvc dll/stsatic target
+
 project(MegaSDK)
 
 #indicate which dependent libraries to use in the build
@@ -33,6 +35,7 @@ set (USE_SODIUM 1 CACHE STRING "")
 set (ENABLE_SYNC 1 CACHE STRING "")
 set (ENABLE_CHAT 0 CACHE STRING "")
 set (ENABLE_LOG_PERFORMANCE 0 CACHE STRING "")
+set (USE_ROTATIVEPERFORMANCELOGGER 0 CACHE STRING "")
 set (HAVE_FFMPEG 1 CACHE STRING "")
 set (USE_WEBRTC 0 CACHE STRING "")
 set (USE_LIBUV 0 CACHE STRING "")
@@ -595,6 +598,7 @@ add_library(Mega STATIC
             ${MegaDir}/include/mega/backofftimer.h
             ${MegaDir}/include/mega/raid.h
             ${MegaDir}/include/mega/logging.h
+            ${MegaDir}/include/mega/rotativeperformancelogger.h
             ${MegaDir}/include/mega/file.h
             ${MegaDir}/include/mega/sync.h
             ${MegaDir}/include/mega/heartbeats.h
@@ -661,6 +665,7 @@ add_library(Mega STATIC
             $<${USE_LIBUV}:${MegaDir}/src/mega_evt_tls.cpp> 
             $<${USE_QT}:${MegaDir}/src/gfx/qt.cpp>
             $<${USE_QT}:${MegaDir}/src/thread/qtthread.cpp >
+            $<${USE_ROTATIVEPERFORMANCELOGGER}:${MegaDir}/src/rotativeperformancelogger.cpp >
             )
 
 target_include_directories(Mega PRIVATE ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
@@ -709,8 +714,10 @@ target_compile_definitions(Mega PUBLIC
                 $<${USE_CURL}:USE_CURL> 
                 $<${USE_SODIUM}:USE_SODIUM>
                 $<${ENABLE_SYNC}:ENABLE_SYNC> 
-                $<${ENABLE_CHAT}:ENABLE_CHAT> 
+                $<${ENABLE_CHAT}:ENABLE_CHAT>
                 $<${ENABLE_LOG_PERFORMANCE}:ENABLE_LOG_PERFORMANCE>
+                $<${USE_ROTATIVEPERFORMANCELOGGER}:USE_ROTATIVEPERFORMANCELOGGER>
+                $<${USE_ROTATIVEPERFORMANCELOGGER}:ENABLE_LOG_PERFORMANCE>
                 $<${NO_READLINE}:NO_READLINE>
                 $<${USE_FREEIMAGE}:USE_FREEIMAGE> 
                 $<${HAVE_FFMPEG}:HAVE_FFMPEG>
@@ -868,6 +875,18 @@ if (WIN32)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4456")  # declaration hides previous local declaration
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4266")  # derived class did not override all overloads of a virtual function
     #TODO: remove some of those gradually.  also consider: /wd4503 /wd4996 /wd4702
+
+    set_property(TARGET Mega PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
+    set_property(TARGET megacli PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
+    set_property(TARGET testmega PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
+    set_property(TARGET megasimplesync PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
+    set_property(TARGET test_integration PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
+    set_property(TARGET test_unit PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
+    set_property(TARGET tool_purge_account PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
+    if (HAVE_ASIO)
+        set_property(TARGET tool_tcprelay PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>$<${MEGA_LINK_DYNAMIC_CRT}:DLL>")
+    endif()
+
 else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wconversion -Wno-unused-parameter")
 endif()

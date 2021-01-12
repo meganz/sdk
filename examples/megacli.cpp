@@ -31,7 +31,7 @@
     #include <readline/history.h>
 #endif
 
-#if (__cplusplus >= 201700L)
+#if (__cplusplus >= 201703L)
     #include <filesystem>
     namespace fs = std::filesystem;
     #define USE_FILESYSTEM
@@ -121,7 +121,7 @@ int attempts = 0;
 
 struct NewSyncConfig
 {
-    SyncConfig::Type type = SyncConfig::Type::TYPE_TWOWAY;
+    SyncConfig::Type type = SyncConfig::TYPE_TWOWAY;
     bool syncDeletions = true;
     bool forceOverwrite = false;
 
@@ -476,28 +476,29 @@ static void syncstat(Sync* sync)
          << " file(s) and " << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
 }
 
-void DemoApp::syncupdate_state(int tag, syncstate_t newstate, SyncError syncError, bool fireDisableEvent)
+void DemoApp::syncupdate_stateconfig(int tag)
 {
-    cout << "Sync state updated: " << tag << " newstate: " << newstate << " error: " << syncError << endl;
-
-    switch (newstate)
-    {
-        case SYNC_ACTIVE:
-            cout << "Sync is now active" << endl;
-            break;
-
-        case SYNC_FAILED:
-            cout << "Sync failed." << endl;
-
-        default:
-            ;
-    }
+    cout << "Sync config updated: " << tag << endl;
 }
 
-void DemoApp::sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const SyncError &error)
+
+void DemoApp::syncupdate_active(int tag, bool active)
 {
-    cout << "Sync - auresumed " <<config.getTag() << " " << config.getLocalPath()  << " enabled: "
-         << config.getEnabled()  << " state: " << state << " syncError: " << error << endl;
+    cout << "Sync is now active: " << active << endl;
+}
+
+void DemoApp::sync_auto_resume_result(const UnifiedSync& s, bool attempted)
+{
+    if (attempted)
+    {
+        cout << "Sync - autoresumed " << s.mConfig.getTag() << " " << s.mConfig.getLocalPath()  << " enabled: "
+             << s.mConfig.getEnabled()  << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
+    }
+    else
+    {
+        cout << "Sync - autoloaded " << s.mConfig.getTag() << " " << s.mConfig.getLocalPath() << " enabled: "
+            << s.mConfig.getEnabled() << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
+    }
 }
 
 void DemoApp::sync_removed(int tag)
@@ -686,7 +687,7 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time
     if (!targetfolder.empty())
     {
         string s = targetfolder;
-        localname.prependWithSeparator(LocalPath::fromPath(s, *client->fsaccess), client->fsaccess->localseparator);
+        localname.prependWithSeparator(LocalPath::fromPath(s, *client->fsaccess));
     }
 }
 
@@ -704,7 +705,7 @@ AppFilePut::AppFilePut(const LocalPath& clocalname, handle ch, const char* ctarg
     // erase path component
     auto fileSystemType = client->fsaccess->getlocalfstype(clocalname);
 
-    name = clocalname.leafName(client->fsaccess->localseparator).toName(*client->fsaccess, fileSystemType);
+    name = clocalname.leafName().toName(*client->fsaccess, fileSystemType);
 }
 
 // user addition/update (users never get deleted)
@@ -1156,18 +1157,14 @@ void DemoApp::fetchnodes_result(const Error& e)
     else
     {
         // check if we fetched a folder link and the key is invalid
-        handle h = client->getrootpublicfolder();
-        if (h != UNDEF)
+        if (client->isValidFolderLink())
         {
-            Node *n = client->nodebyhandle(h);
-            if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
-            {
-                cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
-            }
-            else
-            {
-                cout << "Folder link loaded correctly." << endl;
-            }
+            cout << "Folder link loaded correctly." << endl;
+        }
+        else
+        {
+            assert(client->nodebyhandle(client->rootnodes[0]));   // node is there, but cannot be decrypted
+            cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
         }
 
         if (pdf_to_import)
@@ -1224,7 +1221,7 @@ void DemoApp::putnodes_result(const Error& e, targettype_t t, vector<NewNode>& n
     }
 }
 
-void DemoApp::share_result(error e)
+void DemoApp::share_result(error e, bool writable)
 {
     if (e)
     {
@@ -1246,7 +1243,7 @@ void DemoApp::share_result(error e)
                     return;
                 }
 
-                client->getpubliclink(n, del, ets);
+                client->getpubliclink(n, del, ets, writable);
             }
             else
             {
@@ -1257,7 +1254,7 @@ void DemoApp::share_result(error e)
     }
 }
 
-void DemoApp::share_result(int, error e)
+void DemoApp::share_result(int, error e, bool writable)
 {
     if (e)
     {
@@ -1496,7 +1493,11 @@ static char* line;
 
 static AccountDetails account;
 
+// Current remote directory.
 static handle cwd = UNDEF;
+
+// Where we were on the local filesystem when megacli started.
+static LocalPath startDir;
 
 static const char* rootnodenames[] =
 { "ROOT", "INBOX", "RUBBISH" };
@@ -2935,7 +2936,7 @@ void exec_timelocal(autocomplete::ACState& s)
         cout << "wrong number of arguments for : " << s.words[1].s << endl;
         return;
     }
-    
+
     m_time_t set_time = 0;
 
     if (!get)
@@ -3001,7 +3002,10 @@ autocomplete::ACN autocompleteSyntax()
     std::unique_ptr<Either> p(new Either("      "));
 
     p->Add(exec_apiurl, sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
-    p->Add(exec_login, sequence(text("login"), either(sequence(param("email"), opt(param("password"))), exportedLink(false, true), param("session"), sequence(text("autoresume"), opt(param("id"))))));
+    p->Add(exec_login, sequence(text("login"), opt(flag("-fresh")), either(sequence(param("email"), opt(param("password"))),
+                                                      sequence(exportedLink(false, true), opt(param("auth_key"))),
+                                                      param("session"),
+                                                      sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
     p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name")), param("confirmationlink"))));
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
@@ -3047,7 +3051,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_sync, sequence(text("sync"), opt(either(sequence(localFSPath(), remoteFSPath(client, &cwd, "dst")), param("cancelslot")))));
     p->Add(exec_syncconfig, sequence(text("syncconfig"), opt(sequence(param("type (TWOWAY/UP/DOWN)"), opt(sequence(param("syncDeletions (ON/OFF)"), param("forceOverwrite (ON/OFF)")))))));
 #endif
-    p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(param("expiretime"), text("del")))));
+    p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(flag("-writable"), param("expiretime"), text("del")))));
     p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
     p->Add(exec_invite, sequence(text("invite"), param("dstemail"), opt(either(param("origemail"), text("del"), text("rmd")))));
 
@@ -3057,7 +3061,11 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_showpcr, sequence(text("showpcr")));
     p->Add(exec_users, sequence(text("users"), opt(sequence(contactEmail(client), text("del")))));
     p->Add(exec_getua, sequence(text("getua"), param("attrname"), opt(contactEmail(client))));
-    p->Add(exec_putua, sequence(text("putua"), param("attrname"), opt(either(text("del"), sequence(text("set"), param("string")), sequence(text("load"), localFSFile())))));
+    p->Add(exec_putua, sequence(text("putua"), param("attrname"), opt(either(
+                                                                          text("del"),
+                                                                          sequence(text("set"), param("string")),
+                                                                          sequence(text("map"), param("key"), param("value")),
+                                                                          sequence(text("load"), localFSFile())))));
 #ifdef DEBUG
     p->Add(exec_delua, sequence(text("delua"), param("attrname")));
     p->Add(exec_devcommand, sequence(text("devcommand"), param("subcommand"), opt(param("email"))));
@@ -3590,6 +3598,10 @@ void exec_mv(autocomplete::ACState& s)
                                 cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
                             }
                         }
+                        else
+                        {
+                            cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
+                        }
                     }
                 }
                 else
@@ -3954,7 +3966,7 @@ void exec_get(autocomplete::ACState& s)
                     // node from public folder link
                     if (index != string::npos && s.words[1].s.substr(0, index).find("@") == string::npos)
                     {
-                        handle h = clientFolder->getrootpublicfolder();
+                        handle h = clientFolder->rootnodes[0];
                         char *pubauth = new char[12];
                         Base64::btoa((byte*)&h, MegaClient::NODEHANDLE, pubauth);
                         f->pubauth = pubauth;
@@ -4068,7 +4080,7 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
 
 string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 {
-    return itemlocalname.leafName(client->fsaccess->localseparator).toPath(*client->fsaccess);
+    return itemlocalname.leafName().toPath(*client->fsaccess);
 }
 
 void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder)
@@ -4091,7 +4103,7 @@ void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder)
                 cout << "Queueing " << leafNameUtf8 << "..." << endl;
             }
             auto newpath = localname;
-            newpath.appendWithSeparator(itemlocalleafname, true, client->fsaccess->localseparator);
+            newpath.appendWithSeparator(itemlocalleafname, true);
             uploadLocalPath(type, leafNameUtf8, newpath, cloudFolder, "", committer, total, true);
         }
         if (gVerboseMode)
@@ -4123,7 +4135,7 @@ void exec_put(autocomplete::ACState& s)
         n = client->nodebyhandle(target);
     }
 
-    if (client->loggedin() == NOTLOGGEDIN && !targetuser.size())
+    if (client->loggedin() == NOTLOGGEDIN && !targetuser.size() && !client->loggedIntoWritableFolder())
     {
         cout << "Not logged in." << endl;
 
@@ -4310,30 +4322,32 @@ void exec_open(autocomplete::ACState& s)
 #endif
             // create a new MegaClient with a different MegaApp to process callbacks
             // from the client logged into a folder. Reuse the waiter and httpio
-            clientFolder = new MegaClient(new DemoAppFolder, client->waiter,
-                                            client->httpio, new FSACCESS_CLASS,
+            clientFolder = new MegaClient(new DemoAppFolder,
+                                          client->waiter,
+                                          client->httpio,
+                                          new FSACCESS_CLASS,
                 #ifdef DBACCESS_CLASS
-                                            new DBACCESS_CLASS,
+                                          new DBACCESS_CLASS(startDir),
                 #else
-                                            NULL,
+                                          NULL,
                 #endif
                 #ifdef GFX_CLASS
-                                            gfx,
+                                          gfx,
                 #else
-                                            NULL,
+                                          NULL,
                 #endif
-                                            "Gk8DyQBS",
-                                            "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
-                                            "." TOSTRING(MEGA_MINOR_VERSION)
-                                            "." TOSTRING(MEGA_MICRO_VERSION),
-                                            2);
+                                          "Gk8DyQBS",
+                                          "megacli_folder/" TOSTRING(MEGA_MAJOR_VERSION)
+                                          "." TOSTRING(MEGA_MINOR_VERSION)
+                                          "." TOSTRING(MEGA_MICRO_VERSION),
+                                          2);
         }
         else
         {
             clientFolder->logout();
         }
 
-        return clientFolder->app->login_result(clientFolder->folderaccess(s.words[1].s.c_str()));
+        return clientFolder->app->login_result(clientFolder->folderaccess(s.words[1].s.c_str(), nullptr));
     }
     else
     {
@@ -4364,8 +4378,9 @@ void exec_sync(autocomplete::ACState& s)
                 static int syncTag = 2027;
                 SyncConfig syncConfig{syncTag++, s.words[1].s, s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.getType(),
                             newSyncConfig.syncDeletions(), newSyncConfig.forceOverwrite()};
-                SyncError syncError;
-                error e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError);
+
+                UnifiedSync* unifiedSync;
+                error e = client->addsync(syncConfig, DEBRISFOLDER, NULL, false, unifiedSync, true);
 
                 if (e)
                 {
@@ -4382,49 +4397,52 @@ void exec_sync(autocomplete::ACState& s)
     {
         int i = 0, cancel = atoi(s.words[1].s.c_str());
 
-        for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-        {
-            if ((*it)->state > SYNC_CANCELED && i++ == cancel)
-            {
-                auto tag = (*it)->tag;
-                client->delsync(*it);
+        client->syncs.removeSelectedSyncs([&](SyncConfig&, Sync* s) {
 
-                cout << "Sync " << cancel << " deactivated and removed. tag: " << tag << endl;
-                break;
+            if (i++ == cancel)
+            {
+                if (s && s->state > SYNC_CANCELED)
+                {
+                    cout << "Sync " << cancel << " deactivated and removed. tag: " << s->tag << endl;
+                    return true;
+                }
             }
-        }
+            return false;
+        });
     }
     else if (s.words.size() == 1)
     {
-        if (client->syncs.size())
-        {
-            int i = 0;
-            string remotepath, localpath;
+        int i = 0;
 
-            for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
+        client->syncs.forEachUnifiedSync([&](UnifiedSync& us){
+
+            static const char* syncstatenames[] =
+            { "disabled", "failed", "cancelled", "Initial scan, please wait", "Active", "Failed" };
+
+            if (Sync* sync = us.mSync.get())
             {
-                if ((*it)->state > SYNC_CANCELED)
+                if (sync->localroot->node)
                 {
-                    static const char* syncstatenames[] =
-                    { "Initial scan, please wait", "Active", "Failed" };
+                    string remotepath, localpath;
+                    nodepath(sync->localroot->node->nodehandle, &remotepath);
+                    localpath = sync->localroot->localname.toPath(*client->fsaccess);
 
-                    if ((*it)->localroot->node)
-                    {
-                        nodepath((*it)->localroot->node->nodehandle, &remotepath);
-                        localpath = (*it)->localroot->localname.toPath(*client->fsaccess);
-
-                        cout << i++ << " (" << syncConfigToString((*it)->getConfig()) << "): " << localpath << " to " << remotepath << " - "
-                                << syncstatenames[(*it)->state] << ", " << (*it)->localbytes
-                                << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and "
-                                << (*it)->localnodes[FOLDERNODE] << " folder(s)" << endl;
-                    }
+                    cout << i << " (" << syncConfigToString(sync->getConfig()) << "): " << localpath << " to " << remotepath << " - "
+                            << syncstatenames[sync->state + 3] << ", " << sync->localbytes
+                            << " byte(s) in " << sync->localnodes[FILENODE] << " file(s) and "
+                            << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
                 }
             }
-        }
-        else
-        {
-            cout << "No syncs active at this time." << endl;
-        }
+            else
+            {
+                string remotepath, localpath;
+                nodepath(us.mConfig.getRemoteNode(), &remotepath);
+                localpath = us.mConfig.getLocalPath();
+
+                cout << i << " (" << syncConfigToString(us.mConfig) << "): " << localpath << " to " << remotepath << " - not running" << endl;
+            }
+            i++;
+        });
     }
 }
 
@@ -4496,6 +4514,8 @@ void exec_mfae(autocomplete::ACState& s)
 
 void exec_login(autocomplete::ACState& s)
 {
+    //bool fresh = s.extractflag("-fresh");
+
     if (client->loggedin() == NOTLOGGEDIN)
     {
         if (s.words.size() > 1)
@@ -4508,14 +4528,8 @@ void exec_login(autocomplete::ACState& s)
                 file >> session;
                 if (file.is_open() && session.size())
                 {
-                    byte sessionraw[64];
-                    if (session.size() < sizeof sessionraw * 4 / 3)
-                    {
-                        int size = Base64::atob(session.c_str(), sessionraw, sizeof sessionraw);
-
-                        cout << "Resuming session..." << endl;
-                        return client->login(sessionraw, size);
-                    }
+                    cout << "Resuming session..." << endl;
+                    return client->login(Base64::atob(session));
                 }
                 cout << "Failed to get a valid session id from file " << filename << endl;
             }
@@ -4537,21 +4551,12 @@ void exec_login(autocomplete::ACState& s)
                 const char* ptr;
                 if ((ptr = strchr(s.words[1].s.c_str(), '#')))  // folder link indicator
                 {
-                    return client->app->login_result(client->folderaccess(s.words[1].s.c_str()));
+                    const char *authKey = s.words.size() == 3 ? s.words[2].s.c_str() : nullptr;
+                    return client->app->login_result(client->folderaccess(s.words[1].s.c_str(), authKey));
                 }
                 else
                 {
-                    byte session[64];
-                    int size;
-
-                    if (s.words[1].s.size() < sizeof session * 4 / 3)
-                    {
-                        size = Base64::atob(s.words[1].s.c_str(), session, sizeof session);
-
-                        cout << "Resuming session..." << endl;
-
-                        return client->login(session, size);
-                    }
+                    return client->login(Base64::atob(s.words[1].s));
                 }
 
                 cout << "Invalid argument. Please specify a valid e-mail address, "
@@ -4562,7 +4567,7 @@ void exec_login(autocomplete::ACState& s)
         else
         {
             cout << "      login email [password]" << endl
-                << "      login exportedfolderurl#key" << endl
+                << "      login exportedfolderurl#key [authKey]" << endl
                 << "      login session" << endl;
         }
     }
@@ -4932,7 +4937,6 @@ void exec_putua(autocomplete::ACState& s)
         if (s.words[2].s == "set")
         {
             client->putua(attrtype, (const byte*)s.words[3].s.c_str(), unsigned(s.words[3].s.size()));
-
             return;
         }
         else if (s.words[2].s == "set64")
@@ -4959,6 +4963,53 @@ void exec_putua(autocomplete::ACState& s)
             }
 
             return;
+        }
+    }
+    else if (s.words.size() == 5)
+    {
+        if (s.words[2].s == "map")  // putua <attrtype> map <attrKey> <attrValue>
+        {
+            if (attrtype == ATTR_BACKUP_NAMES
+                    || attrtype == ATTR_DEVICE_NAMES
+                    || attrtype == ATTR_ALIAS)
+            {
+                std::string key = s.words[3].s;
+                std::string value = Base64::btoa(s.words[4].s);
+                string_map attrMap;
+                attrMap[key] = value;
+
+                std::unique_ptr<TLVstore> tlv;
+
+                User *ownUser = client->finduser(client->me);
+                const std::string *oldValue = ownUser->getattr(attrtype);
+                if (!oldValue)  // attr doesn't exist -> create it
+                {
+                    tlv.reset(new TLVstore());
+                    tlv->set(key, value);
+                }
+                else if (!ownUser->isattrvalid(attrtype)) // not fetched yet or outdated
+                {
+                    cout << "User attribute is versioned (need to know current version first). ";
+                    cout << "Fetch the attribute first" << endl;
+                    return;
+                }
+                else
+                {
+                    tlv.reset(TLVstore::containerToTLVrecords(oldValue, &client->key));
+
+                    if (!User::mergeUserAttribute(attrtype, attrMap, *tlv.get()))
+                    {
+                        cout << "Failed to merge with existing values" << endl;
+                        return;
+                    }
+                }
+
+                // serialize and encrypt the TLV container
+                std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
+                client->putua(attrtype, (byte *)container->data(), unsigned(container->size()));
+
+                return;
+            }
         }
     }
 }
@@ -5726,6 +5777,9 @@ void exec_export(autocomplete::ACState& s)
     int deltmp = 0;
     int etstmp = 0;
 
+    bool writable = s.extractflag("-writable");
+
+
     if ((n = nodebypath(s.words[1].s.c_str())))
     {
         if (s.words.size() > 2)
@@ -5741,7 +5795,7 @@ void exec_export(autocomplete::ACState& s)
         cout << "Exporting..." << endl;
 
         error e;
-        if ((e = client->exportnode(n, deltmp, etstmp)))
+        if ((e = client->exportnode(n, deltmp, etstmp, writable)))
         {
             cout << s.words[1].s << ": Export rejected (" << errorstring(e) << ")" << endl;
         }
@@ -6156,15 +6210,12 @@ void exec_recover(autocomplete::ACState& s)
 
 void exec_session(autocomplete::ACState& s)
 {
-    byte session[64];
-    int size;
+    string session;
 
-    size = client->dumpsession(session, sizeof session);
+    int size = client->dumpsession(session);
 
     if (size > 0)
     {
-        Base64Str<sizeof session> buf(session, size);
-
         if ((s.words.size() == 2 || s.words.size() == 3) && s.words[1].s == "autoresume")
         {
             string filename = "megacli_autoresume_session" + (s.words.size() == 3 ? "_" + s.words[2].s : "");
@@ -6175,13 +6226,13 @@ void exec_session(autocomplete::ACState& s)
             }
             else
             {
-                file << buf;
+                file << Base64::btoa(session);
                 cout << "Your (secret) session is saved in file '" << filename << "'" << endl;
             }
         }
         else
         {
-            cout << "Your (secret) session is: " << buf << endl;
+            cout << "Your (secret) session is: " << Base64::btoa(session) << endl;
         }
     }
     else if (!size)
@@ -7091,14 +7142,32 @@ void DemoApp::exportnode_result(handle h, handle ph)
             return;
         }
 
+        string publicLink;
         if (n->type == FILENODE)
         {
-            cout << MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey().data())) << endl;
+            publicLink = MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FILENODEKEYLENGTH>((const byte*)n->nodekey().data()));
         }
         else
         {
-            cout << MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key)) << endl;
+            publicLink = MegaClient::getPublicLink(client->mNewLinkFormat, n->type, ph, Base64Str<FOLDERNODEKEYLENGTH>(n->sharekey->key));
         }
+
+        cout << publicLink;
+
+        if (n->plink)
+        {
+            string authKey = n->plink->mAuthKey;
+
+            if (authKey.size())
+            {
+                string authToken(publicLink);
+                authToken = authToken.substr(strlen("https://mega.nz/folder/")).append(":").append(authKey);
+                cout << "\n          AuthToken = " << authToken;
+            }
+        }
+
+        cout << endl;
+
     }
     else
     {
@@ -8077,6 +8146,16 @@ int main()
     gfx->startProcessingThread();
 #endif
 
+    // Needed so we can get the cwd.
+    auto fsAccess = new FSACCESS_CLASS();
+
+    // Where are we?
+    if (!fsAccess->cwd(startDir))
+    {
+        cerr << "Unable to determine current working directory." << endl;
+        return EXIT_FAILURE;
+    }
+
     // instantiate app components: the callback processor (DemoApp),
     // the HTTP I/O engine (WinHttpIO) and the MegaClient itself
     client = new MegaClient(new DemoApp,
@@ -8085,9 +8164,10 @@ int main()
 #else
                             new CONSOLE_WAIT_CLASS,
 #endif
-                            new HTTPIO_CLASS, new FSACCESS_CLASS,
+                            new HTTPIO_CLASS,
+                            fsAccess,
 #ifdef DBACCESS_CLASS
-                            new DBACCESS_CLASS,
+                            new DBACCESS_CLASS(startDir),
 #else
                             NULL,
 #endif
@@ -8143,14 +8223,9 @@ void DemoAppFolder::fetchnodes_result(const Error& e)
     else
     {
         // check if we fetched a folder link and the key is invalid
-        handle h = clientFolder->getrootpublicfolder();
-        if (h != UNDEF)
+        if (clientFolder->isValidFolderLink())
         {
-            Node *n = clientFolder->nodebyhandle(h);
-            if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
-            {
-                cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
-            }
+            cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
         }
         else
         {

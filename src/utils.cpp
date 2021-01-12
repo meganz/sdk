@@ -376,7 +376,7 @@ int64_t chunkmac_map::macsmac_gaps(SymmCipher *cipher, size_t g1, size_t g2, siz
     for (chunkmac_map::iterator it = begin(); it != end(); it++, n++)
     {
         if ((n >= g1 && n < g2) || (n >= g3 && n < g4)) continue;
-        
+
         assert(it->first == ChunkedHash::chunkfloor(it->first));
         SymmCipher::xorblock(it->second.mac, mac);
         cipher->ecb_encrypt(mac);
@@ -2246,7 +2246,9 @@ SyncConfig::SyncConfig(int tag,
                        const Type syncType,
                        const bool syncDeletions,
                        const bool forceOverwrite,
-                       const SyncError error, mega::handle hearBeatID)
+                       const SyncError error,
+                       const SyncWarning warning,
+                       mega::handle hearBeatID)
     : mTag{tag}
     , mEnabled{enabled}
     , mLocalPath{std::move(localPath)}
@@ -2260,6 +2262,7 @@ SyncConfig::SyncConfig(int tag,
     , mForceOverwrite{forceOverwrite}
     , mError{error}
     , mBackupId(hearBeatID)
+    , mWarning{warning}
 {}
 
 
@@ -2283,27 +2286,9 @@ void SyncConfig::setEnabled(bool enabled)
     mEnabled = enabled;
 }
 
-bool SyncConfig::isEnabled(syncstate_t state, SyncError syncError)
-{
-    return state != SYNC_CANCELED && (state != SYNC_DISABLED || syncError != NO_SYNC_ERROR);
-}
-
-bool SyncConfig::isResumable() const
-{
-    return mEnabled && !isSyncErrorPermanent(mError);
-}
-
-bool SyncConfig::isResumableAtStartup() const
-{
-    return mEnabled && (!isAnError(mError)
-                        || mError == LOGGED_OUT
-                        || mError == UNKNOWN_TEMPORARY_ERROR
-                        || mError == FOREIGN_TARGET_OVERSTORAGE); //temporary errors that don't have an asociated restore functionality
-}
-
 bool SyncConfig::hasError() const
 {
-    return isAnError(mError);
+    return mError != NO_SYNC_ERROR;
 }
 
 const std::string& SyncConfig::getLocalPath() const
@@ -2351,6 +2336,11 @@ const std::vector<std::string>& SyncConfig::getRegExps() const
     return mRegExps;
 }
 
+void SyncConfig::setRegExps(std::vector<std::string>&& v)
+{
+    mRegExps = std::move(v);
+}
+
 SyncConfig::Type SyncConfig::getType() const
 {
     return mSyncType;
@@ -2395,6 +2385,11 @@ SyncError SyncConfig::getError() const
     return mError;
 }
 
+SyncWarning SyncConfig::getWarning() const
+{
+    return mWarning;
+}
+
 void SyncConfig::setError(SyncError value)
 {
     mError = value;
@@ -2431,42 +2426,23 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     uint32_t syncType;
     bool syncDeletions;
     bool forceOverwrite;
-    uint32_t error;
-    handle heartBeatID;
+    uint32_t error = NO_SYNC_ERROR;
+    handle heartBeatID = UNDEF;
+    unsigned char expansionflags[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
     CacheableReader reader{data};
-    if (!reader.unserializei64(tag))
+    if (!reader.unserializei64(tag) ||
+        !reader.unserializebool(enabled) ||
+        !reader.unserializestring(localPath) ||
+        !reader.unserializestring(name) ||
+        !reader.unserializehandle(remoteNode) ||
+        !reader.unserializestring(remotePath) ||
+        !reader.unserializefsfp(fingerprint) ||
+        !reader.unserializeu32(regExpCount))
     {
-        return {};
+        return nullptr;
     }
-    if (!reader.unserializebool(enabled))
-    {
-        return {};
-    }
-    if (!reader.unserializestring(localPath))
-    {
-        return {};
-    }
-    if (!reader.unserializestring(name))
-    {
-        return {};
-    }
-    if (!reader.unserializehandle(remoteNode))
-    {
-        return {};
-    }
-    if (!reader.unserializestring(remotePath))
-    {
-        return {};
-    }
-    if (!reader.unserializefsfp(fingerprint))
-    {
-        return {};
-    }
-    if (!reader.unserializeu32(regExpCount))
-    {
-        return {};
-    }
+
     for (uint32_t i = 0; i < regExpCount; ++i)
     {
         std::string regExp;
@@ -2476,30 +2452,38 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
         }
         regExps.push_back(std::move(regExp));
     }
-    if (!reader.unserializeu32(syncType))
+
+    if (!reader.unserializeu32(syncType) ||
+        !reader.unserializebool(syncDeletions) ||
+        !reader.unserializebool(forceOverwrite))
     {
-        return {};
+        return nullptr;
     }
-    if (!reader.unserializebool(syncDeletions))
+
+    // error was added without an expansion flag to indicate if it's present, so go by remaining space
+    if (reader.hasdataleft())
     {
-        return {};
+        if (!reader.unserializeu32(error)) return nullptr;
+
+        // heartbeatID was added without an expansion flag to indicate if it's present, so go by remaining space
+        if (reader.hasdataleft())
+        {
+            if (!reader.unserializehandle(heartBeatID)) return nullptr;
+
+            // expansion flags were added at this point
+            if (reader.hasdataleft())
+            {
+                reader.unserializeexpansionflags(expansionflags, 0);
+            }
+        }
     }
-    if (!reader.unserializebool(forceOverwrite))
-    {
-        return {};
-    }
-    if (!reader.unserializeu32(error))
-    {
-        return {};
-    }
-    if (!reader.unserializehandle(heartBeatID))
-    {
-        return {};
-    }
+
+    // when future fields are added, unserialize that field here.  Check the next expansion flag first, of course.
+
     auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{static_cast<int>(tag), std::move(localPath), std::move(name),
                     remoteNode, std::move(remotePath), fingerprint, std::move(regExps), enabled,
                     static_cast<Type>(syncType), syncDeletions,
-                    forceOverwrite, static_cast<SyncError>(error), heartBeatID}};
+                    forceOverwrite, static_cast<SyncError>(error), NO_SYNC_WARNING, heartBeatID}};
     return syncConfig;
 }
 
@@ -2647,5 +2631,11 @@ void MegaClientAsyncQueue::asyncThreadLoop()
         mWaiter.notify();
     }
 }
+
+bool islchex(const int c)
+{
+    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+}
+
 } // namespace
 

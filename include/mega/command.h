@@ -34,17 +34,8 @@ struct JSON;
 struct MegaApp;
 // request command component
 
-class MEGA_API CommandListener
-{
-public:
-    virtual void onCommandToBeDeleted(Command *) = 0;
-};
-
-
 class MEGA_API Command
 {
-    std::vector<std::weak_ptr<CommandListener>> mListeners;
-
     error result;
 
 protected:
@@ -55,8 +46,6 @@ protected:
 
 public:
     MegaClient* client; // non-owning
-
-    void addListener(const std::shared_ptr<CommandListener> &listener);
 
     int tag;
 
@@ -106,7 +95,7 @@ public:
 
         bool succeeded()
         {
-            return mOutcome != CmdError || error(mError) != API_OK;
+            return mOutcome != CmdError || error(mError) == API_OK;
         }
 
         bool hasJsonArray()
@@ -160,8 +149,6 @@ public:
     bool checkError(Error &errorDetails, JSON &json);
 
     MEGA_DEFAULT_COPY_MOVE(Command)
-    bool getRead() const; //if already read
-    void replaceWith(Command &command);
 };
 
 // list of new file attributes to write
@@ -611,13 +598,14 @@ class MEGA_API CommandSetShare : public Command
     accesslevel_t access;
     string msg;
     string personal_representation;
+    bool mWritable = false;
 
     bool procuserresult(MegaClient*);
 
 public:
     bool procresult(Result) override;
 
-    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, int, const char*, const char* = NULL);
+    CommandSetShare(MegaClient*, Node*, User*, accesslevel_t, int, const char*, bool writable, const char* = NULL);
 };
 
 class MEGA_API CommandGetUserData : public Command
@@ -715,11 +703,12 @@ class MEGA_API CommandSetPH : public Command
 {
     handle h;
     m_time_t ets;
+    bool mWritable = false;
 
 public:
     bool procresult(Result) override;
 
-    CommandSetPH(MegaClient*, Node*, int, m_time_t);
+    CommandSetPH(MegaClient*, Node*, int, m_time_t, bool writable = false);
 };
 
 class MEGA_API CommandGetPH : public Command
@@ -1091,7 +1080,7 @@ class MEGA_API CommandSetChatRetentionTime : public Command
 public:
     bool procresult(Result) override;
 
-    CommandSetChatRetentionTime(MegaClient*, handle , int);
+    CommandSetChatRetentionTime(MegaClient*, handle , unsigned);
 
 protected:
     handle mChatid;
@@ -1306,11 +1295,13 @@ public:
 
 class MEGA_API CommandBackupPut : public Command
 {
+    std::function<void(Error, handle /*backup id*/)> mCompletion;
+
 public:
     bool procresult(Result) override;
 
     // Register a new Sync
-    CommandBackupPut(MegaClient* client, BackupType type, handle nodeHandle, const std::string& localFolder, const std::string& deviceId, int state, int subState, const std::string& extraData);
+    CommandBackupPut(MegaClient* client, BackupType type, const std::string& backupName, handle nodeHandle, const std::string& localFolder, const std::string& deviceId, int state, int subState, const std::string& extraData, std::function<void(Error, handle /*backup id*/)> completion);
 
     // Update a Backup
     // Params that keep the same value are passed with invalid value to avoid to send to the server
@@ -1322,15 +1313,16 @@ public:
     // - state: -1
     // - subState: -1
     // - extraData: nullptr
-    CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData);
+    CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char* deviceId, int state, int subState, const char* extraData, std::function<void(Error, handle /*backup id*/)> completion);
 
 private:
     bool mUpdate = false;
+    string mBackupName;
 };
 
 class MEGA_API CommandBackupRemove : public Command
 {
-    handle id;
+    handle mBackupId;
 
 public:
     bool procresult(Result) override;
@@ -1340,10 +1332,11 @@ public:
 
 class MEGA_API CommandBackupPutHeartBeat : public Command
 {
+    std::function<void(Error)> mCompletion;
 public:
     bool procresult(Result) override;
 
-    CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, uint8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode);
+    CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode, std::function<void(Error)>);
 };
 
 class MEGA_API CommandGetBanners : public Command
