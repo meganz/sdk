@@ -5587,7 +5587,7 @@ TEST_F(SdkTest, SyncBasicOperations)
 
     LOG_verbose << "SyncRemoveRemoteNode :  Disable a sync";
     // Sync 1
-    handle backupId = sync->getTag();
+    handle backupId = sync->getBackupId();
     ASSERT_EQ(MegaError::API_OK, synchronousDisableSync(0, backupId));
     sync = waitForSyncState(megaApi[0].get(), remoteBaseNode1.get(), false, false, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && !sync->isEnabled());
@@ -5894,7 +5894,7 @@ TEST_F(SdkTest, SyncRemoteNode)
     ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, localPath.u8string().c_str(), remoteBaseNode.get())) << "API Error adding a new sync";
     std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
-    handle backupId = sync->getTag();
+    handle backupId = sync->getBackupId();
 
     {
         TestingWithLogErrorAllowanceGuard g;
@@ -6051,7 +6051,7 @@ TEST_F(SdkTest, SyncPersistence)
     ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, localPath.u8string().c_str(), remoteBaseNode.get())) << "API Error adding a new sync";
     std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
-    handle backupId = sync->getTag();
+    handle backupId = sync->getBackupId();
     std::string remoteFolder(sync->getMegaFolder());
 
     // Check if a locallogout keeps the sync configured.
@@ -6165,7 +6165,7 @@ TEST_F(SdkTest, SyncPaths)
         ASSERT_EQ(MegaSync::LOCAL_PATH_SYNC_COLLISION, mApi[0].lastSyncError);
     }
     // Disable the first one, create again the one with the symlink, check that it is working and check if the first fails when enabled.
-    auto tagID = sync->getTag();
+    auto tagID = sync->getBackupId();
     ASSERT_EQ(MegaError::API_OK, synchronousDisableSync(0, tagID)) << "API Error disabling sync";
     sync = waitForSyncState(megaApi[0].get(), tagID, false, false, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && !sync->isEnabled());
@@ -6243,7 +6243,7 @@ TEST_F(SdkTest, SyncOQTransitions)
     ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, localPath.u8string().c_str(), remoteBaseNode.get())) << "API Error adding a new sync";
     std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
-    handle backupId = sync->getTag();
+    handle backupId = sync->getBackupId();
 
     LOG_verbose << "SyncOQTransitions :  Filling up storage space";
     ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/file/D4AGlbqY#Ak-OW4MP7lhnQxP9nzBU1bOP45xr_7sXnIz8YYqOBUg", remoteFillNode.get()));
