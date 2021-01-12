@@ -3062,7 +3062,11 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_showpcr, sequence(text("showpcr")));
     p->Add(exec_users, sequence(text("users"), opt(sequence(contactEmail(client), text("del")))));
     p->Add(exec_getua, sequence(text("getua"), param("attrname"), opt(contactEmail(client))));
-    p->Add(exec_putua, sequence(text("putua"), param("attrname"), opt(either(text("del"), sequence(text("set"), param("string")), sequence(text("load"), localFSFile())))));
+    p->Add(exec_putua, sequence(text("putua"), param("attrname"), opt(either(
+                                                                          text("del"),
+                                                                          sequence(text("set"), param("string")),
+                                                                          sequence(text("map"), param("key"), param("value")),
+                                                                          sequence(text("load"), localFSFile())))));
 #ifdef DEBUG
     p->Add(exec_delua, sequence(text("delua"), param("attrname")));
     p->Add(exec_devcommand, sequence(text("devcommand"), param("subcommand"), opt(param("email"))));
@@ -4940,7 +4944,6 @@ void exec_putua(autocomplete::ACState& s)
         if (s.words[2].s == "set")
         {
             client->putua(attrtype, (const byte*)s.words[3].s.c_str(), unsigned(s.words[3].s.size()));
-
             return;
         }
         else if (s.words[2].s == "set64")
@@ -4967,6 +4970,53 @@ void exec_putua(autocomplete::ACState& s)
             }
 
             return;
+        }
+    }
+    else if (s.words.size() == 5)
+    {
+        if (s.words[2].s == "map")  // putua <attrtype> map <attrKey> <attrValue>
+        {
+            if (attrtype == ATTR_BACKUP_NAMES
+                    || attrtype == ATTR_DEVICE_NAMES
+                    || attrtype == ATTR_ALIAS)
+            {
+                std::string key = s.words[3].s;
+                std::string value = Base64::btoa(s.words[4].s);
+                string_map attrMap;
+                attrMap[key] = value;
+
+                std::unique_ptr<TLVstore> tlv;
+
+                User *ownUser = client->finduser(client->me);
+                const std::string *oldValue = ownUser->getattr(attrtype);
+                if (!oldValue)  // attr doesn't exist -> create it
+                {
+                    tlv.reset(new TLVstore());
+                    tlv->set(key, value);
+                }
+                else if (!ownUser->isattrvalid(attrtype)) // not fetched yet or outdated
+                {
+                    cout << "User attribute is versioned (need to know current version first). ";
+                    cout << "Fetch the attribute first" << endl;
+                    return;
+                }
+                else
+                {
+                    tlv.reset(TLVstore::containerToTLVrecords(oldValue, &client->key));
+
+                    if (!User::mergeUserAttribute(attrtype, attrMap, *tlv.get()))
+                    {
+                        cout << "Failed to merge with existing values" << endl;
+                        return;
+                    }
+                }
+
+                // serialize and encrypt the TLV container
+                std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
+                client->putua(attrtype, (byte *)container->data(), unsigned(container->size()));
+
+                return;
+            }
         }
     }
 }

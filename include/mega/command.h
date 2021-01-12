@@ -106,7 +106,7 @@ public:
 
         bool succeeded()
         {
-            return mOutcome != CmdError || error(mError) != API_OK;
+            return mOutcome != CmdError || error(mError) == API_OK;
         }
 
         bool hasJsonArray()
@@ -1312,7 +1312,7 @@ public:
     bool procresult(Result) override;
 
     // Register a new Sync
-    CommandBackupPut(MegaClient* client, BackupType type, handle nodeHandle, const std::string& localFolder, const std::string& deviceId, int state, int subState, const std::string& extraData);
+    CommandBackupPut(MegaClient* client, BackupType type, const std::string& backupName, handle nodeHandle, const std::string& localFolder, const std::string& deviceId, int state, int subState, const std::string& extraData);
 
     // Update a Backup
     // Params that keep the same value are passed with invalid value to avoid to send to the server
@@ -1328,11 +1328,12 @@ public:
 
 private:
     bool mUpdate = false;
+    string mBackupName;
 };
 
 class MEGA_API CommandBackupRemove : public Command
 {
-    handle id;
+    handle mBackupId;
 
 public:
     bool procresult(Result) override;

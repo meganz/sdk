@@ -1087,8 +1087,6 @@ public:
     void setLocalFingerprint(long long fingerprint);
     virtual int getTag() const;
     void setTag(int tag);
-    void setListener(MegaSyncListener *listener);
-    MegaSyncListener *getListener();
     virtual int getState() const;
 
     void setState(int state);
@@ -1112,7 +1110,6 @@ protected:
     MegaRegExp *regExp;
     int tag;
     long long fingerprint;
-    MegaSyncListener *listener;
     int state; //this refers to status (initialscan/active/failed/canceled/disabled)
 
     //holds error cause
@@ -1240,8 +1237,6 @@ class MegaRequestPrivate : public MegaRequest
         void setMegaStringList(MegaStringList* stringList);
 
 #ifdef ENABLE_SYNC
-        void setSyncListener(MegaSyncListener *syncListener);
-        MegaSyncListener *getSyncListener() const;
         void setRegExp(MegaRegExp *regExp);
         virtual MegaRegExp *getRegExp() const;
 #endif
@@ -1277,7 +1272,6 @@ protected:
         long long transferredBytes;
         MegaRequestListener *listener;
 #ifdef ENABLE_SYNC
-        MegaSyncListener *syncListener;
         MegaRegExp *regExp;
 #endif
         MegaBackupListener *backupListener;
@@ -2069,9 +2063,6 @@ class RequestQueue
         MegaRequestPrivate * pop();
         MegaRequestPrivate * front();
         void removeListener(MegaRequestListener *listener);
-#ifdef ENABLE_SYNC
-        void removeListener(MegaSyncListener *listener);
-#endif
         void removeListener(MegaBackupListener *listener);
 };
 
@@ -2120,10 +2111,6 @@ class MegaApiImpl : public MegaApp
         void addTransferListener(MegaTransferListener* listener);
         void addBackupListener(MegaBackupListener* listener);
         void addGlobalListener(MegaGlobalListener* listener);
-#ifdef ENABLE_SYNC
-        void addSyncListener(MegaSyncListener *listener);
-        void removeSyncListener(MegaSyncListener *listener);
-#endif
         void removeListener(MegaListener* listener);
         void removeRequestListener(MegaRequestListener* listener);
         void removeTransferListener(MegaTransferListener* listener);
@@ -2218,6 +2205,7 @@ class MegaApiImpl : public MegaApp
         int isLoggedIn();
         void whyAmIBlocked(bool logout, MegaRequestListener *listener = NULL);
         char* getMyEmail();
+        int64_t getAccountCreationTs();
         char* getMyUserHandle();
         MegaHandle getMyUserHandleBinary();
         MegaUser *getMyUser();
@@ -2771,9 +2759,12 @@ class MegaApiImpl : public MegaApp
         void dismissBanner(int id, MegaRequestListener *listener);
 
         void setBackup(int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
-        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, const char* backupName, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
+        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener);
+
+        void getBackupName(MegaHandle backupId, MegaRequestListener* listener = nullptr);
+        void setBackupName(MegaHandle backupId, const char* backupName, MegaRequestListener* listener = nullptr);
 
         void fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener = nullptr);
         void queryGoogleAds(int adFlags, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
@@ -2910,11 +2901,6 @@ protected:
         set<MegaRequestListener *> requestListeners;
         set<MegaTransferListener *> transferListeners;
         set<MegaBackupListener *> backupListeners;
-
-#ifdef ENABLE_SYNC
-        set<MegaSyncListener *> syncListeners;
-#endif
-
         set<MegaGlobalListener *> globalListeners;
         set<MegaListener *> listeners;
         retryreason_t waitingRequest;

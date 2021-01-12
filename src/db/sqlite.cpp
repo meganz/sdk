@@ -145,7 +145,7 @@ DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, const str
     return new SqliteDbTable(rng,
                              db,
                              fsAccess,
-                             dbPathStr, 
+                             dbPathStr,
                              (flags & DB_OPEN_FLAG_TRANSACTED) > 0);
 }
 
@@ -220,7 +220,8 @@ void SqliteDbTable::rewind()
 
     if (result != SQLITE_OK)
     {
-        LOG_err << "Unable to rewind database: " << dbfile;
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(result));
+        LOG_err << "Unable to rewind database: " << dbfile << err;
         assert(!"Unable to rewind database.");
     }
 }
@@ -247,7 +248,8 @@ bool SqliteDbTable::next(uint32_t* index, string* data)
 
         if (rc != SQLITE_DONE)
         {
-            LOG_err << "Unable to get next record from database: " << dbfile;
+            string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
+            LOG_err << "Unable to get next record from database: " << dbfile << err;
             assert(!"Unable to get next record from database.");
         }
 
@@ -292,7 +294,8 @@ bool SqliteDbTable::get(uint32_t index, string* data)
 
     if (rc != SQLITE_DONE && rc != SQLITE_ROW)
     {
-        LOG_err << "Unable to get record from database: " << dbfile;
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
+        LOG_err << "Unable to get record from database: " << dbfile << err;
         assert(!"Unable to get record from database.");
     }
 
@@ -312,13 +315,18 @@ bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
     sqlite3_stmt *stmt;
     bool result = false;
 
-    if (sqlite3_prepare(db, "INSERT OR REPLACE INTO statecache (id, content) VALUES (?, ?)", -1, &stmt, NULL) == SQLITE_OK)
+    int rc = sqlite3_prepare(db, "INSERT OR REPLACE INTO statecache (id, content) VALUES (?, ?)", -1, &stmt, NULL);
+    if (rc == SQLITE_OK)
     {
-        if (sqlite3_bind_int(stmt, 1, index) == SQLITE_OK)
+        rc = sqlite3_bind_int(stmt, 1, index);
+        if (rc == SQLITE_OK)
         {
-            if (sqlite3_bind_blob(stmt, 2, data, len, SQLITE_STATIC) == SQLITE_OK)
+            rc = sqlite3_bind_blob(stmt, 2, data, len, SQLITE_STATIC);
+            if (rc == SQLITE_OK)
             {
-                if (sqlite3_step(stmt) == SQLITE_DONE)
+
+                rc = sqlite3_step(stmt);
+                if (rc == SQLITE_DONE)
                 {
                     result = true;
                 }
@@ -330,7 +338,8 @@ bool SqliteDbTable::put(uint32_t index, char* data, unsigned len)
 
     if (!result)
     {
-        LOG_err << "Unable to put record into database: " << dbfile;
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
+        LOG_err << "Unable to put record into database: " << dbfile << err;
         assert(!"Unable to put record into database.");
     }
 
@@ -351,9 +360,11 @@ bool SqliteDbTable::del(uint32_t index)
 
     sprintf(buf, "DELETE FROM statecache WHERE id = %" PRIu32, index);
 
-    if (sqlite3_exec(db, buf, 0, 0, nullptr) != SQLITE_OK)
+    int rc = sqlite3_exec(db, buf, 0, 0, nullptr);
+    if (rc != SQLITE_OK)
     {
-        LOG_err << "Unable to delete record from database: " << dbfile;
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
+        LOG_err << "Unable to delete record from database: " << dbfile << err;
         assert(!"Unable to delete record from database.");
 
         return false;
@@ -372,9 +383,11 @@ void SqliteDbTable::truncate()
 
     checkTransaction();
 
-    if (sqlite3_exec(db, "DELETE FROM statecache", 0, 0, NULL) != API_OK)
+    int rc = sqlite3_exec(db, "DELETE FROM statecache", 0, 0, NULL);
+    if (rc != API_OK)
     {
-        LOG_err << "Unable to truncate database: " << dbfile;
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
+        LOG_err << "Unable to truncate database: " << dbfile << err;
         assert(!"Unable to truncate database.");
     }
 }
@@ -388,9 +401,11 @@ void SqliteDbTable::begin()
     }
 
     LOG_debug << "DB transaction BEGIN " << dbfile;
-    if (sqlite3_exec(db, "BEGIN", 0, 0, NULL) != SQLITE_OK)
+    int rc = sqlite3_exec(db, "BEGIN", 0, 0, NULL);
+    if (rc != SQLITE_OK)
     {
-        LOG_err << "Unable to begin transaction on database: " << dbfile;
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
+        LOG_err << "Unable to begin transaction on database: " << dbfile << err;
         assert(!"Unable to begin transaction on database.");
     }
 }
@@ -405,9 +420,11 @@ void SqliteDbTable::commit()
 
     LOG_debug << "DB transaction COMMIT " << dbfile;
 
-    if (sqlite3_exec(db, "COMMIT", 0, 0, NULL) != SQLITE_OK)
+    int rc = sqlite3_exec(db, "COMMIT", 0, 0, NULL);
+    if (rc != SQLITE_OK)
     {
-        LOG_err << "Unable to commit transaction on database: " << dbfile;
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
+        LOG_err << "Unable to commit transaction on database: " << dbfile << err;
         assert(!"Unable to commit transaction on database.");
     }
 }
@@ -422,9 +439,11 @@ void SqliteDbTable::abort()
 
     LOG_debug << "DB transaction ROLLBACK " << dbfile;
 
-    if (sqlite3_exec(db, "ROLLBACK", 0, 0, NULL) != SQLITE_OK)
+    int rc = sqlite3_exec(db, "ROLLBACK", 0, 0, NULL);
+    if (rc != SQLITE_OK)
     {
-        LOG_err << "Unable to rollback transaction on database: " << dbfile;
+        string err = string(" Error: ") + (sqlite3_errmsg(db) ? sqlite3_errmsg(db) : std::to_string(rc));
+        LOG_err << "Unable to rollback transaction on database: " << dbfile << err;
         assert(!"Unable to rollback transaction on database.");
     }
 }

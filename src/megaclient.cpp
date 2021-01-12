@@ -667,11 +667,6 @@ int MegaClient::nextSyncTag(int increment)
     return ++mSyncTag;
 }
 
-int MegaClient::hexval(char c)
-{
-    return c > '9' ? c - 'a' + 10 : c - '0';
-}
-
 void MegaClient::exportDatabase(string filename)
 {
     FILE *fp = NULL;
@@ -6041,6 +6036,7 @@ void MegaClient::sc_userattr()
                             if (*cacheduav != *ituav)
                             {
                                 u->invalidateattr(type);
+                                // some attributes should be fetched upon invalidation
                                 switch(type)
                                 {
                                     case ATTR_KEYRING:
@@ -6048,12 +6044,14 @@ void MegaClient::sc_userattr()
                                         resetKeyring();
                                         break;
                                     }
-                                    case ATTR_AUTHRING:     // fall-through
-                                    case ATTR_AUTHCU255:    // fall-through
-                                    case ATTR_AUTHRSA:
+                                    case ATTR_AUTHRING:         // fall-through
+                                    case ATTR_AUTHCU255:        // fall-through
+                                    case ATTR_AUTHRSA:          // fall-through
+                                    case ATTR_MY_BACKUPS_FOLDER:    // fall-through
+                                    case ATTR_BACKUP_NAMES:     // fall-through
                                     {
                                         LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
-                                        mAuthRings.erase(type);
+                                        if (User::isAuthring(type)) mAuthRings.erase(type);
                                         getua(u, type, 0);
                                         break;
                                     }
@@ -8991,6 +8989,20 @@ error MegaClient::folderaccess(const char *folderlink, const char *authKey)
     error e;
     if ((e = parsepubliclink(folderlink, h, folderkey, true)) == API_OK)
     {
+        if (authKey)
+        {
+            auto ptr = authKey;
+            while (*ptr)
+            {
+                if (!URLCodec::issafe(*ptr))
+                {
+                    LOG_warn << "Authkey is not valid";
+                    return API_EACCESS;
+                }
+                ptr++;
+            }
+        }
+
         setrootnode(h, authKey);
         key.setkey(folderkey);
     }
@@ -15110,7 +15122,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
                 auto fa = fsaccess->newfileaccess();
                 auto localpath = t->localfilename.toPath(*fsaccess);
 
-                if (!fa->fopen(t->localfilename))
+                if (t->localfilename.empty() || !fa->fopen(t->localfilename))
                 {
                     if (d == PUT)
                     {
