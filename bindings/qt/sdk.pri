@@ -65,20 +65,24 @@ SOURCES += src/attrmap.cpp \
     src/mega_zxcvbn.cpp \
     src/mediafileattribute.cpp \
     src/raid.cpp \
-    src/testhooks.cpp
+    src/testhooks.cpp \
+    src/heartbeats.cpp
 
 CONFIG(USE_MEGAAPI) {
-  SOURCES += src/megaapi.cpp src/megaapi_impl.cpp src/heartbeats.cpp
+  SOURCES += src/megaapi.cpp src/megaapi_impl.cpp
 
 
   CONFIG(qt) {
     SOURCES += bindings/qt/QTMegaRequestListener.cpp \
         bindings/qt/QTMegaTransferListener.cpp \
         bindings/qt/QTMegaGlobalListener.cpp \
-        bindings/qt/QTMegaSyncListener.cpp \
         bindings/qt/QTMegaListener.cpp \
         bindings/qt/QTMegaEvent.cpp
   }
+}
+
+CONFIG(USE_ROTATIVEPERFORMANCELOGGER) {
+  SOURCES += src/rotativeperformancelogger.cpp
 }
 
 !win32 {
@@ -95,6 +99,10 @@ CONFIG(USE_MEGAAPI) {
 CONFIG(USE_AUTOCOMPLETE) {
     SOURCES += src/autocomplete.cpp
     HEADERS += include/mega/autocomplete.h
+}
+
+CONFIG(USE_POLL) {
+    DEFINES += USE_POLL
 }
 
 CONFIG(USE_CONSOLE) {
@@ -358,6 +366,11 @@ CONFIG(USE_WEBRTC) {
     }
 }
 
+CONFIG(USE_ROTATIVEPERFORMANCELOGGER) {
+    DEFINES += USE_ROTATIVEPERFORMANCELOGGER
+    DEFINES += ENABLE_LOG_PERFORMANCE
+}
+
 win32 {
     # comment this line to use WinHTTP on Windows
     CONFIG += USE_CURL
@@ -450,7 +463,6 @@ CONFIG(USE_MEGAAPI) {
     HEADERS += bindings/qt/QTMegaRequestListener.h \
             bindings/qt/QTMegaTransferListener.h \
             bindings/qt//QTMegaGlobalListener.h \
-            bindings/qt/QTMegaSyncListener.h \
             bindings/qt/QTMegaListener.h \
             bindings/qt/QTMegaEvent.h
 }

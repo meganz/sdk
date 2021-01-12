@@ -93,7 +93,6 @@ public:
 class MEGA_API URLCodec
 {
     static bool ishexdigit(char c);
-    static unsigned char hexval(char c);
 
 public:
     static bool issafe(char c);

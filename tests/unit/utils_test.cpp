@@ -21,8 +21,9 @@
 
 #include <gtest/gtest.h>
 
-#include <mega/utils.h>
+#include <mega/base64.h>
 #include <mega/filesystem.h>
+#include <mega/utils.h>
 #include "megafs.h"
 
 TEST(utils, hashCombine_integer)
@@ -329,5 +330,67 @@ TEST_F(ComparatorTest, CompareLocalPathAgainstString)
         EXPECT_EQ(fsCompare(lhs, rhs, FS_EXT), 0);
 #endif // ! _WIN32
     }
+}
+
+TEST(Conversion, HexVal)
+{
+    // Decimal [0-9]
+    for (int i = 0x30; i < 0x3a; ++i)
+    {
+        EXPECT_EQ(hexval(i), i - 0x30);
+    }
+    
+    // Lowercase hexadecimal [a-f]
+    for (int i = 0x41; i < 0x47; ++i)
+    {
+        EXPECT_EQ(hexval(i), i - 0x37);
+    }
+
+    // Uppercase hexadeimcal [A-F]
+    for (int i = 0x61; i < 0x67; ++i)
+    {
+        EXPECT_EQ(hexval(i), i - 0x57);
+    }
+}
+
+TEST(URLCodec, Unescape)
+{
+    string input = "a%4a%4Bc";
+    string output;
+
+    URLCodec::unescape(&input, &output);
+    EXPECT_EQ(output, "aJKc");
+}
+
+TEST(URLCodec, UnescapeInvalidEscape)
+{
+    string input;
+    string output;
+
+    // First character is invalid.
+    input = "a%qbc";
+    URLCodec::unescape(&input, &output);
+    EXPECT_EQ(output, "a%qbc");
+
+    // Second character is invalid.
+    input = "a%bqc";
+    URLCodec::unescape(&input, &output);
+    EXPECT_EQ(output, "a%bqc");
+}
+
+TEST(URLCodec, UnescapeShortEscape)
+{
+    string input;
+    string output;
+
+    // No hex digits.
+    input = "a%";
+    URLCodec::unescape(&input, &output);
+    EXPECT_EQ(output, "a%");
+
+    // Single hex digit.
+    input = "a%a";
+    URLCodec::unescape(&input, &output);
+    EXPECT_EQ(output, "a%a");
 }
 
