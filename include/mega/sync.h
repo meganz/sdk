@@ -324,6 +324,7 @@ public:
     XBackupConfigDB(const LocalPath& drivePath,
                     XBackupConfigDBObserver& observer);
 
+    explicit
     XBackupConfigDB(const LocalPath& drivePath);
 
     ~XBackupConfigDB();
@@ -496,6 +497,7 @@ class MEGA_API XBackupConfigStore
   : private XBackupConfigDBObserver
 {
 public:
+    explicit
     XBackupConfigStore(XBackupConfigIOContext& ioContext);
 
     virtual ~XBackupConfigStore();
