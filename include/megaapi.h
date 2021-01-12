@@ -4990,11 +4990,6 @@ public:
 
 
 #ifdef ENABLE_SYNC
-/**
- * @brief INVALID_SYNC_TAG Invalid value for a sync tag
- */
-const auto INVALID_SYNC_TAG = INVALID_HANDLE;
-
 
 /**
  * @brief Provides information about a synchronization event

@@ -13212,7 +13212,7 @@ error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* loc
     {
         completion(nullptr, config.getError(), e);
     }
-    else
+    else // API_OK (success)
     {
         string localFolderEncrypted(cypherTLVTextWithMasterKey("lf", config.getLocalPath()) );
         string deviceIdHash = getDeviceidHash();

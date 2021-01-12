@@ -21767,7 +21767,7 @@ void MegaApiImpl::sendPendingRequests()
             handle nodehandle = request->getNodeHandle();
             auto backupId = request->getParentHandle();
 
-            if (backupId == INVALID_SYNC_TAG && nodehandle == INVALID_HANDLE)
+            if (backupId == INVALID_HANDLE && nodehandle == INVALID_HANDLE)
             {
                 e = API_EARGS;
                 break;
@@ -21808,7 +21808,7 @@ void MegaApiImpl::sendPendingRequests()
             handle nodehandle = request->getNodeHandle();
             auto backupId = request->getParentHandle();
 
-            if (backupId == INVALID_SYNC_TAG && nodehandle == INVALID_HANDLE)
+            if (backupId == INVALID_HANDLE && nodehandle == INVALID_HANDLE)
             {
                 e = API_EARGS;
                 break;
@@ -24368,7 +24368,6 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr)
     : mType(static_cast<SyncType>(config.getType()))
     , mActive(syncPtr && syncPtr->state >= 0)
     , mEnabled(config.getEnabled())
-
 {
     this->megaHandle = config.getRemoteNode();
     this->localFolder = NULL;

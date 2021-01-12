@@ -3351,7 +3351,7 @@ void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
 
 void MegaApi::removeSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->removeSyncById(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
+    pImpl->removeSyncById(sync ? sync->getTag() : INVALID_HANDLE, listener);
 }
 
 void MegaApi::removeSync(MegaHandle backupId, MegaRequestListener *listener)
@@ -3366,12 +3366,12 @@ void MegaApi::disableSync(MegaNode *megaFolder, MegaRequestListener *listener)
 
 void MegaApi::disableSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->disableSyncById(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
+    pImpl->disableSyncById(sync ? sync->getTag() : INVALID_HANDLE, listener);
 }
 
 void MegaApi::enableSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->enableSyncById(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
+    pImpl->enableSyncById(sync ? sync->getTag() : INVALID_HANDLE, listener);
 }
 
 void MegaApi::enableSync(MegaHandle backupId, MegaRequestListener *listener)
