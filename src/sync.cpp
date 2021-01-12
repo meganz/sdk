@@ -3169,9 +3169,11 @@ SyncConfig translate(const MegaClient& client, const XBackupConfig& config)
 
 const unsigned int XBackupConfigDB::NUM_SLOTS = 2;
 
-XBackupConfigDB::XBackupConfigDB(const LocalPath& drivePath,
+XBackupConfigDB::XBackupConfigDB(const LocalPath& dbPath,
+                                 const LocalPath& drivePath,
                                  XBackupConfigDBObserver& observer)
-  : mDrivePath(drivePath)
+  : mDBPath(dbPath)
+  , mDrivePath(drivePath)
   , mObserver(&observer)
   , mTagToConfig()
   , mTargetToConfig()
@@ -3179,8 +3181,9 @@ XBackupConfigDB::XBackupConfigDB(const LocalPath& drivePath,
 {
 }
 
-XBackupConfigDB::XBackupConfigDB(const LocalPath& drivePath)
-  : mDrivePath(drivePath)
+XBackupConfigDB::XBackupConfigDB(const LocalPath& dbPath)
+  : mDBPath(dbPath)
+  , mDrivePath()
   , mObserver(nullptr)
   , mTagToConfig()
   , mTargetToConfig()
@@ -3245,7 +3248,7 @@ error XBackupConfigDB::read(XBackupConfigIOContext& ioContext)
     vector<unsigned int> slots;
 
     // Determine which slots we should load first, if any.
-    if (ioContext.get(mDrivePath, slots) != API_OK)
+    if (ioContext.get(mDBPath, slots) != API_OK)
     {
         // Couldn't get a list of slots.
         return API_ENOENT;
@@ -3296,7 +3299,7 @@ error XBackupConfigDB::write(XBackupConfigIOContext& ioContext)
     ioContext.serialize(mTagToConfig, writer);
 
     // Try and write the database out to disk.
-    if (ioContext.write(mDrivePath, writer.getstring(), mSlot) != API_OK)
+    if (ioContext.write(mDBPath, writer.getstring(), mSlot) != API_OK)
     {
         // Couldn't write the database out to disk.
         return API_EWRITE;
@@ -3422,7 +3425,7 @@ error XBackupConfigDB::read(XBackupConfigIOContext& ioContext,
     // Try and read the database from the specified slot.
     string data;
 
-    if (ioContext.read(mDrivePath, data, slot) != API_OK)
+    if (ioContext.read(mDBPath, data, slot) != API_OK)
     {
         // Couldn't read the database.
         return API_EREAD;
@@ -3562,7 +3565,7 @@ bool XBackupConfigIOContext::deserialize(XBackupConfigMap& configs,
     return reader.leavearray();
 }
 
-error XBackupConfigIOContext::get(const LocalPath& drivePath,
+error XBackupConfigIOContext::get(const LocalPath& dbPath,
                                   vector<unsigned int>& slots)
 {
     using std::isdigit;
@@ -3570,11 +3573,8 @@ error XBackupConfigIOContext::get(const LocalPath& drivePath,
 
     using SlotTimePair = pair<unsigned int, m_time_t>;
 
-    LocalPath globPath = drivePath;
-
     // Glob for configuration directory.
-    globPath.appendWithSeparator(
-      LocalPath::fromPath(BACKUP_CONFIG_DIR, mFsAccess), false);
+    LocalPath globPath = dbPath;
 
     globPath.appendWithSeparator(mName, false);
     globPath.append(LocalPath::fromPath(".?", mFsAccess));
@@ -3646,17 +3646,14 @@ error XBackupConfigIOContext::get(const LocalPath& drivePath,
     return API_OK;
 }
 
-error XBackupConfigIOContext::read(const LocalPath& drivePath,
+error XBackupConfigIOContext::read(const LocalPath& dbPath,
                                    string& data,
                                    const unsigned int slot)
 {
     using std::to_string;
 
-    LocalPath path = drivePath;
-
     // Generate path to the configuration file.
-    path.appendWithSeparator(
-      LocalPath::fromPath(BACKUP_CONFIG_DIR, mFsAccess), false);
+    LocalPath path = dbPath;
 
     path.appendWithSeparator(mName, false);
     path.append(LocalPath::fromPath("." + to_string(slot), mFsAccess));
@@ -3702,16 +3699,13 @@ void XBackupConfigIOContext::serialize(const XBackupConfigMap& configs,
     writer.endarray();
 }
 
-error XBackupConfigIOContext::write(const LocalPath& drivePath,
+error XBackupConfigIOContext::write(const LocalPath& dbPath,
                                     const string& data,
                                     const unsigned int slot)
 {
     using std::to_string;
 
-    LocalPath path = drivePath;
-
-    path.appendWithSeparator(
-      LocalPath::fromPath(BACKUP_CONFIG_DIR, mFsAccess), false);
+    LocalPath path = dbPath;
 
     // Try and create the backup configuration directory.
     if (!(mFsAccess.mkdirlocal(path) || mFsAccess.target_exists))
@@ -3914,8 +3908,6 @@ void XBackupConfigIOContext::serialize(const XBackupConfig& config,
     writer.endobject();
 }
 
-const string XBackupConfigIOContext::BACKUP_CONFIG_DIR = ".megabackup";
-
 XBackupConfigDBObserver::XBackupConfigDBObserver()
 {
 }
@@ -4060,8 +4052,13 @@ const XBackupConfigMap* XBackupConfigStore::create(const LocalPath& drivePath)
     // Ensure the drive path is normalized.
     auto path = NormalizeAbsolute(drivePath);
 
+    // Path to the directory containing the database.
+    LocalPath dbPath = path;
+
+    dbPath.appendWithSeparator(BACKUP_CONFIG_DIR, false);
+
     // Create database object.
-    XBackupConfigDBPtr db(new XBackupConfigDB(path, *this));
+    XBackupConfigDBPtr db(new XBackupConfigDB(dbPath, path, *this));
 
     // Load existing database, if any.
     error result = db->read(mIOContext);
@@ -4190,8 +4187,13 @@ const XBackupConfigMap* XBackupConfigStore::open(const LocalPath& drivePath)
     // Ensure the drive path is normalized.
     auto path = NormalizeAbsolute(drivePath);
 
+    // Path to the directory containing the database.
+    auto dbPath = path;
+
+    dbPath.appendWithSeparator(BACKUP_CONFIG_DIR, false);
+
     // Create database object.
-    XBackupConfigDBPtr db(new XBackupConfigDB(path, *this));
+    XBackupConfigDBPtr db(new XBackupConfigDB(dbPath, path, *this));
 
     // Try and load the database from disk.
     if (db->read(mIOContext) != API_OK)
@@ -4235,6 +4237,17 @@ error XBackupConfigStore::remove(const handle targetHandle)
 
     return API_ENOENT;
 }
+
+#ifdef _WIN32
+#define PATHSTRING(s) L ## s
+#else // _WIN32
+#define PATHSTRING(s) s
+#endif // ! _WIN32
+
+const LocalPath XBackupConfigStore::BACKUP_CONFIG_DIR =
+    LocalPath::fromPlatformEncoded(PATHSTRING(".megabackup"));
+
+#undef PATHSTRING
 
 void XBackupConfigStore::onAdd(XBackupConfigDB& db, const XBackupConfig& config)
 {

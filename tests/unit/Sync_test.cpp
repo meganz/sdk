@@ -1581,8 +1581,13 @@ TEST_F(XBackupConfigIOContextTest, GetBadPath)
     // Generate a bogus path.
     const auto drivePath = Utilities::randomPath();
 
+    auto backupPath = drivePath;
+
+    backupPath.appendWithSeparator(
+      XBackupConfigStore::BACKUP_CONFIG_DIR, false);
+
     // Try to read slots from an invalid path.
-    EXPECT_NE(ioContext().get(drivePath, slots), API_OK);
+    EXPECT_NE(ioContext().get(backupPath, slots), API_OK);
 
     // Slots should be empty.
     EXPECT_TRUE(slots.empty());
@@ -1591,7 +1596,7 @@ TEST_F(XBackupConfigIOContextTest, GetBadPath)
 TEST_F(XBackupConfigIOContextTest, GetNoSlots)
 {
     const auto& BACKUP_DIR =
-      XBackupConfigIOContext::BACKUP_CONFIG_DIR;
+      XBackupConfigStore::BACKUP_CONFIG_DIR;
 
     // Make sure the drive path exists.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -1599,8 +1604,7 @@ TEST_F(XBackupConfigIOContextTest, GetNoSlots)
     // Make sure the backup directory exists.
     LocalPath backupPath = drive;
 
-    backupPath.appendWithSeparator(
-      LocalPath::fromPath(BACKUP_DIR, fsAccess()), false);
+    backupPath.appendWithSeparator(BACKUP_DIR, false);
 
     EXPECT_TRUE(fsAccess().mkdirlocal(backupPath, false));
 
@@ -1635,7 +1639,7 @@ TEST_F(XBackupConfigIOContextTest, GetNoSlots)
     vector<unsigned int> slots;
 
     // Try and get a list of slots.
-    EXPECT_EQ(ioContext().get(drive, slots), API_OK);
+    EXPECT_EQ(ioContext().get(backupPath, slots), API_OK);
 
     // Slots should be empty.
     EXPECT_TRUE(slots.empty());
@@ -1644,7 +1648,7 @@ TEST_F(XBackupConfigIOContextTest, GetNoSlots)
 TEST_F(XBackupConfigIOContextTest, GetSlotsOrderedByModificationTime)
 {
     const auto& BACKUP_DIR =
-      XBackupConfigIOContext::BACKUP_CONFIG_DIR;
+      XBackupConfigStore::BACKUP_CONFIG_DIR;
 
     const size_t NUM_SLOTS = 3;
 
@@ -1654,8 +1658,7 @@ TEST_F(XBackupConfigIOContextTest, GetSlotsOrderedByModificationTime)
     // Make sure backup directory exists.
     LocalPath backupPath = drive;
 
-    backupPath.appendWithSeparator(
-      LocalPath::fromPath(BACKUP_DIR, fsAccess()), false);
+    backupPath.appendWithSeparator(BACKUP_DIR, false);
 
     EXPECT_TRUE(fsAccess().mkdirlocal(backupPath, false));
 
@@ -1691,10 +1694,10 @@ TEST_F(XBackupConfigIOContextTest, GetSlotsOrderedByModificationTime)
     vector<unsigned int> slots;
 
     // Get the slots.
-    EXPECT_EQ(ioContext().get(drive, slots), API_OK);
+    EXPECT_EQ(ioContext().get(backupPath, slots), API_OK);
 
     // Did we retrieve the correct number of slots?
-    EXPECT_EQ(slots.size(), NUM_SLOTS);
+    ASSERT_EQ(slots.size(), NUM_SLOTS);
 
     // Are the slots ordered by descending modification time?
     {
@@ -1709,7 +1712,7 @@ TEST_F(XBackupConfigIOContextTest, GetSlotsOrderedByModificationTime)
 TEST_F(XBackupConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
 {
     const auto& BACKUP_DIR =
-      XBackupConfigIOContext::BACKUP_CONFIG_DIR;
+      XBackupConfigStore::BACKUP_CONFIG_DIR;
 
     const size_t NUM_SLOTS = 3;
 
@@ -1719,8 +1722,7 @@ TEST_F(XBackupConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
     // Make sure backup directory exists.
     LocalPath backupPath = drive;
 
-    backupPath.appendWithSeparator(
-      LocalPath::fromPath(BACKUP_DIR, fsAccess()), false);
+    backupPath.appendWithSeparator(BACKUP_DIR, false);
 
     EXPECT_TRUE(fsAccess().mkdirlocal(backupPath, false));
 
@@ -1756,7 +1758,7 @@ TEST_F(XBackupConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
     vector<unsigned int> slots;
 
     // Get the slots.
-    EXPECT_EQ(ioContext().get(drive, slots), API_OK);
+    EXPECT_EQ(ioContext().get(backupPath, slots), API_OK);
 
     // Did we retrieve the correct number of slots?
     EXPECT_EQ(slots.size(), NUM_SLOTS);
@@ -1776,14 +1778,20 @@ TEST_F(XBackupConfigIOContextTest, Read)
 {
     // Make sure the drive path exists.
     Directory drive(fsAccess(), Utilities::randomPath());
+    
+    // Make sure backup directory exists.
+    LocalPath backupPath = drive;
+
+    backupPath.appendWithSeparator(
+      XBackupConfigStore::BACKUP_CONFIG_DIR, false);
 
     // Try writing some data out and reading it back again.
     {
         string read;
         string written = Utilities::randomBytes(64);
 
-        EXPECT_EQ(ioContext().write(drive, written, 0), API_OK);
-        EXPECT_EQ(ioContext().read(drive, read, 0), API_OK);
+        EXPECT_EQ(ioContext().write(backupPath, written, 0), API_OK);
+        EXPECT_EQ(ioContext().read(backupPath, read, 0), API_OK);
         EXPECT_EQ(read, written);
     }
 
@@ -1792,19 +1800,19 @@ TEST_F(XBackupConfigIOContextTest, Read)
         string read;
         string written = Utilities::randomBytes(64);
 
-        EXPECT_EQ(ioContext().read(drive, read, 1), API_EREAD);
+        EXPECT_EQ(ioContext().read(backupPath, read, 1), API_EREAD);
         EXPECT_TRUE(read.empty());
 
-        EXPECT_EQ(ioContext().write(drive, written, 1), API_OK);
-        EXPECT_EQ(ioContext().read(drive, read, 1), API_OK);
+        EXPECT_EQ(ioContext().write(backupPath, written, 1), API_OK);
+        EXPECT_EQ(ioContext().read(backupPath, read, 1), API_OK);
         EXPECT_EQ(read, written);
     }
 }
 
 TEST_F(XBackupConfigIOContextTest, ReadBadData)
 {
-    const string& BACKUP_DIR =
-      XBackupConfigIOContext::BACKUP_CONFIG_DIR;
+    const auto& BACKUP_DIR =
+      XBackupConfigStore::BACKUP_CONFIG_DIR;
 
     string data;
 
@@ -1814,8 +1822,7 @@ TEST_F(XBackupConfigIOContextTest, ReadBadData)
     // Make sure the backup directory exists.
     LocalPath backupPath = drive;
 
-    backupPath.appendWithSeparator(
-      LocalPath::fromPath(BACKUP_DIR, fsAccess()), false);
+    backupPath.appendWithSeparator(BACKUP_DIR, false);
 
     EXPECT_TRUE(fsAccess().mkdirlocal(backupPath, false));
 
@@ -1829,12 +1836,12 @@ TEST_F(XBackupConfigIOContextTest, ReadBadData)
 
     // Try loading a file that's too short to be valid.
     EXPECT_TRUE(Utilities::randomFile(slotPath, 1));
-    EXPECT_EQ(ioContext().read(drive, data, 0), API_EREAD);
+    EXPECT_EQ(ioContext().read(backupPath, data, 0), API_EREAD);
     EXPECT_TRUE(data.empty());
 
     // Try loading a file composed entirely of junk.
     EXPECT_TRUE(Utilities::randomFile(slotPath, 128));
-    EXPECT_EQ(ioContext().read(drive, data, 0), API_EREAD);
+    EXPECT_EQ(ioContext().read(backupPath, data, 0), API_EREAD);
     EXPECT_TRUE(data.empty());
 }
 
@@ -1843,8 +1850,13 @@ TEST_F(XBackupConfigIOContextTest, ReadBadPath)
     const LocalPath drivePath = Utilities::randomPath();
     string data;
 
+    LocalPath backupPath = drivePath;
+
+    backupPath.appendWithSeparator(
+      XBackupConfigStore::BACKUP_CONFIG_DIR, false);
+
     // Try and read data from an insane path.
-    EXPECT_EQ(ioContext().read(drivePath, data, 0), API_EREAD);
+    EXPECT_EQ(ioContext().read(backupPath, data, 0), API_EREAD);
     EXPECT_TRUE(data.empty());
 }
 
@@ -1920,8 +1932,13 @@ TEST_F(XBackupConfigIOContextTest, WriteBadPath)
     const LocalPath drivePath = Utilities::randomPath();
     const string data = Utilities::randomBytes(64);
 
+    LocalPath backupPath = drivePath;
+
+    backupPath.appendWithSeparator(
+      XBackupConfigStore::BACKUP_CONFIG_DIR, false);
+
     // Try and write data to an insane path.
-    EXPECT_NE(ioContext().write(drivePath, data, 0), API_OK);
+    EXPECT_NE(ioContext().write(backupPath, data, 0), API_OK);
 }
 
 class XBackupConfigDBTest
@@ -1947,9 +1964,17 @@ public:
 
     XBackupConfigDBTest()
       : XBackupConfigTest()
-      , mDrivePath(Utilities::randomPath())
+      , mDBPath(Utilities::randomPath())
+      , mDrivePath(mDBPath)
       , mObserver()
     {
+        mDBPath.appendWithSeparator(
+          XBackupConfigStore::BACKUP_CONFIG_DIR, false);
+    }
+
+    const LocalPath& dbPath() const
+    {
+        return mDBPath;
     }
 
     const LocalPath& drivePath() const
@@ -1963,6 +1988,7 @@ public:
     }
 
 private:
+    LocalPath mDBPath;
     const LocalPath mDrivePath;
     NiceMock<Observer> mObserver;
 }; // XBackupConfigDBTest
@@ -1970,7 +1996,7 @@ private:
 TEST_F(XBackupConfigDBTest, AddWithTarget)
 {
     // Create config DB.
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Create and populate config.
     XBackupConfig config;
@@ -2010,7 +2036,7 @@ TEST_F(XBackupConfigDBTest, AddWithTarget)
 TEST_F(XBackupConfigDBTest, AddWithoutTarget)
 {
     // Create config DB.
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Create and populate config.
     XBackupConfig config;
@@ -2050,7 +2076,7 @@ TEST_F(XBackupConfigDBTest, AddWithoutTarget)
 
 TEST_F(XBackupConfigDBTest, Clear)
 {
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a couple configurations.
     XBackupConfig configA;
@@ -2105,7 +2131,7 @@ TEST_F(XBackupConfigDBTest, Clear)
 
 TEST_F(XBackupConfigDBTest, ClearEmpty)
 {
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Clearing an empty database should not trigger any notifications.
     EXPECT_CALL(observer(), onDirty(_)).Times(0);
@@ -2119,7 +2145,7 @@ TEST_F(XBackupConfigDBTest, Destruct)
 {
     // Nested scope so we can test destruction.
     {
-        XBackupConfigDB configDB(drivePath(), observer());
+        XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
         // Create config.
         XBackupConfig config;
@@ -2146,7 +2172,7 @@ TEST_F(XBackupConfigDBTest, Destruct)
 
 TEST_F(XBackupConfigDBTest, DrivePath)
 {
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     EXPECT_EQ(configDB.drivePath(), drivePath());
 }
@@ -2155,7 +2181,7 @@ TEST_F(XBackupConfigDBTest, DestructEmpty)
 {
     // Nested scope so we can test destruction.
     {
-        XBackupConfigDB configDB(drivePath(), observer());
+        XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
         // An empty database should not generate any notifications.
         EXPECT_CALL(observer(), onDirty(_)).Times(0);
@@ -2165,7 +2191,7 @@ TEST_F(XBackupConfigDBTest, DestructEmpty)
 
 TEST_F(XBackupConfigDBTest, Read)
 {
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a configuration to be written to disk.
     XBackupConfig config;
@@ -2183,7 +2209,7 @@ TEST_F(XBackupConfigDBTest, Read)
 
     // Capture the JSON and signal write success.
     EXPECT_CALL(ioContext(),
-                write(Eq(drivePath()), _, Eq(0u)))
+                write(Eq(dbPath()), _, Eq(0u)))
       .WillOnce(DoAll(SaveArg<1>(&json),
                       Return(API_OK)));
 
@@ -2199,14 +2225,14 @@ TEST_F(XBackupConfigDBTest, Read)
     // Return a single slot for reading.
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(drivePath()), _))
+                  get(Eq(dbPath()), _))
         .WillOnce(DoAll(SetArgReferee<1>(slots),
                         Return(API_OK)));
 
     // Read should return the captured JSON.
     Expectation read =
       EXPECT_CALL(ioContext(),
-                  read(Eq(drivePath()), _, Eq(0u)))
+                  read(Eq(dbPath()), _, Eq(0u)))
         .After(get)
         .WillOnce(DoAll(SetArgReferee<1>(json),
                         Return(API_OK)));
@@ -2236,18 +2262,18 @@ TEST_F(XBackupConfigDBTest, ReadBadDecrypt)
 {
     static const vector<unsigned int> slots = {1};
 
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Return a single slot for reading.
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(drivePath()), _))
+                  get(Eq(dbPath()), _))
         .WillOnce(DoAll(SetArgReferee<1>(slots),
                         Return(API_OK)));
 
     // Force the slot read to fail.
     EXPECT_CALL(ioContext(),
-                read(Eq(drivePath()), _, Eq(slots.front())))
+                read(Eq(dbPath()), _, Eq(slots.front())))
       .After(get)
       .WillOnce(Return(API_EREAD));
 
@@ -2257,7 +2283,7 @@ TEST_F(XBackupConfigDBTest, ReadBadDecrypt)
 
 TEST_F(XBackupConfigDBTest, ReadEmptyClearsDatabase)
 {
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a config to the database.
     XBackupConfig config;
@@ -2273,14 +2299,14 @@ TEST_F(XBackupConfigDBTest, ReadEmptyClearsDatabase)
 
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(drivePath()), _))
+                  get(Eq(dbPath()), _))
         .WillOnce(DoAll(SetArgReferee<1>(slots),
                         Return(API_OK)));
 
     // Read yields an empty database.
     Expectation read =
       EXPECT_CALL(ioContext(),
-                  read(Eq(drivePath()), _, Eq(0u)))
+                  read(Eq(dbPath()), _, Eq(0u)))
         .After(get)
         .WillOnce(DoAll(SetArgReferee<1>("[]"),
                         Return(API_OK)));
@@ -2306,11 +2332,11 @@ TEST_F(XBackupConfigDBTest, ReadEmptyClearsDatabase)
 
 TEST_F(XBackupConfigDBTest, ReadNoSlots)
 {
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Don't return any slots for reading.
     EXPECT_CALL(ioContext(),
-                get(Eq(drivePath()), _))
+                get(Eq(dbPath()), _))
       .WillOnce(Return(API_ENOENT));
 
     // Read should fail as there are no slots.
@@ -2319,7 +2345,7 @@ TEST_F(XBackupConfigDBTest, ReadNoSlots)
 
 TEST_F(XBackupConfigDBTest, ReadUpdatesDatabase)
 {
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a config to the database.
     XBackupConfig configBefore;
@@ -2335,7 +2361,7 @@ TEST_F(XBackupConfigDBTest, ReadUpdatesDatabase)
     string json;
 
     EXPECT_CALL(ioContext(),
-                write(Eq(drivePath()), _, Eq(0u)))
+                write(Eq(dbPath()), _, Eq(0u)))
       .WillOnce(DoAll(SaveArg<1>(&json),
                       Return(API_OK)));
 
@@ -2354,14 +2380,14 @@ TEST_F(XBackupConfigDBTest, ReadUpdatesDatabase)
 
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(drivePath()), _))
+                  get(Eq(dbPath()), _))
         .WillOnce(DoAll(SetArgReferee<1>(slots),
                         Return(API_OK)));
 
     // Read should return the captured JSON.
     Expectation read =
       EXPECT_CALL(ioContext(),
-                  read(Eq(drivePath()), _, Eq(0u)))
+                  read(Eq(dbPath()), _, Eq(0u)))
         .After(get)
         .WillOnce(DoAll(SetArgReferee<1>(json),
                         Return(API_OK)));
@@ -2397,31 +2423,31 @@ TEST_F(XBackupConfigDBTest, ReadTriesAllAvailableSlots)
     // Slots available for reading.
     static const vector<unsigned int> slots = {1, 2, 3};
 
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Return three slots for reading.
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(drivePath()), _))
+                  get(Eq(dbPath()), _))
       .WillOnce(DoAll(SetArgReferee<1>(slots),
                       Return(API_OK)));
 
     // Attempts to read slots 1 and 2 should fail.
     Expectation read1 =
       EXPECT_CALL(ioContext(),
-                  read(Eq(drivePath()), _, Eq(1u)))
+                  read(Eq(dbPath()), _, Eq(1u)))
       .After(get)
       .WillOnce(Return(API_EREAD));
 
     Expectation read2 =
       EXPECT_CALL(ioContext(),
-                  read(Eq(drivePath()), _, Eq(2u)))
+                  read(Eq(dbPath()), _, Eq(2u)))
       .After(read1)
       .WillOnce(Return(API_EREAD));
 
     // Reading slot 3 should succeed.
     EXPECT_CALL(ioContext(),
-                read(Eq(drivePath()), _, Eq(3u)))
+                read(Eq(dbPath()), _, Eq(3u)))
       .After(read2)
       .WillOnce(DoAll(SetArgReferee<1>("[]"),
                       Return(API_OK)));
@@ -2432,7 +2458,7 @@ TEST_F(XBackupConfigDBTest, ReadTriesAllAvailableSlots)
 
 TEST_F(XBackupConfigDBTest, RemoveByTag)
 {
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a config to remove.
     XBackupConfig config;
@@ -2469,7 +2495,7 @@ TEST_F(XBackupConfigDBTest, RemoveByTag)
 
 TEST_F(XBackupConfigDBTest, RemoveByTagWhenEmpty)
 {
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     EXPECT_CALL(observer(), onDirty(_)).Times(0);
     EXPECT_CALL(observer(), onRemove(_, _)).Times(0);
@@ -2479,7 +2505,7 @@ TEST_F(XBackupConfigDBTest, RemoveByTagWhenEmpty)
 
 TEST_F(XBackupConfigDBTest, RemoveByUnknownTag)
 {
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add some config so the database isn't empty.
     {
@@ -2504,7 +2530,7 @@ TEST_F(XBackupConfigDBTest, RemoveByUnknownTag)
 
 TEST_F(XBackupConfigDBTest, RemoveByTargetHandle)
 {
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a config to remove.
     XBackupConfig config;
@@ -2540,7 +2566,7 @@ TEST_F(XBackupConfigDBTest, RemoveByTargetHandle)
 
 TEST_F(XBackupConfigDBTest, RemoveByTargetHandleWhenEmpty)
 {
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     EXPECT_CALL(observer(), onDirty(_)).Times(0);
     EXPECT_CALL(observer(), onRemove(_, _)).Times(0);
@@ -2551,7 +2577,7 @@ TEST_F(XBackupConfigDBTest, RemoveByTargetHandleWhenEmpty)
 
 TEST_F(XBackupConfigDBTest, RemoveByUnknownTargetHandle)
 {
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a config so that the database isn't empty.
     {
@@ -2577,7 +2603,7 @@ TEST_F(XBackupConfigDBTest, RemoveByUnknownTargetHandle)
 
 TEST_F(XBackupConfigDBTest, Update)
 {
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a config.
     XBackupConfig configBefore;
@@ -2623,7 +2649,7 @@ TEST_F(XBackupConfigDBTest, Update)
 
 TEST_F(XBackupConfigDBTest, UpdateChangeTargetHandle)
 {
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add config.
     XBackupConfig configBefore;
@@ -2671,7 +2697,7 @@ TEST_F(XBackupConfigDBTest, UpdateChangeTargetHandle)
 
 TEST_F(XBackupConfigDBTest, UpdateRemoveTargetHandle)
 {
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add config.
     XBackupConfig configBefore;
@@ -2719,7 +2745,7 @@ TEST_F(XBackupConfigDBTest, UpdateRemoveTargetHandle)
 
 TEST_F(XBackupConfigDBTest, UpdateWithoutChange)
 {
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add config.
     XBackupConfig config;
@@ -2739,11 +2765,11 @@ TEST_F(XBackupConfigDBTest, UpdateWithoutChange)
 
 TEST_F(XBackupConfigDBTest, WriteFail)
 {
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Any attempt to write to slot 0 will fail.
     EXPECT_CALL(ioContext(),
-                write(Eq(drivePath()), _, Eq(0u)))
+                write(Eq(dbPath()), _, Eq(0u)))
       .Times(2)
       .WillRepeatedly(Return(API_EWRITE));
 
@@ -2756,17 +2782,17 @@ TEST_F(XBackupConfigDBTest, WriteFail)
 
 TEST_F(XBackupConfigDBTest, WriteOK)
 {
-    XBackupConfigDB configDB(drivePath(), observer());
+    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Writes to slot 0 should succeed.
     Expectation write0 =
       EXPECT_CALL(ioContext(),
-                  write(Eq(drivePath()), _, Eq(0u)))
+                  write(Eq(dbPath()), _, Eq(0u)))
       .WillOnce(Return(API_OK));
 
     // Writes to slot 1 should succeed.
     EXPECT_CALL(ioContext(),
-                write(Eq(drivePath()), _, Eq(1u)))
+                write(Eq(dbPath()), _, Eq(1u)))
       .After(write0)
       .WillOnce(Return(API_OK));
 
@@ -2965,6 +2991,12 @@ TEST_F(XBackupConfigStoreTest, CloseAll)
     Directory driveA(fsAccess(), Utilities::randomPath());
     Directory driveB(fsAccess(), Utilities::randomPath());
 
+    // Database directory.
+    auto backupPathA = driveA.path();
+
+    backupPathA.appendWithSeparator(
+      ConfigStore::BACKUP_CONFIG_DIR, false);
+
     // Create store.
     NiceMock<ConfigStore> store(ioContext());
 
@@ -2989,7 +3021,7 @@ TEST_F(XBackupConfigStoreTest, CloseAll)
 
     // Attempts to write database A should fail.
     EXPECT_CALL(ioContext(),
-                write(Eq(driveA.path()), _, Eq(1u)))
+                write(Eq(backupPathA), _, Eq(1u)))
       .WillOnce(Return(API_EWRITE));
 
     // Close all databases.
@@ -3013,6 +3045,12 @@ TEST_F(XBackupConfigStoreTest, CloseClean)
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
 
+    // Database directory.
+    auto backupPath = drive.path();
+
+    backupPath.appendWithSeparator(
+      ConfigStore::BACKUP_CONFIG_DIR, false);
+
     // Create store.
     NiceMock<ConfigStore> store(ioContext());
 
@@ -3024,7 +3062,7 @@ TEST_F(XBackupConfigStoreTest, CloseClean)
 
     // No writes should occur as the database is clean.
     EXPECT_CALL(ioContext(),
-                write(Eq(drive.path()), _, Eq(1u)))
+                write(Eq(backupPath), _, Eq(1u)))
       .Times(0);
 
     // Close the database.
@@ -3067,6 +3105,12 @@ TEST_F(XBackupConfigStoreTest, CloseDirty)
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
 
+    // Database directory.
+    auto backupPath = drive.path();
+
+    backupPath.appendWithSeparator(
+      ConfigStore::BACKUP_CONFIG_DIR, false);
+
     // Create store.
     NiceMock<ConfigStore> store(ioContext());
 
@@ -3099,7 +3143,7 @@ TEST_F(XBackupConfigStoreTest, CloseDirty)
     // A single write should be issued to update the dirty database.
     Expectation write =
       EXPECT_CALL(ioContext(),
-                  write(Eq(drive.path()), _, Eq(1u)))
+                  write(Eq(backupPath), _, Eq(1u)))
         .Times(1);
 
     // onRemove should be generated when the database's config is removed.
@@ -3124,6 +3168,12 @@ TEST_F(XBackupConfigStoreTest, CloseDirtyCantWrite)
 {
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
+    
+    // Database directory.
+    auto backupPath = drive.path();
+
+    backupPath.appendWithSeparator(
+      ConfigStore::BACKUP_CONFIG_DIR, false);
 
     // Create store.
     NiceMock<ConfigStore> store(ioContext());
@@ -3151,7 +3201,7 @@ TEST_F(XBackupConfigStoreTest, CloseDirtyCantWrite)
 
     // Attempts to write the database should fail.
     EXPECT_CALL(ioContext(),
-                write(Eq(drive.path()), _, Eq(1u)))
+                write(Eq(backupPath), _, Eq(1u)))
       .Times(1)
       .WillOnce(Return(API_EWRITE));
 
@@ -3294,16 +3344,22 @@ TEST_F(XBackupConfigStoreTest, Create)
 {
     const auto drivePath = Utilities::randomPath();
 
+    // Database directory.
+    auto backupPath = drivePath;
+
+    backupPath.appendWithSeparator(
+      ConfigStore::BACKUP_CONFIG_DIR, false);
+
     // No slots available for reading.
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(drivePath), _))
+                  get(Eq(backupPath), _))
         .WillOnce(Return(API_ENOENT));
 
     // Initial write should succeed.
     Expectation write =
       EXPECT_CALL(ioContext(),
-                  write(Eq(drivePath), Eq("[]"), Eq(0u)))
+                  write(Eq(backupPath), Eq("[]"), Eq(0u)))
         .After(get)
         .WillOnce(Return(API_OK));
 
@@ -3328,16 +3384,22 @@ TEST_F(XBackupConfigStoreTest, CreateAlreadyOpened)
 {
     auto drivePath = Utilities::randomPath();
 
+    // Database directory.
+    auto backupPath = drivePath;
+
+    backupPath.appendWithSeparator(
+      ConfigStore::BACKUP_CONFIG_DIR, false);
+
     // No slots available for reading.
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(drivePath), _))
+                  get(Eq(backupPath), _))
         .WillOnce(Return(API_ENOENT));
 
     // Initial write should succeed.
     Expectation write =
       EXPECT_CALL(ioContext(),
-                  write(Eq(drivePath), Eq("[]"), Eq(0u)))
+                  write(Eq(backupPath), Eq("[]"), Eq(0u)))
         .After(get)
         .WillOnce(Return(API_OK));
 
@@ -3375,18 +3437,24 @@ TEST_F(XBackupConfigStoreTest, CreateCantReadExisting)
 {
     const auto drivePath = Utilities::randomPath();
 
+    // Database directory.
+    auto backupPath = drivePath;
+
+    backupPath.appendWithSeparator(
+      ConfigStore::BACKUP_CONFIG_DIR, false);
+
     // Return a single slot for reading.
     static const vector<unsigned int> slots = {0};
 
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(drivePath), _))
+                  get(Eq(backupPath), _))
         .WillOnce(DoAll(SetArgReferee<1>(slots),
                         Return(API_OK)));
 
     // Reading the slot should fail.
     EXPECT_CALL(ioContext(),
-                read(Eq(drivePath), _, Eq(0u)))
+                read(Eq(backupPath), _, Eq(0u)))
       .After(get)
       .WillOnce(Return(API_EREAD));
 
@@ -3404,15 +3472,21 @@ TEST_F(XBackupConfigStoreTest, CreateCantWrite)
 {
     const auto drivePath = Utilities::randomPath();
 
+    // Database directory.
+    auto backupPath = drivePath;
+
+    backupPath.appendWithSeparator(
+      ConfigStore::BACKUP_CONFIG_DIR, false);
+
     // No slots available for reading.
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(drivePath), _))
+                  get(Eq(backupPath), _))
         .WillOnce(Return(API_ENOENT));
 
     // Initial write should fail.
     EXPECT_CALL(ioContext(),
-                write(Eq(drivePath), Eq("[]"), Eq(0u)))
+                write(Eq(backupPath), Eq("[]"), Eq(0u)))
       .After(get)
       .WillOnce(Return(API_EWRITE));
 
@@ -3433,6 +3507,12 @@ TEST_F(XBackupConfigStoreTest, CreateCantWrite)
 TEST_F(XBackupConfigStoreTest, CreateExisting)
 {
     const auto drivePath = Utilities::randomPath();
+
+    // Database directory.
+    auto backupPath = drivePath;
+
+    backupPath.appendWithSeparator(
+      ConfigStore::BACKUP_CONFIG_DIR, false);
 
     XBackupConfigMap written;
 
@@ -3457,14 +3537,14 @@ TEST_F(XBackupConfigStoreTest, CreateExisting)
 
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(drivePath), _))
+                  get(Eq(backupPath), _))
         .WillOnce(DoAll(SetArgReferee<1>(slots),
                         Return(API_OK)));
 
     // Reading the slot should return the generated JSON.
     Expectation read =
       EXPECT_CALL(ioContext(),
-                  read(Eq(drivePath), _, Eq(0u)))
+                  read(Eq(backupPath), _, Eq(0u)))
         .After(get)
         .WillOnce(DoAll(SetArgReferee<1>(writer.getstring()),
                         Return(API_OK)));
@@ -3516,6 +3596,12 @@ TEST_F(XBackupConfigStoreTest, Destruct)
         // Make sure database is removed.
         Directory drive(fsAccess(), Utilities::randomPath());
 
+        // Database directory.
+        auto backupPath = drive.path();
+
+        backupPath.appendWithSeparator(
+          ConfigStore::BACKUP_CONFIG_DIR, false);
+
         // Create store.
         NiceMock<ConfigStore> store(ioContext());
 
@@ -3535,16 +3621,25 @@ TEST_F(XBackupConfigStoreTest, Destruct)
 
         // Database should be flushed when the store is destroyed.
         EXPECT_CALL(ioContext(),
-                    write(Eq(drive.path()), _, _))
+                    write(Eq(backupPath), _, _))
           .Times(1);
     }
 }
 
 TEST_F(XBackupConfigStoreTest, FlushAll)
 {
+    const auto& BACKUP_DIR = ConfigStore::BACKUP_CONFIG_DIR;
+
     // Make sure databases are removed.
     Directory driveA(fsAccess(), Utilities::randomPath());
     Directory driveB(fsAccess(), Utilities::randomPath());
+
+    // Database directories.
+    auto backupPathA = driveA.path();
+    auto backupPathB = driveB.path();
+
+    backupPathA.appendWithSeparator(BACKUP_DIR, false);
+    backupPathB.appendWithSeparator(BACKUP_DIR, false);
 
     // Create store.
     NiceMock<ConfigStore> store(ioContext());
@@ -3570,12 +3665,12 @@ TEST_F(XBackupConfigStoreTest, FlushAll)
 
     // Attempts to flush database A should fail.
     EXPECT_CALL(ioContext(),
-                write(Eq(driveA.path()), _, _))
+                write(Eq(backupPathA), _, _))
       .WillOnce(Return(API_EWRITE));
 
     // Attempts to flush database B should succeed.
     EXPECT_CALL(ioContext(),
-                write(Eq(driveB.path()), _, _))
+                write(Eq(backupPathB), _, _))
       .Times(1);
 
     // Flush the databases.
@@ -3595,6 +3690,12 @@ TEST_F(XBackupConfigStoreTest, FlushDenormalized)
 {
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
+
+    // Database path.
+    auto backupPath = drive.path();
+
+    backupPath.appendWithSeparator(
+      ConfigStore::BACKUP_CONFIG_DIR, false);
 
     // Compute denormalized drive path.
     LocalPath drivePath = drive;
@@ -3619,7 +3720,7 @@ TEST_F(XBackupConfigStoreTest, FlushDenormalized)
 
     // Make sure database is flushed.
     EXPECT_CALL(ioContext(),
-                write(Eq(drive.path()), _, _))
+                write(Eq(backupPath), _, _))
       .Times(1);
 
     // Flush the database (using denormalized path.)
@@ -3636,6 +3737,12 @@ TEST_F(XBackupConfigStoreTest, FlushFail)
 {
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
+
+    // Database path.
+    auto backupPath = drive.path();
+
+    backupPath.appendWithSeparator(
+      ConfigStore::BACKUP_CONFIG_DIR, false);
 
     // Create store.
     NiceMock<ConfigStore> store(ioContext());
@@ -3654,7 +3761,7 @@ TEST_F(XBackupConfigStoreTest, FlushFail)
 
     // Attempts to write to database A should fail.
     EXPECT_CALL(ioContext(),
-                write(Eq(drive.path()), _, _))
+                write(Eq(backupPath), _, _))
       .WillOnce(Return(API_EWRITE));
 
     // Flushing the database should fail.
@@ -3666,9 +3773,18 @@ TEST_F(XBackupConfigStoreTest, FlushFail)
 
 TEST_F(XBackupConfigStoreTest, FlushSpecific)
 {
+    const auto& BACKUP_DIR = ConfigStore::BACKUP_CONFIG_DIR;
+
     // Make sure databases are removed.
     Directory driveA(fsAccess(), Utilities::randomPath());
     Directory driveB(fsAccess(), Utilities::randomPath());
+
+    // Database directories.
+    auto backupPathA = driveA.path();
+    auto backupPathB = driveB.path();
+
+    backupPathA.appendWithSeparator(BACKUP_DIR, false);
+    backupPathB.appendWithSeparator(BACKUP_DIR, false);
 
     // Create store.
     NiceMock<ConfigStore> store(ioContext());
@@ -3694,12 +3810,12 @@ TEST_F(XBackupConfigStoreTest, FlushSpecific)
 
     // Flushing should trigger a write to database A.
     EXPECT_CALL(ioContext(),
-                write(Eq(driveA.path()), _, _))
+                write(Eq(backupPathA), _, _))
       .Times(1);
 
     // But since we're being specific, none for database B.
     EXPECT_CALL(ioContext(),
-                write(Eq(driveB.path()), _, _))
+                write(Eq(backupPathB), _, _))
       .Times(0);
 
     // Flush database A.
@@ -3749,6 +3865,12 @@ TEST_F(XBackupConfigStoreTest, Open)
 {
     auto drivePath = Utilities::randomPath();
 
+    // Database path.
+    auto backupPath = drivePath;
+
+    backupPath.appendWithSeparator(
+      ConfigStore::BACKUP_CONFIG_DIR, false);
+
     XBackupConfigMap written;
 
     // Populate database.
@@ -3772,7 +3894,7 @@ TEST_F(XBackupConfigStoreTest, Open)
 
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(drivePath), _))
+                  get(Eq(backupPath), _))
         .Times(1)
         .WillOnce(DoAll(SetArgReferee<1>(slots),
                         Return(API_OK)));
@@ -3780,7 +3902,7 @@ TEST_F(XBackupConfigStoreTest, Open)
     // Return the JSON on read and signal success.
     Expectation read =
       EXPECT_CALL(ioContext(),
-                  read(Eq(drivePath), _, Eq(0u)))
+                  read(Eq(backupPath), _, Eq(0u)))
         .Times(1)
         .After(get)
         .WillOnce(DoAll(SetArgReferee<1>(writer.getstring()),
@@ -3830,19 +3952,25 @@ TEST_F(XBackupConfigStoreTest, OpenCantRead)
 {
     const auto drivePath = Utilities::randomPath();
 
+    // Database directory.
+    auto backupPath = drivePath;
+
+    backupPath.appendWithSeparator(
+      ConfigStore::BACKUP_CONFIG_DIR, false);
+
     // A single slot available for reading.
     static const vector<unsigned int> slots = {0};
 
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(drivePath), _))
+                  get(Eq(backupPath), _))
         .Times(1)
         .WillOnce(DoAll(SetArgReferee<1>(slots),
                         Return(API_OK)));
 
     // Attempts to read the slot should fail.
     EXPECT_CALL(ioContext(),
-                read(Eq(drivePath), _, Eq(0u)))
+                read(Eq(backupPath), _, Eq(0u)))
       .Times(1)
       .After(get)
       .WillOnce(Return(API_EREAD));
@@ -3865,9 +3993,15 @@ TEST_F(XBackupConfigStoreTest, OpenNoDatabase)
 {
     const auto drivePath = Utilities::randomPath();
 
+    // Database directory.
+    auto backupPath = drivePath;
+
+    backupPath.appendWithSeparator(
+      ConfigStore::BACKUP_CONFIG_DIR, false);
+
     // No slots available for reading.
     EXPECT_CALL(ioContext(),
-                get(Eq(drivePath), _))
+                get(Eq(backupPath), _))
       .Times(1)
       .WillOnce(Return(API_ENOENT));
 

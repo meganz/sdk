@@ -321,11 +321,12 @@ class XBackupConfigIOContext;
 class MEGA_API XBackupConfigDB
 {
 public:
-    XBackupConfigDB(const LocalPath& drivePath,
+    XBackupConfigDB(const LocalPath& dbPath,
+                    const LocalPath& drivePath,
                     XBackupConfigDBObserver& observer);
 
     explicit
-    XBackupConfigDB(const LocalPath& drivePath);
+    XBackupConfigDB(const LocalPath& dbPath);
 
     ~XBackupConfigDB();
 
@@ -382,6 +383,9 @@ private:
     // overwriting earlier versions.
     static const unsigned int NUM_SLOTS;
 
+    // Path to the directory containing this database.
+    LocalPath mDBPath;
+
     // Path to the drive containing this database.
     LocalPath mDrivePath;
 
@@ -419,11 +423,11 @@ public:
                      JSON& reader) const;
 
     // Determine which slots are present.
-    virtual error get(const LocalPath& drivePath,
+    virtual error get(const LocalPath& dbPath,
                       vector<unsigned int>& slots);
 
     // Read data from the specified slot.
-    virtual error read(const LocalPath& drivePath,
+    virtual error read(const LocalPath& dbPath,
                        string& data,
                        const unsigned int slot);
 
@@ -432,12 +436,9 @@ public:
                    JSONWriter& writer) const;
 
     // Write data to the specified slot.
-    virtual error write(const LocalPath& drivePath,
+    virtual error write(const LocalPath& dbPath,
                         const string& data,
                         const unsigned int slot);
-
-    // Name of the backup configuration directory.
-    static const string BACKUP_CONFIG_DIR;
 
 private:
     // Decrypt data.
@@ -549,6 +550,9 @@ public:
 
     // Remove config by backup target handle.
     error remove(const handle targetHandle);
+
+    // Name of the backup configuration directory.
+    static const LocalPath BACKUP_CONFIG_DIR;
 
 protected:
     // Invoked when a backup config is being added.
