@@ -58,12 +58,12 @@ namespace mega {
         // On unix systems you need to define your udev rules to allow notifications for
         // your device.
         //
-        // i.e. on Ubuntu create file "99-z-mega.rules" either in
+        // i.e. on Ubuntu create file "100-megasync-udev.rules" either in
         // /etc/udev/rules.d/        OR
         // /usr/lib/udev/rules.d/
         // and add line:
-        // SUBSYSTEM=="block", ATTRS{idDevtype}=="partition", MODE="0666"
-        udev_monitor_filter_add_match_subsystem_devtype(mUdevMon, "block", nullptr);
+        // SUBSYSTEM=="block", ATTRS{idDevtype}=="partition"
+        udev_monitor_filter_add_match_subsystem_devtype(mUdevMon, "block", "partition");
         udev_monitor_enable_receiving(mUdevMon);
 
         // start worker thread
