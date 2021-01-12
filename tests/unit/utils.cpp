@@ -90,7 +90,7 @@ std::unique_ptr<mega::UnifiedSync> makeSync(mega::MegaClient& client, const std:
 
     auto us = new mega::UnifiedSync(client, config);
 
-    us->mSync.reset(new mega::Sync(*us, nullptr, &localdebrisLP, &n, false, 0));
+    us->mSync.reset(new mega::Sync(*us, nullptr, &localdebrisLP, &n, false));
     us->mSync->state = mega::SYNC_CANCELED;
 
     return std::unique_ptr<mega::UnifiedSync>(us);

@@ -648,7 +648,7 @@ std::vector<SyncConfig> SyncConfigBag::all() const
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(UnifiedSync& us, const char* cdebris,
-           LocalPath* clocaldebris, Node* remotenode, bool cinshare, handle ctag)
+           LocalPath* clocaldebris, Node* remotenode, bool cinshare)
 : localroot(new LocalNode)
 , mUnifiedSync(us)
 {
@@ -2112,7 +2112,7 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
     auto prevFingerprint = mConfig.getLocalFingerprint();
 
     assert(!mSync);
-    mSync.reset(new Sync(*this, debris, localdebris, remotenode, inshare, mConfig.getBackupId()));
+    mSync.reset(new Sync(*this, debris, localdebris, remotenode, inshare));
     mConfig.setLocalFingerprint(mSync->fsfp);
 
     if (prevFingerprint && prevFingerprint != mConfig.getLocalFingerprint())
