@@ -604,9 +604,9 @@ bool SyncConfigBag::removeByBackupId(const handle backupId)
     return false;
 }
 
-const SyncConfig* SyncConfigBag::get(const handle tag) const
+const SyncConfig* SyncConfigBag::get(const handle backupId) const
 {
-    auto syncConfigPair = mSyncConfigs.find(tag);
+    auto syncConfigPair = mSyncConfigs.find(backupId);
     if (syncConfigPair != mSyncConfigs.end())
     {
         return &syncConfigPair->second;
@@ -2426,11 +2426,11 @@ void Syncs::removeSyncByIndex(size_t index)
     }
 }
 
-error Syncs::enableSyncByTag(handle tag, bool resetFingerprint, UnifiedSync*& syncPtrRef)
+error Syncs::enableSyncByBackupId(handle backupId, bool resetFingerprint, UnifiedSync*& syncPtrRef)
 {
     for (auto& s : mSyncVec)
     {
-        if (s->mConfig.getBackupId() == tag)
+        if (s->mConfig.getBackupId() == backupId)
         {
             syncPtrRef = s.get();
             if (!s->mSync)

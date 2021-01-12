@@ -21601,10 +21601,10 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_ENABLE_SYNC:
         {
-            auto tag = request->getParentHandle();
+            auto backupId = request->getParentHandle();
             UnifiedSync* us = nullptr;
 
-            e = client->syncs.enableSyncByTag(tag, true, us);
+            e = client->syncs.enableSyncByBackupId(backupId, true, us);
 
             request->setNumDetails(us ? us->mConfig.getError() : UNKNOWN_ERROR);
 

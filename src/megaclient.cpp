@@ -13165,8 +13165,6 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 #endif
 }
 
-
-//TODO: config should now be const, and it cannot be expected to be modified as it was in previous code before async completion after sp
 void MegaClient::copySyncConfig(SyncConfig& config, std::function<void(mega::UnifiedSync *, const SyncError &, error)> completion)
 {
     string localFolderEncrypted(cypherTLVTextWithMasterKey("lf", config.getLocalPath()) );
@@ -13200,7 +13198,6 @@ void MegaClient::copySyncConfig(SyncConfig& config, std::function<void(mega::Uni
     }));
 }
 
-//TODO: config should now be const, and it cannot be expected to be modified as it was in previous code before async completion after sp
 error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* localdebris, bool delayInitialScan, bool notifyApp,
                           std::function<void(mega::UnifiedSync *, const SyncError &, error)> completion)
 {

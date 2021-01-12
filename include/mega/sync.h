@@ -227,7 +227,7 @@ public:
 
     // flag to optimize destruction by skipping calls to treestate()
     bool mDestructorRunning = false;
-    Sync(UnifiedSync&, const char*, LocalPath*, Node*, bool, handle);
+    Sync(UnifiedSync&, const char*, LocalPath*, Node*, bool);
     ~Sync();
 
     static const int SCANNING_DELAY_DS;
@@ -265,7 +265,7 @@ struct Syncs
     void stopCancelledFailedDisabled();
     void resumeResumableSyncsOnStartup();
     void enableResumeableSyncs();
-    error enableSyncByTag(handle tag, bool resetFingerprint, UnifiedSync*&);
+    error enableSyncByBackupId(handle backupId, bool resetFingerprint, UnifiedSync*&);
 
     // disable all active syncs.  Cache is kept
     void disableSyncs(SyncError syncError, bool newEnabledFlag);
