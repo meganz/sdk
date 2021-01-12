@@ -116,8 +116,11 @@
 #include <curl/curl.h>
 #include <stdexcept>
 
+
+#ifndef USE_POLL
 #ifndef FD_COPY
 #define FD_COPY(s, d) ( memcpy(( d ), ( s ), sizeof( fd_set )))
+#endif
 #endif
 
 #endif // MEGA_POSIX_OS_H

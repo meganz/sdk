@@ -37,13 +37,6 @@ Command::Command()
 
 Command::~Command()
 {
-    for (const auto& listenerWeak: mListeners)
-    {
-        if (auto listener = listenerWeak.lock())
-        {
-            listener->onCommandToBeDeleted(this);
-        }
-    }
 }
 
 void Command::cancel()
@@ -80,13 +73,7 @@ void Command::removeFromNodePendingCommands(Node* node)
 // returns completed command JSON string
 const char* Command::getJSON(MegaClient*)
 {
-    mRead = true;
     return jsonWriter.getstring().c_str();
-}
-
-void Command::replaceWith(Command &command)
-{
-    jsonWriter = command.jsonWriter;
 }
 
 //return true when the response is an error, false otherwise (in that case it doesn't consume JSON chars)
@@ -148,23 +135,13 @@ bool Command::checkError(Error& errorDetails, JSON& json)
 #ifdef ENABLE_SYNC
     if (errorDetected && errorDetails == API_EBUSINESSPASTDUE)
     {
-        client->disableSyncs(BUSINESS_EXPIRED);
+        client->syncs.disableSyncs(BUSINESS_EXPIRED, true);  // keep enabled for auto-resume
     }
 #endif
     return errorDetected;
 }
 
 // add opcode
-bool Command::getRead() const
-{
-    return mRead;
-}
-
-void Command::addListener(const std::shared_ptr<CommandListener> &listener)
-{
-    mListeners.push_back(listener);
-}
-
 void Command::cmd(const char* cmd)
 {
     jsonWriter.cmd(cmd);

@@ -450,7 +450,6 @@ struct MEGA_API LocalNode : public Cacheable
     fsid_localnode_map::iterator fsid_it;
 
     // related cloud node, if any
-    //Node* node = nullptr;
     NodeHandle syncedCloudNodeHandle;
     nodehandle_localnode_map::iterator syncedCloudNodeHandle_it;
 
@@ -597,6 +596,7 @@ public:
         LocalNode& localNode;
         void prepare() override;
         void completed(Transfer*, LocalNode*) override;
+        void terminated() override;
     };
 
     unique_ptr<Upload> upload;

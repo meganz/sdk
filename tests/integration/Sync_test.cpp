@@ -39,8 +39,6 @@
 
 #define DEFAULTWAIT std::chrono::seconds(20)
 
-#ifdef ENABLE_SYNC
-
 using namespace ::mega;
 using namespace ::std;
 
@@ -113,7 +111,7 @@ TestFS::~TestFS()
     for_each(m_cleaners.begin(), m_cleaners.end(), [](thread& t) { t.join(); });
 }
 
-
+#ifdef ENABLE_SYNC
 
 namespace {
 
@@ -867,7 +865,7 @@ struct StandardClient : public MegaApp
 
     void onCallback() { lastcb = chrono::steady_clock::now(); };
 
-    void syncupdate_state(int tag, syncstate_t state, SyncError syncError, bool fireDisableEvent = true) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << " syncupdate_state() " << state << " error :" << syncError << endl; } }
+    void syncupdate_stateconfig(int tag) override { onCallback(); if (logcb) { lock_guard<mutex> g(om);  out() << clientname << " syncupdate_stateconfig() " << tag << endl; } }
     void syncupdate_scanning(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_scanning()" << b << endl; } }
     void syncupdate_stalled(bool b) override { if (logcb) { onCallback(); lock_guard<mutex> g(om); out() << clientname << " syncupdate_stalled()" << b << endl; } }
     void syncupdate_local_folder_addition(Sync* s, const LocalPath& path) override { onCallback(); if (logcb) { lock_guard<mutex> g(om); out() << clientname << " yncupdate_local_folder_addition() " << path.toPath(*client.fsaccess) << endl; }}
@@ -1089,7 +1087,7 @@ struct StandardClient : public MegaApp
     void loginFromSession(const string& session, promise<bool>& pb)
     {
         resultproc.prepresult(LOGIN, ++next_request_tag,
-            [&](){ client.login((byte*)session.data(), (int)session.size()); },
+            [&](){ client.login(session); },
             [&pb](error e) { pb.set_value(!e);  return true; });
     }
 
@@ -1461,17 +1459,14 @@ struct StandardClient : public MegaApp
 
     bool syncSet(int tag, SyncInfo& info) const
     {
-        for (const auto* sync : client.syncs)
+        if (auto* sync = client.syncs.runningSyncByTag(tag))
         {
-            if (sync->tag == tag)
-            {
-                const auto& config = sync->getConfig();
+            auto& config = sync->getConfig();
 
-                info.h = config.getRemoteNode();
-                info.localpath = config.getLocalPath();
+            info.h = config.getRemoteNode();
+            info.localpath = config.getLocalPath();
 
-                return true;
-            }
+            return true;
         }
 
         return false;
@@ -1543,8 +1538,9 @@ struct StandardClient : public MegaApp
             {
                 cout << clientname << "Setting up sync from " << m->displaypath() << " to " << localpath << endl;
                 SyncConfig syncConfig{syncTag, localpath.u8string(), localpath.u8string(), m->nodehandle, subfoldername, 0};
-                SyncError syncError;
-                error e = client.addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError);  // use syncid as tag
+
+                UnifiedSync* unifiedSync;
+                error e = client.addsync(syncConfig, DEBRISFOLDER, NULL, false, unifiedSync, true);  // use syncid as tag
                 if (!e)
                 {
                     return true;
@@ -1558,10 +1554,19 @@ struct StandardClient : public MegaApp
     bool delSync_inthread(const int syncId, const bool keepCache)
     {
         const auto handle = syncSet(syncId).h;
-        const auto node = client.nodebyhandle(handle);
-        EXPECT_TRUE(node);
-        client.delsync(syncByTag(syncId));
-        return true;
+        bool removed = false;
+
+        client.syncs.removeSelectedSyncs(
+          [&](SyncConfig& c, Sync*)
+          {
+              const bool matched = c.getRemoteNode() == handle;
+
+              removed |= matched;
+
+              return matched;
+          });
+
+        return removed;
     }
 
     bool recursiveConfirm(Model::ModelNode* mn, Node* n, int& descendants, const string& identifier, int depth, bool& firstreported)
@@ -1891,12 +1896,7 @@ struct StandardClient : public MegaApp
 
     Sync* syncByTag(int tag)
     {
-        for (Sync* s : client.syncs)
-        {
-            if (s->tag == tag)
-                return s;
-        }
-        return nullptr;
+        return client.syncs.runningSyncByTag(tag);
     }
 
     enum Confirm
@@ -2124,13 +2124,15 @@ struct StandardClient : public MegaApp
 
             thread_do([&syncstates, &any_add_del, this](StandardClient& mc, promise<bool>&)
             {
-                for (auto& sync : mc.client.syncs)
-                {
-                    syncstates.push_back(sync->state);
-                    if (sync->deleteq.size() || sync->insertq.size())
-                        any_add_del = true;
-                }
-                if (!(client.todebris.empty() && client.tounlink.empty()) )// && client.synccreate.empty()))
+                mc.client.syncs.forEachRunningSync(
+                  [&](Sync* s)
+                  {
+                      syncstates.push_back(s->state);
+                      any_add_del |= !s->deleteq.empty();
+                      any_add_del |= !s->insertq.empty();
+                  });
+
+                if (!(client.todebris.empty() && client.tounlink.empty() /*&& client.synccreate.empty()*/))
                 {
                     any_add_del = true;
                 }
@@ -2310,12 +2312,14 @@ void waitonsyncs(std::function<bool(int64_t millisecNoActivity, int64_t millisec
         {
             vn->thread_do([&syncstates, &any_activity, &any_still_syncing](StandardClient& mc, promise<bool>&)
                 {
-                    for (auto& sync : mc.client.syncs)
-                    {
-                        syncstates.push_back(sync->state);
-                        if (sync->deleteq.size() || sync->insertq.size())
-                            any_activity = true;
-                    }
+                mc.client.syncs.forEachRunningSync(
+                  [&](Sync* s)
+                  {
+                      syncstates.push_back(s->state);
+                      if (s->deleteq.size() || s->insertq.size())
+                          any_activity = true;
+                  });
+
                     if (!(mc.client.todebris.empty() && mc.client.tounlink.empty() //&& mc.client.synccreate.empty()
                         && mc.client.transferlist.transfers[GET].empty() && mc.client.transferlist.transfers[PUT].empty()))
                     {
@@ -2999,11 +3003,13 @@ GTEST_TEST(Sync, BasicSync_MassNotifyFromLocalFolderTree)
         int remaining = 0;
         auto result0 = clientA1.thread_do([&](StandardClient &sc, std::promise<bool> &p)
         {
-            for (auto& s : sc.client.syncs)
-            {
+            sc.client.syncs.forEachRunningSync(
+              [&](Sync* s)
+              {
                 remaining += s->dirnotify->fsEventq.size();
                 remaining += s->dirnotify->fsDelayedNetworkEventq.size();
-            }
+              });
+
             p.set_value(true);
         });
         result0.get();
@@ -3277,8 +3283,8 @@ GTEST_TEST(Sync, BasicSync_RemoveLocalNodeBeforeSessionResume)
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 
     // save session
-    ::mega::byte session[64];
-    int sessionsize = pclientA1->client.dumpsession(session, sizeof session);
+    string session;
+    pclientA1->client.dumpsession(session);
 
     // logout (but keep caches)
     fs::path sync1path = pclientA1->syncSet(1).localpath;
@@ -3290,7 +3296,7 @@ GTEST_TEST(Sync, BasicSync_RemoveLocalNodeBeforeSessionResume)
 
     // resume session, see if nodes and localnodes get in sync
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
-    ASSERT_TRUE(pclientA1->login_fetchnodes(string((char*)session, sessionsize)));
+    ASSERT_TRUE(pclientA1->login_fetchnodes(session));
 
     waitonsyncs(std::chrono::seconds(4), pclientA1.get(), &clientA2);
 
@@ -3394,8 +3400,8 @@ GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteCh
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model2.findnode("f"), 2));
 
     out() << "********************* save session A1" << endl;
-    ::mega::byte session[64];
-    int sessionsize = pclientA1->client.dumpsession(session, sizeof session);
+    string session;
+    pclientA1->client.dumpsession(session);
 
     out() << "*********************  logout A1 (but keep caches on disk)" << endl;
     fs::path sync1path = pclientA1->syncSet(1).localpath;
@@ -3429,7 +3435,7 @@ GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterNonclashingLocalAndRemoteCh
 
     out() << "*********************  resume A1 session (with sync), see if A2 nodes and localnodes get in sync again" << endl;
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
-    ASSERT_TRUE(pclientA1->login_fetchnodes(string((char*)session, sessionsize)));
+    ASSERT_TRUE(pclientA1->login_fetchnodes(session));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
     waitonsyncs(DEFAULTWAIT, pclientA1.get(), &clientA2);
 
@@ -3463,8 +3469,8 @@ GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), 2));
 
     // save session A1
-    ::mega::byte session[64];
-    int sessionsize = pclientA1->client.dumpsession(session, sizeof session);
+    string session;
+    pclientA1->client.dumpsession(session);
     fs::path sync1path = pclientA1->syncSet(1).localpath;
 
     // logout A1 (but keep caches on disk)
@@ -3482,7 +3488,7 @@ GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
 
     // resume A1 session (with sync), see if A2 nodes and localnodes get in sync again
     pclientA1.reset(new StandardClient(localtestroot, "clientA1"));
-    ASSERT_TRUE(pclientA1->login_fetchnodes(string((char*)session, sessionsize)));
+    ASSERT_TRUE(pclientA1->login_fetchnodes(session));
     ASSERT_EQ(pclientA1->basefolderhandle, clientA2.basefolderhandle);
     waitonsyncs([&pclientA1](int64_t millisecNoActivity, int64_t millisecNoSyncing){
             map<string, SyncWaitReason> stalledNodePaths;
@@ -5366,8 +5372,24 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     waitonsyncs(std::chrono::seconds(20), &clientA1Steady, &clientA1Resume);
 
     out() << "Stopping full-sync" << endl;
-    future<bool> fb1 = clientA1Steady.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.client.delsync(sc.syncByTag(1)); pb.set_value(true); });
-    future<bool> fb2 = clientA1Resume.thread_do([](StandardClient& sc, promise<bool>& pb) { sc.client.delsync(sc.syncByTag(2)); pb.set_value(true); });
+    auto removeSyncByTag =
+      [](StandardClient& sc, const int tag)
+      {
+          bool removed = false;
+
+          sc.client.syncs.removeSelectedSyncs(
+            [&](SyncConfig& config, Sync*)
+            {
+                const bool matched = config.getTag() == tag;
+                removed |= matched;
+                return matched;
+            });
+
+          return removed;
+      };
+
+    future<bool> fb1 = clientA1Steady.thread_do([&](StandardClient& sc, promise<bool>& pb) { pb.set_value(removeSyncByTag(sc, 1)); });
+    future<bool> fb2 = clientA1Resume.thread_do([&](StandardClient& sc, promise<bool>& pb) { pb.set_value(removeSyncByTag(sc, 2)); });
     ASSERT_TRUE(waitonresults(&fb1, &fb2));
 
     out() << "Setting up each sub-test's Two-way sync of 'f'" << endl;
@@ -5406,9 +5428,8 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     }
 
     // save session and local log out A1R to set up for resume
-    ::mega::byte session[64];
-    int sessionsize = 0;
-    sessionsize = clientA1Resume.client.dumpsession(session, sizeof session);
+    string session;
+    clientA1Resume.client.dumpsession(session);
     clientA1Resume.localLogout();
 
     int paused = 0;
@@ -5436,7 +5457,7 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     CatchupClients(&clientA1Steady, &clientA2);
 
     // resume A1R session (with sync), see if A2 nodes and localnodes get in sync again
-    ASSERT_TRUE(clientA1Resume.login_fetchnodes(string((char*)session, sessionsize)));
+    ASSERT_TRUE(clientA1Resume.login_fetchnodes(session));
     ASSERT_EQ(clientA1Resume.basefolderhandle, clientA2.basefolderhandle);
 
     int resumed = 0;

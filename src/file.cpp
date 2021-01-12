@@ -26,6 +26,7 @@
 #include "mega/sync.h"
 #include "mega/command.h"
 #include "mega/logging.h"
+#include "mega/heartbeats.h"
 
 namespace mega {
 File::File()
@@ -454,6 +455,8 @@ SyncFileGet::SyncFileGet(LocalNode& ln, Node& n, const LocalPath& clocalname)
     localname = clocalname;
 
     syncxfer = true;
+
+    localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, 1, size, 0) ;
 }
 
 // create sync-specific temp download directory and set unique filename
@@ -566,6 +569,8 @@ void SyncFileGet::updatelocalname()
 // add corresponding LocalNode (by path), then self-destruct
 void SyncFileGet::completed(Transfer*, LocalNode* )
 {
+    localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, 0, size);
+
     localNode.setScanAgain(true, false, false, 0);
     LOG_debug << "clearing downlaod for " << &localNode << " on completed";
     localNode.download.reset(); // deletes this;
@@ -573,6 +578,8 @@ void SyncFileGet::completed(Transfer*, LocalNode* )
 
 void SyncFileGet::terminated()
 {
+    localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, -size, 0);
+
     LOG_debug << "clearing download for " << &localNode << " on terminated";
     localNode.download.reset(); // deletes this;
 }

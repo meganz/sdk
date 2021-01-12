@@ -467,7 +467,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 #ifdef ENABLE_SYNC
             if (f->syncxfer)
             {
-                client->disableSyncContainingNode(f->h.as8byte(), FOREIGN_TARGET_OVERSTORAGE);
+                client->disableSyncContainingNode(f->h.as8byte(), FOREIGN_TARGET_OVERSTORAGE, true);  // still try to resume at startup
             }
 #endif
             removeTransferFile(API_EOVERQUOTA, f, &committer);
@@ -549,7 +549,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 
             if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
             {
-                client->disableSyncs(BUSINESS_EXPIRED);
+                client->syncs.disableSyncs(BUSINESS_EXPIRED, true); // still try to resume on start
                 alreadyDisabled = true;
             }
 #endif
@@ -772,12 +772,13 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         #ifdef ENABLE_SYNC
                         if((*it)->syncxfer)
                         {
-                            bool foundSync = false;
-                            for (Sync* sync : client->syncs)
-                            {
-                                if (sync->localroot->localname.isContainingPathOf(localname))
+                            bool foundOne = false;
+                            client->syncs.forEachRunningSync([&](Sync* sync){
+
+                                LocalNode *localNode = sync->localnodebypath(NULL, localname);
+                                if (localNode && !foundOne)
                                 {
-                                    LOG_debug << "Overwriting a local synced file. Moving the previous one to debris: " << localname.toPath(*client->fsaccess);
+                                    LOG_debug << "Overwriting a local synced file. Moving the previous one to debris";
 
                                     // try to move to local debris
                                     if(!sync->movetolocaldebris(localname))
@@ -785,19 +786,18 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                                         transient_error = client->fsaccess->transient_error;
                                     }
 
-                                    foundSync = true;
-                                    break;
+                                    foundOne = true;
                                 }
-                            }
+                            });
 
-                            if (!foundSync)
+                            if (!foundOne)
                             {
-                                LOG_err << "Sync for destination file not found: " << localname.toPath(*client->fsaccess);
+                                LOG_err << "LocalNode for destination file not found";
 
-                                if(client->syncs.size())
+                                if(client->syncs.hasRunningSyncs())
                                 {
                                     // try to move to debris in the first sync
-                                    if(!client->syncs.front()->movetolocaldebris(localname))
+                                    if(!client->syncs.firstRunningSync()->movetolocaldebris(localname))
                                     {
                                         transient_error = client->fsaccess->transient_error;
                                     }

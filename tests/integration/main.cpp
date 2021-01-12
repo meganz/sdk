@@ -86,7 +86,10 @@ public:
 #endif
                 if (!gTestingInvalidArgs)
                 {
-                    ASSERT_NE(loglevel, mega::logError) << os.str();
+                    if (loglevel <= mega::logError)
+                    {
+                        ASSERT_GT(loglevel, mega::logError) << os.str();
+                    }
                 }
             }
 #ifdef _WIN32

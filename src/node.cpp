@@ -29,6 +29,7 @@
 #include "mega/transfer.h"
 #include "mega/transferslot.h"
 #include "mega/logging.h"
+#include "mega/heartbeats.h"
 
 namespace mega {
 
@@ -72,20 +73,6 @@ Node::Node(MegaClient* cclient, node_vector* dp, handle h, handle ph,
     Node* p;
 
     client->nodes[h] = this;
-
-    // folder link access: first returned record defines root node and
-    // identity
-    if (ISUNDEF(*client->rootnodes))
-    {
-        *client->rootnodes = h;
-
-        if (client->loggedIntoWritableFolder())
-        {
-            // If logged into writable folder, we need the sharekey set in the root node
-            // so as to include it in subsequent put nodes
-            sharekey = new SymmCipher(client->key); //we use the "master key", in this case the secret share key
-        }
-    }
 
     if (t >= ROOTNODE && t <= RUBBISHNODE)
     {
@@ -1733,52 +1720,6 @@ treestate_t LocalNode::checkstate()
     return state;
 }
 
-//void LocalNode::setnode(Node* cnode)
-//{
-//    if (node && (node != cnode) && node->localnode)
-//    {
-//        node->localnode = NULL;
-//    }
-//
-//    deleted = false;
-//
-//    node = cnode;
-//
-//    if (node)
-//    {
-//        node->localnode = this;
-//    }
-//}
-
-//void LocalNode::setnotseen(int newnotseen)
-//{
-//    if (!sync)
-//    {
-//        LOG_err << "LocalNode::init() was never called";
-//        assert(false);
-//        return;
-//    }
-//
-//    if (!newnotseen)
-//    {
-//        if (notseen)
-//        {
-//            sync->client->localsyncnotseen.erase(notseen_it);
-//        }
-//
-//        notseen = 0;
-//        scanseqno = sync->scanseqno;
-//    }
-//    else
-//    {
-//        if (!notseen)
-//        {
-//            notseen_it = sync->client->localsyncnotseen.insert(this).first;
-//        }
-//
-//        notseen = newnotseen;
-//    }
-//}
 
 // set fsid - assume that an existing assignment of the same fsid is no longer current and revoke
 void LocalNode::setfsid(handle newfsid, fsid_localnode_map& fsidnodes)
@@ -1878,7 +1819,7 @@ LocalNode::~LocalNode()
 
     if (type != TYPE_UNKNOWN)
     {
-        sync->localnodes[type]--;
+        sync->localnodes[type]--;    // todo: make sure we are not using the larger types and overflowing the buffer
     }
 
     if (type == FOLDERNODE)
@@ -2089,10 +2030,19 @@ void LocalNode::Upload::prepare()
     localNode.treestate(TREESTATE_SYNCING);
 }
 
+void LocalNode::Upload::terminated()
+{
+    localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, size, 0);
+
+    File::terminated();
+}
+
 // complete a sync upload: complete to //bin if a newer node exists (which
 // would have been caused by a race condition)
 void LocalNode::Upload::completed(Transfer* t, LocalNode*)
 {
+    localNode.sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(-1, 0, 0, size);
+
     // in case this LocalNode was moved around (todo: since we don't actually move, make sure to copy internals such as upload transfers)
 
     h = NodeHandle();
