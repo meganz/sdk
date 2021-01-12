@@ -13179,8 +13179,8 @@ void MegaClient::copySyncConfig(SyncConfig& config, std::function<void(mega::Uni
                                    , BackupInfoSync::getSyncState(config, this)
                                    , config.getError()
                                    , extraData
-                                   , [this, config, completion](Error e, handle h) {
-        if (h == UNDEF && !e)
+                                   , [this, config, completion](Error e, handle backupId) mutable {
+        if (ISUNDEF(backupId) && !e)
         {
             e = API_EFAILED;
         }
@@ -13191,6 +13191,8 @@ void MegaClient::copySyncConfig(SyncConfig& config, std::function<void(mega::Uni
         }
         else
         {
+            config.setBackupId(backupId);
+
             UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
 
             completion(unifiedSync, unifiedSync->mConfig.getError(), e);
@@ -13224,8 +13226,8 @@ error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* loc
                                        , BackupInfoSync::getSyncState(config, this)
                                        , config.getError()
                                        , extraData
-                                       , [this, config, completion, notifyApp](Error e, handle h) mutable {
-            if (h == UNDEF && !e)
+                                       , [this, config, completion, notifyApp](Error e, handle backupId) mutable {
+            if (ISUNDEF(backupId) && !e)
             {
                 e = API_EFAILED;
             }
@@ -13238,7 +13240,7 @@ error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* loc
             {
 
                 // if we got this far, the syncConfig is kept (in db and in memory)
-                config.setBackupId(h);
+                config.setBackupId(backupId);
 
                 //TODO: remove BackupMonitor::updateOrRegisterSync "Register" code path and backupId control
                 UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);

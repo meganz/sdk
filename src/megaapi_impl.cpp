@@ -21671,7 +21671,6 @@ void MegaApiImpl::sendPendingRequests()
 
             client->copySyncConfig(syncConfig, [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
             {
-
                 if (!e && !unifiedSync)
                 {
                     e = API_ENOENT;
@@ -21684,7 +21683,6 @@ void MegaApiImpl::sendPendingRequests()
 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             });
-
 
             break;
         }
