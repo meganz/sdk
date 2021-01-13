@@ -290,10 +290,11 @@ fi
 
 # Drive Notifications
 AC_ARG_ENABLE(drive-notifications,
-    AS_HELP_STRING([--disable-drive-notifications], [disable drive notifications support]),
-    [], [enable_drive_notifications=yes])
-AS_IF([test "x$enable_drive_notifications" != "xno"], [
-    AC_DEFINE(USE_DRIVE_NOTIFICATIONS, 1, [Define to enable drive notifications])
+    AS_HELP_STRING([--enable-drive-notifications], [enable Drive Notifications support [default=no]]),
+    [enable_drive_notifications=${enableval}],
+    [enable_drive_notifications=no])
+AS_IF([test "x$enable_drive_notifications" = "xyes"], [
+    AC_DEFINE(USE_DRIVE_NOTIFICATIONS, 1, [Define to enable Drive Notifications])
 ])
 
 
