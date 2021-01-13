@@ -3414,7 +3414,7 @@ char *MegaApi::getBlockedPath()
     return pImpl->getBlockedPath();
 }
 
-MegaSync *MegaApi::getSyncByTag(MegaHandle backupId)
+MegaSync *MegaApi::getSyncByBackupId(MegaHandle backupId)
 {
     return pImpl->getSyncByBackupId(backupId);
 }

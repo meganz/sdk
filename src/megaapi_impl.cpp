@@ -1287,13 +1287,12 @@ bool MegaApiImpl::is_syncable(Sync *sync, const char *name, const LocalPath& loc
 
     MegaRegExp *regExp = NULL;
 #ifdef USE_PCRE
-    //TODO: Relaying on MegaSyncPrivate for this makes no sense. While resuming syncs, there might not be a MegaSyncPrivate
-    // in the first place at this point when doing first scan. Per sync inclusions should be included in Sync object
-    MegaSyncPrivate* megaSync = (MegaSyncPrivate *)sync->appData;
-    if (megaSync)
+    auto re = make_unique<MegaRegExp>(); // TODO: reconstructing this is far from optimal. reconsider placing it in SyncConfig (updated with mRegExps updates?)
+    for (const auto& v : sync->getConfig().getRegExps())
     {
-        regExp = megaSync->getRegExp();
+        re->addRegExp(v.c_str());
     }
+    regExp = re.get();
 #endif
 
     if (regExp || excludedPaths.size())

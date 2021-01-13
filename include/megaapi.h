@@ -3173,6 +3173,8 @@ class MegaRequest
          * - MegaApi::removeBackup - Returns the backupId
          * - MegaApi::updateBackup - Returns the backupId
          * - MegaApi::sendBackupHeartbeat - Returns the backupId
+         * - MegaApi::syncFolder - Returns the backupId asociated with the sync
+         * - MegaApi::copySyncDataToCache - Returns the backupId asociated with the sync
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3602,8 +3604,6 @@ class MegaRequest
          * - MegaApi::moveTransferBefore - Returns the tag of the transfer to move
          * - MegaApi::moveTransferBeforeByTag - Returns the tag of the transfer to move
          * - MegaApi::setBackup - Returns the tag asociated with the backup
-         * - MegaApi::syncFolder - Returns the tag asociated with the sync
-         * - MegaApi::copySyncDataToCache - Returns the tag asociated with the sync
          * - MegaApi::sendBackupHeartbeat - Returns the number of backup files downloaded
          *
          * @return Tag of a transfer related to the request
@@ -13672,7 +13672,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
          * - MegaRequest::getFlag - Returns true
-         * - MegaRequest::getParentHandle - Returns sync tag
+         * - MegaRequest::getParentHandle - Returns sync backupId
          * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
          *
          * @param megaFolder MEGA folder
@@ -13691,7 +13691,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParentHandle - Returns sync tag
+         * - MegaRequest::getParentHandle - Returns sync backupId
          * - MegaRequest::getFlag - Returns true
          * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
          *
@@ -13711,7 +13711,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParentHandle - Returns sync tag
+         * - MegaRequest::getParentHandle - Returns sync backupId
          * - MegaRequest::getFlag - Returns true
          * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
          *
@@ -13750,7 +13750,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_DISABLE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParentHandle - Returns sync tag
+         * - MegaRequest::getParentHandle - Returns sync backupId
          *
          * @param backupId Identifier of the Sync (unique per user, provided by API)
          * @param listener MegaRequestListener to track this request
@@ -13768,7 +13768,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_DISABLE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getParentHandle - Returns sync tag
+         * - MegaRequest::getParentHandle - Returns sync backupId
          *
          * @param sync Synchronization to disable
          * @param listener MegaRequestListener to track this request
@@ -13957,14 +13957,14 @@ class MegaApi
         std::string getLocalPath(MegaNode *node);
 
         /**
-         * @brief Get the synchronization identified with a tag
+         * @brief Get the synchronization identified with a backupId
          *
          * You take the ownership of the returned value
          *
          * @param backupId Identifier of the Sync (unique per user, provided by API)
-         * @return Synchronization identified by the tag
+         * @return Synchronization identified by the backupId
          */
-        MegaSync *getSyncByTag(MegaHandle backupId);
+        MegaSync *getSyncByBackupId(MegaHandle backupId);
 
         /**
          * @brief getSyncByNode Get the synchronization associated with a node

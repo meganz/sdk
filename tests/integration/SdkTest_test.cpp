@@ -5499,7 +5499,7 @@ std::unique_ptr<::mega::MegaSync> waitForSyncState(::mega::MegaApi* megaApi, han
     std::unique_ptr<MegaSync> sync;
     WaitFor([&megaApi, backupID, &sync, enabled, active, err]() -> bool
     {
-        sync.reset(megaApi->getSyncByTag(backupID));
+        sync.reset(megaApi->getSyncByBackupId(backupID));
         return (sync && sync->isEnabled() == enabled && sync->isActive() == active && sync->getError() == err);
     }, 30*1000);
     return sync;
@@ -5998,13 +5998,13 @@ TEST_F(SdkTest, SyncRemoteNode)
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
     // since the node was deleted, path is irrelevant
-    //sync.reset(megaApi[0]->getSyncByTag(tagID));
+    //sync.reset(megaApi[0]->getSyncByBackupId(tagID));
     //ASSERT_EQ(string(sync->getMegaFolder()), ("/" / basePath).u8string());
 
     // Remove a failing sync.
     LOG_verbose << "SyncRemoteNode :  Remove failed sync";
     ASSERT_EQ(MegaError::API_OK, synchronousRemoveSync(0, sync.get())) << "API Error removing the sync";
-    sync.reset(megaApi[0]->getSyncByTag(backupId));
+    sync.reset(megaApi[0]->getSyncByBackupId(backupId));
     ASSERT_EQ(nullptr, sync.get());
 
     // Wait for sync to be effectively removed.
@@ -6080,7 +6080,7 @@ TEST_F(SdkTest, SyncPersistence)
     trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
     ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for accout " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
-    sync.reset(megaApi[0]->getSyncByTag(backupId));
+    sync.reset(megaApi[0]->getSyncByBackupId(backupId));
     ASSERT_EQ(sync, nullptr);
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
