@@ -2,7 +2,7 @@
 
 set -e
 
-COMMIT=d91cdbd2dd2969889a1affce28c89b8c0f8bcdb7
+COMMIT=9c99b7964fabb16a022293ffbd2804f9b46551f6
 ARCHS="arm64 arm x64 x86"
 LIPO_COMMAND="lipo -create"
 LIBWEBRTC_A="libwebrtc.a"
@@ -43,10 +43,6 @@ done
 done
 
 popd # lib -> src
-
-pushd api
-patch < ../../../../../../patches/webrtc_jsep_h.patch
-popd # api -> src
 
 popd # src -> webrtc
 
