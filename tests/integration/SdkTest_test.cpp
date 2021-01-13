@@ -5681,7 +5681,6 @@ struct SyncListener : MegaListener
     {
         if (!b)
         {
-            assert(false);
             anyErrors = true;
         }
     }
