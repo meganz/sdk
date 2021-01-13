@@ -2484,7 +2484,7 @@ void Syncs::enableResumeableSyncs()
 
 void Syncs::resumeResumableSyncsOnStartup()
 {
-    if (mClient.loggedinfolderlink()) return;
+    if (mClient.loggedin() != FULLACCOUNT) return;
 
     bool firstSyncResumed = false;
 
