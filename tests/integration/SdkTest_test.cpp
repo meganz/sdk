@@ -5849,7 +5849,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
     };
 
-    auto disableSyncByTag = [this](handle backupId)
+    auto disableSyncByBackupId = [this](handle backupId)
     {
         RequestTracker syncTracker(megaApi[0].get());
         megaApi[0]->disableSync(backupId, &syncTracker);
@@ -5915,7 +5915,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     LOG_verbose << " SyncResumptionAfterFetchNodes : disabling sync by path";
     disableSync(sync2Path);
     LOG_verbose << " SyncResumptionAfterFetchNodes : disabling sync by tag";
-    disableSyncByTag(backupId4);
+    disableSyncByBackupId(backupId4);
     LOG_verbose << " SyncResumptionAfterFetchNodes : removing sync";
     removeSync(sync3Path);
 
