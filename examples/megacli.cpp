@@ -80,7 +80,7 @@ bool gVerboseMode = false;
 static string signupemail, signupname;
 
 // true by default, to register a new account v2 (false means account v1)
-bool signupV2;
+bool signupV2 = true;
 
 // signup code being confirmed
 static string signupcode;
