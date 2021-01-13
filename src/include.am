@@ -90,6 +90,15 @@ if USE_ROTATIVEPERFORMANCELOGGER
 src_libmega_la_SOURCES += src/rotativeperformancelogger.cpp
 endif
 
+if USE_DRIVE_NOTIFICATIONS
+src_libmega_la_SOURCES += src/drivenotify.cpp
+if WIN32
+src_libmega_la_SOURCES += src/win32/drivenotifywin.cpp
+else
+src_libmega_la_SOURCES += src/posix/drivenotifyposix.cpp
+endif
+endif
+
 # IOS specific
 if USE_IOS
 src_libmega_la_SOURCES += src/gfx/GfxProcCG.mm

@@ -296,6 +296,7 @@ AC_ARG_ENABLE(drive-notifications,
 AS_IF([test "x$enable_drive_notifications" = "xyes"], [
     AC_DEFINE(USE_DRIVE_NOTIFICATIONS, 1, [Define to enable Drive Notifications])
 ])
+AM_CONDITIONAL([USE_DRIVE_NOTIFICATIONS], [test "x$enable_drive_notifications" = "xyes"])
 
 
 # MEGA API
