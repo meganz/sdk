@@ -718,6 +718,8 @@ macx {
 # DriveNotify settings
 CONFIG(USE_DRIVE_NOTIFICATIONS) {
     DEFINES += USE_DRIVE_NOTIFICATIONS
+    SOURCES += src/drivenotify.cpp
+
     win32 {
         # Allegedly not supported by non-msvc compilers.
         HEADERS += include/mega/win32/drivenotifywin.h
@@ -727,7 +729,6 @@ CONFIG(USE_DRIVE_NOTIFICATIONS) {
     unix {
         HEADERS += include/mega/posix/drivenotifyposix.h
         SOURCES += src/posix/drivenotifyposix.cpp
+        LIBS += -ludev
     }
-
-    SOURCES += src/drivenotify.cpp
 }
