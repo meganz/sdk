@@ -3086,9 +3086,7 @@ void MegaClient::exec()
 #ifdef ENABLE_SYNC
         if (btheartbeat.armed())
         {
-#ifdef ENABLE_SYNC
             syncs.mHeartBeatMonitor->beat();
-#endif // ENABLE_SYNC
             btheartbeat.backoff(FREQUENCY_HEARTBEAT_DS);
         }
 #endif
@@ -13600,7 +13598,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
 
         // does this node already have a corresponding LocalNode under
         // a different name or elsewhere in the filesystem?
-        if (rit->second->localnode && rit->second->localnode != (LocalNode*)~0)
+        if (rit->second->localnode.get() && rit->second->localnode.get() != (LocalNode*)~0)
         {
             LOG_debug << "has a previous localnode: " << rit->second->localnode->name;
 
@@ -13667,7 +13665,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 {
                     bool download = true;
                     auto f = fsaccess->newfileaccess(false);
-                    if (rit->second->localnode != (LocalNode*)~0
+                    if (rit->second->localnode.get() != (LocalNode*)~0
                             && (f->fopen(localpath) || f->type == FOLDERNODE))
                     {
                         if (f->mIsSymLink && l->sync->movetolocaldebris(localpath))

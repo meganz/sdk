@@ -620,14 +620,28 @@ public:
     error isLocalPathSyncable(std::string newPath, int newSyncTag = 0, SyncError *syncError = nullptr);
 
     /**
-     * @brief add sync. Will fill syncError in case there is one.
-     * It will persist the sync configuration if everything goes fine.
-     * @param syncError filled with SyncError with the sync error that prevented the addition
-     * @param delayInitialScan delay the initial scan
-     * @return API_OK if added to active syncs. (regular) error otherwise.
+     * @brief check config. Will fill syncError in the SyncConfig in case there is one.
+     * Will fill syncWarning in the SyncConfig in case there is one.
+     * Does not persist the sync configuration.
+     * Does not add the syncConfig.
+     * Reference parameters are filled in while checking syncConfig, for the benefit of addSync() which calls it.
+     * @return And error code if there are problems serious enough with the syncconfig that it should not be added.
+     *         Otherwise, API_OK
      */
     error checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder, Node*& remotenode, bool& inshare, bool& isnetwork);
-    error addsync(SyncConfig& config, const char* debris, LocalPath* localdebris, bool delayInitialScan, UnifiedSync*& unifiedSync, bool notifyApp);
+
+    /**
+     * @brief add sync. Will fill syncError/syncWarning in the SyncConfig in case there are any.
+     * It will persist the sync configuration if its call to checkSyncConfig succeeds
+     * @param syncConfig the Config to attempt to add
+     * @param debris Name of the debris folder on this platform (perhaps we could just use the macro)
+     * @param localdebris Alternate debris folder path - not used at all to my knowledge
+     * @param delayInitialScan delay the initial scan
+     * @param unifiedSync If the syncConfig is added, this parameter wll be filled in with a pointer to the created UnifiedSync.
+     * @param notifyApp whether the syncupdate_stateconfig callback should be called at this stage or not
+     * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
+     */
+    error addsync(SyncConfig& syncConfig, const char* debris, LocalPath* localdebris, bool delayInitialScan, UnifiedSync*& unifiedSync, bool notifyApp);
 
 
     ////// sync config updating & persisting ////

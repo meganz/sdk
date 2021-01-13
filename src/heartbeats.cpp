@@ -294,6 +294,7 @@ string BackupInfoSync::getSyncExtraData(UnifiedSync&)
 {
     return string();
 }
+#endif
 
 ////////////// MegaBackupMonitor ////////////////
 BackupMonitor::BackupMonitor(MegaClient *client)
@@ -415,11 +416,13 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
                                hbs->mSending = false;
                           });
 
+#ifdef ENABLE_SYNC
         if (hbs->status() == HeartBeatSyncInfo::Status::UPTODATE && progress >= 100)
         {
             hbs->invalidateProgress(); // we invalidate progress, so as not to keep on reporting 100% progress after reached up to date
             // note: new transfer updates will modify the progress and make it valid again
         }
+#endif
 
         mClient->reqs.add(newCommand);
     }
@@ -435,7 +438,5 @@ void BackupMonitor::beat()
     });
 #endif
 }
-
-#endif
 
 }

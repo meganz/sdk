@@ -33,7 +33,6 @@
 #include "mega/heartbeats.h"
 
 namespace mega {
-
 HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, std::unique_ptr<string> cdata, bool checkAccess)
     : data(move(cdata))
 {
@@ -2941,7 +2940,6 @@ bool CommandPutUA::procresult(Result r)
             LOG_info << "Unshareable key successfully created";
             client->unshareablekey.swap(av);
         }
-
         client->app->putua_result(API_OK);
     }
 

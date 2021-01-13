@@ -672,7 +672,6 @@ struct StandardClient : public MegaApp
     string client_dbaccess_path;
     std::unique_ptr<HttpIO> httpio;
     std::unique_ptr<FileSystemAccess> fsaccess;
-    std::recursive_mutex clientMutex;
     MegaClient client;
     std::atomic<bool> clientthreadexit{false};
     bool fatalerror = false;
@@ -690,13 +689,12 @@ struct StandardClient : public MegaApp
 
     handle basefolderhandle = UNDEF;
 
-    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE, CATCHUP,
-                          COMPLETION };  // use COMPLETION when we use a completion function, rather than trying to match tags on callbacks
+    enum resultprocenum { PRELOGIN, LOGIN, FETCHNODES, PUTNODES, UNLINK, MOVENODE, CATCHUP };
 
     struct ResultProc
     {
-        StandardClient& client;
-        ResultProc(StandardClient& c) : client(c) {}
+        MegaClient& client;
+        ResultProc(MegaClient& c) : client(c) {}
 
         struct id_callback
         {
@@ -711,27 +709,22 @@ struct StandardClient : public MegaApp
 
         void prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h = UNDEF)
         {
-            if (rpe != COMPLETION)
-            {
-                lock_guard<recursive_mutex> g(mtx);
-                auto& entry = m[rpe];
-                entry.emplace_back(move(f), tag, h);
-            }
-
-            std::lock_guard<std::recursive_mutex> lg(client.clientMutex);
+            lock_guard<recursive_mutex> g(mtx);
+            auto& entry = m[rpe];
+            entry.emplace_back(move(f), tag, h);
 
             assert(tag > 0);
-            int oldtag = client.client.reqtag;
-            client.client.reqtag = tag;
+            int oldtag = client.reqtag;
+            client.reqtag = tag;
             requestfunc();
-            client.client.reqtag = oldtag;
+            client.reqtag = oldtag;
 
-            client.client.waiter->notify();
+            client.waiter->notify();
         }
 
         void processresult(resultprocenum rpe, error e, handle h = UNDEF)
         {
-            int tag = client.client.restag;
+            int tag = client.restag;
             if (tag == 0 && rpe != CATCHUP)
             {
                 //out() << "received notification of SDK initiated operation " << rpe << " tag " << tag << endl; // too many of those to output
@@ -816,7 +809,7 @@ struct StandardClient : public MegaApp
                  THREADS_PER_MEGACLIENT)
         , clientname(name)
         , fsBasePath(basepath / fs::u8path(name))
-        , resultproc(*this)
+        , resultproc(client)
         , clientthread([this]() { threadloop(); })
     {
         client.clientname = clientname + " ";
@@ -902,19 +895,7 @@ struct StandardClient : public MegaApp
     {
         while (!clientthreadexit)
         {
-            int r;
-            {
-                std::lock_guard<std::recursive_mutex> lg(clientMutex);
-                r = client.preparewait();
-            }
-
-            if (!r)
-            {
-                r |= client.dowait();
-            }
-
-            std::lock_guard<std::recursive_mutex> lg(clientMutex);
-            r |= client.checkevents();
+            int r = client.wait();
 
             {
                 std::lock_guard<mutex> g(functionDoneMutex);
@@ -1190,7 +1171,12 @@ struct StandardClient : public MegaApp
     void catchup(promise<bool>& pb)
     {
         resultproc.prepresult(CATCHUP, ++next_request_tag,
-            [&](){ client.catchup(); },
+            [&](){
+                auto request_sent = thread_do([](StandardClient& sc, promise<bool>& pb) { sc.client.catchup(); pb.set_value(true); });
+                if (!waitonresults(&request_sent)) {
+                    out() << "catchup not sent" << endl;
+                }
+            },
             [&pb](error e) {
                 if (e)
                 {
@@ -4745,7 +4731,7 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
 
     for (int syncType = TwoWaySyncSymmetryCase::type_numTypes; syncType--; )
     {
-        if (syncType != TwoWaySyncSymmetryCase::type_backupSync) continue;
+        if (syncType == TwoWaySyncSymmetryCase::type_backupSync) continue;
 
         for (int selfChange = 0; selfChange < 2; ++selfChange)
         {
@@ -4765,7 +4751,7 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
 
                         for (int isExternal = 0; isExternal < 2; ++isExternal)
                         {
-                            if (!isExternal) continue;
+                            //if (!isExternal) continue;
 
                             if (isExternal && syncType != TwoWaySyncSymmetryCase::type_backupSync)
                             {
@@ -4847,6 +4833,7 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
 
     out() << "Letting all " << cases.size() << " Two-way syncs run" << endl;
     waitonsyncs(std::chrono::seconds(10), &clientA1Steady, &clientA1Resume);
+
     CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2);
     waitonsyncs(std::chrono::seconds(10), &clientA1Steady, &clientA1Resume);
 
