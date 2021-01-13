@@ -976,6 +976,9 @@ void Sync::cachenodes()
 
 void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp)
 {
+    getConfig().setError(newSyncError);
+    getConfig().setEnabled(newEnableFlag);
+
     if (newstate != state)
     {
         auto oldstate = state;
@@ -993,8 +996,6 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
         }
     }
 
-    getConfig().setError(newSyncError);
-    getConfig().setEnabled(newEnableFlag);
     if (newstate != SYNC_CANCELED)
     {
         mUnifiedSync.changedConfigState(notifyApp);

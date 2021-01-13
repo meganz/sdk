@@ -5676,12 +5676,29 @@ struct SyncListener : MegaListener
         return stateMap[sync->getBackupId()];
     }
 
+    std::vector<std::string> mErrors;
+
     bool anyErrors = false;
-    void check(bool b)
+
+    bool hasAnyErrors()
+    {
+        for (auto &s: mErrors)
+        {
+            out() << logTime() << "SyncListener error: " << s << endl;
+        }
+        return anyErrors;
+    }
+
+    void check(bool b, std::string e = std::string())
     {
         if (!b)
         {
             anyErrors = true;
+            if (!e.empty())
+            {
+                mErrors.push_back(e);
+                out() << logTime() << "SyncListener added error: " << e << endl;
+            }
         }
     }
 
@@ -5705,6 +5722,7 @@ struct SyncListener : MegaListener
     void onSyncAdded(MegaApi* api, MegaSync* sync, int additionState) override
     {
         out() << logTime() << "onSyncAdded " << sync->getBackupId() << endl;
+        check(sync->getBackupId() != UNDEF, "sync added with undef backup Id");
 
         check(state(sync) == nonexistent);
         state(sync) = added;
@@ -5713,6 +5731,8 @@ struct SyncListener : MegaListener
     void onSyncDisabled(MegaApi* api, MegaSync* sync) override
     {
         out() << logTime() << "onSyncDisabled " << sync->getBackupId() << endl;
+        check(!sync->isEnabled(), "sync enabled at onSyncDisabled");
+        check(!sync->isActive(), "sync active at onSyncDisabled");
         check(state(sync) == enabled || state(sync) == added);
         state(sync) = disabled;
     }
@@ -5721,6 +5741,8 @@ struct SyncListener : MegaListener
     void onSyncEnabled(MegaApi* api, MegaSync* sync) override
     {
         out() << logTime() << "onSyncEnabled " << sync->getBackupId() << endl;
+        check(sync->isEnabled(), "sync disabled at onSyncEnabled");
+        check(sync->isActive(), "sync not active at onSyncEnabled");
         check(state(sync) == disabled || state(sync) == added);
         state(sync) = enabled;
     }
@@ -5735,6 +5757,8 @@ struct SyncListener : MegaListener
     void onSyncStateChanged(MegaApi* api, MegaSync* sync) override
     {
         out() << logTime() << "onSyncStateChanged " << sync->getBackupId() << endl;
+
+        check(sync->getBackupId() != UNDEF, "onSyncStateChanged with undef backup Id");
 
         // MegaApi doco says: "Notice that adding a sync will not cause onSyncStateChanged to be called."
         // And also: "for changes that imply other callbacks, expect that the SDK
@@ -5976,8 +6000,8 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     // wait for the sync removals to actually take place
     std::this_thread::sleep_for(std::chrono::seconds{5});
 
-    ASSERT_FALSE(syncListener0.anyErrors);
-    ASSERT_FALSE(syncListener1.anyErrors);
+    ASSERT_FALSE(syncListener0.hasAnyErrors());
+    ASSERT_FALSE(syncListener1.hasAnyErrors());
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
 }
