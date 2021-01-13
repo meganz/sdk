@@ -5656,10 +5656,127 @@ TEST_F(SdkTest, SyncBasicOperations)
 }
 
 
+
+struct SyncListener : MegaListener
+{
+    // make sure callbacks are consistent - added() first, nothing after deleted(), etc.
+
+    // map by tag for now, should be backupId when that is available
+
+    enum syncstate_t { nonexistent, added, enabled, disabled, deleted};
+
+    std::map<int, syncstate_t> stateMap;
+
+    syncstate_t& state(MegaSync* sync)
+    {
+        if (stateMap.find(sync->getBackupId()) == stateMap.end())
+        {
+            stateMap[sync->getBackupId()] = nonexistent;
+        }
+        return stateMap[sync->getBackupId()];
+    }
+
+    bool anyErrors = false;
+    void check(bool b)
+    {
+        if (!b)
+        {
+            assert(false);
+            anyErrors = true;
+        }
+    }
+
+    void clear()
+    {
+        // session was logged out (locally)
+        stateMap.clear();
+    }
+
+    void onSyncFileStateChanged(MegaApi* api, MegaSync* sync, std::string* localPath, int newState) override
+    {
+        // probably too frequent to output
+        //out() << logTime() << "onSyncFileStateChanged " << sync << newState << endl;
+    }
+
+    void onSyncEvent(MegaApi* api, MegaSync* sync, MegaSyncEvent* event) override
+    {
+        out() << logTime() << "onSyncEvent " << sync->getBackupId() << endl;
+    }
+
+    void onSyncAdded(MegaApi* api, MegaSync* sync, int additionState) override
+    {
+        out() << logTime() << "onSyncAdded " << sync->getBackupId() << endl;
+
+        check(state(sync) == nonexistent);
+        state(sync) = added;
+    }
+
+    void onSyncDisabled(MegaApi* api, MegaSync* sync) override
+    {
+        out() << logTime() << "onSyncDisabled " << sync->getBackupId() << endl;
+        check(state(sync) == enabled || state(sync) == added);
+        state(sync) = disabled;
+    }
+
+    // "onSyncStarted" would be more accurate?
+    void onSyncEnabled(MegaApi* api, MegaSync* sync) override
+    {
+        out() << logTime() << "onSyncEnabled " << sync->getBackupId() << endl;
+        check(state(sync) == disabled || state(sync) == added);
+        state(sync) = enabled;
+    }
+
+    void onSyncDeleted(MegaApi* api, MegaSync* sync) override
+    {
+        out() << logTime() << "onSyncDeleted " << sync->getBackupId() << endl;
+        check(state(sync) == disabled || state(sync) == added || state(sync) == enabled);
+        state(sync) = nonexistent;
+    }
+
+    void onSyncStateChanged(MegaApi* api, MegaSync* sync) override
+    {
+        out() << logTime() << "onSyncStateChanged " << sync->getBackupId() << endl;
+
+        // MegaApi doco says: "Notice that adding a sync will not cause onSyncStateChanged to be called."
+        // And also: "for changes that imply other callbacks, expect that the SDK
+        // will call onSyncStateChanged first, so that you can update your model only using this one."
+        check(state(sync) != nonexistent);
+    }
+
+    void onGlobalSyncStateChanged(MegaApi* api) override
+    {
+        out() << logTime() << "onGlobalSyncStateChanged " << endl;
+    }
+};
+
+struct MegaListenerDeregisterer
+{
+    // register the listener on constructions
+    // deregister on destruction (ie, whenever we exit the function - we may exit early if a test fails
+
+    MegaApi* api = nullptr;
+    MegaListener* listener;
+
+
+    MegaListenerDeregisterer(MegaApi* a, SyncListener* l)
+        : api(a), listener(l)
+    {
+        api->addListener(listener);
+    }
+    ~MegaListenerDeregisterer()
+    {
+        api->removeListener(listener);
+    }
+};
+
+
 TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 {
     LOG_info << "___TEST SyncResumptionAfterFetchNodes___";
     getAccountsForTest(2);
+
+    SyncListener syncListener0, syncListener1;
+    MegaListenerDeregisterer mld1(megaApi[0].get(), &syncListener0), mld2(megaApi[1].get(), &syncListener1);
 
     // This test has several issues:
     // 1. Remote nodes may not be committed to the sctable database in time for fetchnodes which
@@ -5774,9 +5891,10 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     };
 
 
-    auto reloginViaSession = [this, &session]()
+    auto reloginViaSession = [this, &session, &syncListener0]()
     {
-        locallogout();
+        locallogout();  // only logs out 0
+        syncListener0.clear();
 
         //loginBySessionId(0, session);
         auto tracker = asyncRequestFastLogin(0, session.c_str());
@@ -5858,6 +5976,9 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     // wait for the sync removals to actually take place
     std::this_thread::sleep_for(std::chrono::seconds{5});
+
+    ASSERT_FALSE(syncListener0.anyErrors);
+    ASSERT_FALSE(syncListener1.anyErrors);
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
 }
@@ -6442,20 +6563,20 @@ TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFo
     }
 
     // wait for login to complete:
-    for (unsigned index = 0; index < howMany; ++index)
+    for (int index = 0; index < howMany; ++index)
     {
         ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to fetchnodes for accout " << index;
     }
 
     // perform parallel fetchnodes for each
-    for (unsigned index = 0; index < howMany; ++index)
+    for (int index = 0; index < howMany; ++index)
     {
         out() << logTime() << "Fetching nodes for account " << index << endl;
         trackers[index] = asyncRequestFetchnodes(exportedFolderApis[index].get());
     }
 
     // wait for fetchnodes to complete:
-    for (unsigned index = 0; index < howMany; ++index)
+    for (int index = 0; index < howMany; ++index)
     {
         ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to fetchnodes for accout " << index;
     }
