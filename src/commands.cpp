@@ -3617,10 +3617,10 @@ bool CommandGetUserData::procresult(Result r)
     string versionMyBackupsFolder;
     string backupNames;
     string versionBackupNames;
-    string xBackupConfigName;
-    string xBackupConfigNameVersion;
-    string xBackupConfigKey;
-    string xBackupConfigKeyVersion;
+    string jsonSyncConfigName;
+    string jsonSyncConfigNameVersion;
+    string jsonSyncConfigKey;
+    string jsonSyncConfigKeyVersion;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -3753,12 +3753,12 @@ bool CommandGetUserData::procresult(Result r)
             parseUserAttribute(backupNames, versionBackupNames);
 			break;
 			
-        case MAKENAMEID6('^', '~', 'x', 'b', 'c', 'n'):
-            parseUserAttribute(xBackupConfigName, xBackupConfigNameVersion);
+        case MAKENAMEID6('^', '~', 'j', 's', 'c', 'n'):
+            parseUserAttribute(jsonSyncConfigName, jsonSyncConfigNameVersion);
             break;
 
-        case MAKENAMEID6('^', '~', 'x', 'b', 'c', 'k'):
-            parseUserAttribute(xBackupConfigKey, xBackupConfigKeyVersion);
+        case MAKENAMEID6('^', '~', 'j', 's', 'c', 'k'):
+            parseUserAttribute(jsonSyncConfigKey, jsonSyncConfigKeyVersion);
             break;
 
         case 'b':   // business account's info
@@ -4152,8 +4152,8 @@ bool CommandGetUserData::procresult(Result r)
                     }
                 }
 				
-                // Has a name been defined for this user's backup configuration databases?
-                if (xBackupConfigName.empty())
+                // Has a name been defined for this user's sync configuration databases?
+                if (jsonSyncConfigName.empty())
                 {
                     using NameStr = Base64Str<SymmCipher::KEYLENGTH>;
 
@@ -4165,18 +4165,18 @@ bool CommandGetUserData::procresult(Result r)
                     NameStr name(bytes);
 
                     // Persist the new attribute.
-                    client->putua(ATTR_XBACKUP_CONFIG_NAME, name.bytes(), name.size(), 0);
+                    client->putua(ATTR_JSON_SYNC_CONFIG_NAME, name.bytes(), name.size(), 0);
                 }
                 else
                 {
                     // Let the rest of the SDK know the attribute's changed.
-                    changes += u->updateattr(ATTR_XBACKUP_CONFIG_NAME,
-                                             &xBackupConfigName,
-                                             &xBackupConfigNameVersion);
+                    changes += u->updateattr(ATTR_JSON_SYNC_CONFIG_NAME,
+                                             &jsonSyncConfigName,
+                                             &jsonSyncConfigNameVersion);
                 }
 
-                // Has a key been defined to protect this user's backup configuration databases?
-                if (xBackupConfigKey.empty())
+                // Has a key been defined to protect this user's sync configuration databases?
+                if (jsonSyncConfigKey.empty())
                 {
                     using KeyStr = Base64Str<SymmCipher::KEYLENGTH * 2>;
 
@@ -4188,14 +4188,14 @@ bool CommandGetUserData::procresult(Result r)
                     KeyStr key(bytes);
 
                     // Persist the new attribute.
-                    client->putua(ATTR_XBACKUP_CONFIG_KEY, key.bytes(), key.size(), 0);
+                    client->putua(ATTR_JSON_SYNC_CONFIG_KEY, key.bytes(), key.size(), 0);
                 }
                 else
                 {
                     // Tell the rest of the SDK the attribute's changed.
-                    changes += u->updateattr(ATTR_XBACKUP_CONFIG_KEY,
-                                             &xBackupConfigKey,
-                                             &xBackupConfigKeyVersion);
+                    changes += u->updateattr(ATTR_JSON_SYNC_CONFIG_KEY,
+                                             &jsonSyncConfigKey,
+                                             &jsonSyncConfigKeyVersion);
                 }
 
                 if (changes > 0)

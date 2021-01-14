@@ -1421,7 +1421,7 @@ struct StandardClient : public MegaApp
         // Remove drive path from source path.
         sourcePath.erase(0, drivePath.size());
 
-        XBackupConfig config;
+        JSONSyncConfig config;
 
         // Populate configuration.
         config.drivePath =

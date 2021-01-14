@@ -584,8 +584,8 @@ typedef enum {
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
     ATTR_MY_BACKUPS_FOLDER = 31,            // private - byte array - non-versioned
     ATTR_BACKUP_NAMES = 32,                 // private - byte array - versioned
-    ATTR_XBACKUP_CONFIG_NAME = 33,          // private - unencrypted - char array - versioned
-    ATTR_XBACKUP_CONFIG_KEY = 34            // private - unencrypted - char array - versioned
+    ATTR_JSON_SYNC_CONFIG_NAME = 33,        // private - unencrypted - char array - versioned
+    ATTR_JSON_SYNC_CONFIG_KEY = 34          // private - unencrypted - char array - versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;

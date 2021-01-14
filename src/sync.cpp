@@ -2251,7 +2251,7 @@ Syncs::Syncs(MegaClient& mc)
     mHeartBeatMonitor.reset(new BackupMonitor(&mClient));
 }
 
-pair<error, SyncError> Syncs::backupAdd(const XBackupConfig& config,
+pair<error, SyncError> Syncs::backupAdd(const JSONSyncConfig& config,
                                         const bool delayInitialScan)
 {
     using std::make_pair;
@@ -2398,7 +2398,7 @@ error Syncs::backupRemove(const LocalPath& drivePath)
 }
 
 pair<error, SyncError> Syncs::backupRestore(const LocalPath& drivePath,
-                                            const XBackupConfigMap& configs)
+                                            const JSONSyncConfigMap& configs)
 {
     using std::make_pair;
 
@@ -2499,7 +2499,7 @@ pair<error, SyncError> Syncs::backupRestore(const LocalPath& drivePath)
     return make_pair(API_EREAD, NO_SYNC_ERROR);
 }
 
-XBackupConfigStore* Syncs::backupConfigStore()
+JSONSyncConfigStore* Syncs::backupConfigStore()
 {
     // Has a store already been created?
     if (mBackupConfigStore)
@@ -2512,7 +2512,7 @@ XBackupConfigStore* Syncs::backupConfigStore()
     if (auto* ioContext = syncConfigIOContext())
     {
         // Create the store.
-        mBackupConfigStore.reset(new XBackupConfigStore(*ioContext));
+        mBackupConfigStore.reset(new JSONSyncConfigStore(*ioContext));
     }
 
     return mBackupConfigStore.get();
@@ -2579,7 +2579,7 @@ error Syncs::backupConfigStoreFlush()
     return API_EWRITE;
 }
 
-XBackupConfigDB* Syncs::syncConfigDB()
+JSONSyncConfigDB* Syncs::syncConfigDB()
 {
     // Have we already created the database?
     if (mSyncConfigDB)
@@ -2606,7 +2606,7 @@ XBackupConfigDB* Syncs::syncConfigDB()
     auto dbPath = mClient.dbaccess->rootPath();
 
     // Create the database.
-    mSyncConfigDB.reset(new XBackupConfigDB(dbPath));
+    mSyncConfigDB.reset(new JSONSyncConfigDB(dbPath));
 
     return mSyncConfigDB.get();
 }
@@ -2672,7 +2672,7 @@ error Syncs::syncConfigDBLoad()
     return result;
 }
 
-XBackupConfigIOContext* Syncs::syncConfigIOContext()
+JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
 {
     // Has a suitable IO context already been created?
     if (mSyncConfigIOContext)
@@ -2704,7 +2704,7 @@ XBackupConfigIOContext* Syncs::syncConfigIOContext()
           }
 
           // Attribute length valid?
-          if (name == ATTR_XBACKUP_CONFIG_KEY)
+          if (name == ATTR_JSON_SYNC_CONFIG_KEY)
           {
               using KeyStr =
                 Base64Str<SymmCipher::KEYLENGTH * 2>;
@@ -2729,8 +2729,8 @@ XBackupConfigIOContext* Syncs::syncConfigIOContext()
       };
 
     // Get attributes.
-    const auto* configKey = get(ATTR_XBACKUP_CONFIG_KEY);
-    const auto* configName = get(ATTR_XBACKUP_CONFIG_NAME);
+    const auto* configKey = get(ATTR_JSON_SYNC_CONFIG_KEY);
+    const auto* configName = get(ATTR_JSON_SYNC_CONFIG_NAME);
 
     // Could we retrieve the attributes?
     if (!(configKey && configName))
@@ -2741,7 +2741,7 @@ XBackupConfigIOContext* Syncs::syncConfigIOContext()
 
     // Create the IO context.
     mSyncConfigIOContext.reset(
-      new XBackupConfigIOContext(mClient.key,
+      new JSONSyncConfigIOContext(mClient.key,
                                  *mClient.fsaccess,
                                  *configKey,
                                  *configName,
@@ -3190,7 +3190,7 @@ void Syncs::resumeResumableSyncsOnStartup()
     }
 }
 
-XBackupConfig::XBackupConfig()
+JSONSyncConfig::JSONSyncConfig()
   : drivePath()
   , sourcePath()
   , targetPath()
@@ -3205,14 +3205,14 @@ XBackupConfig::XBackupConfig()
 {
 }
 
-bool XBackupConfig::valid() const
+bool JSONSyncConfig::valid() const
 {
     return !(sourcePath.empty()
              || targetPath.empty()
              || targetHandle == UNDEF);
 }
 
-bool XBackupConfig::operator==(const XBackupConfig& rhs) const
+bool JSONSyncConfig::operator==(const JSONSyncConfig& rhs) const
 {
     return drivePath == rhs.drivePath
            && sourcePath == rhs.sourcePath
@@ -3227,14 +3227,14 @@ bool XBackupConfig::operator==(const XBackupConfig& rhs) const
            && enabled == rhs.enabled;
 }
 
-bool XBackupConfig::operator!=(const XBackupConfig& rhs) const
+bool JSONSyncConfig::operator!=(const JSONSyncConfig& rhs) const
 {
     return !(*this == rhs);
 }
 
-XBackupConfig translate(const MegaClient& client, const SyncConfig &config)
+JSONSyncConfig translate(const MegaClient& client, const SyncConfig &config)
 {
-    XBackupConfig result;
+    JSONSyncConfig result;
 
     result.enabled = config.getEnabled();
     result.fingerprint = config.getLocalFingerprint();
@@ -3268,7 +3268,7 @@ XBackupConfig translate(const MegaClient& client, const SyncConfig &config)
     return result;
 }
 
-SyncConfig translate(const MegaClient& client, const XBackupConfig& config)
+SyncConfig translate(const MegaClient& client, const JSONSyncConfig& config)
 {
     LocalPath temp;
     string drivePath = config.drivePath.toPath(*client.fsaccess);
@@ -3310,11 +3310,11 @@ SyncConfig translate(const MegaClient& client, const XBackupConfig& config)
     return result;
 }
 
-const unsigned int XBackupConfigDB::NUM_SLOTS = 2;
+const unsigned int JSONSyncConfigDB::NUM_SLOTS = 2;
 
-XBackupConfigDB::XBackupConfigDB(const LocalPath& dbPath,
-                                 const LocalPath& drivePath,
-                                 XBackupConfigDBObserver& observer)
+JSONSyncConfigDB::JSONSyncConfigDB(const LocalPath& dbPath,
+                                   const LocalPath& drivePath,
+                                   JSONSyncConfigDBObserver& observer)
   : mDBPath(dbPath)
   , mDrivePath(drivePath)
   , mObserver(&observer)
@@ -3325,7 +3325,7 @@ XBackupConfigDB::XBackupConfigDB(const LocalPath& dbPath,
 {
 }
 
-XBackupConfigDB::XBackupConfigDB(const LocalPath& dbPath)
+JSONSyncConfigDB::JSONSyncConfigDB(const LocalPath& dbPath)
   : mDBPath(dbPath)
   , mDrivePath()
   , mObserver(nullptr)
@@ -3336,45 +3336,45 @@ XBackupConfigDB::XBackupConfigDB(const LocalPath& dbPath)
 {
 }
 
-XBackupConfigDB::~XBackupConfigDB()
+JSONSyncConfigDB::~JSONSyncConfigDB()
 {
     // Drop the configs.
     clear(false);
 }
 
-const XBackupConfig* XBackupConfigDB::add(const XBackupConfig& config)
+const JSONSyncConfig* JSONSyncConfigDB::add(const JSONSyncConfig& config)
 {
     // Add (or update) the config and flush.
     return add(config, true);
 }
 
-void XBackupConfigDB::clear()
+void JSONSyncConfigDB::clear()
 {
     // Drop the configs and flush.
     clear(true);
 }
 
-const XBackupConfigMap& XBackupConfigDB::configs() const
+const JSONSyncConfigMap& JSONSyncConfigDB::configs() const
 {
     return mTagToConfig;
 }
 
-bool XBackupConfigDB::dirty() const
+bool JSONSyncConfigDB::dirty() const
 {
     return mDirty;
 }
 
-const LocalPath& XBackupConfigDB::dbPath() const
+const LocalPath& JSONSyncConfigDB::dbPath() const
 {
     return mDBPath;
 }
 
-const LocalPath& XBackupConfigDB::drivePath() const
+const LocalPath& JSONSyncConfigDB::drivePath() const
 {
     return mDrivePath;
 }
 
-const XBackupConfig* XBackupConfigDB::get(const int tag) const
+const JSONSyncConfig* JSONSyncConfigDB::get(const int tag) const
 {
     auto it = mTagToConfig.find(tag);
 
@@ -3386,7 +3386,7 @@ const XBackupConfig* XBackupConfigDB::get(const int tag) const
     return nullptr;
 }
 
-const XBackupConfig* XBackupConfigDB::get(const handle targetHandle) const
+const JSONSyncConfig* JSONSyncConfigDB::get(const handle targetHandle) const
 {
     auto it = mTargetToConfig.find(targetHandle);
 
@@ -3398,7 +3398,7 @@ const XBackupConfig* XBackupConfigDB::get(const handle targetHandle) const
     return nullptr;
 }
 
-error XBackupConfigDB::read(XBackupConfigIOContext& ioContext)
+error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext)
 {
     vector<unsigned int> slots;
 
@@ -3430,13 +3430,13 @@ error XBackupConfigDB::read(XBackupConfigIOContext& ioContext)
     return API_EREAD;
 }
 
-error XBackupConfigDB::remove(const int tag)
+error JSONSyncConfigDB::remove(const int tag)
 {
     // Remove the config, if present and flush.
     return remove(tag, true);
 }
 
-error XBackupConfigDB::remove(const handle targetHandle)
+error JSONSyncConfigDB::remove(const handle targetHandle)
 {
     // Any config present with the given target handle?
     if (const auto* config = get(targetHandle))
@@ -3449,7 +3449,7 @@ error XBackupConfigDB::remove(const handle targetHandle)
     return API_ENOENT;
 }
 
-error XBackupConfigDB::write(XBackupConfigIOContext& ioContext)
+error JSONSyncConfigDB::write(JSONSyncConfigIOContext& ioContext)
 {
     JSONWriter writer;
 
@@ -3472,8 +3472,8 @@ error XBackupConfigDB::write(XBackupConfigIOContext& ioContext)
     return API_OK;
 }
 
-const XBackupConfig* XBackupConfigDB::add(const XBackupConfig& config,
-                                          const bool flush)
+const JSONSyncConfig* JSONSyncConfigDB::add(const JSONSyncConfig& config,
+                                            const bool flush)
 {
     auto it = mTagToConfig.find(config.tag);
 
@@ -3554,7 +3554,7 @@ const XBackupConfig* XBackupConfigDB::add(const XBackupConfig& config,
     return &result.first->second;
 }
 
-void XBackupConfigDB::clear(const bool flush)
+void JSONSyncConfigDB::clear(const bool flush)
 {
     // Are there any configs to remove?
     if (mTagToConfig.empty())
@@ -3589,8 +3589,8 @@ void XBackupConfigDB::clear(const bool flush)
     mTagToConfig.clear();
 }
 
-error XBackupConfigDB::read(XBackupConfigIOContext& ioContext,
-                            const unsigned int slot)
+error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext,
+                             const unsigned int slot)
 {
     // Try and read the database from the specified slot.
     string data;
@@ -3602,7 +3602,7 @@ error XBackupConfigDB::read(XBackupConfigIOContext& ioContext,
     }
 
     // Try and deserialize the configs contained in the database.
-    XBackupConfigMap configs;
+    JSONSyncConfigMap configs;
     JSON reader(data);
 
     if (!ioContext.deserialize(configs, reader))
@@ -3638,7 +3638,7 @@ error XBackupConfigDB::read(XBackupConfigIOContext& ioContext,
     return API_OK;
 }
 
-error XBackupConfigDB::remove(const int tag, const bool flush)
+error JSONSyncConfigDB::remove(const int tag, const bool flush)
 {
     auto it = mTagToConfig.find(tag);
 
@@ -3675,11 +3675,11 @@ error XBackupConfigDB::remove(const int tag, const bool flush)
     return API_OK;
 }
 
-XBackupConfigIOContext::XBackupConfigIOContext(SymmCipher& cipher,
-                                               FileSystemAccess& fsAccess,
-                                               const string& key,
-                                               const string& name,
-                                               PrnGen& rng)
+JSONSyncConfigIOContext::JSONSyncConfigIOContext(SymmCipher& cipher,
+                                                 FileSystemAccess& fsAccess,
+                                                 const string& key,
+                                                 const string& name,
+                                                 PrnGen& rng)
   : mCipher()
   , mFsAccess(fsAccess)
   , mName(LocalPath::fromPath(name, mFsAccess))
@@ -3707,12 +3707,12 @@ XBackupConfigIOContext::XBackupConfigIOContext(SymmCipher& cipher,
     mCipher.setkey(ke, SymmCipher::KEYLENGTH);
 }
 
-XBackupConfigIOContext::~XBackupConfigIOContext()
+JSONSyncConfigIOContext::~JSONSyncConfigIOContext()
 {
 }
 
-bool XBackupConfigIOContext::deserialize(XBackupConfigMap& configs,
-                                         JSON& reader) const
+bool JSONSyncConfigIOContext::deserialize(JSONSyncConfigMap& configs,
+                                          JSON& reader) const
 {
     if (!reader.enterarray())
     {
@@ -3722,7 +3722,7 @@ bool XBackupConfigIOContext::deserialize(XBackupConfigMap& configs,
     // Deserialize the configs.
     while (reader.enterobject())
     {
-        XBackupConfig config;
+        JSONSyncConfig config;
 
         if (!deserialize(config, reader))
         {
@@ -3738,8 +3738,8 @@ bool XBackupConfigIOContext::deserialize(XBackupConfigMap& configs,
     return reader.leavearray();
 }
 
-error XBackupConfigIOContext::get(const LocalPath& dbPath,
-                                  vector<unsigned int>& slots)
+error JSONSyncConfigIOContext::get(const LocalPath& dbPath,
+                                   vector<unsigned int>& slots)
 {
     using std::isdigit;
     using std::sort;
@@ -3819,9 +3819,9 @@ error XBackupConfigIOContext::get(const LocalPath& dbPath,
     return API_OK;
 }
 
-error XBackupConfigIOContext::read(const LocalPath& dbPath,
-                                   string& data,
-                                   const unsigned int slot)
+error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
+                                    string& data,
+                                    const unsigned int slot)
 {
     using std::to_string;
 
@@ -3859,8 +3859,8 @@ error XBackupConfigIOContext::read(const LocalPath& dbPath,
     return API_OK;
 }
 
-void XBackupConfigIOContext::serialize(const XBackupConfigMap& configs,
-                                       JSONWriter& writer) const
+void JSONSyncConfigIOContext::serialize(const JSONSyncConfigMap& configs,
+                                        JSONWriter& writer) const
 {
     writer.beginarray();
 
@@ -3872,9 +3872,9 @@ void XBackupConfigIOContext::serialize(const XBackupConfigMap& configs,
     writer.endarray();
 }
 
-error XBackupConfigIOContext::write(const LocalPath& dbPath,
-                                    const string& data,
-                                    const unsigned int slot)
+error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
+                                     const string& data,
+                                     const unsigned int slot)
 {
     using std::to_string;
 
@@ -3922,7 +3922,7 @@ error XBackupConfigIOContext::write(const LocalPath& dbPath,
     return API_OK;
 }
 
-bool XBackupConfigIOContext::decrypt(const string& in, string& out)
+bool JSONSyncConfigIOContext::decrypt(const string& in, string& out)
 {
     // Handy constants.
     const size_t IV_LENGTH       = SymmCipher::KEYLENGTH;
@@ -3959,7 +3959,7 @@ bool XBackupConfigIOContext::decrypt(const string& in, string& out)
                                             &out);
 }
 
-bool XBackupConfigIOContext::deserialize(XBackupConfig& config, JSON& reader) const
+bool JSONSyncConfigIOContext::deserialize(JSONSyncConfig& config, JSON& reader) const
 {
     const auto TYPE_ENABLED       = MAKENAMEID2('e', 'n');
     const auto TYPE_FINGERPRINT   = MAKENAMEID2('f', 'p');
@@ -4042,7 +4042,7 @@ bool XBackupConfigIOContext::deserialize(XBackupConfig& config, JSON& reader) co
     }
 }
 
-string XBackupConfigIOContext::encrypt(const string& data)
+string JSONSyncConfigIOContext::encrypt(const string& data)
 {
     byte iv[SymmCipher::KEYLENGTH];
 
@@ -4070,8 +4070,8 @@ string XBackupConfigIOContext::encrypt(const string& data)
     return d;
 }
 
-void XBackupConfigIOContext::serialize(const XBackupConfig& config,
-                                       JSONWriter& writer) const
+void JSONSyncConfigIOContext::serialize(const JSONSyncConfig& config,
+                                        JSONWriter& writer) const
 {
     using std::to_string;
 
@@ -4097,16 +4097,16 @@ void XBackupConfigIOContext::serialize(const XBackupConfig& config,
     writer.endobject();
 }
 
-XBackupConfigDBObserver::XBackupConfigDBObserver()
+JSONSyncConfigDBObserver::JSONSyncConfigDBObserver()
 {
 }
 
-XBackupConfigDBObserver::~XBackupConfigDBObserver()
+JSONSyncConfigDBObserver::~JSONSyncConfigDBObserver()
 {
 }
 
-XBackupConfigStore::XBackupConfigStore(XBackupConfigIOContext& ioContext)
-  : XBackupConfigDBObserver()
+JSONSyncConfigStore::JSONSyncConfigStore(JSONSyncConfigIOContext& ioContext)
+  : JSONSyncConfigDBObserver()
   , mDirtyDB()
   , mDriveToDB()
   , mIOContext(ioContext)
@@ -4115,13 +4115,13 @@ XBackupConfigStore::XBackupConfigStore(XBackupConfigIOContext& ioContext)
 {
 }
 
-XBackupConfigStore::~XBackupConfigStore()
+JSONSyncConfigStore::~JSONSyncConfigStore()
 {
     // Close all open databases.
     close();
 }
 
-const XBackupConfig* XBackupConfigStore::add(XBackupConfig config)
+const JSONSyncConfig* JSONSyncConfigStore::add(JSONSyncConfig config)
 {
     auto i = mTagToDB.find(config.tag);
 
@@ -4163,7 +4163,7 @@ const XBackupConfig* XBackupConfigStore::add(XBackupConfig config)
     return j->second->add(config);
 }
 
-error XBackupConfigStore::close(const LocalPath& drivePath)
+error JSONSyncConfigStore::close(const LocalPath& drivePath)
 {
     auto i = mDriveToDB.find(NormalizeAbsolute(drivePath));
 
@@ -4178,7 +4178,7 @@ error XBackupConfigStore::close(const LocalPath& drivePath)
     return API_ENOENT;
 }
 
-error XBackupConfigStore::close()
+error JSONSyncConfigStore::close()
 {
     error result = API_OK;
 
@@ -4199,7 +4199,7 @@ error XBackupConfigStore::close()
     return result;
 }
 
-const XBackupConfigMap* XBackupConfigStore::configs(const LocalPath& drivePath) const
+const JSONSyncConfigMap* JSONSyncConfigStore::configs(const LocalPath& drivePath) const
 {
     auto i = mDriveToDB.find(NormalizeAbsolute(drivePath));
 
@@ -4214,9 +4214,9 @@ const XBackupConfigMap* XBackupConfigStore::configs(const LocalPath& drivePath) 
     return nullptr;
 }
 
-XBackupConfigMap XBackupConfigStore::configs() const
+JSONSyncConfigMap JSONSyncConfigStore::configs() const
 {
-    XBackupConfigMap result;
+    JSONSyncConfigMap result;
 
     // Collect configs from all databases.
     for (auto& i : mDriveToDB)
@@ -4229,7 +4229,7 @@ XBackupConfigMap XBackupConfigStore::configs() const
     return result;
 }
 
-const XBackupConfigMap* XBackupConfigStore::create(const LocalPath& drivePath)
+const JSONSyncConfigMap* JSONSyncConfigStore::create(const LocalPath& drivePath)
 {
     // Has this database already been opened?
     if (opened(drivePath))
@@ -4247,7 +4247,7 @@ const XBackupConfigMap* XBackupConfigStore::create(const LocalPath& drivePath)
     dbPath.appendWithSeparator(BACKUP_CONFIG_DIR, false);
 
     // Create database object.
-    XBackupConfigDBPtr db(new XBackupConfigDB(dbPath, path, *this));
+    JSONSyncConfigDBPtr db(new JSONSyncConfigDB(dbPath, path, *this));
 
     // Load existing database, if any.
     error result = db->read(mIOContext);
@@ -4275,12 +4275,12 @@ const XBackupConfigMap* XBackupConfigStore::create(const LocalPath& drivePath)
     return &it.first->second->configs();
 }
 
-bool XBackupConfigStore::dirty() const
+bool JSONSyncConfigStore::dirty() const
 {
     return !mDirtyDB.empty();
 }
 
-error XBackupConfigStore::flush(const LocalPath& drivePath)
+error JSONSyncConfigStore::flush(const LocalPath& drivePath)
 {
     auto i = mDriveToDB.find(NormalizeAbsolute(drivePath));
 
@@ -4295,7 +4295,7 @@ error XBackupConfigStore::flush(const LocalPath& drivePath)
     return API_ENOENT;
 }
 
-error XBackupConfigStore::flush(vector<LocalPath>& drivePaths)
+error JSONSyncConfigStore::flush(vector<LocalPath>& drivePaths)
 {
     error result = API_OK;
 
@@ -4319,7 +4319,7 @@ error XBackupConfigStore::flush(vector<LocalPath>& drivePaths)
     return result;
 }
 
-error XBackupConfigStore::flush()
+error JSONSyncConfigStore::flush()
 {
     error result = API_OK;
 
@@ -4340,7 +4340,7 @@ error XBackupConfigStore::flush()
     return result;
 }
 
-const XBackupConfig* XBackupConfigStore::get(const int tag) const
+const JSONSyncConfig* JSONSyncConfigStore::get(const int tag) const
 {
     auto it = mTagToDB.find(tag);
 
@@ -4352,7 +4352,7 @@ const XBackupConfig* XBackupConfigStore::get(const int tag) const
     return nullptr;
 }
 
-const XBackupConfig* XBackupConfigStore::get(const handle targetHandle) const
+const JSONSyncConfig* JSONSyncConfigStore::get(const handle targetHandle) const
 {
     auto it = mTargetToDB.find(targetHandle);
 
@@ -4364,7 +4364,7 @@ const XBackupConfig* XBackupConfigStore::get(const handle targetHandle) const
     return nullptr;
 }
 
-const XBackupConfigMap* XBackupConfigStore::open(const LocalPath& drivePath)
+const JSONSyncConfigMap* JSONSyncConfigStore::open(const LocalPath& drivePath)
 {
     // Has this database already been opened?
     if (opened(drivePath))
@@ -4382,7 +4382,7 @@ const XBackupConfigMap* XBackupConfigStore::open(const LocalPath& drivePath)
     dbPath.appendWithSeparator(BACKUP_CONFIG_DIR, false);
 
     // Create database object.
-    XBackupConfigDBPtr db(new XBackupConfigDB(dbPath, path, *this));
+    JSONSyncConfigDBPtr db(new JSONSyncConfigDB(dbPath, path, *this));
 
     // Try and load the database from disk.
     if (db->read(mIOContext) != API_OK)
@@ -4398,12 +4398,12 @@ const XBackupConfigMap* XBackupConfigStore::open(const LocalPath& drivePath)
     return &it.first->second->configs();
 }
 
-bool XBackupConfigStore::opened(const LocalPath& drivePath) const
+bool JSONSyncConfigStore::opened(const LocalPath& drivePath) const
 {
     return mDriveToDB.count(NormalizeAbsolute(drivePath)) > 0;
 }
 
-error XBackupConfigStore::remove(const int tag)
+error JSONSyncConfigStore::remove(const int tag)
 {
     auto it = mTagToDB.find(tag);
 
@@ -4415,7 +4415,7 @@ error XBackupConfigStore::remove(const int tag)
     return API_ENOENT;
 }
 
-error XBackupConfigStore::remove(const handle targetHandle)
+error JSONSyncConfigStore::remove(const handle targetHandle)
 {
     auto it = mTargetToDB.find(targetHandle);
 
@@ -4433,12 +4433,12 @@ error XBackupConfigStore::remove(const handle targetHandle)
 #define PATHSTRING(s) s
 #endif // ! _WIN32
 
-const LocalPath XBackupConfigStore::BACKUP_CONFIG_DIR =
+const LocalPath JSONSyncConfigStore::BACKUP_CONFIG_DIR =
     LocalPath::fromPlatformEncoded(PATHSTRING(".megabackup"));
 
 #undef PATHSTRING
 
-void XBackupConfigStore::onAdd(XBackupConfigDB& db, const XBackupConfig& config)
+void JSONSyncConfigStore::onAdd(JSONSyncConfigDB& db, const JSONSyncConfig& config)
 {
     mTagToDB.emplace(config.tag, &db);
 
@@ -4453,9 +4453,9 @@ void XBackupConfigStore::onAdd(XBackupConfigDB& db, const XBackupConfig& config)
     mTargetToDB.emplace(config.targetHandle, &db);
 }
 
-void XBackupConfigStore::onChange(XBackupConfigDB& db,
-                                  const XBackupConfig& from,
-                                  const XBackupConfig& to)
+void JSONSyncConfigStore::onChange(JSONSyncConfigDB& db,
+                                   const JSONSyncConfig& from,
+                                   const JSONSyncConfig& to)
 {
     mTargetToDB.erase(from.targetHandle);
 
@@ -4470,18 +4470,18 @@ void XBackupConfigStore::onChange(XBackupConfigDB& db,
     mTargetToDB.emplace(to.targetHandle, &db);
 }
 
-void XBackupConfigStore::onDirty(XBackupConfigDB& db)
+void JSONSyncConfigStore::onDirty(JSONSyncConfigDB& db)
 {
     mDirtyDB.emplace(&db);
 }
 
-void XBackupConfigStore::onRemove(XBackupConfigDB&, const XBackupConfig& config)
+void JSONSyncConfigStore::onRemove(JSONSyncConfigDB&, const JSONSyncConfig& config)
 {
     mTagToDB.erase(config.tag);
     mTargetToDB.erase(config.targetHandle);
 }
 
-error XBackupConfigStore::close(XBackupConfigDB& db)
+error JSONSyncConfigStore::close(JSONSyncConfigDB& db)
 {
     // Try and flush the database.
     const auto result = flush(db);
@@ -4493,7 +4493,7 @@ error XBackupConfigStore::close(XBackupConfigDB& db)
     return result;
 }
 
-error XBackupConfigStore::flush(XBackupConfigDB& db)
+error JSONSyncConfigStore::flush(JSONSyncConfigDB& db)
 {
     auto i = mDirtyDB.find(&db);
 

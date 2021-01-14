@@ -8494,7 +8494,7 @@ void exec_syncbackupadd(autocomplete::ACState& s)
     if (!drivePath.empty())
     {
         // External
-        XBackupConfig config;
+        JSONSyncConfig config;
 
         config.drivePath = drivePath;
         config.sourcePath = sourcePath; 

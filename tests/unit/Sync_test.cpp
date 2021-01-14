@@ -1372,7 +1372,7 @@ TEST(Sync, SyncConfigBag_withPreviousState)
     //ASSERT_EQ(expConfigs, bag2.all());
 }
 
-namespace XBackupConfigTests
+namespace JSONSyncConfigTests
 {
 
 using namespace mega;
@@ -1473,12 +1473,12 @@ private:
 FSACCESS_CLASS Utilities::mFSAccess;
 PrnGen Utilities::mRNG;
 
-class XBackupConfigTest
+class JSONSyncConfigTest
   : public Test
 {
 public:
     class IOContext
-      : public XBackupConfigIOContext
+      : public JSONSyncConfigIOContext
     {
     public:
         IOContext(SymmCipher& cipher,
@@ -1486,7 +1486,7 @@ public:
                   const string& key,
                   const string& name,
                   PrnGen& rng)
-          : XBackupConfigIOContext(cipher,
+          : JSONSyncConfigIOContext(cipher,
                                    fsAccess,
                                    key,
                                    name,
@@ -1514,25 +1514,25 @@ public:
         error getConcrete(const LocalPath& drivePath,
                           vector<unsigned int>& slots)
         {
-            return XBackupConfigIOContext::get(drivePath, slots);
+            return JSONSyncConfigIOContext::get(drivePath, slots);
         }
 
         error readConcrete(const LocalPath& drivePath,
                            string& data,
                            const unsigned int slot)
         {
-            return XBackupConfigIOContext::read(drivePath, data, slot);
+            return JSONSyncConfigIOContext::read(drivePath, data, slot);
         }
 
         error writeConcrete(const LocalPath& drivePath,
                             const string& data,
                             const unsigned int slot)
         {
-            return XBackupConfigIOContext::write(drivePath, data, slot);
+            return JSONSyncConfigIOContext::write(drivePath, data, slot);
         }
     }; // IOContext
 
-    XBackupConfigTest()
+    JSONSyncConfigTest()
       : Test()
       , mCipher(SymmCipher::zeroiv)
       , mFSAccess()
@@ -1564,14 +1564,14 @@ protected:
     const string mConfigKey;
     const string mConfigName;
     NiceMock<IOContext> mIOContext;
-}; // XBackupConfigTest
+}; // JSONSyncConfigTest
 
-class XBackupConfigIOContextTest
-  : public XBackupConfigTest
+class JSONSyncConfigIOContextTest
+  : public JSONSyncConfigTest
 {
 public:
-    XBackupConfigIOContextTest()
-      : XBackupConfigTest()
+    JSONSyncConfigIOContextTest()
+      : JSONSyncConfigTest()
     {
     }
 
@@ -1579,9 +1579,9 @@ public:
     {
         return mConfigName;
     }
-}; // XBackupConfigIOContextTest
+}; // JSONSyncConfigIOContextTest
 
-TEST_F(XBackupConfigIOContextTest, GetBadPath)
+TEST_F(JSONSyncConfigIOContextTest, GetBadPath)
 {
     vector<unsigned int> slots;
 
@@ -1591,7 +1591,7 @@ TEST_F(XBackupConfigIOContextTest, GetBadPath)
     auto backupPath = drivePath;
 
     backupPath.appendWithSeparator(
-      XBackupConfigStore::BACKUP_CONFIG_DIR, false);
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
 
     // Try to read slots from an invalid path.
     EXPECT_NE(ioContext().get(backupPath, slots), API_OK);
@@ -1600,10 +1600,10 @@ TEST_F(XBackupConfigIOContextTest, GetBadPath)
     EXPECT_TRUE(slots.empty());
 }
 
-TEST_F(XBackupConfigIOContextTest, GetNoSlots)
+TEST_F(JSONSyncConfigIOContextTest, GetNoSlots)
 {
     const auto& BACKUP_DIR =
-      XBackupConfigStore::BACKUP_CONFIG_DIR;
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR;
 
     // Make sure the drive path exists.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -1652,10 +1652,10 @@ TEST_F(XBackupConfigIOContextTest, GetNoSlots)
     EXPECT_TRUE(slots.empty());
 }
 
-TEST_F(XBackupConfigIOContextTest, GetSlotsOrderedByModificationTime)
+TEST_F(JSONSyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
 {
     const auto& BACKUP_DIR =
-      XBackupConfigStore::BACKUP_CONFIG_DIR;
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR;
 
     const size_t NUM_SLOTS = 3;
 
@@ -1716,10 +1716,10 @@ TEST_F(XBackupConfigIOContextTest, GetSlotsOrderedByModificationTime)
     }
 }
 
-TEST_F(XBackupConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
+TEST_F(JSONSyncConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
 {
     const auto& BACKUP_DIR =
-      XBackupConfigStore::BACKUP_CONFIG_DIR;
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR;
 
     const size_t NUM_SLOTS = 3;
 
@@ -1781,7 +1781,7 @@ TEST_F(XBackupConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
     }
 }
 
-TEST_F(XBackupConfigIOContextTest, Read)
+TEST_F(JSONSyncConfigIOContextTest, Read)
 {
     // Make sure the drive path exists.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -1790,7 +1790,7 @@ TEST_F(XBackupConfigIOContextTest, Read)
     LocalPath backupPath = drive;
 
     backupPath.appendWithSeparator(
-      XBackupConfigStore::BACKUP_CONFIG_DIR, false);
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
 
     // Try writing some data out and reading it back again.
     {
@@ -1816,10 +1816,10 @@ TEST_F(XBackupConfigIOContextTest, Read)
     }
 }
 
-TEST_F(XBackupConfigIOContextTest, ReadBadData)
+TEST_F(JSONSyncConfigIOContextTest, ReadBadData)
 {
     const auto& BACKUP_DIR =
-      XBackupConfigStore::BACKUP_CONFIG_DIR;
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR;
 
     string data;
 
@@ -1852,7 +1852,7 @@ TEST_F(XBackupConfigIOContextTest, ReadBadData)
     EXPECT_TRUE(data.empty());
 }
 
-TEST_F(XBackupConfigIOContextTest, ReadBadPath)
+TEST_F(JSONSyncConfigIOContextTest, ReadBadPath)
 {
     const LocalPath drivePath = Utilities::randomPath();
     string data;
@@ -1860,22 +1860,22 @@ TEST_F(XBackupConfigIOContextTest, ReadBadPath)
     LocalPath backupPath = drivePath;
 
     backupPath.appendWithSeparator(
-      XBackupConfigStore::BACKUP_CONFIG_DIR, false);
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
 
     // Try and read data from an insane path.
     EXPECT_EQ(ioContext().read(backupPath, data, 0), API_EREAD);
     EXPECT_TRUE(data.empty());
 }
 
-TEST_F(XBackupConfigIOContextTest, Serialize)
+TEST_F(JSONSyncConfigIOContextTest, Serialize)
 {
-    XBackupConfigMap read;
-    XBackupConfigMap written;
+    JSONSyncConfigMap read;
+    JSONSyncConfigMap written;
     JSONWriter writer;
 
     // Populate the database with two configs.
     {
-        XBackupConfig config;
+        JSONSyncConfig config;
 
         config.enabled = false;
         config.heartbeatID = UNDEF;
@@ -1912,20 +1912,20 @@ TEST_F(XBackupConfigIOContextTest, Serialize)
     EXPECT_EQ(read, written);
 }
 
-TEST_F(XBackupConfigIOContextTest, SerializeEmpty)
+TEST_F(JSONSyncConfigIOContextTest, SerializeEmpty)
 {
     JSONWriter writer;
 
     // Serialize an empty database.
     {
         // Does serializing an empty database yield an empty array?
-        ioContext().serialize(XBackupConfigMap(), writer);
+        ioContext().serialize(JSONSyncConfigMap(), writer);
         EXPECT_EQ(writer.getstring(), "[]");
     }
 
     // Deserialize the empty database.
     {
-        XBackupConfigMap configs;
+        JSONSyncConfigMap configs;
         JSON reader(writer.getstring());
 
         // Can we deserialize an empty database?
@@ -1934,7 +1934,7 @@ TEST_F(XBackupConfigIOContextTest, SerializeEmpty)
     }
 }
 
-TEST_F(XBackupConfigIOContextTest, WriteBadPath)
+TEST_F(JSONSyncConfigIOContextTest, WriteBadPath)
 {
     const LocalPath drivePath = Utilities::randomPath();
     const string data = Utilities::randomBytes(64);
@@ -1942,23 +1942,23 @@ TEST_F(XBackupConfigIOContextTest, WriteBadPath)
     LocalPath backupPath = drivePath;
 
     backupPath.appendWithSeparator(
-      XBackupConfigStore::BACKUP_CONFIG_DIR, false);
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
 
     // Try and write data to an insane path.
     EXPECT_NE(ioContext().write(backupPath, data, 0), API_OK);
 }
 
-class XBackupConfigDBTest
-  : public XBackupConfigTest
+class JSONSyncConfigDBTest
+  : public JSONSyncConfigTest
 {
 public:
     class Observer
-      : public XBackupConfigDBObserver
+      : public JSONSyncConfigDBObserver
     {
     public:
         // Convenience.
-        using Config = XBackupConfig;
-        using DB = XBackupConfigDB;
+        using Config = JSONSyncConfig;
+        using DB = JSONSyncConfigDB;
 
         MOCK_METHOD2(onAdd, void(DB&, const Config&));
 
@@ -1969,14 +1969,14 @@ public:
         MOCK_METHOD2(onRemove, void(DB&, const Config&));
     }; // Observer
 
-    XBackupConfigDBTest()
-      : XBackupConfigTest()
+    JSONSyncConfigDBTest()
+      : JSONSyncConfigTest()
       , mDBPath(Utilities::randomPath())
       , mDrivePath(mDBPath)
       , mObserver()
     {
         mDBPath.appendWithSeparator(
-          XBackupConfigStore::BACKUP_CONFIG_DIR, false);
+          JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
     }
 
     const LocalPath& dbPath() const
@@ -1998,15 +1998,15 @@ private:
     LocalPath mDBPath;
     const LocalPath mDrivePath;
     NiceMock<Observer> mObserver;
-}; // XBackupConfigDBTest
+}; // JSONSyncConfigDBTest
 
-TEST_F(XBackupConfigDBTest, AddWithTarget)
+TEST_F(JSONSyncConfigDBTest, AddWithTarget)
 {
     // Create config DB.
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Create and populate config.
-    XBackupConfig config;
+    JSONSyncConfig config;
 
     config.drivePath = drivePath();
     config.sourcePath = LocalPath();
@@ -2040,13 +2040,13 @@ TEST_F(XBackupConfigDBTest, AddWithTarget)
     EXPECT_EQ(configDB.get(config.targetHandle), c);
 }
 
-TEST_F(XBackupConfigDBTest, AddWithoutTarget)
+TEST_F(JSONSyncConfigDBTest, AddWithoutTarget)
 {
     // Create config DB.
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Create and populate config.
-    XBackupConfig config;
+    JSONSyncConfig config;
 
     config.drivePath = drivePath();
     config.sourcePath = LocalPath();
@@ -2081,13 +2081,13 @@ TEST_F(XBackupConfigDBTest, AddWithoutTarget)
     EXPECT_EQ(configDB.get(UNDEF), nullptr);
 }
 
-TEST_F(XBackupConfigDBTest, Clear)
+TEST_F(JSONSyncConfigDBTest, Clear)
 {
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a couple configurations.
-    XBackupConfig configA;
-    XBackupConfig configB;
+    JSONSyncConfig configA;
+    JSONSyncConfig configB;
 
     configA.drivePath = drivePath();
     configA.sourcePath = Utilities::randomPath();
@@ -2136,9 +2136,9 @@ TEST_F(XBackupConfigDBTest, Clear)
     EXPECT_EQ(configDB.get(configB.targetHandle), nullptr);
 }
 
-TEST_F(XBackupConfigDBTest, ClearEmpty)
+TEST_F(JSONSyncConfigDBTest, ClearEmpty)
 {
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Clearing an empty database should not trigger any notifications.
     EXPECT_CALL(observer(), onDirty(_)).Times(0);
@@ -2148,14 +2148,14 @@ TEST_F(XBackupConfigDBTest, ClearEmpty)
     configDB.clear();
 }
 
-TEST_F(XBackupConfigDBTest, Destruct)
+TEST_F(JSONSyncConfigDBTest, Destruct)
 {
     // Nested scope so we can test destruction.
     {
-        XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+        JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
         // Create config.
-        XBackupConfig config;
+        JSONSyncConfig config;
 
         config.drivePath = drivePath();
         config.sourcePath = Utilities::randomPath();
@@ -2177,18 +2177,18 @@ TEST_F(XBackupConfigDBTest, Destruct)
     }
 }
 
-TEST_F(XBackupConfigDBTest, DrivePath)
+TEST_F(JSONSyncConfigDBTest, DrivePath)
 {
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     EXPECT_EQ(configDB.drivePath(), drivePath());
 }
 
-TEST_F(XBackupConfigDBTest, DestructEmpty)
+TEST_F(JSONSyncConfigDBTest, DestructEmpty)
 {
     // Nested scope so we can test destruction.
     {
-        XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+        JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
         // An empty database should not generate any notifications.
         EXPECT_CALL(observer(), onDirty(_)).Times(0);
@@ -2196,12 +2196,12 @@ TEST_F(XBackupConfigDBTest, DestructEmpty)
     }
 }
 
-TEST_F(XBackupConfigDBTest, Read)
+TEST_F(JSONSyncConfigDBTest, Read)
 {
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a configuration to be written to disk.
-    XBackupConfig config;
+    JSONSyncConfig config;
 
     config.drivePath = drivePath();
     config.sourcePath = Utilities::randomPath();
@@ -2265,11 +2265,11 @@ TEST_F(XBackupConfigDBTest, Read)
     EXPECT_EQ(configDB.get(config.targetHandle), c);
 }
 
-TEST_F(XBackupConfigDBTest, ReadBadDecrypt)
+TEST_F(JSONSyncConfigDBTest, ReadBadDecrypt)
 {
     static const vector<unsigned int> slots = {1};
 
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Return a single slot for reading.
     Expectation get =
@@ -2288,12 +2288,12 @@ TEST_F(XBackupConfigDBTest, ReadBadDecrypt)
     EXPECT_EQ(configDB.read(ioContext()), API_EREAD);
 }
 
-TEST_F(XBackupConfigDBTest, ReadEmptyClearsDatabase)
+TEST_F(JSONSyncConfigDBTest, ReadEmptyClearsDatabase)
 {
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a config to the database.
-    XBackupConfig config;
+    JSONSyncConfig config;
 
     config.drivePath = drivePath();
     config.tag = 1;
@@ -2337,9 +2337,9 @@ TEST_F(XBackupConfigDBTest, ReadEmptyClearsDatabase)
     EXPECT_EQ(configDB.get(config.targetHandle), nullptr);
 }
 
-TEST_F(XBackupConfigDBTest, ReadNoSlots)
+TEST_F(JSONSyncConfigDBTest, ReadNoSlots)
 {
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Don't return any slots for reading.
     EXPECT_CALL(ioContext(),
@@ -2350,12 +2350,12 @@ TEST_F(XBackupConfigDBTest, ReadNoSlots)
     EXPECT_EQ(configDB.read(ioContext()), API_ENOENT);
 }
 
-TEST_F(XBackupConfigDBTest, ReadUpdatesDatabase)
+TEST_F(JSONSyncConfigDBTest, ReadUpdatesDatabase)
 {
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a config to the database.
-    XBackupConfig configBefore;
+    JSONSyncConfig configBefore;
 
     configBefore.drivePath = drivePath();
     configBefore.sourcePath = Utilities::randomPath();
@@ -2376,7 +2376,7 @@ TEST_F(XBackupConfigDBTest, ReadUpdatesDatabase)
     EXPECT_EQ(configDB.write(ioContext()), API_OK);
 
     // Change the config's target handle.
-    XBackupConfig configAfter = configBefore;
+    JSONSyncConfig configAfter = configBefore;
 
     configAfter.targetHandle = 3;
 
@@ -2425,12 +2425,12 @@ TEST_F(XBackupConfigDBTest, ReadUpdatesDatabase)
     EXPECT_EQ(configDB.get(configBefore.targetHandle), c);
 }
 
-TEST_F(XBackupConfigDBTest, ReadTriesAllAvailableSlots)
+TEST_F(JSONSyncConfigDBTest, ReadTriesAllAvailableSlots)
 {
     // Slots available for reading.
     static const vector<unsigned int> slots = {1, 2, 3};
 
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Return three slots for reading.
     Expectation get =
@@ -2463,12 +2463,12 @@ TEST_F(XBackupConfigDBTest, ReadTriesAllAvailableSlots)
     EXPECT_EQ(configDB.read(ioContext()), API_OK);
 }
 
-TEST_F(XBackupConfigDBTest, RemoveByTag)
+TEST_F(JSONSyncConfigDBTest, RemoveByTag)
 {
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a config to remove.
-    XBackupConfig config;
+    JSONSyncConfig config;
 
     config.drivePath = drivePath();
     config.sourcePath = Utilities::randomPath();
@@ -2500,9 +2500,9 @@ TEST_F(XBackupConfigDBTest, RemoveByTag)
     EXPECT_EQ(configDB.get(config.targetHandle), nullptr);
 }
 
-TEST_F(XBackupConfigDBTest, RemoveByTagWhenEmpty)
+TEST_F(JSONSyncConfigDBTest, RemoveByTagWhenEmpty)
 {
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     EXPECT_CALL(observer(), onDirty(_)).Times(0);
     EXPECT_CALL(observer(), onRemove(_, _)).Times(0);
@@ -2510,13 +2510,13 @@ TEST_F(XBackupConfigDBTest, RemoveByTagWhenEmpty)
     EXPECT_EQ(configDB.remove(0), API_ENOENT);
 }
 
-TEST_F(XBackupConfigDBTest, RemoveByUnknownTag)
+TEST_F(JSONSyncConfigDBTest, RemoveByUnknownTag)
 {
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add some config so the database isn't empty.
     {
-        XBackupConfig config;
+        JSONSyncConfig config;
 
         config.drivePath = drivePath();
         config.tag = 0;
@@ -2535,12 +2535,12 @@ TEST_F(XBackupConfigDBTest, RemoveByUnknownTag)
     Mock::VerifyAndClearExpectations(&observer());
 }
 
-TEST_F(XBackupConfigDBTest, RemoveByTargetHandle)
+TEST_F(JSONSyncConfigDBTest, RemoveByTargetHandle)
 {
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a config to remove.
-    XBackupConfig config;
+    JSONSyncConfig config;
 
     config.drivePath = drivePath();
     config.tag = 0;
@@ -2571,9 +2571,9 @@ TEST_F(XBackupConfigDBTest, RemoveByTargetHandle)
     EXPECT_EQ(configDB.get(config.targetHandle), nullptr);
 }
 
-TEST_F(XBackupConfigDBTest, RemoveByTargetHandleWhenEmpty)
+TEST_F(JSONSyncConfigDBTest, RemoveByTargetHandleWhenEmpty)
 {
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     EXPECT_CALL(observer(), onDirty(_)).Times(0);
     EXPECT_CALL(observer(), onRemove(_, _)).Times(0);
@@ -2582,13 +2582,13 @@ TEST_F(XBackupConfigDBTest, RemoveByTargetHandleWhenEmpty)
     EXPECT_EQ(configDB.remove(targetHandle), API_ENOENT);
 }
 
-TEST_F(XBackupConfigDBTest, RemoveByUnknownTargetHandle)
+TEST_F(JSONSyncConfigDBTest, RemoveByUnknownTargetHandle)
 {
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a config so that the database isn't empty.
     {
-        XBackupConfig config;
+        JSONSyncConfig config;
 
         config.drivePath = drivePath();
         config.tag = 0;
@@ -2608,12 +2608,12 @@ TEST_F(XBackupConfigDBTest, RemoveByUnknownTargetHandle)
     Mock::VerifyAndClearExpectations(&observer());
 }
 
-TEST_F(XBackupConfigDBTest, Update)
+TEST_F(JSONSyncConfigDBTest, Update)
 {
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a config.
-    XBackupConfig configBefore;
+    JSONSyncConfig configBefore;
 
     configBefore.drivePath = drivePath();
     configBefore.enabled = false;
@@ -2625,7 +2625,7 @@ TEST_F(XBackupConfigDBTest, Update)
     EXPECT_EQ(*c, configBefore);
 
     // Update config.
-    XBackupConfig configAfter = configBefore;
+    JSONSyncConfig configAfter = configBefore;
 
     configAfter.enabled = true;
 
@@ -2654,12 +2654,12 @@ TEST_F(XBackupConfigDBTest, Update)
     EXPECT_EQ(configDB.get(configAfter.targetHandle), c);
 }
 
-TEST_F(XBackupConfigDBTest, UpdateChangeTargetHandle)
+TEST_F(JSONSyncConfigDBTest, UpdateChangeTargetHandle)
 {
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add config.
-    XBackupConfig configBefore;
+    JSONSyncConfig configBefore;
 
     configBefore.drivePath = drivePath();
     configBefore.tag = 0;
@@ -2670,7 +2670,7 @@ TEST_F(XBackupConfigDBTest, UpdateChangeTargetHandle)
     EXPECT_EQ(*c, configBefore);
 
     // Update config.
-    XBackupConfig configAfter = configBefore;
+    JSONSyncConfig configAfter = configBefore;
 
     configAfter.targetHandle = 1;
     
@@ -2702,12 +2702,12 @@ TEST_F(XBackupConfigDBTest, UpdateChangeTargetHandle)
     EXPECT_EQ(configDB.get(configAfter.targetHandle), c);
 }
 
-TEST_F(XBackupConfigDBTest, UpdateRemoveTargetHandle)
+TEST_F(JSONSyncConfigDBTest, UpdateRemoveTargetHandle)
 {
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add config.
-    XBackupConfig configBefore;
+    JSONSyncConfig configBefore;
 
     configBefore.drivePath = drivePath();
     configBefore.tag = 0;
@@ -2718,7 +2718,7 @@ TEST_F(XBackupConfigDBTest, UpdateRemoveTargetHandle)
     EXPECT_EQ(*c, configBefore);
 
     // Update config.
-    XBackupConfig configAfter = configBefore;
+    JSONSyncConfig configAfter = configBefore;
 
     configAfter.targetHandle = UNDEF;
     
@@ -2750,12 +2750,12 @@ TEST_F(XBackupConfigDBTest, UpdateRemoveTargetHandle)
     EXPECT_EQ(configDB.get(UNDEF), nullptr);
 }
 
-TEST_F(XBackupConfigDBTest, UpdateWithoutChange)
+TEST_F(JSONSyncConfigDBTest, UpdateWithoutChange)
 {
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add config.
-    XBackupConfig config;
+    JSONSyncConfig config;
 
     config.drivePath = drivePath();
     config.tag = 0;
@@ -2770,9 +2770,9 @@ TEST_F(XBackupConfigDBTest, UpdateWithoutChange)
     EXPECT_NE(configDB.add(config), nullptr);
 }
 
-TEST_F(XBackupConfigDBTest, WriteFail)
+TEST_F(JSONSyncConfigDBTest, WriteFail)
 {
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Any attempt to write to slot 0 will fail.
     EXPECT_CALL(ioContext(),
@@ -2787,9 +2787,9 @@ TEST_F(XBackupConfigDBTest, WriteFail)
     EXPECT_EQ(configDB.write(ioContext()), API_EWRITE);
 }
 
-TEST_F(XBackupConfigDBTest, WriteOK)
+TEST_F(JSONSyncConfigDBTest, WriteOK)
 {
-    XBackupConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Writes to slot 0 should succeed.
     Expectation write0 =
@@ -2810,16 +2810,16 @@ TEST_F(XBackupConfigDBTest, WriteOK)
     EXPECT_EQ(configDB.write(ioContext()), API_OK);
 }
 
-class XBackupConfigStoreTest
-  : public XBackupConfigTest
+class JSONSyncConfigStoreTest
+  : public JSONSyncConfigTest
 {
 public:
     class ConfigStore
-      : public XBackupConfigStore
+      : public JSONSyncConfigStore
     {
     public:
-        ConfigStore(XBackupConfigIOContext& ioContext)
-          : XBackupConfigStore(ioContext)
+        ConfigStore(JSONSyncConfigIOContext& ioContext)
+          : JSONSyncConfigStore(ioContext)
         {
             // Perform real behavior by default.
             ON_CALL(*this, onAdd(_, _))
@@ -2836,8 +2836,8 @@ public:
         }
 
         // Convenience.
-        using DB = XBackupConfigDB;
-        using Config = XBackupConfig;
+        using DB = JSONSyncConfigDB;
+        using Config = JSONSyncConfig;
 
         MOCK_METHOD2(onAdd, void(DB&, const Config&));
 
@@ -2851,30 +2851,30 @@ public:
         // Delegate to real behavior.
         void onAddConcrete(DB& db, const Config& config)
         {
-            return XBackupConfigStore::onAdd(db, config);
+            return JSONSyncConfigStore::onAdd(db, config);
         }
 
         void onChangeConcrete(DB& db, const Config& from, const Config& to)
         {
-            return XBackupConfigStore::onChange(db, from, to);
+            return JSONSyncConfigStore::onChange(db, from, to);
         }
 
         void onDirtyConcrete(DB& db)
         {
-            return XBackupConfigStore::onDirty(db);
+            return JSONSyncConfigStore::onDirty(db);
         }
 
         void onRemoveConcrete(DB& db, const Config& config)
         {
-            return XBackupConfigStore::onRemove(db, config);
+            return JSONSyncConfigStore::onRemove(db, config);
         }
     }; // ConfigStore
 
-    XBackupConfigStoreTest()
-      : XBackupConfigTest()
+    JSONSyncConfigStoreTest()
+      : JSONSyncConfigTest()
     {
     }
-}; // XBackupConfigStoreTest
+}; // JSONSyncConfigStoreTest
 
 // Matches a database with a specific path.
 MATCHER_P(DB, drivePath, "")
@@ -2882,7 +2882,7 @@ MATCHER_P(DB, drivePath, "")
     return arg.drivePath() == drivePath;
 }
 
-TEST_F(XBackupConfigStoreTest, Add)
+TEST_F(JSONSyncConfigStoreTest, Add)
 {
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -2897,7 +2897,7 @@ TEST_F(XBackupConfigStoreTest, Add)
     EXPECT_TRUE(store.opened(drive));
 
     // Create config to add to the database.
-    XBackupConfig config;
+    JSONSyncConfig config;
 
     config.drivePath = drive;
     config.tag = 1;
@@ -2931,7 +2931,7 @@ TEST_F(XBackupConfigStoreTest, Add)
     EXPECT_EQ(store.get(config.targetHandle), c);
 }
 
-TEST_F(XBackupConfigStoreTest, AddDenormalized)
+TEST_F(JSONSyncConfigStoreTest, AddDenormalized)
 {
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -2943,7 +2943,7 @@ TEST_F(XBackupConfigStoreTest, AddDenormalized)
     ASSERT_NE(store.create(drive), nullptr);
 
     // Create a normalized config.
-    XBackupConfig configN;
+    JSONSyncConfig configN;
 
     configN.drivePath = drive;
     configN.sourcePath = Utilities::randomPath();
@@ -2951,7 +2951,7 @@ TEST_F(XBackupConfigStoreTest, AddDenormalized)
     configN.targetHandle = 2;
 
     // Create a denormalized config.
-    XBackupConfig configDN = configN;
+    JSONSyncConfig configDN = configN;
 
     configDN.drivePath.append(Utilities::separator());
     configDN.sourcePath.append(Utilities::separator());
@@ -2964,7 +2964,7 @@ TEST_F(XBackupConfigStoreTest, AddDenormalized)
     EXPECT_EQ(*c, configN);
 }
 
-TEST_F(XBackupConfigStoreTest, AddToUnknownDatabase)
+TEST_F(JSONSyncConfigStoreTest, AddToUnknownDatabase)
 {
     StrictMock<ConfigStore> store(ioContext());
 
@@ -2974,7 +2974,7 @@ TEST_F(XBackupConfigStoreTest, AddToUnknownDatabase)
     EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
 
     // Create a config to add to the store.
-    XBackupConfig config;
+    JSONSyncConfig config;
 
     config.drivePath = Utilities::randomPath();
 
@@ -2992,7 +2992,7 @@ TEST_F(XBackupConfigStoreTest, AddToUnknownDatabase)
     EXPECT_FALSE(store.dirty());
 }
 
-TEST_F(XBackupConfigStoreTest, CloseAll)
+TEST_F(JSONSyncConfigStoreTest, CloseAll)
 {
     // Make sure databases are removed.
     Directory driveA(fsAccess(), Utilities::randomPath());
@@ -3016,7 +3016,7 @@ TEST_F(XBackupConfigStoreTest, CloseAll)
     EXPECT_TRUE(store.opened(driveB));
 
     // Dirty the first database.
-    XBackupConfig config;
+    JSONSyncConfig config;
 
     config.drivePath = driveA;
     config.tag = 1;
@@ -3047,7 +3047,7 @@ TEST_F(XBackupConfigStoreTest, CloseAll)
     EXPECT_EQ(store.get(config.tag), nullptr);
 }
 
-TEST_F(XBackupConfigStoreTest, CloseClean)
+TEST_F(JSONSyncConfigStoreTest, CloseClean)
 {
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -3080,7 +3080,7 @@ TEST_F(XBackupConfigStoreTest, CloseClean)
     EXPECT_FALSE(store.opened(drive));
 }
 
-TEST_F(XBackupConfigStoreTest, CloseDenormalized)
+TEST_F(JSONSyncConfigStoreTest, CloseDenormalized)
 {
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -3107,7 +3107,7 @@ TEST_F(XBackupConfigStoreTest, CloseDenormalized)
     EXPECT_FALSE(store.opened(drivePath));
 }
 
-TEST_F(XBackupConfigStoreTest, CloseDirty)
+TEST_F(JSONSyncConfigStoreTest, CloseDirty)
 {
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -3128,7 +3128,7 @@ TEST_F(XBackupConfigStoreTest, CloseDirty)
     EXPECT_TRUE(store.opened(drive));
 
     // Add a config to the database.
-    XBackupConfig config;
+    JSONSyncConfig config;
 
     config.drivePath = drive;
     config.tag = 1;
@@ -3171,7 +3171,7 @@ TEST_F(XBackupConfigStoreTest, CloseDirty)
     EXPECT_EQ(store.get(config.targetHandle), nullptr);
 }
 
-TEST_F(XBackupConfigStoreTest, CloseDirtyCantWrite)
+TEST_F(JSONSyncConfigStoreTest, CloseDirtyCantWrite)
 {
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -3189,7 +3189,7 @@ TEST_F(XBackupConfigStoreTest, CloseDirtyCantWrite)
     ASSERT_NE(store.create(drive), nullptr);
 
     // Add a config so the database is dirty.
-    XBackupConfig config;
+    JSONSyncConfig config;
 
     config.drivePath = drive;
     config.tag = 1;
@@ -3227,7 +3227,7 @@ TEST_F(XBackupConfigStoreTest, CloseDirtyCantWrite)
     EXPECT_EQ(store.get(config.targetHandle), nullptr);
 }
 
-TEST_F(XBackupConfigStoreTest, CloseNoDatabases)
+TEST_F(JSONSyncConfigStoreTest, CloseNoDatabases)
 {
     StrictMock<ConfigStore> store(ioContext());
 
@@ -3238,7 +3238,7 @@ TEST_F(XBackupConfigStoreTest, CloseNoDatabases)
     EXPECT_EQ(store.close(), API_OK);
 }
 
-TEST_F(XBackupConfigStoreTest, CloseUnknownDatabase)
+TEST_F(JSONSyncConfigStoreTest, CloseUnknownDatabase)
 {
     StrictMock<ConfigStore> store(ioContext());
 
@@ -3255,7 +3255,7 @@ TEST_F(XBackupConfigStoreTest, CloseUnknownDatabase)
     EXPECT_FALSE(store.opened(drivePath));
 }
 
-TEST_F(XBackupConfigStoreTest, Configs)
+TEST_F(JSONSyncConfigStoreTest, Configs)
 {
     // Make sure databases are removed.
     Directory driveA(fsAccess(), Utilities::randomPath());
@@ -3273,8 +3273,8 @@ TEST_F(XBackupConfigStoreTest, Configs)
     EXPECT_TRUE(store.opened(driveB));
 
     // Add a couple configs.
-    XBackupConfig configA;
-    XBackupConfig configB;
+    JSONSyncConfig configA;
+    JSONSyncConfig configB;
 
     configA.drivePath = driveA;
     configA.tag = 1;
@@ -3302,7 +3302,7 @@ TEST_F(XBackupConfigStoreTest, Configs)
     EXPECT_EQ(configs.at(configB.tag), configB);
 }
 
-TEST_F(XBackupConfigStoreTest, ConfigsDenormalized)
+TEST_F(JSONSyncConfigStoreTest, ConfigsDenormalized)
 {
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -3326,14 +3326,14 @@ TEST_F(XBackupConfigStoreTest, ConfigsDenormalized)
     EXPECT_EQ(store.configs(drivePath), configs);
 }
 
-TEST_F(XBackupConfigStoreTest, ConfigsNoDatabases)
+TEST_F(JSONSyncConfigStoreTest, ConfigsNoDatabases)
 {
     StrictMock<ConfigStore> store(ioContext());
 
     EXPECT_TRUE(store.configs().empty());
 }
 
-TEST_F(XBackupConfigStoreTest, ConfigsUnknownDatabase)
+TEST_F(JSONSyncConfigStoreTest, ConfigsUnknownDatabase)
 {
     StrictMock<ConfigStore> store(ioContext());
 
@@ -3347,7 +3347,7 @@ TEST_F(XBackupConfigStoreTest, ConfigsUnknownDatabase)
     EXPECT_EQ(store.configs(drivePath), nullptr);
 }
 
-TEST_F(XBackupConfigStoreTest, Create)
+TEST_F(JSONSyncConfigStoreTest, Create)
 {
     const auto drivePath = Utilities::randomPath();
 
@@ -3387,7 +3387,7 @@ TEST_F(XBackupConfigStoreTest, Create)
     EXPECT_EQ(store.configs(drivePath), configs);
 }
 
-TEST_F(XBackupConfigStoreTest, CreateAlreadyOpened)
+TEST_F(JSONSyncConfigStoreTest, CreateAlreadyOpened)
 {
     auto drivePath = Utilities::randomPath();
 
@@ -3440,7 +3440,7 @@ TEST_F(XBackupConfigStoreTest, CreateAlreadyOpened)
     EXPECT_EQ(store.open(drivePath), nullptr);
 }
 
-TEST_F(XBackupConfigStoreTest, CreateCantReadExisting)
+TEST_F(JSONSyncConfigStoreTest, CreateCantReadExisting)
 {
     const auto drivePath = Utilities::randomPath();
 
@@ -3475,7 +3475,7 @@ TEST_F(XBackupConfigStoreTest, CreateCantReadExisting)
     EXPECT_FALSE(store.opened(drivePath));
 }
 
-TEST_F(XBackupConfigStoreTest, CreateCantWrite)
+TEST_F(JSONSyncConfigStoreTest, CreateCantWrite)
 {
     const auto drivePath = Utilities::randomPath();
 
@@ -3511,7 +3511,7 @@ TEST_F(XBackupConfigStoreTest, CreateCantWrite)
     EXPECT_FALSE(store.dirty());
 }
 
-TEST_F(XBackupConfigStoreTest, CreateExisting)
+TEST_F(JSONSyncConfigStoreTest, CreateExisting)
 {
     const auto drivePath = Utilities::randomPath();
 
@@ -3521,11 +3521,11 @@ TEST_F(XBackupConfigStoreTest, CreateExisting)
     backupPath.appendWithSeparator(
       ConfigStore::BACKUP_CONFIG_DIR, false);
 
-    XBackupConfigMap written;
+    JSONSyncConfigMap written;
 
     // Populate database.
     {
-        XBackupConfig config;
+        JSONSyncConfig config;
 
         config.drivePath = drivePath;
         config.tag = 1;
@@ -3596,7 +3596,7 @@ TEST_F(XBackupConfigStoreTest, CreateExisting)
               &configs->begin()->second);
 }
 
-TEST_F(XBackupConfigStoreTest, Destruct)
+TEST_F(JSONSyncConfigStoreTest, Destruct)
 {
     // Nested scope so we can test destruction.
     {
@@ -3616,7 +3616,7 @@ TEST_F(XBackupConfigStoreTest, Destruct)
         EXPECT_NE(store.create(drive), nullptr);
 
         // Dirty database.
-        XBackupConfig config;
+        JSONSyncConfig config;
 
         config.drivePath = drive;
         config.tag = 1;
@@ -3633,7 +3633,7 @@ TEST_F(XBackupConfigStoreTest, Destruct)
     }
 }
 
-TEST_F(XBackupConfigStoreTest, FlushAll)
+TEST_F(JSONSyncConfigStoreTest, FlushAll)
 {
     const auto& BACKUP_DIR = ConfigStore::BACKUP_CONFIG_DIR;
 
@@ -3656,8 +3656,8 @@ TEST_F(XBackupConfigStoreTest, FlushAll)
     EXPECT_NE(store.create(driveB), nullptr);
 
     // Dirty databases.
-    XBackupConfig configA;
-    XBackupConfig configB;
+    JSONSyncConfig configA;
+    JSONSyncConfig configB;
 
     configA.drivePath = driveA;
     configA.tag = 1;
@@ -3693,7 +3693,7 @@ TEST_F(XBackupConfigStoreTest, FlushAll)
     EXPECT_FALSE(store.dirty());
 }
 
-TEST_F(XBackupConfigStoreTest, FlushDenormalized)
+TEST_F(JSONSyncConfigStoreTest, FlushDenormalized)
 {
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -3715,7 +3715,7 @@ TEST_F(XBackupConfigStoreTest, FlushDenormalized)
     EXPECT_NE(store.create(drive), nullptr);
 
     // Dirty the database.
-    XBackupConfig config;
+    JSONSyncConfig config;
 
     config.drivePath = drive;
     config.tag = 1;
@@ -3740,7 +3740,7 @@ TEST_F(XBackupConfigStoreTest, FlushDenormalized)
     Mock::VerifyAndClearExpectations(&ioContext());
 }
 
-TEST_F(XBackupConfigStoreTest, FlushFail)
+TEST_F(JSONSyncConfigStoreTest, FlushFail)
 {
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -3758,7 +3758,7 @@ TEST_F(XBackupConfigStoreTest, FlushFail)
     EXPECT_NE(store.create(drive), nullptr);
 
     // Dirty database.
-    XBackupConfig config;
+    JSONSyncConfig config;
 
     config.drivePath = drive;
     config.tag = 1;
@@ -3778,7 +3778,7 @@ TEST_F(XBackupConfigStoreTest, FlushFail)
     EXPECT_FALSE(store.dirty());
 }
 
-TEST_F(XBackupConfigStoreTest, FlushSpecific)
+TEST_F(JSONSyncConfigStoreTest, FlushSpecific)
 {
     const auto& BACKUP_DIR = ConfigStore::BACKUP_CONFIG_DIR;
 
@@ -3801,8 +3801,8 @@ TEST_F(XBackupConfigStoreTest, FlushSpecific)
     EXPECT_NE(store.create(driveB), nullptr);
 
     // Dirty both databases.
-    XBackupConfig configA;
-    XBackupConfig configB;
+    JSONSyncConfig configA;
+    JSONSyncConfig configB;
 
     configA.drivePath = driveA;
     configA.tag = 1;
@@ -3840,7 +3840,7 @@ TEST_F(XBackupConfigStoreTest, FlushSpecific)
     Mock::VerifyAndClearExpectations(&ioContext());
 }
 
-TEST_F(XBackupConfigStoreTest, FlushNoDatabases)
+TEST_F(JSONSyncConfigStoreTest, FlushNoDatabases)
 {
     StrictMock<ConfigStore> store(ioContext());
 
@@ -3851,7 +3851,7 @@ TEST_F(XBackupConfigStoreTest, FlushNoDatabases)
     EXPECT_EQ(store.flush(), API_OK);
 }
 
-TEST_F(XBackupConfigStoreTest, FlushUnknownDatabase)
+TEST_F(JSONSyncConfigStoreTest, FlushUnknownDatabase)
 {
     StrictMock<ConfigStore> store(ioContext());
 
@@ -3868,7 +3868,7 @@ TEST_F(XBackupConfigStoreTest, FlushUnknownDatabase)
     EXPECT_FALSE(store.opened(drivePath));
 }
 
-TEST_F(XBackupConfigStoreTest, Open)
+TEST_F(JSONSyncConfigStoreTest, Open)
 {
     auto drivePath = Utilities::randomPath();
 
@@ -3878,11 +3878,11 @@ TEST_F(XBackupConfigStoreTest, Open)
     backupPath.appendWithSeparator(
       ConfigStore::BACKUP_CONFIG_DIR, false);
 
-    XBackupConfigMap written;
+    JSONSyncConfigMap written;
 
     // Populate database.
     {
-        XBackupConfig config;
+        JSONSyncConfig config;
 
         config.drivePath = drivePath;
         config.tag = 1;
@@ -3955,7 +3955,7 @@ TEST_F(XBackupConfigStoreTest, Open)
     EXPECT_EQ(store.open(drivePath), nullptr);
 }
 
-TEST_F(XBackupConfigStoreTest, OpenCantRead)
+TEST_F(JSONSyncConfigStoreTest, OpenCantRead)
 {
     const auto drivePath = Utilities::randomPath();
 
@@ -3996,7 +3996,7 @@ TEST_F(XBackupConfigStoreTest, OpenCantRead)
     EXPECT_FALSE(store.opened(drivePath));
 }
 
-TEST_F(XBackupConfigStoreTest, OpenNoDatabase)
+TEST_F(JSONSyncConfigStoreTest, OpenNoDatabase)
 {
     const auto drivePath = Utilities::randomPath();
 
@@ -4026,7 +4026,7 @@ TEST_F(XBackupConfigStoreTest, OpenNoDatabase)
     EXPECT_FALSE(store.opened(drivePath));
 }
 
-TEST_F(XBackupConfigStoreTest, OpenedDenormalized)
+TEST_F(JSONSyncConfigStoreTest, OpenedDenormalized)
 {
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -4048,7 +4048,7 @@ TEST_F(XBackupConfigStoreTest, OpenedDenormalized)
     EXPECT_TRUE(store.opened(drivePath));
 }
 
-TEST_F(XBackupConfigStoreTest, OpenedUnknownDatabase)
+TEST_F(JSONSyncConfigStoreTest, OpenedUnknownDatabase)
 {
     StrictMock<ConfigStore> store(ioContext());
 
@@ -4058,7 +4058,7 @@ TEST_F(XBackupConfigStoreTest, OpenedUnknownDatabase)
     EXPECT_FALSE(store.opened(Utilities::randomPath()));
 }
 
-TEST_F(XBackupConfigStoreTest, RemoveByTag)
+TEST_F(JSONSyncConfigStoreTest, RemoveByTag)
 {
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -4073,7 +4073,7 @@ TEST_F(XBackupConfigStoreTest, RemoveByTag)
     EXPECT_TRUE(store.opened(drive));
 
     // Add config to store.
-    XBackupConfig config;
+    JSONSyncConfig config;
 
     config.drivePath = drive;
     config.tag = 1;
@@ -4108,7 +4108,7 @@ TEST_F(XBackupConfigStoreTest, RemoveByTag)
     EXPECT_EQ(store.get(config.targetHandle), nullptr);
 }
 
-TEST_F(XBackupConfigStoreTest, RemoveByTargetHandle)
+TEST_F(JSONSyncConfigStoreTest, RemoveByTargetHandle)
 {
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -4123,7 +4123,7 @@ TEST_F(XBackupConfigStoreTest, RemoveByTargetHandle)
     EXPECT_TRUE(store.opened(drive));
 
     // Add config to store.
-    XBackupConfig config;
+    JSONSyncConfig config;
 
     config.drivePath = drive;
     config.tag = 2;
@@ -4158,7 +4158,7 @@ TEST_F(XBackupConfigStoreTest, RemoveByTargetHandle)
     EXPECT_EQ(store.get(config.targetHandle), nullptr);
 }
 
-TEST_F(XBackupConfigStoreTest, RemoveUnknownTag)
+TEST_F(JSONSyncConfigStoreTest, RemoveUnknownTag)
 {
     StrictMock<ConfigStore> store(ioContext());
 
@@ -4172,7 +4172,7 @@ TEST_F(XBackupConfigStoreTest, RemoveUnknownTag)
     EXPECT_FALSE(store.dirty());
 }
 
-TEST_F(XBackupConfigStoreTest, RemoveUnknownTargetHandle)
+TEST_F(JSONSyncConfigStoreTest, RemoveUnknownTargetHandle)
 {
     StrictMock<ConfigStore> store(ioContext());
 
@@ -4187,7 +4187,7 @@ TEST_F(XBackupConfigStoreTest, RemoveUnknownTargetHandle)
     EXPECT_FALSE(store.dirty());
 }
 
-TEST_F(XBackupConfigStoreTest, Update)
+TEST_F(JSONSyncConfigStoreTest, Update)
 {
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -4201,7 +4201,7 @@ TEST_F(XBackupConfigStoreTest, Update)
     EXPECT_TRUE(store.opened(drive));
 
     // Create config to add to database.
-    XBackupConfig configBefore;
+    JSONSyncConfig configBefore;
 
     configBefore.drivePath = drive;
     configBefore.tag = 1;
@@ -4221,7 +4221,7 @@ TEST_F(XBackupConfigStoreTest, Update)
     EXPECT_EQ(store.flush(), API_OK);
 
     // Update config.
-    XBackupConfig configAfter = configBefore;
+    JSONSyncConfig configAfter = configBefore;
 
     configAfter.sourcePath = Utilities::randomPath();
 
@@ -4255,7 +4255,7 @@ TEST_F(XBackupConfigStoreTest, Update)
     EXPECT_EQ(store.get(configAfter.targetHandle), c);
 }
 
-TEST_F(XBackupConfigStoreTest, UpdateChangeDrivePath)
+TEST_F(JSONSyncConfigStoreTest, UpdateChangeDrivePath)
 {
     // Make sure databases are removed.
     Directory driveA(fsAccess(), Utilities::randomPath());
@@ -4275,7 +4275,7 @@ TEST_F(XBackupConfigStoreTest, UpdateChangeDrivePath)
     EXPECT_TRUE(store.opened(driveB));
 
     // Create config.
-    XBackupConfig configBefore;
+    JSONSyncConfig configBefore;
 
     configBefore.drivePath = driveA;
     configBefore.tag = 1;
@@ -4298,7 +4298,7 @@ TEST_F(XBackupConfigStoreTest, UpdateChangeDrivePath)
     EXPECT_FALSE(store.dirty());
 
     // Create updated config.
-    XBackupConfig configAfter = configBefore;
+    JSONSyncConfig configAfter = configBefore;
 
     configAfter.drivePath = driveB;
 
@@ -4350,7 +4350,7 @@ TEST_F(XBackupConfigStoreTest, UpdateChangeDrivePath)
     EXPECT_EQ(store.get(configAfter.targetHandle), cB);
 }
 
-TEST_F(XBackupConfigStoreTest, UpdateChangeTargetHandle)
+TEST_F(JSONSyncConfigStoreTest, UpdateChangeTargetHandle)
 {
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -4364,7 +4364,7 @@ TEST_F(XBackupConfigStoreTest, UpdateChangeTargetHandle)
     EXPECT_TRUE(store.opened(drive));
 
     // Create config to add to database.
-    XBackupConfig configBefore;
+    JSONSyncConfig configBefore;
 
     configBefore.drivePath = drive;
     configBefore.tag = 1;
@@ -4384,7 +4384,7 @@ TEST_F(XBackupConfigStoreTest, UpdateChangeTargetHandle)
     EXPECT_EQ(store.flush(), API_OK);
 
     // Update config.
-    XBackupConfig configAfter = configBefore;
+    JSONSyncConfig configAfter = configBefore;
 
     configAfter.targetHandle = 3;
 
@@ -4421,7 +4421,7 @@ TEST_F(XBackupConfigStoreTest, UpdateChangeTargetHandle)
     EXPECT_EQ(store.get(configAfter.targetHandle), c);
 }
 
-TEST_F(XBackupConfigStoreTest, UpdateChangeUnknownDrivePath)
+TEST_F(JSONSyncConfigStoreTest, UpdateChangeUnknownDrivePath)
 {
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -4437,7 +4437,7 @@ TEST_F(XBackupConfigStoreTest, UpdateChangeUnknownDrivePath)
     EXPECT_TRUE(store.opened(drive));
 
     // Create config.
-    XBackupConfig configBefore;
+    JSONSyncConfig configBefore;
 
     configBefore.drivePath = drive;
     configBefore.tag = 1;
@@ -4460,7 +4460,7 @@ TEST_F(XBackupConfigStoreTest, UpdateChangeUnknownDrivePath)
     EXPECT_EQ(store.flush(), API_OK);
 
     // Create updated config.
-    XBackupConfig configAfter = configBefore;
+    JSONSyncConfig configAfter = configBefore;
 
     configAfter.drivePath = Utilities::randomPath();
 
@@ -4490,7 +4490,7 @@ TEST_F(XBackupConfigStoreTest, UpdateChangeUnknownDrivePath)
     EXPECT_EQ(store.get(configBefore.targetHandle), nullptr);
 }
 
-TEST_F(XBackupConfigStoreTest, UpdateRemoveTargetHandle)
+TEST_F(JSONSyncConfigStoreTest, UpdateRemoveTargetHandle)
 {
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -4504,7 +4504,7 @@ TEST_F(XBackupConfigStoreTest, UpdateRemoveTargetHandle)
     EXPECT_TRUE(store.opened(drive));
 
     // Create config to add to database.
-    XBackupConfig configBefore;
+    JSONSyncConfig configBefore;
 
     configBefore.drivePath = drive;
     configBefore.tag = 1;
@@ -4524,7 +4524,7 @@ TEST_F(XBackupConfigStoreTest, UpdateRemoveTargetHandle)
     EXPECT_EQ(store.flush(), API_OK);
 
     // Update config.
-    XBackupConfig configAfter = configBefore;
+    JSONSyncConfig configAfter = configBefore;
 
     configAfter.targetHandle = UNDEF;
 
@@ -4561,7 +4561,7 @@ TEST_F(XBackupConfigStoreTest, UpdateRemoveTargetHandle)
     EXPECT_EQ(store.get(UNDEF), nullptr);
 }
 
-} // XBackupConfigTests
+} // JSONSyncConfigTests
 
 #endif
 

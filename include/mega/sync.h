@@ -265,18 +265,18 @@ private:
     SyncBackupState mBackupState;
 };
 
-class MEGA_API XBackupConfig
+class MEGA_API JSONSyncConfig
 {
 public:
-    XBackupConfig();
+    JSONSyncConfig();
 
-    MEGA_DEFAULT_COPY_MOVE(XBackupConfig);
+    MEGA_DEFAULT_COPY_MOVE(JSONSyncConfig);
 
     bool valid() const;
 
-    bool operator==(const XBackupConfig& rhs) const;
+    bool operator==(const JSONSyncConfig& rhs) const;
 
-    bool operator!=(const XBackupConfig& rhs) const;
+    bool operator!=(const JSONSyncConfig& rhs) const;
 
     // Absolute path to containing drive.
     LocalPath drivePath;
@@ -310,44 +310,44 @@ public:
 
     // Whether the sync has been enabled by the user.
     bool enabled;
-}; // XBackupConfig
+}; // JSONSyncConfig
 
-// Translates an SyncConfig into a XBackupConfig.
-XBackupConfig translate(const MegaClient& client, const SyncConfig &config);
+// Translates an SyncConfig into a JSONSyncConfig.
+JSONSyncConfig translate(const MegaClient& client, const SyncConfig &config);
 
-// Translates an XBackupConfig into a SyncConfig.
-SyncConfig translate(const MegaClient& client, const XBackupConfig& config);
+// Translates an JSONSyncConfig into a SyncConfig.
+SyncConfig translate(const MegaClient& client, const JSONSyncConfig& config);
 
 // For convenience.
-using XBackupConfigMap = map<int, XBackupConfig>;
+using JSONSyncConfigMap = map<int, JSONSyncConfig>;
 
-class XBackupConfigDBObserver;
-class XBackupConfigIOContext;
+class JSONSyncConfigDBObserver;
+class JSONSyncConfigIOContext;
 
-class MEGA_API XBackupConfigDB
+class MEGA_API JSONSyncConfigDB
 {
 public:
-    XBackupConfigDB(const LocalPath& dbPath,
-                    const LocalPath& drivePath,
-                    XBackupConfigDBObserver& observer);
+    JSONSyncConfigDB(const LocalPath& dbPath,
+                     const LocalPath& drivePath,
+                     JSONSyncConfigDBObserver& observer);
 
     explicit
-    XBackupConfigDB(const LocalPath& dbPath);
+    JSONSyncConfigDB(const LocalPath& dbPath);
 
-    ~XBackupConfigDB();
+    ~JSONSyncConfigDB();
 
-    MEGA_DISABLE_COPY(XBackupConfigDB);
+    MEGA_DISABLE_COPY(JSONSyncConfigDB);
 
-    MEGA_DEFAULT_MOVE(XBackupConfigDB);
+    MEGA_DEFAULT_MOVE(JSONSyncConfigDB);
 
     // Add a new (or update an existing) config.
-    const XBackupConfig* add(const XBackupConfig& config);
+    const JSONSyncConfig* add(const JSONSyncConfig& config);
 
     // Remove all configs.
     void clear();
 
     // Get current configs.
-    const XBackupConfigMap& configs() const;
+    const JSONSyncConfigMap& configs() const;
 
     // Path to the directory containing this database.
     const LocalPath& dbPath() const;
@@ -359,13 +359,13 @@ public:
     const LocalPath& drivePath() const;
 
     // Get config by backup tag.
-    const XBackupConfig* get(const int tag) const;
+    const JSONSyncConfig* get(const int tag) const;
 
     // Get config by backup target handle.
-    const XBackupConfig* get(const handle targetHandle) const;
+    const JSONSyncConfig* get(const handle targetHandle) const;
 
     // Read this database from disk.
-    error read(XBackupConfigIOContext& ioContext);
+    error read(JSONSyncConfigIOContext& ioContext);
 
     // Remove config by backup tag.
     error remove(const int tag);
@@ -374,18 +374,18 @@ public:
     error remove(const handle targetHandle);
 
     // Write this database to disk.
-    error write(XBackupConfigIOContext& ioContext);
+    error write(JSONSyncConfigIOContext& ioContext);
 
 private:
     // Adds a new (or updates an existing) config.
-    const XBackupConfig* add(const XBackupConfig& config,
-                             const bool flush);
+    const JSONSyncConfig* add(const JSONSyncConfig& config,
+                              const bool flush);
 
     // Removes all configs.
     void clear(const bool flush);
 
     // Reads this database from the specified slot on disk.
-    error read(XBackupConfigIOContext& ioContext,
+    error read(JSONSyncConfigIOContext& ioContext,
                const unsigned int slot);
 
     // Remove config by backup tag.
@@ -402,39 +402,39 @@ private:
     LocalPath mDrivePath;
 
     // Who we tell about config changes.
-    XBackupConfigDBObserver* mObserver;
+    JSONSyncConfigDBObserver* mObserver;
 
     // Maps backup tag to config.
-    XBackupConfigMap mTagToConfig;
+    JSONSyncConfigMap mTagToConfig;
 
     // Maps backup target handle to config.
-    map<handle, XBackupConfig*> mTargetToConfig;
+    map<handle, JSONSyncConfig*> mTargetToConfig;
 
     // Tracks which 'slot' we're writing to.
     unsigned int mSlot;
 
     // Whether this database needs to be written to disk.
     bool mDirty;
-}; // XBackupConfigDB
+}; // JSONSyncConfigDB
 
 // Convenience.
-using XBackupConfigDBPtr = unique_ptr<XBackupConfigDB>;
+using JSONSyncConfigDBPtr = unique_ptr<JSONSyncConfigDB>;
 
-class MEGA_API XBackupConfigIOContext
+class MEGA_API JSONSyncConfigIOContext
 {
 public:
-    XBackupConfigIOContext(SymmCipher& cipher,
-                           FileSystemAccess& fsAccess,
-                           const string& key,
-                           const string& name,
-                           PrnGen& rng);
+    JSONSyncConfigIOContext(SymmCipher& cipher,
+                            FileSystemAccess& fsAccess,
+                            const string& key,
+                            const string& name,
+                            PrnGen& rng);
 
-    virtual ~XBackupConfigIOContext();
+    virtual ~JSONSyncConfigIOContext();
 
-    MEGA_DISABLE_COPY_MOVE(XBackupConfigIOContext);
+    MEGA_DISABLE_COPY_MOVE(JSONSyncConfigIOContext);
 
     // Deserialize configs from JSON.
-    bool deserialize(XBackupConfigMap& configs,
+    bool deserialize(JSONSyncConfigMap& configs,
                      JSON& reader) const;
 
     // Determine which slots are present.
@@ -447,7 +447,7 @@ public:
                        const unsigned int slot);
 
     // Serialize configs to JSON.
-    void serialize(const XBackupConfigMap& configs,
+    void serialize(const JSONSyncConfigMap& configs,
                    JSONWriter& writer) const;
 
     // Write data to the specified slot.
@@ -460,13 +460,13 @@ private:
     bool decrypt(const string& in, string& out);
 
     // Deserialize a config from JSON.
-    bool deserialize(XBackupConfig& config, JSON& reader) const;
+    bool deserialize(JSONSyncConfig& config, JSON& reader) const;
 
     // Encrypt data.
     string encrypt(const string& data);
 
     // Serialize a config to JSON.
-    void serialize(const XBackupConfig& config, JSONWriter& writer) const;
+    void serialize(const JSONSyncConfig& config, JSONWriter& writer) const;
 
     // The cipher protecting the user's configuration databases.
     SymmCipher mCipher;
@@ -482,46 +482,46 @@ private:
 
     // Hash used to authenticate configuration databases.
     HMACSHA256 mSigner;
-}; // XBackupConfigIOContext
+}; // JSONSyncConfigIOContext
 
-class MEGA_API XBackupConfigDBObserver
+class MEGA_API JSONSyncConfigDBObserver
 {
 public:
     // Invoked when a backup config is being added.
-    virtual void onAdd(XBackupConfigDB& db,
-                       const XBackupConfig& config) = 0;
+    virtual void onAdd(JSONSyncConfigDB& db,
+                       const JSONSyncConfig& config) = 0;
 
     // Invoked when a backup config is being changed.
-    virtual void onChange(XBackupConfigDB& db,
-                          const XBackupConfig& from,
-                          const XBackupConfig& to) = 0;
+    virtual void onChange(JSONSyncConfigDB& db,
+                          const JSONSyncConfig& from,
+                          const JSONSyncConfig& to) = 0;
 
     // Invoked when a database needs to be written.
-    virtual void onDirty(XBackupConfigDB& db) = 0;
+    virtual void onDirty(JSONSyncConfigDB& db) = 0;
 
     // Invoked when a backup config is being removed.
-    virtual void onRemove(XBackupConfigDB& db,
-                          const XBackupConfig& config) = 0;
+    virtual void onRemove(JSONSyncConfigDB& db,
+                          const JSONSyncConfig& config) = 0;
 
 protected:
-    XBackupConfigDBObserver();
+    JSONSyncConfigDBObserver();
 
-    ~XBackupConfigDBObserver();
-}; // XBackupConfigDBObserver
+    ~JSONSyncConfigDBObserver();
+}; // JSONSyncConfigDBObserver
 
-class MEGA_API XBackupConfigStore
-  : private XBackupConfigDBObserver
+class MEGA_API JSONSyncConfigStore
+  : private JSONSyncConfigDBObserver
 {
 public:
     explicit
-    XBackupConfigStore(XBackupConfigIOContext& ioContext);
+    JSONSyncConfigStore(JSONSyncConfigIOContext& ioContext);
 
-    virtual ~XBackupConfigStore();
+    virtual ~JSONSyncConfigStore();
 
-    MEGA_DISABLE_COPY_MOVE(XBackupConfigStore);
+    MEGA_DISABLE_COPY_MOVE(JSONSyncConfigStore);
 
     // Add a new (or update an existing) config.
-    const XBackupConfig* add(XBackupConfig config);
+    const JSONSyncConfig* add(JSONSyncConfig config);
 
     // Close a database.
     error close(const LocalPath& drivePath);
@@ -530,13 +530,13 @@ public:
     error close();
 
     // Get configs from a database.
-    const XBackupConfigMap* configs(const LocalPath& drivePath) const;
+    const JSONSyncConfigMap* configs(const LocalPath& drivePath) const;
 
     // Get all configs.
-    XBackupConfigMap configs() const;
+    JSONSyncConfigMap configs() const;
 
     // Create a new (or open an existing) database.
-    const XBackupConfigMap* create(const LocalPath& drivePath);
+    const JSONSyncConfigMap* create(const LocalPath& drivePath);
 
     // Whether any databases need flushing.
     bool dirty() const;
@@ -549,13 +549,13 @@ public:
     error flush();
 
     // Get config by backup tag.
-    const XBackupConfig* get(const int tag) const;
+    const JSONSyncConfig* get(const int tag) const;
 
     // Get config by backup target handle.
-    const XBackupConfig* get(const handle targetHandle) const;
+    const JSONSyncConfig* get(const handle targetHandle) const;
 
     // Open (and add) an existing database.
-    const XBackupConfigMap* open(const LocalPath& drivePath);
+    const JSONSyncConfigMap* open(const LocalPath& drivePath);
 
     // Check whether a database is open.
     bool opened(const LocalPath& drivePath) const;
@@ -571,20 +571,20 @@ public:
 
 protected:
     // Invoked when a backup config is being added.
-    virtual void onAdd(XBackupConfigDB& db,
-                       const XBackupConfig& config) override;
+    virtual void onAdd(JSONSyncConfigDB& db,
+                       const JSONSyncConfig& config) override;
 
     // Invoked when a backup config is being changed.
-    virtual void onChange(XBackupConfigDB& db,
-                          const XBackupConfig& from,
-                          const XBackupConfig& to) override;
+    virtual void onChange(JSONSyncConfigDB& db,
+                          const JSONSyncConfig& from,
+                          const JSONSyncConfig& to) override;
 
     // Invoked when a database needs to be written.
-    virtual void onDirty(XBackupConfigDB& db) override;
+    virtual void onDirty(JSONSyncConfigDB& db) override;
 
     // Invoked when a backup config is being removed.
-    virtual void onRemove(XBackupConfigDB& db,
-                          const XBackupConfig& config) override;
+    virtual void onRemove(JSONSyncConfigDB& db,
+                          const JSONSyncConfig& config) override;
 
 private:
     // How we compare drive paths.
@@ -598,29 +598,29 @@ private:
 
     // Convenience.
     using DrivePathToDBMap =
-      std::map<LocalPath, XBackupConfigDBPtr, DrivePathComparator>;
+      std::map<LocalPath, JSONSyncConfigDBPtr, DrivePathComparator>;
 
     // Close a database.
-    error close(XBackupConfigDB& db);
+    error close(JSONSyncConfigDB& db);
 
     // Flush a database to disk.
-    error flush(XBackupConfigDB& db);
+    error flush(JSONSyncConfigDB& db);
 
     // Tracks which databases need to be written.
-    set<XBackupConfigDB*> mDirtyDB;
+    set<JSONSyncConfigDB*> mDirtyDB;
 
     // Maps drive path to database.
     DrivePathToDBMap mDriveToDB;
 
     // IO context used to read and write from disk.
-    XBackupConfigIOContext& mIOContext;
+    JSONSyncConfigIOContext& mIOContext;
 
     // Maps backup tag to database.
-    map<int, XBackupConfigDB*> mTagToDB;
+    map<int, JSONSyncConfigDB*> mTagToDB;
 
     // Maps backup target handle to database.
-    map<handle, XBackupConfigDB*> mTargetToDB;
-}; // XBackupConfigStore
+    map<handle, JSONSyncConfigDB*> mTargetToDB;
+}; // JSONSyncConfigStore
 
 struct Syncs
 {
@@ -685,7 +685,7 @@ struct Syncs
      * @return
      * The result of adding the sync.
      */
-    pair<error, SyncError> backupAdd(const XBackupConfig& config,
+    pair<error, SyncError> backupAdd(const JSONSyncConfig& config,
                                      const bool delayInitialScan = false);
 
     /**
@@ -738,7 +738,7 @@ struct Syncs
      * The result of restoring the external backups.
      */
     pair<error, SyncError> backupRestore(const LocalPath& drivePath,
-                                         const XBackupConfigMap& configs);
+                                         const JSONSyncConfigMap& configs);
     /**
      * @brief
      * Restores backups from an external drive.
@@ -755,7 +755,7 @@ struct Syncs
     pair<error, SyncError> backupRestore(const LocalPath& drivePath);
 
     // Returns a reference to this user's backup configuration store.
-    XBackupConfigStore* backupConfigStore();
+    JSONSyncConfigStore* backupConfigStore();
 
     // Whether the store has any changes that need to be written to disk.
     bool backupConfigStoreDirty();
@@ -764,7 +764,7 @@ struct Syncs
     error backupConfigStoreFlush();
 
     // Returns a reference to this user's internal configuration database.
-    XBackupConfigDB* syncConfigDB();
+    JSONSyncConfigDB* syncConfigDB();
 
     // Whether the internal database has changes that need to be written to disk.
     bool syncConfigDBDirty();
@@ -777,16 +777,16 @@ struct Syncs
 
 private:
     // Returns a reference to this user's sync config IO context.
-    XBackupConfigIOContext* syncConfigIOContext();
+    JSONSyncConfigIOContext* syncConfigIOContext();
 
     // Manages this user's external backup configuration databases.
-    unique_ptr<XBackupConfigStore> mBackupConfigStore;
+    unique_ptr<JSONSyncConfigStore> mBackupConfigStore;
 
     // This user's internal sync configuration datbase.
-    unique_ptr<XBackupConfigDB> mSyncConfigDB;
+    unique_ptr<JSONSyncConfigDB> mSyncConfigDB;
 
     // Responsible for securely writing config databases to disk.
-    unique_ptr<XBackupConfigIOContext> mSyncConfigIOContext;
+    unique_ptr<JSONSyncConfigIOContext> mSyncConfigIOContext;
 
     vector<unique_ptr<UnifiedSync>> mSyncVec;
 

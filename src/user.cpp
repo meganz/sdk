@@ -554,12 +554,12 @@ string User::attr2string(attr_t type)
             attrname = "*!bn";
             break;
             
-        case ATTR_XBACKUP_CONFIG_NAME:
-            attrname = "^~xbcn";
+        case ATTR_JSON_SYNC_CONFIG_NAME:
+            attrname = "^~jscn";
             break;
 
-        case ATTR_XBACKUP_CONFIG_KEY:
-            attrname = "^~xbck";
+        case ATTR_JSON_SYNC_CONFIG_KEY:
+            attrname = "^~jsck";
             break;
 
         case ATTR_UNKNOWN:  // empty string
@@ -711,12 +711,12 @@ string User::attr2longname(attr_t type)
         longname = "ATTR_BACKUP_NAMES";
         break;
 		
-    case ATTR_XBACKUP_CONFIG_NAME:
-        longname = "XBACKUP_CONFIG_NAME";
+    case ATTR_JSON_SYNC_CONFIG_NAME:
+        longname = "JSON_SYNC_CONFIG_NAME";
         break;
 
-    case ATTR_XBACKUP_CONFIG_KEY:
-        longname = "XBACKUP_CONFIG_KEY";
+    case ATTR_JSON_SYNC_CONFIG_KEY:
+        longname = "JSON_SYNC_CONFIG_KEY";
         break;
     }
 
@@ -858,13 +858,13 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_BACKUP_NAMES;
     }
-    else if (!strcmp(name, "^~xbcn"))
+    else if (!strcmp(name, "^~jscn"))
     {
-        return ATTR_XBACKUP_CONFIG_NAME;
+        return ATTR_JSON_SYNC_CONFIG_NAME;
     }
-    else if (!strcmp(name, "^~xbck"))
+    else if (!strcmp(name, "^~jsck"))
     {
-        return ATTR_XBACKUP_CONFIG_KEY;
+        return ATTR_JSON_SYNC_CONFIG_NAME;
     }
     else
     {
@@ -893,8 +893,8 @@ int User::needversioning(attr_t at)
         case ATTR_MY_CHAT_FILES_FOLDER:
         case ATTR_PUSH_SETTINGS:
         case ATTR_MY_BACKUPS_FOLDER:
-        case ATTR_XBACKUP_CONFIG_NAME:
-        case ATTR_XBACKUP_CONFIG_KEY:
+        case ATTR_JSON_SYNC_CONFIG_NAME:
+        case ATTR_JSON_SYNC_CONFIG_KEY:
             return 0;
 
         case ATTR_LAST_INT:
@@ -955,8 +955,8 @@ char User::scope(attr_t at)
         case ATTR_RUBBISH_TIME:
         case ATTR_STORAGE_STATE:
         case ATTR_PUSH_SETTINGS:
-        case ATTR_XBACKUP_CONFIG_NAME:
-        case ATTR_XBACKUP_CONFIG_KEY:
+        case ATTR_JSON_SYNC_CONFIG_NAME:
+        case ATTR_JSON_SYNC_CONFIG_KEY:
             return '^';
 
         default:
@@ -1378,12 +1378,12 @@ bool User::setChanged(attr_t at)
             changed.backupNames = true;
 			break;
 			
-        case ATTR_XBACKUP_CONFIG_NAME:
-            changed.xBackupConfigName = true;
+        case ATTR_JSON_SYNC_CONFIG_NAME:
+            changed.jsonSyncConfigName = true;
             break;
 
-        case ATTR_XBACKUP_CONFIG_KEY:
-            changed.xBackupConfigKey = true;
+        case ATTR_JSON_SYNC_CONFIG_KEY:
+            changed.jsonSyncConfigKey = true;
             break;
 
         default:
