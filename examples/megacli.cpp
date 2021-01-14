@@ -3010,7 +3010,7 @@ autocomplete::ACN autocompleteSyntax()
                                                       param("session"),
                                                       sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
-    p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name"), opt(param("v1"))), param("confirmationlink"))));
+    p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name"), opt(flag("-v1"))), param("confirmationlink"))));
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
     p->Add(exec_confirm, sequence(text("confirm")));
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
@@ -5684,7 +5684,7 @@ void exec_signup(autocomplete::ACState& s)
             {
                 signupemail = s.words[1].s;
                 signupname = s.words[2].s;
-                signupV2 = !(s.words.size() == 4 && s.words[3].s == "v1");
+                signupV2 = !s.extractflag("-v1");
 
                 cout << endl;
                 setprompt(NEWPASSWORD);
