@@ -1411,6 +1411,16 @@ private:
     LocalPath mPath;
 }; // Directory
 
+// Temporary shim so that we can easily shift to using NiceMock<...> when
+// GMock/GTest is upgraded on Jenkins.
+template<typename MockClass>
+class FakeNiceMock
+    : public MockClass
+{
+public:
+        using MockClass::MockClass;
+}; // FakeNiceMock<T>
+
 class Utilities
 {
 public:
@@ -1563,7 +1573,7 @@ protected:
     PrnGen mRNG;
     const string mConfigKey;
     const string mConfigName;
-    NiceMock<IOContext> mIOContext;
+    FakeNiceMock<IOContext> mIOContext;
 }; // JSONSyncConfigTest
 
 class JSONSyncConfigIOContextTest
@@ -1997,7 +2007,7 @@ public:
 private:
     LocalPath mDBPath;
     const LocalPath mDrivePath;
-    NiceMock<Observer> mObserver;
+    FakeNiceMock<Observer> mObserver;
 }; // JSONSyncConfigDBTest
 
 TEST_F(JSONSyncConfigDBTest, AddWithTarget)
@@ -2937,7 +2947,7 @@ TEST_F(JSONSyncConfigStoreTest, AddDenormalized)
     Directory drive(fsAccess(), Utilities::randomPath());
 
     // Create store.
-    NiceMock<ConfigStore> store(ioContext());
+    FakeNiceMock<ConfigStore> store(ioContext());
 
     // Create database (using normalized path.)
     ASSERT_NE(store.create(drive), nullptr);
@@ -3005,7 +3015,7 @@ TEST_F(JSONSyncConfigStoreTest, CloseAll)
       ConfigStore::BACKUP_CONFIG_DIR, false);
 
     // Create store.
-    NiceMock<ConfigStore> store(ioContext());
+    FakeNiceMock<ConfigStore> store(ioContext());
 
     // Add databases.
     EXPECT_NE(store.create(driveA), nullptr);
@@ -3059,7 +3069,7 @@ TEST_F(JSONSyncConfigStoreTest, CloseClean)
       ConfigStore::BACKUP_CONFIG_DIR, false);
 
     // Create store.
-    NiceMock<ConfigStore> store(ioContext());
+    FakeNiceMock<ConfigStore> store(ioContext());
 
     // Create a database.
     ASSERT_NE(store.create(drive), nullptr);
@@ -3090,7 +3100,7 @@ TEST_F(JSONSyncConfigStoreTest, CloseDenormalized)
     drivePath.append(Utilities::separator());
 
     // Create store.
-    NiceMock<ConfigStore> store(ioContext());
+    FakeNiceMock<ConfigStore> store(ioContext());
 
     // Create database (using normalized path.)
     ASSERT_NE(store.create(drive), nullptr);
@@ -3119,7 +3129,7 @@ TEST_F(JSONSyncConfigStoreTest, CloseDirty)
       ConfigStore::BACKUP_CONFIG_DIR, false);
 
     // Create store.
-    NiceMock<ConfigStore> store(ioContext());
+    FakeNiceMock<ConfigStore> store(ioContext());
 
     // Create a database.
     ASSERT_NE(store.create(drive), nullptr);
@@ -3183,7 +3193,7 @@ TEST_F(JSONSyncConfigStoreTest, CloseDirtyCantWrite)
       ConfigStore::BACKUP_CONFIG_DIR, false);
 
     // Create store.
-    NiceMock<ConfigStore> store(ioContext());
+    FakeNiceMock<ConfigStore> store(ioContext());
 
     // Create database.
     ASSERT_NE(store.create(drive), nullptr);
@@ -3261,7 +3271,7 @@ TEST_F(JSONSyncConfigStoreTest, Configs)
     Directory driveA(fsAccess(), Utilities::randomPath());
     Directory driveB(fsAccess(), Utilities::randomPath());
 
-    NiceMock<ConfigStore> store(ioContext());
+    FakeNiceMock<ConfigStore> store(ioContext());
 
     // Add a couple databases.
     const auto* dA = store.create(driveA);
@@ -3312,7 +3322,7 @@ TEST_F(JSONSyncConfigStoreTest, ConfigsDenormalized)
     drivePath.append(Utilities::separator());
 
     // Create store.
-    NiceMock<ConfigStore> store(ioContext());
+    FakeNiceMock<ConfigStore> store(ioContext());
 
     // Create database (using normalized path.)
     auto* configs = store.create(drive);
@@ -3560,7 +3570,7 @@ TEST_F(JSONSyncConfigStoreTest, CreateExisting)
     EXPECT_CALL(ioContext(), write(Eq(drivePath), _, _)) .Times(0);
 
     // Prepare config store.
-    NiceMock<ConfigStore> store(ioContext());
+    FakeNiceMock<ConfigStore> store(ioContext());
 
     // onAdd should be generated for each config loaded from disk.
     EXPECT_CALL(store,
@@ -3610,7 +3620,7 @@ TEST_F(JSONSyncConfigStoreTest, Destruct)
           ConfigStore::BACKUP_CONFIG_DIR, false);
 
         // Create store.
-        NiceMock<ConfigStore> store(ioContext());
+        FakeNiceMock<ConfigStore> store(ioContext());
 
         // Create database.
         EXPECT_NE(store.create(drive), nullptr);
@@ -3649,7 +3659,7 @@ TEST_F(JSONSyncConfigStoreTest, FlushAll)
     backupPathB.appendWithSeparator(BACKUP_DIR, false);
 
     // Create store.
-    NiceMock<ConfigStore> store(ioContext());
+    FakeNiceMock<ConfigStore> store(ioContext());
 
     // Add databases.
     EXPECT_NE(store.create(driveA), nullptr);
@@ -3709,7 +3719,7 @@ TEST_F(JSONSyncConfigStoreTest, FlushDenormalized)
     drivePath.append(Utilities::separator());
 
     // Create store.
-    NiceMock<ConfigStore> store(ioContext());
+    FakeNiceMock<ConfigStore> store(ioContext());
 
     // Create database (using normalized path.)
     EXPECT_NE(store.create(drive), nullptr);
@@ -3752,7 +3762,7 @@ TEST_F(JSONSyncConfigStoreTest, FlushFail)
       ConfigStore::BACKUP_CONFIG_DIR, false);
 
     // Create store.
-    NiceMock<ConfigStore> store(ioContext());
+    FakeNiceMock<ConfigStore> store(ioContext());
 
     // Add database.
     EXPECT_NE(store.create(drive), nullptr);
@@ -3794,7 +3804,7 @@ TEST_F(JSONSyncConfigStoreTest, FlushSpecific)
     backupPathB.appendWithSeparator(BACKUP_DIR, false);
 
     // Create store.
-    NiceMock<ConfigStore> store(ioContext());
+    FakeNiceMock<ConfigStore> store(ioContext());
 
     // Create databases.
     EXPECT_NE(store.create(driveA), nullptr);
@@ -4036,7 +4046,7 @@ TEST_F(JSONSyncConfigStoreTest, OpenedDenormalized)
     drivePath.append(Utilities::separator());
 
     // Create store.
-    NiceMock<ConfigStore> store(ioContext());
+    FakeNiceMock<ConfigStore> store(ioContext());
 
     // Create the database (using normalized path.)
     ASSERT_NE(store.create(drive), nullptr);
@@ -4064,7 +4074,7 @@ TEST_F(JSONSyncConfigStoreTest, RemoveByTag)
     Directory drive(fsAccess(), Utilities::randomPath());
 
     // Create store.
-    NiceMock<ConfigStore> store(ioContext());
+    FakeNiceMock<ConfigStore> store(ioContext());
 
     // Create database.
     EXPECT_NE(store.create(drive), nullptr);
@@ -4114,7 +4124,7 @@ TEST_F(JSONSyncConfigStoreTest, RemoveByTargetHandle)
     Directory drive(fsAccess(), Utilities::randomPath());
 
     // Create store.
-    NiceMock<ConfigStore> store(ioContext());
+    FakeNiceMock<ConfigStore> store(ioContext());
 
     // Create database.
     EXPECT_NE(store.create(drive), nullptr);
@@ -4193,7 +4203,7 @@ TEST_F(JSONSyncConfigStoreTest, Update)
     Directory drive(fsAccess(), Utilities::randomPath());
 
     // Create store.
-    NiceMock<ConfigStore> store(ioContext());
+    FakeNiceMock<ConfigStore> store(ioContext());
 
     // Create database.
     EXPECT_NE(store.create(drive), nullptr);
@@ -4262,7 +4272,7 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeDrivePath)
     Directory driveB(fsAccess(), Utilities::randomPath());
 
     // Create store.
-    NiceMock<ConfigStore> store(ioContext());
+    FakeNiceMock<ConfigStore> store(ioContext());
 
     // Create databases.
     EXPECT_NE(store.create(driveA), nullptr);
@@ -4356,7 +4366,7 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeTargetHandle)
     Directory drive(fsAccess(), Utilities::randomPath());
 
     // Create store.
-    NiceMock<ConfigStore> store(ioContext());
+    FakeNiceMock<ConfigStore> store(ioContext());
 
     // Create database.
     EXPECT_NE(store.create(drive), nullptr);
@@ -4427,7 +4437,7 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeUnknownDrivePath)
     Directory drive(fsAccess(), Utilities::randomPath());
 
     // Create store.
-    NiceMock<ConfigStore> store(ioContext());
+    FakeNiceMock<ConfigStore> store(ioContext());
 
     // Create database.
     ASSERT_NE(store.create(drive), nullptr);
@@ -4496,7 +4506,7 @@ TEST_F(JSONSyncConfigStoreTest, UpdateRemoveTargetHandle)
     Directory drive(fsAccess(), Utilities::randomPath());
 
     // Create store.
-    NiceMock<ConfigStore> store(ioContext());
+    FakeNiceMock<ConfigStore> store(ioContext());
 
     // Create database.
     EXPECT_NE(store.create(drive), nullptr);
