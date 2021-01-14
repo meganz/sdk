@@ -170,6 +170,8 @@ struct MEGA_API DbAccess
 
     virtual bool probe(FileSystemAccess& fsAccess, const string& name) const = 0;
 
+    virtual const LocalPath& rootPath() const = 0;
+
     int currentDbVersion;
 };
 

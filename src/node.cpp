@@ -197,6 +197,18 @@ Node::~Node()
 #endif
 }
 
+#ifdef ENABLE_SYNC
+
+void Node::detach(const bool recreate)
+{
+    if (localnode)
+    {
+        localnode->detach(recreate);
+    }
+}
+
+#endif // ENABLE_SYNC
+
 void Node::setkeyfromjson(const char* k)
 {
     if (keyApplied()) --client->mAppliedKeyNodeCount;
@@ -1621,6 +1633,17 @@ LocalNode::~LocalNode()
     }
 
     slocalname.reset();
+}
+
+void LocalNode::detach(const bool recreate)
+{
+    // Never detach the sync root.
+    if (parent && node)
+    {
+        node->tag = sync->tag;
+        node.reset();
+        created &= !recreate;
+    }
 }
 
 LocalPath LocalNode::getLocalPath() const
