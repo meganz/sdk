@@ -8503,6 +8503,7 @@ void exec_syncbackupadd(autocomplete::ACState& s)
         config.targetHandle = targetNode->nodehandle;
         config.targetPath = targetPath;
         config.tag = ++BACKUP_TAG;
+        config.type = TYPE_BACKUP;
 
         auto result = client->syncs.backupAdd(config);
 

@@ -1431,6 +1431,7 @@ struct StandardClient : public MegaApp
 
         config.enabled = true;
         config.targetHandle = targetNode->nodehandle;
+        config.targetPath = targetPath;
         config.tag = tag;
         config.type = TYPE_BACKUP;
 

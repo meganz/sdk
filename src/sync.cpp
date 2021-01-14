@@ -2257,7 +2257,9 @@ pair<error, SyncError> Syncs::backupAdd(const XBackupConfig& config,
     using std::make_pair;
 
     // Is the config valid?
-    if (!config.valid())
+    if (!config.valid()
+        || config.drivePath.empty()
+        || config.type != TYPE_BACKUP)
     {
         return make_pair(API_EARGS, NO_SYNC_ERROR);
     }
@@ -3191,9 +3193,13 @@ void Syncs::resumeResumableSyncsOnStartup()
 XBackupConfig::XBackupConfig()
   : drivePath()
   , sourcePath()
+  , targetPath()
+  , fingerprint(0)
   , heartbeatID(UNDEF)
   , targetHandle(UNDEF)
   , lastError(NO_SYNC_ERROR)
+  , lastWarning(NO_SYNC_WARNING)
+  , type()
   , tag(0)
   , enabled(false)
 {
@@ -3201,7 +3207,8 @@ XBackupConfig::XBackupConfig()
 
 bool XBackupConfig::valid() const
 {
-    return !(drivePath.empty()
+    return !(sourcePath.empty()
+             || targetPath.empty()
              || targetHandle == UNDEF);
 }
 
@@ -3210,9 +3217,12 @@ bool XBackupConfig::operator==(const XBackupConfig& rhs) const
     return drivePath == rhs.drivePath
            && sourcePath == rhs.sourcePath
            && targetPath == rhs.targetPath
+           && fingerprint == rhs.fingerprint
            && heartbeatID == rhs.heartbeatID
            && targetHandle == rhs.targetHandle
            && lastError == rhs.lastError
+           && lastWarning == rhs.lastWarning
+           && type == rhs.type
            && tag == rhs.tag
            && enabled == rhs.enabled;
 }
@@ -3245,27 +3255,38 @@ XBackupConfig translate(const MegaClient& client, const SyncConfig &config)
     result.sourcePath = LocalPath::fromPath(sourcePath, fsAccess);
 
     // Ensure paths are normalized.
-    result.drivePath = NormalizeAbsolute(result.drivePath);
-    result.sourcePath = NormalizeRelative(result.sourcePath);
+    if (result.type == TYPE_BACKUP)
+    {
+        result.drivePath = NormalizeAbsolute(result.drivePath);
+        result.sourcePath = NormalizeRelative(result.sourcePath);
+    }
+    else
+    {
+        result.sourcePath = NormalizeAbsolute(result.sourcePath);
+    }
 
     return result;
 }
 
 SyncConfig translate(const MegaClient& client, const XBackupConfig& config)
 {
+    LocalPath temp;
     string drivePath = config.drivePath.toPath(*client.fsaccess);
     string sourcePath;
 
-    // Source Path
+    if (config.type == TYPE_BACKUP)
     {
-        LocalPath temp = NormalizeAbsolute(config.drivePath);
-
+        temp = NormalizeAbsolute(config.drivePath);
         temp.appendWithSeparator(
-          NormalizeRelative(config.sourcePath),
-          false);
-
-        sourcePath = temp.toPath(*client.fsaccess);
+            NormalizeRelative(config.sourcePath),
+            false);
     }
+    else
+    {
+        temp = NormalizeAbsolute(config.sourcePath);
+    }
+
+    sourcePath = temp.toPath(*client.fsaccess);
 
     // Build config.
     auto result =
