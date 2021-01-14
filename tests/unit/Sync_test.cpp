@@ -1320,6 +1320,13 @@ public:
         return true;
     }
 
+    const mega::LocalPath &rootPath() const override
+    {
+        static mega::LocalPath const dummy;
+
+        return dummy;
+    }
+
 private:
     std::vector<std::pair<uint32_t, std::string>>& mData;
 };

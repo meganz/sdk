@@ -68,11 +68,59 @@ bool isEscape(UnicodeCodepointIterator<CharT> it)
            && islchex(it.get());
 }
 
+#ifdef _WIN32
+
+template<typename CharT>
+UnicodeCodepointIterator<CharT> skipPrefix(const UnicodeCodepointIterator<CharT>& it)
+{
+    auto i = it;
+
+    // Match leading \\.
+    if (!(i.match('\\') && i.match('\\')))
+    {
+        return it;
+    }
+
+    // Match . or ?
+    switch (i.peek())
+    {
+    case '.':
+    case '?':
+        (void)i.get();
+        break;
+    default:
+        return it;
+    }
+
+    // Match \.
+    if (!i.match('\\'))
+    {
+        return it;
+    }
+
+    auto j = i;
+
+    // Match drive letter.
+    if (j.get() && j.match(':'))
+    {
+        return i;
+    }
+
+    return it;
+}
+
+#endif // _WIN32
+
 template<typename CharT, typename CharU, typename UnaryOperation>
 int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
                UnicodeCodepointIterator<CharU> first2, bool unescaping2,
                UnaryOperation transform)
 {
+#ifdef _WIN32
+    first1 = skipPrefix(first1);
+    first2 = skipPrefix(first2);
+#endif // _WIN32
+
     while (!(first1.end() || first2.end()))
     {
         int c1;
@@ -166,6 +214,41 @@ bool isCaseInsensitive(const FileSystemType type)
 #else
     return false;
 #endif
+}
+
+LocalPath NormalizeRelative(const LocalPath& path)
+{
+#ifdef WIN32
+    using string_type = wstring;
+#else // _WIN32
+    using string_type = string;
+#endif // ! _WIN32
+
+    LocalPath result = path;
+
+    // Convenience.
+    string_type& raw = result.localpath;
+    auto sep = LocalPath::localPathSeparator;
+
+    // Nothing to do if the path's empty.
+    if (raw.empty())
+    {
+        return result;
+    }
+
+    // Remove trailing separator if present.
+    if (raw.back() == sep)
+    {
+        raw.pop_back();
+    }
+
+    // Remove leading separator if present.
+    if (!raw.empty() && raw.front() == sep)
+    {
+        raw.erase(0, 1);
+    }
+
+    return result;
 }
 
 FileSystemAccess::FileSystemAccess()
@@ -432,6 +515,19 @@ int DirNotify::getFailed(string& reason)
     return mFailed;
 }
 
+
+bool DirNotify::empty()
+{
+    for (auto& q : notifyq)
+    {
+        if (!q.empty())
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
 
 // notify base LocalNode + relative path/filename
 void DirNotify::notify(notifyqueue q, LocalNode* l, LocalPath&& path, bool immediate)
@@ -1080,8 +1176,11 @@ LocalPath LocalPath::tmpNameLocal(const FileSystemAccess& fsaccess)
 
 bool LocalPath::isContainingPathOf(const LocalPath& path, size_t* subpathIndex) const
 {
+    assert(!empty());
+    assert(!path.empty());
+
     if (path.localpath.size() >= localpath.size()
-        && !path.localpath.compare(0, localpath.size(), localpath.data(), localpath.size()))
+        && !Utils::pcasecmp(path.localpath, localpath, localpath.size()))
     {
        if (path.localpath.size() == localpath.size())
        {
