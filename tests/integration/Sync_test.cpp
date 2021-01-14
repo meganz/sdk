@@ -1432,6 +1432,7 @@ struct StandardClient : public MegaApp
         config.enabled = true;
         config.targetHandle = targetNode->nodehandle;
         config.tag = tag;
+        config.type = TYPE_BACKUP;
 
         // Try and add the backup.
         return client.syncs.backupAdd(config).first == API_OK;
@@ -1467,7 +1468,7 @@ struct StandardClient : public MegaApp
         {
             if (Node* m = drillchildnodebyname(n, subfoldername))
             {
-                SyncConfig syncConfig{syncTag, localpath.u8string(), localpath.u8string(), m->nodehandle, subfoldername, 0,  {}, true, isBackup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY};
+                SyncConfig syncConfig{syncTag, localpath.u8string(), localpath.u8string(), m->nodehandle, subfoldername, 0,  {}, true, isBackup ? TYPE_BACKUP : TYPE_TWOWAY};
 
                 UnifiedSync* unifiedSync;
                 error e = client.addsync(syncConfig, DEBRISFOLDER, NULL, false, unifiedSync, true);  // use syncid as tag
@@ -1482,13 +1483,12 @@ struct StandardClient : public MegaApp
 
     bool delSync_inthread(const int syncId, const bool keepCache)
     {
-        const auto handle = syncSet(syncId).h;
         bool removed = false;
 
         client.syncs.removeSelectedSyncs(
           [&](SyncConfig& c, Sync*)
           {
-              const bool matched = c.getRemoteNode() == handle;
+              auto matched = c.getTag() == syncId;
 
               removed |= matched;
 
@@ -4722,16 +4722,33 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     std::map<std::string, TwoWaySyncSymmetryCase> cases;
 
     static set<string> tests = {
-        //"external_backup_delete_localChange_byOther_file_resumed",
-        //"external_backup_moveIn_localChange_byOther_file_resumed",
-        //"external_backup_moveOut_localChange_byOther_file_resumed",
-        //"external_backup_move_localChange_byOther_file_resumed",
-        //"external_backup_rename_localChange_byOther_file_resumed"
+#if 0
+        "external_backup_delete_localChange_byOther_file",
+        "external_backup_delete_localChange_byOther_file_resumed",
+        "external_backup_delete_localChange_bySelf_file",
+        "external_backup_delete_remoteChange_byOther_file_resumed",
+        "external_backup_moveIn_localChange_byOther_file",
+        "external_backup_moveIn_localChange_byOther_file_resumed",
+        "external_backup_moveIn_localChange_bySelf_file",
+        "external_backup_moveIn_remoteChange_byOther_file_resumed",
+        "external_backup_moveOut_localChange_byOther_file",
+        "external_backup_moveOut_localChange_byOther_file_resumed",
+        "external_backup_moveOut_localChange_bySelf_file",
+        "external_backup_moveOut_remoteChange_byOther_file_resumed",
+        "external_backup_move_localChange_byOther_file",
+        "external_backup_move_localChange_byOther_file_resumed",
+        "external_backup_move_localChange_bySelf_file",
+        "external_backup_move_remoteChange_byOther_file_resumed",
+        "external_backup_rename_localChange_byOther_file",
+        "external_backup_rename_localChange_byOther_file_resumed",
+        "external_backup_rename_localChange_bySelf_file",
+        "external_backup_rename_remoteChange_byOther_file_resumed"
+#endif
     }; // tests
 
     for (int syncType = TwoWaySyncSymmetryCase::type_numTypes; syncType--; )
     {
-        if (syncType == TwoWaySyncSymmetryCase::type_backupSync) continue;
+        //if (syncType != TwoWaySyncSymmetryCase::type_backupSync) continue;
 
         for (int selfChange = 0; selfChange < 2; ++selfChange)
         {

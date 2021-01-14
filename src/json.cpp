@@ -419,6 +419,39 @@ const char* JSON::getvalue()
     return r;
 }
 
+fsfp_t JSON::getfp()
+{
+    return getuint64();
+}
+
+std::uint64_t JSON::getuint64()
+{
+    const char* ptr;
+
+    if (*pos == ':' || *pos == ',')
+    {
+        pos++;
+    }
+
+    ptr = pos;
+
+    if (*ptr == '"')
+    {
+        ptr++;
+    }
+
+    if (!std::isdigit(*ptr))
+    {
+        LOG_err << "Parse error (getuint64)";
+        return -1;
+    }
+
+    std::uint64_t r = std::strtoull(ptr, nullptr, 0);
+    storeobject();
+
+    return r;
+}
+
 // try to to enter array
 bool JSON::enterarray()
 {

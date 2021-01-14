@@ -686,7 +686,7 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     mLocalPath = mUnifiedSync.mConfig.getLocalPath();
     LocalPath crootpath = LocalPath::fromPath(mLocalPath, *client->fsaccess);
 
-    mBackupState = mUnifiedSync.mConfig.getType() == SyncConfig::TYPE_BACKUP  
+    mBackupState = mUnifiedSync.mConfig.getType() == TYPE_BACKUP  
                    ? SYNC_BACKUP_MIRROR
                    : SYNC_BACKUP_NONE;
 
@@ -2246,7 +2246,7 @@ void UnifiedSync::changedConfigState(bool notifyApp)
 }
 
 Syncs::Syncs(MegaClient& mc)
-    : mClient(mc)
+  : mClient(mc)
 {
     mHeartBeatMonitor.reset(new BackupMonitor(&mClient));
 }
@@ -2506,77 +2506,13 @@ XBackupConfigStore* Syncs::backupConfigStore()
         return mBackupConfigStore.get();
     }
 
-    // Get a handle on our user's data.
-    auto* user = mClient.finduser(mClient.me);
-
-    // Couldn't get user info
-    if (!user)
+    // Can we get our hands on an IO context?
+    if (auto* ioContext = syncConfigIOContext())
     {
-        return nullptr;
+        // Create the store.
+        mBackupConfigStore.reset(new XBackupConfigStore(*ioContext));
     }
 
-    // For convenience.
-    auto get =
-      [=](const attr_t name) -> const string*
-      {
-          // Get the attribute.
-          const auto* value = user->getattr(name);
-
-          // Attribute present and valid?
-          if (!(value && user->isattrvalid(name)))
-          {
-              return nullptr;
-          }
-
-          // Attribute length valid?
-          if (name == ATTR_XBACKUP_CONFIG_KEY)
-          {
-              using KeyStr =
-                Base64Str<SymmCipher::KEYLENGTH * 2>;
-
-              if (value->size() != KeyStr::STRLEN)
-              {
-                  return nullptr;
-              }
-
-              return value;
-          }
-
-          using NameStr =
-            Base64Str<SymmCipher::KEYLENGTH>;
-
-          if (value->size() != NameStr::STRLEN)
-          {
-              return nullptr;
-          }
-
-          return value;
-      };
-
-    // Get attributes.
-    const auto* configKey = get(ATTR_XBACKUP_CONFIG_KEY);
-    const auto* configName = get(ATTR_XBACKUP_CONFIG_NAME);
-
-    // Could we retrieve the attributes?
-    if (!(configKey && configName))
-    {
-        // Nope and we need them.
-        return nullptr;
-    }
-
-    // Create the IO context.
-    mBackupConfigIOContext.reset(
-      new XBackupConfigIOContext(mClient.key,
-                                 *mClient.fsaccess,
-                                 *configKey,
-                                 *configName,
-                                 mClient.rng));
-
-    // Create the store.
-    mBackupConfigStore.reset(
-      new XBackupConfigStore(*mBackupConfigIOContext));
-
-    // Return a reference to the newly created store.
     return mBackupConfigStore.get();
 }
 
@@ -2641,22 +2577,205 @@ error Syncs::backupConfigStoreFlush()
     return API_EWRITE;
 }
 
+XBackupConfigDB* Syncs::syncConfigDB()
+{
+    // Have we already created the database?
+    if (mSyncConfigDB)
+    {
+        // Yep, return a reference to the caller.
+        return mSyncConfigDB.get();
+    }
+
+    // Is the client using a database?
+    if (!mClient.dbaccess)
+    {
+        // Nope and we need it for the configuration path.
+        return nullptr;
+    }
+
+    // Can we get our hands on an IO context?
+    if (!syncConfigIOContext())
+    {
+        // We need it if we want to write the DB to disk.
+        return nullptr;
+    }
+
+    // Where the database will be stored.
+    auto dbPath = mClient.dbaccess->rootPath();
+
+    // Create the database.
+    mSyncConfigDB.reset(new XBackupConfigDB(dbPath));
+
+    return mSyncConfigDB.get();
+}
+
+bool Syncs::syncConfigDBDirty()
+{
+    return mSyncConfigDB && mSyncConfigDB->dirty();
+}
+
+error Syncs::syncConfigDBFlush()
+{
+    if (!syncConfigDBDirty())
+    {
+        return API_OK;
+    }
+
+    LOG_verbose << "Attempting to flush internal config database.";
+
+    auto result = mSyncConfigDB->write(*mSyncConfigIOContext);
+
+    if (result != API_OK)
+    {
+        LOG_err << "Couldn't flush internal config database to disk: "
+                << result;
+    }
+    else
+    {
+        LOG_verbose << "Internal config database flushed to disk.";
+    }
+
+    return result;
+}
+
+error Syncs::syncConfigDBLoad()
+{
+    LOG_verbose << "Attempting to load internal sync configs from disk.";
+
+    auto result = API_EAGAIN;
+
+    // Can we get our hands on the internal sync config database?
+    if (auto* db = syncConfigDB())
+    {
+        // Make sure we have a suitable IO context.
+        if (auto* ioContext = syncConfigIOContext())
+        {
+            // Try and read the database from disk.
+            result = db->read(*ioContext);
+        }
+
+        if (result == API_OK || result == API_ENOENT)
+        {
+            LOG_verbose << "Loaded "
+                        << db->configs().size()
+                        << " internal sync config(s) from disk.";
+
+            return API_OK;
+        }
+    }
+
+    LOG_err << "Couldn't load internal sync configs from disk: "
+            << result;
+
+    return result;
+}
+
+XBackupConfigIOContext* Syncs::syncConfigIOContext()
+{
+    // Has a suitable IO context already been created?
+    if (mSyncConfigIOContext)
+    {
+        // Yep, return a reference to it.
+        return mSyncConfigIOContext.get();
+    }
+
+    // Get a handle on our user's data.
+    auto* user = mClient.finduser(mClient.me);
+
+    // Couldn't get user info
+    if (!user)
+    {
+        return nullptr;
+    }
+
+    // For convenience.
+    auto get =
+      [=](const attr_t name) -> const string*
+      {
+          // Get the attribute.
+          const auto* value = user->getattr(name);
+
+          // Attribute present and valid?
+          if (!(value && user->isattrvalid(name)))
+          {
+              return nullptr;
+          }
+
+          // Attribute length valid?
+          if (name == ATTR_XBACKUP_CONFIG_KEY)
+          {
+              using KeyStr =
+                Base64Str<SymmCipher::KEYLENGTH * 2>;
+
+              if (value->size() != KeyStr::STRLEN)
+              {
+                  return nullptr;
+              }
+
+              return value;
+          }
+
+          using NameStr =
+            Base64Str<SymmCipher::KEYLENGTH>;
+
+          if (value->size() != NameStr::STRLEN)
+          {
+              return nullptr;
+          }
+
+          return value;
+      };
+
+    // Get attributes.
+    const auto* configKey = get(ATTR_XBACKUP_CONFIG_KEY);
+    const auto* configName = get(ATTR_XBACKUP_CONFIG_NAME);
+
+    // Could we retrieve the attributes?
+    if (!(configKey && configName))
+    {
+        // Nope and we need them.
+        return nullptr;
+    }
+
+    // Create the IO context.
+    mSyncConfigIOContext.reset(
+      new XBackupConfigIOContext(mClient.key,
+                                 *mClient.fsaccess,
+                                 *configKey,
+                                 *configName,
+                                 mClient.rng));
+
+    // Return a reference to the new IO context.
+    return mSyncConfigIOContext.get();
+}
+
 void Syncs::clear()
 {
+    syncConfigDBFlush();
+
     mBackupConfigStore.reset();
-    mBackupConfigIOContext.reset();
+    mSyncConfigDB.reset();
+    mSyncConfigIOContext.reset();
     mSyncVec.clear();
-    resetSyncConfigDb();
     isEmpty = true;
+}
+
+error Syncs::truncate()
+{
+    if (!mSyncConfigDB)
+    {
+        return API_OK;
+    }
+
+    mSyncConfigDB->clear();
+
+    return syncConfigDBFlush();
 }
 
 void Syncs::resetSyncConfigDb()
 {
-    mSyncConfigDb.reset();
-    if (mClient.dbaccess && mClient.loggedin() == FULLACCOUNT)
-    {
-        mSyncConfigDb.reset(new SyncConfigBag{ *mClient.dbaccess, *mClient.fsaccess, mClient.rng, mClient.uid });
-    }
+    mSyncConfigDB.reset();
+    static_cast<void>(syncConfigDB());
 }
 
 auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> UnifiedSync*
@@ -2892,16 +3011,16 @@ error Syncs::removeSyncConfig(const int tag)
 {
     error result = API_OK;
 
-    if (mSyncConfigDb)
+    if (auto* db = syncConfigDB())
     {
-        result = mSyncConfigDb->removeByTag(tag);
+        result = db->remove(tag);
     }
 
     if (result == API_ENOENT)
     {
-        if (mBackupConfigStore)
+        if (auto* store = backupConfigStore())
         {
-            result = mBackupConfigStore->remove(tag);
+            result = store->remove(tag);
         }
     }
 
@@ -2934,29 +3053,27 @@ error Syncs::enableSyncByTag(int tag, bool resetFingerprint, UnifiedSync*& syncP
 
 error Syncs::saveSyncConfig(const SyncConfig& config)
 {
+    auto c = translate(mClient, config);
+
     if (!config.isExternal())
     {
-        if (mSyncConfigDb)
+        if (auto* db = syncConfigDB())
         {
-            return mSyncConfigDb->insert(config);
+            return db->add(c), API_OK;
         }
 
         return API_ENOENT;
     }
 
-    if (!mBackupConfigStore)
+    if (auto* store = backupConfigStore())
     {
-        return API_ENOENT;
+        if (store->add(c))
+        {
+            return API_OK;
+        }
     }
 
-    auto c = translate(mClient, config);
-
-    if (!mBackupConfigStore->add(c))
-    {
-        return API_ENOENT;
-    }
-
-    return API_OK;
+    return API_ENOENT;
 }
 
 // restore all configured syncs that were in a temporary error state (not manually disabled)
@@ -3006,9 +3123,16 @@ void Syncs::resumeResumableSyncsOnStartup()
 
     bool firstSyncResumed = false;
 
-    for (auto& config : mSyncConfigDb->all())
+    if (syncConfigDBLoad() != API_OK)
     {
-        mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(mClient, config )));
+        assert(!"Couldn't load sync configs from disk.");
+        return;
+    }
+
+    for (auto& pair : syncConfigDB()->configs())
+    {
+        const auto config = translate(mClient, pair.second);
+        mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(mClient, config)));
         isEmpty = false;
     }
 
@@ -3102,17 +3226,15 @@ XBackupConfig translate(const MegaClient& client, const SyncConfig &config)
 {
     XBackupConfig result;
 
-    assert(config.drivePath().size());
-    assert(config.isBackup());
-    assert(config.isExternal());
-
     result.enabled = config.getEnabled();
+    result.fingerprint = config.getLocalFingerprint();
     result.heartbeatID = config.getBackupId();
     result.lastError = config.getError();
     result.lastWarning = config.getWarning();
     result.tag = config.getTag();
     result.targetHandle = config.getRemoteNode();
     result.targetPath = config.getRemotePath();
+    result.type = config.getType();
 
     const auto& drivePath = config.drivePath();
     const auto sourcePath = config.getLocalPath().substr(drivePath.size());
@@ -3152,10 +3274,10 @@ SyncConfig translate(const MegaClient& client, const XBackupConfig& config)
                  sourcePath,
                  config.targetHandle,
                  config.targetPath,
-                 0,
+                 config.fingerprint,
                  string_vector(),
                  config.enabled,
-                 SyncConfig::TYPE_BACKUP,
+                 config.type,
                  true,
                  false,
                  config.lastError,
@@ -3178,6 +3300,7 @@ XBackupConfigDB::XBackupConfigDB(const LocalPath& dbPath,
   , mTagToConfig()
   , mTargetToConfig()
   , mSlot(0)
+  , mDirty(false)
 {
 }
 
@@ -3188,6 +3311,7 @@ XBackupConfigDB::XBackupConfigDB(const LocalPath& dbPath)
   , mTagToConfig()
   , mTargetToConfig()
   , mSlot(0)
+  , mDirty(false)
 {
 }
 
@@ -3212,6 +3336,16 @@ void XBackupConfigDB::clear()
 const XBackupConfigMap& XBackupConfigDB::configs() const
 {
     return mTagToConfig;
+}
+
+bool XBackupConfigDB::dirty() const
+{
+    return mDirty;
+}
+
+const LocalPath& XBackupConfigDB::dbPath() const
+{
+    return mDBPath;
 }
 
 const LocalPath& XBackupConfigDB::drivePath() const
@@ -3268,6 +3402,9 @@ error XBackupConfigDB::read(XBackupConfigIOContext& ioContext)
         }
     }
 
+    // Up to date with disk.
+    mDirty = false;
+
     // Couldn't load the database.
     return API_EREAD;
 }
@@ -3308,6 +3445,9 @@ error XBackupConfigDB::write(XBackupConfigIOContext& ioContext)
     // Rotate the slot.
     mSlot = (mSlot + 1) % NUM_SLOTS;
 
+    // Up to date with disk.
+    mDirty = false;
+
     return API_OK;
 }
 
@@ -3338,6 +3478,9 @@ const XBackupConfig* XBackupConfigDB::add(const XBackupConfig& config,
                 mObserver->onDirty(*this);
             }
         }
+
+        // Mark the database as being dirty.
+        mDirty |= flush;
 
         // Remove the existing config from the target index.
         mTargetToConfig.erase(it->second.targetHandle);
@@ -3383,6 +3526,9 @@ const XBackupConfig* XBackupConfigDB::add(const XBackupConfig& config,
         }
     }
 
+    // Mark the database as being dirty.
+    mDirty |= flush;
+
     // We're done.
     return &result.first->second;
 }
@@ -3411,6 +3557,9 @@ void XBackupConfigDB::clear(const bool flush)
             mObserver->onDirty(*this);
         }
     }
+
+    // Mark the database as being dirty.
+    mDirty |= flush;
 
     // Clear the backup target handle index.
     mTargetToConfig.clear();
@@ -3491,6 +3640,9 @@ error XBackupConfigDB::remove(const int tag, const bool flush)
             mObserver->onDirty(*this);
         }
     }
+
+    // Mark the database as being dirty.
+    mDirty |= flush;
 
     // Remove the config from the target handle index.
     mTargetToConfig.erase(it->second.targetHandle);
@@ -3789,10 +3941,12 @@ bool XBackupConfigIOContext::decrypt(const string& in, string& out)
 bool XBackupConfigIOContext::deserialize(XBackupConfig& config, JSON& reader) const
 {
     const auto TYPE_ENABLED       = MAKENAMEID2('e', 'n');
+    const auto TYPE_FINGERPRINT   = MAKENAMEID2('f', 'p');
     const auto TYPE_HEARTBEAT_ID  = MAKENAMEID2('h', 'b');
     const auto TYPE_LAST_ERROR    = MAKENAMEID2('l', 'e');
     const auto TYPE_LAST_WARNING  = MAKENAMEID2('l', 'w');
     const auto TYPE_SOURCE_PATH   = MAKENAMEID2('s', 'p');
+    const auto TYPE_SYNC_TYPE     = MAKENAMEID2('s', 't');
     const auto TYPE_TAG           = MAKENAMEID1('t');
     const auto TYPE_TARGET_HANDLE = MAKENAMEID2('t', 'h');
     const auto TYPE_TARGET_PATH   = MAKENAMEID2('t', 'p');
@@ -3806,6 +3960,10 @@ bool XBackupConfigIOContext::deserialize(XBackupConfig& config, JSON& reader) co
 
         case TYPE_ENABLED:
             config.enabled = reader.getbool();
+            break;
+
+        case TYPE_FINGERPRINT:
+            config.fingerprint = reader.getfp();
             break;
  
         case TYPE_HEARTBEAT_ID:
@@ -3834,6 +3992,11 @@ bool XBackupConfigIOContext::deserialize(XBackupConfig& config, JSON& reader) co
 
             break;
         }
+
+        case TYPE_SYNC_TYPE:
+            config.type =
+              static_cast<SyncType>(reader.getint32());
+            break;
 
         case TYPE_TAG:
             config.tag = reader.getint32();
@@ -3889,6 +4052,8 @@ string XBackupConfigIOContext::encrypt(const string& data)
 void XBackupConfigIOContext::serialize(const XBackupConfig& config,
                                        JSONWriter& writer) const
 {
+    using std::to_string;
+
     // Encode path to avoid escaping issues.
     const string sourcePath =
       Base64::btoa(config.sourcePath.toPath(mFsAccess));
@@ -3898,10 +4063,13 @@ void XBackupConfigIOContext::serialize(const XBackupConfig& config,
     writer.beginobject();
 
     writer.arg("sp", sourcePath);
+    writer.arg("tp", targetPath);
+    writer.arg("fp", to_string(config.fingerprint), 0);
     writer.arg("hb", config.heartbeatID, sizeof(handle));
     writer.arg("th", config.targetHandle, sizeof(handle));
-    writer.arg("tp", targetPath);
     writer.arg("le", config.lastError);
+    writer.arg("lw", config.lastWarning);
+    writer.arg("st", config.type);
     writer.arg("t",  config.tag);
     writer.arg("en", config.enabled);
 

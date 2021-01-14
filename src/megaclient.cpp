@@ -3044,6 +3044,9 @@ void MegaClient::exec()
 
         // Flush changes made to external backup configs.
         syncs.backupConfigStoreFlush();
+
+        // Flush changes made to internal configs.
+        syncs.syncConfigDBFlush();
 #endif
 
         notifypurge();
@@ -4357,9 +4360,10 @@ void MegaClient::removeCaches()
         }
     });
 
-    if (syncs.mSyncConfigDb && !mKeepSyncsAfterLogout)
+    // TODO: dgw: truncate?
+    if (!mKeepSyncsAfterLogout)
     {
-        syncs.mSyncConfigDb->clear();
+        syncs.truncate();
     }
 #endif
 

@@ -2299,7 +2299,7 @@ SyncConfig::SyncConfig(int tag,
                        const fsfp_t localFingerprint,
                        std::vector<std::string> regExps,
                        const bool enabled,
-                       const Type syncType,
+                       const SyncType syncType,
                        const bool syncDeletions,
                        const bool forceOverwrite,
                        const SyncError error,
@@ -2398,7 +2398,7 @@ void SyncConfig::setRegExps(std::vector<std::string>&& v)
     mRegExps = std::move(v);
 }
 
-SyncConfig::Type SyncConfig::getType() const
+SyncType SyncConfig::getType() const
 {
     return mSyncType;
 }
@@ -2559,7 +2559,7 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
 
     auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{static_cast<int>(tag), std::move(localPath), std::move(name),
                     remoteNode, std::move(remotePath), fingerprint, std::move(regExps), enabled,
-                    static_cast<Type>(syncType), syncDeletions,
+                    static_cast<SyncType>(syncType), syncDeletions,
                     forceOverwrite, static_cast<SyncError>(error), NO_SYNC_WARNING, heartBeatID}};
     return syncConfig;
 }

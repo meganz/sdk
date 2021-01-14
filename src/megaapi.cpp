@@ -3307,12 +3307,12 @@ void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequ
 
 void MegaApi::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, name, megaHandle, SyncConfig::TYPE_TWOWAY, NULL, listener);
+    pImpl->syncFolder(localFolder, name, megaHandle, TYPE_TWOWAY, NULL, listener);
 }
 
 void MegaApi::syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, nullptr, megaHandle, SyncConfig::TYPE_TWOWAY, NULL, listener);
+    pImpl->syncFolder(localFolder, nullptr, megaHandle, TYPE_TWOWAY, NULL, listener);
 }
 
 void MegaApi::copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
@@ -3488,7 +3488,7 @@ void MegaApi::setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
 
 void MegaApi::backupFolder(const char *localFolder, const char *backupName, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, backupName, INVALID_HANDLE, SyncConfig::TYPE_BACKUP, nullptr, listener);
+    pImpl->syncFolder(localFolder, backupName, INVALID_HANDLE, TYPE_BACKUP, nullptr, listener);
 }
 #endif
 

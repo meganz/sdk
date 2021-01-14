@@ -287,6 +287,9 @@ public:
     // Absolute path to remote sync target.
     string targetPath;
     
+    // Local fingerprint.
+    fsfp_t fingerprint;
+
     // ID for backup heartbeating.
     handle heartbeatID;
 
@@ -298,6 +301,9 @@ public:
 
     // The last warning that occured on this sync.
     SyncWarning lastWarning;
+
+    // Type of sync.
+    SyncType type;
 
     // Identity of sync.
     int tag;
@@ -342,6 +348,12 @@ public:
 
     // Get current configs.
     const XBackupConfigMap& configs() const;
+
+    // Path to the directory containing this database.
+    const LocalPath& dbPath() const;
+
+    // Whether this database needs to be written to disk.
+    bool dirty() const;
 
     // Path to the drive containing this database.
     const LocalPath& drivePath() const;
@@ -400,6 +412,9 @@ private:
 
     // Tracks which 'slot' we're writing to.
     unsigned int mSlot;
+
+    // Whether this database needs to be written to disk.
+    bool mDirty;
 }; // XBackupConfigDB
 
 // Convenience.
@@ -641,6 +656,9 @@ struct Syncs
     void resetSyncConfigDb();
     void clear();
 
+    // Clears (and flushes) internal config database.
+    error truncate();
+
     // updates in state & error
     error saveSyncConfig(const SyncConfig& config);
 
@@ -745,12 +763,30 @@ struct Syncs
     // Attempts to flush database changes to disk.
     error backupConfigStoreFlush();
 
+    // Returns a reference to this user's internal configuration database.
+    XBackupConfigDB* syncConfigDB();
+
+    // Whether the internal database has changes that need to be written to disk.
+    bool syncConfigDBDirty();
+
+    // Attempts to flush the internal configuration database to disk.
+    error syncConfigDBFlush();
+
+    // Load internal sync configs from disk.
+    error syncConfigDBLoad();
+
 private:
-    // Responsible for securely writing config databases to disk.
-    unique_ptr<XBackupConfigIOContext> mBackupConfigIOContext;
+    // Returns a reference to this user's sync config IO context.
+    XBackupConfigIOContext* syncConfigIOContext();
 
     // Manages this user's external backup configuration databases.
     unique_ptr<XBackupConfigStore> mBackupConfigStore;
+
+    // This user's internal sync configuration datbase.
+    unique_ptr<XBackupConfigDB> mSyncConfigDB;
+
+    // Responsible for securely writing config databases to disk.
+    unique_ptr<XBackupConfigIOContext> mSyncConfigIOContext;
 
     vector<unique_ptr<UnifiedSync>> mSyncVec;
 

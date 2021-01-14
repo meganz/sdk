@@ -863,22 +863,22 @@ BackupType;
 
 // Holds the config of a sync. Can be extended with future config options
 class Sync;
+
+enum SyncType
+{
+    // sync up from local to remote
+    TYPE_UP = 0x01,
+    // sync down from remote to local		
+    TYPE_DOWN = 0x02,
+    // Two-way sync
+    TYPE_TWOWAY = TYPE_DOWN | TYPE_UP,
+    // special sync up from local to remote, automatically disabled when remote changed
+    TYPE_BACKUP = 0x04
+}; // SyncType
+
 class SyncConfig : public Cacheable
 {
 public:
-
-    enum Type
-    {
-		// sync up from local to remote
-        TYPE_UP = 0x01,
-		// sync down from remote to local		
-        TYPE_DOWN = 0x02,
-		 // Two-way sync
-        TYPE_TWOWAY = TYPE_UP | TYPE_DOWN,
-		// special sync up from local to remote, automatically disabled when remote changed
-        TYPE_BACKUP = 0x04
-    };
-
     SyncConfig() = default;
 
     SyncConfig(int tag,
@@ -889,7 +889,7 @@ public:
                const fsfp_t localFingerprint,
                std::vector<std::string> regExps = {},
                const bool enabled = true,
-               const Type syncType = TYPE_TWOWAY,
+               const SyncType syncType = TYPE_TWOWAY,
                const bool syncDeletions = false,
                const bool forceOverwrite = false,
                const SyncError error = NO_SYNC_ERROR,
@@ -931,7 +931,7 @@ public:
     void setRegExps(std::vector<std::string>&&);
 
     // returns the type of the sync
-    Type getType() const;
+    SyncType getType() const;
 
     // whether this is an up-sync from local to remote
     bool isUpSync() const;
@@ -1010,7 +1010,7 @@ private:
     std::vector<std::string> mRegExps; //TODO: rename this to wildcardExclusions?: they are not regexps AFAIK
 
     // type of the sync, defaults to bidirectional
-    Type mSyncType;
+    SyncType mSyncType;
 
     // whether deletions are synced (only relevant for one-way-sync)
     bool mSyncDeletions;

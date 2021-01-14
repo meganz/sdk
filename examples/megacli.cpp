@@ -121,7 +121,7 @@ int attempts = 0;
 
 struct NewSyncConfig
 {
-    SyncConfig::Type type = SyncConfig::TYPE_TWOWAY;
+    SyncType type = TYPE_TWOWAY;
     bool syncDeletions = true;
     bool forceOverwrite = false;
 
@@ -130,7 +130,7 @@ struct NewSyncConfig
         return NewSyncConfig{config.getType(), config.syncDeletions(), config.forceOverwrite()};
     }
 
-    NewSyncConfig(SyncConfig::Type t = SyncConfig::TYPE_TWOWAY, bool s = true, bool f = false)
+    NewSyncConfig(SyncType t = TYPE_TWOWAY, bool s = true, bool f = false)
         : type(t), syncDeletions(s), forceOverwrite(f)
     {}
 };
@@ -149,16 +149,16 @@ static std::string syncConfigToString(const SyncConfig& config)
     };
 
     std::string description;
-    if (config.getType() == SyncConfig::TYPE_TWOWAY)
+    if (config.getType() == TYPE_TWOWAY)
     {
         description = "TWOWAY";
     }
-    else if (config.getType() == SyncConfig::TYPE_UP)
+    else if (config.getType() == TYPE_UP)
     {
         description = "UP";
         description += getOptions(config);
     }
-    else if (config.getType() == SyncConfig::TYPE_DOWN)
+    else if (config.getType() == TYPE_DOWN)
     {
         description = "DOWN";
         description += getOptions(config);
@@ -180,18 +180,18 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
     toLower(syncDel);
     toLower(overwrite);
 
-    SyncConfig::Type syncType;
+    SyncType syncType;
     if (type == "up")
     {
-        syncType = SyncConfig::TYPE_UP;
+        syncType = TYPE_UP;
     }
     else if (type == "down")
     {
-        syncType = SyncConfig::TYPE_DOWN;
+        syncType = TYPE_DOWN;
     }
     else if (type == "twoway")
     {
-        syncType = SyncConfig::TYPE_TWOWAY;
+        syncType = TYPE_TWOWAY;
     }
     else
     {
@@ -201,7 +201,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
     bool syncDeletions = false;
     bool forceOverwrite = false;
 
-    if (syncType != SyncConfig::TYPE_TWOWAY)
+    if (syncType != TYPE_TWOWAY)
     {
         if (syncDel == "on")
         {
@@ -345,17 +345,17 @@ const char* syncstatename(const syncstate_t state)
     }
 }
 
-const char *synctypename(const SyncConfig::Type type)
+const char *synctypename(const SyncType type)
 {
     switch (type)
     {
-    case SyncConfig::TYPE_BACKUP:
+    case TYPE_BACKUP:
         return "BACKUP";
-    case SyncConfig::TYPE_DOWN:
+    case TYPE_DOWN:
         return "DOWN";
-    case SyncConfig::TYPE_UP:
+    case TYPE_UP:
         return "UP";
-    case SyncConfig::TYPE_TWOWAY:
+    case TYPE_TWOWAY:
         return "TWOWAY";
     default:
         return "UNKNOWN";
@@ -8526,7 +8526,7 @@ void exec_syncbackupadd(autocomplete::ACState& s)
                  0,
                  string_vector(),
                  true,
-                 SyncConfig::TYPE_BACKUP,
+                 TYPE_BACKUP,
                  true,
                  false);
 

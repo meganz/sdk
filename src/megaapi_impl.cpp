@@ -8711,7 +8711,7 @@ MegaNode *MegaApiImpl::getSyncedNode(const LocalPath& path)
     return node;
 }
 
-void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, SyncConfig::Type type, MegaRegExp *regExp, MegaRequestListener *listener)
+void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, SyncType type, MegaRegExp *regExp, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ADD_SYNC, listener);
     request->setNodeHandle(megaHandle);
@@ -8742,7 +8742,7 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHand
 
 void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
-    syncFolder(localFolder, name, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, regExp, listener);
+    syncFolder(localFolder, name, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, TYPE_TWOWAY, regExp, listener);
 }
 
 void MegaApiImpl::copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
@@ -13950,7 +13950,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             const char* backupName = request->getName();
             const char* localPath = request->getFile();
             SyncConfig syncConfig{ nextSyncTag, localPath, backupName, backupHandle, remotePath.get(),
-                                    0, {}, true, SyncConfig::TYPE_BACKUP };
+                                    0, {}, true, TYPE_BACKUP };
 
             // add the Sync           
             UnifiedSync* unifiedSync = nullptr;
@@ -21524,8 +21524,8 @@ void MegaApiImpl::sendPendingRequests()
 #ifdef ENABLE_SYNC
         case MegaRequest::TYPE_ADD_SYNC:
         {
-            SyncConfig::Type type = static_cast<SyncConfig::Type>(request->getParamType());
-            if (type == SyncConfig::TYPE_BACKUP)
+            SyncType type = static_cast<SyncType>(request->getParamType());
+            if (type == TYPE_BACKUP)
             {
                 e = backupFolder_sendPendingRequest(request);
                 break;
@@ -24306,7 +24306,7 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
 }
 
 #ifdef ENABLE_SYNC
-MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle nodehandle, int tag, SyncConfig::Type type)
+MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle nodehandle, int tag, SyncType type)
     : mActive(false)
     , mEnabled(false)
     , mType(static_cast<SyncType>(type))
