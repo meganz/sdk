@@ -1411,8 +1411,8 @@ private:
     LocalPath mPath;
 }; // Directory
 
-// Temporary shim so that we can easily shift to using NiceMock<...> when
-// GMock/GTest is upgraded on Jenkins.
+// Temporary shims so that we can easily switch to using
+// NiceMock / FakeStrictMock when GMock/GTest is upgraded on Jenkins.
 template<typename MockClass>
 class FakeNiceMock
     : public MockClass
@@ -1420,6 +1420,14 @@ class FakeNiceMock
 public:
         using MockClass::MockClass;
 }; // FakeNiceMock<T>
+
+template<typename MockClass>
+class FakeStrictMock
+    : public MockClass
+{
+public:
+        using MockClass::MockClass;
+}; // FakeFakeStrictMock<T>
 
 class Utilities
 {
@@ -2898,7 +2906,7 @@ TEST_F(JSONSyncConfigStoreTest, Add)
     Directory drive(fsAccess(), Utilities::randomPath());
 
     // Create database.
-    StrictMock<ConfigStore> store(ioContext());
+    FakeStrictMock<ConfigStore> store(ioContext());
 
     EXPECT_NE(store.create(drive), nullptr);
 
@@ -2976,7 +2984,7 @@ TEST_F(JSONSyncConfigStoreTest, AddDenormalized)
 
 TEST_F(JSONSyncConfigStoreTest, AddToUnknownDatabase)
 {
-    StrictMock<ConfigStore> store(ioContext());
+    FakeStrictMock<ConfigStore> store(ioContext());
 
     // No attempt should be made to open an unknown database.
     EXPECT_CALL(ioContext(), get(_, _)).Times(0);
@@ -3239,7 +3247,7 @@ TEST_F(JSONSyncConfigStoreTest, CloseDirtyCantWrite)
 
 TEST_F(JSONSyncConfigStoreTest, CloseNoDatabases)
 {
-    StrictMock<ConfigStore> store(ioContext());
+    FakeStrictMock<ConfigStore> store(ioContext());
 
     // No attempts should be made to write any database.
     EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
@@ -3250,7 +3258,7 @@ TEST_F(JSONSyncConfigStoreTest, CloseNoDatabases)
 
 TEST_F(JSONSyncConfigStoreTest, CloseUnknownDatabase)
 {
-    StrictMock<ConfigStore> store(ioContext());
+    FakeStrictMock<ConfigStore> store(ioContext());
 
     // No attempt should be made to write the database.
     EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
@@ -3338,14 +3346,14 @@ TEST_F(JSONSyncConfigStoreTest, ConfigsDenormalized)
 
 TEST_F(JSONSyncConfigStoreTest, ConfigsNoDatabases)
 {
-    StrictMock<ConfigStore> store(ioContext());
+    FakeStrictMock<ConfigStore> store(ioContext());
 
     EXPECT_TRUE(store.configs().empty());
 }
 
 TEST_F(JSONSyncConfigStoreTest, ConfigsUnknownDatabase)
 {
-    StrictMock<ConfigStore> store(ioContext());
+    FakeStrictMock<ConfigStore> store(ioContext());
 
     // No attempt should be made to open an unknown database.
     EXPECT_CALL(ioContext(), get(_, _)).Times(0);
@@ -3381,7 +3389,7 @@ TEST_F(JSONSyncConfigStoreTest, Create)
         .WillOnce(Return(API_OK));
 
     // Prepare config store.
-    StrictMock<ConfigStore> store(ioContext());
+    FakeStrictMock<ConfigStore> store(ioContext());
 
     // Create the database.
     const auto* configs = store.create(drivePath);
@@ -3421,7 +3429,7 @@ TEST_F(JSONSyncConfigStoreTest, CreateAlreadyOpened)
         .WillOnce(Return(API_OK));
 
     // Prepare config store.
-    StrictMock<ConfigStore> store(ioContext());
+    FakeStrictMock<ConfigStore> store(ioContext());
 
     // Create the database.
     const auto* configs = store.create(drivePath);
@@ -3475,7 +3483,7 @@ TEST_F(JSONSyncConfigStoreTest, CreateCantReadExisting)
       .After(get)
       .WillOnce(Return(API_EREAD));
 
-    StrictMock<ConfigStore> store(ioContext());
+    FakeStrictMock<ConfigStore> store(ioContext());
 
     // Try and create the database.
     EXPECT_EQ(store.create(drivePath), nullptr);
@@ -3508,7 +3516,7 @@ TEST_F(JSONSyncConfigStoreTest, CreateCantWrite)
       .WillOnce(Return(API_EWRITE));
 
     // Prepare config store.
-    StrictMock<ConfigStore> store(ioContext());
+    FakeStrictMock<ConfigStore> store(ioContext());
 
     // Try and create the database.
     EXPECT_EQ(store.create(drivePath), nullptr);
@@ -3852,7 +3860,7 @@ TEST_F(JSONSyncConfigStoreTest, FlushSpecific)
 
 TEST_F(JSONSyncConfigStoreTest, FlushNoDatabases)
 {
-    StrictMock<ConfigStore> store(ioContext());
+    FakeStrictMock<ConfigStore> store(ioContext());
 
     // No attempts should be made to write any database.
     EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
@@ -3863,7 +3871,7 @@ TEST_F(JSONSyncConfigStoreTest, FlushNoDatabases)
 
 TEST_F(JSONSyncConfigStoreTest, FlushUnknownDatabase)
 {
-    StrictMock<ConfigStore> store(ioContext());
+    FakeStrictMock<ConfigStore> store(ioContext());
 
     // No attempt should be made to write the database.
     EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
@@ -3926,7 +3934,7 @@ TEST_F(JSONSyncConfigStoreTest, Open)
                         Return(API_OK)));
 
     // Create the store.
-    StrictMock<ConfigStore> store(ioContext());
+    FakeStrictMock<ConfigStore> store(ioContext());
 
     // onAdd should be generated when we add a config to the store.
     EXPECT_CALL(store,
@@ -3993,7 +4001,7 @@ TEST_F(JSONSyncConfigStoreTest, OpenCantRead)
       .WillOnce(Return(API_EREAD));
 
     // Create the store.
-    StrictMock<ConfigStore> store(ioContext());
+    FakeStrictMock<ConfigStore> store(ioContext());
 
     // Try and open the database.
     EXPECT_EQ(store.open(drivePath), nullptr);
@@ -4023,7 +4031,7 @@ TEST_F(JSONSyncConfigStoreTest, OpenNoDatabase)
       .WillOnce(Return(API_ENOENT));
 
     // Create store.
-    StrictMock<ConfigStore> store(ioContext());
+    FakeStrictMock<ConfigStore> store(ioContext());
 
     // Try and open the database.
     EXPECT_EQ(store.open(drivePath), nullptr);
@@ -4060,7 +4068,7 @@ TEST_F(JSONSyncConfigStoreTest, OpenedDenormalized)
 
 TEST_F(JSONSyncConfigStoreTest, OpenedUnknownDatabase)
 {
-    StrictMock<ConfigStore> store(ioContext());
+    FakeStrictMock<ConfigStore> store(ioContext());
 
     // No attempt should be made to read an unknown database.
     EXPECT_CALL(ioContext(), read(_, _, _)).Times(0);
@@ -4170,7 +4178,7 @@ TEST_F(JSONSyncConfigStoreTest, RemoveByTargetHandle)
 
 TEST_F(JSONSyncConfigStoreTest, RemoveUnknownTag)
 {
-    StrictMock<ConfigStore> store(ioContext());
+    FakeStrictMock<ConfigStore> store(ioContext());
 
     // There should be no attempts to write any database.
     EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
@@ -4184,7 +4192,7 @@ TEST_F(JSONSyncConfigStoreTest, RemoveUnknownTag)
 
 TEST_F(JSONSyncConfigStoreTest, RemoveUnknownTargetHandle)
 {
-    StrictMock<ConfigStore> store(ioContext());
+    FakeStrictMock<ConfigStore> store(ioContext());
 
     // There should be no attempts to write any database.
     EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
