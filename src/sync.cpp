@@ -2681,61 +2681,13 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
         return mSyncConfigIOContext.get();
     }
 
-    // Get a handle on our user's data.
-    auto* user = mClient.finduser(mClient.me);
+    using KeyStr  = Base64Str<SymmCipher::KEYLENGTH * 2>;
+    using NameStr = Base64Str<SymmCipher::KEYLENGTH>;
 
-    // Couldn't get user info
-    if (!user)
+    // Verify attributes are correctly sized.
+    if (mClient.syncdbkey.size() != KeyStr::STRLEN
+        || mClient.syncdbname.size() != NameStr::STRLEN)
     {
-        return nullptr;
-    }
-
-    // For convenience.
-    auto get =
-      [=](const attr_t name) -> const string*
-      {
-          // Get the attribute.
-          const auto* value = user->getattr(name);
-
-          // Attribute present and valid?
-          if (!(value && user->isattrvalid(name)))
-          {
-              return nullptr;
-          }
-
-          // Attribute length valid?
-          if (name == ATTR_JSON_SYNC_CONFIG_KEY)
-          {
-              using KeyStr =
-                Base64Str<SymmCipher::KEYLENGTH * 2>;
-
-              if (value->size() != KeyStr::STRLEN)
-              {
-                  return nullptr;
-              }
-
-              return value;
-          }
-
-          using NameStr =
-            Base64Str<SymmCipher::KEYLENGTH>;
-
-          if (value->size() != NameStr::STRLEN)
-          {
-              return nullptr;
-          }
-
-          return value;
-      };
-
-    // Get attributes.
-    const auto* configKey = get(ATTR_JSON_SYNC_CONFIG_KEY);
-    const auto* configName = get(ATTR_JSON_SYNC_CONFIG_NAME);
-
-    // Could we retrieve the attributes?
-    if (!(configKey && configName))
-    {
-        // Nope and we need them.
         return nullptr;
     }
 
@@ -2743,8 +2695,8 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
     mSyncConfigIOContext.reset(
       new JSONSyncConfigIOContext(mClient.key,
                                  *mClient.fsaccess,
-                                 *configKey,
-                                 *configName,
+                                 mClient.syncdbkey,
+                                 mClient.syncdbname,
                                  mClient.rng));
 
     // Return a reference to the new IO context.

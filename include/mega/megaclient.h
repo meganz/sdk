@@ -1402,6 +1402,12 @@ public:
     std::map<handle, handle> mPublicLinks;
 
 #ifdef ENABLE_SYNC
+    // Root filename of this user's sync config databases.
+    string syncdbname;
+
+    // Authentication and decryption keys for this user's sync config databases.
+    string syncdbkey;
+
     // sync debris folder name in //bin
     static const char* const SYNCDEBRISFOLDERNAME;
 

@@ -4326,6 +4326,8 @@ void MegaClient::locallogout(bool removecaches)
     }
 
 #ifdef ENABLE_SYNC
+    syncdbkey.clear();
+    syncdbname.clear();
     syncadding = 0;
     totalLocalNodes = 0;
 #endif

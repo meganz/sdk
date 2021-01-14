@@ -2940,6 +2940,15 @@ bool CommandPutUA::procresult(Result r)
             LOG_info << "Unshareable key successfully created";
             client->unshareablekey.swap(av);
         }
+        else if (at == ATTR_JSON_SYNC_CONFIG_NAME)
+        {
+            client->syncdbname.swap(av);
+        }
+        else if (at == ATTR_JSON_SYNC_CONFIG_KEY)
+        {
+            client->syncdbkey.swap(av);
+        }
+
         client->app->putua_result(API_OK);
     }
 
@@ -4173,6 +4182,9 @@ bool CommandGetUserData::procresult(Result r)
                     changes += u->updateattr(ATTR_JSON_SYNC_CONFIG_NAME,
                                              &jsonSyncConfigName,
                                              &jsonSyncConfigNameVersion);
+
+                    // Make the attribute immediately visible to the client.
+                    client->syncdbname = jsonSyncConfigName;
                 }
 
                 // Has a key been defined to protect this user's sync configuration databases?
@@ -4196,6 +4208,9 @@ bool CommandGetUserData::procresult(Result r)
                     changes += u->updateattr(ATTR_JSON_SYNC_CONFIG_KEY,
                                              &jsonSyncConfigKey,
                                              &jsonSyncConfigKeyVersion);
+
+                    // Make the attribute immediately visible to the client.
+                    client->syncdbkey = jsonSyncConfigKey;
                 }
 
                 if (changes > 0)
