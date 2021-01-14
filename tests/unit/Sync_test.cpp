@@ -1322,9 +1322,9 @@ public:
         return true;
     }
 
-    const mega::LocalPath& rootPath() const override
+    const mega::LocalPath &rootPath() const override
     {
-        static const LocalPath dummy;
+        static mega::LocalPath const dummy;
 
         return dummy;
     }

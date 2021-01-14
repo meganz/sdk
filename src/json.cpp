@@ -18,6 +18,7 @@
  * You should have received a copy of the license along with this
  * program.
  */
+#include <cctype>
 
 #include "mega/json.h"
 #include "mega/base64.h"
@@ -424,7 +425,7 @@ fsfp_t JSON::getfp()
     return getuint64();
 }
 
-std::uint64_t JSON::getuint64()
+uint64_t JSON::getuint64()
 {
     const char* ptr;
 
@@ -443,10 +444,10 @@ std::uint64_t JSON::getuint64()
     if (!std::isdigit(*ptr))
     {
         LOG_err << "Parse error (getuint64)";
-        return -1;
+        return std::numeric_limits<uint64_t>::max();
     }
 
-    std::uint64_t r = std::strtoull(ptr, nullptr, 0);
+    uint64_t r = strtoull(ptr, nullptr, 0);
     storeobject();
 
     return r;
