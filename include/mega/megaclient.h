@@ -298,9 +298,6 @@ public:
     // ID tag of the next request
     int nextreqtag();
 
-    // ID tag of the next sync
-    int nextSyncTag(int increment = 0);
-
     // corresponding ID tag of the currently executing callback
     int restag;
 
@@ -602,11 +599,11 @@ public:
     /**
      * @brief is local path syncable
      * @param newPath path to check
-     * @param syncTag tag to exclude in checking (that of the new sync)
+     * @param excludeBackupId backupId to exclude in checking (that of the new sync)
      * @param syncError filled with SyncError with the sync error that makes the node unsyncable
      * @return API_OK if syncable. (regular) error otherwise
      */
-    error isLocalPathSyncable(std::string newPath, int newSyncTag = 0, SyncError *syncError = nullptr);
+    error isLocalPathSyncable(std::string newPath, handle excludeBackupId = UNDEF, SyncError *syncError = nullptr);
 
     /**
      * @brief check config. Will fill syncError in the SyncConfig in case there is one.
@@ -630,7 +627,10 @@ public:
      * @param notifyApp whether the syncupdate_stateconfig callback should be called at this stage or not
      * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
      */
-    error addsync(SyncConfig& syncConfig, const char* debris, LocalPath* localdebris, bool delayInitialScan, UnifiedSync*& unifiedSync, bool notifyApp);
+    error addsync(SyncConfig& syncConfig, const char* debris, LocalPath* localdebris, bool delayInitialScan, bool notifyApp,
+                  std::function<void(UnifiedSync *, const SyncError &, error)> completion);
+
+    void copySyncConfig(SyncConfig& config, std::function<void(mega::UnifiedSync *, const SyncError &, error)> completion);
 
 
     ////// sync config updating & persisting ////
@@ -1219,9 +1219,6 @@ public:
 
     // current request tag
     int reqtag;
-
-    // current sync tag
-    int mSyncTag;
 
     // user maps: by handle and by case-normalized e-mail address
     uh_map uhindex;

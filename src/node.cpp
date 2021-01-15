@@ -197,6 +197,18 @@ Node::~Node()
 #endif
 }
 
+#ifdef ENABLE_SYNC
+
+void Node::detach(const bool recreate)
+{
+    if (localnode)
+    {
+        localnode->detach(recreate);
+    }
+}
+
+#endif // ENABLE_SYNC
+
 void Node::setkeyfromjson(const char* k)
 {
     if (keyApplied()) --client->mAppliedKeyNodeCount;
@@ -1219,13 +1231,11 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
                     }
 
                     string prevname = node->attrs.map['n'];
-                    int creqtag = sync->client->reqtag;
 
                     // set new name
                     node->attrs.map['n'] = name;
-                    sync->client->reqtag = sync->tag;
+                    sync->client->nextreqtag(); //make reqtag advance to use the next one
                     sync->client->setattr(node, prevname.c_str());
-                    sync->client->reqtag = creqtag;
                 }
             }
         }
@@ -1246,8 +1256,7 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
             {
                 assert(parent->node);
 
-                int creqtag = sync->client->reqtag;
-                sync->client->reqtag = sync->tag;
+                sync->client->nextreqtag(); //make reqtag advance to use the next one
                 LOG_debug << "Moving node: " << node->displayname() << " to " << parent->node->displayname();
                 if (sync->client->rename(node, parent->node, SYNCDEL_NONE, node->parent ? node->parent->nodehandle : UNDEF) == API_EACCESS
                         && sync != parent->sync)
@@ -1257,7 +1266,6 @@ void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std
                     // save for deletion
                     todelete = node;
                 }
-                sync->client->reqtag = creqtag;
 
                 if (type == FILENODE)
                 {
@@ -1621,6 +1629,16 @@ LocalNode::~LocalNode()
     }
 
     slocalname.reset();
+}
+
+void LocalNode::detach(const bool recreate)
+{
+    // Never detach the sync root.
+    if (parent && node)
+    {
+        node.reset();
+        created &= !recreate;
+    }
 }
 
 LocalPath LocalNode::getLocalPath() const

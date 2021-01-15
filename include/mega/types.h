@@ -851,8 +851,7 @@ public:
         TYPE_BACKUP, // special sync up from local to remote, automatically disabled when remote changed
     };
 
-    SyncConfig(int tag,
-               std::string localPath,
+    SyncConfig(std::string localPath,
                std::string syncName,
                const handle remoteNode,
                const std::string &remotePath,
@@ -866,12 +865,6 @@ public:
                const SyncWarning warning = NO_SYNC_WARNING,
                handle hearBeatID = UNDEF
             );
-
-    // returns unique identifier
-    int getTag() const;
-
-    // returns unique identifier
-    void setTag(int tag);
 
     // whether this sync has errors (was inactive)
     bool hasError() const;
@@ -941,10 +934,6 @@ public:
 
 private:
 
-    // Unique identifier. any other field can change (even remote handle),
-    // and we want to keep disabled configurations saved: e.g: remote handle changed
-    int mTag;
-
     // enabled/disabled by the user
     bool mEnabled = true;
 
@@ -978,6 +967,8 @@ private:
     // failure cause (disable/failure cause).
     SyncError mError;
 
+    // Unique identifier. any other field can change (even remote handle),
+    // and we want to keep disabled configurations saved: e.g: remote handle changed
     // id for heartbeating
     handle mBackupId;
 
