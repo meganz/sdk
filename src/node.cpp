@@ -1636,7 +1636,6 @@ void LocalNode::detach(const bool recreate)
     // Never detach the sync root.
     if (parent && node)
     {
-        node->tag = sync->tag;
         node.reset();
         created &= !recreate;
     }
