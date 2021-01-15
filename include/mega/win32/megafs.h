@@ -59,7 +59,7 @@ public:
     DirAccess* newdiraccess() override;
     DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*) override;
 
-    bool issyncsupported(LocalPath&, bool* = NULL, SyncError* = nullptr) override;
+    bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) override;
 
     void tmpnamelocal(LocalPath&) const override;
 
@@ -166,6 +166,8 @@ public:
     void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
     bool fwrite(const byte *, unsigned, m_off_t);
+
+    bool ftruncate() override;
 
     bool sysread(byte *, unsigned, m_off_t) override;
     bool sysstat(m_time_t*, m_off_t*) override;

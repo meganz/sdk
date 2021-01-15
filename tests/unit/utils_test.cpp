@@ -214,6 +214,28 @@ TEST_F(ComparatorTest, CompareLocalPaths)
         lhs = fromPath("a%qb%");
 
         EXPECT_EQ(compare(lhs, lhs), 0);
+
+#ifdef _WIN32
+        // Non-UNC prefixes should be skipped.
+        lhs = fromPath("\\\\?\\C:\\");
+        rhs = fromPath("C:\\");
+
+        EXPECT_EQ(compare(lhs, rhs), 0);
+        EXPECT_EQ(compare(rhs, lhs), 0);
+
+        lhs = fromPath("\\\\.\\C:\\");
+        rhs = fromPath("C:\\");
+
+        EXPECT_EQ(compare(lhs, rhs), 0);
+        EXPECT_EQ(compare(rhs, lhs), 0);
+
+        // Prefixes should only be removed from absolute paths.
+        lhs = fromPath("\\\\?\\X");
+        rhs = fromPath("X");
+
+        EXPECT_NE(compare(lhs, rhs), 0);
+        EXPECT_NE(compare(rhs, lhs), 0);
+#endif // _WIN32
     }
 
     // Filesystem-specific
@@ -309,6 +331,28 @@ TEST_F(ComparatorTest, CompareLocalPathAgainstString)
         rhs = "a%qb%r";
 
         EXPECT_EQ(compare(lhs, rhs), 0);
+
+#ifdef _WIN32
+        // Non-UNC prefixes should be skipped.
+        lhs = fromPath("\\\\?\\C:\\");
+        rhs = "C:\\";
+
+        EXPECT_EQ(compare(lhs, rhs), 0);
+        EXPECT_EQ(compare(rhs, lhs), 0);
+
+        lhs = fromPath("\\\\.\\C:\\");
+        rhs = "C:\\";
+
+        EXPECT_EQ(compare(lhs, rhs), 0);
+        EXPECT_EQ(compare(rhs, lhs), 0);
+
+        // Prefixes should only be removed from absolute paths.
+        lhs = fromPath("\\\\?\\X");
+        rhs = "X";
+
+        EXPECT_NE(compare(lhs, rhs), 0);
+        EXPECT_NE(compare(rhs, lhs), 0);
+#endif // _WIN32
     }
 
     // Filesystem-specific
@@ -392,5 +436,219 @@ TEST(URLCodec, UnescapeShortEscape)
     input = "a%a";
     URLCodec::unescape(&input, &output);
     EXPECT_EQ(output, "a%a");
+}
+
+
+TEST(Filesystem, isContainingPathOf)
+{
+    using namespace mega;
+
+#ifdef _WIN32
+#define SEP "\\"
+#else // _WIN32
+#define SEP "/"
+#endif // ! _WIN32
+
+    FSACCESS_CLASS fsAccess;
+
+    LocalPath lhs;
+    LocalPath rhs;
+    size_t pos;
+
+    // lhs does not contain rhs.
+    pos = -1;
+    lhs = LocalPath::fromPath("a" SEP "b", fsAccess);
+    rhs = LocalPath::fromPath("a" SEP "c", fsAccess);
+
+    EXPECT_FALSE(lhs.isContainingPathOf(rhs, &pos));
+    EXPECT_EQ(pos, -1);
+
+    // lhs does not contain rhs.
+    // they do, however, share a common prefix.
+    pos = -1;
+    lhs = LocalPath::fromPath("a", fsAccess);
+    rhs = LocalPath::fromPath("ab", fsAccess);
+
+    EXPECT_FALSE(lhs.isContainingPathOf(rhs, &pos));
+    EXPECT_EQ(pos, -1);
+
+    // lhs contains rhs.
+    // no trailing separator.
+    pos = -1;
+    lhs = LocalPath::fromPath("a", fsAccess);
+    rhs = LocalPath::fromPath("a" SEP "b", fsAccess);
+
+    EXPECT_TRUE(lhs.isContainingPathOf(rhs, &pos));
+    EXPECT_EQ(pos, 2);
+
+    // trailing separator.
+    pos = -1;
+    lhs = LocalPath::fromPath("a" SEP, fsAccess);
+    rhs = LocalPath::fromPath("a" SEP "b", fsAccess);
+
+    EXPECT_TRUE(lhs.isContainingPathOf(rhs, &pos));
+    EXPECT_EQ(pos, 2);
+
+    // lhs contains itself.
+    pos = -1;
+    lhs = LocalPath::fromPath("a" SEP "b", fsAccess);
+
+    EXPECT_TRUE(lhs.isContainingPathOf(lhs, &pos));
+    EXPECT_EQ(pos, 3);
+
+#ifdef _WIN32
+    // case insensitive.
+    pos = -1;
+    lhs = LocalPath::fromPath("a" SEP "B", fsAccess);
+    rhs = LocalPath::fromPath("A" SEP "b", fsAccess);
+
+    EXPECT_TRUE(lhs.isContainingPathOf(rhs, &pos));
+    EXPECT_EQ(pos, 3);
+#endif // _WIN32
+
+#undef SEP
+}
+
+#ifdef _WIN32
+
+TEST(Filesystem, NormalizeAbsoluteAddDriveSeparator)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+
+    LocalPath input = LocalPath::fromPath("C:", fsAccess);
+    LocalPath expected = LocalPath::fromPath("C:\\", fsAccess);
+
+    EXPECT_EQ(NormalizeAbsolute(input), expected);
+    EXPECT_EQ(NormalizeAbsolute(expected), expected);
+
+    input = LocalPath::fromPath("\\\\.\\C:", fsAccess);
+    expected = LocalPath::fromPath("\\\\.\\C:\\", fsAccess);
+
+    EXPECT_EQ(NormalizeAbsolute(input), expected);
+    EXPECT_EQ(NormalizeAbsolute(expected), expected);
+
+    input = LocalPath::fromPath("\\\\?\\C:", fsAccess);
+    expected = LocalPath::fromPath("\\\\?\\C:\\", fsAccess);
+
+    EXPECT_EQ(NormalizeAbsolute(input), expected);
+    EXPECT_EQ(NormalizeAbsolute(expected), expected);
+}
+
+TEST(Filesystem, NormalizeAbsoluteRemoveTrailingSeparator)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+
+    LocalPath input = LocalPath::fromPath("A\\", fsAccess);
+    LocalPath expected = LocalPath::fromPath("A", fsAccess);
+
+    EXPECT_EQ(NormalizeAbsolute(input), expected);
+    EXPECT_EQ(NormalizeAbsolute(expected), expected);
+
+    input = LocalPath::fromPath("\\\\.\\C:\\A\\", fsAccess);
+    expected = LocalPath::fromPath("\\\\.\\C:\\A", fsAccess);
+
+    EXPECT_EQ(NormalizeAbsolute(input), expected);
+    EXPECT_EQ(NormalizeAbsolute(expected), expected);
+
+    input = LocalPath::fromPath("\\\\?\\C:\\A\\", fsAccess);
+    expected = LocalPath::fromPath("\\\\?\\C:\\A", fsAccess);
+
+    EXPECT_EQ(NormalizeAbsolute(input), expected);
+    EXPECT_EQ(NormalizeAbsolute(expected), expected);
+}
+
+TEST(Filesystem, NormalizeRelativeRemoveLeadingSeparator)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+
+    LocalPath input = LocalPath::fromPath("\\a\\b\\", fsAccess);
+    LocalPath expected = LocalPath::fromPath("a\\b", fsAccess);
+
+    EXPECT_EQ(NormalizeRelative(input), expected);
+    EXPECT_EQ(NormalizeRelative(expected), expected);
+}
+
+TEST(Filesystem, NormalizeRelativeRemoveTrailingSeparator)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+
+    LocalPath input = LocalPath::fromPath("a\\b\\", fsAccess);
+    LocalPath expected = LocalPath::fromPath("a\\b", fsAccess);
+
+    EXPECT_EQ(NormalizeRelative(input), expected);
+    EXPECT_EQ(NormalizeRelative(expected), expected);
+}
+
+#else // _WIN32
+
+TEST(Filesystem, NormalizeAbsoluteAddRootSeparator)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+
+    LocalPath input = LocalPath::fromPath("", fsAccess);
+    LocalPath expected = LocalPath::fromPath("/", fsAccess);
+
+    EXPECT_EQ(NormalizeAbsolute(input), expected);
+    EXPECT_EQ(NormalizeAbsolute(expected), expected);
+}
+
+TEST(Filesystem, NormalizeAbsoluteRemoveTrailingSeparator)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+
+    LocalPath input = LocalPath::fromPath("a/", fsAccess);
+    LocalPath expected = LocalPath::fromPath("a", fsAccess);
+
+    EXPECT_EQ(NormalizeAbsolute(input), expected);
+    EXPECT_EQ(NormalizeAbsolute(expected), expected);
+}
+
+TEST(Filesystem, NormalizeRelativeRemoveLeadingSeparator)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+
+    LocalPath input = LocalPath::fromPath("/a/b/", fsAccess);
+    LocalPath expected = LocalPath::fromPath("a/b", fsAccess);
+
+    EXPECT_EQ(NormalizeRelative(input), expected);
+    EXPECT_EQ(NormalizeRelative(expected), expected);
+}
+
+TEST(Filesystem, NormalizeRelativeRemoveTrailingSeparator)
+{
+    using namespace mega;
+
+    FSACCESS_CLASS fsAccess;
+
+    LocalPath input = LocalPath::fromPath("a/b/", fsAccess);
+    LocalPath expected = LocalPath::fromPath("a/b", fsAccess);
+
+    EXPECT_EQ(NormalizeRelative(input), expected);
+    EXPECT_EQ(NormalizeRelative(expected), expected);
+}
+
+#endif // _WIN32
+
+TEST(Filesystem, NormalizeRelativeEmpty)
+{
+    using namespace mega;
+
+    LocalPath path;
+
+    EXPECT_EQ(NormalizeRelative(path), path);
 }
 

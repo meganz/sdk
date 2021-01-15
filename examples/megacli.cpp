@@ -79,6 +79,9 @@ bool gVerboseMode = false;
 // new account signup e-mail address and name
 static string signupemail, signupname;
 
+// true by default, to register a new account v2 (false means account v1)
+bool signupV2 = true;
+
 // signup code being confirmed
 static string signupcode;
 
@@ -121,7 +124,7 @@ int attempts = 0;
 
 struct NewSyncConfig
 {
-    SyncConfig::Type type = SyncConfig::Type::TYPE_TWOWAY;
+    SyncConfig::Type type = SyncConfig::TYPE_TWOWAY;
     bool syncDeletions = true;
     bool forceOverwrite = false;
 
@@ -148,19 +151,19 @@ static std::string syncConfigToString(const SyncConfig& config)
         return desc;
     };
 
-    std::string description;
+    std::string description(Base64Str<MegaClient::BACKUPHANDLE>(config.getBackupId()));
     if (config.getType() == SyncConfig::TYPE_TWOWAY)
     {
-        description = "TWOWAY";
+        description.append(" TWOWAY");
     }
     else if (config.getType() == SyncConfig::TYPE_UP)
     {
-        description = "UP";
+        description.append(" UP");
         description += getOptions(config);
     }
     else if (config.getType() == SyncConfig::TYPE_DOWN)
     {
-        description = "DOWN";
+        description.append(" DOWN");
         description += getOptions(config);
     }
     return description;
@@ -170,7 +173,6 @@ static std::string syncConfigToString(const SyncConfig& config)
 // returns a pair where `first` is success and `second` is the sync config.
 static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {})
 {
-    static int syncTag = 13217;
     auto toLower = [](std::string& s)
     {
         for (char& c : s) { c = static_cast<char>(tolower(c)); };
@@ -195,7 +197,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
     }
     else
     {
-        return std::make_pair(false, SyncConfig(syncTag++, "", "", UNDEF, "", 0));
+        return std::make_pair(false, SyncConfig("", "", UNDEF, "", 0));
     }
 
     bool syncDeletions = false;
@@ -213,7 +215,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig(syncTag++, "", "", UNDEF, "", 0));
+            return std::make_pair(false, SyncConfig("", "", UNDEF, "", 0));
         }
 
         if (overwrite == "on")
@@ -226,11 +228,11 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig(syncTag++, "", "", UNDEF, "", 0));
+            return std::make_pair(false, SyncConfig("", "", UNDEF, "", 0));
         }
     }
 
-    return std::make_pair(true, SyncConfig(syncTag++, "", "", UNDEF, "", 0, {}, true, syncType, syncDeletions, forceOverwrite));
+    return std::make_pair(true, SyncConfig("", "", UNDEF, "", 0, {}, true, syncType, syncDeletions, forceOverwrite));
 }
 
 // sync configuration used when creating a new sync
@@ -476,33 +478,35 @@ static void syncstat(Sync* sync)
          << " file(s) and " << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
 }
 
-void DemoApp::syncupdate_state(int tag, syncstate_t newstate, SyncError syncError, bool fireDisableEvent)
+void DemoApp::syncupdate_stateconfig(handle backupId)
 {
-    cout << "Sync state updated: " << tag << " newstate: " << newstate << " error: " << syncError << endl;
+    cout << "Sync config updated: " << toHandle(backupId) << endl;
+}
 
-    switch (newstate)
+
+void DemoApp::syncupdate_active(handle backupId, bool active)
+{
+    cout << "Sync is now active: " << active << endl;
+}
+
+void DemoApp::sync_auto_resume_result(const UnifiedSync& s, bool attempted)
+{
+    handle backupId = s.mConfig.getBackupId();
+    if (attempted)
     {
-        case SYNC_ACTIVE:
-            cout << "Sync is now active" << endl;
-            break;
-
-        case SYNC_FAILED:
-            cout << "Sync failed." << endl;
-
-        default:
-            ;
+        cout << "Sync - autoresumed " << toHandle(backupId) << " " << s.mConfig.getLocalPath()  << " enabled: "
+             << s.mConfig.getEnabled()  << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
+    }
+    else
+    {
+        cout << "Sync - autoloaded " << toHandle(backupId) << " " << s.mConfig.getLocalPath() << " enabled: "
+            << s.mConfig.getEnabled() << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
     }
 }
 
-void DemoApp::sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const SyncError &error)
+void DemoApp::sync_removed(handle backupId)
 {
-    cout << "Sync - auresumed " <<config.getTag() << " " << config.getLocalPath()  << " enabled: "
-         << config.getEnabled()  << " state: " << state << " syncError: " << error << endl;
-}
-
-void DemoApp::sync_removed(int tag)
-{
-    cout << "Sync - removed: " << tag << endl;
+    cout << "Sync - removed: " << toHandle(backupId) << endl;
 
 }
 
@@ -1156,17 +1160,16 @@ void DemoApp::fetchnodes_result(const Error& e)
     else
     {
         // check if we fetched a folder link and the key is invalid
-        handle h = client->getrootpublicfolder();
-        if (h != UNDEF)
+        if (client->loggedinfolderlink())
         {
-            Node *n = client->nodebyhandle(h);
-            if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
+            if (client->isValidFolderLink())
             {
-                cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
+                cout << "Folder link loaded correctly." << endl;
             }
             else
             {
-                cout << "Folder link loaded correctly." << endl;
+                assert(client->nodebyhandle(client->rootnodes[0]));   // node is there, but cannot be decrypted
+                cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
             }
         }
 
@@ -2939,7 +2942,7 @@ void exec_timelocal(autocomplete::ACState& s)
         cout << "wrong number of arguments for : " << s.words[1].s << endl;
         return;
     }
-    
+
     m_time_t set_time = 0;
 
     if (!get)
@@ -3005,10 +3008,12 @@ autocomplete::ACN autocompleteSyntax()
     std::unique_ptr<Either> p(new Either("      "));
 
     p->Add(exec_apiurl, sequence(text("apiurl"), opt(sequence(param("url"), opt(param("disablepkp"))))));
-    p->Add(exec_login, sequence(text("login"), either(sequence(param("email"), opt(param("password"))),
-                                                      sequence(exportedLink(false, true), opt(param("auth_key"))), param("session"), sequence(text("autoresume"), opt(param("id"))))));
+    p->Add(exec_login, sequence(text("login"), opt(flag("-fresh")), either(sequence(param("email"), opt(param("password"))),
+                                                      sequence(exportedLink(false, true), opt(param("auth_key"))),
+                                                      param("session"),
+                                                      sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
-    p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name")), param("confirmationlink"))));
+    p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name"), opt(flag("-v1"))), param("confirmationlink"))));
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
     p->Add(exec_confirm, sequence(text("confirm")));
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
@@ -3390,7 +3395,14 @@ static void process_line(char* l)
 
             if (signupemail.size())
             {
-                client->sendsignuplink(signupemail.c_str(), signupname.c_str(), newpwkey);
+                if (signupV2)
+                {
+                    client->sendsignuplink2(signupemail.c_str(), newpassword.c_str(), signupname.c_str());
+                }
+                else
+                {
+                    client->sendsignuplink(signupemail.c_str(), signupname.c_str(), newpwkey);
+                }
             }
             else if (recoveryemail.size() && recoverycode.size())
             {
@@ -3426,6 +3438,7 @@ static void process_line(char* l)
 
         setprompt(COMMAND);
         signupemail.clear();
+        signupV2 = true;
         return;
 
     case MASTERKEY:
@@ -3600,6 +3613,10 @@ void exec_mv(autocomplete::ACState& s)
                             {
                                 cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
                             }
+                        }
+                        else
+                        {
+                            cout << "Cannot rename file (" << errorstring(e) << ")" << endl;
                         }
                     }
                 }
@@ -3965,7 +3982,7 @@ void exec_get(autocomplete::ACState& s)
                     // node from public folder link
                     if (index != string::npos && s.words[1].s.substr(0, index).find("@") == string::npos)
                     {
-                        handle h = clientFolder->getrootpublicfolder();
+                        handle h = clientFolder->rootnodes[0];
                         char *pubauth = new char[12];
                         Base64::btoa((byte*)&h, MegaClient::NODEHANDLE, pubauth);
                         f->pubauth = pubauth;
@@ -4374,16 +4391,26 @@ void exec_sync(autocomplete::ACState& s)
             }
             else
             {
-                static int syncTag = 2027;
-                SyncConfig syncConfig{syncTag++, s.words[1].s, s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.getType(),
-                            newSyncConfig.syncDeletions(), newSyncConfig.forceOverwrite()};
-                SyncError syncError;
-                error e = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError);
+                cout << "Adding sync..." << endl;
 
-                if (e)
-                {
-                    cout << "Sync could not be added: " << errorstring(e) << endl;
-                }
+                SyncConfig syncConfig{s.words[1].s, s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.getType(),
+                            newSyncConfig.syncDeletions(), newSyncConfig.forceOverwrite()};
+
+                client->addsync(syncConfig, DEBRISFOLDER, NULL, false, false,
+                                [](mega::UnifiedSync* us, const SyncError&, error e) {
+                    if (us && us->mSync)
+                    {
+                        cout << "Sync added and running. backupId = " << toHandle(us->mConfig.getBackupId());
+                    }
+                    else if (us)
+                    {
+                        cout << "Sync config added but could not be started: " << errorstring(e) << endl;
+                    }
+                    else
+                    {
+                        cout << "Sync config could not be started: " << errorstring(e) << endl;
+                    }
+                });
             }
         }
         else
@@ -4393,51 +4420,52 @@ void exec_sync(autocomplete::ACState& s)
     }
     else if (s.words.size() == 2)
     {
-        int i = 0, cancel = atoi(s.words[1].s.c_str());
+        handle cancelBackupId;
+        Base64::atob(s.words[1].s.c_str(), (byte*)&cancelBackupId, MegaClient::BACKUPHANDLE);
 
-        for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-        {
-            if ((*it)->state > SYNC_CANCELED && i++ == cancel)
+        client->syncs.removeSelectedSyncs([&](SyncConfig& sc, Sync* s) {
+
+            if (sc.getBackupId() == cancelBackupId)
             {
-                auto tag = (*it)->tag;
-                client->delsync(*it);
-
-                cout << "Sync " << cancel << " deactivated and removed. tag: " << tag << endl;
-                break;
+                if (s && s->state > SYNC_CANCELED)
+                {
+                    cout << "Sync " << cancelBackupId << " deactivated and removed." << endl;
+                    return true;
+                }
             }
-        }
+            return false;
+        });
     }
     else if (s.words.size() == 1)
     {
-        if (client->syncs.size())
-        {
-            int i = 0;
-            string remotepath, localpath;
+        client->syncs.forEachUnifiedSync([&](UnifiedSync& us){
 
-            for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
+            static const char* syncstatenames[] =
+            { "disabled", "failed", "cancelled", "Initial scan, please wait", "Active", "Failed" };
+
+            if (Sync* sync = us.mSync.get())
             {
-                if ((*it)->state > SYNC_CANCELED)
+                if (sync->localroot->node)
                 {
-                    static const char* syncstatenames[] =
-                    { "Initial scan, please wait", "Active", "Failed" };
+                    string remotepath, localpath;
+                    nodepath(sync->localroot->node->nodehandle, &remotepath);
+                    localpath = sync->localroot->localname.toPath(*client->fsaccess);
 
-                    if ((*it)->localroot->node)
-                    {
-                        nodepath((*it)->localroot->node->nodehandle, &remotepath);
-                        localpath = (*it)->localroot->localname.toPath(*client->fsaccess);
-
-                        cout << i++ << " (" << syncConfigToString((*it)->getConfig()) << "): " << localpath << " to " << remotepath << " - "
-                                << syncstatenames[(*it)->state] << ", " << (*it)->localbytes
-                                << " byte(s) in " << (*it)->localnodes[FILENODE] << " file(s) and "
-                                << (*it)->localnodes[FOLDERNODE] << " folder(s)" << endl;
-                    }
+                    cout << syncConfigToString(sync->getConfig()) << ": " << localpath << " to " << remotepath << " - "
+                            << syncstatenames[sync->state + 3] << ", " << sync->localbytes
+                            << " byte(s) in " << sync->localnodes[FILENODE] << " file(s) and "
+                            << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
                 }
             }
-        }
-        else
-        {
-            cout << "No syncs active at this time." << endl;
-        }
+            else
+            {
+                string remotepath, localpath;
+                nodepath(us.mConfig.getRemoteNode(), &remotepath);
+                localpath = us.mConfig.getLocalPath();
+
+                cout << syncConfigToString(us.mConfig) << ": " << localpath << " to " << remotepath << " - not running" << endl;
+            }
+        });
     }
 }
 
@@ -4509,6 +4537,8 @@ void exec_mfae(autocomplete::ACState& s)
 
 void exec_login(autocomplete::ACState& s)
 {
+    //bool fresh = s.extractflag("-fresh");
+
     if (client->loggedin() == NOTLOGGEDIN)
     {
         if (s.words.size() > 1)
@@ -4521,14 +4551,8 @@ void exec_login(autocomplete::ACState& s)
                 file >> session;
                 if (file.is_open() && session.size())
                 {
-                    byte sessionraw[64];
-                    if (session.size() < sizeof sessionraw * 4 / 3)
-                    {
-                        int size = Base64::atob(session.c_str(), sessionraw, sizeof sessionraw);
-
-                        cout << "Resuming session..." << endl;
-                        return client->login(sessionraw, size);
-                    }
+                    cout << "Resuming session..." << endl;
+                    return client->login(Base64::atob(session));
                 }
                 cout << "Failed to get a valid session id from file " << filename << endl;
             }
@@ -4555,17 +4579,7 @@ void exec_login(autocomplete::ACState& s)
                 }
                 else
                 {
-                    byte session[64];
-                    int size;
-
-                    if (s.words[1].s.size() < sizeof session * 4 / 3)
-                    {
-                        size = Base64::atob(s.words[1].s.c_str(), session, sizeof session);
-
-                        cout << "Resuming session..." << endl;
-
-                        return client->login(session, size);
-                    }
+                    return client->login(Base64::atob(s.words[1].s));
                 }
 
                 cout << "Invalid argument. Please specify a valid e-mail address, "
@@ -5632,19 +5646,40 @@ void exec_signup(autocomplete::ACState& s)
         if ((tptr = strstr(ptr, "#confirm")))
         {
             ptr = tptr + 8;
+
+            std::string code = Base64::atob(std::string(ptr));
+            if (!code.empty())
+            {
+                if (code.find("ConfirmCodeV2") != string::npos)
+                {
+                    size_t posEmail = 13 + 15;
+                    size_t endEmail = code.find("\t", posEmail);
+                    if (endEmail != string::npos)
+                    {
+                        signupemail = code.substr(posEmail, endEmail - posEmail);
+                        signupname = code.substr(endEmail + 1, code.size() - endEmail - 9);
+
+                        if (client->loggedin() == FULLACCOUNT)
+                        {
+                            cout << "Already logged in." << endl;
+                        }
+                        else    // not-logged-in / ephemeral account / partially confirmed
+                        {
+                            client->confirmsignuplink2((const byte*)code.data(), unsigned(code.size()));
+                        }
+                    }
+                }
+                else
+                {
+                    // we first just query the supplied signup link,
+                    // then collect and verify the password,
+                    // then confirm the account
+                    client->querysignuplink((const byte*)code.data(), (unsigned)code.size());
+                }
+            }
         }
-
-        unsigned len = unsigned((s.words[1].s.size() - (ptr - s.words[1].s.c_str())) * 3 / 4 + 4);
-
-        byte* c = new byte[len];
-        len = Base64::atob(ptr, c, len);
-        // we first just query the supplied signup link,
-        // then collect and verify the password,
-        // then confirm the account
-        client->querysignuplink(c, len);
-        delete[] c;
     }
-    else if (s.words.size() == 3)
+    else if (s.words.size() == 3 || s.words.size() == 4)
     {
         switch (client->loggedin())
         {
@@ -5661,6 +5696,7 @@ void exec_signup(autocomplete::ACState& s)
             {
                 signupemail = s.words[1].s;
                 signupname = s.words[2].s;
+                signupV2 = !s.extractflag("-v1");
 
                 cout << endl;
                 setprompt(NEWPASSWORD);
@@ -6194,6 +6230,10 @@ void exec_confirm(autocomplete::ACState& s)
         cout << "Please type " << signupemail << "'s password to confirm the signup." << endl;
         setprompt(LOGINPASSWORD);
     }
+    else
+    {
+        cout << "Need to query link first. Type 'signup code'";
+    }
 }
 
 void exec_recover(autocomplete::ACState& s)
@@ -6219,15 +6259,12 @@ void exec_recover(autocomplete::ACState& s)
 
 void exec_session(autocomplete::ACState& s)
 {
-    byte session[64];
-    int size;
+    string session;
 
-    size = client->dumpsession(session, sizeof session);
+    int size = client->dumpsession(session);
 
     if (size > 0)
     {
-        Base64Str<sizeof session> buf(session, size);
-
         if ((s.words.size() == 2 || s.words.size() == 3) && s.words[1].s == "autoresume")
         {
             string filename = "megacli_autoresume_session" + (s.words.size() == 3 ? "_" + s.words[2].s : "");
@@ -6238,13 +6275,13 @@ void exec_session(autocomplete::ACState& s)
             }
             else
             {
-                file << buf;
+                file << Base64::btoa(session);
                 cout << "Your (secret) session is saved in file '" << filename << "'" << endl;
             }
         }
         else
         {
-            cout << "Your (secret) session is: " << buf << endl;
+            cout << "Your (secret) session is: " << Base64::btoa(session) << endl;
         }
     }
     else if (!size)
@@ -6892,6 +6929,18 @@ void DemoApp::confirmsignuplink_result(error e)
     }
 }
 
+void DemoApp::confirmsignuplink2_result(handle, const char *name, const char *email, error e)
+{
+    if (e)
+    {
+        cout << "Signuplink confirmation failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Signup confirmed successfully" << endl;
+    }
+}
+
 // asymmetric keypair configuration result
 void DemoApp::setkeypair_result(error e)
 {
@@ -7081,6 +7130,7 @@ void DemoApp::cancelsignup_result(error)
     signupcode.clear();
     signupemail.clear();
     signupname.clear();
+    signupV2 = true;
 }
 
 void DemoApp::whyamiblocked_result(int code)
@@ -8263,14 +8313,9 @@ void DemoAppFolder::fetchnodes_result(const Error& e)
     else
     {
         // check if we fetched a folder link and the key is invalid
-        handle h = clientFolder->getrootpublicfolder();
-        if (h != UNDEF)
+        if (clientFolder->isValidFolderLink())
         {
-            Node *n = clientFolder->nodebyhandle(h);
-            if (n && (n->attrs.map.find('n') == n->attrs.map.end()))
-            {
-                cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
-            }
+            cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
         }
         else
         {

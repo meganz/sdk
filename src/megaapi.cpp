@@ -647,6 +647,11 @@ MegaHandle MegaNode::getOwner() const
     return INVALID_HANDLE;
 }
 
+const char* MegaNode::getDeviceId() const
+{
+    return nullptr;
+}
+
 char *MegaNode::serialize()
 {
     return NULL;
@@ -2853,6 +2858,11 @@ void MegaApi::setRubbishBinAutopurgePeriod(int days, MegaRequestListener *listen
     pImpl->setRubbishBinAutopurgePeriod(days, listener);
 }
 
+const char* MegaApi::getDeviceId() const
+{
+    return pImpl->getDeviceId();
+}
+
 void MegaApi::getDeviceName(MegaRequestListener *listener)
 {
     pImpl->getDeviceName(listener);
@@ -3299,12 +3309,12 @@ void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRequ
 
 void MegaApi::syncFolder(const char *localFolder, const char *name, MegaHandle megaHandle, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, name, megaHandle, NULL, listener);
+    pImpl->syncFolder(localFolder, name, megaHandle, SyncConfig::TYPE_TWOWAY, NULL, listener);
 }
 
 void MegaApi::syncFolder(const char *localFolder, MegaHandle megaHandle, MegaRequestListener *listener)
 {
-    pImpl->syncFolder(localFolder, nullptr, megaHandle, NULL, listener);
+    pImpl->syncFolder(localFolder, nullptr, megaHandle, SyncConfig::TYPE_TWOWAY, NULL, listener);
 }
 
 void MegaApi::copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
@@ -3343,12 +3353,12 @@ void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
 
 void MegaApi::removeSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->removeSync(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
+    pImpl->removeSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener);
 }
 
-void MegaApi::removeSync(int tag, MegaRequestListener *listener)
+void MegaApi::removeSync(MegaHandle backupId, MegaRequestListener *listener)
 {
-    pImpl->removeSync(tag, listener);
+    pImpl->removeSyncById(backupId, listener);
 }
 
 void MegaApi::disableSync(MegaNode *megaFolder, MegaRequestListener *listener)
@@ -3358,22 +3368,22 @@ void MegaApi::disableSync(MegaNode *megaFolder, MegaRequestListener *listener)
 
 void MegaApi::disableSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->disableSync(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
+    pImpl->disableSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener);
 }
 
 void MegaApi::enableSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->enableSync(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
+    pImpl->enableSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener);
 }
 
-void MegaApi::enableSync(int tag, MegaRequestListener *listener)
+void MegaApi::enableSync(MegaHandle backupId, MegaRequestListener *listener)
 {
-    pImpl->enableSync(tag, listener);
+    pImpl->enableSyncById(backupId, listener);
 }
 
-void MegaApi::disableSync(int tag, MegaRequestListener *listener)
+void MegaApi::disableSync(MegaHandle backupId, MegaRequestListener *listener)
 {
-    pImpl->disableSync(tag, listener);
+    pImpl->disableSyncById(backupId, listener);
 }
 
 void MegaApi::removeSyncs(MegaRequestListener *listener)
@@ -3406,9 +3416,9 @@ char *MegaApi::getBlockedPath()
     return pImpl->getBlockedPath();
 }
 
-MegaSync *MegaApi::getSyncByTag(int tag)
+MegaSync *MegaApi::getSyncByBackupId(MegaHandle backupId)
 {
-    return pImpl->getSyncByTag(tag);
+    return pImpl->getSyncByBackupId(backupId);
 }
 
 MegaSync *MegaApi::getSyncByNode(MegaNode *node)
@@ -3477,6 +3487,11 @@ void MegaApi::setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regExp)
     pImpl->setExcludedRegularExpressions(sync, regExp);
 }
 #endif
+
+void MegaApi::backupFolder(const char *localFolder, const char *backupName, MegaRequestListener *listener)
+{
+    pImpl->syncFolder(localFolder, backupName, INVALID_HANDLE, SyncConfig::TYPE_BACKUP, nullptr, listener);
+}
 #endif
 
 
@@ -5751,19 +5766,24 @@ long long MegaSync::getLocalFingerprint() const
     return 0;
 }
 
-int MegaSync::getTag() const
+MegaHandle MegaSync::getBackupId() const
 {
-    return 0;
-}
-
-int MegaSync::getState() const
-{
-    return MegaSync::SYNC_FAILED;
+    return INVALID_HANDLE;
 }
 
 int MegaSync::getError() const
 {
     return MegaSync::Error::NO_SYNC_ERROR;
+}
+
+int MegaSync::getWarning() const
+{
+    return MegaSync::Warning::NO_SYNC_WARNING;
+}
+
+int MegaSync::getType() const
+{
+    return MegaSync::SyncType::TYPE_UNKNOWN;
 }
 
 bool MegaSync::isEnabled() const
@@ -5836,10 +5856,6 @@ const char* MegaSync::getMegaSyncErrorCode(int errorCode)
         return "Unsupported VBoxSharedFolderFS filesystem";
     case MegaSync::Error::LOCAL_PATH_SYNC_COLLISION:
         return "Local path collides with an existing sync";
-    case MegaSync::Error::LOCAL_IS_FAT:
-        return "Local filesystem is FAT";
-    case MegaSync::Error::LOCAL_IS_HGFS:
-        return "Local filesystem is HGFS";
     case MegaSync::Error::ACCOUNT_BLOCKED:
         return "Your account is blocked";
     case MegaSync::Error::UNKNOWN_TEMPORARY_ERROR:
@@ -5853,6 +5869,25 @@ const char* MegaSync::getMegaSyncErrorCode(int errorCode)
     }
 }
 
+const char* MegaSync::getMegaSyncWarningCode()
+{
+    return MegaSync::getMegaSyncWarningCode(getWarning());
+}
+
+const char* MegaSync::getMegaSyncWarningCode(int warningCode)
+{
+    switch(warningCode)
+    {
+    case MegaSync::Warning::NO_SYNC_WARNING:
+        return "No error";
+    case MegaSync::Warning::LOCAL_IS_FAT:
+        return "Local filesystem is FAT";
+    case MegaSync::Warning::LOCAL_IS_HGFS:
+        return "Local filesystem is HGFS";
+    default:
+        return "Undefined warning";
+    }
+}
 
 MegaSyncList *MegaSyncList::createInstance()
 {
