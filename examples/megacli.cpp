@@ -1197,14 +1197,17 @@ void DemoApp::fetchnodes_result(const Error& e)
     else
     {
         // check if we fetched a folder link and the key is invalid
-        if (client->isValidFolderLink())
+        if (client->loggedinfolderlink())
         {
-            cout << "Folder link loaded correctly." << endl;
-        }
-        else
-        {
-            assert(client->nodebyhandle(client->rootnodes[0]));   // node is there, but cannot be decrypted
-            cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
+            if (client->isValidFolderLink())
+            {
+                cout << "Folder link loaded correctly." << endl;
+            }
+            else
+            {
+                assert(client->nodebyhandle(client->rootnodes[0]));   // node is there, but cannot be decrypted
+                cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
+            }
         }
 
         if (pdf_to_import)
