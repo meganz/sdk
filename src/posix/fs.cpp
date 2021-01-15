@@ -115,6 +115,48 @@ const string& adjustBasePath(const LocalPath& name)
 
 #endif /* ! USE_IOS */
 
+LocalPath NormalizeAbsolute(const LocalPath& path)
+{
+    LocalPath result = path;
+
+    // Convenience.
+    string& raw = result.localpath;
+
+    // Append the root separator if path is empty.
+    if (raw.empty())
+    {
+        raw.push_back('/');
+    }
+
+    // Remove trailing separator if we're not the root.
+    if (raw.size() > 1 && raw.back() == '/')
+    {
+        raw.pop_back();
+    }
+
+    return result;
+}
+
+int platformCompareUtf(const string& p1, bool unescape1, const string& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, false);
+}
+
+int platformCompareUtf(const string& p1, bool unescape1, const LocalPath& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, false);
+}
+
+int platformCompareUtf(const LocalPath& p1, bool unescape1, const string& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, false);
+}
+
+int platformCompareUtf(const LocalPath& p1, bool unescape1, const LocalPath& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, false);
+}
+
 #ifdef HAVE_AIO_RT
 PosixAsyncIOContext::PosixAsyncIOContext() : AsyncIOContext()
 {
@@ -436,6 +478,21 @@ bool PosixFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
     lseek64(fd, pos, SEEK_SET);
     return write(fd, data, len) == len;
 #endif
+}
+
+bool PosixFileAccess::ftruncate()
+{
+    retry = false;
+
+    // Truncate the file.
+    if (::ftruncate(fd, 0x0) == 0)
+    {
+        // Set the file pointer back to the start.
+        return lseek(fd, 0x0, SEEK_SET) == 0x0;
+    }
+
+    // Couldn't truncate the file.
+    return false;
 }
 
 int PosixFileAccess::stealFileDescriptor()

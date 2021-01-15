@@ -13528,7 +13528,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
 
         // does this node already have a corresponding LocalNode under
         // a different name or elsewhere in the filesystem?
-        if (rit->second->localnode && rit->second->localnode != (LocalNode*)~0)
+        if (rit->second->localnode.get() && rit->second->localnode.get() != (LocalNode*)~0)
         {
             LOG_debug << "has a previous localnode: " << rit->second->localnode->name;
             if (rit->second->localnode->parent)
@@ -13578,7 +13578,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                 {
                     bool download = true;
                     auto f = fsaccess->newfileaccess(false);
-                    if (rit->second->localnode != (LocalNode*)~0
+                    if (rit->second->localnode.get() != (LocalNode*)~0
                             && (f->fopen(localpath) || f->type == FOLDERNODE))
                     {
                         if (f->mIsSymLink && l->sync->movetolocaldebris(localpath))

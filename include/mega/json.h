@@ -29,7 +29,17 @@ namespace mega {
 // linear non-strict JSON scanner
 struct MEGA_API JSON
 {
-    const char* pos = nullptr;
+    JSON()
+      : pos(nullptr)
+    {
+    }
+
+    explicit JSON(const string& data)
+      : pos(data.c_str())
+    {
+    }
+
+    const char* pos;
 
     bool isnumeric();
 
@@ -38,6 +48,9 @@ struct MEGA_API JSON
     m_off_t getint();
     double getfloat();
     const char* getvalue();
+
+    fsfp_t getfp();
+    uint64_t getuint64();
 
     nameid getnameid();
     nameid getnameid(const char*) const;

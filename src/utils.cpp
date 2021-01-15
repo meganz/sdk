@@ -1692,6 +1692,62 @@ std::string Utils::hexToString(const std::string &input)
     return output;
 }
 
+int Utils::icasecmp(const std::string& lhs,
+                    const std::string& rhs,
+                    const size_t length)
+{
+    assert(lhs.size() >= length);
+    assert(rhs.size() >= length);
+
+#ifdef _WIN32
+    return _strnicmp(lhs.c_str(), rhs.c_str(), length);
+#else // _WIN32
+    return strncasecmp(lhs.c_str(), rhs.c_str(), length);
+#endif // ! _WIN32
+}
+
+int Utils::icasecmp(const std::wstring& lhs,
+                    const std::wstring& rhs,
+                    const size_t length)
+{
+    assert(lhs.size() >= length);
+    assert(rhs.size() >= length);
+
+#ifdef _WIN32
+    return _wcsnicmp(lhs.c_str(), rhs.c_str(), length);
+#else // _WIN32
+    return wcsncasecmp(lhs.c_str(), rhs.c_str(), length);
+#endif // ! _WIN32
+}
+
+int Utils::pcasecmp(const std::string& lhs,
+                    const std::string& rhs,
+                    const size_t length)
+{
+    assert(lhs.size() >= length);
+    assert(rhs.size() >= length);
+
+#ifdef _WIN32
+    return icasecmp(lhs, rhs, length);
+#else // _WIN32
+    return lhs.compare(0, length, rhs, 0, length);
+#endif // ! _WIN32
+}
+
+int Utils::pcasecmp(const std::wstring& lhs,
+                    const std::wstring& rhs,
+                    const size_t length)
+{
+    assert(lhs.size() >= length);
+    assert(rhs.size() >= length);
+
+#ifdef _WIN32
+    return icasecmp(lhs, rhs, length);
+#else // _WIN32
+    return lhs.compare(0, length, rhs, 0, length);
+#endif // ! _WIN32
+}
+
 long long abs(long long n)
 {
     // for pre-c++11 where this version is not defined yet

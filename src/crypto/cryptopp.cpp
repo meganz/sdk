@@ -102,18 +102,99 @@ void SymmCipher::cbc_decrypt(byte* data, size_t len, const byte* iv)
 
 void SymmCipher::cbc_encrypt_pkcs_padding(const string *data, const byte *iv, string *result)
 {
+    using Transformation = StreamTransformationFilter;
+
+    // Update IV.
     aescbc_e.Resynchronize(iv ? iv : zeroiv);
-    StringSource(*data, true,
-           new StreamTransformationFilter( aescbc_e, new StringSink( *result ),
-                                                     StreamTransformationFilter::PKCS_PADDING));
+
+    // Create sink.
+    unique_ptr<StringSink> sink =
+      mega::make_unique<StringSink>(*result);
+
+    // Create transform.
+    unique_ptr<Transformation> xfrm =
+      mega::make_unique<Transformation>(aescbc_e,
+                                        sink.get(),
+                                        Transformation::PKCS_PADDING);
+
+    // Transform now owns sink.
+    sink.release();
+
+    // Encrypt.
+    StringSource(*data, true, xfrm.release());
 }
 
-void SymmCipher::cbc_decrypt_pkcs_padding(const std::string *data, const byte *iv, string *result)
+bool SymmCipher::cbc_decrypt_pkcs_padding(const std::string* data, const byte* iv, string* result)
 {
-    aescbc_d.Resynchronize(iv ? iv : zeroiv);
-    StringSource(*data, true,
-           new StreamTransformationFilter( aescbc_d, new StringSink( *result ),
-                                                     StreamTransformationFilter::PKCS_PADDING));
+    try 
+    {
+        using Transformation = StreamTransformationFilter;
+
+        // Update IV.
+        aescbc_d.Resynchronize(iv ? iv : zeroiv);
+
+        // Create sink.
+        unique_ptr<StringSink> sink =
+          mega::make_unique<StringSink>(*result);
+        
+        // Create transform.
+        unique_ptr<Transformation> xfrm =
+          mega::make_unique<Transformation>(aescbc_d,
+                                            sink.get(),
+                                            Transformation::PKCS_PADDING);
+
+        // Transform now owns sink.
+        sink.release();
+
+        // Attempt decrypt.
+        StringSource(*data, true, xfrm.release());
+
+        // Decrypt had correct padding.
+        return true;
+    }
+    catch (...)
+    {
+        // Decrypt failed.
+        return false;
+    }
+}
+
+bool SymmCipher::cbc_decrypt_pkcs_padding(const byte* data,
+                                          const size_t dataLength,
+                                          const byte* iv,
+                                          std::string* result)
+{
+    try 
+    {
+        using Transformation = StreamTransformationFilter;
+
+        // Update IV.
+        aescbc_d.Resynchronize(iv ? iv : zeroiv);
+
+        // Create sink.
+        unique_ptr<StringSink> sink =
+          mega::make_unique<StringSink>(*result);
+        
+        // Create transform.
+        unique_ptr<Transformation> xfrm =
+          mega::make_unique<Transformation>(aescbc_d,
+                                            sink.get(),
+                                            Transformation::PKCS_PADDING);
+
+        // Transform now owns sink.
+        sink.release();
+
+        // Attempt decrypt.
+        ArraySource(data, dataLength, true, xfrm.release());
+
+        // Decrypt had correct padding.
+        return true;
+    }
+    catch (...)
+    {
+        // Decrypt failed.
+        return false;
+    }
 }
 
 void SymmCipher::ecb_encrypt(byte* data, byte* dst, size_t len)
@@ -656,6 +737,10 @@ HMACSHA256::HMACSHA256(const byte *key, size_t length)
 {
 }
 
+HMACSHA256::HMACSHA256()
+{
+}
+
 void HMACSHA256::add(const byte *data, size_t len)
 {
     hmac.Update(data, len);
@@ -666,14 +751,33 @@ void HMACSHA256::get(byte *out)
     hmac.Final(out);
 }
 
+void HMACSHA256::setkey(const byte* key, const size_t length)
+{
+    assert(key || length == 0);
+
+    hmac.SetKey(key, length);
+}
+
 PBKDF2_HMAC_SHA512::PBKDF2_HMAC_SHA512()
 {
 }
 
-void PBKDF2_HMAC_SHA512::deriveKey(byte* derivedkey, size_t derivedkeyLen,
-                                   byte* pwd, size_t pwdLen,
-                                   byte* salt, size_t saltLen, unsigned int iterations)
+void PBKDF2_HMAC_SHA512::deriveKey(byte* derivedkey,
+                                   const size_t derivedkeyLen,
+                                   const byte* pwd,
+                                   const size_t pwdLen,
+                                   const byte* salt,
+                                   const size_t saltLen,
+                                   const unsigned int iterations) const
 {
+    assert(derivedkey);
+    assert(derivedkeyLen > 0);
+    assert(pwd);
+    assert(pwdLen > 0);
+    assert(salt);
+    assert(saltLen > 0);
+    assert(iterations > 0);
+
     pbkdf2.DeriveKey(
             // buffer that holds the derived key
             derivedkey, derivedkeyLen,
