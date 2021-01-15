@@ -286,6 +286,9 @@ public:
     // Relative path to sync root.
     LocalPath sourcePath;
 
+    // User-friendly name.
+    string name;
+
     // Absolute path to remote sync target.
     string targetPath;
     

@@ -8656,6 +8656,8 @@ void exec_synclist(autocomplete::ACState& s)
           // Display name.
           cout << "Sync "
                << config.getTag()
+               << ": "
+               << config.getName()
                << "\n";
             
           // Display source/target mapping.

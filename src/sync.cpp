@@ -3203,6 +3203,7 @@ JSONSyncConfig translate(const MegaClient& client, const SyncConfig &config)
     result.type = config.getType();
 
     const auto& drivePath = config.drivePath();
+    const auto& name = config.getName();
     const auto sourcePath = config.getLocalPath().substr(drivePath.size());
 
     const auto& fsAccess = *client.fsaccess;
@@ -3221,14 +3222,27 @@ JSONSyncConfig translate(const MegaClient& client, const SyncConfig &config)
         result.sourcePath = NormalizeAbsolute(result.sourcePath);
     }
 
+    if (name == sourcePath)
+    {
+        result.name = result.sourcePath.toPath(fsAccess);
+    }
+    else
+    {
+        result.name = name;
+    }
+
     return result;
 }
 
 SyncConfig translate(const MegaClient& client, const JSONSyncConfig& config)
 {
+    // Convenience.
+    auto& fsAccess = *client.fsaccess;
+
     LocalPath temp;
-    string drivePath = config.drivePath.toPath(*client.fsaccess);
+    string drivePath = config.drivePath.toPath(fsAccess);
     string sourcePath;
+    const string* name = &sourcePath;
 
     if (config.external())
     {
@@ -3242,13 +3256,18 @@ SyncConfig translate(const MegaClient& client, const JSONSyncConfig& config)
         temp = NormalizeAbsolute(config.sourcePath);
     }
 
-    sourcePath = temp.toPath(*client.fsaccess);
+    sourcePath = temp.toPath(fsAccess);
+
+    if (config.sourcePath.toPath(fsAccess) != config.name)
+    {
+        name = &config.name;
+    }
 
     // Build config.
     auto result =
       SyncConfig(config.tag,
                  sourcePath,
-                 sourcePath,
+                 *name,
                  config.targetHandle,
                  config.targetPath,
                  config.fingerprint,
@@ -3922,6 +3941,7 @@ bool JSONSyncConfigIOContext::deserialize(JSONSyncConfig& config, JSON& reader) 
     const auto TYPE_HEARTBEAT_ID  = MAKENAMEID2('h', 'b');
     const auto TYPE_LAST_ERROR    = MAKENAMEID2('l', 'e');
     const auto TYPE_LAST_WARNING  = MAKENAMEID2('l', 'w');
+    const auto TYPE_NAME          = MAKENAMEID1('n');
     const auto TYPE_SOURCE_PATH   = MAKENAMEID2('s', 'p');
     const auto TYPE_SYNC_TYPE     = MAKENAMEID2('s', 't');
     const auto TYPE_TAG           = MAKENAMEID1('t');
@@ -3956,6 +3976,10 @@ bool JSONSyncConfigIOContext::deserialize(JSONSyncConfig& config, JSON& reader) 
         case TYPE_LAST_WARNING:
             config.lastWarning =
               static_cast<SyncWarning>(reader.getint32());
+            break;
+
+        case TYPE_NAME:
+            reader.storebinary(&config.name);
             break;
 
         case TYPE_SOURCE_PATH:
@@ -4034,12 +4058,15 @@ void JSONSyncConfigIOContext::serialize(const JSONSyncConfig& config,
     // Encode path to avoid escaping issues.
     const string sourcePath =
       Base64::btoa(config.sourcePath.toPath(mFsAccess));
+    const string name =
+      Base64::btoa(config.name);
     const string targetPath =
       Base64::btoa(config.targetPath);
 
     writer.beginobject();
 
     writer.arg("sp", sourcePath);
+    writer.arg("n",  name);
     writer.arg("tp", targetPath);
     writer.arg("fp", to_string(config.fingerprint), 0);
     writer.arg("hb", config.heartbeatID, sizeof(handle));
