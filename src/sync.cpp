@@ -3157,6 +3157,11 @@ JSONSyncConfig::JSONSyncConfig()
 {
 }
 
+bool JSONSyncConfig::external() const
+{
+    return !drivePath.empty();
+}
+
 bool JSONSyncConfig::valid() const
 {
     return !(sourcePath.empty()
@@ -3207,7 +3212,7 @@ JSONSyncConfig translate(const MegaClient& client, const SyncConfig &config)
     result.sourcePath = LocalPath::fromPath(sourcePath, fsAccess);
 
     // Ensure paths are normalized.
-    if (result.type == TYPE_BACKUP)
+    if (config.isExternal())
     {
         result.drivePath = NormalizeAbsolute(result.drivePath);
         result.sourcePath = NormalizeRelative(result.sourcePath);
@@ -3226,7 +3231,7 @@ SyncConfig translate(const MegaClient& client, const JSONSyncConfig& config)
     string drivePath = config.drivePath.toPath(*client.fsaccess);
     string sourcePath;
 
-    if (config.type == TYPE_BACKUP)
+    if (config.external())
     {
         temp = NormalizeAbsolute(config.drivePath);
         temp.appendWithSeparator(

@@ -272,6 +272,8 @@ public:
 
     MEGA_DEFAULT_COPY_MOVE(JSONSyncConfig);
 
+    bool external() const;
+
     bool valid() const;
 
     bool operator==(const JSONSyncConfig& rhs) const;
