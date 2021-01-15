@@ -261,6 +261,9 @@ public:
     // Use new format to generate Mega links
     bool mNewLinkFormat = false;
 
+    // Don't start showing the cookie banner until API says so
+    bool mCookieBannerEnabled = false;
+
     // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
     SmsVerificationState mSmsVerificationState;
 
