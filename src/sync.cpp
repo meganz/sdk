@@ -3079,7 +3079,6 @@ void Syncs::resumeResumableSyncsOnStartup()
 
     if (syncConfigDBLoad() != API_OK)
     {
-        assert(!"Couldn't load sync configs from disk.");
         return;
     }
 
