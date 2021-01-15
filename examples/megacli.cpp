@@ -79,6 +79,9 @@ bool gVerboseMode = false;
 // new account signup e-mail address and name
 static string signupemail, signupname;
 
+// true by default, to register a new account v2 (false means account v1)
+bool signupV2 = true;
+
 // signup code being confirmed
 static string signupcode;
 
@@ -3010,7 +3013,7 @@ autocomplete::ACN autocompleteSyntax()
                                                       param("session"),
                                                       sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
-    p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name")), param("confirmationlink"))));
+    p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name"), opt(flag("-v1"))), param("confirmationlink"))));
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
     p->Add(exec_confirm, sequence(text("confirm")));
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
@@ -3390,7 +3393,14 @@ static void process_line(char* l)
 
             if (signupemail.size())
             {
-                client->sendsignuplink(signupemail.c_str(), signupname.c_str(), newpwkey);
+                if (signupV2)
+                {
+                    client->sendsignuplink2(signupemail.c_str(), newpassword.c_str(), signupname.c_str());
+                }
+                else
+                {
+                    client->sendsignuplink(signupemail.c_str(), signupname.c_str(), newpwkey);
+                }
             }
             else if (recoveryemail.size() && recoverycode.size())
             {
@@ -3426,6 +3436,7 @@ static void process_line(char* l)
 
         setprompt(COMMAND);
         signupemail.clear();
+        signupV2 = true;
         return;
 
     case MASTERKEY:
@@ -5633,19 +5644,40 @@ void exec_signup(autocomplete::ACState& s)
         if ((tptr = strstr(ptr, "#confirm")))
         {
             ptr = tptr + 8;
+
+            std::string code = Base64::atob(std::string(ptr));
+            if (!code.empty())
+            {
+                if (code.find("ConfirmCodeV2") != string::npos)
+                {
+                    size_t posEmail = 13 + 15;
+                    size_t endEmail = code.find("\t", posEmail);
+                    if (endEmail != string::npos)
+                    {
+                        signupemail = code.substr(posEmail, endEmail - posEmail);
+                        signupname = code.substr(endEmail + 1, code.size() - endEmail - 9);
+
+                        if (client->loggedin() == FULLACCOUNT)
+                        {
+                            cout << "Already logged in." << endl;
+                        }
+                        else    // not-logged-in / ephemeral account / partially confirmed
+                        {
+                            client->confirmsignuplink2((const byte*)code.data(), unsigned(code.size()));
+                        }
+                    }
+                }
+                else
+                {
+                    // we first just query the supplied signup link,
+                    // then collect and verify the password,
+                    // then confirm the account
+                    client->querysignuplink((const byte*)code.data(), (unsigned)code.size());
+                }
+            }
         }
-
-        unsigned len = unsigned((s.words[1].s.size() - (ptr - s.words[1].s.c_str())) * 3 / 4 + 4);
-
-        byte* c = new byte[len];
-        len = Base64::atob(ptr, c, len);
-        // we first just query the supplied signup link,
-        // then collect and verify the password,
-        // then confirm the account
-        client->querysignuplink(c, len);
-        delete[] c;
     }
-    else if (s.words.size() == 3)
+    else if (s.words.size() == 3 || s.words.size() == 4)
     {
         switch (client->loggedin())
         {
@@ -5662,6 +5694,7 @@ void exec_signup(autocomplete::ACState& s)
             {
                 signupemail = s.words[1].s;
                 signupname = s.words[2].s;
+                signupV2 = !s.extractflag("-v1");
 
                 cout << endl;
                 setprompt(NEWPASSWORD);
@@ -6194,6 +6227,10 @@ void exec_confirm(autocomplete::ACState& s)
     {
         cout << "Please type " << signupemail << "'s password to confirm the signup." << endl;
         setprompt(LOGINPASSWORD);
+    }
+    else
+    {
+        cout << "Need to query link first. Type 'signup code'";
     }
 }
 
@@ -6862,6 +6899,18 @@ void DemoApp::confirmsignuplink_result(error e)
     }
 }
 
+void DemoApp::confirmsignuplink2_result(handle, const char *name, const char *email, error e)
+{
+    if (e)
+    {
+        cout << "Signuplink confirmation failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Signup confirmed successfully" << endl;
+    }
+}
+
 // asymmetric keypair configuration result
 void DemoApp::setkeypair_result(error e)
 {
@@ -7051,6 +7100,7 @@ void DemoApp::cancelsignup_result(error)
     signupcode.clear();
     signupemail.clear();
     signupname.clear();
+    signupV2 = true;
 }
 
 void DemoApp::whyamiblocked_result(int code)
