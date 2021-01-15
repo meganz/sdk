@@ -294,7 +294,10 @@ AC_ARG_ENABLE(drive-notifications,
     [enable_drive_notifications=${enableval}],
     [enable_drive_notifications=no])
 AS_IF([test "x$enable_drive_notifications" = "xyes"], [
+    # Add USE_DRIVE_NOTIFICATIONS preprocessor definition to config.h
     AC_DEFINE(USE_DRIVE_NOTIFICATIONS, 1, [Define to enable Drive Notifications])
+    # Add -DUSE_DRIVE_NOTIFICATIONS to build command
+    CXXFLAGS="$CXXFLAGS -DUSE_DRIVE_NOTIFICATIONS"
 ])
 AM_CONDITIONAL([USE_DRIVE_NOTIFICATIONS], [test "x$enable_drive_notifications" = "xyes"])
 
