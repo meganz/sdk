@@ -298,6 +298,12 @@ AS_IF([test "x$enable_drive_notifications" = "xyes"], [
     AC_DEFINE(USE_DRIVE_NOTIFICATIONS, 1, [Define to enable Drive Notifications])
     # Add -DUSE_DRIVE_NOTIFICATIONS to build command
     CXXFLAGS="$CXXFLAGS -DUSE_DRIVE_NOTIFICATIONS"
+    # Add lib to linker command
+    if test "x$LINUX" = "xyes"; then
+        LDFLAGS="$LDFLAGS -ludev"
+    elif test "x$WIN32" = "xyes"; then
+        LDFLAGS="$LDFLAGS -lwbemuuid"
+    fi
 ])
 AM_CONDITIONAL([USE_DRIVE_NOTIFICATIONS], [test "x$enable_drive_notifications" = "xyes"])
 
