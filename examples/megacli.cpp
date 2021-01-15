@@ -148,19 +148,19 @@ static std::string syncConfigToString(const SyncConfig& config)
         return desc;
     };
 
-    std::string description;
+    std::string description(Base64Str<MegaClient::BACKUPHANDLE>(config.getBackupId()));
     if (config.getType() == SyncConfig::TYPE_TWOWAY)
     {
-        description = "TWOWAY";
+        description.append(" TWOWAY");
     }
     else if (config.getType() == SyncConfig::TYPE_UP)
     {
-        description = "UP";
+        description.append(" UP");
         description += getOptions(config);
     }
     else if (config.getType() == SyncConfig::TYPE_DOWN)
     {
-        description = "DOWN";
+        description.append(" DOWN");
         description += getOptions(config);
     }
     return description;
@@ -170,7 +170,6 @@ static std::string syncConfigToString(const SyncConfig& config)
 // returns a pair where `first` is success and `second` is the sync config.
 static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {})
 {
-    static int syncTag = 13217;
     auto toLower = [](std::string& s)
     {
         for (char& c : s) { c = static_cast<char>(tolower(c)); };
@@ -195,7 +194,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
     }
     else
     {
-        return std::make_pair(false, SyncConfig(syncTag++, "", "", UNDEF, "", 0));
+        return std::make_pair(false, SyncConfig("", "", UNDEF, "", 0));
     }
 
     bool syncDeletions = false;
@@ -213,7 +212,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig(syncTag++, "", "", UNDEF, "", 0));
+            return std::make_pair(false, SyncConfig("", "", UNDEF, "", 0));
         }
 
         if (overwrite == "on")
@@ -226,11 +225,11 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig(syncTag++, "", "", UNDEF, "", 0));
+            return std::make_pair(false, SyncConfig("", "", UNDEF, "", 0));
         }
     }
 
-    return std::make_pair(true, SyncConfig(syncTag++, "", "", UNDEF, "", 0, {}, true, syncType, syncDeletions, forceOverwrite));
+    return std::make_pair(true, SyncConfig("", "", UNDEF, "", 0, {}, true, syncType, syncDeletions, forceOverwrite));
 }
 
 // sync configuration used when creating a new sync
@@ -476,34 +475,35 @@ static void syncstat(Sync* sync)
          << " file(s) and " << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
 }
 
-void DemoApp::syncupdate_stateconfig(int tag)
+void DemoApp::syncupdate_stateconfig(handle backupId)
 {
-    cout << "Sync config updated: " << tag << endl;
+    cout << "Sync config updated: " << toHandle(backupId) << endl;
 }
 
 
-void DemoApp::syncupdate_active(int tag, bool active)
+void DemoApp::syncupdate_active(handle backupId, bool active)
 {
     cout << "Sync is now active: " << active << endl;
 }
 
 void DemoApp::sync_auto_resume_result(const UnifiedSync& s, bool attempted)
 {
+    handle backupId = s.mConfig.getBackupId();
     if (attempted)
     {
-        cout << "Sync - autoresumed " << s.mConfig.getTag() << " " << s.mConfig.getLocalPath()  << " enabled: "
+        cout << "Sync - autoresumed " << toHandle(backupId) << " " << s.mConfig.getLocalPath()  << " enabled: "
              << s.mConfig.getEnabled()  << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
     }
     else
     {
-        cout << "Sync - autoloaded " << s.mConfig.getTag() << " " << s.mConfig.getLocalPath() << " enabled: "
+        cout << "Sync - autoloaded " << toHandle(backupId) << " " << s.mConfig.getLocalPath() << " enabled: "
             << s.mConfig.getEnabled() << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
     }
 }
 
-void DemoApp::sync_removed(int tag)
+void DemoApp::sync_removed(handle backupId)
 {
-    cout << "Sync - removed: " << tag << endl;
+    cout << "Sync - removed: " << toHandle(backupId) << endl;
 
 }
 
@@ -4378,17 +4378,26 @@ void exec_sync(autocomplete::ACState& s)
             }
             else
             {
-                static int syncTag = 2027;
-                SyncConfig syncConfig{syncTag++, s.words[1].s, s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.getType(),
+                cout << "Adding sync..." << endl;
+
+                SyncConfig syncConfig{s.words[1].s, s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.getType(),
                             newSyncConfig.syncDeletions(), newSyncConfig.forceOverwrite()};
 
-                UnifiedSync* unifiedSync;
-                error e = client->addsync(syncConfig, DEBRISFOLDER, NULL, false, unifiedSync, true);
-
-                if (e)
-                {
-                    cout << "Sync could not be added: " << errorstring(e) << endl;
-                }
+                client->addsync(syncConfig, DEBRISFOLDER, NULL, false, false,
+                                [](mega::UnifiedSync* us, const SyncError&, error e) {
+                    if (us && us->mSync)
+                    {
+                        cout << "Sync added and running. backupId = " << toHandle(us->mConfig.getBackupId());
+                    }
+                    else if (us)
+                    {
+                        cout << "Sync config added but could not be started: " << errorstring(e) << endl;
+                    }
+                    else
+                    {
+                        cout << "Sync config could not be started: " << errorstring(e) << endl;
+                    }
+                });
             }
         }
         else
@@ -4398,15 +4407,16 @@ void exec_sync(autocomplete::ACState& s)
     }
     else if (s.words.size() == 2)
     {
-        int i = 0, cancel = atoi(s.words[1].s.c_str());
+        handle cancelBackupId;
+        Base64::atob(s.words[1].s.c_str(), (byte*)&cancelBackupId, MegaClient::BACKUPHANDLE);
 
-        client->syncs.removeSelectedSyncs([&](SyncConfig&, Sync* s) {
+        client->syncs.removeSelectedSyncs([&](SyncConfig& sc, Sync* s) {
 
-            if (i++ == cancel)
+            if (sc.getBackupId() == cancelBackupId)
             {
                 if (s && s->state > SYNC_CANCELED)
                 {
-                    cout << "Sync " << cancel << " deactivated and removed. tag: " << s->tag << endl;
+                    cout << "Sync " << cancelBackupId << " deactivated and removed." << endl;
                     return true;
                 }
             }
@@ -4415,8 +4425,6 @@ void exec_sync(autocomplete::ACState& s)
     }
     else if (s.words.size() == 1)
     {
-        int i = 0;
-
         client->syncs.forEachUnifiedSync([&](UnifiedSync& us){
 
             static const char* syncstatenames[] =
@@ -4430,7 +4438,7 @@ void exec_sync(autocomplete::ACState& s)
                     nodepath(sync->localroot->node->nodehandle, &remotepath);
                     localpath = sync->localroot->localname.toPath(*client->fsaccess);
 
-                    cout << i << " (" << syncConfigToString(sync->getConfig()) << "): " << localpath << " to " << remotepath << " - "
+                    cout << syncConfigToString(sync->getConfig()) << ": " << localpath << " to " << remotepath << " - "
                             << syncstatenames[sync->state + 3] << ", " << sync->localbytes
                             << " byte(s) in " << sync->localnodes[FILENODE] << " file(s) and "
                             << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
@@ -4442,9 +4450,8 @@ void exec_sync(autocomplete::ACState& s)
                 nodepath(us.mConfig.getRemoteNode(), &remotepath);
                 localpath = us.mConfig.getLocalPath();
 
-                cout << i << " (" << syncConfigToString(us.mConfig) << "): " << localpath << " to " << remotepath << " - not running" << endl;
+                cout << syncConfigToString(us.mConfig) << ": " << localpath << " to " << remotepath << " - not running" << endl;
             }
-            i++;
         });
     }
 }
