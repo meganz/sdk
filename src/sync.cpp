@@ -2069,7 +2069,10 @@ bool UnifiedSync::updateSyncRemoteLocation(Node* n, bool forceCallback)
     }
 
     //persist
-    mClient.syncs.mSyncConfigDb->insert(mConfig);
+    if (mClient.syncs.mSyncConfigDb)
+    {
+        mClient.syncs.mSyncConfigDb->insert(mConfig);
+    }
 
     return changed;
 }
@@ -2215,7 +2218,10 @@ auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> UnifiedSync*
     isEmpty = false;
     mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(mc, c)));
 
-    mSyncConfigDb->insert(c);
+    if (mSyncConfigDb)
+    {
+        mSyncConfigDb->insert(c);
+    }
 
     return mSyncVec.back().get();
 }
@@ -2418,7 +2424,10 @@ void Syncs::removeSyncByIndex(size_t index)
         auto tag = mSyncVec[index]->mConfig.getTag();
         mClient.app->sync_removed(tag);
 
-        mSyncConfigDb->removeByTag(tag);
+        if (mSyncConfigDb)
+        {
+            mSyncConfigDb->removeByTag(tag);
+        }
         mClient.syncactivity = true;
         mSyncVec.erase(mSyncVec.begin() + index);
 
@@ -2445,7 +2454,10 @@ error Syncs::enableSyncByTag(int tag, bool resetFingerprint, UnifiedSync*& syncP
 
 void Syncs::saveSyncConfig(const SyncConfig& config)
 {
-    mSyncConfigDb->insert(config);
+    if (mSyncConfigDb)
+    {
+        mSyncConfigDb->insert(config);
+    }
 }
 
 // restore all configured syncs that were in a temporary error state (not manually disabled)
@@ -2485,6 +2497,7 @@ void Syncs::enableResumeableSyncs()
 void Syncs::resumeResumableSyncsOnStartup()
 {
     if (mClient.loggedinfolderlink()) return;
+    if (!mSyncConfigDb) return;
 
     bool firstSyncResumed = false;
 
