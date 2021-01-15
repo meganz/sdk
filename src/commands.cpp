@@ -2942,10 +2942,12 @@ bool CommandPutUA::procresult(Result r)
         }
         else if (at == ATTR_JSON_SYNC_CONFIG_NAME)
         {
+            LOG_info << "JSCN user attribute successfully created.";
             client->syncdbname.swap(av);
         }
         else if (at == ATTR_JSON_SYNC_CONFIG_KEY)
         {
+            LOG_info << "JSCK user attributes successfully created.";
             client->syncdbkey.swap(av);
         }
 
