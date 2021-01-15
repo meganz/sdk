@@ -1024,7 +1024,7 @@ struct StandardClient : public MegaApp
     {
         resultproc.prepresult(LOGIN, ++next_request_tag,
             [&](){ client.login(session); },
-            [&pb](error e) { pb->set_value(!e);  return true; });
+            [pb](error e) { pb->set_value(!e);  return true; });
     }
 
     void cloudCopyTreeAs(Node* n1, Node* n2, std::string newname, PromiseBoolSP pb)
@@ -3244,7 +3244,7 @@ GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
     // save session A1
     string session;
     pclientA1->client.dumpsession(session);
-    fs::path sync1path = pclientA1->syncSet(1).localpath;
+    fs::path sync1path = pclientA1->syncSet(backupId1).localpath;
 
     // logout A1 (but keep caches on disk)
     pclientA1->localLogout();
