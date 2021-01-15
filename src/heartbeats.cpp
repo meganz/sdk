@@ -272,13 +272,13 @@ BackupType BackupInfoSync::getSyncType(const SyncConfig& config)
 {
     switch (config.getType())
     {
-    case SyncConfig::Type::TYPE_UP:
+    case TYPE_UP:
             return BackupType::UP_SYNC;
-    case SyncConfig::Type::TYPE_DOWN:
+    case TYPE_DOWN:
             return BackupType::DOWN_SYNC;
-    case SyncConfig::Type::TYPE_TWOWAY:
+    case TYPE_TWOWAY:
             return BackupType::TWO_WAY;
-    case SyncConfig::TYPE_BACKUP:
+    case TYPE_BACKUP:
             return BackupType::BACKUP_UPLOAD;
     default:
             return BackupType::INVALID;

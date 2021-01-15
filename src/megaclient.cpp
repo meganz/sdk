@@ -3033,6 +3033,9 @@ void MegaClient::exec()
                 }
             }
         }
+
+        // Flush changes made to internal configs.
+        syncs.syncConfigDBFlush();
 #endif
 
         notifypurge();
@@ -4306,6 +4309,8 @@ void MegaClient::locallogout(bool removecaches)
     }
 
 #ifdef ENABLE_SYNC
+    syncdbkey.clear();
+    syncdbname.clear();
     syncadding = 0;
     totalLocalNodes = 0;
 #endif
@@ -4340,9 +4345,10 @@ void MegaClient::removeCaches()
         }
     });
 
-    if (syncs.mSyncConfigDb && !mKeepSyncsAfterLogout)
+    // TODO: dgw: truncate?
+    if (!mKeepSyncsAfterLogout)
     {
-        syncs.mSyncConfigDb->clear();
+        syncs.truncate();
     }
 #endif
 
@@ -5994,12 +6000,14 @@ void MegaClient::sc_userattr()
                                         resetKeyring();
                                         break;
                                     }
-                                    case ATTR_AUTHRING:         // fall-through
-                                    case ATTR_AUTHCU255:        // fall-through
-                                    case ATTR_AUTHRSA:          // fall-through
-                                    case ATTR_MY_BACKUPS_FOLDER:    // fall-through
-                                    case ATTR_BACKUP_NAMES:     // fall-through
-                                    case ATTR_DEVICE_NAMES:     // fall-through
+                                    case ATTR_AUTHRING:              // fall-through
+                                    case ATTR_AUTHCU255:             // fall-through
+                                    case ATTR_AUTHRSA:               // fall-through
+                                    case ATTR_DEVICE_NAMES:          // fall-through
+                                    case ATTR_MY_BACKUPS_FOLDER:     // fall-through
+                                    case ATTR_BACKUP_NAMES:          // fall-through
+                                    case ATTR_JSON_SYNC_CONFIG_KEY:  // fall-through
+                                    case ATTR_JSON_SYNC_CONFIG_NAME: // fall-through
                                     {
                                         LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
                                         if (User::isAuthring(type)) mAuthRings.erase(type);
@@ -7291,16 +7299,16 @@ void MegaClient::notifypurge(void)
 }
 
 // return node pointer derived from node handle
-Node* MegaClient::nodebyhandle(handle h)
+Node* MegaClient::nodebyhandle(handle h) const
 {
-    node_map::iterator it;
+    auto it = nodes.find(h);
 
-    if ((it = nodes.find(h)) != nodes.end())
+    if (it != nodes.end())
     {
         return it->second;
     }
 
-    return NULL;
+    return nullptr;
 }
 
 // server-client deletion

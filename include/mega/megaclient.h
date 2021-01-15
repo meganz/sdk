@@ -1354,7 +1354,7 @@ public:
     // remove node subtree
     void deltree(handle);
 
-    Node* nodebyhandle(handle);
+    Node* nodebyhandle(handle) const;
     Node* nodebyfingerprint(FileFingerprint*);
 #ifdef ENABLE_SYNC
     Node* nodebyfingerprint(LocalNode*);
@@ -1391,6 +1391,12 @@ public:
     std::map<handle, handle> mPublicLinks;
 
 #ifdef ENABLE_SYNC
+    // Root filename of this user's sync config databases.
+    string syncdbname;
+
+    // Authentication and decryption keys for this user's sync config databases.
+    string syncdbkey;
+
     // sync debris folder name in //bin
     static const char* const SYNCDEBRISFOLDERNAME;
 

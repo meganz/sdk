@@ -53,10 +53,10 @@ public:
     MEGA_DISABLE_COPY_MOVE(SyncConfigBag)
 
     // Adds a new sync config or updates if exists already
-    void insert(const SyncConfig& syncConfig);
+    error insert(const SyncConfig& syncConfig);
 
     // Removes a sync config with a given tag
-    bool removeByTag(const int tag);
+    error removeByTag(const int tag);
 
     // Returns the sync config with a given tag
     const SyncConfig* get(const int tag) const;
@@ -248,6 +248,254 @@ private:
     std::string mLocalPath;
 };
 
+class MEGA_API JSONSyncConfig
+{
+public:
+    JSONSyncConfig();
+
+    MEGA_DEFAULT_COPY_MOVE(JSONSyncConfig);
+
+    bool external() const;
+
+    bool valid() const;
+
+    bool operator==(const JSONSyncConfig& rhs) const;
+
+    bool operator!=(const JSONSyncConfig& rhs) const;
+
+    // Absolute path to containing drive.
+    LocalPath drivePath;
+
+    // Relative path to sync root.
+    LocalPath sourcePath;
+
+    // User-friendly name.
+    string name;
+
+    // Absolute path to remote sync target.
+    string targetPath;
+    
+    // Local fingerprint.
+    fsfp_t fingerprint;
+
+    // ID for backup heartbeating.
+    handle heartbeatID;
+
+    // Handle of remote sync target.
+    handle targetHandle;
+
+    // The last error that occured on this sync.
+    SyncError lastError;
+
+    // The last warning that occured on this sync.
+    SyncWarning lastWarning;
+
+    // Type of sync.
+    SyncType type;
+
+    // Identity of sync.
+    int tag;
+
+    // Whether the sync has been enabled by the user.
+    bool enabled;
+}; // JSONSyncConfig
+
+// Translates an SyncConfig into a JSONSyncConfig.
+JSONSyncConfig translate(const MegaClient& client, const SyncConfig &config);
+
+// Translates an JSONSyncConfig into a SyncConfig.
+SyncConfig translate(const MegaClient& client, const JSONSyncConfig& config);
+
+// For convenience.
+using JSONSyncConfigMap = map<int, JSONSyncConfig>;
+
+class JSONSyncConfigDBObserver;
+class JSONSyncConfigIOContext;
+
+class MEGA_API JSONSyncConfigDB
+{
+public:
+    JSONSyncConfigDB(const LocalPath& dbPath,
+                     const LocalPath& drivePath,
+                     JSONSyncConfigDBObserver& observer);
+
+    explicit
+    JSONSyncConfigDB(const LocalPath& dbPath);
+
+    ~JSONSyncConfigDB();
+
+    MEGA_DISABLE_COPY(JSONSyncConfigDB);
+
+    MEGA_DEFAULT_MOVE(JSONSyncConfigDB);
+
+    // Add a new (or update an existing) config.
+    const JSONSyncConfig* add(const JSONSyncConfig& config);
+
+    // Remove all configs.
+    void clear();
+
+    // Get current configs.
+    const JSONSyncConfigMap& configs() const;
+
+    // Path to the directory containing this database.
+    const LocalPath& dbPath() const;
+
+    // Whether this database needs to be written to disk.
+    bool dirty() const;
+
+    // Path to the drive containing this database.
+    const LocalPath& drivePath() const;
+
+    // Get config by backup tag.
+    const JSONSyncConfig* get(const int tag) const;
+
+    // Get config by backup target handle.
+    const JSONSyncConfig* get(const handle targetHandle) const;
+
+    // Read this database from disk.
+    error read(JSONSyncConfigIOContext& ioContext);
+
+    // Remove config by backup tag.
+    error remove(const int tag);
+
+    // Remove config by backup target handle.
+    error remove(const handle targetHandle);
+
+    // Write this database to disk.
+    error write(JSONSyncConfigIOContext& ioContext);
+
+private:
+    // Adds a new (or updates an existing) config.
+    const JSONSyncConfig* add(const JSONSyncConfig& config,
+                              const bool flush);
+
+    // Removes all configs.
+    void clear(const bool flush);
+
+    // Reads this database from the specified slot on disk.
+    error read(JSONSyncConfigIOContext& ioContext,
+               const unsigned int slot);
+
+    // Remove config by backup tag.
+    error remove(const int tag, const bool flush);
+
+    // How many times we should be able to write the database before
+    // overwriting earlier versions.
+    static const unsigned int NUM_SLOTS;
+
+    // Path to the directory containing this database.
+    LocalPath mDBPath;
+
+    // Path to the drive containing this database.
+    LocalPath mDrivePath;
+
+    // Who we tell about config changes.
+    JSONSyncConfigDBObserver* mObserver;
+
+    // Maps backup tag to config.
+    JSONSyncConfigMap mTagToConfig;
+
+    // Maps backup target handle to config.
+    map<handle, JSONSyncConfig*> mTargetToConfig;
+
+    // Tracks which 'slot' we're writing to.
+    unsigned int mSlot;
+
+    // Whether this database needs to be written to disk.
+    bool mDirty;
+}; // JSONSyncConfigDB
+
+// Convenience.
+using JSONSyncConfigDBPtr = unique_ptr<JSONSyncConfigDB>;
+
+class MEGA_API JSONSyncConfigIOContext
+{
+public:
+    JSONSyncConfigIOContext(SymmCipher& cipher,
+                            FileSystemAccess& fsAccess,
+                            const string& key,
+                            const string& name,
+                            PrnGen& rng);
+
+    virtual ~JSONSyncConfigIOContext();
+
+    MEGA_DISABLE_COPY_MOVE(JSONSyncConfigIOContext);
+
+    // Deserialize configs from JSON.
+    bool deserialize(JSONSyncConfigMap& configs,
+                     JSON& reader) const;
+
+    // Determine which slots are present.
+    virtual error get(const LocalPath& dbPath,
+                      vector<unsigned int>& slots);
+
+    // Read data from the specified slot.
+    virtual error read(const LocalPath& dbPath,
+                       string& data,
+                       const unsigned int slot);
+
+    // Serialize configs to JSON.
+    void serialize(const JSONSyncConfigMap& configs,
+                   JSONWriter& writer) const;
+
+    // Write data to the specified slot.
+    virtual error write(const LocalPath& dbPath,
+                        const string& data,
+                        const unsigned int slot);
+
+private:
+    // Decrypt data.
+    bool decrypt(const string& in, string& out);
+
+    // Deserialize a config from JSON.
+    bool deserialize(JSONSyncConfig& config, JSON& reader) const;
+
+    // Encrypt data.
+    string encrypt(const string& data);
+
+    // Serialize a config to JSON.
+    void serialize(const JSONSyncConfig& config, JSONWriter& writer) const;
+
+    // The cipher protecting the user's configuration databases.
+    SymmCipher mCipher;
+
+    // How we access the filesystem.
+    FileSystemAccess& mFsAccess;
+
+    // Name of this user's configuration databases.
+    LocalPath mName;
+
+    // Pseudo-random number generator.
+    PrnGen& mRNG;
+
+    // Hash used to authenticate configuration databases.
+    HMACSHA256 mSigner;
+}; // JSONSyncConfigIOContext
+
+class MEGA_API JSONSyncConfigDBObserver
+{
+public:
+    // Invoked when a backup config is being added.
+    virtual void onAdd(JSONSyncConfigDB& db,
+                       const JSONSyncConfig& config) = 0;
+
+    // Invoked when a backup config is being changed.
+    virtual void onChange(JSONSyncConfigDB& db,
+                          const JSONSyncConfig& from,
+                          const JSONSyncConfig& to) = 0;
+
+    // Invoked when a database needs to be written.
+    virtual void onDirty(JSONSyncConfigDB& db) = 0;
+
+    // Invoked when a backup config is being removed.
+    virtual void onRemove(JSONSyncConfigDB& db,
+                          const JSONSyncConfig& config) = 0;
+
+protected:
+    JSONSyncConfigDBObserver();
+
+    ~JSONSyncConfigDBObserver();
+}; // JSONSyncConfigDBObserver
 
 struct Syncs
 {
@@ -257,6 +505,7 @@ struct Syncs
     unsigned numRunningSyncs();
     Sync* firstRunningSync();
     Sync* runningSyncByTag(int tag) const;
+    SyncConfig* syncConfigByTag(const int tag) const;
 
     void forEachUnifiedSync(std::function<void(UnifiedSync&)> f);
     void forEachRunningSync(std::function<void(Sync* s)>);
@@ -282,8 +531,11 @@ struct Syncs
     void resetSyncConfigDb();
     void clear();
 
+    // Clears (and flushes) internal config database.
+    error truncate();
+
     // updates in state & error
-    void saveSyncConfig(const SyncConfig& config);
+    error saveSyncConfig(const SyncConfig& config);
 
     Syncs(MegaClient& mc);
 
@@ -295,16 +547,38 @@ struct Syncs
     // use this existing class for maintaining the db
     unique_ptr<SyncConfigBag> mSyncConfigDb;
 
+    // Returns a reference to this user's internal configuration database.
+    JSONSyncConfigDB* syncConfigDB();
+
+    // Whether the internal database has changes that need to be written to disk.
+    bool syncConfigDBDirty();
+
+    // Attempts to flush the internal configuration database to disk.
+    error syncConfigDBFlush();
+
+    // Load internal sync configs from disk.
+    error syncConfigDBLoad();
+
 private:
+    // Returns a reference to this user's sync config IO context.
+    JSONSyncConfigIOContext* syncConfigIOContext();
+
+    // This user's internal sync configuration datbase.
+    unique_ptr<JSONSyncConfigDB> mSyncConfigDB;
+
+    // Responsible for securely writing config databases to disk.
+    unique_ptr<JSONSyncConfigIOContext> mSyncConfigIOContext;
 
     vector<unique_ptr<UnifiedSync>> mSyncVec;
 
     // remove the Sync and its config.  The sync's Localnode cache is removed
     void removeSyncByIndex(size_t index);
 
+    // Removes a sync config.
+    error removeSyncConfig(const int tag);
+
     MegaClient& mClient;
 };
-
 
 } // namespace
 

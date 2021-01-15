@@ -2299,7 +2299,7 @@ SyncConfig::SyncConfig(int tag,
                        const fsfp_t localFingerprint,
                        std::vector<std::string> regExps,
                        const bool enabled,
-                       const Type syncType,
+                       const SyncType syncType,
                        const bool syncDeletions,
                        const bool forceOverwrite,
                        const SyncError error,
@@ -2307,6 +2307,7 @@ SyncConfig::SyncConfig(int tag,
                        mega::handle hearBeatID)
     : mTag{tag}
     , mEnabled{enabled}
+    , mDrivePath{}
     , mLocalPath{std::move(localPath)}
     , mName{std::move(name)}
     , mRemoteNode{remoteNode}
@@ -2397,7 +2398,7 @@ void SyncConfig::setRegExps(std::vector<std::string>&& v)
     mRegExps = std::move(v);
 }
 
-SyncConfig::Type SyncConfig::getType() const
+SyncType SyncConfig::getType() const
 {
     return mSyncType;
 }
@@ -2459,6 +2460,21 @@ handle SyncConfig::getBackupId() const
 void SyncConfig::setBackupId(const handle &backupId)
 {
     mBackupId = backupId;
+}
+
+bool SyncConfig::isExternal() const
+{
+    return !mDrivePath.empty();
+}
+
+void SyncConfig::drivePath(const string& drivePath)
+{
+    mDrivePath = drivePath;
+}
+
+const string& SyncConfig::drivePath() const
+{
+    return mDrivePath;
 }
 
 // This should be a const-method but can't be due to the broken Cacheable interface.
@@ -2538,7 +2554,7 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
 
     auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{static_cast<int>(tag), std::move(localPath), std::move(name),
                     remoteNode, std::move(remotePath), fingerprint, std::move(regExps), enabled,
-                    static_cast<Type>(syncType), syncDeletions,
+                    static_cast<SyncType>(syncType), syncDeletions,
                     forceOverwrite, static_cast<SyncError>(error), NO_SYNC_WARNING, heartBeatID}};
     return syncConfig;
 }

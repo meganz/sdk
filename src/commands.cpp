@@ -2940,6 +2940,17 @@ bool CommandPutUA::procresult(Result r)
             LOG_info << "Unshareable key successfully created";
             client->unshareablekey.swap(av);
         }
+        else if (at == ATTR_JSON_SYNC_CONFIG_NAME)
+        {
+            LOG_info << "JSCN user attribute successfully created.";
+            client->syncdbname.swap(av);
+        }
+        else if (at == ATTR_JSON_SYNC_CONFIG_KEY)
+        {
+            LOG_info << "JSCK user attributes successfully created.";
+            client->syncdbkey.swap(av);
+        }
+
         client->app->putua_result(API_OK);
     }
 
@@ -3617,6 +3628,10 @@ bool CommandGetUserData::procresult(Result r)
     string versionMyBackupsFolder;
     string backupNames;
     string versionBackupNames;
+    string jsonSyncConfigName;
+    string jsonSyncConfigNameVersion;
+    string jsonSyncConfigKey;
+    string jsonSyncConfigKeyVersion;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -3747,6 +3762,14 @@ bool CommandGetUserData::procresult(Result r)
 
         case MAKENAMEID4('*', '!', 'b', 'n'):
             parseUserAttribute(backupNames, versionBackupNames);
+			break;
+			
+        case MAKENAMEID6('^', '~', 'j', 's', 'c', 'n'):
+            parseUserAttribute(jsonSyncConfigName, jsonSyncConfigNameVersion);
+            break;
+
+        case MAKENAMEID6('^', '~', 'j', 's', 'c', 'k'):
+            parseUserAttribute(jsonSyncConfigKey, jsonSyncConfigKeyVersion);
             break;
 
         case 'b':   // business account's info
@@ -4138,6 +4161,58 @@ bool CommandGetUserData::procresult(Result r)
                     {
                         LOG_err << "Cannot extract TLV records for ATTR_BACKUP_NAMES";
                     }
+                }
+				
+                // Has a name been defined for this user's sync configuration databases?
+                if (jsonSyncConfigName.empty())
+                {
+                    using NameStr = Base64Str<SymmCipher::KEYLENGTH>;
+
+                    // Generate a sufficiently obscure name.
+                    byte bytes[SymmCipher::KEYLENGTH];
+                    client->rng.genblock(bytes, sizeof(bytes));
+
+                    // Name's simply the above bytes represented as Base64.
+                    NameStr name(bytes);
+
+                    // Persist the new attribute.
+                    client->putua(ATTR_JSON_SYNC_CONFIG_NAME, name.bytes(), name.size(), 0);
+                }
+                else
+                {
+                    // Let the rest of the SDK know the attribute's changed.
+                    changes += u->updateattr(ATTR_JSON_SYNC_CONFIG_NAME,
+                                             &jsonSyncConfigName,
+                                             &jsonSyncConfigNameVersion);
+
+                    // Make the attribute immediately visible to the client.
+                    client->syncdbname = jsonSyncConfigName;
+                }
+
+                // Has a key been defined to protect this user's sync configuration databases?
+                if (jsonSyncConfigKey.empty())
+                {
+                    using KeyStr = Base64Str<SymmCipher::KEYLENGTH * 2>;
+
+                    // Generate key material.
+                    byte bytes[SymmCipher::KEYLENGTH * 2];
+                    client->rng.genblock(bytes, sizeof(bytes));
+
+                    // Key's stored Base64 encoded.
+                    KeyStr key(bytes);
+
+                    // Persist the new attribute.
+                    client->putua(ATTR_JSON_SYNC_CONFIG_KEY, key.bytes(), key.size(), 0);
+                }
+                else
+                {
+                    // Tell the rest of the SDK the attribute's changed.
+                    changes += u->updateattr(ATTR_JSON_SYNC_CONFIG_KEY,
+                                             &jsonSyncConfigKey,
+                                             &jsonSyncConfigKeyVersion);
+
+                    // Make the attribute immediately visible to the client.
+                    client->syncdbkey = jsonSyncConfigKey;
                 }
 
                 if (changes > 0)

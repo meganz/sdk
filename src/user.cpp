@@ -554,6 +554,14 @@ string User::attr2string(attr_t type)
             attrname = "*!bn";
             break;
             
+        case ATTR_JSON_SYNC_CONFIG_NAME:
+            attrname = "^~jscn";
+            break;
+
+        case ATTR_JSON_SYNC_CONFIG_KEY:
+            attrname = "^~jsck";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -702,6 +710,14 @@ string User::attr2longname(attr_t type)
     case ATTR_BACKUP_NAMES:
         longname = "ATTR_BACKUP_NAMES";
         break;
+		
+    case ATTR_JSON_SYNC_CONFIG_NAME:
+        longname = "JSON_SYNC_CONFIG_NAME";
+        break;
+
+    case ATTR_JSON_SYNC_CONFIG_KEY:
+        longname = "JSON_SYNC_CONFIG_KEY";
+        break;
     }
 
     return longname;
@@ -842,6 +858,14 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_BACKUP_NAMES;
     }
+    else if (!strcmp(name, "^~jscn"))
+    {
+        return ATTR_JSON_SYNC_CONFIG_NAME;
+    }
+    else if (!strcmp(name, "^~jsck"))
+    {
+        return ATTR_JSON_SYNC_CONFIG_NAME;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -869,6 +893,8 @@ int User::needversioning(attr_t at)
         case ATTR_MY_CHAT_FILES_FOLDER:
         case ATTR_PUSH_SETTINGS:
         case ATTR_MY_BACKUPS_FOLDER:
+        case ATTR_JSON_SYNC_CONFIG_NAME:
+        case ATTR_JSON_SYNC_CONFIG_KEY:
             return 0;
 
         case ATTR_LAST_INT:
@@ -929,6 +955,8 @@ char User::scope(attr_t at)
         case ATTR_RUBBISH_TIME:
         case ATTR_STORAGE_STATE:
         case ATTR_PUSH_SETTINGS:
+        case ATTR_JSON_SYNC_CONFIG_NAME:
+        case ATTR_JSON_SYNC_CONFIG_KEY:
             return '^';
 
         default:
@@ -1348,6 +1376,14 @@ bool User::setChanged(attr_t at)
 
         case ATTR_BACKUP_NAMES:
             changed.backupNames = true;
+			break;
+			
+        case ATTR_JSON_SYNC_CONFIG_NAME:
+            changed.jsonSyncConfigName = true;
+            break;
+
+        case ATTR_JSON_SYNC_CONFIG_KEY:
+            changed.jsonSyncConfigKey = true;
             break;
 
         default:

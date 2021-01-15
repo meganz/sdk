@@ -572,6 +572,8 @@ typedef enum {
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
     ATTR_MY_BACKUPS_FOLDER = 31,            // private - byte array - non-versioned
     ATTR_BACKUP_NAMES = 32,                 // private - byte array - versioned
+    ATTR_JSON_SYNC_CONFIG_NAME = 33,        // private - unencrypted - char array - versioned
+    ATTR_JSON_SYNC_CONFIG_KEY = 34          // private - unencrypted - char array - versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -839,17 +841,23 @@ typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLO
 
 // Holds the config of a sync. Can be extended with future config options
 class Sync;
+
+enum SyncType
+{
+    // sync up from local to remote
+    TYPE_UP = 0x01,
+    // sync down from remote to local		
+    TYPE_DOWN = 0x02,
+    // Two-way sync
+    TYPE_TWOWAY = TYPE_DOWN | TYPE_UP,
+    // special sync up from local to remote, automatically disabled when remote changed
+    TYPE_BACKUP = 0x04
+}; // SyncType
+
 class SyncConfig : public Cacheable
 {
 public:
-
-    enum Type
-    {
-        TYPE_UP = 0x01, // sync up from local to remote
-        TYPE_DOWN = 0x02, // sync down from remote to local
-        TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
-        TYPE_BACKUP, // special sync up from local to remote, automatically disabled when remote changed
-    };
+    SyncConfig() = default;
 
     SyncConfig(int tag,
                std::string localPath,
@@ -859,7 +867,7 @@ public:
                const fsfp_t localFingerprint,
                std::vector<std::string> regExps = {},
                const bool enabled = true,
-               const Type syncType = TYPE_TWOWAY,
+               const SyncType syncType = TYPE_TWOWAY,
                const bool syncDeletions = false,
                const bool forceOverwrite = false,
                const SyncError error = NO_SYNC_ERROR,
@@ -901,7 +909,7 @@ public:
     void setRegExps(std::vector<std::string>&&);
 
     // returns the type of the sync
-    Type getType() const;
+    SyncType getType() const;
 
     // whether this is an up-sync from local to remote
     bool isUpSync() const;
@@ -939,6 +947,13 @@ public:
     handle getBackupId() const;
     void setBackupId(const handle &backupId);
 
+    // Whether this sync is backed by an external device.
+    bool isExternal() const;
+
+    // Path to the volume containing this backup.
+    void drivePath(const string& drivePath);
+    const string &drivePath() const;
+
 private:
 
     // Unique identifier. any other field can change (even remote handle),
@@ -947,6 +962,9 @@ private:
 
     // enabled/disabled by the user
     bool mEnabled = true;
+
+    // Path to the volume containing this backup.
+    string mDrivePath;
 
     // the local path of the sync
     std::string mLocalPath;
@@ -967,7 +985,7 @@ private:
     std::vector<std::string> mRegExps; //TODO: rename this to wildcardExclusions?: they are not regexps AFAIK
 
     // type of the sync, defaults to bidirectional
-    Type mSyncType;
+    SyncType mSyncType;
 
     // whether deletions are synced (only relevant for one-way-sync)
     bool mSyncDeletions;
