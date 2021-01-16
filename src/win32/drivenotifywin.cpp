@@ -62,7 +62,7 @@ namespace mega {
 
     bool DriveNotifyWin::startNotifier()
     {
-        if (mEventSinkThread.joinable())  return false;
+        if (mEventSinkThread.joinable() || mStop.load())  return false;
 
         mEventSinkThread = thread(&DriveNotifyWin::doInThread, this);
 
