@@ -284,8 +284,6 @@ typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL
 const int FILENODEKEYLENGTH = 32;
 const int FOLDERNODEKEYLENGTH = 16;
 
-typedef list<class Sync*> sync_list;
-
 // persistent resource cache storage
 class Cacheable
 {
@@ -358,45 +356,19 @@ enum SyncError {
     REMOTE_NODE_INSIDE_RUBBISH = 20,        // Attempted to be added in rubbish
     VBOXSHAREDFOLDER_UNSUPPORTED = 21,      // Found unsupported VBoxSharedFolderFS
     LOCAL_PATH_SYNC_COLLISION = 22,         // Local path includes a synced path or is included within one
-    LOCAL_IS_FAT = 23,                      // Found FAT (not a failure per se)
-    LOCAL_IS_HGFS= 24,                      // Found HGFS (not a failure per se)
-    ACCOUNT_BLOCKED= 25,                    // Account blocked
-    UNKNOWN_TEMPORARY_ERROR = 26,           // Unknown temporary error
-    TOO_MANY_ACTION_PACKETS = 27,           // Too many changes in account, local state discarded
-    LOGGED_OUT = 28,                        // Logged out
+    ACCOUNT_BLOCKED= 23,                    // Account blocked
+    UNKNOWN_TEMPORARY_ERROR = 24,           // Unknown temporary error
+    TOO_MANY_ACTION_PACKETS = 25,           // Too many changes in account, local state discarded
+    LOGGED_OUT = 26,                        // Logged out
+    WHOLE_ACCOUNT_REFETCHED = 27,           // The whole account was reloaded, missed actionpacket changes could not have been applied
 };
 
-inline bool isSyncErrorPermanent(SyncError e)
-{
-    switch (e)
-    {
-    case NO_SYNC_ERROR:
-    case LOGGED_OUT: //syncs may be restored after relogging
-    case UNKNOWN_TEMPORARY_ERROR:
-    case STORAGE_OVERQUOTA:
-    case BUSINESS_EXPIRED:
-    case FOREIGN_TARGET_OVERSTORAGE:
-    case ACCOUNT_BLOCKED:
-    case LOCAL_IS_FAT:
-    case LOCAL_IS_HGFS:
-        return false;
-    default:
-        return true;
-    }
-}
+enum SyncWarning {
+    NO_SYNC_WARNING = 0,
+    LOCAL_IS_FAT = 1,                      // Found FAT (not a failure per se)
+    LOCAL_IS_HGFS = 2,                      // Found HGFS (not a failure per se)
+};
 
-inline bool isAnError(SyncError e)
-{
-    switch (e)
-    {
-    case NO_SYNC_ERROR:
-    case LOCAL_IS_FAT:
-    case LOCAL_IS_HGFS:
-        return false;
-    default:
-        return true;
-    }
-}
 
 typedef enum { SYNCDEL_NONE, SYNCDEL_DELETED, SYNCDEL_INFLIGHT, SYNCDEL_BIN,
                SYNCDEL_DEBRIS, SYNCDEL_DEBRISDAY, SYNCDEL_FAILED } syncdel_t;
@@ -600,6 +572,7 @@ typedef enum {
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
     ATTR_MY_BACKUPS_FOLDER = 31,            // private - byte array - non-versioned
     ATTR_BACKUP_NAMES = 32,                 // private - byte array - versioned
+    ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -716,6 +689,16 @@ typedef vector<recentaction> recentactions_vector;
 
 typedef enum { BIZ_STATUS_UNKNOWN = -2, BIZ_STATUS_EXPIRED = -1, BIZ_STATUS_INACTIVE = 0, BIZ_STATUS_ACTIVE = 1, BIZ_STATUS_GRACE_PERIOD = 2 } BizStatus;
 typedef enum { BIZ_MODE_UNKNOWN = -1, BIZ_MODE_SUBUSER = 0, BIZ_MODE_MASTER = 1 } BizMode;
+
+typedef enum {
+    ACCOUNT_TYPE_UNKNOWN = -1,
+    ACCOUNT_TYPE_FREE = 0,
+    ACCOUNT_TYPE_PROI = 1,
+    ACCOUNT_TYPE_PROII = 2,
+    ACCOUNT_TYPE_PROIII = 3,
+    ACCOUNT_TYPE_LITE = 4,
+    ACCOUNT_TYPE_BUSINESS = 100,
+} AccountType;
 
 typedef enum {
     AUTH_METHOD_UNKNOWN     = -1,
@@ -853,9 +836,10 @@ private:
 
 };
 
-typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3, MEDIA_UPLOAD = 4 } BackupType;
+typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3, MEDIA_UPLOAD = 4, BACKUP_UPLOAD } BackupType;
 
 // Holds the config of a sync. Can be extended with future config options
+class Sync;
 class SyncConfig : public Cacheable
 {
 public:
@@ -865,10 +849,10 @@ public:
         TYPE_UP = 0x01, // sync up from local to remote
         TYPE_DOWN = 0x02, // sync down from remote to local
         TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
+        TYPE_BACKUP, // special sync up from local to remote, automatically disabled when remote changed
     };
 
-    SyncConfig(int tag,
-               std::string localPath,
+    SyncConfig(std::string localPath,
                std::string syncName,
                const handle remoteNode,
                const std::string &remotePath,
@@ -879,22 +863,11 @@ public:
                const bool syncDeletions = false,
                const bool forceOverwrite = false,
                const SyncError error = NO_SYNC_ERROR,
+               const SyncWarning warning = NO_SYNC_WARNING,
                handle hearBeatID = UNDEF
             );
 
-    // returns unique identifier
-    int getTag() const;
-
-    // returns unique identifier
-    void setTag(int tag);
-
-    // whether this sync can be resumed
-    bool isResumable() const;
-
-    // whether this sync should be resumed at startup
-    bool isResumableAtStartup() const;
-
-    // wether this sync has errors (was inactive)
+    // whether this sync has errors (was inactive)
     bool hasError() const;
 
     // returns the local path of the sync
@@ -919,6 +892,7 @@ public:
 
     // returns the regular expressions
     const std::vector<std::string>& getRegExps() const;
+    void setRegExps(std::vector<std::string>&&);
 
     // returns the type of the sync
     Type getType() const;
@@ -945,6 +919,7 @@ public:
 
     // get error code (errors can be temporary/fatal/mere warnings)
     SyncError getError() const;
+    SyncWarning getWarning() const;
 
     // sets the error
     void setError(SyncError value);
@@ -955,17 +930,10 @@ public:
     // sets if enabled by the user
     void setEnabled(bool enabled);
 
-    // check if a sync would be enabled according to the sync state and error
-    static bool isEnabled(syncstate_t state, SyncError syncError);
-
     handle getBackupId() const;
     void setBackupId(const handle &backupId);
 
 private:
-
-    // Unique identifier. any other field can change (even remote handle),
-    // and we want to keep disabled configurations saved: e.g: remote handle changed
-    int mTag;
 
     // enabled/disabled by the user
     bool mEnabled = true;
@@ -1000,12 +968,22 @@ private:
     // failure cause (disable/failure cause).
     SyncError mError;
 
+    // Unique identifier. any other field can change (even remote handle),
+    // and we want to keep disabled configurations saved: e.g: remote handle changed
     // id for heartbeating
     handle mBackupId;
 
     // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
     bool serialize(std::string& data) const;
 
+    // Warning if creation was successful but the user should know something
+    SyncWarning mWarning;
+    friend struct UnifiedSync;
+    friend class MegaClient; // until functions are moved to Sync.cpp
+
+    // notified/saved state
+    SyncError mKnownError = NO_SYNC_ERROR;
+    bool mKnownEnabled = false;
 };
 
 // cross reference pointers.  For the case where two classes have pointers to each other, and they should
@@ -1051,8 +1029,12 @@ public:
         }
     }
 
-    TO* operator->() const { return ptr; }
-    operator TO*() const { return ptr; }
+    void store_unchecked(TO* p) { ptr = p; }
+    TO*  release_unchecked() { auto p = ptr; ptr = nullptr; return p;  }
+
+    TO* get()              { return ptr; }
+    TO* operator->() const { assert(ptr != (void*)~0); return ptr; }
+    operator TO*() const   { assert(ptr != (void*)~0); return ptr; }
 
     // no copying
     crossref_ptr(const crossref_ptr&) = delete;

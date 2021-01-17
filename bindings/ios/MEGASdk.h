@@ -51,6 +51,13 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
+/**
+ * @brief MEGAIsBeingLogoutNotification will be published before app starts logout.
+ */
+extern NSString * const MEGAIsBeingLogoutNotification;
+
+typedef uint64_t MEGAHandle;
+
 typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeNone,
     MEGASortOrderTypeDefaultAsc,
@@ -134,7 +141,11 @@ typedef NS_ENUM(NSInteger, MEGAUserAttribute) {
     MEGAUserAttributeCameraUploadsFolder     = 23, // private - byte array
     MEGAUserAttributeMyChatFilesFolder       = 24, // private - byte array
     MEGAUserAttributePushSettings            = 25, // private - char array
-    MEGAUserAttributeAlias                   = 27 // private - char array
+    MEGAUserAttributeAlias                   = 27, // private - char array
+    MEGAUserAttributeDeviceNames             = 30, // private - byte array
+    MEGAUserAttributeBackupsFolder           = 31, // private - byte array
+    MEGAUserAttributeBackupNames             = 32, // private - byte array
+    MEGAUserAttributeCookieSettings          = 33 // private - byte array
 };
 
 typedef NS_ENUM(NSInteger, MEGANodeAttribute) {
@@ -232,6 +243,33 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
     AffiliateTypeContact = 4
 };
 
+typedef NS_ENUM(NSInteger, BackUpType) {
+    BackUpTypeInvalid = -1,
+    BackUpTypeTwoWaySync = 0,
+    BackUpTypeUpSync = 1,
+    BackUpTypeDownSync = 2,
+    BackUpTypeCameraUploads = 3,
+    BackUpTypeMediaUploads = 4
+};
+
+typedef NS_ENUM(NSUInteger, BackUpState) {
+    BackUpStateActive = 1,
+    BackUpStateFailed = 2,
+    BackUpStateTemporaryDisabled = 3,
+    BackUpStateDisabled = 4,
+    BackUpStatePauseUp = 5,
+    BackUpStatePauseDown = 6,
+    BackUpStatePauseFull = 7
+};
+
+typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
+    BackupHeartbeatStatusUpToDate = 1,
+    BackupHeartbeatStatusSyncing = 2,
+    BackupHeartbeatStatusPending = 3,
+    BackupHeartbeatStatusInactive = 4,
+    BackupHeartbeatStatusUnknown = 5
+};
+
 /**
  * @brief Allows to control a MEGA account or a public folder.
  *
@@ -265,6 +303,12 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  *
  */
 @property (readonly, nonatomic, nullable) NSString *myEmail;
+
+/**
+ * @brief Date when the account was created
+ *
+ */
+@property (readonly, nonatomic, nullable) NSDate *accountCreationDate;
 
 /**
  * @brief Root node of the account.
@@ -2461,6 +2505,34 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * @see [MEGASdk setPSAWithIdentifier:] [MEGASdk setPSAWithIdentifier:delegate:]
  */
 - (void)getPSA;
+
+/**
+ * @brief Get the next PSA (Public Service Announcement) that should be shown to the user
+ *
+ * After the PSA has been accepted or dismissed by the user, app should
+ * use [MEGASdk setPSAWithIdentifier:] or [MEGASdk setPSAWithIdentifier:delegate:] to notify API servers about
+ * this event and do not get the same PSA again in the next call to this function.
+ *
+ * The associated request type with this request is MEGARequestTypeGetPSA.
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest number] - Returns the id of the PSA (useful to call [MEGASdk setPSAWithIdentifier:]
+ *                          [MEGASdk setPSAWithIdentifier:delegate:] later)
+ * - [MEGARequest email] - Returns the URL (or an empty string)
+ * - [MEGARequest name] - Returns the title of the PSA
+ * - [MEGARequest text] - Returns the text of the PSA
+ * - [MEGARequest file] - Returns the URL of the image of the PSA
+ * - [MEGARequest password] - Returns the text for the possitive button (or an empty string)
+ * - [MEGARequest link] - Returns the link for the possitive button (or an empty string)
+ *
+ * If there isn't any new PSA to show, onRequestFinish will be called with the error
+ * code MEGAErrorTypeApiENoent
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ * @see [MEGASdk setPSAWithIdentifier:] [MEGASdk setPSAWithIdentifier:delegate:]
+ */
+- (void)getURLPublicServiceAnnouncementWithDelegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Notify API servers that a PSA (Public Service Announcement) has been already seen
@@ -5590,6 +5662,23 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
 - (void)getUserDataWithUser:(NSString *)user;
 
 /**
+ * @brief Fetch miscellaneous flags when not logged in
+ *
+ * The associated request type with this request is MEGARequestTypeGetMiscFlags.
+ *
+ * When onRequestFinish is called with MEGAErrorTypeApiOk, the miscellaneous flags are available.
+ * If you are logged in into an account, the error code provided in onRequestFinish is
+ * MEGAErrorTypeApiEAccess.
+ *
+ * @see [MEGASDK multiFactorAuthAvailable]
+ * @see [MEGASDK newLinkFormatEnabled]
+ * @see [MEGASDK smsAllowedState]
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)getMiscFlagsWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
  * @brief Close a MEGA session
  *
  * All clients using this session will be automatically logged out.
@@ -8398,7 +8487,6 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  */
 - (SMSState)smsAllowedState;
 
-
 /**
  * @brief Get the verified phone number for the account logged in
  *
@@ -8488,7 +8576,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * - MEGAErrorTypeApiOk is returned upon success.
  *
  * @param contacts An NSArray containing user contacts (NSDictionary "phoneNumber":"userName").
- * @param listener MEGARequestDelegate to track this request
+ * @param delegate MEGARequestDelegate to track this request
  */
 - (void)getRegisteredContacts:(NSArray<NSDictionary *> *)contacts delegate:(id<MEGARequestDelegate>)delegate;
 
@@ -8712,7 +8800,7 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * - MEGAErrorTypeApiEInternal - If the internally used user attribute exists but can't be decoded.
  * - MEGAErrorTypeApiENoent - If there are no banners to return to the user.
  *
- * @param listener MEGARequestDelegate to track this request
+ * @param delegate MEGARequestDelegate to track this request
  */
 - (void)getBanners:(id<MEGARequestDelegate>)delegate;
 
@@ -8722,6 +8810,207 @@ typedef NS_ENUM(NSInteger, AffiliateType) {
  * The associated request type with this request is MEGARequestTypeDismissBanner
  */
 - (void)dismissBanner:(NSInteger)bannerIdentifier delegate:(id<MEGARequestDelegate>)delegate;
+
+#pragma mark - Backup Heartbeat
+
+/**
+ * @brief Registers a backup to display in Backup Centre
+ *
+ * Apps should register backups, like CameraUploads, in order to be listed in the
+ * BackupCentre. The client should send heartbeats to indicate the progress of the
+ * backup.
+ *
+ * @see [MEGASDK sendBackupHeartbeat]
+ *
+ * Possible types of backups:
+ * BackUpTypeCameraUploads = 3
+ *
+ * The associated request type with this request is MEGARequestTypeBackupPut
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest getNodeHandle] - Returns the target node of the backup
+ * - [MEGARequest getName] - Returns the backup name of the remote location
+ * - [MEGARequest getAccess] - Returns the backup state
+ * - [MEGARequest getFile] - Returns the path of the local folder
+ * - [MEGARequest getText] - Returns the extraData associated with the request
+ * - [MEGARequest getTotalBytes] - Returns the backup type
+ * - [MEGARequest getNumDetails] - Returns the backup substate
+ * - [MEGARequest getFlag] - Returns YES
+ *
+ * @param type BackUpType requested for the service
+ * @param node MEGA target node folder to hold the backups
+ * @param path Local path of the folder
+ * @param name Back up name of the backup
+ * @param state BackUpState type state
+ * @param delegate MEGARequestDelegate to track this request
+*/
+- (void)registerBackup:(BackUpType)type targetNode:(MEGANode *)node folderPath:(nullable NSString *)path name:(NSString *)name state:(BackUpState)state delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Update the information about a registered backup for Backup Centre
+ *
+ * Possible types of backups:
+ *  BackUpTypeCameraUploads = 3
+ *
+ * The associated request type with this request is MEGARequestTypeBackupPut
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest getParentHandle] - Returns the backupId
+ * - [MEGARequest getTotalBytes] - Returns the backup type
+ * - [MEGARequest getNodeHandle] - Returns the target node of the backup
+ * - [MEGARequest getFile] - Returns the path of the local folder
+ * - [MEGARequest getAccess] - Returns the backup state
+ * - [MEGARequest getNumDetails] - Returns the backup substate
+ * - [MEGARequest getText] - Returns the extraData associated with the request
+ *
+ * @param backupId backup id identifying the backup to be updated
+ * @param type BackUpType requested for the service
+ * @param node MEGA target node folder to hold the backups
+ * @param path Local path of the folder
+ * @param state BackUpState type backup state
+ * @param delegate MEGARequestDelegate to track this request
+*/
+- (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(nullable NSString *)path state:(BackUpState)state delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Unregister a backup already registered for the Backup Centre
+ *
+ * This method allows to remove a backup from the list of backups displayed in the
+ * Backup Centre.
+ *
+ * @see [MEGASdk registerBackup]
+ *
+ * The associated request type with this request is MEGARequestTypeBackupRemove
+ * Valid data in the MegaRequest object received on callbacks:
+ * - [MEGARequest getParentHandle] - Returns the backupId
+ *
+ * @param backupId backup id identifying the backup to be removed
+ * @param delegate MEGARequestDelegate to track this request
+*/
+- (void)unregisterBackup:(MEGAHandle)backupId delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Send heartbeat associated with an existing backup
+ *
+ * The client should call this method regularly for every registered backup, in order to
+ * inform about the status of the backup.
+ *
+ * The associated request type with this request is MEGARequestTypeBackupPutHeartbeat
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest getParentHandle] - Returns the backupId
+ * - [MEGARequest getAccess] - Returns the backup state
+ * - [MEGARequest getNumDetails] - Returns the backup substate
+ * - [MEGARequest getParamType] - Returns the number of pending upload transfers
+ * - [MEGARequest getTransferTag] - Returns the number of pending download transfers
+ * - [MEGARequest getNumber] - Returns the last action timestamp
+ * - [MEGARequest getNodeHandle] - Returns the last node handle to be synced
+ *
+ * @param backupId backup id identifying the backup
+ * @param status BackupHeartbeatStatus type backup state
+ * @param progress backup progress
+ * @param pendingUploadCount Count of pending upload transfers
+ * @param lastActionDate Last action date
+ * @param lastBackupNode Last node to be synced
+ * @param delegate MEGARequestDelegate to track this request
+*/
+- (void)sendBackupHeartbeat:(MEGAHandle)backupId status:(BackupHeartbeatStatus)status progress:(NSInteger)progress pendingUploadCount:(NSUInteger)pendingUploadCount lastActionDate:(NSDate *)lastActionDate lastBackupNode:(MEGANode *)lastBackupNode delegate:(id<MEGARequestDelegate>)delegate;
+
+#pragma mark - Cookie Dialog
+
+/**
+ * @brief Set a bitmap to indicate whether some cookies are enabled or not
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ *  - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeCookieSettings
+ *  - [MEGARequest numDetails] - Return a bitmap with cookie settings
+ *
+ * @param settings A bitmap with cookie settings
+ * Valid bits are:
+ *      - Bit 0: essential
+ *      - Bit 1: preference
+ *      - Bit 2: analytics
+ *      - Bit 3: ads
+ *      - Bit 4: thirdparty
+ * @param delegate MEGARequestDelegate to track this request
+*/
+- (void)setCookieSettings:(NSInteger)settings delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Set a bitmap to indicate whether some cookies are enabled or not
+ *
+ * The associated request type with this request is MEGARequestTypeSetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ *  - [MEGARequest paramType] - Returns the attribute type MEGAUserAttributeCookieSettings
+ *  - [MEGARequest numDetails] - Return a bitmap with cookie settings
+ *
+ * @param settings A bitmap with cookie settings
+ * Valid bits are:
+ *      - Bit 0: essential
+ *      - Bit 1: preference
+ *      - Bit 2: analytics
+ *      - Bit 3: ads
+ *      - Bit 4: thirdparty
+*/
+- (void)setCookieSettings:(NSInteger)settings;
+
+/**
+ * @brief Get a bitmap to indicate whether some cookies are enabled or not
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ *  - [MEGARequest paramType] - Returns the value MEGAUserAttributeCookieSettings
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest numDetails] Return the bitmap with cookie settings
+ *   Valid bits are:
+ *      - Bit 0: essential
+ *      - Bit 1: preference
+ *      - Bit 2: analytics
+ *      - Bit 3: ads
+ *      - Bit 4: thirdparty
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAError can be:
+ * - MEGAErrorTypeApiEInternal - If the value for cookie settings bitmap was invalid
+ *
+ * @param delegate MEGARequestDelegate to track this request
+*/
+- (void)cookieSettingsWithDelegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get a bitmap to indicate whether some cookies are enabled or not
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrUser
+ * Valid data in the MEGARequest object received on callbacks:
+ *  - [MEGARequest paramType] - Returns the value MEGAUserAttributeCookieSettings
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest numDetails] Return the bitmap with cookie settings
+ *   Valid bits are:
+ *      - Bit 0: essential
+ *      - Bit 1: preference
+ *      - Bit 2: analytics
+ *      - Bit 3: ads
+ *      - Bit 4: thirdparty
+ *
+ * On the onRequestFinish error, the error code associated to the MEGAError can be:
+ * - MEGAErrorTypeApiEInternal - If the value for cookie settings bitmap was invalid
+*/
+- (void)cookieSettings;
+
+/**
+ * @brief Check if the app can start showing the cookie banner
+ *
+ * This function will NOT return a valid value until the callback onEvent with
+ * type EventMiscFlagsReady is received. You can also rely on the completion of
+ * a fetchnodes to check this value, but only when it follows a login with user and password,
+ * not when an existing session is resumed.
+ *
+ * For not logged-in mode, you need to call MegaApi::getMiscFlags first.
+ *
+ * @return YES if this feature is enabled. Otherwise, NO.
+ */
+- (BOOL)cookieBannerEnabled;
 
 @end
 

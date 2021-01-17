@@ -108,6 +108,10 @@ public class MegaApiJava {
     public final static int USER_ATTR_MY_CHAT_FILES_FOLDER = MegaApi.USER_ATTR_MY_CHAT_FILES_FOLDER;
     public final static int USER_ATTR_PUSH_SETTINGS = MegaApi.USER_ATTR_PUSH_SETTINGS;
     public final static int USER_ATTR_ALIAS = MegaApi.USER_ATTR_ALIAS;
+    public final static int USER_ATTR_DEVICE_NAMES = MegaApi.USER_ATTR_DEVICE_NAMES;
+    public final static int USER_ATTR_MY_BACKUPS_FOLDER = MegaApi.USER_ATTR_MY_BACKUPS_FOLDER;
+    public final static int USER_ATTR_BACKUP_NAMES = MegaApi.USER_ATTR_BACKUP_NAMES;
+    public final static int USER_ATTR_COOKIE_SETTINGS = MegaApi.USER_ATTR_COOKIE_SETTINGS;
 
     public final static int NODE_ATTR_DURATION = MegaApi.NODE_ATTR_DURATION;
     public final static int NODE_ATTR_COORDINATES = MegaApi.NODE_ATTR_COORDINATES;
@@ -214,21 +218,20 @@ public class MegaApiJava {
     public final static int SEARCH_TARGET_ROOTNODE = MegaApi.SEARCH_TARGET_ROOTNODE;
     public final static int SEARCH_TARGET_ALL = MegaApi.SEARCH_TARGET_ALL;
 
-    public final static int BACKUP_TYPE_CAMERA_UPLOAD = MegaApi.BACKUP_TYPE_CAMERA_UPLOADS;
+    public final static int BACKUP_TYPE_INVALID = MegaApi.BACKUP_TYPE_INVALID;
+    public final static int BACKUP_TYPE_TWO_WAY_SYNC = MegaApi.BACKUP_TYPE_TWO_WAY_SYNC;
+    public final static int BACKUP_TYPE_UP_SYNC = MegaApi.BACKUP_TYPE_UP_SYNC;
+    public final static int BACKUP_TYPE_DOWN_SYNC = MegaApi.BACKUP_TYPE_DOWN_SYNC;
+    public final static int BACKUP_TYPE_CAMERA_UPLOADS = MegaApi.BACKUP_TYPE_CAMERA_UPLOADS;
     public final static int BACKUP_TYPE_MEDIA_UPLOADS = MegaApi.BACKUP_TYPE_MEDIA_UPLOADS;
 
-    public final static int CU_SYNC_STATE_ACTIVE = 1;
-    public final static int CU_SYNC_STATE_FAILED = 2;
-    public final static int CU_SYNC_STATE_DISABLED = 4;
-    public final static int CU_SYNC_STATE_PAUSE_UP = 5;
-    public final static int CU_SYNC_STATE_PAUSE_FULL = 7;
-    public final static int CU_SYNC_STATE_UNKNOWN = 8;
-
-    public final static int CU_SYNC_STATUS_UPTODATE = 1;
-    public final static int CU_SYNC_STATUS_SYNCING = CU_SYNC_STATUS_UPTODATE + 1;
-    public final static int CU_SYNC_STATUS_PENDING = CU_SYNC_STATUS_SYNCING + 1;
-    public final static int CU_SYNC_STATUS_INACTIVE = CU_SYNC_STATUS_PENDING + 1;
-    public final static int CU_SYNC_STATUS_UNKNOWN = CU_SYNC_STATUS_INACTIVE + 1;
+    public final static int GOOGLE_ADS_DEFAULT = MegaApi.GOOGLE_ADS_DEFAULT;
+    public final static int GOOGLE_ADS_FORCE_ADS = MegaApi.GOOGLE_ADS_FORCE_ADS;
+    public final static int GOOGLE_ADS_IGNORE_MEGA = MegaApi.GOOGLE_ADS_IGNORE_MEGA;
+    public final static int GOOGLE_ADS_IGNORE_COUNTRY = MegaApi.GOOGLE_ADS_IGNORE_COUNTRY;
+    public final static int GOOGLE_ADS_IGNORE_IP = MegaApi.GOOGLE_ADS_IGNORE_IP;
+    public final static int GOOGLE_ADS_IGNORE_PRO = MegaApi.GOOGLE_ADS_IGNORE_PRO;
+    public final static int GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = MegaApi.GOOGLE_ADS_FLAG_IGNORE_ROLLOUT;
 
     MegaApi getMegaApi()
     {
@@ -10770,10 +10773,23 @@ public class MegaApiJava {
     }
 
     /**
-     * Starts a backup of a local folder into a remote location
+     * @brief Registers a backup to display in Backup Centre
+     *
+     * Apps should register backups, like CameraUploads, in order to be listed in the
+     * BackupCentre. The client should send heartbeats to indicate the progress of the
+     * backup (see \c MegaApi::sendBackupHeartbeats).
+     *
+     * Possible types of backups:
+     *  BACKUP_TYPE_CAMERA_UPLOADS = 3,
+     *  BACKUP_TYPE_MEDIA_UPLOADS = 4,   // Android has a secondary CU
+     *
+     * Note that the backup name is not registered in the API as part of the data of this
+     * backup. It will be stored in a user's attribute after this request finished. For
+     * more information, see \c MegaApi::setBackupName and MegaApi::getBackupName.
      *
      * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
      * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns the backupId
      * - MegaRequest::getNodeHandle - Returns the target node of the backup
      * - MegaRequest::getName - Returns the backup name of the remote location
      * - MegaRequest::getAccess - Returns the backup state
@@ -10781,15 +10797,16 @@ public class MegaApiJava {
      * - MegaRequest::getText - Returns the extraData associated with the request
      * - MegaRequest::getTotalBytes - Returns the backup type
      * - MegaRequest::getNumDetails - Returns the backup substate
+     * - MegaRequest::getFlag - Returns true
      * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
      *
      * @param backupType back up type requested for the service
      * @param targetNode MEGA folder to hold the backups
      * @param localFolder Local path of the folder
-     * @param backupName backup name for remote location
+     * @param backupName Name of the backup
      * @param state state
      * @param subState subState
-     * @param extraData extraData
+     * @param extraData A binary array converted into B64 (optional)
      * @param listener MegaRequestListener to track this request
      */
     public void setBackup(int backupType, long targetNode, String localFolder, String backupName,
@@ -10799,11 +10816,16 @@ public class MegaApiJava {
     }
 
     /**
-     * Update an existing backup
+     * @brief Update the information about a registered backup for Backup Centre
+     *
+     * Possible types of backups:
+     *  BACKUP_TYPE_INVALID = -1,
+     *  BACKUP_TYPE_CAMERA_UPLOADS = 3,
+     *  BACKUP_TYPE_MEDIA_UPLOADS = 4,   // Android has a secondary CU
      *
      *  Params that keep the same value are passed with invalid value to avoid to send to the server
      *    Invalid values:
-     *    - type: BackupType::INVALID
+     *    - type: BACKUP_TYPE_INVALID
      *    - nodeHandle: UNDEF
      *    - localFolder: nullptr
      *    - deviceId: nullptr
@@ -10811,14 +10833,13 @@ public class MegaApiJava {
      *    - subState: -1
      *    - extraData: nullptr
      *
-     * If you want to update the backup name, use \c MegaApi::setBackupName.	 
-	 *
+     * If you want to update the backup name, use \c MegaApi::setBackupName.
+     *
      * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
      * Valid data in the MegaRequest object received on callbacks:
      * - MegaRequest::getParentHandle - Returns the backupId
      * - MegaRequest::getTotalBytes - Returns the backup type
      * - MegaRequest::getNodeHandle - Returns the target node of the backup
-     * - MegaRequest::getName - Returns the backup name of the remote location
      * - MegaRequest::getFile - Returns the path of the local folder
      * - MegaRequest::getAccess - Returns the backup state
      * - MegaRequest::getNumDetails - Returns the backup substate
@@ -10826,14 +10847,13 @@ public class MegaApiJava {
      * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
      *
      * @param backupId backup id identifying the backup to be updated
-     * @param backupType Local path of the folder
+     * @param backupType back up type requested for the service
      * @param targetNode MEGA folder to hold the backups
-     * @param localFolder Local path of the folder     
+     * @param localFolder Local path of the folder
      * @param state backup state
      * @param subState backup subState
-     * @param extraData extraData for the backup
+     * @param extraData A binary array converted into B64 (optional)
      * @param listener MegaRequestListener to track this request
-     *
      */
     public void updateBackup(long backupId, int backupType, long targetNode, String localFolder,
         int state, int subState, String extraData,
@@ -10843,7 +10863,10 @@ public class MegaApiJava {
     }
 
     /**
-     * Remove a backup
+     * @brief Unregister a backup already registered for the Backup Centre
+     *
+     * This method allows to remove a backup from the list of backups displayed in the
+     * Backup Centre. @see \c MegaApi::setBackup.
      *
      * The associated request type with this request is MegaRequest::TYPE_BACKUP_REMOVE
      * Valid data in the MegaRequest object received on callbacks:
@@ -10852,23 +10875,23 @@ public class MegaApiJava {
      *
      * @param backupId backup id identifying the backup to be removed
      * @param listener MegaRequestListener to track this request
-     *
      */
     public void removeBackup(long backupId, MegaRequestListenerInterface listener) {
         megaApi.removeBackup(backupId, createDelegateRequestListener(listener));
     }
 
     /**
-     * Send heartbeat associated with an existing backup
+     * @brief Send heartbeat associated with an existing backup
      *
      * The client should call this method regularly for every registered backup, in order to
      * inform about the status of the backup.
      *
-     * Progress and last node are not always meaningful (ie. when the Camera Uploads starts a new
-     * batch, there isn't a last node, or when the Camera Uploads up to date and inactive for
-     * long time, the progress doesn't make sense). In consequence, these two parameters are
-     * optional by passing:
+     * Progress, last timestamp and last node are not always meaningful (ie. when the Camera
+     * Uploads starts a new batch, there isn't a last node, or when the CU up to date and
+     * inactive for long time, the progress doesn't make sense). In consequence, these parameters
+     * are optional. They will not be sent to API if they take the following values:
      * - lastNode = INVALID_HANDLE
+     * - lastTs = -1
      * - progress = -1
      *
      * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT
@@ -10882,7 +10905,7 @@ public class MegaApiJava {
      * - MegaRequest::getNodeHandle - Returns the last node handle to be synced
      *
      * @param backupId backup id identifying the backup
-     * @param status backup state
+     * @param state backup state
      * @param progress backup progress
      * @param ups Number of pending upload transfers
      * @param downs Number of pending download transfers
@@ -10894,5 +10917,284 @@ public class MegaApiJava {
             long ts, long lastNode, MegaRequestListenerInterface listener) {
         megaApi.sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode,
                 createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Fetch Google ads
+     *
+     * The associated request type with this request is MegaRequest::TYPE_FETCH_GOOGLE_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - GOOGLE_ADS_DEFAULT = 0x0
+     *      - GOOGLE_ADS_FORCE_ADS = 0x200
+     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000
+     * @param adUnits A list of the adslot ids to fetch
+     * @param publicHandle Provide the public handle that the user is visiting
+     * @param listener MegaRequestListener to track this request
+     */
+    public void fetchGoogleAds(int adFlags, MegaStringList adUnits, long publicHandle, MegaRequestListenerInterface listener) {
+        megaApi.fetchGoogleAds(adFlags, adUnits, publicHandle, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Fetch Google ads
+     *
+     * The associated request type with this request is MegaRequest::TYPE_FETCH_GOOGLE_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - GOOGLE_ADS_DEFAULT = 0x0
+     *      - GOOGLE_ADS_FORCE_ADS = 0x200
+     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000
+     * @param adUnits A list of the adslot ids to fetch
+     * @param publicHandle Provide the public handle that the user is visiting
+     */
+    public void fetchGoogleAds(int adFlags, MegaStringList adUnits, long publicHandle) {
+        megaApi.fetchGoogleAds(adFlags, adUnits, publicHandle);
+    }
+
+    /**
+     * @brief Fetch Google ads
+     *
+     * The associated request type with this request is MegaRequest::TYPE_FETCH_GOOGLE_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - GOOGLE_ADS_DEFAULT = 0x0
+     *      - GOOGLE_ADS_FORCE_ADS = 0x200
+     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000
+     * @param adUnits A list of the adslot ids to fetch
+     */
+    public void fetchGoogleAds(int adFlags, MegaStringList adUnits) {
+        megaApi.fetchGoogleAds(adFlags, adUnits);
+    }
+
+    /**
+     * @brief Check if Google ads should show or not
+     *
+     * The associated request type with this request is MegaRequest::TYPE_QUERY_GOOGLE_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumDetails Return if ads should be show or not
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - GOOGLE_ADS_DEFAULT = 0x0
+     *      - GOOGLE_ADS_FORCE_ADS = 0x200
+     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT 0x4000
+     * @param publicHandle Provide the public handle that the user is visiting
+     * @param listener MegaRequestListener to track this request
+     */
+    public void queryGoogleAds(int adFlags, long publicHandle, MegaRequestListenerInterface listener) {
+        megaApi.queryGoogleAds(adFlags, publicHandle, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Check if Google ads should show or not
+     *
+     * The associated request type with this request is MegaRequest::TYPE_QUERY_GOOGLE_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumDetails Return if ads should be show or not
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - GOOGLE_ADS_DEFAULT = 0x0
+     *      - GOOGLE_ADS_FORCE_ADS = 0x200
+     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT 0x4000
+     * @param publicHandle Provide the public handle that the user is visiting
+     */
+    public void queryGoogleAds(int adFlags, long publicHandle) {
+        megaApi.queryGoogleAds(adFlags, publicHandle);
+    }
+
+    /**
+     * @brief Check if Google ads should show or not
+     *
+     * The associated request type with this request is MegaRequest::TYPE_QUERY_GOOGLE_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumDetails Return if ads should be show or not
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - GOOGLE_ADS_DEFAULT = 0x0
+     *      - GOOGLE_ADS_FORCE_ADS = 0x200
+     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT 0x4000
+     */
+    public void queryGoogleAds(int adFlags) {
+        megaApi.queryGoogleAds(adFlags);
+    }
+
+    /**
+     * @brief Set a bitmap to indicate whether some cookies are enabled or not
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_COOKIE_SETTINGS
+     *  - MegaRequest::getNumDetails - Return a bitmap with cookie settings
+     *  - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * @param settings A bitmap with cookie settings
+     * Valid bits are:
+     *      - Bit 0: essential
+     *      - Bit 1: preference
+     *      - Bit 2: analytics
+     *      - Bit 3: ads
+     *      - Bit 4: thirdparty
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setCookieSettings(int settings, MegaRequestListenerInterface listener) {
+        megaApi.setCookieSettings(settings, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Set a bitmap to indicate whether some cookies are enabled or not
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_COOKIE_SETTINGS
+     *  - MegaRequest::getNumDetails - Return a bitmap with cookie settings
+     *  - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * @param settings A bitmap with cookie settings
+     * Valid bits are:
+     *      - Bit 0: essential
+     *      - Bit 1: preference
+     *      - Bit 2: analytics
+     *      - Bit 3: ads
+     *      - Bit 4: thirdparty
+     */
+    public void setCookieSettings(int settings) {
+        megaApi.setCookieSettings(settings);
+    }
+
+    /**
+     * @brief Get a bitmap to indicate whether some cookies are enabled or not
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getParamType - Returns the value USER_ATTR_COOKIE_SETTINGS
+     *  - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumDetails Return the bitmap with cookie settings
+     *   Valid bits are:
+     *      - Bit 0: essential
+     *      - Bit 1: preference
+     *      - Bit 2: analytics
+     *      - Bit 3: ads
+     *      - Bit 4: thirdparty
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EINTERNAL - If the value for cookie settings bitmap was invalid
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getCookieSettings(MegaRequestListenerInterface listener) {
+        megaApi.getCookieSettings(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Get a bitmap to indicate whether some cookies are enabled or not
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getParamType - Returns the value USER_ATTR_COOKIE_SETTINGS
+     *  - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumDetails Return the bitmap with cookie settings
+     *   Valid bits are:
+     *      - Bit 0: essential
+     *      - Bit 1: preference
+     *      - Bit 2: analytics
+     *      - Bit 3: ads
+     *      - Bit 4: thirdparty
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EINTERNAL - If the value for cookie settings bitmap was invalid
+     */
+    public void getCookieSettings() {
+        megaApi.getCookieSettings();
+    }
+
+    /**
+     * @brief Check if the app can start showing the cookie banner
+     *
+     * This function will NOT return a valid value until the callback onEvent with
+     * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+     * a fetchnodes to check this value, but only when it follows a login with user and password,
+     * not when an existing session is resumed.
+     *
+     * For not logged-in mode, you need to call MegaApi::getMiscFlags first.
+     *
+     * @return True if this feature is enabled. Otherwise, false.
+     */
+    public boolean isCookieBannerEnabled() {
+        return megaApi.cookieBannerEnabled();
     }
 }

@@ -91,6 +91,7 @@ public:
     DirNotify* newdirnotify(LocalPath&, LocalPath&, Waiter*) override;
 
     bool getlocalfstype(const LocalPath& path, FileSystemType& type) const override;
+    bool issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning);
 
     void tmpnamelocal(LocalPath&) const override;
 
@@ -159,6 +160,8 @@ public:
     void updatelocalname(const LocalPath&, bool force) override;
     bool fread(string *, unsigned, unsigned, m_off_t);
     bool fwrite(const byte *, unsigned, m_off_t) override;
+
+    bool ftruncate() override;
 
     bool sysread(byte *, unsigned, m_off_t) override;
     bool sysstat(m_time_t*, m_off_t*) override;

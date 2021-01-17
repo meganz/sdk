@@ -18,6 +18,7 @@
  * You should have received a copy of the license along with this
  * program.
  */
+#include <cctype>
 
 #include "mega/json.h"
 #include "mega/base64.h"
@@ -419,6 +420,39 @@ const char* JSON::getvalue()
     return r;
 }
 
+fsfp_t JSON::getfp()
+{
+    return getuint64();
+}
+
+uint64_t JSON::getuint64()
+{
+    const char* ptr;
+
+    if (*pos == ':' || *pos == ',')
+    {
+        pos++;
+    }
+
+    ptr = pos;
+
+    if (*ptr == '"')
+    {
+        ptr++;
+    }
+
+    if (!std::isdigit(*ptr))
+    {
+        LOG_err << "Parse error (getuint64)";
+        return std::numeric_limits<uint64_t>::max();
+    }
+
+    uint64_t r = strtoull(ptr, nullptr, 0);
+    storeobject();
+
+    return r;
+}
+
 // try to to enter array
 bool JSON::enterarray()
 {
@@ -551,7 +585,7 @@ void JSON::unescape(string* s)
                     break;
 
                 case 'u':
-                    c = static_cast<char>((MegaClient::hexval((*s)[i + 4]) << 4) | MegaClient::hexval((*s)[i + 5]));
+                    c = static_cast<char>((hexval((*s)[i + 4]) << 4) | hexval((*s)[i + 5]));
                     l = 6;
                     break;
 
