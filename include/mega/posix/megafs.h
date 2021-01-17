@@ -32,6 +32,7 @@
 #include <sys/mount.h>
 #else
 #include <sys/vfs.h>
+#include <dirent.h>
 #endif
 
 #ifdef HAVE_AIO_RT
