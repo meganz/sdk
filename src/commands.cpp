@@ -4660,14 +4660,39 @@ bool CommandGetUserQuota::procresult(Result r)
                     }
                 }
 
-                if (mPro && client->mAccountType != details->pro_level)
+                if (mPro)
                 {
                     // Pro level can change without a payment (ie. with coupons or by helpdesk)
                     // and in those cases, the `psts` packet is not triggered. However, the SDK
                     // should notify the app and resume transfers, etc.
-                    client->mAccountType = static_cast<AccountType>(details->pro_level);
-                    client->app->account_updated();
-                    client->abortbackoff(true);
+                    auto &proLevel = client->mCachedStatus[CacheableStatus::STATUS_PRO_LEVEL];
+                    bool changed = false;
+                    if (!proLevel)
+                    {
+                        proLevel = std::make_shared<CacheableStatus>(CacheableStatus::STATUS_BLOCKED, details->pro_level);
+                        changed = true;
+                    }
+                    else if (proLevel->value() != details->pro_level)
+                    {
+                        proLevel->setValue(details->pro_level);
+                        changed = true;
+                    }
+
+                    if (changed)
+                    {
+                        client->app->account_updated();
+                        client->abortbackoff(true);
+
+                        if (client->statusTable)
+                        {
+                            DBTableTransactionCommitter committer(client->statusTable);
+                            LOG_verbose << "Adding/updating status to database: " << proLevel->type() << " = " << proLevel->value();
+                            if (!client->statusTable->put(MegaClient::CACHEDSTATUS, proLevel.get(), &client->key))
+                            {
+                                LOG_err << "Failed to add/update status to db: " << proLevel->type() << " = " << proLevel->value();
+                            }
+                        }
+                    }
                 }
 
                 client->app->account_details(details, mStorage, mTransfer, mPro, false, false, false);

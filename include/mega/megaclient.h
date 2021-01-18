@@ -888,9 +888,6 @@ public:
     // storage status
     storagestatus_t ststatus;
 
-    // account type: Free|Pro Lite|Pro I|Pro II|Pro III|Business
-    AccountType mAccountType = ACCOUNT_TYPE_UNKNOWN;
-
     // cacheable status
     std::map<int64_t, std::shared_ptr<CacheableStatus>> mCachedStatus;
 
