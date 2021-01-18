@@ -2306,21 +2306,24 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
     using KeyStr  = Base64Str<SymmCipher::KEYLENGTH * 2>;
     using NameStr = Base64Str<SymmCipher::KEYLENGTH>;
 
-    // Verify attributes are correctly sized.
-    if (mClient.syncdbkey.size() != KeyStr::STRLEN
-        || mClient.syncdbname.size() != NameStr::STRLEN)
+    if (User* selfUser = mClient.finduser(mClient.me))
     {
-        return nullptr;
+        auto n = selfUser->getattr(ATTR_JSON_SYNC_CONFIG_NAME);
+        auto k = selfUser->getattr(ATTR_JSON_SYNC_CONFIG_KEY);
+
+        if (n && k && 
+            k->size() == KeyStr::STRLEN &&
+            n->size() == NameStr::STRLEN)
+        {
+            // Create the IO context.
+            mSyncConfigIOContext.reset(
+              new JSONSyncConfigIOContext(mClient.key,
+                                         *mClient.fsaccess,
+                                         *k,
+                                         *n,
+                                         mClient.rng));
+        }
     }
-
-    // Create the IO context.
-    mSyncConfigIOContext.reset(
-      new JSONSyncConfigIOContext(mClient.key,
-                                 *mClient.fsaccess,
-                                 mClient.syncdbkey,
-                                 mClient.syncdbname,
-                                 mClient.rng));
-
     // Return a reference to the new IO context.
     return mSyncConfigIOContext.get();
 }
@@ -3238,7 +3241,7 @@ JSONSyncConfigIOContext::JSONSyncConfigIOContext(SymmCipher& cipher,
                                                  PrnGen& rng)
   : mCipher()
   , mFsAccess(fsAccess)
-  , mName(LocalPath::fromPath(name, mFsAccess))
+  , mName(LocalPath::fromPath("syncs_" + name, mFsAccess))
   , mRNG(rng)
   , mSigner()
 {

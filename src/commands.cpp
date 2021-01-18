@@ -1852,10 +1852,6 @@ bool CommandLogin::procresult(Result r)
                     client->sessionkey.assign((const char *)sek, sizeof(sek));
                 }
 
-#ifdef ENABLE_SYNC
-                client->syncs.resetSyncConfigDb();
-#endif
-
                 client->app->login_result(API_OK);
                 return true;
 
@@ -2942,13 +2938,11 @@ bool CommandPutUA::procresult(Result r)
         }
         else if (at == ATTR_JSON_SYNC_CONFIG_NAME)
         {
-            LOG_info << "JSCN user attribute successfully created.";
-            client->syncdbname.swap(av);
+            LOG_info << "JSON user attribute successfully created.";
         }
         else if (at == ATTR_JSON_SYNC_CONFIG_KEY)
         {
-            LOG_info << "JSCK user attributes successfully created.";
-            client->syncdbkey.swap(av);
+            LOG_info << "JSON user attributes successfully created.";
         }
 
         client->app->putua_result(API_OK);
@@ -4196,9 +4190,6 @@ bool CommandGetUserData::procresult(Result r)
                     changes += u->updateattr(ATTR_JSON_SYNC_CONFIG_NAME,
                                              &jsonSyncConfigName,
                                              &jsonSyncConfigNameVersion);
-
-                    // Make the attribute immediately visible to the client.
-                    client->syncdbname = jsonSyncConfigName;
                 }
 
                 // Has a key been defined to protect this user's sync configuration databases?
@@ -4222,9 +4213,6 @@ bool CommandGetUserData::procresult(Result r)
                     changes += u->updateattr(ATTR_JSON_SYNC_CONFIG_KEY,
                                              &jsonSyncConfigKey,
                                              &jsonSyncConfigKeyVersion);
-
-                    // Make the attribute immediately visible to the client.
-                    client->syncdbkey = jsonSyncConfigKey;
                 }
 
                 if (changes > 0)

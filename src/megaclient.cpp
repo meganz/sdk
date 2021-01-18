@@ -4303,8 +4303,6 @@ void MegaClient::locallogout(bool removecaches)
     }
 
 #ifdef ENABLE_SYNC
-    syncdbkey.clear();
-    syncdbname.clear();
     syncadding = 0;
     totalLocalNodes = 0;
 #endif
@@ -11900,6 +11898,7 @@ void MegaClient::fetchnodes(bool nocache)
         //TODO: remove android control after android gives green light to this.
         enabletransferresumption();
 #endif
+        syncs.resetSyncConfigDb();
         syncs.resumeResumableSyncsOnStartup();
 #endif
         app->fetchnodes_result(API_OK);
@@ -12656,6 +12655,7 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
         delete hdrns.begin()->second;
     }
 
+    // sync configs don't need to be changed.  On session resume we'll resume the ones still enabled.
 #ifdef ENABLE_SYNC
     syncs.purgeRunningSyncs();
 #endif
