@@ -990,10 +990,10 @@ bool CommandSetAttr::procresult(Result r)
         Node* node = client->nodebyhandle(h);
         if(node)
         {
-            if (Sync* sync = client->syncs.runningSyncByTag(tag))
-            {
-                client->app->syncupdate_remote_rename(sync, node, pa.c_str());
-            }
+            // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
+            client->syncs.forEachRunningSyncContainingNode(node, [&](Sync* s) {
+                    client->app->syncupdate_remote_rename(s, node, pa.c_str());
+                });
         }
     }
 #endif
@@ -1358,17 +1358,17 @@ bool CommandMoveNode::procresult(Result r)
                             {
                                 if (syncop)
                                 {
-                                    if (Sync* sync = client->syncs.runningSyncByTag(tag))
-                                    {
+                                    // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
+                                    client->syncs.forEachRunningSyncContainingNode(n, [&](Sync* s) {
                                         if ((*it)->type == FOLDERNODE)
                                         {
-                                            sync->client->app->syncupdate_remote_folder_deletion(sync, (*it));
+                                            s->client->app->syncupdate_remote_folder_deletion(s, n);
                                         }
                                         else
                                         {
-                                            sync->client->app->syncupdate_remote_file_deletion(sync, (*it));
+                                            s->client->app->syncupdate_remote_file_deletion(s, n);
                                         }
-                                    }
+                                    });
                                 }
 
                                 (*it)->syncdeleted = syncdel;
@@ -1404,10 +1404,10 @@ bool CommandMoveNode::procresult(Result r)
             Node *n = client->nodebyhandle(h);
             if(n)
             {
-                if (Sync* sync = client->syncs.runningSyncByTag(tag))
-                {
-                    client->app->syncupdate_remote_move(sync, n, client->nodebyhandle(pp));
-                }
+                // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
+                client->syncs.forEachRunningSyncContainingNode(n, [&](Sync* s) {
+                    client->app->syncupdate_remote_move(s, n, client->nodebyhandle(pp));
+                });
             }
         }
 #endif
@@ -3628,6 +3628,8 @@ bool CommandGetUserData::procresult(Result r)
     string versionMyBackupsFolder;
     string backupNames;
     string versionBackupNames;
+    string cookieSettings;
+    string versionCookieSettings;
     string jsonSyncConfigName;
     string jsonSyncConfigNameVersion;
     string jsonSyncConfigKey;
@@ -3927,6 +3929,10 @@ bool CommandGetUserData::procresult(Result r)
             break;
         }
 
+        case MAKENAMEID5('^', '!', 'c', 's', 'p'):
+            parseUserAttribute(cookieSettings, versionCookieSettings);
+            break;
+
         case EOO:
         {
             assert(me == client->me);
@@ -4162,6 +4168,12 @@ bool CommandGetUserData::procresult(Result r)
                         LOG_err << "Cannot extract TLV records for ATTR_BACKUP_NAMES";
                     }
                 }
+
+                if (!cookieSettings.empty())
+                {
+                    changes += u->updateattr(ATTR_COOKIE_SETTINGS, &cookieSettings, &versionCookieSettings);
+                }
+
 				
                 // Has a name been defined for this user's sync configuration databases?
                 if (jsonSyncConfigName.empty())

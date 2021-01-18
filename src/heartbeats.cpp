@@ -250,13 +250,18 @@ int BackupInfoSync::getSyncState(UnifiedSync& us)
     SyncError error = us.mConfig.getError();
     syncstate_t state = us.mSync ? us.mSync->state : SYNC_FAILED;
 
+    return getSyncState(error, state, &us.mClient);
+}
+
+int BackupInfoSync::getSyncState(SyncError error, syncstate_t state, MegaClient *client)
+{
     if (state == SYNC_DISABLED && error != NO_SYNC_ERROR)
     {
         return State::TEMPORARY_DISABLED;
     }
     else if (state != SYNC_FAILED && state != SYNC_CANCELED && state != SYNC_DISABLED)
     {
-        return calculatePauseActiveState(&us.mClient);
+        return calculatePauseActiveState(client);
     }
     else if (!(state != SYNC_CANCELED && (state != SYNC_DISABLED || error != NO_SYNC_ERROR)))
     {
@@ -268,17 +273,44 @@ int BackupInfoSync::getSyncState(UnifiedSync& us)
     }
 }
 
+int BackupInfoSync::getSyncState(const SyncConfig& config, MegaClient *client)
+{
+    auto error = config.getError();
+    if (!error)
+    {
+        if (config.getEnabled())
+        {
+            return calculatePauseActiveState(client);
+        }
+        else
+        {
+            return State::DISABLED;
+        }
+    }
+    else //error
+    {
+        if (config.getEnabled())
+        {
+            return State::TEMPORARY_DISABLED;
+        }
+        else
+        {
+            return State::DISABLED;
+        }
+    }
+}
+
 BackupType BackupInfoSync::getSyncType(const SyncConfig& config)
 {
     switch (config.getType())
     {
-    case TYPE_UP:
+    case SyncConfig::TYPE_UP:
             return BackupType::UP_SYNC;
-    case TYPE_DOWN:
+    case SyncConfig::TYPE_DOWN:
             return BackupType::DOWN_SYNC;
-    case TYPE_TWOWAY:
+    case SyncConfig::TYPE_TWOWAY:
             return BackupType::TWO_WAY;
-    case TYPE_BACKUP:
+    case SyncConfig::TYPE_BACKUP:
             return BackupType::BACKUP_UPLOAD;
     default:
             return BackupType::INVALID;

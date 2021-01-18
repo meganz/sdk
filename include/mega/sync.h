@@ -55,11 +55,11 @@ public:
     // Adds a new sync config or updates if exists already
     error insert(const SyncConfig& syncConfig);
 
-    // Removes a sync config with a given tag
-    error removeByTag(const int tag);
+    // Removes a sync config with a given backupId
+    error removeByBackupId(const handle backupId);
 
-    // Returns the sync config with a given tag
-    const SyncConfig* get(const int tag) const;
+    // Returns the sync config with a given backupId
+    const SyncConfig* get(const handle backupId) const;
 
     // Returns the first sync config found with a remote handle
     const SyncConfig* getByNodeHandle(handle nodeHandle) const;
@@ -72,7 +72,7 @@ public:
 
 private:
     std::unique_ptr<DbTable> mTable; // table for caching the sync configs
-    std::map<int, SyncConfig> mSyncConfigs; // map of tag to sync configs
+    std::map<handle, SyncConfig> mSyncConfigs; // map of backupId to sync configs
 };
 
 
@@ -190,9 +190,6 @@ public:
     // notification batch starts)
     int scanseqno = 0;
 
-    // notified nodes originating from this sync bear this tag
-    int tag = 0;
-
     // debris path component relative to the base path
     string debris;
     LocalPath localdebris;
@@ -230,7 +227,7 @@ public:
 
     // flag to optimize destruction by skipping calls to treestate()
     bool mDestructorRunning = false;
-    Sync(UnifiedSync&, const char*, LocalPath*, Node*, bool, int);
+    Sync(UnifiedSync&, const char*, LocalPath*, Node*, bool);
     ~Sync();
 
     static const int SCANNING_DELAY_DS;
@@ -278,9 +275,6 @@ public:
     // Local fingerprint.
     fsfp_t fingerprint;
 
-    // ID for backup heartbeating.
-    handle heartbeatID;
-
     // Handle of remote sync target.
     handle targetHandle;
 
@@ -291,10 +285,10 @@ public:
     SyncWarning lastWarning;
 
     // Type of sync.
-    SyncType type;
+    SyncConfig::Type type;
 
-    // Identity of sync.
-    int tag;
+    // Identity of sync. (in heartbeats too)
+    handle backupId;
 
     // Whether the sync has been enabled by the user.
     bool enabled;
@@ -307,7 +301,7 @@ JSONSyncConfig translate(const MegaClient& client, const SyncConfig &config);
 SyncConfig translate(const MegaClient& client, const JSONSyncConfig& config);
 
 // For convenience.
-using JSONSyncConfigMap = map<int, JSONSyncConfig>;
+using JSONSyncConfigMap = map<handle, JSONSyncConfig>;
 
 class JSONSyncConfigDBObserver;
 class JSONSyncConfigIOContext;
@@ -347,19 +341,19 @@ public:
     const LocalPath& drivePath() const;
 
     // Get config by backup tag.
-    const JSONSyncConfig* get(const int tag) const;
+    const JSONSyncConfig* getByBackupId(handle backupId) const;
 
     // Get config by backup target handle.
-    const JSONSyncConfig* get(const handle targetHandle) const;
+    const JSONSyncConfig* getByRootHandle(handle targetHandle) const;
 
     // Read this database from disk.
     error read(JSONSyncConfigIOContext& ioContext);
 
     // Remove config by backup tag.
-    error remove(const int tag);
+    error removeByBackupId(handle backupId);
 
     // Remove config by backup target handle.
-    error remove(const handle targetHandle);
+    error removeByRootNode(handle targetHandle);
 
     // Write this database to disk.
     error write(JSONSyncConfigIOContext& ioContext);
@@ -377,7 +371,7 @@ private:
                const unsigned int slot);
 
     // Remove config by backup tag.
-    error remove(const int tag, const bool flush);
+    error removeByBackupId(handle backupId, bool flush);
 
     // How many times we should be able to write the database before
     // overwriting earlier versions.
@@ -393,7 +387,7 @@ private:
     JSONSyncConfigDBObserver* mObserver;
 
     // Maps backup tag to config.
-    JSONSyncConfigMap mTagToConfig;
+    JSONSyncConfigMap mBackupIdToConfig;
 
     // Maps backup target handle to config.
     map<handle, JSONSyncConfig*> mTargetToConfig;
@@ -504,8 +498,8 @@ struct Syncs
     bool hasRunningSyncs();
     unsigned numRunningSyncs();
     Sync* firstRunningSync();
-    Sync* runningSyncByTag(int tag) const;
-    SyncConfig* syncConfigByTag(const int tag) const;
+    Sync* runningSyncByBackupId(handle tag) const;
+    SyncConfig* syncConfigByBackupId(handle bid) const;
 
     void forEachUnifiedSync(std::function<void(UnifiedSync&)> f);
     void forEachRunningSync(std::function<void(Sync* s)>);
@@ -517,7 +511,7 @@ struct Syncs
     void stopCancelledFailedDisabled();
     void resumeResumableSyncsOnStartup();
     void enableResumeableSyncs();
-    error enableSyncByTag(int tag, bool resetFingerprint, UnifiedSync*&);
+    error enableSyncByBackupId(handle backupId, bool resetFingerprint, UnifiedSync*&);
 
     // disable all active syncs.  Cache is kept
     void disableSyncs(SyncError syncError, bool newEnabledFlag);
@@ -575,7 +569,7 @@ private:
     void removeSyncByIndex(size_t index);
 
     // Removes a sync config.
-    error removeSyncConfig(const int tag);
+    error removeSyncConfigByBackupId(handle bid);
 
     MegaClient& mClient;
 };

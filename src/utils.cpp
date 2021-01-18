@@ -2291,22 +2291,20 @@ void CacheableStatus::setValue(const int64_t value)
     mValue = value;
 }
 
-SyncConfig::SyncConfig(int tag,
-                       std::string localPath,
+SyncConfig::SyncConfig(std::string localPath,
                        std::string name,
                        const handle remoteNode,
                        const std::string &remotePath,
                        const fsfp_t localFingerprint,
                        std::vector<std::string> regExps,
                        const bool enabled,
-                       const SyncType syncType,
+                       const SyncConfig::Type syncType,
                        const bool syncDeletions,
                        const bool forceOverwrite,
                        const SyncError error,
                        const SyncWarning warning,
                        mega::handle hearBeatID)
-    : mTag{tag}
-    , mEnabled{enabled}
+    : mEnabled{enabled}
     , mDrivePath{}
     , mLocalPath{std::move(localPath)}
     , mName{std::move(name)}
@@ -2321,17 +2319,6 @@ SyncConfig::SyncConfig(int tag,
     , mBackupId(hearBeatID)
     , mWarning{warning}
 {}
-
-
-int SyncConfig::getTag() const
-{
-    return mTag;
-}
-
-void SyncConfig::setTag(int tag)
-{
-    mTag = tag;
-}
 
 bool SyncConfig::getEnabled() const
 {
@@ -2398,7 +2385,7 @@ void SyncConfig::setRegExps(std::vector<std::string>&& v)
     mRegExps = std::move(v);
 }
 
-SyncType SyncConfig::getType() const
+SyncConfig::Type SyncConfig::getType() const
 {
     return mSyncType;
 }
@@ -2486,7 +2473,6 @@ bool SyncConfig::serialize(std::string* data)
 
 std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
 {
-    int64_t tag;
     bool enabled;
     std::string localPath;
     std::string name;
@@ -2503,8 +2489,8 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     unsigned char expansionflags[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
     CacheableReader reader{data};
-    if (!reader.unserializei64(tag) ||
-        !reader.unserializebool(enabled) ||
+
+    if (!reader.unserializebool(enabled) ||
         !reader.unserializestring(localPath) ||
         !reader.unserializestring(name) ||
         !reader.unserializehandle(remoteNode) ||
@@ -2552,9 +2538,9 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
 
     // when future fields are added, unserialize that field here.  Check the next expansion flag first, of course.
 
-    auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{static_cast<int>(tag), std::move(localPath), std::move(name),
+    auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{std::move(localPath), std::move(name),
                     remoteNode, std::move(remotePath), fingerprint, std::move(regExps), enabled,
-                    static_cast<SyncType>(syncType), syncDeletions,
+                    static_cast<Type>(syncType), syncDeletions,
                     forceOverwrite, static_cast<SyncError>(error), NO_SYNC_WARNING, heartBeatID}};
     return syncConfig;
 }
@@ -2562,7 +2548,6 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
 bool SyncConfig::serialize(std::string& data) const
 {
     CacheableWriter writer{data};
-    writer.serializei64(mTag);
     writer.serializebool(mEnabled);
     writer.serializestring(mLocalPath);
     writer.serializestring(mName);

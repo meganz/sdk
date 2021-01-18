@@ -524,7 +524,7 @@ SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, Prn
         }
         syncConfig->dbid = tableId;
 
-        mSyncConfigs.insert(std::make_pair(syncConfig->getTag(), *syncConfig));
+        mSyncConfigs.insert(std::make_pair(syncConfig->getBackupId(), *syncConfig));
         if (tableId > mTable->nextid)
         {
             mTable->nextid = tableId;
@@ -538,6 +538,7 @@ error SyncConfigBag::insert(const SyncConfig& syncConfig)
     auto insertOrUpdate = [this](const uint32_t id, const SyncConfig& syncConfig)
     {
         std::string data;
+        assert(syncConfig.getBackupId() != UNDEF && "backupId is undefined when trying to persist syncConfig");
         const_cast<SyncConfig&>(syncConfig).serialize(&data);
         DBTableTransactionCommitter committer{mTable};
         if (!mTable->put(id, &data)) // put either inserts or updates
@@ -550,7 +551,7 @@ error SyncConfigBag::insert(const SyncConfig& syncConfig)
         return true;
     };
 
-    map<int, SyncConfig>::iterator syncConfigIt = mSyncConfigs.find(syncConfig.getTag());
+    auto syncConfigIt = mSyncConfigs.find(syncConfig.getBackupId());
     if (syncConfigIt == mSyncConfigs.end()) // syncConfig is new
     {
         if (mTable)
@@ -560,7 +561,7 @@ error SyncConfigBag::insert(const SyncConfig& syncConfig)
                 return API_EWRITE;
             }
         }
-        auto insertPair = mSyncConfigs.insert(std::make_pair(syncConfig.getTag(), syncConfig));
+        auto insertPair = mSyncConfigs.insert(std::make_pair(syncConfig.getBackupId(), syncConfig));
         if (mTable)
         {
             insertPair.first->second.dbid = mTable->nextid;
@@ -584,40 +585,34 @@ error SyncConfigBag::insert(const SyncConfig& syncConfig)
     return API_OK;
 }
 
-error SyncConfigBag::removeByTag(const int tag)
+error SyncConfigBag::removeByBackupId(const handle backupId)
 {
-    auto it = mSyncConfigs.find(tag);
-
-    if (it == mSyncConfigs.end())
+    auto syncConfigPair = mSyncConfigs.find(backupId);
+    if (syncConfigPair == mSyncConfigs.end())
     {
         return API_ENOENT;
     }
 
     if (mTable)
     {
-        DBTableTransactionCommitter committer(mTable);
-
-        if (!mTable->del(it->second.dbid))
+        DBTableTransactionCommitter committer{mTable};
+        if (!mTable->del(syncConfigPair->second.dbid))
         {
             LOG_err << "Unable to remove config from database: "
-                    << it->second.dbid;
-
+                    << syncConfigPair->second.dbid;
             assert(false);
-
             mTable->abort();
-
             return API_EWRITE;
         }
     }
 
-    mSyncConfigs.erase(it);
-
+    mSyncConfigs.erase(syncConfigPair);
     return API_OK;
 }
 
-const SyncConfig* SyncConfigBag::get(const int tag) const
+const SyncConfig* SyncConfigBag::get(const handle backupId) const
 {
-    auto syncConfigPair = mSyncConfigs.find(tag);
+    auto syncConfigPair = mSyncConfigs.find(backupId);
     if (syncConfigPair != mSyncConfigs.end())
     {
         return &syncConfigPair->second;
@@ -659,13 +654,12 @@ std::vector<SyncConfig> SyncConfigBag::all() const
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(UnifiedSync& us, const char* cdebris,
-           LocalPath* clocaldebris, Node* remotenode, bool cinshare, int ctag)
+           LocalPath* clocaldebris, Node* remotenode, bool cinshare)
 : localroot(new LocalNode)
 , mUnifiedSync(us)
 {
     isnetwork = false;
     client = &mUnifiedSync.mClient;
-    tag = ctag;
     inshare = cinshare;
     tmpfa = NULL;
     initializing = true;
@@ -988,6 +982,9 @@ void Sync::cachenodes()
 
 void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp)
 {
+    getConfig().setError(newSyncError);
+    getConfig().setEnabled(newEnableFlag);
+
     if (newstate != state)
     {
         auto oldstate = state;
@@ -1000,13 +997,11 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
             bool nowActive = newstate == SYNC_ACTIVE;
             if (wasActive != nowActive)
             {
-                mUnifiedSync.mClient.app->syncupdate_active(getConfig().getTag(), nowActive);
+                mUnifiedSync.mClient.app->syncupdate_active(getConfig().getBackupId(), nowActive);
             }
         }
     }
 
-    getConfig().setError(newSyncError);
-    getConfig().setEnabled(newEnableFlag);
     if (newstate != SYNC_CANCELED)
     {
         mUnifiedSync.changedConfigState(notifyApp);
@@ -2081,7 +2076,7 @@ bool UnifiedSync::updateSyncRemoteLocation(Node* n, bool forceCallback)
     }
 
     //persist
-    mClient.syncs.saveSyncConfig(mConfig);
+    mClient.syncs.mSyncConfigDb->insert(mConfig);
 
     return changed;
 }
@@ -2124,7 +2119,7 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
     auto prevFingerprint = mConfig.getLocalFingerprint();
 
     assert(!mSync);
-    mSync.reset(new Sync(*this, debris, localdebris, remotenode, inshare, mConfig.getTag()));
+    mSync.reset(new Sync(*this, debris, localdebris, remotenode, inshare));
     mConfig.setLocalFingerprint(mSync->fsfp);
 
     if (prevFingerprint && prevFingerprint != mConfig.getLocalFingerprint())
@@ -2191,7 +2186,7 @@ void UnifiedSync::changedConfigState(bool notifyApp)
         mClient.syncs.saveSyncConfig(mConfig);
         if (notifyApp)
         {
-            mClient.app->syncupdate_stateconfig(mConfig.getTag());
+            mClient.app->syncupdate_stateconfig(mConfig.getBackupId());
         }
         mClient.abortbackoff(false);
 
@@ -2368,11 +2363,11 @@ auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> UnifiedSync*
     return mSyncVec.back().get();
 }
 
-Sync* Syncs::runningSyncByTag(int tag) const
+Sync* Syncs::runningSyncByBackupId(handle backupId) const
 {
     for (auto& s : mSyncVec)
     {
-        if (s->mSync && s->mSync->tag == tag)
+        if (s->mSync && s->mConfig.getBackupId() == backupId)
         {
             return s->mSync.get();
         }
@@ -2380,11 +2375,11 @@ Sync* Syncs::runningSyncByTag(int tag) const
     return nullptr;
 }
 
-SyncConfig* Syncs::syncConfigByTag(const int tag) const
+SyncConfig* Syncs::syncConfigByBackupId(handle bid) const
 {
     for (auto& s : mSyncVec)
     {
-        if (s->mConfig.getTag() == tag)
+        if (s->mConfig.getBackupId() == bid)
         {
             return &s->mConfig;
         }
@@ -2498,10 +2493,10 @@ void Syncs::purgeRunningSyncs()
     {
         if (s->mSync)
         {
-            auto tag = s->mConfig.getTag();
+            auto backupId = s->mConfig.getBackupId();
             s->mSync->changestate(SYNC_CANCELED, NO_SYNC_ERROR, false, false);
             s->mSync.reset();
-            mClient.app->sync_removed(tag);
+            mClient.app->sync_removed(backupId);
         }
     }
 }
@@ -2576,10 +2571,10 @@ void Syncs::removeSyncByIndex(size_t index)
         }
 
         // call back before actual removal (intermediate layer may need to make a temp copy to call client app)
-        auto tag = mSyncVec[index]->mConfig.getTag();
-        mClient.app->sync_removed(tag);
+        auto backupId = mSyncVec[index]->mConfig.getBackupId();
+        mClient.app->sync_removed(backupId);
 
-        removeSyncConfig(tag);
+        removeSyncConfigByBackupId(backupId);
         mClient.syncactivity = true;
         mSyncVec.erase(mSyncVec.begin() + index);
 
@@ -2587,30 +2582,30 @@ void Syncs::removeSyncByIndex(size_t index)
     }
 }
 
-error Syncs::removeSyncConfig(const int tag)
+error Syncs::removeSyncConfigByBackupId(handle bid)
 {
     error result = API_OK;
 
     if (auto* db = syncConfigDB())
     {
-        result = db->remove(tag);
+        result = db->removeByBackupId(bid);
     }
 
     if (result == API_ENOENT)
     {
-        LOG_err << "Found no config for tag: "
-                << tag
+        LOG_err << "Found no config for backupId: "
+                << toHandle(bid)
                 << "upon sync removal.";
     }
 
     return result;
 }
 
-error Syncs::enableSyncByTag(int tag, bool resetFingerprint, UnifiedSync*& syncPtrRef)
+error Syncs::enableSyncByBackupId(handle backupId, bool resetFingerprint, UnifiedSync*& syncPtrRef)
 {
     for (auto& s : mSyncVec)
     {
-        if (s->mConfig.getTag() == tag)
+        if (s->mConfig.getBackupId() == backupId)
         {
             syncPtrRef = s.get();
             if (!s->mSync)
@@ -2649,7 +2644,7 @@ void Syncs::enableResumeableSyncs()
             if (unifiedSync->mConfig.getEnabled())
             {
                 SyncError syncError = unifiedSync->mConfig.getError();
-                LOG_debug << "Restoring sync: " << unifiedSync->mConfig.getTag() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " old error = " << syncError;
+                LOG_debug << "Restoring sync: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " old error = " << syncError;
 
                 error e = unifiedSync->enableSync(false, true);
                 if (!e)
@@ -2673,8 +2668,7 @@ void Syncs::enableResumeableSyncs()
 
 void Syncs::resumeResumableSyncsOnStartup()
 {
-    if (mClient.loggedinfolderlink()) return;
-    if (!mSyncConfigDb) return;
+    if (mClient.loggedin() != FULLACCOUNT) return;
 
     bool firstSyncResumed = false;
 
@@ -2716,20 +2710,18 @@ void Syncs::resumeResumableSyncsOnStartup()
 #ifdef __APPLE__
                 unifiedSync->mConfig.setLocalFingerprint(0); //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
 #endif
-                LOG_debug << "Resuming cached sync: " << unifiedSync->mConfig.getTag() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
+                LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
 
-                unifiedSync->enableSync(false, true);
-                LOG_debug << "Sync autoresumed: " << unifiedSync->mConfig.getTag() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
+                unifiedSync->enableSync(false, false);
+                LOG_debug << "Sync autoresumed: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
 
                 mClient.app->sync_auto_resume_result(*unifiedSync, true);
             }
             else
             {
-                LOG_debug << "Sync loaded (but not resumed): " << unifiedSync->mConfig.getTag() << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
+                LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
                 mClient.app->sync_auto_resume_result(*unifiedSync, false);
             }
-
-            mClient.mSyncTag = std::max(mClient.mSyncTag, unifiedSync->mConfig.getTag());
         }
     }
 }
@@ -2739,12 +2731,11 @@ JSONSyncConfig::JSONSyncConfig()
   , sourcePath()
   , targetPath()
   , fingerprint(0)
-  , heartbeatID(UNDEF)
   , targetHandle(UNDEF)
   , lastError(NO_SYNC_ERROR)
   , lastWarning(NO_SYNC_WARNING)
   , type()
-  , tag(0)
+  , backupId(UNDEF)
   , enabled(false)
 {
 }
@@ -2767,12 +2758,11 @@ bool JSONSyncConfig::operator==(const JSONSyncConfig& rhs) const
            && sourcePath == rhs.sourcePath
            && targetPath == rhs.targetPath
            && fingerprint == rhs.fingerprint
-           && heartbeatID == rhs.heartbeatID
            && targetHandle == rhs.targetHandle
            && lastError == rhs.lastError
            && lastWarning == rhs.lastWarning
            && type == rhs.type
-           && tag == rhs.tag
+           && backupId == rhs.backupId
            && enabled == rhs.enabled;
 }
 
@@ -2787,10 +2777,9 @@ JSONSyncConfig translate(const MegaClient& client, const SyncConfig &config)
 
     result.enabled = config.getEnabled();
     result.fingerprint = config.getLocalFingerprint();
-    result.heartbeatID = config.getBackupId();
     result.lastError = config.getError();
     result.lastWarning = config.getWarning();
-    result.tag = config.getTag();
+    result.backupId = config.getBackupId();
     result.targetHandle = config.getRemoteNode();
     result.targetPath = config.getRemotePath();
     result.type = config.getType();
@@ -2858,8 +2847,7 @@ SyncConfig translate(const MegaClient& client, const JSONSyncConfig& config)
 
     // Build config.
     auto result =
-      SyncConfig(config.tag,
-                 sourcePath,
+      SyncConfig(sourcePath,
                  *name,
                  config.targetHandle,
                  config.targetPath,
@@ -2871,7 +2859,7 @@ SyncConfig translate(const MegaClient& client, const JSONSyncConfig& config)
                  false,
                  config.lastError,
                  config.lastWarning,
-                 config.heartbeatID);
+                 config.backupId);
 
     result.drivePath(std::move(drivePath));
 
@@ -2886,7 +2874,7 @@ JSONSyncConfigDB::JSONSyncConfigDB(const LocalPath& dbPath,
   : mDBPath(dbPath)
   , mDrivePath(drivePath)
   , mObserver(&observer)
-  , mTagToConfig()
+  , mBackupIdToConfig()
   , mTargetToConfig()
   , mSlot(0)
   , mDirty(false)
@@ -2897,7 +2885,7 @@ JSONSyncConfigDB::JSONSyncConfigDB(const LocalPath& dbPath)
   : mDBPath(dbPath)
   , mDrivePath()
   , mObserver(nullptr)
-  , mTagToConfig()
+  , mBackupIdToConfig()
   , mTargetToConfig()
   , mSlot(0)
   , mDirty(false)
@@ -2924,7 +2912,7 @@ void JSONSyncConfigDB::clear()
 
 const JSONSyncConfigMap& JSONSyncConfigDB::configs() const
 {
-    return mTagToConfig;
+    return mBackupIdToConfig;
 }
 
 bool JSONSyncConfigDB::dirty() const
@@ -2942,11 +2930,11 @@ const LocalPath& JSONSyncConfigDB::drivePath() const
     return mDrivePath;
 }
 
-const JSONSyncConfig* JSONSyncConfigDB::get(const int tag) const
+const JSONSyncConfig* JSONSyncConfigDB::getByBackupId(handle bid) const
 {
-    auto it = mTagToConfig.find(tag);
+    auto it = mBackupIdToConfig.find(bid);
 
-    if (it != mTagToConfig.end())
+    if (it != mBackupIdToConfig.end())
     {
         return &it->second;
     }
@@ -2954,7 +2942,7 @@ const JSONSyncConfig* JSONSyncConfigDB::get(const int tag) const
     return nullptr;
 }
 
-const JSONSyncConfig* JSONSyncConfigDB::get(const handle targetHandle) const
+const JSONSyncConfig* JSONSyncConfigDB::getByRootHandle(handle targetHandle) const
 {
     auto it = mTargetToConfig.find(targetHandle);
 
@@ -2998,19 +2986,19 @@ error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext)
     return API_EREAD;
 }
 
-error JSONSyncConfigDB::remove(const int tag)
+error JSONSyncConfigDB::removeByBackupId(handle bid)
 {
     // Remove the config, if present and flush.
-    return remove(tag, true);
+    return removeByBackupId(bid, true);
 }
 
-error JSONSyncConfigDB::remove(const handle targetHandle)
+error JSONSyncConfigDB::removeByRootNode(const handle targetHandle)
 {
     // Any config present with the given target handle?
-    if (const auto* config = get(targetHandle))
+    if (const auto* config = getByRootHandle(targetHandle))
     {
         // Yep, remove it.
-        return remove(config->tag, true);
+        return removeByBackupId(config->backupId, true);
     }
 
     // Nope.
@@ -3022,7 +3010,7 @@ error JSONSyncConfigDB::write(JSONSyncConfigIOContext& ioContext)
     JSONWriter writer;
 
     // Serialize the database.
-    ioContext.serialize(mTagToConfig, writer);
+    ioContext.serialize(mBackupIdToConfig, writer);
 
     // Try and write the database out to disk.
     if (ioContext.write(mDBPath, writer.getstring(), mSlot) != API_OK)
@@ -3043,10 +3031,10 @@ error JSONSyncConfigDB::write(JSONSyncConfigIOContext& ioContext)
 const JSONSyncConfig* JSONSyncConfigDB::add(const JSONSyncConfig& config,
                                             const bool flush)
 {
-    auto it = mTagToConfig.find(config.tag);
+    auto it = mBackupIdToConfig.find(config.backupId);
 
     // Do we already have a config with this tag?
-    if (it != mTagToConfig.end())
+    if (it != mBackupIdToConfig.end())
     {
         // Has the config changed?
         if (config == it->second)
@@ -3091,7 +3079,7 @@ const JSONSyncConfig* JSONSyncConfigDB::add(const JSONSyncConfig& config,
     }
 
     // Add the config to the database.
-    auto result = mTagToConfig.emplace(config.tag, config);
+    auto result = mBackupIdToConfig.emplace(config.backupId, config);
 
     // Sanity check.
     assert(mTargetToConfig.count(config.targetHandle) == 0);
@@ -3125,7 +3113,7 @@ const JSONSyncConfig* JSONSyncConfigDB::add(const JSONSyncConfig& config,
 void JSONSyncConfigDB::clear(const bool flush)
 {
     // Are there any configs to remove?
-    if (mTagToConfig.empty())
+    if (mBackupIdToConfig.empty())
     {
         // Nope.
         return;
@@ -3134,7 +3122,7 @@ void JSONSyncConfigDB::clear(const bool flush)
     if (mObserver)
     {
         // Tell the observer we've removed the configs.
-        for (auto& it : mTagToConfig)
+        for (auto& it : mBackupIdToConfig)
         {
             mObserver->onRemove(*this, it.second);
         }
@@ -3154,7 +3142,7 @@ void JSONSyncConfigDB::clear(const bool flush)
     mTargetToConfig.clear();
 
     // Clear the config database.
-    mTagToConfig.clear();
+    mBackupIdToConfig.clear();
 }
 
 error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext,
@@ -3180,16 +3168,16 @@ error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext,
     }
 
     // Remove configs that aren't present on disk.
-    auto i = mTagToConfig.begin();
-    auto j = mTagToConfig.end();
+    auto i = mBackupIdToConfig.begin();
+    auto j = mBackupIdToConfig.end();
 
     while (i != j)
     {
-        const auto tag = i++->first;
+        const auto bid = i++->first;
 
-        if (!configs.count(tag))
+        if (!configs.count(bid))
         {
-            remove(tag, false);
+            removeByBackupId(bid, false);
         }
     }
 
@@ -3206,12 +3194,12 @@ error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext,
     return API_OK;
 }
 
-error JSONSyncConfigDB::remove(const int tag, const bool flush)
+error JSONSyncConfigDB::removeByBackupId(handle bid, const bool flush)
 {
-    auto it = mTagToConfig.find(tag);
+    auto it = mBackupIdToConfig.find(bid);
 
     // Any config present with the given tag?
-    if (it == mTagToConfig.end())
+    if (it == mBackupIdToConfig.end())
     {
         // Nope.
         return API_ENOENT;
@@ -3237,7 +3225,7 @@ error JSONSyncConfigDB::remove(const int tag, const bool flush)
     mTargetToConfig.erase(it->second.targetHandle);
 
     // Remove the config from the database.
-    mTagToConfig.erase(it);
+    mBackupIdToConfig.erase(it);
 
     // We're done.
     return API_OK;
@@ -3298,9 +3286,9 @@ bool JSONSyncConfigIOContext::deserialize(JSONSyncConfigMap& configs,
         }
 
         // So move is well-defined.
-        const auto tag = config.tag;
+        const auto bid = config.backupId;
 
-        configs.emplace(tag, std::move(config));
+        configs.emplace(bid, std::move(config));
     }
 
     return reader.leavearray();
@@ -3529,15 +3517,14 @@ bool JSONSyncConfigIOContext::decrypt(const string& in, string& out)
 
 bool JSONSyncConfigIOContext::deserialize(JSONSyncConfig& config, JSON& reader) const
 {
+    const auto TYPE_BACKUP_ID     = MAKENAMEID2('i', 'd');
     const auto TYPE_ENABLED       = MAKENAMEID2('e', 'n');
     const auto TYPE_FINGERPRINT   = MAKENAMEID2('f', 'p');
-    const auto TYPE_HEARTBEAT_ID  = MAKENAMEID2('h', 'b');
     const auto TYPE_LAST_ERROR    = MAKENAMEID2('l', 'e');
     const auto TYPE_LAST_WARNING  = MAKENAMEID2('l', 'w');
     const auto TYPE_NAME          = MAKENAMEID1('n');
     const auto TYPE_SOURCE_PATH   = MAKENAMEID2('s', 'p');
     const auto TYPE_SYNC_TYPE     = MAKENAMEID2('s', 't');
-    const auto TYPE_TAG           = MAKENAMEID1('t');
     const auto TYPE_TARGET_HANDLE = MAKENAMEID2('t', 'h');
     const auto TYPE_TARGET_PATH   = MAKENAMEID2('t', 'p');
 
@@ -3556,11 +3543,6 @@ bool JSONSyncConfigIOContext::deserialize(JSONSyncConfig& config, JSON& reader) 
             config.fingerprint = reader.getfp();
             break;
  
-        case TYPE_HEARTBEAT_ID:
-            config.heartbeatID =
-              reader.gethandle(sizeof(handle));
-            break;
-
         case TYPE_LAST_ERROR:
             config.lastError =
               static_cast<SyncError>(reader.getint32());
@@ -3589,11 +3571,11 @@ bool JSONSyncConfigIOContext::deserialize(JSONSyncConfig& config, JSON& reader) 
 
         case TYPE_SYNC_TYPE:
             config.type =
-              static_cast<SyncType>(reader.getint32());
+              static_cast<SyncConfig::Type>(reader.getint32());
             break;
 
-        case TYPE_TAG:
-            config.tag = reader.getint32();
+        case TYPE_BACKUP_ID:
+            config.backupId = reader.gethandle(sizeof(handle));
             break;
 
         case TYPE_TARGET_HANDLE:
@@ -3658,16 +3640,15 @@ void JSONSyncConfigIOContext::serialize(const JSONSyncConfig& config,
 
     writer.beginobject();
 
+    writer.arg("id", config.backupId, sizeof(handle));
     writer.arg("sp", sourcePath);
     writer.arg("n",  name);
     writer.arg("tp", targetPath);
     writer.arg("fp", to_string(config.fingerprint), 0);
-    writer.arg("hb", config.heartbeatID, sizeof(handle));
     writer.arg("th", config.targetHandle, sizeof(handle));
     writer.arg("le", config.lastError);
     writer.arg("lw", config.lastWarning);
     writer.arg("st", config.type);
-    writer.arg("t",  config.tag);
     writer.arg("en", config.enabled);
 
     writer.endobject();

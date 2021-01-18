@@ -572,8 +572,9 @@ typedef enum {
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
     ATTR_MY_BACKUPS_FOLDER = 31,            // private - byte array - non-versioned
     ATTR_BACKUP_NAMES = 32,                 // private - byte array - versioned
-    ATTR_JSON_SYNC_CONFIG_NAME = 33,        // private - unencrypted - char array - versioned
-    ATTR_JSON_SYNC_CONFIG_KEY = 34          // private - unencrypted - char array - versioned
+    ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
+    ATTR_JSON_SYNC_CONFIG_NAME = 34,        // private - unencrypted - char array - versioned
+    ATTR_JSON_SYNC_CONFIG_KEY = 35,          // private - unencrypted - char array - versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -841,45 +842,33 @@ typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLO
 
 // Holds the config of a sync. Can be extended with future config options
 class Sync;
-
-enum SyncType
-{
-    // sync up from local to remote
-    TYPE_UP = 0x01,
-    // sync down from remote to local		
-    TYPE_DOWN = 0x02,
-    // Two-way sync
-    TYPE_TWOWAY = TYPE_DOWN | TYPE_UP,
-    // special sync up from local to remote, automatically disabled when remote changed
-    TYPE_BACKUP = 0x04
-}; // SyncType
-
 class SyncConfig : public Cacheable
 {
 public:
+
+    enum Type
+    {
+        TYPE_UP = 0x01, // sync up from local to remote
+        TYPE_DOWN = 0x02, // sync down from remote to local
+        TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
+        TYPE_BACKUP, // special sync up from local to remote, automatically disabled when remote changed
+    };
     SyncConfig() = default;
 
-    SyncConfig(int tag,
-               std::string localPath,
+    SyncConfig(std::string localPath,
                std::string syncName,
                const handle remoteNode,
                const std::string &remotePath,
                const fsfp_t localFingerprint,
                std::vector<std::string> regExps = {},
                const bool enabled = true,
-               const SyncType syncType = TYPE_TWOWAY,
+               const Type syncType = TYPE_TWOWAY,
                const bool syncDeletions = false,
                const bool forceOverwrite = false,
                const SyncError error = NO_SYNC_ERROR,
                const SyncWarning warning = NO_SYNC_WARNING,
                handle hearBeatID = UNDEF
             );
-
-    // returns unique identifier
-    int getTag() const;
-
-    // returns unique identifier
-    void setTag(int tag);
 
     // whether this sync has errors (was inactive)
     bool hasError() const;
@@ -909,7 +898,7 @@ public:
     void setRegExps(std::vector<std::string>&&);
 
     // returns the type of the sync
-    SyncType getType() const;
+    Type getType() const;
 
     // whether this is an up-sync from local to remote
     bool isUpSync() const;
@@ -956,10 +945,6 @@ public:
 
 private:
 
-    // Unique identifier. any other field can change (even remote handle),
-    // and we want to keep disabled configurations saved: e.g: remote handle changed
-    int mTag;
-
     // enabled/disabled by the user
     bool mEnabled = true;
 
@@ -985,7 +970,7 @@ private:
     std::vector<std::string> mRegExps; //TODO: rename this to wildcardExclusions?: they are not regexps AFAIK
 
     // type of the sync, defaults to bidirectional
-    SyncType mSyncType;
+    Type mSyncType;
 
     // whether deletions are synced (only relevant for one-way-sync)
     bool mSyncDeletions;
@@ -996,6 +981,8 @@ private:
     // failure cause (disable/failure cause).
     SyncError mError;
 
+    // Unique identifier. any other field can change (even remote handle),
+    // and we want to keep disabled configurations saved: e.g: remote handle changed
     // id for heartbeating
     handle mBackupId;
 
