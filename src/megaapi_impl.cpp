@@ -25561,7 +25561,7 @@ void MegaFolderUploadController::onTransferFinish(MegaApi *, MegaTransfer *t, Me
     {
         mIncompleteTransfers++;
     }
-    if (!pendingTransfers && !cancelled)
+    if (!pendingTransfers)
     {
         complete(mIncompleteTransfers ? API_EINCOMPLETE : API_OK);
     }
@@ -25745,6 +25745,11 @@ void MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
 void MegaFolderUploadController::complete(Error e)
 {
     assert(mMainThreadId == std::this_thread::get_id());
+    if (cancelled)
+    {
+        LOG_warn << "MegaFolderUploadController::complete - this operation was previously cancelled";
+        return;
+    }
 
     LOG_debug << "Folder transfer finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
     transfer->setState(MegaTransfer::STATE_COMPLETED);
@@ -27160,6 +27165,11 @@ void MegaFolderDownloadController::downloadFiles(FileSystemType fsType)
 void MegaFolderDownloadController::complete(Error e)
 {
     assert(mMainThreadId == std::this_thread::get_id());
+    if (cancelled)
+    {
+        LOG_warn<< "MegaFolderDownloadController::complete - this operation was previously cancelled";
+        return;
+    }
 
     LOG_debug << "Folder download finished - " << transfer->getTransferredBytes() << " of " << transfer->getTotalBytes();
     transfer->setState(MegaTransfer::STATE_COMPLETED);
@@ -27215,7 +27225,7 @@ void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, 
     {
         mIncompleteTransfers++;
     }
-    if (!pendingTransfers && !cancelled)
+    if (!pendingTransfers)
     {
         complete(mIncompleteTransfers ? API_EINCOMPLETE : API_OK);
     }
