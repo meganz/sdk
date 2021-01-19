@@ -490,6 +490,7 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
     return success;
 }
 
+#if 0
 SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng, const std::string& id)
 {
     std::string dbname = "syncconfigsv2_" + id;
@@ -650,6 +651,7 @@ std::vector<SyncConfig> SyncConfigBag::all() const
     }
     return syncConfigs;
 }
+#endif
 
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
@@ -774,7 +776,6 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
 Sync::~Sync()
 {
     // must be set to prevent remote mass deletion while rootlocal destructor runs
-    assert(state == SYNC_CANCELED || state == SYNC_FAILED || state == SYNC_DISABLED);
     mDestructorRunning = true;
 
     // unlock tmp lock
@@ -790,6 +791,7 @@ Sync::~Sync()
         client->proctree(localroot->node, &tdsg);
     }
 
+    // The database is closed; deleting localnodes will not remove them
     delete statecachetable;
 
     client->syncactivity = true;
@@ -2076,7 +2078,10 @@ bool UnifiedSync::updateSyncRemoteLocation(Node* n, bool forceCallback)
     }
 
     //persist
-    mClient.syncs.mSyncConfigDb->insert(mConfig);
+    if (auto syncdb = mClient.syncs.syncConfigDB())
+    {
+        syncdb->add(translate(mClient, mConfig));
+    }
 
     return changed;
 }
@@ -2311,7 +2316,7 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
         auto n = selfUser->getattr(ATTR_JSON_SYNC_CONFIG_NAME);
         auto k = selfUser->getattr(ATTR_JSON_SYNC_CONFIG_KEY);
 
-        if (n && k && 
+        if (n && k &&
             k->size() == KeyStr::STRLEN &&
             n->size() == NameStr::STRLEN)
         {
@@ -2492,14 +2497,17 @@ void Syncs::stopCancelledFailedDisabled()
 
 void Syncs::purgeRunningSyncs()
 {
+    // Called from locallogout (which always happens on ~MegaClient as well as on request)
+    // Any syncs that are running should be resumed on next start.
+    // We stop the syncs here, but don't call the client to say they are stopped.
+    // And localnode databases are preserved.
     for (auto& s : mSyncVec)
     {
         if (s->mSync)
         {
-            auto backupId = s->mConfig.getBackupId();
-            s->mSync->changestate(SYNC_CANCELED, NO_SYNC_ERROR, false, false);
+            // Deletiog the sync will close/save the sync's localnode databse file in its current state.
+            // And then delete objects in RAM.
             s->mSync.reset();
-            mClient.app->sync_removed(backupId);
         }
     }
 }
@@ -3025,6 +3033,9 @@ error JSONSyncConfigDB::write(JSONSyncConfigIOContext& ioContext)
     // Rotate the slot.
     mSlot = (mSlot + 1) % NUM_SLOTS;
 
+    // Remove the old file so there's no race with fuzzy file timestamps in fast-running tests
+    ioContext.remove(mDBPath, mSlot);
+
     // Up to date with disk.
     mDirty = false;
 
@@ -3431,6 +3442,20 @@ void JSONSyncConfigIOContext::serialize(const JSONSyncConfigMap& configs,
     writer.endarray();
 }
 
+void JSONSyncConfigIOContext::remove(const LocalPath& dbPath,
+    const unsigned int slot)
+{
+    using std::to_string;
+    LocalPath path = dbPath;
+
+    // Generate the rest of the path.
+    path.appendWithSeparator(mName, false);
+    path.append(LocalPath::fromPath("." + to_string(slot), mFsAccess));
+
+    mFsAccess.unlinklocal(path);
+}
+
+
 error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
                                      const string& data,
                                      const unsigned int slot)
@@ -3545,7 +3570,7 @@ bool JSONSyncConfigIOContext::deserialize(JSONSyncConfig& config, JSON& reader) 
         case TYPE_FINGERPRINT:
             config.fingerprint = reader.getfp();
             break;
- 
+
         case TYPE_LAST_ERROR:
             config.lastError =
               static_cast<SyncError>(reader.getint32());
@@ -3565,7 +3590,7 @@ bool JSONSyncConfigIOContext::deserialize(JSONSyncConfig& config, JSON& reader) 
             string sourcePath;
 
             reader.storebinary(&sourcePath);
-            
+
             config.sourcePath =
               LocalPath::fromPath(sourcePath, mFsAccess);
 

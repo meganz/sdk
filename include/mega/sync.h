@@ -44,6 +44,7 @@ int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2,
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
                          LocalPath& localdebris);
 
+#if 0
 // A collection of sync configs backed by a database table
 class MEGA_API SyncConfigBag
 {
@@ -74,7 +75,7 @@ private:
     std::unique_ptr<DbTable> mTable; // table for caching the sync configs
     std::map<handle, SyncConfig> mSyncConfigs; // map of backupId to sync configs
 };
-
+#endif
 
 struct UnifiedSync
 {
@@ -271,7 +272,7 @@ public:
 
     // Absolute path to remote sync target.
     string targetPath;
-    
+
     // Local fingerprint.
     fsfp_t fingerprint;
 
@@ -437,6 +438,10 @@ public:
                         const string& data,
                         const unsigned int slot);
 
+    // remove the file from the old slot
+    void remove(const LocalPath& dbPath,
+                const unsigned int slot);
+
 private:
     // Decrypt data.
     bool decrypt(const string& in, string& out);
@@ -537,9 +542,6 @@ struct Syncs
     bool isEmpty = true;
 
     unique_ptr<BackupMonitor> mHeartBeatMonitor;
-
-    // use this existing class for maintaining the db
-    unique_ptr<SyncConfigBag> mSyncConfigDb;
 
     // Returns a reference to this user's internal configuration database.
     JSONSyncConfigDB* syncConfigDB();

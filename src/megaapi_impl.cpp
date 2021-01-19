@@ -23136,6 +23136,8 @@ void MegaApiImpl::sendPendingRequests()
             LOG_err << "Error starting request: " << e;
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         }
+
+        client->syncs.syncConfigDBFlush();
     }
 }
 

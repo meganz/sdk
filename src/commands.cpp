@@ -3759,7 +3759,7 @@ bool CommandGetUserData::procresult(Result r)
         case MAKENAMEID4('*', '!', 'b', 'n'):
             parseUserAttribute(backupNames, versionBackupNames);
 			break;
-			
+
         case MAKENAMEID6('^', '~', 'j', 's', 'c', 'n'):
             parseUserAttribute(jsonSyncConfigName, jsonSyncConfigNameVersion);
             break;
@@ -4168,7 +4168,7 @@ bool CommandGetUserData::procresult(Result r)
                     changes += u->updateattr(ATTR_COOKIE_SETTINGS, &cookieSettings, &versionCookieSettings);
                 }
 
-				
+
                 // Has a name been defined for this user's sync configuration databases?
                 if (jsonSyncConfigName.empty())
                 {
@@ -8517,6 +8517,98 @@ bool CommandBackupRemove::procresult(Result r)
 
     return r.wasErrorOrOK();
 }
+
+CommandBackupSyncFetch::CommandBackupSyncFetch(std::function<void(Error, vector<Data>&)> f)
+    : completion(move(f))
+{
+    cmd("sf");
+}
+
+bool CommandBackupSyncFetch::procresult(Result r)
+{
+    vector<Data> data;
+    if (!r.hasJsonArray())
+    {
+        completion(r.errorOrOK(), data);
+    }
+    else
+    {
+        auto cantSkipUnknownField = [&]() -> bool {
+            if (!client->json.storeobject())
+            {
+                completion(API_EINTERNAL, data);
+                return true;
+            }
+            return false;
+        };
+
+        auto cantLeaveObject = [&]() -> bool {
+            if (!client->json.leaveobject())
+            {
+                completion(API_EINTERNAL, data);
+                return true;
+            }
+            return false;
+        };
+
+        while (client->json.enterobject())
+        {
+            data.push_back(Data());
+            for (;;)
+            {
+                auto& d = data.back();
+                auto nid = client->json.getnameid();
+                if (nid == EOO) break;
+                switch (nid)
+                {
+                case MAKENAMEID2('i', 'd'):     d.backupId = client->json.gethandle(sizeof(handle)); break;
+                case MAKENAMEID1('t'):          d.syncType = client->json.getint32(); break;
+                case MAKENAMEID1('h'):          d.rootNode = client->json.gethandle(MegaClient::NODEHANDLE); break;
+                case MAKENAMEID1('l'):          client->json.storeobject(&d.localFolder);
+                                                d.localFolder = Base64::atob(d.localFolder);
+                                                break;
+                case MAKENAMEID1('d'):          client->json.storeobject(&d.deviceId); break;
+                case MAKENAMEID1('s'):          d.syncState = client->json.getint32(); break;
+                case MAKENAMEID2('s', 's'):     d.syncSubstate = client->json.getint32(); break;
+                case MAKENAMEID1('e'):          client->json.storeobject(&d.extra);
+                                                d.extra = Base64::atob(d.extra);
+                                                break;
+                case MAKENAMEID2('h', 'b'):
+                {
+                    if (client->json.enterobject())
+                    {
+                        for (;;)
+                        {
+                            nid = client->json.getnameid();
+                            if (nid == EOO) break;
+                            switch (nid)
+                            {
+                            case MAKENAMEID2('t', 's'):     d.hbTimestamp = client->json.getint(); break;
+                            case MAKENAMEID1('s'):          d.hbStatus = client->json.getint32(); break;
+                            case MAKENAMEID1('p'):          d.hbProgress = client->json.getint32(); break;
+                            case MAKENAMEID2('q', 'u'):     d.uploads = client->json.getint32(); break;
+                            case MAKENAMEID2('q', 'd'):     d.downloads = client->json.getint32(); break;
+                            case MAKENAMEID3('l', 't', 's'):d.lastActivityTs = client->json.getint32(); break;
+                            case MAKENAMEID2('l', 'h'):     d.lastSyncedNodeHandle = client->json.gethandle(sizeof(handle)); break;
+                            default: if (cantSkipUnknownField()) return false;
+                            }
+                        }
+                        if (cantLeaveObject()) return false;
+                    }
+                }
+                break;
+
+                default: if (cantSkipUnknownField()) return false;
+                }
+            }
+            if (cantLeaveObject()) return false;
+        }
+
+        completion(API_OK, data);
+    }
+    return true;
+}
+
 
 CommandGetBanners::CommandGetBanners(MegaClient* client)
 {

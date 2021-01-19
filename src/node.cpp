@@ -1554,7 +1554,8 @@ LocalNode::~LocalNode()
         return;
     }
 
-    if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
+    if (!sync->mDestructorRunning && (
+        sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN))
     {
         sync->statecachedel(this);
 
@@ -1614,21 +1615,15 @@ LocalNode::~LocalNode()
         delete it++->second;
     }
 
-    if (node)
+    if (node && !sync->mDestructorRunning)
     {
         // move associated node to SyncDebris unless the sync is currently
         // shutting down
-        if (sync->state < SYNC_INITIALSCAN)
-        {
-            node.reset();
-        }
-        else
+        if (sync->state >= SYNC_INITIALSCAN)
         {
             sync->client->movetosyncdebris(node, sync->inshare);
         }
     }
-
-    slocalname.reset();
 }
 
 void LocalNode::detach(const bool recreate)

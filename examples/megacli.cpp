@@ -3013,6 +3013,39 @@ void exec_timelocal(autocomplete::ACState& s)
 
 }
 
+void exec_backupcentre(autocomplete::ACState& s)
+{
+    client->reqs.add(new CommandBackupSyncFetch([&](Error e, vector<CommandBackupSyncFetch::Data>& data){
+        if (e)
+        {
+            cout << "backupcentre failed: " << e << endl;
+        }
+        else
+        {
+            cout << "Backup Centre sync count: " << data.size() << endl;
+            for (auto& d : data)
+            {
+                cout << "id: " << toHandle(d.backupId) << endl;
+                cout << "  sync type: " << d.syncType << endl;
+                cout << "  root handle: " << toNodeHandle(d.rootNode);
+                cout << "  local folder: " << d.localFolder << endl;
+                cout << "  device id: " << d.deviceId << endl;
+                cout << "  sync state: " << d.syncState << endl;
+                cout << "  sync substate: " << d.syncSubstate << endl;
+                cout << "  extra: " << d.extra << endl;
+                cout << "  heartbeat timestamp: " << d.hbTimestamp << endl;
+                cout << "  heartbeat status: " << d.hbStatus << endl;
+                cout << "  heartbeat progress: " << d.hbProgress << endl;
+                cout << "  heartbeat uploads: " << d.uploads << endl;
+                cout << "  heartbeat downloads: " << d.downloads << endl;
+                cout << "  last activity time: " << d.lastActivityTs << endl;
+                cout << "  last node handle: " << toNodeHandle(d.lastSyncedNodeHandle) << endl;
+            }
+        }
+    }));
+}
+
+
 MegaCLILogger gLogger;
 
 autocomplete::ACN autocompleteSyntax()
@@ -3069,6 +3102,7 @@ autocomplete::ACN autocompleteSyntax()
 #ifdef ENABLE_SYNC
     p->Add(exec_sync, sequence(text("sync"), opt(either(sequence(localFSPath(), remoteFSPath(client, &cwd, "dst")), param("cancelslot")))));
     p->Add(exec_syncconfig, sequence(text("syncconfig"), opt(sequence(param("type (TWOWAY/UP/DOWN)"), opt(sequence(param("syncDeletions (ON/OFF)"), param("forceOverwrite (ON/OFF)")))))));
+    p->Add(exec_backupcentre, sequence(text("backupcentre")));
 #endif
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(flag("-writable"), param("expiretime"), text("del")))));
     p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
@@ -8160,6 +8194,8 @@ void megacli()
 #ifndef NO_READLINE
                 rl_callback_handler_remove();
 #endif /* ! NO_READLINE */
+                delete client;
+                client = nullptr;
                 return;
             }
 

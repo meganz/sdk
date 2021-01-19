@@ -5716,12 +5716,12 @@ struct SyncListener : MegaListener
 
     void onSyncEvent(MegaApi* api, MegaSync* sync, MegaSyncEvent* event) override
     {
-        out() << logTime() << "onSyncEvent " << sync->getBackupId() << endl;
+        out() << logTime() << "onSyncEvent " << toHandle(sync->getBackupId()) << endl;
     }
 
     void onSyncAdded(MegaApi* api, MegaSync* sync, int additionState) override
     {
-        out() << logTime() << "onSyncAdded " << sync->getBackupId() << endl;
+        out() << logTime() << "onSyncAdded " << toHandle(sync->getBackupId()) << endl;
         check(sync->getBackupId() != UNDEF, "sync added with undef backup Id");
 
         check(state(sync) == nonexistent);
@@ -5730,7 +5730,7 @@ struct SyncListener : MegaListener
 
     void onSyncDisabled(MegaApi* api, MegaSync* sync) override
     {
-        out() << logTime() << "onSyncDisabled " << sync->getBackupId() << endl;
+        out() << logTime() << "onSyncDisabled " << toHandle(sync->getBackupId()) << endl;
         check(!sync->isEnabled(), "sync enabled at onSyncDisabled");
         check(!sync->isActive(), "sync active at onSyncDisabled");
         check(state(sync) == enabled || state(sync) == added);
@@ -5740,7 +5740,7 @@ struct SyncListener : MegaListener
     // "onSyncStarted" would be more accurate?
     void onSyncEnabled(MegaApi* api, MegaSync* sync) override
     {
-        out() << logTime() << "onSyncEnabled " << sync->getBackupId() << endl;
+        out() << logTime() << "onSyncEnabled " << toHandle(sync->getBackupId()) << endl;
         check(sync->isEnabled(), "sync disabled at onSyncEnabled");
         check(sync->isActive(), "sync not active at onSyncEnabled");
         check(state(sync) == disabled || state(sync) == added);
@@ -5749,14 +5749,14 @@ struct SyncListener : MegaListener
 
     void onSyncDeleted(MegaApi* api, MegaSync* sync) override
     {
-        out() << logTime() << "onSyncDeleted " << sync->getBackupId() << endl;
+        out() << logTime() << "onSyncDeleted " << toHandle(sync->getBackupId()) << endl;
         check(state(sync) == disabled || state(sync) == added || state(sync) == enabled);
         state(sync) = nonexistent;
     }
 
     void onSyncStateChanged(MegaApi* api, MegaSync* sync) override
     {
-        out() << logTime() << "onSyncStateChanged " << sync->getBackupId() << endl;
+        out() << logTime() << "onSyncStateChanged " << toHandle(sync->getBackupId()) << endl;
 
         check(sync->getBackupId() != UNDEF, "onSyncStateChanged with undef backup Id");
 
@@ -5899,8 +5899,20 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     {
         auto node = megaNode(p.filename().u8string());
         //return std::unique_ptr<MegaSync>{megaApi[0]->getSyncByNode(node.get())} != nullptr; //disabled syncs are not OK but foundable
+
+        LOG_verbose << "checkSyncOK " << p.filename().u8string() << " node found: " << bool(node);
+
         std::unique_ptr<MegaSync> sync{megaApi[0]->getSyncByNode(node.get())};
+
+        LOG_verbose << "checkSyncOK " << p.filename().u8string() << " sync found: " << bool(sync);
+
         if (!sync) return false;
+
+        LOG_verbose << "checkSyncOK " << p.filename().u8string() << " sync is: " << sync->getLocalFolder();
+
+
+        LOG_verbose << "checkSyncOK " << p.filename().u8string() << " enabled: " << sync->isEnabled();
+
         return sync->isEnabled();
 
     };
