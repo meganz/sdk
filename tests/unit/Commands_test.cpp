@@ -282,6 +282,8 @@ public:
     bool cwd(LocalPath&) const { return false; }
 
     void addevents(Waiter*, int) override {}
+
+    virtual bool issyncsupported(const LocalPath&, bool& b, SyncError& se, SyncWarning& sw) { b = false; se = NO_SYNC_ERROR; sw = NO_SYNC_WARNING; return true;}
 };
 
 class HttpIOMockup : public ::mega::HttpIO
