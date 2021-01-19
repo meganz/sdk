@@ -25351,46 +25351,38 @@ void MegaFolderUploadController::start(MegaNode*)
     // add the tree above, to subtrees vector for root tree
     mUploadTree.subtrees.push_back(std::move(newTreeNode));
 
+    // scan folder by recursing all subfolders on disk, building up tree structure to match
+    // not yet existing folders get a temporary upload id instead of a handle
+    if (!scanFolder(*mUploadTree.subtrees.front(), path))
+    {
+        complete(API_EACCESS);
+        return;
+    }
+
     mWorkerThread = std::thread ([this, path]() {
-        // recurse all subfolders on disk, building up tree structure to match
-        // not yet existing folders get a temporary upload id instead of a handle
-        LocalPath lp = path;
-        bool fullyScanned = scanFolder(*mUploadTree.subtrees.front(), lp);
-
-        if (!cancelled)
+        // create folders in batches, not too many at once
+        vector<NewNode> newnodes;
+        if (!createNextFolderBatch(mUploadTree, newnodes, true) && !cancelled)
         {
-            megaApi->executeOnThread([this, fullyScanned]() {
-
-                // these next parts must run on megaApi's thread again, as
-                // genUploadTransfersForFiles or checkCompletion may call the fireOnXYZ() functions
-                if (!cancelled)
+            // no folders to create so start uploads
+            // otherwise the folder completion function will start them
+            TransferQueue transferQueue;
+            genUploadTransfersForFiles(mUploadTree, transferQueue);
+            if (cancelled)
+            {
+                return;
+            }
+            megaApi->executeOnThread([this, &transferQueue]() {
+                // sendPendingTransfers and complete may call fireOnXYZ() so they must run on megaApi's thread
+                if (transferQueue.empty())
                 {
-                    if (!fullyScanned)
-                    {
-                        complete(API_EACCESS);
-                        return;
-                    }
-
-                    // create folders in batches, not too many at once
-                    vector<NewNode> newnodes;
-                    if (!createNextFolderBatch(mUploadTree, newnodes, true))
-                    {
-                        // no folders to create so start uploads
-                        // otherwise the folder completion function will start them
-                        TransferQueue transferQueue;
-                        genUploadTransfersForFiles(mUploadTree, transferQueue);
-
-                        if (transferQueue.empty())
-                        {
-                            complete(API_OK);
-                        }
-                        else
-                        {
-                            // completion will occur on the last transfer's onFinish callback
-                            // (at which time this object is deleted)
-                            megaApi->sendPendingTransfers(&transferQueue);
-                        }
-                    }
+                    complete(API_OK);
+                }
+                else if (!cancelled)
+                {
+                    // completion will occur on the last transfer's onFinish callback
+                    // (at which time this object is deleted)
+                    megaApi->sendPendingTransfers(&transferQueue);
                 }
             });
         }
@@ -25581,7 +25573,12 @@ MegaFolderUploadController::~MegaFolderUploadController()
 
 bool MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
 {
-    assert(mMainThreadId != std::this_thread::get_id());
+    assert(mMainThreadId == std::this_thread::get_id());
+    if (cancelled)
+    {
+        LOG_warn << "MegaFolderUploadController::scanFolder - this operation was previously cancelled";
+        return false;
+    }
     recursive++;
     unique_ptr<DirAccess> da(fsaccess->newdiraccess());
     if (!da->dopen(&localPath, nullptr, false))
@@ -25639,6 +25636,12 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
     // recurse until we find one that is not yet sent
     for (auto& t : tree.subtrees)
     {
+        if (cancelled)
+        {
+            LOG_warn << "MegaFolderUploadController::createNextFolderBatch - this operation was previously cancelled";
+            return false;
+        }
+
         assert(newnodes.size() <= MAXNODESUPLOAD);
         if (newnodes.size() >= MAXNODESUPLOAD)
         {
@@ -25685,6 +25688,12 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
         megaApi->createRemoteFolder(tree.megaNode->getHandle(), std::move(newnodes), nullptr,
             [this](const Error& e, targettype_t t, vector<NewNode>& nn)
             {
+                if (cancelled)
+                {
+                    LOG_warn << "MegaFolderUploadController::createNextFolderBatch - this operation was previously cancelled";
+                    return;
+                }
+
                 // lambda function that will be executed as completion function in putnodes procresult
                 if (e)
                 {
@@ -25726,6 +25735,12 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
 
 void MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, TransferQueue& transferQueue)
 {
+    if (cancelled)
+    {
+        LOG_warn << "MegaFolderUploadController::genUploadTransfersForFiles - this operation was previously cancelled";
+        return;
+    }
+
     for (const auto& localpath : tree.files)
     {
         FileSystemType fsType = fsaccess->getlocalfstype(localpath);
