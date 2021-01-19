@@ -208,6 +208,37 @@ class MegaSizeProcessor : public MegaTreeProcessor
         long long getTotalBytes();
 };
 
+class ExecuteOnce
+{
+    // An object to go on the requestQueue.
+    // It could be completed early (eg on cancel()), in which case nothing happens when it's dequeued.
+    // If not completed early, it executes on dequeue.
+    // In either case the flag is set when executed, so it won't be executed in the other case.
+    // A mutex is used to make sure the flag is set and checked along with actual execution.
+    // The objects referred to in the completion function must live until the first execution completes.
+    // After that it doesn't matter if it contains dangling pointers etc as it won't be called anymore.
+
+    std::mutex m;
+    std::function<void()> f;
+    bool executed = false;
+
+public:
+
+    ExecuteOnce(std::function<void()> fn) : f(fn) {}
+
+    bool exec()
+    {
+        std::lock_guard g(m);
+        if (!executed)
+        {
+            executed = true;
+            f();
+            return true;  // indicates that this call is the time it ran
+        }
+        return false;
+    }
+};
+
 class MegaRecursiveOperation
 {
 public:
@@ -215,6 +246,7 @@ public:
     virtual ~MegaRecursiveOperation() = default;
     virtual void start(MegaNode* node) = 0;
     virtual void cancel() = 0;
+    bool isCancelled() { return cancelled; }
 
 protected:
     MegaApiImpl *megaApi;
@@ -226,6 +258,11 @@ protected:
     bool cancelled = false;
     std::set<MegaTransferPrivate*> subTransfers;
     int mIncompleteTransfers = 0;
+
+    // If the thread was started, it queues a completion before exiting
+    // That will be executed when the queued request is procesed
+    // We also keep a pointer to it here, so cancel() can execute it early.
+    shared_ptr<ExecuteOnce> mCompletionForMegaApiThread;
 
     // worker thread
     std::thread mWorkerThread;
@@ -242,7 +279,7 @@ private:
 };
 
 class TransferQueue;
-class MegaFolderUploadController : public MegaTransferListener, public MegaRecursiveOperation
+class MegaFolderUploadController : public MegaTransferListener, public MegaRecursiveOperation, public std::enable_shared_from_this<MegaFolderUploadController>
 {
 public:
     MegaFolderUploadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
@@ -448,7 +485,7 @@ public:
     void setValid(bool value);
 };
 
-class MegaFolderDownloadController : public MegaTransferListener, public MegaRecursiveOperation
+class MegaFolderDownloadController : public MegaTransferListener, public MegaRecursiveOperation, public std::enable_shared_from_this<MegaFolderDownloadController>
 {
 public:
     MegaFolderDownloadController(MegaApiImpl *megaApi, MegaTransferPrivate *transfer);
@@ -476,7 +513,7 @@ protected:
     vector<LocalTree> mLocalTree;
     bool scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType);
     Error createFolder();
-    void genDownloadTransfersForFiles(FileSystemType fsType, TransferQueue &transferQueue);
+    void genDownloadTransfersForFiles(FileSystemType fsType);
 };
 
 class MegaNodePrivate : public MegaNode, public Cacheable
@@ -837,7 +874,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         bool serialize(string*) override;
         static MegaTransferPrivate* unserialize(string*);
 
-        void startRecursiveOperation(unique_ptr<MegaRecursiveOperation>, MegaNode* node); // takes ownership of both
+        void startRecursiveOperation(shared_ptr<MegaRecursiveOperation>, MegaNode* node); // takes ownership of both
         long long getPlaceInQueue() const;
         void setPlaceInQueue(long long value);
 
@@ -891,7 +928,11 @@ protected:
         std::unique_ptr<MegaError> lastError;
         int folderTransferTag;
         const char* appData;
-        unique_ptr<MegaRecursiveOperation> recursiveOperation;
+
+        // use shared_ptr here so callbacks can use a weak_ptr
+        // to protect against the operation being cancelled in the meantime
+        shared_ptr<MegaRecursiveOperation> recursiveOperation;
+
         bool mTargetOverride;
 };
 
@@ -1379,7 +1420,7 @@ protected:
         unique_ptr<MegaBannerListPrivate> mBannerList;
 
     public:
-        std::function<void()> functionToExecute;
+        shared_ptr<ExecuteOnce> functionToExecute;
 };
 
 class MegaEventPrivate : public MegaEvent
@@ -3213,7 +3254,7 @@ protected:
         void dismissbanner_result(error e) override;
 
         // for internal use - for worker threads to run something on megaapi's thread, such as calls to onFire() functinos
-        void executeOnThread(std::function<void()>);
+        void executeOnThread(shared_ptr<ExecuteOnce>);
 
 #ifdef ENABLE_CHAT
         // chat-related commandsresult

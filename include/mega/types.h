@@ -94,6 +94,8 @@ using std::streambuf;
 using std::tuple;
 using std::ostringstream;
 using std::unique_ptr;
+using std::shared_ptr;
+using std::weak_ptr;
 
 #ifdef WIN32
 using std::wstring;

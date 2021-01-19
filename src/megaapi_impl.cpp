@@ -2969,7 +2969,7 @@ void MegaTransferPrivate::setTargetOverride(bool targetOverride)
     mTargetOverride = targetOverride;
 }
 
-void MegaTransferPrivate::startRecursiveOperation(unique_ptr<MegaRecursiveOperation> op, MegaNode* node)
+void MegaTransferPrivate::startRecursiveOperation(shared_ptr<MegaRecursiveOperation> op, MegaNode* node)
 {
     assert(op && !recursiveOperation);
     recursiveOperation = move(op);
@@ -3086,7 +3086,8 @@ MegaTransferListener* MegaTransferPrivate::getListener() const
 
 MegaTransferPrivate::~MegaTransferPrivate()
 {
-    if (recursiveOperation)
+    assert(!recursiveOperation->isCancelled());
+    if (recursiveOperation && !recursiveOperation->isCancelled())
     {
         recursiveOperation->cancel();
     }
@@ -18567,9 +18568,8 @@ void MegaApiImpl::updateBackups()
     }
 }
 
-void MegaApiImpl::executeOnThread(std::function<void()> f)
+void MegaApiImpl::executeOnThread(shared_ptr<ExecuteOnce> f)
 {
-    SdkMutexGuard guard(sdkMutex);
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_EXECUTE_ON_THREAD, nullptr);
     request->functionToExecute = std::move(f);
     requestQueue.push_front(request);  // these operations are part of requests that already queued, and should occur before other requests; queue at front
@@ -19286,8 +19286,8 @@ void MegaApiImpl::sendPendingRequests()
         switch (request->getType())
         {
         case MegaRequest::TYPE_EXECUTE_ON_THREAD:
-            request->functionToExecute();
-            requestMap.erase(request->getTag());
+            request->functionToExecute->exec();
+            //requestMap.erase(request->getTag());  // per the test for TYPE_EXECUTE_ON_THREAD above, we didn't add it to the map or assign it a tag
             activeRequest = nullptr;
             activeError = nullptr;
             delete request;
@@ -21390,6 +21390,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if (megaTransfer->isFolderTransfer())
             {
+                // one of the files in the the folder tree being uploaded/downloaded
                 megaTransfer->setState(MegaTransfer::STATE_CANCELLED);
                 fireOnTransferFinish(megaTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
@@ -25411,6 +25412,8 @@ MegaFolderUploadController::MegaFolderUploadController(MegaApiImpl *megaApi, Meg
 
 void MegaFolderUploadController::start(MegaNode*)
 {
+    assert(mMainThreadId == std::this_thread::get_id());
+
     transfer->setFolderTransferTag(-1);
     transfer->setStartTime(Waiter::ds);
     transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -25445,42 +25448,57 @@ void MegaFolderUploadController::start(MegaNode*)
     // add the tree above, to subtrees vector for root tree
     mUploadTree.subtrees.push_back(std::move(newTreeNode));
 
-    // scan folder by recursing all subfolders on disk, building up tree structure to match
-    // not yet existing folders get a temporary upload id instead of a handle
-    if (!scanFolder(*mUploadTree.subtrees.front(), path))
-    {
-        complete(API_EACCESS);
-        return;
-    }
-
     mWorkerThread = std::thread ([this, path]() {
-        // create folders in batches, not too many at once
-        vector<NewNode> newnodes;
-        if (!createNextFolderBatch(mUploadTree, newnodes, true) && !cancelled)
-        {
-            // no folders to create so start uploads
-            // otherwise the folder completion function will start them
-            TransferQueue *transferQueue = new TransferQueue();
-            genUploadTransfersForFiles(mUploadTree, *transferQueue);
-            if (cancelled || !transferQueue)
+        // recurse all subfolders on disk, building up tree structure to match
+        // not yet existing folders get a temporary upload id instead of a handle
+        LocalPath lp = path;
+        bool fullyScanned = scanFolder(*mUploadTree.subtrees.front(), lp);
+
+        // if the thread runs, we always queue a function to execute on MegaApi thread for onFinish()
+        // we keep a pointer to it in case we need to execute it early and directly on cancel()
+
+        mCompletionForMegaApiThread.reset(new ExecuteOnce([this, fullyScanned]() {
+
+            // these next parts must run on megaApi's thread again, as
+            // genUploadTransfersForFiles or checkCompletion may call the fireOnXYZ() functions
+            assert(mMainThreadId == std::this_thread::get_id());
+
+            if (!fullyScanned)
             {
+                complete(API_EACCESS);
                 return;
             }
-            megaApi->executeOnThread([this, &transferQueue]() {
-                // sendPendingTransfers and complete may call fireOnXYZ() so they must run on megaApi's thread
-                if (transferQueue->empty())
+
+            if (cancelled)
+            {
+                complete(API_EINCOMPLETE);
+                return;
+            }
+
+            // create folders in batches, not too many at once
+            vector<NewNode> newnodes;
+            if (!createNextFolderBatch(mUploadTree, newnodes, true))
+            {
+                // no folders to create so start all uploads straight away
+                // otherwise the final folder completion function will start them
+                TransferQueue transferQueue;
+                genUploadTransfersForFiles(mUploadTree, transferQueue);
+
+                if (transferQueue.empty())
                 {
                     complete(API_OK);
                 }
-                else if (!cancelled)
+                else
                 {
                     // completion will occur on the last transfer's onFinish callback
                     // (at which time this object is deleted)
-                    megaApi->sendPendingTransfers(transferQueue);
+                    megaApi->sendPendingTransfers(&transferQueue);
                 }
-                delete transferQueue;
-            });
-        }
+            }
+        }));
+
+        // Queue that function.  It may be executed early by cancel() in which case this one does nothing.
+        megaApi->executeOnThread(mCompletionForMegaApiThread);
     });
 }
 
@@ -25728,6 +25746,8 @@ bool MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
 
 bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, bool isBatchRootLevel)
 {
+    assert(mMainThreadId == std::this_thread::get_id());
+
     // recurse until we find one that is not yet sent
     for (auto& t : tree.subtrees)
     {
@@ -25780,14 +25800,17 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
     if (isBatchRootLevel && !newnodes.empty())
     {
         // the lambda will be exeuted on the megaapi's thread
+        // use a weak_ptr in case this operation was cancelled, and 'this' object doesn't exist
+        // anymore when the request completes
+        weak_ptr<MegaFolderUploadController> weak_this = shared_from_this();
+
         megaApi->createRemoteFolder(tree.megaNode->getHandle(), std::move(newnodes), nullptr,
-            [this](const Error& e, targettype_t t, vector<NewNode>& nn)
+            [this, weak_this](const Error& e, targettype_t t, vector<NewNode>& nn)
             {
-                if (cancelled)
-                {
-                    LOG_warn << "MegaFolderUploadController::createNextFolderBatch - this operation was previously cancelled";
-                    return;
-                }
+                // double check our object still exists on request completion
+                if (!weak_this.lock()) return;
+                assert(weak_this.lock().get() == this);
+                assert(mMainThreadId == std::this_thread::get_id());
 
                 // lambda function that will be executed as completion function in putnodes procresult
                 if (e)
@@ -25855,9 +25878,12 @@ void MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
 void MegaFolderUploadController::complete(Error e)
 {
     assert(mMainThreadId == std::this_thread::get_id());
+
     if (cancelled)
     {
-        LOG_warn << "MegaFolderUploadController::complete - this operation was previously cancelled";
+        // Cancellation only happens on this same thread, and only from cancel()
+        // In which case, it's all much simpler to let the final fireOnTransferFinish be done there
+        // rather than here (which might be being called from the last reminaing subtransfer's completion)
         return;
     }
 
@@ -27034,52 +27060,50 @@ void MegaFolderDownloadController::start(MegaNode *node)
     // for download scan is just checking nodes, we can do this all in one quick pass
     if (!scanFolder(node, path, fsType))
     {
+        // we are still on MegaApi thread here, so ok to call onFinish functions
         complete(API_EINTERNAL);   // inconsistent node state
-        return;
     }
+    else
+    {
+        // start worker thread to create local folder tree
+        mWorkerThread = std::thread([this, fsType](){
 
-    mWorkerThread = std::thread ([this, fsType]() {
-        // local folder creation runs on the download worker thread
-        Error e = createFolder();
-        if (cancelled)
-        {
-            return;
-        }
-        else if (e)
-        {
-            megaApi->executeOnThread([this, e]() {
-                // if createFolder fails, we must call complete from megaApi's thread
-                complete(e);
-            });
-            return;
-        }
+            // local folder creation runs on the download worker thread (and checks the cancelled flag)
+            Error e = createFolder();
 
-        TransferQueue *transferQueue = new TransferQueue();
-        genDownloadTransfersForFiles(fsType, *transferQueue);
-        if (cancelled || !transferQueue)
-        {
-            return;
-        }
-        megaApi->executeOnThread([this, &transferQueue]() {
-            // sendPendingTransfers and complete may call fireOnXYZ() so they must run on megaApi's thread
-            if (transferQueue->empty())
-            {
-                complete(API_OK);
-            }
-            else if (!cancelled)
-            {
-                megaApi->sendPendingTransfers(transferQueue);
-            }
-            delete transferQueue;
+            // the thread always queues a function to execute on MegaApi thread for onFinish()
+			// we keep a pointer to it in case we need to cancel()
+            mCompletionForMegaApiThread.reset(new ExecuteOnce([this, fsType, e]() {
+
+                auto err = e;
+                if (!err && cancelled) err = API_EINCOMPLETE;
+                if (!err)
+                {
+                    // downloadFiles must run on the megaApi thread, as it may call fireOnTransferXYZ()
+                    genDownloadTransfersForFiles(fsType);
+                }
+                else
+                {
+                    complete(err);
+                }
+                }));
+
+            // Queue that function.  It may be executed early by cancel() in which case this one does nothing.
+            megaApi->executeOnThread(mCompletionForMegaApiThread);
         });
-    });
+    }
 }
 
 void MegaFolderDownloadController::cancel()
 {
     assert(mMainThreadId == std::this_thread::get_id());
-    cancelled = true; //we dont want to further checkcompletion, and produce multile fireOnTransferFinish -> multiple deletions
-    if (mWorkerThread.joinable())
+
+    // With the cancelled flag true, the last subtransfer to complete won't automatically
+	// complete and delete our object.  Those would happen on this same thread, so we
+	// know we don't have a race for that.  Final completion occurs from this function.
+	cancelled = true;
+
+	if (mWorkerThread.joinable())
     {
         mWorkerThread.join();
     }
@@ -27090,13 +27114,19 @@ void MegaFolderDownloadController::cancel()
     //remove ongoing subtransfers
     long long cancelledSubTransfers = 0;
 
-    std::unique_ptr<DBTableTransactionCommitter> insideCommiter;
-    DBTableTransactionCommitter *committer = megaapiThreadClient()->tctable ? megaapiThreadClient()->tctable->getTransactionCommitter() : nullptr;
-    if (!committer)
+    // The thread is now finished, and it must have run or this object would have been completed already.
+    // So it prepared a completion function to run on this thread, and it's either queued or already executed
+    // But, we can execute it early.  With cancelled = true, it won't queue any subtransfers or delete us.
+    if (mCompletionForMegaApiThread)
     {
-        insideCommiter.reset(new DBTableTransactionCommitter(megaapiThreadClient()->tctable));
-        committer = insideCommiter.get();
+        mCompletionForMegaApiThread->exec();
     }
+
+    // If we did queue subtransfers (ie, the thread ran with no errors and the completion function executed from the request queue)
+    // Then the code below cancels them.  Since subtransfers were queued, the last one to call fireOnTransferFinished
+    // also causes this object to finish (calling fireOnTransferFinished for itself, and being deleted from that function)
+
+    DBTableTransactionCommitter committer(megaapiThreadClient()->tctable);  // nested committers are allowed now
 
     while (!subTransfers.empty())
     {
@@ -27108,7 +27138,7 @@ void MegaFolderDownloadController::cancel()
             LOG_warn << "Subtransfer without attached Transfer for folder transfer: " << subTransfer->getFileName();
 
             subTransfer->setState(MegaTransfer::STATE_CANCELLED);
-            megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), *committer);
+            megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
 
             continue;
         }
@@ -27136,7 +27166,7 @@ void MegaFolderDownloadController::cancel()
                 {
                     if (!this->transfer->getDoNotStopSubTransfers())
                     {
-                        megaapiThreadClient()->stopxfer(file, committer);
+                        megaapiThreadClient()->stopxfer(file, &committer);
                     }
                     else
                     {
@@ -27164,7 +27194,7 @@ void MegaFolderDownloadController::cancel()
 
         if (fireSubTransferFinish)
         {
-            megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), *committer);
+            megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
         }
 
         cancelledSubTransfers++;
@@ -27172,7 +27202,10 @@ void MegaFolderDownloadController::cancel()
 
     LOG_verbose << "MegaFolderDownloadController, cancelled subTransfers = " << cancelledSubTransfers;
 
-    transfer = nullptr;  // no final callback for this one since it is being destroyed now
+    assert(pendingTransfers == 0);
+
+    // notify the app the whole folder transfer is finished - which deletes this object.
+    megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
 }
 
 bool MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpath, FileSystemType fsType)
@@ -27240,14 +27273,8 @@ Error MegaFolderDownloadController::createFolder()
     // Create all local directories in one shot (on the download worker thread)
     assert(mMainThreadId != std::this_thread::get_id());
     auto it = mLocalTree.begin();
-    while (it != mLocalTree.end())
+    while (!cancelled && it != mLocalTree.end())
     {
-        if (cancelled)
-        {
-            LOG_warn << "MegaFolderDownloadController::createFolder - this operation was previously cancelled";
-            return API_OK;
-        }
-
         LocalPath &localpath = it->localPath;
         Error e = MegaApiImpl::createLocalFolder_unlocked(localpath, *fsaccess);
         if (e && e != API_EEXIST)
@@ -27257,11 +27284,13 @@ Error MegaFolderDownloadController::createFolder()
         }
         ++it;
     }
-    return API_OK;
+    return cancelled ? API_EINCOMPLETE : API_OK;
 }
 
-void MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType fsType, TransferQueue& transferQueue)
+void MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType fsType)
 {
+    TransferQueue transferQueue;
+
     // Add all download transfers in one shot
     for (auto it = mLocalTree.begin(); it != mLocalTree.end(); it++)
     {
@@ -27284,14 +27313,26 @@ void MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
              pendingTransfers++;
          }
     }
+
+    if (pendingTransfers)
+    {
+        megaApi->sendPendingTransfers(&transferQueue);
+    }
+    else
+    {
+        complete(API_OK);
+    }
 }
 
 void MegaFolderDownloadController::complete(Error e)
 {
     assert(mMainThreadId == std::this_thread::get_id());
+
     if (cancelled)
     {
-        LOG_warn<< "MegaFolderDownloadController::complete - this operation was previously cancelled";
+        // Cancellation only happens on this same thread, and only from cancel()
+        // In which case, it's all much simpler to let the final fireOnTransferFinish be done there
+        // rather than here (which might be being called from the last reminaing subtransfer's completion)
         return;
     }
 
@@ -27351,6 +27392,8 @@ void MegaFolderDownloadController::onTransferFinish(MegaApi *, MegaTransfer *t, 
     }
     if (!pendingTransfers)
     {
+        // Cancelled or not, there is always a onFinish callback.
+        // If subtransfers were started, completion is always by the last subtransfer completing
         complete(mIncompleteTransfers ? API_EINCOMPLETE : API_OK);
     }
 }
