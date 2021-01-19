@@ -821,6 +821,7 @@ public:
     bool serialize(string* data) override;
 
     // deserializes the string to a SyncConfig object. Returns null in case of failure
+    // returns a pointer to the unserialized value, owned by MegaClient passed as parameter
     static CacheableStatus* unserialize(MegaClient *client, const std::string& data);
     int64_t type() const;
     int64_t value() const;

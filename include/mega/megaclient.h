@@ -1831,7 +1831,7 @@ public:
     void setKeepSyncsAfterLogout(bool keepSyncsAfterLogout);
 #endif
 
-    // adds the new record to the map in memory and to the DB. Also initialized dedicated vars
+    // adds the new record to the map in memory and to the DB. Also initializes dedicated vars
     void loadCachedStatus(int64_t type, int64_t value);
 
     // add/update cached status, both in memory and DB
