@@ -4527,14 +4527,13 @@ bool MegaClient::procsc()
                             restag = fetchnodestag;
                             fetchnodestag = 0;
 
-                            using CType = CacheableStatus::Type;
-                            auto cachedBlockedState = mCachedStatus[CType::STATUS_BLOCKED];
-                            if (!mBlockedSet && cachedBlockedState && cachedBlockedState->value()) //block state not received in this execution, and cached says we were blocked last time
+                            if (!mBlockedSet
+                                    && hasCachedStatus(CacheableStatus::STATUS_BLOCKED)
+                                    && mCachedStatus.at(CacheableStatus::STATUS_BLOCKED).value()) //block state not received in this execution, and cached says we were blocked last time
                             {
                                 LOG_debug << "cached blocked states reports blocked, and no block state has been received before, issuing whyamiblocked";
                                 whyamiblocked();// lets query again, to trigger transition and restoreSyncs
                             }
-
 
 #ifdef ENABLE_SYNC
 #ifndef __ANDROID__
@@ -5281,30 +5280,7 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         storagestatus_t previousStatus = ststatus;
         ststatus = status;
 
-        using CS = CacheableStatus;
-        using CType = CacheableStatus::Type;
-        auto statusInCache = mCachedStatus[CType::STATUS_STORAGE];
-        if (!statusInCache)
-        {
-            statusInCache = mCachedStatus[CType::STATUS_STORAGE] = std::make_shared<CS>(CType::STATUS_STORAGE, ststatus);
-        }
-        else
-        {
-            mCachedStatus[CacheableStatus::Type::STATUS_STORAGE]->setValue(ststatus);
-        }
-
-        //persist change:
-        if (statusTable)
-        {
-            DBTableTransactionCommitter committer(statusTable);
-            LOG_verbose << "Adding/updating status to database: "
-                        << statusInCache->type() << " = " << statusInCache->value();
-            if (!(statusTable->put(CACHEDSTATUS, statusInCache.get(), &key)))
-            {
-                LOG_err << "Failed to add/update status to db: "
-                            << statusInCache->type() << " = " << statusInCache->value();
-            }
-        }
+        setCachedStatus(CacheableStatus::STATUS_STORAGE, status);
 
         app->notify_storage(ststatus);
 
@@ -5459,26 +5435,61 @@ void MegaClient::sc_updatenode()
     }
 }
 
-void MegaClient::loadCacheableStatus(std::shared_ptr<CacheableStatus> status)
+void MegaClient::loadCachedStatus(int64_t type, int64_t value)
 {
-    mCachedStatus[status->type()] = status;
+    setCachedStatus(type, value);
 
-    LOG_verbose << "Loaded status from cache: " << status->type() << " = " << status->value();
+    LOG_verbose << "Loaded status from cache: " << type << " = " << value;
 
-    switch(status->type())
+    switch(type)
     {
         case CacheableStatus::Type::STATUS_STORAGE:
         {
-            ststatus = static_cast<storagestatus_t>(status->value());
+            ststatus = static_cast<storagestatus_t>(value);
             break;
         }
         case CacheableStatus::Type::STATUS_BUSINESS:
         {
-            mBizStatus = static_cast<BizStatus>(status->value());
+            mBizStatus = static_cast<BizStatus>(value);
             mBizStatusLoadedFromCache = true;
             break;
         }
+        default:
+            break;
     }
+}
+
+bool MegaClient::setCachedStatus(int64_t type, int64_t value)
+{
+    bool changed = false;
+    if (!hasCachedStatus(type))
+    {
+        mCachedStatus.emplace(type, CacheableStatus(type, value));
+        changed = true;
+    }
+    else if (mCachedStatus.at(type).value() != value)
+    {
+        mCachedStatus.at(type).setValue(value);
+        changed = true;
+    }
+
+    if (changed && statusTable)
+    {
+        DBTableTransactionCommitter committer(statusTable);
+        auto &status = mCachedStatus.at(type);
+        LOG_verbose << "Adding/updating status to database: " << status.type() << " = " << status.value();
+        if (!statusTable->put(MegaClient::CACHEDSTATUS, &status, &key))
+        {
+            LOG_err << "Failed to add/update status to db: " << status.type() << " = " << status.value();
+        }
+    }
+
+    return changed;
+}
+
+bool MegaClient::hasCachedStatus(int64_t type)
+{
+    return mCachedStatus.find(type) != mCachedStatus.end();
 }
 
 // read tree object (nodes and users)
@@ -6933,31 +6944,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
     if (newBizStatus != mBizStatus) //has changed
     {
         mBizStatus = newBizStatus;
-
-        using CS = CacheableStatus;
-        using CType = CacheableStatus::Type;
-        auto status = mCachedStatus[CType::STATUS_BUSINESS];
-        if (!status)
-        {
-            status = mCachedStatus[CType::STATUS_BUSINESS] = std::make_shared<CS>(CType::STATUS_BUSINESS, mBizStatus);
-        }
-        else
-        {
-            mCachedStatus[CacheableStatus::Type::STATUS_BUSINESS]->setValue(mBizStatus);
-        }
-
-        //persist change:
-        if (statusTable)
-        {
-            DBTableTransactionCommitter committer(statusTable);
-            LOG_verbose << "Adding/updating status to database: "
-                        << status->type() << " = " << status->value();
-            if (!(statusTable->put(CACHEDSTATUS, status.get(), &key)))
-            {
-                LOG_err << "Failed to add/update status to db: "
-                            << status->type() << " = " << status->value();
-            }
-        }
+        setCachedStatus(CacheableStatus::STATUS_BUSINESS, newBizStatus);
 
 #ifdef ENABLE_SYNC
         if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired
@@ -9066,8 +9053,6 @@ void MegaClient::login(string session)
 
     if (session.size() == sizeof key.key + SIDLEN)
     {
-        string t;
-
         key.setkey((const byte*)session.data());
         sid.assign((const char*)session.data() + sizeof key.key, SIDLEN);
 
@@ -11260,30 +11245,7 @@ void MegaClient::setBlocked(bool value)
     mBlocked = value;
     mBlockedSet = true;
 
-    using CS = CacheableStatus;
-    using CType = CacheableStatus::Type;
-    auto status = mCachedStatus[CType::STATUS_BLOCKED];
-    if (!status)
-    {
-        status = mCachedStatus[CType::STATUS_BLOCKED] = std::make_shared<CS>(CType::STATUS_BLOCKED, mBlocked);
-    }
-    else
-    {
-        mCachedStatus[CacheableStatus::Type::STATUS_BLOCKED]->setValue(mBlocked);
-    }
-
-    //persist change:
-    if (statusTable)
-    {
-        DBTableTransactionCommitter committer(statusTable);
-        LOG_verbose << "Adding/updating status to database: "
-                    << status->type() << " = " << status->value();
-        if (!(statusTable->put(CACHEDSTATUS, status.get(), &key)))
-        {
-            LOG_err << "Failed to add/update status to db: "
-                        << status->type() << " = " << status->value();
-        }
-    }
+    setCachedStatus(CacheableStatus::STATUS_BLOCKED, mBlocked);
 }
 
 void MegaClient::block(bool fromServerClientResponse)

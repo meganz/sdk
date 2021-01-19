@@ -21640,13 +21640,12 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             const char *name = request->getName();
-
             const char *remotePath = request->getLink();
 
             using CType = CacheableStatus::Type;
-            bool overStorage = client->mCachedStatus[CType::STATUS_STORAGE] ? (client->mCachedStatus[CType::STATUS_STORAGE]->value() >= MegaApi::STORAGE_STATE_RED) : false;
-            bool businessExpired = client->mCachedStatus[CType::STATUS_BUSINESS] ? (client->mCachedStatus[CType::STATUS_BUSINESS]->value() == BIZ_STATUS_EXPIRED) : false;
-            bool blocked = client->mCachedStatus[CType::STATUS_BLOCKED] ? (client->mCachedStatus[CType::STATUS_BLOCKED]->value()) : false;
+            bool overStorage = client->hasCachedStatus(CType::STATUS_STORAGE) ? (client->mCachedStatus.at(CType::STATUS_STORAGE).value() >= MegaApi::STORAGE_STATE_RED) : false;
+            bool businessExpired = client->hasCachedStatus(CType::STATUS_BUSINESS) ? (client->mCachedStatus.at(CType::STATUS_BUSINESS).value() == BIZ_STATUS_EXPIRED) : false;
+            bool blocked = client->hasCachedStatus(CType::STATUS_BLOCKED) ? (client->mCachedStatus.at(CType::STATUS_BLOCKED).value()) : false;
 
             auto syncError = NO_SYNC_ERROR;
             // the order is important here: a user needs to resolve blocked in order to resolve storage
@@ -21709,9 +21708,7 @@ void MegaApiImpl::sendPendingRequests()
             int storageStatusValue = static_cast<int>(number % 1000);
 
 
-            using CS = CacheableStatus;
             using CType = CacheableStatus::Type;
-
             auto loadAndPersist = [this](CType type, int value) -> error
             {
                 if (value == 999)
@@ -21719,29 +21716,16 @@ void MegaApiImpl::sendPendingRequests()
                     LOG_verbose << "Ignoring not valid status in migration: " << type << " = " << value;
                     return API_OK; //received invalid value: not to be used
                 }
-                auto status = client->mCachedStatus[type];
-                if (status) // the sdk already has a cached value
+
+                if (client->hasCachedStatus(type))
                 {
-                    LOG_verbose << "Ignoring already present status in migration: " << type << " = " << value << " existing = " << status->value();
+                    LOG_verbose << "Ignoring already present status in migration: " << type << " = " << value
+                                << " existing = " << client->mCachedStatus.at(type).value();
                     return API_OK;
                 }
-                status = std::make_shared<CS>(type, value);
 
-                client->loadCacheableStatus(status);
-
-                if (client->statusTable)
-                {
-                    DBTableTransactionCommitter committer(client->statusTable);
-                    LOG_verbose << "Adding/updating migrated status to database: " << status->type() << " = " << status->value();
-                    if (!(client->statusTable->put(MegaClient::CACHEDSTATUS, status.get(), &client->key)))
-                    {
-                        LOG_err << "Failed to add/update migrated status to db: "
-                                    << status->type() << " = " << status->value();
-                        return API_EINTERNAL;
-                }
+                client->loadCachedStatus(type, value);
                 return API_OK;
-                }
-                return API_ENOENT;
             };
 
             auto subE = loadAndPersist(CType::STATUS_STORAGE, storageStatusValue);

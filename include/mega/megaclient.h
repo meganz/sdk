@@ -889,7 +889,7 @@ public:
     storagestatus_t ststatus;
 
     // cacheable status
-    std::map<int64_t, std::shared_ptr<CacheableStatus>> mCachedStatus;
+    std::map<int64_t, CacheableStatus> mCachedStatus;
 
     // warning timestamps related to storage overquota in paywall mode
     vector<m_time_t> mOverquotaWarningTs;
@@ -1831,8 +1831,14 @@ public:
     void setKeepSyncsAfterLogout(bool keepSyncsAfterLogout);
 #endif
 
-    void loadCacheableStatus(std::shared_ptr<CacheableStatus> status);
+    // adds the new record to the map in memory and to the DB. Also initialized dedicated vars
+    void loadCachedStatus(int64_t type, int64_t value);
 
+    // add/update cached status, both in memory and DB
+    bool setCachedStatus(int64_t type, int64_t value);
+
+    // true if there is a cached value for that type
+    bool hasCachedStatus(int64_t type);
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();

@@ -2247,7 +2247,7 @@ bool CacheableStatus::serialize(std::string* data)
     return const_cast<const CacheableStatus*>(this)->serialize(*data);
 }
 
-std::shared_ptr<CacheableStatus> CacheableStatus::unserialize(class MegaClient *client, const std::string& data)
+CacheableStatus* CacheableStatus::unserialize(class MegaClient *client, const std::string& data)
 {
     int64_t type;
     int64_t value;
@@ -2262,10 +2262,8 @@ std::shared_ptr<CacheableStatus> CacheableStatus::unserialize(class MegaClient *
         return {};
     }
 
-    auto cacheableStatus = std::make_shared<CacheableStatus>(type, value);
-
-    client->loadCacheableStatus(cacheableStatus);
-    return cacheableStatus;
+    client->loadCachedStatus(type, value);
+    return &client->mCachedStatus.at(type);
 }
 
 bool CacheableStatus::serialize(std::string& data) const

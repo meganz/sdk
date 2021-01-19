@@ -821,7 +821,7 @@ public:
     bool serialize(string* data) override;
 
     // deserializes the string to a SyncConfig object. Returns null in case of failure
-    static std::shared_ptr<CacheableStatus> unserialize(MegaClient *client, const std::string& data);
+    static CacheableStatus* unserialize(MegaClient *client, const std::string& data);
     int64_t type() const;
     int64_t value() const;
 
