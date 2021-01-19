@@ -9116,6 +9116,7 @@ void MegaClient::login(string session)
 
             checkForResumeableSCDatabase();
 
+            restag = reqtag;
             app->login_result(API_OK);
         }
     }
