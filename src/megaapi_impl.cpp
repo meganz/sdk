@@ -25366,15 +25366,15 @@ void MegaFolderUploadController::start(MegaNode*)
         {
             // no folders to create so start uploads
             // otherwise the folder completion function will start them
-            TransferQueue transferQueue;
-            genUploadTransfersForFiles(mUploadTree, transferQueue);
-            if (cancelled)
+            TransferQueue *transferQueue = new TransferQueue();
+            genUploadTransfersForFiles(mUploadTree, *transferQueue);
+            if (cancelled || !transferQueue)
             {
                 return;
             }
             megaApi->executeOnThread([this, &transferQueue]() {
                 // sendPendingTransfers and complete may call fireOnXYZ() so they must run on megaApi's thread
-                if (transferQueue.empty())
+                if (transferQueue->empty())
                 {
                     complete(API_OK);
                 }
@@ -25382,8 +25382,9 @@ void MegaFolderUploadController::start(MegaNode*)
                 {
                     // completion will occur on the last transfer's onFinish callback
                     // (at which time this object is deleted)
-                    megaApi->sendPendingTransfers(&transferQueue);
+                    megaApi->sendPendingTransfers(transferQueue);
                 }
+                delete transferQueue;
             });
         }
     });
@@ -26959,22 +26960,23 @@ void MegaFolderDownloadController::start(MegaNode *node)
             return;
         }
 
-        TransferQueue transferQueue;
-        genDownloadTransfersForFiles(fsType, transferQueue);
-        if (cancelled)
+        TransferQueue *transferQueue = new TransferQueue();
+        genDownloadTransfersForFiles(fsType, *transferQueue);
+        if (cancelled || !transferQueue)
         {
             return;
         }
         megaApi->executeOnThread([this, &transferQueue]() {
             // sendPendingTransfers and complete may call fireOnXYZ() so they must run on megaApi's thread
-            if (transferQueue.empty())
+            if (transferQueue->empty())
             {
                 complete(API_OK);
             }
             else if (!cancelled)
             {
-                megaApi->sendPendingTransfers(&transferQueue);
+                megaApi->sendPendingTransfers(transferQueue);
             }
+            delete transferQueue;
         });
     });
 }
