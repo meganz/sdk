@@ -2255,11 +2255,11 @@ CacheableStatus* CacheableStatus::unserialize(class MegaClient *client, const st
     CacheableReader reader{data};
     if (!reader.unserializei64(type))
     {
-        return {};
+        return nullptr;
     }
     if (!reader.unserializei64(value))
     {
-        return {};
+        return nullptr;
     }
 
     client->loadCachedStatus(type, value);
