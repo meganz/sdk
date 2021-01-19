@@ -26940,35 +26940,43 @@ void MegaFolderDownloadController::start(MegaNode *node)
     if (!scanFolder(node, path, fsType))
     {
         complete(API_EINTERNAL);   // inconsistent node state
+        return;
     }
-    else
-    {
-        mWorkerThread = std::thread ([this, node, fsType, path]() {
-            LocalPath localPath = std::move(path);
-        
-            if (!cancelled)
-            {
-                // local folder creation runs on the download worker thread
-                Error e = createFolder();
-                if (e)
-                {
-                    complete(e);
-                    return;
-                }
-            }
-            if (!cancelled)
-            {
-                megaApi->executeOnThread([this, fsType]() {
 
-                    if (!cancelled)
-                    {
-                        // downloadFiles must run on the megaApi thread, as it may call fireOnTransferXYZ()
-                        downloadFiles(fsType);
-                    }
-                });
-             }
+    mWorkerThread = std::thread ([this, fsType]() {
+        // local folder creation runs on the download worker thread
+        Error e = createFolder();
+        if (cancelled)
+        {
+            return;
+        }
+        else if (e)
+        {
+            megaApi->executeOnThread([this, e]() {
+                // if createFolder fails, we must call complete from megaApi's thread
+                complete(e);
+            });
+            return;
+        }
+
+        TransferQueue transferQueue;
+        genDownloadTransfersForFiles(fsType, transferQueue);
+        if (cancelled)
+        {
+            return;
+        }
+        megaApi->executeOnThread([this, &transferQueue]() {
+            // sendPendingTransfers and complete may call fireOnXYZ() so they must run on megaApi's thread
+            if (transferQueue.empty())
+            {
+                complete(API_OK);
+            }
+            else if (!cancelled)
+            {
+                megaApi->sendPendingTransfers(&transferQueue);
+            }
         });
-    }
+    });
 }
 
 void MegaFolderDownloadController::cancel()
@@ -27074,6 +27082,11 @@ void MegaFolderDownloadController::cancel()
 bool MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpath, FileSystemType fsType)
 {
     assert(mMainThreadId == std::this_thread::get_id());
+    if (cancelled)
+    {
+        LOG_warn << "MegaFolderDownloadController::scanFolder - this operation was previously cancelled";
+        return false;
+    }
     recursive++;
     size_t index = 0;
     if (node->getType() == FOLDERNODE)
@@ -27133,6 +27146,12 @@ Error MegaFolderDownloadController::createFolder()
     auto it = mLocalTree.begin();
     while (it != mLocalTree.end())
     {
+        if (cancelled)
+        {
+            LOG_warn << "MegaFolderDownloadController::createFolder - this operation was previously cancelled";
+            return API_OK;
+        }
+
         LocalPath &localpath = it->localPath;
         Error e = MegaApiImpl::createLocalFolder_unlocked(localpath, *fsaccess);
         if (e && e != API_EEXIST)
@@ -27145,16 +27164,19 @@ Error MegaFolderDownloadController::createFolder()
     return API_OK;
 }
 
-void MegaFolderDownloadController::downloadFiles(FileSystemType fsType)
+void MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType fsType, TransferQueue& transferQueue)
 {
-    assert(mMainThreadId == std::this_thread::get_id());
-    TransferQueue transferQueue;
     // Add all download transfers in one shot
     for (auto it = mLocalTree.begin(); it != mLocalTree.end(); it++)
     {
+        if (cancelled)
+        {
+            LOG_warn << "MegaFolderDownloadController::downloadFiles - this operation was previously cancelled";
+            return;
+        }
+
         LocalPath &localpath = it->localPath;
         const std::vector<unique_ptr<MegaNode>> &childrenNodes = it->childrenNodes;
-
         for (size_t i = 0; i < childrenNodes.size(); i++)
         {
              MegaNode &node = *(childrenNodes.at(i).get());
@@ -27165,15 +27187,6 @@ void MegaFolderDownloadController::downloadFiles(FileSystemType fsType)
              transferQueue.push(transferDownload);
              pendingTransfers++;
          }
-    }
-
-    if (pendingTransfers)
-    {
-        megaApi->sendPendingTransfers(&transferQueue);
-    }
-    else
-    {
-        complete(API_OK);
     }
 }
 

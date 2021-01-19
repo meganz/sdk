@@ -476,7 +476,7 @@ protected:
     vector<LocalTree> mLocalTree;
     bool scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType);
     Error createFolder();
-    void downloadFiles(FileSystemType fsType);
+    void genDownloadTransfersForFiles(FileSystemType fsType, TransferQueue &transferQueue);
 };
 
 class MegaNodePrivate : public MegaNode, public Cacheable
