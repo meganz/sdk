@@ -6101,6 +6101,38 @@ TEST_F(SdkTest, SyncRemoteNode)
     ASSERT_TRUE(sync && sync->isActive());
     ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
 
+
+    // Rename remote folder --> Sync fail
+    {
+        TestingWithLogErrorAllowanceGuard g;
+        LOG_verbose << "SyncRemoteNode :  Rename remote node.";
+        std::string renamedBasePath = basePath.u8string() + "Renamed";
+        ASSERT_NO_FATAL_FAILURE(renameNode(0, remoteBaseNode.get(), renamedBasePath));
+        sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
+        ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
+        ASSERT_EQ(MegaSync::REMOTE_PATH_HAS_CHANGED, sync->getError());
+
+        LOG_verbose << "SyncRemoteNode :  Renaming back the remote node.";
+        ASSERT_NO_FATAL_FAILURE(renameNode(0, remoteBaseNode.get(), basePath.u8string()));
+        ASSERT_NE(remoteBaseNode.get(), nullptr);
+        sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
+        ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
+
+        unique_ptr<char[]> pathFromNode{ megaApi[0]->getNodePath(remoteBaseNode.get()) };
+        string actualPath{ pathFromNode.get() };
+        string pathFromSync{ sync->getMegaFolder() };
+        ASSERT_EQ(actualPath, pathFromSync) << "Wrong updated path";
+
+        ASSERT_EQ(MegaSync::REMOTE_PATH_HAS_CHANGED, sync->getError()); //the error stays until re-enabled
+    }
+
+    LOG_verbose << "SyncRemoteNode :  Enabling sync again.";
+    ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, backupId)) << "API Error enabling the sync";
+    sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
+    ASSERT_TRUE(sync && sync->isActive());
+    ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
+
+
     {
         TestingWithLogErrorAllowanceGuard g;
         // Remove remote folder --> Sync fail
