@@ -38,6 +38,8 @@ public:
     DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags) override;
 
     bool probe(FileSystemAccess& fsAccess, const string& name) const override;
+
+    const LocalPath& rootPath() const override;
 };
 
 class MEGA_API SqliteDbTable : public DbTable

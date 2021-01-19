@@ -643,12 +643,6 @@ int MegaClient::nextreqtag()
     return ++reqtag;
 }
 
-int MegaClient::nextSyncTag(int increment)
-{
-    mSyncTag += increment;
-    return ++mSyncTag;
-}
-
 void MegaClient::exportDatabase(string filename)
 {
     FILE *fp = NULL;
@@ -1336,7 +1330,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
     nextuh = 0;
     reqtag = 0;
-    mSyncTag = 0;
 
     badhostcs = NULL;
 
@@ -1839,7 +1832,7 @@ void MegaClient::exec()
                             if (fetchingnodes && fnstats.timeToFirstByte == NEVER
                                     && pendingcs->bufpos > 10)
                             {
-								WAIT_CLASS::bumpds();
+                                WAIT_CLASS::bumpds();
                                 fnstats.timeToFirstByte = WAIT_CLASS::ds - fnstats.startTime;
                             }
 
@@ -1862,7 +1855,7 @@ void MegaClient::exec()
                             {
                                 if (fetchingnodes && fnstats.timeToFirstByte == NEVER)
                                 {
-									WAIT_CLASS::bumpds();
+                                    WAIT_CLASS::bumpds();
                                     fnstats.timeToFirstByte = WAIT_CLASS::ds - fnstats.startTime;
                                 }
 
@@ -4155,7 +4148,7 @@ void MegaClient::locallogout(bool removecaches)
         }
         else
         {
-        	syncs.removeSelectedSyncs([](SyncConfig&, Sync* s){ return s != nullptr; });
+            syncs.removeSelectedSyncs([](SyncConfig&, Sync* s){ return s != nullptr; });
         }
 #endif
         removeCaches();
@@ -4184,6 +4177,7 @@ void MegaClient::locallogout(bool removecaches)
     nsr_enabled = false;
     aplvp_enabled = false;
     mNewLinkFormat = false;
+    mCookieBannerEnabled = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     mSmsVerifiedPhone.clear();
     loggingout = 0;
@@ -4266,10 +4260,10 @@ void MegaClient::locallogout(bool removecaches)
     {
         for (int i = 2; i--; )
         {
-    	    for (faf_map::iterator it = cit->second->fafs[i].begin(); it != cit->second->fafs[i].end(); it++)
-    	    {
+            for (faf_map::iterator it = cit->second->fafs[i].begin(); it != cit->second->fafs[i].end(); it++)
+            {
                 delete it->second;
-    	    }
+            }
         }
 
         delete cit->second;
@@ -8603,6 +8597,9 @@ error MegaClient::readmiscflags(JSON *json)
         case MAKENAMEID4('n', 'l', 'f', 'e'):   // new link format enabled
             mNewLinkFormat = static_cast<bool>(json->getint());
             break;
+        case MAKENAMEID4('c', 's', 'p', 'e'):   // cookie banner enabled
+            mCookieBannerEnabled = bool(json->getint());
+            break;
         case EOO:
             return API_OK;
         default:
@@ -9119,6 +9116,7 @@ void MegaClient::login(string session)
 
             checkForResumeableSCDatabase();
 
+            restag = reqtag;
             app->login_result(API_OK);
         }
     }
@@ -9306,12 +9304,12 @@ void MegaClient::opensctable()
         {
             sctable = dbaccess->open(rng, *fsaccess, dbname);
             pendingsccommit = false;
-        }
 
-        // sctable always has a transaction started.
-        // We only commit once we have an up to date SCSN and the table state matches it.
-        sctable->begin();
-        assert(sctable->inTransaction());
+            // sctable always has a transaction started.
+            // We only commit once we have an up to date SCSN and the table state matches it.
+            sctable->begin();
+            assert(sctable->inTransaction());
+        }
     }
 }
 
@@ -13038,7 +13036,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
 #endif
 }
 
-error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, SyncError *syncError)
+error MegaClient::isLocalPathSyncable(string newPath, handle excludeBackupId, SyncError *syncError)
 {
     if (!newPath.size())
     {
@@ -13056,7 +13054,7 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, SyncError 
     error e = API_OK;
     syncs.forEachSyncConfig([&](const SyncConfig& config){
 
-        if (config.getTag() != newSyncTag)
+        if (config.getBackupId() != excludeBackupId && excludeBackupId != UNDEF) // for the check inside addsync() when it's already present
         {
             LocalPath otherLocallyEncodedPath = LocalPath::fromPath(config.getLocalPath(), *fsaccess);
             LocalPath otherLocallyEncodedAbsolutePath;
@@ -13067,7 +13065,6 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, SyncError 
                       || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath)
                     ) )
             {
-
                 if (syncError)
                 {
                     *syncError = LOCAL_PATH_SYNC_COLLISION;
@@ -13139,7 +13136,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
             // so that the app does not need to carry that burden.
             // Although it might not be required given the following test does expands the configured
             // paths to use canonical paths when checking for path collisions:
-            error e = isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.getTag(), &syncConfig.mError);
+            error e = isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.getBackupId(), &syncConfig.mError);
             if (e)
             {
                 LOG_warn << "Local path not syncable: ";
@@ -13149,7 +13146,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
                     syncConfig.mError = LOCAL_PATH_UNAVAILABLE;
                 }
                 syncConfig.mEnabled = false;
-                return API_EFAILED;
+                return e;  // eg. API_EARGS
             }
         }
         else
@@ -13173,27 +13170,90 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 #endif
 }
 
-
-error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* localdebris, bool delayInitialScan, UnifiedSync*& unifiedSync, bool notifyApp)
+void MegaClient::copySyncConfig(SyncConfig& config, std::function<void(mega::UnifiedSync *, const SyncError &, error)> completion)
 {
-    unifiedSync = nullptr;
+    string localFolderEncrypted(cypherTLVTextWithMasterKey("lf", config.getLocalPath()) );
+    string deviceIdHash = getDeviceidHash();
+    string extraData; // Empty extra data for the moment, in the future, any should come in config
+
+    reqs.add( new CommandBackupPut(this, BackupInfoSync::getSyncType(config)
+                                   , config.getName().c_str(), config.getRemoteNode()
+                                   , localFolderEncrypted.c_str(), deviceIdHash.c_str()
+                                   , BackupInfoSync::getSyncState(config, this)
+                                   , config.getError()
+                                   , extraData
+                                   , [this, config, completion](Error e, handle backupId) mutable {
+        if (ISUNDEF(backupId) && !e)
+        {
+            e = API_EFAILED;
+        }
+
+        if (e)
+        {
+            completion(nullptr, config.getError(), e);
+        }
+        else
+        {
+            config.setBackupId(backupId);
+
+            UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
+
+            completion(unifiedSync, unifiedSync->mConfig.getError(), e);
+        }
+    }));
+}
+
+error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* localdebris, bool delayInitialScan, bool notifyApp,
+                          std::function<void(mega::UnifiedSync *, const SyncError &, error)> completion)
+{
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
     Node* remotenode;
     bool inshare, isnetwork;
     error e = checkSyncConfig(config, rootpath, openedLocalFolder, remotenode, inshare, isnetwork);
 
-    if (!e)
+    if (e)
     {
-        // if we got this far, the syncConfig is kept (in db and in memory)
-        unifiedSync = syncs.appendNewSync(config, *this);
+        completion(nullptr, config.getError(), e);
+    }
+    else // API_OK (success)
+    {
+        string localFolderEncrypted(cypherTLVTextWithMasterKey("lf", config.getLocalPath()) );
+        string deviceIdHash = getDeviceidHash();
+        string extraData; // Empty extra data for the moment, in the future, any should come in SyncConfig
 
-        if (config.mEnabled)
-        {
-            e = unifiedSync->enableSync(false, notifyApp);
-            syncactivity = true;
-        }
-        config = unifiedSync->mConfig;  // so the caller can easily check the config they passed in
+        reqs.add( new CommandBackupPut(this, BackupInfoSync::getSyncType(config)
+                                       , config.getName().c_str(), config.getRemoteNode()
+                                       , localFolderEncrypted.c_str(), deviceIdHash.c_str()
+                                       , BackupInfoSync::getSyncState(config, this)
+                                       , config.getError()
+                                       , extraData
+                                       , [this, config, completion, notifyApp](Error e, handle backupId) mutable {
+            if (ISUNDEF(backupId) && !e)
+            {
+                e = API_EFAILED;
+            }
+
+            if (e)
+            {
+                completion(nullptr, config.getError(), e);
+            }
+            else
+            {
+
+                // if we got this far, the syncConfig is kept (in db and in memory)
+                config.setBackupId(backupId);
+
+                //TODO: remove BackupMonitor::updateOrRegisterSync "Register" code path and backupId control
+                UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
+
+                e = unifiedSync->enableSync(false, notifyApp);
+
+                syncactivity = true;
+
+                completion(unifiedSync, unifiedSync->mConfig.getError(), e);
+            }
+        }));
     }
 
     return e;
@@ -13473,7 +13533,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
 
         // does this node already have a corresponding LocalNode under
         // a different name or elsewhere in the filesystem?
-        if (rit->second->localnode && rit->second->localnode != (LocalNode*)~0)
+        if (rit->second->localnode.get() && rit->second->localnode.get() != (LocalNode*)~0)
         {
             LOG_debug << "has a previous localnode: " << rit->second->localnode->name;
             if (rit->second->localnode->parent)
@@ -13523,7 +13583,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, bool rubbish)
                 {
                     bool download = true;
                     auto f = fsaccess->newfileaccess(false);
-                    if (rit->second->localnode != (LocalNode*)~0
+                    if (rit->second->localnode.get() != (LocalNode*)~0
                             && (f->fopen(localpath) || f->type == FOLDERNODE))
                     {
                         if (f->mIsSymLink && l->sync->movetolocaldebris(localpath))
@@ -14295,10 +14355,12 @@ void MegaClient::syncupdate()
                 // this assert fails for the case of two different files uploaded to the same path, and both putnodes occurring in the same exec()
                 assert(localNode->type == FOLDERNODE
                        || localNode->h == localNode->parent->node->nodehandle); // if it's a file, it should match
+
+                auto nextTag = nextreqtag();
                 reqs.add(new CommandPutNodes(this,
                                                 localNode->parent->node->nodehandle,
                                                 NULL, move(nn),
-                                                localNode->sync->tag,
+                                                nextTag, //assign a new unused reqtag
                                                 PUTNODES_SYNC));
 
                 syncactivity = true;
@@ -14355,7 +14417,7 @@ void MegaClient::movetosyncdebris(Node* dn, bool unlink)
     // detach node from LocalNode
     if (dn->localnode)
     {
-        dn->tag = dn->localnode->sync->tag;
+        dn->tag = nextreqtag(); //assign a new unused reqtag
         dn->localnode.reset();
     }
 
