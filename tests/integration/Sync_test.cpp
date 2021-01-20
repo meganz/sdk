@@ -2315,8 +2315,8 @@ public:
 
     void confirmModels()
     {
-        confirmModel(*client0, model0, 0);
-        confirmModel(*client1, model1, 1);
+        confirmModel(*client0, model0, backupId0);
+        confirmModel(*client1, model1, backupId1);
     }
 
     const fs::path localRoot0() const
