@@ -8287,15 +8287,20 @@ CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, const st
 
     cmd("sp");
 
+    string localFolderEncrypted(client->cypherTLVTextWithMasterKey("lf", localFolder));
+
     arg("t", type);
     arg("h", (byte*)&nodeHandle, MegaClient::NODEHANDLE);
-    arg("l", localFolder.c_str());
+    arg("l", localFolderEncrypted.c_str());
     arg("d", deviceId.c_str());
     arg("s", state);
     arg("ss", subState);
 
     if (!extraData.empty())
-        arg("e", extraData.c_str());
+    {
+        string edEncrypted(client->cypherTLVTextWithMasterKey("ed", extraData));
+        arg("e", edEncrypted.c_str());
+    }
 
     mBackupName = Base64::btoa(backupName);
     tag = client->reqtag;
@@ -8322,7 +8327,8 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupTy
 
     if (localFolder)
     {
-        arg("l", localFolder);
+        string localFolderEncrypted(client->cypherTLVTextWithMasterKey("lf", localFolder));
+        arg("l", localFolderEncrypted.c_str());
     }
 
     if (deviceId)
@@ -8342,7 +8348,8 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupTy
 
     if (extraData)
     {
-        arg("e", extraData);
+        string edEncrypted(client->cypherTLVTextWithMasterKey("ed", extraData));
+        arg("e", edEncrypted.c_str());
     }
 
     tag = client->reqtag;
@@ -8565,13 +8572,13 @@ bool CommandBackupSyncFetch::procresult(Result r)
                 case MAKENAMEID1('t'):          d.syncType = client->json.getint32(); break;
                 case MAKENAMEID1('h'):          d.rootNode = client->json.gethandle(MegaClient::NODEHANDLE); break;
                 case MAKENAMEID1('l'):          client->json.storeobject(&d.localFolder);
-                                                d.localFolder = Base64::atob(d.localFolder);
+                                                d.localFolder = client->decypherTLVTextWithMasterKey("lf", d.localFolder);
                                                 break;
                 case MAKENAMEID1('d'):          client->json.storeobject(&d.deviceId); break;
                 case MAKENAMEID1('s'):          d.syncState = client->json.getint32(); break;
                 case MAKENAMEID2('s', 's'):     d.syncSubstate = client->json.getint32(); break;
                 case MAKENAMEID1('e'):          client->json.storeobject(&d.extra);
-                                                d.extra = Base64::atob(d.extra);
+                                                d.extra = client->decypherTLVTextWithMasterKey("ed", d.extra);
                                                 break;
                 case MAKENAMEID2('h', 'b'):
                 {

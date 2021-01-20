@@ -659,7 +659,8 @@ public:
      * @param text value of the record
      * @return encrypted base64 string with the tlv contents
      */
-    std::string cypherTLVTextWithMasterKey(const char *name, const std::string &text);
+    std::string cypherTLVTextWithMasterKey(const char* name, const std::string& text);
+    std::string decypherTLVTextWithMasterKey(const char* name, const std::string& text);
 
     // close all open HTTP connections
     void disconnect();

@@ -13180,13 +13180,12 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 
 void MegaClient::copySyncConfig(SyncConfig& config, std::function<void(mega::UnifiedSync *, const SyncError &, error)> completion)
 {
-    string localFolderEncrypted(cypherTLVTextWithMasterKey("lf", config.getLocalPath()) );
     string deviceIdHash = getDeviceidHash();
     string extraData; // Empty extra data for the moment, in the future, any should come in config
 
     reqs.add( new CommandBackupPut(this, BackupInfoSync::getSyncType(config)
                                    , config.getName().c_str(), config.getRemoteNode()
-                                   , localFolderEncrypted.c_str(), deviceIdHash.c_str()
+                                   , config.getLocalPath(), deviceIdHash.c_str()
                                    , BackupInfoSync::getSyncState(config, this)
                                    , config.getError()
                                    , extraData
@@ -13226,13 +13225,12 @@ error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* loc
     }
     else // API_OK (success)
     {
-        string localFolderEncrypted(cypherTLVTextWithMasterKey("lf", config.getLocalPath()) );
         string deviceIdHash = getDeviceidHash();
         string extraData; // Empty extra data for the moment, in the future, any should come in SyncConfig
 
         reqs.add( new CommandBackupPut(this, BackupInfoSync::getSyncType(config)
                                        , config.getName().c_str(), config.getRemoteNode()
-                                       , localFolderEncrypted.c_str(), deviceIdHash.c_str()
+                                       , config.getLocalPath().c_str(), deviceIdHash.c_str()
                                        , BackupInfoSync::getSyncState(config, this)
                                        , config.getError()
                                        , extraData
@@ -14682,13 +14680,26 @@ void MegaClient::execmovetosyncdebris()
 
 #endif
 
-string MegaClient::cypherTLVTextWithMasterKey(const char *name, const string &text)
+string MegaClient::cypherTLVTextWithMasterKey(const char* name, const string& text)
 {
     TLVstore tlv;
     tlv.set(name, text);
-    std::unique_ptr<string> tlvStr{tlv.tlvRecordsToContainer(rng, &key)};
+    std::unique_ptr<string> tlvStr{ tlv.tlvRecordsToContainer(rng, &key) };
 
     return Base64::btoa(*tlvStr);
+}
+
+string MegaClient::decypherTLVTextWithMasterKey(const char* name, const string& encoded)
+{
+    string unencoded = Base64::atob(encoded);
+
+    unique_ptr<TLVstore> tlv(TLVstore::containerToTLVrecords(&unencoded, &key));
+    if (tlv && tlv->find(name)) {
+        // we have to check with "find" as get() will throw an exception (in contrast to the documented behaviour) if the key is not present
+        return tlv->get(name);
+    }
+
+    return "";
 }
 
 #ifdef ENABLE_SYNC

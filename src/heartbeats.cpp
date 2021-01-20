@@ -349,14 +349,13 @@ void BackupMonitor::digestPutResult(handle backupId, UnifiedSync* syncPtr)
 
 void BackupMonitor::updateBackupInfo(handle backupId, const BackupInfo &info)
 {
-    string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", info.localFolder()) );
     string deviceIdHash = mClient->getDeviceidHash();
 
     mClient->reqs.add(new CommandBackupPut(mClient,
                                            backupId,
                                            info.type(),
                                            info.megaHandle(),
-                                           localFolderEncrypted.c_str(),
+                                           info.localFolder().c_str(),
                                            deviceIdHash.c_str(),
                                            info.state(),
                                            info.subState(),
@@ -368,16 +367,14 @@ void BackupMonitor::updateBackupInfo(handle backupId, const BackupInfo &info)
 
 void BackupMonitor::registerBackupInfo(const BackupInfo &info, UnifiedSync* syncPtr)
 {
-    string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", info.localFolder()) );
     string deviceIdHash = mClient->getDeviceidHash();
 
     mClient->reqs.add(new CommandBackupPut(mClient, info.type(), info.backupName(), info.megaHandle(),
-                                           localFolderEncrypted.c_str(),
+                                           info.localFolder().c_str(),
                                            deviceIdHash.c_str(),
                                            info.state(), info.subState(), info.extra().c_str(),
                                            [this, syncPtr](Error e, handle h){ if (!e) digestPutResult(h, syncPtr); }));
 }
-
 
 void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
 {

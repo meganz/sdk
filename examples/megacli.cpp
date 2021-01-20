@@ -3027,7 +3027,7 @@ void exec_backupcentre(autocomplete::ACState& s)
             {
                 cout << "id: " << toHandle(d.backupId) << endl;
                 cout << "  sync type: " << d.syncType << endl;
-                cout << "  root handle: " << toNodeHandle(d.rootNode);
+                cout << "  root handle: " << toNodeHandle(d.rootNode) << endl;
                 cout << "  local folder: " << d.localFolder << endl;
                 cout << "  device id: " << d.deviceId << endl;
                 cout << "  sync state: " << d.syncState << endl;

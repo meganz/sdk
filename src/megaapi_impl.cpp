@@ -23012,16 +23012,9 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                string localFolderEncrypted(client->cypherTLVTextWithMasterKey("lf", localFolder));
-                string extraDataEncrypted;
-                if (extraData)
-                {
-                    extraDataEncrypted = client->cypherTLVTextWithMasterKey("ed", extraData);
-                }
-
                 client->reqs.add(new CommandBackupPut(client, bType, backupName, remoteNode,
-                                                      localFolderEncrypted.c_str(), client->getDeviceidHash(),
-                                                      request->getAccess(), request->getNumDetails(), extraDataEncrypted, nullptr));
+                                                      localFolder, client->getDeviceidHash(),
+                                                      request->getAccess(), request->getNumDetails(), extraData, nullptr));
             }
             else // update an existing sync/backup
             {
@@ -23034,27 +23027,15 @@ void MegaApiImpl::sendPendingRequests()
                     break;
                 }
 
-                string localFolderEncrypted;
-                if (localFolder)
-                {
-                    localFolderEncrypted = client->cypherTLVTextWithMasterKey("lf", localFolder);
-                }
-
-                string extraDataEncrypted;
-                if (extraData)
-                {
-                    extraDataEncrypted = client->cypherTLVTextWithMasterKey("ed", extraData);
-                }
-
                 client->reqs.add(new CommandBackupPut(client,
                                                       (MegaHandle)request->getParentHandle(),
                                                       bType,
                                                       request->getNodeHandle(),
-                                                      localFolderEncrypted.empty() ? nullptr : localFolderEncrypted.c_str(),
+                                                      localFolder,
                                                       client->getDeviceidHash().c_str(),
                                                       request->getAccess(),
                                                       request->getNumDetails(),
-                                                      extraDataEncrypted.empty() ? nullptr : extraDataEncrypted.c_str(), nullptr));
+                                                      extraData, nullptr));
             }
             break;
         }
