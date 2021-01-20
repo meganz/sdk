@@ -24,6 +24,8 @@ project(MegaSDK)
 #indicate which dependent libraries to use in the build
 set (USE_CRYPTOPP 1 CACHE STRING "")
 
+set (Mega3rdPartyDir "" CACHE FILEPATH "Prefix path for where third party dependencies are located")
+
 if (CMAKE_HOST_APPLE)
     set (USE_OPENSSL 0 CACHE STRING "")
 else()
@@ -56,11 +58,9 @@ endif()
 set (HAVE_LIBUV ${USE_LIBUV})
 set (HAVE_LIBRAW ${USE_LIBRAW})
 
-if (WIN32)
-    set (USE_THIRDPARTY_FROM_VCPKG 1 CACHE STRING "")
-else()
-    set (USE_THIRDPARTY_FROM_VCPKG 0 CACHE STRING "")
-endif()
+option(USE_THIRDPARTY_FROM_VCPKG 
+"Whether to look for third party dependencies in a vcpkg install. If yes, Mega3rdPartyDir must be a path to a directory containing the vcpkg directory"
+${WIN32})
 
 message(STATUS " Using 3rd party from vcpkg = ${USE_THIRDPARTY_FROM_VCPKG}")
 
@@ -176,10 +176,6 @@ endif(USE_QT)
 # currently supported scenarios for getting 3rd party libraries:
 #  - vcpkg built dependencies (there are some scripts in this folder to build those)
 #  - libraries from the system, installed via eg. apt-get on linux
-
-if (APPLE AND NOT NO_READLINE)
-    include_directories( BEFORE SYSTEM "${Mega3rdPartyDir}/vcpkg/readline-8.0" )
-endif()
 
 if (USE_THIRDPARTY_FROM_VCPKG) #vcpkg or system
 
@@ -323,8 +319,9 @@ function(ImportHeaderLibrary libName includeDir)
 endfunction(ImportHeaderLibrary)
 
 if (APPLE AND NOT NO_READLINE)
-    ImportALibrary(macgnureadline  "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/libreadline.a" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/libreadline.a")
-    ImportALibrary(macgnuhistory   "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/libhistory.a" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/libhistory.a" )
+    set(_mac_readline_prefix "${Mega3rdPartyDir}/vcpkg/installed/${VCPKG_TRIPLET}/")
+    ImportALibrary(macgnureadline "${_mac_readline_prefix}include" "${_mac_readline_prefix}/lib/libreadline.a" "${_mac_readline_prefix}/lib/libreadline.a")
+    ImportALibrary(macgnuhistory "${_mac_readline_include}" "${_mac_readline_prefix}/lib/libhistory.a" "${_mac_readline_prefix}/lib/libhistory.a") 
 endif()
 
 if (USE_THIRDPARTY_FROM_VCPKG)

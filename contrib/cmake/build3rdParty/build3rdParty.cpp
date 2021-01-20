@@ -32,6 +32,7 @@ namespace fs = std::__fs::filesystem;
 bool build = false;
 bool setup = false;
 bool removeUnusedPorts = false;
+bool noPkgConfig = false;
 fs::path portsFile;
 fs::path sdkRootPath;
 string triplet;
@@ -120,6 +121,22 @@ try
                 }
             }
 
+            if (noPkgConfig)
+            {
+                cout << "Performing no-op substitution of vcpkg_fixup_pkgconfig and PKGCONFIG to skip pkgconfig integration/checks\n";
+                ofstream vcpkg_fixup_pkgconfig(vcpkgDir / "scripts" / "cmake" / "vcpkg_fixup_pkgconfig.cmake", std::ios::trunc);
+                if (!vcpkg_fixup_pkgconfig)
+                {
+                    cout << "Could not open vcpkg script file to suppress pkgconfig\n";
+                    return 1;
+                }
+
+                vcpkg_fixup_pkgconfig << 
+                "function(vcpkg_fixup_pkgconfig)\n"
+                "endfunction()\n"
+                "set(PKGCONFIG \":\")\n"; // i.e., use no-op : operator
+            }
+
         }
         else if (build)
         {
@@ -144,8 +161,6 @@ try
                 #endif
             }
         }
-
-
     }
 
     return 0;
@@ -163,7 +178,7 @@ void execute(string command)
     int result = system(command.c_str());
     if (result != 0)
     {
-        cout << "Command failed with resuld code " << result << " ( command was " << command << ")" <<endl;
+        cout << "Command failed with result code " << result << " ( command was " << command << ")" <<endl;
         exit(1);
     }
 }
@@ -171,7 +186,7 @@ void execute(string command)
 
 bool showSyntax()
 {
-    cout << "build3rdParty --setup [--removeunusedports] --ports <ports override file> --triplet <triplet> --sdkroot <path>" << endl;
+    cout << "build3rdParty --setup [--removeunusedports] [--nopkgconfig] --ports <ports override file> --triplet <triplet> --sdkroot <path>" << endl;
     cout << "build3rdParty --build --ports <ports override file> --triplet <triplet>" << endl;
     return false;
 }
@@ -207,6 +222,10 @@ bool readCommandLine(int argc, char* argv[])
         else if (std::string(*it) == "--removeunusedports" && setup)
         {
             removeUnusedPorts = true;
+        }
+        else if (std::string(*it) == "--nopkgconfig" && setup)
+        {
+            noPkgConfig = true;
         }
         else if (std::string(*it) == "--build")
         {
