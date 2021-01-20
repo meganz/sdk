@@ -899,7 +899,7 @@ public:
         // add/update cached status, both in memory and DB
         bool addOrUpdate(int64_t type, int64_t value);
 
-        // addsOrUpdate(), but also initializes dedicated vars in the client (used to load from DB)
+        // adds a new item to the map. It also initializes dedicated vars in the client (used to load from DB)
         void loadCachedStatus(int64_t type, int64_t value);
 
         // for unserialize

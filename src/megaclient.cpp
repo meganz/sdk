@@ -5437,7 +5437,8 @@ void MegaClient::sc_updatenode()
 
 void MegaClient::CacheableStatusMap::loadCachedStatus(int64_t type, int64_t value)
 {
-    insert(pair<int64_t, CacheableStatus>(type, CacheableStatus(type, value)));
+    auto it = insert(pair<int64_t, CacheableStatus>(type, CacheableStatus(type, value)));
+    assert(it.second);
 
     LOG_verbose << "Loaded status from cache: " << type << " = " << value;
 
