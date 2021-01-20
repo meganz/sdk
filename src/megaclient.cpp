@@ -1211,6 +1211,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     , syncs(*this)
     , syncfslockretrybt(rng), syncdownbt(rng), syncnaglebt(rng), syncextrabt(rng), syncscanbt(rng)
 #endif
+    , mCachedStatus(this)
 {
     sctable = NULL;
     pendingsccommit = false;
@@ -4254,6 +4255,7 @@ void MegaClient::locallogout(bool removecaches)
     mBizStatusLoadedFromCache = false;
     mBizMasters.clear();
     mPublicLinks.clear();
+    mCachedStatus.clear();
     scpaused = false;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
@@ -4527,9 +4529,7 @@ bool MegaClient::procsc()
                             restag = fetchnodestag;
                             fetchnodestag = 0;
 
-                            if (!mBlockedSet
-                                    && hasCachedStatus(CacheableStatus::STATUS_BLOCKED)
-                                    && mCachedStatus.at(CacheableStatus::STATUS_BLOCKED).value()) //block state not received in this execution, and cached says we were blocked last time
+                            if (!mBlockedSet && mCachedStatus.lookup(CacheableStatus::STATUS_BLOCKED, 0)) //block state not received in this execution, and cached says we were blocked last time
                             {
                                 LOG_debug << "cached blocked states reports blocked, and no block state has been received before, issuing whyamiblocked";
                                 whyamiblocked();// lets query again, to trigger transition and restoreSyncs
@@ -5280,7 +5280,7 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         storagestatus_t previousStatus = ststatus;
         ststatus = status;
 
-        setCachedStatus(CacheableStatus::STATUS_STORAGE, status);
+        mCachedStatus.addOrUpdate(CacheableStatus::STATUS_STORAGE, status);
 
         app->notify_storage(ststatus);
 
@@ -5435,9 +5435,9 @@ void MegaClient::sc_updatenode()
     }
 }
 
-void MegaClient::loadCachedStatus(int64_t type, int64_t value)
+void MegaClient::CacheableStatusMap::loadCachedStatus(int64_t type, int64_t value)
 {
-    setCachedStatus(type, value);
+    insert(pair<int64_t, CacheableStatus>(type, CacheableStatus(type, value)));
 
     LOG_verbose << "Loaded status from cache: " << type << " = " << value;
 
@@ -5445,13 +5445,13 @@ void MegaClient::loadCachedStatus(int64_t type, int64_t value)
     {
         case CacheableStatus::Type::STATUS_STORAGE:
         {
-            ststatus = static_cast<storagestatus_t>(value);
+            mClient->ststatus = static_cast<storagestatus_t>(value);
             break;
         }
         case CacheableStatus::Type::STATUS_BUSINESS:
         {
-            mBizStatus = static_cast<BizStatus>(value);
-            mBizStatusLoadedFromCache = true;
+            mClient->mBizStatus = static_cast<BizStatus>(value);
+            mClient->mBizStatusLoadedFromCache = true;
             break;
         }
         default:
@@ -5459,37 +5459,48 @@ void MegaClient::loadCachedStatus(int64_t type, int64_t value)
     }
 }
 
-bool MegaClient::setCachedStatus(int64_t type, int64_t value)
+bool MegaClient::CacheableStatusMap::addOrUpdate(int64_t type, int64_t value)
 {
     bool changed = false;
-    if (!hasCachedStatus(type))
+
+    CacheableStatus status(type, value);
+    auto it_bool = emplace(type, status);
+    if (!it_bool.second)    // already exists
     {
-        mCachedStatus.emplace(type, CacheableStatus(type, value));
-        changed = true;
+        if (it_bool.first->second.value() != value)
+        {
+            it_bool.first->second.setValue(value); // don't replace it, or we lose the dbid
+            changed = true;
+        }
     }
-    else if (mCachedStatus.at(type).value() != value)
+    else // added
     {
-        mCachedStatus.at(type).setValue(value);
         changed = true;
     }
 
-    if (changed && statusTable)
+    if (changed && mClient->statusTable)
     {
-        DBTableTransactionCommitter committer(statusTable);
-        auto &status = mCachedStatus.at(type);
-        LOG_verbose << "Adding/updating status to database: " << status.type() << " = " << status.value();
-        if (!statusTable->put(MegaClient::CACHEDSTATUS, &status, &key))
+        DBTableTransactionCommitter committer(mClient->statusTable);
+        LOG_verbose << "Adding/updating status to database: " << type << " = " << value;
+        if (!mClient->statusTable->put(MegaClient::CACHEDSTATUS, &it_bool.first->second, &mClient->key))
         {
-            LOG_err << "Failed to add/update status to db: " << status.type() << " = " << status.value();
+            LOG_err << "Failed to add/update status to db: " << type << " = " << value;
         }
     }
 
     return changed;
 }
 
-bool MegaClient::hasCachedStatus(int64_t type)
+int64_t MegaClient::CacheableStatusMap::lookup(int64_t type, int64_t defaultValue)
 {
-    return mCachedStatus.find(type) != mCachedStatus.end();
+    auto it = find(type);
+    return it == end() ? defaultValue : it->second.value();
+}
+
+CacheableStatus *MegaClient::CacheableStatusMap::getPtr(int64_t type)
+{
+    auto it = find(type);
+    return it == end() ? nullptr : &it->second;
 }
 
 // read tree object (nodes and users)
@@ -6944,7 +6955,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
     if (newBizStatus != mBizStatus) //has changed
     {
         mBizStatus = newBizStatus;
-        setCachedStatus(CacheableStatus::STATUS_BUSINESS, newBizStatus);
+        mCachedStatus.addOrUpdate(CacheableStatus::STATUS_BUSINESS, newBizStatus);
 
 #ifdef ENABLE_SYNC
         if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired
@@ -11245,7 +11256,7 @@ void MegaClient::setBlocked(bool value)
     mBlocked = value;
     mBlockedSet = true;
 
-    setCachedStatus(CacheableStatus::STATUS_BLOCKED, mBlocked);
+    mCachedStatus.addOrUpdate(CacheableStatus::STATUS_BLOCKED, mBlocked);
 }
 
 void MegaClient::block(bool fromServerClientResponse)

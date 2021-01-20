@@ -21643,9 +21643,9 @@ void MegaApiImpl::sendPendingRequests()
             const char *remotePath = request->getLink();
 
             using CType = CacheableStatus::Type;
-            bool overStorage = client->hasCachedStatus(CType::STATUS_STORAGE) ? (client->mCachedStatus.at(CType::STATUS_STORAGE).value() >= MegaApi::STORAGE_STATE_RED) : false;
-            bool businessExpired = client->hasCachedStatus(CType::STATUS_BUSINESS) ? (client->mCachedStatus.at(CType::STATUS_BUSINESS).value() == BIZ_STATUS_EXPIRED) : false;
-            bool blocked = client->hasCachedStatus(CType::STATUS_BLOCKED) ? (client->mCachedStatus.at(CType::STATUS_BLOCKED).value()) : false;
+            bool overStorage = client->mCachedStatus.lookup(CType::STATUS_STORAGE, MegaApi::STORAGE_STATE_UNKNOWN) >= MegaApi::STORAGE_STATE_RED;
+            bool businessExpired = client->mCachedStatus.lookup(CType::STATUS_BUSINESS, BIZ_STATUS_UNKNOWN) == BIZ_STATUS_EXPIRED;
+            bool blocked = client->mCachedStatus.lookup(CType::STATUS_BLOCKED, 0) == 1;
 
             auto syncError = NO_SYNC_ERROR;
             // the order is important here: a user needs to resolve blocked in order to resolve storage
@@ -21707,7 +21707,6 @@ void MegaApiImpl::sendPendingRequests()
             int blockedStatusValue =  static_cast<int>(number / 1000);
             int storageStatusValue = static_cast<int>(number % 1000);
 
-
             using CType = CacheableStatus::Type;
             auto loadAndPersist = [this](CType type, int value) -> error
             {
@@ -21717,14 +21716,14 @@ void MegaApiImpl::sendPendingRequests()
                     return API_OK; //received invalid value: not to be used
                 }
 
-                if (client->hasCachedStatus(type))
+                if (int64_t oldValue = client->mCachedStatus.lookup(type, 999) != 999)
                 {
                     LOG_verbose << "Ignoring already present status in migration: " << type << " = " << value
-                                << " existing = " << client->mCachedStatus.at(type).value();
+                                << " existing = " << oldValue;
                     return API_OK;
                 }
 
-                client->loadCachedStatus(type, value);
+                client->mCachedStatus.loadCachedStatus(type, value);
                 return API_OK;
             };
 

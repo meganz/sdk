@@ -2262,8 +2262,8 @@ CacheableStatus* CacheableStatus::unserialize(class MegaClient *client, const st
         return nullptr;
     }
 
-    client->loadCachedStatus(type, value);
-    return &client->mCachedStatus.at(type);
+    client->mCachedStatus.loadCachedStatus(type, value);
+    return client->mCachedStatus.getPtr(type);
 }
 
 bool CacheableStatus::serialize(std::string& data) const

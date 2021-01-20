@@ -4665,7 +4665,7 @@ bool CommandGetUserQuota::procresult(Result r)
                     // Pro level can change without a payment (ie. with coupons or by helpdesk)
                     // and in those cases, the `psts` packet is not triggered. However, the SDK
                     // should notify the app and resume transfers, etc.
-                    bool changed = client->setCachedStatus(CacheableStatus::STATUS_PRO_LEVEL, details->pro_level);
+                    bool changed = client->mCachedStatus.addOrUpdate(CacheableStatus::STATUS_PRO_LEVEL, details->pro_level);
                     if (changed)
                     {
                         client->app->account_updated();
