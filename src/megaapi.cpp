@@ -3351,12 +3351,12 @@ void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
 
 void MegaApi::removeSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->removeSync(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
+    pImpl->removeSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener);
 }
 
-void MegaApi::removeSync(int tag, MegaRequestListener *listener)
+void MegaApi::removeSync(MegaHandle backupId, MegaRequestListener *listener)
 {
-    pImpl->removeSync(tag, listener);
+    pImpl->removeSyncById(backupId, listener);
 }
 
 void MegaApi::disableSync(MegaNode *megaFolder, MegaRequestListener *listener)
@@ -3366,22 +3366,22 @@ void MegaApi::disableSync(MegaNode *megaFolder, MegaRequestListener *listener)
 
 void MegaApi::disableSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->disableSync(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
+    pImpl->disableSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener);
 }
 
 void MegaApi::enableSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->enableSync(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
+    pImpl->enableSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener);
 }
 
-void MegaApi::enableSync(int tag, MegaRequestListener *listener)
+void MegaApi::enableSync(MegaHandle backupId, MegaRequestListener *listener)
 {
-    pImpl->enableSync(tag, listener);
+    pImpl->enableSyncById(backupId, listener);
 }
 
-void MegaApi::disableSync(int tag, MegaRequestListener *listener)
+void MegaApi::disableSync(MegaHandle backupId, MegaRequestListener *listener)
 {
-    pImpl->disableSync(tag, listener);
+    pImpl->disableSyncById(backupId, listener);
 }
 
 void MegaApi::removeSyncs(MegaRequestListener *listener)
@@ -3414,9 +3414,9 @@ char *MegaApi::getBlockedPath()
     return pImpl->getBlockedPath();
 }
 
-MegaSync *MegaApi::getSyncByTag(int tag)
+MegaSync *MegaApi::getSyncByBackupId(MegaHandle backupId)
 {
-    return pImpl->getSyncByTag(tag);
+    return pImpl->getSyncByBackupId(backupId);
 }
 
 MegaSync *MegaApi::getSyncByNode(MegaNode *node)
@@ -5430,6 +5430,21 @@ void MegaApi::queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaRequestLi
     pImpl->queryGoogleAds(adFlags, publicHandle, listener);
 }
 
+void MegaApi::setCookieSettings(int settings, MegaRequestListener *listener)
+{
+    pImpl->setCookieSettings(settings, listener);
+}
+
+void MegaApi::getCookieSettings(MegaRequestListener *listener)
+{
+    pImpl->getCookieSettings(listener);
+}
+
+bool MegaApi::cookieBannerEnabled()
+{
+    return pImpl->cookieBannerEnabled();
+}
+
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
     pImpl = new MegaHashSignatureImpl(base64Key);
@@ -5754,9 +5769,9 @@ long long MegaSync::getLocalFingerprint() const
     return 0;
 }
 
-int MegaSync::getTag() const
+MegaHandle MegaSync::getBackupId() const
 {
-    return 0;
+    return INVALID_HANDLE;
 }
 
 int MegaSync::getError() const

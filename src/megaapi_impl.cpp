@@ -1287,13 +1287,12 @@ bool MegaApiImpl::is_syncable(Sync *sync, const char *name, const LocalPath& loc
 
     MegaRegExp *regExp = NULL;
 #ifdef USE_PCRE
-    //TODO: Relaying on MegaSyncPrivate for this makes no sense. While resuming syncs, there might not be a MegaSyncPrivate
-    // in the first place at this point when doing first scan. Per sync inclusions should be included in Sync object
-    MegaSyncPrivate* megaSync = (MegaSyncPrivate *)sync->appData;
-    if (megaSync)
+    auto re = make_unique<MegaRegExp>(); // TODO: reconstructing this is far from optimal. reconsider placing it in SyncConfig (updated with mRegExps updates?)
+    for (const auto& v : sync->getConfig().getRegExps())
     {
-        regExp = megaSync->getRegExp();
+        re->addRegExp(v.c_str());
     }
+    regExp = re.get();
 #endif
 
     if (regExp || excludedPaths.size())
@@ -1418,13 +1417,13 @@ bool MegaApiImpl::isSyncing()
     return syncing;
 }
 
-MegaSync *MegaApiImpl::getSyncByTag(int tag)
+MegaSync *MegaApiImpl::getSyncByBackupId(mega::MegaHandle backupId)
 {
     SdkMutexGuard g(sdkMutex);
 
     unique_ptr<MegaSync> ret;
     client->syncs.forEachUnifiedSync([&](UnifiedSync& s){
-        if (s.mConfig.getTag() == tag)
+        if (s.mConfig.getBackupId() == backupId)
         {
             ret.reset(new MegaSyncPrivate(s.mConfig, s.mSync.get()));
         }
@@ -1914,6 +1913,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     if (user->changed.backupNames)
     {
         changed |= MegaUser::CHANGE_TYPE_BACKUP_NAMES;
+    }
+    if (user->changed.cookieSettings)
+    {
+        changed |= MegaUser::CHANGE_TYPE_COOKIE_SETTINGS;
     }
 }
 
@@ -5964,6 +5967,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_RUBBISH_TIME:
         case MegaApi::USER_ATTR_STORAGE_STATE:
         case MegaApi::USER_ATTR_PUSH_SETTINGS:
+        case MegaApi::USER_ATTR_COOKIE_SETTINGS:
             scope = '^';
             break;
 
@@ -8804,10 +8808,10 @@ void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener)
     waiter->notify();
 }
 
-void MegaApiImpl::removeSync(int syncTag, MegaRequestListener *listener)
+void MegaApiImpl::removeSyncById(handle backupId, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_REMOVE_SYNC, listener);
-    request->setNumDetails(syncTag);
+    request->setParentHandle(backupId);
     request->setFlag(true);
     requestQueue.push(request);
     waiter->notify();
@@ -8821,19 +8825,19 @@ void MegaApiImpl::disableSync(handle nodehandle, MegaRequestListener *listener)
     waiter->notify();
 }
 
-void MegaApiImpl::disableSync(int syncTag, MegaRequestListener *listener)
+void MegaApiImpl::disableSyncById(handle backupId, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_DISABLE_SYNC, listener);
-    request->setNumDetails(syncTag);
+    request->setParentHandle(backupId);
     request->setFlag(false);
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::enableSync(int syncTag, MegaRequestListener *listener)
+void MegaApiImpl::enableSyncById(handle backupId, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_ENABLE_SYNC, listener);
-    request->setNumDetails(syncTag);
+    request->setParentHandle(backupId);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8964,7 +8968,7 @@ void MegaApiImpl::setExcludedRegularExpressions(MegaSync *sync, MegaRegExp *regE
 
     SdkMutexGuard g(sdkMutex);
     client->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
-        if (us.mConfig.getTag() == sync->getTag())
+        if (us.mConfig.getBackupId() == sync->getBackupId())
         {
             us.mConfig.setRegExps(regExpToVector(regExp));
             client->syncs.saveSyncConfig(us.mConfig);
@@ -13169,39 +13173,39 @@ void MegaApiImpl::folderlinkinfo_result(error e, handle owner, handle /*ph*/, st
 
 #ifdef ENABLE_SYNC
 
-MegaSyncPrivate* MegaApiImpl::cachedMegaSyncPrivateByTag(int tag)
+MegaSyncPrivate* MegaApiImpl::cachedMegaSyncPrivateByBackupId(handle backupId)
 {
-    if (mCachedMegaSyncPrivate && tag == mCachedMegaSyncPrivate->getTag())
+    if (mCachedMegaSyncPrivate && backupId == mCachedMegaSyncPrivate->getBackupId())
     {
         return mCachedMegaSyncPrivate.get();
     }
     mCachedMegaSyncPrivate.reset();
 
-    client->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
-        if (us.mConfig.getTag() == tag)
+    client->syncs.forEachUnifiedSync([&](UnifiedSync& s) {
+        if (s.mConfig.getBackupId() == backupId)
         {
-            mCachedMegaSyncPrivate.reset(new MegaSyncPrivate(us.mConfig, us.mSync.get()));
+            mCachedMegaSyncPrivate.reset(new MegaSyncPrivate(s.mConfig, s.mSync.get()));
         }
     });
 
     return mCachedMegaSyncPrivate.get();
 }
 
-void MegaApiImpl::syncupdate_stateconfig(int tag)
+void MegaApiImpl::syncupdate_stateconfig(handle backupId)
 {
     mCachedMegaSyncPrivate.reset();
 
-    if (auto megaSync = cachedMegaSyncPrivateByTag(tag))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(backupId))
     {
         fireOnSyncStateChanged(megaSync);
     }
 }
 
-void MegaApiImpl::syncupdate_active(int tag, bool active)
+void MegaApiImpl::syncupdate_active(handle backupId, bool active)
 {
     mCachedMegaSyncPrivate.reset();
 
-    if (auto megaSync = cachedMegaSyncPrivateByTag(tag))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(backupId))
     {
         if (!active)
         {
@@ -13229,7 +13233,7 @@ void MegaApiImpl::syncupdate_local_folder_addition(Sync *sync, LocalNode *, cons
     LOG_debug << "Sync - local folder addition detected: " << path;
     client->abortbackoff(false);
 
-    if (auto megaSync = cachedMegaSyncPrivateByTag(sync->tag))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
     {
         MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FOLDER_ADITION);
         event->setPath(path);
@@ -13244,7 +13248,7 @@ void MegaApiImpl::syncupdate_local_folder_deletion(Sync *sync, LocalNode *localN
     string path = localNode->getLocalPath().toPath(*fsAccess);
     LOG_debug << "Sync - local folder deletion detected: " << path.c_str();
 
-    if (auto megaSync = cachedMegaSyncPrivateByTag(sync->tag))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
     {
         MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FOLDER_DELETION);
         event->setPath(path.c_str());
@@ -13257,7 +13261,7 @@ void MegaApiImpl::syncupdate_local_file_addition(Sync *sync, LocalNode *, const 
     LOG_debug << "Sync - local file addition detected: " << path;
     client->abortbackoff(false);
 
-    if (auto megaSync = cachedMegaSyncPrivateByTag(sync->tag))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
     {
         MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FILE_ADDITION);
         event->setPath(path);
@@ -13272,7 +13276,7 @@ void MegaApiImpl::syncupdate_local_file_deletion(Sync *sync, LocalNode *localNod
     string path = localNode->getLocalPath().toPath(*fsAccess);
     LOG_debug << "Sync - local file deletion detected: " << path.c_str();
 
-    if (auto megaSync = cachedMegaSyncPrivateByTag(sync->tag))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
     {
         MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FILE_DELETION);
         event->setPath(path.c_str());
@@ -13285,7 +13289,7 @@ void MegaApiImpl::syncupdate_local_file_change(Sync *sync, LocalNode *, const ch
     LOG_debug << "Sync - local file change detected: " << path;
     client->abortbackoff(false);
 
-    if (auto megaSync = cachedMegaSyncPrivateByTag(sync->tag))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
     {
         MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_FILE_CHANGED);
         event->setPath(path);
@@ -13300,7 +13304,7 @@ void MegaApiImpl::syncupdate_local_move(Sync *sync, LocalNode *localNode, const 
     string path = localNode->getLocalPath().toPath(*fsAccess);
     LOG_debug << "Sync - local rename/move " << path.c_str() << " -> " << to;
 
-    if (auto megaSync = cachedMegaSyncPrivateByTag(sync->tag))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
     {
         MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_LOCAL_MOVE);
         event->setPath(path.c_str());
@@ -13313,7 +13317,7 @@ void MegaApiImpl::syncupdate_get(Sync *sync, Node* node, const char *path)
 {
     LOG_debug << "Sync - requesting file " << path;
 
-    if (auto megaSync = cachedMegaSyncPrivateByTag(sync->tag))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
     {
         MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_FILE_GET);
         event->setNodeHandle(node->nodehandle);
@@ -13326,7 +13330,7 @@ void MegaApiImpl::syncupdate_put(Sync *sync, LocalNode *, const char *path)
 {
     LOG_debug << "Sync - sending file " << path;
 
-    if (auto megaSync = cachedMegaSyncPrivateByTag(sync->tag))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
     {
         MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_FILE_PUT);
         event->setPath(path);
@@ -13339,7 +13343,7 @@ void MegaApiImpl::syncupdate_remote_file_addition(Sync *sync, Node *n)
     LOG_debug << "Sync - remote file addition detected " << n->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
     client->abortbackoff(false);
 
-    if (auto megaSync = cachedMegaSyncPrivateByTag(sync->tag))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
     {
         MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_FILE_ADDITION);
         event->setNodeHandle(n->nodehandle);
@@ -13352,7 +13356,7 @@ void MegaApiImpl::syncupdate_remote_file_deletion(Sync *sync, Node *n)
     LOG_debug << "Sync - remote file deletion detected " << n->displayname() << " Nhandle: " << LOG_NODEHANDLE(n->nodehandle);
     client->abortbackoff(false);
 
-    if (auto megaSync = cachedMegaSyncPrivateByTag(sync->tag))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
     {
         MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_FILE_DELETION);
         event->setNodeHandle(n->nodehandle);
@@ -13365,7 +13369,7 @@ void MegaApiImpl::syncupdate_remote_folder_addition(Sync *sync, Node *n)
     LOG_debug << "Sync - remote folder addition detected " << n->displayname();
     client->abortbackoff(false);
 
-    if (auto megaSync = cachedMegaSyncPrivateByTag(sync->tag))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
     {
         MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_FOLDER_ADDITION);
         event->setNodeHandle(n->nodehandle);
@@ -13378,7 +13382,7 @@ void MegaApiImpl::syncupdate_remote_folder_deletion(Sync *sync, Node *n)
     LOG_debug << "Sync - remote folder deletion detected " << n->displayname();
     client->abortbackoff(false);
 
-    if (auto megaSync = cachedMegaSyncPrivateByTag(sync->tag))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
     {
         MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_FOLDER_DELETION);
         event->setNodeHandle(n->nodehandle);
@@ -13399,7 +13403,7 @@ void MegaApiImpl::syncupdate_remote_move(Sync *sync, Node *n, Node *prevparent)
                  " to " << (n->parent ? n->parent->displayname() : "?");
     client->abortbackoff(false);
 
-    if (auto megaSync = cachedMegaSyncPrivateByTag(sync->tag))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
     {
         MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_MOVE);
         event->setNodeHandle(n->nodehandle);
@@ -13413,7 +13417,7 @@ void MegaApiImpl::syncupdate_remote_rename(Sync *sync, Node *n, const char *prev
     LOG_debug << "Sync - remote rename from " << prevname << " to " << n->displayname();
     client->abortbackoff(false);
 
-    if (auto megaSync = cachedMegaSyncPrivateByTag(sync->tag))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(sync->getConfig().getBackupId()))
     {
         MegaSyncEventPrivate *event = new MegaSyncEventPrivate(MegaSyncEvent::TYPE_REMOTE_RENAME);
         event->setNodeHandle(n->nodehandle);
@@ -13424,7 +13428,7 @@ void MegaApiImpl::syncupdate_remote_rename(Sync *sync, Node *n, const char *prev
 
 void MegaApiImpl::syncupdate_treestate(LocalNode *l)
 {
-    if (auto megaSync = cachedMegaSyncPrivateByTag(l->sync->tag))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(l->sync->getConfig().getBackupId()))
     {
         string s = l->getLocalPath().platformEncoded();
 
@@ -13466,9 +13470,9 @@ bool MegaApiImpl::sync_syncable(Sync *sync, const char *name, LocalPath& localpa
     return result;
 }
 
-void MegaApiImpl::sync_removed(int tag)
+void MegaApiImpl::sync_removed(handle backupId)
 {
-    if (auto megaSync = cachedMegaSyncPrivateByTag(tag))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(backupId))
     {
         fireonSyncDeleted(megaSync);
         mCachedMegaSyncPrivate.reset();
@@ -13479,7 +13483,7 @@ void MegaApiImpl::sync_auto_resume_result(const UnifiedSync& us, bool attempted)
 {
     mCachedMegaSyncPrivate.reset();
 
-    auto megaSync = cachedMegaSyncPrivateByTag(us.mConfig.getTag());
+    auto megaSync = cachedMegaSyncPrivateByBackupId(us.mConfig.getBackupId());
 
     if (attempted)
     {
@@ -13495,7 +13499,7 @@ void MegaApiImpl::syncupdate_remote_root_changed(const SyncConfig &config)
 {
     mCachedMegaSyncPrivate.reset();
 
-    if (auto megaSync = cachedMegaSyncPrivateByTag(config.getTag()))
+    if (auto megaSync = cachedMegaSyncPrivateByBackupId(config.getBackupId()))
     {
         fireOnSyncStateChanged(megaSync);
     }
@@ -13943,29 +13947,41 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             // folders for the new backup have been created -> now proceed with the sync
             handle backupHandle = nn.back().mAddedHandle;
             request->setNodeHandle(backupHandle);
-            std::unique_ptr<char[]> remotePath{ getNodePathByNodeHandle(nn.back().mAddedHandle) };
-            auto nextSyncTag = client->nextSyncTag();
+            std::unique_ptr<char[]> remotePath{ getNodePathByNodeHandle(backupHandle) };
 
             // create the SyncConfig
             const char* backupName = request->getName();
             const char* localPath = request->getFile();
-            SyncConfig syncConfig{ nextSyncTag, localPath, backupName, backupHandle, remotePath.get(),
-                                    0, {}, true, SyncConfig::TYPE_BACKUP };
+            auto regExp = request->getRegExp(); // not currently in use, but ready for addition
+            SyncConfig syncConfig{ localPath, backupName, backupHandle, remotePath.get(),
+                                    0, regExpToVector(regExp), true, SyncConfig::TYPE_BACKUP };
 
-            // add the Sync           
-            UnifiedSync* unifiedSync = nullptr;
-            e = client->addsync(syncConfig, DEBRISFOLDER, NULL, true, unifiedSync, false);
-            request->setNumDetails(syncConfig.getError());
-            if (!e)
+            client->addsync(syncConfig, DEBRISFOLDER, NULL, true, false,
+                                [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
             {
-                unique_ptr<MegaSyncPrivate> sync(new MegaSyncPrivate(unifiedSync->mConfig, unifiedSync->mSync.get()));
-                request->setNumber(sync->getLocalFingerprint());
-                request->setTransferTag(nextSyncTag);
+                request->setNumDetails(syncError);
 
-                fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
+                if (!e && !unifiedSync)
+                {
+                    e = API_ENOENT;
+                }
+
+                if (unifiedSync)
+                {
+                    if (unifiedSync->mSync)
+                    {
+                        fsfp_t fsfp = unifiedSync->mSync->fsfp;
+                        request->setNumber(fsfp);
+                    }
+                    request->setParentHandle(unifiedSync->mConfig.getBackupId());
+
+                    auto sync = ::mega::make_unique<MegaSyncPrivate>(unifiedSync->mConfig, unifiedSync->mSync.get());
+
+                    fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
+                }
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-                return;
-            }
+            });
+            return;
         }
 #endif // ENABLE_SYNC
 
@@ -15356,6 +15372,12 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
                 {
                     e = API_EINTERNAL;
                 }
+            }
+            break;
+
+        case MegaApi::USER_ATTR_COOKIE_SETTINGS:
+            {
+                e = getCookieSettings_getua_result(data, len, request);
             }
             break;
 
@@ -16768,6 +16790,7 @@ void MegaApiImpl::fireOnEvent(MegaEventPrivate *event)
 #ifdef ENABLE_SYNC
 void MegaApiImpl::fireOnSyncStateChanged(MegaSyncPrivate *sync)
 {
+    assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncStateChanged(api, sync);
@@ -16776,6 +16799,7 @@ void MegaApiImpl::fireOnSyncStateChanged(MegaSyncPrivate *sync)
 
 void MegaApiImpl::fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event)
 {
+    assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncEvent(api, sync, event);
@@ -16787,6 +16811,7 @@ void MegaApiImpl::fireOnSyncEvent(MegaSyncPrivate *sync, MegaSyncEvent *event)
 
 void MegaApiImpl::fireOnSyncAdded(MegaSyncPrivate *sync, int additionState)
 {
+    assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncAdded(api, sync, additionState);
@@ -16795,6 +16820,7 @@ void MegaApiImpl::fireOnSyncAdded(MegaSyncPrivate *sync, int additionState)
 
 void MegaApiImpl::fireOnSyncDisabled(MegaSyncPrivate *sync)
 {
+    assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncDisabled(api, sync);
@@ -16803,6 +16829,7 @@ void MegaApiImpl::fireOnSyncDisabled(MegaSyncPrivate *sync)
 
 void MegaApiImpl::fireOnSyncEnabled(MegaSyncPrivate *sync)
 {
+    assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncEnabled(api, sync);
@@ -16811,6 +16838,7 @@ void MegaApiImpl::fireOnSyncEnabled(MegaSyncPrivate *sync)
 
 void MegaApiImpl::fireonSyncDeleted(MegaSyncPrivate *sync)
 {
+    assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncDeleted(api, sync);
@@ -16832,6 +16860,7 @@ void MegaApiImpl::fireOnGlobalSyncStateChanged()
 
 void MegaApiImpl::fireOnFileSyncStateChanged(MegaSyncPrivate *sync, string *localPath, int newState)
 {
+    assert(sync->getBackupId() != INVALID_HANDLE);
     for(set<MegaListener *>::iterator it = listeners.begin(); it != listeners.end() ;)
     {
         (*it++)->onSyncFileStateChanged(api, sync, localPath, newState);
@@ -20265,6 +20294,10 @@ void MegaApiImpl::sendPendingRequests()
                     string tmp(value);
                     client->putua(type, (byte *)tmp.data(), unsigned(tmp.size()));
                 }
+                else if (type == ATTR_COOKIE_SETTINGS)
+                {
+                    setCookieSettings_sendPendingRequests(request);
+                }
                 else if (type == ATTR_PUSH_SETTINGS)
                 {
                     const MegaPushNotificationSettingsPrivate *settings = (MegaPushNotificationSettingsPrivate*)(request->getMegaPushNotificationSettings());
@@ -21541,9 +21574,7 @@ void MegaApiImpl::sendPendingRequests()
 
             const char *name = request->getName();
 
-            auto nextSyncTag = client->nextSyncTag();
-
-            std::unique_ptr<char []> remotePath{getNodePathByNodeHandle(request->getNodeHandle())};
+            std::unique_ptr<char[]> remotePath{getNodePathByNodeHandle(request->getNodeHandle())};
             if (!remotePath)
             {
                 e = API_ENOENT;
@@ -21551,31 +21582,43 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            SyncConfig syncConfig{nextSyncTag, localPath, name, request->getNodeHandle(), remotePath.get(),
+
+            SyncConfig syncConfig{localPath, name, request->getNodeHandle(), remotePath.get(),
                                   0, regExpToVector(request->getRegExp())};
 
-            UnifiedSync* unifiedSync = nullptr;
-            e = client->addsync(syncConfig, DEBRISFOLDER, NULL, true, unifiedSync, false);  // notifyApp = false since so we don't notify until after fireOnSyncAdded
-            request->setNumDetails(syncConfig.getError());
-            if (unifiedSync)
+            client->addsync(syncConfig, DEBRISFOLDER, NULL, true, false,
+                                [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
             {
-                unique_ptr<MegaSyncPrivate> sync(new MegaSyncPrivate(unifiedSync->mConfig, unifiedSync->mSync.get()));
-                request->setNumber(sync->getLocalFingerprint());
-                request->setTransferTag(nextSyncTag);
+                request->setNumDetails(syncError);
 
-                fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
-                e = API_OK; //we don't consider the addsync returned error as an error on the request: the sync was added (although temporarily disabled)
+                if (!e && !unifiedSync)
+                {
+                    e = API_ENOENT;
+                }
+
+                if (unifiedSync)
+                {
+                    if (unifiedSync->mSync)
+                    {
+                        fsfp_t fsfp = unifiedSync->mSync->fsfp;
+                        request->setNumber(fsfp);
+                    }
+                    request->setParentHandle(unifiedSync->mConfig.getBackupId());
+
+                    auto sync = ::mega::make_unique<MegaSyncPrivate>(unifiedSync->mConfig, unifiedSync->mSync.get());
+
+                    fireOnSyncAdded(sync.get(), e ? MegaSync::NEW_TEMP_DISABLED : MegaSync::NEW);
+                }
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-                break;
-            }
+            });
             break;
         }
         case MegaRequest::TYPE_ENABLE_SYNC:
         {
-            auto tag = request->getNumDetails();
+            auto backupId = request->getParentHandle();
             UnifiedSync* us = nullptr;
 
-            e = client->syncs.enableSyncByTag(tag, true, us);
+            e = client->syncs.enableSyncByBackupId(backupId, true, us);
 
             request->setNumDetails(us ? us->mConfig.getError() : UNKNOWN_ERROR);
 
@@ -21599,9 +21642,6 @@ void MegaApiImpl::sendPendingRequests()
             const char *name = request->getName();
 
             const char *remotePath = request->getLink();
-
-            auto nextSyncTag = client->nextSyncTag(10000);//We artificially start giving syncs number from 10k, to avoid clashing
-            //when mixed syncConfig vs app configs (i.e. new -> old -> new version)
 
             using CType = CacheableStatus::Type;
             bool overStorage = client->mCachedStatus[CType::STATUS_STORAGE] ? (client->mCachedStatus[CType::STATUS_STORAGE]->value() >= MegaApi::STORAGE_STATE_RED) : false;
@@ -21634,8 +21674,7 @@ void MegaApiImpl::sendPendingRequests()
                 }
                 enabled = true; //we consider enabled when it is temporary disabled
             }
-
-            SyncConfig syncConfig{nextSyncTag, localPath, name, request->getNodeHandle(), remotePath ? remotePath : "",
+            SyncConfig syncConfig{localPath, name, request->getNodeHandle(), remotePath ? remotePath : "",
                                   static_cast<fsfp_t>(request->getNumber()),
                                   regExpToVector(request->getRegExp()), enabled};
 
@@ -21644,13 +21683,21 @@ void MegaApiImpl::sendPendingRequests()
                 syncConfig.setError(syncError);
             }
 
-            client->syncs.appendNewSync(syncConfig, *client);
-
-            if (!e)
+            client->copySyncConfig(syncConfig, [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
             {
-                request->setTransferTag(nextSyncTag);
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
-            }
+                if (!e && !unifiedSync)
+                {
+                    e = API_ENOENT;
+                }
+
+                if (unifiedSync)
+                {
+                    request->setParentHandle(unifiedSync->mConfig.getBackupId());
+                }
+
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            });
+
             break;
         }
         case MegaRequest::TYPE_COPY_CACHED_STATUS:
@@ -21730,9 +21777,9 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_REMOVE_SYNC:
         {
             handle nodehandle = request->getNodeHandle();
-            int tag = request->getNumDetails();
+            auto backupId = request->getParentHandle();
 
-            if (tag == INVALID_SYNC_TAG && nodehandle == INVALID_HANDLE)
+            if (backupId == INVALID_HANDLE && nodehandle == INVALID_HANDLE)
             {
                 e = API_EARGS;
                 break;
@@ -21741,7 +21788,7 @@ void MegaApiImpl::sendPendingRequests()
             bool found = false;
             client->syncs.removeSelectedSyncs([&](SyncConfig& c, Sync* sync){
 
-                bool matched = (tag && c.getTag() == tag) ||
+                bool matched = (backupId != UNDEF && c.getBackupId() == backupId) ||
                     (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
 
                 if (matched && sync)
@@ -21771,9 +21818,9 @@ void MegaApiImpl::sendPendingRequests()
         case MegaRequest::TYPE_DISABLE_SYNC:
         {
             handle nodehandle = request->getNodeHandle();
-            int tag = request->getNumDetails();
+            auto backupId = request->getParentHandle();
 
-            if (tag == INVALID_SYNC_TAG && nodehandle == INVALID_HANDLE)
+            if (backupId == INVALID_HANDLE && nodehandle == INVALID_HANDLE)
             {
                 e = API_EARGS;
                 break;
@@ -21783,7 +21830,7 @@ void MegaApiImpl::sendPendingRequests()
 
             client->syncs.disableSelectedSyncs([&](SyncConfig& c, Sync* s) {
 
-                bool matched = (tag && c.getTag() == tag) ||
+                bool matched = (c.getBackupId() == backupId) ||
                                (!ISUNDEF(nodehandle) && c.getRemoteNode() == nodehandle);
                 found = found || matched;  // no need to test s, auto tests check disable of disabled returns MegaError::API_OK
                 return matched;
@@ -23341,6 +23388,60 @@ void MegaApiImpl::queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaReque
     waiter->notify();
 }
 
+void MegaApiImpl::setCookieSettings(int settings, MegaRequestListener *listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_COOKIE_SETTINGS);
+    request->setNumDetails(settings);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setCookieSettings_sendPendingRequests(MegaRequestPrivate* request)
+{
+    auto tmp = std::to_string(request->getNumDetails());
+    client->putua(ATTR_COOKIE_SETTINGS, (byte *)tmp.data(), unsigned(tmp.size()));
+}
+
+void MegaApiImpl::getCookieSettings(MegaRequestListener *listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_COOKIE_SETTINGS);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+error MegaApiImpl::getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request)
+{
+    // make a copy to make sure we don't read too much from a non-null terminated string
+    unique_ptr<char[]> buff(new char[len + 1]);
+    buff[len] = 0;
+    char* startptr = buff.get();
+    strncpy(startptr, (const char*)data, len);
+
+    // get the value
+    char* endptr;
+    long value = strtol(startptr, &endptr, 10);
+
+    // validate the value
+    error e = API_OK;
+    if (endptr == startptr || *endptr != '\0' || value == LONG_MAX || value == LONG_MIN)
+    {
+        value = -1;
+        LOG_err << "Invalid value for Cookie Settings bitmap";
+        e = API_EINTERNAL;
+    }
+
+    request->setNumDetails(int(value));
+
+    return e;
+}
+
+bool MegaApiImpl::cookieBannerEnabled()
+{
+    return client->mCookieBannerEnabled;
+}
+
 void TreeProcCopy::allocnodes()
 {
     nn.resize(nc);
@@ -24306,12 +24407,11 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
 }
 
 #ifdef ENABLE_SYNC
-MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle nodehandle, int tag, SyncConfig::Type type)
-    : mActive(false)
+MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle nodehandle, SyncConfig::Type type)
+    : mType(static_cast<SyncType>(type))
+    , mActive(false)
     , mEnabled(false)
-    , mType(static_cast<SyncType>(type))
 {
-    this->tag = tag;
     this->megaHandle = nodehandle;
     this->localFolder = NULL;
     setLocalFolder(path);
@@ -24331,11 +24431,10 @@ MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle node
 }
 
 MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr)
-    : mActive(syncPtr && syncPtr->state >= 0)
+    : mType(static_cast<SyncType>(config.getType()))
+    , mActive(syncPtr && syncPtr->state >= 0)
     , mEnabled(config.getEnabled())
-    , mType(static_cast<SyncType>(config.getType()))
 {
-    this->tag = config.getTag();
     this->megaHandle = config.getRemoteNode();
     this->localFolder = NULL;
     setLocalFolder(config.getLocalPath().c_str());
@@ -24367,15 +24466,17 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr)
 
     setError(config.getError());
     setWarning(config.getWarning());
+
+    setBackupId(config.getBackupId());
 }
 
 MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
-    : mActive(sync->mActive)
+    : mType(sync->mType)
+    , mActive(sync->mActive)
     , mEnabled(sync->mEnabled)
-    , mType(sync->mType)
 {
     this->regExp = NULL;
-    this->setTag(sync->getTag());
+    this->setBackupId(sync->getBackupId());
     this->localFolder = NULL;
     this->mName = NULL;
     this->setLocalFolder(sync->getLocalFolder());
@@ -24473,14 +24574,14 @@ void MegaSyncPrivate::setLocalFingerprint(long long fingerprint)
     this->fingerprint = fingerprint;
 }
 
-int MegaSyncPrivate::getTag() const
+MegaHandle MegaSyncPrivate::getBackupId() const
 {
-    return tag;
+    return mBackupId;
 }
 
-void MegaSyncPrivate::setTag(int tag)
+void MegaSyncPrivate::setBackupId(MegaHandle backupId)
 {
-    this->tag = tag;
+    this->mBackupId = backupId;
 }
 
 MegaRegExpPrivate::MegaRegExpPrivate()

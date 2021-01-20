@@ -108,6 +108,10 @@ public class MegaApiJava {
     public final static int USER_ATTR_MY_CHAT_FILES_FOLDER = MegaApi.USER_ATTR_MY_CHAT_FILES_FOLDER;
     public final static int USER_ATTR_PUSH_SETTINGS = MegaApi.USER_ATTR_PUSH_SETTINGS;
     public final static int USER_ATTR_ALIAS = MegaApi.USER_ATTR_ALIAS;
+    public final static int USER_ATTR_DEVICE_NAMES = MegaApi.USER_ATTR_DEVICE_NAMES;
+    public final static int USER_ATTR_MY_BACKUPS_FOLDER = MegaApi.USER_ATTR_MY_BACKUPS_FOLDER;
+    public final static int USER_ATTR_BACKUP_NAMES = MegaApi.USER_ATTR_BACKUP_NAMES;
+    public final static int USER_ATTR_COOKIE_SETTINGS = MegaApi.USER_ATTR_COOKIE_SETTINGS;
 
     public final static int NODE_ATTR_DURATION = MegaApi.NODE_ATTR_DURATION;
     public final static int NODE_ATTR_COORDINATES = MegaApi.NODE_ATTR_COORDINATES;
@@ -220,6 +224,14 @@ public class MegaApiJava {
     public final static int BACKUP_TYPE_DOWN_SYNC = MegaApi.BACKUP_TYPE_DOWN_SYNC;
     public final static int BACKUP_TYPE_CAMERA_UPLOADS = MegaApi.BACKUP_TYPE_CAMERA_UPLOADS;
     public final static int BACKUP_TYPE_MEDIA_UPLOADS = MegaApi.BACKUP_TYPE_MEDIA_UPLOADS;
+
+    public final static int GOOGLE_ADS_DEFAULT = MegaApi.GOOGLE_ADS_DEFAULT;
+    public final static int GOOGLE_ADS_FORCE_ADS = MegaApi.GOOGLE_ADS_FORCE_ADS;
+    public final static int GOOGLE_ADS_IGNORE_MEGA = MegaApi.GOOGLE_ADS_IGNORE_MEGA;
+    public final static int GOOGLE_ADS_IGNORE_COUNTRY = MegaApi.GOOGLE_ADS_IGNORE_COUNTRY;
+    public final static int GOOGLE_ADS_IGNORE_IP = MegaApi.GOOGLE_ADS_IGNORE_IP;
+    public final static int GOOGLE_ADS_IGNORE_PRO = MegaApi.GOOGLE_ADS_IGNORE_PRO;
+    public final static int GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = MegaApi.GOOGLE_ADS_FLAG_IGNORE_ROLLOUT;
 
     MegaApi getMegaApi()
     {
@@ -10905,5 +10917,284 @@ public class MegaApiJava {
             long ts, long lastNode, MegaRequestListenerInterface listener) {
         megaApi.sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode,
                 createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Fetch Google ads
+     *
+     * The associated request type with this request is MegaRequest::TYPE_FETCH_GOOGLE_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - GOOGLE_ADS_DEFAULT = 0x0
+     *      - GOOGLE_ADS_FORCE_ADS = 0x200
+     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000
+     * @param adUnits A list of the adslot ids to fetch
+     * @param publicHandle Provide the public handle that the user is visiting
+     * @param listener MegaRequestListener to track this request
+     */
+    public void fetchGoogleAds(int adFlags, MegaStringList adUnits, long publicHandle, MegaRequestListenerInterface listener) {
+        megaApi.fetchGoogleAds(adFlags, adUnits, publicHandle, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Fetch Google ads
+     *
+     * The associated request type with this request is MegaRequest::TYPE_FETCH_GOOGLE_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - GOOGLE_ADS_DEFAULT = 0x0
+     *      - GOOGLE_ADS_FORCE_ADS = 0x200
+     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000
+     * @param adUnits A list of the adslot ids to fetch
+     * @param publicHandle Provide the public handle that the user is visiting
+     */
+    public void fetchGoogleAds(int adFlags, MegaStringList adUnits, long publicHandle) {
+        megaApi.fetchGoogleAds(adFlags, adUnits, publicHandle);
+    }
+
+    /**
+     * @brief Fetch Google ads
+     *
+     * The associated request type with this request is MegaRequest::TYPE_FETCH_GOOGLE_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - GOOGLE_ADS_DEFAULT = 0x0
+     *      - GOOGLE_ADS_FORCE_ADS = 0x200
+     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000
+     * @param adUnits A list of the adslot ids to fetch
+     */
+    public void fetchGoogleAds(int adFlags, MegaStringList adUnits) {
+        megaApi.fetchGoogleAds(adFlags, adUnits);
+    }
+
+    /**
+     * @brief Check if Google ads should show or not
+     *
+     * The associated request type with this request is MegaRequest::TYPE_QUERY_GOOGLE_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumDetails Return if ads should be show or not
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - GOOGLE_ADS_DEFAULT = 0x0
+     *      - GOOGLE_ADS_FORCE_ADS = 0x200
+     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT 0x4000
+     * @param publicHandle Provide the public handle that the user is visiting
+     * @param listener MegaRequestListener to track this request
+     */
+    public void queryGoogleAds(int adFlags, long publicHandle, MegaRequestListenerInterface listener) {
+        megaApi.queryGoogleAds(adFlags, publicHandle, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Check if Google ads should show or not
+     *
+     * The associated request type with this request is MegaRequest::TYPE_QUERY_GOOGLE_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumDetails Return if ads should be show or not
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - GOOGLE_ADS_DEFAULT = 0x0
+     *      - GOOGLE_ADS_FORCE_ADS = 0x200
+     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT 0x4000
+     * @param publicHandle Provide the public handle that the user is visiting
+     */
+    public void queryGoogleAds(int adFlags, long publicHandle) {
+        megaApi.queryGoogleAds(adFlags, publicHandle);
+    }
+
+    /**
+     * @brief Check if Google ads should show or not
+     *
+     * The associated request type with this request is MegaRequest::TYPE_QUERY_GOOGLE_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumDetails Return if ads should be show or not
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - GOOGLE_ADS_DEFAULT = 0x0
+     *      - GOOGLE_ADS_FORCE_ADS = 0x200
+     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT 0x4000
+     */
+    public void queryGoogleAds(int adFlags) {
+        megaApi.queryGoogleAds(adFlags);
+    }
+
+    /**
+     * @brief Set a bitmap to indicate whether some cookies are enabled or not
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_COOKIE_SETTINGS
+     *  - MegaRequest::getNumDetails - Return a bitmap with cookie settings
+     *  - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * @param settings A bitmap with cookie settings
+     * Valid bits are:
+     *      - Bit 0: essential
+     *      - Bit 1: preference
+     *      - Bit 2: analytics
+     *      - Bit 3: ads
+     *      - Bit 4: thirdparty
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setCookieSettings(int settings, MegaRequestListenerInterface listener) {
+        megaApi.setCookieSettings(settings, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Set a bitmap to indicate whether some cookies are enabled or not
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_COOKIE_SETTINGS
+     *  - MegaRequest::getNumDetails - Return a bitmap with cookie settings
+     *  - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * @param settings A bitmap with cookie settings
+     * Valid bits are:
+     *      - Bit 0: essential
+     *      - Bit 1: preference
+     *      - Bit 2: analytics
+     *      - Bit 3: ads
+     *      - Bit 4: thirdparty
+     */
+    public void setCookieSettings(int settings) {
+        megaApi.setCookieSettings(settings);
+    }
+
+    /**
+     * @brief Get a bitmap to indicate whether some cookies are enabled or not
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getParamType - Returns the value USER_ATTR_COOKIE_SETTINGS
+     *  - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumDetails Return the bitmap with cookie settings
+     *   Valid bits are:
+     *      - Bit 0: essential
+     *      - Bit 1: preference
+     *      - Bit 2: analytics
+     *      - Bit 3: ads
+     *      - Bit 4: thirdparty
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EINTERNAL - If the value for cookie settings bitmap was invalid
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getCookieSettings(MegaRequestListenerInterface listener) {
+        megaApi.getCookieSettings(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Get a bitmap to indicate whether some cookies are enabled or not
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getParamType - Returns the value USER_ATTR_COOKIE_SETTINGS
+     *  - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumDetails Return the bitmap with cookie settings
+     *   Valid bits are:
+     *      - Bit 0: essential
+     *      - Bit 1: preference
+     *      - Bit 2: analytics
+     *      - Bit 3: ads
+     *      - Bit 4: thirdparty
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EINTERNAL - If the value for cookie settings bitmap was invalid
+     */
+    public void getCookieSettings() {
+        megaApi.getCookieSettings();
+    }
+
+    /**
+     * @brief Check if the app can start showing the cookie banner
+     *
+     * This function will NOT return a valid value until the callback onEvent with
+     * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+     * a fetchnodes to check this value, but only when it follows a login with user and password,
+     * not when an existing session is resumed.
+     *
+     * For not logged-in mode, you need to call MegaApi::getMiscFlags first.
+     *
+     * @return True if this feature is enabled. Otherwise, false.
+     */
+    public boolean isCookieBannerEnabled() {
+        return megaApi.cookieBannerEnabled();
     }
 }

@@ -161,6 +161,8 @@ public:
     bool fread(string *, unsigned, unsigned, m_off_t);
     bool fwrite(const byte *, unsigned, m_off_t) override;
 
+    bool ftruncate() override;
+
     bool sysread(byte *, unsigned, m_off_t) override;
     bool sysstat(m_time_t*, m_off_t*) override;
     bool sysopen(bool async = false) override;
