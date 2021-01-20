@@ -267,6 +267,24 @@ bool SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen,
     return true;
 }
 
+bool SymmCipher::gcm_decrypt_v2(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
+{
+    aesgcm_d.Resynchronize(iv, ivlen);
+    try {
+        StringSource(*data, true, new AuthenticatedDecryptionFilter(aesgcm_d,
+                                                       new StringSink(*result),
+                                                       AuthenticatedDecryptionFilter::DEFAULT_FLAGS,
+                                                       static_cast<int>(taglen)));
+
+    } catch (HashVerificationFilter::HashVerificationFailed e)
+    {
+        result->clear();
+        LOG_err << "Failed AES-GCM decryption (v2): " << e.GetWhat();
+        return false;
+    }
+    return true;
+}
+
 void SymmCipher::serializekeyforjs(string *d)
 {
     char invertedkey[BLOCKSIZE];
