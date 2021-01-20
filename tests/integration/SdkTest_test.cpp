@@ -4852,6 +4852,7 @@ TEST_F(SdkTest, SdkBackupFolder)
         ASSERT_EQ(deviceName, attributeValue) << "Getting device name attr failed (wrong value)";
     }
 
+#ifdef ENABLE_SYNC
     // request to backup a folder
     string localFolderPath = string(LOCAL_TEST_FOLDER) + "\\LocalBackedUpFolder";
     makeNewTestRoot(localFolderPath.c_str());
@@ -4928,6 +4929,7 @@ TEST_F(SdkTest, SdkBackupFolder)
     const char* backupName2 = "RemoteBackupFolder2";
     err = synchronousBackupFolder(0, localFolderPath2.c_str(), backupName2);
     ASSERT_TRUE(err == MegaError::API_OK) << "Backup folder 2 failed (error: " << err << ")";
+#endif
 }
 
 TEST_F(SdkTest, SdkSimpleCommands)

@@ -23118,7 +23118,9 @@ void MegaApiImpl::sendPendingRequests()
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
         }
 
+#ifdef ENABLE_SYNC
         client->syncs.syncConfigDBFlush();
+#endif
     }
 }
 
