@@ -1228,6 +1228,7 @@ TEST(Sync, SyncConfig_downSync_syncDelTrue_overwriteTrue)
     test_SyncConfig_serialization(config);
 }
 
+#if 0
 namespace
 {
 
@@ -1378,6 +1379,8 @@ TEST(Sync, SyncConfigBag_withPreviousState)
     const std::vector<mega::SyncConfig> expConfigs{config1, config2};
     //ASSERT_EQ(expConfigs, bag2.all());
 }
+#endif
+
 
 namespace JSONSyncConfigTests
 {
