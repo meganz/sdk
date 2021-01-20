@@ -7099,8 +7099,6 @@ void MegaClient::notifypurge(void)
         // check for renamed/moved sync root folders
         //syncs.forEachRunningSync([&](Sync* sync) {
         syncs.forEachUnifiedSync([&](UnifiedSync& us){
-            // fail active syncs
-
 
             Node* n = nodebyhandle(us.mConfig.getRemoteNode());
             if (n && (n->changed.attrs || n->changed.parent || n->changed.removed))
@@ -7110,6 +7108,13 @@ void MegaClient::notifypurge(void)
                 // update path in sync configuration
                 bool pathChanged = us.updateSyncRemoteLocation(removed ? nullptr : n, false);
 
+                auto &activeSync = us.mSync;
+                if (!activeSync) // no active sync (already failed)
+                {
+                    return;
+                }
+
+                // fail sync if required
                 if(n->changed.parent) //moved
                 {
                     assert(pathChanged);
@@ -7118,27 +7123,27 @@ void MegaClient::notifypurge(void)
                     bool alreadyFailed = false;
                     while (p)
                     {
-                        if (us.mSync && p->nodehandle == rubbishHandle)
+                        if (p->nodehandle == rubbishHandle)
                         {
-                            failSync(us.mSync.get(), REMOTE_NODE_MOVED_TO_RUBBISH);
+                            failSync(activeSync.get(), REMOTE_NODE_MOVED_TO_RUBBISH);
                             alreadyFailed = true;
                             break;
                         }
                         p = p->parent;
                     }
 
-                    if (us.mSync && !alreadyFailed)
+                    if (!alreadyFailed)
                     {
-                        failSync(us.mSync.get(), REMOTE_PATH_HAS_CHANGED);
+                        failSync(activeSync.get(), REMOTE_PATH_HAS_CHANGED);
                     }
                 }
-                else if (us.mSync && removed)
+                else if (removed)
                 {
-                    failSync(us.mSync.get(), REMOTE_PATH_DELETED);
+                    failSync(activeSync.get(), REMOTE_PATH_DELETED);
                 }
-                else if (us.mSync && pathChanged)
+                else if (pathChanged)
                 {
-                    failSync(us.mSync.get(), REMOTE_PATH_HAS_CHANGED);
+                    failSync(activeSync.get(), REMOTE_PATH_HAS_CHANGED);
                 }
             }
         });
