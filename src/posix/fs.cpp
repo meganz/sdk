@@ -115,6 +115,48 @@ const string& adjustBasePath(const LocalPath& name)
 
 #endif /* ! USE_IOS */
 
+LocalPath NormalizeAbsolute(const LocalPath& path)
+{
+    LocalPath result = path;
+
+    // Convenience.
+    string& raw = result.localpath;
+
+    // Append the root separator if path is empty.
+    if (raw.empty())
+    {
+        raw.push_back('/');
+    }
+
+    // Remove trailing separator if we're not the root.
+    if (raw.size() > 1 && raw.back() == '/')
+    {
+        raw.pop_back();
+    }
+
+    return result;
+}
+
+int platformCompareUtf(const string& p1, bool unescape1, const string& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, false);
+}
+
+int platformCompareUtf(const string& p1, bool unescape1, const LocalPath& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, false);
+}
+
+int platformCompareUtf(const LocalPath& p1, bool unescape1, const string& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, false);
+}
+
+int platformCompareUtf(const LocalPath& p1, bool unescape1, const LocalPath& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, false);
+}
+
 #ifdef HAVE_AIO_RT
 PosixAsyncIOContext::PosixAsyncIOContext() : AsyncIOContext()
 {
@@ -438,6 +480,21 @@ bool PosixFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
 #endif
 }
 
+bool PosixFileAccess::ftruncate()
+{
+    retry = false;
+
+    // Truncate the file.
+    if (::ftruncate(fd, 0x0) == 0)
+    {
+        // Set the file pointer back to the start.
+        return lseek(fd, 0x0, SEEK_SET) == 0x0;
+    }
+
+    // Couldn't truncate the file.
+    return false;
+}
+
 int PosixFileAccess::stealFileDescriptor()
 {
     int toret = fd;
@@ -745,6 +802,8 @@ bool PosixFileSystemAccess::cwd(LocalPath& path) const
         buf.resize(buf.size() << 1);
     }
 
+    buf.resize(strlen(buf.c_str()));
+
     return true;
 }
 
@@ -755,8 +814,8 @@ void PosixFileSystemAccess::addevents(Waiter* w, int /*flags*/)
     {
         PosixWaiter* pw = (PosixWaiter*)w;
 
-        FD_SET(notifyfd, &pw->rfds);
-        FD_SET(notifyfd, &pw->ignorefds);
+        MEGA_FD_SET(notifyfd, &pw->rfds);
+        MEGA_FD_SET(notifyfd, &pw->ignorefds);
 
         pw->bumpmaxfd(notifyfd);
     }
@@ -775,7 +834,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     PosixWaiter* pw = (PosixWaiter*)w;
     string *ignore;
 
-    if (FD_ISSET(notifyfd, &pw->rfds))
+    if (MEGA_FD_ISSET(notifyfd, &pw->rfds))
     {
         char buf[sizeof(struct inotify_event) + NAME_MAX + 1];
         int p, l;
@@ -927,8 +986,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     char* paths[2];
     char* path;
     Sync* pathsync[2];
-    sync_list::iterator it;
-    fd_set rfds;
+    mega_fd_set_t rfds;
     timeval tv = { 0, 0 };
     struct stat statbuf;
     static char rsrc[] = "/..namedfork/rsrc";
@@ -936,8 +994,8 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
     for (;;)
     {
-        FD_ZERO(&rfds);
-        FD_SET(notifyfd, &rfds);
+        MEGA_FD_ZERO(&rfds);
+        MEGA_FD_SET(notifyfd, &rfds);
 
         // ensure nonblocking behaviour
         if (select(notifyfd + 1, &rfds, NULL, NULL, &tv) <= 0) break;
@@ -988,37 +1046,44 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 path = paths[i];
                 size_t psize = strlen(path);
 
-                for (it = client->syncs.begin(); it != client->syncs.end(); it++)
-                {
-                    std::string* ignore = &(*it)->dirnotify->ignore.localpath;
-                    std::string* localname = &(*it)->localroot->localname.localpath;
+                bool foundOne = false;
+                client->syncs.forEachRunningSync([&](Sync* sync) {
 
-                    size_t rsize = (*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.size() : localname->size();
-                    size_t isize = ignore->size();
+                    if (!foundOne)
+                    {
+                        std::string* ignore = &(sync)->dirnotify->ignore.localpath;
+                        std::string* localname = &(sync)->localroot->localname.localpath;
 
-                    if (psize >= rsize
-                      && !memcmp((*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.c_str() : localname->c_str(), path, rsize)    // prefix match
-                      && (!path[rsize] || path[rsize] == '/')               // at end: end of path or path separator
-                      && (psize <= (rsize + isize)                          // not ignored
-                          || (path[rsize + isize + 1] && path[rsize + isize + 1] != '/')
-                          || memcmp(path + rsize + 1, ignore->c_str(), isize))
-                      && (psize < rsrcsize                                  // it isn't a resource fork
-                          || memcmp(path + psize - rsrcsize, rsrc, rsrcsize)))
-                        {
-                            if (!lstat(path, &statbuf) && S_ISLNK(statbuf.st_mode))
+                        size_t rsize = sync->mFsEventsPath.size() ? sync->mFsEventsPath.size() : localname->size();
+                        size_t isize = ignore->size();
+
+                        if (psize >= rsize
+                          && !memcmp(sync->mFsEventsPath.size() ? sync->mFsEventsPath.c_str() : localname->c_str(), path, rsize)    // prefix match
+                          && (!path[rsize] || path[rsize] == '/')               // at end: end of path or path separator
+                          && (psize <= (rsize + isize)                          // not ignored
+                              || (path[rsize + isize + 1] && path[rsize + isize + 1] != '/')
+                              || memcmp(path + rsize + 1, ignore->c_str(), isize))
+                          && (psize < rsrcsize                                  // it isn't a resource fork
+                              || memcmp(path + psize - rsrcsize, rsrc, rsrcsize)))
                             {
-                                LOG_debug << "Link skipped:  " << path;
-                                paths[i] = NULL;
-                                break;
+                                if (!lstat(path, &statbuf) && S_ISLNK(statbuf.st_mode))
+                                {
+                                    LOG_debug << "Link skipped:  " << path;
+                                    paths[i] = NULL;
+                                    foundOne = true;
+                                }
+
+                                if (!foundOne)
+                                {
+                                    paths[i] += rsize + 1;
+                                    pathsync[i] = sync;
+                                    foundOne = true;
+                                }
                             }
+                    }
+                });
 
-                            paths[i] += rsize + 1;
-                            pathsync[i] = *it;
-                            break;
-                        }
-                }
-
-                if (it == client->syncs.end())
+                if (!foundOne)
                 {
                     paths[i] = NULL;
                 }
@@ -1838,6 +1903,14 @@ DirNotify* PosixFileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& 
     dirnotify->fsaccess = this;
 
     return dirnotify;
+}
+
+bool PosixFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)
+{
+    isnetwork = false;
+    syncError = NO_SYNC_ERROR;
+    syncWarning = NO_SYNC_WARNING;
+    return true;
 }
 
 bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType& type) const

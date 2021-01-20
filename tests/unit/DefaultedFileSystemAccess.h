@@ -30,6 +30,9 @@ class DefaultedFileSystemAccess: public mega::FileSystemAccess
 public:
     using FileSystemAccess::getlocalfstype;
 
+    bool issyncsupported(const mega::LocalPath&, bool& b, mega::SyncError& se, mega::SyncWarning& sw) override { b = false; se = mega::NO_SYNC_ERROR; sw = mega::NO_SYNC_WARNING; return true;}
+
+
     DefaultedFileSystemAccess()
     {
         notifyerr = false;

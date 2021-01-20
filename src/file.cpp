@@ -26,6 +26,7 @@
 #include "mega/sync.h"
 #include "mega/command.h"
 #include "mega/logging.h"
+#include "mega/heartbeats.h"
 
 namespace mega {
 File::File()
@@ -456,6 +457,8 @@ SyncFileGet::SyncFileGet(Sync* csync, Node* cn, const LocalPath& clocalname)
 
     syncxfer = true;
     n->syncget = this;
+
+    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, 1, size, 0) ;
 }
 
 SyncFileGet::~SyncFileGet()
@@ -577,6 +580,8 @@ void SyncFileGet::updatelocalname()
 // add corresponding LocalNode (by path), then self-destruct
 void SyncFileGet::completed(Transfer*, LocalNode*)
 {
+    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, 0, size);
+
     LocalNode *ll = sync->checkpath(NULL, &localname, nullptr, nullptr, false, nullptr);
     if (ll && ll != (LocalNode*)~0 && n
             && (*(FileFingerprint *)ll) == (*(FileFingerprint *)n))
@@ -592,6 +597,8 @@ void SyncFileGet::completed(Transfer*, LocalNode*)
 
 void SyncFileGet::terminated()
 {
+    sync->mUnifiedSync.mNextHeartbeat->adjustTransferCounts(0, -1, -size, 0);
+
     delete this;
 }
 #endif

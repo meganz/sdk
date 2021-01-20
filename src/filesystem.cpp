@@ -25,6 +25,232 @@
 #include "mega/mega_utf8proc.h"
 
 namespace mega {
+
+namespace detail {
+
+template<typename CharT>
+bool isEscape(UnicodeCodepointIterator<CharT> it);
+
+template<typename CharT>
+int decodeEscape(UnicodeCodepointIterator<CharT>& it)
+{
+    assert(isEscape(it));
+
+    // Skip the leading %.
+    (void)it.get();
+
+    return hexval(it.get()) << 4 | hexval(it.get());
+}
+
+int identity(const int c)
+{
+    return c;
+}
+
+template<typename CharT>
+bool isControlEscape(UnicodeCodepointIterator<CharT> it)
+{
+    if (isEscape(it))
+    {
+        const int32_t c = decodeEscape(it);
+
+        return c < 0x20 || c == 0x7f;
+    }
+
+    return false;
+}
+
+template<typename CharT>
+bool isEscape(UnicodeCodepointIterator<CharT> it)
+{
+    return it.get() == '%'
+           && islchex(it.get())
+           && islchex(it.get());
+}
+
+#ifdef _WIN32
+
+template<typename CharT>
+UnicodeCodepointIterator<CharT> skipPrefix(const UnicodeCodepointIterator<CharT>& it)
+{
+    auto i = it;
+
+    // Match leading \\.
+    if (!(i.match('\\') && i.match('\\')))
+    {
+        return it;
+    }
+
+    // Match . or ?
+    switch (i.peek())
+    {
+    case '.':
+    case '?':
+        (void)i.get();
+        break;
+    default:
+        return it;
+    }
+
+    // Match \.
+    if (!i.match('\\'))
+    {
+        return it;
+    }
+
+    auto j = i;
+
+    // Match drive letter.
+    if (j.get() && j.match(':'))
+    {
+        return i;
+    }
+
+    return it;
+}
+
+#endif // _WIN32
+
+template<typename CharT, typename CharU, typename UnaryOperation>
+int compareUtf(UnicodeCodepointIterator<CharT> first1, bool unescaping1,
+               UnicodeCodepointIterator<CharU> first2, bool unescaping2,
+               UnaryOperation transform)
+{
+#ifdef _WIN32
+    first1 = skipPrefix(first1);
+    first2 = skipPrefix(first2);
+#endif // _WIN32
+
+    while (!(first1.end() || first2.end()))
+    {
+        int c1;
+        int c2;
+
+        if (unescaping1 && isEscape(first1))
+        {
+            c1 = decodeEscape(first1);
+        }
+        else
+        {
+            c1 = first1.get();
+        }
+
+        if (unescaping2 && isEscape(first2))
+        {
+            c2 = decodeEscape(first2);
+        }
+        else
+        {
+            c2 = first2.get();
+        }
+
+        c1 = transform(c1);
+        c2 = transform(c2);
+
+        if (c1 != c2)
+        {
+            return c1 - c2;
+        }
+    }
+
+    if (first1.end() && first2.end())
+    {
+        return 0;
+    }
+
+    if (first1.end())
+    {
+        return -1;
+    }
+
+    return 1;
+}
+
+} // detail
+
+int compareUtf(const string& s1, bool unescaping1, const string& s2, bool unescaping2, bool caseInsensitive)
+{
+    return detail::compareUtf(
+                unicodeCodepointIterator(s1), unescaping1,
+                unicodeCodepointIterator(s2), unescaping2,
+                caseInsensitive ? Utils::toUpper: detail::identity);
+}
+
+int compareUtf(const string& s1, bool unescaping1, const LocalPath& s2, bool unescaping2, bool caseInsensitive)
+{
+    return detail::compareUtf(
+        unicodeCodepointIterator(s1), unescaping1,
+        unicodeCodepointIterator(s2.localpath), unescaping2,
+        caseInsensitive ? Utils::toUpper: detail::identity);
+}
+
+int compareUtf(const LocalPath& s1, bool unescaping1, const string& s2, bool unescaping2, bool caseInsensitive)
+{
+    return detail::compareUtf(
+        unicodeCodepointIterator(s1.localpath), unescaping1,
+        unicodeCodepointIterator(s2), unescaping2,
+        caseInsensitive ? Utils::toUpper: detail::identity);
+}
+
+int compareUtf(const LocalPath& s1, bool unescaping1, const LocalPath& s2, bool unescaping2, bool caseInsensitive)
+{
+    return detail::compareUtf(
+        unicodeCodepointIterator(s1.localpath), unescaping1,
+        unicodeCodepointIterator(s2.localpath), unescaping2,
+        caseInsensitive ? Utils::toUpper: detail::identity);
+}
+
+bool isCaseInsensitive(const FileSystemType type)
+{
+    if    (type == FS_EXFAT
+        || type == FS_FAT32
+        || type == FS_NTFS
+        || type == FS_UNKNOWN)
+    {
+        return true;
+    }
+#ifdef WIN32
+    return true;
+#else
+    return false;
+#endif
+}
+
+LocalPath NormalizeRelative(const LocalPath& path)
+{
+#ifdef WIN32
+    using string_type = wstring;
+#else // _WIN32
+    using string_type = string;
+#endif // ! _WIN32
+
+    LocalPath result = path;
+
+    // Convenience.
+    string_type& raw = result.localpath;
+    auto sep = LocalPath::localPathSeparator;
+
+    // Nothing to do if the path's empty.
+    if (raw.empty())
+    {
+        return result;
+    }
+
+    // Remove trailing separator if present.
+    if (raw.back() == sep)
+    {
+        raw.pop_back();
+    }
+
+    // Remove leading separator if present.
+    if (!raw.empty() && raw.front() == sep)
+    {
+        raw.erase(0, 1);
+    }
+
+    return result;
+}
+
 FileSystemAccess::FileSystemAccess()
     : waiter(NULL)
     , skip_errorreport(false)
@@ -41,11 +267,6 @@ void FileSystemAccess::captimestamp(m_time_t* t)
     // FIXME: remove upper bound before the year 2100 and upgrade server-side timestamps to BIGINT
     if (*t > (uint32_t)-1) *t = (uint32_t)-1;
     else if (*t < 0) *t = 0;
-}
-
-bool FileSystemAccess::islchex(char c) const
-{
-    return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
 }
 
 const char *FileSystemAccess::fstypetostring(FileSystemType type) const
@@ -192,7 +413,7 @@ void FileSystemAccess::unescapefsincompatible(string *name, FileSystemType fileS
         // conditions for unescaping: %xx must be well-formed
         if ((*name)[i] == '%' && islchex((*name)[i + 1]) && islchex((*name)[i + 2]))
         {
-            char c = static_cast<char>((MegaClient::hexval((*name)[i + 1]) << 4) + MegaClient::hexval((*name)[i + 2]));
+            char c = static_cast<char>((hexval((*name)[i + 1]) << 4) + hexval((*name)[i + 2]));
 
             if (!islocalfscompatible(static_cast<unsigned char>(c), false, fileSystemType))
             {
@@ -294,6 +515,19 @@ int DirNotify::getFailed(string& reason)
     return mFailed;
 }
 
+
+bool DirNotify::empty()
+{
+    for (auto& q : notifyq)
+    {
+        if (!q.empty())
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
 
 // notify base LocalNode + relative path/filename
 void DirNotify::notify(notifyqueue q, LocalNode* l, LocalPath&& path, bool immediate)
@@ -914,7 +1148,7 @@ LocalPath LocalPath::fromPlatformEncoded(string path)
     assert(!(path.size() % 2));
     LocalPath p;
     p.localpath.resize(path.size() / sizeof(wchar_t));
-    memcpy(p.localpath.data(), path.data(), p.localpath.size() * sizeof(wchar_t));
+    memcpy(const_cast<wchar_t*>(p.localpath.data()), path.data(), p.localpath.size() * sizeof(wchar_t));
     return p;
 #else
     LocalPath p;
@@ -942,8 +1176,11 @@ LocalPath LocalPath::tmpNameLocal(const FileSystemAccess& fsaccess)
 
 bool LocalPath::isContainingPathOf(const LocalPath& path, size_t* subpathIndex) const
 {
+    assert(!empty());
+    assert(!path.empty());
+
     if (path.localpath.size() >= localpath.size()
-        && !path.localpath.compare(0, localpath.size(), localpath.data(), localpath.size()))
+        && !Utils::pcasecmp(path.localpath, localpath, localpath.size()))
     {
        if (path.localpath.size() == localpath.size())
        {

@@ -57,7 +57,11 @@ using namespace mega;
     return self.megaBanner;
 }
 
-- (NSString *)title{
+- (NSUInteger)identifier {
+    return (NSUInteger)self.megaBanner->getId();
+}
+
+- (NSString *)title {
     if (!self.megaBanner) return nil;
     
     return self.megaBanner->getTitle() ? @(self.megaBanner->getTitle()) : nil;

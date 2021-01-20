@@ -22,10 +22,17 @@
 #ifndef MEGA_SYNC_H
 #define MEGA_SYNC_H 1
 
+#include "db.h"
+
 #ifdef ENABLE_SYNC
-#include "megaclient.h"
+
 
 namespace mega {
+
+class HeartBeatSyncInfo;
+class BackupInfoSync;
+class BackupMonitor;
+class MegaClient;
 
 // Searching from the back, this function compares path1 and path2 character by character and
 // returns the number of consecutive character matches (excluding separators) but only including whole node names.
@@ -48,11 +55,11 @@ public:
     // Adds a new sync config or updates if exists already
     void insert(const SyncConfig& syncConfig);
 
-    // Removes a sync config with a given tag
-    bool removeByTag(const int tag);
+    // Removes a sync config with a given backupId
+    bool removeByBackupId(const handle backupId);
 
-    // Returns the sync config with a given tag
-    const SyncConfig* get(const int tag) const;
+    // Returns the sync config with a given backupId
+    const SyncConfig* get(const handle backupId) const;
 
     // Returns the first sync config found with a remote handle
     const SyncConfig* getByNodeHandle(handle nodeHandle) const;
@@ -65,17 +72,48 @@ public:
 
 private:
     std::unique_ptr<DbTable> mTable; // table for caching the sync configs
-    std::map<int, SyncConfig> mSyncConfigs; // map of tag to sync configs
+    std::map<handle, SyncConfig> mSyncConfigs; // map of backupId to sync configs
 };
+
+
+struct UnifiedSync
+{
+    // Reference to client
+    MegaClient& mClient;
+
+    // We always have a config
+    SyncConfig mConfig;
+
+    // If the config is good, the sync can be running
+    unique_ptr<Sync> mSync;
+
+    // High level info about this sync, sent to backup centre
+    std::unique_ptr<BackupInfoSync> mBackupInfo;
+
+    // The next detail heartbeat to send to the backup centre
+    std::shared_ptr<HeartBeatSyncInfo> mNextHeartbeat;
+
+    // ctor/dtor
+    UnifiedSync(MegaClient&, const SyncConfig&);
+
+    // Try to create and start the Sync
+    error enableSync(bool resetFingerprint, bool notifyApp);
+
+private:
+    friend class Sync;
+    friend struct Syncs;
+    error startSync(MegaClient* client, const char* debris, LocalPath* localdebris, Node* remotenode, bool inshare, bool isNetwork, bool delayInitialScan, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder);
+    void changedConfigState(bool notifyApp);
+    bool updateSyncRemoteLocation(Node* n, bool forceCallback);
+};
+
 
 class MEGA_API Sync
 {
 public:
 
     // returns the sync config
-    const SyncConfig& getConfig() const;
-
-    void* appData = nullptr; //DEPRECATED, do not use: sync re-enabled does not have this set.
+    SyncConfig& getConfig();
 
     MegaClient* client = nullptr;
 
@@ -120,7 +158,7 @@ public:
     void cachenodes();
 
     // change state, signal to application
-    void changestate(syncstate_t, SyncError newSyncError = NO_SYNC_ERROR);
+    void changestate(syncstate_t, SyncError newSyncError, bool newEnableFlag, bool notifyApp);
 
     // skip duplicates and self-caused
     bool checkValidNotification(int q, Notification& notification);
@@ -148,15 +186,9 @@ public:
     // LocalNode
     bool scan(LocalPath*, FileAccess*);
 
-    // own position in session sync list
-    sync_list::iterator sync_it{};
-
     // rescan sequence number (incremented when a full rescan or a new
     // notification batch starts)
     int scanseqno = 0;
-
-    // notified nodes originating from this sync bear this tag
-    int tag = 0;
 
     // debris path component relative to the base path
     string debris;
@@ -171,15 +203,14 @@ public:
     // move file or folder to localdebris
     bool movetolocaldebris(LocalPath& localpath);
 
+    // get progress for heartbeats
+    m_off_t getInflightProgress();
+
     // original filesystem fingerprint
     fsfp_t fsfp = 0;
 
     // does the filesystem have stable IDs? (FAT does not)
     bool fsstableids = false;
-
-    // Error that causes a cancellation
-    SyncError errorCode = NO_SYNC_ERROR;
-    Error apiErrorCode; //in case a cancellation is caused by a regular error (unused)
 
     // true if the sync hasn't loaded cached LocalNodes yet
     bool initializing = true;
@@ -192,9 +223,11 @@ public:
     m_time_t updatedfilets = 0;
     m_time_t updatedfileinitialts = 0;
 
+    bool updateSyncRemoteLocation(Node* n, bool forceCallback);
+
     // flag to optimize destruction by skipping calls to treestate()
     bool mDestructorRunning = false;
-    Sync(MegaClient*, SyncConfig &, const char*, LocalPath*, Node*, bool, int, void*);
+    Sync(UnifiedSync&, const char*, LocalPath*, Node*, bool);
     ~Sync();
 
     static const int SCANNING_DELAY_DS;
@@ -203,12 +236,73 @@ public:
     static const int FILE_UPDATE_MAX_DELAY_SECS;
     static const dstime RECENT_VERSION_INTERVAL_SECS;
 
+    UnifiedSync& mUnifiedSync;
+
 protected :
     bool readstatecache();
 
 private:
     std::string mLocalPath;
 };
+
+
+struct Syncs
+{
+    UnifiedSync* appendNewSync(const SyncConfig&, MegaClient& mc);
+
+    bool hasRunningSyncs();
+    unsigned numRunningSyncs();
+    Sync* firstRunningSync();
+    Sync* runningSyncByBackupId(handle tag) const;
+
+    void forEachUnifiedSync(std::function<void(UnifiedSync&)> f);
+    void forEachRunningSync(std::function<void(Sync* s)>);
+    bool forEachRunningSync_shortcircuit(std::function<bool(Sync* s)>);
+    void forEachRunningSyncContainingNode(Node* node, std::function<void(Sync* s)> f);
+    void forEachSyncConfig(std::function<void(const SyncConfig&)>);
+
+    void purgeRunningSyncs();
+    void stopCancelledFailedDisabled();
+    void resumeResumableSyncsOnStartup();
+    void enableResumeableSyncs();
+    error enableSyncByBackupId(handle backupId, bool resetFingerprint, UnifiedSync*&);
+
+    // disable all active syncs.  Cache is kept
+    void disableSyncs(SyncError syncError, bool newEnabledFlag);
+
+    // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted
+    void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag);
+
+    // Called via MegaApi::removeSync - cache files are deleted
+    void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
+
+    void resetSyncConfigDb();
+    void clear();
+
+    // updates in state & error
+    void saveSyncConfig(const SyncConfig& config);
+
+    Syncs(MegaClient& mc);
+
+    // for quick lock free reference by MegaApiImpl::syncPathState (don't slow down windows explorer)
+    bool isEmpty = true;
+
+    unique_ptr<BackupMonitor> mHeartBeatMonitor;
+
+    // use this existing class for maintaining the db
+    unique_ptr<SyncConfigBag> mSyncConfigDb;
+
+private:
+
+    vector<unique_ptr<UnifiedSync>> mSyncVec;
+
+    // remove the Sync and its config.  The sync's Localnode cache is removed
+    void removeSyncByIndex(size_t index);
+
+    MegaClient& mClient;
+};
+
+
 } // namespace
 
 #endif

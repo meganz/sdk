@@ -89,7 +89,7 @@ class SyncApp : public MegaApp, public Logger
     void request_error(error e);
 
 #ifdef ENABLE_SYNC
-    void syncupdate_state(int, syncstate_t state, SyncError, bool) override;
+    void syncupdate_stateconfig(handle backupId) override;
     void syncupdate_local_folder_addition(Sync*, LocalNode*, const char *) override;
     void syncupdate_local_folder_deletion(Sync*, LocalNode*) override;
     void syncupdate_local_file_addition(Sync*, LocalNode*, const char *) override;
@@ -444,19 +444,20 @@ void SyncApp::fetchnodes_result(const Error &e)
             }
             else
             {
-                static int syncTag = 2027;
-
-                SyncConfig syncConfig{syncTag++, local_folder, local_folder, n->nodehandle, remote_folder, 0};
-                SyncError syncError;
 #ifdef ENABLE_SYNC
-                error err = client->addsync(std::move(syncConfig), DEBRISFOLDER, NULL, syncError);
-                if (err)
-                {
-                    LOG_err << "Sync could not be added! " << err << " syncError = " << syncError;
-                    exit(1);
-                }
-
-                LOG_info << "Sync started !";
+                SyncConfig syncConfig{local_folder, local_folder, n->nodehandle, remote_folder, 0};
+                client->addsync(syncConfig, DEBRISFOLDER, NULL, false, false,
+                                [](mega::UnifiedSync*, const SyncError& serr, error err) {
+                    if (err)
+                    {
+                        LOG_err << "Sync could not be added! " << err << " syncError = " << serr;
+                        exit(1);
+                    }
+                    else
+                    {
+                        LOG_info << "Sync started !";
+                    }
+                });
 #endif
             }
         }
@@ -476,17 +477,9 @@ void SyncApp::request_error(error e)
 }
 
 #ifdef ENABLE_SYNC
-void SyncApp::syncupdate_state(int, syncstate_t state, SyncError, bool)
+void SyncApp::syncupdate_stateconfig(handle backupId)
 {
-    if (( state == SYNC_CANCELED ) || ( state == SYNC_FAILED ))
-    {
-        LOG_err << "FATAL: Sync failed !";
-        exit(1);
-    }
-    else if (state == SYNC_ACTIVE)
-    {
-        LOG_info << "Sync is now active";
-    }
+    LOG_info << "Sync config updated: " << backupId;
 }
 
 // sync update callbacks are for informational purposes only and must not
