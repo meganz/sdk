@@ -390,9 +390,6 @@ private:
     // Maps backup tag to config.
     JSONSyncConfigMap mBackupIdToConfig;
 
-    // Maps backup target handle to config.
-    map<handle, JSONSyncConfig*> mTargetToConfig;
-
     // Tracks which 'slot' we're writing to.
     unsigned int mSlot;
 

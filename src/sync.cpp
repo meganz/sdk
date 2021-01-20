@@ -2886,7 +2886,6 @@ JSONSyncConfigDB::JSONSyncConfigDB(const LocalPath& dbPath,
   , mDrivePath(drivePath)
   , mObserver(&observer)
   , mBackupIdToConfig()
-  , mTargetToConfig()
   , mSlot(0)
   , mDirty(false)
 {
@@ -2897,7 +2896,6 @@ JSONSyncConfigDB::JSONSyncConfigDB(const LocalPath& dbPath)
   , mDrivePath()
   , mObserver(nullptr)
   , mBackupIdToConfig()
-  , mTargetToConfig()
   , mSlot(0)
   , mDirty(false)
 {
@@ -2955,13 +2953,13 @@ const JSONSyncConfig* JSONSyncConfigDB::getByBackupId(handle bid) const
 
 const JSONSyncConfig* JSONSyncConfigDB::getByRootHandle(handle targetHandle) const
 {
-    auto it = mTargetToConfig.find(targetHandle);
-
-    if (it != mTargetToConfig.end())
+    for (auto& it : mBackupIdToConfig)
     {
-        return it->second;
+        if (it.second.targetHandle == targetHandle)
+        {
+            return &it.second;
+        }
     }
-
     return nullptr;
 }
 
@@ -3073,20 +3071,8 @@ const JSONSyncConfig* JSONSyncConfigDB::add(const JSONSyncConfig& config,
         // Mark the database as being dirty.
         mDirty |= flush;
 
-        // Remove the existing config from the target index.
-        mTargetToConfig.erase(it->second.targetHandle);
-
         // Update the config.
         it->second = config;
-
-        // Sanity check.
-        assert(mTargetToConfig.count(config.targetHandle) == 0);
-
-        // Index the updated config by target, if possible.
-        if (config.targetHandle != UNDEF)
-        {
-            mTargetToConfig.emplace(config.targetHandle, &it->second);
-        }
 
         // We're done.
         return &it->second;
@@ -3094,15 +3080,6 @@ const JSONSyncConfig* JSONSyncConfigDB::add(const JSONSyncConfig& config,
 
     // Add the config to the database.
     auto result = mBackupIdToConfig.emplace(config.backupId, config);
-
-    // Sanity check.
-    assert(mTargetToConfig.count(config.targetHandle) == 0);
-
-    // Index the new config by target, if possible.
-    if (config.targetHandle != UNDEF)
-    {
-        mTargetToConfig.emplace(config.targetHandle, &result.first->second);
-    }
 
     if (mObserver)
     {
@@ -3151,9 +3128,6 @@ void JSONSyncConfigDB::clear(const bool flush)
 
     // Mark the database as being dirty.
     mDirty |= flush;
-
-    // Clear the backup target handle index.
-    mTargetToConfig.clear();
 
     // Clear the config database.
     mBackupIdToConfig.clear();
@@ -3234,9 +3208,6 @@ error JSONSyncConfigDB::removeByBackupId(handle bid, const bool flush)
 
     // Mark the database as being dirty.
     mDirty |= flush;
-
-    // Remove the config from the target handle index.
-    mTargetToConfig.erase(it->second.targetHandle);
 
     // Remove the config from the database.
     mBackupIdToConfig.erase(it);
