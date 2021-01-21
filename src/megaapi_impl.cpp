@@ -3086,10 +3086,13 @@ MegaTransferListener* MegaTransferPrivate::getListener() const
 
 MegaTransferPrivate::~MegaTransferPrivate()
 {
-    assert(!recursiveOperation->isCancelled());
-    if (recursiveOperation && !recursiveOperation->isCancelled())
+    if (recursiveOperation)
     {
-        recursiveOperation->cancel();
+        assert(!recursiveOperation->isCancelled());
+        if (!recursiveOperation->isCancelled())
+        {
+            recursiveOperation->cancel();
+        }
     }
     delete[] path;
     delete[] parentPath;
@@ -25686,7 +25689,6 @@ MegaFolderUploadController::~MegaFolderUploadController()
 
 bool MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
 {
-    assert(mMainThreadId == std::this_thread::get_id());
     if (cancelled)
     {
         LOG_warn << "MegaFolderUploadController::scanFolder - this operation was previously cancelled";
