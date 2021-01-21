@@ -9308,10 +9308,13 @@ void MegaClient::opensctable()
             sctable = dbaccess->open(rng, *fsaccess, dbname);
             pendingsccommit = false;
 
-            // sctable always has a transaction started.
-            // We only commit once we have an up to date SCSN and the table state matches it.
-            sctable->begin();
-            assert(sctable->inTransaction());
+            if (sctable)
+            {
+                // sctable always has a transaction started.
+                // We only commit once we have an up to date SCSN and the table state matches it.
+                sctable->begin();
+                assert(sctable->inTransaction());
+            }
         }
     }
 }
