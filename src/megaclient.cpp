@@ -60,10 +60,10 @@ const int MegaClient::MAXQUEUEDFA = 30;
 // maximum number of concurrent putfa
 const int MegaClient::MAXPUTFA = 10;
 
+#ifdef ENABLE_SYNC
 // hearbeat frequency
 static constexpr int FREQUENCY_HEARTBEAT_DS = 300;
 
-#ifdef ENABLE_SYNC
 // //bin/SyncDebris/yyyy-mm-dd base folder name
 const char* const MegaClient::SYNCDEBRISFOLDERNAME = "SyncDebris";
 #endif
