@@ -228,7 +228,7 @@ public:
 
     bool exec()
     {
-        std::lock_guard g(m);
+        std::lock_guard<std::mutex> g(m);
         if (!executed)
         {
             executed = true;
