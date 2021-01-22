@@ -1285,18 +1285,7 @@ bool MegaApiImpl::is_syncable(Sync *sync, const char *name, const LocalPath& loc
         }
     }
 
-    MegaRegExp *regExp = NULL;
-#ifdef USE_PCRE
-    //TODO: Relaying on MegaSyncPrivate for this makes no sense. While resuming syncs, there might not be a MegaSyncPrivate
-    // in the first place at this point when doing first scan. Per sync inclusions should be included in Sync object
-    MegaSyncPrivate* megaSync = (MegaSyncPrivate *)sync->appData;
-    if (megaSync)
-    {
-        regExp = megaSync->getRegExp();
-    }
-#endif
-
-    if (regExp || excludedPaths.size())
+    if (excludedPaths.size())
     {
         string utf8path = localpath.toPath(*fsAccess);
 
@@ -1307,13 +1296,6 @@ bool MegaApiImpl::is_syncable(Sync *sync, const char *name, const LocalPath& loc
                 return false;
             }
         }
-
-#ifdef USE_PCRE
-        if (regExp && regExp->match(utf8path.c_str()))
-        {
-            return false;
-        }
-#endif
     }
 
     return true;
