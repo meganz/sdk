@@ -606,7 +606,7 @@ public:
      * @param syncError filled with SyncError with the sync error that makes the node unsyncable
      * @return API_OK if syncable. (regular) error otherwise
      */
-    error isLocalPathSyncable(std::string newPath, handle excludeBackupId = UNDEF, SyncError *syncError = nullptr);
+    error isLocalPathSyncable(const LocalPath& newPath, handle excludeBackupId = UNDEF, SyncError *syncError = nullptr);
 
     /**
      * @brief check config. Will fill syncError in the SyncConfig in case there is one.

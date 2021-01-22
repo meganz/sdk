@@ -123,35 +123,10 @@ int attempts = 0;
 
 #ifdef ENABLE_SYNC
 
-struct NewSyncConfig
-{
-    SyncConfig::Type type = SyncConfig::TYPE_TWOWAY;
-    bool syncDeletions = true;
-    bool forceOverwrite = false;
-
-    static NewSyncConfig from(const SyncConfig& config)
-    {
-        return NewSyncConfig{config.getType(), config.syncDeletions(), config.forceOverwrite()};
-    }
-
-    NewSyncConfig(SyncConfig::Type t = SyncConfig::TYPE_TWOWAY, bool s = true, bool f = false)
-        : type(t), syncDeletions(s), forceOverwrite(f)
-    {}
-};
 
 // converts the given sync configuration to a string
 static std::string syncConfigToString(const SyncConfig& config)
 {
-    auto getOptions = [](const SyncConfig& config)
-    {
-        std::string desc;
-        desc += ", syncDeletions ";
-        desc += config.syncDeletions() ? "ON" : "OFF";
-        desc += ", forceOverwrite ";
-        desc += config.forceOverwrite() ? "ON" : "OFF";
-        return desc;
-    };
-
     std::string description(Base64Str<MegaClient::BACKUPHANDLE>(config.getBackupId()));
     if (config.getType() == SyncConfig::TYPE_TWOWAY)
     {
@@ -160,12 +135,10 @@ static std::string syncConfigToString(const SyncConfig& config)
     else if (config.getType() == SyncConfig::TYPE_UP)
     {
         description.append(" UP");
-        description += getOptions(config);
     }
     else if (config.getType() == SyncConfig::TYPE_DOWN)
     {
         description.append(" DOWN");
-        description += getOptions(config);
     }
     return description;
 }
@@ -198,7 +171,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
     }
     else
     {
-        return std::make_pair(false, SyncConfig("", "", UNDEF, "", 0));
+        return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
     }
 
     bool syncDeletions = false;
@@ -216,7 +189,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig("", "", UNDEF, "", 0));
+            return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
         }
 
         if (overwrite == "on")
@@ -229,11 +202,11 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig("", "", UNDEF, "", 0));
+            return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
         }
     }
 
-    return std::make_pair(true, SyncConfig("", "", UNDEF, "", 0, {}, true, syncType, syncDeletions, forceOverwrite));
+    return std::make_pair(true, SyncConfig(LocalPath(), "", UNDEF, "", 0, {}, true, syncType));
 }
 
 // sync configuration used when creating a new sync
@@ -495,12 +468,12 @@ void DemoApp::sync_auto_resume_result(const UnifiedSync& s, bool attempted)
     handle backupId = s.mConfig.getBackupId();
     if (attempted)
     {
-        cout << "Sync - autoresumed " << toHandle(backupId) << " " << s.mConfig.getLocalPath()  << " enabled: "
+        cout << "Sync - autoresumed " << toHandle(backupId) << " " << s.mConfig.getLocalPath().toPath(*client->fsaccess)  << " enabled: "
              << s.mConfig.getEnabled()  << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
     }
     else
     {
-        cout << "Sync - autoloaded " << toHandle(backupId) << " " << s.mConfig.getLocalPath() << " enabled: "
+        cout << "Sync - autoloaded " << toHandle(backupId) << " " << s.mConfig.getLocalPath().toPath(*client->fsaccess) << " enabled: "
             << s.mConfig.getEnabled() << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
     }
 }
@@ -4438,8 +4411,7 @@ void exec_sync(autocomplete::ACState& s)
             {
                 cout << "Adding sync..." << endl;
 
-                SyncConfig syncConfig{s.words[1].s, s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.getType(),
-                            newSyncConfig.syncDeletions(), newSyncConfig.forceOverwrite()};
+                SyncConfig syncConfig(LocalPath::fromPath(s.words[1].s, *client->fsaccess), s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.getType());
 
                 client->addsync(syncConfig, DEBRISFOLDER, NULL, false, false,
                                 [](mega::UnifiedSync* us, const SyncError&, error e) {
@@ -4506,7 +4478,7 @@ void exec_sync(autocomplete::ACState& s)
             {
                 string remotepath, localpath;
                 nodepath(us.mConfig.getRemoteNode(), &remotepath);
-                localpath = us.mConfig.getLocalPath();
+                localpath = us.mConfig.getLocalPath().toPath(*client->fsaccess);
 
                 cout << syncConfigToString(us.mConfig) << ": " << localpath << " to " << remotepath << " - not running" << endl;
             }

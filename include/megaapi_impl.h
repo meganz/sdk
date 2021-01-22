@@ -1070,7 +1070,7 @@ class MegaSyncPrivate : public MegaSync
 {
 public:
     MegaSyncPrivate(const char *path, const char *name, handle nodehandle, SyncConfig::Type type);
-    MegaSyncPrivate(const SyncConfig& config, Sync*);
+    MegaSyncPrivate(const SyncConfig& config, Sync*, MegaClient* client);
     MegaSyncPrivate(MegaSyncPrivate *sync);
 
     virtual ~MegaSyncPrivate();

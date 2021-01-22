@@ -2476,14 +2476,14 @@ void MegaClient::exec()
             if (sync->initializing && sync->state == SYNC_INITIALSCAN)
             {
                 const auto &syncConfig = sync->getConfig();
-                LocalPath localPath = LocalPath::fromPath(sync->getConfig().getLocalPath(), *fsaccess);
+                LocalPath localPath = sync->getConfig().getLocalPath();
                 auto fa = fsaccess->newfileaccess();
 
                 if (fa->fopen(localPath, true, false))
                 {
                     if (fa->type == FOLDERNODE)
                     {
-                        LOG_debug << "Initial delayed scan: " << syncConfig.getLocalPath();
+                        LOG_debug << "Initial delayed scan: " << syncConfig.getLocalPath().toPath(*fsaccess);
 
                         if (sync->scan(&localPath, fa.get()))
                         {
@@ -13044,9 +13044,9 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
 #endif
 }
 
-error MegaClient::isLocalPathSyncable(string newPath, handle excludeBackupId, SyncError *syncError)
+error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBackupId, SyncError *syncError)
 {
-    if (!newPath.size())
+    if (newPath.empty())
     {
         if (syncError)
         {
@@ -13055,7 +13055,7 @@ error MegaClient::isLocalPathSyncable(string newPath, handle excludeBackupId, Sy
         return API_EARGS;
     }
 
-    LocalPath newLocallyEncodedPath = LocalPath::fromPath(newPath, *fsaccess);
+    LocalPath newLocallyEncodedPath = newPath;
     LocalPath newLocallyEncodedAbsolutePath;
     fsaccess->expanselocalpath(newLocallyEncodedPath, newLocallyEncodedAbsolutePath);
 
@@ -13064,7 +13064,7 @@ error MegaClient::isLocalPathSyncable(string newPath, handle excludeBackupId, Sy
 
         if (config.getBackupId() != excludeBackupId && excludeBackupId != UNDEF) // for the check inside addsync() when it's already present
         {
-            LocalPath otherLocallyEncodedPath = LocalPath::fromPath(config.getLocalPath(), *fsaccess);
+            LocalPath otherLocallyEncodedPath = config.getLocalPath();
             LocalPath otherLocallyEncodedAbsolutePath;
             fsaccess->expanselocalpath(otherLocallyEncodedPath, otherLocallyEncodedAbsolutePath);
 
@@ -13104,7 +13104,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     if (!remotenode)
     {
         LOG_warn << "Sync root does not exist in the cloud: "
-                 << syncConfig.getLocalPath()
+                 << syncConfig.getLocalPath().toPath(*fsaccess)
                  << ": "
                  << LOG_NODEHANDLE(syncConfig.getRemoteNode());
 
@@ -13119,8 +13119,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         return e;
     }
 
-    string localPath = syncConfig.getLocalPath();
-    rootpath = LocalPath::fromPath(localPath, *fsaccess);
+    rootpath = syncConfig.getLocalPath();
     rootpath.trimNonDriveTrailingSeparator();
 
     isnetwork = false;
@@ -13137,7 +13136,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     {
         if (openedLocalFolder->type == FOLDERNODE)
         {
-            LOG_debug << "Adding sync: " << syncConfig.getLocalPath() << " vs " << remotenode->displaypath();;
+            LOG_debug << "Adding sync: " << syncConfig.getLocalPath().toPath(*fsaccess) << " vs " << remotenode->displaypath();;
 
             // Note localpath is stored as utf8 in syncconfig as passed from the apps!
             // Note: we might want to have it expansed to store the full canonical path.
@@ -13184,8 +13183,8 @@ void MegaClient::copySyncConfig(SyncConfig& config, std::function<void(mega::Uni
     string extraData; // Empty extra data for the moment, in the future, any should come in config
 
     reqs.add( new CommandBackupPut(this, BackupInfoSync::getSyncType(config)
-                                   , config.getName().c_str(), config.getRemoteNode()
-                                   , config.getLocalPath(), deviceIdHash.c_str()
+                                   , config.mName.c_str(), config.getRemoteNode()
+                                   , config.getLocalPath().toPath(*fsaccess), deviceIdHash.c_str()
                                    , BackupInfoSync::getSyncState(config, this)
                                    , config.getError()
                                    , extraData
@@ -13229,8 +13228,8 @@ error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* loc
         string extraData; // Empty extra data for the moment, in the future, any should come in SyncConfig
 
         reqs.add( new CommandBackupPut(this, BackupInfoSync::getSyncType(config)
-                                       , config.getName().c_str(), config.getRemoteNode()
-                                       , config.getLocalPath().c_str(), deviceIdHash.c_str()
+                                       , config.mName.c_str(), config.getRemoteNode()
+                                       , config.getLocalPath().toPath(*fsaccess).c_str(), deviceIdHash.c_str()
                                        , BackupInfoSync::getSyncState(config, this)
                                        , config.getError()
                                        , extraData
@@ -14706,7 +14705,7 @@ string MegaClient::decypherTLVTextWithMasterKey(const char* name, const string& 
 
 void MegaClient::failSync(Sync* sync, SyncError syncerror)
 {
-    LOG_err << "Failing sync: " << sync->getConfig().getLocalPath() << " error = " << syncerror;
+    LOG_err << "Failing sync: " << sync->getConfig().getLocalPath().toPath(*fsaccess) << " error = " << syncerror;
 
     sync->changestate(SYNC_FAILED, syncerror, false, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
 

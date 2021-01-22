@@ -1330,7 +1330,7 @@ struct StandardClient : public MegaApp
             auto& config = sync->getConfig();
 
             info.h = config.getRemoteNode();
-            info.localpath = config.getLocalPath();
+            info.localpath = config.getLocalPath().toPath(*client.fsaccess);
 
             return true;
         }
@@ -1403,7 +1403,7 @@ struct StandardClient : public MegaApp
         {
             if (Node* m = drillchildnodebyname(n, subfoldername))
             {
-                SyncConfig syncConfig{localpath.u8string(), localpath.u8string(), m->nodehandle, subfoldername, 0};
+                SyncConfig syncConfig{LocalPath::fromPath(localpath.u8string(), *client.fsaccess), localpath.u8string(), m->nodehandle, subfoldername, 0};
                 error e = client.addsync(syncConfig, DEBRISFOLDER, NULL, false, true, addSyncCompletion);
                 return !e;
             }

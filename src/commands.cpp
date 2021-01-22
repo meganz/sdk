@@ -8540,13 +8540,13 @@ bool CommandBackupSyncFetch::procresult(Result r)
     }
     else
     {
-        auto cantSkipUnknownField = [&]() -> bool {
+        auto skipUnknownField = [&]() -> bool {
             if (!client->json.storeobject())
             {
                 completion(API_EINTERNAL, data);
-                return true;
+                return false;
             }
-            return false;
+            return true;
         };
 
         auto cantLeaveObject = [&]() -> bool {
@@ -8597,7 +8597,7 @@ bool CommandBackupSyncFetch::procresult(Result r)
                             case MAKENAMEID2('q', 'd'):     d.downloads = client->json.getint32(); break;
                             case MAKENAMEID3('l', 't', 's'):d.lastActivityTs = client->json.getint32(); break;
                             case MAKENAMEID2('l', 'h'):     d.lastSyncedNodeHandle = client->json.gethandle(sizeof(handle)); break;
-                            default: if (cantSkipUnknownField()) return false;
+                            default: if (!skipUnknownField()) return false;
                             }
                         }
                         if (cantLeaveObject()) return false;
@@ -8605,7 +8605,7 @@ bool CommandBackupSyncFetch::procresult(Result r)
                 }
                 break;
 
-                default: if (cantSkipUnknownField()) return false;
+                default: if (!skipUnknownField()) return false;
                 }
             }
             if (cantLeaveObject()) return false;

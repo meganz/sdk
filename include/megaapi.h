@@ -5233,7 +5233,7 @@ public:
      * The SDK retains the ownership of the returned value. It will be valid until
      * the MegaSync object is deleted.
      *
-     * @return Local folder that is being synced
+     * @return Remote folder that is being synced
      */
     virtual const char* getMegaFolder() const;
 
@@ -7569,12 +7569,12 @@ class MegaApi
             USER_ATTR_PUSH_SETTINGS = 25,        // private - char array
             // ATTR_UNSHAREABLE_KEY = 26         // it's internal for SDK, not exposed to apps
             USER_ATTR_ALIAS = 27,                // private - byte array
-            USER_ATTR_DEVICE_NAMES = 30,          // private - byte array
+            USER_ATTR_DEVICE_NAMES = 30,         // private - byte array
             USER_ATTR_MY_BACKUPS_FOLDER = 31,    // private - byte array
-            USER_ATTR_BACKUP_NAMES = 32,          // private - byte array
+            USER_ATTR_BACKUP_NAMES = 32,         // private - byte array
             USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
-            USER_ATTR_JSON_SYNC_CONFIG_NAME = 34, // private - char array
-            USER_ATTR_JSON_SYNC_CONFIG_KEY = 35,   // private - char array
+            USER_ATTR_JSON_SYNC_CONFIG_NAME = 34,// private - char array
+            USER_ATTR_JSON_SYNC_CONFIG_KEY = 35, // private - char array
         };
 
         enum {

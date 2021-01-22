@@ -680,23 +680,22 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     scanseqno = 0;
 
     mLocalPath = mUnifiedSync.mConfig.getLocalPath();
-    LocalPath crootpath = LocalPath::fromPath(mLocalPath, *client->fsaccess);
 
     if (cdebris)
     {
         debris = cdebris;
         localdebris = LocalPath::fromPath(debris, *client->fsaccess);
 
-        dirnotify.reset(client->fsaccess->newdirnotify(crootpath, localdebris, client->waiter));
+        dirnotify.reset(client->fsaccess->newdirnotify(mLocalPath, localdebris, client->waiter));
 
-        localdebris.prependWithSeparator(crootpath);
+        localdebris.prependWithSeparator(mLocalPath);
     }
     else
     {
         localdebris = *clocaldebris;
 
         // FIXME: pass last segment of localdebris
-        dirnotify.reset(client->fsaccess->newdirnotify(crootpath, localdebris, client->waiter));
+        dirnotify.reset(client->fsaccess->newdirnotify(mLocalPath, localdebris, client->waiter));
     }
     dirnotify->sync = this;
 
@@ -714,9 +713,9 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     fsstableids = dirnotify->fsstableids();
     LOG_info << "Filesystem IDs are stable: " << fsstableids;
 
-    mFilesystemType = client->fsaccess->getlocalfstype(crootpath);
+    mFilesystemType = client->fsaccess->getlocalfstype(mLocalPath);
 
-    localroot->init(this, FOLDERNODE, NULL, crootpath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
+    localroot->init(this, FOLDERNODE, NULL, mLocalPath, nullptr);  // the root node must have the absolute path.  We don't store shortname, to avoid accidentally using relative paths.
     localroot->setnode(remotenode);
 
 #ifdef __APPLE__
@@ -757,7 +756,7 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
 
         auto fas = client->fsaccess->newfileaccess(false);
 
-        if (fas->fopen(crootpath, true, false))
+        if (fas->fopen(mLocalPath, true, false))
         {
             tableid[0] = fas->fsid;
             tableid[1] = remotenode->nodehandle;
@@ -2051,9 +2050,9 @@ bool UnifiedSync::updateSyncRemoteLocation(Node* n, bool forceCallback)
     if (n)
     {
         auto newpath = n->displaypath();
-        if (newpath != mConfig.getRemotePath())
+        if (newpath != mConfig.mOrigninalPathOfRemoteRootNode)
         {
-            mConfig.setRemotePath(newpath);
+            mConfig.mOrigninalPathOfRemoteRootNode = newpath;
             changed = true;
         }
 
@@ -2080,7 +2079,7 @@ bool UnifiedSync::updateSyncRemoteLocation(Node* n, bool forceCallback)
     //persist
     if (auto syncdb = mClient.syncs.syncConfigDB())
     {
-        syncdb->add(translate(mClient, mConfig));
+        syncdb->add(mConfig);
     }
 
     return changed;
@@ -2158,7 +2157,7 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
     }
     else
     {
-        LOG_debug << "Initial scan sync: " << mConfig.getLocalPath();
+        LOG_debug << "Initial scan sync: " << mConfig.getLocalPath().toPath(*client->fsaccess);
 
         if (mSync->scan(&rootpath, openedLocalFolder.get()))
         {
@@ -2183,10 +2182,9 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
 
 void UnifiedSync::changedConfigState(bool notifyApp)
 {
-    if ((mConfig.mError != mConfig.mKnownError) ||
-        (mConfig.getEnabled() != mConfig.mKnownEnabled))
+    if (mConfig.errorOrEnabledChanged())
     {
-        LOG_debug << "Sync enabled/error changing. from " << mConfig.mKnownEnabled << "/" << mConfig.mKnownError << " to "  << mConfig.getEnabled() << "/" << mConfig.mError;
+        LOG_debug << "Sync " << toHandle(mConfig.mBackupId) << " enabled/error changed to " << mConfig.mEnabled << "/" << mConfig.mError;
 
         mClient.syncs.saveSyncConfig(mConfig);
         if (notifyApp)
@@ -2194,9 +2192,6 @@ void UnifiedSync::changedConfigState(bool notifyApp)
             mClient.app->syncupdate_stateconfig(mConfig.getBackupId());
         }
         mClient.abortbackoff(false);
-
-        mConfig.mKnownError = mConfig.mError;
-        mConfig.mKnownEnabled = mConfig.getEnabled();
     }
 }
 
@@ -2505,7 +2500,7 @@ void Syncs::purgeRunningSyncs()
     {
         if (s->mSync)
         {
-            // Deletiog the sync will close/save the sync's localnode databse file in its current state.
+            // Deleting the sync will close/save the sync's localnode database file in its current state.
             // And then delete objects in RAM.
             s->mSync.reset();
         }
@@ -2606,7 +2601,7 @@ error Syncs::removeSyncConfigByBackupId(handle bid)
     {
         LOG_err << "Found no config for backupId: "
                 << toHandle(bid)
-                << "upon sync removal.";
+                << " upon sync removal.";
     }
 
     return result;
@@ -2631,13 +2626,11 @@ error Syncs::enableSyncByBackupId(handle backupId, bool resetFingerprint, Unifie
 
 error Syncs::saveSyncConfig(const SyncConfig& config)
 {
-    auto c = translate(mClient, config);
-
     assert(!config.isExternal());
 
     if (auto* db = syncConfigDB())
     {
-        return db->add(c), API_OK;
+        return db->add(config), API_OK;
     }
 
     return API_ENOENT;
@@ -2655,7 +2648,7 @@ void Syncs::enableResumeableSyncs()
             if (unifiedSync->mConfig.getEnabled())
             {
                 SyncError syncError = unifiedSync->mConfig.getError();
-                LOG_debug << "Restoring sync: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " old error = " << syncError;
+                LOG_debug << "Restoring sync: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " old error = " << syncError;
 
                 error e = unifiedSync->enableSync(false, true);
                 if (!e)
@@ -2665,7 +2658,7 @@ void Syncs::enableResumeableSyncs()
             }
             else
             {
-                LOG_verbose << "Skipping restoring sync: " << unifiedSync->mConfig.getLocalPath()
+                LOG_verbose << "Skipping restoring sync: " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess)
                     << " enabled=" << unifiedSync->mConfig.getEnabled() << " error=" << unifiedSync->mConfig.getError();
             }
         }
@@ -2690,8 +2683,7 @@ void Syncs::resumeResumableSyncsOnStartup()
 
     for (auto& pair : syncConfigDB()->configs())
     {
-        const auto config = translate(mClient, pair.second);
-        mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(mClient, config)));
+        mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(mClient, pair.second)));
         isEmpty = false;
     }
 
@@ -2699,14 +2691,14 @@ void Syncs::resumeResumableSyncsOnStartup()
     {
         if (!unifiedSync->mSync)
         {
-            if (!unifiedSync->mConfig.getRemotePath().size()) //should only happen if coming from old cache
+            if (unifiedSync->mConfig.mOrigninalPathOfRemoteRootNode.empty()) //should only happen if coming from old cache
             {
                 auto node = mClient.nodebyhandle(unifiedSync->mConfig.getRemoteNode());
                 unifiedSync->updateSyncRemoteLocation(node, false); //updates cache & notice app of this change
                 if (node)
                 {
                     auto newpath = node->displaypath();
-                    unifiedSync->mConfig.setRemotePath(newpath);//update loaded config
+                    unifiedSync->mConfig.mOrigninalPathOfRemoteRootNode = newpath;//update loaded config
                 }
             }
 
@@ -2721,180 +2713,28 @@ void Syncs::resumeResumableSyncsOnStartup()
 #ifdef __APPLE__
                 unifiedSync->mConfig.setLocalFingerprint(0); //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
 #endif
-                LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
+                LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
 
                 unifiedSync->enableSync(false, false);
-                LOG_debug << "Sync autoresumed: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
+                LOG_debug << "Sync autoresumed: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
 
                 mClient.app->sync_auto_resume_result(*unifiedSync, true);
             }
             else
             {
-                LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
+                LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
                 mClient.app->sync_auto_resume_result(*unifiedSync, false);
             }
         }
     }
 }
 
-JSONSyncConfig::JSONSyncConfig()
-  : drivePath()
-  , sourcePath()
-  , targetPath()
-  , fingerprint(0)
-  , targetHandle(UNDEF)
-  , lastError(NO_SYNC_ERROR)
-  , lastWarning(NO_SYNC_WARNING)
-  , type()
-  , backupId(UNDEF)
-  , enabled(false)
-{
-}
-
-bool JSONSyncConfig::external() const
-{
-    return !drivePath.empty();
-}
-
-bool JSONSyncConfig::valid() const
-{
-    return !(sourcePath.empty()
-             || targetPath.empty()
-             || targetHandle == UNDEF);
-}
-
-bool JSONSyncConfig::operator==(const JSONSyncConfig& rhs) const
-{
-    return drivePath == rhs.drivePath
-           && sourcePath == rhs.sourcePath
-           && targetPath == rhs.targetPath
-           && fingerprint == rhs.fingerprint
-           && targetHandle == rhs.targetHandle
-           && lastError == rhs.lastError
-           && lastWarning == rhs.lastWarning
-           && type == rhs.type
-           && backupId == rhs.backupId
-           && enabled == rhs.enabled;
-}
-
-bool JSONSyncConfig::operator!=(const JSONSyncConfig& rhs) const
-{
-    return !(*this == rhs);
-}
-
-JSONSyncConfig translate(const MegaClient& client, const SyncConfig &config)
-{
-    JSONSyncConfig result;
-
-    result.enabled = config.getEnabled();
-    result.fingerprint = config.getLocalFingerprint();
-    result.lastError = config.getError();
-    result.lastWarning = config.getWarning();
-    result.backupId = config.getBackupId();
-    result.targetHandle = config.getRemoteNode();
-    result.targetPath = config.getRemotePath();
-    result.type = config.getType();
-
-    const auto& drivePath = config.drivePath();
-    const auto& name = config.getName();
-    const auto sourcePath = config.getLocalPath().substr(drivePath.size());
-
-    const auto& fsAccess = *client.fsaccess;
-
-    result.drivePath = LocalPath::fromPath(drivePath, fsAccess);
-    result.sourcePath = LocalPath::fromPath(sourcePath, fsAccess);
-
-    // Ensure paths are normalized.
-    if (config.isExternal())
-    {
-        result.drivePath = NormalizeAbsolute(result.drivePath);
-        result.sourcePath = NormalizeRelative(result.sourcePath);
-    }
-    else
-    {
-        result.sourcePath = NormalizeAbsolute(result.sourcePath);
-    }
-
-    if (name == sourcePath)
-    {
-        result.name = result.sourcePath.toPath(fsAccess);
-    }
-    else
-    {
-        result.name = name;
-    }
-
-    return result;
-}
-
-SyncConfig translate(const MegaClient& client, const JSONSyncConfig& config)
-{
-    // Convenience.
-    auto& fsAccess = *client.fsaccess;
-
-    LocalPath temp;
-    string drivePath = config.drivePath.toPath(fsAccess);
-    string sourcePath;
-    const string* name = &sourcePath;
-
-    if (config.external())
-    {
-        temp = NormalizeAbsolute(config.drivePath);
-        temp.appendWithSeparator(
-            NormalizeRelative(config.sourcePath),
-            false);
-    }
-    else
-    {
-        temp = NormalizeAbsolute(config.sourcePath);
-    }
-
-    sourcePath = temp.toPath(fsAccess);
-
-    if (config.sourcePath.toPath(fsAccess) != config.name)
-    {
-        name = &config.name;
-    }
-
-    // Build config.
-    auto result =
-      SyncConfig(sourcePath,
-                 *name,
-                 config.targetHandle,
-                 config.targetPath,
-                 config.fingerprint,
-                 string_vector(),
-                 config.enabled,
-                 config.type,
-                 true,
-                 false,
-                 config.lastError,
-                 config.lastWarning,
-                 config.backupId);
-
-    result.drivePath(std::move(drivePath));
-
-    return result;
-}
 
 const unsigned int JSONSyncConfigDB::NUM_SLOTS = 2;
-
-JSONSyncConfigDB::JSONSyncConfigDB(const LocalPath& dbPath,
-                                   const LocalPath& drivePath,
-                                   JSONSyncConfigDBObserver& observer)
-  : mDBPath(dbPath)
-  , mDrivePath(drivePath)
-  , mObserver(&observer)
-  , mBackupIdToConfig()
-  , mSlot(0)
-  , mDirty(false)
-{
-}
 
 JSONSyncConfigDB::JSONSyncConfigDB(const LocalPath& dbPath)
   : mDBPath(dbPath)
   , mDrivePath()
-  , mObserver(nullptr)
   , mBackupIdToConfig()
   , mSlot(0)
   , mDirty(false)
@@ -2907,7 +2747,7 @@ JSONSyncConfigDB::~JSONSyncConfigDB()
     clear(false);
 }
 
-const JSONSyncConfig* JSONSyncConfigDB::add(const JSONSyncConfig& config)
+const SyncConfig* JSONSyncConfigDB::add(const SyncConfig& config)
 {
     // Add (or update) the config and flush.
     return add(config, true);
@@ -2939,7 +2779,7 @@ const LocalPath& JSONSyncConfigDB::drivePath() const
     return mDrivePath;
 }
 
-const JSONSyncConfig* JSONSyncConfigDB::getByBackupId(handle bid) const
+const SyncConfig* JSONSyncConfigDB::getByBackupId(handle bid) const
 {
     auto it = mBackupIdToConfig.find(bid);
 
@@ -2951,11 +2791,11 @@ const JSONSyncConfig* JSONSyncConfigDB::getByBackupId(handle bid) const
     return nullptr;
 }
 
-const JSONSyncConfig* JSONSyncConfigDB::getByRootHandle(handle targetHandle) const
+const SyncConfig* JSONSyncConfigDB::getByRootHandle(handle targetHandle) const
 {
     for (auto& it : mBackupIdToConfig)
     {
-        if (it.second.targetHandle == targetHandle)
+        if (it.second.getRemoteNode() == targetHandle)
         {
             return &it.second;
         }
@@ -2968,7 +2808,7 @@ error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext)
     vector<unsigned int> slots;
 
     // Determine which slots we should load first, if any.
-    if (ioContext.get(mDBPath, slots) != API_OK)
+    if (ioContext.getSlotsInOrder(mDBPath, slots) != API_OK)
     {
         // Couldn't get a list of slots.
         return API_ENOENT;
@@ -3007,7 +2847,7 @@ error JSONSyncConfigDB::removeByRootNode(const handle targetHandle)
     if (const auto* config = getByRootHandle(targetHandle))
     {
         // Yep, remove it.
-        return removeByBackupId(config->backupId, true);
+        return removeByBackupId(config->getBackupId(), true);
     }
 
     // Nope.
@@ -3020,6 +2860,9 @@ error JSONSyncConfigDB::write(JSONSyncConfigIOContext& ioContext)
 
     // Serialize the database.
     ioContext.serialize(mBackupIdToConfig, writer);
+
+    FSACCESS_CLASS fsa;
+    LOG_info << "Writing syncs file " << mDBPath.toPath(fsa) << ": " << writer.getstring();
 
     // Try and write the database out to disk.
     if (ioContext.write(mDBPath, writer.getstring(), mSlot) != API_OK)
@@ -3040,33 +2883,15 @@ error JSONSyncConfigDB::write(JSONSyncConfigIOContext& ioContext)
     return API_OK;
 }
 
-const JSONSyncConfig* JSONSyncConfigDB::add(const JSONSyncConfig& config,
+const SyncConfig* JSONSyncConfigDB::add(const SyncConfig& config,
                                             const bool flush)
 {
-    auto it = mBackupIdToConfig.find(config.backupId);
+    auto it = mBackupIdToConfig.find(config.getBackupId());
 
     // Do we already have a config with this tag?
     if (it != mBackupIdToConfig.end())
     {
-        // Has the config changed?
-        if (config == it->second)
-        {
-            // Hasn't changed.
-            return &it->second;
-        }
-
-        if (mObserver)
-        {
-            // Tell the observer a config's changed.
-            mObserver->onChange(*this, it->second, config);
-
-            // Tell the observer we need to be written.
-            if (flush)
-            {
-                // But only if this change should be flushed.
-                mObserver->onDirty(*this);
-            }
-        }
+        // we only call if it's changed
 
         // Mark the database as being dirty.
         mDirty |= flush;
@@ -3079,20 +2904,7 @@ const JSONSyncConfig* JSONSyncConfigDB::add(const JSONSyncConfig& config,
     }
 
     // Add the config to the database.
-    auto result = mBackupIdToConfig.emplace(config.backupId, config);
-
-    if (mObserver)
-    {
-        // Tell the observer we've added a config.
-        mObserver->onAdd(*this, config);
-
-        // Tell the observer we need to be written.
-        if (flush)
-        {
-            // But only if this change should be flushed.
-            mObserver->onDirty(*this);
-        }
-    }
+    auto result = mBackupIdToConfig.emplace(config.getBackupId(), config);
 
     // Mark the database as being dirty.
     mDirty |= flush;
@@ -3108,22 +2920,6 @@ void JSONSyncConfigDB::clear(const bool flush)
     {
         // Nope.
         return;
-    }
-
-    if (mObserver)
-    {
-        // Tell the observer we've removed the configs.
-        for (auto& it : mBackupIdToConfig)
-        {
-            mObserver->onRemove(*this, it.second);
-        }
-
-        // Tell the observer we need to be written.
-        if (flush)
-        {
-            // But only if these changes should be flushed.
-            mObserver->onDirty(*this);
-        }
     }
 
     // Mark the database as being dirty.
@@ -3144,6 +2940,9 @@ error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext,
         // Couldn't read the database.
         return API_EREAD;
     }
+
+    FSACCESS_CLASS fsa;
+    LOG_verbose << "Loaded syncs file " << mDBPath.toPath(fsa) << ": " << data;
 
     // Try and deserialize the configs contained in the database.
     JSONSyncConfigMap configs;
@@ -3173,7 +2972,7 @@ error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext,
     for (auto& it : configs)
     {
         // Correct config's drive path.
-        it.second.drivePath = mDrivePath;
+        it.second.mExternalDrivePath = mDrivePath;
 
         // Add / update the config.
         add(it.second, false);
@@ -3193,18 +2992,6 @@ error JSONSyncConfigDB::removeByBackupId(handle bid, const bool flush)
         return API_ENOENT;
     }
 
-    if (mObserver)
-    {
-        // Tell the observer we've removed a config.
-        mObserver->onRemove(*this, it->second);
-
-        // Tell the observer we need to be written.
-        if (flush)
-        {
-            // But only if this change should be flushed.
-            mObserver->onDirty(*this);
-        }
-    }
 
     // Mark the database as being dirty.
     mDirty |= flush;
@@ -3223,7 +3010,7 @@ JSONSyncConfigIOContext::JSONSyncConfigIOContext(SymmCipher& cipher,
                                                  PrnGen& rng)
   : mCipher()
   , mFsAccess(fsAccess)
-  , mName(LocalPath::fromPath("syncs_" + name, mFsAccess))
+  , mName(LocalPath::fromPath("megaclient_syncconfig_" + name, mFsAccess))
   , mRNG(rng)
   , mSigner()
 {
@@ -3263,23 +3050,26 @@ bool JSONSyncConfigIOContext::deserialize(JSONSyncConfigMap& configs,
     // Deserialize the configs.
     while (reader.enterobject())
     {
-        JSONSyncConfig config;
+        SyncConfig config;
 
-        if (!deserialize(config, reader))
+        if (deserialize(config, reader))
         {
-            return false;
+            // So move is well-defined.
+            const auto bid = config.getBackupId();
+
+            configs.emplace(bid, std::move(config));
         }
-
-        // So move is well-defined.
-        const auto bid = config.backupId;
-
-        configs.emplace(bid, std::move(config));
+        else
+        {
+            LOG_err << "Failed to deserialize a sync config";
+        }
+        reader.leaveobject();
     }
 
     return reader.leavearray();
 }
 
-error JSONSyncConfigIOContext::get(const LocalPath& dbPath,
+error JSONSyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
                                    vector<unsigned int>& slots)
 {
     using std::isdigit;
@@ -3384,7 +3174,7 @@ error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
     // Try and read the data from the file.
     string d;
 
-    if (!fileAccess->fread(&d, fileAccess->size, 0, 0x0))
+    if (!fileAccess->fread(&d, static_cast<unsigned>(fileAccess->size), 0, 0x0))
     {
         // Couldn't read the file.
         return API_EREAD;
@@ -3468,7 +3258,7 @@ error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
     // Write the encrypted configuration data.
     auto* bytes = reinterpret_cast<const byte*>(&d[0]);
 
-    if (!fileAccess->fwrite(bytes, d.size(), 0x0))
+    if (!fileAccess->fwrite(bytes, static_cast<unsigned>(d.size()), 0x0))
     {
         // Couldn't write out the data.
         return API_EWRITE;
@@ -3514,7 +3304,7 @@ bool JSONSyncConfigIOContext::decrypt(const string& in, string& out)
                                             &out);
 }
 
-bool JSONSyncConfigIOContext::deserialize(JSONSyncConfig& config, JSON& reader) const
+bool JSONSyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) const
 {
     const auto TYPE_BACKUP_ID     = MAKENAMEID2('i', 'd');
     const auto TYPE_ENABLED       = MAKENAMEID2('e', 'n');
@@ -3526,34 +3316,36 @@ bool JSONSyncConfigIOContext::deserialize(JSONSyncConfig& config, JSON& reader) 
     const auto TYPE_SYNC_TYPE     = MAKENAMEID2('s', 't');
     const auto TYPE_TARGET_HANDLE = MAKENAMEID2('t', 'h');
     const auto TYPE_TARGET_PATH   = MAKENAMEID2('t', 'p');
+    const auto TYPE_EXCLUSION_RULES = MAKENAMEID2('e', 'r');
 
     for ( ; ; )
     {
         switch (reader.getnameid())
         {
         case EOO:
-            return true;
+            // success if we reached the end of the object
+            return *reader.pos == '}';
 
         case TYPE_ENABLED:
-            config.enabled = reader.getbool();
+            config.mEnabled = reader.getbool();
             break;
 
         case TYPE_FINGERPRINT:
-            config.fingerprint = reader.getfp();
+            config.mLocalFingerprint = reader.getfp();
             break;
 
         case TYPE_LAST_ERROR:
-            config.lastError =
+            config.mError =
               static_cast<SyncError>(reader.getint32());
             break;
 
         case TYPE_LAST_WARNING:
-            config.lastWarning =
+            config.mWarning =
               static_cast<SyncWarning>(reader.getint32());
             break;
 
         case TYPE_NAME:
-            reader.storebinary(&config.name);
+            reader.storebinary(&config.mName);
             break;
 
         case TYPE_SOURCE_PATH:
@@ -3562,29 +3354,41 @@ bool JSONSyncConfigIOContext::deserialize(JSONSyncConfig& config, JSON& reader) 
 
             reader.storebinary(&sourcePath);
 
-            config.sourcePath =
+            config.mLocalPath =
               LocalPath::fromPath(sourcePath, mFsAccess);
 
             break;
         }
 
         case TYPE_SYNC_TYPE:
-            config.type =
+            config.mSyncType =
               static_cast<SyncConfig::Type>(reader.getint32());
             break;
 
         case TYPE_BACKUP_ID:
-            config.backupId = reader.gethandle(sizeof(handle));
+            config.mBackupId = reader.gethandle(sizeof(handle));
             break;
 
         case TYPE_TARGET_HANDLE:
-            config.targetHandle =
-              reader.gethandle(sizeof(handle));
+            config.mRemoteNode =
+              reader.gethandle(MegaClient::NODEHANDLE);
             break;
 
         case TYPE_TARGET_PATH:
-            reader.storebinary(&config.targetPath);
+            reader.storebinary(&config.mOrigninalPathOfRemoteRootNode);
             break;
+
+        case TYPE_EXCLUSION_RULES:
+        {
+            if (!reader.enterarray()) return false;
+            string s;
+            while (reader.storeobject(&s))
+            {
+                config.mRegExps.push_back(Base64::atob(s));
+            }
+            if (!reader.leavearray()) return false;
+            break;
+        }
 
         default:
             if (!reader.storeobject())
@@ -3624,41 +3428,29 @@ string JSONSyncConfigIOContext::encrypt(const string& data)
     return d;
 }
 
-void JSONSyncConfigIOContext::serialize(const JSONSyncConfig& config,
+void JSONSyncConfigIOContext::serialize(const SyncConfig& config,
                                         JSONWriter& writer) const
 {
-    using std::to_string;
-
-    // Encode path to avoid escaping issues.
-    const string sourcePath =
-      Base64::btoa(config.sourcePath.toPath(mFsAccess));
-    const string name =
-      Base64::btoa(config.name);
-    const string targetPath =
-      Base64::btoa(config.targetPath);
-
     writer.beginobject();
+    writer.arg("id", config.getBackupId(), sizeof(handle));
+    writer.arg_B64("sp", config.mLocalPath.toPath(mFsAccess));
+    writer.arg_B64("n", config.mName);
+    writer.arg_B64("tp", config.mOrigninalPathOfRemoteRootNode);
+    writer.arg_fsfp("fp", config.mLocalFingerprint);
+    writer.arg("th", config.mRemoteNode, MegaClient::NODEHANDLE);
+    writer.arg("le", config.mError);
+    writer.arg("lw", config.mWarning);
+    writer.arg("st", config.mSyncType);
+    writer.arg("en", config.mEnabled);
 
-    writer.arg("id", config.backupId, sizeof(handle));
-    writer.arg("sp", sourcePath);
-    writer.arg("n",  name);
-    writer.arg("tp", targetPath);
-    writer.arg("fp", to_string(config.fingerprint), 0);
-    writer.arg("th", config.targetHandle, sizeof(handle));
-    writer.arg("le", config.lastError);
-    writer.arg("lw", config.lastWarning);
-    writer.arg("st", config.type);
-    writer.arg("en", config.enabled);
-
+    writer.beginarray("er");
+    for (auto& s : config.mRegExps)
+    {
+        // store as binary so the strings get btoa'd so no JSON injections
+        writer.element_B64(s);
+    }
+    writer.endarray();
     writer.endobject();
-}
-
-JSONSyncConfigDBObserver::JSONSyncConfigDBObserver()
-{
-}
-
-JSONSyncConfigDBObserver::~JSONSyncConfigDBObserver()
-{
 }
 
 } // namespace

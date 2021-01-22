@@ -1090,19 +1090,7 @@ TEST(Sync, assignFilesystemIds_whenFileTypeIsUnexpected_hittingAssert)
 #endif
 */
 
-namespace
-{
 
-void test_SyncConfig_serialization(const mega::SyncConfig& config)
-{
-    std::string data;
-    const_cast<mega::SyncConfig&>(config).serialize(&data);
-    auto newConfig = mega::SyncConfig::unserialize(data);
-    ASSERT_TRUE(newConfig != nullptr);
-    //ASSERT_EQ(config, *newConfig);
-}
-
-}
 
 namespace mega {
     enum { TYPE_TWOWAY = SyncConfig::TYPE_TWOWAY };
@@ -1110,6 +1098,7 @@ namespace mega {
     enum { TYPE_DOWN = SyncConfig::TYPE_DOWN };
 };
 
+/*
 TEST(Sync, SyncConfig_defaultOptions)
 {
     const mega::SyncConfig config{"foo", "foo", 42, "remote",123};
@@ -1227,6 +1216,7 @@ TEST(Sync, SyncConfig_downSync_syncDelTrue_overwriteTrue)
     ASSERT_TRUE(config.forceOverwrite());
     test_SyncConfig_serialization(config);
 }
+*/
 
 #if 0
 namespace
@@ -1781,7 +1771,7 @@ TEST_F(JSONSyncConfigIOContextTest, Read)
 {
     // Make sure the drive path exists.
     Directory drive(fsAccess(), Utilities::randomPath());
-    
+
     // Try writing some data out and reading it back again.
     {
         string read;
@@ -2642,7 +2632,7 @@ TEST_F(JSONSyncConfigDBTest, UpdateChangeTargetHandle)
     JSONSyncConfig configAfter = configBefore;
 
     configAfter.targetHandle = 1;
-    
+
     // Observer should be notified when a config changes.
     Expectation onChange =
       EXPECT_CALL(observer(),
@@ -2690,7 +2680,7 @@ TEST_F(JSONSyncConfigDBTest, UpdateRemoveTargetHandle)
     JSONSyncConfig configAfter = configBefore;
 
     configAfter.targetHandle = UNDEF;
-    
+
     // Observer should be notified when a config changes.
     Expectation onChange =
       EXPECT_CALL(observer(),

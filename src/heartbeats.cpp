@@ -165,7 +165,7 @@ void HeartBeatSyncInfo::updateStatus(UnifiedSync& us)
 
 ////////////// BackupInfo ////////////////
 
-BackupInfo::BackupInfo(BackupType type, string backupName, string localFolder, handle megaHandle, int state, int substate, std::string extra)
+BackupInfo::BackupInfo(BackupType type, string backupName, LocalPath localFolder, handle megaHandle, int state, int substate, std::string extra)
     : mType(type)
     , mBackupName(backupName)
     , mLocalFolder(localFolder)
@@ -187,7 +187,7 @@ string BackupInfo::backupName() const
     return mBackupName;
 }
 
-string BackupInfo::localFolder() const
+LocalPath BackupInfo::localFolder() const
 {
     return mLocalFolder;
 }
@@ -215,7 +215,7 @@ string BackupInfo::extra() const
 #ifdef ENABLE_SYNC
 BackupInfoSync::BackupInfoSync(UnifiedSync& us)
     : BackupInfo(getSyncType(us.mConfig),
-                     us.mConfig.getName(),
+                     us.mConfig.mName,
                      us.mConfig.getLocalPath(),
                      us.mConfig.getRemoteNode(),
                      getSyncState(us),
@@ -355,7 +355,7 @@ void BackupMonitor::updateBackupInfo(handle backupId, const BackupInfo &info)
                                            backupId,
                                            info.type(),
                                            info.megaHandle(),
-                                           info.localFolder().c_str(),
+                                           info.localFolder().toPath(*mClient->fsaccess).c_str(),
                                            deviceIdHash.c_str(),
                                            info.state(),
                                            info.subState(),
@@ -370,7 +370,7 @@ void BackupMonitor::registerBackupInfo(const BackupInfo &info, UnifiedSync* sync
     string deviceIdHash = mClient->getDeviceidHash();
 
     mClient->reqs.add(new CommandBackupPut(mClient, info.type(), info.backupName(), info.megaHandle(),
-                                           info.localFolder().c_str(),
+                                           info.localFolder().toPath(*mClient->fsaccess).c_str(),
                                            deviceIdHash.c_str(),
                                            info.state(), info.subState(), info.extra().c_str(),
                                            [this, syncPtr](Error e, handle h){ if (!e) digestPutResult(h, syncPtr); }));

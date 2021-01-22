@@ -77,6 +77,122 @@ private:
 };
 #endif
 
+
+class SyncConfig
+{
+public:
+
+    enum Type
+    {
+        TYPE_UP = 0x01, // sync up from local to remote
+        TYPE_DOWN = 0x02, // sync down from remote to local
+        TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
+        TYPE_BACKUP, // special sync up from local to remote, automatically disabled when remote changed
+    };
+    SyncConfig() = default;
+
+    SyncConfig(LocalPath localPath,
+        string syncName,
+        const handle remoteNode,
+        const string& remotePath,
+        const fsfp_t localFingerprint,
+        vector<string> regExps = {},
+        const bool enabled = true,
+        const Type syncType = TYPE_TWOWAY,
+        const SyncError error = NO_SYNC_ERROR,
+        const SyncWarning warning = NO_SYNC_WARNING,
+        handle hearBeatID = UNDEF
+    );
+
+    // Id for the sync, also used in sync heartbeats
+    handle getBackupId() const;
+    void setBackupId(const handle& backupId);
+
+    // the local path of the sync root folder
+    const LocalPath& getLocalPath() const;
+
+    // the remote path of the sync
+    handle getRemoteNode() const;
+    void setRemoteNode(const handle& remoteNode);
+
+    // the fingerprint of the local sync root folder
+    fsfp_t getLocalFingerprint() const;
+    void setLocalFingerprint(fsfp_t fingerprint);
+
+    // returns the exclusion matching strings
+    const vector<string>& getRegExps() const;
+    void setRegExps(vector<string>&&);
+
+    // returns the type of the sync
+    Type getType() const;
+
+    // This is where the remote root node was, last time we checked
+
+    // error code or warning (errors mean the sync was stopped)
+    SyncError getError() const;
+    void setError(SyncError value);
+
+    //SyncWarning getWarning() const;
+    //void setWarning(SyncWarning value);
+
+    // If the sync is enabled, we will auto-start it
+    bool getEnabled() const;
+    void setEnabled(bool enabled);
+
+    // Whether this sync is backed by an external device.
+    bool isExternal() const;
+
+    // check if we need to notify the App about error/enable flag changes
+    bool errorOrEnabledChanged();
+
+
+    // enabled/disabled by the user
+    bool mEnabled = true;
+
+    // the local path of the sync
+    LocalPath mLocalPath;
+
+    // name of the sync (if localpath is not adecuate)
+    string mName;
+
+    // the remote handle of the sync
+    handle mRemoteNode;
+
+    // the path to the remote node, as last known (not definitive)
+    string mOrigninalPathOfRemoteRootNode;
+
+    // the local fingerprint
+    fsfp_t mLocalFingerprint;
+
+    // list of regular expressions
+    vector<string> mRegExps; //TODO: rename this to wildcardExclusions?: they are not regexps AFAIK
+
+    // type of the sync, defaults to bidirectional
+    Type mSyncType;
+
+    // failure cause (disable/failure cause).
+    SyncError mError;
+
+    // Warning if creation was successful but the user should know something
+	SyncWarning mWarning;
+
+    // Unique identifier. any other field can change (even remote handle),
+    // and we want to keep disabled configurations saved: e.g: remote handle changed
+    // id for heartbeating
+    handle mBackupId;
+
+    // Path to the volume containing this backup (only for external backups).
+    // This one is not serialized
+    LocalPath mExternalDrivePath;
+
+
+private:
+    // If mError or mEnabled have changed from these values, we need to notify the app.
+    SyncError mKnownError = NO_SYNC_ERROR;
+    bool mKnownEnabled = false;
+};
+
+
 struct UnifiedSync
 {
     // Reference to client
@@ -243,66 +359,12 @@ protected :
     bool readstatecache();
 
 private:
-    std::string mLocalPath;
+    LocalPath mLocalPath;
 };
 
-class MEGA_API JSONSyncConfig
-{
-public:
-    JSONSyncConfig();
-
-    MEGA_DEFAULT_COPY_MOVE(JSONSyncConfig);
-
-    bool external() const;
-
-    bool valid() const;
-
-    bool operator==(const JSONSyncConfig& rhs) const;
-
-    bool operator!=(const JSONSyncConfig& rhs) const;
-
-    // Absolute path to containing drive.
-    LocalPath drivePath;
-
-    // Relative path to sync root.
-    LocalPath sourcePath;
-
-    // User-friendly name.
-    string name;
-
-    // Absolute path to remote sync target.
-    string targetPath;
-
-    // Local fingerprint.
-    fsfp_t fingerprint;
-
-    // Handle of remote sync target.
-    handle targetHandle;
-
-    // The last error that occured on this sync.
-    SyncError lastError;
-
-    // The last warning that occured on this sync.
-    SyncWarning lastWarning;
-
-    // Type of sync.
-    SyncConfig::Type type;
-
-    // Identity of sync. (in heartbeats too)
-    handle backupId;
-
-    // Whether the sync has been enabled by the user.
-    bool enabled;
-}; // JSONSyncConfig
-
-// Translates an SyncConfig into a JSONSyncConfig.
-JSONSyncConfig translate(const MegaClient& client, const SyncConfig &config);
-
-// Translates an JSONSyncConfig into a SyncConfig.
-SyncConfig translate(const MegaClient& client, const JSONSyncConfig& config);
 
 // For convenience.
-using JSONSyncConfigMap = map<handle, JSONSyncConfig>;
+using JSONSyncConfigMap = map<handle, SyncConfig>;
 
 class JSONSyncConfigDBObserver;
 class JSONSyncConfigIOContext;
@@ -310,9 +372,6 @@ class JSONSyncConfigIOContext;
 class MEGA_API JSONSyncConfigDB
 {
 public:
-    JSONSyncConfigDB(const LocalPath& dbPath,
-                     const LocalPath& drivePath,
-                     JSONSyncConfigDBObserver& observer);
 
     explicit
     JSONSyncConfigDB(const LocalPath& dbPath);
@@ -324,7 +383,7 @@ public:
     MEGA_DEFAULT_MOVE(JSONSyncConfigDB);
 
     // Add a new (or update an existing) config.
-    const JSONSyncConfig* add(const JSONSyncConfig& config);
+    const SyncConfig* add(const SyncConfig& config);
 
     // Remove all configs.
     void clear();
@@ -342,10 +401,10 @@ public:
     const LocalPath& drivePath() const;
 
     // Get config by backup tag.
-    const JSONSyncConfig* getByBackupId(handle backupId) const;
+    const SyncConfig* getByBackupId(handle backupId) const;
 
     // Get config by backup target handle.
-    const JSONSyncConfig* getByRootHandle(handle targetHandle) const;
+    const SyncConfig* getByRootHandle(handle targetHandle) const;
 
     // Read this database from disk.
     error read(JSONSyncConfigIOContext& ioContext);
@@ -361,7 +420,7 @@ public:
 
 private:
     // Adds a new (or updates an existing) config.
-    const JSONSyncConfig* add(const JSONSyncConfig& config,
+    const SyncConfig* add(const SyncConfig& config,
                               const bool flush);
 
     // Removes all configs.
@@ -418,7 +477,7 @@ public:
                      JSON& reader) const;
 
     // Determine which slots are present.
-    virtual error get(const LocalPath& dbPath,
+    virtual error getSlotsInOrder(const LocalPath& dbPath,
                       vector<unsigned int>& slots);
 
     // Read data from the specified slot.
@@ -444,13 +503,13 @@ private:
     bool decrypt(const string& in, string& out);
 
     // Deserialize a config from JSON.
-    bool deserialize(JSONSyncConfig& config, JSON& reader) const;
+    bool deserialize(SyncConfig& config, JSON& reader) const;
 
     // Encrypt data.
     string encrypt(const string& data);
 
     // Serialize a config to JSON.
-    void serialize(const JSONSyncConfig& config, JSONWriter& writer) const;
+    void serialize(const SyncConfig& config, JSONWriter& writer) const;
 
     // The cipher protecting the user's configuration databases.
     SymmCipher mCipher;
@@ -468,30 +527,30 @@ private:
     HMACSHA256 mSigner;
 }; // JSONSyncConfigIOContext
 
-class MEGA_API JSONSyncConfigDBObserver
+/*class MEGA_API JSONSyncConfigDBObserver
 {
 public:
     // Invoked when a backup config is being added.
     virtual void onAdd(JSONSyncConfigDB& db,
-                       const JSONSyncConfig& config) = 0;
+                       const SyncConfig& config) = 0;
 
     // Invoked when a backup config is being changed.
     virtual void onChange(JSONSyncConfigDB& db,
-                          const JSONSyncConfig& from,
-                          const JSONSyncConfig& to) = 0;
+                          const SyncConfig& from,
+                          const SyncConfig& to) = 0;
 
     // Invoked when a database needs to be written.
     virtual void onDirty(JSONSyncConfigDB& db) = 0;
 
     // Invoked when a backup config is being removed.
     virtual void onRemove(JSONSyncConfigDB& db,
-                          const JSONSyncConfig& config) = 0;
+                          const SyncConfig& config) = 0;
 
 protected:
     JSONSyncConfigDBObserver();
 
     ~JSONSyncConfigDBObserver();
-}; // JSONSyncConfigDBObserver
+}; // JSONSyncConfigDBObserver*/
 
 struct Syncs
 {
