@@ -21,6 +21,7 @@ libzen/0.4.37
 
 # ffmpeg (video preview/thumbnail generation)
 ffmpeg/c303dd024e2dc03a0665ddffbb12a1077933e649
+yasm/1.3.0
 
 #freeimage and its dependencies (image preview/thumbnail generation)
 freeimage/c303dd024e2dc03a0665ddffbb12a1077933e649
