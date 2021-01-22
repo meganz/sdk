@@ -214,28 +214,22 @@ class ExecuteOnce
     // It could be completed early (eg on cancel()), in which case nothing happens when it's dequeued.
     // If not completed early, it executes on dequeue.
     // In either case the flag is set when executed, so it won't be executed in the other case.
-    // A mutex is used to make sure the flag is set and checked along with actual execution.
+    // An atomic type is used to make sure the flag is set and checked along with actual execution.
     // The objects referred to in the completion function must live until the first execution completes.
     // After that it doesn't matter if it contains dangling pointers etc as it won't be called anymore.
-
-    std::mutex m;
     std::function<void()> f;
-    bool executed = false;
+    std::atomic_uint executed;
 
 public:
-
-    ExecuteOnce(std::function<void()> fn) : f(fn) {}
-
+    ExecuteOnce(std::function<void()> fn) : f(fn), executed(0) {}
     bool exec()
     {
-        std::lock_guard<std::mutex> g(m);
-        if (!executed)
+        if (++executed > 1)
         {
-            executed = true;
-            f();
-            return true;  // indicates that this call is the time it ran
+            return false;
         }
-        return false;
+        f();
+        return true;  // indicates that this call is the time it ran
     }
 };
 
