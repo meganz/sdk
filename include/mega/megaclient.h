@@ -1724,9 +1724,6 @@ public:
     SymmCipher tmpnodecipher;
     SymmCipher tmptransfercipher;
 
-    void exportDatabase(string filename);
-    bool compareDatabases(string filename1, string filename2);
-
     // request a link to recover account
     void getrecoverylink(const char *email, bool hasMasterkey);
 
