@@ -478,7 +478,7 @@ public:
 
     // Determine which slots are present.
     virtual error getSlotsInOrder(const LocalPath& dbPath,
-                      vector<unsigned int>& slots);
+                      vector<unsigned int>& confSlots);
 
     // Read data from the specified slot.
     virtual error read(const LocalPath& dbPath,

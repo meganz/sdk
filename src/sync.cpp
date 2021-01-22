@@ -2730,7 +2730,7 @@ void Syncs::resumeResumableSyncsOnStartup()
 }
 
 
-const unsigned int JSONSyncConfigDB::NUM_SLOTS = 2;
+const unsigned int JSONSyncConfigDB::NUM_SLOTS = 2; //number of configuration versions to save. Do not set to > 10.
 
 JSONSyncConfigDB::JSONSyncConfigDB(const LocalPath& dbPath)
   : mDBPath(dbPath)
@@ -2805,17 +2805,17 @@ const SyncConfig* JSONSyncConfigDB::getByRootHandle(handle targetHandle) const
 
 error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext)
 {
-    vector<unsigned int> slots;
+    vector<unsigned int> confSlots;
 
     // Determine which slots we should load first, if any.
-    if (ioContext.getSlotsInOrder(mDBPath, slots) != API_OK)
+    if (ioContext.getSlotsInOrder(mDBPath, confSlots) != API_OK)
     {
         // Couldn't get a list of slots.
         return API_ENOENT;
     }
 
     // Try and load the database from one of the slots.
-    for (const auto& slot : slots)
+    for (const auto& slot : confSlots)
     {
         // Can we read the database from this slot?
         if (read(ioContext, slot) == API_OK)
@@ -3070,7 +3070,7 @@ bool JSONSyncConfigIOContext::deserialize(JSONSyncConfigMap& configs,
 }
 
 error JSONSyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
-                                   vector<unsigned int>& slots)
+                                   vector<unsigned int>& confSlots)
 {
     using std::isdigit;
     using std::sort;
@@ -3144,7 +3144,7 @@ error JSONSyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
     // Transmit sorted list of slots to the caller.
     for (const auto& slotTime : slotTimes)
     {
-        slots.emplace_back(slotTime.first);
+        confSlots.emplace_back(slotTime.first);
     }
 
     return API_OK;
