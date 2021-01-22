@@ -5070,7 +5070,7 @@ bool CommandCreateEphemeralSession::procresult(Result r)
     return true;
 }
 
-CommandResumeEphemeralSession::CommandResumeEphemeralSession(MegaClient*, handle cuh, const byte* cpw, int ctag)
+CommandResumeEphemeralSession::CommandResumeEphemeralSession(MegaClient* client, handle cuh, const byte* cpw, int ctag)
 {
     memcpy(pw, cpw, sizeof pw);
 
@@ -5078,6 +5078,12 @@ CommandResumeEphemeralSession::CommandResumeEphemeralSession(MegaClient*, handle
 
     cmd("us");
     arg("user", (byte*)&uh, MegaClient::USERHANDLE);
+
+    string deviceIdHash = client->getDeviceidHash();
+    if (!deviceIdHash.empty())
+    {
+        arg("si", deviceIdHash.c_str());
+    }
 
     tag = ctag;
 }
