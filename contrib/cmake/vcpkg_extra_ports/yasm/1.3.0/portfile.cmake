@@ -5,17 +5,10 @@ vcpkg_from_github(
     SHA512 f5053e2012e0d2ce88cc1cc06e3bdb501054aed5d1f78fae40bb3e676fe2eb9843d335a612d7614d99a2b9e49dca998d57f61b0b89fac8225afa4ae60ae848f1
 )
 
-if(VCPKG_LIBRARY_LINKAGE STREQUAL "static")
-    set(_build_shared "0")
-else()
-    set(_build_shared "1")
-endif()
-
 vcpkg_configure_cmake(
     SOURCE_PATH ${SOURCE_PATH}
     PREFER_NINJA
     OPTIONS
-        "-DBUILD_SHARED_LIBS=${_build_shared}"
         -DYASM_BUILD_TESTS=0
 )
 
