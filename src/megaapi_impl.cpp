@@ -25518,7 +25518,11 @@ void MegaFolderUploadController::cancel()
 {
     assert(mMainThreadId == std::this_thread::get_id());
 
+    // With the cancelled flag true, the last subtransfer to complete won't automatically
+    // complete and delete our object.  Those would happen on this same thread, so we
+    // know we don't have a race for that.  Final completion occurs from this function.
     cancelled = true; //we dont want to further checkcompletion, and produce multile fireOnTransferFinish -> multiple deletions
+
     if (mWorkerThread.joinable())
     {
         mWorkerThread.join();
@@ -25529,15 +25533,20 @@ void MegaFolderUploadController::cancel()
 
     //remove ongoing subtransfers
     long long cancelledSubTransfers = 0;
-    std::unique_ptr<DBTableTransactionCommitter> insideCommiter;
-    DBTableTransactionCommitter *committer = megaapiThreadClient()->tctable ?
-                                             megaapiThreadClient()->tctable->getTransactionCommitter() :
-                                             nullptr;
-    if (!committer)
+
+    // The thread is now finished, and it must have run or this object would have been completed already.
+    // So it prepared a completion function to run on this thread, and it's either queued or already executed
+    // But, we can execute it early.  With cancelled = true, it won't queue any subtransfers or delete us.
+    if (mCompletionForMegaApiThread)
     {
-        insideCommiter.reset(new DBTableTransactionCommitter(megaapiThreadClient()->tctable));
-        committer = insideCommiter.get();
+        mCompletionForMegaApiThread->exec();
     }
+
+    // If we did queue subtransfers (ie, the thread ran with no errors and the completion function executed from the request queue)
+    // Then the code below cancels them.  Since subtransfers were queued, the last one to call fireOnTransferFinished
+    // also causes this object to finish (calling fireOnTransferFinished for itself, and being deleted from that function)
+
+    DBTableTransactionCommitter committer(megaapiThreadClient()->tctable);  // nested committers are allowed now
 
     while (!subTransfers.empty())
     {
@@ -25549,7 +25558,7 @@ void MegaFolderUploadController::cancel()
             LOG_warn << "Subtransfer without attached Transfer for folder transfer: " << subTransfer->getFileName();
 
             subTransfer->setState(MegaTransfer::STATE_CANCELLED);
-            megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), *committer);
+            megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
 
             continue;
         }
@@ -25579,7 +25588,7 @@ void MegaFolderUploadController::cancel()
                 {
                     if (!this->transfer->getDoNotStopSubTransfers())
                     {
-                        megaapiThreadClient()->stopxfer(file, committer);
+                        megaapiThreadClient()->stopxfer(file, &committer);
                     }
                     else
                     {
@@ -25607,14 +25616,14 @@ void MegaFolderUploadController::cancel()
 
         if (fireSubTransferFinish)
         {
-            megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), *committer);
+            megaApi->fireOnTransferFinish(subTransfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
         }
 
         cancelledSubTransfers++;
     }
 
     LOG_verbose << " MegaFolderUploadController, cancelled subTransfers = " << cancelledSubTransfers;
-
+    assert(pendingTransfers == 0);
     transfer = nullptr;  // no final callback for this one since it is being destroyed now
 }
 
@@ -27101,9 +27110,9 @@ void MegaFolderDownloadController::cancel()
     assert(mMainThreadId == std::this_thread::get_id());
 
     // With the cancelled flag true, the last subtransfer to complete won't automatically
-	// complete and delete our object.  Those would happen on this same thread, so we
-	// know we don't have a race for that.  Final completion occurs from this function.
-	cancelled = true;
+    // complete and delete our object.  Those would happen on this same thread, so we
+    // know we don't have a race for that.  Final completion occurs from this function.
+    cancelled = true; //we dont want to further checkcompletion, and produce multile fireOnTransferFinish -> multiple deletions
 
 	if (mWorkerThread.joinable())
     {
@@ -27147,7 +27156,9 @@ void MegaFolderDownloadController::cancel()
 
 #ifdef _WIN32
         if (transfer->type == GET)
+        {
             RemoveHiddenFileAttribute(transfer->localfilename);
+        }
 #endif
 
         MegaErrorPrivate megaError(API_EINCOMPLETE);
@@ -27203,11 +27214,8 @@ void MegaFolderDownloadController::cancel()
     }
 
     LOG_verbose << "MegaFolderDownloadController, cancelled subTransfers = " << cancelledSubTransfers;
-
     assert(pendingTransfers == 0);
-
-    // notify the app the whole folder transfer is finished - which deletes this object.
-    megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
+    transfer = nullptr;  // no final callback for this one since it is being destroyed now
 }
 
 bool MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpath, FileSystemType fsType)
