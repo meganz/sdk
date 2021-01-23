@@ -376,7 +376,7 @@ int64_t chunkmac_map::macsmac_gaps(SymmCipher *cipher, size_t g1, size_t g2, siz
     for (chunkmac_map::iterator it = begin(); it != end(); it++, n++)
     {
         if ((n >= g1 && n < g2) || (n >= g3 && n < g4)) continue;
-        
+
         assert(it->first == ChunkedHash::chunkfloor(it->first));
         SymmCipher::xorblock(it->second.mac, mac);
         cipher->ecb_encrypt(mac);
@@ -1692,6 +1692,62 @@ std::string Utils::hexToString(const std::string &input)
     return output;
 }
 
+int Utils::icasecmp(const std::string& lhs,
+                    const std::string& rhs,
+                    const size_t length)
+{
+    assert(lhs.size() >= length);
+    assert(rhs.size() >= length);
+
+#ifdef _WIN32
+    return _strnicmp(lhs.c_str(), rhs.c_str(), length);
+#else // _WIN32
+    return strncasecmp(lhs.c_str(), rhs.c_str(), length);
+#endif // ! _WIN32
+}
+
+int Utils::icasecmp(const std::wstring& lhs,
+                    const std::wstring& rhs,
+                    const size_t length)
+{
+    assert(lhs.size() >= length);
+    assert(rhs.size() >= length);
+
+#ifdef _WIN32
+    return _wcsnicmp(lhs.c_str(), rhs.c_str(), length);
+#else // _WIN32
+    return wcsncasecmp(lhs.c_str(), rhs.c_str(), length);
+#endif // ! _WIN32
+}
+
+int Utils::pcasecmp(const std::string& lhs,
+                    const std::string& rhs,
+                    const size_t length)
+{
+    assert(lhs.size() >= length);
+    assert(rhs.size() >= length);
+
+#ifdef _WIN32
+    return icasecmp(lhs, rhs, length);
+#else // _WIN32
+    return lhs.compare(0, length, rhs, 0, length);
+#endif // ! _WIN32
+}
+
+int Utils::pcasecmp(const std::wstring& lhs,
+                    const std::wstring& rhs,
+                    const size_t length)
+{
+    assert(lhs.size() >= length);
+    assert(rhs.size() >= length);
+
+#ifdef _WIN32
+    return icasecmp(lhs, rhs, length);
+#else // _WIN32
+    return lhs.compare(0, length, rhs, 0, length);
+#endif // ! _WIN32
+}
+
 long long abs(long long n)
 {
     // for pre-c++11 where this version is not defined yet
@@ -2191,7 +2247,7 @@ bool CacheableStatus::serialize(std::string* data)
     return const_cast<const CacheableStatus*>(this)->serialize(*data);
 }
 
-std::shared_ptr<CacheableStatus> CacheableStatus::unserialize(class MegaClient *client, const std::string& data)
+CacheableStatus* CacheableStatus::unserialize(class MegaClient *client, const std::string& data)
 {
     int64_t type;
     int64_t value;
@@ -2199,17 +2255,15 @@ std::shared_ptr<CacheableStatus> CacheableStatus::unserialize(class MegaClient *
     CacheableReader reader{data};
     if (!reader.unserializei64(type))
     {
-        return {};
+        return nullptr;
     }
     if (!reader.unserializei64(value))
     {
-        return {};
+        return nullptr;
     }
 
-    auto cacheableStatus = std::make_shared<CacheableStatus>(type, value);
-
-    client->loadCacheableStatus(cacheableStatus);
-    return cacheableStatus;
+    client->mCachedStatus.loadCachedStatus(type, value);
+    return client->mCachedStatus.getPtr(type);
 }
 
 bool CacheableStatus::serialize(std::string& data) const
@@ -2235,8 +2289,7 @@ void CacheableStatus::setValue(const int64_t value)
     mValue = value;
 }
 
-SyncConfig::SyncConfig(int tag,
-                       std::string localPath,
+SyncConfig::SyncConfig(std::string localPath,
                        std::string name,
                        const handle remoteNode,
                        const std::string &remotePath,
@@ -2246,9 +2299,10 @@ SyncConfig::SyncConfig(int tag,
                        const Type syncType,
                        const bool syncDeletions,
                        const bool forceOverwrite,
-                       const SyncError error, mega::handle hearBeatID)
-    : mTag{tag}
-    , mEnabled{enabled}
+                       const SyncError error,
+                       const SyncWarning warning,
+                       mega::handle hearBeatID)
+    : mEnabled{enabled}
     , mLocalPath{std::move(localPath)}
     , mName{std::move(name)}
     , mRemoteNode{remoteNode}
@@ -2260,18 +2314,8 @@ SyncConfig::SyncConfig(int tag,
     , mForceOverwrite{forceOverwrite}
     , mError{error}
     , mBackupId(hearBeatID)
+    , mWarning{warning}
 {}
-
-
-int SyncConfig::getTag() const
-{
-    return mTag;
-}
-
-void SyncConfig::setTag(int tag)
-{
-    mTag = tag;
-}
 
 bool SyncConfig::getEnabled() const
 {
@@ -2283,27 +2327,9 @@ void SyncConfig::setEnabled(bool enabled)
     mEnabled = enabled;
 }
 
-bool SyncConfig::isEnabled(syncstate_t state, SyncError syncError)
-{
-    return state != SYNC_CANCELED && (state != SYNC_DISABLED || syncError != NO_SYNC_ERROR);
-}
-
-bool SyncConfig::isResumable() const
-{
-    return mEnabled && !isSyncErrorPermanent(mError);
-}
-
-bool SyncConfig::isResumableAtStartup() const
-{
-    return mEnabled && (!isAnError(mError)
-                        || mError == LOGGED_OUT
-                        || mError == UNKNOWN_TEMPORARY_ERROR
-                        || mError == FOREIGN_TARGET_OVERSTORAGE); //temporary errors that don't have an asociated restore functionality
-}
-
 bool SyncConfig::hasError() const
 {
-    return isAnError(mError);
+    return mError != NO_SYNC_ERROR;
 }
 
 const std::string& SyncConfig::getLocalPath() const
@@ -2351,6 +2377,11 @@ const std::vector<std::string>& SyncConfig::getRegExps() const
     return mRegExps;
 }
 
+void SyncConfig::setRegExps(std::vector<std::string>&& v)
+{
+    mRegExps = std::move(v);
+}
+
 SyncConfig::Type SyncConfig::getType() const
 {
     return mSyncType;
@@ -2395,6 +2426,11 @@ SyncError SyncConfig::getError() const
     return mError;
 }
 
+SyncWarning SyncConfig::getWarning() const
+{
+    return mWarning;
+}
+
 void SyncConfig::setError(SyncError value)
 {
     mError = value;
@@ -2419,7 +2455,6 @@ bool SyncConfig::serialize(std::string* data)
 
 std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
 {
-    int64_t tag;
     bool enabled;
     std::string localPath;
     std::string name;
@@ -2431,42 +2466,23 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
     uint32_t syncType;
     bool syncDeletions;
     bool forceOverwrite;
-    uint32_t error;
-    handle heartBeatID;
+    uint32_t error = NO_SYNC_ERROR;
+    handle heartBeatID = UNDEF;
+    unsigned char expansionflags[8] = {0, 0, 0, 0, 0, 0, 0, 0};
 
     CacheableReader reader{data};
-    if (!reader.unserializei64(tag))
+
+    if (!reader.unserializebool(enabled) ||
+        !reader.unserializestring(localPath) ||
+        !reader.unserializestring(name) ||
+        !reader.unserializehandle(remoteNode) ||
+        !reader.unserializestring(remotePath) ||
+        !reader.unserializefsfp(fingerprint) ||
+        !reader.unserializeu32(regExpCount))
     {
-        return {};
+        return nullptr;
     }
-    if (!reader.unserializebool(enabled))
-    {
-        return {};
-    }
-    if (!reader.unserializestring(localPath))
-    {
-        return {};
-    }
-    if (!reader.unserializestring(name))
-    {
-        return {};
-    }
-    if (!reader.unserializehandle(remoteNode))
-    {
-        return {};
-    }
-    if (!reader.unserializestring(remotePath))
-    {
-        return {};
-    }
-    if (!reader.unserializefsfp(fingerprint))
-    {
-        return {};
-    }
-    if (!reader.unserializeu32(regExpCount))
-    {
-        return {};
-    }
+
     for (uint32_t i = 0; i < regExpCount; ++i)
     {
         std::string regExp;
@@ -2476,37 +2492,44 @@ std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
         }
         regExps.push_back(std::move(regExp));
     }
-    if (!reader.unserializeu32(syncType))
+
+    if (!reader.unserializeu32(syncType) ||
+        !reader.unserializebool(syncDeletions) ||
+        !reader.unserializebool(forceOverwrite))
     {
-        return {};
+        return nullptr;
     }
-    if (!reader.unserializebool(syncDeletions))
+
+    // error was added without an expansion flag to indicate if it's present, so go by remaining space
+    if (reader.hasdataleft())
     {
-        return {};
+        if (!reader.unserializeu32(error)) return nullptr;
+
+        // heartbeatID was added without an expansion flag to indicate if it's present, so go by remaining space
+        if (reader.hasdataleft())
+        {
+            if (!reader.unserializehandle(heartBeatID)) return nullptr;
+
+            // expansion flags were added at this point
+            if (reader.hasdataleft())
+            {
+                reader.unserializeexpansionflags(expansionflags, 0);
+            }
+        }
     }
-    if (!reader.unserializebool(forceOverwrite))
-    {
-        return {};
-    }
-    if (!reader.unserializeu32(error))
-    {
-        return {};
-    }
-    if (!reader.unserializehandle(heartBeatID))
-    {
-        return {};
-    }
-    auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{static_cast<int>(tag), std::move(localPath), std::move(name),
+
+    // when future fields are added, unserialize that field here.  Check the next expansion flag first, of course.
+
+    auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{std::move(localPath), std::move(name),
                     remoteNode, std::move(remotePath), fingerprint, std::move(regExps), enabled,
                     static_cast<Type>(syncType), syncDeletions,
-                    forceOverwrite, static_cast<SyncError>(error), heartBeatID}};
+                    forceOverwrite, static_cast<SyncError>(error), NO_SYNC_WARNING, heartBeatID}};
     return syncConfig;
 }
 
 bool SyncConfig::serialize(std::string& data) const
 {
     CacheableWriter writer{data};
-    writer.serializei64(mTag);
     writer.serializebool(mEnabled);
     writer.serializestring(mLocalPath);
     writer.serializestring(mName);

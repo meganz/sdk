@@ -75,6 +75,9 @@ public:
     // permanantly remove all database info
     virtual void remove() = 0;
 
+    // whether an unmatched begin() has been issued
+    virtual bool inTransaction() const = 0;
+
     void checkCommitter(DBTableTransactionCommitter*);
 
     // autoincrement
@@ -166,6 +169,8 @@ struct MEGA_API DbAccess
     virtual DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) = 0;
 
     virtual bool probe(FileSystemAccess& fsAccess, const string& name) const = 0;
+
+    virtual const LocalPath& rootPath() const = 0;
 
     int currentDbVersion;
 };

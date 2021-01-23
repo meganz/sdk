@@ -19,6 +19,8 @@
  * program.
  */
 
+#include <cwctype>
+
 #include "mega.h"
 #include <wow64apiset.h>
 
@@ -32,6 +34,57 @@ namespace mega {
 WinFileSystemAccess gWfsa;
 
 int sanitizedriveletter(std::wstring& localpath);
+
+LocalPath NormalizeAbsolute(const LocalPath& path)
+{
+    LocalPath result = path;
+
+    // Convenience.
+    wstring& raw = result.localpath;
+
+    // Absolute paths should never be empty.
+    assert(!raw.empty());
+
+    // Add a drive separator if necessary.
+    if (raw.back() == L':')
+    {
+        raw.push_back(L'\\');
+    }
+
+    if (raw.size() > 1)
+    {
+        // Remove trailing separator if we're not the root.
+        if (raw.back() == L'\\')
+        {
+            if (raw[raw.size() - 2] != L':')
+            {
+                raw.pop_back();
+            }
+        }
+    }
+
+    return result;
+}
+
+int platformCompareUtf(const string& p1, bool unescape1, const string& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, true);
+}
+
+int platformCompareUtf(const string& p1, bool unescape1, const LocalPath& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, true);
+}
+
+int platformCompareUtf(const LocalPath& p1, bool unescape1, const string& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, true);
+}
+
+int platformCompareUtf(const LocalPath& p1, bool unescape1, const LocalPath& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, true);
+}
 
 WinFileAccess::WinFileAccess(Waiter *w) : FileAccess(w)
 {
@@ -119,6 +172,31 @@ bool WinFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
          return false;
      }
      return true;
+}
+
+bool WinFileAccess::ftruncate()
+{
+    LARGE_INTEGER zero;
+
+    zero.QuadPart = 0x0;
+
+    // Set the file pointer to the start of the file.
+    if (SetFilePointerEx(hFile, zero, nullptr, FILE_BEGIN))
+    {
+        // Truncate the file.
+        if (SetEndOfFile(hFile))
+        {
+            return true;
+        }
+    }
+
+    // Why couldn't we truncate the file?
+    auto error = GetLastError();
+
+    // Is it a transient error?
+    retry = WinFileSystemAccess::istransient(error);
+
+    return false;
 }
 
 m_time_t FileTime_to_POSIX(FILETIME* ft)
@@ -644,9 +722,9 @@ bool WinFileSystemAccess::cwd(LocalPath& path) const
 
     path.localpath.resize(nRequired);
 
-    DWORD n = GetCurrentDirectoryW(nRequired, &path.localpath[0]);
-    path.localpath.resize(n);
-    return n > 0;
+    DWORD nWritten = GetCurrentDirectoryW(nRequired, &path.localpath[0]);
+    path.localpath.resize(nWritten); // doesn't include terminator now
+    return nWritten > 0;
 #else // WINDOWS_PHONE
     return false;
 #endif // ! WINDOWS_PHONE
@@ -1650,11 +1728,14 @@ DirNotify* WinFileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& ig
     return new WinDirNotify(localpath, ignore, this, waiter);
 }
 
-bool WinFileSystemAccess::issyncsupported(LocalPath& localpathArg, bool *isnetwork, SyncError *syncError)
+bool WinFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)
 {
     WCHAR VBoxSharedFolderFS[] = L"VBoxSharedFolderFS";
     std::wstring path, fsname;
     bool result = true;
+    isnetwork = false;
+    syncError = NO_SYNC_ERROR;
+    syncWarning = NO_SYNC_WARNING;
 
 #ifndef WINDOWS_PHONE
     path.resize(MAX_PATH * sizeof(WCHAR));
@@ -1666,10 +1747,7 @@ bool WinFileSystemAccess::issyncsupported(LocalPath& localpathArg, bool *isnetwo
         if (!memcmp(fsname.data(), VBoxSharedFolderFS, sizeof(VBoxSharedFolderFS)))
         {
             LOG_warn << "VBoxSharedFolderFS is not supported because it doesn't provide ReadDirectoryChanges() nor unique file identifiers";
-            if (syncError)
-            {
-                *syncError = VBOXSHAREDFOLDER_UNSUPPORTED;
-            }
+            syncError = VBOXSHAREDFOLDER_UNSUPPORTED;
             result = false;
         }
         else if ((!memcmp(fsname.data(), L"FAT", 6) || !memcmp(fsname.data(), L"exFAT", 10))) // TODO: have these checks for !windows too
@@ -1679,31 +1757,21 @@ bool WinFileSystemAccess::issyncsupported(LocalPath& localpathArg, bool *isnetwo
                         "that can cause synchronization problems (e.g. when daylight saving changes), "
                         "so it's strongly recommended that you only sync folders formatted with more "
                         "reliable filesystems like NTFS (more information at https://help.mega.nz/megasync/syncing.html#can-i-sync-fat-fat32-partitions-under-windows.";
-            if (syncError)
-            {
-                *syncError = LOCAL_IS_FAT;
-            }
-
+            syncWarning = LOCAL_IS_FAT;
         }
         else if (!memcmp(fsname.data(), L"HGFS", 8))
         {
             LOG_warn << "You are syncing a local folder shared with VMWare. Those folders do not support filesystem notifications "
             "so MEGAsync will have to be continuously scanning to detect changes in your files and folders. "
             "Please use a different folder if possible to reduce the CPU usage.";
-            if (syncError)
-            {
-                *syncError = LOCAL_IS_HGFS;
-            }
+            syncWarning = LOCAL_IS_HGFS;
         }
     }
 
     if (GetDriveTypeW(path.data()) == DRIVE_REMOTE)
     {
         LOG_debug << "Network folder detected";
-        if (isnetwork)
-        {
-            *isnetwork = true;
-        }
+        isnetwork = true;
     }
 
     string utf8fsname;

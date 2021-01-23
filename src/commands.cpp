@@ -30,6 +30,7 @@
 #include "mega/user.h"
 #include "mega.h"
 #include "mega/mediafileattribute.h"
+#include "mega/heartbeats.h"
 
 namespace mega {
 HttpReqCommandPutFA::HttpReqCommandPutFA(MegaClient* client, handle cth, fatype ctype, std::unique_ptr<string> cdata, bool checkAccess)
@@ -989,20 +990,10 @@ bool CommandSetAttr::procresult(Result r)
         Node* node = client->nodebyhandle(h);
         if(node)
         {
-            Sync* sync = NULL;
-            for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-            {
-                if((*it)->tag == tag)
-                {
-                    sync = (*it);
-                    break;
-                }
-            }
-
-            if(sync)
-            {
-                client->app->syncupdate_remote_rename(sync, node, pa.c_str());
-            }
+            // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
+            client->syncs.forEachRunningSyncContainingNode(node, [&](Sync* s) {
+                    client->app->syncupdate_remote_rename(s, node, pa.c_str());
+                });
         }
     }
 #endif
@@ -1367,27 +1358,17 @@ bool CommandMoveNode::procresult(Result r)
                             {
                                 if (syncop)
                                 {
-                                    Sync* sync = NULL;
-                                    for (sync_list::iterator its = client->syncs.begin(); its != client->syncs.end(); its++)
-                                    {
-                                        if ((*its)->tag == tag)
-                                        {
-                                            sync = (*its);
-                                            break;
-                                        }
-                                    }
-
-                                    if (sync)
-                                    {
+                                    // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
+                                    client->syncs.forEachRunningSyncContainingNode(n, [&](Sync* s) {
                                         if ((*it)->type == FOLDERNODE)
                                         {
-                                            sync->client->app->syncupdate_remote_folder_deletion(sync, (*it));
+                                            s->client->app->syncupdate_remote_folder_deletion(s, n);
                                         }
                                         else
                                         {
-                                            sync->client->app->syncupdate_remote_file_deletion(sync, (*it));
+                                            s->client->app->syncupdate_remote_file_deletion(s, n);
                                         }
-                                    }
+                                    });
                                 }
 
                                 (*it)->syncdeleted = syncdel;
@@ -1423,20 +1404,10 @@ bool CommandMoveNode::procresult(Result r)
             Node *n = client->nodebyhandle(h);
             if(n)
             {
-                Sync *sync = NULL;
-                for (sync_list::iterator it = client->syncs.begin(); it != client->syncs.end(); it++)
-                {
-                    if((*it)->tag == tag)
-                    {
-                        sync = (*it);
-                        break;
-                    }
-                }
-
-                if(sync)
-                {
-                    client->app->syncupdate_remote_move(sync, n, client->nodebyhandle(pp));
-                }
+                // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
+                client->syncs.forEachRunningSyncContainingNode(n, [&](Sync* s) {
+                    client->app->syncupdate_remote_move(s, n, client->nodebyhandle(pp));
+                });
             }
         }
 #endif
@@ -1804,7 +1775,7 @@ bool CommandLogin::procresult(Result r)
 
                 if (len_tsid)
                 {
-                    client->setsid(sidbuf, MegaClient::SIDLEN);
+                    client->sid.assign((const char *)sidbuf, MegaClient::SIDLEN);
 
                     // account does not have an RSA keypair set: verify
                     // password using symmetric challenge
@@ -1866,7 +1837,7 @@ bool CommandLogin::procresult(Result r)
                             return true;
                         }
 
-                        client->setsid(sidbuf, MegaClient::SIDLEN);
+                        client->sid.assign((const char *)sidbuf, MegaClient::SIDLEN);
                     }
                 }
 
@@ -1882,7 +1853,7 @@ bool CommandLogin::procresult(Result r)
                 }
 
 #ifdef ENABLE_SYNC
-                client->resetSyncConfigs();
+                client->syncs.resetSyncConfigDb();
 #endif
 
                 client->app->login_result(API_OK);
@@ -3646,6 +3617,8 @@ bool CommandGetUserData::procresult(Result r)
     string versionMyBackupsFolder;
     string backupNames;
     string versionBackupNames;
+    string cookieSettings;
+    string versionCookieSettings;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -3933,6 +3906,10 @@ bool CommandGetUserData::procresult(Result r)
             break;
         }
 
+        case MAKENAMEID5('^', '!', 'c', 's', 'p'):
+            parseUserAttribute(cookieSettings, versionCookieSettings);
+            break;
+
         case EOO:
         {
             assert(me == client->me);
@@ -4167,6 +4144,11 @@ bool CommandGetUserData::procresult(Result r)
                     {
                         LOG_err << "Cannot extract TLV records for ATTR_BACKUP_NAMES";
                     }
+                }
+
+                if (!cookieSettings.empty())
+                {
+                    changes += u->updateattr(ATTR_COOKIE_SETTINGS, &cookieSettings, &versionCookieSettings);
                 }
 
                 if (changes > 0)
@@ -4678,14 +4660,17 @@ bool CommandGetUserQuota::procresult(Result r)
                     }
                 }
 
-                if (mPro && client->mAccountType != details->pro_level)
+                if (mPro)
                 {
                     // Pro level can change without a payment (ie. with coupons or by helpdesk)
                     // and in those cases, the `psts` packet is not triggered. However, the SDK
                     // should notify the app and resume transfers, etc.
-                    client->mAccountType = static_cast<AccountType>(details->pro_level);
-                    client->app->account_updated();
-                    client->abortbackoff(true);
+                    bool changed = client->mCachedStatus.addOrUpdate(CacheableStatus::STATUS_PRO_LEVEL, details->pro_level);
+                    if (changed)
+                    {
+                        client->app->account_updated();
+                        client->abortbackoff(true);
+                    }
                 }
 
                 client->app->account_details(details, mStorage, mTransfer, mPro, false, false, false);
@@ -5128,7 +5113,7 @@ bool CommandResumeEphemeralSession::procresult(Result r)
                     return false;
                 }
 
-                client->setsid(sidbuf, sizeof sidbuf);
+                client->sid.assign((const char *)sidbuf, sizeof sidbuf);
 
                 client->key.setkey(pw);
                 client->key.ecb_decrypt(keybuf);
@@ -8234,7 +8219,8 @@ bool CommandFolderLinkInfo::procresult(Result r)
 }
 
 // to register a new backup
-CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, const std::string& backupName, handle nodeHandle, const string& localFolder, const std::string &deviceId, int state, int subState, const string& extraData)
+CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, const std::string& backupName, handle nodeHandle, const string& localFolder, const std::string &deviceId, int state, int subState, const string& extraData, std::function<void(Error, handle /*backup id*/)> completion)
+    : mCompletion(completion)
 {
     assert(type != BackupType::INVALID);
 
@@ -8256,7 +8242,8 @@ CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, const st
 }
 
 // to update an already registered backup
-CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, int state, int subState, const char* extraData)
+CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, int state, int subState, const char* extraData, std::function<void(Error, handle /*backup id*/)> completion)
+    : mCompletion(completion)
 {
     cmd("sp");
 
@@ -8365,6 +8352,8 @@ bool CommandBackupPut::procresult(Result r)
         }
     }
 
+    if (mCompletion) mCompletion(e, backupId);
+
     if (mUpdate)
     {
         client->app->backupupdate_result(e, backupId);
@@ -8376,7 +8365,8 @@ bool CommandBackupPut::procresult(Result r)
     return r.wasStrictlyError() || r.hasJsonItem();
 }
 
-CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode)
+CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode, std::function<void(Error)> f)
+    : mCompletion(f)
 {
     cmd("sphb");
 
@@ -8402,7 +8392,7 @@ CommandBackupPutHeartBeat::CommandBackupPutHeartBeat(MegaClient* client, handle 
 
 bool CommandBackupPutHeartBeat::procresult(Result r)
 {
-    client->app->backupputheartbeat_result(r.errorOrOK());
+    if (mCompletion) mCompletion(r.errorOrOK());
     return r.wasErrorOrOK();
 }
 

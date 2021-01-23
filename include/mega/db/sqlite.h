@@ -38,6 +38,8 @@ public:
     DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags) override;
 
     bool probe(FileSystemAccess& fsAccess, const string& name) const override;
+
+    const LocalPath& rootPath() const override;
 };
 
 class MEGA_API SqliteDbTable : public DbTable
@@ -62,7 +64,7 @@ public:
     SqliteDbTable(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted);
     ~SqliteDbTable();
 
-    bool inTransaction() const;
+    bool inTransaction() const override;
 };
 } // namespace
 

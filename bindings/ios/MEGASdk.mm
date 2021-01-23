@@ -861,6 +861,10 @@ using namespace mega;
     self.megaApi->getPSA();
 }
 
+- (void)getURLPublicServiceAnnouncementWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getPSAWithUrl([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
 - (void)setPSAWithIdentifier:(NSInteger)identifier delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setPSA((int)identifier, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -1552,6 +1556,14 @@ using namespace mega;
 
 - (void)getUserDataWithUser:(NSString *)user {
     self.megaApi->getUserData((user != nil) ? [user UTF8String] : NULL);
+}
+
+- (void)getMiscFlagsWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getMiscFlags([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)getMiscFlags {
+    self.megaApi->getMiscFlags();
 }
 
 - (void)killSession:(uint64_t)sessionHandle delegate:(id<MEGARequestDelegate>)delegate {
@@ -2666,5 +2678,28 @@ using namespace mega;
     pthread_mutex_unlock(&listenerMutex);
     delete delegate;
 }
+
+#pragma mark - Cookie Dialog
+
+- (void)setCookieSettings:(NSInteger)settings delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setCookieSettings((int)settings, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setCookieSettings:(NSInteger)settings {
+    self.megaApi->setCookieSettings((int)settings);
+}
+
+- (void)cookieSettingsWithDelegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getCookieSettings([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)cookieSettings {
+    self.megaApi->getCookieSettings();
+}
+
+- (BOOL)cookieBannerEnabled {
+    return self.megaApi->cookieBannerEnabled();
+}
+
 
 @end

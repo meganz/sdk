@@ -60,6 +60,7 @@ struct MEGA_API AsyncIOContext;
 
 struct MEGA_API FileSystemAccess;
 class MEGA_API LocalPath;
+class MEGA_API Sync;
 
 class ScopedLengthRestore {
     LocalPath& path;
@@ -87,6 +88,8 @@ class MEGA_API LocalPath
     friend class PosixDirNotify;
     friend class WinFileAccess;
     friend class PosixFileAccess;
+    friend LocalPath NormalizeAbsolute(const LocalPath& path);
+    friend LocalPath NormalizeRelative(const LocalPath& path);
     friend void RemoveHiddenFileAttribute(LocalPath& path);
     friend void AddHiddenFileAttribute(LocalPath& path);
     friend class GfxProcFreeImage;
@@ -179,6 +182,30 @@ public:
 
 void AddHiddenFileAttribute(mega::LocalPath& path);
 void RemoveHiddenFileAttribute(mega::LocalPath& path);
+
+/**
+ * @brief
+ * Ensures that a path does not end with a separator.
+ *
+ * @param path
+ * An absolute path to normalize.
+ *
+ * @return
+ * A normalized path.
+ */
+LocalPath NormalizeAbsolute(const LocalPath& path);
+
+/**
+ * @brief
+ * Ensures that a path does not begin or end with a separator.
+ *
+ * @param path
+ * A relative path to normalize.
+ *
+ * @return
+ * A normalized path.
+ */
+LocalPath NormalizeRelative(const LocalPath& path);
 
 inline LocalPath operator+(LocalPath& a, LocalPath& b)
 {
@@ -291,6 +318,9 @@ struct MEGA_API FileAccess
 
     // absolute position write
     virtual bool fwrite(const byte *, unsigned, m_off_t) = 0;
+
+    // Truncate a file.
+    virtual bool ftruncate() = 0;
 
     FileAccess(Waiter *waiter);
     virtual ~FileAccess();
@@ -429,6 +459,8 @@ public:
 
     DirNotify(const LocalPath&, const LocalPath&);
     virtual ~DirNotify() {}
+
+    bool empty();
 };
 
 // generic host filesystem access interface
@@ -514,7 +546,7 @@ struct MEGA_API FileSystemAccess : public EventTrigger
     virtual bool getextension(const LocalPath&, std::string&) const = 0;
 
     // check if synchronization is supported for a specific path
-    virtual bool issyncsupported(LocalPath&, bool* = NULL, SyncError* = nullptr) { return true; }
+    virtual bool issyncsupported(const LocalPath&, bool&, SyncError&, SyncWarning&) = 0;
 
     // get the absolute path corresponding to a path
     virtual bool expanselocalpath(LocalPath& path, LocalPath& absolutepath) = 0;
@@ -563,6 +595,12 @@ int compareUtf(const string&, bool unescaping1, const string&, bool unescaping2,
 int compareUtf(const string&, bool unescaping1, const LocalPath&, bool unescaping2, bool caseInsensitive);
 int compareUtf(const LocalPath&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
 int compareUtf(const LocalPath&, bool unescaping1, const LocalPath&, bool unescaping2, bool caseInsensitive);
+
+// Same as above except case insensitivity is determined by build platform.
+int platformCompareUtf(const string&, bool unescape1, const string&, bool unescape2);
+int platformCompareUtf(const string&, bool unescape1, const LocalPath&, bool unescape2);
+int platformCompareUtf(const LocalPath&, bool unescape1, const string&, bool unescape2);
+int platformCompareUtf(const LocalPath&, bool unescape1, const LocalPath&, bool unescape2);
 
 } // namespace
 

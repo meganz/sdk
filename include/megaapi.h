@@ -1273,6 +1273,7 @@ class MegaUser
             CHANGE_TYPE_UNSHAREABLE_KEY             = 0x2000000,
             CHANGE_TYPE_DEVICE_NAMES                = 0x4000000,
             CHANGE_TYPE_BACKUP_NAMES                = 0x8000000,
+            CHANGE_TYPE_COOKIE_SETTINGS             = 0x10000000,
         };
 
         /**
@@ -3173,6 +3174,8 @@ class MegaRequest
          * - MegaApi::removeBackup - Returns the backupId
          * - MegaApi::updateBackup - Returns the backupId
          * - MegaApi::sendBackupHeartbeat - Returns the backupId
+         * - MegaApi::syncFolder - Returns the backupId asociated with the sync
+         * - MegaApi::copySyncDataToCache - Returns the backupId asociated with the sync
          *
          * This value is valid for these requests in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -3602,8 +3605,6 @@ class MegaRequest
          * - MegaApi::moveTransferBefore - Returns the tag of the transfer to move
          * - MegaApi::moveTransferBeforeByTag - Returns the tag of the transfer to move
          * - MegaApi::setBackup - Returns the tag asociated with the backup
-         * - MegaApi::syncFolder - Returns the tag asociated with the sync
-         * - MegaApi::copySyncDataToCache - Returns the tag asociated with the sync
          * - MegaApi::sendBackupHeartbeat - Returns the number of backup files downloaded
          *
          * @return Tag of a transfer related to the request
@@ -4990,11 +4991,6 @@ public:
 
 
 #ifdef ENABLE_SYNC
-/**
- * @brief INVALID_SYNC_TAG Invalid value for a sync tag
- */
-const int INVALID_SYNC_TAG = 0;
-
 
 /**
  * @brief Provides information about a synchronization event
@@ -5131,14 +5127,6 @@ private:
 class MegaSync
 {
 public:
-    enum
-    {
-        SYNC_DISABLED = -3, //user disabled (if no syncError, otherwise automatically disabled . i.e SYNC_TEMPORARY_DISABLED)
-        SYNC_FAILED = -2,
-        SYNC_CANCELED = -1, //removed
-        SYNC_INITIALSCAN = 0,
-        SYNC_ACTIVE
-    };
 
     enum Error
     {
@@ -5165,12 +5153,18 @@ public:
         REMOTE_NODE_INSIDE_RUBBISH = 20, // Attempted to be added in rubbish
         VBOXSHAREDFOLDER_UNSUPPORTED = 21, // Found unsupported VBoxSharedFolderFS
         LOCAL_PATH_SYNC_COLLISION = 22, //Local path includes a synced path or is included within one
-        LOCAL_IS_FAT = 23, // Found FAT (not a failure per se)
-        LOCAL_IS_HGFS= 24, // Found HGFS (not a failure per se)
-        ACCOUNT_BLOCKED= 25, // Account blocked
-        UNKNOWN_TEMPORARY_ERROR = 26, // unknown temporary error
-        TOO_MANY_ACTION_PACKETS = 27, // Too many changes in account, local state discarded
-        LOGGED_OUT = 28, // Logged out
+        ACCOUNT_BLOCKED= 23, // Account blocked
+        UNKNOWN_TEMPORARY_ERROR = 24, // unknown temporary error
+        TOO_MANY_ACTION_PACKETS = 25, // Too many changes in account, local state discarded
+        LOGGED_OUT = 26, // Logged out
+        WHOLE_ACCOUNT_REFETCHED = 27, // The whole account was reloaded, missed actionpacket changes could not have been applied
+    };
+
+    enum Warning
+    {
+        NO_SYNC_WARNING = 0,
+        LOCAL_IS_FAT = 1, // Found FAT (not a failure per se)
+        LOCAL_IS_HGFS= 2, // Found HGFS (not a failure per se)
     };
 
     enum SyncAdded
@@ -5256,31 +5250,7 @@ public:
      *
      * @return Identifier of the synchronization
      */
-    virtual int getTag() const;
-
-    /**
-     * @brief Get the state of the synchronization
-     *
-     * Possible values are:
-     * - SYNC_DISABLED
-     * The synchronization has been disabled by the user or temporarily disabled for a transient reason
-     *
-     * - SYNC_FAILED = -2
-     * The synchronization has failed and has been disabled
-     *
-     * - SYNC_CANCELED = -1,
-     * The synchronization is being removed
-     *
-     * - SYNC_INITIALSCAN = 0,
-     * The synchronization is doing the initial scan
-     *
-     * - SYNC_ACTIVE
-     * The synchronization is active
-     *
-     * @return State of the synchronization
-     */
-    virtual int getState() const;
-
+    virtual MegaHandle getBackupId() const;
 
     /**
      * @brief Get the error of a synchronization
@@ -5309,16 +5279,26 @@ public:
      *  - REMOTE_NODE_INSIDE_RUBBISH = 20: Attempted to be added in rubbish
      *  - VBOXSHAREDFOLDER_UNSUPPORTED = 21: Found unsupported VBoxSharedFolderFS
      *  - LOCAL_PATH_SYNC_COLLISION = 22: Local path includes a synced path or is included within one
-     *  - LOCAL_IS_FAT = 23: Found FAT (not a failure per se)
-     *  - LOCAL_IS_HGFS = 24: Found HGFS (not a failure per se)
-     *  - ACCOUNT_BLOCKED = 25: Account blocked
-     *  - UNKNOWN_TEMPORARY_ERROR = 26: Unknown temporary error
-     *  - TOO_MANY_ACTION_PACKETS = 27: Too many changes in account, local state discarded
-     *  - LOGGED_OUT = 28: Logged out
+     *  - ACCOUNT_BLOCKED = 23: Account blocked
+     *  - UNKNOWN_TEMPORARY_ERROR = 24: Unknown temporary error
+     *  - TOO_MANY_ACTION_PACKETS = 25: Too many changes in account, local state discarded
+     *  - LOGGED_OUT = 26: Logged out
      *
      * @return Error of a synchronization
      */
     virtual int getError() const;
+
+    /**
+     * @brief Get the warning of a synchronization
+     *
+     * Possible values are:
+     *  - NO_SYNC_WARNING = 0: No warning
+     *  - LOCAL_IS_FAT = 1: Found FAT (not a failure per se)
+     *  - LOCAL_IS_HGFS = 2: Found HGFS (not a failure per se)
+     *
+     * @return Warning of a synchronization
+     */
+    virtual int getWarning() const;
 
     /**
      * @brief Get the type of sync
@@ -5378,6 +5358,28 @@ public:
      * @return Description associated with the error code
      */
     static const char *getMegaSyncErrorCode(int errorCode);
+
+    /**
+     * @brief Returns a readable description of the sync warning
+     *
+     * This function returns a pointer to a statically allocated buffer.
+     * You don't have to free the returned pointer
+     *
+     * @return Readable description of the warning
+     */
+    const char * getMegaSyncWarningCode();
+
+    /**
+     * @brief Provides the warning description associated with a sync warning code
+     *
+     * This function returns a pointer to a statically allocated buffer.
+     * You don't have to free the returned pointer
+     *
+     * @param warningCode Warning code for which the description will be returned
+     * @return Description associated with the warning code
+     */
+    static const char *getMegaSyncWarningCode(int warningCode);
+
 };
 
 
@@ -7570,6 +7572,7 @@ class MegaApi
             USER_ATTR_DEVICE_NAMES = 30,          // private - byte array
             USER_ATTR_MY_BACKUPS_FOLDER = 31,    // private - byte array
             USER_ATTR_BACKUP_NAMES = 32,          // private - byte array
+            USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
         };
 
         enum {
@@ -9375,7 +9378,6 @@ class MegaApi
          * - MegaRequest::getNumber - Returns the id of the PSA (useful to call MegaApi::setPSA later)
          * Depending on the format of the PSA, the request may additionally return, for the new format:
          * - MegaRequest::getEmail - Returns the URL (or an empty string))
-         * ...or for the old format:
          * - MegaRequest::getName - Returns the title of the PSA
          * - MegaRequest::getText - Returns the text of the PSA
          * - MegaRequest::getFile - Returns the URL of the image of the PSA
@@ -11063,7 +11065,7 @@ class MegaApi
          * @param writable if the link should be writable.
          * @param listener MegaRequestListener to track this request
          */
-        void exportNode(MegaNode *node, bool writable, MegaRequestListener *listener);
+        void exportNode(MegaNode *node, bool writable, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Generate a public link of a file/folder in MEGA
@@ -11086,7 +11088,7 @@ class MegaApi
          * @param writable if the link should be writable.
          * @param listener MegaRequestListener to track this request
          */
-        void exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener);
+        void exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Stop sharing a file/folder
@@ -13447,7 +13449,7 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
          * if the sync was added with no errors
-         * - MegaRequest::getTransferTag - Returns the sync tag
+         * - MegaRequest::getParentHandle - Returns the sync backupId
          *
          * @param localFolder Local folder
          * @param name Name given to the sync
@@ -13475,7 +13477,7 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
          * if the sync was added with no errors
-         * - MegaRequest::getTransferTag - Returns the sync tag
+         * - MegaRequest::getParentHandle - Returns the sync backupId
          *
          * @param localFolder Local folder
          * @param megaFolder MEGA folder
@@ -13502,7 +13504,7 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
          * if the sync was added with no errors
-         * - MegaRequest::getTransferTag - Returns the sync tag
+         * - MegaRequest::getParentHandle - Returns the sync backupId
          *
          * @param localFolder Local folder
          * @param megaHandle Handle of MEGA folder
@@ -13529,7 +13531,7 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
          * if the sync was added with no errors
-         * - MegaRequest::getTransferTag - Returns the sync tag
+         * - MegaRequest::getParentHandle - Returns the sync backupId
          *
          * @param localFolder Local folder
          * @param name Name given to the sync
@@ -13553,12 +13555,12 @@ class MegaApi
          * - MegaRequest::getName - Returns the name of the sync
          * - MegaRequest::getLink - Returns the path of the remote folder
          * - MegaRequest::getNumber - Returns the local filesystem fingreprint
-         * - MegaRequest::setNumDetails - Returns if sync is temporarily disabled
+         * - MegaRequest::getNumDetails - Returns if sync is temporarily disabled
          * - MegaRequest::getFlag - if sync is enabled
 
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getTransferTag - tag assigned to the sync (MegaApi::copySyncDataToCache)
+         * - MegaRequest::getParentHandle - backupId assigned to the sync (MegaApi::copySyncDataToCache)
          *
          * @param localFolder Local folder
          * @param name Name given to the sync
@@ -13585,12 +13587,12 @@ class MegaApi
          * - MegaRequest::getName - Returns the name of the sync
          * - MegaRequest::getLink - Returns the path of the remote folder
          * - MegaRequest::getNumber - Returns the local filesystem fingreprint
-         * - MegaRequest::setNumDetails - Returns if sync is temporarily disabled
+         * - MegaRequest::getNumDetails - Returns if sync is temporarily disabled
          * - MegaRequest::getFlag - if sync is enabled
 
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getTransferTag - tag assigned to the sync (MegaApi::copySyncDataToCache)
+         * - MegaRequest::getParentHandle - backupId assigned to the sync (MegaApi::copySyncDataToCache)
          *
          * @param localFolder Local folder
          * @param megaHandle MEGA folder
@@ -13647,7 +13649,7 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getNumber - Fingerprint of the local folder. Note, fingerprint will only be valid
          * if the sync was added with no errors
-         * - MegaRequest::getTransferTag - Returns the sync tag
+         * - MegaRequest::getParentHandle - Returns the sync backupId
          *
          * @param localFolder Local folder
          * @param megaFolder MEGA folder
@@ -13672,7 +13674,7 @@ class MegaApi
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
          * - MegaRequest::getFlag - Returns true
-         * - MegaRequest::getNumDetails - Returns sync tag
+         * - MegaRequest::getParentHandle - Returns sync backupId
          * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
          *
          * @param megaFolder MEGA folder
@@ -13691,14 +13693,14 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNumDetails - Returns sync tag
+         * - MegaRequest::getParentHandle - Returns sync backupId
          * - MegaRequest::getFlag - Returns true
          * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
          *
-         * @param syncTag tag identifying the Sync
+         * @param backupId Identifier of the Sync (unique per user, provided by API)
          * @param listener MegaRequestListener to track this request
          */
-        void removeSync(int syncTag, MegaRequestListener *listener = NULL);
+        void removeSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Remove a synced folder
@@ -13711,7 +13713,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_REMOVE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNumDetails - Returns sync tag
+         * - MegaRequest::getParentHandle - Returns sync backupId
          * - MegaRequest::getFlag - Returns true
          * - MegaRequest::getFile - Returns the path of the local folder (for active syncs only)
          *
@@ -13750,12 +13752,12 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_DISABLE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNumDetails - Returns sync tag
+         * - MegaRequest::getParentHandle - Returns sync backupId
          *
-         * @param syncTag tag identifying the Sync
+         * @param backupId Identifier of the Sync (unique per user, provided by API)
          * @param listener MegaRequestListener to track this request
          */
-        void disableSync(int tag, MegaRequestListener *listener = NULL);
+        void disableSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Disable a synced folder
@@ -13768,7 +13770,7 @@ class MegaApi
          *
          * The associated request type with this request is MegaRequest::TYPE_DISABLE_SYNC
          * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNumDetails - Returns sync tag
+         * - MegaRequest::getParentHandle - Returns sync backupId
          *
          * @param sync Synchronization to disable
          * @param listener MegaRequestListener to track this request
@@ -13783,7 +13785,7 @@ class MegaApi
         *
         * The associated request type with this request is MegaRequest::TYPE_ENABLE_SYNC
         * Valid data in the MegaRequest object received on callbacks:
-        * - MegaRequest::getNumDetails - Returns the sync error (MegaSync::Error) in case of failure
+        * - MegaRequest::getParentHandle - Returns the sync error (MegaSync::Error) in case of failure
         *
         * @param sync Synchronization to enable
         * @param listener MegaRequestListener to track this request
@@ -13798,12 +13800,12 @@ class MegaApi
         *
         * The associated request type with this request is MegaRequest::TYPE_ENABLE_SYNC
         * Valid data in the MegaRequest object received on callbacks:
-        * - MegaRequest::getNumDetails - Returns the sync error (MegaSync::Error) in case of failure
+        * - MegaRequest::getParentHandle - Returns the sync error (MegaSync::Error) in case of failure
         *
-        * @param syncTag tag identifying the Sync
+        * @param backupId Identifier of the Sync (unique per user, provided by API)
         * @param listener MegaRequestListener to track this request
         */
-        void enableSync(int tag, MegaRequestListener *listener = NULL);
+        void enableSync(MegaHandle backupId, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Remove all active synced folders
@@ -13957,14 +13959,14 @@ class MegaApi
         std::string getLocalPath(MegaNode *node);
 
         /**
-         * @brief Get the synchronization identified with a tag
+         * @brief Get the synchronization identified with a backupId
          *
          * You take the ownership of the returned value
          *
-         * @param tag Tag that identifies the synchronization
-         * @return Synchronization identified by the tag
+         * @param backupId Identifier of the Sync (unique per user, provided by API)
+         * @return Synchronization identified by the backupId
          */
-        MegaSync *getSyncByTag(int tag);
+        MegaSync *getSyncByBackupId(MegaHandle backupId);
 
         /**
          * @brief getSyncByNode Get the synchronization associated with a node
@@ -18378,13 +18380,13 @@ class MegaApi
          * @param backupType back up type requested for the service
          * @param targetNode MEGA folder to hold the backups
          * @param localFolder Local path of the folder
-         * @param state backup state 
+         * @param state backup state
          * @param subState backup subState
          * @param extraData A binary array converted into B64 (optional)
          * @param listener MegaRequestListener to track this request
         */
         void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, const char* extraData, MegaRequestListener* listener = nullptr);
-        
+
         /**
          * @brief Unregister a backup already registered for the Backup Centre
          *
@@ -18400,7 +18402,7 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
         */
         void removeBackup(MegaHandle backupId, MegaRequestListener *listener = nullptr);
-        
+
         /**
          * @brief Send heartbeat associated with an existing backup
          *
@@ -18427,11 +18429,11 @@ class MegaApi
          *
          * @param backupId backup id identifying the backup
          * @param state backup state
-         * @param progress backup progress 
+         * @param progress backup progress
          * @param ups Number of pending upload transfers
          * @param downs Number of pending download transfers
          * @param ts Last action timestamp
-         * @param lastNode Last node handle to be synced 
+         * @param lastNode Last node handle to be synced
          * @param listener MegaRequestListener to track this request
         */
         void sendBackupHeartbeat(MegaHandle backupId, int status, int progress, int ups, int downs, long long ts, MegaHandle lastNode, MegaRequestListener *listener = nullptr);
@@ -18480,7 +18482,8 @@ class MegaApi
          *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
          *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
          *
-         * When the error code is MegaError::API_OK:
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
          * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
          *
          * @param adFlags A bitmap flag used to communicate with the API
@@ -18506,7 +18509,8 @@ class MegaApi
          *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
          *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
          *
-         * When the error code is MegaError::API_OK:
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
          * - MegaRequest::getNumDetails Return if ads should be show or not
          *
          * @param adFlags A bitmap flag used to communicate with the API
@@ -18522,6 +18526,65 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void queryGoogleAds(int adFlags, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Set a bitmap to indicate whether some cookies are enabled or not
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         *  - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_COOKIE_SETTINGS
+         *  - MegaRequest::getNumDetails - Return a bitmap with cookie settings
+         *  - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * @param settings A bitmap with cookie settings
+         * Valid bits are:
+         *      - Bit 0: essential
+         *      - Bit 1: preference
+         *      - Bit 2: analytics
+         *      - Bit 3: ads
+         *      - Bit 4: thirdparty
+         * @param listener MegaRequestListener to track this request
+         */
+        void setCookieSettings(int settings, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Get a bitmap to indicate whether some cookies are enabled or not
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         *  - MegaRequest::getParamType - Returns the value USER_ATTR_COOKIE_SETTINGS
+         *  - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumDetails Return the bitmap with cookie settings
+         *   Valid bits are:
+         *      - Bit 0: essential
+         *      - Bit 1: preference
+         *      - Bit 2: analytics
+         *      - Bit 3: ads
+         *      - Bit 4: thirdparty
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EINTERNAL - If the value for cookie settings bitmap was invalid
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getCookieSettings(MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Check if the app can start showing the cookie banner
+         *
+         * This function will NOT return a valid value until the callback onEvent with
+         * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+         * a fetchnodes to check this value, but only when it follows a login with user and password,
+         * not when an existing session is resumed.
+         *
+         * For not logged-in mode, you need to call MegaApi::getMiscFlags first.
+         *
+         * @return True if this feature is enabled. Otherwise, false.
+         */
+        bool cookieBannerEnabled();
 
  private:
         MegaApiImpl *pImpl;
