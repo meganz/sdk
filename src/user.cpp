@@ -556,6 +556,7 @@ string User::attr2string(attr_t type)
 
         case ATTR_COOKIE_SETTINGS:
             attrname = "^!csp";
+            break;
             
         case ATTR_JSON_SYNC_CONFIG_NAME:
             attrname = "^~jscn";
@@ -716,6 +717,7 @@ string User::attr2longname(attr_t type)
 
     case ATTR_COOKIE_SETTINGS:
         longname = "ATTR_COOKIE_SETTINGS";
+        break;
 		
     case ATTR_JSON_SYNC_CONFIG_NAME:
         longname = "JSON_SYNC_CONFIG_NAME";
@@ -1394,8 +1396,6 @@ bool User::setChanged(attr_t at)
             changed.cookieSettings = true;
             break;
 
-			break;
-			
         case ATTR_JSON_SYNC_CONFIG_NAME:
             changed.jsonSyncConfigName = true;
             break;
