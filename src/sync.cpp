@@ -2092,9 +2092,9 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
 {
     //check we are not in any blocking situation
     using CType = CacheableStatus::Type;
-    bool overStorage = mClient.mCachedStatus[CType::STATUS_STORAGE] ? (mClient.mCachedStatus[CType::STATUS_STORAGE]->value() >= STORAGE_RED) : false;
-    bool businessExpired = mClient.mCachedStatus[CType::STATUS_BUSINESS] ? (mClient.mCachedStatus[CType::STATUS_BUSINESS]->value() == BIZ_STATUS_EXPIRED) : false;
-    bool blocked = mClient.mCachedStatus[CType::STATUS_BLOCKED] ? (mClient.mCachedStatus[CType::STATUS_BLOCKED]->value()) : false;
+    bool overStorage = client->mCachedStatus.lookup(CType::STATUS_STORAGE, STORAGE_UNKNOWN) >= STORAGE_RED;
+    bool businessExpired = client->mCachedStatus.lookup(CType::STATUS_BUSINESS, BIZ_STATUS_UNKNOWN) == BIZ_STATUS_EXPIRED;
+    bool blocked = client->mCachedStatus.lookup(CType::STATUS_BLOCKED, 0) == 1;
 
     mConfig.mError = NO_SYNC_ERROR;
     mConfig.mEnabled = true;

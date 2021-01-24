@@ -816,6 +816,7 @@ public:
         STATUS_STORAGE = 1,
         STATUS_BUSINESS = 2,
         STATUS_BLOCKED = 3,
+        STATUS_PRO_LEVEL = 4,
     };
 
     CacheableStatus(int64_t type, int64_t value);
@@ -824,7 +825,8 @@ public:
     bool serialize(string* data) override;
 
     // deserializes the string to a SyncConfig object. Returns null in case of failure
-    static std::shared_ptr<CacheableStatus> unserialize(MegaClient *client, const std::string& data);
+    // returns a pointer to the unserialized value, owned by MegaClient passed as parameter
+    static CacheableStatus* unserialize(MegaClient *client, const std::string& data);
     int64_t type() const;
     int64_t value() const;
 

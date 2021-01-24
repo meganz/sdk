@@ -2040,9 +2040,9 @@ struct StandardClient : public MegaApp
         return fb.get();
     }
 
-    bool delSync_mainthread(handle syncTag, bool keepCache = false)
+    bool delSync_mainthread(handle backupId, bool keepCache = false)
     {
-        future<bool> fb = thread_do<bool>([=](StandardClient& mc, PromiseBoolSP pb) { pb->set_value(mc.delSync_inthread(syncTag, keepCache)); });
+        future<bool> fb = thread_do<bool>([=](StandardClient& mc, PromiseBoolSP pb) { pb->set_value(mc.delSync_inthread(backupId, keepCache)); });
         return fb.get();
     }
 
