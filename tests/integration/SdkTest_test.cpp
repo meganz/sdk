@@ -4883,7 +4883,7 @@ TEST_F(SdkTest, SdkBackupFolder)
         if (megaSync->getType() == MegaSync::TYPE_BACKUP &&
             megaSync->getMegaHandle() == mApi[0].h &&
             !strcmp(megaSync->getName(), backupName) &&
-            !strcmp(megaSync->getMegaFolder(), actualRemotePath.get()))
+            !strcmp(megaSync->getLastKnownMegaFolder(), actualRemotePath.get()))
         {
             found = true;
             break;
@@ -4907,7 +4907,7 @@ TEST_F(SdkTest, SdkBackupFolder)
         if (megaSync->getType() == MegaSync::TYPE_BACKUP &&
             megaSync->getMegaHandle() == mApi[0].h &&
             !strcmp(megaSync->getName(), backupName) &&
-            !strcmp(megaSync->getMegaFolder(), actualRemotePath.get()))
+            !strcmp(megaSync->getLastKnownMegaFolder(), actualRemotePath.get()))
         {
             found = true;
             break;
@@ -6215,7 +6215,7 @@ TEST_F(SdkTest, SyncPersistence)
     std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
     handle backupId = sync->getBackupId();
-    std::string remoteFolder(sync->getMegaFolder());
+    std::string remoteFolder(sync->getLastKnownMegaFolder());
 
     // Check if a locallogout keeps the sync configured.
     std::string session = dumpSession();
@@ -6225,7 +6225,7 @@ TEST_F(SdkTest, SyncPersistence)
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
     sync = waitForSyncState(megaApi[0].get(), backupId, true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
-    ASSERT_EQ(remoteFolder, string(sync->getMegaFolder()));
+    ASSERT_EQ(remoteFolder, string(sync->getLastKnownMegaFolder()));
 
     // Check if a logout with setKeepSyncsAfterLogout(true) keeps the sync configured.
     megaApi[0]->setKeepSyncsAfterLogout(true);
@@ -6235,7 +6235,7 @@ TEST_F(SdkTest, SyncPersistence)
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
     sync = waitForSyncState(megaApi[0].get(), backupId, true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
-    ASSERT_EQ(remoteFolder, string(sync->getMegaFolder()));
+    ASSERT_EQ(remoteFolder, string(sync->getLastKnownMegaFolder()));
 
     // Check if a logout with setKeepSyncsAfterLogout(false) doesn't keep the sync configured.
     megaApi[0]->setKeepSyncsAfterLogout(false);

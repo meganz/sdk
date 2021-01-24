@@ -2861,8 +2861,11 @@ error JSONSyncConfigDB::write(JSONSyncConfigIOContext& ioContext)
     // Serialize the database.
     ioContext.serialize(mBackupIdToConfig, writer);
 
-    FSACCESS_CLASS fsa;
-    LOG_info << "Writing syncs file " << mDBPath.toPath(fsa) << ": " << writer.getstring();
+    if (SimpleLogger::logCurrentLevel >= logMax)
+    {
+        FSACCESS_CLASS fsa;
+        LOG_info << "Writing syncs file " << mDBPath.toPath(fsa) << ": " << writer.getstring();
+    }
 
     // Try and write the database out to disk.
     if (ioContext.write(mDBPath, writer.getstring(), mSlot) != API_OK)
@@ -2941,8 +2944,11 @@ error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext,
         return API_EREAD;
     }
 
-    FSACCESS_CLASS fsa;
-    LOG_verbose << "Loaded syncs file " << mDBPath.toPath(fsa) << ": " << data;
+    if (SimpleLogger::logCurrentLevel >= logMax)
+    {
+        FSACCESS_CLASS fsa;
+        LOG_verbose << "Loaded syncs file " << mDBPath.toPath(fsa) << ": " << data;
+    }
 
     // Try and deserialize the configs contained in the database.
     JSONSyncConfigMap configs;

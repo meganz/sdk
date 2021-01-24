@@ -24412,7 +24412,7 @@ MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle node
         //using localpath as name:
         setName(path);
     }
-    this->megaFolder = NULL;
+    this->lastKnownMegaFolder = NULL;
     this->fingerprint = 0;
     this->regExp = NULL;
 }
@@ -24435,18 +24435,12 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr, MegaCl
         //using localpath as name:
         setName(config.getLocalPath().toPath(*client->fsaccess).c_str());
     }
-    this->megaFolder = NULL;
+    this->lastKnownMegaFolder = NULL;
     this->fingerprint = 0;
     this->regExp = NULL;
 
     setLocalFingerprint(static_cast<long long>(config.getLocalFingerprint()));
-
-    // per the spec in megaapi.h:  `Get the path of the remote folder that is being synced`
-    if (auto n = client->nodebyhandle(config.getRemoteNode()))
-    {
-        setMegaFolder(n->displaypath().c_str());
-    }
-
+    setLastKnownMegaFolder(config.mOrigninalPathOfRemoteRootNode.c_str());
     if (!config.getRegExps().empty())
     {
         auto re = make_unique<MegaRegExp>();
@@ -24473,8 +24467,8 @@ MegaSyncPrivate::MegaSyncPrivate(MegaSyncPrivate *sync)
     this->mName = NULL;
     this->setLocalFolder(sync->getLocalFolder());
     this->setName(sync->getName());
-    this->megaFolder = NULL;
-    this->setMegaFolder(sync->getMegaFolder());
+    this->lastKnownMegaFolder = NULL;
+    this->setLastKnownMegaFolder(sync->getLastKnownMegaFolder());
     this->setMegaHandle(sync->getMegaHandle());
     this->setLocalFingerprint(sync->getLocalFingerprint());
     this->setRegExp(sync->getRegExp());
@@ -24486,7 +24480,7 @@ MegaSyncPrivate::~MegaSyncPrivate()
 {
     delete [] localFolder;
     delete [] mName;
-    delete [] megaFolder;
+    delete [] lastKnownMegaFolder;
     delete regExp;
 }
 
@@ -24533,27 +24527,18 @@ void MegaSyncPrivate::setName(const char *name)
     mName =  MegaApi::strdup(name);
 }
 
-const char *MegaSyncPrivate::getMegaFolder() const
+const char *MegaSyncPrivate::getLastKnownMegaFolder() const
 {
-    return megaFolder;
+    return lastKnownMegaFolder;
 }
 
-void MegaSyncPrivate::setMegaFolder(const char *path)
+void MegaSyncPrivate::setLastKnownMegaFolder(const char *path)
 {
-    if (megaFolder)
+    if (lastKnownMegaFolder)
     {
-        delete [] megaFolder;
+        delete [] lastKnownMegaFolder;
     }
-    megaFolder = MegaApi::strdup(path);
-}
-
-void MegaSyncPrivate::setMegaFolderYielding(char *path)
-{
-    if (megaFolder)
-    {
-        delete [] megaFolder;
-    }
-    megaFolder = path;
+    lastKnownMegaFolder = MegaApi::strdup(path);
 }
 
 long long MegaSyncPrivate::getLocalFingerprint() const

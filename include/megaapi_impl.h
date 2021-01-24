@@ -1083,9 +1083,8 @@ public:
     void setLocalFolder(const char*path);
     const char* getName() const override;
     void setName(const char*name);
-    const char* getMegaFolder() const override;
-    void setMegaFolder(const char *path);
-    void setMegaFolderYielding(char *path); //MEGAsync acquires the ownership of path
+    const char* getLastKnownMegaFolder() const override;
+    void setLastKnownMegaFolder(const char *path);
     long long getLocalFingerprint() const override;
     void setLocalFingerprint(long long fingerprint);
     MegaHandle getBackupId() const override;
@@ -1112,7 +1111,7 @@ protected:
     MegaHandle megaHandle;
     char *localFolder;
     char *mName;
-    char *megaFolder;
+    char *lastKnownMegaFolder;
     MegaRegExp *regExp;
     long long fingerprint;
 

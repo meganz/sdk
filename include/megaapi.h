@@ -5228,14 +5228,14 @@ public:
     virtual const char* getName() const;
 
     /**
-     * @brief Get the path of the remote folder that is being synced
+     * @brief Get the last known path of the remote folder that is being synced
      *
      * The SDK retains the ownership of the returned value. It will be valid until
      * the MegaSync object is deleted.
      *
-     * @return Remote folder that is being synced
+     * @return The path of the Remote folder fromw when it was last being synced
      */
-    virtual const char* getMegaFolder() const;
+    virtual const char* getLastKnownMegaFolder() const;
 
     /**
      * @brief Gets an unique identifier of the local filesystem that is being synced
