@@ -336,9 +336,13 @@ namespace mega {
                 std::string& ds = ids[UniqueDriveId::DISK_SIGNATURE];
                 if (diskSignature)  ds = diskSignature;
 
+                // get file system type
+                auto props = enumerateProps(blockDev, udev_device_get_properties_list_entry, nullptr);
+                const char* fs = udev_device_get_property_value(blockDev, "ID_FS_TYPE");
+
                 // VolumeSerialNumber
                 const char* volumeSN = udev_device_get_property_value(blockDev, "ID_FS_UUID");
-                ids[UniqueDriveId::VOLUME_SN] = normalizeVolumeSN(volumeSN);
+                ids[UniqueDriveId::VOLUME_SN] = normalizeVolumeSN(volumeSN, fs);
 
                 found = true;
             }
@@ -386,18 +390,22 @@ namespace mega {
 
 
 
-    std::string UniqueDriveIdPosix::normalizeVolumeSN(const char* volumeSN)
+    std::string UniqueDriveIdPosix::normalizeVolumeSN(const char* volumeSN, const char* fs)
     {
         std::string vsn;
         if (!volumeSN)  return vsn;
         vsn = volumeSN;
 
-        // FAT32: remove '-'
-        auto pos = vsn.find('-');
-        if (pos != std::string::npos)  vsn.erase(pos, 1);
+        if (fs && (!strcmp(fs, "vfat") || !strcmp(fs, "ntfs")))
+        {
+            // FAT32: remove '-'
+            auto pos = vsn.find('-');
+            if (pos != std::string::npos)  vsn.erase(pos, 1);
 
-        // NTFS: clamp to last 8 chars (hex uint32)
-        if (vsn.size() > 8)  vsn.erase(0, vsn.size() - 8);
+            // NTFS: clamp to last 8 chars (hex uint32);
+            // on Linux it may show as a longer string, unlike Windows.
+            if (vsn.size() > 8)  vsn.erase(0, vsn.size() - 8);
+        }
 
         return vsn;
     }

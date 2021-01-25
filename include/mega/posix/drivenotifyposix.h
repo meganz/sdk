@@ -74,7 +74,7 @@ namespace mega {
 
     private:
         std::string getDevNode(const std::string& mountPoint);  // i.e. "/mnt/foo/bar" -> "/dev/sda1"
-        std::string normalizeVolumeSN(const char* volumeSN);
+        std::string normalizeVolumeSN(const char* volumeSN, const char* fs);
     };
 
 } // namespace
