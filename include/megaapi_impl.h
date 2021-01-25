@@ -236,11 +236,12 @@ public:
 class MegaRecursiveOperation
 {
 public:
-    MegaRecursiveOperation(MegaClient* c) : mMegaapiThreadClient(c) {}
+    MegaRecursiveOperation(MegaClient* c) : mEndOperation(0), mMegaapiThreadClient(c) {}
     virtual ~MegaRecursiveOperation() = default;
     virtual void start(MegaNode* node) = 0;
     virtual void cancel() = 0;
     bool isCancelled() { return cancelled; }
+    std::atomic <unsigned> mEndOperation;
 
 protected:
     MegaApiImpl *megaApi;

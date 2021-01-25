@@ -3088,7 +3088,6 @@ MegaTransferPrivate::~MegaTransferPrivate()
 {
     if (recursiveOperation)
     {
-        assert(!recursiveOperation->isCancelled());
         if (!recursiveOperation->isCancelled())
         {
             recursiveOperation->cancel();
@@ -27108,6 +27107,11 @@ void MegaFolderDownloadController::start(MegaNode *node)
 void MegaFolderDownloadController::cancel()
 {
     assert(mMainThreadId == std::this_thread::get_id());
+    if (++mEndOperation > 1)
+    {
+       LOG_warn << "MegaFolderDownloadController::cancel - this operation was previously completed/cancelled";
+       return;
+    }
 
     // With the cancelled flag true, the last subtransfer to complete won't automatically
     // complete and delete our object.  Those would happen on this same thread, so we
@@ -27215,6 +27219,7 @@ void MegaFolderDownloadController::cancel()
 
     LOG_verbose << "MegaFolderDownloadController, cancelled subTransfers = " << cancelledSubTransfers;
     assert(pendingTransfers == 0);
+    megaApi->fireOnTransferFinish(transfer, make_unique<MegaErrorPrivate>(API_EINCOMPLETE), committer);
     transfer = nullptr;  // no final callback for this one since it is being destroyed now
 }
 
@@ -27337,12 +27342,10 @@ void MegaFolderDownloadController::genDownloadTransfersForFiles(FileSystemType f
 void MegaFolderDownloadController::complete(Error e)
 {
     assert(mMainThreadId == std::this_thread::get_id());
-
-    if (cancelled)
+    assert(subTransfers.empty());
+    if (++mEndOperation > 1)
     {
-        // Cancellation only happens on this same thread, and only from cancel()
-        // In which case, it's all much simpler to let the final fireOnTransferFinish be done there
-        // rather than here (which might be being called from the last reminaing subtransfer's completion)
+        LOG_warn << "MegaFolderDownloadController::complete - this operation was previously completed/cancelled";
         return;
     }
 
