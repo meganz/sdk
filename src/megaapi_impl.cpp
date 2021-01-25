@@ -1914,6 +1914,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_TYPE_BACKUP_NAMES;
     }
+    if (user->changed.cookieSettings)
+    {
+        changed |= MegaUser::CHANGE_TYPE_COOKIE_SETTINGS;
+    }
 }
 
 MegaUserPrivate::MegaUserPrivate(MegaUser *user) : MegaUser()
@@ -5963,6 +5967,7 @@ char MegaApiImpl::userAttributeToScope(int type)
         case MegaApi::USER_ATTR_RUBBISH_TIME:
         case MegaApi::USER_ATTR_STORAGE_STATE:
         case MegaApi::USER_ATTR_PUSH_SETTINGS:
+        case MegaApi::USER_ATTR_COOKIE_SETTINGS:
             scope = '^';
             break;
 
@@ -15370,6 +15375,12 @@ void MegaApiImpl::getua_result(byte* data, unsigned len, attr_t type)
             }
             break;
 
+        case MegaApi::USER_ATTR_COOKIE_SETTINGS:
+            {
+                e = getCookieSettings_getua_result(data, len, request);
+            }
+            break;
+
         case MegaApi::USER_ATTR_PUSH_SETTINGS:
         {
             request->setMegaPushNotificationSettings(pushSettings);
@@ -20283,6 +20294,10 @@ void MegaApiImpl::sendPendingRequests()
                     string tmp(value);
                     client->putua(type, (byte *)tmp.data(), unsigned(tmp.size()));
                 }
+                else if (type == ATTR_COOKIE_SETTINGS)
+                {
+                    setCookieSettings_sendPendingRequests(request);
+                }
                 else if (type == ATTR_PUSH_SETTINGS)
                 {
                     const MegaPushNotificationSettingsPrivate *settings = (MegaPushNotificationSettingsPrivate*)(request->getMegaPushNotificationSettings());
@@ -21625,13 +21640,12 @@ void MegaApiImpl::sendPendingRequests()
             }
 
             const char *name = request->getName();
-
             const char *remotePath = request->getLink();
 
             using CType = CacheableStatus::Type;
-            bool overStorage = client->mCachedStatus[CType::STATUS_STORAGE] ? (client->mCachedStatus[CType::STATUS_STORAGE]->value() >= MegaApi::STORAGE_STATE_RED) : false;
-            bool businessExpired = client->mCachedStatus[CType::STATUS_BUSINESS] ? (client->mCachedStatus[CType::STATUS_BUSINESS]->value() == BIZ_STATUS_EXPIRED) : false;
-            bool blocked = client->mCachedStatus[CType::STATUS_BLOCKED] ? (client->mCachedStatus[CType::STATUS_BLOCKED]->value()) : false;
+            bool overStorage = client->mCachedStatus.lookup(CType::STATUS_STORAGE, MegaApi::STORAGE_STATE_UNKNOWN) >= MegaApi::STORAGE_STATE_RED;
+            bool businessExpired = client->mCachedStatus.lookup(CType::STATUS_BUSINESS, BIZ_STATUS_UNKNOWN) == BIZ_STATUS_EXPIRED;
+            bool blocked = client->mCachedStatus.lookup(CType::STATUS_BLOCKED, 0) == 1;
 
             auto syncError = NO_SYNC_ERROR;
             // the order is important here: a user needs to resolve blocked in order to resolve storage
@@ -21693,10 +21707,7 @@ void MegaApiImpl::sendPendingRequests()
             int blockedStatusValue =  static_cast<int>(number / 1000);
             int storageStatusValue = static_cast<int>(number % 1000);
 
-
-            using CS = CacheableStatus;
             using CType = CacheableStatus::Type;
-
             auto loadAndPersist = [this](CType type, int value) -> error
             {
                 if (value == 999)
@@ -21704,29 +21715,16 @@ void MegaApiImpl::sendPendingRequests()
                     LOG_verbose << "Ignoring not valid status in migration: " << type << " = " << value;
                     return API_OK; //received invalid value: not to be used
                 }
-                auto status = client->mCachedStatus[type];
-                if (status) // the sdk already has a cached value
+
+                if (int64_t oldValue = client->mCachedStatus.lookup(type, 999) != 999)
                 {
-                    LOG_verbose << "Ignoring already present status in migration: " << type << " = " << value << " existing = " << status->value();
+                    LOG_verbose << "Ignoring already present status in migration: " << type << " = " << value
+                                << " existing = " << oldValue;
                     return API_OK;
                 }
-                status = std::make_shared<CS>(type, value);
 
-                client->loadCacheableStatus(status);
-
-                if (client->statusTable)
-                {
-                    DBTableTransactionCommitter committer(client->statusTable);
-                    LOG_verbose << "Adding/updating migrated status to database: " << status->type() << " = " << status->value();
-                    if (!(client->statusTable->put(MegaClient::CACHEDSTATUS, status.get(), &client->key)))
-                    {
-                        LOG_err << "Failed to add/update migrated status to db: "
-                                    << status->type() << " = " << status->value();
-                        return API_EINTERNAL;
-                }
+                client->mCachedStatus.loadCachedStatus(type, value);
                 return API_OK;
-                }
-                return API_ENOENT;
             };
 
             auto subE = loadAndPersist(CType::STATUS_STORAGE, storageStatusValue);
@@ -23371,6 +23369,60 @@ void MegaApiImpl::queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaReque
     request->setNodeHandle(publicHandle);
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::setCookieSettings(int settings, MegaRequestListener *listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_COOKIE_SETTINGS);
+    request->setNumDetails(settings);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::setCookieSettings_sendPendingRequests(MegaRequestPrivate* request)
+{
+    auto tmp = std::to_string(request->getNumDetails());
+    client->putua(ATTR_COOKIE_SETTINGS, (byte *)tmp.data(), unsigned(tmp.size()));
+}
+
+void MegaApiImpl::getCookieSettings(MegaRequestListener *listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_COOKIE_SETTINGS);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+error MegaApiImpl::getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request)
+{
+    // make a copy to make sure we don't read too much from a non-null terminated string
+    unique_ptr<char[]> buff(new char[len + 1]);
+    buff[len] = 0;
+    char* startptr = buff.get();
+    strncpy(startptr, (const char*)data, len);
+
+    // get the value
+    char* endptr;
+    long value = strtol(startptr, &endptr, 10);
+
+    // validate the value
+    error e = API_OK;
+    if (endptr == startptr || *endptr != '\0' || value == LONG_MAX || value == LONG_MIN)
+    {
+        value = -1;
+        LOG_err << "Invalid value for Cookie Settings bitmap";
+        e = API_EINTERNAL;
+    }
+
+    request->setNumDetails(int(value));
+
+    return e;
+}
+
+bool MegaApiImpl::cookieBannerEnabled()
+{
+    return client->mCookieBannerEnabled;
 }
 
 bool MegaApiImpl::startDriveMonitor()

@@ -2785,6 +2785,10 @@ class MegaApiImpl : public MegaApp
         void fetchGoogleAds(int adFlags, MegaStringList *adUnits, MegaHandle publicHandle, MegaRequestListener *listener = nullptr);
         void queryGoogleAds(int adFlags, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
 
+        void setCookieSettings(int settings, MegaRequestListener *listener = nullptr);
+        void getCookieSettings(MegaRequestListener *listener = nullptr);
+        bool cookieBannerEnabled();
+
         bool startDriveMonitor();
         void stopDriveMonitor();
 
@@ -3284,10 +3288,11 @@ protected:
         friend class MegaBackgroundMediaUploadPrivate;
 
 private:
+        void setCookieSettings_sendPendingRequests(MegaRequestPrivate* request);
+        error getCookieSettings_getua_result(byte* data, unsigned len, MegaRequestPrivate* request);
 #ifdef ENABLE_SYNC
         error backupFolder_sendPendingRequest(MegaRequestPrivate* request);
 #endif
-
 };
 
 class MegaHashSignatureImpl

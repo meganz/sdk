@@ -22,6 +22,7 @@
 #include "mega.h"
 #include "megacli.h"
 #include <fstream>
+#include <bitset>
 
 #define USE_VARARGS
 #define PREFER_STDARG
@@ -1381,6 +1382,18 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
         {
             cout << "Credentials: " << AuthRing::fingerprint(string((const char*)data, l), true) << endl;
         }
+    }
+
+    if (type == ATTR_COOKIE_SETTINGS)
+    {
+        unsigned long cs = strtoul((const char*)data, nullptr, 10);
+        std::bitset<32> bs(cs);
+        cout << "Cookie settings = " << cs << " (" << bs << ')' << endl
+             << "\tessential: " << bs[0] << endl
+             << "\tpreferences: " << bs[1] << endl
+             << "\tperformance: " << bs[2] << endl
+             << "\tadvertising: " << bs[3] << endl
+             << "\tthird party: " << bs[4] << endl;
     }
 }
 

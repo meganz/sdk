@@ -572,6 +572,7 @@ typedef enum {
     ATTR_DEVICE_NAMES = 30,                 // private - byte array - versioned
     ATTR_MY_BACKUPS_FOLDER = 31,            // private - byte array - non-versioned
     ATTR_BACKUP_NAMES = 32,                 // private - byte array - versioned
+    ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -811,6 +812,7 @@ public:
         STATUS_STORAGE = 1,
         STATUS_BUSINESS = 2,
         STATUS_BLOCKED = 3,
+        STATUS_PRO_LEVEL = 4,
     };
 
     CacheableStatus(int64_t type, int64_t value);
@@ -819,7 +821,8 @@ public:
     bool serialize(string* data) override;
 
     // deserializes the string to a SyncConfig object. Returns null in case of failure
-    static std::shared_ptr<CacheableStatus> unserialize(MegaClient *client, const std::string& data);
+    // returns a pointer to the unserialized value, owned by MegaClient passed as parameter
+    static CacheableStatus* unserialize(MegaClient *client, const std::string& data);
     int64_t type() const;
     int64_t value() const;
 

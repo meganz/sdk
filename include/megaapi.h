@@ -1273,6 +1273,7 @@ class MegaUser
             CHANGE_TYPE_UNSHAREABLE_KEY             = 0x2000000,
             CHANGE_TYPE_DEVICE_NAMES                = 0x4000000,
             CHANGE_TYPE_BACKUP_NAMES                = 0x8000000,
+            CHANGE_TYPE_COOKIE_SETTINGS             = 0x10000000,
         };
 
         /**
@@ -7582,6 +7583,7 @@ class MegaApi
             USER_ATTR_DEVICE_NAMES = 30,          // private - byte array
             USER_ATTR_MY_BACKUPS_FOLDER = 31,    // private - byte array
             USER_ATTR_BACKUP_NAMES = 32,          // private - byte array
+            USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
         };
 
         enum {
@@ -18491,7 +18493,8 @@ class MegaApi
          *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
          *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
          *
-         * When the error code is MegaError::API_OK:
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
          * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
          *
          * @param adFlags A bitmap flag used to communicate with the API
@@ -18517,7 +18520,8 @@ class MegaApi
          *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
          *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
          *
-         * When the error code is MegaError::API_OK:
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
          * - MegaRequest::getNumDetails Return if ads should be show or not
          *
          * @param adFlags A bitmap flag used to communicate with the API
@@ -18533,6 +18537,65 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void queryGoogleAds(int adFlags, MegaHandle publicHandle = INVALID_HANDLE, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Set a bitmap to indicate whether some cookies are enabled or not
+         *
+         * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         *  - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_COOKIE_SETTINGS
+         *  - MegaRequest::getNumDetails - Return a bitmap with cookie settings
+         *  - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * @param settings A bitmap with cookie settings
+         * Valid bits are:
+         *      - Bit 0: essential
+         *      - Bit 1: preference
+         *      - Bit 2: analytics
+         *      - Bit 3: ads
+         *      - Bit 4: thirdparty
+         * @param listener MegaRequestListener to track this request
+         */
+        void setCookieSettings(int settings, MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Get a bitmap to indicate whether some cookies are enabled or not
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+         * Valid data in the MegaRequest object received on callbacks:
+         *  - MegaRequest::getParamType - Returns the value USER_ATTR_COOKIE_SETTINGS
+         *  - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumDetails Return the bitmap with cookie settings
+         *   Valid bits are:
+         *      - Bit 0: essential
+         *      - Bit 1: preference
+         *      - Bit 2: analytics
+         *      - Bit 3: ads
+         *      - Bit 4: thirdparty
+         *
+         * On the onRequestFinish error, the error code associated to the MegaError can be:
+         * - MegaError::API_EINTERNAL - If the value for cookie settings bitmap was invalid
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void getCookieSettings(MegaRequestListener *listener = nullptr);
+
+        /**
+         * @brief Check if the app can start showing the cookie banner
+         *
+         * This function will NOT return a valid value until the callback onEvent with
+         * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+         * a fetchnodes to check this value, but only when it follows a login with user and password,
+         * not when an existing session is resumed.
+         *
+         * For not logged-in mode, you need to call MegaApi::getMiscFlags first.
+         *
+         * @return True if this feature is enabled. Otherwise, false.
+         */
+        bool cookieBannerEnabled();
 
         /**
          * @brief Start receiving notifications for [dis]connected external drives, from the OS

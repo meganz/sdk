@@ -3617,6 +3617,8 @@ bool CommandGetUserData::procresult(Result r)
     string versionMyBackupsFolder;
     string backupNames;
     string versionBackupNames;
+    string cookieSettings;
+    string versionCookieSettings;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -3904,6 +3906,10 @@ bool CommandGetUserData::procresult(Result r)
             break;
         }
 
+        case MAKENAMEID5('^', '!', 'c', 's', 'p'):
+            parseUserAttribute(cookieSettings, versionCookieSettings);
+            break;
+
         case EOO:
         {
             assert(me == client->me);
@@ -4138,6 +4144,11 @@ bool CommandGetUserData::procresult(Result r)
                     {
                         LOG_err << "Cannot extract TLV records for ATTR_BACKUP_NAMES";
                     }
+                }
+
+                if (!cookieSettings.empty())
+                {
+                    changes += u->updateattr(ATTR_COOKIE_SETTINGS, &cookieSettings, &versionCookieSettings);
                 }
 
                 if (changes > 0)
@@ -4649,14 +4660,17 @@ bool CommandGetUserQuota::procresult(Result r)
                     }
                 }
 
-                if (mPro && client->mAccountType != details->pro_level)
+                if (mPro)
                 {
                     // Pro level can change without a payment (ie. with coupons or by helpdesk)
                     // and in those cases, the `psts` packet is not triggered. However, the SDK
                     // should notify the app and resume transfers, etc.
-                    client->mAccountType = static_cast<AccountType>(details->pro_level);
-                    client->app->account_updated();
-                    client->abortbackoff(true);
+                    bool changed = client->mCachedStatus.addOrUpdate(CacheableStatus::STATUS_PRO_LEVEL, details->pro_level);
+                    if (changed)
+                    {
+                        client->app->account_updated();
+                        client->abortbackoff(true);
+                    }
                 }
 
                 client->app->account_details(details, mStorage, mTransfer, mPro, false, false, false);
