@@ -22,6 +22,7 @@
 #include "mega.h"
 #include "megacli.h"
 #include <fstream>
+#include <bitset>
 
 #define USE_VARARGS
 #define PREFER_STDARG
@@ -79,6 +80,9 @@ bool gVerboseMode = false;
 // new account signup e-mail address and name
 static string signupemail, signupname;
 
+// true by default, to register a new account v2 (false means account v1)
+bool signupV2 = true;
+
 // signup code being confirmed
 static string signupcode;
 
@@ -119,49 +123,22 @@ int attempts = 0;
 
 #ifdef ENABLE_SYNC
 
-struct NewSyncConfig
-{
-    SyncType type = TYPE_TWOWAY;
-    bool syncDeletions = true;
-    bool forceOverwrite = false;
-
-    static NewSyncConfig from(const SyncConfig& config)
-    {
-        return NewSyncConfig{config.getType(), config.syncDeletions(), config.forceOverwrite()};
-    }
-
-    NewSyncConfig(SyncType t = TYPE_TWOWAY, bool s = true, bool f = false)
-        : type(t), syncDeletions(s), forceOverwrite(f)
-    {}
-};
 
 // converts the given sync configuration to a string
 static std::string syncConfigToString(const SyncConfig& config)
 {
-    auto getOptions = [](const SyncConfig& config)
+    std::string description(Base64Str<MegaClient::BACKUPHANDLE>(config.getBackupId()));
+    if (config.getType() == SyncConfig::TYPE_TWOWAY)
     {
-        std::string desc;
-        desc += ", syncDeletions ";
-        desc += config.syncDeletions() ? "ON" : "OFF";
-        desc += ", forceOverwrite ";
-        desc += config.forceOverwrite() ? "ON" : "OFF";
-        return desc;
-    };
-
-    std::string description;
-    if (config.getType() == TYPE_TWOWAY)
-    {
-        description = "TWOWAY";
+        description.append(" TWOWAY");
     }
-    else if (config.getType() == TYPE_UP)
+    else if (config.getType() == SyncConfig::TYPE_UP)
     {
-        description = "UP";
-        description += getOptions(config);
+        description.append(" UP");
     }
-    else if (config.getType() == TYPE_DOWN)
+    else if (config.getType() == SyncConfig::TYPE_DOWN)
     {
-        description = "DOWN";
-        description += getOptions(config);
+        description.append(" DOWN");
     }
     return description;
 }
@@ -170,7 +147,6 @@ static std::string syncConfigToString(const SyncConfig& config)
 // returns a pair where `first` is success and `second` is the sync config.
 static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {})
 {
-    static int syncTag = 13217;
     auto toLower = [](std::string& s)
     {
         for (char& c : s) { c = static_cast<char>(tolower(c)); };
@@ -195,7 +171,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
     }
     else
     {
-        return std::make_pair(false, SyncConfig(syncTag++, "", "", UNDEF, "", 0));
+        return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
     }
 
     bool syncDeletions = false;
@@ -213,7 +189,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig(syncTag++, "", "", UNDEF, "", 0));
+            return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
         }
 
         if (overwrite == "on")
@@ -226,11 +202,11 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig(syncTag++, "", "", UNDEF, "", 0));
+            return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
         }
     }
 
-    return std::make_pair(true, SyncConfig(syncTag++, "", "", UNDEF, "", 0, {}, true, syncType, syncDeletions, forceOverwrite));
+    return std::make_pair(true, SyncConfig(LocalPath(), "", UNDEF, "", 0, {}, true, syncType));
 }
 
 // sync configuration used when creating a new sync
@@ -516,34 +492,35 @@ static void syncstat(Sync* sync)
          << " file(s) and " << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
 }
 
-void DemoApp::syncupdate_stateconfig(int tag)
+void DemoApp::syncupdate_stateconfig(handle backupId)
 {
-    cout << "Sync config updated: " << tag << endl;
+    cout << "Sync config updated: " << toHandle(backupId) << endl;
 }
 
 
-void DemoApp::syncupdate_active(int tag, bool active)
+void DemoApp::syncupdate_active(handle backupId, bool active)
 {
     cout << "Sync is now active: " << active << endl;
 }
 
 void DemoApp::sync_auto_resume_result(const UnifiedSync& s, bool attempted)
 {
+    handle backupId = s.mConfig.getBackupId();
     if (attempted)
     {
-        cout << "Sync - autoresumed " << s.mConfig.getTag() << " " << s.mConfig.getLocalPath()  << " enabled: "
+        cout << "Sync - autoresumed " << toHandle(backupId) << " " << s.mConfig.getLocalPath().toPath(*client->fsaccess)  << " enabled: "
              << s.mConfig.getEnabled()  << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
     }
     else
     {
-        cout << "Sync - autoloaded " << s.mConfig.getTag() << " " << s.mConfig.getLocalPath() << " enabled: "
+        cout << "Sync - autoloaded " << toHandle(backupId) << " " << s.mConfig.getLocalPath().toPath(*client->fsaccess) << " enabled: "
             << s.mConfig.getEnabled() << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
     }
 }
 
-void DemoApp::sync_removed(int tag)
+void DemoApp::sync_removed(handle backupId)
 {
-    cout << "Sync - removed: " << tag << endl;
+    cout << "Sync - removed: " << toHandle(backupId) << endl;
 
 }
 
@@ -1418,6 +1395,18 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
         {
             cout << "Credentials: " << AuthRing::fingerprint(string((const char*)data, l), true) << endl;
         }
+    }
+
+    if (type == ATTR_COOKIE_SETTINGS)
+    {
+        unsigned long cs = strtoul((const char*)data, nullptr, 10);
+        std::bitset<32> bs(cs);
+        cout << "Cookie settings = " << cs << " (" << bs << ')' << endl
+             << "\tessential: " << bs[0] << endl
+             << "\tpreferences: " << bs[1] << endl
+             << "\tperformance: " << bs[2] << endl
+             << "\tadvertising: " << bs[3] << endl
+             << "\tthird party: " << bs[4] << endl;
     }
 }
 
@@ -3037,6 +3026,39 @@ void exec_timelocal(autocomplete::ACState& s)
 
 }
 
+void exec_backupcentre(autocomplete::ACState& s)
+{
+    client->reqs.add(new CommandBackupSyncFetch([&](Error e, vector<CommandBackupSyncFetch::Data>& data){
+        if (e)
+        {
+            cout << "backupcentre failed: " << e << endl;
+        }
+        else
+        {
+            cout << "Backup Centre sync count: " << data.size() << endl;
+            for (auto& d : data)
+            {
+                cout << "id: " << toHandle(d.backupId) << endl;
+                cout << "  sync type: " << d.syncType << endl;
+                cout << "  root handle: " << toNodeHandle(d.rootNode) << endl;
+                cout << "  local folder: " << d.localFolder << endl;
+                cout << "  device id: " << d.deviceId << endl;
+                cout << "  sync state: " << d.syncState << endl;
+                cout << "  sync substate: " << d.syncSubstate << endl;
+                cout << "  extra: " << d.extra << endl;
+                cout << "  heartbeat timestamp: " << d.hbTimestamp << endl;
+                cout << "  heartbeat status: " << d.hbStatus << endl;
+                cout << "  heartbeat progress: " << d.hbProgress << endl;
+                cout << "  heartbeat uploads: " << d.uploads << endl;
+                cout << "  heartbeat downloads: " << d.downloads << endl;
+                cout << "  last activity time: " << d.lastActivityTs << endl;
+                cout << "  last node handle: " << toNodeHandle(d.lastSyncedNodeHandle) << endl;
+            }
+        }
+    }));
+}
+
+
 MegaCLILogger gLogger;
 
 autocomplete::ACN autocompleteSyntax()
@@ -3050,7 +3072,7 @@ autocomplete::ACN autocompleteSyntax()
                                                       param("session"),
                                                       sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
-    p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name")), param("confirmationlink"))));
+    p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name"), opt(flag("-v1"))), param("confirmationlink"))));
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
     p->Add(exec_confirm, sequence(text("confirm")));
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
@@ -3092,6 +3114,8 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 
 #ifdef ENABLE_SYNC
+    p->Add(exec_backupcentre, sequence(text("backupcentre")));
+	
     p->Add(exec_syncadd,
            sequence(text("sync"),
                     text("add"),
@@ -3143,7 +3167,6 @@ autocomplete::ACN autocompleteSyntax()
                            sequence(text("enable"),
                                     param("id")))));
 #endif
-
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(flag("-writable"), param("expiretime"), text("del")))));
     p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
     p->Add(exec_invite, sequence(text("invite"), param("dstemail"), opt(either(param("origemail"), text("del"), text("rmd")))));
@@ -3480,7 +3503,14 @@ static void process_line(char* l)
 
             if (signupemail.size())
             {
-                client->sendsignuplink(signupemail.c_str(), signupname.c_str(), newpwkey);
+                if (signupV2)
+                {
+                    client->sendsignuplink2(signupemail.c_str(), newpassword.c_str(), signupname.c_str());
+                }
+                else
+                {
+                    client->sendsignuplink(signupemail.c_str(), signupname.c_str(), newpwkey);
+                }
             }
             else if (recoveryemail.size() && recoverycode.size())
             {
@@ -3516,6 +3546,7 @@ static void process_line(char* l)
 
         setprompt(COMMAND);
         signupemail.clear();
+        signupV2 = true;
         return;
 
     case MASTERKEY:
@@ -4531,10 +4562,6 @@ void exec_login(autocomplete::ACState& s)
                 {
                     return client->login(Base64::atob(s.words[1].s));
                 }
-
-                cout << "Invalid argument. Please specify a valid e-mail address, "
-                    << "a folder link containing the folder key "
-                    << "or a valid session." << endl;
             }
         }
         else
@@ -5596,19 +5623,40 @@ void exec_signup(autocomplete::ACState& s)
         if ((tptr = strstr(ptr, "#confirm")))
         {
             ptr = tptr + 8;
+
+            std::string code = Base64::atob(std::string(ptr));
+            if (!code.empty())
+            {
+                if (code.find("ConfirmCodeV2") != string::npos)
+                {
+                    size_t posEmail = 13 + 15;
+                    size_t endEmail = code.find("\t", posEmail);
+                    if (endEmail != string::npos)
+                    {
+                        signupemail = code.substr(posEmail, endEmail - posEmail);
+                        signupname = code.substr(endEmail + 1, code.size() - endEmail - 9);
+
+                        if (client->loggedin() == FULLACCOUNT)
+                        {
+                            cout << "Already logged in." << endl;
+                        }
+                        else    // not-logged-in / ephemeral account / partially confirmed
+                        {
+                            client->confirmsignuplink2((const byte*)code.data(), unsigned(code.size()));
+                        }
+                    }
+                }
+                else
+                {
+                    // we first just query the supplied signup link,
+                    // then collect and verify the password,
+                    // then confirm the account
+                    client->querysignuplink((const byte*)code.data(), (unsigned)code.size());
+                }
+            }
         }
-
-        unsigned len = unsigned((s.words[1].s.size() - (ptr - s.words[1].s.c_str())) * 3 / 4 + 4);
-
-        byte* c = new byte[len];
-        len = Base64::atob(ptr, c, len);
-        // we first just query the supplied signup link,
-        // then collect and verify the password,
-        // then confirm the account
-        client->querysignuplink(c, len);
-        delete[] c;
     }
-    else if (s.words.size() == 3)
+    else if (s.words.size() == 3 || s.words.size() == 4)
     {
         switch (client->loggedin())
         {
@@ -5625,6 +5673,7 @@ void exec_signup(autocomplete::ACState& s)
             {
                 signupemail = s.words[1].s;
                 signupname = s.words[2].s;
+                signupV2 = !s.extractflag("-v1");
 
                 cout << endl;
                 setprompt(NEWPASSWORD);
@@ -6157,6 +6206,10 @@ void exec_confirm(autocomplete::ACState& s)
     {
         cout << "Please type " << signupemail << "'s password to confirm the signup." << endl;
         setprompt(LOGINPASSWORD);
+    }
+    else
+    {
+        cout << "Need to query link first. Type 'signup code'";
     }
 }
 
@@ -6825,6 +6878,18 @@ void DemoApp::confirmsignuplink_result(error e)
     }
 }
 
+void DemoApp::confirmsignuplink2_result(handle, const char *name, const char *email, error e)
+{
+    if (e)
+    {
+        cout << "Signuplink confirmation failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Signup confirmed successfully" << endl;
+    }
+}
+
 // asymmetric keypair configuration result
 void DemoApp::setkeypair_result(error e)
 {
@@ -7014,6 +7079,7 @@ void DemoApp::cancelsignup_result(error)
     signupcode.clear();
     signupemail.clear();
     signupname.clear();
+    signupV2 = true;
 }
 
 void DemoApp::whyamiblocked_result(int code)
@@ -8064,6 +8130,8 @@ void megacli()
 #ifndef NO_READLINE
                 rl_callback_handler_remove();
 #endif /* ! NO_READLINE */
+                delete client;
+                client = nullptr;
                 return;
             }
 

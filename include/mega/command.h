@@ -1339,6 +1339,37 @@ public:
     CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode, std::function<void(Error)>);
 };
 
+class MEGA_API CommandBackupSyncFetch : public Command
+{
+public:
+    struct Data
+    {
+        handle backupId = UNDEF;
+        int syncType = 0;
+        handle rootNode = UNDEF;
+        string localFolder;
+        string deviceId;
+        int syncState = 0;
+        int syncSubstate = 0;
+        string extra;
+        uint64_t hbTimestamp = 0;
+        int hbStatus = 0;
+        int hbProgress = 0;
+        int uploads = 0;
+        int downloads = 0;
+        uint64_t lastActivityTs = 0;
+        handle lastSyncedNodeHandle = UNDEF;
+    };
+
+    bool procresult(Result) override;
+
+    CommandBackupSyncFetch(std::function<void(Error, vector<Data>&)>);
+
+private:
+    std::function<void(Error, vector<Data>&)> completion;
+};
+
+
 class MEGA_API CommandGetBanners : public Command
 {
 public:

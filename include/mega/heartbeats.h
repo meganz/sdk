@@ -129,13 +129,13 @@ public:
 class BackupInfo
 {
 public:
-    BackupInfo(BackupType type, string backupName, string localFolder, handle megaHandle, int state, int substate, string extra);
+    BackupInfo(BackupType type, string backupName, LocalPath localFolder, handle megaHandle, int state, int substate, string extra);
 
     BackupType type() const;
 
     string backupName() const;
 
-    string localFolder() const;
+    LocalPath localFolder() const;
 
     handle megaHandle() const;
 
@@ -148,7 +148,7 @@ public:
 protected:
     BackupType mType;
     string mBackupName;
-    string mLocalFolder;
+    LocalPath mLocalFolder;
     handle mMegaHandle;
     int mState;
     int mSubState;
@@ -174,6 +174,8 @@ public:
 
     static BackupType getSyncType(const SyncConfig& config);
     static int getSyncState (UnifiedSync&);
+    static int getSyncState(SyncError error, syncstate_t state, MegaClient *client);
+    static int getSyncState(const SyncConfig& config, MegaClient *client);
     static int getSyncSubstatus (UnifiedSync&);
     string getSyncExtraData(UnifiedSync&);
 

@@ -272,6 +272,9 @@ public:
     // Use new format to generate Mega links
     bool mNewLinkFormat = false;
 
+    // Don't start showing the cookie banner until API says so
+    bool mCookieBannerEnabled = false;
+
     // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
     SmsVerificationState mSmsVerificationState;
 
@@ -308,9 +311,6 @@ public:
 
     // ID tag of the next request
     int nextreqtag();
-
-    // ID tag of the next sync
-    int nextSyncTag(int increment = 0);
 
     // corresponding ID tag of the currently executing callback
     int restag;
@@ -613,11 +613,11 @@ public:
     /**
      * @brief is local path syncable
      * @param newPath path to check
-     * @param syncTag tag to exclude in checking (that of the new sync)
+     * @param excludeBackupId backupId to exclude in checking (that of the new sync)
      * @param syncError filled with SyncError with the sync error that makes the node unsyncable
      * @return API_OK if syncable. (regular) error otherwise
      */
-    error isLocalPathSyncable(std::string newPath, int newSyncTag = 0, SyncError *syncError = nullptr);
+    error isLocalPathSyncable(const LocalPath& newPath, handle excludeBackupId = UNDEF, SyncError *syncError = nullptr);
 
     /**
      * @brief check config. Will fill syncError in the SyncConfig in case there is one.
@@ -641,7 +641,10 @@ public:
      * @param notifyApp whether the syncupdate_stateconfig callback should be called at this stage or not
      * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
      */
-    error addsync(SyncConfig& syncConfig, const char* debris, LocalPath* localdebris, bool delayInitialScan, UnifiedSync*& unifiedSync, bool notifyApp);
+    error addsync(SyncConfig& syncConfig, const char* debris, LocalPath* localdebris, bool delayInitialScan, bool notifyApp,
+                  std::function<void(UnifiedSync *, const SyncError &, error)> completion);
+
+    void copySyncConfig(SyncConfig& config, std::function<void(mega::UnifiedSync *, const SyncError &, error)> completion);
 
 
     ////// sync config updating & persisting ////
@@ -667,7 +670,8 @@ public:
      * @param text value of the record
      * @return encrypted base64 string with the tlv contents
      */
-    std::string cypherTLVTextWithMasterKey(const char *name, const std::string &text);
+    std::string cypherTLVTextWithMasterKey(const char* name, const std::string& text);
+    std::string decypherTLVTextWithMasterKey(const char* name, const std::string& text);
 
     // close all open HTTP connections
     void disconnect();
@@ -896,11 +900,31 @@ public:
     // storage status
     storagestatus_t ststatus;
 
-    // account type: Free|Pro Lite|Pro I|Pro II|Pro III|Business
-    AccountType mAccountType = ACCOUNT_TYPE_UNKNOWN;
+    class CacheableStatusMap : private map<int64_t, CacheableStatus>
+    {
+    public:
+        CacheableStatusMap(MegaClient *client) { mClient = client; }
+
+        // returns the cached value for type, or defaultValue if not found
+        int64_t lookup(int64_t type, int64_t defaultValue);
+
+        // add/update cached status, both in memory and DB
+        bool addOrUpdate(int64_t type, int64_t value);
+
+        // adds a new item to the map. It also initializes dedicated vars in the client (used to load from DB)
+        void loadCachedStatus(int64_t type, int64_t value);
+
+        // for unserialize
+        CacheableStatus *getPtr(int64_t type);
+
+        void clear() { map::clear(); }
+
+    private:
+        MegaClient *mClient = nullptr;
+    };
 
     // cacheable status
-    std::map<int64_t, std::shared_ptr<CacheableStatus>> mCachedStatus;
+    CacheableStatusMap mCachedStatus;
 
     // warning timestamps related to storage overquota in paywall mode
     vector<m_time_t> mOverquotaWarningTs;
@@ -1230,9 +1254,6 @@ public:
 
     // current request tag
     int reqtag;
-
-    // current sync tag
-    int mSyncTag;
 
     // user maps: by handle and by case-normalized e-mail address
     uh_map uhindex;
@@ -1737,9 +1758,6 @@ public:
     SymmCipher tmpnodecipher;
     SymmCipher tmptransfercipher;
 
-    void exportDatabase(string filename);
-    bool compareDatabases(string filename1, string filename2);
-
     // request a link to recover account
     void getrecoverylink(const char *email, bool hasMasterkey);
 
@@ -1866,9 +1884,6 @@ public:
     bool getKeepSyncsAfterLogout() const;
     void setKeepSyncsAfterLogout(bool keepSyncsAfterLogout);
 #endif
-
-    void loadCacheableStatus(std::shared_ptr<CacheableStatus> status);
-
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();

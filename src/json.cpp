@@ -422,7 +422,7 @@ const char* JSON::getvalue()
 
 fsfp_t JSON::getfp()
 {
-    return getuint64();
+    return gethandle(sizeof(fsfp_t));
 }
 
 uint64_t JSON::getuint64()
@@ -714,6 +714,16 @@ void JSONWriter::arg(const char* name, const byte* value, int len)
     delete[] buf;
 }
 
+void JSONWriter::arg_B64(const char* n, const string& data)
+{
+    arg(n, (const byte*)data.data(), int(data.size()));
+}
+
+void JSONWriter::arg_fsfp(const char* n, fsfp_t fp)
+{
+    arg(n, (const byte*)&fp, int(sizeof(fp)));
+}
+
 void JSONWriter::arg(const char* name, m_off_t n)
 {
     char buf[32];
@@ -826,6 +836,13 @@ void JSONWriter::element(const char* buf)
     mJson.append(buf, strlen(buf));
     mJson.append("\"");
 }
+
+void JSONWriter::element_B64(const string& s)
+{
+    mJson.append(elements() ? ",\"" : "\"");
+    element((const byte*)s.data(), int(s.size()));
+}
+
 
 void JSONWriter::openobject()
 {

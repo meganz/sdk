@@ -990,10 +990,10 @@ bool CommandSetAttr::procresult(Result r)
         Node* node = client->nodebyhandle(h);
         if(node)
         {
-            if (Sync* sync = client->syncs.runningSyncByTag(tag))
-            {
-                client->app->syncupdate_remote_rename(sync, node, pa.c_str());
-            }
+            // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
+            client->syncs.forEachRunningSyncContainingNode(node, [&](Sync* s) {
+                    client->app->syncupdate_remote_rename(s, node, pa.c_str());
+                });
         }
     }
 #endif
@@ -1358,17 +1358,17 @@ bool CommandMoveNode::procresult(Result r)
                             {
                                 if (syncop)
                                 {
-                                    if (Sync* sync = client->syncs.runningSyncByTag(tag))
-                                    {
+                                    // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
+                                    client->syncs.forEachRunningSyncContainingNode(n, [&](Sync* s) {
                                         if ((*it)->type == FOLDERNODE)
                                         {
-                                            sync->client->app->syncupdate_remote_folder_deletion(sync, (*it));
+                                            s->client->app->syncupdate_remote_folder_deletion(s, n);
                                         }
                                         else
                                         {
-                                            sync->client->app->syncupdate_remote_file_deletion(sync, (*it));
+                                            s->client->app->syncupdate_remote_file_deletion(s, n);
                                         }
-                                    }
+                                    });
                                 }
 
                                 (*it)->syncdeleted = syncdel;
@@ -1404,10 +1404,10 @@ bool CommandMoveNode::procresult(Result r)
             Node *n = client->nodebyhandle(h);
             if(n)
             {
-                if (Sync* sync = client->syncs.runningSyncByTag(tag))
-                {
-                    client->app->syncupdate_remote_move(sync, n, client->nodebyhandle(pp));
-                }
+                // After speculative instant completion removal, this is not needed (always sent via actionpacket code)
+                client->syncs.forEachRunningSyncContainingNode(n, [&](Sync* s) {
+                    client->app->syncupdate_remote_move(s, n, client->nodebyhandle(pp));
+                });
             }
         }
 #endif
@@ -1851,10 +1851,6 @@ bool CommandLogin::procresult(Result r)
                 {
                     client->sessionkey.assign((const char *)sek, sizeof(sek));
                 }
-
-#ifdef ENABLE_SYNC
-                client->syncs.resetSyncConfigDb();
-#endif
 
                 client->app->login_result(API_OK);
                 return true;
@@ -2942,13 +2938,11 @@ bool CommandPutUA::procresult(Result r)
         }
         else if (at == ATTR_JSON_SYNC_CONFIG_NAME)
         {
-            LOG_info << "JSCN user attribute successfully created.";
-            client->syncdbname.swap(av);
+            LOG_info << "JSON user attribute successfully created.";
         }
         else if (at == ATTR_JSON_SYNC_CONFIG_KEY)
         {
-            LOG_info << "JSCK user attributes successfully created.";
-            client->syncdbkey.swap(av);
+            LOG_info << "JSON user attributes successfully created.";
         }
 
         client->app->putua_result(API_OK);
@@ -3628,6 +3622,8 @@ bool CommandGetUserData::procresult(Result r)
     string versionMyBackupsFolder;
     string backupNames;
     string versionBackupNames;
+    string cookieSettings;
+    string versionCookieSettings;
     string jsonSyncConfigName;
     string jsonSyncConfigNameVersion;
     string jsonSyncConfigKey;
@@ -3763,7 +3759,7 @@ bool CommandGetUserData::procresult(Result r)
         case MAKENAMEID4('*', '!', 'b', 'n'):
             parseUserAttribute(backupNames, versionBackupNames);
 			break;
-			
+
         case MAKENAMEID6('^', '~', 'j', 's', 'c', 'n'):
             parseUserAttribute(jsonSyncConfigName, jsonSyncConfigNameVersion);
             break;
@@ -3926,6 +3922,10 @@ bool CommandGetUserData::procresult(Result r)
             }
             break;
         }
+
+        case MAKENAMEID5('^', '!', 'c', 's', 'p'):
+            parseUserAttribute(cookieSettings, versionCookieSettings);
+            break;
 
         case EOO:
         {
@@ -4162,7 +4162,13 @@ bool CommandGetUserData::procresult(Result r)
                         LOG_err << "Cannot extract TLV records for ATTR_BACKUP_NAMES";
                     }
                 }
-				
+
+                if (!cookieSettings.empty())
+                {
+                    changes += u->updateattr(ATTR_COOKIE_SETTINGS, &cookieSettings, &versionCookieSettings);
+                }
+
+
                 // Has a name been defined for this user's sync configuration databases?
                 if (jsonSyncConfigName.empty())
                 {
@@ -4184,9 +4190,6 @@ bool CommandGetUserData::procresult(Result r)
                     changes += u->updateattr(ATTR_JSON_SYNC_CONFIG_NAME,
                                              &jsonSyncConfigName,
                                              &jsonSyncConfigNameVersion);
-
-                    // Make the attribute immediately visible to the client.
-                    client->syncdbname = jsonSyncConfigName;
                 }
 
                 // Has a key been defined to protect this user's sync configuration databases?
@@ -4210,9 +4213,6 @@ bool CommandGetUserData::procresult(Result r)
                     changes += u->updateattr(ATTR_JSON_SYNC_CONFIG_KEY,
                                              &jsonSyncConfigKey,
                                              &jsonSyncConfigKeyVersion);
-
-                    // Make the attribute immediately visible to the client.
-                    client->syncdbkey = jsonSyncConfigKey;
                 }
 
                 if (changes > 0)
@@ -4724,14 +4724,17 @@ bool CommandGetUserQuota::procresult(Result r)
                     }
                 }
 
-                if (mPro && client->mAccountType != details->pro_level)
+                if (mPro)
                 {
                     // Pro level can change without a payment (ie. with coupons or by helpdesk)
                     // and in those cases, the `psts` packet is not triggered. However, the SDK
                     // should notify the app and resume transfers, etc.
-                    client->mAccountType = static_cast<AccountType>(details->pro_level);
-                    client->app->account_updated();
-                    client->abortbackoff(true);
+                    bool changed = client->mCachedStatus.addOrUpdate(CacheableStatus::STATUS_PRO_LEVEL, details->pro_level);
+                    if (changed)
+                    {
+                        client->app->account_updated();
+                        client->abortbackoff(true);
+                    }
                 }
 
                 client->app->account_details(details, mStorage, mTransfer, mPro, false, false, false);
@@ -8287,15 +8290,20 @@ CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, const st
 
     cmd("sp");
 
+    string localFolderEncrypted(client->cypherTLVTextWithMasterKey("lf", localFolder));
+
     arg("t", type);
     arg("h", (byte*)&nodeHandle, MegaClient::NODEHANDLE);
-    arg("l", localFolder.c_str());
+    arg("l", localFolderEncrypted.c_str());
     arg("d", deviceId.c_str());
     arg("s", state);
     arg("ss", subState);
 
     if (!extraData.empty())
-        arg("e", extraData.c_str());
+    {
+        string edEncrypted(client->cypherTLVTextWithMasterKey("ed", extraData));
+        arg("e", edEncrypted.c_str());
+    }
 
     mBackupName = Base64::btoa(backupName);
     tag = client->reqtag;
@@ -8322,7 +8330,8 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupTy
 
     if (localFolder)
     {
-        arg("l", localFolder);
+        string localFolderEncrypted(client->cypherTLVTextWithMasterKey("lf", localFolder));
+        arg("l", localFolderEncrypted.c_str());
     }
 
     if (deviceId)
@@ -8342,7 +8351,8 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupTy
 
     if (extraData)
     {
-        arg("e", extraData);
+        string edEncrypted(client->cypherTLVTextWithMasterKey("ed", extraData));
+        arg("e", edEncrypted.c_str());
     }
 
     tag = client->reqtag;
@@ -8517,6 +8527,98 @@ bool CommandBackupRemove::procresult(Result r)
 
     return r.wasErrorOrOK();
 }
+
+CommandBackupSyncFetch::CommandBackupSyncFetch(std::function<void(Error, vector<Data>&)> f)
+    : completion(move(f))
+{
+    cmd("sf");
+}
+
+bool CommandBackupSyncFetch::procresult(Result r)
+{
+    vector<Data> data;
+    if (!r.hasJsonArray())
+    {
+        completion(r.errorOrOK(), data);
+    }
+    else
+    {
+        auto skipUnknownField = [&]() -> bool {
+            if (!client->json.storeobject())
+            {
+                completion(API_EINTERNAL, data);
+                return false;
+            }
+            return true;
+        };
+
+        auto cantLeaveObject = [&]() -> bool {
+            if (!client->json.leaveobject())
+            {
+                completion(API_EINTERNAL, data);
+                return true;
+            }
+            return false;
+        };
+
+        while (client->json.enterobject())
+        {
+            data.push_back(Data());
+            for (;;)
+            {
+                auto& d = data.back();
+                auto nid = client->json.getnameid();
+                if (nid == EOO) break;
+                switch (nid)
+                {
+                case MAKENAMEID2('i', 'd'):     d.backupId = client->json.gethandle(sizeof(handle)); break;
+                case MAKENAMEID1('t'):          d.syncType = client->json.getint32(); break;
+                case MAKENAMEID1('h'):          d.rootNode = client->json.gethandle(MegaClient::NODEHANDLE); break;
+                case MAKENAMEID1('l'):          client->json.storeobject(&d.localFolder);
+                                                d.localFolder = client->decypherTLVTextWithMasterKey("lf", d.localFolder);
+                                                break;
+                case MAKENAMEID1('d'):          client->json.storeobject(&d.deviceId); break;
+                case MAKENAMEID1('s'):          d.syncState = client->json.getint32(); break;
+                case MAKENAMEID2('s', 's'):     d.syncSubstate = client->json.getint32(); break;
+                case MAKENAMEID1('e'):          client->json.storeobject(&d.extra);
+                                                d.extra = client->decypherTLVTextWithMasterKey("ed", d.extra);
+                                                break;
+                case MAKENAMEID2('h', 'b'):
+                {
+                    if (client->json.enterobject())
+                    {
+                        for (;;)
+                        {
+                            nid = client->json.getnameid();
+                            if (nid == EOO) break;
+                            switch (nid)
+                            {
+                            case MAKENAMEID2('t', 's'):     d.hbTimestamp = client->json.getint(); break;
+                            case MAKENAMEID1('s'):          d.hbStatus = client->json.getint32(); break;
+                            case MAKENAMEID1('p'):          d.hbProgress = client->json.getint32(); break;
+                            case MAKENAMEID2('q', 'u'):     d.uploads = client->json.getint32(); break;
+                            case MAKENAMEID2('q', 'd'):     d.downloads = client->json.getint32(); break;
+                            case MAKENAMEID3('l', 't', 's'):d.lastActivityTs = client->json.getint32(); break;
+                            case MAKENAMEID2('l', 'h'):     d.lastSyncedNodeHandle = client->json.gethandle(sizeof(handle)); break;
+                            default: if (!skipUnknownField()) return false;
+                            }
+                        }
+                        if (cantLeaveObject()) return false;
+                    }
+                }
+                break;
+
+                default: if (!skipUnknownField()) return false;
+                }
+            }
+            if (cantLeaveObject()) return false;
+        }
+
+        completion(API_OK, data);
+    }
+    return true;
+}
+
 
 CommandGetBanners::CommandGetBanners(MegaClient* client)
 {
