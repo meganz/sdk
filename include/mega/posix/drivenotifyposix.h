@@ -39,7 +39,6 @@ namespace mega {
 
     // Posix: Platform specific definition
     //
-    // Not implemented.
     class DriveNotifyPosix : public DriveNotify
     {
     public:
@@ -62,6 +61,20 @@ namespace mega {
         udev* mUdev = nullptr;
         udev_monitor* mUdevMon = nullptr;
         std::map<std::string, std::string> mMounted;
+    };
+
+
+
+    // Posix: Platform specific definition
+    //
+    class UniqueDriveIdPosix : public UniqueDriveId
+    {
+    protected:
+        std::map<int, std::string> getIds(const std::string& mountPoint) override;
+
+    private:
+        std::string getDevNode(const std::string& mountPoint);  // i.e. "/mnt/foo/bar" -> "/dev/sda1"
+        std::string normalizeVolumeSN(const char* volumeSN);
     };
 
 } // namespace

@@ -281,6 +281,127 @@ namespace mega {
         stop();
     }
 
+
+
+
+    //
+    // UniqueDriveIdPosix
+    /////////////////////////////////////////////
+
+    std::map<int, std::string> UniqueDriveIdPosix::getIds(const std::string& mountPoint)
+    {
+        std::map<int, std::string> ids;
+
+        // get dev node (i.e. "/dev/sda1")
+        std::string devNode = getDevNode(mountPoint);
+        if (devNode.empty())  return ids;
+
+        // init udev resource
+        udev* udev = udev_new();
+        if (!udev)  return ids;  // is udevd daemon running?
+
+        // init partition enumerator
+        udev_enumerate* enumerate = udev_enumerate_new(udev);
+        udev_enumerate_add_match_subsystem(enumerate, "block");
+        udev_enumerate_add_match_property(enumerate, "DEVTYPE", "partition");
+
+        udev_enumerate_scan_devices(enumerate);
+
+        udev_list_entry *devices = udev_enumerate_get_list_entry(enumerate);
+        udev_list_entry *entry;
+
+        // find partition
+        udev_list_entry_foreach(entry, devices) // for loop
+        {
+            // get a partition
+            const char* entryName = udev_list_entry_get_name(entry);
+            udev_device* blockDev = udev_device_new_from_syspath(udev, entryName);
+            if (!blockDev)  continue;
+
+            // get dev node, as reported by udev
+            const char* devNodeUdev = udev_device_get_devnode(blockDev); // "/dev/sda1"
+
+            // get ids
+            bool found = false;
+
+            if (devNodeUdev && devNode == devNodeUdev)
+            {
+                // DiskId
+                const char* diskId = udev_device_get_property_value(blockDev, "ID_SERIAL_SHORT");
+                std::string& di = ids[UniqueDriveId::DISK_ID];
+                if (diskId)  di = diskId;
+
+                // DiskSignature
+                const char* diskSignature = udev_device_get_property_value(blockDev, "ID_PART_TABLE_UUID");
+                std::string& ds = ids[UniqueDriveId::DISK_SIGNATURE];
+                if (diskSignature)  ds = diskSignature;
+
+                // VolumeSerialNumber
+                const char* volumeSN = udev_device_get_property_value(blockDev, "ID_FS_UUID");
+                ids[UniqueDriveId::VOLUME_SN] = normalizeVolumeSN(volumeSN);
+
+                found = true;
+            }
+
+            udev_device_unref(blockDev);
+
+            if (found)  break;
+        }
+
+        udev_enumerate_unref(enumerate);
+        udev_unref(udev);
+
+        return ids;
+    }
+
+
+
+    std::string UniqueDriveIdPosix::getDevNode(const std::string& mountPoint)
+    {
+        std::string devNode;
+
+        // go to all mounts
+        FILE* fsMounts = setmntent("/proc/mounts", "r");
+        if (!fsMounts) // this should never happen
+        {
+            // make another attempt
+            fsMounts = setmntent("/etc/mtab", "r");
+            if (!fsMounts)  return mountPoint;
+        }
+
+        // search dev node for the current mount point
+        for (mntent* mnt = getmntent(fsMounts); mnt; mnt = getmntent(fsMounts))
+        {
+            if (mountPoint == mnt->mnt_dir)
+            {
+                devNode = mnt->mnt_fsname;  // "/dev/sda1"
+                break;
+            }
+        }
+
+        endmntent(fsMounts); // closes the file descriptor
+
+        return devNode;
+    }
+
+
+
+    std::string UniqueDriveIdPosix::normalizeVolumeSN(const char* volumeSN)
+    {
+        std::string vsn;
+        if (!volumeSN)  return vsn;
+        vsn = volumeSN;
+
+        // FAT32: remove '-'
+        auto pos = vsn.find('-');
+        if (pos != std::string::npos)  vsn.erase(pos, 1);
+
+        // NTFS: clamp to last 8 chars (hex uint32)
+        if (vsn.size() > 8)  vsn.erase(0, vsn.size() - 8);
+
+        return vsn;
+    }
+
 } // namespace
 
 #endif // USE_DRIVE_NOTIFICATIONS

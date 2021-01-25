@@ -35,6 +35,7 @@ namespace mega {
 //
 // Platform specific implementations:
 // - UniqueDriveIdWin;
+// - UniqueDriveIdPosix.
 class UniqueDriveId
 {
 public:
@@ -46,6 +47,7 @@ public:
      *
      * @param mountPoint must be of the following form:
      *     Windows:  "D:"           (no trailing separator)
+     *     Linux:    "/mnt/foo/bar" (no trailing separator)
      * @param idSep is the separator between ids enumerated in IdOrder
      *
      * @return the unique id of the removable drive at mountPoint.
@@ -131,6 +133,7 @@ namespace mega {
 #else
 #include "mega/posix/drivenotifyposix.h"
 namespace mega {
+    using ExternalDriveId = UniqueDriveIdPosix;
     using DriveInfoCollector = DriveNotifyPosix;
 }
 #endif
