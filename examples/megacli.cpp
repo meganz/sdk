@@ -3183,6 +3183,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_banner, sequence(text("banner"), either(text("get"), sequence(text("dismiss"), param("id")))));
 
     p->Add(exec_drivemonitor, sequence(text("drivemonitor"), either(text("on"), text("off"))));
+    p->Add(exec_driveuniqueid, sequence(text("driveuniqueid"), param("mountpoint")));
 
     return autocompleteTemplate = std::move(p);
 }
@@ -6719,6 +6720,18 @@ void exec_drivemonitor(autocomplete::ACState& s)
         // return immediately, when this functionality was not implemented
         std::cout << "Failed starting drive notifications" << std::endl;
     }
+#else
+    std::cout << "Failed! This functionality was disabled at compile time." << std::endl;
+#endif // USE_DRIVE_NOTIFICATIONS
+}
+
+void exec_driveuniqueid(autocomplete::ACState& s)
+{
+#ifdef USE_DRIVE_NOTIFICATIONS
+    const string& drive = s.words[1].s;
+    ExternalDriveId edi;
+    const string& id = edi.getFor(drive);
+    std::cout << "Unique id (drive " << drive << "): " << id << std::endl;
 #else
     std::cout << "Failed! This functionality was disabled at compile time." << std::endl;
 #endif // USE_DRIVE_NOTIFICATIONS
