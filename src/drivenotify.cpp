@@ -68,10 +68,12 @@ namespace mega {
     void DriveNotify::add(DriveInfo&& info)
     {
         // sync access
+        {
         lock_guard<mutex> lock(mSyncAccessMutex);
 
         // save the new info
         mInfoQueue.emplace(move(info));
+        }
 
         // notify that new info was received
         mNotifyOnInfo();
