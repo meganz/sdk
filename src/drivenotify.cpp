@@ -28,6 +28,47 @@ using namespace std;
 
 namespace mega {
 
+    //
+    // UniqueDriveId
+    /////////////////////////////////////////////
+
+    string UniqueDriveId::getFor(const string& mountPoint, const char idSep)
+    {
+        // get individual ids
+        map<int, string> ids = getIds(mountPoint);
+
+        string uniqueId;
+        if (ids.size() != ID_COUNT)  return uniqueId;
+
+        // build unique id, by concatenating the individual ids in the order
+        // given by UniqueDriveId::IdOrder enum
+        for (auto& i : ids)
+        {
+            // do not allow incomplete id sequence
+            if (i.second.empty())
+            {
+                uniqueId.clear();
+                break;
+            }
+
+            // convert to upper case
+            for (auto& c : i.second)  c = char(toupper(c));
+
+            // concatenate
+            uniqueId += i.second;
+            if (idSep)  uniqueId += idSep;
+        }
+        // remove trailing separator
+        if (idSep && !uniqueId.empty())  uniqueId.pop_back();
+
+        return uniqueId;
+    }
+
+
+    //
+    // DriveNotify
+    /////////////////////////////////////////////
+
     bool DriveNotify::start(function<void()> notify)
     {
         lock_guard<mutex> lock(mSyncAccessMutex);

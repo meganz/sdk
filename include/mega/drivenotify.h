@@ -27,8 +27,44 @@
 #include <string>
 #include <queue>
 #include <mutex>
+#include <map>
 
 namespace mega {
+
+// Interface for getting drive unique id.
+//
+// Platform specific implementations:
+// - UniqueDriveIdWin;
+class UniqueDriveId
+{
+public:
+    /**
+     * @brief Get the unique id of the removable drive at mountPoint.
+     *
+     * Get the ids enumerated in IdOrder below and concatenate them
+     * to form the unique id of the removable drive at mountPoint.
+     *
+     * @param mountPoint must be of the following form:
+     *     Windows:  "D:"           (no trailing separator)
+     * @param idSep is the separator between ids enumerated in IdOrder
+     *
+     * @return the unique id of the removable drive at mountPoint.
+     * When errors have occurred, an empty string will be returned.
+     */
+    std::string getFor(const std::string& mountPoint, const char idSep = '+');
+
+protected:
+    virtual std::map<int, std::string> getIds(const std::string& mountPoint) = 0;
+
+    enum IdOrder
+    {
+        DISK_ID,            // 27C1609381310127
+        DISK_SIGNATURE,     // A00A72BA
+        VOLUME_SN,          // 0EEE1DE2
+        ID_COUNT
+    };
+};
+
 
 // Structure containing relevant Drive info.
 // Windows: information is provided by Windows Management Instrumentation (WMI), Microsoft's implementation of WBEM.
@@ -89,6 +125,7 @@ private:
 #ifdef _WIN32
 #include "mega/win32/drivenotifywin.h"
 namespace mega {
+    using ExternalDriveId = UniqueDriveIdWin;
     using DriveInfoCollector = DriveNotifyWin;
 }
 #else

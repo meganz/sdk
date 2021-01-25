@@ -30,6 +30,9 @@
 
 #include "mega/drivenotify.h"
 
+#include <sstream>
+#include <iomanip>
+
 using namespace std;
 using namespace Microsoft::WRL; // ComPtr
 
@@ -52,6 +55,8 @@ namespace mega {
 
         static uint32_t GetUi32Property(IWbemClassObject* pQueryObject, const wstring& name);
         static wstring GetStringProperty(IWbemClassObject* pQueryObject, const wstring& name);
+
+        static wstring EscapeWql(const wstring& wql);
     };
 
 
@@ -183,6 +188,142 @@ namespace mega {
 
         return SUCCEEDED(result);
     }
+
+
+
+    //
+    // UniqueDriveIdWin
+    /////////////////////////////////////////////
+
+    map<int, string> UniqueDriveIdWin::getIds(const string& mountPoint)
+    {
+        map<int, string> ids;
+
+        // init COM
+        if (!WinWmi::InitializeCom())  return ids;
+        IWbemLocator* pLocator = nullptr;
+        IWbemServices* pService = nullptr;
+        if (!WinWmi::GetWbemService(&pLocator, &pService)) { CoUninitialize(); return ids; }
+
+        // make sure this string does not contain embeded null characters
+        // (i.e. if received from LocalPath::platformEncoded() on Windows)
+        assert(mountPoint.find('\0') == string::npos);
+
+        // convert mountPoint to wide string (dumb conversion)
+        wstring wMountPoint;
+        for (auto c : mountPoint)  wMountPoint += c;
+
+        // get partition id: VolumeSerialNumber
+        wstring query = L"SELECT __PATH, VolumeSerialNumber from Win32_LogicalDisk where DeviceID = \"" + wMountPoint + L'"';
+        auto values = getWqlValues(pService, query, { L"__PATH", L"VolumeSerialNumber" });
+        string& vsn = ids[UniqueDriveId::VOLUME_SN];
+        for (wchar_t c : values[1])  vsn += char(c);
+
+        // get Win32_LogicalDiskToPartition.Antecedent
+        query = L"SELECT Antecedent from Win32_LogicalDiskToPartition where Dependent = \"" + WinWmi::EscapeWql(values[0]) + L'"';
+        values = getWqlValues(pService, query, { L"Antecedent" });
+
+        // get Win32_DiskDriveToDiskPartition.Antecedent
+        query = L"SELECT Antecedent from Win32_DiskDriveToDiskPartition where Dependent = \"" + WinWmi::EscapeWql(values[0]) + L'"';
+        values = getWqlValues(pService, query, { L"Antecedent" });
+
+        // get disk ids: PNPDeviceID, Signature
+        // (SerialNumber is also available on Windows)
+        query = L"SELECT PNPDeviceID, Signature from Win32_DiskDrive where __PATH = \"" + WinWmi::EscapeWql(values[0]) + L'"';
+        auto f = [this](IWbemClassObject* o, const wstring& n) { return convertUi32ToB16str(o, n); };
+        vector<function<wstring(IWbemClassObject*, const wstring&)>> convFuncs = { nullptr, f };
+        values = getWqlValues(pService, query, { L"PNPDeviceID", L"Signature" }, &convFuncs);
+        string& di = ids[UniqueDriveId::DISK_ID];
+        const wstring& wdi = getIdFromPNPDevId(values[0]);
+        for (wchar_t c : wdi)  di += char(c);
+        string& ds = ids[UniqueDriveId::DISK_SIGNATURE];
+        for (wchar_t c : values[1])  ds += char(c);
+
+        // release COM resources
+        pService->Release();
+        pLocator->Release();
+        CoUninitialize();
+
+        return ids;
+    }
+
+    vector<wstring> UniqueDriveIdWin::getWqlValues(IWbemServices* pService, const wstring& query, const vector<wstring>& fields,
+                                                   const vector<function<wstring(IWbemClassObject*, const wstring&)>>* convFuncs)
+    {
+        ComPtr<IEnumWbemClassObject> pEnumerator;
+
+        // run query
+        HRESULT result = pService->ExecQuery(
+            (wchar_t*)L"WQL",                           // strQueryLanguage
+            (wchar_t*)query.c_str(),                    // strQuery
+            WBEM_FLAG_FORWARD_ONLY,                     // lFlags
+            nullptr,                                    // pCtx
+            &pEnumerator);                              // ppEnum
+
+        vector<wstring> values(fields.size());
+        if (FAILED(result) || !pEnumerator)  return values;
+
+        // get the first row (there should be only one)
+        ComPtr<IWbemClassObject> pQueryObject;
+        ULONG returnedObjectCount = 0;
+        result = pEnumerator->Next(100 /*ms*/, 1, pQueryObject.GetAddressOf(), &returnedObjectCount);
+
+        if (!returnedObjectCount)  return values; // no results or error
+
+        for (auto i = 0; i < fields.size(); ++i)
+        {
+            // retrieving a string value is simple;
+            // but when retrieving an non-string, it needs to be converted
+            values[i] = (convFuncs && convFuncs->size() > i && convFuncs->at(i)) ?
+                convFuncs->at(i)(pQueryObject.Get(), fields[i]) :
+                WinWmi::GetStringProperty(pQueryObject.Get(), fields[i]);
+        }
+
+        return values;
+    }
+
+
+    wstring UniqueDriveIdWin::convertUi32ToB16str(IWbemClassObject* queryObj, const wstring& field)
+    {
+        uint32_t iVal = WinWmi::GetUi32Property(queryObj, field);
+
+        wstringstream stream;
+        // pad the value with 0 to the left, and always have 8 characters
+        stream << setfill(L'0') << setw(8) << hex << iVal;
+        const wstring& sVal = stream.str(); // keep this "free" for debugging
+
+        return sVal;
+    }
+
+
+    wstring UniqueDriveIdWin::getIdFromPNPDevId(const wstring& pnpIdString)
+    {
+        // Expected PNPDeviceId will be of the following form:
+        // USBSTOR\DISK&VEN_ADATA&PROD_USB_FLASH_DRIVE&REV_1100\27C1609381310127&0
+        // from which we need to extract the string after the last '\' (which
+        // represents DriveId&PartitionNumber), and before the last '&', thus
+        // 27C1609381310127.
+        //
+        // However, when an id could not be read from a device, Windows will construct
+        // that last part from other different values. In this case, we should not
+        // rely on that construct, which after the last '\' will have an '&' in the
+        // second position, i.e.
+        // SCSI\DISK&VEN_NVME&PROD_PM981A_NVME_SAMS\5&3995B453&0&000000
+        wstring devId;
+
+        // get string after last '\'
+        auto pos = pnpIdString.rfind(L'\\');
+        if (pos == wstring::npos || pos + 2 >= pnpIdString.size())  return devId;
+        devId = pnpIdString.substr(pos + 1);
+
+        // get string before last '&'
+        pos = devId.rfind(L'&');
+        if (pos == wstring::npos || count(devId.begin(), devId.end(), L'&') != 1)  devId.clear();
+        else  devId.erase(pos);
+
+        return devId;
+    }
+
 
 
     //
@@ -404,6 +545,36 @@ namespace mega {
         }
 
         return true;
+    }
+
+
+
+    wstring WinWmi::EscapeWql(const wstring& wql)
+    {
+        // The following special characters in a query condition, must first be
+        // escaped by prefixing them with a backslash:
+        // - backslash (\)
+        // - double quotes (")
+        // - single quotes (')
+        // https://docs.microsoft.com/en-us/windows/win32/wmisdk/where-clause
+
+        wstring escWql;
+
+        for (auto w : wql)
+        {
+            switch (w)
+            {
+            case L'\\':
+            case L'\'':
+            case L'"':
+                escWql += L'\\';
+                // [[fallthrough]]; // C++17
+            default:
+                escWql += w;
+            }
+        }
+
+        return escWql;
     }
 
 

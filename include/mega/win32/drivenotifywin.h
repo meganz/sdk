@@ -27,8 +27,12 @@
 // This header cannot be used by itself.
 
 #include <map>
+#include <vector>
 #include <thread>
 #include <atomic>
+
+struct IWbemServices;
+struct IWbemClassObject;
 
 
 namespace mega {
@@ -58,6 +62,22 @@ namespace mega {
             DRIVE_CONNECTED_EVENT,
             DRIVE_DISCONNECTED_EVENT
         };
+    };
+
+
+
+    // Windows: Platform specific definition
+    //
+    class UniqueDriveIdWin : public UniqueDriveId
+    {
+    protected:
+        std::map<int, std::string> getIds(const std::string& mountPoint) override;
+
+    private:
+        std::vector<std::wstring> getWqlValues(IWbemServices* pService, const std::wstring& query, const std::vector<std::wstring>& fields,
+                               const std::vector<std::function<std::wstring(IWbemClassObject*, const std::wstring&)>>* convFuncs = nullptr);
+        std::wstring convertUi32ToB16str(IWbemClassObject* queryObj, const std::wstring& field);
+        std::wstring getIdFromPNPDevId(const std::wstring& pnpIdString);
     };
 
 
