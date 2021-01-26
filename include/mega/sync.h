@@ -378,7 +378,7 @@ public:
     error removeByBackupId(handle backupId);
 
     // Remove config by backup target handle.
-    error removeByRootNode(handle targetHandle);
+    error removeByRootHandle(handle targetHandle);
 
     // Write this database to disk.
     error write(JSONSyncConfigIOContext& ioContext);

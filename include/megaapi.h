@@ -5233,7 +5233,7 @@ public:
      * The SDK retains the ownership of the returned value. It will be valid until
      * the MegaSync object is deleted.
      *
-     * @return The path of the Remote folder fromw when it was last being synced
+     * @return The path of the Remote folder from when it was last being synced
      */
     virtual const char* getLastKnownMegaFolder() const;
 

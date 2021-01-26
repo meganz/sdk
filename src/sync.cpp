@@ -2084,7 +2084,12 @@ error Syncs::syncConfigDBFlush()
 
     LOG_verbose << "Attempting to flush internal config database.";
 
-    auto result = mSyncConfigDB->write(*mSyncConfigIOContext);
+    auto result = API_EAGAIN;
+
+    if (auto* ioContext = syncConfigIOContext())
+    {
+        result = mSyncConfigDB->write(*ioContext);
+    }
 
     if (result != API_OK)
     {
@@ -2678,7 +2683,7 @@ error JSONSyncConfigDB::removeByBackupId(handle bid)
     return removeByBackupId(bid, true);
 }
 
-error JSONSyncConfigDB::removeByRootNode(const handle targetHandle)
+error JSONSyncConfigDB::removeByRootHandle(const handle targetHandle)
 {
     // Any config present with the given target handle?
     if (const auto* config = getByRootHandle(targetHandle))
