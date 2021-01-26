@@ -1658,6 +1658,10 @@ CommandLogin::CommandLogin(MegaClient* client, const char* email, const byte *em
     {
         arg("si", deviceIdHash.c_str());
     }
+    else
+    {
+        client->sendevent(99454, "Device-id not available at login");
+    }
 
     tag = client->reqtag;
 }
