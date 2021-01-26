@@ -44,40 +44,6 @@ int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2,
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
                          LocalPath& localdebris);
 
-#if 0
-// A collection of sync configs backed by a database table
-class MEGA_API SyncConfigBag
-{
-public:
-    SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng, const std::string& id);
-
-    MEGA_DISABLE_COPY_MOVE(SyncConfigBag)
-
-    // Adds a new sync config or updates if exists already
-    error insert(const SyncConfig& syncConfig);
-
-    // Removes a sync config with a given backupId
-    error removeByBackupId(const handle backupId);
-
-    // Returns the sync config with a given backupId
-    const SyncConfig* get(const handle backupId) const;
-
-    // Returns the first sync config found with a remote handle
-    const SyncConfig* getByNodeHandle(handle nodeHandle) const;
-
-    // Removes all sync configs
-    void clear();
-
-    // Returns all current sync configs
-    std::vector<SyncConfig> all() const;
-
-private:
-    std::unique_ptr<DbTable> mTable; // table for caching the sync configs
-    std::map<handle, SyncConfig> mSyncConfigs; // map of backupId to sync configs
-};
-#endif
-
-
 class SyncConfig
 {
 public:

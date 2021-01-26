@@ -1222,32 +1222,6 @@ TEST(Sync, SyncConfig_downSync_syncDelTrue_overwriteTrue)
 namespace
 {
 
-void test_SyncConfigBag(mega::SyncConfigBag& bag)
-{
-    ASSERT_TRUE(bag.all().empty());
-    mega::SyncConfig config1{"foo", "foo", 41, "remote", 122, {}, true, mega::SyncConfig::Type::TYPE_TWOWAY, false, true, mega::LOCAL_FINGERPRINT_MISMATCH};
-    config1.setBackupId(12345);
-    bag.insert(config1);
-    mega::SyncConfig config2{"bar", "bar", 42, "remote", 123, {}, false, mega::SyncConfig::Type::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
-    config2.setBackupId(123456);
-    bag.insert(config2);
-    std::vector<mega::SyncConfig> expConfigs1{config1, config2};
-    //ASSERT_EQ(expConfigs1, bag.all());
-    bag.removeByBackupId(12345);
-    std::vector<mega::SyncConfig> expConfigs2{config2};
-    //ASSERT_EQ(expConfigs2, bag.all());
-    mega::SyncConfig config3{"bar2", "bar2", 43, "remote", 124};
-    config3.setBackupId(1234567);
-    bag.insert(config3); // update
-    std::vector<mega::SyncConfig> expConfigs3{config3};
-    //ASSERT_EQ(expConfigs3, bag.all());
-    bag.insert(config1);
-    bag.insert(config2);
-    //ASSERT_EQ(expConfigs1, bag.all());
-    bag.clear();
-    ASSERT_TRUE(bag.all().empty());
-}
-
 class MockDbTable : public mt::DefaultedDbTable
 {
 public:
@@ -1328,46 +1302,6 @@ private:
     std::vector<std::pair<uint32_t, std::string>>& mData;
 };
 
-}
-
-TEST(Sync, SyncConfigBag)
-{
-    std::vector<std::pair<uint32_t, std::string>> mData;
-    MockDbAccess dbaccess{mData};
-    mt::DefaultedFileSystemAccess fsaccess;
-    mega::PrnGen rng;
-    mega::SyncConfigBag bag{dbaccess, fsaccess, rng, "some_id"};
-    test_SyncConfigBag(bag);
-}
-
-TEST(Sync, SyncConfigBag_withPreviousState)
-{
-    std::vector<std::pair<uint32_t, std::string>> mData;
-    MockDbAccess dbaccess{mData};
-    mt::DefaultedFileSystemAccess fsaccess;
-    mega::PrnGen rng;
-
-    mega::SyncConfigBag bag1{dbaccess, fsaccess, rng, "some_id"};
-    mega::SyncConfig config1{"foo", "foo", 41, "remote", 122, {}, true, mega::SyncConfig::Type::TYPE_TWOWAY, false, true, mega::LOCAL_FINGERPRINT_MISMATCH};
-    config1.setBackupId(12345);
-    bag1.insert(config1);
-    ASSERT_EQ(1u, mData.size());
-    mega::SyncConfig config2{"bar", "bar", 42, "remote", 123, {}, false, mega::SyncConfig::Type::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
-    config2.setBackupId(123456);
-    bag1.insert(config2);
-    ASSERT_EQ(2u, mData.size());
-    mega::SyncConfig config3{"bar2", "bar2", 43, "remote", 124, {}, false, mega::SyncConfig::Type::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
-    config3.setBackupId(1234567);
-    bag1.insert(config3);
-    ASSERT_EQ(3u, mData.size());
-    bag1.insert(config3); // update
-    ASSERT_EQ(3u, mData.size());
-    bag1.removeByBackupId(1234567);
-    ASSERT_EQ(2u, mData.size());
-
-    const mega::SyncConfigBag bag2{dbaccess, fsaccess, rng, "some_id"};
-    const std::vector<mega::SyncConfig> expConfigs{config1, config2};
-    //ASSERT_EQ(expConfigs, bag2.all());
 }
 #endif
 
