@@ -396,9 +396,9 @@ namespace mega {
         if (!volumeSN)  return vsn;
         vsn = volumeSN;
 
-        if (fs && (!strcmp(fs, "vfat") || !strcmp(fs, "ntfs")))
+        if (fs && (!strcmp(fs, "vfat") || !strcmp(fs, "exfat") || !strcmp(fs, "ntfs")))
         {
-            // FAT32: remove '-'
+            // FAT32, exFAT: remove '-'
             auto pos = vsn.find('-');
             if (pos != std::string::npos)  vsn.erase(pos, 1);
 
