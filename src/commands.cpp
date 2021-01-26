@@ -2938,11 +2938,11 @@ bool CommandPutUA::procresult(Result r)
         }
         else if (at == ATTR_JSON_SYNC_CONFIG_NAME)
         {
-            LOG_info << "JSON user attribute successfully created.";
+            LOG_info << "JSON config name successfully created.";
         }
         else if (at == ATTR_JSON_SYNC_CONFIG_KEY)
         {
-            LOG_info << "JSON user attributes successfully created.";
+            LOG_info << "JSON config key successfully created.";
         }
 
         client->app->putua_result(API_OK);
@@ -3758,7 +3758,7 @@ bool CommandGetUserData::procresult(Result r)
 
         case MAKENAMEID4('*', '!', 'b', 'n'):
             parseUserAttribute(backupNames, versionBackupNames);
-			break;
+            break;
 
         case MAKENAMEID6('^', '~', 'j', 's', 'c', 'n'):
             parseUserAttribute(jsonSyncConfigName, jsonSyncConfigNameVersion);

@@ -490,169 +490,6 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
     return success;
 }
 
-#if 0
-SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng, const std::string& id)
-{
-    std::string dbname = "syncconfigsv2_" + id;
-    mTable.reset(dbaccess.open(rng, fsaccess, dbname));
-    if (!mTable)
-    {
-        LOG_warn << "Unable to open database: " << dbname;
-        // no syncs configured --> no database
-        return;
-    }
-
-    mTable->rewind();
-
-    uint32_t tableId;
-    std::string data;
-    while (mTable->next(&tableId, &data))
-    {
-        auto syncConfig = SyncConfig::unserialize(data);
-        if (!syncConfig)
-        {
-            LOG_err << "Unable to unserialize sync config at id: " << tableId;
-            LOG_err << "Sync config record was " << data.size() << ": " << Utils::stringToHex(data);
-
-            {
-                // remove the reocrd so we can recover in jenkins tests (which fail at the assert())
-                DBTableTransactionCommitter committer{ mTable };
-                mTable->del(tableId);
-            }
-
-            assert(false);
-            continue;
-        }
-        syncConfig->dbid = tableId;
-
-        mSyncConfigs.insert(std::make_pair(syncConfig->getBackupId(), *syncConfig));
-        if (tableId > mTable->nextid)
-        {
-            mTable->nextid = tableId;
-        }
-    }
-    ++mTable->nextid;
-}
-
-error SyncConfigBag::insert(const SyncConfig& syncConfig)
-{
-    auto insertOrUpdate = [this](const uint32_t id, const SyncConfig& syncConfig)
-    {
-        std::string data;
-        assert(syncConfig.getBackupId() != UNDEF && "backupId is undefined when trying to persist syncConfig");
-        const_cast<SyncConfig&>(syncConfig).serialize(&data);
-        DBTableTransactionCommitter committer{mTable};
-        if (!mTable->put(id, &data)) // put either inserts or updates
-        {
-            LOG_err << "Incomplete database put at id: " << mTable->nextid;
-            assert(false);
-            mTable->abort();
-            return false;
-        }
-        return true;
-    };
-
-    auto syncConfigIt = mSyncConfigs.find(syncConfig.getBackupId());
-    if (syncConfigIt == mSyncConfigs.end()) // syncConfig is new
-    {
-        if (mTable)
-        {
-            if (!insertOrUpdate(mTable->nextid, syncConfig))
-            {
-                return API_EWRITE;
-            }
-        }
-        auto insertPair = mSyncConfigs.insert(std::make_pair(syncConfig.getBackupId(), syncConfig));
-        if (mTable)
-        {
-            insertPair.first->second.dbid = mTable->nextid;
-            ++mTable->nextid;
-        }
-    }
-    else // syncConfig exists already
-    {
-        const uint32_t tableId = syncConfigIt->second.dbid;
-        if (mTable)
-        {
-            if (!insertOrUpdate(tableId, syncConfig))
-            {
-                return API_EWRITE;
-            }
-        }
-        syncConfigIt->second = syncConfig;
-        syncConfigIt->second.dbid = tableId;
-    }
-
-    return API_OK;
-}
-
-error SyncConfigBag::removeByBackupId(const handle backupId)
-{
-    auto syncConfigPair = mSyncConfigs.find(backupId);
-    if (syncConfigPair == mSyncConfigs.end())
-    {
-        return API_ENOENT;
-    }
-
-    if (mTable)
-    {
-        DBTableTransactionCommitter committer{mTable};
-        if (!mTable->del(syncConfigPair->second.dbid))
-        {
-            LOG_err << "Unable to remove config from database: "
-                    << syncConfigPair->second.dbid;
-            assert(false);
-            mTable->abort();
-            return API_EWRITE;
-        }
-    }
-
-    mSyncConfigs.erase(syncConfigPair);
-    return API_OK;
-}
-
-const SyncConfig* SyncConfigBag::get(const handle backupId) const
-{
-    auto syncConfigPair = mSyncConfigs.find(backupId);
-    if (syncConfigPair != mSyncConfigs.end())
-    {
-        return &syncConfigPair->second;
-    }
-    return nullptr;
-}
-
-
-const SyncConfig* SyncConfigBag::getByNodeHandle(handle nodeHandle) const
-{
-    for (const auto& syncConfigPair : mSyncConfigs)
-    {
-        if (syncConfigPair.second.getRemoteNode() == nodeHandle)
-            return &syncConfigPair.second;
-    }
-    return nullptr;
-}
-
-void SyncConfigBag::clear()
-{
-    if (mTable)
-    {
-        mTable->truncate();
-        mTable->nextid = 0;
-    }
-    mSyncConfigs.clear();
-}
-
-std::vector<SyncConfig> SyncConfigBag::all() const
-{
-    std::vector<SyncConfig> syncConfigs;
-    for (const auto& syncConfigPair : mSyncConfigs)
-    {
-        syncConfigs.push_back(syncConfigPair.second);
-    }
-    return syncConfigs;
-}
-#endif
-
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(UnifiedSync& us, const char* cdebris,
@@ -2629,7 +2466,12 @@ error Syncs::syncConfigDBFlush()
 
     LOG_verbose << "Attempting to flush internal config database.";
 
-    auto result = mSyncConfigDB->write(*mSyncConfigIOContext);
+    auto result = API_EAGAIN;
+
+    if (auto* ioContext = syncConfigIOContext())
+    {
+        result = mSyncConfigDB->write(*ioContext);
+    }
 
     if (result != API_OK)
     {
@@ -2690,19 +2532,19 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
 
     if (User* selfUser = mClient.finduser(mClient.me))
     {
-        auto n = selfUser->getattr(ATTR_JSON_SYNC_CONFIG_NAME);
-        auto k = selfUser->getattr(ATTR_JSON_SYNC_CONFIG_KEY);
+        auto name = selfUser->getattr(ATTR_JSON_SYNC_CONFIG_NAME);
+        auto key = selfUser->getattr(ATTR_JSON_SYNC_CONFIG_KEY);
 
-        if (n && k &&
-            k->size() == KeyStr::STRLEN &&
-            n->size() == NameStr::STRLEN)
+        if (name && key &&
+            key->size() == KeyStr::STRLEN &&
+            name->size() == NameStr::STRLEN)
         {
             // Create the IO context.
             mSyncConfigIOContext.reset(
               new JSONSyncConfigIOContext(mClient.key,
                                          *mClient.fsaccess,
-                                         *k,
-                                         *n,
+                                         *key,
+                                         *name,
                                          mClient.rng));
         }
     }
@@ -2762,11 +2604,11 @@ Sync* Syncs::runningSyncByBackupId(handle backupId) const
     return nullptr;
 }
 
-SyncConfig* Syncs::syncConfigByBackupId(handle bid) const
+SyncConfig* Syncs::syncConfigByBackupId(handle backupId) const
 {
     for (auto& s : mSyncVec)
     {
-        if (s->mConfig.getBackupId() == bid)
+        if (s->mConfig.getBackupId() == backupId)
         {
             return &s->mConfig;
         }
@@ -3275,7 +3117,7 @@ error JSONSyncConfigDB::removeByBackupId(handle bid)
     return removeByBackupId(bid, true);
 }
 
-error JSONSyncConfigDB::removeByRootNode(const handle targetHandle)
+error JSONSyncConfigDB::removeByRootHandle(const handle targetHandle)
 {
     // Any config present with the given target handle?
     if (const auto* config = getByRootHandle(targetHandle))
@@ -4268,7 +4110,7 @@ error JSONSyncConfigStore::removeByBackupId(const handle backupId)
     return API_ENOENT;
 }
 
-error JSONSyncConfigStore::removeByRootNode(const handle targetHandle)
+error JSONSyncConfigStore::removeByRootHandle(const handle targetHandle)
 {
     if (targetHandle == UNDEF)
     {
@@ -4277,7 +4119,7 @@ error JSONSyncConfigStore::removeByRootNode(const handle targetHandle)
 
     for (auto& db : mBackupIdToDB)
     {
-        auto result = db.second->removeByRootNode(targetHandle);
+        auto result = db.second->removeByRootHandle(targetHandle);
 
         if (result != API_ENOENT)
         {
