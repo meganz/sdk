@@ -839,10 +839,8 @@ void JSONWriter::element(const char* buf)
 
 void JSONWriter::element_B64(const string& s)
 {
-    mJson.append(elements() ? ",\"" : "\"");
     element((const byte*)s.data(), int(s.size()));
 }
-
 
 void JSONWriter::openobject()
 {
