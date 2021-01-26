@@ -1413,7 +1413,7 @@ private:
 
 // Temporary shims so that we can easily switch to using
 // NiceMock / FakeStrictMock when GMock/GTest is upgraded on Jenkins.
-#if 0
+#if 1
 
 template<typename MockClass>
 class FakeNiceMock
