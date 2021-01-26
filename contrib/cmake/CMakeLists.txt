@@ -297,8 +297,6 @@ function(ImportALibrary libName includeDir) #receives also libfileDebug & libfil
 endfunction(ImportALibrary)
 
 function(ImportStdVcpkgLibrary libName winDbg win linDbg lin)
-    message(STATUS "ImportStdVcpkgLibrary searching for ${libName}")
-
     set(_vcpkg_lib_prefix "${vcpkg_dir}/lib/")
     set(_vcpkg_lib_prefix_dbg "${vcpkg_dir}/debug/lib")
 
@@ -338,7 +336,6 @@ function(ImportStdVcpkgLibrary libName winDbg win linDbg lin)
     )
 
     if(${_out_var})
-        message(STATUS "Found ${libName}: ${${_out_var}}")
         set_target_properties(
             ${libName}
             PROPERTIES
@@ -348,29 +345,11 @@ function(ImportStdVcpkgLibrary libName winDbg win linDbg lin)
     endif()
 
     if(${_out_var_dbg})
-        message(STATUS "Found debug ${libName}: ${${_out_var_dbg}}")
         set_property(
             TARGET ${libName}
             PROPERTY IMPORTED_LOCATION_DEBUG ${${_out_var_dbg}}
         )
     endif()
-
-#[[
-    if (WIN32 OR EXISTS ${vcpkg_dir}/lib/${lin}.a OR EXISTS ${vcpkg_dir}/debug/lib/${linDbg}.a)
-        add_library(${libName} STATIC IMPORTED)
-        message("adding library: " ${vcpkg_dir}/lib/${lin}.a)
-        # function that imports vcpkg libraries (receiving different names for win/linux)
-        set_property(TARGET ${libName} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${vcpkg_dir}/include)
-        if (WIN32)
-            set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION  ${vcpkg_dir}/lib/${win}.lib)
-            set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION_DEBUG ${vcpkg_dir}/debug/lib/${winDbg}.lib)
-        else()
-                set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION  ${vcpkg_dir}/lib/${lin}.a)
-                set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION_DEBUG ${vcpkg_dir}/debug/lib/${linDbg}.a)
-        endif()
-    endif()
-]]
-
 endfunction(ImportStdVcpkgLibrary)
 
 function(ImportHeaderLibrary libName includeDir)
