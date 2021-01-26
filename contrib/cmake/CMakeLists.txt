@@ -892,9 +892,16 @@ endif()
 
 if (HAVE_ASIO)
     add_executable(tool_tcprelay "${MegaDir}/tests/tool/tcprelay/main.cpp" "${MegaDir}/tests/tool/tcprelay/tcprelay.cpp")
+    
+    set_property(
+        TARGET tool_tcprelay
+        PROPERTY EXCLUDE_FROM_ALL 1
+    )
+    
     target_include_directories(tool_tcprelay PUBLIC "${vcpkg_dir}/installed/include")
     target_compile_definitions(tool_tcprelay PUBLIC -DASIO_STANDALONE)
     target_link_libraries(tool_tcprelay Mega)
+    target_compile_features(tool_tcprelay PUBLIC cxx_std_14)
 
     if (WIN32)
         target_compile_definitions(tool_tcprelay PUBLIC -D_WIN32_WINNT=0x601)
