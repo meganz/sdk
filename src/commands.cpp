@@ -8572,7 +8572,7 @@ bool CommandBackupSyncFetch::procresult(Result r)
                 switch (nid)
                 {
                 case MAKENAMEID2('i', 'd'):     d.backupId = client->json.gethandle(sizeof(handle)); break;
-                case MAKENAMEID1('t'):          d.syncType = client->json.getint32(); break;
+                case MAKENAMEID1('t'):          d.backupType = static_cast<BackupType>(client->json.getint32()); break;
                 case MAKENAMEID1('h'):          d.rootNode = client->json.gethandle(MegaClient::NODEHANDLE); break;
                 case MAKENAMEID1('l'):          client->json.storeobject(&d.localFolder);
                                                 d.localFolder = client->decypherTLVTextWithMasterKey("lf", d.localFolder);
