@@ -2999,11 +2999,10 @@ void exec_backupcentre(autocomplete::ACState& s)
             }
             else
             {
-                cout << "Backup Centre sync count: " << data.size() << endl;
                 for (auto& d : data)
                 {
                     cout << "Backup ID: " << toHandle(d.backupId) << endl;
-                    cout << "  sync type: " << d.syncType << endl;
+                    cout << "  backup type: " << backupTypeToStr(d.backupType) << endl;
                     cout << "  root handle: " << toNodeHandle(d.rootNode) << endl;
                     cout << "  local folder: " << d.localFolder << endl;
                     cout << "  device id: " << d.deviceId << endl;
@@ -3018,6 +3017,8 @@ void exec_backupcentre(autocomplete::ACState& s)
                     cout << "  last activity time: " << d.lastActivityTs << endl;
                     cout << "  last node handle: " << toNodeHandle(d.lastSyncedNodeHandle) << endl << endl;
                 }
+
+                cout << "Backup Centre - Backups count: " << data.size() << endl;
             }
         }));
     }

@@ -60,6 +60,7 @@ std::string toNodeHandle(handle nodeHandle);
 std::string toHandle(handle h);
 #define LOG_NODEHANDLE(x) toNodeHandle(x)
 #define LOG_HANDLE(x) toHandle(x)
+std::string backupTypeToStr(BackupType type);
 
 struct MEGA_API ChunkedHash
 {

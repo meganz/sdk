@@ -1345,7 +1345,7 @@ public:
     struct Data
     {
         handle backupId = UNDEF;
-        int syncType = 0;
+        BackupType backupType = BackupType::INVALID;
         handle rootNode = UNDEF;
         string localFolder;
         string deviceId;

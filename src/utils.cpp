@@ -52,6 +52,29 @@ string toHandle(handle h)
     return string(base64Handle);
 }
 
+string backupTypeToStr(BackupType type)
+{
+    switch (type)
+    {
+    case BackupType::INVALID:
+            return "INVALID";
+    case BackupType::TWO_WAY:
+            return "TWO_WAY";
+    case BackupType::UP_SYNC:
+            return "UP_SYNC";
+    case BackupType::DOWN_SYNC:
+            return "DOWN_SYNC";
+    case BackupType::CAMERA_UPLOAD:
+            return "CAMERA_UPLOAD";
+    case BackupType::MEDIA_UPLOAD:
+            return "MEDIA_UPLOAD";
+    case BackupType::BACKUP_UPLOAD:
+            return "BACKUP_UPLOAD";
+    }
+
+    return "UNKNOWN";
+}
+
 void AddHiddenFileAttribute(mega::LocalPath& path)
 {
 #ifdef _WIN32
