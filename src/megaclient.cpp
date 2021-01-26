@@ -4243,8 +4243,6 @@ void MegaClient::locallogout(bool removecaches)
     }
 
 #ifdef ENABLE_SYNC
-    syncdbkey.clear();
-    syncdbname.clear();
     syncadding = 0;
     totalLocalNodes = 0;
 #endif
@@ -13117,7 +13115,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 #endif
 }
 
-void MegaClient::copySyncConfig(SyncConfig& config, std::function<void(mega::UnifiedSync *, const SyncError &, error)> completion)
+void MegaClient::copySyncConfig(SyncConfig& config, SyncCompletionFunction completion)
 {
     string deviceIdHash = getDeviceidHash();
     string extraData; // Empty extra data for the moment, in the future, any should come in config
@@ -13150,7 +13148,7 @@ void MegaClient::copySyncConfig(SyncConfig& config, std::function<void(mega::Uni
 }
 
 error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* localdebris, bool delayInitialScan, bool notifyApp,
-                          std::function<void(mega::UnifiedSync *, const SyncError &, error)> completion)
+                          SyncCompletionFunction completion)
 {
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;

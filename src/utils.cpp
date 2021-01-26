@@ -2314,6 +2314,27 @@ SyncConfig::SyncConfig(LocalPath localPath,
     , mWarning{warning}
 {}
 
+bool SyncConfig::operator==(const SyncConfig& rhs) const
+{
+    return mEnabled == rhs.mEnabled
+           && mExternalDrivePath == rhs.mExternalDrivePath
+           && mLocalPath == rhs.mLocalPath
+           && mName == rhs.mName
+           && mRemoteNode == rhs.mRemoteNode
+           && mOrigninalPathOfRemoteRootNode == rhs.mOrigninalPathOfRemoteRootNode
+           && mLocalFingerprint == rhs.mLocalFingerprint
+           && mRegExps == rhs.mRegExps
+           && mSyncType == rhs.mSyncType
+           && mError == rhs.mError
+           && mBackupId == rhs.mBackupId
+           && mWarning == rhs.mWarning;
+}
+
+bool SyncConfig::operator!=(const SyncConfig& rhs) const
+{
+    return !(*this == rhs);
+}
+
 bool SyncConfig::getEnabled() const
 {
     return mEnabled;
@@ -2359,7 +2380,7 @@ void SyncConfig::setRegExps(std::vector<std::string>&& v)
     mRegExps = std::move(v);
 }
 
-SyncType SyncConfig::getType() const
+SyncConfig::Type SyncConfig::getType() const
 {
     return mSyncType;
 }
@@ -2388,21 +2409,6 @@ void SyncConfig::setBackupId(const handle &backupId)
 bool SyncConfig::isBackup() const
 {
     return mSyncType == TYPE_BACKUP;
-}
-
-bool SyncConfig::isExternal() const
-{
-    return !mDrivePath.empty();
-}
-
-void SyncConfig::drivePath(const string& drivePath)
-{
-    mDrivePath = drivePath;
-}
-
-const string& SyncConfig::drivePath() const
-{
-    return mDrivePath;
 }
 
 bool SyncConfig::isExternal() const
