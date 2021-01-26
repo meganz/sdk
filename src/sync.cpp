@@ -2145,19 +2145,19 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
 
     if (User* selfUser = mClient.finduser(mClient.me))
     {
-        auto n = selfUser->getattr(ATTR_JSON_SYNC_CONFIG_NAME);
-        auto k = selfUser->getattr(ATTR_JSON_SYNC_CONFIG_KEY);
+        auto name = selfUser->getattr(ATTR_JSON_SYNC_CONFIG_NAME);
+        auto key = selfUser->getattr(ATTR_JSON_SYNC_CONFIG_KEY);
 
-        if (n && k &&
-            k->size() == KeyStr::STRLEN &&
-            n->size() == NameStr::STRLEN)
+        if (name && key &&
+            key->size() == KeyStr::STRLEN &&
+            name->size() == NameStr::STRLEN)
         {
             // Create the IO context.
             mSyncConfigIOContext.reset(
               new JSONSyncConfigIOContext(mClient.key,
                                          *mClient.fsaccess,
-                                         *k,
-                                         *n,
+                                         *key,
+                                         *name,
                                          mClient.rng));
         }
     }
@@ -2215,11 +2215,11 @@ Sync* Syncs::runningSyncByBackupId(handle backupId) const
     return nullptr;
 }
 
-SyncConfig* Syncs::syncConfigByBackupId(handle bid) const
+SyncConfig* Syncs::syncConfigByBackupId(handle backupId) const
 {
     for (auto& s : mSyncVec)
     {
-        if (s->mConfig.getBackupId() == bid)
+        if (s->mConfig.getBackupId() == backupId)
         {
             return &s->mConfig;
         }

@@ -140,7 +140,7 @@ public:
     SyncError mError;
 
     // Warning if creation was successful but the user should know something
-	SyncWarning mWarning;
+    SyncWarning mWarning;
 
     // Unique identifier. any other field can change (even remote handle),
     // and we want to keep disabled configurations saved: e.g: remote handle changed
@@ -496,8 +496,8 @@ struct Syncs
     bool hasRunningSyncs();
     unsigned numRunningSyncs();
     Sync* firstRunningSync();
-    Sync* runningSyncByBackupId(handle tag) const;
-    SyncConfig* syncConfigByBackupId(handle bid) const;
+    Sync* runningSyncByBackupId(handle backupId) const;
+    SyncConfig* syncConfigByBackupId(handle backupId) const;
 
     void forEachUnifiedSync(std::function<void(UnifiedSync&)> f);
     void forEachRunningSync(std::function<void(Sync* s)>);
