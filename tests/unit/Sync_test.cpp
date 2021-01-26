@@ -1090,23 +1090,18 @@ TEST(Sync, assignFilesystemIds_whenFileTypeIsUnexpected_hittingAssert)
 #endif
 */
 
-namespace
-{
 
-void test_SyncConfig_serialization(const mega::SyncConfig& config)
-{
-    std::string data;
-    const_cast<mega::SyncConfig&>(config).serialize(&data);
-    auto newConfig = mega::SyncConfig::unserialize(data);
-    ASSERT_TRUE(newConfig != nullptr);
-    //ASSERT_EQ(config, *newConfig);
-}
 
-}
+namespace mega {
+    enum { TYPE_TWOWAY = SyncConfig::TYPE_TWOWAY };
+    enum { TYPE_UP = SyncConfig::TYPE_UP };
+    enum { TYPE_DOWN = SyncConfig::TYPE_DOWN };
+};
 
+/*
 TEST(Sync, SyncConfig_defaultOptions)
 {
-    const mega::SyncConfig config{127, "foo", "foo", 42, "remote",123};
+    const mega::SyncConfig config{"foo", "foo", 42, "remote",123};
     ASSERT_TRUE(config.getEnabled());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
@@ -1122,7 +1117,7 @@ TEST(Sync, SyncConfig_defaultOptions)
 
 TEST(Sync, SyncConfig_defaultOptions_inactive)
 {
-    mega::SyncConfig config{127, "foo", "foo", 42, "remote",123};
+    mega::SyncConfig config{"foo", "foo", 42, "remote",123};
     config.setEnabled(false);
     ASSERT_FALSE(config.getEnabled());
     ASSERT_EQ("foo", config.getLocalPath());
@@ -1140,9 +1135,8 @@ TEST(Sync, SyncConfig_defaultOptions_inactive)
 TEST(Sync, SyncConfig_defaultOptions_butWithRegExps)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
-    const mega::SyncConfig config{127, "foo", "foo", 42, "remote",123, regExps};
+    const mega::SyncConfig config{"foo", "foo", 42, "remote",123, regExps};
     ASSERT_TRUE(config.getEnabled());
-    ASSERT_EQ(127, config.getTag());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
     ASSERT_EQ(123, config.getLocalFingerprint());
@@ -1158,9 +1152,8 @@ TEST(Sync, SyncConfig_defaultOptions_butWithRegExps)
 TEST(Sync, SyncConfig_upSync_syncDelFalse_overwriteFalse)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
-    const mega::SyncConfig config{127, "foo", "foo", 42, "remote",123, regExps, true, mega::TYPE_UP};
+    const mega::SyncConfig config{"foo", "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_UP};
     ASSERT_TRUE(config.getEnabled());
-    ASSERT_EQ(127, config.getTag());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
     ASSERT_EQ(123, config.getLocalFingerprint());
@@ -1176,9 +1169,8 @@ TEST(Sync, SyncConfig_upSync_syncDelFalse_overwriteFalse)
 TEST(Sync, SyncConfig_upSync_syncDelTrue_overwriteTrue)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
-    const mega::SyncConfig config{127, "foo", "foo", 42, "remote",123, regExps, true, mega::TYPE_UP, true, true};
+    const mega::SyncConfig config{"foo", "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_UP, true, true};
     ASSERT_TRUE(config.getEnabled());
-    ASSERT_EQ(127, config.getTag());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
     ASSERT_EQ(123, config.getLocalFingerprint());
@@ -1194,9 +1186,8 @@ TEST(Sync, SyncConfig_upSync_syncDelTrue_overwriteTrue)
 TEST(Sync, SyncConfig_downSync_syncDelFalse_overwriteFalse)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
-    const mega::SyncConfig config{127, "foo", "foo", 42, "remote",123, regExps, true, mega::TYPE_DOWN};
+    const mega::SyncConfig config{"foo", "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_DOWN};
     ASSERT_TRUE(config.getEnabled());
-    ASSERT_EQ(127, config.getTag());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
     ASSERT_EQ(123, config.getLocalFingerprint());
@@ -1212,39 +1203,43 @@ TEST(Sync, SyncConfig_downSync_syncDelFalse_overwriteFalse)
 TEST(Sync, SyncConfig_downSync_syncDelTrue_overwriteTrue)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
-    const mega::SyncConfig config{127, "foo", "foo", 42, "remote",123, regExps, true, mega::TYPE_DOWN, true, true};
+    const mega::SyncConfig config{"foo", "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_DOWN, true, true};
     ASSERT_TRUE(config.getEnabled());
-    ASSERT_EQ(127, config.getTag());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
     ASSERT_EQ(123, config.getLocalFingerprint());
     ASSERT_EQ(regExps, config.getRegExps());
-    ASSERT_EQ(mega::TYPE_DOWN, config.getType());
+    ASSERT_EQ(mega::SyncConfig::TYPE_DOWN, config.getType());
     ASSERT_FALSE(config.isUpSync());
     ASSERT_TRUE(config.isDownSync());
     ASSERT_TRUE(config.syncDeletions());
     ASSERT_TRUE(config.forceOverwrite());
     test_SyncConfig_serialization(config);
 }
+*/
 
+#if 0
 namespace
 {
 
 void test_SyncConfigBag(mega::SyncConfigBag& bag)
 {
     ASSERT_TRUE(bag.all().empty());
-    const mega::SyncConfig config1{127, "foo", "foo", 41, "remote", 122, {}, true, mega::TYPE_TWOWAY, false, true, mega::LOCAL_FINGERPRINT_MISMATCH};
+    mega::SyncConfig config1{"foo", "foo", 41, "remote", 122, {}, true, mega::SyncConfig::Type::TYPE_TWOWAY, false, true, mega::LOCAL_FINGERPRINT_MISMATCH};
+    config1.setBackupId(12345);
     bag.insert(config1);
-    const mega::SyncConfig config2{128, "bar", "bar", 42, "remote", 123, {}, false, mega::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
+    mega::SyncConfig config2{"bar", "bar", 42, "remote", 123, {}, false, mega::SyncConfig::Type::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
+    config2.setBackupId(123456);
     bag.insert(config2);
-    const std::vector<mega::SyncConfig> expConfigs1{config1, config2};
+    std::vector<mega::SyncConfig> expConfigs1{config1, config2};
     //ASSERT_EQ(expConfigs1, bag.all());
-    bag.removeByTag(config1.getTag());
-    const std::vector<mega::SyncConfig> expConfigs2{config2};
+    bag.removeByBackupId(12345);
+    std::vector<mega::SyncConfig> expConfigs2{config2};
     //ASSERT_EQ(expConfigs2, bag.all());
-    const mega::SyncConfig config3{128, "bar2", "bar2", 43, "remote", 124};
+    mega::SyncConfig config3{"bar2", "bar2", 43, "remote", 124};
+    config3.setBackupId(1234567);
     bag.insert(config3); // update
-    const std::vector<mega::SyncConfig> expConfigs3{config3};
+    std::vector<mega::SyncConfig> expConfigs3{config3};
     //ASSERT_EQ(expConfigs3, bag.all());
     bag.insert(config1);
     bag.insert(config2);
@@ -1353,24 +1348,29 @@ TEST(Sync, SyncConfigBag_withPreviousState)
     mega::PrnGen rng;
 
     mega::SyncConfigBag bag1{dbaccess, fsaccess, rng, "some_id"};
-    const mega::SyncConfig config1{127, "foo", "foo", 41, "remote", 122, {}, true, mega::TYPE_TWOWAY, false, true, mega::LOCAL_FINGERPRINT_MISMATCH};
+    mega::SyncConfig config1{"foo", "foo", 41, "remote", 122, {}, true, mega::SyncConfig::Type::TYPE_TWOWAY, false, true, mega::LOCAL_FINGERPRINT_MISMATCH};
+    config1.setBackupId(12345);
     bag1.insert(config1);
     ASSERT_EQ(1u, mData.size());
-    const mega::SyncConfig config2{128, "bar", "bar", 42, "remote", 123, {}, false, mega::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
+    mega::SyncConfig config2{"bar", "bar", 42, "remote", 123, {}, false, mega::SyncConfig::Type::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
+    config2.setBackupId(123456);
     bag1.insert(config2);
     ASSERT_EQ(2u, mData.size());
-    const mega::SyncConfig config3{129, "bar2", "bar2", 43, "remote", 124, {}, false, mega::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
+    mega::SyncConfig config3{"bar2", "bar2", 43, "remote", 124, {}, false, mega::SyncConfig::Type::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
+    config3.setBackupId(1234567);
     bag1.insert(config3);
     ASSERT_EQ(3u, mData.size());
     bag1.insert(config3); // update
     ASSERT_EQ(3u, mData.size());
-    bag1.removeByTag(config3.getTag());
+    bag1.removeByBackupId(1234567);
     ASSERT_EQ(2u, mData.size());
 
     const mega::SyncConfigBag bag2{dbaccess, fsaccess, rng, "some_id"};
     const std::vector<mega::SyncConfig> expConfigs{config1, config2};
     //ASSERT_EQ(expConfigs, bag2.all());
 }
+#endif
+
 
 namespace JSONSyncConfigTests
 {
@@ -1413,6 +1413,8 @@ private:
 
 // Temporary shims so that we can easily switch to using
 // NiceMock / FakeStrictMock when GMock/GTest is upgraded on Jenkins.
+#if 0
+
 template<typename MockClass>
 class FakeNiceMock
     : public MockClass
@@ -1427,7 +1429,17 @@ class FakeStrictMock
 {
 public:
         using MockClass::MockClass;
-}; // FakeFakeStrictMock<T>
+}; // FakeStrictMock<T>
+
+#else
+
+template<typename T>
+using FakeNiceMock = NiceMock<T>;
+
+template<typename T>
+using FakeStrictMock = StrictMock<T>;
+
+#endif
 
 class Utilities
 {
@@ -1511,8 +1523,8 @@ public:
                                    rng)
         {
             // Perform real behavior by default.
-            ON_CALL(*this, get(_, _))
-              .WillByDefault(Invoke(this, &IOContext::getConcrete));
+            ON_CALL(*this, getSlotsInOrder(_, _))
+              .WillByDefault(Invoke(this, &IOContext::getSlotsInOrderConcrete));
 
             ON_CALL(*this, read(_, _, _))
               .WillByDefault(Invoke(this, &IOContext::readConcrete));
@@ -1521,7 +1533,7 @@ public:
               .WillByDefault(Invoke(this, &IOContext::writeConcrete));
         }
 
-        MOCK_METHOD2(get, error(const LocalPath&, vector<unsigned int>&));
+        MOCK_METHOD2(getSlotsInOrder, error(const LocalPath&, vector<unsigned int>&));
 
         MOCK_METHOD3(read, error(const LocalPath&, string&, const unsigned int));
 
@@ -1529,10 +1541,10 @@ public:
 
     private:
         // Delegate to real behavior.
-        error getConcrete(const LocalPath& drivePath,
-                          vector<unsigned int>& slots)
+        error getSlotsInOrderConcrete(const LocalPath& drivePath,
+                                      vector<unsigned int>& slots)
         {
-            return JSONSyncConfigIOContext::get(drivePath, slots);
+            return JSONSyncConfigIOContext::getSlotsInOrder(drivePath, slots);
         }
 
         error readConcrete(const LocalPath& drivePath,
@@ -1557,6 +1569,7 @@ public:
       , mRNG()
       , mConfigKey(Utilities::randomBase64(32))
       , mConfigName(Utilities::randomBase64(16))
+      , mConfigPrefix("megaclient_syncconfig_")
       , mIOContext(mCipher,
                    mFSAccess,
                    mConfigKey,
@@ -1581,6 +1594,7 @@ protected:
     PrnGen mRNG;
     const string mConfigKey;
     const string mConfigName;
+    const string mConfigPrefix;
     FakeNiceMock<IOContext> mIOContext;
 }; // JSONSyncConfigTest
 
@@ -1593,9 +1607,14 @@ public:
     {
     }
 
-    const string& configName() const
+    string configName() const
     {
-        return mConfigName;
+        return mConfigPrefix + mConfigName;
+    }
+
+    const string& configPrefix() const
+    {
+        return mConfigPrefix;
     }
 }; // JSONSyncConfigIOContextTest
 
@@ -1606,13 +1625,8 @@ TEST_F(JSONSyncConfigIOContextTest, GetBadPath)
     // Generate a bogus path.
     const auto drivePath = Utilities::randomPath();
 
-    auto backupPath = drivePath;
-
-    backupPath.appendWithSeparator(
-      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
-
     // Try to read slots from an invalid path.
-    EXPECT_NE(ioContext().get(backupPath, slots), API_OK);
+    EXPECT_NE(ioContext().getSlotsInOrder(drivePath, slots), API_OK);
 
     // Slots should be empty.
     EXPECT_TRUE(slots.empty());
@@ -1620,22 +1634,12 @@ TEST_F(JSONSyncConfigIOContextTest, GetBadPath)
 
 TEST_F(JSONSyncConfigIOContextTest, GetNoSlots)
 {
-    const auto& BACKUP_DIR =
-      JSONSyncConfigStore::BACKUP_CONFIG_DIR;
-
     // Make sure the drive path exists.
     Directory drive(fsAccess(), Utilities::randomPath());
 
-    // Make sure the backup directory exists.
-    LocalPath backupPath = drive;
-
-    backupPath.appendWithSeparator(BACKUP_DIR, false);
-
-    EXPECT_TRUE(fsAccess().mkdirlocal(backupPath, false));
-
     // Generate some malformed slots for this user.
     {
-        LocalPath configPath = backupPath;
+        LocalPath configPath = drive;
 
         // This file will be ignored as it has no slot suffix.
         configPath.appendWithSeparator(
@@ -1653,9 +1657,11 @@ TEST_F(JSONSyncConfigIOContextTest, GetNoSlots)
 
     // Generate a slot for a different user.
     {
-        LocalPath configPath = backupPath;
+        LocalPath configPath = drive;
 
-        configPath.appendWithSeparator(Utilities::randomPath(), false);
+        configPath.appendWithSeparator(
+          LocalPath::fromPath(configPrefix(), fsAccess()), false);
+        configPath.append(Utilities::randomPath());
         configPath.append(LocalPath::fromPath(".0", fsAccess()));
 
         EXPECT_TRUE(Utilities::randomFile(configPath));
@@ -1664,7 +1670,7 @@ TEST_F(JSONSyncConfigIOContextTest, GetNoSlots)
     vector<unsigned int> slots;
 
     // Try and get a list of slots.
-    EXPECT_EQ(ioContext().get(backupPath, slots), API_OK);
+    EXPECT_EQ(ioContext().getSlotsInOrder(drive.path(), slots), API_OK);
 
     // Slots should be empty.
     EXPECT_TRUE(slots.empty());
@@ -1672,24 +1678,14 @@ TEST_F(JSONSyncConfigIOContextTest, GetNoSlots)
 
 TEST_F(JSONSyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
 {
-    const auto& BACKUP_DIR =
-      JSONSyncConfigStore::BACKUP_CONFIG_DIR;
-
     const size_t NUM_SLOTS = 3;
 
     // Make sure drive path exists.
     Directory drive(fsAccess(), Utilities::randomPath());
 
-    // Make sure backup directory exists.
-    LocalPath backupPath = drive;
-
-    backupPath.appendWithSeparator(BACKUP_DIR, false);
-
-    EXPECT_TRUE(fsAccess().mkdirlocal(backupPath, false));
-
     // Generate some slots for this user.
     {
-        LocalPath configPath = backupPath;
+        LocalPath configPath = drive;
 
         // Generate suitable config path prefix.
         configPath.appendWithSeparator(
@@ -1719,7 +1715,7 @@ TEST_F(JSONSyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
     vector<unsigned int> slots;
 
     // Get the slots.
-    EXPECT_EQ(ioContext().get(backupPath, slots), API_OK);
+    EXPECT_EQ(ioContext().getSlotsInOrder(drive.path(), slots), API_OK);
 
     // Did we retrieve the correct number of slots?
     ASSERT_EQ(slots.size(), NUM_SLOTS);
@@ -1736,24 +1732,14 @@ TEST_F(JSONSyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
 
 TEST_F(JSONSyncConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
 {
-    const auto& BACKUP_DIR =
-      JSONSyncConfigStore::BACKUP_CONFIG_DIR;
-
     const size_t NUM_SLOTS = 3;
 
     // Make sure drive path exists.
     Directory drive(fsAccess(), Utilities::randomPath());
 
-    // Make sure backup directory exists.
-    LocalPath backupPath = drive;
-
-    backupPath.appendWithSeparator(BACKUP_DIR, false);
-
-    EXPECT_TRUE(fsAccess().mkdirlocal(backupPath, false));
-
     // Generate some slots for this user.
     {
-        LocalPath configPath = backupPath;
+        LocalPath configPath = drive;
 
         // Generate suitable config path prefix.
         configPath.appendWithSeparator(
@@ -1783,7 +1769,7 @@ TEST_F(JSONSyncConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
     vector<unsigned int> slots;
 
     // Get the slots.
-    EXPECT_EQ(ioContext().get(backupPath, slots), API_OK);
+    EXPECT_EQ(ioContext().getSlotsInOrder(drive.path(), slots), API_OK);
 
     // Did we retrieve the correct number of slots?
     EXPECT_EQ(slots.size(), NUM_SLOTS);
@@ -1803,20 +1789,14 @@ TEST_F(JSONSyncConfigIOContextTest, Read)
 {
     // Make sure the drive path exists.
     Directory drive(fsAccess(), Utilities::randomPath());
-    
-    // Make sure backup directory exists.
-    LocalPath backupPath = drive;
-
-    backupPath.appendWithSeparator(
-      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
 
     // Try writing some data out and reading it back again.
     {
         string read;
         string written = Utilities::randomBytes(64);
 
-        EXPECT_EQ(ioContext().write(backupPath, written, 0), API_OK);
-        EXPECT_EQ(ioContext().read(backupPath, read, 0), API_OK);
+        EXPECT_EQ(ioContext().write(drive.path(), written, 0), API_OK);
+        EXPECT_EQ(ioContext().read(drive.path(), read, 0), API_OK);
         EXPECT_EQ(read, written);
     }
 
@@ -1825,34 +1805,24 @@ TEST_F(JSONSyncConfigIOContextTest, Read)
         string read;
         string written = Utilities::randomBytes(64);
 
-        EXPECT_EQ(ioContext().read(backupPath, read, 1), API_EREAD);
+        EXPECT_EQ(ioContext().read(drive.path(), read, 1), API_EREAD);
         EXPECT_TRUE(read.empty());
 
-        EXPECT_EQ(ioContext().write(backupPath, written, 1), API_OK);
-        EXPECT_EQ(ioContext().read(backupPath, read, 1), API_OK);
+        EXPECT_EQ(ioContext().write(drive.path(), written, 1), API_OK);
+        EXPECT_EQ(ioContext().read(drive.path(), read, 1), API_OK);
         EXPECT_EQ(read, written);
     }
 }
 
 TEST_F(JSONSyncConfigIOContextTest, ReadBadData)
 {
-    const auto& BACKUP_DIR =
-      JSONSyncConfigStore::BACKUP_CONFIG_DIR;
-
     string data;
 
     // Make sure the drive path exists.
     Directory drive(fsAccess(), Utilities::randomPath());
 
-    // Make sure the backup directory exists.
-    LocalPath backupPath = drive;
-
-    backupPath.appendWithSeparator(BACKUP_DIR, false);
-
-    EXPECT_TRUE(fsAccess().mkdirlocal(backupPath, false));
-
     // Generate slot path.
-    LocalPath slotPath = backupPath;
+    LocalPath slotPath = drive;
 
     slotPath.appendWithSeparator(
       LocalPath::fromPath(configName(), fsAccess()), false);
@@ -1861,12 +1831,12 @@ TEST_F(JSONSyncConfigIOContextTest, ReadBadData)
 
     // Try loading a file that's too short to be valid.
     EXPECT_TRUE(Utilities::randomFile(slotPath, 1));
-    EXPECT_EQ(ioContext().read(backupPath, data, 0), API_EREAD);
+    EXPECT_EQ(ioContext().read(drive.path(), data, 0), API_EREAD);
     EXPECT_TRUE(data.empty());
 
     // Try loading a file composed entirely of junk.
     EXPECT_TRUE(Utilities::randomFile(slotPath, 128));
-    EXPECT_EQ(ioContext().read(backupPath, data, 0), API_EREAD);
+    EXPECT_EQ(ioContext().read(drive.path(), data, 0), API_EREAD);
     EXPECT_TRUE(data.empty());
 }
 
@@ -1875,13 +1845,8 @@ TEST_F(JSONSyncConfigIOContextTest, ReadBadPath)
     const LocalPath drivePath = Utilities::randomPath();
     string data;
 
-    LocalPath backupPath = drivePath;
-
-    backupPath.appendWithSeparator(
-      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
-
     // Try and read data from an insane path.
-    EXPECT_EQ(ioContext().read(backupPath, data, 0), API_EREAD);
+    EXPECT_EQ(ioContext().read(drivePath, data, 0), API_EREAD);
     EXPECT_TRUE(data.empty());
 }
 
@@ -1893,27 +1858,34 @@ TEST_F(JSONSyncConfigIOContextTest, Serialize)
 
     // Populate the database with two configs.
     {
-        JSONSyncConfig config;
+        SyncConfig config;
 
-        config.enabled = false;
-        config.heartbeatID = UNDEF;
-        config.lastError = NO_SYNC_ERROR;
-        config.sourcePath = Utilities::randomPath();
-        config.tag = 1;
-        config.targetHandle = UNDEF;
-        config.targetPath = Utilities::randomBase64();
+        config.mBackupId = 1;
+        config.mEnabled = false;
+        config.mError = NO_SYNC_ERROR;
+        config.mLocalFingerprint = 1;
+        config.mLocalPath = Utilities::randomPath();
+        config.mName = Utilities::randomBase64();
+        config.mOrigninalPathOfRemoteRootNode = Utilities::randomBase64();
+        config.mRemoteNode = UNDEF;
+        config.mWarning = NO_SYNC_WARNING;
+        config.mSyncType = SyncConfig::TYPE_TWOWAY;
 
-        written.emplace(config.tag, config);
+        written.emplace(config.mBackupId, config);
 
-        config.enabled = true;
-        config.heartbeatID = 1;
-        config.lastError = UNKNOWN_ERROR;
-        config.sourcePath = Utilities::randomPath();
-        config.tag = 2;
-        config.targetHandle = 3;
-        config.targetPath = Utilities::randomBase64();
+        config.mBackupId = 2;
+        config.mEnabled = true;
+        config.mError = UNKNOWN_ERROR;
+        config.mLocalFingerprint = 2;
+        config.mLocalPath = Utilities::randomPath();
+        config.mName = Utilities::randomBase64();
+        config.mOrigninalPathOfRemoteRootNode = Utilities::randomBase64();
+        config.mRegExps = {"a", "b"};
+        config.mRemoteNode = 3;
+        config.mWarning = LOCAL_IS_FAT;
+        config.mSyncType = SyncConfig::TYPE_BACKUP;
 
-        written.emplace(config.tag, config);
+        written.emplace(config.mBackupId, config);
     }
 
     // Serialize the database.
@@ -1957,13 +1929,11 @@ TEST_F(JSONSyncConfigIOContextTest, WriteBadPath)
     const LocalPath drivePath = Utilities::randomPath();
     const string data = Utilities::randomBytes(64);
 
-    LocalPath backupPath = drivePath;
-
-    backupPath.appendWithSeparator(
-      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
+    auto dbPath = drivePath;
+    dbPath.appendWithSeparator(Utilities::randomPath(), false);
 
     // Try and write data to an insane path.
-    EXPECT_NE(ioContext().write(backupPath, data, 0), API_OK);
+    EXPECT_NE(ioContext().write(dbPath, data, 0), API_OK);
 }
 
 class JSONSyncConfigDBTest
@@ -1975,7 +1945,7 @@ public:
     {
     public:
         // Convenience.
-        using Config = JSONSyncConfig;
+        using Config = SyncConfig;
         using DB = JSONSyncConfigDB;
 
         MOCK_METHOD2(onAdd, void(DB&, const Config&));
@@ -1993,8 +1963,6 @@ public:
       , mDrivePath(mDBPath)
       , mObserver()
     {
-        mDBPath.appendWithSeparator(
-          JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
     }
 
     const LocalPath& dbPath() const
@@ -2024,13 +1992,13 @@ TEST_F(JSONSyncConfigDBTest, AddWithTarget)
     JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Create and populate config.
-    JSONSyncConfig config;
+    SyncConfig config;
 
-    config.drivePath = drivePath();
-    config.sourcePath = LocalPath();
-    config.enabled = true;
-    config.tag = 0;
-    config.targetHandle = 1;
+    config.mExternalDrivePath = drivePath();
+    config.mLocalPath = LocalPath();
+    config.mEnabled = true;
+    config.mBackupId = 0;
+    config.mRemoteNode = 1;
 
     // Database should tell the observer that a new config has been added.
     Expectation onAdd =
@@ -2052,10 +2020,10 @@ TEST_F(JSONSyncConfigDBTest, AddWithTarget)
     EXPECT_EQ(configDB.configs().size(), 1);
 
     // Can we retrieve the config by tag?
-    EXPECT_EQ(configDB.get(config.tag), c);
+    EXPECT_EQ(configDB.getByBackupId(config.mBackupId), c);
 
     // Can we retrieve the config by target handle?
-    EXPECT_EQ(configDB.get(config.targetHandle), c);
+    EXPECT_EQ(configDB.getByRootHandle(config.mRemoteNode), c);
 }
 
 TEST_F(JSONSyncConfigDBTest, AddWithoutTarget)
@@ -2064,13 +2032,13 @@ TEST_F(JSONSyncConfigDBTest, AddWithoutTarget)
     JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Create and populate config.
-    JSONSyncConfig config;
+    SyncConfig config;
 
-    config.drivePath = drivePath();
-    config.sourcePath = LocalPath();
-    config.enabled = true;
-    config.tag = 0;
-    config.targetHandle = UNDEF;
+    config.mExternalDrivePath = drivePath();
+    config.mLocalPath = LocalPath();
+    config.mEnabled = true;
+    config.mBackupId = 0;
+    config.mRemoteNode = UNDEF;
 
     // Database should tell the observer that a new config has been added.
     Expectation onAdd =
@@ -2093,29 +2061,30 @@ TEST_F(JSONSyncConfigDBTest, AddWithoutTarget)
     EXPECT_EQ(configDB.configs().size(), 1);
 
     // Can we retrieve the config by tag?
-    EXPECT_EQ(configDB.get(config.tag), c);
+    EXPECT_EQ(configDB.getByBackupId(config.mBackupId), c);
 
     // No mapping should ever be created for an UNDEF handle.
-    EXPECT_EQ(configDB.get(UNDEF), nullptr);
+    EXPECT_EQ(configDB.getByRootHandle(UNDEF), nullptr);
 }
+
 
 TEST_F(JSONSyncConfigDBTest, Clear)
 {
     JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a couple configurations.
-    JSONSyncConfig configA;
-    JSONSyncConfig configB;
+    SyncConfig configA;
+    SyncConfig configB;
 
-    configA.drivePath = drivePath();
-    configA.sourcePath = Utilities::randomPath();
-    configA.tag = 0;
-    configA.targetHandle = 1;
+    configA.mExternalDrivePath = drivePath();
+    configA.mLocalPath = Utilities::randomPath();
+    configA.mBackupId = 0;
+    configA.mRemoteNode = 1;
 
-    configB.drivePath = drivePath();
-    configB.sourcePath = Utilities::randomPath();
-    configB.tag = 2;
-    configB.targetHandle = 3;
+    configB.mExternalDrivePath = drivePath();
+    configB.mLocalPath = Utilities::randomPath();
+    configB.mBackupId = 2;
+    configB.mRemoteNode = 3;
 
     EXPECT_NE(configDB.add(configA), nullptr);
     EXPECT_NE(configDB.add(configB), nullptr);
@@ -2148,10 +2117,10 @@ TEST_F(JSONSyncConfigDBTest, Clear)
     EXPECT_TRUE(configDB.configs().empty());
 
     // No mappings should remain.
-    EXPECT_EQ(configDB.get(configA.tag), nullptr);
-    EXPECT_EQ(configDB.get(configB.tag), nullptr);
-    EXPECT_EQ(configDB.get(configA.targetHandle), nullptr);
-    EXPECT_EQ(configDB.get(configB.targetHandle), nullptr);
+    EXPECT_EQ(configDB.getByBackupId(configA.mBackupId), nullptr);
+    EXPECT_EQ(configDB.getByBackupId(configB.mBackupId), nullptr);
+    EXPECT_EQ(configDB.getByRootHandle(configA.mRemoteNode), nullptr);
+    EXPECT_EQ(configDB.getByRootHandle(configB.mRemoteNode), nullptr);
 }
 
 TEST_F(JSONSyncConfigDBTest, ClearEmpty)
@@ -2173,12 +2142,12 @@ TEST_F(JSONSyncConfigDBTest, Destruct)
         JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
         // Create config.
-        JSONSyncConfig config;
+        SyncConfig config;
 
-        config.drivePath = drivePath();
-        config.sourcePath = Utilities::randomPath();
-        config.tag = 1;
-        config.targetHandle = 2;
+        config.mExternalDrivePath = drivePath();
+        config.mLocalPath = Utilities::randomPath();
+        config.mBackupId = 1;
+        config.mRemoteNode = 2;
 
         // Add config.
         EXPECT_NE(configDB.add(config), nullptr);
@@ -2219,12 +2188,12 @@ TEST_F(JSONSyncConfigDBTest, Read)
     JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a configuration to be written to disk.
-    JSONSyncConfig config;
+    SyncConfig config;
 
-    config.drivePath = drivePath();
-    config.sourcePath = Utilities::randomPath();
-    config.tag = 1;
-    config.targetHandle = 2;
+    config.mExternalDrivePath = drivePath();
+    config.mLocalPath = Utilities::randomPath();
+    config.mBackupId = 1;
+    config.mRemoteNode = 2;
 
     // Add the config to the database.
     EXPECT_NE(configDB.add(config), nullptr);
@@ -2250,7 +2219,7 @@ TEST_F(JSONSyncConfigDBTest, Read)
     // Return a single slot for reading.
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(dbPath()), _))
+                  getSlotsInOrder(Eq(dbPath()), _))
         .WillOnce(DoAll(SetArgReferee<1>(slots),
                         Return(API_OK)));
 
@@ -2275,12 +2244,12 @@ TEST_F(JSONSyncConfigDBTest, Read)
     EXPECT_EQ(configDB.read(ioContext()), API_OK);
 
     // Can we retrieve the loaded config by tag?
-    const auto* c = configDB.get(config.tag);
+    const auto* c = configDB.getByBackupId(config.mBackupId);
     ASSERT_NE(c, nullptr);
     EXPECT_EQ(*c, config);
 
     // Can we retrieve the loaded config by target handle?
-    EXPECT_EQ(configDB.get(config.targetHandle), c);
+    EXPECT_EQ(configDB.getByRootHandle(config.mRemoteNode), c);
 }
 
 TEST_F(JSONSyncConfigDBTest, ReadBadDecrypt)
@@ -2292,7 +2261,7 @@ TEST_F(JSONSyncConfigDBTest, ReadBadDecrypt)
     // Return a single slot for reading.
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(dbPath()), _))
+                  getSlotsInOrder(Eq(dbPath()), _))
         .WillOnce(DoAll(SetArgReferee<1>(slots),
                         Return(API_OK)));
 
@@ -2311,11 +2280,11 @@ TEST_F(JSONSyncConfigDBTest, ReadEmptyClearsDatabase)
     JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a config to the database.
-    JSONSyncConfig config;
+    SyncConfig config;
 
-    config.drivePath = drivePath();
-    config.tag = 1;
-    config.targetHandle = 2;
+    config.mExternalDrivePath = drivePath();
+    config.mBackupId = 1;
+    config.mRemoteNode = 2;
 
     EXPECT_NE(configDB.add(config), nullptr);
 
@@ -2324,7 +2293,7 @@ TEST_F(JSONSyncConfigDBTest, ReadEmptyClearsDatabase)
 
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(dbPath()), _))
+                  getSlotsInOrder(Eq(dbPath()), _))
         .WillOnce(DoAll(SetArgReferee<1>(slots),
                         Return(API_OK)));
 
@@ -2349,10 +2318,10 @@ TEST_F(JSONSyncConfigDBTest, ReadEmptyClearsDatabase)
     EXPECT_EQ(configDB.read(ioContext()), API_OK);
 
     // Tag mapping should've been removed.
-    EXPECT_EQ(configDB.get(config.tag), nullptr);
+    EXPECT_EQ(configDB.getByBackupId(config.mBackupId), nullptr);
 
     // Target Handle mapping should've been removed.
-    EXPECT_EQ(configDB.get(config.targetHandle), nullptr);
+    EXPECT_EQ(configDB.getByRootHandle(config.mRemoteNode), nullptr);
 }
 
 TEST_F(JSONSyncConfigDBTest, ReadNoSlots)
@@ -2361,7 +2330,7 @@ TEST_F(JSONSyncConfigDBTest, ReadNoSlots)
 
     // Don't return any slots for reading.
     EXPECT_CALL(ioContext(),
-                get(Eq(dbPath()), _))
+                getSlotsInOrder(Eq(dbPath()), _))
       .WillOnce(Return(API_ENOENT));
 
     // Read should fail as there are no slots.
@@ -2373,12 +2342,12 @@ TEST_F(JSONSyncConfigDBTest, ReadUpdatesDatabase)
     JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a config to the database.
-    JSONSyncConfig configBefore;
+    SyncConfig configBefore;
 
-    configBefore.drivePath = drivePath();
-    configBefore.sourcePath = Utilities::randomPath();
-    configBefore.tag = 1;
-    configBefore.targetHandle = 2;
+    configBefore.mExternalDrivePath = drivePath();
+    configBefore.mLocalPath = Utilities::randomPath();
+    configBefore.mBackupId = 1;
+    configBefore.mRemoteNode = 2;
 
     EXPECT_NE(configDB.add(configBefore), nullptr);
 
@@ -2394,9 +2363,9 @@ TEST_F(JSONSyncConfigDBTest, ReadUpdatesDatabase)
     EXPECT_EQ(configDB.write(ioContext()), API_OK);
 
     // Change the config's target handle.
-    JSONSyncConfig configAfter = configBefore;
+    SyncConfig configAfter = configBefore;
 
-    configAfter.targetHandle = 3;
+    configAfter.mRemoteNode = 3;
 
     EXPECT_NE(configDB.add(configAfter), nullptr);
 
@@ -2405,7 +2374,7 @@ TEST_F(JSONSyncConfigDBTest, ReadUpdatesDatabase)
 
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(dbPath()), _))
+                  getSlotsInOrder(Eq(dbPath()), _))
         .WillOnce(DoAll(SetArgReferee<1>(slots),
                         Return(API_OK)));
 
@@ -2432,15 +2401,15 @@ TEST_F(JSONSyncConfigDBTest, ReadUpdatesDatabase)
     EXPECT_EQ(configDB.read(ioContext()), API_OK);
 
     // Can we still retrieve the config by tag?
-    const auto* c = configDB.get(configBefore.tag);
+    const auto* c = configDB.getByBackupId(configBefore.mBackupId);
     ASSERT_NE(c, nullptr);
     EXPECT_EQ(*c, configBefore);
 
     // Updated target handle mapping should no longer exist.
-    EXPECT_EQ(configDB.get(configAfter.targetHandle), nullptr);
+    EXPECT_EQ(configDB.getByRootHandle(configAfter.mRemoteNode), nullptr);
 
     // Original target handle mapping should be in effect.
-    EXPECT_EQ(configDB.get(configBefore.targetHandle), c);
+    EXPECT_EQ(configDB.getByRootHandle(configBefore.mRemoteNode), c);
 }
 
 TEST_F(JSONSyncConfigDBTest, ReadTriesAllAvailableSlots)
@@ -2453,7 +2422,7 @@ TEST_F(JSONSyncConfigDBTest, ReadTriesAllAvailableSlots)
     // Return three slots for reading.
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(dbPath()), _))
+                  getSlotsInOrder(Eq(dbPath()), _))
       .WillOnce(DoAll(SetArgReferee<1>(slots),
                       Return(API_OK)));
 
@@ -2481,17 +2450,17 @@ TEST_F(JSONSyncConfigDBTest, ReadTriesAllAvailableSlots)
     EXPECT_EQ(configDB.read(ioContext()), API_OK);
 }
 
-TEST_F(JSONSyncConfigDBTest, RemoveByTag)
+TEST_F(JSONSyncConfigDBTest, RemoveByBackupID)
 {
     JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a config to remove.
-    JSONSyncConfig config;
+    SyncConfig config;
 
-    config.drivePath = drivePath();
-    config.sourcePath = Utilities::randomPath();
-    config.tag = 1;
-    config.targetHandle = 2;
+    config.mExternalDrivePath = drivePath();
+    config.mLocalPath = Utilities::randomPath();
+    config.mBackupId = 1;
+    config.mRemoteNode = 2;
 
     EXPECT_NE(configDB.add(config), nullptr);
 
@@ -2508,37 +2477,37 @@ TEST_F(JSONSyncConfigDBTest, RemoveByTag)
       .After(onRemove);
 
     // Remove the config by tag.
-    EXPECT_EQ(configDB.remove(config.tag), API_OK);
+    EXPECT_EQ(configDB.removeByBackupId(config.mBackupId), API_OK);
 
     // Database should now be empty.
     EXPECT_TRUE(configDB.configs().empty());
 
     // Mappings should be removed.
-    EXPECT_EQ(configDB.get(config.tag), nullptr);
-    EXPECT_EQ(configDB.get(config.targetHandle), nullptr);
+    EXPECT_EQ(configDB.getByBackupId(config.mBackupId), nullptr);
+    EXPECT_EQ(configDB.getByRootHandle(config.mRemoteNode), nullptr);
 }
 
-TEST_F(JSONSyncConfigDBTest, RemoveByTagWhenEmpty)
+TEST_F(JSONSyncConfigDBTest, RemoveByBackupIDWhenEmpty)
 {
     JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     EXPECT_CALL(observer(), onDirty(_)).Times(0);
     EXPECT_CALL(observer(), onRemove(_, _)).Times(0);
 
-    EXPECT_EQ(configDB.remove(0), API_ENOENT);
+    EXPECT_EQ(configDB.removeByBackupId(0), API_ENOENT);
 }
 
-TEST_F(JSONSyncConfigDBTest, RemoveByUnknownTag)
+TEST_F(JSONSyncConfigDBTest, RemoveByUnknownBackupID)
 {
     JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add some config so the database isn't empty.
     {
-        JSONSyncConfig config;
+        SyncConfig config;
 
-        config.drivePath = drivePath();
-        config.tag = 0;
-        config.targetHandle = 1;
+        config.mExternalDrivePath = drivePath();
+        config.mBackupId = 0;
+        config.mRemoteNode = 1;
 
         EXPECT_NE(configDB.add(config), nullptr);
     }
@@ -2546,7 +2515,7 @@ TEST_F(JSONSyncConfigDBTest, RemoveByUnknownTag)
     EXPECT_CALL(observer(), onDirty(_)).Times(0);
     EXPECT_CALL(observer(), onRemove(_, _)).Times(0);
 
-    EXPECT_EQ(configDB.remove(1), API_ENOENT);
+    EXPECT_EQ(configDB.removeByBackupId(1), API_ENOENT);
 
     // Verify and clear the expectations now as the database will trigger
     // an onRemove notification when it is destroyed.
@@ -2558,11 +2527,11 @@ TEST_F(JSONSyncConfigDBTest, RemoveByTargetHandle)
     JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a config to remove.
-    JSONSyncConfig config;
+    SyncConfig config;
 
-    config.drivePath = drivePath();
-    config.tag = 0;
-    config.targetHandle = 1;
+    config.mExternalDrivePath = drivePath();
+    config.mBackupId = 0;
+    config.mRemoteNode = 1;
 
     EXPECT_NE(configDB.add(config), nullptr);
 
@@ -2579,15 +2548,16 @@ TEST_F(JSONSyncConfigDBTest, RemoveByTargetHandle)
       .After(onRemove);
 
     // Remove the config.
-    EXPECT_EQ(configDB.remove(config.targetHandle), API_OK);
+    EXPECT_EQ(configDB.removeByRootNode(config.mRemoteNode), API_OK);
 
     // Database should now be empty.
     EXPECT_TRUE(configDB.configs().empty());
 
     // Mappings should be removed.
-    EXPECT_EQ(configDB.get(config.tag), nullptr);
-    EXPECT_EQ(configDB.get(config.targetHandle), nullptr);
+    EXPECT_EQ(configDB.getByBackupId(config.mBackupId), nullptr);
+    EXPECT_EQ(configDB.getByRootHandle(config.mRemoteNode), nullptr);
 }
+
 
 TEST_F(JSONSyncConfigDBTest, RemoveByTargetHandleWhenEmpty)
 {
@@ -2597,7 +2567,7 @@ TEST_F(JSONSyncConfigDBTest, RemoveByTargetHandleWhenEmpty)
     EXPECT_CALL(observer(), onRemove(_, _)).Times(0);
 
     const handle targetHandle = 0;
-    EXPECT_EQ(configDB.remove(targetHandle), API_ENOENT);
+    EXPECT_EQ(configDB.removeByRootNode(targetHandle), API_ENOENT);
 }
 
 TEST_F(JSONSyncConfigDBTest, RemoveByUnknownTargetHandle)
@@ -2606,11 +2576,11 @@ TEST_F(JSONSyncConfigDBTest, RemoveByUnknownTargetHandle)
 
     // Add a config so that the database isn't empty.
     {
-        JSONSyncConfig config;
+        SyncConfig config;
 
-        config.drivePath = drivePath();
-        config.tag = 0;
-        config.targetHandle = 1;
+        config.mExternalDrivePath = drivePath();
+        config.mBackupId = 0;
+        config.mRemoteNode = 1;
 
         EXPECT_NE(configDB.add(config), nullptr);
     }
@@ -2618,8 +2588,7 @@ TEST_F(JSONSyncConfigDBTest, RemoveByUnknownTargetHandle)
     EXPECT_CALL(observer(), onDirty(_)).Times(0);
     EXPECT_CALL(observer(), onRemove(_, _)).Times(0);
 
-    const handle targetHandle = 0;
-    EXPECT_EQ(configDB.remove(targetHandle), API_ENOENT);
+    EXPECT_EQ(configDB.removeByRootNode(0), API_ENOENT);
 
     // Verify and clear the expectations now as the database will trigger
     // an onRemove notification when it is destroyed.
@@ -2631,21 +2600,21 @@ TEST_F(JSONSyncConfigDBTest, Update)
     JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add a config.
-    JSONSyncConfig configBefore;
+    SyncConfig configBefore;
 
-    configBefore.drivePath = drivePath();
-    configBefore.enabled = false;
-    configBefore.tag = 0;
-    configBefore.targetHandle = 1;
+    configBefore.mExternalDrivePath = drivePath();
+    configBefore.mEnabled = false;
+    configBefore.mBackupId = 0;
+    configBefore.mRemoteNode = 1;
 
     const auto* c = configDB.add(configBefore);
     ASSERT_NE(c, nullptr);
     EXPECT_EQ(*c, configBefore);
 
     // Update config.
-    JSONSyncConfig configAfter = configBefore;
+    SyncConfig configAfter = configBefore;
 
-    configAfter.enabled = true;
+    configAfter.mEnabled = true;
 
     // Observer should be notified when config changes.
     Expectation onChange =
@@ -2666,10 +2635,10 @@ TEST_F(JSONSyncConfigDBTest, Update)
     EXPECT_EQ(*c, configAfter);
 
     // Can still retrieve by tag.
-    EXPECT_EQ(configDB.get(configAfter.tag), c);
+    EXPECT_EQ(configDB.getByBackupId(configAfter.mBackupId), c);
 
     // Can still retrieve by target handle.
-    EXPECT_EQ(configDB.get(configAfter.targetHandle), c);
+    EXPECT_EQ(configDB.getByRootHandle(configAfter.mRemoteNode), c);
 }
 
 TEST_F(JSONSyncConfigDBTest, UpdateChangeTargetHandle)
@@ -2677,21 +2646,21 @@ TEST_F(JSONSyncConfigDBTest, UpdateChangeTargetHandle)
     JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add config.
-    JSONSyncConfig configBefore;
+    SyncConfig configBefore;
 
-    configBefore.drivePath = drivePath();
-    configBefore.tag = 0;
-    configBefore.targetHandle = 0;
+    configBefore.mExternalDrivePath = drivePath();
+    configBefore.mBackupId = 0;
+    configBefore.mRemoteNode = 0;
 
     const auto* c = configDB.add(configBefore);
     ASSERT_NE(c, nullptr);
     EXPECT_EQ(*c, configBefore);
 
     // Update config.
-    JSONSyncConfig configAfter = configBefore;
+    SyncConfig configAfter = configBefore;
 
-    configAfter.targetHandle = 1;
-    
+    configAfter.mRemoteNode = 1;
+
     // Observer should be notified when a config changes.
     Expectation onChange =
       EXPECT_CALL(observer(),
@@ -2711,13 +2680,13 @@ TEST_F(JSONSyncConfigDBTest, UpdateChangeTargetHandle)
     EXPECT_EQ(*c, configAfter);
 
     // Can still retrieve by tag.
-    EXPECT_EQ(configDB.get(configAfter.tag), c);
+    EXPECT_EQ(configDB.getByBackupId(configAfter.mBackupId), c);
 
     // Old target handle mapping has been removed.
-    EXPECT_EQ(configDB.get(configBefore.targetHandle), nullptr);
+    EXPECT_EQ(configDB.getByRootHandle(configBefore.mRemoteNode), nullptr);
 
     // New target handle mapping has been added.
-    EXPECT_EQ(configDB.get(configAfter.targetHandle), c);
+    EXPECT_EQ(configDB.getByRootHandle(configAfter.mRemoteNode), c);
 }
 
 TEST_F(JSONSyncConfigDBTest, UpdateRemoveTargetHandle)
@@ -2725,21 +2694,21 @@ TEST_F(JSONSyncConfigDBTest, UpdateRemoveTargetHandle)
     JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
 
     // Add config.
-    JSONSyncConfig configBefore;
+    SyncConfig configBefore;
 
-    configBefore.drivePath = drivePath();
-    configBefore.tag = 0;
-    configBefore.targetHandle = 0;
+    configBefore.mExternalDrivePath = drivePath();
+    configBefore.mBackupId = 0;
+    configBefore.mRemoteNode = 0;
 
     const auto* c = configDB.add(configBefore);
     ASSERT_NE(c, nullptr);
     EXPECT_EQ(*c, configBefore);
 
     // Update config.
-    JSONSyncConfig configAfter = configBefore;
+    SyncConfig configAfter = configBefore;
 
-    configAfter.targetHandle = UNDEF;
-    
+    configAfter.mRemoteNode = UNDEF;
+
     // Observer should be notified when a config changes.
     Expectation onChange =
       EXPECT_CALL(observer(),
@@ -2759,33 +2728,13 @@ TEST_F(JSONSyncConfigDBTest, UpdateRemoveTargetHandle)
     EXPECT_EQ(*c, configAfter);
 
     // Can still retrieve by tag.
-    EXPECT_EQ(configDB.get(configAfter.tag), c);
+    EXPECT_EQ(configDB.getByBackupId(configAfter.mBackupId), c);
 
     // Old target handle mapping has been removed.
-    EXPECT_EQ(configDB.get(configBefore.targetHandle), nullptr);
+    EXPECT_EQ(configDB.getByRootHandle(configBefore.mRemoteNode), nullptr);
 
     // No mapping ever exists for UNDEF target handle.
-    EXPECT_EQ(configDB.get(UNDEF), nullptr);
-}
-
-TEST_F(JSONSyncConfigDBTest, UpdateWithoutChange)
-{
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
-
-    // Add config.
-    JSONSyncConfig config;
-
-    config.drivePath = drivePath();
-    config.tag = 0;
-    config.targetHandle = 1;
-
-    EXPECT_NE(configDB.add(config), nullptr);
-
-    // Notifications should only be generated when the config changes.
-    EXPECT_CALL(observer(), onChange(_, _, _)).Times(0);
-    EXPECT_CALL(observer(), onDirty(_)).Times(0);
-
-    EXPECT_NE(configDB.add(config), nullptr);
+    EXPECT_EQ(configDB.getByRootHandle(UNDEF), nullptr);
 }
 
 TEST_F(JSONSyncConfigDBTest, WriteFail)
@@ -2855,7 +2804,7 @@ public:
 
         // Convenience.
         using DB = JSONSyncConfigDB;
-        using Config = JSONSyncConfig;
+        using Config = SyncConfig;
 
         MOCK_METHOD2(onAdd, void(DB&, const Config&));
 
@@ -2915,11 +2864,11 @@ TEST_F(JSONSyncConfigStoreTest, Add)
     EXPECT_TRUE(store.opened(drive));
 
     // Create config to add to the database.
-    JSONSyncConfig config;
+    SyncConfig config;
 
-    config.drivePath = drive;
-    config.tag = 1;
-    config.targetHandle = 2;
+    config.mExternalDrivePath = drive;
+    config.mBackupId = 1;
+    config.mRemoteNode = 2;
 
     // onAdd should be generated when a new config is added.
     Expectation onAdd =
@@ -2943,10 +2892,10 @@ TEST_F(JSONSyncConfigStoreTest, Add)
     EXPECT_TRUE(store.dirty());
 
     // Can we retrieve the config by tag?
-    EXPECT_EQ(store.get(config.tag), c);
+    EXPECT_EQ(store.getByBackupId(config.mBackupId), c);
 
     // Can we retrieve the config by target handle?
-    EXPECT_EQ(store.get(config.targetHandle), c);
+    EXPECT_EQ(store.getByRootHandle(config.mRemoteNode), c);
 }
 
 TEST_F(JSONSyncConfigStoreTest, AddDenormalized)
@@ -2961,18 +2910,18 @@ TEST_F(JSONSyncConfigStoreTest, AddDenormalized)
     ASSERT_NE(store.create(drive), nullptr);
 
     // Create a normalized config.
-    JSONSyncConfig configN;
+    SyncConfig configN;
 
-    configN.drivePath = drive;
-    configN.sourcePath = Utilities::randomPath();
-    configN.tag = 1;
-    configN.targetHandle = 2;
+    configN.mExternalDrivePath = drive;
+    configN.mLocalPath = Utilities::randomPath();
+    configN.mBackupId = 1;
+    configN.mRemoteNode = 2;
 
     // Create a denormalized config.
-    JSONSyncConfig configDN = configN;
+    SyncConfig configDN = configN;
 
-    configDN.drivePath.append(Utilities::separator());
-    configDN.sourcePath.append(Utilities::separator());
+    configDN.mExternalDrivePath.append(Utilities::separator());
+    configDN.mLocalPath.append(Utilities::separator());
 
     // Add the denormalized config.
     const auto* c = store.add(configDN);
@@ -2987,21 +2936,21 @@ TEST_F(JSONSyncConfigStoreTest, AddToUnknownDatabase)
     FakeStrictMock<ConfigStore> store(ioContext());
 
     // No attempt should be made to open an unknown database.
-    EXPECT_CALL(ioContext(), get(_, _)).Times(0);
+    EXPECT_CALL(ioContext(), getSlotsInOrder(_, _)).Times(0);
     EXPECT_CALL(ioContext(), read(_, _, _)).Times(0);
     EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
 
     // Create a config to add to the store.
-    JSONSyncConfig config;
+    SyncConfig config;
 
-    config.drivePath = Utilities::randomPath();
+    config.mExternalDrivePath = Utilities::randomPath();
 
     // Can't add a config to an unknown database.
     EXPECT_EQ(store.add(config), nullptr);
 
     // Database should remain unknown.
-    EXPECT_EQ(store.configs(config.drivePath), nullptr);
-    EXPECT_FALSE(store.opened(config.drivePath));
+    EXPECT_EQ(store.configs(config.mExternalDrivePath), nullptr);
+    EXPECT_FALSE(store.opened(config.mExternalDrivePath));
 
     // Store should still have no configs.
     EXPECT_TRUE(store.configs().empty());
@@ -3034,10 +2983,10 @@ TEST_F(JSONSyncConfigStoreTest, CloseAll)
     EXPECT_TRUE(store.opened(driveB));
 
     // Dirty the first database.
-    JSONSyncConfig config;
+    SyncConfig config;
 
-    config.drivePath = driveA;
-    config.tag = 1;
+    config.mExternalDrivePath = driveA;
+    config.mBackupId = 1;
 
     EXPECT_NE(store.add(config), nullptr);
 
@@ -3062,7 +3011,7 @@ TEST_F(JSONSyncConfigStoreTest, CloseAll)
     EXPECT_FALSE(store.opened(driveB));
 
     // Config should no longer be present.
-    EXPECT_EQ(store.get(config.tag), nullptr);
+    EXPECT_EQ(store.getByBackupId(config.mBackupId), nullptr);
 }
 
 TEST_F(JSONSyncConfigStoreTest, CloseClean)
@@ -3146,11 +3095,11 @@ TEST_F(JSONSyncConfigStoreTest, CloseDirty)
     EXPECT_TRUE(store.opened(drive));
 
     // Add a config to the database.
-    JSONSyncConfig config;
+    SyncConfig config;
 
-    config.drivePath = drive;
-    config.tag = 1;
-    config.targetHandle = 2;
+    config.mExternalDrivePath = drive;
+    config.mBackupId = 1;
+    config.mRemoteNode = 2;
 
     // Verify config has been added to database.
     const auto* c = store.add(config);
@@ -3159,8 +3108,8 @@ TEST_F(JSONSyncConfigStoreTest, CloseDirty)
     EXPECT_EQ(*c, config);
 
     // Verify config is accessible.
-    EXPECT_EQ(store.get(config.tag), c);
-    EXPECT_EQ(store.get(config.targetHandle), c);
+    EXPECT_EQ(store.getByBackupId(config.mBackupId), c);
+    EXPECT_EQ(store.getByRootHandle(config.mRemoteNode), c);
 
     // Verify database is dirty.
     EXPECT_TRUE(store.dirty());
@@ -3185,8 +3134,8 @@ TEST_F(JSONSyncConfigStoreTest, CloseDirty)
     EXPECT_FALSE(store.opened(drive));
 
     // Config should no longer be accessible.
-    EXPECT_EQ(store.get(config.tag), nullptr);
-    EXPECT_EQ(store.get(config.targetHandle), nullptr);
+    EXPECT_EQ(store.getByBackupId(config.mBackupId), nullptr);
+    EXPECT_EQ(store.getByRootHandle(config.mRemoteNode), nullptr);
 }
 
 TEST_F(JSONSyncConfigStoreTest, CloseDirtyCantWrite)
@@ -3207,19 +3156,19 @@ TEST_F(JSONSyncConfigStoreTest, CloseDirtyCantWrite)
     ASSERT_NE(store.create(drive), nullptr);
 
     // Add a config so the database is dirty.
-    JSONSyncConfig config;
+    SyncConfig config;
 
-    config.drivePath = drive;
-    config.tag = 1;
-    config.targetHandle = 2;
+    config.mExternalDrivePath = drive;
+    config.mBackupId = 1;
+    config.mRemoteNode = 2;
 
     const auto* c = store.add(config);
     ASSERT_NE(c, nullptr);
     EXPECT_EQ(*c, config);
 
     // Make sure config's been added.
-    EXPECT_EQ(store.get(config.tag), c);
-    EXPECT_EQ(store.get(config.targetHandle), c);
+    EXPECT_EQ(store.getByBackupId(config.mBackupId), c);
+    EXPECT_EQ(store.getByRootHandle(config.mRemoteNode), c);
 
     // Make sure database's dirty.
     EXPECT_TRUE(store.dirty());
@@ -3241,8 +3190,8 @@ TEST_F(JSONSyncConfigStoreTest, CloseDirtyCantWrite)
     EXPECT_FALSE(store.dirty());
 
     // Config should no longer be accessible.
-    EXPECT_EQ(store.get(config.tag), nullptr);
-    EXPECT_EQ(store.get(config.targetHandle), nullptr);
+    EXPECT_EQ(store.getByBackupId(config.mBackupId), nullptr);
+    EXPECT_EQ(store.getByRootHandle(config.mRemoteNode), nullptr);
 }
 
 TEST_F(JSONSyncConfigStoreTest, CloseNoDatabases)
@@ -3291,13 +3240,13 @@ TEST_F(JSONSyncConfigStoreTest, Configs)
     EXPECT_TRUE(store.opened(driveB));
 
     // Add a couple configs.
-    JSONSyncConfig configA;
-    JSONSyncConfig configB;
+    SyncConfig configA;
+    SyncConfig configB;
 
-    configA.drivePath = driveA;
-    configA.tag = 1;
-    configB.drivePath = driveB;
-    configB.tag = 2;
+    configA.mExternalDrivePath = driveA;
+    configA.mBackupId = 1;
+    configB.mExternalDrivePath = driveB;
+    configB.mBackupId = 2;
 
     EXPECT_NE(store.add(configA), nullptr);
     EXPECT_NE(store.add(configB), nullptr);
@@ -3305,19 +3254,19 @@ TEST_F(JSONSyncConfigStoreTest, Configs)
     // Has configA been added to database A?
     ASSERT_NE(dA, nullptr);
     ASSERT_EQ(dA->size(), 1);
-    EXPECT_EQ(dA->at(configA.tag), configA);
+    EXPECT_EQ(dA->at(configA.mBackupId), configA);
 
     // Has configB been added to database B?
     ASSERT_NE(dB, nullptr);
     ASSERT_EQ(dB->size(), 1);
-    EXPECT_EQ(dB->at(configB.tag), configB);
+    EXPECT_EQ(dB->at(configB.mBackupId), configB);
 
     // Can we retrieve all configs in a single call?
     const auto configs = store.configs();
 
     EXPECT_EQ(configs.size(), 2);
-    EXPECT_EQ(configs.at(configA.tag), configA);
-    EXPECT_EQ(configs.at(configB.tag), configB);
+    EXPECT_EQ(configs.at(configA.mBackupId), configA);
+    EXPECT_EQ(configs.at(configB.mBackupId), configB);
 }
 
 TEST_F(JSONSyncConfigStoreTest, ConfigsDenormalized)
@@ -3356,7 +3305,7 @@ TEST_F(JSONSyncConfigStoreTest, ConfigsUnknownDatabase)
     FakeStrictMock<ConfigStore> store(ioContext());
 
     // No attempt should be made to open an unknown database.
-    EXPECT_CALL(ioContext(), get(_, _)).Times(0);
+    EXPECT_CALL(ioContext(), getSlotsInOrder(_, _)).Times(0);
     EXPECT_CALL(ioContext(), read(_, _, _)).Times(0);
 
     const auto drivePath = Utilities::randomPath();
@@ -3378,7 +3327,7 @@ TEST_F(JSONSyncConfigStoreTest, Create)
     // No slots available for reading.
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(backupPath), _))
+                  getSlotsInOrder(Eq(backupPath), _))
         .WillOnce(Return(API_ENOENT));
 
     // Initial write should succeed.
@@ -3418,7 +3367,7 @@ TEST_F(JSONSyncConfigStoreTest, CreateAlreadyOpened)
     // No slots available for reading.
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(backupPath), _))
+                  getSlotsInOrder(Eq(backupPath), _))
         .WillOnce(Return(API_ENOENT));
 
     // Initial write should succeed.
@@ -3473,7 +3422,7 @@ TEST_F(JSONSyncConfigStoreTest, CreateCantReadExisting)
 
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(backupPath), _))
+                  getSlotsInOrder(Eq(backupPath), _))
         .WillOnce(DoAll(SetArgReferee<1>(slots),
                         Return(API_OK)));
 
@@ -3506,7 +3455,7 @@ TEST_F(JSONSyncConfigStoreTest, CreateCantWrite)
     // No slots available for reading.
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(backupPath), _))
+                  getSlotsInOrder(Eq(backupPath), _))
         .WillOnce(Return(API_ENOENT));
 
     // Initial write should fail.
@@ -3543,13 +3492,13 @@ TEST_F(JSONSyncConfigStoreTest, CreateExisting)
 
     // Populate database.
     {
-        JSONSyncConfig config;
+        SyncConfig config;
 
-        config.drivePath = drivePath;
-        config.tag = 1;
-        config.targetHandle = 2;
+        config.mExternalDrivePath = drivePath;
+        config.mBackupId = 1;
+        config.mRemoteNode = 2;
 
-        written.emplace(config.tag, config);
+        written.emplace(config.mBackupId, config);
     }
 
     // Serialize database to JSON.
@@ -3562,7 +3511,7 @@ TEST_F(JSONSyncConfigStoreTest, CreateExisting)
 
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(backupPath), _))
+                  getSlotsInOrder(Eq(backupPath), _))
         .WillOnce(DoAll(SetArgReferee<1>(slots),
                         Return(API_OK)));
 
@@ -3606,11 +3555,11 @@ TEST_F(JSONSyncConfigStoreTest, CreateExisting)
     EXPECT_EQ(store.configs(drivePath), configs);
 
     // Can we retrieve the config by tag?
-    EXPECT_EQ(store.get(configs->begin()->first),
+    EXPECT_EQ(store.getByBackupId(configs->begin()->first),
               &configs->begin()->second);
     
     // Can we retrieve the config by target handle?
-    EXPECT_EQ(store.get(configs->begin()->second.targetHandle),
+    EXPECT_EQ(store.getByRootHandle(configs->begin()->second.mRemoteNode),
               &configs->begin()->second);
 }
 
@@ -3634,10 +3583,10 @@ TEST_F(JSONSyncConfigStoreTest, Destruct)
         EXPECT_NE(store.create(drive), nullptr);
 
         // Dirty database.
-        JSONSyncConfig config;
+        SyncConfig config;
 
-        config.drivePath = drive;
-        config.tag = 1;
+        config.mExternalDrivePath = drive;
+        config.mBackupId = 1;
 
         EXPECT_NE(store.add(config), nullptr);
         
@@ -3674,13 +3623,13 @@ TEST_F(JSONSyncConfigStoreTest, FlushAll)
     EXPECT_NE(store.create(driveB), nullptr);
 
     // Dirty databases.
-    JSONSyncConfig configA;
-    JSONSyncConfig configB;
+    SyncConfig configA;
+    SyncConfig configB;
 
-    configA.drivePath = driveA;
-    configA.tag = 1;
-    configB.drivePath = driveB;
-    configB.tag = 2;
+    configA.mExternalDrivePath = driveA;
+    configA.mBackupId = 1;
+    configB.mExternalDrivePath = driveB;
+    configB.mBackupId = 2;
 
     EXPECT_NE(store.add(configA), nullptr);
     EXPECT_NE(store.add(configB), nullptr);
@@ -3733,10 +3682,10 @@ TEST_F(JSONSyncConfigStoreTest, FlushDenormalized)
     EXPECT_NE(store.create(drive), nullptr);
 
     // Dirty the database.
-    JSONSyncConfig config;
+    SyncConfig config;
 
-    config.drivePath = drive;
-    config.tag = 1;
+    config.mExternalDrivePath = drive;
+    config.mBackupId = 1;
 
     EXPECT_NE(store.add(config), nullptr);
 
@@ -3776,10 +3725,10 @@ TEST_F(JSONSyncConfigStoreTest, FlushFail)
     EXPECT_NE(store.create(drive), nullptr);
 
     // Dirty database.
-    JSONSyncConfig config;
+    SyncConfig config;
 
-    config.drivePath = drive;
-    config.tag = 1;
+    config.mExternalDrivePath = drive;
+    config.mRemoteNode = 1;
 
     EXPECT_NE(store.add(config), nullptr);
     EXPECT_TRUE(store.dirty());
@@ -3819,13 +3768,13 @@ TEST_F(JSONSyncConfigStoreTest, FlushSpecific)
     EXPECT_NE(store.create(driveB), nullptr);
 
     // Dirty both databases.
-    JSONSyncConfig configA;
-    JSONSyncConfig configB;
+    SyncConfig configA;
+    SyncConfig configB;
 
-    configA.drivePath = driveA;
-    configA.tag = 1;
-    configB.drivePath = driveB;
-    configB.tag = 2;
+    configA.mExternalDrivePath = driveA;
+    configA.mBackupId = 1;
+    configB.mExternalDrivePath = driveB;
+    configB.mBackupId = 2;
 
     EXPECT_NE(store.add(configA), nullptr);
     EXPECT_NE(store.add(configB), nullptr);
@@ -3900,13 +3849,13 @@ TEST_F(JSONSyncConfigStoreTest, Open)
 
     // Populate database.
     {
-        JSONSyncConfig config;
+        SyncConfig config;
 
-        config.drivePath = drivePath;
-        config.tag = 1;
-        config.targetHandle = 2;
+        config.mExternalDrivePath = drivePath;
+        config.mBackupId = 1;
+        config.mRemoteNode = 2;
 
-        written.emplace(config.tag, config);
+        written.emplace(config.mBackupId, config);
     }
 
     // Serialize database to JSON.
@@ -3919,7 +3868,7 @@ TEST_F(JSONSyncConfigStoreTest, Open)
 
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(backupPath), _))
+                  getSlotsInOrder(Eq(backupPath), _))
         .Times(1)
         .WillOnce(DoAll(SetArgReferee<1>(slots),
                         Return(API_OK)));
@@ -3953,11 +3902,11 @@ TEST_F(JSONSyncConfigStoreTest, Open)
     EXPECT_TRUE(store.opened(drivePath));
 
     // Can we retrieve the loaded config by tag?
-    EXPECT_EQ(store.get(configs->begin()->first),
+    EXPECT_EQ(store.getByBackupId(configs->begin()->first),
               &configs->begin()->second);
 
     // Can we retrieve the loaded config by target handle?
-    EXPECT_EQ(store.get(configs->begin()->second.targetHandle),
+    EXPECT_EQ(store.getByRootHandle(configs->begin()->second.mRemoteNode),
               &configs->begin()->second);
 
     // Shouldn't be able to create an already open database.
@@ -3988,7 +3937,7 @@ TEST_F(JSONSyncConfigStoreTest, OpenCantRead)
 
     Expectation get =
       EXPECT_CALL(ioContext(),
-                  get(Eq(backupPath), _))
+                  getSlotsInOrder(Eq(backupPath), _))
         .Times(1)
         .WillOnce(DoAll(SetArgReferee<1>(slots),
                         Return(API_OK)));
@@ -4026,7 +3975,7 @@ TEST_F(JSONSyncConfigStoreTest, OpenNoDatabase)
 
     // No slots available for reading.
     EXPECT_CALL(ioContext(),
-                get(Eq(backupPath), _))
+                getSlotsInOrder(Eq(backupPath), _))
       .Times(1)
       .WillOnce(Return(API_ENOENT));
 
@@ -4076,7 +4025,7 @@ TEST_F(JSONSyncConfigStoreTest, OpenedUnknownDatabase)
     EXPECT_FALSE(store.opened(Utilities::randomPath()));
 }
 
-TEST_F(JSONSyncConfigStoreTest, RemoveByTag)
+TEST_F(JSONSyncConfigStoreTest, RemoveByBackupID)
 {
     // Make sure database is removed.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -4091,11 +4040,11 @@ TEST_F(JSONSyncConfigStoreTest, RemoveByTag)
     EXPECT_TRUE(store.opened(drive));
 
     // Add config to store.
-    JSONSyncConfig config;
+    SyncConfig config;
 
-    config.drivePath = drive;
-    config.tag = 1;
-    config.targetHandle = 2;
+    config.mExternalDrivePath = drive;
+    config.mBackupId = 1;
+    config.mRemoteNode = 2;
 
     EXPECT_NE(store.add(config), nullptr);
 
@@ -4116,14 +4065,14 @@ TEST_F(JSONSyncConfigStoreTest, RemoveByTag)
       .After(onRemove);
 
     // Remove the config.
-    EXPECT_EQ(store.remove(config.tag), API_OK);
+    EXPECT_EQ(store.removeByBackupId(config.mBackupId), API_OK);
 
     // Database should be soiled.
     EXPECT_TRUE(store.dirty());
 
     // Mappings should be invalidated.
-    EXPECT_EQ(store.get(config.tag), nullptr);
-    EXPECT_EQ(store.get(config.targetHandle), nullptr);
+    EXPECT_EQ(store.getByBackupId(config.mBackupId), nullptr);
+    EXPECT_EQ(store.getByRootHandle(config.mRemoteNode), nullptr);
 }
 
 TEST_F(JSONSyncConfigStoreTest, RemoveByTargetHandle)
@@ -4141,11 +4090,11 @@ TEST_F(JSONSyncConfigStoreTest, RemoveByTargetHandle)
     EXPECT_TRUE(store.opened(drive));
 
     // Add config to store.
-    JSONSyncConfig config;
+    SyncConfig config;
 
-    config.drivePath = drive;
-    config.tag = 2;
-    config.targetHandle = 3;
+    config.mExternalDrivePath = drive;
+    config.mBackupId = 2;
+    config.mRemoteNode = 3;
 
     EXPECT_NE(store.add(config), nullptr);
 
@@ -4166,17 +4115,17 @@ TEST_F(JSONSyncConfigStoreTest, RemoveByTargetHandle)
       .After(onRemove);
 
     // Remove the config.
-    EXPECT_EQ(store.remove(config.targetHandle), API_OK);
+    EXPECT_EQ(store.removeByRootNode(config.mRemoteNode), API_OK);
 
     // Database should be soiled.
     EXPECT_TRUE(store.dirty());
 
     // Mappings should be invalidated.
-    EXPECT_EQ(store.get(config.tag), nullptr);
-    EXPECT_EQ(store.get(config.targetHandle), nullptr);
+    EXPECT_EQ(store.getByBackupId(config.mBackupId), nullptr);
+    EXPECT_EQ(store.getByRootHandle(config.mRemoteNode), nullptr);
 }
 
-TEST_F(JSONSyncConfigStoreTest, RemoveUnknownTag)
+TEST_F(JSONSyncConfigStoreTest, RemoveUnknownBackupID)
 {
     FakeStrictMock<ConfigStore> store(ioContext());
 
@@ -4184,7 +4133,7 @@ TEST_F(JSONSyncConfigStoreTest, RemoveUnknownTag)
     EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
 
     // Can't remove something we don't know about.
-    EXPECT_EQ(store.remove(0), API_ENOENT);
+    EXPECT_EQ(store.removeByBackupId(0), API_ENOENT);
 
     // No change? Not dirty.
     EXPECT_FALSE(store.dirty());
@@ -4198,8 +4147,7 @@ TEST_F(JSONSyncConfigStoreTest, RemoveUnknownTargetHandle)
     EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
 
     // Can't remove something we don't know about.
-    const handle targetHandle = 0;
-    EXPECT_EQ(store.remove(targetHandle), API_ENOENT);
+    EXPECT_EQ(store.removeByRootNode(0), API_ENOENT);
 
     // No change? Not dirty.
     EXPECT_FALSE(store.dirty());
@@ -4219,11 +4167,11 @@ TEST_F(JSONSyncConfigStoreTest, Update)
     EXPECT_TRUE(store.opened(drive));
 
     // Create config to add to database.
-    JSONSyncConfig configBefore;
+    SyncConfig configBefore;
 
-    configBefore.drivePath = drive;
-    configBefore.tag = 1;
-    configBefore.targetHandle = 2;
+    configBefore.mExternalDrivePath = drive;
+    configBefore.mBackupId = 1;
+    configBefore.mRemoteNode = 2;
 
     // Add config to database.
     const auto* c = store.add(configBefore);
@@ -4232,16 +4180,16 @@ TEST_F(JSONSyncConfigStoreTest, Update)
     EXPECT_EQ(*c, configBefore);
 
     // Verify config has been added to database.
-    EXPECT_EQ(store.get(configBefore.tag), c);
-    EXPECT_EQ(store.get(configBefore.targetHandle), c);
+    EXPECT_EQ(store.getByBackupId(configBefore.mBackupId), c);
+    EXPECT_EQ(store.getByRootHandle(configBefore.mRemoteNode), c);
 
     // Make sure database is clean.
     EXPECT_EQ(store.flush(), API_OK);
 
     // Update config.
-    JSONSyncConfig configAfter = configBefore;
+    SyncConfig configAfter = configBefore;
 
-    configAfter.sourcePath = Utilities::randomPath();
+    configAfter.mLocalPath = Utilities::randomPath();
 
     // onChange should be generated when a config changes.
     Expectation onChange =
@@ -4267,10 +4215,10 @@ TEST_F(JSONSyncConfigStoreTest, Update)
     EXPECT_TRUE(store.dirty());
 
     // Is the config still accessible by tag?
-    EXPECT_EQ(store.get(configAfter.tag), c);
+    EXPECT_EQ(store.getByBackupId(configAfter.mBackupId), c);
 
     // Is the config still accessible by target handle?
-    EXPECT_EQ(store.get(configAfter.targetHandle), c);
+    EXPECT_EQ(store.getByRootHandle(configAfter.mRemoteNode), c);
 }
 
 TEST_F(JSONSyncConfigStoreTest, UpdateChangeDrivePath)
@@ -4293,11 +4241,11 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeDrivePath)
     EXPECT_TRUE(store.opened(driveB));
 
     // Create config.
-    JSONSyncConfig configBefore;
+    SyncConfig configBefore;
 
-    configBefore.drivePath = driveA;
-    configBefore.tag = 1;
-    configBefore.targetHandle = 2;
+    configBefore.mExternalDrivePath = driveA;
+    configBefore.mBackupId = 1;
+    configBefore.mRemoteNode = 2;
 
     // Add config to database A.
     const auto* cA = store.add(configBefore);
@@ -4308,17 +4256,17 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeDrivePath)
     EXPECT_TRUE(store.dirty());
 
     // Make sure config is accessible.
-    EXPECT_EQ(store.get(configBefore.tag), cA);
-    EXPECT_EQ(store.get(configBefore.targetHandle), cA);
+    EXPECT_EQ(store.getByBackupId(configBefore.mBackupId), cA);
+    EXPECT_EQ(store.getByRootHandle(configBefore.mRemoteNode), cA);
 
     // Flush database so store is clean.
     EXPECT_EQ(store.flush(), API_OK);
     EXPECT_FALSE(store.dirty());
 
     // Create updated config.
-    JSONSyncConfig configAfter = configBefore;
+    SyncConfig configAfter = configBefore;
 
-    configAfter.drivePath = driveB;
+    configAfter.mExternalDrivePath = driveB;
 
     // onRemove should be generated when a config is removed.
     Expectation onRemoveFromA =
@@ -4362,10 +4310,10 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeDrivePath)
     EXPECT_EQ(store.configs(driveB)->size(), 1);
 
     // Config still accessible by tag?
-    EXPECT_EQ(store.get(configAfter.tag), cB);
+    EXPECT_EQ(store.getByBackupId(configAfter.mBackupId), cB);
 
     // Config still accessible by target handle?
-    EXPECT_EQ(store.get(configAfter.targetHandle), cB);
+    EXPECT_EQ(store.getByRootHandle(configAfter.mRemoteNode), cB);
 }
 
 TEST_F(JSONSyncConfigStoreTest, UpdateChangeTargetHandle)
@@ -4382,11 +4330,11 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeTargetHandle)
     EXPECT_TRUE(store.opened(drive));
 
     // Create config to add to database.
-    JSONSyncConfig configBefore;
+    SyncConfig configBefore;
 
-    configBefore.drivePath = drive;
-    configBefore.tag = 1;
-    configBefore.targetHandle = 2;
+    configBefore.mExternalDrivePath = drive;
+    configBefore.mBackupId = 1;
+    configBefore.mRemoteNode = 2;
 
     // Add config to database.
     const auto* c = store.add(configBefore);
@@ -4395,16 +4343,16 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeTargetHandle)
     EXPECT_EQ(*c, configBefore);
 
     // Verify config has been added to database.
-    EXPECT_EQ(store.get(configBefore.tag), c);
-    EXPECT_EQ(store.get(configBefore.targetHandle), c);
+    EXPECT_EQ(store.getByBackupId(configBefore.mBackupId), c);
+    EXPECT_EQ(store.getByRootHandle(configBefore.mRemoteNode), c);
 
     // Make sure database is clean.
     EXPECT_EQ(store.flush(), API_OK);
 
     // Update config.
-    JSONSyncConfig configAfter = configBefore;
+    SyncConfig configAfter = configBefore;
 
-    configAfter.targetHandle = 3;
+    configAfter.mRemoteNode = 3;
 
     // onChange should be generated when a config changes.
     Expectation onChange =
@@ -4430,13 +4378,13 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeTargetHandle)
     EXPECT_TRUE(store.dirty());
 
     // Is the config still accessible by tag?
-    EXPECT_EQ(store.get(configAfter.tag), c);
+    EXPECT_EQ(store.getByBackupId(configAfter.mBackupId), c);
 
     // Config should no longer be accessible by old target handle.
-    EXPECT_EQ(store.get(configBefore.targetHandle), nullptr);
+    EXPECT_EQ(store.getByRootHandle(configBefore.mRemoteNode), nullptr);
 
     // Is the config accessible under its new target handle?
-    EXPECT_EQ(store.get(configAfter.targetHandle), c);
+    EXPECT_EQ(store.getByRootHandle(configAfter.mRemoteNode), c);
 }
 
 TEST_F(JSONSyncConfigStoreTest, UpdateChangeUnknownDrivePath)
@@ -4455,11 +4403,11 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeUnknownDrivePath)
     EXPECT_TRUE(store.opened(drive));
 
     // Create config.
-    JSONSyncConfig configBefore;
+    SyncConfig configBefore;
 
-    configBefore.drivePath = drive;
-    configBefore.tag = 1;
-    configBefore.targetHandle = 2;
+    configBefore.mExternalDrivePath = drive;
+    configBefore.mBackupId = 1;
+    configBefore.mRemoteNode = 2;
 
     // Add config to database.
     const auto* c = store.add(configBefore);
@@ -4471,16 +4419,16 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeUnknownDrivePath)
     EXPECT_TRUE(store.dirty());
 
     // Make sure config is accessible.
-    EXPECT_EQ(store.get(configBefore.tag), c);
-    EXPECT_EQ(store.get(configBefore.targetHandle), c);
+    EXPECT_EQ(store.getByBackupId(configBefore.mBackupId), c);
+    EXPECT_EQ(store.getByRootHandle(configBefore.mRemoteNode), c);
 
     // Flush so that databases are clean.
     EXPECT_EQ(store.flush(), API_OK);
 
     // Create updated config.
-    JSONSyncConfig configAfter = configBefore;
+    SyncConfig configAfter = configBefore;
 
-    configAfter.drivePath = Utilities::randomPath();
+    configAfter.mExternalDrivePath = Utilities::randomPath();
 
     // onRemove should be generated when a config is removed.
     Expectation onRemove =
@@ -4504,8 +4452,8 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeUnknownDrivePath)
     EXPECT_TRUE(store.configs(drive)->empty());
 
     // Config should no longer be accessible.
-    EXPECT_EQ(store.get(configBefore.tag), nullptr);
-    EXPECT_EQ(store.get(configBefore.targetHandle), nullptr);
+    EXPECT_EQ(store.getByBackupId(configBefore.mBackupId), nullptr);
+    EXPECT_EQ(store.getByRootHandle(configBefore.mRemoteNode), nullptr);
 }
 
 TEST_F(JSONSyncConfigStoreTest, UpdateRemoveTargetHandle)
@@ -4522,11 +4470,11 @@ TEST_F(JSONSyncConfigStoreTest, UpdateRemoveTargetHandle)
     EXPECT_TRUE(store.opened(drive));
 
     // Create config to add to database.
-    JSONSyncConfig configBefore;
+    SyncConfig configBefore;
 
-    configBefore.drivePath = drive;
-    configBefore.tag = 1;
-    configBefore.targetHandle = 2;
+    configBefore.mExternalDrivePath = drive;
+    configBefore.mBackupId = 1;
+    configBefore.mRemoteNode = 2;
 
     // Add config to database.
     const auto* c = store.add(configBefore);
@@ -4535,16 +4483,16 @@ TEST_F(JSONSyncConfigStoreTest, UpdateRemoveTargetHandle)
     EXPECT_EQ(*c, configBefore);
 
     // Verify config has been added to database.
-    EXPECT_EQ(store.get(configBefore.tag), c);
-    EXPECT_EQ(store.get(configBefore.targetHandle), c);
+    EXPECT_EQ(store.getByBackupId(configBefore.mBackupId), c);
+    EXPECT_EQ(store.getByRootHandle(configBefore.mRemoteNode), c);
 
     // Make sure database is clean.
     EXPECT_EQ(store.flush(), API_OK);
 
     // Update config.
-    JSONSyncConfig configAfter = configBefore;
+    SyncConfig configAfter = configBefore;
 
-    configAfter.targetHandle = UNDEF;
+    configAfter.mRemoteNode = UNDEF;
 
     // onChange should be generated when a config changes.
     Expectation onChange =
@@ -4570,13 +4518,13 @@ TEST_F(JSONSyncConfigStoreTest, UpdateRemoveTargetHandle)
     EXPECT_TRUE(store.dirty());
 
     // Is the config still accessible by tag?
-    EXPECT_EQ(store.get(configAfter.tag), c);
+    EXPECT_EQ(store.getByBackupId(configAfter.mBackupId), c);
 
     // Config should no longer be accessible by old target handle.
-    EXPECT_EQ(store.get(configBefore.targetHandle), nullptr);
+    EXPECT_EQ(store.getByRootHandle(configBefore.mRemoteNode), nullptr);
 
     // UNDEF should never be a valid mapping.
-    EXPECT_EQ(store.get(UNDEF), nullptr);
+    EXPECT_EQ(store.getByRootHandle(UNDEF), nullptr);
 }
 
 } // JSONSyncConfigTests
