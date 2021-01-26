@@ -334,6 +334,17 @@ typedef enum {
     SYNC_ACTIVE
 } syncstate_t;
 
+typedef enum
+{
+    // Sync is not operating in a backup capacity.
+    SYNC_BACKUP_NONE = 0,
+    // Sync is mirroring the local source.
+    SYNC_BACKUP_MIRROR = 1,
+    // Sync is monitoring (and propagating) local changes.
+    SYNC_BACKUP_MONITOR = 2
+}
+SyncBackupState;
+
 enum SyncError {
     NO_SYNC_ERROR = 0,
     UNKNOWN_ERROR = 1,
@@ -363,6 +374,7 @@ enum SyncError {
     TOO_MANY_ACTION_PACKETS = 25,           // Too many changes in account, local state discarded
     LOGGED_OUT = 26,                        // Logged out
     WHOLE_ACCOUNT_REFETCHED = 27,           // The whole account was reloaded, missed actionpacket changes could not have been applied
+    BACKUP_MODIFIED = 28                    // Backup has been externally modified.
 };
 
 enum SyncWarning {
@@ -842,7 +854,17 @@ private:
 
 };
 
-typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3, MEDIA_UPLOAD = 4, BACKUP_UPLOAD } BackupType;
+typedef enum
+{
+    INVALID = -1,
+    TWO_WAY = 0,
+    UP_SYNC = 1,
+    DOWN_SYNC = 2,
+    CAMERA_UPLOAD = 3,
+    MEDIA_UPLOAD = 4,
+    BACKUP_UPLOAD = 5
+}
+BackupType;
 
 
 // cross reference pointers.  For the case where two classes have pointers to each other, and they should
