@@ -4839,7 +4839,7 @@ TEST_F(SdkTest, SdkBackupFolder)
     }
     else
     {
-        auto now = m_time(nullptr);
+        const time_t now = m_time(nullptr);
         char timebuf[32];
         strftime(timebuf, sizeof timebuf, "%c", localtime(&now));
 
