@@ -27068,41 +27068,50 @@ void MegaFolderDownloadController::start(MegaNode *node)
     path.ensureWinExtendedPathLenPrefix();
     transfer->setPath(path.toPath(*megaapiThreadClient()->fsaccess).c_str());
 
-    // for download scan is just checking nodes, we can do this all in one quick pass
-    if (!scanFolder(node, path, fsType))
-    {
-        // we are still on MegaApi thread here, so ok to call onFinish functions
-        complete(API_EINTERNAL);   // inconsistent node state
-    }
-    else
-    {
-        // start worker thread to create local folder tree
-        mWorkerThread = std::thread([this, fsType](){
+    // start worker thread to create local folder tree
+    mWorkerThread = std::thread([this, &autoDelNode, node, fsType, path](){
 
+        // move unique pointer to keep lifetime of node
+        unique_ptr<MegaNode> aDelNode = std::move(autoDelNode);
+
+        // scan folder in worker thread
+        LocalPath lp = path;
+        bool fullyScanned = scanFolder(node, lp, fsType);
+
+        // create local folder just if scanfolder proccess finished sucessfully
+        Error e = API_EINCOMPLETE;
+        if (fullyScanned)
+        {
             // local folder creation runs on the download worker thread (and checks the cancelled flag)
-            Error e = createFolder();
+            e = createFolder();
+        }
 
-            // the thread always queues a function to execute on MegaApi thread for onFinish()
-			// we keep a pointer to it in case we need to cancel()
-            mCompletionForMegaApiThread.reset(new ExecuteOnce([this, fsType, e]() {
+        // the thread always queues a function to execute on MegaApi thread for onFinish()
+        // we keep a pointer to it in case we need to cancel()
+        mCompletionForMegaApiThread.reset(new ExecuteOnce([this, fsType, e, fullyScanned]() {
+            if (!fullyScanned)
+            {
+                // if scan process finished with error, call complete from megaApi's thread
+                complete(API_EACCESS);
+                return;
+            }
 
-                auto err = e;
-                if (!err && cancelled) err = API_EINCOMPLETE;
-                if (!err)
-                {
-                    // downloadFiles must run on the megaApi thread, as it may call fireOnTransferXYZ()
-                    genDownloadTransfersForFiles(fsType);
-                }
-                else
-                {
-                    complete(err);
-                }
-                }));
+            auto err = e;
+            if (!err && cancelled) err = API_EINCOMPLETE;
+            if (!err)
+            {
+                // downloadFiles must run on the megaApi thread, as it may call fireOnTransferXYZ()
+                genDownloadTransfersForFiles(fsType);
+            }
+            else
+            {
+                complete(err);
+            }
+            }));
 
-            // Queue that function.  It may be executed early by cancel() in which case this one does nothing.
-            megaApi->executeOnThread(mCompletionForMegaApiThread);
-        });
-    }
+        // Queue that function.  It may be executed early by cancel() in which case this one does nothing.
+        megaApi->executeOnThread(mCompletionForMegaApiThread);
+    });
 }
 
 void MegaFolderDownloadController::cancel()
@@ -27220,7 +27229,6 @@ void MegaFolderDownloadController::cancel()
 
 bool MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpath, FileSystemType fsType)
 {
-    assert(mMainThreadId == std::this_thread::get_id());
     if (cancelled)
     {
         LOG_warn << "MegaFolderDownloadController::scanFolder - this operation was previously cancelled";
