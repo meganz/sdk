@@ -327,7 +327,7 @@ function(ImportStdVcpkgLibrary libName winDbg win linDbg lin)
         NO_DEFAULT_PATH
     )
 
-    if(NOT ${_out_var} AND NOT ${_out_var_dbg})
+    if(NOT ${_out_var} OR NOT ${_out_var_dbg})
         message(FATAL_ERROR "ImportStdVcpkgLibrary could not find ${libName}")
     endif()
 
