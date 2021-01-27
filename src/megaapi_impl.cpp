@@ -4285,7 +4285,7 @@ MegaStringListPrivate::MegaStringListPrivate(char **newlist, int size)
 {
     for (int i = 0; i < size; i++)
     {
-        mList.push_back(newlist[i]);
+        mList.push_back(std::unique_ptr<char[]>(newlist[i]).get());
     }
 }
 
