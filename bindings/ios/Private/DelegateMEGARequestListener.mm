@@ -25,10 +25,11 @@
 
 using namespace mega;
 
-DelegateMEGARequestListener::DelegateMEGARequestListener(MEGASdk *megaSDK, id<MEGARequestDelegate>listener, bool singleListener) {
+DelegateMEGARequestListener::DelegateMEGARequestListener(MEGASdk *megaSDK, id<MEGARequestDelegate>listener, bool singleListener, ListenerQueueType queueType) {
     this->megaSDK = megaSDK;
     this->listener = listener;
     this->singleListener = singleListener;
+    this->queueType = queueType;
 }
 
 id<MEGARequestDelegate>DelegateMEGARequestListener::getUserListener() {
@@ -40,7 +41,7 @@ void DelegateMEGARequestListener::onRequestStart(MegaApi *api, MegaRequest *requ
         MegaRequest *tempRequest = request->copy();
         MEGASdk *tempMegaSDK = this->megaSDK;
         id<MEGARequestDelegate> tempListener = this->listener;
-        dispatch_async(dispatch_get_main_queue(), ^{
+        dispatch(this->queueType, ^{
             [tempListener onRequestStart:tempMegaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES]];
         });
     }
@@ -53,7 +54,7 @@ void DelegateMEGARequestListener::onRequestFinish(MegaApi *api, MegaRequest *req
         MEGASdk *tempMegaSDK = this->megaSDK;
         id<MEGARequestDelegate> tempListener = this->listener;
         bool tempSingleListener = singleListener;
-        dispatch_async(dispatch_get_main_queue(), ^{
+        dispatch(this->queueType, ^{
             [tempListener onRequestFinish:tempMegaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES] error:[[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
             if (tempSingleListener) {
                 [megaSDK freeRequestListener:this];
@@ -67,7 +68,7 @@ void DelegateMEGARequestListener::onRequestUpdate(MegaApi *api, MegaRequest *req
         MegaRequest *tempRequest = request->copy();
         MEGASdk *tempMegaSDK = this->megaSDK;
         id<MEGARequestDelegate> tempListener = this->listener;
-        dispatch_async(dispatch_get_main_queue(), ^{
+        dispatch(this->queueType, ^{
             [tempListener onRequestUpdate:tempMegaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES]];
         });
     }
@@ -79,7 +80,7 @@ void DelegateMEGARequestListener::onRequestTemporaryError(MegaApi *api, MegaRequ
         MegaError *tempError = e->copy();
         MEGASdk *tempMegaSDK = this->megaSDK;
         id<MEGARequestDelegate> tempListener = this->listener;
-        dispatch_async(dispatch_get_main_queue(), ^{
+        dispatch(this->queueType, ^{
             [tempListener onRequestTemporaryError:tempMegaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES] error:[[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
         });
     }
