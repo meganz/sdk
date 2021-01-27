@@ -876,7 +876,7 @@ attr_t User::string2attr(const char* name)
     }
     else if (!strcmp(name, "^~jsck"))
     {
-        return ATTR_JSON_SYNC_CONFIG_NAME;
+        return ATTR_JSON_SYNC_CONFIG_KEY;
     }
     else
     {

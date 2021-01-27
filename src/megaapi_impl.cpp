@@ -24416,7 +24416,7 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr, MegaCl
     else
     {
         //using localpath as name:
-        setName(config.getLocalPath().toPath(*client->fsaccess).c_str());
+        setName(this->localFolder);
     }
     this->lastKnownMegaFolder = NULL;
     this->fingerprint = 0;
