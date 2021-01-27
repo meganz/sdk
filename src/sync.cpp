@@ -4105,31 +4105,6 @@ const LocalPath JSONSyncConfigStore::BACKUP_CONFIG_DIR =
 
 #undef PATHSTRING
 
-#if 0
-
-void JSONSyncConfigStore::onAdd(JSONSyncConfigDB& db, const SyncConfig& config)
-{
-    mBackupIdToDB.emplace(config.getBackupId(), &db);
-}
-
-void JSONSyncConfigStore::onChange(JSONSyncConfigDB& db,
-                                   const SyncConfig& from,
-                                   const SyncConfig& to)
-{
-}
-
-void JSONSyncConfigStore::onDirty(JSONSyncConfigDB& db)
-{
-    mDirtyDB.emplace(&db);
-}
-
-void JSONSyncConfigStore::onRemove(JSONSyncConfigDB&, const SyncConfig& config)
-{
-    mBackupIdToDB.erase(config.getBackupId());
-}
-
-#endif
-
 error JSONSyncConfigStore::close(JSONSyncConfigDB& db)
 {
     // Try and flush the database.

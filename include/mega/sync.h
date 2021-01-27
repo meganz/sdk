@@ -569,25 +569,6 @@ public:
     // Name of the backup configuration directory.
     static const LocalPath BACKUP_CONFIG_DIR;
 
-protected:
-#if 0
-    // Invoked when a backup config is being added.
-    virtual void onAdd(JSONSyncConfigDB& db,
-                       const SyncConfig& config) override;
-
-    // Invoked when a backup config is being changed.
-    virtual void onChange(JSONSyncConfigDB& db,
-                          const SyncConfig& from,
-                          const SyncConfig& to) override;
-
-    // Invoked when a database needs to be written.
-    virtual void onDirty(JSONSyncConfigDB& db) override;
-
-    // Invoked when a backup config is being removed.
-    virtual void onRemove(JSONSyncConfigDB& db,
-                          const SyncConfig& config) override;
-#endif
-
 private:
     // How we compare drive paths.
     struct DrivePathComparator
