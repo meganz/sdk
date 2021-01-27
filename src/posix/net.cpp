@@ -1608,6 +1608,7 @@ void CurlHttpIO::request_proxy_ip()
     
 
 #if TARGET_OS_IPHONE
+    httpctx->ares_pending = 0;
     send_request(httpctx);
 #else
     if (ipv6proxyenabled)
@@ -1928,6 +1929,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
     }
 
 #if TARGET_OS_IPHONE
+    httpctx->ares_pending = 0;
     send_request(httpctx);
 #else
     if (ipv6requestsenabled)
@@ -2641,6 +2643,7 @@ int CurlHttpIO::sockopt_callback(void *clientp, curl_socket_t, curlsocktype)
         
 
 #if TARGET_OS_IPHONE
+        httpctx->ares_pending = 0;
         send_request(httpctx);
 #else
         if (httpio->ipv6requestsenabled)
