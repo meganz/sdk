@@ -14581,7 +14581,7 @@ string MegaClient::cypherTLVTextWithMasterKey(const char* name, const string& te
 {
     TLVstore tlv;
     tlv.set(name, text);
-    std::unique_ptr<string> tlvStr{ tlv.tlvRecordsToContainer(rng, &key) };
+    std::unique_ptr<string> tlvStr(tlv.tlvRecordsToContainer(rng, &key));
 
     return Base64::btoa(*tlvStr);
 }

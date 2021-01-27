@@ -293,8 +293,12 @@ private:
 
     /**
      * @brief get Get the value for a given key
+     *
+     * In case the type is not found, it will throw. A previous call to TLVStore::find()
+     * might be necessary in order to check the existence of the type in advance.
+     *
      * @param type Type of the value (without scope nor non-historic modifiers).
-     * @return String containing the array with the value, or NULL if error.
+     * @return String containing the array with the value.
      */
     std::string get(string type) const;
 
