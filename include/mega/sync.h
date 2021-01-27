@@ -70,6 +70,9 @@ public:
         handle hearBeatID = UNDEF
     );
 
+    bool operator==(const SyncConfig &rhs) const;
+    bool operator!=(const SyncConfig &rhs) const;
+
     // Id for the sync, also used in sync heartbeats
     handle getBackupId() const;
     void setBackupId(const handle& backupId);
@@ -189,6 +192,8 @@ private:
     bool updateSyncRemoteLocation(Node* n, bool forceCallback);
 };
 
+using SyncCompletionFunction =
+  std::function<void(UnifiedSync*, const SyncError&, error)>;
 
 class MEGA_API Sync
 {
@@ -336,6 +341,8 @@ class JSONSyncConfigIOContext;
 class MEGA_API JSONSyncConfigDB
 {
 public:
+    JSONSyncConfigDB(const LocalPath& dbPath,
+                     const LocalPath& drivePath);
 
     explicit
     JSONSyncConfigDB(const LocalPath& dbPath);
@@ -346,11 +353,12 @@ public:
 
     MEGA_DEFAULT_MOVE(JSONSyncConfigDB);
 
-    // Add a new (or update an existing) config.
-    const SyncConfig* add(const SyncConfig& config);
+    // Adds a new (or updates an existing) config.
+    const SyncConfig* add(const SyncConfig& config,
+                          const bool flush = true);
 
     // Remove all configs.
-    void clear();
+    void clear(const bool flush = true);
 
     // Get current configs.
     const JSONSyncConfigMap& configs() const;
@@ -383,13 +391,6 @@ public:
     error write(JSONSyncConfigIOContext& ioContext);
 
 private:
-    // Adds a new (or updates an existing) config.
-    const SyncConfig* add(const SyncConfig& config,
-                              const bool flush);
-
-    // Removes all configs.
-    void clear(const bool flush);
-
     // Reads this database from the specified slot on disk.
     error read(JSONSyncConfigIOContext& ioContext,
                const unsigned int slot);
@@ -439,7 +440,7 @@ public:
 
     // Determine which slots are present.
     virtual error getSlotsInOrder(const LocalPath& dbPath,
-                      vector<unsigned int>& confSlots);
+                                  vector<unsigned int>& confSlots);
 
     // Read data from the specified slot.
     virtual error read(const LocalPath& dbPath,

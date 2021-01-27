@@ -2337,6 +2337,27 @@ SyncConfig::SyncConfig(LocalPath localPath,
     , mWarning{warning}
 {}
 
+bool SyncConfig::operator==(const SyncConfig& rhs) const
+{
+    return mEnabled == rhs.mEnabled
+           && mExternalDrivePath == rhs.mExternalDrivePath
+           && mLocalPath == rhs.mLocalPath
+           && mName == rhs.mName
+           && mRemoteNode == rhs.mRemoteNode
+           && mOrigninalPathOfRemoteRootNode == rhs.mOrigninalPathOfRemoteRootNode
+           && mLocalFingerprint == rhs.mLocalFingerprint
+           && mRegExps == rhs.mRegExps
+           && mSyncType == rhs.mSyncType
+           && mError == rhs.mError
+           && mBackupId == rhs.mBackupId
+           && mWarning == rhs.mWarning;
+}
+
+bool SyncConfig::operator!=(const SyncConfig& rhs) const
+{
+    return !(*this == rhs);
+}
+
 bool SyncConfig::getEnabled() const
 {
     return mEnabled;

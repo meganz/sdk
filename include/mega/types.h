@@ -842,7 +842,17 @@ private:
 
 };
 
-typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3, MEDIA_UPLOAD = 4, BACKUP_UPLOAD } BackupType;
+typedef enum
+{
+    INVALID = -1,
+    TWO_WAY = 0,
+    UP_SYNC = 1,
+    DOWN_SYNC = 2,
+    CAMERA_UPLOAD = 3,
+    MEDIA_UPLOAD = 4,
+    BACKUP_UPLOAD = 5
+}
+BackupType;
 
 
 // cross reference pointers.  For the case where two classes have pointers to each other, and they should
