@@ -49,7 +49,7 @@ namespace mega {
         static bool InitializeCom();
 
         // Remember to call (*ppLocator)->Release() and (*ppService)->Release() if this succeeded.
-        static bool GetWbemService(IWbemLocator** ppLocator, IWbemServices** ppService);
+        static bool GetWbemService(IWbemLocator** ppLocator, IWbemServices** ppService, const wstring& wmiNamespace = L"ROOT\\CIMV2");
 
         static DriveInfo GetVolumeProperties(IWbemClassObject* pQueryObject);
 
@@ -199,11 +199,7 @@ namespace mega {
     {
         map<int, string> ids;
 
-        // init COM
-        if (!WinWmi::InitializeCom())  return ids;
-        IWbemLocator* pLocator = nullptr;
-        IWbemServices* pService = nullptr;
-        if (!WinWmi::GetWbemService(&pLocator, &pService)) { CoUninitialize(); return ids; }
+        if (mountPoint.empty())  return ids;
 
         // make sure this string does not contain embeded null characters
         // (i.e. if received from LocalPath::platformEncoded() on Windows)
@@ -213,9 +209,16 @@ namespace mega {
         wstring wMountPoint;
         for (auto c : mountPoint)  wMountPoint += c;
 
+        // init COM
+        if (!WinWmi::InitializeCom())  return ids;
+        IWbemLocator* pLocator = nullptr;
+        IWbemServices* pService = nullptr;
+        if (!WinWmi::GetWbemService(&pLocator, &pService)) { CoUninitialize(); return ids; }
+
         // get partition id: VolumeSerialNumber
         wstring query = L"SELECT __PATH, VolumeSerialNumber from Win32_LogicalDisk where DeviceID = \"" + wMountPoint + L'"';
         auto values = getWqlValues(pService, query, { L"__PATH", L"VolumeSerialNumber" });
+        // save it as narrow string
         string& vsn = ids[UniqueDriveId::VOLUME_SN];
         for (wchar_t c : values[1])  vsn += char(c);
 
@@ -227,17 +230,63 @@ namespace mega {
         query = L"SELECT Antecedent from Win32_DiskDriveToDiskPartition where Dependent = \"" + WinWmi::EscapeWql(values[0]) + L'"';
         values = getWqlValues(pService, query, { L"Antecedent" });
 
-        // get disk ids: PNPDeviceID, Signature
+        // get multiple fields from Win32_DiskDrive;
+        // for a numeric field, pass a function that will convert it to string
         // (SerialNumber is also available on Windows)
-        query = L"SELECT PNPDeviceID, Signature from Win32_DiskDrive where __PATH = \"" + WinWmi::EscapeWql(values[0]) + L'"';
+        query = L"SELECT Signature, PNPDeviceID from Win32_DiskDrive where __PATH = \"" + WinWmi::EscapeWql(values[0]) + L'"';
         auto f = [this](IWbemClassObject* o, const wstring& n) { return convertUi32ToB16str(o, n); };
-        vector<function<wstring(IWbemClassObject*, const wstring&)>> convFuncs = { nullptr, f };
-        values = getWqlValues(pService, query, { L"PNPDeviceID", L"Signature" }, &convFuncs);
+        vector<function<wstring(IWbemClassObject*, const wstring&)>> convFuncs = { f };
+        values = getWqlValues(pService, query, { L"Signature", L"PNPDeviceID" }, &convFuncs);
+
+        // extract disk id from Win32_DiskDrive.PNPDeviceID, and save it as narrow string
         string& di = ids[UniqueDriveId::DISK_ID];
-        const wstring& wdi = getIdFromPNPDevId(values[0]);
+        const wstring& wdi = getIdFromPNPDevId(values[1]);
         for (wchar_t c : wdi)  di += char(c);
+
+        // get disk signature, or its GUID
+        if (values[0].empty())
+        {
+            // disk has GPT partition table, go for its GUID
+            // reset the WMI connection to a different namespace
+            pService->Release();  pService = nullptr;
+            pLocator->Release();  pLocator = nullptr;
+            const wstring& wmiNamespace = L"ROOT\\Microsoft\\Windows\\Storage";
+            if (!WinWmi::GetWbemService(&pLocator, &pService, wmiNamespace)) { CoUninitialize(); return ids; }
+
+            // get the drive letter, as upper case, without the semicolon
+            const wchar_t l = wchar_t(toupper(wMountPoint[0]));
+
+            // get the __PATH for the given mount point
+            query = wstring(L"SELECT __RELPATH from MSFT_Volume where DriveLetter = '") + l + L'\'';
+            values = getWqlValues(pService, query, { L"__RELPATH" });
+
+            // get MSFT_PartitionToVolume.Partition
+            const wstring& prefix = L"\\\\.\\" + wmiNamespace + L':';
+            query = L"SELECT Partition from MSFT_PartitionToVolume where Volume = \"" + WinWmi::EscapeWql(prefix) + WinWmi::EscapeWql(values[0]) + L'"';
+            values = getWqlValues(pService, query, { L"Partition" });
+
+            // get MSFT_DiskToPartition.Disk
+            query = L"SELECT Disk from MSFT_DiskToPartition where Partition = \"" + WinWmi::EscapeWql(values[0]) + L'"';
+            values = getWqlValues(pService, query, { L"Disk" });
+
+            // remove prefix
+            if (values[0].compare(0, prefix.size(), prefix) == 0)  values[0].erase(0, prefix.size());
+
+            // get MSFT_Disk.GUID
+            // this could be forther confirmed by making sure the disk is using GPT (PartitionStyle==2), but does not seem necessary
+            query = L"SELECT Guid from MSFT_Disk where __RELPATH = \"" + WinWmi::EscapeWql(values[0]) + L'"';
+            values = getWqlValues(pService, query, { L"Guid" });
+
+            // remove leading and trailing curly brackets
+            if (!values[0].empty() && values[0].front() == L'{' && values[0].back() == L'}')
+            {
+                values[0].pop_back();
+                values[0].erase(0, 1);
+            }
+        }
+        // save it as narrow string
         string& ds = ids[UniqueDriveId::DISK_SIGNATURE];
-        for (wchar_t c : values[1])  ds += char(c);
+        for (wchar_t c : values[0])  ds += char(c);
 
         // release COM resources
         pService->Release();
@@ -286,11 +335,15 @@ namespace mega {
     wstring UniqueDriveIdWin::convertUi32ToB16str(IWbemClassObject* queryObj, const wstring& field)
     {
         uint32_t iVal = WinWmi::GetUi32Property(queryObj, field);
+        wstring sVal;
 
-        wstringstream stream;
-        // pad the value with 0 to the left, and always have 8 characters
-        stream << setfill(L'0') << setw(8) << hex << iVal;
-        const wstring& sVal = stream.str(); // keep this "free" for debugging
+        if (iVal)
+        {
+            wstringstream stream;
+            // pad the value with 0 to the left, and always have 8 characters
+            stream << setfill(L'0') << setw(8) << hex << iVal;
+            sVal = stream.str();
+        }
 
         return sVal;
     }
@@ -497,7 +550,7 @@ namespace mega {
 
 
 
-    bool WinWmi::GetWbemService(IWbemLocator** ppLocator, IWbemServices** ppService)
+    bool WinWmi::GetWbemService(IWbemLocator** ppLocator, IWbemServices** ppService, const wstring& wmiNamespace)
     {
         HRESULT result = CoCreateInstance(CLSID_WbemLocator, 0, CLSCTX_INPROC_SERVER,
             IID_IWbemLocator, reinterpret_cast<LPVOID*>(ppLocator));
@@ -505,8 +558,7 @@ namespace mega {
         if (FAILED(result))  return false;
 
         // BSTR is wchar_t*. Use the latter to avoid including even more obscure headers.
-        wchar_t foolBstr[] = L"ROOT\\CIMV2";
-        wchar_t* bstr = foolBstr; // avoid compiler warning
+        wchar_t* bstr = (wchar_t*)wmiNamespace.c_str();
         result = (*ppLocator)->ConnectServer(
             bstr,                       // strNetworkResource
             nullptr,                    // strUser
