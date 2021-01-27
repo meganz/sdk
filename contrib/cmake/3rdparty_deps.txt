@@ -10,7 +10,12 @@ curl
 libevent
 libzen
 libmediainfo
+
+# The ffmpeg port needs yasm in the PATH as a build dependency. If you do not have it, it is easy to build from source:
+# https://github.com/yasm/yasm/
+# and set CMAKE_INSTALL_PREFIX to /usr/local for example
 ffmpeg
+
 gtest
 
 #freeimage is not needed for MEGASync (but might be for other projects. e.g: MEGAcmd)
