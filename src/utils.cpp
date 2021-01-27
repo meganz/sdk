@@ -2324,7 +2324,6 @@ SyncConfig::SyncConfig(LocalPath localPath,
                        const SyncWarning warning,
                        mega::handle hearBeatID)
     : mEnabled{enabled}
-    , mExternalDrivePath{}
     , mLocalPath{std::move(localPath)}
     , mName{std::move(name)}
     , mRemoteNode{remoteNode}
@@ -2334,6 +2333,7 @@ SyncConfig::SyncConfig(LocalPath localPath,
     , mSyncType{syncType}
     , mError{error}
     , mBackupId(hearBeatID)
+    , mExternalDrivePath()
     , mWarning{warning}
 {}
 

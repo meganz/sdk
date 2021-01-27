@@ -157,7 +157,6 @@ public:
     // This one is not serialized
     LocalPath mExternalDrivePath;
 
-
 private:
     // If mError or mEnabled have changed from these values, we need to notify the app.
     SyncError mKnownError = NO_SYNC_ERROR;

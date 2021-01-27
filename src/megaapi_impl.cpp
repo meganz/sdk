@@ -22999,7 +22999,8 @@ void MegaApiImpl::sendPendingRequests()
 
                 client->reqs.add(new CommandBackupPut(client, bType, backupName, remoteNode,
                                                       localFolder, client->getDeviceidHash(),
-                                                      request->getAccess(), request->getNumDetails(), extraData, nullptr));
+                                                      request->getAccess(), request->getNumDetails(),
+                                                      extraData ? extraData : string(), nullptr));
             }
             else // update an existing sync/backup
             {

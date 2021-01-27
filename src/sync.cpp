@@ -563,13 +563,13 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     if (macOSmajorVersion() >= 19) //macOS catalina+
     {
         LOG_debug << "macOS 10.15+ filesystem detected. Checking fseventspath.";
-        string supercrootpath = "/System/Volumes/Data" + crootpath.platformEncoded();
+        string supercrootpath = "/System/Volumes/Data" + mLocalPath.platformEncoded();
 
         int fd = open(supercrootpath.c_str(), O_RDONLY);
         if (fd == -1)
         {
             LOG_debug << "Unable to open path using fseventspath.";
-            mFsEventsPath = crootpath.platformEncoded();
+            mFsEventsPath = mLocalPath.platformEncoded();
         }
         else
         {
@@ -577,7 +577,7 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
             if (fcntl(fd, F_GETPATH, buf) < 0)
             {
                 LOG_debug << "Using standard paths to detect filesystem notifications.";
-                mFsEventsPath = crootpath.platformEncoded();
+                mFsEventsPath = mLocalPath.platformEncoded();
             }
             else
             {
