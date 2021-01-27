@@ -11762,8 +11762,9 @@ void MegaClient::fetchnodes(bool nocache)
 
     // only initial load from local cache
     if ((loggedin() == FULLACCOUNT || loggedIntoFolder() ) &&
-        !nodes.size() && sctable && !ISUNDEF(cachedscsn) &&
-        fetchsc(sctable) && fetchStatusTable(statusTable.get()))
+            !nodes.size() && !ISUNDEF(cachedscsn) &&
+            sctable && fetchsc(sctable) &&
+            statusTable && fetchStatusTable(statusTable.get()))
     {
         WAIT_CLASS::bumpds();
         fnstats.mode = FetchNodesStats::MODE_DB;
