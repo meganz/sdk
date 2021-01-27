@@ -2814,25 +2814,25 @@ void Syncs::removeSyncByIndex(size_t index)
     }
 }
 
-error Syncs::removeSyncConfigByBackupId(handle bid)
+error Syncs::removeSyncConfigByBackupId(handle backupId)
 {
     error result = API_OK;
 
     if (auto* db = syncConfigDB())
     {
-        result = db->removeByBackupId(bid);
+        result = db->removeByBackupId(backupId);
     }
 
     if (result == API_ENOENT)
     {
         if (auto* store = backupConfigStore())
         {
-            result = store->removeByBackupId(bid);
+            result = store->removeByBackupId(backupId);
         }
     }
 
     LOG_err << "Found no config for backupId: "
-            << toHandle(bid)
+            << toHandle(backupId)
             << " upon sync removal.";
 
     return result;
@@ -2990,11 +2990,9 @@ void Syncs::resumeResumableSyncsOnStartup()
 const unsigned int JSONSyncConfigDB::NUM_SLOTS = 2; //number of configuration versions to save. Do not set to > 10.
 
 JSONSyncConfigDB::JSONSyncConfigDB(const LocalPath& dbPath,
-                                   const LocalPath& drivePath,
-                                   JSONSyncConfigDBObserver& observer)
+                                   const LocalPath& drivePath)
   : mDBPath(dbPath)
   , mDrivePath(drivePath)
-  , mObserver(&observer)
   , mBackupIdToConfig()
   , mSlot(0)
   , mDirty(false)
@@ -3004,7 +3002,6 @@ JSONSyncConfigDB::JSONSyncConfigDB(const LocalPath& dbPath,
 JSONSyncConfigDB::JSONSyncConfigDB(const LocalPath& dbPath)
   : mDBPath(dbPath)
   , mDrivePath()
-  , mObserver(nullptr)
   , mBackupIdToConfig()
   , mSlot(0)
   , mDirty(false)
@@ -3017,16 +3014,48 @@ JSONSyncConfigDB::~JSONSyncConfigDB()
     clear(false);
 }
 
-const SyncConfig* JSONSyncConfigDB::add(const SyncConfig& config)
+const SyncConfig* JSONSyncConfigDB::add(const SyncConfig& config,
+                                        const bool flush)
 {
-    // Add (or update) the config and flush.
-    return add(config, true);
+    auto it = mBackupIdToConfig.find(config.getBackupId());
+
+    // Do we already have a config with this tag?
+    if (it != mBackupIdToConfig.end())
+    {
+        // Mark the database as being dirty.
+        mDirty |= flush;
+
+        // Update the config.
+        it->second = config;
+
+        // We're done.
+        return &it->second;
+    }
+
+    // Add the config to the database.
+    auto result = mBackupIdToConfig.emplace(config.getBackupId(), config);
+
+    // Mark the database as being dirty.
+    mDirty |= flush;
+
+    // We're done.
+    return &result.first->second;
 }
 
-void JSONSyncConfigDB::clear()
+void JSONSyncConfigDB::clear(const bool flush)
 {
-    // Drop the configs and flush.
-    clear(true);
+    // Are there any configs to remove?
+    if (mBackupIdToConfig.empty())
+    {
+        // Nope.
+        return;
+    }
+
+    // Mark the database as being dirty.
+    mDirty |= flush;
+
+    // Clear the config database.
+    mBackupIdToConfig.clear();
 }
 
 const JSONSyncConfigMap& JSONSyncConfigDB::configs() const
@@ -3049,9 +3078,9 @@ const LocalPath& JSONSyncConfigDB::drivePath() const
     return mDrivePath;
 }
 
-const SyncConfig* JSONSyncConfigDB::getByBackupId(handle bid) const
+const SyncConfig* JSONSyncConfigDB::getByBackupId(handle backupId) const
 {
-    auto it = mBackupIdToConfig.find(bid);
+    auto it = mBackupIdToConfig.find(backupId);
 
     if (it != mBackupIdToConfig.end())
     {
@@ -3111,10 +3140,10 @@ error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext)
     return API_EREAD;
 }
 
-error JSONSyncConfigDB::removeByBackupId(handle bid)
+error JSONSyncConfigDB::removeByBackupId(handle backupId)
 {
     // Remove the config, if present and flush.
-    return removeByBackupId(bid, true);
+    return removeByBackupId(backupId, true);
 }
 
 error JSONSyncConfigDB::removeByRootHandle(const handle targetHandle)
@@ -3162,93 +3191,6 @@ error JSONSyncConfigDB::write(JSONSyncConfigIOContext& ioContext)
     return API_OK;
 }
 
-const SyncConfig* JSONSyncConfigDB::add(const SyncConfig& config,
-                                        const bool flush)
-{
-    auto it = mBackupIdToConfig.find(config.getBackupId());
-
-    // Do we already have a config with this tag?
-    if (it != mBackupIdToConfig.end())
-    {
-        // We only call if it's changed
-        if (mObserver)
-        {
-            // Tell the observer a config's changed.
-            mObserver->onChange(*this, it->second, config);
-
-            // Tell the observer we need to be written.
-            if (flush)
-            {
-                // But only if this change should be flushed.
-                mObserver->onDirty(*this);
-            }
-        }
-
-        // Mark the database as being dirty.
-        mDirty |= flush;
-
-        // Update the config.
-        it->second = config;
-
-        // We're done.
-        return &it->second;
-    }
-
-    // Add the config to the database.
-    auto result = mBackupIdToConfig.emplace(config.getBackupId(), config);
-
-    if (mObserver)
-    {
-        // Tell the observer we've added a config.
-        mObserver->onAdd(*this, config);
-
-        // Tell the observer we need to be written.
-        if (flush)
-        {
-            // But only if this change should be flushed.
-            mObserver->onDirty(*this);
-        }
-    }
-
-    // Mark the database as being dirty.
-    mDirty |= flush;
-
-    // We're done.
-    return &result.first->second;
-}
-
-void JSONSyncConfigDB::clear(const bool flush)
-{
-    // Are there any configs to remove?
-    if (mBackupIdToConfig.empty())
-    {
-        // Nope.
-        return;
-    }
-
-    if (mObserver)
-    {
-        // Tell the observer we've removed the configs.
-        for (auto& it : mBackupIdToConfig)
-        {
-            mObserver->onRemove(*this, it.second);
-        }
-
-        // Tell the observer we need to be written.
-        if (flush)
-        {
-            // But only if these changes should be flushed.
-            mObserver->onDirty(*this);
-        }
-    }
-
-    // Mark the database as being dirty.
-    mDirty |= flush;
-
-    // Clear the config database.
-    mBackupIdToConfig.clear();
-}
-
 error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext,
                              const unsigned int slot)
 {
@@ -3283,11 +3225,11 @@ error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext,
 
     while (i != j)
     {
-        const auto bid = i++->first;
+        const auto backupId = i++->first;
 
-        if (!configs.count(bid))
+        if (!configs.count(backupId))
         {
-            removeByBackupId(bid, false);
+            removeByBackupId(backupId, false);
         }
     }
 
@@ -3304,28 +3246,15 @@ error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext,
     return API_OK;
 }
 
-error JSONSyncConfigDB::removeByBackupId(handle bid, const bool flush)
+error JSONSyncConfigDB::removeByBackupId(handle backupId, const bool flush)
 {
-    auto it = mBackupIdToConfig.find(bid);
+    auto it = mBackupIdToConfig.find(backupId);
 
     // Any config present with the given tag?
     if (it == mBackupIdToConfig.end())
     {
         // Nope.
         return API_ENOENT;
-    }
-
-    if (mObserver)
-    {
-        // Tell the observer we've removed a config.
-        mObserver->onRemove(*this, it->second);
-
-        // Tell the observer we need to be written.
-        if (flush)
-        {
-            // But only if this change should be flushed.
-            mObserver->onDirty(*this);
-        }
     }
 
     // Mark the database as being dirty.
@@ -3390,9 +3319,9 @@ bool JSONSyncConfigIOContext::deserialize(JSONSyncConfigMap& configs,
         if (deserialize(config, reader))
         {
             // So move is well-defined.
-            const auto bid = config.getBackupId();
+            const auto backupId = config.getBackupId();
 
-            configs.emplace(bid, std::move(config));
+            configs.emplace(backupId, std::move(config));
         }
         else
         {
@@ -3787,17 +3716,8 @@ void JSONSyncConfigIOContext::serialize(const SyncConfig& config,
     writer.endobject();
 }
 
-JSONSyncConfigDBObserver::JSONSyncConfigDBObserver()
-{
-}
-
-JSONSyncConfigDBObserver::~JSONSyncConfigDBObserver()
-{
-}
-
 JSONSyncConfigStore::JSONSyncConfigStore(JSONSyncConfigIOContext& ioContext)
-  : JSONSyncConfigDBObserver()
-  , mDirtyDB()
+  : mDirtyDB()
   , mDriveToDB()
   , mIOContext(ioContext)
   , mBackupIdToDB()
@@ -3832,11 +3752,25 @@ const SyncConfig* JSONSyncConfigStore::add(SyncConfig config)
         if (equal(i->second->drivePath(), config.mExternalDrivePath))
         {
             // Nope, just update the config.
-            return i->second->add(config);
+            auto* result = i->second->add(config);
+
+            // If necessary, queue the database for writing.
+            if (i->second->dirty())
+            {
+                mDirtyDB.emplace(i->second);
+            }
+
+            return result;
         }
 
         // Remove the config from the (old) database.
         i->second->removeByBackupId(config.getBackupId());
+
+        // Database needs to be written to disk.
+        mDirtyDB.emplace(i->second);
+
+        // Remove the config from the index.
+        mBackupIdToDB.erase(i);
     }
 
     auto j = mDriveToDB.find(config.mExternalDrivePath);
@@ -3849,7 +3783,15 @@ const SyncConfig* JSONSyncConfigStore::add(SyncConfig config)
     }
 
     // Add (update) the config.
-    return j->second->add(config);
+    auto result = j->second->add(config);
+
+    // Add the config to the index.
+    mBackupIdToDB.emplace(config.getBackupId(), j->second.get());
+
+    // Queue the database for writing.
+    mDirtyDB.emplace(j->second.get());
+
+    return result;
 }
 
 error JSONSyncConfigStore::close(const LocalPath& drivePath)
@@ -3936,7 +3878,7 @@ const JSONSyncConfigMap* JSONSyncConfigStore::create(const LocalPath& drivePath)
     dbPath.appendWithSeparator(BACKUP_CONFIG_DIR, false);
 
     // Create database object.
-    JSONSyncConfigDBPtr db(new JSONSyncConfigDB(dbPath, path, *this));
+    JSONSyncConfigDBPtr db(new JSONSyncConfigDB(dbPath, path));
 
     // Load existing database, if any.
     error result = db->read(mIOContext);
@@ -3960,8 +3902,16 @@ const JSONSyncConfigMap* JSONSyncConfigStore::create(const LocalPath& drivePath)
     // Add database to the store.
     auto it = mDriveToDB.emplace(path, std::move(db));
 
+    // Add this databases's configs to the index.
+    auto* configs = &it.first->second->configs();
+
+    for (auto& i : *configs)
+    {
+        mBackupIdToDB.emplace(i.first, it.first->second.get());
+    }
+
     // Return reference to (possibly empty) configs.
-    return &it.first->second->configs();
+    return configs;
 }
 
 bool JSONSyncConfigStore::dirty() const
@@ -4077,7 +4027,7 @@ const JSONSyncConfigMap* JSONSyncConfigStore::open(const LocalPath& drivePath)
     dbPath.appendWithSeparator(BACKUP_CONFIG_DIR, false);
 
     // Create database object.
-    JSONSyncConfigDBPtr db(new JSONSyncConfigDB(dbPath, path, *this));
+    JSONSyncConfigDBPtr db(new JSONSyncConfigDB(dbPath, path));
 
     // Try and load the database from disk.
     if (db->read(mIOContext) != API_OK)
@@ -4089,8 +4039,16 @@ const JSONSyncConfigMap* JSONSyncConfigStore::open(const LocalPath& drivePath)
     // Add the database to the store.
     auto it = mDriveToDB.emplace(path, std::move(db));
 
+    // Add this databases's configs to the index.
+    auto* configs = &it.first->second->configs();
+
+    for (auto& i : *configs)
+    {
+        mBackupIdToDB.emplace(i.first, it.first->second.get());
+    }
+
     // Return reference to (possibly empty) configs.
-    return &it.first->second->configs();
+    return configs;
 }
 
 bool JSONSyncConfigStore::opened(const LocalPath& drivePath) const
@@ -4102,12 +4060,17 @@ error JSONSyncConfigStore::removeByBackupId(const handle backupId)
 {
     auto it = mBackupIdToDB.find(backupId);
 
-    if (it != mBackupIdToDB.end())
+    if (it == mBackupIdToDB.end())
     {
-        return it->second->removeByBackupId(backupId);
+        return API_ENOENT;
     }
 
-    return API_ENOENT;
+    it->second->removeByBackupId(backupId);
+
+    mDirtyDB.emplace(it->second);
+    mBackupIdToDB.erase(it);
+
+    return API_OK;
 }
 
 error JSONSyncConfigStore::removeByRootHandle(const handle targetHandle)
@@ -4123,6 +4086,7 @@ error JSONSyncConfigStore::removeByRootHandle(const handle targetHandle)
 
         if (result != API_ENOENT)
         {
+            mDirtyDB.emplace(db.second);
             return result;
         }
     }
@@ -4140,6 +4104,8 @@ const LocalPath JSONSyncConfigStore::BACKUP_CONFIG_DIR =
     LocalPath::fromPlatformEncoded(PATHSTRING(".megabackup"));
 
 #undef PATHSTRING
+
+#if 0
 
 void JSONSyncConfigStore::onAdd(JSONSyncConfigDB& db, const SyncConfig& config)
 {
@@ -4162,10 +4128,18 @@ void JSONSyncConfigStore::onRemove(JSONSyncConfigDB&, const SyncConfig& config)
     mBackupIdToDB.erase(config.getBackupId());
 }
 
+#endif
+
 error JSONSyncConfigStore::close(JSONSyncConfigDB& db)
 {
     // Try and flush the database.
     const auto result = flush(db);
+
+    // Remove this database's configs from the index.
+    for (auto& i : db.configs())
+    {
+        mBackupIdToDB.erase(i.first);
+    }
 
     // Remove the database from memory.
     mDriveToDB.erase(db.drivePath());

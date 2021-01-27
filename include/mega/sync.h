@@ -357,15 +357,13 @@ private:
 // For convenience.
 using JSONSyncConfigMap = map<handle, SyncConfig>;
 
-class JSONSyncConfigDBObserver;
 class JSONSyncConfigIOContext;
 
 class MEGA_API JSONSyncConfigDB
 {
 public:
     JSONSyncConfigDB(const LocalPath& dbPath,
-                     const LocalPath& drivePath,
-                     JSONSyncConfigDBObserver& observer);
+                     const LocalPath& drivePath);
 
     explicit
     JSONSyncConfigDB(const LocalPath& dbPath);
@@ -376,11 +374,12 @@ public:
 
     MEGA_DEFAULT_MOVE(JSONSyncConfigDB);
 
-    // Add a new (or update an existing) config.
-    const SyncConfig* add(const SyncConfig& config);
+    // Adds a new (or updates an existing) config.
+    const SyncConfig* add(const SyncConfig& config,
+                          const bool flush = true);
 
     // Remove all configs.
-    void clear();
+    void clear(const bool flush = true);
 
     // Get current configs.
     const JSONSyncConfigMap& configs() const;
@@ -413,13 +412,6 @@ public:
     error write(JSONSyncConfigIOContext& ioContext);
 
 private:
-    // Adds a new (or updates an existing) config.
-    const SyncConfig* add(const SyncConfig& config,
-                          const bool flush);
-
-    // Removes all configs.
-    void clear(const bool flush);
-
     // Reads this database from the specified slot on disk.
     error read(JSONSyncConfigIOContext& ioContext,
                const unsigned int slot);
@@ -436,9 +428,6 @@ private:
 
     // Path to the drive containing this database.
     LocalPath mDrivePath;
-
-    // Who we tell about config changes.
-    JSONSyncConfigDBObserver* mObserver;
 
     // Maps backup tag to config.
     JSONSyncConfigMap mBackupIdToConfig;
@@ -521,33 +510,7 @@ private:
     HMACSHA256 mSigner;
 }; // JSONSyncConfigIOContext
 
-class MEGA_API JSONSyncConfigDBObserver
-{
-public:
-    // Invoked when a backup config is being added.
-    virtual void onAdd(JSONSyncConfigDB& db,
-                       const SyncConfig& config) = 0;
-
-    // Invoked when a backup config is being changed.
-    virtual void onChange(JSONSyncConfigDB& db,
-                          const SyncConfig& from,
-                          const SyncConfig& to) = 0;
-
-    // Invoked when a database needs to be written.
-    virtual void onDirty(JSONSyncConfigDB& db) = 0;
-
-    // Invoked when a backup config is being removed.
-    virtual void onRemove(JSONSyncConfigDB& db,
-                          const SyncConfig& config) = 0;
-
-protected:
-    JSONSyncConfigDBObserver();
-
-    ~JSONSyncConfigDBObserver();
-}; // JSONSyncConfigDBObserver
-
 class MEGA_API JSONSyncConfigStore
-  : private JSONSyncConfigDBObserver
 {
 public:
     explicit
@@ -607,6 +570,7 @@ public:
     static const LocalPath BACKUP_CONFIG_DIR;
 
 protected:
+#if 0
     // Invoked when a backup config is being added.
     virtual void onAdd(JSONSyncConfigDB& db,
                        const SyncConfig& config) override;
@@ -622,6 +586,7 @@ protected:
     // Invoked when a backup config is being removed.
     virtual void onRemove(JSONSyncConfigDB& db,
                           const SyncConfig& config) override;
+#endif
 
 private:
     // How we compare drive paths.

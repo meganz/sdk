@@ -1874,28 +1874,10 @@ class JSONSyncConfigDBTest
   : public JSONSyncConfigTest
 {
 public:
-    class Observer
-      : public JSONSyncConfigDBObserver
-    {
-    public:
-        // Convenience.
-        using Config = SyncConfig;
-        using DB = JSONSyncConfigDB;
-
-        MOCK_METHOD2(onAdd, void(DB&, const Config&));
-
-        MOCK_METHOD3(onChange, void(DB&, const Config&, const Config&));
-
-        MOCK_METHOD1(onDirty, void(DB&));
-
-        MOCK_METHOD2(onRemove, void(DB&, const Config&));
-    }; // Observer
-
     JSONSyncConfigDBTest()
       : JSONSyncConfigTest()
-      , mDBPath(Utilities::randomPath())
+      , mDBPath(fsAccess(), Utilities::randomPath())
       , mDrivePath(mDBPath)
-      , mObserver()
     {
     }
 
@@ -1909,21 +1891,15 @@ public:
         return mDrivePath;
     }
 
-    Observer& observer()
-    {
-        return mObserver;
-    }
-
 private:
-    LocalPath mDBPath;
+    Directory mDBPath;
     const LocalPath mDrivePath;
-    FakeNiceMock<Observer> mObserver;
 }; // JSONSyncConfigDBTest
 
 TEST_F(JSONSyncConfigDBTest, AddWithTarget)
 {
     // Create config DB.
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
     // Create and populate config.
     SyncConfig config;
@@ -1934,17 +1910,6 @@ TEST_F(JSONSyncConfigDBTest, AddWithTarget)
     config.mBackupId = 0;
     config.mRemoteNode = 1;
 
-    // Database should tell the observer that a new config has been added.
-    Expectation onAdd =
-      EXPECT_CALL(observer(),
-                  onAdd(Ref(configDB), Eq(config)))
-        .Times(1);
-
-    // Database should tell the observer it needs to be written.
-    EXPECT_CALL(observer(),
-                onDirty(Ref(configDB)))
-      .After(onAdd);
-
     // Add config to database.
     const auto* c = configDB.add(config);
     ASSERT_NE(c, nullptr);
@@ -1952,6 +1917,9 @@ TEST_F(JSONSyncConfigDBTest, AddWithTarget)
 
     // Has a config been added?
     EXPECT_EQ(configDB.configs().size(), 1);
+
+    // Is the database dirty?
+    EXPECT_TRUE(configDB.dirty());
 
     // Can we retrieve the config by tag?
     EXPECT_EQ(configDB.getByBackupId(config.mBackupId), c);
@@ -1963,7 +1931,7 @@ TEST_F(JSONSyncConfigDBTest, AddWithTarget)
 TEST_F(JSONSyncConfigDBTest, AddWithoutTarget)
 {
     // Create config DB.
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
     // Create and populate config.
     SyncConfig config;
@@ -1974,18 +1942,6 @@ TEST_F(JSONSyncConfigDBTest, AddWithoutTarget)
     config.mBackupId = 0;
     config.mRemoteNode = UNDEF;
 
-    // Database should tell the observer that a new config has been added.
-    Expectation onAdd =
-      EXPECT_CALL(observer(),
-                  onAdd(Ref(configDB), Eq(config)))
-        .Times(1);
-
-    // Database should tell the observer it needs to be written.
-    EXPECT_CALL(observer(),
-                onDirty(Ref(configDB)))
-      .Times(1)
-      .After(onAdd);
-
     // Add config to database.
     const auto* c = configDB.add(config);
     ASSERT_NE(c, nullptr);
@@ -1994,6 +1950,9 @@ TEST_F(JSONSyncConfigDBTest, AddWithoutTarget)
     // Has a config been added?
     EXPECT_EQ(configDB.configs().size(), 1);
 
+    // Is the database dirty?
+    EXPECT_TRUE(configDB.dirty());
+
     // Can we retrieve the config by tag?
     EXPECT_EQ(configDB.getByBackupId(config.mBackupId), c);
 
@@ -2001,10 +1960,9 @@ TEST_F(JSONSyncConfigDBTest, AddWithoutTarget)
     EXPECT_EQ(configDB.getByRootHandle(UNDEF), nullptr);
 }
 
-
 TEST_F(JSONSyncConfigDBTest, Clear)
 {
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
     // Add a couple configurations.
     SyncConfig configA;
@@ -2020,35 +1978,23 @@ TEST_F(JSONSyncConfigDBTest, Clear)
     configB.mBackupId = 2;
     configB.mRemoteNode = 3;
 
-    EXPECT_NE(configDB.add(configA), nullptr);
-    EXPECT_NE(configDB.add(configB), nullptr);
+    EXPECT_NE(configDB.add(configA, false), nullptr);
+    EXPECT_NE(configDB.add(configB, false), nullptr);
 
     // Verify configs have been added.
     EXPECT_EQ(configDB.configs().size(), 2);
 
-    // Observer should be notified for each config cleared.
-    Expectation onRemoveA =
-      EXPECT_CALL(observer(),
-                  onRemove(Ref(configDB), Eq(configA)))
-        .Times(1);
-
-    Expectation onRemoveB =
-      EXPECT_CALL(observer(),
-                  onRemove(Ref(configDB), Eq(configB)))
-        .Times(1)
-        .After(onRemoveA);
-
-    // Observer should be notified that the DB needs writing.
-    EXPECT_CALL(observer(),
-                onDirty(Ref(configDB)))
-      .Times(1)
-      .After(onRemoveB);
+    // Database shouldn't be dirty.
+    EXPECT_FALSE(configDB.dirty());
 
     // Clear the database.
     configDB.clear();
 
     // Database shouldn't contain any configs.
     EXPECT_TRUE(configDB.configs().empty());
+
+    // Database should be dirty.
+    EXPECT_TRUE(configDB.dirty());
 
     // No mappings should remain.
     EXPECT_EQ(configDB.getByBackupId(configA.mBackupId), nullptr);
@@ -2059,67 +2005,25 @@ TEST_F(JSONSyncConfigDBTest, Clear)
 
 TEST_F(JSONSyncConfigDBTest, ClearEmpty)
 {
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
-
-    // Clearing an empty database should not trigger any notifications.
-    EXPECT_CALL(observer(), onDirty(_)).Times(0);
-    EXPECT_CALL(observer(), onRemove(_, _)).Times(0);
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
     // Clear the database.
     configDB.clear();
-}
 
-TEST_F(JSONSyncConfigDBTest, Destruct)
-{
-    // Nested scope so we can test destruction.
-    {
-        JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
-
-        // Create config.
-        SyncConfig config;
-
-        config.mExternalDrivePath = drivePath();
-        config.mLocalPath = Utilities::randomPath();
-        config.mBackupId = 1;
-        config.mRemoteNode = 2;
-
-        // Add config.
-        EXPECT_NE(configDB.add(config), nullptr);
-
-        // Observer should be told about each removed config.
-        EXPECT_CALL(observer(),
-                    onRemove(Ref(configDB), Eq(config)))
-          .Times(1);
-
-        // Destructor does not dirty the database.
-        EXPECT_CALL(observer(),
-                    onDirty(Ref(configDB)))
-          .Times(0);
-    }
+    // Database shouldn't be dirty.
+    EXPECT_FALSE(configDB.dirty());
 }
 
 TEST_F(JSONSyncConfigDBTest, DrivePath)
 {
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
     EXPECT_EQ(configDB.drivePath(), drivePath());
 }
 
-TEST_F(JSONSyncConfigDBTest, DestructEmpty)
-{
-    // Nested scope so we can test destruction.
-    {
-        JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
-
-        // An empty database should not generate any notifications.
-        EXPECT_CALL(observer(), onDirty(_)).Times(0);
-        EXPECT_CALL(observer(), onRemove(_, _)).Times(0);
-    }
-}
-
 TEST_F(JSONSyncConfigDBTest, Read)
 {
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
     // Add a configuration to be written to disk.
     SyncConfig config;
@@ -2145,7 +2049,10 @@ TEST_F(JSONSyncConfigDBTest, Read)
     EXPECT_EQ(configDB.write(ioContext()), API_OK);
 
     // Clear the database.
-    configDB.clear();
+    configDB.clear(false);
+
+    // Database shouldn't be dirty.
+    EXPECT_FALSE(configDB.dirty());
 
     // Read the configuration back.
     static const vector<unsigned int> slots = {0};
@@ -2165,17 +2072,11 @@ TEST_F(JSONSyncConfigDBTest, Read)
         .WillOnce(DoAll(SetArgReferee<1>(json),
                         Return(API_OK)));
 
-    // Observer should be notified when a configuration is loaded.
-    EXPECT_CALL(observer(),
-                onAdd(Ref(configDB), Eq(config)))
-      .Times(1)
-      .After(read);
-
-    // Loading should not trigger any dirty notifications.
-    EXPECT_CALL(observer(), onDirty(Ref(configDB))).Times(0);
-
     // Read should succeed.
     EXPECT_EQ(configDB.read(ioContext()), API_OK);
+
+    // Database shouldn't be dirty.
+    EXPECT_FALSE(configDB.dirty());
 
     // Can we retrieve the loaded config by tag?
     const auto* c = configDB.getByBackupId(config.mBackupId);
@@ -2190,7 +2091,7 @@ TEST_F(JSONSyncConfigDBTest, ReadBadDecrypt)
 {
     static const vector<unsigned int> slots = {1};
 
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
     // Return a single slot for reading.
     Expectation get =
@@ -2211,7 +2112,7 @@ TEST_F(JSONSyncConfigDBTest, ReadBadDecrypt)
 
 TEST_F(JSONSyncConfigDBTest, ReadEmptyClearsDatabase)
 {
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
     // Add a config to the database.
     SyncConfig config;
@@ -2220,7 +2121,10 @@ TEST_F(JSONSyncConfigDBTest, ReadEmptyClearsDatabase)
     config.mBackupId = 1;
     config.mRemoteNode = 2;
 
-    EXPECT_NE(configDB.add(config), nullptr);
+    EXPECT_NE(configDB.add(config, false), nullptr);
+
+    // Database shouldn't be dirty.
+    EXPECT_FALSE(configDB.dirty());
 
     // Return a single slot for reading.
     static const vector<unsigned int> slots = {0};
@@ -2239,17 +2143,11 @@ TEST_F(JSONSyncConfigDBTest, ReadEmptyClearsDatabase)
         .WillOnce(DoAll(SetArgReferee<1>("[]"),
                         Return(API_OK)));
 
-    // Observer should be notified that the config has been removed.
-    EXPECT_CALL(observer(),
-                onRemove(Ref(configDB), Eq(config)))
-      .Times(1)
-      .After(read);
-
-    // Loading should never generate onDirty notifications.
-    EXPECT_CALL(observer(), onDirty(Ref(configDB))).Times(0);
-
     // Read the empty database.
     EXPECT_EQ(configDB.read(ioContext()), API_OK);
+
+    // Database shouldn't be dirty.
+    EXPECT_FALSE(configDB.dirty());
 
     // Tag mapping should've been removed.
     EXPECT_EQ(configDB.getByBackupId(config.mBackupId), nullptr);
@@ -2260,7 +2158,7 @@ TEST_F(JSONSyncConfigDBTest, ReadEmptyClearsDatabase)
 
 TEST_F(JSONSyncConfigDBTest, ReadNoSlots)
 {
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
     // Don't return any slots for reading.
     EXPECT_CALL(ioContext(),
@@ -2273,7 +2171,7 @@ TEST_F(JSONSyncConfigDBTest, ReadNoSlots)
 
 TEST_F(JSONSyncConfigDBTest, ReadUpdatesDatabase)
 {
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
     // Add a config to the database.
     SyncConfig configBefore;
@@ -2301,7 +2199,10 @@ TEST_F(JSONSyncConfigDBTest, ReadUpdatesDatabase)
 
     configAfter.mRemoteNode = 3;
 
-    EXPECT_NE(configDB.add(configAfter), nullptr);
+    EXPECT_NE(configDB.add(configAfter, false), nullptr);
+
+    // Database shouldn't be dirty.
+    EXPECT_FALSE(configDB.dirty());
 
     // Return a single slot for reading.
     static const vector<unsigned int> slots = {0};
@@ -2320,19 +2221,11 @@ TEST_F(JSONSyncConfigDBTest, ReadUpdatesDatabase)
         .WillOnce(DoAll(SetArgReferee<1>(json),
                         Return(API_OK)));
 
-    // Observer should be notified when the config changes.
-    EXPECT_CALL(observer(),
-                onChange(Ref(configDB),
-                         Eq(configAfter),
-                         Eq(configBefore)))
-      .Times(1)
-      .After(read);
-
-    // No dirty notications should be triggered when loading.
-    EXPECT_CALL(observer(), onDirty(Ref(configDB))).Times(0);
-
     // Read back the database.
     EXPECT_EQ(configDB.read(ioContext()), API_OK);
+
+    // Database shouldn't be dirty.
+    EXPECT_FALSE(configDB.dirty());
 
     // Can we still retrieve the config by tag?
     const auto* c = configDB.getByBackupId(configBefore.mBackupId);
@@ -2351,7 +2244,7 @@ TEST_F(JSONSyncConfigDBTest, ReadTriesAllAvailableSlots)
     // Slots available for reading.
     static const vector<unsigned int> slots = {1, 2, 3};
 
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
     // Return three slots for reading.
     Expectation get =
@@ -2386,7 +2279,7 @@ TEST_F(JSONSyncConfigDBTest, ReadTriesAllAvailableSlots)
 
 TEST_F(JSONSyncConfigDBTest, RemoveByBackupID)
 {
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
     // Add a config to remove.
     SyncConfig config;
@@ -2396,22 +2289,16 @@ TEST_F(JSONSyncConfigDBTest, RemoveByBackupID)
     config.mBackupId = 1;
     config.mRemoteNode = 2;
 
-    EXPECT_NE(configDB.add(config), nullptr);
+    EXPECT_NE(configDB.add(config, false), nullptr);
 
-    // Observer should be notified when the config is removed.
-    Expectation onRemove =
-      EXPECT_CALL(observer(),
-                  onRemove(Ref(configDB), Eq(config)))
-      .Times(1);
-
-    // Database should be dirty after config has been removed.
-    EXPECT_CALL(observer(),
-                onDirty(Ref(configDB)))
-      .Times(1)
-      .After(onRemove);
+    // Database shouldn't be dirty.
+    EXPECT_FALSE(configDB.dirty());
 
     // Remove the config by tag.
     EXPECT_EQ(configDB.removeByBackupId(config.mBackupId), API_OK);
+
+    // Database should be dirty.
+    EXPECT_TRUE(configDB.dirty());
 
     // Database should now be empty.
     EXPECT_TRUE(configDB.configs().empty());
@@ -2423,17 +2310,17 @@ TEST_F(JSONSyncConfigDBTest, RemoveByBackupID)
 
 TEST_F(JSONSyncConfigDBTest, RemoveByBackupIDWhenEmpty)
 {
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
-
-    EXPECT_CALL(observer(), onDirty(_)).Times(0);
-    EXPECT_CALL(observer(), onRemove(_, _)).Times(0);
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
     EXPECT_EQ(configDB.removeByBackupId(0), API_ENOENT);
+
+    // Database shouldn't be dirty.
+    EXPECT_FALSE(configDB.dirty());
 }
 
 TEST_F(JSONSyncConfigDBTest, RemoveByUnknownBackupID)
 {
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
     // Add some config so the database isn't empty.
     {
@@ -2443,22 +2330,21 @@ TEST_F(JSONSyncConfigDBTest, RemoveByUnknownBackupID)
         config.mBackupId = 0;
         config.mRemoteNode = 1;
 
-        EXPECT_NE(configDB.add(config), nullptr);
-    }
+        EXPECT_NE(configDB.add(config, false), nullptr);
 
-    EXPECT_CALL(observer(), onDirty(_)).Times(0);
-    EXPECT_CALL(observer(), onRemove(_, _)).Times(0);
+        // Database shouldn't be dirty.
+        EXPECT_FALSE(configDB.dirty());
+    }
 
     EXPECT_EQ(configDB.removeByBackupId(1), API_ENOENT);
 
-    // Verify and clear the expectations now as the database will trigger
-    // an onRemove notification when it is destroyed.
-    Mock::VerifyAndClearExpectations(&observer());
+    // Database shouldn't be dirty.
+    EXPECT_FALSE(configDB.dirty());
 }
 
 TEST_F(JSONSyncConfigDBTest, RemoveByTargetHandle)
 {
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
     // Add a config to remove.
     SyncConfig config;
@@ -2467,22 +2353,16 @@ TEST_F(JSONSyncConfigDBTest, RemoveByTargetHandle)
     config.mBackupId = 0;
     config.mRemoteNode = 1;
 
-    EXPECT_NE(configDB.add(config), nullptr);
+    EXPECT_NE(configDB.add(config, false), nullptr);
 
-    // Observer should be notified when the config is removed.
-    Expectation onRemove =
-      EXPECT_CALL(observer(),
-                  onRemove(Ref(configDB), Eq(config)))
-      .Times(1);
-
-    // Database should be dirty after the config has been removed.
-    EXPECT_CALL(observer(),
-                onDirty(Ref(configDB)))
-      .Times(1)
-      .After(onRemove);
+    // Database shouldn't be dirty.
+    EXPECT_FALSE(configDB.dirty());
 
     // Remove the config.
     EXPECT_EQ(configDB.removeByRootHandle(config.mRemoteNode), API_OK);
+
+    // Database should be dirty.
+    EXPECT_TRUE(configDB.dirty());
 
     // Database should now be empty.
     EXPECT_TRUE(configDB.configs().empty());
@@ -2492,21 +2372,18 @@ TEST_F(JSONSyncConfigDBTest, RemoveByTargetHandle)
     EXPECT_EQ(configDB.getByRootHandle(config.mRemoteNode), nullptr);
 }
 
-
 TEST_F(JSONSyncConfigDBTest, RemoveByTargetHandleWhenEmpty)
 {
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
-    EXPECT_CALL(observer(), onDirty(_)).Times(0);
-    EXPECT_CALL(observer(), onRemove(_, _)).Times(0);
+    EXPECT_EQ(configDB.removeByRootHandle(0), API_ENOENT);
 
-    const handle targetHandle = 0;
-    EXPECT_EQ(configDB.removeByRootHandle(targetHandle), API_ENOENT);
+    EXPECT_FALSE(configDB.dirty());
 }
 
 TEST_F(JSONSyncConfigDBTest, RemoveByUnknownTargetHandle)
 {
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
     // Add a config so that the database isn't empty.
     {
@@ -2516,22 +2393,21 @@ TEST_F(JSONSyncConfigDBTest, RemoveByUnknownTargetHandle)
         config.mBackupId = 0;
         config.mRemoteNode = 1;
 
-        EXPECT_NE(configDB.add(config), nullptr);
+        EXPECT_NE(configDB.add(config, false), nullptr);
+        
+        // Database shouldn't be dirty.
+        EXPECT_FALSE(configDB.dirty());
     }
-
-    EXPECT_CALL(observer(), onDirty(_)).Times(0);
-    EXPECT_CALL(observer(), onRemove(_, _)).Times(0);
 
     EXPECT_EQ(configDB.removeByRootHandle(0), API_ENOENT);
 
-    // Verify and clear the expectations now as the database will trigger
-    // an onRemove notification when it is destroyed.
-    Mock::VerifyAndClearExpectations(&observer());
+    // Database shouldn't be dirty.
+    EXPECT_FALSE(configDB.dirty());
 }
 
 TEST_F(JSONSyncConfigDBTest, Update)
 {
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
     // Add a config.
     SyncConfig configBefore;
@@ -2541,32 +2417,24 @@ TEST_F(JSONSyncConfigDBTest, Update)
     configBefore.mBackupId = 0;
     configBefore.mRemoteNode = 1;
 
-    const auto* c = configDB.add(configBefore);
+    const auto* c = configDB.add(configBefore, false);
     ASSERT_NE(c, nullptr);
     EXPECT_EQ(*c, configBefore);
+
+    // Database shouldn't be dirty.
+    EXPECT_FALSE(configDB.dirty());
 
     // Update config.
     SyncConfig configAfter = configBefore;
 
     configAfter.mEnabled = true;
 
-    // Observer should be notified when config changes.
-    Expectation onChange =
-      EXPECT_CALL(observer(),
-                  onChange(Ref(configDB),
-                           Eq(configBefore),
-                           Eq(configAfter)))
-      .Times(1);
-
-    // Database needs a write after updating a config.
-    EXPECT_CALL(observer(),
-                onDirty(Ref(configDB)))
-      .Times(1)
-      .After(onChange);
-
     // Update config in the database.
     EXPECT_EQ(configDB.add(configAfter), c);
     EXPECT_EQ(*c, configAfter);
+
+    // Database should be dirty.
+    EXPECT_TRUE(configDB.dirty());
 
     // Can still retrieve by tag.
     EXPECT_EQ(configDB.getByBackupId(configAfter.mBackupId), c);
@@ -2577,7 +2445,7 @@ TEST_F(JSONSyncConfigDBTest, Update)
 
 TEST_F(JSONSyncConfigDBTest, UpdateChangeTargetHandle)
 {
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
     // Add config.
     SyncConfig configBefore;
@@ -2586,32 +2454,24 @@ TEST_F(JSONSyncConfigDBTest, UpdateChangeTargetHandle)
     configBefore.mBackupId = 0;
     configBefore.mRemoteNode = 0;
 
-    const auto* c = configDB.add(configBefore);
+    const auto* c = configDB.add(configBefore, false);
     ASSERT_NE(c, nullptr);
     EXPECT_EQ(*c, configBefore);
+
+    // Database should be clean.
+    EXPECT_FALSE(configDB.dirty());
 
     // Update config.
     SyncConfig configAfter = configBefore;
 
     configAfter.mRemoteNode = 1;
 
-    // Observer should be notified when a config changes.
-    Expectation onChange =
-      EXPECT_CALL(observer(),
-                  onChange(Ref(configDB),
-                           Eq(configBefore),
-                           Eq(configAfter)))
-      .Times(1);
-
-    // Database should be dirty when a config has changed.
-    EXPECT_CALL(observer(),
-                onDirty(Ref(configDB)))
-      .Times(1)
-      .After(onChange);
-
     // Update the config in the database.
     EXPECT_EQ(configDB.add(configAfter), c);
     EXPECT_EQ(*c, configAfter);
+
+    // Database should be dirty.
+    EXPECT_TRUE(configDB.dirty());
 
     // Can still retrieve by tag.
     EXPECT_EQ(configDB.getByBackupId(configAfter.mBackupId), c);
@@ -2625,7 +2485,7 @@ TEST_F(JSONSyncConfigDBTest, UpdateChangeTargetHandle)
 
 TEST_F(JSONSyncConfigDBTest, UpdateRemoveTargetHandle)
 {
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
     // Add config.
     SyncConfig configBefore;
@@ -2634,32 +2494,24 @@ TEST_F(JSONSyncConfigDBTest, UpdateRemoveTargetHandle)
     configBefore.mBackupId = 0;
     configBefore.mRemoteNode = 0;
 
-    const auto* c = configDB.add(configBefore);
+    const auto* c = configDB.add(configBefore, false);
     ASSERT_NE(c, nullptr);
     EXPECT_EQ(*c, configBefore);
+
+    // Database should be clean.
+    EXPECT_FALSE(configDB.dirty());
 
     // Update config.
     SyncConfig configAfter = configBefore;
 
     configAfter.mRemoteNode = UNDEF;
 
-    // Observer should be notified when a config changes.
-    Expectation onChange =
-      EXPECT_CALL(observer(),
-                  onChange(Ref(configDB),
-                           Eq(configBefore),
-                           Eq(configAfter)))
-      .Times(1);
-
-    // Database should be dirty when a config has changed.
-    EXPECT_CALL(observer(),
-                onDirty(Ref(configDB)))
-      .Times(1)
-      .After(onChange);
-
     // Update the config in the database.
     EXPECT_EQ(configDB.add(configAfter), c);
     EXPECT_EQ(*c, configAfter);
+
+    // Database should be dirty.
+    EXPECT_TRUE(configDB.dirty());
 
     // Can still retrieve by tag.
     EXPECT_EQ(configDB.getByBackupId(configAfter.mBackupId), c);
@@ -2673,7 +2525,7 @@ TEST_F(JSONSyncConfigDBTest, UpdateRemoveTargetHandle)
 
 TEST_F(JSONSyncConfigDBTest, WriteFail)
 {
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
     // Any attempt to write to slot 0 will fail.
     EXPECT_CALL(ioContext(),
@@ -2690,7 +2542,7 @@ TEST_F(JSONSyncConfigDBTest, WriteFail)
 
 TEST_F(JSONSyncConfigDBTest, WriteOK)
 {
-    JSONSyncConfigDB configDB(dbPath(), drivePath(), observer());
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
 
     // Writes to slot 0 should succeed.
     Expectation write0 =
@@ -2715,62 +2567,6 @@ class JSONSyncConfigStoreTest
   : public JSONSyncConfigTest
 {
 public:
-    class ConfigStore
-      : public JSONSyncConfigStore
-    {
-    public:
-        ConfigStore(JSONSyncConfigIOContext& ioContext)
-          : JSONSyncConfigStore(ioContext)
-        {
-            // Perform real behavior by default.
-            ON_CALL(*this, onAdd(_, _))
-              .WillByDefault(Invoke(this, &ConfigStore::onAddConcrete));
-
-            ON_CALL(*this, onChange(_, _, _))
-              .WillByDefault(Invoke(this, &ConfigStore::onChangeConcrete));
-
-            ON_CALL(*this, onDirty(_))
-              .WillByDefault(Invoke(this, &ConfigStore::onDirtyConcrete));
-
-            ON_CALL(*this, onRemove(_, _))
-              .WillByDefault(Invoke(this, &ConfigStore::onRemoveConcrete));
-        }
-
-        // Convenience.
-        using DB = JSONSyncConfigDB;
-        using Config = SyncConfig;
-
-        MOCK_METHOD2(onAdd, void(DB&, const Config&));
-
-        MOCK_METHOD3(onChange, void(DB&, const Config&, const Config&));
-
-        MOCK_METHOD1(onDirty, void(DB&));
-
-        MOCK_METHOD2(onRemove, void(DB&, const Config&));
-
-    private:
-        // Delegate to real behavior.
-        void onAddConcrete(DB& db, const Config& config)
-        {
-            return JSONSyncConfigStore::onAdd(db, config);
-        }
-
-        void onChangeConcrete(DB& db, const Config& from, const Config& to)
-        {
-            return JSONSyncConfigStore::onChange(db, from, to);
-        }
-
-        void onDirtyConcrete(DB& db)
-        {
-            return JSONSyncConfigStore::onDirty(db);
-        }
-
-        void onRemoveConcrete(DB& db, const Config& config)
-        {
-            return JSONSyncConfigStore::onRemove(db, config);
-        }
-    }; // ConfigStore
-
     JSONSyncConfigStoreTest()
       : JSONSyncConfigTest()
     {
@@ -2789,7 +2585,7 @@ TEST_F(JSONSyncConfigStoreTest, Add)
     Directory drive(fsAccess(), Utilities::randomPath());
 
     // Create database.
-    FakeStrictMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     EXPECT_NE(store.create(drive), nullptr);
 
@@ -2803,18 +2599,6 @@ TEST_F(JSONSyncConfigStoreTest, Add)
     config.mExternalDrivePath = drive;
     config.mBackupId = 1;
     config.mRemoteNode = 2;
-
-    // onAdd should be generated when a new config is added.
-    Expectation onAdd =
-      EXPECT_CALL(store,
-                  onAdd(DB(drive.path()), Eq(config)))
-        .Times(1);
-
-    // onDirty should be generated when a database changes.
-    EXPECT_CALL(store,
-                onDirty(DB(drive.path())))
-      .Times(1)
-      .After(onAdd);
 
     // Add the config to the database.
     const auto* c = store.add(config);
@@ -2838,7 +2622,7 @@ TEST_F(JSONSyncConfigStoreTest, AddDenormalized)
     Directory drive(fsAccess(), Utilities::randomPath());
 
     // Create store.
-    FakeNiceMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Create database (using normalized path.)
     ASSERT_NE(store.create(drive), nullptr);
@@ -2867,7 +2651,7 @@ TEST_F(JSONSyncConfigStoreTest, AddDenormalized)
 
 TEST_F(JSONSyncConfigStoreTest, AddToUnknownDatabase)
 {
-    FakeStrictMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // No attempt should be made to open an unknown database.
     EXPECT_CALL(ioContext(), getSlotsInOrder(_, _)).Times(0);
@@ -2903,10 +2687,10 @@ TEST_F(JSONSyncConfigStoreTest, CloseAll)
     auto backupPathA = driveA.path();
 
     backupPathA.appendWithSeparator(
-      ConfigStore::BACKUP_CONFIG_DIR, false);
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
 
     // Create store.
-    FakeNiceMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Add databases.
     EXPECT_NE(store.create(driveA), nullptr);
@@ -2957,10 +2741,10 @@ TEST_F(JSONSyncConfigStoreTest, CloseClean)
     auto backupPath = drive.path();
 
     backupPath.appendWithSeparator(
-      ConfigStore::BACKUP_CONFIG_DIR, false);
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
 
     // Create store.
-    FakeNiceMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Create a database.
     ASSERT_NE(store.create(drive), nullptr);
@@ -2991,7 +2775,7 @@ TEST_F(JSONSyncConfigStoreTest, CloseDenormalized)
     drivePath.append(Utilities::separator());
 
     // Create store.
-    FakeNiceMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Create database (using normalized path.)
     ASSERT_NE(store.create(drive), nullptr);
@@ -3017,10 +2801,10 @@ TEST_F(JSONSyncConfigStoreTest, CloseDirty)
     auto backupPath = drive.path();
 
     backupPath.appendWithSeparator(
-      ConfigStore::BACKUP_CONFIG_DIR, false);
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
 
     // Create store.
-    FakeNiceMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Create a database.
     ASSERT_NE(store.create(drive), nullptr);
@@ -3054,12 +2838,6 @@ TEST_F(JSONSyncConfigStoreTest, CloseDirty)
                   write(Eq(backupPath), _, Eq(1u)))
         .Times(1);
 
-    // onRemove should be generated when the database's config is removed.
-    EXPECT_CALL(store,
-                onRemove(DB(drive.path()), Eq(config)))
-      .Times(1)
-      .After(write);
-
     // Close the database.
     EXPECT_EQ(store.close(drive), API_OK);
 
@@ -3081,10 +2859,10 @@ TEST_F(JSONSyncConfigStoreTest, CloseDirtyCantWrite)
     auto backupPath = drive.path();
 
     backupPath.appendWithSeparator(
-      ConfigStore::BACKUP_CONFIG_DIR, false);
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
 
     // Create store.
-    FakeNiceMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Create database.
     ASSERT_NE(store.create(drive), nullptr);
@@ -3130,7 +2908,7 @@ TEST_F(JSONSyncConfigStoreTest, CloseDirtyCantWrite)
 
 TEST_F(JSONSyncConfigStoreTest, CloseNoDatabases)
 {
-    FakeStrictMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // No attempts should be made to write any database.
     EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
@@ -3141,7 +2919,7 @@ TEST_F(JSONSyncConfigStoreTest, CloseNoDatabases)
 
 TEST_F(JSONSyncConfigStoreTest, CloseUnknownDatabase)
 {
-    FakeStrictMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // No attempt should be made to write the database.
     EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
@@ -3162,7 +2940,7 @@ TEST_F(JSONSyncConfigStoreTest, Configs)
     Directory driveA(fsAccess(), Utilities::randomPath());
     Directory driveB(fsAccess(), Utilities::randomPath());
 
-    FakeNiceMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Add a couple databases.
     const auto* dA = store.create(driveA);
@@ -3213,7 +2991,7 @@ TEST_F(JSONSyncConfigStoreTest, ConfigsDenormalized)
     drivePath.append(Utilities::separator());
 
     // Create store.
-    FakeNiceMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Create database (using normalized path.)
     auto* configs = store.create(drive);
@@ -3229,14 +3007,14 @@ TEST_F(JSONSyncConfigStoreTest, ConfigsDenormalized)
 
 TEST_F(JSONSyncConfigStoreTest, ConfigsNoDatabases)
 {
-    FakeStrictMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     EXPECT_TRUE(store.configs().empty());
 }
 
 TEST_F(JSONSyncConfigStoreTest, ConfigsUnknownDatabase)
 {
-    FakeStrictMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // No attempt should be made to open an unknown database.
     EXPECT_CALL(ioContext(), getSlotsInOrder(_, _)).Times(0);
@@ -3256,7 +3034,7 @@ TEST_F(JSONSyncConfigStoreTest, Create)
     auto backupPath = drivePath;
 
     backupPath.appendWithSeparator(
-      ConfigStore::BACKUP_CONFIG_DIR, false);
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
 
     // No slots available for reading.
     Expectation get =
@@ -3272,7 +3050,7 @@ TEST_F(JSONSyncConfigStoreTest, Create)
         .WillOnce(Return(API_OK));
 
     // Prepare config store.
-    FakeStrictMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Create the database.
     const auto* configs = store.create(drivePath);
@@ -3296,7 +3074,7 @@ TEST_F(JSONSyncConfigStoreTest, CreateAlreadyOpened)
     auto backupPath = drivePath;
 
     backupPath.appendWithSeparator(
-      ConfigStore::BACKUP_CONFIG_DIR, false);
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
 
     // No slots available for reading.
     Expectation get =
@@ -3312,7 +3090,7 @@ TEST_F(JSONSyncConfigStoreTest, CreateAlreadyOpened)
         .WillOnce(Return(API_OK));
 
     // Prepare config store.
-    FakeStrictMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Create the database.
     const auto* configs = store.create(drivePath);
@@ -3349,7 +3127,7 @@ TEST_F(JSONSyncConfigStoreTest, CreateCantReadExisting)
     auto backupPath = drivePath;
 
     backupPath.appendWithSeparator(
-      ConfigStore::BACKUP_CONFIG_DIR, false);
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
 
     // Return a single slot for reading.
     static const vector<unsigned int> slots = {0};
@@ -3366,7 +3144,7 @@ TEST_F(JSONSyncConfigStoreTest, CreateCantReadExisting)
       .After(get)
       .WillOnce(Return(API_EREAD));
 
-    FakeStrictMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Try and create the database.
     EXPECT_EQ(store.create(drivePath), nullptr);
@@ -3384,7 +3162,7 @@ TEST_F(JSONSyncConfigStoreTest, CreateCantWrite)
     auto backupPath = drivePath;
 
     backupPath.appendWithSeparator(
-      ConfigStore::BACKUP_CONFIG_DIR, false);
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
 
     // No slots available for reading.
     Expectation get =
@@ -3399,7 +3177,7 @@ TEST_F(JSONSyncConfigStoreTest, CreateCantWrite)
       .WillOnce(Return(API_EWRITE));
 
     // Prepare config store.
-    FakeStrictMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Try and create the database.
     EXPECT_EQ(store.create(drivePath), nullptr);
@@ -3420,7 +3198,7 @@ TEST_F(JSONSyncConfigStoreTest, CreateExisting)
     auto backupPath = drivePath;
 
     backupPath.appendWithSeparator(
-      ConfigStore::BACKUP_CONFIG_DIR, false);
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
 
     JSONSyncConfigMap written;
 
@@ -3461,16 +3239,7 @@ TEST_F(JSONSyncConfigStoreTest, CreateExisting)
     EXPECT_CALL(ioContext(), write(Eq(drivePath), _, _)) .Times(0);
 
     // Prepare config store.
-    FakeNiceMock<ConfigStore> store(ioContext());
-
-    // onAdd should be generated for each config loaded from disk.
-    EXPECT_CALL(store,
-                onAdd(DB(drivePath), Eq(written.at(1))))
-      .Times(1)
-      .After(read);
-
-    // onDirty should never be generated by a load.
-    EXPECT_CALL(store, onDirty(_)).Times(0);
+    JSONSyncConfigStore store(ioContext());
 
     // Try creating the database.
     const auto* configs = store.create(drivePath);
@@ -3508,10 +3277,10 @@ TEST_F(JSONSyncConfigStoreTest, Destruct)
         auto backupPath = drive.path();
 
         backupPath.appendWithSeparator(
-          ConfigStore::BACKUP_CONFIG_DIR, false);
+          JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
 
         // Create store.
-        FakeNiceMock<ConfigStore> store(ioContext());
+        JSONSyncConfigStore store(ioContext());
 
         // Create database.
         EXPECT_NE(store.create(drive), nullptr);
@@ -3536,7 +3305,8 @@ TEST_F(JSONSyncConfigStoreTest, Destruct)
 
 TEST_F(JSONSyncConfigStoreTest, FlushAll)
 {
-    const auto& BACKUP_DIR = ConfigStore::BACKUP_CONFIG_DIR;
+    const auto& BACKUP_DIR =
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR;
 
     // Make sure databases are removed.
     Directory driveA(fsAccess(), Utilities::randomPath());
@@ -3550,7 +3320,7 @@ TEST_F(JSONSyncConfigStoreTest, FlushAll)
     backupPathB.appendWithSeparator(BACKUP_DIR, false);
 
     // Create store.
-    FakeNiceMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Add databases.
     EXPECT_NE(store.create(driveA), nullptr);
@@ -3603,14 +3373,14 @@ TEST_F(JSONSyncConfigStoreTest, FlushDenormalized)
     auto backupPath = drive.path();
 
     backupPath.appendWithSeparator(
-      ConfigStore::BACKUP_CONFIG_DIR, false);
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
 
     // Compute denormalized drive path.
     LocalPath drivePath = drive;
     drivePath.append(Utilities::separator());
 
     // Create store.
-    FakeNiceMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Create database (using normalized path.)
     EXPECT_NE(store.create(drive), nullptr);
@@ -3650,10 +3420,10 @@ TEST_F(JSONSyncConfigStoreTest, FlushFail)
     auto backupPath = drive.path();
 
     backupPath.appendWithSeparator(
-      ConfigStore::BACKUP_CONFIG_DIR, false);
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
 
     // Create store.
-    FakeNiceMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Add database.
     EXPECT_NE(store.create(drive), nullptr);
@@ -3681,7 +3451,8 @@ TEST_F(JSONSyncConfigStoreTest, FlushFail)
 
 TEST_F(JSONSyncConfigStoreTest, FlushSpecific)
 {
-    const auto& BACKUP_DIR = ConfigStore::BACKUP_CONFIG_DIR;
+    const auto& BACKUP_DIR =
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR;
 
     // Make sure databases are removed.
     Directory driveA(fsAccess(), Utilities::randomPath());
@@ -3695,7 +3466,7 @@ TEST_F(JSONSyncConfigStoreTest, FlushSpecific)
     backupPathB.appendWithSeparator(BACKUP_DIR, false);
 
     // Create store.
-    FakeNiceMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Create databases.
     EXPECT_NE(store.create(driveA), nullptr);
@@ -3743,7 +3514,7 @@ TEST_F(JSONSyncConfigStoreTest, FlushSpecific)
 
 TEST_F(JSONSyncConfigStoreTest, FlushNoDatabases)
 {
-    FakeStrictMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // No attempts should be made to write any database.
     EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
@@ -3754,7 +3525,7 @@ TEST_F(JSONSyncConfigStoreTest, FlushNoDatabases)
 
 TEST_F(JSONSyncConfigStoreTest, FlushUnknownDatabase)
 {
-    FakeStrictMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // No attempt should be made to write the database.
     EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
@@ -3777,7 +3548,7 @@ TEST_F(JSONSyncConfigStoreTest, Open)
     auto backupPath = drivePath;
 
     backupPath.appendWithSeparator(
-      ConfigStore::BACKUP_CONFIG_DIR, false);
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
 
     JSONSyncConfigMap written;
 
@@ -3817,13 +3588,7 @@ TEST_F(JSONSyncConfigStoreTest, Open)
                         Return(API_OK)));
 
     // Create the store.
-    FakeStrictMock<ConfigStore> store(ioContext());
-
-    // onAdd should be generated when we add a config to the store.
-    EXPECT_CALL(store,
-                onAdd(DB(drivePath), Eq(written.at(1))))
-      .Times(1)
-      .After(read);
+    JSONSyncConfigStore store(ioContext());
 
     // Open the database.
     const auto* configs = store.open(drivePath);
@@ -3864,7 +3629,7 @@ TEST_F(JSONSyncConfigStoreTest, OpenCantRead)
     auto backupPath = drivePath;
 
     backupPath.appendWithSeparator(
-      ConfigStore::BACKUP_CONFIG_DIR, false);
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
 
     // A single slot available for reading.
     static const vector<unsigned int> slots = {0};
@@ -3884,7 +3649,7 @@ TEST_F(JSONSyncConfigStoreTest, OpenCantRead)
       .WillOnce(Return(API_EREAD));
 
     // Create the store.
-    FakeStrictMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Try and open the database.
     EXPECT_EQ(store.open(drivePath), nullptr);
@@ -3905,7 +3670,7 @@ TEST_F(JSONSyncConfigStoreTest, OpenNoDatabase)
     auto backupPath = drivePath;
 
     backupPath.appendWithSeparator(
-      ConfigStore::BACKUP_CONFIG_DIR, false);
+      JSONSyncConfigStore::BACKUP_CONFIG_DIR, false);
 
     // No slots available for reading.
     EXPECT_CALL(ioContext(),
@@ -3914,7 +3679,7 @@ TEST_F(JSONSyncConfigStoreTest, OpenNoDatabase)
       .WillOnce(Return(API_ENOENT));
 
     // Create store.
-    FakeStrictMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Try and open the database.
     EXPECT_EQ(store.open(drivePath), nullptr);
@@ -3937,7 +3702,7 @@ TEST_F(JSONSyncConfigStoreTest, OpenedDenormalized)
     drivePath.append(Utilities::separator());
 
     // Create store.
-    FakeNiceMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Create the database (using normalized path.)
     ASSERT_NE(store.create(drive), nullptr);
@@ -3951,7 +3716,7 @@ TEST_F(JSONSyncConfigStoreTest, OpenedDenormalized)
 
 TEST_F(JSONSyncConfigStoreTest, OpenedUnknownDatabase)
 {
-    FakeStrictMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // No attempt should be made to read an unknown database.
     EXPECT_CALL(ioContext(), read(_, _, _)).Times(0);
@@ -3965,7 +3730,7 @@ TEST_F(JSONSyncConfigStoreTest, RemoveByBackupID)
     Directory drive(fsAccess(), Utilities::randomPath());
 
     // Create store.
-    FakeNiceMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Create database.
     EXPECT_NE(store.create(drive), nullptr);
@@ -3986,18 +3751,6 @@ TEST_F(JSONSyncConfigStoreTest, RemoveByBackupID)
     EXPECT_EQ(store.flush(), API_OK);
     EXPECT_FALSE(store.dirty());
 
-    // onRemove should be generated when we remove a config.
-    Expectation onRemove =
-      EXPECT_CALL(store,
-                  onRemove(DB(drive.path()), Eq(config)))
-        .Times(1);
-
-    // onDirty should be generated when a database changes.
-    EXPECT_CALL(store,
-                onDirty(DB(drive.path())))
-      .Times(1)
-      .After(onRemove);
-
     // Remove the config.
     EXPECT_EQ(store.removeByBackupId(config.mBackupId), API_OK);
 
@@ -4015,7 +3768,7 @@ TEST_F(JSONSyncConfigStoreTest, RemoveByTargetHandle)
     Directory drive(fsAccess(), Utilities::randomPath());
 
     // Create store.
-    FakeNiceMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Create database.
     EXPECT_NE(store.create(drive), nullptr);
@@ -4036,18 +3789,6 @@ TEST_F(JSONSyncConfigStoreTest, RemoveByTargetHandle)
     EXPECT_EQ(store.flush(), API_OK);
     EXPECT_FALSE(store.dirty());
 
-    // onRemove should be generated when we remove a config.
-    Expectation onRemove =
-      EXPECT_CALL(store,
-                  onRemove(DB(drive.path()), Eq(config)))
-        .Times(1);
-
-    // onDirty should be generated when a database changes.
-    EXPECT_CALL(store,
-                onDirty(DB(drive.path())))
-      .Times(1)
-      .After(onRemove);
-
     // Remove the config.
     EXPECT_EQ(store.removeByRootHandle(config.mRemoteNode), API_OK);
 
@@ -4061,7 +3802,7 @@ TEST_F(JSONSyncConfigStoreTest, RemoveByTargetHandle)
 
 TEST_F(JSONSyncConfigStoreTest, RemoveUnknownBackupID)
 {
-    FakeStrictMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // There should be no attempts to write any database.
     EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
@@ -4075,7 +3816,7 @@ TEST_F(JSONSyncConfigStoreTest, RemoveUnknownBackupID)
 
 TEST_F(JSONSyncConfigStoreTest, RemoveUnknownTargetHandle)
 {
-    FakeStrictMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // There should be no attempts to write any database.
     EXPECT_CALL(ioContext(), write(_, _, _)).Times(0);
@@ -4093,7 +3834,7 @@ TEST_F(JSONSyncConfigStoreTest, Update)
     Directory drive(fsAccess(), Utilities::randomPath());
 
     // Create store.
-    FakeNiceMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Create database.
     EXPECT_NE(store.create(drive), nullptr);
@@ -4125,20 +3866,6 @@ TEST_F(JSONSyncConfigStoreTest, Update)
 
     configAfter.mLocalPath = Utilities::randomPath();
 
-    // onChange should be generated when a config changes.
-    Expectation onChange =
-      EXPECT_CALL(store,
-                  onChange(DB(drive.path()),
-                           Eq(configBefore),
-                           Eq(configAfter)))
-        .Times(1);
-
-    // onDirty should be generated when the database changes.
-    EXPECT_CALL(store,
-                onDirty(DB(drive.path())))
-      .Times(1)
-      .After(onChange);
-
     // Update the config.
     EXPECT_EQ(store.add(configAfter), c);
 
@@ -4162,7 +3889,7 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeDrivePath)
     Directory driveB(fsAccess(), Utilities::randomPath());
 
     // Create store.
-    FakeNiceMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Create databases.
     EXPECT_NE(store.create(driveA), nullptr);
@@ -4202,32 +3929,6 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeDrivePath)
 
     configAfter.mExternalDrivePath = driveB;
 
-    // onRemove should be generated when a config is removed.
-    Expectation onRemoveFromA =
-      EXPECT_CALL(store,
-                  onRemove(DB(driveA.path()), Eq(configBefore)))
-        .Times(1);
-
-    // onDirty should be generated when a database changes.
-    Expectation onDirtyA =
-      EXPECT_CALL(store,
-                  onDirty(DB(driveA.path())))
-        .Times(1)
-        .After(onRemoveFromA);
-
-    // onAdd should be generated when a config is added.
-    Expectation onAddToB =
-      EXPECT_CALL(store,
-                  onAdd(DB(driveB.path()), Eq(configAfter)))
-        .Times(1)
-        .After(onDirtyA);
-
-    // onDirty should be generated when a database changes.
-    EXPECT_CALL(store,
-                onDirty(DB(driveB.path())))
-      .Times(1)
-      .After(onAddToB);
-
     // Update the config.
     const auto* cB = store.add(configAfter);
 
@@ -4256,7 +3957,7 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeTargetHandle)
     Directory drive(fsAccess(), Utilities::randomPath());
 
     // Create store.
-    FakeNiceMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Create database.
     EXPECT_NE(store.create(drive), nullptr);
@@ -4288,20 +3989,6 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeTargetHandle)
 
     configAfter.mRemoteNode = 3;
 
-    // onChange should be generated when a config changes.
-    Expectation onChange =
-      EXPECT_CALL(store,
-                  onChange(DB(drive.path()),
-                           Eq(configBefore),
-                           Eq(configAfter)))
-        .Times(1);
-
-    // onDirty should be generated when the database changes.
-    EXPECT_CALL(store,
-                onDirty(DB(drive.path())))
-      .Times(1)
-      .After(onChange);
-
     // Update the config.
     EXPECT_EQ(store.add(configAfter), c);
 
@@ -4327,7 +4014,7 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeUnknownDrivePath)
     Directory drive(fsAccess(), Utilities::randomPath());
 
     // Create store.
-    FakeNiceMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Create database.
     ASSERT_NE(store.create(drive), nullptr);
@@ -4364,18 +4051,6 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeUnknownDrivePath)
 
     configAfter.mExternalDrivePath = Utilities::randomPath();
 
-    // onRemove should be generated when a config is removed.
-    Expectation onRemove =
-      EXPECT_CALL(store,
-                  onRemove(DB(drive.path()), Eq(configBefore)))
-        .Times(1);
-      
-    // onDirty should be generated when a database is altered.
-    EXPECT_CALL(store,
-                onDirty(DB(drive.path())))
-      .Times(1)
-      .After(onRemove);
-
     // Move config to an unknown database.
     EXPECT_EQ(store.add(configAfter), nullptr);
 
@@ -4396,7 +4071,7 @@ TEST_F(JSONSyncConfigStoreTest, UpdateRemoveTargetHandle)
     Directory drive(fsAccess(), Utilities::randomPath());
 
     // Create store.
-    FakeNiceMock<ConfigStore> store(ioContext());
+    JSONSyncConfigStore store(ioContext());
 
     // Create database.
     EXPECT_NE(store.create(drive), nullptr);
@@ -4427,20 +4102,6 @@ TEST_F(JSONSyncConfigStoreTest, UpdateRemoveTargetHandle)
     SyncConfig configAfter = configBefore;
 
     configAfter.mRemoteNode = UNDEF;
-
-    // onChange should be generated when a config changes.
-    Expectation onChange =
-      EXPECT_CALL(store,
-                  onChange(DB(drive.path()),
-                           Eq(configBefore),
-                           Eq(configAfter)))
-        .Times(1);
-
-    // onDirty should be generated when the database changes.
-    EXPECT_CALL(store,
-                onDirty(DB(drive.path())))
-      .Times(1)
-      .After(onChange);
 
     // Update the config.
     EXPECT_EQ(store.add(configAfter), c);
