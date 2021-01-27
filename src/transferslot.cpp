@@ -347,7 +347,70 @@ int64_t TransferSlot::macsmac(chunkmac_map* m)
     return m->macsmac(transfer->transfercipher());
 }
 
-bool TransferSlot::checkTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client)
+int64_t TransferSlot::macsmac_gaps(chunkmac_map* m, size_t g1, size_t g2, size_t g3, size_t g4)
+{
+    return m->macsmac_gaps(transfer->transfercipher(), g1, g2, g3, g4);
+}
+
+bool TransferSlot::checkMetaMacWithMissingLateEntries()
+{
+    // Due to an old bug, some uploads attached a MAC to the node that was missing some MAC entries 
+    // (even though the data was uploaded) - this occurred when a ultoken arrived but one other 
+    // final upload connection had not completed at the local end (even though it must have 
+    // completed at the server end).  So the file's data is still complete in the cloud.
+    // Here we check if the MAC is one of those with a missing entry (or a few if the connection had multiple chunks)
+
+    // last 3 connections, up to 32MB (ie chunks) each, up to two completing after the one that delivered the ultoken
+    size_t end = transfer->chunkmacs.size();
+    size_t finalN = std::min<size_t>(32 * 3, end);
+
+    // first check for the most likely - a single connection gap (or two but completely consecutive making a single gap)
+    for (size_t countBack = 1; countBack <= finalN; ++countBack)
+    {
+        size_t start1 = end - countBack; 
+        for (size_t len1 = 1; len1 <= 64 && start1 + len1 <= end; ++len1)
+        {
+            if (transfer->metamac == macsmac_gaps(&transfer->chunkmacs, start1, start1 + len1, end, end))
+            {
+                LOG_warn << "Found mac gaps were at " << start1 << " " << len1 << " from " << end;
+                auto correctMac = macsmac(&transfer->chunkmacs);
+                transfer->currentmetamac = correctMac;
+                transfer->metamac = correctMac;
+                // TODO: update the Node's key to be correct (needs some API additions before enabling)
+                return true;
+            }
+        }
+    }
+
+    // now check for two separate pieces missing (much less likely)
+    // limit to checking up to 16Mb pieces wtih up to 8Mb between to avoid excessive CPU
+    // takes about 1 second on a fairly modest laptop for a 100Mb file (in a release build)
+    finalN = std::min<size_t>(16 * 2 + 8, transfer->chunkmacs.size());
+    for (size_t start1 = end - finalN; start1 < end; ++start1)
+    {
+        for (size_t len1 = 1; len1 <= 16 && start1 + len1 <= end; ++len1)
+        {
+            for (size_t start2 = start1 + len1 + 1; start2 < transfer->chunkmacs.size(); ++start2)
+            {
+                for (size_t len2 = 1; len2 <= 16 && start2 + len2 <= end; ++len2)
+                {
+                    if (transfer->metamac == macsmac_gaps(&transfer->chunkmacs, start1, start1 + len1, start2, start2 + len2))
+                    {
+                        LOG_warn << "Found mac gaps were at " << start1 << " " << len1 << " " << start2 << " " << len2 << " from " << end;
+                        auto correctMac = macsmac(&transfer->chunkmacs);
+                        transfer->currentmetamac = correctMac;
+                        transfer->metamac = correctMac;
+                        // TODO: update the Node's key to be correct (needs some API additions before enabling)
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
+
+bool TransferSlot::checkDownloadTransferFinished(DBTableTransactionCommitter& committer, MegaClient* client)
 {
     if (transfer->progresscompleted == transfer->size)
     {
@@ -358,8 +421,9 @@ bool TransferSlot::checkTransferFinished(DBTableTransactionCommitter& committer,
         }
 
         // verify meta MAC
-        if (!transfer->progresscompleted
-            || (transfer->currentmetamac == transfer->metamac))
+        if (!transfer->size
+            || (transfer->currentmetamac == transfer->metamac)
+            || checkMetaMacWithMissingLateEntries())
         {
             client->transfercacheadd(transfer, &committer);
             if (transfer->progresscompleted != progressreported)
@@ -791,6 +855,8 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                 }
                 case REQ_DECRYPTED:
                     {
+                        assert(transfer->type == GET);
+
                         // this must return the same piece we just decrypted, since we have not asked the transferbuf to discard it yet.
                         auto outputPiece = transferbuf.getAsyncOutputBufferPointer(i);
 
@@ -832,7 +898,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                 break;
                             }
 
-                            if (checkTransferFinished(committer, client))
+                            if (checkDownloadTransferFinished(committer, client))
                             {
                                 return;
                             }
@@ -852,7 +918,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             if (transfer->type == PUT)
                             {
                                 LOG_verbose << "Async read succeeded";
-                                m_off_t npos = asyncIO[i]->pos + asyncIO[i]->len;
+                                m_off_t npos = asyncIO[i]->posOfBuffer + asyncIO[i]->dataBufferLen;
                                 string finaltempurl = transferbuf.tempURL(i);
                                 if (client->usealtupport && !memcmp(finaltempurl.c_str(), "http:", 5))
                                 {
@@ -863,7 +929,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                                     }
                                 }
 
-                                auto pos = asyncIO[i]->pos;
+                                auto pos = asyncIO[i]->posOfBuffer;
                                 auto req = reqs[i];    // shared_ptr so no object is deleted out from under the worker
                                 auto transferkey = transfer->transferkey;
                                 auto ctriv = transfer->ctriv;
@@ -886,7 +952,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
 
                                 updatecontiguousprogress();
 
-                                if (checkTransferFinished(committer, client))
+                                if (checkDownloadTransferFinished(committer, client))
                                 {
                                     return;
                                 }
@@ -933,7 +999,7 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                     }
                     else if (transfer->type == GET)
                     {
-                        p += asyncIO[i]->len;
+                        p += asyncIO[i]->dataBufferLen;
                     }
                     break;
 
@@ -1083,8 +1149,8 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             if (asyncIO[i])
                             {
                                 LOG_warn << "Retrying a failed read";
-                                pos = asyncIO[i]->pos;
-                                size = asyncIO[i]->len;
+                                pos = asyncIO[i]->posOfBuffer;
+                                size = asyncIO[i]->dataBufferLen;
                                 posrange.second = pos + size;
                                 delete asyncIO[i];
                                 asyncIO[i] = NULL;
@@ -1133,15 +1199,6 @@ void TransferSlot::doio(MegaClient* client, DBTableTransactionCommitter& committ
                             {
                                 finaltempurl.insert(index, ":8080");
                             }
-                        }
-
-                        unsigned size = (unsigned)(posrange.second - posrange.first);
-                        if (size > 16777216)
-                        {
-                            client->sendevent(99434, "Invalid request size", 0);
-
-                            transfer->chunkmacs.clear();
-                            return transfer->failed(API_EINTERNAL, committer);
                         }
 
                         reqs[i]->prepare(finaltempurl.c_str(), transfer->transfercipher(),

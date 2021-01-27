@@ -110,6 +110,7 @@ struct DemoApp : public MegaApp
     void querysignuplink_result(error) override;
     void querysignuplink_result(handle, const char*, const char*, const byte*, const byte*, const byte*, size_t) override;
     void confirmsignuplink_result(error) override;
+    void confirmsignuplink2_result(handle, const char*, const char*, error) override;
     void setkeypair_result(error) override;
 
     void getrecoverylink_result(error) override;
@@ -160,10 +161,10 @@ struct DemoApp : public MegaApp
 
     void fetchnodes_result(const Error&) override;
 
-    void putnodes_result(const Error&, targettype_t, vector<NewNode>&) override;
+    void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride) override;
 
-    void share_result(error) override;
-    void share_result(int, error) override;
+    void share_result(error, bool writable) override;
+    void share_result(int, error, bool writable) override;
 
     void setpcr_result(handle, error, opcactions_t) override;
     void updatepcr_result(error, ipcactions_t) override;
@@ -213,9 +214,10 @@ struct DemoApp : public MegaApp
     void transfer_complete(Transfer*) override;
 
 #ifdef ENABLE_SYNC
-    void syncupdate_state(int tag, syncstate_t, SyncError, bool fireDisableEvent = true) override;
-    void sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const SyncError &error) override;
-    void sync_removed(int tag) override;
+    void syncupdate_stateconfig(handle backupId) override;
+    void syncupdate_active(handle backupId, bool active) override;
+    void sync_auto_resume_result(const UnifiedSync&, bool attempted) override;
+    void sync_removed(handle backupId) override;
 
     void syncupdate_scanning(bool) override;
     void syncupdate_local_folder_addition(Sync*, LocalNode*, const char*) override;
@@ -257,8 +259,8 @@ struct DemoApp : public MegaApp
     void contactlinkquery_result(error, handle, string*, string*, string*, string*) override;
     void contactlinkdelete_result(error) override;
 
-    void smsverificationsend_result(error);
-    void smsverificationcheck_result(error, string*);
+    void smsverificationsend_result(error) override;
+    void smsverificationcheck_result(error, string*) override;
 
     void getbanners_result(error) override;
     void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;

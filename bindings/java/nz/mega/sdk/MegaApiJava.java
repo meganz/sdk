@@ -108,6 +108,10 @@ public class MegaApiJava {
     public final static int USER_ATTR_MY_CHAT_FILES_FOLDER = MegaApi.USER_ATTR_MY_CHAT_FILES_FOLDER;
     public final static int USER_ATTR_PUSH_SETTINGS = MegaApi.USER_ATTR_PUSH_SETTINGS;
     public final static int USER_ATTR_ALIAS = MegaApi.USER_ATTR_ALIAS;
+    public final static int USER_ATTR_DEVICE_NAMES = MegaApi.USER_ATTR_DEVICE_NAMES;
+    public final static int USER_ATTR_MY_BACKUPS_FOLDER = MegaApi.USER_ATTR_MY_BACKUPS_FOLDER;
+    public final static int USER_ATTR_BACKUP_NAMES = MegaApi.USER_ATTR_BACKUP_NAMES;
+    public final static int USER_ATTR_COOKIE_SETTINGS = MegaApi.USER_ATTR_COOKIE_SETTINGS;
 
     public final static int NODE_ATTR_DURATION = MegaApi.NODE_ATTR_DURATION;
     public final static int NODE_ATTR_COORDINATES = MegaApi.NODE_ATTR_COORDINATES;
@@ -213,6 +217,21 @@ public class MegaApiJava {
     public final static int SEARCH_TARGET_PUBLICLINK = MegaApi.SEARCH_TARGET_PUBLICLINK;
     public final static int SEARCH_TARGET_ROOTNODE = MegaApi.SEARCH_TARGET_ROOTNODE;
     public final static int SEARCH_TARGET_ALL = MegaApi.SEARCH_TARGET_ALL;
+
+    public final static int BACKUP_TYPE_INVALID = MegaApi.BACKUP_TYPE_INVALID;
+    public final static int BACKUP_TYPE_TWO_WAY_SYNC = MegaApi.BACKUP_TYPE_TWO_WAY_SYNC;
+    public final static int BACKUP_TYPE_UP_SYNC = MegaApi.BACKUP_TYPE_UP_SYNC;
+    public final static int BACKUP_TYPE_DOWN_SYNC = MegaApi.BACKUP_TYPE_DOWN_SYNC;
+    public final static int BACKUP_TYPE_CAMERA_UPLOADS = MegaApi.BACKUP_TYPE_CAMERA_UPLOADS;
+    public final static int BACKUP_TYPE_MEDIA_UPLOADS = MegaApi.BACKUP_TYPE_MEDIA_UPLOADS;
+
+    public final static int GOOGLE_ADS_DEFAULT = MegaApi.GOOGLE_ADS_DEFAULT;
+    public final static int GOOGLE_ADS_FORCE_ADS = MegaApi.GOOGLE_ADS_FORCE_ADS;
+    public final static int GOOGLE_ADS_IGNORE_MEGA = MegaApi.GOOGLE_ADS_IGNORE_MEGA;
+    public final static int GOOGLE_ADS_IGNORE_COUNTRY = MegaApi.GOOGLE_ADS_IGNORE_COUNTRY;
+    public final static int GOOGLE_ADS_IGNORE_IP = MegaApi.GOOGLE_ADS_IGNORE_IP;
+    public final static int GOOGLE_ADS_IGNORE_PRO = MegaApi.GOOGLE_ADS_IGNORE_PRO;
+    public final static int GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = MegaApi.GOOGLE_ADS_FLAG_IGNORE_ROLLOUT;
 
     MegaApi getMegaApi()
     {
@@ -6371,6 +6390,26 @@ public class MegaApiJava {
     }
 
     /**
+     * Download a file or a folder from MEGA, saving custom app data during the transfer
+     *
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param node MegaNode that identifies the file or folder
+     * @param localPath Destination path for the file or folder
+     * If this path is a local folder, it must end with a '\' or '/' character and the file name
+     * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+     * one of these characters, the file will be downloaded to a file in that path.
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer.
+     */
+    public void startDownloadWithData(MegaNode node, String localPath, String appData){
+        megaApi.startDownloadWithData(node, localPath, appData);
+    }
+
+    /**
      * Download a file or a folder from MEGA, putting the transfer on top of the download queue.
      *
      * If the status of the business account is expired, onTransferFinish will be called with the error
@@ -6389,6 +6428,26 @@ public class MegaApiJava {
      */
     public void startDownloadWithTopPriority(MegaNode node, String localPath, String appData, MegaTransferListenerInterface listener){
         megaApi.startDownloadWithTopPriority(node, localPath, appData, createDelegateTransferListener(listener));
+    }
+
+    /**
+     * Download a file or a folder from MEGA, putting the transfer on top of the download queue.
+     *
+     * If the status of the business account is expired, onTransferFinish will be called with the error
+     * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     *
+     * @param node MegaNode that identifies the file or folder
+     * @param localPath Destination path for the file or folder
+     * If this path is a local folder, it must end with a '\' or '/' character and the file name
+     * in MEGA will be used to store a file inside that folder. If the path doesn't finish with
+     * one of these characters, the file will be downloaded to a file in that path.
+     * @param appData Custom app data to save in the MegaTransfer object
+     * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+     * related to the transfer.
+     */
+    public void startDownloadWithTopPriority(MegaNode node, String localPath, String appData){
+        megaApi.startDownloadWithTopPriority(node, localPath, appData);
     }
 
     /**
@@ -6448,6 +6507,400 @@ public class MegaApiJava {
      */
     public void cancelTransfer(MegaTransfer transfer) {
         megaApi.cancelTransfer(transfer);
+    }
+
+    /**
+     * Move a transfer one position up in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_UP
+     *
+     * @param transfer Transfer to move
+     * @param listener MegaRequestListener to track this request
+     */
+    public void moveTransferUp(MegaTransfer transfer, MegaRequestListenerInterface listener) {
+        megaApi.moveTransferUp(transfer, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a transfer one position up in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_UP
+     *
+     * @param transfer Transfer to move
+     */
+    public void moveTransferUp(MegaTransfer transfer) {
+        megaApi.moveTransferUp(transfer);
+    }
+
+    /**
+     * Move a transfer one position up in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_UP
+     *
+     * @param transferTag Tag of the transfer to move
+     * @param listener    MegaRequestListener to track this request
+     */
+    public void moveTransferUpByTag(int transferTag, MegaRequestListenerInterface listener) {
+        megaApi.moveTransferUpByTag(transferTag, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a transfer one position up in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_UP
+     *
+     * @param transferTag Tag of the transfer to move
+     */
+    public void moveTransferUpByTag(int transferTag) {
+        megaApi.moveTransferUpByTag(transferTag);
+    }
+
+    /**
+     * Move a transfer one position down in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_DOWN
+     *
+     * @param transfer Transfer to move
+     * @param listener MegaRequestListener to track this request
+     */
+    public void moveTransferDown(MegaTransfer transfer, MegaRequestListenerInterface listener) {
+        megaApi.moveTransferDown(transfer, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a transfer one position down in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_DOWN
+     *
+     * @param transfer Transfer to move
+     */
+    public void moveTransferDown(MegaTransfer transfer) {
+        megaApi.moveTransferDown(transfer);
+    }
+
+    /**
+     * Move a transfer one position down in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_DOWN
+     *
+     * @param transferTag Tag of the transfer to move
+     * @param listener    MegaRequestListener to track this request
+     */
+    public void moveTransferDownByTag(int transferTag, MegaRequestListenerInterface listener) {
+        megaApi.moveTransferDownByTag(transferTag, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a transfer one position down in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_DOWN
+     *
+     * @param transferTag Tag of the transfer to move
+     */
+    public void moveTransferDownByTag(int transferTag) {
+        megaApi.moveTransferDownByTag(transferTag);
+    }
+
+    /**
+     * Move a transfer to the top of the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_TOP
+     *
+     * @param transfer Transfer to move
+     * @param listener MegaRequestListener to track this request
+     */
+    public void moveTransferToFirst(MegaTransfer transfer, MegaRequestListenerInterface listener) {
+        megaApi.moveTransferToFirst(transfer, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a transfer to the top of the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_TOP
+     *
+     * @param transfer Transfer to move
+     */
+    public void moveTransferToFirst(MegaTransfer transfer) {
+        megaApi.moveTransferToFirst(transfer);
+    }
+
+    /**
+     * Move a transfer to the top of the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_TOP
+     *
+     * @param transferTag Tag of the transfer to move
+     * @param listener    MegaRequestListener to track this request
+     */
+    public void moveTransferToFirstByTag(int transferTag, MegaRequestListenerInterface listener) {
+        megaApi.moveTransferToFirstByTag(transferTag, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a transfer to the top of the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_TOP
+     *
+     * @param transferTag Tag of the transfer to move
+     */
+    public void moveTransferToFirstByTag(int transferTag) {
+        megaApi.moveTransferToFirstByTag(transferTag);
+    }
+
+    /**
+     * Move a transfer to the bottom of the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_BOTTOM
+     *
+     * @param transfer Transfer to move
+     * @param listener MegaRequestListener to track this request
+     */
+    public void moveTransferToLast(MegaTransfer transfer, MegaRequestListenerInterface listener) {
+        megaApi.moveTransferToLast(transfer, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a transfer to the bottom of the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_BOTTOM
+     *
+     * @param transfer Transfer to move
+     */
+    public void moveTransferToLast(MegaTransfer transfer) {
+        megaApi.moveTransferToLast(transfer);
+    }
+
+    /**
+     * Move a transfer to the bottom of the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_BOTTOM
+     *
+     * @param transferTag Tag of the transfer to move
+     * @param listener    MegaRequestListener to track this request
+     */
+    public void moveTransferToLastByTag(int transferTag, MegaRequestListenerInterface listener) {
+        megaApi.moveTransferToLastByTag(transferTag, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a transfer to the bottom of the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns true (it means that it's an automatic move)
+     * - MegaRequest::getNumber - Returns MegaTransfer::MOVE_TYPE_BOTTOM
+     *
+     * @param transferTag Tag of the transfer to move
+     */
+    public void moveTransferToLastByTag(int transferTag) {
+        megaApi.moveTransferToLastByTag(transferTag);
+    }
+
+    /**
+     * Move a transfer before another one in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns false (it means that it's a manual move)
+     * - MegaRequest::getNumber - Returns the tag of the transfer with the target position
+     *
+     * @param transfer     Transfer to move
+     * @param prevTransfer Transfer with the target position
+     * @param listener     MegaRequestListener to track this request
+     */
+    public void moveTransferBefore(MegaTransfer transfer, MegaTransfer prevTransfer, MegaRequestListenerInterface listener) {
+        megaApi.moveTransferBefore(transfer, prevTransfer, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a transfer before another one in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns false (it means that it's a manual move)
+     * - MegaRequest::getNumber - Returns the tag of the transfer with the target position
+     *
+     * @param transfer     Transfer to move
+     * @param prevTransfer Transfer with the target position
+     */
+    public void moveTransferBefore(MegaTransfer transfer, MegaTransfer prevTransfer) {
+        megaApi.moveTransferBefore(transfer, prevTransfer);
+    }
+
+    /**
+     * Move a transfer before another one in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns false (it means that it's a manual move)
+     * - MegaRequest::getNumber - Returns the tag of the transfer with the target position
+     *
+     * @param transferTag     Tag of the transfer to move
+     * @param prevTransferTag Tag of the transfer with the target position
+     * @param listener        MegaRequestListener to track this request
+     */
+    public void moveTransferBeforeByTag(int transferTag, int prevTransferTag, MegaRequestListenerInterface listener) {
+        megaApi.moveTransferBeforeByTag(transferTag, prevTransferTag, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Move a transfer before another one in the transfer queue
+     * <p>
+     * If the transfer is successfully moved, onTransferUpdate will be called
+     * for the corresponding listeners of the moved transfer and the new priority
+     * of the transfer will be available using MegaTransfer::getPriority
+     * <p>
+     * The associated request type with this request is MegaRequest::TYPE_MOVE_TRANSFER
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getTransferTag - Returns the tag of the transfer to move
+     * - MegaRequest::getFlag - Returns false (it means that it's a manual move)
+     * - MegaRequest::getNumber - Returns the tag of the transfer with the target position
+     *
+     * @param transferTag     Tag of the transfer to move
+     * @param prevTransferTag Tag of the transfer with the target position
+     */
+    public void moveTransferBeforeByTag(int transferTag, int prevTransferTag) {
+        megaApi.moveTransferBeforeByTag(transferTag, prevTransferTag);
     }
 
     /**
@@ -10317,5 +10770,431 @@ public class MegaApiJava {
      */
     public void cancelCreateAccount(MegaRequestListenerInterface listener){
         megaApi.cancelCreateAccount(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Registers a backup to display in Backup Centre
+     *
+     * Apps should register backups, like CameraUploads, in order to be listed in the
+     * BackupCentre. The client should send heartbeats to indicate the progress of the
+     * backup (see \c MegaApi::sendBackupHeartbeats).
+     *
+     * Possible types of backups:
+     *  BACKUP_TYPE_CAMERA_UPLOADS = 3,
+     *  BACKUP_TYPE_MEDIA_UPLOADS = 4,   // Android has a secondary CU
+     *
+     * Note that the backup name is not registered in the API as part of the data of this
+     * backup. It will be stored in a user's attribute after this request finished. For
+     * more information, see \c MegaApi::setBackupName and MegaApi::getBackupName.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns the backupId
+     * - MegaRequest::getNodeHandle - Returns the target node of the backup
+     * - MegaRequest::getName - Returns the backup name of the remote location
+     * - MegaRequest::getAccess - Returns the backup state
+     * - MegaRequest::getFile - Returns the path of the local folder
+     * - MegaRequest::getText - Returns the extraData associated with the request
+     * - MegaRequest::getTotalBytes - Returns the backup type
+     * - MegaRequest::getNumDetails - Returns the backup substate
+     * - MegaRequest::getFlag - Returns true
+     * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * @param backupType back up type requested for the service
+     * @param targetNode MEGA folder to hold the backups
+     * @param localFolder Local path of the folder
+     * @param backupName Name of the backup
+     * @param state state
+     * @param subState subState
+     * @param extraData A binary array converted into B64 (optional)
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setBackup(int backupType, long targetNode, String localFolder, String backupName,
+        int state, int subState, String extraData, MegaRequestListenerInterface listener) {
+        megaApi.setBackup(backupType, targetNode, localFolder, backupName, state, subState,
+            extraData, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Update the information about a registered backup for Backup Centre
+     *
+     * Possible types of backups:
+     *  BACKUP_TYPE_INVALID = -1,
+     *  BACKUP_TYPE_CAMERA_UPLOADS = 3,
+     *  BACKUP_TYPE_MEDIA_UPLOADS = 4,   // Android has a secondary CU
+     *
+     *  Params that keep the same value are passed with invalid value to avoid to send to the server
+     *    Invalid values:
+     *    - type: BACKUP_TYPE_INVALID
+     *    - nodeHandle: UNDEF
+     *    - localFolder: nullptr
+     *    - deviceId: nullptr
+     *    - state: -1
+     *    - subState: -1
+     *    - extraData: nullptr
+     *
+     * If you want to update the backup name, use \c MegaApi::setBackupName.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns the backupId
+     * - MegaRequest::getTotalBytes - Returns the backup type
+     * - MegaRequest::getNodeHandle - Returns the target node of the backup
+     * - MegaRequest::getFile - Returns the path of the local folder
+     * - MegaRequest::getAccess - Returns the backup state
+     * - MegaRequest::getNumDetails - Returns the backup substate
+     * - MegaRequest::getText - Returns the extraData associated with the request
+     * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * @param backupId backup id identifying the backup to be updated
+     * @param backupType back up type requested for the service
+     * @param targetNode MEGA folder to hold the backups
+     * @param localFolder Local path of the folder
+     * @param state backup state
+     * @param subState backup subState
+     * @param extraData A binary array converted into B64 (optional)
+     * @param listener MegaRequestListener to track this request
+     */
+    public void updateBackup(long backupId, int backupType, long targetNode, String localFolder,
+        int state, int subState, String extraData,
+        MegaRequestListenerInterface listener) {
+        megaApi.updateBackup(backupId, backupType, targetNode, localFolder, state,
+            subState, extraData, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Unregister a backup already registered for the Backup Centre
+     *
+     * This method allows to remove a backup from the list of backups displayed in the
+     * Backup Centre. @see \c MegaApi::setBackup.
+     *
+     * The associated request type with this request is MegaRequest::TYPE_BACKUP_REMOVE
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns the backupId
+     * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * @param backupId backup id identifying the backup to be removed
+     * @param listener MegaRequestListener to track this request
+     */
+    public void removeBackup(long backupId, MegaRequestListenerInterface listener) {
+        megaApi.removeBackup(backupId, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Send heartbeat associated with an existing backup
+     *
+     * The client should call this method regularly for every registered backup, in order to
+     * inform about the status of the backup.
+     *
+     * Progress, last timestamp and last node are not always meaningful (ie. when the Camera
+     * Uploads starts a new batch, there isn't a last node, or when the CU up to date and
+     * inactive for long time, the progress doesn't make sense). In consequence, these parameters
+     * are optional. They will not be sent to API if they take the following values:
+     * - lastNode = INVALID_HANDLE
+     * - lastTs = -1
+     * - progress = -1
+     *
+     * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT_HEART_BEAT
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getParentHandle - Returns the backupId
+     * - MegaRequest::getAccess - Returns the backup state
+     * - MegaRequest::getNumDetails - Returns the backup substate
+     * - MegaRequest::getParamType - Returns the number of pending upload transfers
+     * - MegaRequest::getTransferTag - Returns the number of pending download transfers
+     * - MegaRequest::getNumber - Returns the last action timestamp
+     * - MegaRequest::getNodeHandle - Returns the last node handle to be synced
+     *
+     * @param backupId backup id identifying the backup
+     * @param state backup state
+     * @param progress backup progress
+     * @param ups Number of pending upload transfers
+     * @param downs Number of pending download transfers
+     * @param ts Last action timestamp
+     * @param lastNode Last node handle to be synced
+     * @param listener MegaRequestListener to track this request
+     */
+    public void sendBackupHeartbeat(long backupId, int status, int progress, int ups, int downs,
+            long ts, long lastNode, MegaRequestListenerInterface listener) {
+        megaApi.sendBackupHeartbeat(backupId, status, progress, ups, downs, ts, lastNode,
+                createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Fetch Google ads
+     *
+     * The associated request type with this request is MegaRequest::TYPE_FETCH_GOOGLE_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - GOOGLE_ADS_DEFAULT = 0x0
+     *      - GOOGLE_ADS_FORCE_ADS = 0x200
+     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000
+     * @param adUnits A list of the adslot ids to fetch
+     * @param publicHandle Provide the public handle that the user is visiting
+     * @param listener MegaRequestListener to track this request
+     */
+    public void fetchGoogleAds(int adFlags, MegaStringList adUnits, long publicHandle, MegaRequestListenerInterface listener) {
+        megaApi.fetchGoogleAds(adFlags, adUnits, publicHandle, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Fetch Google ads
+     *
+     * The associated request type with this request is MegaRequest::TYPE_FETCH_GOOGLE_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - GOOGLE_ADS_DEFAULT = 0x0
+     *      - GOOGLE_ADS_FORCE_ADS = 0x200
+     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000
+     * @param adUnits A list of the adslot ids to fetch
+     * @param publicHandle Provide the public handle that the user is visiting
+     */
+    public void fetchGoogleAds(int adFlags, MegaStringList adUnits, long publicHandle) {
+        megaApi.fetchGoogleAds(adFlags, adUnits, publicHandle);
+    }
+
+    /**
+     * @brief Fetch Google ads
+     *
+     * The associated request type with this request is MegaRequest::TYPE_FETCH_GOOGLE_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getMegaStringList List of the adslot ids to fetch
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getMegaStringMap: map with relationship between ids and ius
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - GOOGLE_ADS_DEFAULT = 0x0
+     *      - GOOGLE_ADS_FORCE_ADS = 0x200
+     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT = 0x4000
+     * @param adUnits A list of the adslot ids to fetch
+     */
+    public void fetchGoogleAds(int adFlags, MegaStringList adUnits) {
+        megaApi.fetchGoogleAds(adFlags, adUnits);
+    }
+
+    /**
+     * @brief Check if Google ads should show or not
+     *
+     * The associated request type with this request is MegaRequest::TYPE_QUERY_GOOGLE_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumDetails Return if ads should be show or not
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - GOOGLE_ADS_DEFAULT = 0x0
+     *      - GOOGLE_ADS_FORCE_ADS = 0x200
+     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT 0x4000
+     * @param publicHandle Provide the public handle that the user is visiting
+     * @param listener MegaRequestListener to track this request
+     */
+    public void queryGoogleAds(int adFlags, long publicHandle, MegaRequestListenerInterface listener) {
+        megaApi.queryGoogleAds(adFlags, publicHandle, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Check if Google ads should show or not
+     *
+     * The associated request type with this request is MegaRequest::TYPE_QUERY_GOOGLE_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumDetails Return if ads should be show or not
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - GOOGLE_ADS_DEFAULT = 0x0
+     *      - GOOGLE_ADS_FORCE_ADS = 0x200
+     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT 0x4000
+     * @param publicHandle Provide the public handle that the user is visiting
+     */
+    public void queryGoogleAds(int adFlags, long publicHandle) {
+        megaApi.queryGoogleAds(adFlags, publicHandle);
+    }
+
+    /**
+     * @brief Check if Google ads should show or not
+     *
+     * The associated request type with this request is MegaRequest::TYPE_QUERY_GOOGLE_ADS
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getNumber A bitmap flag used to communicate with the API
+     *  - MegaRequest::getNodeHandle  Public handle that the user is visiting
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumDetails Return if ads should be show or not
+     *
+     * @param adFlags A bitmap flag used to communicate with the API
+     * Valid values are:
+     *      - GOOGLE_ADS_DEFAULT = 0x0
+     *      - GOOGLE_ADS_FORCE_ADS = 0x200
+     *      - GOOGLE_ADS_IGNORE_MEGA = 0x400
+     *      - GOOGLE_ADS_IGNORE_COUNTRY = 0x800
+     *      - GOOGLE_ADS_IGNORE_IP = 0x1000
+     *      - GOOGLE_ADS_IGNORE_PRO = 0x2000
+     *      - GOOGLE_ADS_FLAG_IGNORE_ROLLOUT 0x4000
+     */
+    public void queryGoogleAds(int adFlags) {
+        megaApi.queryGoogleAds(adFlags);
+    }
+
+    /**
+     * @brief Set a bitmap to indicate whether some cookies are enabled or not
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_COOKIE_SETTINGS
+     *  - MegaRequest::getNumDetails - Return a bitmap with cookie settings
+     *  - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * @param settings A bitmap with cookie settings
+     * Valid bits are:
+     *      - Bit 0: essential
+     *      - Bit 1: preference
+     *      - Bit 2: analytics
+     *      - Bit 3: ads
+     *      - Bit 4: thirdparty
+     * @param listener MegaRequestListener to track this request
+     */
+    public void setCookieSettings(int settings, MegaRequestListenerInterface listener) {
+        megaApi.setCookieSettings(settings, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Set a bitmap to indicate whether some cookies are enabled or not
+     *
+     * The associated request type with this request is MegaRequest::TYPE_SET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getParamType - Returns the attribute type MegaApi::USER_ATTR_COOKIE_SETTINGS
+     *  - MegaRequest::getNumDetails - Return a bitmap with cookie settings
+     *  - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * @param settings A bitmap with cookie settings
+     * Valid bits are:
+     *      - Bit 0: essential
+     *      - Bit 1: preference
+     *      - Bit 2: analytics
+     *      - Bit 3: ads
+     *      - Bit 4: thirdparty
+     */
+    public void setCookieSettings(int settings) {
+        megaApi.setCookieSettings(settings);
+    }
+
+    /**
+     * @brief Get a bitmap to indicate whether some cookies are enabled or not
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getParamType - Returns the value USER_ATTR_COOKIE_SETTINGS
+     *  - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumDetails Return the bitmap with cookie settings
+     *   Valid bits are:
+     *      - Bit 0: essential
+     *      - Bit 1: preference
+     *      - Bit 2: analytics
+     *      - Bit 3: ads
+     *      - Bit 4: thirdparty
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EINTERNAL - If the value for cookie settings bitmap was invalid
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getCookieSettings(MegaRequestListenerInterface listener) {
+        megaApi.getCookieSettings(createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Get a bitmap to indicate whether some cookies are enabled or not
+     *
+     * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
+     * Valid data in the MegaRequest object received on callbacks:
+     *  - MegaRequest::getParamType - Returns the value USER_ATTR_COOKIE_SETTINGS
+     *  - MegaRequest::getListener - Returns the MegaRequestListener to track this request
+     *
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getNumDetails Return the bitmap with cookie settings
+     *   Valid bits are:
+     *      - Bit 0: essential
+     *      - Bit 1: preference
+     *      - Bit 2: analytics
+     *      - Bit 3: ads
+     *      - Bit 4: thirdparty
+     *
+     * On the onRequestFinish error, the error code associated to the MegaError can be:
+     * - MegaError::API_EINTERNAL - If the value for cookie settings bitmap was invalid
+     */
+    public void getCookieSettings() {
+        megaApi.getCookieSettings();
+    }
+
+    /**
+     * @brief Check if the app can start showing the cookie banner
+     *
+     * This function will NOT return a valid value until the callback onEvent with
+     * type MegaApi::EVENT_MISC_FLAGS_READY is received. You can also rely on the completion of
+     * a fetchnodes to check this value, but only when it follows a login with user and password,
+     * not when an existing session is resumed.
+     *
+     * For not logged-in mode, you need to call MegaApi::getMiscFlags first.
+     *
+     * @return True if this feature is enabled. Otherwise, false.
+     */
+    public boolean isCookieBannerEnabled() {
+        return megaApi.cookieBannerEnabled();
     }
 }

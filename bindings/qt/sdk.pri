@@ -65,20 +65,24 @@ SOURCES += src/attrmap.cpp \
     src/mega_zxcvbn.cpp \
     src/mediafileattribute.cpp \
     src/raid.cpp \
-    src/testhooks.cpp
+    src/testhooks.cpp \
+    src/heartbeats.cpp
 
 CONFIG(USE_MEGAAPI) {
-  SOURCES += src/megaapi.cpp src/megaapi_impl.cpp src/heartbeats.cpp
+  SOURCES += src/megaapi.cpp src/megaapi_impl.cpp
 
 
   CONFIG(qt) {
     SOURCES += bindings/qt/QTMegaRequestListener.cpp \
         bindings/qt/QTMegaTransferListener.cpp \
         bindings/qt/QTMegaGlobalListener.cpp \
-        bindings/qt/QTMegaSyncListener.cpp \
         bindings/qt/QTMegaListener.cpp \
         bindings/qt/QTMegaEvent.cpp
   }
+}
+
+CONFIG(USE_ROTATIVEPERFORMANCELOGGER) {
+  SOURCES += src/rotativeperformancelogger.cpp
 }
 
 !win32 {
@@ -95,6 +99,10 @@ CONFIG(USE_MEGAAPI) {
 CONFIG(USE_AUTOCOMPLETE) {
     SOURCES += src/autocomplete.cpp
     HEADERS += include/mega/autocomplete.h
+}
+
+CONFIG(USE_POLL) {
+    DEFINES += USE_POLL
 }
 
 CONFIG(USE_CONSOLE) {
@@ -239,13 +247,35 @@ CONFIG(USE_PDFIUM) {
     vcpkg:LIBS += -lpdfium -lfreetype$$DEBUG_SUFFIX -ljpeg$$DEBUG_SUFFIX_WO -lopenjp2  -llcms$$DEBUG_SUFFIX 
 
     #make sure we get the vcpkg built icu libraries and not a system one with the same name
-    debug:vcpkg:LIBS += -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuucd -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuiod
-    !debug:vcpkg:LIBS += -l$$THIRDPARTY_VCPKG_PATH/lib/icuuc$$DEBUG_SUFFIX_WO.lib -l$$THIRDPARTY_VCPKG_PATH/lib/icuio$$DEBUG_SUFFIX_WO.lib
-    #vcpkg:QMAKE_LFLAGS_WINDOWS += /VERBOSE
+    vcpkg {
+        win32 {
+            debug: LIBS += -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuucd -l$$THIRDPARTY_VCPKG_PATH/debug/lib/icuiod
+            !debug: LIBS += -l$$THIRDPARTY_VCPKG_PATH/lib/icuuc$$DEBUG_SUFFIX_WO.lib -l$$THIRDPARTY_VCPKG_PATH/lib/icuio$$DEBUG_SUFFIX_WO.lib
+            #QMAKE_LFLAGS_WINDOWS += /VERBOSE
+        }
+        else {
+            debug {
+                # icu doesn't build debug libs with 'd' suffix, but check anyway
+                exists($$THIRDPARTY_VCPKG_PATH/debug/lib/libicuuc$$DEBUG_SUFFIX.a) {
+                    LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuuc$$DEBUG_SUFFIX.a
+                }
+                else {
+                    LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuuc.a
+                }
+                exists($$THIRDPARTY_VCPKG_PATH/debug/lib/libicuio$$DEBUG_SUFFIX.a) {
+                    LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuio$$DEBUG_SUFFIX.a
+                }
+                else {
+                    LIBS += $$THIRDPARTY_VCPKG_PATH/debug/lib/libicuio.a
+                }
+            }
+            !debug: LIBS += $$THIRDPARTY_VCPKG_PATH/lib/libicuuc.a $$THIRDPARTY_VCPKG_PATH/lib/libicuio.a
+        }
+    }
 
     vcpkg:unix:!macx:LIBS += -lpng -lharfbuzz #freetype dependencies. ideally we could use pkg-config to get these
     # is it needed? win has it, mac does not -licuin$$DEBUG_SUFFIX_WO
-    vcpkg:win32:LIBS += -lGdi32
+    vcpkg:win32:LIBS += -lGdi32  -llibpng16$$DEBUG_SUFFIX
     vcpkg:DEFINES += HAVE_PDFIUM
 
     !vcpkg {
@@ -271,8 +301,8 @@ CONFIG(USE_PDFIUM) {
 CONFIG(USE_FFMPEG) {
 
     unix:!macx {
-    
-        vcpkg:LIBS += -lavformat -lavcodec -lavutil -lswscale -lswresample
+        # On Linux, vcpkg provides libavresample instead of libswresample
+        vcpkg:LIBS += -lavformat -lavcodec -lavutil -lswscale -lavresample
         else {
             exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/include/ffmpeg):exists($$MEGASDK_BASE_PATH/bindings/qt/3rdparty/lib/libavcodec.a) {
             DEFINES += HAVE_FFMPEG
@@ -356,6 +386,11 @@ CONFIG(USE_WEBRTC) {
         LIBS += -lwebrtc -ldl
         }
     }
+}
+
+CONFIG(USE_ROTATIVEPERFORMANCELOGGER) {
+    DEFINES += USE_ROTATIVEPERFORMANCELOGGER
+    DEFINES += ENABLE_LOG_PERFORMANCE
 }
 
 win32 {
@@ -450,7 +485,6 @@ CONFIG(USE_MEGAAPI) {
     HEADERS += bindings/qt/QTMegaRequestListener.h \
             bindings/qt/QTMegaTransferListener.h \
             bindings/qt//QTMegaGlobalListener.h \
-            bindings/qt/QTMegaSyncListener.h \
             bindings/qt/QTMegaListener.h \
             bindings/qt/QTMegaEvent.h
 }

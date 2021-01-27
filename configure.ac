@@ -299,6 +299,17 @@ if test "x$enable_megaapi" != "xno"; then
 fi
 AM_CONDITIONAL([BUILD_MEGAAPI], [test "x$enable_megaapi" = "xyes"])
 
+# Rotative Performance Logger
+AC_ARG_ENABLE(rotative-performance-logger,
+    AS_HELP_STRING([--enable-rotative-performance-logger], [enable Rotative Performance Logger [default=no]]),
+    [enable_rotative_performance_logger=${enableval}],
+    [enable_rotative_performance_logger=no])
+if test "x$enable_rotative_performance_logger" = "xyes"; then
+    AC_DEFINE(USE_ROTATIVEPERFORMANCELOGGER, 1, [Defined if Rotative Performance Logger enabled])
+    AC_DEFINE(ENABLE_LOG_PERFORMANCE, 1, [Defined if Rotative Performance Logger enabled])
+fi
+AM_CONDITIONAL([USE_ROTATIVEPERFORMANCELOGGER], [test "x$enable_rotative_performance_logger" = "xyes"])
+
 # Java
 AC_MSG_CHECKING([if building Java bindings])
 AC_ARG_ENABLE(java,
@@ -952,86 +963,24 @@ AC_SUBST(DB_CXXFLAGS)
 AC_SUBST(DB_CPPFLAGS)
 AC_SUBST(DB_LDFLAGS)
 
-# Berkeley DB
-db=false
-AC_MSG_CHECKING(for Berkeley DB)
-AC_ARG_WITH(db,
-  AS_HELP_STRING(--with-db=PATH, base of Berkeley DB installation),
-  [AC_MSG_RESULT($with_db)
-   case $with_db in
-   no)
-     db=false
-     ;;
-   yes)
-    AC_CHECK_HEADERS([db_cxx.h],, [
-        AC_MSG_ERROR([db_cxx.h header not found or not usable])
-    ])
-
-    AC_CHECK_LIB(db_cxx, [open], [DB_LIBS="-ldb_cxx"],[
-            AC_MSG_ERROR([Could not find libdb_cxx])
-    ])
-    AC_SUBST(DB_LIBS)
-    db=true
-     ;;
-   *)
-    # set temp variables
-    LDFLAGS="-L$with_db/lib $LDFLAGS"
-    CXXFLAGS="-I$with_db/include $CXXFLAGS"
-
-    AC_CHECK_HEADERS(db_cxx.h,
-     DB_LDFLAGS="-L$with_db/lib"
-     DB_CXXFLAGS="-I$with_db/include",
-     AC_MSG_ERROR([db_cxx.h header not found or not usable])
-     )
-    AC_CHECK_LIB(db_cxx, [open], [DB_LIBS="-ldb_cxx"],[
-            AC_MSG_ERROR([Could not find libdb_cxx])
-    ])
-    AC_SUBST(DB_LIBS)
-    db=true
-
-    #restore
-    LDFLAGS=$SAVE_LDFLAGS
-    CXXFLAGS=$SAVE_CXXFLAGS
-    ;;
-   esac
-  ],
-  [AC_MSG_RESULT([--with-db not specified])]
-  )
-AM_CONDITIONAL(USE_DB, test "x$db = xtrue")
-AC_SUBST(DB_CXXFLAGS)
-AC_SUBST(DB_LDFLAGS)
-
-# check if both DB layers are selected
-if test "x$sqlite" = "xtrue" ; then
-    if test "x$db" = "xtrue" ; then
-        AC_MSG_ERROR([Please provide exactly one DB access layer, either --with-sqlite or --with-db.])
-    fi
-fi
-
 # check if no DB layer is selected, use SQLite by the default
 if test "x$sqlite" = "xfalse" ; then
-    if test "x$db" = "xfalse" ; then
-        AC_MSG_NOTICE([Using SQLite3 as the default DB access layer.])
+    AC_MSG_NOTICE([Using SQLite3 as the default DB access layer.])
 
-        AC_CHECK_HEADERS([sqlite3.h],, [
-            AC_MSG_ERROR([sqlite3.h header not found or not usable])
-        ])
-        AC_CHECK_LIB(sqlite3, [sqlite3_open], [DB_LIBS="-lsqlite3"],[
-                AC_MSG_ERROR([Could not find libsqlite3])
-        ])
-        sqlite=true
+    AC_CHECK_HEADERS([sqlite3.h],, [
+        AC_MSG_ERROR([sqlite3.h header not found or not usable])
+    ])
+    AC_CHECK_LIB(sqlite3, [sqlite3_open], [DB_LIBS="-lsqlite3"],[
+            AC_MSG_ERROR([Could not find libsqlite3])
+    ])
+    sqlite=true
 
-        AM_CONDITIONAL(USE_SQLITE, test x$sqlite = xtrue)
-        AC_SUBST(DB_LIBS)
-    fi
+    AM_CONDITIONAL(USE_SQLITE, test x$sqlite = xtrue)
+    AC_SUBST(DB_LIBS)
 fi
 
 if test "x$sqlite" = "xtrue" ; then
     AC_DEFINE(USE_SQLITE, [1], [Define to use SQLite])
-    AC_DEFINE(USE_DB, [0], [Define to use Berkeley DB])
-else
-    AC_DEFINE(USE_SQLITE, [0], [Define to use SQLite])
-    AC_DEFINE(USE_DB, [1], [Define to use Berkeley DB])
 fi
 
 #
@@ -1355,6 +1304,12 @@ AM_CONDITIONAL([USE_LIBMEDIAINFO], [test "x$libmediainfo" = "xtrue"])
 openssl=false
 cares=false
 if test "x$WIN32" = "xno" ; then
+
+    AC_ARG_WITH([poll],
+      AS_HELP_STRING(--with-poll use poll instead of select in posix waiter),
+      AC_DEFINE(USE_POLL, [1], [Define to use poll instead of select in posix waiter]),
+    )
+
     if test "$HAVE_PTHREAD" = "yes"; then
         SAVE_LDFLAGS="-pthread $SAVE_LDFLAGS"
         LDFLAGS="-pthread $LDFLAGS"
@@ -2117,6 +2072,7 @@ AC_MSG_NOTICE([Configured to build Mega SDK:
   chat:             $enable_chat
   MEGA API          $enable_megaapi
   example apps:     $enable_examples
+  Rot Perf Logger:  $enable_rotative_performance_logger
 
   inotify:          $enable_inotify
   posix threads:    $enable_posix_threads

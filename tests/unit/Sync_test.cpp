@@ -23,6 +23,7 @@
 #include <mega/megaclient.h>
 #include <mega/megaapp.h>
 #include <mega/types.h>
+#include <mega/heartbeats.h>
 #include <mega/sync.h>
 #include <mega/filesystem.h>
 
@@ -220,17 +221,7 @@ public:
         *path = *local;
     }
 
-    size_t lastpartlocal(const std::string* localname) const override
-    {
-        const char* ptr = localname->data();
-        if ((ptr = strrchr(ptr, '/')))
-        {
-            return ptr - localname->data() + 1;
-        }
-        return 0;
-    }
-
-    bool getsname(mega::LocalPath&, mega::LocalPath&) const override
+    bool getsname(const mega::LocalPath&, mega::LocalPath&) const override
     {
         return false;
     }
@@ -242,7 +233,8 @@ private:
 struct Fixture
 {
     explicit Fixture(std::string localname)
-    : mSync{mt::makeSync(*mClient, std::move(localname))}
+    : mUnifiedSync{mt::makeSync(*mClient, std::move(localname))}
+    , mSync{mUnifiedSync->mSync}
     {}
 
     MEGA_DISABLE_COPY_MOVE(Fixture)
@@ -252,7 +244,8 @@ struct Fixture
     MockFileSystemAccess mFsAccess{mFsNodes};
     std::shared_ptr<mega::MegaClient> mClient = mt::makeClient(mApp, mFsAccess);
     mega::handlelocalnode_map& mLocalNodes = mClient->fsidnode;
-    std::unique_ptr<mega::Sync> mSync;
+    std::unique_ptr<mega::UnifiedSync> mUnifiedSync;
+    std::unique_ptr<mega::Sync>& mSync;
 
     bool iteratorsCorrect(mega::LocalNode& l) const
     {
@@ -283,53 +276,57 @@ using std::string;
 /*
  * Shim to make following test less painful.
  */
-int computeReversePathMatchScore(string& accumulated,
-                                 const string& path1,
-                                 const string& path2,
-                                 const string& sep)
+int computeReversePathMatchScore(const string& path1,
+                                 const string& path2)
 {
-    return mega::computeReversePathMatchScore(accumulated,
-                                              LocalPath::fromLocalname(path1),
-                                              LocalPath::fromLocalname(path2),
-                                              mt::DefaultedFileSystemAccess(sep));
+#if defined(_WIN32)
+    mega::WinFileSystemAccess wfa;
+    auto localpath1 = LocalPath::fromPath(path1, wfa);
+    auto localpath2 = LocalPath::fromPath(path2, wfa);
+
+    return mega::computeReversePathMatchScore(localpath1,
+                                              localpath2,
+                                              mt::DefaultedFileSystemAccess());
+#else
+    return mega::computeReversePathMatchScore(
+        LocalPath::fromPlatformEncoded(path1),
+        LocalPath::fromPlatformEncoded(path2),
+        mt::DefaultedFileSystemAccess());
+
+#endif
 }
 
-void test_computeReversePathMatchScore(const string &sep)
+void test_computeReversePathMatchScore()
 {
-    string acc;
+    string sepstr;
+    sepstr.push_back(LocalPath::localPathSeparator);
+    ASSERT_EQ(0, computeReversePathMatchScore("", ""));
+    ASSERT_EQ(0, computeReversePathMatchScore("", sepstr + "a"));
+    ASSERT_EQ(0, computeReversePathMatchScore(sepstr + "b", ""));
+    ASSERT_EQ(0, computeReversePathMatchScore("a", "b"));
+    ASSERT_EQ(2, computeReversePathMatchScore("cc", "cc"));
+    ASSERT_EQ(0, computeReversePathMatchScore(sepstr, sepstr));
+    ASSERT_EQ(0, computeReversePathMatchScore(sepstr + "b", sepstr + "a"));
+    ASSERT_EQ(2, computeReversePathMatchScore(sepstr + "cc", sepstr + "cc"));
+    ASSERT_EQ(0, computeReversePathMatchScore(sepstr + "b", sepstr + "b" + sepstr));
+    ASSERT_EQ(2, computeReversePathMatchScore(sepstr + "a" + sepstr + "b", sepstr + "a" + sepstr + "b"));
+    ASSERT_EQ(2, computeReversePathMatchScore(sepstr + "a" + sepstr + "c" + sepstr + "a" + sepstr + "b", sepstr + "a" + sepstr + "b"));
+    ASSERT_EQ(3, computeReversePathMatchScore(sepstr + "aaa" + sepstr + "bbbb" + sepstr + "ccc", sepstr + "aaa" + sepstr + "bbb" + sepstr + "ccc"));
+    ASSERT_EQ(2, computeReversePathMatchScore("a" + sepstr + "b", "a" + sepstr + "b"));
 
-    ASSERT_EQ(0, computeReversePathMatchScore(acc, "", "", sep));
-    ASSERT_EQ(0, computeReversePathMatchScore(acc, "", sep + "a", sep));
-    ASSERT_EQ(0, computeReversePathMatchScore(acc, sep + "b", "", sep));
-    ASSERT_EQ(0, computeReversePathMatchScore(acc, "a", "b", sep));
-    ASSERT_EQ(2, computeReversePathMatchScore(acc, "cc", "cc", sep));
-    ASSERT_EQ(0, computeReversePathMatchScore(acc, sep, sep, sep));
-    ASSERT_EQ(0, computeReversePathMatchScore(acc, sep + "b", sep + "a", sep));
-    ASSERT_EQ(2, computeReversePathMatchScore(acc, sep + "cc", sep + "cc", sep));
-    ASSERT_EQ(0, computeReversePathMatchScore(acc, sep + "b", sep + "b" + sep, sep));
-    ASSERT_EQ(2, computeReversePathMatchScore(acc, sep + "a" + sep + "b", sep + "a" + sep + "b", sep));
-    ASSERT_EQ(2, computeReversePathMatchScore(acc, sep + "a" + sep + "c" + sep + "a" + sep + "b", sep + "a" + sep + "b", sep));
-    ASSERT_EQ(3, computeReversePathMatchScore(acc, sep + "aaa" + sep + "bbbb" + sep + "ccc", sep + "aaa" + sep + "bbb" + sep + "ccc", sep));
-    ASSERT_EQ(2, computeReversePathMatchScore(acc, "a" + sep + "b", "a" + sep + "b", sep));
+    const string base = sepstr + "a" + sepstr + "b";
+    const string reference = sepstr + "c12" + sepstr + "e34";
 
-    const string base = sep + "a" + sep + "b";
-    const string reference = sep + "c12" + sep + "e34";
-
-    ASSERT_EQ(6, computeReversePathMatchScore(acc, base + reference, base + sep + "a65" + reference, sep));
-    ASSERT_EQ(6, computeReversePathMatchScore(acc, base + reference, base + sep + ".debris" + reference, sep));
-    ASSERT_EQ(6, computeReversePathMatchScore(acc, base + reference, base + sep + "ab" + reference, sep));
+    ASSERT_EQ(6, computeReversePathMatchScore(base + reference, base + sepstr + "a65" + reference));
+    ASSERT_EQ(6, computeReversePathMatchScore(base + reference, base + sepstr + ".debris" + reference));
+    ASSERT_EQ(6, computeReversePathMatchScore(base + reference, base + sepstr + "ab" + reference));
 }
 
 }
 
 TEST(Sync, computeReverseMatchScore_oneByteSeparator)
 {
-    test_computeReversePathMatchScore("/");
-}
-
-TEST(Sync, computeReverseMatchScore_twoByteSeparator)
-{
-    test_computeReversePathMatchScore("//");
+    test_computeReversePathMatchScore();
 }
 
 /*TEST(Sync, assignFilesystemIds_whenFilesystemFingerprintsMatchLocalNodes)
@@ -1107,8 +1104,8 @@ void test_SyncConfig_serialization(const mega::SyncConfig& config)
 
 TEST(Sync, SyncConfig_defaultOptions)
 {
-    const mega::SyncConfig config{127, "foo", "foo", 42, "remote",123};
-    ASSERT_TRUE(config.isResumable());
+    const mega::SyncConfig config{"foo", "foo", 42, "remote",123};
+    ASSERT_TRUE(config.getEnabled());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
     ASSERT_EQ(123, config.getLocalFingerprint());
@@ -1123,9 +1120,9 @@ TEST(Sync, SyncConfig_defaultOptions)
 
 TEST(Sync, SyncConfig_defaultOptions_inactive)
 {
-    mega::SyncConfig config{127, "foo", "foo", 42, "remote",123};
+    mega::SyncConfig config{"foo", "foo", 42, "remote",123};
     config.setEnabled(false);
-    ASSERT_FALSE(config.isResumable());
+    ASSERT_FALSE(config.getEnabled());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
     ASSERT_EQ(123, config.getLocalFingerprint());
@@ -1141,9 +1138,8 @@ TEST(Sync, SyncConfig_defaultOptions_inactive)
 TEST(Sync, SyncConfig_defaultOptions_butWithRegExps)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
-    const mega::SyncConfig config{127, "foo", "foo", 42, "remote",123, regExps};
-    ASSERT_TRUE(config.isResumable());
-    ASSERT_EQ(127, config.getTag());
+    const mega::SyncConfig config{"foo", "foo", 42, "remote",123, regExps};
+    ASSERT_TRUE(config.getEnabled());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
     ASSERT_EQ(123, config.getLocalFingerprint());
@@ -1159,9 +1155,8 @@ TEST(Sync, SyncConfig_defaultOptions_butWithRegExps)
 TEST(Sync, SyncConfig_upSync_syncDelFalse_overwriteFalse)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
-    const mega::SyncConfig config{127, "foo", "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_UP};
-    ASSERT_TRUE(config.isResumable());
-    ASSERT_EQ(127, config.getTag());
+    const mega::SyncConfig config{"foo", "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_UP};
+    ASSERT_TRUE(config.getEnabled());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
     ASSERT_EQ(123, config.getLocalFingerprint());
@@ -1177,9 +1172,8 @@ TEST(Sync, SyncConfig_upSync_syncDelFalse_overwriteFalse)
 TEST(Sync, SyncConfig_upSync_syncDelTrue_overwriteTrue)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
-    const mega::SyncConfig config{127, "foo", "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_UP, true, true};
-    ASSERT_TRUE(config.isResumable());
-    ASSERT_EQ(127, config.getTag());
+    const mega::SyncConfig config{"foo", "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_UP, true, true};
+    ASSERT_TRUE(config.getEnabled());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
     ASSERT_EQ(123, config.getLocalFingerprint());
@@ -1195,9 +1189,8 @@ TEST(Sync, SyncConfig_upSync_syncDelTrue_overwriteTrue)
 TEST(Sync, SyncConfig_downSync_syncDelFalse_overwriteFalse)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
-    const mega::SyncConfig config{127, "foo", "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_DOWN};
-    ASSERT_TRUE(config.isResumable());
-    ASSERT_EQ(127, config.getTag());
+    const mega::SyncConfig config{"foo", "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_DOWN};
+    ASSERT_TRUE(config.getEnabled());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
     ASSERT_EQ(123, config.getLocalFingerprint());
@@ -1213,9 +1206,8 @@ TEST(Sync, SyncConfig_downSync_syncDelFalse_overwriteFalse)
 TEST(Sync, SyncConfig_downSync_syncDelTrue_overwriteTrue)
 {
     const std::vector<std::string> regExps{"aa", "bbb"};
-    const mega::SyncConfig config{127, "foo", "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_DOWN, true, true};
-    ASSERT_TRUE(config.isResumable());
-    ASSERT_EQ(127, config.getTag());
+    const mega::SyncConfig config{"foo", "foo", 42, "remote",123, regExps, true, mega::SyncConfig::TYPE_DOWN, true, true};
+    ASSERT_TRUE(config.getEnabled());
     ASSERT_EQ("foo", config.getLocalPath());
     ASSERT_EQ(42, config.getRemoteNode());
     ASSERT_EQ(123, config.getLocalFingerprint());
@@ -1234,18 +1226,21 @@ namespace
 void test_SyncConfigBag(mega::SyncConfigBag& bag)
 {
     ASSERT_TRUE(bag.all().empty());
-    const mega::SyncConfig config1{127, "foo", "foo", 41, "remote", 122, {}, true, mega::SyncConfig::Type::TYPE_TWOWAY, false, true, mega::LOCAL_FINGERPRINT_MISMATCH};
+    mega::SyncConfig config1{"foo", "foo", 41, "remote", 122, {}, true, mega::SyncConfig::Type::TYPE_TWOWAY, false, true, mega::LOCAL_FINGERPRINT_MISMATCH};
+    config1.setBackupId(12345);
     bag.insert(config1);
-    const mega::SyncConfig config2{128, "bar", "bar", 42, "remote", 123, {}, false, mega::SyncConfig::Type::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
+    mega::SyncConfig config2{"bar", "bar", 42, "remote", 123, {}, false, mega::SyncConfig::Type::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
+    config2.setBackupId(123456);
     bag.insert(config2);
-    const std::vector<mega::SyncConfig> expConfigs1{config1, config2};
+    std::vector<mega::SyncConfig> expConfigs1{config1, config2};
     //ASSERT_EQ(expConfigs1, bag.all());
-    bag.removeByTag(config1.getTag());
-    const std::vector<mega::SyncConfig> expConfigs2{config2};
+    bag.removeByBackupId(12345);
+    std::vector<mega::SyncConfig> expConfigs2{config2};
     //ASSERT_EQ(expConfigs2, bag.all());
-    const mega::SyncConfig config3{128, "bar2", "bar2", 43, "remote", 124};
+    mega::SyncConfig config3{"bar2", "bar2", 43, "remote", 124};
+    config3.setBackupId(1234567);
     bag.insert(config3); // update
-    const std::vector<mega::SyncConfig> expConfigs3{config3};
+    std::vector<mega::SyncConfig> expConfigs3{config3};
     //ASSERT_EQ(expConfigs3, bag.all());
     bag.insert(config1);
     bag.insert(config2);
@@ -1294,6 +1289,11 @@ public:
         mData->clear();
     }
 
+    bool inTransaction() const override
+    {
+        return true;
+    }
+
     std::vector<std::pair<uint32_t, std::string>>* mData = nullptr;
 
 private:
@@ -1306,11 +1306,23 @@ public:
     MockDbAccess(std::vector<std::pair<uint32_t, std::string>>& data)
         : mData{data}
     {}
-    mega::DbTable* open(mega::PrnGen &rng, mega::FileSystemAccess*, std::string*, bool recycleLegacyDB, bool checkAlwaysTransacted) override
+    mega::DbTable* open(mega::PrnGen &rng, mega::FileSystemAccess&, const std::string&, const int flags) override
     {
-        auto table = new MockDbTable{rng, checkAlwaysTransacted};
+        auto table = new MockDbTable{rng, (flags & mega::DB_OPEN_FLAG_TRANSACTED) > 0};
         table->mData = &mData;
         return table;
+    }
+
+    bool probe(mega::FileSystemAccess&, const string&) const override
+    {
+        return true;
+    }
+
+    const mega::LocalPath &rootPath() const override
+    {
+        static mega::LocalPath const dummy;
+
+        return dummy;
     }
 
 private:
@@ -1337,18 +1349,21 @@ TEST(Sync, SyncConfigBag_withPreviousState)
     mega::PrnGen rng;
 
     mega::SyncConfigBag bag1{dbaccess, fsaccess, rng, "some_id"};
-    const mega::SyncConfig config1{127, "foo", "foo", 41, "remote", 122, {}, true, mega::SyncConfig::Type::TYPE_TWOWAY, false, true, mega::LOCAL_FINGERPRINT_MISMATCH};
+    mega::SyncConfig config1{"foo", "foo", 41, "remote", 122, {}, true, mega::SyncConfig::Type::TYPE_TWOWAY, false, true, mega::LOCAL_FINGERPRINT_MISMATCH};
+    config1.setBackupId(12345);
     bag1.insert(config1);
     ASSERT_EQ(1u, mData.size());
-    const mega::SyncConfig config2{128, "bar", "bar", 42, "remote", 123, {}, false, mega::SyncConfig::Type::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
+    mega::SyncConfig config2{"bar", "bar", 42, "remote", 123, {}, false, mega::SyncConfig::Type::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
+    config2.setBackupId(123456);
     bag1.insert(config2);
     ASSERT_EQ(2u, mData.size());
-    const mega::SyncConfig config3{129, "bar2", "bar2", 43, "remote", 124, {}, false, mega::SyncConfig::Type::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
+    mega::SyncConfig config3{"bar2", "bar2", 43, "remote", 124, {}, false, mega::SyncConfig::Type::TYPE_UP, true, false, mega::NO_SYNC_ERROR};
+    config3.setBackupId(1234567);
     bag1.insert(config3);
     ASSERT_EQ(3u, mData.size());
     bag1.insert(config3); // update
     ASSERT_EQ(3u, mData.size());
-    bag1.removeByTag(config3.getTag());
+    bag1.removeByBackupId(1234567);
     ASSERT_EQ(2u, mData.size());
 
     const mega::SyncConfigBag bag2{dbaccess, fsaccess, rng, "some_id"};
