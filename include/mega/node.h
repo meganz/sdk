@@ -206,8 +206,10 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         bool publiclink : 1;
         bool newnode : 1;
 
+#ifdef ENABLE_SYNC
         // this field is only used internally in syncdown()
         bool syncdown_node_matched_here : 1;
+#endif
 
     } changed;
 
