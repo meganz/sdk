@@ -437,6 +437,12 @@ public:
 
     MEGA_DISABLE_COPY_MOVE(JSONSyncConfigIOContext);
 
+    // Deserialize configs from JSON (with logging.)
+    bool deserialize(const LocalPath& dbPath,
+                     JSONSyncConfigMap& configs,
+                     JSON& reader,
+                     const unsigned int slot) const;
+
     // Deserialize configs from JSON.
     bool deserialize(JSONSyncConfigMap& configs,
                      JSON& reader) const;
