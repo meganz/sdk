@@ -2992,7 +2992,8 @@ error JSONSyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
         }
 
         // Record this slot-time pair.
-        slotTimes.emplace_back(suffix - 0x30, fileAccess->mtime);
+        unsigned int slot = suffix - 0x30; // convert char to int
+        slotTimes.emplace_back(slot, fileAccess->mtime);
     }
 
     // Sort the list of slot-time pairs.
@@ -3347,4 +3348,3 @@ void JSONSyncConfigIOContext::serialize(const SyncConfig& config,
 } // namespace
 
 #endif
-
