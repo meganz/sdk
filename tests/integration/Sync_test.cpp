@@ -2763,7 +2763,7 @@ GTEST_TEST(Sync, BasicSync_MassNotifyFromLocalFolderTree)
     auto startTime = std::chrono::steady_clock::now();
     while (std::chrono::steady_clock::now() - startTime < std::chrono::seconds(5 * 60))
     {
-        int remaining = 0;
+        size_t remaining = 0;
         auto result0 = clientA1.thread_do<bool>([&](StandardClient &sc, PromiseBoolSP p)
         {
             sc.client.syncs.forEachRunningSync(
