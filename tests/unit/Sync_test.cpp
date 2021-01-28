@@ -1463,6 +1463,12 @@ public:
             ON_CALL(*this, read(_, _, _))
               .WillByDefault(Invoke(this, &IOContext::readConcrete));
 
+            ON_CALL(*this, remove(_, _))
+              .WillByDefault(Invoke(this, &IOContext::removeSlotConcrete));
+
+            ON_CALL(*this, remove(_))
+              .WillByDefault(Invoke(this, &IOContext::removeAllSlotsConcrete));
+
             ON_CALL(*this, write(_, _, _))
               .WillByDefault(Invoke(this, &IOContext::writeConcrete));
         }
@@ -1471,28 +1477,43 @@ public:
 
         MOCK_METHOD3(read, error(const LocalPath&, string&, const unsigned int));
 
+        MOCK_METHOD2(remove, error(const LocalPath&, const unsigned int));
+
+        MOCK_METHOD1(remove, error(const LocalPath&));
+
         MOCK_METHOD3(write, error(const LocalPath&, const string&, const unsigned int));
 
     private:
         // Delegate to real behavior.
-        error getSlotsInOrderConcrete(const LocalPath& drivePath,
+        error getSlotsInOrderConcrete(const LocalPath& dbPath,
                                       vector<unsigned int>& slots)
         {
-            return JSONSyncConfigIOContext::getSlotsInOrder(drivePath, slots);
+            return JSONSyncConfigIOContext::getSlotsInOrder(dbPath, slots);
         }
 
-        error readConcrete(const LocalPath& drivePath,
+        error readConcrete(const LocalPath& dbPath,
                            string& data,
                            const unsigned int slot)
         {
-            return JSONSyncConfigIOContext::read(drivePath, data, slot);
+            return JSONSyncConfigIOContext::read(dbPath, data, slot);
         }
 
-        error writeConcrete(const LocalPath& drivePath,
+        error removeSlotConcrete(const LocalPath& dbPath,
+                                 const unsigned int slot)
+        {
+            return JSONSyncConfigIOContext::remove(dbPath, slot);
+        }
+
+        error removeAllSlotsConcrete(const LocalPath& dbPath)
+        {
+            return JSONSyncConfigIOContext::remove(dbPath);
+        }
+
+        error writeConcrete(const LocalPath& dbPath,
                             const string& data,
                             const unsigned int slot)
         {
-            return JSONSyncConfigIOContext::write(drivePath, data, slot);
+            return JSONSyncConfigIOContext::write(dbPath, data, slot);
         }
     }; // IOContext
 
@@ -1782,6 +1803,67 @@ TEST_F(JSONSyncConfigIOContextTest, ReadBadPath)
     // Try and read data from an insane path.
     EXPECT_EQ(ioContext().read(drivePath, data, 0), API_EREAD);
     EXPECT_TRUE(data.empty());
+}
+
+TEST_F(JSONSyncConfigIOContextTest, RemoveSlot)
+{
+    // Make sure drive path exists.
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    // Generate a slot for this user.
+    {
+        LocalPath configPath = drive;
+
+        // Generate path prefix.
+        configPath.appendWithSeparator(
+            LocalPath::fromPath(configName(), fsAccess()), false);
+
+        // Generate suffix.
+        configPath.append(LocalPath::fromPath(".0", fsAccess()));
+
+        // Populate slot.
+        EXPECT_TRUE(Utilities::randomFile(configPath));
+    }
+
+    // Remove the slot.
+    EXPECT_EQ(ioContext().remove(drive.path(), 0), API_OK);
+
+    // Remove should fail as the slot's already gone.
+    EXPECT_EQ(ioContext().remove(drive.path(), 0), API_EWRITE);
+}
+
+TEST_F(JSONSyncConfigIOContextTest, RemoveSlots)
+{
+    const auto drivePath = Utilities::randomPath();
+
+    // No slots to remove.
+    EXPECT_CALL(ioContext(),
+                getSlotsInOrder(Eq(drivePath), _))
+      .WillOnce(Return(API_ENOENT));
+
+    EXPECT_EQ(ioContext().remove(drivePath), API_ENOENT);
+
+    // Two slots to remove.
+    static const vector<unsigned int> slots = {0, 1};
+
+    EXPECT_CALL(ioContext(),
+                getSlotsInOrder(Eq(drivePath), _))
+      .WillRepeatedly(DoAll(SetArgReferee<1>(slots),
+                            Return(API_OK)));
+    
+    // All slots should be removed successfully.
+    EXPECT_CALL(ioContext(),
+                remove(Eq(drivePath), _))
+      .WillRepeatedly(Return(API_OK));
+
+    EXPECT_EQ(ioContext().remove(drivePath), API_OK);
+
+    // Should only succeed if all slots can be removed.
+    EXPECT_CALL(ioContext(),
+                remove(Eq(drivePath), Eq(0u)))
+      .WillRepeatedly(Return(API_EWRITE));
+
+    EXPECT_EQ(ioContext().remove(drivePath), API_EWRITE);
 }
 
 TEST_F(JSONSyncConfigIOContextTest, Serialize)
@@ -2405,6 +2487,95 @@ TEST_F(JSONSyncConfigDBTest, RemoveByUnknownTargetHandle)
     EXPECT_FALSE(configDB.dirty());
 }
 
+TEST_F(JSONSyncConfigDBTest, Truncate)
+{
+    JSONSyncConfigDB configDB(dbPath(), drivePath());
+
+    // Add a config.
+    SyncConfig config;
+
+    config.mExternalDrivePath = drivePath();
+    config.mEnabled = false;
+    config.mBackupId = 0;
+    config.mRemoteNode = 1;
+
+    const auto* c = configDB.add(config);
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, config);
+
+    // Database should be dirty.
+    EXPECT_TRUE(configDB.dirty());
+
+    // Write the database to disk.
+    EXPECT_CALL(ioContext(),
+                write(Eq(dbPath()), _, Eq(0u)))
+      .WillOnce(Return(API_OK));
+
+    EXPECT_EQ(configDB.write(ioContext()), API_OK);
+
+    // Update the config.
+    config.mEnabled = true;
+
+    c = configDB.add(config);
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, config);
+
+    // Database should be dirty.
+    EXPECT_TRUE(configDB.dirty());
+
+    // Truncate the database.
+    EXPECT_CALL(ioContext(),
+                remove(Eq(dbPath())))
+      .WillOnce(Return(API_OK));
+
+    EXPECT_EQ(configDB.truncate(ioContext()), API_OK);
+
+    // Database should be clean.
+    EXPECT_FALSE(configDB.dirty());
+    
+    // Database should be empty.
+    EXPECT_TRUE(configDB.configs().empty());
+
+    // Add another config.
+    c = configDB.add(config);
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, config);
+
+    // Database should be dirty.
+    EXPECT_TRUE(configDB.dirty());
+
+    // Write database to disk.
+    // Note that the slot counter should've been reset.
+    EXPECT_CALL(ioContext(),
+                write(Eq(dbPath()), _, Eq(0u)))
+      .WillOnce(Return(API_OK));
+
+    EXPECT_EQ(configDB.write(ioContext()), API_OK);
+
+    // Alter the config.
+    config.mEnabled = false;
+
+    c = configDB.add(config);
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, config);
+
+    // Database should be dirty.
+    EXPECT_TRUE(configDB.dirty());
+
+    // Truncate the database.
+    EXPECT_CALL(ioContext(),
+                remove(Eq(dbPath())))
+      .WillOnce(Return(API_EWRITE));
+
+    EXPECT_EQ(configDB.truncate(ioContext()), API_EWRITE);
+
+    // Database should be clear even if we couldn't remove the slots.
+    EXPECT_TRUE(configDB.configs().empty());
+
+    // Database should be clean.
+    EXPECT_FALSE(configDB.dirty());
+}
+
 TEST_F(JSONSyncConfigDBTest, Update)
 {
     JSONSyncConfigDB configDB(dbPath(), drivePath());
@@ -2533,6 +2704,11 @@ TEST_F(JSONSyncConfigDBTest, WriteFail)
       .Times(2)
       .WillRepeatedly(Return(API_EWRITE));
 
+    // We should only remove a prior slot if the write was successful.
+    EXPECT_CALL(ioContext(),
+                remove(Eq(dbPath()), Eq(1u)))
+      .Times(0);
+
     // Write will fail as we can't write to slot 0.
     EXPECT_EQ(configDB.write(ioContext()), API_EWRITE);
 
@@ -2550,10 +2726,23 @@ TEST_F(JSONSyncConfigDBTest, WriteOK)
                   write(Eq(dbPath()), _, Eq(0u)))
       .WillOnce(Return(API_OK));
 
-    // Writes to slot 1 should succeed.
-    EXPECT_CALL(ioContext(),
-                write(Eq(dbPath()), _, Eq(1u)))
+    // Preemptively remove the next slot as the write succeeded.
+    Expectation remove1 =
+      EXPECT_CALL(ioContext(),
+                  remove(Eq(dbPath()), Eq(1u)))
       .After(write0)
+      .WillOnce(Return(API_OK));
+
+    // Writes to slot 1 should succeed.
+    Expectation write1 =
+      EXPECT_CALL(ioContext(),
+                  write(Eq(dbPath()), _, Eq(1u)))
+        .After(remove1)
+        .WillOnce(Return(API_OK));
+
+    EXPECT_CALL(ioContext(),
+                remove(Eq(dbPath()), Eq(0u)))
+      .After(write1)
       .WillOnce(Return(API_OK));
 
     // First write will dump data to slot 0.
