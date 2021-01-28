@@ -407,6 +407,9 @@ public:
     // Remove config by backup target handle.
     error removeByRootHandle(handle targetHandle);
 
+    // Clears database and removes slots from disk.
+    error truncate(JSONSyncConfigIOContext& ioContext);
+
     // Write this database to disk.
     error write(JSONSyncConfigIOContext& ioContext);
 
@@ -467,6 +470,13 @@ public:
                        string& data,
                        const unsigned int slot);
 
+    // Remove an existing slot from disk.
+    virtual error remove(const LocalPath& dbPath,
+                         const unsigned int slot);
+
+    // Remove all existing slots from disk.
+    virtual error remove(const LocalPath& dbPath);
+
     // Serialize configs to JSON.
     void serialize(const JSONSyncConfigMap& configs,
                    JSONWriter& writer) const;
@@ -475,10 +485,6 @@ public:
     virtual error write(const LocalPath& dbPath,
                         const string& data,
                         const unsigned int slot);
-
-    // remove the file from the old slot
-    void remove(const LocalPath& dbPath,
-                const unsigned int slot);
 
 private:
     // Decrypt data.

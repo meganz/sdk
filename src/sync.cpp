@@ -2571,9 +2571,12 @@ error Syncs::truncate()
         return API_OK;
     }
 
-    mSyncConfigDB->clear();
+    if (auto* ioContext = syncConfigIOContext())
+    {
+        return mSyncConfigDB->truncate(*ioContext);
+    }
 
-    return syncConfigDBFlush();
+    return API_EAGAIN;
 }
 
 void Syncs::resetSyncConfigDb()
@@ -3159,6 +3162,21 @@ error JSONSyncConfigDB::removeByRootHandle(const handle targetHandle)
     return API_ENOENT;
 }
 
+error JSONSyncConfigDB::truncate(JSONSyncConfigIOContext& ioContext)
+{
+    // Purge configs from memory.
+    mBackupIdToConfig.clear();
+
+    // Database no longer has any changes.
+    mDirty = false;
+
+    // Reset slot counter to initial value.
+    mSlot = 0;
+
+    // Purge (existing) slots from disk.
+    return ioContext.remove(mDBPath);
+}
+
 error JSONSyncConfigDB::write(JSONSyncConfigIOContext& ioContext)
 {
     JSONWriter writer;
@@ -3454,6 +3472,43 @@ error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
     return API_OK;
 }
 
+error JSONSyncConfigIOContext::remove(const LocalPath& dbPath,
+                                      const unsigned int slot)
+{
+    using std::to_string;
+
+    LocalPath path = dbPath;
+
+    // Generate the rest of the path.
+    path.appendWithSeparator(mName, false);
+    path.append(LocalPath::fromPath("." + to_string(slot), mFsAccess));
+
+    return mFsAccess.unlinklocal(path) ? API_OK : API_EWRITE;
+}
+
+error JSONSyncConfigIOContext::remove(const LocalPath& dbPath)
+{
+    vector<unsigned int> confSlots;
+
+    // What slots are present on disk?
+    if (getSlotsInOrder(dbPath, confSlots) == API_ENOENT)
+    {
+        // None so nothing to do.
+        return API_ENOENT;
+    }
+
+    bool result = true;
+
+    // Remove the slots from disk.
+    for (auto confSlot : confSlots)
+    {
+        result &= remove(dbPath, confSlot) == API_OK;
+    }
+
+    // Signal success only if all slots could be removed.
+    return result ? API_OK : API_EWRITE;
+}
+
 void JSONSyncConfigIOContext::serialize(const JSONSyncConfigMap& configs,
                                         JSONWriter& writer) const
 {
@@ -3466,20 +3521,6 @@ void JSONSyncConfigIOContext::serialize(const JSONSyncConfigMap& configs,
 
     writer.endarray();
 }
-
-void JSONSyncConfigIOContext::remove(const LocalPath& dbPath,
-                                     const unsigned int slot)
-{
-    using std::to_string;
-    LocalPath path = dbPath;
-
-    // Generate the rest of the path.
-    path.appendWithSeparator(mName, false);
-    path.append(LocalPath::fromPath("." + to_string(slot), mFsAccess));
-
-    mFsAccess.unlinklocal(path);
-}
-
 
 error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
                                      const string& data,
