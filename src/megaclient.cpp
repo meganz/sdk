@@ -13357,6 +13357,9 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
             if (app->sync_syncable(l->sync, ait->second.c_str(), localpath, *it))
             {
                 addchild(&nchildren, &ait->second, *it, &strings, l->sync->mFilesystemType);
+
+                // this flag starts false in all nchildren
+                (*it)->changed.syncdown_node_matched_here = false;
             }
             else
             {
@@ -13461,9 +13464,10 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                         stopxfer(rit->second->localnode, &committer);  // TODO: can we have one transaction for recursing through syncdown() ?
                     }
 
-                    // we will iterate all the nchildren next, and check this marker pointer is reset.
-                    rit->second->localnode.reset();
-                    rit->second->localnode.store_unchecked((LocalNode*)~0);
+                    // don't use a marker pointer anymore, we could trip over it on the next iteration of this loop.
+                    // instead, we reserve one bit in the "changed" bit fields just for use in this function.
+                    // Flagging it here means this Node has a matched LocalNode already (checked in the next loop over nchildren)
+                    rit->second->changed.syncdown_node_matched_here = true;
                 }
             }
             else
@@ -13560,7 +13564,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
 
         // does this node already have a corresponding LocalNode under
         // a different name or elsewhere in the filesystem?
-        if (rit->second->localnode.get() && rit->second->localnode.get() != (LocalNode*)~0)
+        if (rit->second->localnode.get() && !rit->second->changed.syncdown_node_matched_here)
         {
             LOG_debug << "has a previous localnode: " << rit->second->localnode->name;
 
@@ -13627,7 +13631,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 {
                     bool download = true;
                     auto f = fsaccess->newfileaccess(false);
-                    if (rit->second->localnode.get() != (LocalNode*)~0
+                    if (!rit->second->changed.syncdown_node_matched_here
                             && (f->fopen(localpath) || f->type == FOLDERNODE))
                     {
                         if (f->mIsSymLink && l->sync->movetolocaldebris(localpath))
@@ -13641,14 +13645,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                         }
                     }
                     f.reset();
-                    if (rit->second->localnode.get() == (LocalNode*)~0)
-                    {
-                        rit->second->localnode.store_unchecked(nullptr);
-                    }
-                    else
-                    {
-                        rit->second->localnode.reset();
-                    }
+                    rit->second->localnode.reset();
 
                     // start fetching this node, unless fetch is already in progress
                     // FIXME: to cover renames that occur during the
@@ -13741,12 +13738,6 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                     }
                 }
             }
-        }
-
-        if (rit->second->localnode.get() == (LocalNode*)~0)
-        {
-            // make sure we are not leaving this marker pointer in the localnode
-            rit->second->localnode.store_unchecked(nullptr);
         }
     }
 
