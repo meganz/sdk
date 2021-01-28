@@ -3344,6 +3344,7 @@ bool JSONSyncConfigIOContext::deserialize(JSONSyncConfigMap& configs,
         else
         {
             LOG_err << "Failed to deserialize a sync config";
+            assert(false);
         }
         reader.leaveobject();
     }
@@ -3405,7 +3406,8 @@ error JSONSyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
         }
 
         // Record this slot-time pair.
-        slotTimes.emplace_back(suffix - 0x30, fileAccess->mtime);
+        unsigned int slot = suffix - 0x30; // convert char to int
+        slotTimes.emplace_back(slot, fileAccess->mtime);
     }
 
     // Sort the list of slot-time pairs.
@@ -3585,7 +3587,7 @@ bool JSONSyncConfigIOContext::decrypt(const string& in, string& out)
         return false;
     }
 
-    // For convenience.
+    // For convenience (format: <data><iv><hmac>)
     const byte* data = reinterpret_cast<const byte*>(&in[0]);
     const byte* iv   = &data[in.size() - METADATA_LENGTH];
     const byte* mac  = &data[in.size() - MAC_LENGTH];
@@ -4187,4 +4189,3 @@ error JSONSyncConfigStore::flush(JSONSyncConfigDB& db)
 } // namespace
 
 #endif
-
