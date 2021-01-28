@@ -681,16 +681,12 @@ MegaStringList *MegaNodePrivate::getCustomAttrNames()
         return new MegaStringList();
     }
 
-    vector<char*> names;
-    char *buf;
+    string_vector names;
     for (attr_map::iterator it = customAttrs->begin(); it != customAttrs->end(); it++)
     {
-        buf = new char[10];
-        int attrlen = AttrMap::nameid2string(it->first, buf);
-        buf[attrlen] = '\0';
-        names.push_back(buf);
+        names.push_back(AttrMap::nameid2string(it->first));
     }
-    return new MegaStringListPrivate(names.data(), int(names.size()));
+    return new MegaStringListPrivate(move(names));
 }
 
 const char *MegaNodePrivate::getCustomAttr(const char *attrName)
@@ -4227,18 +4223,13 @@ const char *MegaStringMapPrivate::get(const char *key) const
 
 MegaStringList *MegaStringMapPrivate::getKeys() const
 {
-    vector<char*> keys;
-    char *buf;
-    for (string_map::const_iterator it = strMap.begin(); it != strMap.end(); it++)
+    string_vector keys;
+    for (auto& it : strMap)
     {
-        buf = new char[it->first.length()+1];
-        memcpy(buf, it->first.data(), it->first.length());
-        buf[it->first.length()] = 0;
-
-        keys.push_back(buf);
+        keys.push_back(it.first);
     }
 
-    return new MegaStringListPrivate(keys.data(), int(keys.size()));
+    return new MegaStringListPrivate(move(keys));
 }
 
 void MegaStringMapPrivate::set(const char *key, const char *value)
@@ -4272,31 +4263,14 @@ MegaStringMapPrivate::MegaStringMapPrivate(const MegaStringMapPrivate *megaStrin
     delete keys;
 }
 
-MegaStringListPrivate::MegaStringListPrivate()
+MegaStringListPrivate::MegaStringListPrivate(string_vector&& v)
+    : mList(move(v))
 {
-}
-
-MegaStringListPrivate::MegaStringListPrivate(const MegaStringListPrivate *stringList)
-{
-    mList = stringList->mList;
-}
-
-MegaStringListPrivate::MegaStringListPrivate(char **newlist, int size)
-{
-    for (int i = 0; i < size; i++)
-    {
-        mList.push_back(std::unique_ptr<char[]>(newlist[i]).get());
-    }
-}
-
-MegaStringListPrivate::~MegaStringListPrivate()
-{
-
 }
 
 MegaStringList *MegaStringListPrivate::copy() const
 {
-    return new MegaStringListPrivate(this);
+    return new MegaStringListPrivate(*this);
 }
 
 const char *MegaStringListPrivate::get(int i) const
@@ -4366,12 +4340,12 @@ const MegaStringList* MegaStringListMapPrivate::get(const char* key) const
 
 MegaStringList *MegaStringListMapPrivate::getKeys() const
 {
-    vector<char*> list;
+    string_vector list;
     for (const auto& pair : mMap)
     {
-        list.emplace_back(MegaApi::strdup(pair.first.get()));
+        list.push_back(pair.first.get());
     }
-    return new MegaStringListPrivate{list.data(), static_cast<int>(list.size())};
+    return new MegaStringListPrivate(move(list));
 }
 
 void MegaStringListMapPrivate::set(const char* key, const MegaStringList* value)
@@ -8291,13 +8265,13 @@ MegaStringList *MegaApiImpl::getBackupFolders(int backuptag)
     }
     sdkMutex.unlock();
 
-    vector<char*> listofpaths;
+    string_vector listofpaths;
 
     for(map<int64_t, string>::iterator itr = backupTimesPaths.begin(); itr != backupTimesPaths.end(); itr++)
     {
-        listofpaths.push_back(MegaApi::strdup(itr->second.c_str()));
+        listofpaths.push_back(itr->second);
     }
-    backupFolders = new MegaStringListPrivate(listofpaths.data(), int(listofpaths.size()));
+    backupFolders = new MegaStringListPrivate(move(listofpaths));
 
     return backupFolders;
 }
@@ -9480,7 +9454,7 @@ MegaStringList *MegaApiImpl::httpServerGetWebDavLinks()
 
     set<handle> handles = httpServer->getAllowedWebDavHandles();
 
-    vector<char *> listoflinks;
+    string_vector listoflinks;
 
     for (std::set<handle>::iterator it = handles.begin(); it != handles.end(); ++it)
     {
@@ -9488,12 +9462,13 @@ MegaStringList *MegaApiImpl::httpServerGetWebDavLinks()
         MegaNode *n = getNodeByHandle(h);
         if (n)
         {
-            listoflinks.push_back(httpServer->getWebDavLink(n));
+            unique_ptr<char[]> link(httpServer->getWebDavLink(n));
+            listoflinks.push_back(link.get());
         }
     }
     sdkMutex.unlock();
 
-    links = new MegaStringListPrivate(listoflinks.data(), int(listoflinks.size()));
+    links = new MegaStringListPrivate(move(listoflinks));
 
     return links;
 }
@@ -9858,7 +9833,7 @@ MegaStringList *MegaApiImpl::ftpServerGetLinks()
 
     set<handle> handles = ftpServer->getAllowedHandles();
 
-    vector<char *> listoflinks;
+    string_vector listoflinks;
 
     for (std::set<handle>::iterator it = handles.begin(); it != handles.end(); ++it)
     {
@@ -9866,13 +9841,13 @@ MegaStringList *MegaApiImpl::ftpServerGetLinks()
         MegaNode *n = getNodeByHandle(h);
         if (n)
         {
-            listoflinks.push_back(ftpServer->getLink(n));
-
+            unique_ptr<char[]> link(ftpServer->getLink(n));
+            listoflinks.push_back(link.get());
         }
     }
     sdkMutex.unlock();
 
-    links = new MegaStringListPrivate(listoflinks.data(), int(listoflinks.size()));
+    links = new MegaStringListPrivate(move(listoflinks));
 
     return links;
 }
@@ -16016,11 +15991,11 @@ void MegaApiImpl::getregisteredcontacts_result(error e, vector<tuple<string, str
                 auto stringTable = std::unique_ptr<MegaStringTable>{MegaStringTable::createInstance()};
                 for (const auto& row : *data)
                 {
-                    vector<char*> list;
-                    list.emplace_back(MegaApi::strdup(std::get<0>(row).c_str()));
-                    list.emplace_back(MegaApi::strdup(std::get<1>(row).c_str()));
-                    list.emplace_back(MegaApi::strdup(std::get<2>(row).c_str()));
-                    auto stringList = new MegaStringListPrivate{list.data(), static_cast<int>(list.size())};
+                    string_vector list;
+                    list.emplace_back(std::get<0>(row));
+                    list.emplace_back(std::get<1>(row));
+                    list.emplace_back(std::get<2>(row));
+                    auto stringList = new MegaStringListPrivate(move(list));
                     stringTable->append(stringList);
                 }
                 request->setMegaStringTable(stringTable.get());
@@ -16043,12 +16018,12 @@ void MegaApiImpl::getcountrycallingcodes_result(error e, map<string, vector<stri
                 auto stringListMap = std::unique_ptr<MegaStringListMap>{MegaStringListMap::createInstance()};
                 for (const auto& pair : *data)
                 {
-                    vector<char*> list;
+                    string_vector list;
                     for (const auto& value : pair.second)
                     {
-                        list.emplace_back(MegaApi::strdup(value.c_str()));
+                        list.emplace_back(value);
                     }
-                    auto stringList = new MegaStringListPrivate{list.data(), static_cast<int>(list.size())};
+                    auto stringList = new MegaStringListPrivate(move(list));
                     stringListMap->set(pair.first.c_str(), stringList);
                 }
                 request->setMegaStringListMap(stringListMap.get());
@@ -33323,14 +33298,14 @@ MegaStringList *MegaAchievementsDetailsPrivate::getAwardEmails(unsigned int inde
     {
         if (details.awards.at(index).achievement_class == MEGA_ACHIEVEMENT_INVITE)
         {
-            vector<char*> data;
+            string_vector data;
             vector<string>::iterator it = details.awards.at(index).emails_invited.begin();
             while (it != details.awards.at(index).emails_invited.end())
             {
-                data.push_back(MegaApi::strdup(it->c_str()));
+                data.push_back(*it);
                 it++;
             }
-            return new MegaStringListPrivate(data.data(), int(data.size()));
+            return new MegaStringListPrivate(move(data));
         }
     }
 
