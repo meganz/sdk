@@ -1681,7 +1681,7 @@ TEST_F(JSONSyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
 
         iota(begin(expected), end(expected), 0);
 
-        EXPECT_TRUE(equal(begin(expected), end(expected), rbegin(slots)));
+        EXPECT_TRUE(equal(begin(expected), end(expected), slots.rbegin()));
     }
 }
 
@@ -1736,7 +1736,7 @@ TEST_F(JSONSyncConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
 
         iota(begin(expected), end(expected), 0);
 
-        EXPECT_TRUE(equal(begin(expected), end(expected), rbegin(slots)));
+        EXPECT_TRUE(equal(begin(expected), end(expected), slots.rbegin()));
     }
 }
 
