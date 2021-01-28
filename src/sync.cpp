@@ -3024,13 +3024,8 @@ error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
                                     string& data,
                                     const unsigned int slot)
 {
-    using std::to_string;
-
     // Generate path to the configuration file.
-    LocalPath path = dbPath;
-
-    path.appendWithSeparator(mName, false);
-    path.append(LocalPath::fromPath("." + to_string(slot), mFsAccess));
+    LocalPath path = dbFilePath(dbPath, slot);
 
     // Try and open the file for reading.
     auto fileAccess = mFsAccess.newfileaccess(false);
@@ -3063,13 +3058,7 @@ error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
 error JSONSyncConfigIOContext::remove(const LocalPath& dbPath,
                                       const unsigned int slot)
 {
-    using std::to_string;
-
-    LocalPath path = dbPath;
-
-    // Generate the rest of the path.
-    path.appendWithSeparator(mName, false);
-    path.append(LocalPath::fromPath("." + to_string(slot), mFsAccess));
+    LocalPath path = dbFilePath(dbPath, slot);
 
     return mFsAccess.unlinklocal(path) ? API_OK : API_EWRITE;
 }
@@ -3114,8 +3103,6 @@ error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
                                      const string& data,
                                      const unsigned int slot)
 {
-    using std::to_string;
-
     LocalPath path = dbPath;
 
     // Try and create the backup configuration directory.
@@ -3126,8 +3113,7 @@ error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
     }
 
     // Generate the rest of the path.
-    path.appendWithSeparator(mName, false);
-    path.append(LocalPath::fromPath("." + to_string(slot), mFsAccess));
+    path = dbFilePath(dbPath, slot);
 
     // Open the file for writing.
     auto fileAccess = mFsAccess.newfileaccess(false);
@@ -3158,6 +3144,19 @@ error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
     }
 
     return API_OK;
+}
+
+LocalPath JSONSyncConfigIOContext::dbFilePath(const LocalPath& dbPath,
+                                              const unsigned int slot) const
+{
+    using std::to_string;
+
+    LocalPath path = dbPath;
+
+    path.appendWithSeparator(mName, false);
+    path.append(LocalPath::fromPath("." + to_string(slot), mFsAccess));
+
+    return path;
 }
 
 bool JSONSyncConfigIOContext::decrypt(const string& in, string& out)

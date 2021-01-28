@@ -467,6 +467,10 @@ public:
                         const unsigned int slot);
 
 private:
+    // Generate complete database path.
+    LocalPath dbFilePath(const LocalPath& dbPath,
+                         const unsigned int slot) const;
+
     // Decrypt data.
     bool decrypt(const string& in, string& out);
 
