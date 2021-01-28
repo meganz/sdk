@@ -3305,7 +3305,7 @@ string JSONSyncConfigIOContext::encrypt(const string& data)
     mCipher.cbc_encrypt_pkcs_padding(&data, iv, &d);
 
     // Add IV to file.
-    d.insert(d.end(), std::begin(iv), std::end(iv));
+    d.append(std::begin(iv), std::end(iv));
 
     byte mac[32];
 
@@ -3314,7 +3314,7 @@ string JSONSyncConfigIOContext::encrypt(const string& data)
     mSigner.get(mac);
 
     // Add HMAC to file.
-    d.insert(d.end(), std::begin(mac), std::end(mac));
+    d.append(std::begin(mac), std::end(mac));
 
     // We're done.
     return d;
