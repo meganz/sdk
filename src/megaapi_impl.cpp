@@ -7253,10 +7253,11 @@ void MegaApiImpl::changePassword(const char *oldPassword, const char *newPasswor
     waiter->notify();
 }
 
-void MegaApiImpl::logout(MegaRequestListener *listener)
+void MegaApiImpl::logout(bool keepSyncConfigsFile, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT, listener);
     request->setFlag(true);
+    request->setTransferTag(keepSyncConfigsFile);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -7265,6 +7266,7 @@ void MegaApiImpl::localLogout(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT, listener);
     request->setFlag(false);
+    request->setTransferTag(true);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -8792,11 +8794,6 @@ void MegaApiImpl::copyCachedStatus(int storageStatus, int blockStatus, int busin
     request->setNumber(storageStatus+1000*blockStatus+1000000*businessStatus);
     requestQueue.push(request);
     waiter->notify();
-}
-
-void MegaApiImpl::setKeepSyncsAfterLogout(bool enable)
-{
-    client->setKeepSyncsAfterLogout(enable);
 }
 
 void MegaApiImpl::removeSync(handle nodehandle, MegaRequestListener* listener)
@@ -14538,6 +14535,7 @@ void MegaApiImpl::request_error(error e)
 
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
     request->setFlag(false);
+    request->setTransferTag(true); //keepSyncConfigsFile
     request->setParamType(e);
 
     if (e == API_ESSL && client->sslfakeissuer.size())
@@ -14547,7 +14545,7 @@ void MegaApiImpl::request_error(error e)
 
     if (e == API_ESID)
     {
-        client->locallogout(true);
+        client->locallogout(true, true);
     }
     requestQueue.push(request);
     waiter->notify();
@@ -15757,10 +15755,11 @@ void MegaApiImpl::whyamiblocked_result(int code)
                 && code != MegaApi::ACCOUNT_BLOCKED_VERIFICATION_SMS
                 && code != MegaApi::ACCOUNT_BLOCKED_VERIFICATION_EMAIL)
         {
-            client->locallogout(true);
+            client->locallogout(true, true);
 
             MegaRequestPrivate *logoutRequest = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
             logoutRequest->setFlag(false);
+            logoutRequest->setTransferTag(true); //keepSyncConfigsFile
             logoutRequest->setParamType(API_EBLOCKED);
             requestQueue.push(logoutRequest);
             waiter->notify();
@@ -19215,7 +19214,7 @@ void MegaApiImpl::sendPendingRequests()
 
             requestMap[request->getTag()]=request;
 
-            client->locallogout(false);
+            client->locallogout(false, true);
             if (sessionKey)
             {
                 client->login(Base64::atob(string(sessionKey)));
@@ -19963,13 +19962,15 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+            bool keepSyncConfigsFile = request->getTransferTag();
+
             if(request->getFlag())
             {
-                client->logout();
+                client->logout(keepSyncConfigsFile);
             }
             else
             {
-                client->locallogout(false);
+                client->locallogout(false, keepSyncConfigsFile);
                 client->restag = nextTag;
                 logout_result(API_OK);
             }
@@ -20737,7 +20738,7 @@ void MegaApiImpl::sendPendingRequests()
 
                 requestMap[reqtag] = request;
 
-                client->locallogout(false);
+                client->locallogout(false, true);
 
                 if (resumeProcess)
                 {

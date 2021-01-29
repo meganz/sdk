@@ -1522,7 +1522,8 @@ bool CommandKillSessions::procresult(Result r)
     return r.wasErrorOrOK();
 }
 
-CommandLogout::CommandLogout(MegaClient *client)
+CommandLogout::CommandLogout(MegaClient *client, bool keepSyncConfigsFile)
+    : mKeepSyncConfigsFile(keepSyncConfigsFile)
 {
     cmd("sml");
 
@@ -1541,8 +1542,13 @@ bool CommandLogout::procresult(Result r)
     }
     if(r.wasError(API_OK))
     {
-        // notify client after cache removal, as before
-        client->loggedout = true;
+        // We are logged out, but we mustn't call locallogout until we exit this call
+        // stack for processing CS batches, as it deletes data currently in use.
+        bool keepSyncConfigsFile = mKeepSyncConfigsFile;
+        client->mOnCSCompletion = [keepSyncConfigsFile](MegaClient* client){
+            client->locallogout(true, keepSyncConfigsFile);
+            client->app->logout_result(API_OK);
+        };
     }
     else
     {

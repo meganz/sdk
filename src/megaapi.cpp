@@ -2876,9 +2876,9 @@ void MegaApi::changePassword(const char *oldPassword, const char *newPassword, M
     pImpl->changePassword(oldPassword, newPassword, listener);
 }
 
-void MegaApi::logout(MegaRequestListener *listener)
+void MegaApi::logout(bool keepSyncConfigsFile, MegaRequestListener *listener)
 {
-    pImpl->logout(listener);
+    pImpl->logout(keepSyncConfigsFile, listener);
 }
 
 void MegaApi::localLogout(MegaRequestListener *listener)
@@ -3330,11 +3330,6 @@ void MegaApi::copySyncDataToCache(const char *localFolder, MegaHandle megaHandle
 void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener)
 {
     pImpl->copyCachedStatus(storageStatus, blockStatus, businessStatus, listener);
-}
-
-void MegaApi::setKeepSyncsAfterLogout(bool enable)
-{
-    pImpl->setKeepSyncsAfterLogout(enable);
 }
 
 #ifdef USE_PCRE

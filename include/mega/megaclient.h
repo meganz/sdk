@@ -512,8 +512,6 @@ public:
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;
 
-    // keep sync configuration after logout
-    bool mKeepSyncsAfterLogout = false;
 #endif
     // backup names pending to be sent
     string_map mPendingBackupNames;
@@ -671,10 +669,10 @@ public:
     void abortlockrequest();
 
     // abort session and free all state information
-    void logout();
+    void logout(bool keepSyncConfigsFile);
 
     // free all state information
-    void locallogout(bool removecaches);
+    void locallogout(bool removecaches, bool keepSyncsConfigFile);
 
     // SDK version
     const char* version();
@@ -1086,7 +1084,7 @@ private:
     void init();
 
     // remove caches
-    void removeCaches();
+    void removeCaches(bool keepSyncsConfigFile);
 
     // add node to vector and return index
     unsigned addnode(node_vector*, Node*) const;
@@ -1796,7 +1794,7 @@ public:
     int loggingout = 0;
 
     // the logout request succeeded, time to clean up localy once returned from CS response processing
-    bool loggedout = false;
+    std::function<void(MegaClient*)> mOnCSCompletion;
 
     // true if the account is a master business account, false if it's a sub-user account
     BizMode mBizMode;
@@ -1846,11 +1844,6 @@ public:
     std::string getDeviceid() const;
 
     std::string getDeviceidHash() const;
-
-#ifdef ENABLE_SYNC
-    bool getKeepSyncsAfterLogout() const;
-    void setKeepSyncsAfterLogout(bool keepSyncsAfterLogout);
-#endif
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();

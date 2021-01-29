@@ -12131,9 +12131,12 @@ class MegaApi
          * ToS infringment), the MegaRequest::getParamType indicates the error that
          * triggered the automatic logout (MegaError::API_EBLOCKED for the example).
          *
+         * @param keepSyncConfigsFile Allow sync configs to be recovered if the same user logs in again
+         *        The file containing sync configs is encrypted so there's no privacy issue.
+         *        This is provided for backward compatibiltiy for MEGAsync.
          * @param listener MegaRequestListener to track this request
          */
-        void logout(MegaRequestListener *listener = NULL);
+        void logout(bool keepSyncConfigsFile, MegaRequestListener *listener);
 
         /**
          * @brief Logout of the MEGA account without invalidating the session
@@ -13622,16 +13625,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Enable keeping sync configuration after logout
-         *
-         * By default, sync configurations are removed upon logout. Enabling this will
-         * keep configurations so that new sessions will restore syncs configured previously.
-         *
-         * @param enable True to keep sync configurations after logout.
-         */
-        void setKeepSyncsAfterLogout(bool enable);
 
 #ifdef USE_PCRE
         /**

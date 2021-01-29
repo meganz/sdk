@@ -1158,7 +1158,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     aplvp_enabled = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     loggingout = 0;
-    loggedout = false;
     cachedug = false;
     minstreamingrate = -1;
     ephemeralSession = false;
@@ -1183,7 +1182,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     syncadding = 0;
     currsyncid = 0;
     totalLocalNodes = 0;
-    mKeepSyncsAfterLogout = false;
 #endif
 
     pendingcs = NULL;
@@ -1283,7 +1281,7 @@ MegaClient::~MegaClient()
 {
     LOG_debug << clientname << "~MegaClient running";
     destructorRunning = true;
-    locallogout(false);
+    locallogout(false, true);
 
     delete pendingcs;
     delete badhostcs;
@@ -1292,18 +1290,6 @@ MegaClient::~MegaClient()
     LOG_debug << clientname << "~MegaClient completing";
 }
 
-#ifdef ENABLE_SYNC
-
-bool MegaClient::getKeepSyncsAfterLogout() const
-{
-    return mKeepSyncsAfterLogout;
-}
-
-void MegaClient::setKeepSyncsAfterLogout(bool keepSyncsAfterLogout)
-{
-    mKeepSyncsAfterLogout = keepSyncsAfterLogout;
-}
-#endif
 
 std::string MegaClient::getPublicLink(bool newLinkFormat, nodetype_t type, handle ph, const char *key)
 {
@@ -1818,10 +1804,10 @@ void MegaClient::exec()
                                     }
                                 }
 
-                                if (loggedout)
+                                if (mOnCSCompletion)
                                 {
-                                    locallogout(true);
-                                    app->logout_result(API_OK);
+                                    mOnCSCompletion(this);
+                                    mOnCSCompletion = nullptr;
                                 }
                             }
                             else
@@ -4044,11 +4030,11 @@ void MegaClient::abortlockrequest()
     disconnecttimestamp = NEVER;
 }
 
-void MegaClient::logout()
+void MegaClient::logout(bool keepSyncConfigsFile)
 {
     if (loggedin() != FULLACCOUNT)
     {
-        locallogout(true);
+        locallogout(true, keepSyncConfigsFile);
 
         restag = reqtag;
         app->logout_result(API_OK);
@@ -4056,27 +4042,16 @@ void MegaClient::logout()
     }
 
     loggingout++;
-    reqs.add(new CommandLogout(this));
+    reqs.add(new CommandLogout(this, keepSyncConfigsFile));
 }
 
-void MegaClient::locallogout(bool removecaches)
+void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
 {
     mAsyncQueue.clearDiscardable();
 
     if (removecaches)
     {
-#ifdef ENABLE_SYNC
-        if (mKeepSyncsAfterLogout)
-        {
-            //disableSyncs in a temporarily state: so that they will be resumed when relogin
-            syncs.disableSyncs(LOGGED_OUT, true);
-        }
-        else
-        {
-            syncs.removeSelectedSyncs([](SyncConfig&, Sync* s){ return s != nullptr; });
-        }
-#endif
-        removeCaches();
+        removeCaches(keepSyncsConfigFile);
     }
 
     delete sctable;
@@ -4106,7 +4081,7 @@ void MegaClient::locallogout(bool removecaches)
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     mSmsVerifiedPhone.clear();
     loggingout = 0;
-    loggedout = false;
+    mOnCSCompletion = nullptr;
     cachedug = false;
     minstreamingrate = -1;
     ephemeralSession = false;
@@ -4233,7 +4208,7 @@ void MegaClient::locallogout(bool removecaches)
     fetchingkeys = false;
 }
 
-void MegaClient::removeCaches()
+void MegaClient::removeCaches(bool keepSyncsConfigFile)
 {
     if (sctable)
     {
@@ -4250,6 +4225,8 @@ void MegaClient::removeCaches()
     }
 
 #ifdef ENABLE_SYNC
+
+    // remove the LocalNode cache databases first, otherwise disable would cause this to be skipped
     syncs.forEachRunningSync([&](Sync* sync){
 
         if (sync->statecachetable)
@@ -4260,9 +4237,16 @@ void MegaClient::removeCaches()
         }
     });
 
-    // TODO: dgw: truncate?
-    if (!mKeepSyncsAfterLogout)
+    if (keepSyncsConfigFile)
     {
+        // Special case backward compatibility for MEGAsync
+        // The syncs will be disabled, if the user logs back in they can then manually re-enable.
+        syncs.disableSyncs(LOGGED_OUT, false);
+    }
+    else
+    {
+        // TODO: actually delete file?
+        syncs.removeSelectedSyncs([](SyncConfig&, Sync* s) { return s != nullptr; });
         syncs.truncate();
     }
 #endif

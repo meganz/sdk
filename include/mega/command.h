@@ -480,10 +480,12 @@ public:
 
 class MEGA_API CommandLogout : public Command
 {
+    bool mKeepSyncConfigsFile;
+
 public:
     bool procresult(Result) override;
 
-    CommandLogout(MegaClient*);
+    CommandLogout(MegaClient*, bool keepSyncConfigsFile);
 };
 
 class MEGA_API CommandPubKeyRequest : public Command

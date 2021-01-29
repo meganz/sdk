@@ -24,6 +24,8 @@
 #include <fstream>
 #include <bitset>
 
+#include "megaapi.h"  // just for enum to string conversion
+
 #define USE_VARARGS
 #define PREFER_STDARG
 
@@ -3171,7 +3173,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_retry, sequence(text("retry")));
     p->Add(exec_recon, sequence(text("recon")));
     p->Add(exec_reload, sequence(text("reload"), opt(text("nocache"))));
-    p->Add(exec_logout, sequence(text("logout")));
+    p->Add(exec_logout, sequence(text("logout"), opt(flag("-keepsyncconfigs"))));
     p->Add(exec_locallogout, sequence(text("locallogout")));
     p->Add(exec_symlink, sequence(text("symlink")));
     p->Add(exec_version, sequence(text("version")));
@@ -4437,7 +4439,7 @@ void exec_open(autocomplete::ACState& s)
         }
         else
         {
-            clientFolder->logout();
+            clientFolder->logout(false);
         }
 
         return clientFolder->app->login_result(clientFolder->folderaccess(s.words[1].s.c_str(), nullptr));
@@ -5855,12 +5857,14 @@ void exec_logout(autocomplete::ACState& s)
 {
     cout << "Logging off..." << endl;
 
+    bool keepSyncConfigs = s.extractflag("-keepsyncconfigs");
+
     cwd = UNDEF;
-    client->logout();
+    client->logout(keepSyncConfigs);
 
     if (clientFolder)
     {
-        clientFolder->logout();
+        clientFolder->logout(keepSyncConfigs);
         delete clientFolder;
         clientFolder = NULL;
     }
@@ -6553,7 +6557,7 @@ void exec_locallogout(autocomplete::ACState& s)
     cout << "Logging off locally..." << endl;
 
     cwd = UNDEF;
-    client->locallogout(false);
+    client->locallogout(false, true);
 }
 
 void exec_recentnodes(autocomplete::ACState& s)
@@ -6645,7 +6649,7 @@ void DemoApp::request_error(error e)
     if ((e == API_ESID) || (e == API_ENOENT))   // Invalid session or Invalid folder handle
     {
         cout << "Invalid or expired session, logging out..." << endl;
-        client->locallogout(false);
+        client->locallogout(false, false);
         return;
     }
     else if (e == API_EBLOCKED)
@@ -7101,7 +7105,7 @@ void DemoApp::whyamiblocked_result(int code)
         if (code != 500 && code != 700)
         {
             cout << "Logging out..." << endl;
-            client->locallogout(true);
+            client->locallogout(true, false);
         }
     }
 }
@@ -8454,7 +8458,7 @@ void exec_synclist(autocomplete::ACState& s)
     // Check the user's logged in.
     if (client->loggedin() != FULLACCOUNT)
     {
-        cerr << "You must be logged in to list backup syncs."
+        cerr << "You must be logged in to list syncs (and backup syncs)."
              << endl;
         return;
     }
@@ -8472,7 +8476,7 @@ void exec_synclist(autocomplete::ACState& s)
                << ": "
                << config.mName
                << "\n";
-            
+
           // Display source/target mapping.
           cout << "  Mapping: "
                << config.mLocalPath.toPath(*client->fsaccess)
@@ -8499,11 +8503,12 @@ void exec_synclist(autocomplete::ACState& s)
           else
           {
               // Display what status info we can.
+              auto msg = MegaSync::getMegaSyncErrorCode(config.getError());
               cout << "  Enabled: "
                    << config.getEnabled()
                    << "\n"
                    << "  Last Error: "
-                   << static_cast<int>(config.getError())
+                   << (msg ? msg : std::to_string(config.getError()))
                    << "\n";
           }
 
@@ -8528,7 +8533,7 @@ void exec_syncremove(autocomplete::ACState& s)
     }
 
     // sync remove id
-    handle backupId = 0; 
+    handle backupId = 0;
     Base64::atob(s.words[2].s.c_str(), (byte*) &backupId, sizeof(handle));
 
     // Make sure the sync isn't active.
@@ -8573,7 +8578,7 @@ void exec_syncxable(autocomplete::ACState& s)
 
     const auto command = s.words[1].s;
 
-    handle backupId = 0; 
+    handle backupId = 0;
     Base64::atob(s.words[2].s.c_str(), (byte*) &backupId, sizeof(handle));
 
     if (command == "enable")
