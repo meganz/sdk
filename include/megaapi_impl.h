@@ -1680,17 +1680,16 @@ protected:
 class MegaStringListPrivate : public MegaStringList
 {
 public:
-    MegaStringListPrivate();
-    MegaStringListPrivate(char **newlist, int size); // takes ownership
-    virtual ~MegaStringListPrivate();
-    MEGA_DISABLE_COPY_MOVE(MegaStringListPrivate)
+    MegaStringListPrivate() = default;
+    MegaStringListPrivate(string_vector&&); // takes ownership
+    virtual ~MegaStringListPrivate() = default;
     MegaStringList *copy() const override;
     const char* get(int i) const override;
     int size() const override;
     void add(const char* value) override;
     const string_vector& getVector();
 protected:
-    MegaStringListPrivate(const MegaStringListPrivate *stringList);
+    MegaStringListPrivate(const MegaStringListPrivate& stringList) = default;
     string_vector mList;
 };
 
