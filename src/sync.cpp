@@ -2146,8 +2146,7 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
     }
 
     // Which user are we?
-    User* self = mClient.finduser(mClient.me);
-
+    User* self = mClient.ownuser();
     if (!self)
     {
         return nullptr;
@@ -2155,7 +2154,6 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
 
     // Try and retrieve this user's config data attribute.
     auto* payload = self->getattr(ATTR_JSON_SYNC_CONFIG_DATA);
-
     if (!payload)
     {
         // Attribute hasn't been created yet.

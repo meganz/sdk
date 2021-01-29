@@ -559,7 +559,7 @@ string User::attr2string(attr_t type)
             break;
             
         case ATTR_JSON_SYNC_CONFIG_DATA:
-            attrname = "^~jscd";
+            attrname = "*~jscd";
             break;
 
         case ATTR_UNKNOWN:  // empty string
@@ -862,7 +862,7 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_COOKIE_SETTINGS;
     }
-    else if (!strcmp(name, "^~jscd"))
+    else if (!strcmp(name, "*~jscd"))
     {
         return ATTR_JSON_SYNC_CONFIG_DATA;
     }
@@ -938,6 +938,7 @@ char User::scope(attr_t at)
         case ATTR_DEVICE_NAMES:
         case ATTR_MY_BACKUPS_FOLDER:
         case ATTR_BACKUP_NAMES:
+        case ATTR_JSON_SYNC_CONFIG_DATA:
             return '*';
 
         case ATTR_AVATAR:
@@ -956,7 +957,6 @@ char User::scope(attr_t at)
         case ATTR_STORAGE_STATE:
         case ATTR_PUSH_SETTINGS:
         case ATTR_COOKIE_SETTINGS:
-        case ATTR_JSON_SYNC_CONFIG_DATA:
             return '^';
 
         default:

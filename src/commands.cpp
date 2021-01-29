@@ -3758,7 +3758,7 @@ bool CommandGetUserData::procresult(Result r)
             parseUserAttribute(backupNames, versionBackupNames);
             break;
 
-        case MAKENAMEID6('^', '~', 'j', 's', 'c', 'd'):
+        case MAKENAMEID6('*', '~', 'j', 's', 'c', 'd'):
             parseUserAttribute(jsonSyncConfigData, jsonSyncConfigDataVersion);
             break;
 
