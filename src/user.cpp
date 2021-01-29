@@ -558,12 +558,8 @@ string User::attr2string(attr_t type)
             attrname = "^!csp";
             break;
             
-        case ATTR_JSON_SYNC_CONFIG_NAME:
-            attrname = "^~jscn";
-            break;
-
-        case ATTR_JSON_SYNC_CONFIG_KEY:
-            attrname = "^~jsck";
+        case ATTR_JSON_SYNC_CONFIG_DATA:
+            attrname = "^~jscd";
             break;
 
         case ATTR_UNKNOWN:  // empty string
@@ -719,12 +715,8 @@ string User::attr2longname(attr_t type)
         longname = "ATTR_COOKIE_SETTINGS";
         break;
 		
-    case ATTR_JSON_SYNC_CONFIG_NAME:
-        longname = "JSON_SYNC_CONFIG_NAME";
-        break;
-
-    case ATTR_JSON_SYNC_CONFIG_KEY:
-        longname = "JSON_SYNC_CONFIG_KEY";
+    case ATTR_JSON_SYNC_CONFIG_DATA:
+        longname = "JSON_SYNC_CONFIG_DATA";
         break;
     }
 
@@ -870,13 +862,9 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_COOKIE_SETTINGS;
     }
-    else if (!strcmp(name, "^~jscn"))
+    else if (!strcmp(name, "^~jscd"))
     {
-        return ATTR_JSON_SYNC_CONFIG_NAME;
-    }
-    else if (!strcmp(name, "^~jsck"))
-    {
-        return ATTR_JSON_SYNC_CONFIG_KEY;
+        return ATTR_JSON_SYNC_CONFIG_DATA;
     }
     else
     {
@@ -906,8 +894,7 @@ int User::needversioning(attr_t at)
         case ATTR_PUSH_SETTINGS:
         case ATTR_COOKIE_SETTINGS:
         case ATTR_MY_BACKUPS_FOLDER:
-        case ATTR_JSON_SYNC_CONFIG_NAME:
-        case ATTR_JSON_SYNC_CONFIG_KEY:
+        case ATTR_JSON_SYNC_CONFIG_DATA:
             return 0;
 
         case ATTR_LAST_INT:
@@ -969,8 +956,7 @@ char User::scope(attr_t at)
         case ATTR_STORAGE_STATE:
         case ATTR_PUSH_SETTINGS:
         case ATTR_COOKIE_SETTINGS:
-        case ATTR_JSON_SYNC_CONFIG_NAME:
-        case ATTR_JSON_SYNC_CONFIG_KEY:
+        case ATTR_JSON_SYNC_CONFIG_DATA:
             return '^';
 
         default:
@@ -1396,12 +1382,8 @@ bool User::setChanged(attr_t at)
             changed.cookieSettings = true;
             break;
 
-        case ATTR_JSON_SYNC_CONFIG_NAME:
-            changed.jsonSyncConfigName = true;
-            break;
-
-        case ATTR_JSON_SYNC_CONFIG_KEY:
-            changed.jsonSyncConfigKey = true;
+        case ATTR_JSON_SYNC_CONFIG_DATA:
+            changed.jsonSyncConfigData = true;
             break;
 
         default:

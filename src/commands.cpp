@@ -2940,13 +2940,9 @@ bool CommandPutUA::procresult(Result r)
             LOG_info << "Unshareable key successfully created";
             client->unshareablekey.swap(av);
         }
-        else if (at == ATTR_JSON_SYNC_CONFIG_NAME)
+        else if (at == ATTR_JSON_SYNC_CONFIG_DATA)
         {
-            LOG_info << "JSON config name successfully created.";
-        }
-        else if (at == ATTR_JSON_SYNC_CONFIG_KEY)
-        {
-            LOG_info << "JSON config key successfully created.";
+            LOG_info << "JSON config data successfully created.";
         }
 
         client->app->putua_result(API_OK);
@@ -3628,10 +3624,8 @@ bool CommandGetUserData::procresult(Result r)
     string versionBackupNames;
     string cookieSettings;
     string versionCookieSettings;
-    string jsonSyncConfigName;
-    string jsonSyncConfigNameVersion;
-    string jsonSyncConfigKey;
-    string jsonSyncConfigKeyVersion;
+    string jsonSyncConfigData;
+    string jsonSyncConfigDataVersion;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -3764,12 +3758,8 @@ bool CommandGetUserData::procresult(Result r)
             parseUserAttribute(backupNames, versionBackupNames);
             break;
 
-        case MAKENAMEID6('^', '~', 'j', 's', 'c', 'n'):
-            parseUserAttribute(jsonSyncConfigName, jsonSyncConfigNameVersion);
-            break;
-
-        case MAKENAMEID6('^', '~', 'j', 's', 'c', 'k'):
-            parseUserAttribute(jsonSyncConfigKey, jsonSyncConfigKeyVersion);
+        case MAKENAMEID6('^', '~', 'j', 's', 'c', 'd'):
+            parseUserAttribute(jsonSyncConfigData, jsonSyncConfigDataVersion);
             break;
 
         case 'b':   // business account's info
@@ -4172,51 +4162,36 @@ bool CommandGetUserData::procresult(Result r)
                     changes += u->updateattr(ATTR_COOKIE_SETTINGS, &cookieSettings, &versionCookieSettings);
                 }
 
-
-                // Has a name been defined for this user's sync configuration databases?
-                if (jsonSyncConfigName.empty())
+                if (!jsonSyncConfigData.empty())
                 {
-                    using NameStr = Base64Str<SymmCipher::KEYLENGTH>;
-
-                    // Generate a sufficiently obscure name.
-                    byte bytes[SymmCipher::KEYLENGTH];
-                    client->rng.genblock(bytes, sizeof(bytes));
-
-                    // Name's simply the above bytes represented as Base64.
-                    NameStr name(bytes);
-
-                    // Persist the new attribute.
-                    client->putua(ATTR_JSON_SYNC_CONFIG_NAME, name.bytes(), name.size(), 0);
+                    // Tell the rest of the SDK that the attribute's changed.
+                    changes += u->updateattr(ATTR_JSON_SYNC_CONFIG_DATA,
+                                             &jsonSyncConfigData,
+                                             &jsonSyncConfigDataVersion);
                 }
                 else
                 {
-                    // Let the rest of the SDK know the attribute's changed.
-                    changes += u->updateattr(ATTR_JSON_SYNC_CONFIG_NAME,
-                                             &jsonSyncConfigName,
-                                             &jsonSyncConfigNameVersion);
-                }
+                    TLVstore store;
+                    auto& rng = client->rng;
 
-                // Has a key been defined to protect this user's sync configuration databases?
-                if (jsonSyncConfigKey.empty())
-                {
-                    using KeyStr = Base64Str<SymmCipher::KEYLENGTH * 2>;
+                    // Authentication key.
+                    store.set("ak", rng.genstring(SymmCipher::KEYLENGTH));
 
-                    // Generate key material.
-                    byte bytes[SymmCipher::KEYLENGTH * 2];
-                    client->rng.genblock(bytes, sizeof(bytes));
+                    // Cipher key.
+                    store.set("ck", rng.genstring(SymmCipher::KEYLENGTH));
 
-                    // Key's stored Base64 encoded.
-                    KeyStr key(bytes);
+                    // File name.
+                    store.set("fn", rng.genstring(SymmCipher::KEYLENGTH));
+
+                    // Generate encrypted payload.
+                    unique_ptr<string> payload(
+                      store.tlvRecordsToContainer(rng, &client->key));
 
                     // Persist the new attribute.
-                    client->putua(ATTR_JSON_SYNC_CONFIG_KEY, key.bytes(), key.size(), 0);
-                }
-                else
-                {
-                    // Tell the rest of the SDK the attribute's changed.
-                    changes += u->updateattr(ATTR_JSON_SYNC_CONFIG_KEY,
-                                             &jsonSyncConfigKey,
-                                             &jsonSyncConfigKeyVersion);
+                    client->putua(ATTR_JSON_SYNC_CONFIG_DATA,
+                                  reinterpret_cast<const byte*>(payload->data()),
+                                  static_cast<unsigned>(payload->size()),
+                                  0);
                 }
 
                 if (changes > 0)

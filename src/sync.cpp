@@ -2145,28 +2145,57 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
         return mSyncConfigIOContext.get();
     }
 
-    using KeyStr  = Base64Str<SymmCipher::KEYLENGTH * 2>;
-    using NameStr = Base64Str<SymmCipher::KEYLENGTH>;
+    // Which user are we?
+    User* self = mClient.finduser(mClient.me);
 
-    if (User* selfUser = mClient.finduser(mClient.me))
+    if (!self)
     {
-        auto name = selfUser->getattr(ATTR_JSON_SYNC_CONFIG_NAME);
-        auto key = selfUser->getattr(ATTR_JSON_SYNC_CONFIG_KEY);
-
-        if (name && key &&
-            key->size() == KeyStr::STRLEN &&
-            name->size() == NameStr::STRLEN)
-        {
-            // Create the IO context.
-            mSyncConfigIOContext.reset(
-              new JSONSyncConfigIOContext(mClient.key,
-                                         *mClient.fsaccess,
-                                         *key,
-                                         *name,
-                                         mClient.rng));
-        }
+        return nullptr;
     }
-	
+
+    // Try and retrieve this user's config data attribute.
+    auto* payload = self->getattr(ATTR_JSON_SYNC_CONFIG_DATA);
+
+    if (!payload)
+    {
+        // Attribute hasn't been created yet.
+        return nullptr;
+    }
+
+    // Try and decrypt the payload.
+    unique_ptr<TLVstore> store(
+      TLVstore::containerToTLVrecords(payload, &mClient.key));
+
+    if (!store)
+    {
+        // Attribute is malformed.
+        return nullptr;
+    }
+
+    // Convenience.
+    constexpr size_t KEYLENGTH = SymmCipher::KEYLENGTH;
+
+    // Verify payload contents.
+    auto authKey = store->get("ak"); 
+    auto cipherKey = store->get("ck");
+    auto name = store->get("fn");
+
+    if (authKey.size() != KEYLENGTH
+        || cipherKey.size() != KEYLENGTH
+        || name.size() != KEYLENGTH)
+    {
+        // Payload is malformed.
+        return nullptr;
+    }
+
+    // Create the IO context.
+    mSyncConfigIOContext.reset(
+      new JSONSyncConfigIOContext(*mClient.fsaccess,
+                                  std::move(authKey),
+                                  std::move(cipherKey),
+                                  Base64::btoa(name),
+                                  mClient.rng));
+
     // Return a reference to the new IO context.
     return mSyncConfigIOContext.get();
 }
@@ -2587,7 +2616,6 @@ void Syncs::resumeResumableSyncsOnStartup()
     }
 }
 
-
 const unsigned int JSONSyncConfigDB::NUM_SLOTS = 2; //number of configuration versions to save. Do not set to > 10.
 
 JSONSyncConfigDB::JSONSyncConfigDB(const LocalPath& dbPath,
@@ -2871,36 +2899,32 @@ error JSONSyncConfigDB::removeByBackupId(handle backupId, const bool flush)
     return API_OK;
 }
 
-JSONSyncConfigIOContext::JSONSyncConfigIOContext(SymmCipher& cipher,
-                                                 FileSystemAccess& fsAccess,
-                                                 const string& key,
+const string JSONSyncConfigIOContext::NAME_PREFIX = "megaclient_syncconfig_";
+
+JSONSyncConfigIOContext::JSONSyncConfigIOContext(FileSystemAccess& fsAccess,
+                                                 const string& authKey,
+                                                 const string& cipherKey,
                                                  const string& name,
                                                  PrnGen& rng)
   : mCipher()
   , mFsAccess(fsAccess)
-  , mName(LocalPath::fromPath("megaclient_syncconfig_" + name, mFsAccess))
+  , mName(LocalPath::fromPath(NAME_PREFIX + name, mFsAccess))
   , mRNG(rng)
   , mSigner()
 {
+    // Convenience.
+    constexpr size_t KEYLENGTH = SymmCipher::KEYLENGTH;
+
     // These attributes *must* be sane.
-    assert(!key.empty());
-    assert(!name.empty());
+    assert(authKey.size() == KEYLENGTH);
+    assert(cipherKey.size() == KEYLENGTH);
+    assert(name.size() == Base64Str<KEYLENGTH>::STRLEN);
 
-    // Deserialize the key.
-    string k = Base64::atob(key);
-    assert(k.size() == SymmCipher::KEYLENGTH * 2);
-
-    // Decrypt the key.
-    cipher.ecb_decrypt(reinterpret_cast<byte*>(&k[0]), k.size());
-
-    // Load the authenticaton key into our internal signer.
-    const byte* ka = reinterpret_cast<const byte*>(&k[0]);
-    const byte* ke = &ka[SymmCipher::KEYLENGTH];
-
-    mSigner.setkey(ka, SymmCipher::KEYLENGTH);
+    // Load the authentication key into our internal signer.
+    mSigner.setkey(reinterpret_cast<const byte*>(authKey.data()), KEYLENGTH);
 
     // Load the encryption key into our internal cipher.
-    mCipher.setkey(ke, SymmCipher::KEYLENGTH);
+    mCipher.setkey(reinterpret_cast<const byte*>(cipherKey.data()));
 }
 
 JSONSyncConfigIOContext::~JSONSyncConfigIOContext()

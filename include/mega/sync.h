@@ -427,9 +427,9 @@ using JSONSyncConfigDBPtr = unique_ptr<JSONSyncConfigDB>;
 class MEGA_API JSONSyncConfigIOContext
 {
 public:
-    JSONSyncConfigIOContext(SymmCipher& cipher,
-                            FileSystemAccess& fsAccess,
-                            const string& key,
+    JSONSyncConfigIOContext(FileSystemAccess& fsAccess,
+                            const string& authKey,
+                            const string& cipherKey,
                             const string& name,
                             PrnGen& rng);
 
@@ -471,6 +471,9 @@ public:
     virtual error write(const LocalPath& dbPath,
                         const string& data,
                         const unsigned int slot);
+
+    // Prefix applied to configuration database names.
+    static const string NAME_PREFIX;
 
 private:
     // Generate complete database path.

@@ -1385,11 +1385,7 @@ public:
 
     static string randomBytes(const size_t n)
     {
-        string result(n, '0');
-
-        mRNG.genblock(reinterpret_cast<byte*>(&result[0]), n);
-
-        return result;
+        return mRNG.genstring(n);
     }
 
     static bool randomFile(LocalPath path, const size_t n = 64)
@@ -1445,16 +1441,16 @@ public:
       : public JSONSyncConfigIOContext
     {
     public:
-        IOContext(SymmCipher& cipher,
-                  FileSystemAccess& fsAccess,
-                  const string& key,
+        IOContext(FileSystemAccess& fsAccess,
+                  const string& authKey,
+                  const string& cipherKey,
                   const string& name,
                   PrnGen& rng)
-          : JSONSyncConfigIOContext(cipher,
-                                   fsAccess,
-                                   key,
-                                   name,
-                                   rng)
+          : JSONSyncConfigIOContext(fsAccess,
+                                    authKey,
+                                    cipherKey,
+                                    name,
+                                    rng)
         {
             // Perform real behavior by default.
             ON_CALL(*this, getSlotsInOrder(_, _))
@@ -1519,15 +1515,14 @@ public:
 
     JSONSyncConfigTest()
       : Test()
-      , mCipher(SymmCipher::zeroiv)
       , mFSAccess()
       , mRNG()
-      , mConfigKey(Utilities::randomBase64(32))
+      , mConfigAuthKey(Utilities::randomBytes(16))
+      , mConfigCipherKey(Utilities::randomBytes(16))
       , mConfigName(Utilities::randomBase64(16))
-      , mConfigPrefix("megaclient_syncconfig_")
-      , mIOContext(mCipher,
-                   mFSAccess,
-                   mConfigKey,
+      , mIOContext(mFSAccess,
+                   mConfigAuthKey,
+                   mConfigCipherKey,
                    mConfigName,
                    mRNG)
     {
@@ -1544,12 +1539,11 @@ public:
     }
 
 protected:
-    SymmCipher mCipher;
     FSACCESS_CLASS mFSAccess;
     PrnGen mRNG;
-    const string mConfigKey;
+    const string mConfigAuthKey;
+    const string mConfigCipherKey;
     const string mConfigName;
-    const string mConfigPrefix;
     FakeNiceMock<IOContext> mIOContext;
 }; // JSONSyncConfigTest
 
@@ -1564,12 +1558,12 @@ public:
 
     string configName() const
     {
-        return mConfigPrefix + mConfigName;
+        return configPrefix() + mConfigName;
     }
 
     const string& configPrefix() const
     {
-        return mConfigPrefix;
+        return JSONSyncConfigIOContext::NAME_PREFIX;
     }
 }; // JSONSyncConfigIOContextTest
 
