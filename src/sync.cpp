@@ -2089,7 +2089,7 @@ error Syncs::backupAdd(const SyncConfig& config,
     if (config.mExternalDrivePath.empty()
         || config.mLocalPath.empty()
         || config.mOrigninalPathOfRemoteRootNode.empty()
-        || config.mRemoteNode != UNDEF
+        || config.mRemoteNode == UNDEF
         || config.mSyncType != SyncConfig::TYPE_BACKUP)
     {
         if (completion)
