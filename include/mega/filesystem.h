@@ -126,6 +126,7 @@ public:
     void clear();
     void erase(size_t pos = 0, size_t count = string::npos);
     void truncate(size_t bytePos);
+    size_t size() const;
     LocalPath leafName() const;
     void append(const LocalPath& additionalPath);
     void appendWithSeparator(const LocalPath& additionalPath, bool separatorAlways);

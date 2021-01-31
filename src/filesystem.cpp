@@ -946,6 +946,11 @@ void LocalPath::truncate(size_t bytePos)
     localpath.resize(bytePos);
 }
 
+size_t LocalPath::size() const
+{
+    return localpath.size();
+}
+
 LocalPath LocalPath::leafName() const
 {
     auto p = localpath.find_last_of(localPathSeparator);
