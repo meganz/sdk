@@ -3398,6 +3398,11 @@ bool JSONSyncConfigIOContext::deserialize(JSONSyncConfigMap& configs,
     return reader.leavearray();
 }
 
+FileSystemAccess& JSONSyncConfigIOContext::fsAccess() const
+{
+    return mFsAccess;
+}
+
 error JSONSyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
                                                vector<unsigned int>& confSlots)
 {

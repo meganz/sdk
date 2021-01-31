@@ -467,6 +467,9 @@ public:
     bool deserialize(JSONSyncConfigMap& configs,
                      JSON& reader) const;
 
+    // Return a reference to this context's filesystem access.
+    FileSystemAccess& fsAccess() const;
+
     // Determine which slots are present.
     virtual error getSlotsInOrder(const LocalPath& dbPath,
                                   vector<unsigned int>& confSlots);
