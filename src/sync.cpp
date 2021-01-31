@@ -2464,7 +2464,7 @@ error Syncs::syncConfigDBFlush()
         return API_OK;
     }
 
-    LOG_verbose << "Attempting to flush internal config database.";
+    LOG_debug << "Attempting to flush internal config database.";
 
     auto result = API_EAGAIN;
 
@@ -2480,7 +2480,7 @@ error Syncs::syncConfigDBFlush()
     }
     else
     {
-        LOG_verbose << "Internal config database flushed to disk.";
+        LOG_debug << "Internal config database flushed to disk.";
     }
 
     return result;
@@ -2488,7 +2488,7 @@ error Syncs::syncConfigDBFlush()
 
 error Syncs::syncConfigDBLoad()
 {
-    LOG_verbose << "Attempting to load internal sync configs from disk.";
+    LOG_debug << "Attempting to load internal sync configs from disk.";
 
     auto result = API_EAGAIN;
 
@@ -2504,9 +2504,9 @@ error Syncs::syncConfigDBLoad()
 
         if (result == API_OK || result == API_ENOENT)
         {
-            LOG_verbose << "Loaded "
-                        << db->configs().size()
-                        << " internal sync config(s) from disk.";
+            LOG_debug << "Loaded "
+                      << db->configs().size()
+                      << " internal sync config(s) from disk.";
 
             return API_OK;
         }
@@ -2527,28 +2527,55 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
         return mSyncConfigIOContext.get();
     }
 
-    using KeyStr  = Base64Str<SymmCipher::KEYLENGTH * 2>;
-    using NameStr = Base64Str<SymmCipher::KEYLENGTH>;
-
-    if (User* selfUser = mClient.finduser(mClient.me))
+    // Which user are we?
+    User* self = mClient.ownuser();
+    if (!self)
     {
-        auto name = selfUser->getattr(ATTR_JSON_SYNC_CONFIG_NAME);
-        auto key = selfUser->getattr(ATTR_JSON_SYNC_CONFIG_KEY);
-
-        if (name && key &&
-            key->size() == KeyStr::STRLEN &&
-            name->size() == NameStr::STRLEN)
-        {
-            // Create the IO context.
-            mSyncConfigIOContext.reset(
-              new JSONSyncConfigIOContext(mClient.key,
-                                         *mClient.fsaccess,
-                                         *key,
-                                         *name,
-                                         mClient.rng));
-        }
+        return nullptr;
     }
-	
+
+    // Try and retrieve this user's config data attribute.
+    auto* payload = self->getattr(ATTR_JSON_SYNC_CONFIG_DATA);
+    if (!payload)
+    {
+        // Attribute hasn't been created yet.
+        return nullptr;
+    }
+
+    // Try and decrypt the payload.
+    unique_ptr<TLVstore> store(
+      TLVstore::containerToTLVrecords(payload, &mClient.key));
+
+    if (!store)
+    {
+        // Attribute is malformed.
+        return nullptr;
+    }
+
+    // Convenience.
+    constexpr size_t KEYLENGTH = SymmCipher::KEYLENGTH;
+
+    // Verify payload contents.
+    auto authKey = store->get("ak"); 
+    auto cipherKey = store->get("ck");
+    auto name = store->get("fn");
+
+    if (authKey.size() != KEYLENGTH
+        || cipherKey.size() != KEYLENGTH
+        || name.size() != KEYLENGTH)
+    {
+        // Payload is malformed.
+        return nullptr;
+    }
+
+    // Create the IO context.
+    mSyncConfigIOContext.reset(
+      new JSONSyncConfigIOContext(*mClient.fsaccess,
+                                  std::move(authKey),
+                                  std::move(cipherKey),
+                                  Base64::btoa(name),
+                                  mClient.rng));
+
     // Return a reference to the new IO context.
     return mSyncConfigIOContext.get();
 }
@@ -2571,12 +2598,24 @@ error Syncs::truncate()
         return API_OK;
     }
 
-    if (auto* ioContext = syncConfigIOContext())
+    auto* ioContext = syncConfigIOContext();
+    
+    if (!ioContext)
     {
-        return mSyncConfigDB->truncate(*ioContext);
+        return API_EAGAIN;
     }
 
-    return API_EAGAIN;
+    auto result = mSyncConfigDB->truncate(*ioContext);
+
+    if (result != API_OK)
+    {
+        auto& fsAccess = *mClient.fsaccess;
+
+        LOG_warn << "Unable to truncate config DB: "
+                 << mSyncConfigDB->dbPath().toPath(fsAccess);
+    }
+
+    return result;
 }
 
 void Syncs::resetSyncConfigDb()
@@ -2989,7 +3028,6 @@ void Syncs::resumeResumableSyncsOnStartup()
     }
 }
 
-
 const unsigned int JSONSyncConfigDB::NUM_SLOTS = 2; //number of configuration versions to save. Do not set to > 10.
 
 JSONSyncConfigDB::JSONSyncConfigDB(const LocalPath& dbPath,
@@ -3184,12 +3222,6 @@ error JSONSyncConfigDB::write(JSONSyncConfigIOContext& ioContext)
     // Serialize the database.
     ioContext.serialize(mBackupIdToConfig, writer);
 
-    if (SimpleLogger::logCurrentLevel >= logMax)
-    {
-        FSACCESS_CLASS fsa;
-        LOG_info << "Writing syncs file " << mDBPath.toPath(fsa) << ": " << writer.getstring();
-    }
-
     // Try and write the database out to disk.
     if (ioContext.write(mDBPath, writer.getstring(), mSlot) != API_OK)
     {
@@ -3221,17 +3253,11 @@ error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext,
         return API_EREAD;
     }
 
-    if (SimpleLogger::logCurrentLevel >= logMax)
-    {
-        FSACCESS_CLASS fsa;
-        LOG_verbose << "Loaded syncs file " << mDBPath.toPath(fsa) << ": " << data;
-    }
-
     // Try and deserialize the configs contained in the database.
     JSONSyncConfigMap configs;
     JSON reader(data);
 
-    if (!ioContext.deserialize(configs, reader))
+    if (!ioContext.deserialize(mDBPath, configs, reader, slot))
     {
         // Couldn't deserialize the configs.
         return API_EREAD;
@@ -3285,40 +3311,60 @@ error JSONSyncConfigDB::removeByBackupId(handle backupId, const bool flush)
     return API_OK;
 }
 
-JSONSyncConfigIOContext::JSONSyncConfigIOContext(SymmCipher& cipher,
-                                                 FileSystemAccess& fsAccess,
-                                                 const string& key,
+const string JSONSyncConfigIOContext::NAME_PREFIX = "megaclient_syncconfig_";
+
+JSONSyncConfigIOContext::JSONSyncConfigIOContext(FileSystemAccess& fsAccess,
+                                                 const string& authKey,
+                                                 const string& cipherKey,
                                                  const string& name,
                                                  PrnGen& rng)
   : mCipher()
   , mFsAccess(fsAccess)
-  , mName(LocalPath::fromPath("megaclient_syncconfig_" + name, mFsAccess))
+  , mName(LocalPath::fromPath(NAME_PREFIX + name, mFsAccess))
   , mRNG(rng)
   , mSigner()
 {
+    // Convenience.
+    constexpr size_t KEYLENGTH = SymmCipher::KEYLENGTH;
+
     // These attributes *must* be sane.
-    assert(!key.empty());
-    assert(!name.empty());
+    assert(authKey.size() == KEYLENGTH);
+    assert(cipherKey.size() == KEYLENGTH);
+    assert(name.size() == Base64Str<KEYLENGTH>::STRLEN);
 
-    // Deserialize the key.
-    string k = Base64::atob(key);
-    assert(k.size() == SymmCipher::KEYLENGTH * 2);
-
-    // Decrypt the key.
-    cipher.ecb_decrypt(reinterpret_cast<byte*>(&k[0]), k.size());
-
-    // Load the authenticaton key into our internal signer.
-    const byte* ka = reinterpret_cast<const byte*>(&k[0]);
-    const byte* ke = &ka[SymmCipher::KEYLENGTH];
-
-    mSigner.setkey(ka, SymmCipher::KEYLENGTH);
+    // Load the authentication key into our internal signer.
+    mSigner.setkey(reinterpret_cast<const byte*>(authKey.data()), KEYLENGTH);
 
     // Load the encryption key into our internal cipher.
-    mCipher.setkey(ke, SymmCipher::KEYLENGTH);
+    mCipher.setkey(reinterpret_cast<const byte*>(cipherKey.data()));
 }
 
 JSONSyncConfigIOContext::~JSONSyncConfigIOContext()
 {
+}
+
+bool JSONSyncConfigIOContext::deserialize(const LocalPath& dbPath,
+                                          JSONSyncConfigMap& configs,
+                                          JSON& reader,
+                                          const unsigned int slot) const
+{
+    auto path = dbFilePath(dbPath, slot).toPath(mFsAccess);
+
+    LOG_debug << "Attempting to deserialize config DB: "
+              << path;
+
+    if (deserialize(configs, reader))
+    {
+        LOG_debug << "Successfully deserialized config DB: "
+                  << path;
+
+        return true;
+    }
+
+    LOG_debug << "Unable to deserialize config DB: "
+              << path;
+
+    return false;
 }
 
 bool JSONSyncConfigIOContext::deserialize(JSONSyncConfigMap& configs,
@@ -3438,13 +3484,11 @@ error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
                                     string& data,
                                     const unsigned int slot)
 {
-    using std::to_string;
-
     // Generate path to the configuration file.
-    LocalPath path = dbPath;
+    LocalPath path = dbFilePath(dbPath, slot);
 
-    path.appendWithSeparator(mName, false);
-    path.append(LocalPath::fromPath("." + to_string(slot), mFsAccess));
+    LOG_debug << "Attempting to read config DB: "
+              << path.toPath(mFsAccess);
 
     // Try and open the file for reading.
     auto fileAccess = mFsAccess.newfileaccess(false);
@@ -3452,6 +3496,9 @@ error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
     if (!fileAccess->fopen(path, true, false))
     {
         // Couldn't open the file for reading.
+        LOG_debug << "Unable to open config DB for reading: "
+                  << path.toPath(mFsAccess);
+
         return API_EREAD;
     }
 
@@ -3461,6 +3508,9 @@ error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
     if (!fileAccess->fread(&d, static_cast<unsigned>(fileAccess->size), 0, 0x0))
     {
         // Couldn't read the file.
+        LOG_debug << "Unable to read config DB: "
+                  << path.toPath(mFsAccess);
+
         return API_EREAD;
     }
 
@@ -3468,8 +3518,16 @@ error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
     if (!decrypt(d, data))
     {
         // Couldn't decrypt the data.
+        LOG_debug << "Unable to decrypt config DB: "
+                  << path.toPath(mFsAccess);
+
         return API_EREAD;
     }
+
+    LOG_debug << "Config DB successfully read from disk: "
+              << path.toPath(mFsAccess)
+              << ": "
+              << data;
 
     return API_OK;
 }
@@ -3477,15 +3535,17 @@ error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
 error JSONSyncConfigIOContext::remove(const LocalPath& dbPath,
                                       const unsigned int slot)
 {
-    using std::to_string;
+    LocalPath path = dbFilePath(dbPath, slot);
 
-    LocalPath path = dbPath;
+    if (!mFsAccess.unlinklocal(path))
+    {
+        LOG_warn << "Unable to remove config DB: "
+                 << path.toPath(mFsAccess);
 
-    // Generate the rest of the path.
-    path.appendWithSeparator(mName, false);
-    path.append(LocalPath::fromPath("." + to_string(slot), mFsAccess));
+        return API_EWRITE;
+    }
 
-    return mFsAccess.unlinklocal(path) ? API_OK : API_EWRITE;
+    return API_OK;
 }
 
 error JSONSyncConfigIOContext::remove(const LocalPath& dbPath)
@@ -3528,20 +3588,25 @@ error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
                                      const string& data,
                                      const unsigned int slot)
 {
-    using std::to_string;
-
     LocalPath path = dbPath;
+
+    LOG_debug << "Attempting to write config DB: "
+              << dbPath.toPath(mFsAccess)
+              << " / "
+              << slot;
 
     // Try and create the backup configuration directory.
     if (!(mFsAccess.mkdirlocal(path) || mFsAccess.target_exists))
     {
+        LOG_debug << "Unable to create config DB directory: "
+                  << dbPath.toPath(mFsAccess);
+
         // Couldn't create the directory and it doesn't exist.
         return API_EWRITE;
     }
 
     // Generate the rest of the path.
-    path.appendWithSeparator(mName, false);
-    path.append(LocalPath::fromPath("." + to_string(slot), mFsAccess));
+    path = dbFilePath(dbPath, slot);
 
     // Open the file for writing.
     auto fileAccess = mFsAccess.newfileaccess(false);
@@ -3549,6 +3614,9 @@ error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
     if (!fileAccess->fopen(path, false, true))
     {
         // Couldn't open the file for writing.
+        LOG_debug << "Unable to open config DB for writing: "
+                  << path.toPath(mFsAccess);
+
         return API_EWRITE;
     }
 
@@ -3556,6 +3624,9 @@ error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
     if (!fileAccess->ftruncate())
     {
         // Couldn't truncate the file.
+        LOG_debug << "Unable to truncate config DB: "
+                  << path.toPath(mFsAccess);
+
         return API_EWRITE;
     }
 
@@ -3568,10 +3639,31 @@ error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
     if (!fileAccess->fwrite(bytes, static_cast<unsigned>(d.size()), 0x0))
     {
         // Couldn't write out the data.
+        LOG_debug << "Unable to write config DB: "
+                  << path.toPath(mFsAccess);
+
         return API_EWRITE;
     }
 
+    LOG_debug << "Config DB successfully written to disk: "
+              << path.toPath(mFsAccess)
+              << ": "
+              << data;
+
     return API_OK;
+}
+
+LocalPath JSONSyncConfigIOContext::dbFilePath(const LocalPath& dbPath,
+                                              const unsigned int slot) const
+{
+    using std::to_string;
+
+    LocalPath path = dbPath;
+
+    path.appendWithSeparator(mName, false);
+    path.append(LocalPath::fromPath("." + to_string(slot), mFsAccess));
+
+    return path;
 }
 
 bool JSONSyncConfigIOContext::decrypt(const string& in, string& out)
@@ -3719,7 +3811,7 @@ string JSONSyncConfigIOContext::encrypt(const string& data)
     mCipher.cbc_encrypt_pkcs_padding(&data, iv, &d);
 
     // Add IV to file.
-    d.insert(d.end(), std::begin(iv), std::end(iv));
+    d.append(std::begin(iv), std::end(iv));
 
     byte mac[32];
 
@@ -3728,7 +3820,7 @@ string JSONSyncConfigIOContext::encrypt(const string& data)
     mSigner.get(mac);
 
     // Add HMAC to file.
-    d.insert(d.end(), std::begin(mac), std::end(mac));
+    d.append(std::begin(mac), std::end(mac));
 
     // We're done.
     return d;

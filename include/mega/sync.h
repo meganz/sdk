@@ -447,15 +447,21 @@ using JSONSyncConfigDBPtr = unique_ptr<JSONSyncConfigDB>;
 class MEGA_API JSONSyncConfigIOContext
 {
 public:
-    JSONSyncConfigIOContext(SymmCipher& cipher,
-                            FileSystemAccess& fsAccess,
-                            const string& key,
+    JSONSyncConfigIOContext(FileSystemAccess& fsAccess,
+                            const string& authKey,
+                            const string& cipherKey,
                             const string& name,
                             PrnGen& rng);
 
     virtual ~JSONSyncConfigIOContext();
 
     MEGA_DISABLE_COPY_MOVE(JSONSyncConfigIOContext);
+
+    // Deserialize configs from JSON (with logging.)
+    bool deserialize(const LocalPath& dbPath,
+                     JSONSyncConfigMap& configs,
+                     JSON& reader,
+                     const unsigned int slot) const;
 
     // Deserialize configs from JSON.
     bool deserialize(JSONSyncConfigMap& configs,
@@ -486,7 +492,14 @@ public:
                         const string& data,
                         const unsigned int slot);
 
+    // Prefix applied to configuration database names.
+    static const string NAME_PREFIX;
+
 private:
+    // Generate complete database path.
+    LocalPath dbFilePath(const LocalPath& dbPath,
+                         const unsigned int slot) const;
+
     // Decrypt data.
     bool decrypt(const string& in, string& out);
 

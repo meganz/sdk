@@ -5959,8 +5959,7 @@ void MegaClient::sc_userattr()
                                     case ATTR_DEVICE_NAMES:          // fall-through
                                     case ATTR_MY_BACKUPS_FOLDER:     // fall-through
                                     case ATTR_BACKUP_NAMES:          // fall-through
-                                    case ATTR_JSON_SYNC_CONFIG_KEY:  // fall-through
-                                    case ATTR_JSON_SYNC_CONFIG_NAME: // fall-through
+                                    case ATTR_JSON_SYNC_CONFIG_DATA: // fall-through
                                     {
                                         LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
                                         if (User::isAuthring(type)) mAuthRings.erase(type);
