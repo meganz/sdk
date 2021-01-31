@@ -8499,25 +8499,6 @@ void exec_syncbackupadd(autocomplete::ACState& s)
         drivePath  = LocalPath::fromPath(s.words[3].s, fsAccess);
         sourcePath = LocalPath::fromPath(s.words[4].s, fsAccess);
         targetPath = s.words[5].s;
-
-        // Normalize to remove trailing separators.
-        drivePath = NormalizeAbsolute(drivePath);
-        sourcePath = NormalizeAbsolute(sourcePath);
-
-        // Does the drive contain the source?
-        size_t pos;
-
-        if (!drivePath.isContainingPathOf(sourcePath, &pos))
-        {
-            cerr << sourcePath.toPath(fsAccess)
-                 << ": Not contained within: "
-                 << drivePath.toPath(fsAccess)
-                 << endl;
-            return;
-        }
-
-        // Remove the drive from the source.
-        sourcePath.erase(0, pos);
     }
     else
     {
@@ -8564,6 +8545,7 @@ void exec_syncbackupadd(autocomplete::ACState& s)
         config.mEnabled = true;
         config.mExternalDrivePath = drivePath;
         config.mLocalPath = sourcePath;
+        config.mName = sourcePath.toPath(fsAccess);
         config.mOrigninalPathOfRemoteRootNode = targetPath;
         config.mRemoteNode = targetNode->nodehandle;
         config.mSyncType = SyncConfig::TYPE_BACKUP;

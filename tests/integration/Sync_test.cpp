@@ -1405,13 +1405,6 @@ struct StandardClient : public MegaApp
                             const string& targetPath,
                             SyncCompletionFunction completion)
     {
-        // Verify source path is below drive path.
-        if (sourcePath.size() < drivePath.size()
-            || sourcePath.compare(0, drivePath.size(), drivePath))
-        {
-            return false;
-        }
-
         auto* rootNode = client.nodebyhandle(basefolderhandle);
 
         // Root isn't in the cloud.
@@ -1427,9 +1420,6 @@ struct StandardClient : public MegaApp
         {
             return false;
         }
-
-        // Remove drive path from source path.
-        sourcePath.erase(0, drivePath.size());
 
         SyncConfig config;
 

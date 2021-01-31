@@ -2103,7 +2103,19 @@ error Syncs::backupAdd(const SyncConfig& config,
     // For convenience.
     auto& drivePath = config.mExternalDrivePath;
     auto& fsAccess = *mClient.fsaccess;
+    auto& name = config.mName;
     auto& sourcePath = config.mLocalPath;
+
+    // Is the source actually contained on the drive?
+    if (!drivePath.isContainingPathOf(sourcePath))
+    {
+        if (completion)
+        {
+            completion(nullptr, NO_SYNC_ERROR, API_EARGS);
+        }
+
+        return API_EARGS;
+    }
 
     // Could we get our hands on the config store?
     auto* store = backupConfigStore();
@@ -2171,6 +2183,16 @@ error Syncs::backupAdd(const SyncConfig& config,
     }
 
     SyncConfig syncConfig(config);
+
+    syncConfig.mExternalDrivePath =
+      NormalizeAbsolute(syncConfig.mExternalDrivePath);
+    syncConfig.mLocalPath =
+      NormalizeAbsolute(syncConfig.mLocalPath);
+
+    if (sourcePath.toPath(fsAccess) == name)
+    {
+        syncConfig.mName = syncConfig.mLocalPath.toPath(fsAccess);
+    }
 
     return mClient.addsync(syncConfig,
                            DEBRISFOLDER,
@@ -3277,14 +3299,32 @@ error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext,
         }
     }
 
+    // Convenience.
+    auto& fsAccess = ioContext.fsAccess();
+
     // Add (or update) configs.
     for (auto& it : configs)
     {
+        // Convenience.
+        SyncConfig& config = it.second;
+
         // Correct config's drive path.
-        it.second.mExternalDrivePath = mDrivePath;
+        config.mExternalDrivePath = mDrivePath;
+
+        // For later comparison.
+        auto sourcePath = config.mLocalPath.toPath(fsAccess);
+
+        // Compute effective source path.
+        config.mLocalPath.prependWithSeparator(mDrivePath);
+
+        // Compute effective name.
+        if (sourcePath == config.mName)
+        {
+            config.mName = config.mLocalPath.toPath(fsAccess);
+        }
 
         // Add / update the config.
-        add(it.second, false);
+        add(config, false);
     }
 
     return API_OK;
@@ -3834,10 +3874,25 @@ string JSONSyncConfigIOContext::encrypt(const string& data)
 void JSONSyncConfigIOContext::serialize(const SyncConfig& config,
                                         JSONWriter& writer) const
 {
+    auto& drivePath = config.mExternalDrivePath;
+
+    // Strip drive path from source.
+    auto sourcePath =
+      config.mLocalPath.subpathFrom(drivePath.size())
+                       .toPath(mFsAccess);
+
+    // Compute effective name.
+    auto* name = &config.mName;
+
+    if (config.mLocalPath.toPath(mFsAccess) == *name)
+    {
+        name = &sourcePath;
+    }
+
     writer.beginobject();
     writer.arg("id", config.getBackupId(), sizeof(handle));
-    writer.arg_B64("sp", config.mLocalPath.toPath(mFsAccess));
-    writer.arg_B64("n", config.mName);
+    writer.arg_B64("sp", sourcePath);
+    writer.arg_B64("n", *name);
     writer.arg_B64("tp", config.mOrigninalPathOfRemoteRootNode);
     writer.arg_fsfp("fp", config.mLocalFingerprint);
     writer.arg("th", config.mRemoteNode, sizeof(handle));
@@ -3876,7 +3931,7 @@ const SyncConfig* JSONSyncConfigStore::add(SyncConfig config)
 
     // Ensure paths are normalized.
     config.mExternalDrivePath = NormalizeAbsolute(config.mExternalDrivePath);
-    config.mLocalPath = NormalizeRelative(config.getLocalPath());
+    config.mLocalPath = NormalizeAbsolute(config.mLocalPath);
 
     // For comparing paths.
     static auto equal =
