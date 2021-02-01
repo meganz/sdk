@@ -2790,6 +2790,12 @@ bool CommandPutUAVer::procresult(Result r)
         {
             User *u = client->ownuser();
             u->invalidateattr(at);
+
+            if (at == ATTR_JSON_SYNC_CONFIG_DATA)
+            {
+                LOG_warn << "Attr for sync-config data was created by other client. Fetching...";
+                client->reqs.add(new CommandGetUA(client, u->uid.c_str(), at, nullptr, 0));
+            }
         }
 
         client->app->putua_result(r.errorOrOK());
