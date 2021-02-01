@@ -3989,13 +3989,30 @@ void exec_get(autocomplete::ACState& s)
             if (s.words.size() > 2)
             {
                 // read file slice
+                m_off_t offset = atol(s.words[2].s.c_str());
+                m_off_t count = (s.words.size() > 3) ? atol(s.words[3].s.c_str()) : 0;
+
+                if (offset + count > n->size)
+                {
+                    if (offset < n->size)
+                    {
+                        count = n->size - offset;
+                        cout << "Count adjusted to " << count << " bytes (filesize is " << n->size << " bytes)" << endl;
+                    }
+                    else
+                    {
+                        cout << "Nothing to read: offset + length > filesize (" << offset << " + " << count << " > " << n->size << " bytes)" << endl;
+                        return;
+                    }
+                }
+
                 if (s.words.size() == 5)
                 {
                     pread_file = new ofstream(s.words[4].s.c_str(), std::ios_base::binary);
-                    pread_file_end = atol(s.words[2].s.c_str()) + atol(s.words[3].s.c_str());
+                    pread_file_end = offset + count;
                 }
 
-                client->pread(n, atol(s.words[2].s.c_str()), (s.words.size() > 3) ? atol(s.words[3].s.c_str()) : 0, NULL);
+                client->pread(n, offset, count, NULL);
             }
             else
             {
