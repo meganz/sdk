@@ -1411,6 +1411,15 @@ public:
         return fileAccess->fwrite(bytes, static_cast<unsigned>(n), 0x0);
     }
 
+    static LocalPath randomPath(const LocalPath& prefix, const size_t n = 16)
+    {
+        LocalPath result = prefix;
+
+        result.appendWithSeparator(randomPath(n), false);
+
+        return result;
+    }
+
     static LocalPath randomPath(const size_t n = 16)
     {
         return LocalPath::fromPath(randomBase64(n), mFSAccess);
@@ -1967,6 +1976,11 @@ public:
         return mDrivePath;
     }
 
+    LocalPath randomPath() const
+    {
+        return Utilities::randomPath(mDrivePath);
+    }
+
 private:
     Directory mDBPath;
     const LocalPath mDrivePath;
@@ -1981,7 +1995,7 @@ TEST_F(JSONSyncConfigDBTest, AddWithTarget)
     SyncConfig config;
 
     config.mExternalDrivePath = drivePath();
-    config.mLocalPath = LocalPath();
+    config.mLocalPath = randomPath();
     config.mEnabled = true;
     config.mBackupId = 0;
     config.mRemoteNode = 1;
@@ -2013,7 +2027,7 @@ TEST_F(JSONSyncConfigDBTest, AddWithoutTarget)
     SyncConfig config;
 
     config.mExternalDrivePath = drivePath();
-    config.mLocalPath = LocalPath();
+    config.mLocalPath = randomPath();
     config.mEnabled = true;
     config.mBackupId = 0;
     config.mRemoteNode = UNDEF;
@@ -2045,12 +2059,12 @@ TEST_F(JSONSyncConfigDBTest, Clear)
     SyncConfig configB;
 
     configA.mExternalDrivePath = drivePath();
-    configA.mLocalPath = Utilities::randomPath();
+    configA.mLocalPath = randomPath();
     configA.mBackupId = 0;
     configA.mRemoteNode = 1;
 
     configB.mExternalDrivePath = drivePath();
-    configB.mLocalPath = Utilities::randomPath();
+    configB.mLocalPath = randomPath();
     configB.mBackupId = 2;
     configB.mRemoteNode = 3;
 
@@ -2105,7 +2119,7 @@ TEST_F(JSONSyncConfigDBTest, Read)
     SyncConfig config;
 
     config.mExternalDrivePath = drivePath();
-    config.mLocalPath = Utilities::randomPath();
+    config.mLocalPath = randomPath();
     config.mBackupId = 1;
     config.mRemoteNode = 2;
 
@@ -2253,7 +2267,7 @@ TEST_F(JSONSyncConfigDBTest, ReadUpdatesDatabase)
     SyncConfig configBefore;
 
     configBefore.mExternalDrivePath = drivePath();
-    configBefore.mLocalPath = Utilities::randomPath();
+    configBefore.mLocalPath = randomPath();
     configBefore.mBackupId = 1;
     configBefore.mRemoteNode = 2;
 
@@ -2361,7 +2375,7 @@ TEST_F(JSONSyncConfigDBTest, RemoveByBackupID)
     SyncConfig config;
 
     config.mExternalDrivePath = drivePath();
-    config.mLocalPath = Utilities::randomPath();
+    config.mLocalPath = randomPath();
     config.mBackupId = 1;
     config.mRemoteNode = 2;
 
@@ -2489,6 +2503,7 @@ TEST_F(JSONSyncConfigDBTest, Truncate)
     SyncConfig config;
 
     config.mExternalDrivePath = drivePath();
+    config.mLocalPath = randomPath();
     config.mEnabled = false;
     config.mBackupId = 0;
     config.mRemoteNode = 1;
@@ -2780,6 +2795,7 @@ TEST_F(JSONSyncConfigStoreTest, Add)
     SyncConfig config;
 
     config.mExternalDrivePath = drive;
+    config.mLocalPath = Utilities::randomPath(drive);
     config.mBackupId = 1;
     config.mRemoteNode = 2;
 
@@ -2887,6 +2903,7 @@ TEST_F(JSONSyncConfigStoreTest, CloseAll)
     SyncConfig config;
 
     config.mExternalDrivePath = driveA;
+    config.mLocalPath = Utilities::randomPath(driveA);
     config.mBackupId = 1;
 
     EXPECT_NE(store.add(config), nullptr);
@@ -2999,6 +3016,7 @@ TEST_F(JSONSyncConfigStoreTest, CloseDirty)
     SyncConfig config;
 
     config.mExternalDrivePath = drive;
+    config.mLocalPath = Utilities::randomPath(drive);
     config.mBackupId = 1;
     config.mRemoteNode = 2;
 
@@ -3054,6 +3072,7 @@ TEST_F(JSONSyncConfigStoreTest, CloseDirtyCantWrite)
     SyncConfig config;
 
     config.mExternalDrivePath = drive;
+    config.mLocalPath = Utilities::randomPath(drive);
     config.mBackupId = 1;
     config.mRemoteNode = 2;
 
@@ -3139,8 +3158,10 @@ TEST_F(JSONSyncConfigStoreTest, Configs)
     SyncConfig configB;
 
     configA.mExternalDrivePath = driveA;
+    configA.mLocalPath = Utilities::randomPath(driveA);
     configA.mBackupId = 1;
     configB.mExternalDrivePath = driveB;
+    configB.mLocalPath = Utilities::randomPath(driveB);
     configB.mBackupId = 2;
 
     EXPECT_NE(store.add(configA), nullptr);
@@ -3390,6 +3411,7 @@ TEST_F(JSONSyncConfigStoreTest, CreateExisting)
         SyncConfig config;
 
         config.mExternalDrivePath = drivePath;
+        config.mLocalPath = Utilities::randomPath(drivePath);
         config.mBackupId = 1;
         config.mRemoteNode = 2;
 
@@ -3472,6 +3494,7 @@ TEST_F(JSONSyncConfigStoreTest, Destruct)
         SyncConfig config;
 
         config.mExternalDrivePath = drive;
+        config.mLocalPath = Utilities::randomPath(drive);
         config.mBackupId = 1;
 
         EXPECT_NE(store.add(config), nullptr);
@@ -3514,8 +3537,10 @@ TEST_F(JSONSyncConfigStoreTest, FlushAll)
     SyncConfig configB;
 
     configA.mExternalDrivePath = driveA;
+    configA.mLocalPath = Utilities::randomPath(driveA);
     configA.mBackupId = 1;
     configB.mExternalDrivePath = driveB;
+    configB.mLocalPath = Utilities::randomPath(driveB);
     configB.mBackupId = 2;
 
     EXPECT_NE(store.add(configA), nullptr);
@@ -3572,6 +3597,7 @@ TEST_F(JSONSyncConfigStoreTest, FlushDenormalized)
     SyncConfig config;
 
     config.mExternalDrivePath = drive;
+    config.mLocalPath = Utilities::randomPath(drive);
     config.mBackupId = 1;
 
     EXPECT_NE(store.add(config), nullptr);
@@ -3615,6 +3641,7 @@ TEST_F(JSONSyncConfigStoreTest, FlushFail)
     SyncConfig config;
 
     config.mExternalDrivePath = drive;
+    config.mLocalPath = Utilities::randomPath(drive);
     config.mRemoteNode = 1;
 
     EXPECT_NE(store.add(config), nullptr);
@@ -3660,8 +3687,10 @@ TEST_F(JSONSyncConfigStoreTest, FlushSpecific)
     SyncConfig configB;
 
     configA.mExternalDrivePath = driveA;
+    configA.mLocalPath = Utilities::randomPath(driveA);
     configA.mBackupId = 1;
     configB.mExternalDrivePath = driveB;
+    configB.mLocalPath = Utilities::randomPath(driveB);
     configB.mBackupId = 2;
 
     EXPECT_NE(store.add(configA), nullptr);
@@ -3740,6 +3769,7 @@ TEST_F(JSONSyncConfigStoreTest, Open)
         SyncConfig config;
 
         config.mExternalDrivePath = drivePath;
+        config.mLocalPath = Utilities::randomPath(drivePath);
         config.mBackupId = 1;
         config.mRemoteNode = 2;
 
@@ -3925,6 +3955,7 @@ TEST_F(JSONSyncConfigStoreTest, RemoveByBackupID)
     SyncConfig config;
 
     config.mExternalDrivePath = drive;
+    config.mLocalPath = Utilities::randomPath(drive);
     config.mBackupId = 1;
     config.mRemoteNode = 2;
 
@@ -3963,6 +3994,7 @@ TEST_F(JSONSyncConfigStoreTest, RemoveByTargetHandle)
     SyncConfig config;
 
     config.mExternalDrivePath = drive;
+    config.mLocalPath = Utilities::randomPath(drive);
     config.mBackupId = 2;
     config.mRemoteNode = 3;
 
@@ -4028,6 +4060,7 @@ TEST_F(JSONSyncConfigStoreTest, Update)
     SyncConfig configBefore;
 
     configBefore.mExternalDrivePath = drive;
+    configBefore.mLocalPath = Utilities::randomPath(drive);
     configBefore.mBackupId = 1;
     configBefore.mRemoteNode = 2;
 
@@ -4047,7 +4080,7 @@ TEST_F(JSONSyncConfigStoreTest, Update)
     // Update config.
     SyncConfig configAfter = configBefore;
 
-    configAfter.mLocalPath = Utilities::randomPath();
+    configAfter.mLocalPath = Utilities::randomPath(drive);
 
     // Update the config.
     EXPECT_EQ(store.add(configAfter), c);
@@ -4088,6 +4121,7 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeDrivePath)
     SyncConfig configBefore;
 
     configBefore.mExternalDrivePath = driveA;
+    configBefore.mLocalPath = Utilities::randomPath(driveA);
     configBefore.mBackupId = 1;
     configBefore.mRemoteNode = 2;
 
@@ -4111,6 +4145,7 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeDrivePath)
     SyncConfig configAfter = configBefore;
 
     configAfter.mExternalDrivePath = driveB;
+    configAfter.mLocalPath = Utilities::randomPath(driveB);
 
     // Update the config.
     const auto* cB = store.add(configAfter);
@@ -4151,6 +4186,7 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeTargetHandle)
     SyncConfig configBefore;
 
     configBefore.mExternalDrivePath = drive;
+    configBefore.mLocalPath = Utilities::randomPath(drive);
     configBefore.mBackupId = 1;
     configBefore.mRemoteNode = 2;
 
@@ -4210,6 +4246,7 @@ TEST_F(JSONSyncConfigStoreTest, UpdateChangeUnknownDrivePath)
     SyncConfig configBefore;
 
     configBefore.mExternalDrivePath = drive;
+    configBefore.mLocalPath = Utilities::randomPath(drive);
     configBefore.mBackupId = 1;
     configBefore.mRemoteNode = 2;
 
@@ -4265,6 +4302,7 @@ TEST_F(JSONSyncConfigStoreTest, UpdateRemoveTargetHandle)
     SyncConfig configBefore;
 
     configBefore.mExternalDrivePath = drive;
+    configBefore.mLocalPath = Utilities::randomPath(drive);
     configBefore.mBackupId = 1;
     configBefore.mRemoteNode = 2;
 
