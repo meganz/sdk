@@ -5962,6 +5962,14 @@ void MegaClient::sc_userattr()
                                     case ATTR_JSON_SYNC_CONFIG_DATA: // fall-through
                                     {
                                         LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
+                                        if (ATTR_JSON_SYNC_CONFIG_DATA)
+                                        {
+                                            // this user's attribute should be set only once and never change
+                                            // afterwards. If it has changed, it may indicate a race condition
+                                            // setting the attribute from another client at the same time
+                                            LOG_warn << "Sync config data has changed, when it should not";
+                                            assert(false);
+                                        }
                                         if (User::isAuthring(type)) mAuthRings.erase(type);
                                         getua(u, type, 0);
                                         break;

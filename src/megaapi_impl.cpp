@@ -24353,29 +24353,6 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
 }
 
 #ifdef ENABLE_SYNC
-MegaSyncPrivate::MegaSyncPrivate(const char *path, const char *name, handle nodehandle, SyncConfig::Type type)
-    : mType(static_cast<SyncType>(type))
-    , mActive(false)
-    , mEnabled(false)
-{
-    this->megaHandle = nodehandle;
-    this->localFolder = NULL;
-    setLocalFolder(path);
-    this->mName= NULL;
-    if (name && strlen(name))
-    {
-        setName(name);
-    }
-    else
-    {
-        //using localpath as name:
-        setName(path);
-    }
-    this->lastKnownMegaFolder = NULL;
-    this->fingerprint = 0;
-    this->regExp = NULL;
-}
-
 MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr, MegaClient* client)
     : mType(static_cast<SyncType>(config.getType()))
     , mActive(syncPtr && syncPtr->state >= 0)
