@@ -7097,7 +7097,6 @@ void MegaClient::notifypurge(void)
         //update sync root node location and trigger failing cases
         handle rubbishHandle = rootnodes[RUBBISHNODE - ROOTNODE];
         // check for renamed/moved sync root folders
-        //syncs.forEachRunningSync([&](Sync* sync) {
         syncs.forEachUnifiedSync([&](UnifiedSync& us){
 
             Node* n = nodebyhandle(us.mConfig.getRemoteNode());
