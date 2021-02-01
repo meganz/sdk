@@ -3907,20 +3907,20 @@ string JSONSyncConfigIOContext::encrypt(const string& data)
 void JSONSyncConfigIOContext::serialize(const SyncConfig& config,
                                         JSONWriter& writer) const
 {
-    auto& drivePath = config.mExternalDrivePath;
-
-    // Strip drive path from source.
+    auto drivePath =
+      config.mExternalDrivePath.toPath(mFsAccess);
     auto sourcePath =
-      config.mLocalPath.subpathFrom(drivePath.size())
-                       .toPath(mFsAccess);
-
-    // Compute effective name.
+      config.mLocalPath.toPath(mFsAccess);
     auto* name = &config.mName;
 
-    if (config.mLocalPath.toPath(mFsAccess) == *name)
+    // Compute effective name.
+    if (*name == sourcePath)
     {
         name = &sourcePath;
     }
+
+    // Strip drive path from source.
+    sourcePath.erase(0, drivePath.size());
 
     writer.beginobject();
     writer.arg("id", config.getBackupId(), sizeof(handle));
