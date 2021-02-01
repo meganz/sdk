@@ -4061,7 +4061,12 @@ void exec_more(autocomplete::ACState& s)
         more_node = nodebypath(s.words[1].s.c_str());
     }
     if(more_node && (more_node->type == FILENODE))
-        client->pread(more_node, more_offset, MORE_BYTES, NULL);
+    {
+        m_off_t count = (more_offset + MORE_BYTES <= more_node->size)
+                ? MORE_BYTES : (more_node->size - more_offset);
+
+        client->pread(more_node, more_offset, count, NULL);
+    }
 }
 
 void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder);
