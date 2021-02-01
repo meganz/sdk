@@ -4171,6 +4171,10 @@ bool CommandGetUserData::procresult(Result r)
                 }
                 else
                 {
+                    // This attribute is set only once. If not received from API,
+                    // it should not exist locally either
+                    assert(u->getattr(ATTR_JSON_SYNC_CONFIG_DATA) == nullptr);
+
                     TLVstore store;
                     auto& rng = client->rng;
 
