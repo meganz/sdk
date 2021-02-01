@@ -35,9 +35,11 @@ bool removeUnusedPorts = false;
 bool noPkgConfig = false;
 fs::path portsFile;
 fs::path sdkRootPath;
+fs::path patchPath;
 string triplet;
 
 map<string, string> ports;
+map<string, fs::path> patches;
 
 fs::path initialDir = fs::current_path();
 fs::path vcpkgDir = fs::current_path() / "vcpkg";
@@ -102,6 +104,12 @@ try
                     cout << "Copying port for " << portname << " from vcpkg commit " << portversion << endl;
                     fs::copy(cloneDir / "ports" / portname, vcpkgDir / "ports" / portname, fs::copy_options::recursive);
                     fs::current_path(vcpkgDir);
+                    
+                    auto patch = patches.find(portname);
+                    if (patch != patches.end()) {
+                        cout << "Applying patch " << patch->second.u8string() << " for port " << portname << "\n";
+                        execute("git apply " + (patchPath / patch->second).u8string());
+                    }
                 }
                 else
                 {
@@ -253,6 +261,8 @@ bool readCommandLine(int argc, char* argv[])
         return showSyntax();
     }
 
+    patchPath = sdkRootPath / "contrib" / "cmake" / "vcpkg_patches";
+
     ifstream portsIn(portsFile.string().c_str());
     while (portsIn)
     {
@@ -276,7 +286,9 @@ bool readCommandLine(int argc, char* argv[])
             return 1;
         }
         string portname = s.substr(0, slashpos);
-        string portversion = s.substr(slashpos + 1);
+
+        auto colonpos = s.find(':');
+        string portversion = s.substr(slashpos + 1, colonpos - (slashpos + 1));
 
         auto existing = ports.find(portname);
         if (existing != ports.end() && existing->second != portversion)
@@ -286,6 +298,24 @@ bool readCommandLine(int argc, char* argv[])
         }
         ports[portname] = portversion;
 
+        if (build) continue;
+
+        if (colonpos != string::npos)
+        {
+            fs::path patch = s.substr(colonpos + 1);
+            auto existingPatch = patches.find(patch);
+            if (existingPatch != patches.end() && existingPatch->second != patch) 
+            {
+                cout << "Conflicting patch files: " << patch << " and " << existingPatch->second << " for " << portname << "\n";
+                return 1;
+            }
+            if (!fs::exists(patchPath / patch))
+            {
+                cout << "Nonexistent patch " << patch << " for " << portname << ", patches must be in " << patchPath.u8string() << "\n";
+            }
+            cout << "Got patch " << patch << " for " << portname << "\n";
+            patches[portname] = patch;
+        }
     }
 
     return true;
