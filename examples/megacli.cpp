@@ -8540,15 +8540,17 @@ void exec_syncbackupadd(autocomplete::ACState& s)
     if (!drivePath.empty())
     {
         // External
-        SyncConfig config;
+        auto config =
+          SyncConfig(sourcePath,
+                     sourcePath.toPath(fsAccess),
+                     targetNode->nodehandle,
+                     targetPath,
+                     0,
+                     string_vector(),
+                     true,
+                     SyncConfig::TYPE_BACKUP);
 
-        config.mEnabled = true;
         config.mExternalDrivePath = drivePath;
-        config.mLocalPath = sourcePath;
-        config.mName = sourcePath.toPath(fsAccess);
-        config.mOrigninalPathOfRemoteRootNode = targetPath;
-        config.mRemoteNode = targetNode->nodehandle;
-        config.mSyncType = SyncConfig::TYPE_BACKUP;
 
         client->syncs.backupAdd(config, sync_completion);
         return;
