@@ -3254,7 +3254,7 @@ TEST_F(JSONSyncConfigStoreTest, Create)
     // Initial write should succeed.
     Expectation write =
       EXPECT_CALL(ioContext(),
-                  write(Eq(backupPath), Eq("[]"), Eq(0u)))
+                  write(Eq(backupPath), Eq(emptyDB()), Eq(0u)))
         .After(get)
         .WillOnce(Return(API_OK));
 
@@ -3294,7 +3294,7 @@ TEST_F(JSONSyncConfigStoreTest, CreateAlreadyOpened)
     // Initial write should succeed.
     Expectation write =
       EXPECT_CALL(ioContext(),
-                  write(Eq(backupPath), Eq("[]"), Eq(0u)))
+                  write(Eq(backupPath), Eq(emptyDB()), Eq(0u)))
         .After(get)
         .WillOnce(Return(API_OK));
 
@@ -3381,7 +3381,7 @@ TEST_F(JSONSyncConfigStoreTest, CreateCantWrite)
 
     // Initial write should fail.
     EXPECT_CALL(ioContext(),
-                write(Eq(backupPath), Eq("[]"), Eq(0u)))
+                write(Eq(backupPath), Eq(emptyDB()), Eq(0u)))
       .After(get)
       .WillOnce(Return(API_EWRITE));
 
