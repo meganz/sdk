@@ -4065,17 +4065,6 @@ void MegaClient::locallogout(bool removecaches)
 
     if (removecaches)
     {
-#ifdef ENABLE_SYNC
-        if (mKeepSyncsAfterLogout)
-        {
-            //disableSyncs in a temporarily state: so that they will be resumed when relogin
-            syncs.disableSyncs(LOGGED_OUT, true);
-        }
-        else
-        {
-            syncs.removeSelectedSyncs([](SyncConfig&, Sync* s){ return s != nullptr; });
-        }
-#endif
         removeCaches();
     }
 
@@ -4250,6 +4239,14 @@ void MegaClient::removeCaches()
     }
 
 #ifdef ENABLE_SYNC
+    if (mKeepSyncsAfterLogout)
+    {
+        //disableSyncs in a temporarily state: so that they will be resumed when relogin
+        syncs.disableSyncs(LOGGED_OUT, false);
+        syncs.syncConfigDBFlush();
+    }
+
+    // localnode's cache is always purged
     syncs.forEachRunningSync([&](Sync* sync){
 
         if (sync->statecachetable)
@@ -4260,7 +4257,6 @@ void MegaClient::removeCaches()
         }
     });
 
-    // TODO: dgw: truncate?
     if (!mKeepSyncsAfterLogout)
     {
         syncs.truncate();
