@@ -58,13 +58,22 @@ if [ "41bfcf4a63611409220fcd458a03deaa2cd23619" != "`git rev-parse HEAD`" ]; the
   if [ "$c" != "y" ]; then
     exit 0
   fi
+else
+  var=$(grep 'Patch applied MEGA' video/buffered_frame_decryptor.cc | wc -l)
+  if [ "$var" -lt  1 ] ; then
+    git apply ${CURRENTPATH}/../../../patches/webRtcPatch.patch
+    echo "Patch Applied"
+    rm -rf "${CURRENTPATH}/webrtc"
+    rm -rf "${WEBRTC_SRC}/out/Release-${ARCH}"
+ else
+  echo "Patch already APPLIED"
+ fi
 fi
 popd > /dev/null
 
 mkdir -p ${CURRENTPATH}
 
-echo "* Setting up WebRTC"
-if [ ! -d "${CURRENTPATH}/webrtc" ]; then
+if [ ! -d "${CURRENTPATH}/webrtc" ] ; then
 
   if [ ! -e "${WEBRTC_SRC}/out/Release-${ARCH}/obj/libwebrtc.a" ]; then
     pushd ${WEBRTC_SRC}
