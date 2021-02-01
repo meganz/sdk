@@ -24391,8 +24391,8 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr, MegaCl
     }
     else
     {
-        //using localpath as name:
-        setName(this->localFolder);
+        //using leaf name of localpath as name:
+        setName(config.getLocalPath().leafName().toName(*client->fsaccess, syncPtr->mFilesystemType).c_str());
     }
     this->lastKnownMegaFolder = NULL;
     this->fingerprint = 0;
