@@ -460,7 +460,9 @@ void DemoApp::syncupdate_stateconfig(handle backupId)
 
 void DemoApp::syncupdate_active(handle backupId, bool active)
 {
-    cout << "Sync is now active: " << active << endl;
+    cout << "Sync " << toHandle(backupId) << " status:";
+    (active) ? (cout << " enabled") : (cout << " disabled");
+    cout << endl;
 }
 
 void DemoApp::sync_auto_resume_result(const UnifiedSync& s, bool attempted)
@@ -3085,7 +3087,11 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_cp, sequence(text("cp"), remoteFSPath(client, &cwd, "src"), either(remoteFSPath(client, &cwd, "dst"), param("dstemail"))));
     p->Add(exec_du, sequence(text("du"), remoteFSPath(client, &cwd)));
 #ifdef ENABLE_SYNC
-    p->Add(exec_sync, sequence(text("sync"), opt(either(sequence(localFSPath(), remoteFSPath(client, &cwd, "dst")), param("cancelslot")))));
+    p->Add(exec_sync, sequence(text("sync"), opt(either(
+                                                     sequence(localFSPath(), remoteFSPath(client, &cwd, "dst")),
+                                                     sequence(flag("-enable"), param("backup_id")),
+                                                     sequence(flag("-disable"), param("backup_id")),
+                                                     sequence(flag("-del"), param("backup_id"))))));
     p->Add(exec_syncconfig, sequence(text("syncconfig"), opt(sequence(param("type (TWOWAY/UP/DOWN)"), opt(sequence(param("syncDeletions (ON/OFF)"), param("forceOverwrite (ON/OFF)")))))));
     p->Add(exec_keepsyncs, sequence(text("keepsyncs"), opt(either(text("on"), text("off")))));
     p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(sequence(flag("-del"), param("backup_id")))));
@@ -4405,68 +4411,7 @@ void exec_open(autocomplete::ACState& s)
 #ifdef ENABLE_SYNC
 void exec_sync(autocomplete::ACState& s)
 {
-    if (s.words.size() == 3)
-    {
-        Node* n = nodebypath(s.words[2].s.c_str());
-
-        if (client->checkaccess(n, FULL))
-        {
-
-            if (!n)
-            {
-                cout << s.words[2].s << ": Not found." << endl;
-            }
-            else if (n->type == FILENODE)
-            {
-                cout << s.words[2].s << ": Remote sync root must be a folder." << endl;
-            }
-            else
-            {
-                cout << "Adding sync..." << endl;
-
-                SyncConfig syncConfig(LocalPath::fromPath(s.words[1].s, *client->fsaccess), s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.getType());
-
-                client->addsync(syncConfig, DEBRISFOLDER, NULL, false, false,
-                                [](mega::UnifiedSync* us, const SyncError&, error e) {
-                    if (us && us->mSync)
-                    {
-                        cout << "Sync added and running. backupId = " << toHandle(us->mConfig.getBackupId());
-                    }
-                    else if (us)
-                    {
-                        cout << "Sync config added but could not be started: " << errorstring(e) << endl;
-                    }
-                    else
-                    {
-                        cout << "Sync config could not be started: " << errorstring(e) << endl;
-                    }
-                });
-            }
-        }
-        else
-        {
-            cout << s.words[2].s << ": Syncing requires full access to path." << endl;
-        }
-    }
-    else if (s.words.size() == 2)
-    {
-        handle cancelBackupId;
-        Base64::atob(s.words[1].s.c_str(), (byte*)&cancelBackupId, MegaClient::BACKUPHANDLE);
-
-        client->syncs.removeSelectedSyncs([&](SyncConfig& sc, Sync* s) {
-
-            if (sc.getBackupId() == cancelBackupId)
-            {
-                if (s && s->state > SYNC_CANCELED)
-                {
-                    cout << "Sync " << cancelBackupId << " deactivated and removed." << endl;
-                    return true;
-                }
-            }
-            return false;
-        });
-    }
-    else if (s.words.size() == 1)
+    if (s.words.size() == 1)    // list configured syncs
     {
         client->syncs.forEachUnifiedSync([&](UnifiedSync& us){
 
@@ -4482,9 +4427,9 @@ void exec_sync(autocomplete::ACState& s)
                     localpath = sync->localroot->localname.toPath(*client->fsaccess);
 
                     cout << syncConfigToString(sync->getConfig()) << ": " << localpath << " to " << remotepath << " - "
-                            << syncstatenames[sync->state + 3] << ", " << sync->localbytes
-                            << " byte(s) in " << sync->localnodes[FILENODE] << " file(s) and "
-                            << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
+                         << syncstatenames[sync->state + 3] << ", " << sync->localbytes
+                         << " byte(s) in " << sync->localnodes[FILENODE] << " file(s) and "
+                         << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
                 }
             }
             else
@@ -4496,6 +4441,94 @@ void exec_sync(autocomplete::ACState& s)
                 cout << syncConfigToString(us.mConfig) << ": " << localpath << " to " << remotepath << " - not running" << endl;
             }
         });
+    }
+    else if (s.words.size() == 3)
+    {
+        bool enable = s.extractflag("-enable");
+        bool disable = s.extractflag("-disable");
+        bool del = s.extractflag("-del");
+
+        if (!del && !enable && !disable)    // add new sync: local remote
+        {
+            Node* n = nodebypath(s.words[2].s.c_str());
+
+            if (client->checkaccess(n, FULL))
+            {
+
+                if (!n)
+                {
+                    cout << s.words[2].s << ": Not found." << endl;
+                }
+                else if (n->type == FILENODE)
+                {
+                    cout << s.words[2].s << ": Remote sync root must be a folder." << endl;
+                }
+                else
+                {
+                    cout << "Adding sync..." << endl;
+
+                    SyncConfig syncConfig(LocalPath::fromPath(s.words[1].s, *client->fsaccess), s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.getType());
+
+                    client->addsync(syncConfig, DEBRISFOLDER, NULL, false, false,
+                                    [](mega::UnifiedSync* us, const SyncError&, error e) {
+                        if (us && us->mSync)
+                        {
+                            cout << "Sync added and running. backupId = " << toHandle(us->mConfig.getBackupId());
+                        }
+                        else if (us)
+                        {
+                            cout << "Sync config added but could not be started: " << errorstring(e) << endl;
+                        }
+                        else
+                        {
+                            cout << "Sync config could not be started: " << errorstring(e) << endl;
+                        }
+                    });
+                }
+            }
+            else
+            {
+                cout << s.words[2].s << ": Syncing requires full access to path." << endl;
+            }
+
+            return;
+        }
+
+        handle backupId = 0;
+        Base64::atob(s.words[1].s.c_str(), (byte*)&backupId, sizeof backupId);
+        UnifiedSync* us = nullptr;
+
+        bool success = false;
+
+        if (enable)
+        {
+            success = client->syncs.enableSyncByBackupId(backupId, true, us) == API_OK;
+        }
+        else if (disable)
+        {
+            client->syncs.disableSelectedSyncs([&](SyncConfig& c, Sync*) {
+
+                bool matched = c.getBackupId() == backupId;
+                success = success || matched;  // no need to test s, auto tests check disable of disabled returns MegaError::API_OK
+                return matched;
+            }, NO_SYNC_ERROR, false);
+        }
+        else if (del)
+        {
+            client->syncs.removeSelectedSyncs([&](SyncConfig& c, Sync*){
+
+                bool matched = c.getBackupId() == backupId;
+                success = success || matched;
+                return matched;
+            });
+        }
+
+        (success) ? (cout << "Operation successfull") : (cout << "Operation failed");
+        cout << endl;
+    }
+    else
+    {
+        cout << "sync [-add local remote|-enable backupid|-disable backupid|-del backupid]" << endl;
     }
 }
 
