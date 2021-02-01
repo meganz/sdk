@@ -2806,7 +2806,7 @@ error JSONSyncConfigDB::write(JSONSyncConfigIOContext& ioContext)
     JSONWriter writer;
 
     // Serialize the database.
-    ioContext.serialize(mBackupIdToConfig, writer);
+    ioContext.serialize(*this, writer);
 
     // Try and write the database out to disk.
     if (ioContext.write(mDBPath, writer.getstring(), mSlot) != API_OK)
@@ -2840,10 +2840,10 @@ error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext,
     }
 
     // Try and deserialize the configs contained in the database.
-    JSONSyncConfigMap configs;
+    JSONSyncConfigReadContext context;
     JSON reader(data);
 
-    if (!ioContext.deserialize(mDBPath, configs, reader, slot))
+    if (!ioContext.deserialize(mDBPath, context, reader, slot))
     {
         // Couldn't deserialize the configs.
         return API_EREAD;
@@ -2857,14 +2857,14 @@ error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext,
     {
         const auto backupId = i++->first;
 
-        if (!configs.count(backupId))
+        if (!context.configs.count(backupId))
         {
             removeByBackupId(backupId, false);
         }
     }
 
     // Add (or update) configs.
-    for (auto& it : configs)
+    for (auto& it : context.configs)
     {
         // Correct config's drive path.
         it.second.mExternalDrivePath = mDrivePath;
@@ -2930,7 +2930,7 @@ JSONSyncConfigIOContext::~JSONSyncConfigIOContext()
 }
 
 bool JSONSyncConfigIOContext::deserialize(const LocalPath& dbPath,
-                                          JSONSyncConfigMap& configs,
+                                          JSONSyncConfigReadContext& context,
                                           JSON& reader,
                                           const unsigned int slot) const
 {
@@ -2939,7 +2939,7 @@ bool JSONSyncConfigIOContext::deserialize(const LocalPath& dbPath,
     LOG_debug << "Attempting to deserialize config DB: "
               << path;
 
-    if (deserialize(configs, reader))
+    if (deserialize(context, reader))
     {
         LOG_debug << "Successfully deserialized config DB: "
                   << path;
@@ -2953,7 +2953,7 @@ bool JSONSyncConfigIOContext::deserialize(const LocalPath& dbPath,
     return false;
 }
 
-bool JSONSyncConfigIOContext::deserialize(JSONSyncConfigMap& configs,
+bool JSONSyncConfigIOContext::deserialize(JSONSyncConfigReadContext& context,
                                           JSON& reader) const
 {
     const auto TYPE_SYNCS = MAKENAMEID2('s', 'y');
@@ -2971,39 +2971,11 @@ bool JSONSyncConfigIOContext::deserialize(JSONSyncConfigMap& configs,
             return reader.leaveobject();
 
         case TYPE_SYNCS:
-        {
-            if (!reader.enterarray())
+            if (!deserialize(context.configs, reader))
             {
                 return false;
             }
-
-            while (reader.enterobject())
-            {
-                SyncConfig config;
-
-                if (deserialize(config, reader))
-                {
-                    // So move is well-defined.
-                    const auto backupId = config.mBackupId;
-
-                    configs.emplace(backupId, std::move(config));
-                }
-                else
-                {
-                    LOG_err << "Failed to deserialize a sync config";
-                    assert(false);
-                }
-
-                reader.leaveobject();
-            }
-
-            if (!reader.leavearray())
-            {
-                return false;
-            }
-
             break;
-        }
 
         default:
             if (!reader.storeobject())
@@ -3188,18 +3160,13 @@ error JSONSyncConfigIOContext::remove(const LocalPath& dbPath)
     return result ? API_OK : API_EWRITE;
 }
 
-void JSONSyncConfigIOContext::serialize(const JSONSyncConfigMap& configs,
+void JSONSyncConfigIOContext::serialize(const JSONSyncConfigDB& db,
                                         JSONWriter& writer) const
 {
     writer.beginobject();
-    writer.beginarray("sy");
 
-    for (const auto& it : configs)
-    {
-        serialize(it.second, writer);
-    }
+    serialize(db.configs(), writer);
 
-    writer.endarray();
     writer.endobject();
 }
 
@@ -3320,6 +3287,37 @@ bool JSONSyncConfigIOContext::decrypt(const string& in, string& out)
                                             in.size() - METADATA_LENGTH,
                                             iv,
                                             &out);
+}
+
+bool JSONSyncConfigIOContext::deserialize(JSONSyncConfigMap& configs,
+                                          JSON& reader) const
+{
+    if (!reader.enterarray())
+    {
+        return false;
+    }
+
+    while (reader.enterobject())
+    {
+        SyncConfig config;
+
+        if (deserialize(config, reader))
+        {
+            // So move is well-defined.
+            const auto backupId = config.mBackupId;
+
+            configs.emplace(backupId, std::move(config));
+        }
+        else
+        {
+            LOG_err << "Failed to deserialize a sync config";
+            assert(false);
+        }
+
+        reader.leaveobject();
+    }
+
+    return reader.leavearray();
 }
 
 bool JSONSyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) const
@@ -3443,6 +3441,19 @@ string JSONSyncConfigIOContext::encrypt(const string& data)
 
     // We're done.
     return d;
+}
+
+void JSONSyncConfigIOContext::serialize(const JSONSyncConfigMap& configs,
+                                        JSONWriter& writer) const
+{
+    writer.beginarray("sy");
+
+    for (const auto& it : configs)
+    {
+        serialize(it.second, writer);
+    }
+
+    writer.endarray();
 }
 
 void JSONSyncConfigIOContext::serialize(const SyncConfig& config,

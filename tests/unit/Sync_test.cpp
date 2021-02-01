@@ -1867,8 +1867,8 @@ TEST_F(JSONSyncConfigIOContextTest, RemoveSlots)
 
 TEST_F(JSONSyncConfigIOContextTest, Serialize)
 {
-    JSONSyncConfigMap read;
-    JSONSyncConfigMap written;
+    JSONSyncConfigDB db(Utilities::randomPath());
+    JSONSyncConfigReadContext context;
     JSONWriter writer;
 
     // Populate the database with two configs.
@@ -1886,7 +1886,9 @@ TEST_F(JSONSyncConfigIOContextTest, Serialize)
         config.mWarning = NO_SYNC_WARNING;
         config.mSyncType = SyncConfig::TYPE_TWOWAY;
 
-        written.emplace(config.mBackupId, config);
+        auto *c = db.add(config);
+        ASSERT_NE(c, nullptr);
+        EXPECT_EQ(*c, config);
 
         config.mBackupId = 2;
         config.mEnabled = true;
@@ -1900,21 +1902,23 @@ TEST_F(JSONSyncConfigIOContextTest, Serialize)
         config.mWarning = LOCAL_IS_FAT;
         config.mSyncType = SyncConfig::TYPE_BACKUP;
 
-        written.emplace(config.mBackupId, config);
+        c = db.add(config);
+        ASSERT_NE(c, nullptr);
+        EXPECT_EQ(*c, config);
     }
 
     // Serialize the database.
-    ioContext().serialize(written, writer);
+    ioContext().serialize(db, writer);
     EXPECT_FALSE(writer.getstring().empty());
 
     // Deserialize the database.
     {
         JSON reader(writer.getstring());
-        EXPECT_TRUE(ioContext().deserialize(read, reader));
+        EXPECT_TRUE(ioContext().deserialize(context, reader));
     }
 
     // Are the databases identical?
-    EXPECT_EQ(read, written);
+    EXPECT_EQ(db.configs(), context.configs);
 }
 
 TEST_F(JSONSyncConfigIOContextTest, SerializeEmpty)
@@ -1924,18 +1928,20 @@ TEST_F(JSONSyncConfigIOContextTest, SerializeEmpty)
     // Serialize an empty database.
     {
         // Does serializing an empty database yield an empty array?
-        ioContext().serialize(JSONSyncConfigMap(), writer);
+        JSONSyncConfigDB db(Utilities::randomPath());
+
+        ioContext().serialize(db, writer);
         EXPECT_EQ(writer.getstring(), emptyDB());
     }
 
     // Deserialize the empty database.
     {
-        JSONSyncConfigMap configs;
+        JSONSyncConfigReadContext context;
         JSON reader(writer.getstring());
 
         // Can we deserialize an empty database?
-        EXPECT_TRUE(ioContext().deserialize(configs, reader));
-        EXPECT_TRUE(configs.empty());
+        EXPECT_TRUE(ioContext().deserialize(context, reader));
+        EXPECT_TRUE(context.configs.empty());
     }
 }
 

@@ -424,6 +424,8 @@ private:
 // Convenience.
 using JSONSyncConfigDBPtr = unique_ptr<JSONSyncConfigDB>;
 
+struct JSONSyncConfigReadContext;
+
 class MEGA_API JSONSyncConfigIOContext
 {
 public:
@@ -437,14 +439,13 @@ public:
 
     MEGA_DISABLE_COPY_MOVE(JSONSyncConfigIOContext);
 
-    // Deserialize configs from JSON (with logging.)
+    // Deserialize DB from JSON.
     bool deserialize(const LocalPath& dbPath,
-                     JSONSyncConfigMap& configs,
+                     JSONSyncConfigReadContext& context,
                      JSON& reader,
                      const unsigned int slot) const;
 
-    // Deserialize configs from JSON.
-    bool deserialize(JSONSyncConfigMap& configs,
+    bool deserialize(JSONSyncConfigReadContext& context,
                      JSON& reader) const;
 
     // Determine which slots are present.
@@ -463,8 +464,8 @@ public:
     // Remove all existing slots from disk.
     virtual error remove(const LocalPath& dbPath);
 
-    // Serialize configs to JSON.
-    void serialize(const JSONSyncConfigMap& configs,
+    // Serialize a DB to JSON.
+    void serialize(const JSONSyncConfigDB& db,
                    JSONWriter& writer) const;
 
     // Write data to the specified slot.
@@ -483,11 +484,19 @@ private:
     // Decrypt data.
     bool decrypt(const string& in, string& out);
 
+    // Deserialize configs from JSON.
+    bool deserialize(JSONSyncConfigMap& configs,
+                     JSON& reader) const;
+
     // Deserialize a config from JSON.
     bool deserialize(SyncConfig& config, JSON& reader) const;
 
     // Encrypt data.
     string encrypt(const string& data);
+
+    // Serialize configs to JSON.
+    void serialize(const JSONSyncConfigMap& configs,
+                   JSONWriter& writer) const;
 
     // Serialize a config to JSON.
     void serialize(const SyncConfig& config, JSONWriter& writer) const;
@@ -507,6 +516,11 @@ private:
     // Hash used to authenticate configuration databases.
     HMACSHA256 mSigner;
 }; // JSONSyncConfigIOContext
+
+struct JSONSyncConfigReadContext
+{
+    JSONSyncConfigMap configs;
+}; // JSONSyncConfigReadContext
 
 struct Syncs
 {
