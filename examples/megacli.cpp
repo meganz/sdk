@@ -3087,6 +3087,7 @@ autocomplete::ACN autocompleteSyntax()
 #ifdef ENABLE_SYNC
     p->Add(exec_sync, sequence(text("sync"), opt(either(sequence(localFSPath(), remoteFSPath(client, &cwd, "dst")), param("cancelslot")))));
     p->Add(exec_syncconfig, sequence(text("syncconfig"), opt(sequence(param("type (TWOWAY/UP/DOWN)"), opt(sequence(param("syncDeletions (ON/OFF)"), param("forceOverwrite (ON/OFF)")))))));
+    p->Add(exec_keepsyncs, sequence(text("keepsyncs"), opt(either(text("on"), text("off")))));
     p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(sequence(flag("-del"), param("backup_id")))));
 #endif
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(flag("-writable"), param("expiretime"), text("del")))));
@@ -4525,7 +4526,31 @@ void exec_syncconfig(autocomplete::ACState& s)
         assert(false);
     }
 }
-#endif
+
+void exec_keepsyncs(autocomplete::ACState& s)
+{
+    if (s.words.size() == 2)
+    {
+        if (s.words[1].s == "on")
+        {
+            client->setKeepSyncsAfterLogout(true);
+        }
+        else if (s.words[1].s == "off")
+        {
+            client->setKeepSyncsAfterLogout(false);
+        }
+        else
+        {
+            cout << "invalid setting to keep syncs after logout" << endl;
+        }
+    }
+    else
+    {
+        string status = client->getKeepSyncsAfterLogout() ? "on" : "off" ;
+        cout << "Current status: " << status << endl;
+    }
+}
+#endif // ENABLE_SYNC
 
 #ifdef USE_FILESYSTEM
 void exec_lpwd(autocomplete::ACState& s)
