@@ -44,13 +44,13 @@ if [ "$1" == "clean" ]; then
 fi
 
 pushd "${WEBRTC_SRC}" > /dev/null
-if [ "9863f3d246e2da7a2e1f42bbc5757f6af5ec5682" != "`git rev-parse HEAD`" ]; then
+if [ "41bfcf4a63611409220fcd458a03deaa2cd23619" != "`git rev-parse HEAD`" ]; then
   echo ""
   echo "* WARNING!!"
-  echo "* You are not using our recommended commit of WebRTC: 9863f3d246e2da7a2e1f42bbc5757f6af5ec5682 (branch-heads/m76)"
+  echo "* You are not using our recommended commit of WebRTC: 41bfcf4a63611409220fcd458a03deaa2cd23619 (branch-heads/4405)"
   echo "* Please consider to switch to that commit this way (in the src folder of WebRTC):"
   echo ""
-  echo "  git checkout 9863f3d246e2da7a2e1f42bbc5757f6af5ec5682"
+  echo "  git checkout 41bfcf4a63611409220fcd458a03deaa2cd23619"
   echo "  gclient sync"
   echo ""
   read -p "* Do you want to continue anyway? (y|N) " -n 1 c
@@ -58,13 +58,22 @@ if [ "9863f3d246e2da7a2e1f42bbc5757f6af5ec5682" != "`git rev-parse HEAD`" ]; the
   if [ "$c" != "y" ]; then
     exit 0
   fi
+else
+  var=$(grep 'Patch applied MEGA' video/buffered_frame_decryptor.cc | wc -l)
+  if [ "$var" -lt  1 ] ; then
+    git apply ${CURRENTPATH}/../../../patches/webRtcPatch.patch
+    echo "Patch Applied"
+    rm -rf "${CURRENTPATH}/webrtc"
+    rm -rf "${WEBRTC_SRC}/out/Release-${ARCH}"
+ else
+  echo "Patch already APPLIED"
+ fi
 fi
 popd > /dev/null
 
 mkdir -p ${CURRENTPATH}
 
-echo "* Setting up WebRTC"
-if [ ! -d "${CURRENTPATH}/webrtc" ]; then
+if [ ! -d "${CURRENTPATH}/webrtc" ] ; then
 
   if [ ! -e "${WEBRTC_SRC}/out/Release-${ARCH}/obj/libwebrtc.a" ]; then
     pushd ${WEBRTC_SRC}
@@ -153,10 +162,6 @@ if [ ! -e "${CURRENTPATH}/lib/libwebsockets.a" ]; then
 
 else
   echo "* libwebsockets already configured"
-fi
-
-if ! patch -R -p0 -s -f --dry-run ${WEBRTC_SRC}/api/jsep.h < ../../patches/webrtc_jsep_h.patch; then
-  patch -p0 ${WEBRTC_SRC}/api/jsep.h < ../../patches/webrtc_jsep_h.patch
 fi
 
 #link lib/* into libs if libs is not symlink
