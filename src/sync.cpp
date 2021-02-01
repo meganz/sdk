@@ -2956,32 +2956,63 @@ bool JSONSyncConfigIOContext::deserialize(const LocalPath& dbPath,
 bool JSONSyncConfigIOContext::deserialize(JSONSyncConfigMap& configs,
                                           JSON& reader) const
 {
-    if (!reader.enterarray())
+    const auto TYPE_SYNCS = MAKENAMEID2('s', 'y');
+
+    if (!reader.enterobject())
     {
         return false;
     }
 
-    // Deserialize the configs.
-    while (reader.enterobject())
+    for ( ; ; )
     {
-        SyncConfig config;
-
-        if (deserialize(config, reader))
+        switch (reader.getnameid())
         {
-            // So move is well-defined.
-            const auto backupId = config.getBackupId();
+        case EOO:
+            return reader.leaveobject();
 
-            configs.emplace(backupId, std::move(config));
-        }
-        else
+        case TYPE_SYNCS:
         {
-            LOG_err << "Failed to deserialize a sync config";
-            assert(false);
+            if (!reader.enterarray())
+            {
+                return false;
+            }
+
+            while (reader.enterobject())
+            {
+                SyncConfig config;
+
+                if (deserialize(config, reader))
+                {
+                    // So move is well-defined.
+                    const auto backupId = config.mBackupId;
+
+                    configs.emplace(backupId, std::move(config));
+                }
+                else
+                {
+                    LOG_err << "Failed to deserialize a sync config";
+                    assert(false);
+                }
+
+                reader.leaveobject();
+            }
+
+            if (!reader.leavearray())
+            {
+                return false;
+            }
+
+            break;
         }
-        reader.leaveobject();
+
+        default:
+            if (!reader.storeobject())
+            {
+                return false;
+            }
+            break;
+        }
     }
-
-    return reader.leavearray();
 }
 
 error JSONSyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
@@ -3160,7 +3191,8 @@ error JSONSyncConfigIOContext::remove(const LocalPath& dbPath)
 void JSONSyncConfigIOContext::serialize(const JSONSyncConfigMap& configs,
                                         JSONWriter& writer) const
 {
-    writer.beginarray();
+    writer.beginobject();
+    writer.beginarray("sy");
 
     for (const auto& it : configs)
     {
@@ -3168,6 +3200,7 @@ void JSONSyncConfigIOContext::serialize(const JSONSyncConfigMap& configs,
     }
 
     writer.endarray();
+    writer.endobject();
 }
 
 error JSONSyncConfigIOContext::write(const LocalPath& dbPath,

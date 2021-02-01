@@ -1347,7 +1347,7 @@ private:
 
 // Temporary shims so that we can easily switch to using
 // NiceMock / FakeStrictMock when GMock/GTest is upgraded on Jenkins.
-#if 1
+#if 0
 
 template<typename MockClass>
 class FakeNiceMock
@@ -1526,6 +1526,11 @@ public:
                    mConfigName,
                    mRNG)
     {
+    }
+
+    string emptyDB() const
+    {
+        return "{\"sy\":[]}";
     }
 
     FSACCESS_CLASS& fsAccess()
@@ -1920,7 +1925,7 @@ TEST_F(JSONSyncConfigIOContextTest, SerializeEmpty)
     {
         // Does serializing an empty database yield an empty array?
         ioContext().serialize(JSONSyncConfigMap(), writer);
-        EXPECT_EQ(writer.getstring(), "[]");
+        EXPECT_EQ(writer.getstring(), emptyDB());
     }
 
     // Deserialize the empty database.
@@ -2216,7 +2221,7 @@ TEST_F(JSONSyncConfigDBTest, ReadEmptyClearsDatabase)
       EXPECT_CALL(ioContext(),
                   read(Eq(dbPath()), _, Eq(0u)))
         .After(get)
-        .WillOnce(DoAll(SetArgReferee<1>("[]"),
+        .WillOnce(DoAll(SetArgReferee<1>(emptyDB()),
                         Return(API_OK)));
 
     // Read the empty database.
@@ -2346,7 +2351,7 @@ TEST_F(JSONSyncConfigDBTest, ReadTriesAllAvailableSlots)
     EXPECT_CALL(ioContext(),
                 read(Eq(dbPath()), _, Eq(3u)))
       .After(read2)
-      .WillOnce(DoAll(SetArgReferee<1>("[]"),
+      .WillOnce(DoAll(SetArgReferee<1>(emptyDB()),
                       Return(API_OK)));
 
     // Read should succeed as one slot could be read.
