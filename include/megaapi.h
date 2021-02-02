@@ -5218,7 +5218,10 @@ public:
     virtual const char* getLocalFolder() const;
 
     /**
-     * @brief Get the name of the sync. If none give: it will be the localpath
+     * @brief Get the name of the sync
+     *
+     * When the app did not provide an specific name, it will return the leaf
+     * name of the local folder.
      *
      * The SDK retains the ownership of the returned value. It will be valid until
      * the MegaSync object is deleted.

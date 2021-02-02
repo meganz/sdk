@@ -2149,6 +2149,7 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
     User* self = mClient.ownuser();
     if (!self)
     {
+        LOG_warn << "syncConfigIOContext: own user not available";
         return nullptr;
     }
 
@@ -2157,6 +2158,7 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
     if (!payload)
     {
         // Attribute hasn't been created yet.
+        LOG_warn << "syncConfigIOContext: JSON config data is not available";
         return nullptr;
     }
 
@@ -2167,6 +2169,7 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
     if (!store)
     {
         // Attribute is malformed.
+        LOG_err << "syncConfigIOContext: JSON config data is malformed";
         return nullptr;
     }
 
@@ -2183,6 +2186,7 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
         || name.size() != KEYLENGTH)
     {
         // Payload is malformed.
+        LOG_err << "syncConfigIOContext: JSON config data is incomplete";
         return nullptr;
     }
 
