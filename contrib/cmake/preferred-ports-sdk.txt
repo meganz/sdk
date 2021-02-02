@@ -37,6 +37,7 @@ liblzma/c303dd024e2dc03a0665ddffbb12a1077933e649
 python3/c303dd024e2dc03a0665ddffbb12a1077933e649
 libffi/c303dd024e2dc03a0665ddffbb12a1077933e649
 opengl/c303dd024e2dc03a0665ddffbb12a1077933e649
+freeglut/c303dd024e2dc03a0665ddffbb12a1077933e649 !osx
 
 # pdfium libraries, specific version for build stability  (preview/thumbnail generation for pdfs)
 # (see 3rdParty_deps.txt on instructions on how to get source)
