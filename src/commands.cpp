@@ -2793,7 +2793,10 @@ bool CommandPutUAVer::procresult(Result r)
 
             if (at == ATTR_JSON_SYNC_CONFIG_DATA)
             {
-                LOG_warn << "Attr for sync-config data was created by other client. Fetching...";
+                // it may happen that more than one client attempts to create the UA in parallel
+                // only the first one reaching the API will set the value, the other one should
+                // fetch the value manually
+                LOG_warn << "Failed to create JSON config data (already created). Fetching...";
                 client->reqs.add(new CommandGetUA(client, u->uid.c_str(), at, nullptr, 0));
             }
         }
