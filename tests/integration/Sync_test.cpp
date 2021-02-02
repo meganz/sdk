@@ -2040,9 +2040,9 @@ struct StandardClient : public MegaApp
         return fb.get();
     }
 
-    bool delSync_mainthread(handle syncTag, bool keepCache = false)
+    bool delSync_mainthread(handle backupId, bool keepCache = false)
     {
-        future<bool> fb = thread_do<bool>([=](StandardClient& mc, PromiseBoolSP pb) { pb->set_value(mc.delSync_inthread(syncTag, keepCache)); });
+        future<bool> fb = thread_do<bool>([=](StandardClient& mc, PromiseBoolSP pb) { pb->set_value(mc.delSync_inthread(backupId, keepCache)); });
         return fb.get();
     }
 
@@ -2763,7 +2763,7 @@ GTEST_TEST(Sync, BasicSync_MassNotifyFromLocalFolderTree)
     auto startTime = std::chrono::steady_clock::now();
     while (std::chrono::steady_clock::now() - startTime < std::chrono::seconds(5 * 60))
     {
-        int remaining = 0;
+        size_t remaining = 0;
         auto result0 = clientA1.thread_do<bool>([&](StandardClient &sc, PromiseBoolSP p)
         {
             sc.client.syncs.forEachRunningSync(

@@ -888,11 +888,31 @@ public:
     // storage status
     storagestatus_t ststatus;
 
-    // account type: Free|Pro Lite|Pro I|Pro II|Pro III|Business
-    AccountType mAccountType = ACCOUNT_TYPE_UNKNOWN;
+    class CacheableStatusMap : private map<int64_t, CacheableStatus>
+    {
+    public:
+        CacheableStatusMap(MegaClient *client) { mClient = client; }
+
+        // returns the cached value for type, or defaultValue if not found
+        int64_t lookup(int64_t type, int64_t defaultValue);
+
+        // add/update cached status, both in memory and DB
+        bool addOrUpdate(int64_t type, int64_t value);
+
+        // adds a new item to the map. It also initializes dedicated vars in the client (used to load from DB)
+        void loadCachedStatus(int64_t type, int64_t value);
+
+        // for unserialize
+        CacheableStatus *getPtr(int64_t type);
+
+        void clear() { map::clear(); }
+
+    private:
+        MegaClient *mClient = nullptr;
+    };
 
     // cacheable status
-    std::map<int64_t, std::shared_ptr<CacheableStatus>> mCachedStatus;
+    CacheableStatusMap mCachedStatus;
 
     // warning timestamps related to storage overquota in paywall mode
     vector<m_time_t> mOverquotaWarningTs;
@@ -1704,9 +1724,6 @@ public:
     SymmCipher tmpnodecipher;
     SymmCipher tmptransfercipher;
 
-    void exportDatabase(string filename);
-    bool compareDatabases(string filename1, string filename2);
-
     // request a link to recover account
     void getrecoverylink(const char *email, bool hasMasterkey);
 
@@ -1833,9 +1850,6 @@ public:
     bool getKeepSyncsAfterLogout() const;
     void setKeepSyncsAfterLogout(bool keepSyncsAfterLogout);
 #endif
-
-    void loadCacheableStatus(std::shared_ptr<CacheableStatus> status);
-
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();
