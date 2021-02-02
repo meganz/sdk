@@ -260,7 +260,6 @@ ENDIF(WIN32)
 
 include(CheckIncludeFile)
 include(CheckFunctionExists)
-
 check_include_file(inttypes.h HAVE_INTTYPES_H)
 check_include_file(dirent.h HAVE_DIRENT_H)
 check_include_file(uv.h HAVE_LIBUV)
@@ -297,75 +296,15 @@ function(ImportALibrary libName includeDir) #receives also libfileDebug & libfil
     endforeach(libfile)
 endfunction(ImportALibrary)
 
-#[[
-    ImportStdVcpkgLibrary(
-        libName
-        [ [TARGET_LIBRARY lib]
-          [DEBUG_SUFFIX suffix]
-        ] |
-        [NAMES_LIST winDbg win nixDbg nix]
-    )
+function(ImportStdVcpkgLibrary libName winDbg win linDbg lin)
+    message(STATUS "ImportStdVcpkgLibrary searching for ${libName}")
 
-    Import a library provided by vcpkg.
-
-    In all cases the only path searched is vcpkg_dir. The function fails with a fatal error
-    if a debug and release version is not found there.
-    The only mandatory argument is libName. After successful return from this function libName
-    will be an imported library target with location and include directories to link against
-    that library.
-    If libName is the only argument, use find_library to search for libName on *nix platforms,
-    and to search for libName.lib and libName on Windows.
-    If TARGET_LIBRARY is specified, the search logic just described uses lib instead of libName.
-    If DEBUG_SUFFIX is specified, the search appends suffix when looking in the debug folder.
-    NAMES_LIST is exclusive of the other two optional arguments. If specified, 
-    winDbg is the debug library name on Windows,
-    win is the regular library name on Windows,
-    and likewise with nixDbg and nix for *nix platforms. 
-]]
-function(ImportStdVcpkgLibrary libName)
-    cmake_parse_arguments(
-        _isvl
-        "" # no option keywords
-        "TARGET_LIBRARY;DEBUG_SUFFIX" # single value keywords
-        "NAMES_LIST" # multi value keywords
-        ${ARGN} 
-    )
-
-    if(_isvl_UNPARSED_ARGUMENTS)
-        message(FATAL_ERROR "Unrecognized arguments to ImportStdVcpkgLibrary: ${_isvl_UNPARSED_ARGUMENTS}")
-    endif()
-
-    if(ARGC EQUAL 1)
-        _ImportStdVcpkgLibraryImpl(${libName} ${libName} ${libName} ${libName} ${libName})
-        return()
-    endif()
-
-    if(_isvl_NAMES_LIST)
-        if(_isvl_TARGET_LIBRARY OR _isvl_DEBUG_SUFFIX)
-            message(FATAL_ERROR "NAMES_LIST version of ImportStdVcpkgLibrary excludes other options")
-        endif()
-        _ImportStdVcpkgLibraryImpl(${libName} ${_isvl_NAMES_LIST})
-        return()
-    endif()
-
-    if(_isvl_TARGET_LIBRARY)
-        set(_target_lib ${_isvl_TARGET_LIBRARY})
-    else()
-        set(_target_lib ${libName})
-    endif()
-
-    set(_target_lib_dbg "${_target_lib}${_isvl_DEBUG_SUFFIX}")
-
-    _ImportStdVcpkgLibraryImpl(${libName} ${_target_lib_dbg} ${_target_lib} ${_target_lib_dbg} ${_target_lib})
-endfunction()
-
-function(_ImportStdVcpkgLibraryImpl libName winDbg win linDbg lin)
     set(_vcpkg_lib_prefix "${vcpkg_dir}/lib/")
     set(_vcpkg_lib_prefix_dbg "${vcpkg_dir}/debug/lib")
 
     if(WIN32)
-        set(_target_lib "${win}.lib" "${win}")
-        set(_target_lib_dbg "${winDbg}.lib" "${winDbg}")
+        set(_target_lib ${win})
+        set(_target_lib_dbg ${winDbg})
     else()
         set(_target_lib ${lin})
         set(_target_lib_dbg ${linDbg})
@@ -376,19 +315,19 @@ function(_ImportStdVcpkgLibraryImpl libName winDbg win linDbg lin)
 
     find_library(
         ${_out_var}
-        NAMES ${_target_lib}
+        ${_target_lib}
         PATHS ${_vcpkg_lib_prefix}
         NO_DEFAULT_PATH
     )
 
     find_library(
         ${_out_var_dbg}
-        NAMES ${_target_lib_dbg}
+        ${_target_lib_dbg}
         PATHS ${_vcpkg_lib_prefix_dbg}
         NO_DEFAULT_PATH
     )
 
-    if(NOT ${_out_var} OR NOT ${_out_var_dbg})
+    if(NOT ${_out_var} AND NOT ${_out_var_dbg})
         message(FATAL_ERROR "ImportStdVcpkgLibrary could not find ${libName}")
     endif()
 
@@ -399,6 +338,7 @@ function(_ImportStdVcpkgLibraryImpl libName winDbg win linDbg lin)
     )
 
     if(${_out_var})
+        message(STATUS "Found ${libName}: ${${_out_var}}")
         set_target_properties(
             ${libName}
             PROPERTIES
@@ -408,12 +348,30 @@ function(_ImportStdVcpkgLibraryImpl libName winDbg win linDbg lin)
     endif()
 
     if(${_out_var_dbg})
+        message(STATUS "Found debug ${libName}: ${${_out_var_dbg}}")
         set_property(
             TARGET ${libName}
             PROPERTY IMPORTED_LOCATION_DEBUG ${${_out_var_dbg}}
         )
     endif()
-endfunction(_ImportStdVcpkgLibraryImpl)
+
+#[[
+    if (WIN32 OR EXISTS ${vcpkg_dir}/lib/${lin}.a OR EXISTS ${vcpkg_dir}/debug/lib/${linDbg}.a)
+        add_library(${libName} STATIC IMPORTED)
+        message("adding library: " ${vcpkg_dir}/lib/${lin}.a)
+        # function that imports vcpkg libraries (receiving different names for win/linux)
+        set_property(TARGET ${libName} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${vcpkg_dir}/include)
+        if (WIN32)
+            set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION  ${vcpkg_dir}/lib/${win}.lib)
+            set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION_DEBUG ${vcpkg_dir}/debug/lib/${winDbg}.lib)
+        else()
+                set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION  ${vcpkg_dir}/lib/${lin}.a)
+                set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION_DEBUG ${vcpkg_dir}/debug/lib/${linDbg}.a)
+        endif()
+    endif()
+]]
+
+endfunction(ImportStdVcpkgLibrary)
 
 function(ImportHeaderLibrary libName includeDir)
     add_library(${libName} INTERFACE IMPORTED)
@@ -422,8 +380,8 @@ endfunction(ImportHeaderLibrary)
 
 if(NOT NO_READLINE)
     if (APPLE)
-        ImportStdVcpkgLibrary(readline)
-        ImportStdVcpkgLibrary(history)
+        ImportStdVcpkgLibrary(readline readline readline readline readline)
+        ImportStdVcpkgLibrary(history history history history history)
         set(readline_LIBRARIES readline history)
     else()
         set(readline_LIBRARIES readline)
@@ -433,24 +391,25 @@ endif()
 
 if (USE_THIRDPARTY_FROM_VCPKG)
         IF(USE_CRYPTOPP)
-            ImportStdVcpkgLibrary(cryptopp NAMES_LIST cryptopp-static cryptopp-static cryptopp cryptopp)
+            ImportStdVcpkgLibrary(cryptopp        cryptopp-static cryptopp-static cryptopp cryptopp)
         ENDIF(USE_CRYPTOPP)
 
         IF(USE_SODIUM)
-            ImportStdVcpkgLibrary(sodium)
+            ImportStdVcpkgLibrary(sodium          libsodium libsodium sodium sodium)
         ENDIF(USE_SODIUM)
 
-        ImportStdVcpkgLibrary(z NAMES_LIST zlibd zlib z z)
+        ImportStdVcpkgLibrary(z               zlibd zlib z z)
 
         IF(USE_CURL)
             IF(USE_WEBRTC)
                 ImportStdVcpkgLibrary(curl         "${Mega3rdPartyDir}/curl/include" "${Mega3rdPartyDir}/curl/build32/lib/Debug/libcurl-d.lib" "${Mega3rdPartyDir}/curl/build32/lib/Release/libcurl.lib")
             ELSE()
-                ImportStdVcpkgLibrary(curl DEBUG_SUFFIX "-d")
+                ImportStdVcpkgLibrary(curl        libcurl-d libcurl curl-d curl)
+                #find_package(CURL CONFIG REQUIRED PATHS "${vcpkg_dir}/share/curl" NO_DEFAULT_PATH )
             ENDIF()
         ENDIF()
         IF(USE_CURL)
-            ImportStdVcpkgLibrary(cares)
+            ImportStdVcpkgLibrary(cares       cares cares cares cares)
         ENDIF()
 
         IF(USE_OPENSSL)
@@ -458,9 +417,9 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                 include_directories( "${WebRtcDir}/webrtc/src/third_party/boringssl/src/include" )
             ELSE()
                 #ImportStdVcpkgLibrary(ssl         ssleay32 ssleay32 libssl libssl) # prior openssl 1.1.0
-                ImportStdVcpkgLibrary(ssl)
+                ImportStdVcpkgLibrary(ssl         libssl libssl ssl ssl)
                 #ImportStdVcpkgLibrary(crypto      libeay32 libeay32 libcrypto libcrypto) # prior openssl 1.1.0
-                ImportStdVcpkgLibrary(crypto)
+                ImportStdVcpkgLibrary(crypto      libcrypto libcrypto crypto crypto)
 
             ENDIF()
         ENDIF()
@@ -470,41 +429,41 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             add_definitions( -DWEBRTC_WIN )
         ENDIF()
 
-        ImportStdVcpkgLibrary(gtest DEBUG_SUFFIX d)
+        ImportStdVcpkgLibrary(gtest           gtestd gtest gtestd gtest)
 
         IF(USE_MEDIAINFO)
             IF(CMAKE_HOST_APPLE)
                 set(DEBUG_SUFIX _debug)
             endif()
-            ImportStdVcpkgLibrary(zen NAMES_LIST zend zen zen${DEBUG_SUFIX} zen)
-            ImportStdVcpkgLibrary(mediainfo NAMES_LIST mediainfod mediainfo mediainfo${DEBUG_SUFIX} mediainfo)
+            ImportStdVcpkgLibrary(zen        zend zen zen${DEBUG_SUFIX} zen)
+            ImportStdVcpkgLibrary(mediainfo  mediainfod mediainfo mediainfo${DEBUG_SUFIX} mediainfo)
         ENDIF(USE_MEDIAINFO)
 
         IF(USE_FREEIMAGE)
-            ImportStdVcpkgLibrary(freeimage TARGET_LIBRARY FreeImage DEBUG_SUFFIX d)
-            ImportStdVcpkgLibrary(freeimage_Iex TARGET_LIBRARY Iex-2_5 DEBUG_SUFFIX _d)
-            ImportStdVcpkgLibrary(freeimage_IexMath TARGET_LIBRARY IexMath-2_5 DEBUG_SUFFIX _d)
-            ImportStdVcpkgLibrary(freeimage_IlmImf TARGET_LIBRARY IlmImf-2_5 DEBUG_SUFFIX _d)
-            ImportStdVcpkgLibrary(freeimage_IlmImfUtil TARGET_LIBRARY IlmImfUtil-2_5 DEBUG_SUFFIX _d)
-            ImportStdVcpkgLibrary(freeimage_IlmThread TARGET_LIBRARY IlmThread-2_5 DEBUG_SUFFIX _d)
-            ImportStdVcpkgLibrary(freeimage_Imath TARGET_LIBRARY IMath-2_5 DEBUG_SUFFIX _d)
-            ImportStdVcpkgLibrary(freeimage_jpeg NAMES_LIST jpegd jpeg jpeg jpeg)
-            ImportStdVcpkgLibrary(freeimage_turbojpeg NAMES_LIST turbojpegd turbojpeg turbojpeg turbojpeg)
-            ImportStdVcpkgLibrary(freeimage_jpegxr TARGET_LIBRARY jpegxr DEBUG_SUFFIX d)
-            ImportStdVcpkgLibrary(freeimage_jxrglue TARGET_LIBRARY jxrglue DEBUG_SUFFIX d)
-            ImportStdVcpkgLibrary(freeimage_openjp2 TARGET_LIBRARY openjp2)
-            ImportStdVcpkgLibrary(freeimage_half TARGET_LIBRARY half-2_5 DEBUG_SUFFIX _d)
-            ImportStdVcpkgLibrary(freeimage_jasper TARGET_LIBRARY jasper DEBUG_SUFFIX d)
-            ImportStdVcpkgLibrary(freeimage_libpng TARGET_LIBRARY png16 DEBUG_SUFFIX d)
-            ImportStdVcpkgLibrary(freeimage_lzma TARGET_LIBRARY lzma DEBUG_SUFFIX d)
-            ImportStdVcpkgLibrary(freeimage_lcms2 TARGET_LIBRARY lcms DEBUG_SUFFIX d)
-            ImportStdVcpkgLibrary(freeimage_raw TARGET_LIBRARY raw DEBUG_SUFFIX d)
-            ImportStdVcpkgLibrary(freeimage_tiff TARGET_LIBRARY tiff DEBUG_SUFFIX d)
-            ImportStdVcpkgLibrary(freeimage_tiffxx TARGET_LIBRARY tiffxx DEBUG_SUFFIX d)
-            ImportStdVcpkgLibrary(freeimage_webp TARGET_LIBRARY webp DEBUG_SUFFIX d)
-            ImportStdVcpkgLibrary(freeimage_webpdecoder TARGET_LIBRARY webpdecoder DEBUG_SUFFIX d)
-            ImportStdVcpkgLibrary(freeimage_webpdemux TARGET_LIBRARY webpdemux DEBUG_SUFFIX d)
-            ImportStdVcpkgLibrary(freeimage_webpmux TARGET_LIBRARY webpmux DEBUG_SUFFIX d)
+            ImportStdVcpkgLibrary(freeimage             FreeImaged       FreeImage      libFreeImaged       libFreeImage       )
+            ImportStdVcpkgLibrary(freeimage_Iex         Iex-2_5_d        Iex-2_5        libIex-2_5_d        libIex-2_5         )
+            ImportStdVcpkgLibrary(freeimage_IexMath     IexMath-2_5_d    IexMath-2_5    libIexMath-2_5_d    libIexMath-2_5     )
+            ImportStdVcpkgLibrary(freeimage_IlmImf      IlmImf-2_5_d     IlmImf-2_5     libIlmImf-2_5_d     libIlmImf-2_5      )
+            ImportStdVcpkgLibrary(freeimage_IlmImfUtil  IlmImfUtil-2_5_d IlmImfUtil-2_5 libIlmImfUtil-2_5_d libIlmImfUtil-2_5  )
+            ImportStdVcpkgLibrary(freeimage_IlmThread   IlmThread-2_5_d  IlmThread-2_5  libIlmThread-2_5_d  libIlmThread-2_5   )
+            ImportStdVcpkgLibrary(freeimage_Imath       IMath-2_5_d      IMath-2_5      libImath-2_5_d      libImath-2_5       )
+            ImportStdVcpkgLibrary(freeimage_jpeg        jpegd            jpeg           libjpeg             libjpeg            )
+            ImportStdVcpkgLibrary(freeimage_turbojpeg   turbojpegd       turbojpeg      libturbojpeg        libturbojpeg       )
+            ImportStdVcpkgLibrary(freeimage_jpegxr      jpegxrd          jpegxr         libjpegxrd          libjpegxr          )
+            ImportStdVcpkgLibrary(freeimage_jxrglue     jxrglued         jxrglue        libjxrglued         libjxrglue         )
+            ImportStdVcpkgLibrary(freeimage_openjp2     openjp2          openjp2        libopenjp2          libopenjp2         )
+            ImportStdVcpkgLibrary(freeimage_half        half-2_5_d       half-2_5       libHalf-2_5_d       libHalf-2_5        )
+            ImportStdVcpkgLibrary(freeimage_jasper      jasperd          jasper         libjasperd          libjasper          )
+            ImportStdVcpkgLibrary(freeimage_libpng      libpng16d        libpng16       libpng16d           libpng16           )
+            ImportStdVcpkgLibrary(freeimage_lzma        lzmad            lzma           liblzmad            liblzma            )
+            ImportStdVcpkgLibrary(freeimage_lcms2       lcmsd            lcms           liblcmsd            liblcms            )
+            ImportStdVcpkgLibrary(freeimage_raw         rawd             raw            librawd             libraw             )
+            ImportStdVcpkgLibrary(freeimage_tiff        tiffd            tiff           libtiffd            libtiff            )
+            ImportStdVcpkgLibrary(freeimage_tiffxx      tiffxxd          tiffxx         libtiffxxd          libtiffxx          )
+            ImportStdVcpkgLibrary(freeimage_webp        webpd            webp           libwebpd            libwebp            )
+            ImportStdVcpkgLibrary(freeimage_webpdecoder webpdecoderd     webpdecoder    libwebpdecoderd     libwebpdecoder     )
+            ImportStdVcpkgLibrary(freeimage_webpdemux   webpdemuxd       webpdemux      libwebpdemuxd       libwebpdemux       )
+            ImportStdVcpkgLibrary(freeimage_webpmux     libwebpmuxd      libwebpmux     libwebpmuxd         libwebpmux         )
 
             set (freeimage_deps freeimage_Iex  freeimage_IlmImf freeimage_IlmImfUtil
                 freeimage_IlmThread freeimage_jpeg freeimage_openjp2
@@ -520,60 +479,53 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         ENDIF(USE_FREEIMAGE)
 
         IF(HAVE_FFMPEG)
-            ImportStdVcpkgLibrary(avformat)
-            ImportStdVcpkgLibrary(avutil)
-            ImportStdVcpkgLibrary(avcodec)
-            ImportStdVcpkgLibrary(avfilter)
-            ImportStdVcpkgLibrary(avdevice)
-            ImportStdVcpkgLibrary(swscale)
-            ImportStdVcpkgLibrary(swresample)
+            ImportStdVcpkgLibrary(avformat avformat avformat avformat avformat)
+            ImportStdVcpkgLibrary(avutil avutil avutil avutil avutil)
+            ImportStdVcpkgLibrary(avcodec avcodec avcodec avcodec avcodec)
+            ImportStdVcpkgLibrary(avfilter avfilter avfilter avfilter avfilter)
+            ImportStdVcpkgLibrary(avdevice avdevice avdevice avdevice avdevice)
+            ImportStdVcpkgLibrary(swscale  swscale swscale swscale swscale)
+            ImportStdVcpkgLibrary(swresample swresample swresample swresample swresample)
         ENDIF(HAVE_FFMPEG)
 
         IF(USE_SQLITE)
-            ImportStdVcpkgLibrary(sqlite3)
+            ImportStdVcpkgLibrary(sqlite3          sqlite3 sqlite3 sqlite3 sqlite3)
         ENDIF(USE_SQLITE)
 
         IF(USE_LIBUV)
-            ImportStdVcpkgLibrary(uv TARGET_LIBRARY libuv)
+            ImportStdVcpkgLibrary(uv       libuv libuv libuv libuv)
         ENDIF(USE_LIBUV)
 
         IF(USE_LIBRAW)
-            ImportStdVcpkgLibrary(raw DEBUG_SUFFIX d)
-            ImportStdVcpkgLibrary(raw_lcms TARGET_LIBRARY lcms DEBUG_SUFFIX d)
+            ImportStdVcpkgLibrary(raw                  rawd raw rawd raw)
+            ImportStdVcpkgLibrary(raw_lcms           lcmsd lcms lcmsd lcms)
 
             IF(NOT CMAKE_HOST_APPLE)
-            ImportStdVcpkgLibrary(raw_jasper TARGET_LIBRARY jasper DEBUG_SUFFIX d)
-            ImportStdVcpkgLibrary(raw_libjpeg_turbo NAMES_LIST turbojpegd turbojpeg turbojpeg turbojpeg)
+            ImportStdVcpkgLibrary(raw_jasper           jasperd jasper jasperd jasper)
+            ImportStdVcpkgLibrary(raw_libjpeg_turbo    turbojpegd turbojpeg turbojpeg turbojpeg)
             SET(raw_deps raw_jasper raw_libjpeg_turbo raw_lcms)
             else()
                 SET(raw_deps  raw_lcms)
             endif()
 
             IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
-                include(CheckCXXCompilerFlag)
-
-                check_cxx_compiler_flag(-fgomp HAS_FGOMP)
-                check_cxx_compiler_flag(-fopenmp HAS_FOPENMP)
-
-                set(Mega_PlatformSpecificLibs
-                      ${Mega_PlatformSpecificLibs}
-                      $<$<BOOL:${HAS_FGOMP}>:-fgomp>
-                      $<$<BOOL:${HAS_FOPENMP}>:-fopenmp>)
+                set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} -fopenmp -fgomp)
             ENDIF()
 
         ENDIF(USE_LIBRAW)
 
         IF(USE_PDFIUM)
-            ImportStdVcpkgLibrary(pdfium)
+            ImportStdVcpkgLibrary(pdfium       pdfium pdfium pdfium pdfium)
 
-            ImportStdVcpkgLibrary(freetype DEBUG_SUFFIX d)
-            ImportStdVcpkgLibrary(icu NAMES_LIST icuucd icuuc icuuc icuuc)
-            ImportStdVcpkgLibrary(icudt NAMES_LIST icudtd icudt icudt icudt)
-            ImportStdVcpkgLibrary(lcms DEBUG_SUFFIX d)
-            ImportStdVcpkgLibrary(turbojpeg NAMES_LIST jpegd jpeg jpeg jpeg)
-            ImportStdVcpkgLibrary(openjpeg TARGET_LIBRARY openjp2)
+            ImportStdVcpkgLibrary(freetype     freetyped freetype freetyped freetype)
+            ImportStdVcpkgLibrary(icu          icuucd icuuc icuuc icuuc)
+            ImportStdVcpkgLibrary(icudt        icudtd icudt icudt icudt)
+            ImportStdVcpkgLibrary(lcms         lcmsd lcms lcmsd lcms)
+            ImportStdVcpkgLibrary(turbojpeg    jpegd jpeg jpeg jpeg)
+            ImportStdVcpkgLibrary(openjpeg     openjp2 openjp2 openjp2 openjp2)
+
             IF (CMAKE_HOST_APPLE OR CMAKE_HOST_WIN32)
-                ImportStdVcpkgLibrary(bzip2 TARGET_LIBRARY bz2 DEBUG_SUFFIX d)
+                ImportStdVcpkgLibrary(bzip2       bz2d bz2 bz2d bz2)
                 set (pdfium_deps bzip2)
             ELSEIF (CMAKE_HOST_UNIX)
                 set(ENV{PKG_CONFIG_PATH} "${vcpkg_dir}/lib/pkgconfig")
