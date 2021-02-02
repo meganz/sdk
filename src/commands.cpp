@@ -2865,6 +2865,11 @@ bool CommandPutUAVer::procresult(Result r)
                     client->mPendingBackupNames.clear();
                 }
             }
+            else if (at == ATTR_UNSHAREABLE_KEY)
+            {
+                LOG_info << "Unshareable key successfully created";
+                client->unshareablekey.swap(av);
+            }
 
             client->notifyuser(u);
             client->app->putua_result(API_OK);
@@ -2938,11 +2943,6 @@ bool CommandPutUA::procresult(Result r)
             {
                 LOG_info << "File versioning is enabled";
             }
-        }
-        else if (at == ATTR_UNSHAREABLE_KEY)
-        {
-            LOG_info << "Unshareable key successfully created";
-            client->unshareablekey.swap(av);
         }
         client->app->putua_result(API_OK);
     }
