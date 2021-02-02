@@ -4084,6 +4084,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_BACKUP_PUT_HEART_BEAT: return "BACKUP_PUT_HEART_BEAT";
         case TYPE_FETCH_GOOGLE_ADS: return "FETCH_GOOGLE_ADS";
         case TYPE_QUERY_GOOGLE_ADS: return "QUERY_GOOGLE_ADS";
+        case TYPE_START_CHAT_CALL: return "START_CHAT_CALL";
+        case TYPE_JOIN_CHAT_CALL: return "JOIN_CHAT_CALL";
     }
     return "UNKNOWN";
 }
