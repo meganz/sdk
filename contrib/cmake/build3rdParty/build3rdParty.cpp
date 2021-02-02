@@ -27,6 +27,24 @@ namespace fs = std::experimental::filesystem;
 namespace fs = std::__fs::filesystem;
 #endif
 
+enum class Platform {
+    windows,
+    osx,
+    linux,
+};
+
+constexpr Platform buildPlatform = 
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
+Platform::windows
+#elif __APPLE__
+#include <TargetConditionals.h>
+    #if TARGET_OS_MAC
+Platform::osx
+    #endif
+#elif __linux__
+Platform::linux
+#endif
+; // error here: platform not detected from supported list
 
 
 bool build = false;
@@ -45,7 +63,7 @@ fs::path initialDir = fs::current_path();
 fs::path vcpkgDir = fs::current_path() / "vcpkg";
 fs::path cloneDir = fs::current_path() / "vcpkg_clone";
 
-
+string platformToString(Platform p);
 bool readCommandLine(int argc, char* argv[]);
 void execute(string command);
 
@@ -179,6 +197,19 @@ catch (exception& e)
     return 1;
 }
 
+string platformToString(Platform p)
+{
+    switch (p) {
+        case Platform::windows:
+        return "windows";
+        case Platform::osx:
+        return "osx";
+        case Platform::linux:
+        return "linux";
+        default:
+        throw std::logic_error("Unhandled platform enumerator");
+    }
+}
 
 void execute(string command)
 {
@@ -277,6 +308,17 @@ bool readCommandLine(int argc, char* argv[])
         while (!s.empty() && (s.front() == ' ' || s.front() == '\t')) s.erase(0, 1);
         while (!s.empty() && (s.back() == ' ' || s.back() == '\t')) s.pop_back();
         if (s.empty()) continue;
+
+        // check if port should be skipped for this platform
+        if (s.find("!" + platformToString(buildPlatform)) != string::npos) 
+        {
+            cout << "Skipping line <" << s << "> due to platform exclude expression for detected platform " 
+            << platformToString(buildPlatform) << "\n";
+            continue;
+        }
+
+        // if not, extract the exclude expressions so we don't have to worry about them
+        s = s.substr(0, s.find("!"));
 
         // extract port/version map
         auto slashpos = s.find("/");
