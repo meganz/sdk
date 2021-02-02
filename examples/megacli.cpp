@@ -3026,34 +3026,46 @@ void exec_timelocal(autocomplete::ACState& s)
 
 void exec_backupcentre(autocomplete::ACState& s)
 {
-    client->reqs.add(new CommandBackupSyncFetch([&](Error e, vector<CommandBackupSyncFetch::Data>& data){
-        if (e)
-        {
-            cout << "backupcentre failed: " << e << endl;
-        }
-        else
-        {
-            cout << "Backup Centre sync count: " << data.size() << endl;
-            for (auto& d : data)
+    bool del = s.extractflag("-del");
+
+    if (s.words.size() == 1)
+    {
+        client->reqs.add(new CommandBackupSyncFetch([&](Error e, vector<CommandBackupSyncFetch::Data>& data){
+            if (e)
             {
-                cout << "id: " << toHandle(d.backupId) << endl;
-                cout << "  sync type: " << d.syncType << endl;
-                cout << "  root handle: " << toNodeHandle(d.rootNode) << endl;
-                cout << "  local folder: " << d.localFolder << endl;
-                cout << "  device id: " << d.deviceId << endl;
-                cout << "  sync state: " << d.syncState << endl;
-                cout << "  sync substate: " << d.syncSubstate << endl;
-                cout << "  extra: " << d.extra << endl;
-                cout << "  heartbeat timestamp: " << d.hbTimestamp << endl;
-                cout << "  heartbeat status: " << d.hbStatus << endl;
-                cout << "  heartbeat progress: " << d.hbProgress << endl;
-                cout << "  heartbeat uploads: " << d.uploads << endl;
-                cout << "  heartbeat downloads: " << d.downloads << endl;
-                cout << "  last activity time: " << d.lastActivityTs << endl;
-                cout << "  last node handle: " << toNodeHandle(d.lastSyncedNodeHandle) << endl;
+                cout << "backupcentre failed: " << e << endl;
             }
-        }
-    }));
+            else
+            {
+                for (auto& d : data)
+                {
+                    cout << "Backup ID: " << toHandle(d.backupId) << endl;
+                    cout << "  backup type: " << backupTypeToStr(d.backupType) << endl;
+                    cout << "  root handle: " << toNodeHandle(d.rootNode) << endl;
+                    cout << "  local folder: " << d.localFolder << endl;
+                    cout << "  device id: " << d.deviceId << endl;
+                    cout << "  sync state: " << d.syncState << endl;
+                    cout << "  sync substate: " << d.syncSubstate << endl;
+                    cout << "  extra: " << d.extra << endl;
+                    cout << "  heartbeat timestamp: " << d.hbTimestamp << endl;
+                    cout << "  heartbeat status: " << d.hbStatus << endl;
+                    cout << "  heartbeat progress: " << d.hbProgress << endl;
+                    cout << "  heartbeat uploads: " << d.uploads << endl;
+                    cout << "  heartbeat downloads: " << d.downloads << endl;
+                    cout << "  last activity time: " << d.lastActivityTs << endl;
+                    cout << "  last node handle: " << toNodeHandle(d.lastSyncedNodeHandle) << endl << endl;
+                }
+
+                cout << "Backup Centre - Backups count: " << data.size() << endl;
+            }
+        }));
+    }
+    else if (s.words.size() == 2 && del)
+    {
+        handle backupId;
+        Base64::atob(s.words[1].s.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
+        client->reqs.add(new CommandBackupRemove(client, backupId));
+    }
 }
 
 
@@ -3134,7 +3146,7 @@ autocomplete::ACN autocompleteSyntax()
                            sequence(text("enable"),
                                     param("id")))));
 
-    p->Add(exec_backupcentre, sequence(text("backupcentre")));
+    p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(sequence(flag("-del"), param("backup_id")))));
 
 #endif
 
@@ -7891,6 +7903,18 @@ void DemoApp::dismissbanner_result(error e)
     else
     {
         cout << "Dismissing Smart Banner succeeded" << endl;
+    }
+}
+
+void DemoApp::backupremove_result(const Error &e, handle backupId)
+{
+    if (e != API_OK)
+    {
+        cout << "Removal of backup " << toHandle(backupId) << " failed: " << errorstring(e) <<endl;
+    }
+    else
+    {
+        cout << "Backup " << toHandle(backupId) << " removed successfully" << endl;
     }
 }
 

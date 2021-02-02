@@ -52,6 +52,29 @@ string toHandle(handle h)
     return string(base64Handle);
 }
 
+string backupTypeToStr(BackupType type)
+{
+    switch (type)
+    {
+    case BackupType::INVALID:
+            return "INVALID";
+    case BackupType::TWO_WAY:
+            return "TWO_WAY";
+    case BackupType::UP_SYNC:
+            return "UP_SYNC";
+    case BackupType::DOWN_SYNC:
+            return "DOWN_SYNC";
+    case BackupType::CAMERA_UPLOAD:
+            return "CAMERA_UPLOAD";
+    case BackupType::MEDIA_UPLOAD:
+            return "MEDIA_UPLOAD";
+    case BackupType::BACKUP_UPLOAD:
+            return "BACKUP_UPLOAD";
+    }
+
+    return "UNKNOWN";
+}
+
 void AddHiddenFileAttribute(mega::LocalPath& path)
 {
 #ifdef _WIN32
@@ -2301,7 +2324,6 @@ SyncConfig::SyncConfig(LocalPath localPath,
                        const SyncWarning warning,
                        mega::handle hearBeatID)
     : mEnabled{enabled}
-    , mExternalDrivePath{}
     , mLocalPath{std::move(localPath)}
     , mName{std::move(name)}
     , mRemoteNode{remoteNode}
@@ -2311,8 +2333,30 @@ SyncConfig::SyncConfig(LocalPath localPath,
     , mSyncType{syncType}
     , mError{error}
     , mBackupId(hearBeatID)
+    , mExternalDrivePath()
     , mWarning{warning}
 {}
+
+bool SyncConfig::operator==(const SyncConfig& rhs) const
+{
+    return mEnabled == rhs.mEnabled
+           && mExternalDrivePath == rhs.mExternalDrivePath
+           && mLocalPath == rhs.mLocalPath
+           && mName == rhs.mName
+           && mRemoteNode == rhs.mRemoteNode
+           && mOrigninalPathOfRemoteRootNode == rhs.mOrigninalPathOfRemoteRootNode
+           && mLocalFingerprint == rhs.mLocalFingerprint
+           && mRegExps == rhs.mRegExps
+           && mSyncType == rhs.mSyncType
+           && mError == rhs.mError
+           && mBackupId == rhs.mBackupId
+           && mWarning == rhs.mWarning;
+}
+
+bool SyncConfig::operator!=(const SyncConfig& rhs) const
+{
+    return !(*this == rhs);
+}
 
 bool SyncConfig::getEnabled() const
 {

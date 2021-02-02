@@ -84,8 +84,7 @@ struct MEGA_API User : public Cacheable
         bool myBackupsFolder : 1; // target folder for My Backups
         bool backupNames : 1; // backup names
         bool cookieSettings : 1; // bit map to indicate whether some cookies are enabled or not
-        bool jsonSyncConfigName : 1;
-        bool jsonSyncConfigKey : 1;
+        bool jsonSyncConfigData : 1;
     } changed;
 
     // user's public key

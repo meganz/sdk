@@ -5233,7 +5233,7 @@ public:
      * The SDK retains the ownership of the returned value. It will be valid until
      * the MegaSync object is deleted.
      *
-     * @return The path of the Remote folder fromw when it was last being synced
+     * @return The path of the Remote folder from when it was last being synced
      */
     virtual const char* getLastKnownMegaFolder() const;
 
@@ -7573,8 +7573,7 @@ class MegaApi
             USER_ATTR_MY_BACKUPS_FOLDER = 31,    // private - byte array
             USER_ATTR_BACKUP_NAMES = 32,         // private - byte array
             USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
-            USER_ATTR_JSON_SYNC_CONFIG_NAME = 34,// private - char array
-            USER_ATTR_JSON_SYNC_CONFIG_KEY = 35, // private - char array
+            USER_ATTR_JSON_SYNC_CONFIG_DATA = 34 // private - byte array
         };
 
         enum {

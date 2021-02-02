@@ -490,169 +490,6 @@ bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, h
     return success;
 }
 
-#if 0
-SyncConfigBag::SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng, const std::string& id)
-{
-    std::string dbname = "syncconfigsv2_" + id;
-    mTable.reset(dbaccess.open(rng, fsaccess, dbname));
-    if (!mTable)
-    {
-        LOG_warn << "Unable to open database: " << dbname;
-        // no syncs configured --> no database
-        return;
-    }
-
-    mTable->rewind();
-
-    uint32_t tableId;
-    std::string data;
-    while (mTable->next(&tableId, &data))
-    {
-        auto syncConfig = SyncConfig::unserialize(data);
-        if (!syncConfig)
-        {
-            LOG_err << "Unable to unserialize sync config at id: " << tableId;
-            LOG_err << "Sync config record was " << data.size() << ": " << Utils::stringToHex(data);
-
-            {
-                // remove the reocrd so we can recover in jenkins tests (which fail at the assert())
-                DBTableTransactionCommitter committer{ mTable };
-                mTable->del(tableId);
-            }
-
-            assert(false);
-            continue;
-        }
-        syncConfig->dbid = tableId;
-
-        mSyncConfigs.insert(std::make_pair(syncConfig->getBackupId(), *syncConfig));
-        if (tableId > mTable->nextid)
-        {
-            mTable->nextid = tableId;
-        }
-    }
-    ++mTable->nextid;
-}
-
-error SyncConfigBag::insert(const SyncConfig& syncConfig)
-{
-    auto insertOrUpdate = [this](const uint32_t id, const SyncConfig& syncConfig)
-    {
-        std::string data;
-        assert(syncConfig.getBackupId() != UNDEF && "backupId is undefined when trying to persist syncConfig");
-        const_cast<SyncConfig&>(syncConfig).serialize(&data);
-        DBTableTransactionCommitter committer{mTable};
-        if (!mTable->put(id, &data)) // put either inserts or updates
-        {
-            LOG_err << "Incomplete database put at id: " << mTable->nextid;
-            assert(false);
-            mTable->abort();
-            return false;
-        }
-        return true;
-    };
-
-    auto syncConfigIt = mSyncConfigs.find(syncConfig.getBackupId());
-    if (syncConfigIt == mSyncConfigs.end()) // syncConfig is new
-    {
-        if (mTable)
-        {
-            if (!insertOrUpdate(mTable->nextid, syncConfig))
-            {
-                return API_EWRITE;
-            }
-        }
-        auto insertPair = mSyncConfigs.insert(std::make_pair(syncConfig.getBackupId(), syncConfig));
-        if (mTable)
-        {
-            insertPair.first->second.dbid = mTable->nextid;
-            ++mTable->nextid;
-        }
-    }
-    else // syncConfig exists already
-    {
-        const uint32_t tableId = syncConfigIt->second.dbid;
-        if (mTable)
-        {
-            if (!insertOrUpdate(tableId, syncConfig))
-            {
-                return API_EWRITE;
-            }
-        }
-        syncConfigIt->second = syncConfig;
-        syncConfigIt->second.dbid = tableId;
-    }
-
-    return API_OK;
-}
-
-error SyncConfigBag::removeByBackupId(const handle backupId)
-{
-    auto syncConfigPair = mSyncConfigs.find(backupId);
-    if (syncConfigPair == mSyncConfigs.end())
-    {
-        return API_ENOENT;
-    }
-
-    if (mTable)
-    {
-        DBTableTransactionCommitter committer{mTable};
-        if (!mTable->del(syncConfigPair->second.dbid))
-        {
-            LOG_err << "Unable to remove config from database: "
-                    << syncConfigPair->second.dbid;
-            assert(false);
-            mTable->abort();
-            return API_EWRITE;
-        }
-    }
-
-    mSyncConfigs.erase(syncConfigPair);
-    return API_OK;
-}
-
-const SyncConfig* SyncConfigBag::get(const handle backupId) const
-{
-    auto syncConfigPair = mSyncConfigs.find(backupId);
-    if (syncConfigPair != mSyncConfigs.end())
-    {
-        return &syncConfigPair->second;
-    }
-    return nullptr;
-}
-
-
-const SyncConfig* SyncConfigBag::getByNodeHandle(handle nodeHandle) const
-{
-    for (const auto& syncConfigPair : mSyncConfigs)
-    {
-        if (syncConfigPair.second.getRemoteNode() == nodeHandle)
-            return &syncConfigPair.second;
-    }
-    return nullptr;
-}
-
-void SyncConfigBag::clear()
-{
-    if (mTable)
-    {
-        mTable->truncate();
-        mTable->nextid = 0;
-    }
-    mSyncConfigs.clear();
-}
-
-std::vector<SyncConfig> SyncConfigBag::all() const
-{
-    std::vector<SyncConfig> syncConfigs;
-    for (const auto& syncConfigPair : mSyncConfigs)
-    {
-        syncConfigs.push_back(syncConfigPair.second);
-    }
-    return syncConfigs;
-}
-#endif
-
 // new Syncs are automatically inserted into the session's syncs list
 // and a full read of the subtree is initiated
 Sync::Sync(UnifiedSync& us, const char* cdebris,
@@ -722,13 +559,13 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     if (macOSmajorVersion() >= 19) //macOS catalina+
     {
         LOG_debug << "macOS 10.15+ filesystem detected. Checking fseventspath.";
-        string supercrootpath = "/System/Volumes/Data" + crootpath.platformEncoded();
+        string supercrootpath = "/System/Volumes/Data" + mLocalPath.platformEncoded();
 
         int fd = open(supercrootpath.c_str(), O_RDONLY);
         if (fd == -1)
         {
             LOG_debug << "Unable to open path using fseventspath.";
-            mFsEventsPath = crootpath.platformEncoded();
+            mFsEventsPath = mLocalPath.platformEncoded();
         }
         else
         {
@@ -736,7 +573,7 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
             if (fcntl(fd, F_GETPATH, buf) < 0)
             {
                 LOG_debug << "Using standard paths to detect filesystem notifications.";
-                mFsEventsPath = crootpath.platformEncoded();
+                mFsEventsPath = mLocalPath.platformEncoded();
             }
             else
             {
@@ -2245,9 +2082,14 @@ error Syncs::syncConfigDBFlush()
         return API_OK;
     }
 
-    LOG_verbose << "Attempting to flush internal config database.";
+    LOG_debug << "Attempting to flush internal config database.";
 
-    auto result = mSyncConfigDB->write(*mSyncConfigIOContext);
+    auto result = API_EAGAIN;
+
+    if (auto* ioContext = syncConfigIOContext())
+    {
+        result = mSyncConfigDB->write(*ioContext);
+    }
 
     if (result != API_OK)
     {
@@ -2256,7 +2098,7 @@ error Syncs::syncConfigDBFlush()
     }
     else
     {
-        LOG_verbose << "Internal config database flushed to disk.";
+        LOG_debug << "Internal config database flushed to disk.";
     }
 
     return result;
@@ -2264,7 +2106,7 @@ error Syncs::syncConfigDBFlush()
 
 error Syncs::syncConfigDBLoad()
 {
-    LOG_verbose << "Attempting to load internal sync configs from disk.";
+    LOG_debug << "Attempting to load internal sync configs from disk.";
 
     auto result = API_EAGAIN;
 
@@ -2280,9 +2122,9 @@ error Syncs::syncConfigDBLoad()
 
         if (result == API_OK || result == API_ENOENT)
         {
-            LOG_verbose << "Loaded "
-                        << db->configs().size()
-                        << " internal sync config(s) from disk.";
+            LOG_debug << "Loaded "
+                      << db->configs().size()
+                      << " internal sync config(s) from disk.";
 
             return API_OK;
         }
@@ -2303,27 +2145,55 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
         return mSyncConfigIOContext.get();
     }
 
-    using KeyStr  = Base64Str<SymmCipher::KEYLENGTH * 2>;
-    using NameStr = Base64Str<SymmCipher::KEYLENGTH>;
-
-    if (User* selfUser = mClient.finduser(mClient.me))
+    // Which user are we?
+    User* self = mClient.ownuser();
+    if (!self)
     {
-        auto n = selfUser->getattr(ATTR_JSON_SYNC_CONFIG_NAME);
-        auto k = selfUser->getattr(ATTR_JSON_SYNC_CONFIG_KEY);
-
-        if (n && k &&
-            k->size() == KeyStr::STRLEN &&
-            n->size() == NameStr::STRLEN)
-        {
-            // Create the IO context.
-            mSyncConfigIOContext.reset(
-              new JSONSyncConfigIOContext(mClient.key,
-                                         *mClient.fsaccess,
-                                         *k,
-                                         *n,
-                                         mClient.rng));
-        }
+        return nullptr;
     }
+
+    // Try and retrieve this user's config data attribute.
+    auto* payload = self->getattr(ATTR_JSON_SYNC_CONFIG_DATA);
+    if (!payload)
+    {
+        // Attribute hasn't been created yet.
+        return nullptr;
+    }
+
+    // Try and decrypt the payload.
+    unique_ptr<TLVstore> store(
+      TLVstore::containerToTLVrecords(payload, &mClient.key));
+
+    if (!store)
+    {
+        // Attribute is malformed.
+        return nullptr;
+    }
+
+    // Convenience.
+    constexpr size_t KEYLENGTH = SymmCipher::KEYLENGTH;
+
+    // Verify payload contents.
+    auto authKey = store->get("ak"); 
+    auto cipherKey = store->get("ck");
+    auto name = store->get("fn");
+
+    if (authKey.size() != KEYLENGTH
+        || cipherKey.size() != KEYLENGTH
+        || name.size() != KEYLENGTH)
+    {
+        // Payload is malformed.
+        return nullptr;
+    }
+
+    // Create the IO context.
+    mSyncConfigIOContext.reset(
+      new JSONSyncConfigIOContext(*mClient.fsaccess,
+                                  std::move(authKey),
+                                  std::move(cipherKey),
+                                  Base64::btoa(name),
+                                  mClient.rng));
+
     // Return a reference to the new IO context.
     return mSyncConfigIOContext.get();
 }
@@ -2345,9 +2215,24 @@ error Syncs::truncate()
         return API_OK;
     }
 
-    mSyncConfigDB->clear();
+    auto* ioContext = syncConfigIOContext();
+    
+    if (!ioContext)
+    {
+        return API_EAGAIN;
+    }
 
-    return syncConfigDBFlush();
+    auto result = mSyncConfigDB->truncate(*ioContext);
+
+    if (result != API_OK)
+    {
+        auto& fsAccess = *mClient.fsaccess;
+
+        LOG_warn << "Unable to truncate config DB: "
+                 << mSyncConfigDB->dbPath().toPath(fsAccess);
+    }
+
+    return result;
 }
 
 void Syncs::resetSyncConfigDb()
@@ -2378,11 +2263,11 @@ Sync* Syncs::runningSyncByBackupId(handle backupId) const
     return nullptr;
 }
 
-SyncConfig* Syncs::syncConfigByBackupId(handle bid) const
+SyncConfig* Syncs::syncConfigByBackupId(handle backupId) const
 {
     for (auto& s : mSyncVec)
     {
-        if (s->mConfig.getBackupId() == bid)
+        if (s->mConfig.getBackupId() == backupId)
         {
             return &s->mConfig;
         }
@@ -2588,19 +2473,19 @@ void Syncs::removeSyncByIndex(size_t index)
     }
 }
 
-error Syncs::removeSyncConfigByBackupId(handle bid)
+error Syncs::removeSyncConfigByBackupId(handle backupId)
 {
     error result = API_OK;
 
     if (auto* db = syncConfigDB())
     {
-        result = db->removeByBackupId(bid);
+        result = db->removeByBackupId(backupId);
     }
 
     if (result == API_ENOENT)
     {
         LOG_err << "Found no config for backupId: "
-                << toHandle(bid)
+                << toHandle(backupId)
                 << " upon sync removal.";
     }
 
@@ -2729,8 +2614,17 @@ void Syncs::resumeResumableSyncsOnStartup()
     }
 }
 
-
 const unsigned int JSONSyncConfigDB::NUM_SLOTS = 2; //number of configuration versions to save. Do not set to > 10.
+
+JSONSyncConfigDB::JSONSyncConfigDB(const LocalPath& dbPath,
+                                   const LocalPath& drivePath)
+  : mDBPath(dbPath)
+  , mDrivePath(drivePath)
+  , mBackupIdToConfig()
+  , mSlot(0)
+  , mDirty(false)
+{
+}
 
 JSONSyncConfigDB::JSONSyncConfigDB(const LocalPath& dbPath)
   : mDBPath(dbPath)
@@ -2747,155 +2641,14 @@ JSONSyncConfigDB::~JSONSyncConfigDB()
     clear(false);
 }
 
-const SyncConfig* JSONSyncConfigDB::add(const SyncConfig& config)
-{
-    // Add (or update) the config and flush.
-    return add(config, true);
-}
-
-void JSONSyncConfigDB::clear()
-{
-    // Drop the configs and flush.
-    clear(true);
-}
-
-const JSONSyncConfigMap& JSONSyncConfigDB::configs() const
-{
-    return mBackupIdToConfig;
-}
-
-bool JSONSyncConfigDB::dirty() const
-{
-    return mDirty;
-}
-
-const LocalPath& JSONSyncConfigDB::dbPath() const
-{
-    return mDBPath;
-}
-
-const LocalPath& JSONSyncConfigDB::drivePath() const
-{
-    return mDrivePath;
-}
-
-const SyncConfig* JSONSyncConfigDB::getByBackupId(handle bid) const
-{
-    auto it = mBackupIdToConfig.find(bid);
-
-    if (it != mBackupIdToConfig.end())
-    {
-        return &it->second;
-    }
-
-    return nullptr;
-}
-
-const SyncConfig* JSONSyncConfigDB::getByRootHandle(handle targetHandle) const
-{
-    for (auto& it : mBackupIdToConfig)
-    {
-        if (it.second.getRemoteNode() == targetHandle)
-        {
-            return &it.second;
-        }
-    }
-    return nullptr;
-}
-
-error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext)
-{
-    vector<unsigned int> confSlots;
-
-    // Determine which slots we should load first, if any.
-    if (ioContext.getSlotsInOrder(mDBPath, confSlots) != API_OK)
-    {
-        // Couldn't get a list of slots.
-        return API_ENOENT;
-    }
-
-    // Try and load the database from one of the slots.
-    for (const auto& slot : confSlots)
-    {
-        // Can we read the database from this slot?
-        if (read(ioContext, slot) == API_OK)
-        {
-            // Update the slot number.
-            mSlot = (slot + 1) % NUM_SLOTS;
-
-            // Yep, loaded.
-            return API_OK;
-        }
-    }
-
-    // Up to date with disk.
-    mDirty = false;
-
-    // Couldn't load the database.
-    return API_EREAD;
-}
-
-error JSONSyncConfigDB::removeByBackupId(handle bid)
-{
-    // Remove the config, if present and flush.
-    return removeByBackupId(bid, true);
-}
-
-error JSONSyncConfigDB::removeByRootNode(const handle targetHandle)
-{
-    // Any config present with the given target handle?
-    if (const auto* config = getByRootHandle(targetHandle))
-    {
-        // Yep, remove it.
-        return removeByBackupId(config->getBackupId(), true);
-    }
-
-    // Nope.
-    return API_ENOENT;
-}
-
-error JSONSyncConfigDB::write(JSONSyncConfigIOContext& ioContext)
-{
-    JSONWriter writer;
-
-    // Serialize the database.
-    ioContext.serialize(mBackupIdToConfig, writer);
-
-    if (SimpleLogger::logCurrentLevel >= logMax)
-    {
-        FSACCESS_CLASS fsa;
-        LOG_info << "Writing syncs file " << mDBPath.toPath(fsa) << ": " << writer.getstring();
-    }
-
-    // Try and write the database out to disk.
-    if (ioContext.write(mDBPath, writer.getstring(), mSlot) != API_OK)
-    {
-        // Couldn't write the database out to disk.
-        return API_EWRITE;
-    }
-
-    // Rotate the slot.
-    mSlot = (mSlot + 1) % NUM_SLOTS;
-
-    // Remove the old file so there's no race with fuzzy file timestamps in fast-running tests
-    ioContext.remove(mDBPath, mSlot);
-
-    // Up to date with disk.
-    mDirty = false;
-
-    return API_OK;
-}
-
 const SyncConfig* JSONSyncConfigDB::add(const SyncConfig& config,
-                                            const bool flush)
+                                        const bool flush)
 {
     auto it = mBackupIdToConfig.find(config.getBackupId());
 
     // Do we already have a config with this tag?
     if (it != mBackupIdToConfig.end())
     {
-        // we only call if it's changed
-
         // Mark the database as being dirty.
         mDirty |= flush;
 
@@ -2932,6 +2685,148 @@ void JSONSyncConfigDB::clear(const bool flush)
     mBackupIdToConfig.clear();
 }
 
+const JSONSyncConfigMap& JSONSyncConfigDB::configs() const
+{
+    return mBackupIdToConfig;
+}
+
+bool JSONSyncConfigDB::dirty() const
+{
+    return mDirty;
+}
+
+const LocalPath& JSONSyncConfigDB::dbPath() const
+{
+    return mDBPath;
+}
+
+const LocalPath& JSONSyncConfigDB::drivePath() const
+{
+    return mDrivePath;
+}
+
+const SyncConfig* JSONSyncConfigDB::getByBackupId(handle backupId) const
+{
+    auto it = mBackupIdToConfig.find(backupId);
+
+    if (it != mBackupIdToConfig.end())
+    {
+        return &it->second;
+    }
+
+    return nullptr;
+}
+
+const SyncConfig* JSONSyncConfigDB::getByRootHandle(handle targetHandle) const
+{
+    if (targetHandle == UNDEF)
+    {
+        return nullptr;
+    }
+
+    for (auto& it : mBackupIdToConfig)
+    {
+        if (it.second.getRemoteNode() == targetHandle)
+        {
+            return &it.second;
+        }
+    }
+
+    return nullptr;
+}
+
+error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext)
+{
+    vector<unsigned int> confSlots;
+
+    // Determine which slots we should load first, if any.
+    if (ioContext.getSlotsInOrder(mDBPath, confSlots) != API_OK)
+    {
+        // Couldn't get a list of slots.
+        return API_ENOENT;
+    }
+
+    // Try and load the database from one of the slots.
+    for (const auto& slot : confSlots)
+    {
+        // Can we read the database from this slot?
+        if (read(ioContext, slot) == API_OK)
+        {
+            // Update the slot number.
+            mSlot = (slot + 1) % NUM_SLOTS;
+
+            // Yep, loaded.
+            return API_OK;
+        }
+    }
+
+    // Up to date with disk.
+    mDirty = false;
+
+    // Couldn't load the database.
+    return API_EREAD;
+}
+
+error JSONSyncConfigDB::removeByBackupId(handle backupId)
+{
+    // Remove the config, if present and flush.
+    return removeByBackupId(backupId, true);
+}
+
+error JSONSyncConfigDB::removeByRootHandle(const handle targetHandle)
+{
+    // Any config present with the given target handle?
+    if (const auto* config = getByRootHandle(targetHandle))
+    {
+        // Yep, remove it.
+        return removeByBackupId(config->getBackupId(), true);
+    }
+
+    // Nope.
+    return API_ENOENT;
+}
+
+error JSONSyncConfigDB::truncate(JSONSyncConfigIOContext& ioContext)
+{
+    // Purge configs from memory.
+    mBackupIdToConfig.clear();
+
+    // Database no longer has any changes.
+    mDirty = false;
+
+    // Reset slot counter to initial value.
+    mSlot = 0;
+
+    // Purge (existing) slots from disk.
+    return ioContext.remove(mDBPath);
+}
+
+error JSONSyncConfigDB::write(JSONSyncConfigIOContext& ioContext)
+{
+    JSONWriter writer;
+
+    // Serialize the database.
+    ioContext.serialize(mBackupIdToConfig, writer);
+
+    // Try and write the database out to disk.
+    if (ioContext.write(mDBPath, writer.getstring(), mSlot) != API_OK)
+    {
+        // Couldn't write the database out to disk.
+        return API_EWRITE;
+    }
+
+    // Rotate the slot.
+    mSlot = (mSlot + 1) % NUM_SLOTS;
+
+    // Remove the old file so there's no race with fuzzy file timestamps in fast-running tests
+    ioContext.remove(mDBPath, mSlot);
+
+    // Up to date with disk.
+    mDirty = false;
+
+    return API_OK;
+}
+
 error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext,
                              const unsigned int slot)
 {
@@ -2944,17 +2839,11 @@ error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext,
         return API_EREAD;
     }
 
-    if (SimpleLogger::logCurrentLevel >= logMax)
-    {
-        FSACCESS_CLASS fsa;
-        LOG_verbose << "Loaded syncs file " << mDBPath.toPath(fsa) << ": " << data;
-    }
-
     // Try and deserialize the configs contained in the database.
     JSONSyncConfigMap configs;
     JSON reader(data);
 
-    if (!ioContext.deserialize(configs, reader))
+    if (!ioContext.deserialize(mDBPath, configs, reader, slot))
     {
         // Couldn't deserialize the configs.
         return API_EREAD;
@@ -2966,11 +2855,11 @@ error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext,
 
     while (i != j)
     {
-        const auto bid = i++->first;
+        const auto backupId = i++->first;
 
-        if (!configs.count(bid))
+        if (!configs.count(backupId))
         {
-            removeByBackupId(bid, false);
+            removeByBackupId(backupId, false);
         }
     }
 
@@ -2987,9 +2876,9 @@ error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext,
     return API_OK;
 }
 
-error JSONSyncConfigDB::removeByBackupId(handle bid, const bool flush)
+error JSONSyncConfigDB::removeByBackupId(handle backupId, const bool flush)
 {
-    auto it = mBackupIdToConfig.find(bid);
+    auto it = mBackupIdToConfig.find(backupId);
 
     // Any config present with the given tag?
     if (it == mBackupIdToConfig.end())
@@ -2997,7 +2886,6 @@ error JSONSyncConfigDB::removeByBackupId(handle bid, const bool flush)
         // Nope.
         return API_ENOENT;
     }
-
 
     // Mark the database as being dirty.
     mDirty |= flush;
@@ -3009,74 +2897,126 @@ error JSONSyncConfigDB::removeByBackupId(handle bid, const bool flush)
     return API_OK;
 }
 
-JSONSyncConfigIOContext::JSONSyncConfigIOContext(SymmCipher& cipher,
-                                                 FileSystemAccess& fsAccess,
-                                                 const string& key,
+const string JSONSyncConfigIOContext::NAME_PREFIX = "megaclient_syncconfig_";
+
+JSONSyncConfigIOContext::JSONSyncConfigIOContext(FileSystemAccess& fsAccess,
+                                                 const string& authKey,
+                                                 const string& cipherKey,
                                                  const string& name,
                                                  PrnGen& rng)
   : mCipher()
   , mFsAccess(fsAccess)
-  , mName(LocalPath::fromPath("megaclient_syncconfig_" + name, mFsAccess))
+  , mName(LocalPath::fromPath(NAME_PREFIX + name, mFsAccess))
   , mRNG(rng)
   , mSigner()
 {
+    // Convenience.
+    constexpr size_t KEYLENGTH = SymmCipher::KEYLENGTH;
+
     // These attributes *must* be sane.
-    assert(!key.empty());
-    assert(!name.empty());
+    assert(authKey.size() == KEYLENGTH);
+    assert(cipherKey.size() == KEYLENGTH);
+    assert(name.size() == Base64Str<KEYLENGTH>::STRLEN);
 
-    // Deserialize the key.
-    string k = Base64::atob(key);
-    assert(k.size() == SymmCipher::KEYLENGTH * 2);
-
-    // Decrypt the key.
-    cipher.ecb_decrypt(reinterpret_cast<byte*>(&k[0]), k.size());
-
-    // Load the authenticaton key into our internal signer.
-    const byte* ka = reinterpret_cast<const byte*>(&k[0]);
-    const byte* ke = &ka[SymmCipher::KEYLENGTH];
-
-    mSigner.setkey(ka, SymmCipher::KEYLENGTH);
+    // Load the authentication key into our internal signer.
+    mSigner.setkey(reinterpret_cast<const byte*>(authKey.data()), KEYLENGTH);
 
     // Load the encryption key into our internal cipher.
-    mCipher.setkey(ke, SymmCipher::KEYLENGTH);
+    mCipher.setkey(reinterpret_cast<const byte*>(cipherKey.data()));
 }
 
 JSONSyncConfigIOContext::~JSONSyncConfigIOContext()
 {
 }
 
+bool JSONSyncConfigIOContext::deserialize(const LocalPath& dbPath,
+                                          JSONSyncConfigMap& configs,
+                                          JSON& reader,
+                                          const unsigned int slot) const
+{
+    auto path = dbFilePath(dbPath, slot).toPath(mFsAccess);
+
+    LOG_debug << "Attempting to deserialize config DB: "
+              << path;
+
+    if (deserialize(configs, reader))
+    {
+        LOG_debug << "Successfully deserialized config DB: "
+                  << path;
+
+        return true;
+    }
+
+    LOG_debug << "Unable to deserialize config DB: "
+              << path;
+
+    return false;
+}
+
 bool JSONSyncConfigIOContext::deserialize(JSONSyncConfigMap& configs,
                                           JSON& reader) const
 {
-    if (!reader.enterarray())
+    const auto TYPE_SYNCS = MAKENAMEID2('s', 'y');
+
+    if (!reader.enterobject())
     {
         return false;
     }
 
-    // Deserialize the configs.
-    while (reader.enterobject())
+    for ( ; ; )
     {
-        SyncConfig config;
-
-        if (deserialize(config, reader))
+        switch (reader.getnameid())
         {
-            // So move is well-defined.
-            const auto bid = config.getBackupId();
+        case EOO:
+            return reader.leaveobject();
 
-            configs.emplace(bid, std::move(config));
-        }
-        else
+        case TYPE_SYNCS:
         {
-            LOG_err << "Failed to deserialize a sync config";
+            if (!reader.enterarray())
+            {
+                return false;
+            }
+
+            while (reader.enterobject())
+            {
+                SyncConfig config;
+
+                if (deserialize(config, reader))
+                {
+                    // So move is well-defined.
+                    const auto backupId = config.mBackupId;
+
+                    configs.emplace(backupId, std::move(config));
+                }
+                else
+                {
+                    LOG_err << "Failed to deserialize a sync config";
+                    assert(false);
+                }
+
+                reader.leaveobject();
+            }
+
+            if (!reader.leavearray())
+            {
+                return false;
+            }
+
+            break;
         }
-        reader.leaveobject();
+
+        default:
+            if (!reader.storeobject())
+            {
+                return false;
+            }
+            break;
+        }
     }
-
-    return reader.leavearray();
 }
 
 error JSONSyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
-                                   vector<unsigned int>& confSlots)
+                                               vector<unsigned int>& confSlots)
 {
     using std::isdigit;
     using std::sort;
@@ -3129,7 +3069,8 @@ error JSONSyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
         }
 
         // Record this slot-time pair.
-        slotTimes.emplace_back(suffix - 0x30, fileAccess->mtime);
+        unsigned int slot = suffix - 0x30; // convert char to int
+        slotTimes.emplace_back(slot, fileAccess->mtime);
     }
 
     // Sort the list of slot-time pairs.
@@ -3160,13 +3101,11 @@ error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
                                     string& data,
                                     const unsigned int slot)
 {
-    using std::to_string;
-
     // Generate path to the configuration file.
-    LocalPath path = dbPath;
+    LocalPath path = dbFilePath(dbPath, slot);
 
-    path.appendWithSeparator(mName, false);
-    path.append(LocalPath::fromPath("." + to_string(slot), mFsAccess));
+    LOG_debug << "Attempting to read config DB: "
+              << path.toPath(mFsAccess);
 
     // Try and open the file for reading.
     auto fileAccess = mFsAccess.newfileaccess(false);
@@ -3174,6 +3113,9 @@ error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
     if (!fileAccess->fopen(path, true, false))
     {
         // Couldn't open the file for reading.
+        LOG_debug << "Unable to open config DB for reading: "
+                  << path.toPath(mFsAccess);
+
         return API_EREAD;
     }
 
@@ -3183,6 +3125,9 @@ error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
     if (!fileAccess->fread(&d, static_cast<unsigned>(fileAccess->size), 0, 0x0))
     {
         // Couldn't read the file.
+        LOG_debug << "Unable to read config DB: "
+                  << path.toPath(mFsAccess);
+
         return API_EREAD;
     }
 
@@ -3190,16 +3135,64 @@ error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
     if (!decrypt(d, data))
     {
         // Couldn't decrypt the data.
+        LOG_debug << "Unable to decrypt config DB: "
+                  << path.toPath(mFsAccess);
+
         return API_EREAD;
+    }
+
+    LOG_debug << "Config DB successfully read from disk: "
+              << path.toPath(mFsAccess)
+              << ": "
+              << data;
+
+    return API_OK;
+}
+
+error JSONSyncConfigIOContext::remove(const LocalPath& dbPath,
+                                      const unsigned int slot)
+{
+    LocalPath path = dbFilePath(dbPath, slot);
+
+    if (!mFsAccess.unlinklocal(path))
+    {
+        LOG_warn << "Unable to remove config DB: "
+                 << path.toPath(mFsAccess);
+
+        return API_EWRITE;
     }
 
     return API_OK;
 }
 
+error JSONSyncConfigIOContext::remove(const LocalPath& dbPath)
+{
+    vector<unsigned int> confSlots;
+
+    // What slots are present on disk?
+    if (getSlotsInOrder(dbPath, confSlots) == API_ENOENT)
+    {
+        // None so nothing to do.
+        return API_ENOENT;
+    }
+
+    bool result = true;
+
+    // Remove the slots from disk.
+    for (auto confSlot : confSlots)
+    {
+        result &= remove(dbPath, confSlot) == API_OK;
+    }
+
+    // Signal success only if all slots could be removed.
+    return result ? API_OK : API_EWRITE;
+}
+
 void JSONSyncConfigIOContext::serialize(const JSONSyncConfigMap& configs,
                                         JSONWriter& writer) const
 {
-    writer.beginarray();
+    writer.beginobject();
+    writer.beginarray("sy");
 
     for (const auto& it : configs)
     {
@@ -3207,40 +3200,32 @@ void JSONSyncConfigIOContext::serialize(const JSONSyncConfigMap& configs,
     }
 
     writer.endarray();
+    writer.endobject();
 }
-
-void JSONSyncConfigIOContext::remove(const LocalPath& dbPath,
-    const unsigned int slot)
-{
-    using std::to_string;
-    LocalPath path = dbPath;
-
-    // Generate the rest of the path.
-    path.appendWithSeparator(mName, false);
-    path.append(LocalPath::fromPath("." + to_string(slot), mFsAccess));
-
-    mFsAccess.unlinklocal(path);
-}
-
 
 error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
                                      const string& data,
                                      const unsigned int slot)
 {
-    using std::to_string;
-
     LocalPath path = dbPath;
+
+    LOG_debug << "Attempting to write config DB: "
+              << dbPath.toPath(mFsAccess)
+              << " / "
+              << slot;
 
     // Try and create the backup configuration directory.
     if (!(mFsAccess.mkdirlocal(path) || mFsAccess.target_exists))
     {
+        LOG_debug << "Unable to create config DB directory: "
+                  << dbPath.toPath(mFsAccess);
+
         // Couldn't create the directory and it doesn't exist.
         return API_EWRITE;
     }
 
     // Generate the rest of the path.
-    path.appendWithSeparator(mName, false);
-    path.append(LocalPath::fromPath("." + to_string(slot), mFsAccess));
+    path = dbFilePath(dbPath, slot);
 
     // Open the file for writing.
     auto fileAccess = mFsAccess.newfileaccess(false);
@@ -3248,6 +3233,9 @@ error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
     if (!fileAccess->fopen(path, false, true))
     {
         // Couldn't open the file for writing.
+        LOG_debug << "Unable to open config DB for writing: "
+                  << path.toPath(mFsAccess);
+
         return API_EWRITE;
     }
 
@@ -3255,6 +3243,9 @@ error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
     if (!fileAccess->ftruncate())
     {
         // Couldn't truncate the file.
+        LOG_debug << "Unable to truncate config DB: "
+                  << path.toPath(mFsAccess);
+
         return API_EWRITE;
     }
 
@@ -3267,10 +3258,31 @@ error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
     if (!fileAccess->fwrite(bytes, static_cast<unsigned>(d.size()), 0x0))
     {
         // Couldn't write out the data.
+        LOG_debug << "Unable to write config DB: "
+                  << path.toPath(mFsAccess);
+
         return API_EWRITE;
     }
 
+    LOG_debug << "Config DB successfully written to disk: "
+              << path.toPath(mFsAccess)
+              << ": "
+              << data;
+
     return API_OK;
+}
+
+LocalPath JSONSyncConfigIOContext::dbFilePath(const LocalPath& dbPath,
+                                              const unsigned int slot) const
+{
+    using std::to_string;
+
+    LocalPath path = dbPath;
+
+    path.appendWithSeparator(mName, false);
+    path.append(LocalPath::fromPath("." + to_string(slot), mFsAccess));
+
+    return path;
 }
 
 bool JSONSyncConfigIOContext::decrypt(const string& in, string& out)
@@ -3286,7 +3298,7 @@ bool JSONSyncConfigIOContext::decrypt(const string& in, string& out)
         return false;
     }
 
-    // For convenience.
+    // For convenience (format: <data><iv><hmac>)
     const byte* data = reinterpret_cast<const byte*>(&in[0]);
     const byte* iv   = &data[in.size() - METADATA_LENGTH];
     const byte* mac  = &data[in.size() - MAC_LENGTH];
@@ -3312,16 +3324,16 @@ bool JSONSyncConfigIOContext::decrypt(const string& in, string& out)
 
 bool JSONSyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) const
 {
-    const auto TYPE_BACKUP_ID     = MAKENAMEID2('i', 'd');
-    const auto TYPE_ENABLED       = MAKENAMEID2('e', 'n');
-    const auto TYPE_FINGERPRINT   = MAKENAMEID2('f', 'p');
-    const auto TYPE_LAST_ERROR    = MAKENAMEID2('l', 'e');
-    const auto TYPE_LAST_WARNING  = MAKENAMEID2('l', 'w');
-    const auto TYPE_NAME          = MAKENAMEID1('n');
-    const auto TYPE_SOURCE_PATH   = MAKENAMEID2('s', 'p');
-    const auto TYPE_SYNC_TYPE     = MAKENAMEID2('s', 't');
-    const auto TYPE_TARGET_HANDLE = MAKENAMEID2('t', 'h');
-    const auto TYPE_TARGET_PATH   = MAKENAMEID2('t', 'p');
+    const auto TYPE_BACKUP_ID       = MAKENAMEID2('i', 'd');
+    const auto TYPE_ENABLED         = MAKENAMEID2('e', 'n');
+    const auto TYPE_FINGERPRINT     = MAKENAMEID2('f', 'p');
+    const auto TYPE_LAST_ERROR      = MAKENAMEID2('l', 'e');
+    const auto TYPE_LAST_WARNING    = MAKENAMEID2('l', 'w');
+    const auto TYPE_NAME            = MAKENAMEID1('n');
+    const auto TYPE_SOURCE_PATH     = MAKENAMEID2('s', 'p');
+    const auto TYPE_SYNC_TYPE       = MAKENAMEID2('s', 't');
+    const auto TYPE_TARGET_HANDLE   = MAKENAMEID2('t', 'h');
+    const auto TYPE_TARGET_PATH     = MAKENAMEID2('t', 'p');
     const auto TYPE_EXCLUSION_RULES = MAKENAMEID2('e', 'r');
 
     for ( ; ; )
@@ -3376,8 +3388,7 @@ bool JSONSyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) cons
             break;
 
         case TYPE_TARGET_HANDLE:
-            config.mRemoteNode =
-              reader.gethandle(MegaClient::NODEHANDLE);
+            config.mRemoteNode = reader.gethandle(sizeof(handle));
             break;
 
         case TYPE_TARGET_PATH:
@@ -3419,7 +3430,7 @@ string JSONSyncConfigIOContext::encrypt(const string& data)
     mCipher.cbc_encrypt_pkcs_padding(&data, iv, &d);
 
     // Add IV to file.
-    d.insert(d.end(), std::begin(iv), std::end(iv));
+    d.append(std::begin(iv), std::end(iv));
 
     byte mac[32];
 
@@ -3428,7 +3439,7 @@ string JSONSyncConfigIOContext::encrypt(const string& data)
     mSigner.get(mac);
 
     // Add HMAC to file.
-    d.insert(d.end(), std::begin(mac), std::end(mac));
+    d.append(std::begin(mac), std::end(mac));
 
     // We're done.
     return d;
@@ -3443,7 +3454,7 @@ void JSONSyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg_B64("n", config.mName);
     writer.arg_B64("tp", config.mOrigninalPathOfRemoteRootNode);
     writer.arg_fsfp("fp", config.mLocalFingerprint);
-    writer.arg("th", config.mRemoteNode, MegaClient::NODEHANDLE);
+    writer.arg("th", config.mRemoteNode, sizeof(handle));
     writer.arg("le", config.mError);
     writer.arg("lw", config.mWarning);
     writer.arg("st", config.mSyncType);
@@ -3462,4 +3473,3 @@ void JSONSyncConfigIOContext::serialize(const SyncConfig& config,
 } // namespace
 
 #endif
-

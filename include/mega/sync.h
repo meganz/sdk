@@ -44,40 +44,6 @@ int computeReversePathMatchScore(const LocalPath& path1, const LocalPath& path2,
 bool assignFilesystemIds(Sync& sync, MegaApp& app, FileSystemAccess& fsaccess, handlelocalnode_map& fsidnodes,
                          LocalPath& localdebris);
 
-#if 0
-// A collection of sync configs backed by a database table
-class MEGA_API SyncConfigBag
-{
-public:
-    SyncConfigBag(DbAccess& dbaccess, FileSystemAccess& fsaccess, PrnGen& rng, const std::string& id);
-
-    MEGA_DISABLE_COPY_MOVE(SyncConfigBag)
-
-    // Adds a new sync config or updates if exists already
-    error insert(const SyncConfig& syncConfig);
-
-    // Removes a sync config with a given backupId
-    error removeByBackupId(const handle backupId);
-
-    // Returns the sync config with a given backupId
-    const SyncConfig* get(const handle backupId) const;
-
-    // Returns the first sync config found with a remote handle
-    const SyncConfig* getByNodeHandle(handle nodeHandle) const;
-
-    // Removes all sync configs
-    void clear();
-
-    // Returns all current sync configs
-    std::vector<SyncConfig> all() const;
-
-private:
-    std::unique_ptr<DbTable> mTable; // table for caching the sync configs
-    std::map<handle, SyncConfig> mSyncConfigs; // map of backupId to sync configs
-};
-#endif
-
-
 class SyncConfig
 {
 public:
@@ -103,6 +69,9 @@ public:
         const SyncWarning warning = NO_SYNC_WARNING,
         handle hearBeatID = UNDEF
     );
+
+    bool operator==(const SyncConfig &rhs) const;
+    bool operator!=(const SyncConfig &rhs) const;
 
     // Id for the sync, also used in sync heartbeats
     handle getBackupId() const;
@@ -174,7 +143,7 @@ public:
     SyncError mError;
 
     // Warning if creation was successful but the user should know something
-	SyncWarning mWarning;
+    SyncWarning mWarning;
 
     // Unique identifier. any other field can change (even remote handle),
     // and we want to keep disabled configurations saved: e.g: remote handle changed
@@ -184,7 +153,6 @@ public:
     // Path to the volume containing this backup (only for external backups).
     // This one is not serialized
     LocalPath mExternalDrivePath;
-
 
 private:
     // If mError or mEnabled have changed from these values, we need to notify the app.
@@ -224,6 +192,8 @@ private:
     bool updateSyncRemoteLocation(Node* n, bool forceCallback);
 };
 
+using SyncCompletionFunction =
+  std::function<void(UnifiedSync*, const SyncError&, error)>;
 
 class MEGA_API Sync
 {
@@ -366,12 +336,13 @@ private:
 // For convenience.
 using JSONSyncConfigMap = map<handle, SyncConfig>;
 
-class JSONSyncConfigDBObserver;
 class JSONSyncConfigIOContext;
 
 class MEGA_API JSONSyncConfigDB
 {
 public:
+    JSONSyncConfigDB(const LocalPath& dbPath,
+                     const LocalPath& drivePath);
 
     explicit
     JSONSyncConfigDB(const LocalPath& dbPath);
@@ -382,11 +353,12 @@ public:
 
     MEGA_DEFAULT_MOVE(JSONSyncConfigDB);
 
-    // Add a new (or update an existing) config.
-    const SyncConfig* add(const SyncConfig& config);
+    // Adds a new (or updates an existing) config.
+    const SyncConfig* add(const SyncConfig& config,
+                          const bool flush = true);
 
     // Remove all configs.
-    void clear();
+    void clear(const bool flush = true);
 
     // Get current configs.
     const JSONSyncConfigMap& configs() const;
@@ -413,19 +385,15 @@ public:
     error removeByBackupId(handle backupId);
 
     // Remove config by backup target handle.
-    error removeByRootNode(handle targetHandle);
+    error removeByRootHandle(handle targetHandle);
+
+    // Clears database and removes slots from disk.
+    error truncate(JSONSyncConfigIOContext& ioContext);
 
     // Write this database to disk.
     error write(JSONSyncConfigIOContext& ioContext);
 
 private:
-    // Adds a new (or updates an existing) config.
-    const SyncConfig* add(const SyncConfig& config,
-                              const bool flush);
-
-    // Removes all configs.
-    void clear(const bool flush);
-
     // Reads this database from the specified slot on disk.
     error read(JSONSyncConfigIOContext& ioContext,
                const unsigned int slot);
@@ -443,9 +411,6 @@ private:
     // Path to the drive containing this database.
     LocalPath mDrivePath;
 
-    // Who we tell about config changes.
-    JSONSyncConfigDBObserver* mObserver;
-
     // Maps backup tag to config.
     JSONSyncConfigMap mBackupIdToConfig;
 
@@ -462,9 +427,9 @@ using JSONSyncConfigDBPtr = unique_ptr<JSONSyncConfigDB>;
 class MEGA_API JSONSyncConfigIOContext
 {
 public:
-    JSONSyncConfigIOContext(SymmCipher& cipher,
-                            FileSystemAccess& fsAccess,
-                            const string& key,
+    JSONSyncConfigIOContext(FileSystemAccess& fsAccess,
+                            const string& authKey,
+                            const string& cipherKey,
                             const string& name,
                             PrnGen& rng);
 
@@ -472,18 +437,31 @@ public:
 
     MEGA_DISABLE_COPY_MOVE(JSONSyncConfigIOContext);
 
+    // Deserialize configs from JSON (with logging.)
+    bool deserialize(const LocalPath& dbPath,
+                     JSONSyncConfigMap& configs,
+                     JSON& reader,
+                     const unsigned int slot) const;
+
     // Deserialize configs from JSON.
     bool deserialize(JSONSyncConfigMap& configs,
                      JSON& reader) const;
 
     // Determine which slots are present.
     virtual error getSlotsInOrder(const LocalPath& dbPath,
-                      vector<unsigned int>& confSlots);
+                                  vector<unsigned int>& confSlots);
 
     // Read data from the specified slot.
     virtual error read(const LocalPath& dbPath,
                        string& data,
                        const unsigned int slot);
+
+    // Remove an existing slot from disk.
+    virtual error remove(const LocalPath& dbPath,
+                         const unsigned int slot);
+
+    // Remove all existing slots from disk.
+    virtual error remove(const LocalPath& dbPath);
 
     // Serialize configs to JSON.
     void serialize(const JSONSyncConfigMap& configs,
@@ -494,11 +472,14 @@ public:
                         const string& data,
                         const unsigned int slot);
 
-    // remove the file from the old slot
-    void remove(const LocalPath& dbPath,
-                const unsigned int slot);
+    // Prefix applied to configuration database names.
+    static const string NAME_PREFIX;
 
 private:
+    // Generate complete database path.
+    LocalPath dbFilePath(const LocalPath& dbPath,
+                         const unsigned int slot) const;
+
     // Decrypt data.
     bool decrypt(const string& in, string& out);
 
@@ -527,31 +508,6 @@ private:
     HMACSHA256 mSigner;
 }; // JSONSyncConfigIOContext
 
-/*class MEGA_API JSONSyncConfigDBObserver
-{
-public:
-    // Invoked when a backup config is being added.
-    virtual void onAdd(JSONSyncConfigDB& db,
-                       const SyncConfig& config) = 0;
-
-    // Invoked when a backup config is being changed.
-    virtual void onChange(JSONSyncConfigDB& db,
-                          const SyncConfig& from,
-                          const SyncConfig& to) = 0;
-
-    // Invoked when a database needs to be written.
-    virtual void onDirty(JSONSyncConfigDB& db) = 0;
-
-    // Invoked when a backup config is being removed.
-    virtual void onRemove(JSONSyncConfigDB& db,
-                          const SyncConfig& config) = 0;
-
-protected:
-    JSONSyncConfigDBObserver();
-
-    ~JSONSyncConfigDBObserver();
-}; // JSONSyncConfigDBObserver*/
-
 struct Syncs
 {
     UnifiedSync* appendNewSync(const SyncConfig&, MegaClient& mc);
@@ -559,8 +515,8 @@ struct Syncs
     bool hasRunningSyncs();
     unsigned numRunningSyncs();
     Sync* firstRunningSync();
-    Sync* runningSyncByBackupId(handle tag) const;
-    SyncConfig* syncConfigByBackupId(handle bid) const;
+    Sync* runningSyncByBackupId(handle backupId) const;
+    SyncConfig* syncConfigByBackupId(handle backupId) const;
 
     void forEachUnifiedSync(std::function<void(UnifiedSync&)> f);
     void forEachRunningSync(std::function<void(Sync* s)>);
