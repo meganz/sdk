@@ -877,12 +877,13 @@ void CurlHttpIO::disconnect()
     {
         filterDNSservers();
     }
-
+#ifndef TARGET_OS_IPHONE
     if (proxyurl.size() && !proxyip.size())
     {
         LOG_debug << "Unresolved proxy name. Resolving...";
         request_proxy_ip();
     }
+#endif
 }
 
 bool CurlHttpIO::setmaxdownloadspeed(m_off_t bpslimit)
@@ -1534,7 +1535,12 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_DEBUGDATA, (void*)req);
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
 
+#if TARGET_OS_IPHONE
+        if (httpio->proxyurl.size())
+#else
         if (httpio->proxyip.size())
+#endif
+        
         {
             if(!httpio->proxyscheme.size() || !httpio->proxyscheme.compare(0, 4, "http"))
             {
@@ -1550,8 +1556,11 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
             {
                 LOG_warn << "Unknown proxy type";
             }
-
+#if TARGET_OS_IPHONE
+            curl_easy_setopt(curl, CURLOPT_PROXY, httpio->proxyurl.c_str());
+#else
             curl_easy_setopt(curl, CURLOPT_PROXY, httpio->proxyip.c_str());
+#endif
             curl_easy_setopt(curl, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
 
             if (httpio->proxyusername.size())
@@ -1985,7 +1994,11 @@ void CurlHttpIO::setproxy(Proxy* proxy)
 
     ipv6requestsenabled = false;
     ipv6proxyenabled = ipv6requestsenabled;
+#if TARGET_OS_IPHONE
+    this->send_pending_requests();
+#else
     request_proxy_ip();
+#endif
 }
 
 // cancel pending HTTP request
@@ -2265,8 +2278,12 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
                     {
                         // change the protocol of the proxy after fails contacting
                         // MEGA servers with both protocols (IPv4 and IPv6)
+#if TARGET_OS_IPHONE
+                        this->send_pending_requests();
+#else
                         ipv6proxyenabled = !ipv6proxyenabled && ipv6available();
                         request_proxy_ip();
+#endif
                     }
                     else if (httpctx->isIPv6)
                     {
