@@ -2996,7 +2996,7 @@ class MegaRequest
             TYPE_CREDIT_CARD_CANCEL_SUBSCRIPTIONS, TYPE_GET_SESSION_TRANSFER_URL,
             TYPE_GET_PAYMENT_METHODS, TYPE_INVITE_CONTACT, TYPE_REPLY_CONTACT_REQUEST,
             TYPE_SUBMIT_FEEDBACK, TYPE_SEND_EVENT, TYPE_CLEAN_RUBBISH_BIN,
-            TYPE_SET_ATTR_NODE, TYPE_CHAT_CREATE, TYPE_CHAT_FETCH, TYPE_CHAT_INVITE,
+            TYPE_SET_ATTR_NODE, TYPE_GET_ATTR_NODE, TYPE_CHAT_CREATE, TYPE_CHAT_FETCH, TYPE_CHAT_INVITE,
             TYPE_CHAT_REMOVE, TYPE_CHAT_URL, TYPE_CHAT_GRANT_ACCESS, TYPE_CHAT_REMOVE_ACCESS,
             TYPE_USE_HTTPS_ONLY, TYPE_SET_PROXY,
             TYPE_GET_RECOVERY_LINK, TYPE_QUERY_RECOVERY_LINK, TYPE_CONFIRM_RECOVERY_LINK,
@@ -3770,6 +3770,19 @@ class MegaRequest
          * @return String list
          */
         virtual MegaStringList* getMegaStringList() const;
+
+        /**
+         * @brief Returns the MegaHandle list
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::getFavourites - A list of MegaHandle objects
+         *
+         * @return MegaHandle list
+         */
+        virtual MegaNodeList* getMegaNodeList() const;
 };
 
 /**
@@ -10952,6 +10965,15 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get a list of favourite nodes.
+         *
+         * @param node Node and it's children that will be searched for favourites. Search all nodes if null
+         * @param count if count is zero return all favourite nodes, otherwie return only 'count' favourite nodes
+         * @param listener MegaRequestListener to track this request
+         */
+        void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Set the GPS coordinates of image files as a node attribute.

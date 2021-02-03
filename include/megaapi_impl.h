@@ -208,6 +208,20 @@ class MegaSizeProcessor : public MegaTreeProcessor
         long long getTotalBytes();
 };
 
+class MegaFavouriteProcessor : public MegaTreeProcessor
+{
+protected:
+    std::unique_ptr<MegaNodeList> mFavouriteNodeList;
+
+public:
+    MegaFavouriteProcessor(int max);
+    bool processMegaNode(MegaNode* node) override;
+    MegaNodeList* getFavouriteNodes();
+
+private:
+    int mMaxNodes = 0;
+};
+
 class MegaRecursiveOperation
 {
 public:
@@ -1226,6 +1240,7 @@ class MegaRequestPrivate : public MegaRequest
         AchievementsDetails *getAchievementsDetails() const;
         MegaTimeZoneDetails *getMegaTimeZoneDetails () const override;
         MegaStringList *getMegaStringList() const override;
+        MegaNodeList* getMegaNodeList() const override;
 
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *getMegaTextChatPeerList() const override;
@@ -1246,6 +1261,7 @@ class MegaRequestPrivate : public MegaRequest
         MegaBackgroundMediaUpload *getMegaBackgroundMediaUploadPtr() const override;
         void setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUpload *);  // non-owned pointer
         void setMegaStringList(MegaStringList* stringList);
+        void setMegaNodeList(MegaNodeList* nodeList);
 
 #ifdef ENABLE_SYNC
         void setRegExp(MegaRegExp *regExp);
@@ -1305,6 +1321,7 @@ protected:
         MegaPushNotificationSettings *settings;
         MegaBackgroundMediaUpload* backgroundMediaUpload;  // non-owned pointer
         unique_ptr<MegaStringList> mStringList;
+        unique_ptr<MegaNodeList> mNodeList;
 
     private:
         unique_ptr<MegaBannerListPrivate> mBannerList;
@@ -2303,6 +2320,7 @@ class MegaApiImpl : public MegaApp
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
         void setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener = NULL);
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
+        void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
         void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);

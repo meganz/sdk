@@ -3428,6 +3428,11 @@ MegaStringList *MegaRequestPrivate::getMegaStringList() const
     return mStringList.get();
 }
 
+MegaNodeList* MegaRequestPrivate::getMegaNodeList() const
+{
+    return mNodeList.get();
+}
+
 #ifdef ENABLE_CHAT
 MegaTextChatPeerList *MegaRequestPrivate::getMegaTextChatPeerList() const
 {
@@ -3548,6 +3553,16 @@ void MegaRequestPrivate::setMegaStringList(MegaStringList* stringList)
     if (stringList)
     {
        mStringList = unique_ptr<MegaStringList>(stringList->copy());
+    }
+}
+
+void MegaRequestPrivate::setMegaNodeList(MegaNodeList* nodeList)
+{
+    mNodeList.reset();
+
+    if (nodeList)
+    {
+        mNodeList = unique_ptr<MegaNodeList>(nodeList->copy());
     }
 }
 
@@ -6949,6 +6964,24 @@ void MegaApiImpl::setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener
     request->setFlag(true);     // is official attribute or not
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::getFavourites(MegaNode* node, int count, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_NODE, listener);
+    if (node)
+    {
+        request->setNodeHandle(node->getHandle());
+    }
+    else
+    {
+        request->setNodeHandle(UNDEF);
+    }
+
+    request->setParamType(MegaApi::NODE_ATTR_FAV);
+    request->setNumDetails(count);
+    requestQueue.push(request);
+    waiter->notify(); 
 }
 
 static void encodeCoordinates(double latitude, double longitude, int& lat, int& lon)
@@ -20562,6 +20595,24 @@ void MegaApiImpl::sendPendingRequests()
 
             break;
         }
+
+        case MegaRequest::TYPE_GET_ATTR_NODE:
+        {
+            int type = request->getParamType();
+
+            if (type == MegaApi::NODE_ATTR_FAV)
+            {
+                int count = request->getNumDetails();
+                MegaHandle folder = request->getNodeHandle();
+                auto node = getNodeByHandle(folder);
+                node = node != nullptr ? node : getRootNode();
+                MegaFavouriteProcessor fn(count);
+                processMegaTree(node, &fn);
+                auto nl = fn.getFavouriteNodes();
+                request->setMegaNodeList(nl);
+            }
+        }
+
         case MegaRequest::TYPE_CANCEL_ATTR_FILE:
         {
             int type = request->getParamType();
@@ -33021,6 +33072,28 @@ bool MegaSizeProcessor::processMegaNode(MegaNode *node)
 long long MegaSizeProcessor::getTotalBytes()
 {
     return totalBytes;
+}
+
+MegaFavouriteProcessor::MegaFavouriteProcessor(int max):mMaxNodes(max)
+{
+    std::unique_ptr<MegaNodeList> nl(MegaNodeList::createInstance());
+    favouriteNodeList = std::move(nl);
+}
+
+MegaNodeList* MegaFavouriteProcessor::getFavouriteNodes()
+{
+    return favouriteNodeList.get();
+}
+
+bool MegaFavouriteProcessor::processMegaNode(MegaNode* node)
+{
+    if (node == nullptr) return false;
+ 
+    if (node->isFavourite() && (mMaxNodes == 0 || (favouriteNodeList.get() && favouriteNodeList->size() < mMaxNodes)))
+    {
+        favouriteNodeList.get()->addNode(node);
+    }
+    return true;
 }
 
 

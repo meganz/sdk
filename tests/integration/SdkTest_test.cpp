@@ -644,6 +644,13 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_FETCH_GOOGLE_ADS:
         mApi[apiIndex].mStringMap.reset(mApi[apiIndex].lastError == API_OK ? request->getMegaStringMap()->copy() : nullptr);
             break;
+
+    case MegaRequest::TYPE_GET_ATTR_NODE:
+        if (mApi[apiIndex].lastError == API_OK)
+        {
+            mMegaFavNodeList = request->getMegaNodeList();
+        }
+        break;
     }
 }
 
@@ -5080,6 +5087,32 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     gTestingInvalidArgs = false;
 }
 
+TEST_F(SdkTest, SdkFavouriteNodes)
+{
+    getAccountsForTest(1);
+    LOG_info << "___TEST SDKFavourites___";
+
+    // setbackup test
+    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    string localFolder = localtestroot.string();
+    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+
+    // create remote a folder
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, "SDKFavourites", rootnode.get()));
+    auto err = synchronousSetNodeFavourite(0, nullptr, true);
+    ASSERT_EQ(MegaError::API_OK, err) << "synchronousSetNodeFavourite (error: " << err << ")";
+
+    err = synchronousGetFavourites(0, nullptr, 0);
+    ASSERT_EQ(MegaError::API_OK, err) << "synchronousGetFavourites (error: " << err << ")";
+
+    //if (mMegaFavNodeList)
+    //{
+    //    for (int i = 0; i < mMegaFavNodeList->size(); ++i)
+    //    {
+    //        cout << mMegaFavNodeList->get(i)->getName() << endl;
+    //    }
+    //}
+}
 TEST_F(SdkTest, DISABLED_SdkDeviceNames)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
