@@ -26,6 +26,9 @@
 #include <mega/utils.h>
 #include "megafs.h"
 
+#include <mega/db.h>
+#include <mega/db/sqlite.h>
+
 TEST(utils, hashCombine_integer)
 {
     size_t hash = 0;
@@ -650,5 +653,330 @@ TEST(Filesystem, NormalizeRelativeEmpty)
     LocalPath path;
 
     EXPECT_EQ(NormalizeRelative(path), path);
+}
+
+class SqliteDBTest
+  : public ::testing::Test
+{
+public:
+        SqliteDBTest()
+          : Test()
+          , fsAccess()
+          , name("test")
+          , rng()
+          , rootPath()
+        {
+            // Get the current path.
+            bool result = fsAccess.cwd(rootPath);
+            assert(result);
+
+            // Create temporary DB root path.
+            rootPath.appendWithSeparator(
+                LocalPath::fromPath("db", fsAccess), false);
+
+            // Make sure our root path is clear.
+            fsAccess.emptydirlocal(rootPath);
+            fsAccess.rmdirlocal(rootPath);
+
+            // Create root path.
+            result = fsAccess.mkdirlocal(rootPath, false);
+            assert(result);
+        }
+
+        ~SqliteDBTest()
+        {
+            // Remove temporary root path.
+            fsAccess.emptydirlocal(rootPath);
+
+            bool result = fsAccess.rmdirlocal(rootPath);
+            assert(result);
+        }
+
+        FSACCESS_CLASS fsAccess;
+        string name;
+        PrnGen rng;
+        LocalPath rootPath;
+}; // SqliteDBTest
+
+TEST_F(SqliteDBTest, CreateCurrent)
+{
+    SqliteDbAccess dbAccess(rootPath);
+
+    // Assume databases are in legacy format until proven otherwise.
+    EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::LEGACY_DB_VERSION);
+
+    // Create a new database.
+    unique_ptr<SqliteDbTable> dbTable(dbAccess.open(rng, fsAccess, name));
+
+    // Was the database created successfully?
+    ASSERT_TRUE(!!dbTable);
+
+    // New databases should not be in the legacy format.
+    EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::DB_VERSION);
+
+    // Are the DB files named correctly?
+    auto dbFile =
+      dbAccess.databasePath(fsAccess,
+                            name,
+                            DbAccess::DB_VERSION);
+
+    EXPECT_EQ(dbTable->dbFile(), dbFile);
+
+    // Was the file actually created with the correct name?
+    auto fileAccess = fsAccess.newfileaccess(false);
+
+    EXPECT_TRUE(fileAccess->isfile(dbFile));
+
+    // Check for SHM suffix.
+    {
+        ScopedLengthRestore restorer(dbFile);
+
+        dbFile.append(LocalPath::fromPath("-shm", fsAccess));
+        EXPECT_TRUE(fileAccess->isfile(dbFile));
+    }
+
+    // Check for WAL suffix.
+    {
+        ScopedLengthRestore restorer(dbFile);
+
+        dbFile.append(LocalPath::fromPath("-shm", fsAccess));
+        EXPECT_TRUE(fileAccess->isfile(dbFile));
+    }
+}
+
+TEST_F(SqliteDBTest, OpenLegacy)
+{
+    // Create a dummy database.
+    {
+        SqliteDbAccess dbAccess(rootPath);
+
+        unique_ptr<SqliteDbTable> dbTable(dbAccess.open(rng, fsAccess, name));
+        ASSERT_TRUE(!!dbTable);
+
+        auto from = dbTable->dbFile();
+        dbTable.reset();
+
+        auto to =
+          dbAccess.databasePath(fsAccess,
+                                name,
+                                DbAccess::LEGACY_DB_VERSION);
+
+        EXPECT_TRUE(fsAccess.renamelocal(from, to, false));
+    }
+
+    // Open the database.
+    SqliteDbAccess dbAccess(rootPath);
+
+    EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::LEGACY_DB_VERSION);
+
+    unique_ptr<SqliteDbTable> dbTable(dbAccess.open(rng, fsAccess, name));
+    ASSERT_TRUE(!!dbTable);
+
+    EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::LEGACY_DB_VERSION);
+
+    // Is the file named correctly?
+    auto dbFile =
+      dbAccess.databasePath(fsAccess,
+                            name,
+                            DbAccess::LEGACY_DB_VERSION);
+
+    EXPECT_EQ(dbFile, dbTable->dbFile());
+
+    dbTable.reset();
+
+    // Check the file's presence.
+    auto fileAccess = fsAccess.newfileaccess(false);
+    EXPECT_TRUE(fileAccess->isfile(dbFile));
+}
+
+TEST_F(SqliteDBTest, OpenCurrent)
+{
+    // Create a dummy database.
+    {
+        SqliteDbAccess dbAccess(rootPath);
+
+        EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::LEGACY_DB_VERSION);
+
+        DbTablePtr dbTable(dbAccess.open(rng, fsAccess, name));
+        ASSERT_TRUE(!!dbTable);
+
+        EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::DB_VERSION);
+    }
+
+    // Open the database.
+    SqliteDbAccess dbAccess(rootPath);
+
+    EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::LEGACY_DB_VERSION);
+
+    DbTablePtr dbTable(dbAccess.open(rng, fsAccess, name));
+    EXPECT_TRUE(!!dbTable);
+
+    EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::DB_VERSION);
+}
+
+TEST_F(SqliteDBTest, ProbeCurrent)
+{
+    SqliteDbAccess dbAccess(rootPath);
+
+    // Create dummy database.
+    {
+        auto dbFile =
+          dbAccess.databasePath(fsAccess,
+                                name,
+                                DbAccess::DB_VERSION);
+
+        auto fileAccess = fsAccess.newfileaccess(false);
+        EXPECT_TRUE(fileAccess->fopen(dbFile, false, true));
+    }
+
+    EXPECT_TRUE(dbAccess.probe(fsAccess, name));
+}
+
+TEST_F(SqliteDBTest, ProbeLegacy)
+{
+    SqliteDbAccess dbAccess(rootPath);
+
+    // Create dummy database.
+    {
+        auto dbFile =
+          dbAccess.databasePath(fsAccess,
+                                name,
+                                DbAccess::LEGACY_DB_VERSION);
+
+        auto fileAccess = fsAccess.newfileaccess(false);
+        EXPECT_TRUE(fileAccess->fopen(dbFile, false, true));
+    }
+
+    EXPECT_TRUE(dbAccess.probe(fsAccess, name));
+}
+
+TEST_F(SqliteDBTest, ProbeNone)
+{
+    SqliteDbAccess dbAccess(rootPath);
+    EXPECT_FALSE(dbAccess.probe(fsAccess, name));
+}
+
+TEST_F(SqliteDBTest, RecycleLegacy)
+{
+    LocalPath legacyPath;
+    LocalPath legacyShmPath;
+    LocalPath legacyWalPath;
+
+    // Create a dummy database.
+    {
+        SqliteDbAccess dbAccess(rootPath);
+
+        unique_ptr<SqliteDbTable> dbTable(dbAccess.open(rng, fsAccess, name));
+        ASSERT_TRUE(!!dbTable);
+
+        auto from = dbTable->dbFile();
+        dbTable.reset();
+
+        legacyPath =
+          dbAccess.databasePath(fsAccess,
+                                name,
+                                DbAccess::LEGACY_DB_VERSION);
+
+        EXPECT_TRUE(fsAccess.renamelocal(from, legacyPath, false));
+
+        // Create dummy SHM file.
+        {
+            legacyShmPath = legacyPath;
+            legacyShmPath.append(LocalPath::fromPath("-shm", fsAccess));
+
+            auto fileAccess = fsAccess.newfileaccess(false);
+            EXPECT_TRUE(fileAccess->fopen(legacyShmPath, false, true));
+        }
+
+        // Create dummy WAL file.
+        {
+            legacyWalPath = legacyPath;
+            legacyWalPath.append(LocalPath::fromPath("-wal", fsAccess));
+
+            auto fileAccess = fsAccess.newfileaccess(false);
+            EXPECT_TRUE(fileAccess->fopen(legacyWalPath, false, true));
+        }
+    }
+
+    SqliteDbAccess dbAccess(rootPath);
+    
+    // Assume database is in the current format.
+    dbAccess.currentDbVersion = DbAccess::DB_VERSION;
+
+    // Create a new database, taking care to recycle prior versions.
+    auto dbTable =
+      unique_ptr<SqliteDbTable>(
+        dbAccess.open(rng, fsAccess, name, DB_OPEN_FLAG_RECYCLE));
+    ASSERT_TRUE(!!dbTable);
+
+    // Database should remain in the current version.
+    EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::DB_VERSION);
+
+    // Has the database been named correctly?
+    EXPECT_NE(dbTable->dbFile(), legacyPath);
+
+    auto fileAccess = fsAccess.newfileaccess(false);
+
+    // Was the file created with the correct name?
+    EXPECT_TRUE(fileAccess->isfile(dbTable->dbFile()));
+
+    // Was the old DB file recycled?
+    EXPECT_FALSE(fileAccess->isfile(legacyPath));
+
+    // Were the old SHM/WAL files recycled?
+    EXPECT_FALSE(fileAccess->isfile(legacyShmPath));
+    EXPECT_FALSE(fileAccess->isfile(legacyWalPath));
+}
+
+TEST_F(SqliteDBTest, RemoveLegacy)
+{
+    LocalPath legacyPath;
+
+    // Create a dummy database.
+    {
+        SqliteDbAccess dbAccess(rootPath);
+
+        unique_ptr<SqliteDbTable> dbTable(dbAccess.open(rng, fsAccess, name));
+        ASSERT_TRUE(!!dbTable);
+
+        auto from = dbTable->dbFile();
+        dbTable.reset();
+
+        legacyPath =
+          dbAccess.databasePath(fsAccess,
+                                name,
+                                DbAccess::LEGACY_DB_VERSION);
+
+        EXPECT_TRUE(fsAccess.renamelocal(from, legacyPath, false));
+    }
+
+    SqliteDbAccess dbAccess(rootPath);
+
+    // Assume databases are in the current format.
+    dbAccess.currentDbVersion = DbAccess::DB_VERSION;
+
+    // Create a new database, taking care to remove any prior versions.
+    unique_ptr<SqliteDbTable> dbTable(dbAccess.open(rng, fsAccess, name));
+    ASSERT_TRUE(!!dbTable);
+
+    // Database should remain in current format.
+    EXPECT_EQ(dbAccess.currentDbVersion, DbAccess::DB_VERSION);
+
+    // Is the new database named correctly?
+    EXPECT_NE(dbTable->dbFile(), legacyPath);
+
+    auto fileAccess = fsAccess.newfileaccess(false);
+
+    // Was the correct file actually created?
+    EXPECT_TRUE(fileAccess->isfile(dbTable->dbFile()));
+
+    // Was the old database removed?
+    EXPECT_FALSE(fileAccess->isfile(legacyPath));
+}
+
+TEST_F(SqliteDBTest, RootPath)
+{
+    SqliteDbAccess dbAccess(rootPath);
+    EXPECT_EQ(dbAccess.rootPath(), rootPath);
 }
 
