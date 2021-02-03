@@ -2790,6 +2790,12 @@ bool CommandPutUAVer::procresult(Result r)
         {
             User *u = client->ownuser();
             u->invalidateattr(at);
+
+            if (at == ATTR_JSON_SYNC_CONFIG_DATA)
+            {
+                LOG_warn << "Attr for sync-config data was created by other client. Fetching...";
+                client->reqs.add(new CommandGetUA(client, u->uid.c_str(), at, nullptr, 0));
+            }
         }
 
         client->app->putua_result(r.errorOrOK());
@@ -2860,6 +2866,15 @@ bool CommandPutUAVer::procresult(Result r)
                     }
                     client->mPendingBackupNames.clear();
                 }
+            }
+            else if (at == ATTR_UNSHAREABLE_KEY)
+            {
+                LOG_info << "Unshareable key successfully created";
+                client->unshareablekey.swap(av);
+            }
+            else if (at == ATTR_JSON_SYNC_CONFIG_DATA)
+            {
+                LOG_info << "JSON config data successfully created.";
             }
 
             client->notifyuser(u);
@@ -2935,16 +2950,7 @@ bool CommandPutUA::procresult(Result r)
                 LOG_info << "File versioning is enabled";
             }
         }
-        else if (at == ATTR_UNSHAREABLE_KEY)
-        {
-            LOG_info << "Unshareable key successfully created";
-            client->unshareablekey.swap(av);
-        }
-        else if (at == ATTR_JSON_SYNC_CONFIG_DATA)
-        {
-            LOG_info << "JSON config data successfully created.";
-        }
-
+      
         client->app->putua_result(API_OK);
     }
 

@@ -894,7 +894,6 @@ int User::needversioning(attr_t at)
         case ATTR_PUSH_SETTINGS:
         case ATTR_COOKIE_SETTINGS:
         case ATTR_MY_BACKUPS_FOLDER:
-        case ATTR_JSON_SYNC_CONFIG_DATA:
             return 0;
 
         case ATTR_LAST_INT:
@@ -912,6 +911,7 @@ int User::needversioning(attr_t at)
         case ATTR_UNSHAREABLE_KEY:
         case ATTR_DEVICE_NAMES:
         case ATTR_BACKUP_NAMES:
+        case ATTR_JSON_SYNC_CONFIG_DATA:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
