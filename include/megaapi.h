@@ -12138,7 +12138,7 @@ class MegaApi
          *        This is provided for backward compatibiltiy for MEGAsync.
          * @param listener MegaRequestListener to track this request
          */
-        void logout(bool keepSyncConfigsFile, MegaRequestListener *listener);
+        void logout(bool keepSyncConfigsFile, MegaRequestListener *listener = nullptr);
 
         /**
          * @brief Logout of the MEGA account without invalidating the session
