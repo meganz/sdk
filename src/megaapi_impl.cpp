@@ -21668,7 +21668,7 @@ void MegaApiImpl::sendPendingRequests()
                     return;
                 }
 
-                client->copySyncConfig(syncConfig, [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
+                client->copySyncConfig(syncConfig, [this, request](UnifiedSync *unifiedSync, const SyncError &, error e)
                 {
                     if (!e && !unifiedSync)
                     {

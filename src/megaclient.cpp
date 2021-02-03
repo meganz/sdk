@@ -13142,9 +13142,9 @@ void MegaClient::ensureSyncUserAttributes(std::function<void(Error)> completion)
                 }
                 else
                 {
-                    LOG_info << "JSON config data created: " << error(e);
+                    LOG_info << "Putua for JSON config data finished: " << error(e);
 
-                    ensureSyncUserAttributesCompleted(API_OK);
+                    ensureSyncUserAttributesCompleted(e);
                 }
             });
      }
