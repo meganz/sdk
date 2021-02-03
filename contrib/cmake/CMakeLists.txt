@@ -297,80 +297,40 @@ function(ImportALibrary libName includeDir) #receives also libfileDebug & libfil
 endfunction(ImportALibrary)
 
 function(ImportStdVcpkgLibrary libName winDbg win linDbg lin)
-    message(STATUS "ImportStdVcpkgLibrary searching for ${libName}")
-
-    set(_vcpkg_lib_prefix "${vcpkg_dir}/lib/")
-    set(_vcpkg_lib_prefix_dbg "${vcpkg_dir}/debug/lib")
-
     if(WIN32)
-        set(_target_lib ${win})
-        set(_target_lib_dbg ${winDbg})
+        set(_target_lib "${vcpkg_dir}/lib/${win}.lib")
+        set(_target_lib_dbg "${vcpkg_dir}/debug/lib/${winDbg}.lib")
     else()
-        set(_target_lib ${lin})
-        set(_target_lib_dbg ${linDbg})
+        set(_target_lib "${vcpkg_dir}/lib/${lin}.a")
+        set(_target_lib_dbg "${vcpkg_dir}/debug/lib/${linDbg}.a")
     endif()
 
-    set(_out_var "${libName}_LIBRARY")
-    set(_out_var_dbg "${libName}_LIBRARY_DEBUG")
-
-    find_library(
-        ${_out_var}
-        ${_target_lib}
-        PATHS ${_vcpkg_lib_prefix}
-        NO_DEFAULT_PATH
-    )
-
-    find_library(
-        ${_out_var_dbg}
-        ${_target_lib_dbg}
-        PATHS ${_vcpkg_lib_prefix_dbg}
-        NO_DEFAULT_PATH
-    )
-
-    if(NOT ${_out_var} AND NOT ${_out_var_dbg})
-        message(FATAL_ERROR "ImportStdVcpkgLibrary could not find ${libName}")
+    if (NOT (EXISTS ${_target_lib} AND EXISTS ${_target_lib_dbg}))
+        if (WIN32)
+            message(FATAL_ERROR "Could not find libraries for ${winDbg} ${win}")
+        else()
+            set(_target_lib_shared "${vcpkg_dir}/lib/${lin}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+            set(_target_lib_shared_dbg "${vcpkg_dir}/debug/lib/${linDbg}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+            if(NOT (EXISTS ${_target_lib_shared} AND EXISTS ${_target_lib_shared_dbg}))
+                message(FATAL_ERROR "Could not find libraries for ${lin} ${linDbg}
+                checked ${_target_lib} ${_target_lib_dbg}
+                ${_target_lib_shared} ${_target_lib_shared_dbg}
+                ")
+            else()
+                set(_target_lib ${_target_lib_shared})
+                set(_target_lib_dbg ${_target_lib_shared_dbg})
+            endif()
+        endif()
     endif()
 
     add_library(${libName} UNKNOWN IMPORTED)
-    set_property(
-        TARGET ${libName}
-        PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${vcpkg_dir}/include
+
+    set_target_properties(${libName}
+        PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES ${vcpkg_dir}/include
+            IMPORTED_LOCATION ${_target_lib}
+            IMPORTED_LOCATION_DEBUG ${_target_lib_dbg}
     )
-
-    if(${_out_var})
-        message(STATUS "Found ${libName}: ${${_out_var}}")
-        set_target_properties(
-            ${libName}
-            PROPERTIES
-                IMPORTED_LOCATION ${${_out_var}}
-                IMPORTED_LOCATION_RELEASE ${${_out_var}}       
-        )
-    endif()
-
-    if(${_out_var_dbg})
-        message(STATUS "Found debug ${libName}: ${${_out_var_dbg}}")
-        set_property(
-            TARGET ${libName}
-            PROPERTY IMPORTED_LOCATION_DEBUG ${${_out_var_dbg}}
-        )
-    endif()
-
-#[[
-    if (WIN32 OR EXISTS ${vcpkg_dir}/lib/${lin}.a OR EXISTS ${vcpkg_dir}/debug/lib/${linDbg}.a)
-        add_library(${libName} STATIC IMPORTED)
-        message("adding library: " ${vcpkg_dir}/lib/${lin}.a)
-        # function that imports vcpkg libraries (receiving different names for win/linux)
-        set_property(TARGET ${libName} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${vcpkg_dir}/include)
-        if (WIN32)
-            set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION  ${vcpkg_dir}/lib/${win}.lib)
-            set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION_DEBUG ${vcpkg_dir}/debug/lib/${winDbg}.lib)
-        else()
-                set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION  ${vcpkg_dir}/lib/${lin}.a)
-                set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION_DEBUG ${vcpkg_dir}/debug/lib/${linDbg}.a)
-        endif()
-    endif()
-]]
-
 endfunction(ImportStdVcpkgLibrary)
 
 function(ImportHeaderLibrary libName includeDir)
@@ -380,36 +340,35 @@ endfunction(ImportHeaderLibrary)
 
 if(NOT NO_READLINE)
     if (APPLE)
-        ImportStdVcpkgLibrary(readline readline readline readline readline)
-        ImportStdVcpkgLibrary(history history history history history)
+        ImportStdVcpkgLibrary(readline _ _ libreadline libreadline)
+        ImportStdVcpkgLibrary(history _ _ libhistory libhistory)
         set(readline_LIBRARIES readline history)
     else()
         set(readline_LIBRARIES readline)
     endif()
 endif()
 
-
 if (USE_THIRDPARTY_FROM_VCPKG)
         IF(USE_CRYPTOPP)
-            ImportStdVcpkgLibrary(cryptopp        cryptopp-static cryptopp-static cryptopp cryptopp)
+            ImportStdVcpkgLibrary(cryptopp        cryptopp-static cryptopp-static libcryptopp libcryptopp)
         ENDIF(USE_CRYPTOPP)
 
         IF(USE_SODIUM)
-            ImportStdVcpkgLibrary(sodium          libsodium libsodium sodium sodium)
+            ImportStdVcpkgLibrary(sodium          libsodium libsodium libsodium libsodium)
         ENDIF(USE_SODIUM)
 
-        ImportStdVcpkgLibrary(z               zlibd zlib z z)
+        ImportStdVcpkgLibrary(z               zlibd zlib libz libz)
 
         IF(USE_CURL)
             IF(USE_WEBRTC)
                 ImportStdVcpkgLibrary(curl         "${Mega3rdPartyDir}/curl/include" "${Mega3rdPartyDir}/curl/build32/lib/Debug/libcurl-d.lib" "${Mega3rdPartyDir}/curl/build32/lib/Release/libcurl.lib")
             ELSE()
-                ImportStdVcpkgLibrary(curl        libcurl-d libcurl curl-d curl)
+                ImportStdVcpkgLibrary(curl        libcurl-d libcurl libcurl-d libcurl)
                 #find_package(CURL CONFIG REQUIRED PATHS "${vcpkg_dir}/share/curl" NO_DEFAULT_PATH )
             ENDIF()
         ENDIF()
         IF(USE_CURL)
-            ImportStdVcpkgLibrary(cares       cares cares cares cares)
+            ImportStdVcpkgLibrary(cares       cares cares libcares libcares)
         ENDIF()
 
         IF(USE_OPENSSL)
@@ -417,9 +376,9 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                 include_directories( "${WebRtcDir}/webrtc/src/third_party/boringssl/src/include" )
             ELSE()
                 #ImportStdVcpkgLibrary(ssl         ssleay32 ssleay32 libssl libssl) # prior openssl 1.1.0
-                ImportStdVcpkgLibrary(ssl         libssl libssl ssl ssl)
+                ImportStdVcpkgLibrary(ssl         libssl libssl libssl libssl)
                 #ImportStdVcpkgLibrary(crypto      libeay32 libeay32 libcrypto libcrypto) # prior openssl 1.1.0
-                ImportStdVcpkgLibrary(crypto      libcrypto libcrypto crypto crypto)
+                ImportStdVcpkgLibrary(crypto      libcrypto libcrypto libcrypto libcrypto)
 
             ENDIF()
         ENDIF()
@@ -429,14 +388,14 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             add_definitions( -DWEBRTC_WIN )
         ENDIF()
 
-        ImportStdVcpkgLibrary(gtest           gtestd gtest gtestd gtest)
+        ImportStdVcpkgLibrary(gtest           gtestd gtest libgtestd libgtest)
 
         IF(USE_MEDIAINFO)
             IF(CMAKE_HOST_APPLE)
                 set(DEBUG_SUFIX _debug)
             endif()
-            ImportStdVcpkgLibrary(zen        zend zen zen${DEBUG_SUFIX} zen)
-            ImportStdVcpkgLibrary(mediainfo  mediainfod mediainfo mediainfo${DEBUG_SUFIX} mediainfo)
+            ImportStdVcpkgLibrary(zen        zend zen libzen${DEBUG_SUFIX} libzen)
+            ImportStdVcpkgLibrary(mediainfo  mediainfod mediainfo libmediainfo${DEBUG_SUFIX} libmediainfo)
         ENDIF(USE_MEDIAINFO)
 
         IF(USE_FREEIMAGE)
@@ -479,30 +438,30 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         ENDIF(USE_FREEIMAGE)
 
         IF(HAVE_FFMPEG)
-            ImportStdVcpkgLibrary(avformat avformat avformat avformat avformat)
-            ImportStdVcpkgLibrary(avutil avutil avutil avutil avutil)
-            ImportStdVcpkgLibrary(avcodec avcodec avcodec avcodec avcodec)
-            ImportStdVcpkgLibrary(avfilter avfilter avfilter avfilter avfilter)
-            ImportStdVcpkgLibrary(avdevice avdevice avdevice avdevice avdevice)
-            ImportStdVcpkgLibrary(swscale  swscale swscale swscale swscale)
-            ImportStdVcpkgLibrary(swresample swresample swresample swresample swresample)
+            ImportStdVcpkgLibrary(avformat avformat avformat libavformat libavformat)
+            ImportStdVcpkgLibrary(avutil avutil avutil libavutil libavutil)
+            ImportStdVcpkgLibrary(avcodec avcodec avcodec libavcodec libavcodec)
+            ImportStdVcpkgLibrary(avfilter avfilter avfilter libavfilter libavfilter)
+            ImportStdVcpkgLibrary(avdevice avdevice avdevice libavdevice libavdevice)
+            ImportStdVcpkgLibrary(swscale  swscale swscale libswscale libswscale)
+            ImportStdVcpkgLibrary(swresample swresample swresample libswresample libswresample)
         ENDIF(HAVE_FFMPEG)
 
         IF(USE_SQLITE)
-            ImportStdVcpkgLibrary(sqlite3          sqlite3 sqlite3 sqlite3 sqlite3)
+            ImportStdVcpkgLibrary(sqlite3          sqlite3 sqlite3 libsqlite3 libsqlite3)
         ENDIF(USE_SQLITE)
 
         IF(USE_LIBUV)
-            ImportStdVcpkgLibrary(uv       libuv libuv libuv libuv)
+            ImportStdVcpkgLibrary(uv       libuv libuv liblibuv liblibuv)
         ENDIF(USE_LIBUV)
 
         IF(USE_LIBRAW)
-            ImportStdVcpkgLibrary(raw                  rawd raw rawd raw)
-            ImportStdVcpkgLibrary(raw_lcms           lcmsd lcms lcmsd lcms)
+            ImportStdVcpkgLibrary(raw                  rawd raw librawd libraw)
+            ImportStdVcpkgLibrary(raw_lcms           lcmsd lcms liblcmsd liblcms)
 
             IF(NOT CMAKE_HOST_APPLE)
-            ImportStdVcpkgLibrary(raw_jasper           jasperd jasper jasperd jasper)
-            ImportStdVcpkgLibrary(raw_libjpeg_turbo    turbojpegd turbojpeg turbojpeg turbojpeg)
+            ImportStdVcpkgLibrary(raw_jasper           jasperd jasper libjasperd libjasper)
+            ImportStdVcpkgLibrary(raw_libjpeg_turbo    turbojpegd turbojpeg libturbojpeg libturbojpeg)
             SET(raw_deps raw_jasper raw_libjpeg_turbo raw_lcms)
             else()
                 SET(raw_deps  raw_lcms)
@@ -515,17 +474,17 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         ENDIF(USE_LIBRAW)
 
         IF(USE_PDFIUM)
-            ImportStdVcpkgLibrary(pdfium       pdfium pdfium pdfium pdfium)
+            ImportStdVcpkgLibrary(pdfium       pdfium pdfium libpdfium libpdfium)
 
-            ImportStdVcpkgLibrary(freetype     freetyped freetype freetyped freetype)
-            ImportStdVcpkgLibrary(icu          icuucd icuuc icuuc icuuc)
-            ImportStdVcpkgLibrary(icudt        icudtd icudt icudt icudt)
-            ImportStdVcpkgLibrary(lcms         lcmsd lcms lcmsd lcms)
-            ImportStdVcpkgLibrary(turbojpeg    jpegd jpeg jpeg jpeg)
-            ImportStdVcpkgLibrary(openjpeg     openjp2 openjp2 openjp2 openjp2)
+            ImportStdVcpkgLibrary(freetype     freetyped freetype libfreetyped libfreetype)
+            ImportStdVcpkgLibrary(icu          icuucd icuuc libicuuc libicuuc)
+            ImportStdVcpkgLibrary(icudt        icudtd icudt libicudt libicudt)
+            ImportStdVcpkgLibrary(lcms         lcmsd lcms liblcmsd liblcms)
+            ImportStdVcpkgLibrary(turbojpeg    jpegd jpeg libjpeg libjpeg)
+            ImportStdVcpkgLibrary(openjpeg     openjp2 openjp2 libopenjp2 libopenjp2)
 
             IF (CMAKE_HOST_APPLE OR CMAKE_HOST_WIN32)
-                ImportStdVcpkgLibrary(bzip2       bz2d bz2 bz2d bz2)
+                ImportStdVcpkgLibrary(bzip2       bz2d bz2 libbz2d libbz2)
                 set (pdfium_deps bzip2)
             ELSEIF (CMAKE_HOST_UNIX)
                 set(ENV{PKG_CONFIG_PATH} "${vcpkg_dir}/lib/pkgconfig")
@@ -892,12 +851,10 @@ endif()
 
 if (HAVE_ASIO)
     add_executable(tool_tcprelay "${MegaDir}/tests/tool/tcprelay/main.cpp" "${MegaDir}/tests/tool/tcprelay/tcprelay.cpp")
-    
     set_property(
         TARGET tool_tcprelay
         PROPERTY EXCLUDE_FROM_ALL 1
     )
-    
     target_include_directories(tool_tcprelay PUBLIC "${vcpkg_dir}/installed/include")
     target_compile_definitions(tool_tcprelay PUBLIC -DASIO_STANDALONE)
     target_link_libraries(tool_tcprelay Mega)
