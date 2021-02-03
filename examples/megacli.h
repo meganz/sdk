@@ -310,6 +310,7 @@ void exec_put(autocomplete::ACState& s);
 void exec_putq(autocomplete::ACState& s);
 void exec_get(autocomplete::ACState& s);
 void exec_getq(autocomplete::ACState& s);
+void exec_more(autocomplete::ACState& s);
 void exec_pause(autocomplete::ACState& s);
 void exec_getfa(autocomplete::ACState& s);
 void exec_mediainfo(autocomplete::ACState& s);
