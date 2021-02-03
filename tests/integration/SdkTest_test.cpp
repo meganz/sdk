@@ -6194,7 +6194,7 @@ TEST_F(SdkTest, SyncRemoteNode)
 
     // since the node was deleted, path is irrelevant
     //sync.reset(megaApi[0]->getSyncByBackupId(tagID));
-    //ASSERT_EQ(string(sync->getMegaFolder()), ("/" / basePath).u8string());
+    //ASSERT_EQ(string(sync->getLastKnownMegaFolder()), ("/" / basePath).u8string());
 
     // Remove a failing sync.
     LOG_verbose << "SyncRemoteNode :  Remove failed sync";
