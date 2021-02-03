@@ -342,7 +342,7 @@ public:
     error validatepwd(const byte *);
 
     // get user data
-    void getuserdata();
+    void getuserdata(std::function<void(string*, string*, string*, error)> = nullptr);
 
     // get miscelaneous flags
     void getmiscflags();
@@ -549,7 +549,8 @@ public:
     void checkfacompletion(handle, Transfer* = NULL);
 
     // attach/update/delete a user attribute
-    void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1, handle lastPublicHandle = UNDEF, int phtype = 0, int64_t ts = 0);
+    void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1, handle lastPublicHandle = UNDEF, int phtype = 0, int64_t ts = 0,
+        std::function<void(Error)> completion = nullptr);
 
     // attach/update multiple versioned user attributes at once
     void putua(userattr_map *attrs, int ctag = -1);
@@ -631,8 +632,13 @@ public:
     error addsync(SyncConfig& syncConfig, const char* debris, LocalPath* localdebris, bool delayInitialScan, bool notifyApp,
                   SyncCompletionFunction completion);
 
-    void copySyncConfig(SyncConfig& config, SyncCompletionFunction completion);
+    void copySyncConfig(const SyncConfig& config, SyncCompletionFunction completion);
 
+    void ensureSyncUserAttributes(std::function<void(Error)> completion);
+private:
+    void ensureSyncUserAttributesCompleted(Error e);
+    std::function<void(Error)> mOnEnsureSyncUserAttributesComplete;
+public:
 
     ////// sync config updating & persisting ////
 

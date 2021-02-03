@@ -2758,10 +2758,16 @@ bool CommandPutMultipleUAVer::procresult(Result r)
 }
 
 
-CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag)
+CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, unsigned avl, int ctag,
+                                 std::function<void(Error)> completion)
 {
     this->at = at;
     this->av.assign((const char*)av, avl);
+
+    mCompletion = completion ? move(completion) :
+        [this](Error e) {
+            this->client->app->putua_result(e);
+        };
 
     cmd("upv");
 
@@ -2796,18 +2802,9 @@ bool CommandPutUAVer::procresult(Result r)
         {
             User *u = client->ownuser();
             u->invalidateattr(at);
-
-            if (at == ATTR_JSON_SYNC_CONFIG_DATA)
-            {
-                // it may happen that more than one client attempts to create the UA in parallel
-                // only the first one reaching the API will set the value, the other one should
-                // fetch the value manually
-                LOG_warn << "Failed to create JSON config data (already created). Fetching...";
-                client->reqs.add(new CommandGetUA(client, u->uid.c_str(), at, nullptr, 0));
-            }
         }
 
-        client->app->putua_result(r.errorOrOK());
+        mCompletion(r.errorOrOK());
     }
     else
     {
@@ -2816,14 +2813,14 @@ bool CommandPutUAVer::procresult(Result r)
 
         if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
         {
-            client->app->putua_result(API_EINTERNAL);
+            mCompletion(API_EINTERNAL);
             return false;
         }
         attr_t at = User::string2attr(string(ptr, (end-ptr)).c_str());
 
         if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
         {
-            client->app->putua_result(API_EINTERNAL);
+            mCompletion(API_EINTERNAL);
             return false;
         }
         string v = string(ptr, (end-ptr));
@@ -2831,7 +2828,7 @@ bool CommandPutUAVer::procresult(Result r)
         if (at == ATTR_UNKNOWN || v.empty() || (this->at != at))
         {
             LOG_err << "Error in CommandPutUA. Undefined attribute or version";
-            client->app->putua_result(API_EINTERNAL);
+            mCompletion(API_EINTERNAL);
             return false;
         }
         else
@@ -2876,23 +2873,24 @@ bool CommandPutUAVer::procresult(Result r)
                     client->mPendingBackupNames.clear();
                 }
             }
-            else if (at == ATTR_JSON_SYNC_CONFIG_DATA)
-            {
-                LOG_info << "JSON config data successfully created.";
-            }
-
             client->notifyuser(u);
-            client->app->putua_result(API_OK);
+            mCompletion(API_OK);
         }
     }
     return true;
 }
 
 
-CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, unsigned avl, int ctag, handle lph, int phtype, int64_t ts)
+CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, unsigned avl, int ctag, handle lph, int phtype, int64_t ts,
+                           std::function<void(Error)> completion)
 {
     this->at = at;
     this->av.assign((const char*)av, avl);
+
+    mCompletion = completion ? move(completion) :
+                  [this](Error e){
+                        client->app->putua_result(e);
+                  };
 
     cmd("up");
 
@@ -2924,7 +2922,7 @@ bool CommandPutUA::procresult(Result r)
 {
     if (r.wasErrorOrOK())
     {
-        client->app->putua_result(r.errorOrOK());
+        mCompletion(r.errorOrOK());
     }
     else
     {
@@ -2935,7 +2933,7 @@ bool CommandPutUA::procresult(Result r)
         if (!u)
         {
             LOG_err << "Own user not found when attempting to set user attributes";
-            client->app->putua_result(API_EACCESS);
+            mCompletion(API_EACCESS);
             return true;
         }
         u->setattr(at, &av, NULL);
@@ -2960,17 +2958,33 @@ bool CommandPutUA::procresult(Result r)
             client->unshareablekey.swap(av);
         }
 
-        client->app->putua_result(API_OK);
+        mCompletion(API_OK);
     }
 
     return true;
 }
 
-CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, const char* ph, int ctag)
+CommandGetUA::CommandGetUA(MegaClient* /*client*/, const char* uid, attr_t at, const char* ph, int ctag,
+                           CompletionErr completionErr, CompletionBytes completionBytes, CompletionTLV compltionTLV)
 {
     this->uid = uid;
     this->at = at;
     this->ph = ph ? string(ph) : "";
+
+    mCompletionErr = completionErr ? move(completionErr) :
+        [this](error e) {
+            client->app->getua_result(e);
+        };
+
+    mCompletionBytes = completionBytes ? move(completionBytes) :
+        [this](byte* b, unsigned l, attr_t e) {
+            client->app->getua_result(b, l, e);
+        };
+
+    mCompletionTLV = compltionTLV ? move(compltionTLV) :
+        [this](TLVstore* t, attr_t e) {
+            client->app->getua_result(t, e);
+        };
 
     if (ph && ph[0])
     {
@@ -2999,7 +3013,7 @@ bool CommandGetUA::procresult(Result r)
             u->removeattr(at);
         }
 
-        client->app->getua_result(r.errorOrOK());
+        mCompletionErr(r.errorOrOK());
 
         if (isFromChatPreview())    // if `mcuga` was sent, no need to do anything else
         {
@@ -3048,7 +3062,7 @@ bool CommandGetUA::procresult(Result r)
             ptr = client->json.getvalue();
             if (!ptr || !(end = strchr(ptr, '"')))
             {
-                client->app->getua_result(API_EINTERNAL);
+                mCompletionErr(API_EINTERNAL);
             }
             else
             {
@@ -3056,7 +3070,7 @@ bool CommandGetUA::procresult(Result r)
                 buf.assign(ptr, (end-ptr));
                 value.resize(buf.size() / 4 * 3 + 3);
                 value.resize(Base64::atob(buf.data(), (byte *)value.data(), int(value.size())));
-                client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
+                mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
             }
             return true;
         }
@@ -3069,7 +3083,7 @@ bool CommandGetUA::procresult(Result r)
                 {
                     if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
-                        client->app->getua_result(API_EINTERNAL);
+                        mCompletionErr(API_EINTERNAL);
                         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
@@ -3083,7 +3097,7 @@ bool CommandGetUA::procresult(Result r)
                 {
                     if (!(ptr = client->json.getvalue()) || !(end = strchr(ptr, '"')))
                     {
-                        client->app->getua_result(API_EINTERNAL);
+                        mCompletionErr(API_EINTERNAL);
                         if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                         {
                             client->initializekeys(); // we have now all the required data
@@ -3100,7 +3114,7 @@ bool CommandGetUA::procresult(Result r)
                     {
                         u->setattr(at, NULL, &version);
                         u->setTag(tag ? tag : -1);
-                        client->app->getua_result(API_ENOENT);
+                        mCompletionErr(API_ENOENT);
                         client->notifyuser(u);
                         return true;
                     }
@@ -3120,11 +3134,11 @@ bool CommandGetUA::procresult(Result r)
                     {
                         if (at == ATTR_AVATAR && buf == "none")
                         {
-                            client->app->getua_result(API_ENOENT);
+                            mCompletionErr(API_ENOENT);
                         }
                         else
                         {
-                            client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
+                            mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
                         }
                         return true;
                     }
@@ -3138,7 +3152,7 @@ bool CommandGetUA::procresult(Result r)
                             if (!tlvRecords)
                             {
                                 LOG_err << "Cannot extract TLV records for private attribute " << User::attr2string(at);
-                                client->app->getua_result(API_EINTERNAL);
+                                mCompletionErr(API_EINTERNAL);
                                 return false;
                             }
 
@@ -3146,7 +3160,7 @@ bool CommandGetUA::procresult(Result r)
                             string *tlvString = tlvRecords->tlvRecordsToContainer(client->rng, &client->key);
                             u->setattr(at, tlvString, &version);
                             delete tlvString;
-                            client->app->getua_result(tlvRecords.get(), at);
+                            mCompletionTLV(tlvRecords.get(), at);
 
                             if (User::isAuthring(at))
                             {
@@ -3180,7 +3194,7 @@ bool CommandGetUA::procresult(Result r)
                         case '+':   // public
                         {
                             u->setattr(at, &value, &version);
-                            client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
+                            mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
 
                             if (client->fetchingkeys && at == ATTR_SIG_RSA_PUBK && u && u->userhandle == client->me)
                             {
@@ -3203,14 +3217,14 @@ bool CommandGetUA::procresult(Result r)
                         case '#':   // protected
                         {
                             u->setattr(at, &value, &version);
-                            client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
+                            mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
                             break;
                         }
                         case '^': // private, non-encrypted
                         {
                             // store the value in cache in binary format
                             u->setattr(at, &value, &version);
-                            client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
+                            mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
 
                             if (at == ATTR_DISABLE_VERSIONS)
                             {
@@ -3236,12 +3250,12 @@ bool CommandGetUA::procresult(Result r)
                                     at != ATTR_BIRTHYEAR)     // private
                             {
                                 LOG_err << "Unknown received attribute: " << User::attr2string(at);
-                                client->app->getua_result(API_EINTERNAL);
+                                mCompletionErr(API_EINTERNAL);
                                 return false;
                             }
 
                             u->setattr(at, &value, &version);
-                            client->app->getua_result((byte*) value.data(), unsigned(value.size()), at);
+                            mCompletionBytes((byte*) value.data(), unsigned(value.size()), at);
                             break;
                         }
 
@@ -3577,12 +3591,18 @@ void CommandPubKeyRequest::invalidateUser()
     u = NULL;
 }
 
-CommandGetUserData::CommandGetUserData(MegaClient *client)
+CommandGetUserData::CommandGetUserData(MegaClient *client, std::function<void(string*, string*, string*, error)> completion)
 {
     cmd("ug");
     arg("v", 1);
 
     tag = client->reqtag;
+
+    mCompletion = completion ? move(completion) :
+        [this](string* name, string* pubk, string* privk, error e) {
+            this->client->app->userdata_result(name, pubk, privk, e);
+        };
+
 }
 
 bool CommandGetUserData::procresult(Result r)
@@ -3654,7 +3674,7 @@ bool CommandGetUserData::procresult(Result r)
 
     if (r.wasErrorOrOK())
     {
-        client->app->userdata_result(NULL, NULL, NULL, r.wasError(API_OK) ? Error(API_ENOENT) : r.errorOrOK());
+        mCompletion(NULL, NULL, NULL, r.wasError(API_OK) ? Error(API_ENOENT) : r.errorOrOK());
         return true;
     }
 
@@ -3698,7 +3718,7 @@ bool CommandGetUserData::procresult(Result r)
             {
                 if (client->readmiscflags(&client->json) != API_OK)
                 {
-                    client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                    mCompletion(NULL, NULL, NULL, API_EINTERNAL);
                     return false;
                 }
                 client->json.leaveobject();
@@ -3851,7 +3871,7 @@ bool CommandGetUserData::procresult(Result r)
                                         default:
                                             if (!client->json.storeobject())
                                             {
-                                                client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                                                mCompletion(NULL, NULL, NULL, API_EINTERNAL);
                                                 return false;
                                             }
                                     }
@@ -3868,7 +3888,7 @@ bool CommandGetUserData::procresult(Result r)
                         default:
                             if (!client->json.storeobject())
                             {
-                                client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                                mCompletion(NULL, NULL, NULL, API_EINTERNAL);
                                 return false;
                             }
                     }
@@ -3922,7 +3942,7 @@ bool CommandGetUserData::procresult(Result r)
                         default:
                             if (!client->json.storeobject())
                             {
-                                client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                                mCompletion(NULL, NULL, NULL, API_EINTERNAL);
                                 return false;
                             }
                     }
@@ -4188,29 +4208,11 @@ bool CommandGetUserData::procresult(Result r)
                 {
                     // This attribute is set only once. If not received from API,
                     // it should not exist locally either
-                    assert(u->getattr(ATTR_JSON_SYNC_CONFIG_DATA) == nullptr);
+                    
+                    // uncomment this once the production API is updated to deliver this attribute
+                    //assert(u->getattr(ATTR_JSON_SYNC_CONFIG_DATA) == nullptr);
 
-                    TLVstore store;
-                    auto& rng = client->rng;
-
-                    // Authentication key.
-                    store.set("ak", rng.genstring(SymmCipher::KEYLENGTH));
-
-                    // Cipher key.
-                    store.set("ck", rng.genstring(SymmCipher::KEYLENGTH));
-
-                    // File name.
-                    store.set("fn", rng.genstring(SymmCipher::KEYLENGTH));
-
-                    // Generate encrypted payload.
-                    unique_ptr<string> payload(
-                      store.tlvRecordsToContainer(rng, &client->key));
-
-                    // Persist the new attribute.
-                    client->putua(ATTR_JSON_SYNC_CONFIG_DATA,
-                                  reinterpret_cast<const byte*>(payload->data()),
-                                  static_cast<unsigned>(payload->size()),
-                                  0);
+                    client->ensureSyncUserAttributes(nullptr);
                 }
 
                 if (changes > 0)
@@ -4307,7 +4309,7 @@ bool CommandGetUserData::procresult(Result r)
 
             }
 
-            client->app->userdata_result(&name, &pubk, &privk, API_OK);
+            mCompletion(&name, &pubk, &privk, API_OK);
             return true;
         }
         default:
@@ -4328,7 +4330,7 @@ bool CommandGetUserData::procresult(Result r)
                 default:
                     if (!client->json.storeobject())
                     {
-                        client->app->userdata_result(NULL, NULL, NULL, API_EINTERNAL);
+                        mCompletion(NULL, NULL, NULL, API_EINTERNAL);
                         return false;
                     }
                     break;

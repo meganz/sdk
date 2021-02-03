@@ -21660,21 +21660,23 @@ void MegaApiImpl::sendPendingRequests()
                 syncConfig.setError(syncError);
             }
 
-            client->copySyncConfig(syncConfig, [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
-            {
-                if (!e && !unifiedSync)
-                {
-                    e = API_ENOENT;
-                }
+            client->ensureSyncUserAttributes([this, request, syncConfig](Error e){
 
-                if (unifiedSync)
+                client->copySyncConfig(syncConfig, [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
                 {
-                    request->setParentHandle(unifiedSync->mConfig.getBackupId());
-                }
+                    if (!e && !unifiedSync)
+                    {
+                        e = API_ENOENT;
+                    }
 
-                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                    if (unifiedSync)
+                    {
+                        request->setParentHandle(unifiedSync->mConfig.getBackupId());
+                    }
+
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                });
             });
-
             break;
         }
         case MegaRequest::TYPE_COPY_CACHED_STATUS:
@@ -22898,7 +22900,7 @@ void MegaApiImpl::sendPendingRequests()
             // the response to the code's verification, the following block can be deleted
             if (e == API_OK)
             {
-                client->reqs.add(new CommandGetUserData(client));
+                client->reqs.add(new CommandGetUserData(client, nullptr));
             }
             break;
         }

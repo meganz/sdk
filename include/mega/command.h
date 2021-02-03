@@ -333,8 +333,10 @@ class MEGA_API CommandPutUAVer : public Command
     attr_t at;  // attribute type
     string av;  // attribute value
 
+    std::function<void(Error)> mCompletion;
 public:
-    CommandPutUAVer(MegaClient*, attr_t, const byte*, unsigned, int);
+    CommandPutUAVer(MegaClient*, attr_t, const byte*, unsigned, int,
+                    std::function<void(Error)> completion = nullptr);
 
     bool procresult(Result) override;
 };
@@ -345,8 +347,10 @@ class MEGA_API CommandPutUA : public Command
     attr_t at;  // attribute type
     string av;  // attribute value
 
+    std::function<void(Error)> mCompletion;
 public:
-    CommandPutUA(MegaClient*, attr_t at, const byte*, unsigned, int, handle = UNDEF, int = 0, int64_t = 0);
+    CommandPutUA(MegaClient*, attr_t at, const byte*, unsigned, int, handle = UNDEF, int = 0, int64_t = 0,
+                 std::function<void(Error)> completion = nullptr);
 
     bool procresult(Result) override;
 };
@@ -357,12 +361,27 @@ class MEGA_API CommandGetUA : public Command
     attr_t at;  // attribute type
     string ph;  // public handle for preview mode, in B64
 
+
+
+    std::function<void(byte*, unsigned, attr_t)> mCompletion;
+
     bool isFromChatPreview() { return !ph.empty(); }
 
 public:
-    CommandGetUA(MegaClient*, const char*, attr_t, const char *, int);
+
+    typedef std::function<void(error)> CompletionErr;
+    typedef std::function<void(byte*, unsigned, attr_t)> CompletionBytes;
+    typedef std::function<void(TLVstore*, attr_t)> CompletionTLV;
+
+    CommandGetUA(MegaClient*, const char*, attr_t, const char *, int,
+        CompletionErr completionErr, CompletionBytes completionBytes, CompletionTLV compltionTLV);
 
     bool procresult(Result) override;
+
+private:
+    CompletionErr mCompletionErr;
+    CompletionBytes mCompletionBytes;
+    CompletionTLV mCompletionTLV;
 };
 
 #ifdef DEBUG
@@ -615,10 +634,11 @@ class MEGA_API CommandGetUserData : public Command
 public:
     bool procresult(Result) override;
 
-    CommandGetUserData(MegaClient*);
+    CommandGetUserData(MegaClient*, std::function<void(string*, string*, string*, error)>);
 
 protected:
     void parseUserAttribute(std::string& value, std::string &version, bool asciiToBinary = true);
+    std::function<void(string*, string*, string*, error)> mCompletion;
 };
 
 class MEGA_API CommandGetMiscFlags : public Command

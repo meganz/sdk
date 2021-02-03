@@ -557,7 +557,7 @@ string User::attr2string(attr_t type)
         case ATTR_COOKIE_SETTINGS:
             attrname = "^!csp";
             break;
-            
+
         case ATTR_JSON_SYNC_CONFIG_DATA:
             attrname = "*~jscd";
             break;
@@ -714,7 +714,7 @@ string User::attr2longname(attr_t type)
     case ATTR_COOKIE_SETTINGS:
         longname = "ATTR_COOKIE_SETTINGS";
         break;
-		
+
     case ATTR_JSON_SYNC_CONFIG_DATA:
         longname = "JSON_SYNC_CONFIG_DATA";
         break;
@@ -915,6 +915,7 @@ int User::needversioning(attr_t at)
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
+            assert(false);
         default:
             return -1;
     }

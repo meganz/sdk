@@ -5245,7 +5245,7 @@ error MegaClient::smsverificationsend(const string& phoneNumber, bool reVerifyin
     reqs.add(new CommandSMSVerificationSend(this, phoneNumber, reVerifyingWhitelisted));
     if (reVerifyingWhitelisted)
     {
-        reqs.add(new CommandGetUserData(this));
+        reqs.add(new CommandGetUserData(this, nullptr));
     }
 
     return API_OK;
@@ -5929,7 +5929,7 @@ void MegaClient::sc_userattr()
                                     case ATTR_JSON_SYNC_CONFIG_DATA: // fall-through
                                     {
                                         LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
-                                        if (ATTR_JSON_SYNC_CONFIG_DATA)
+                                        if (type == ATTR_JSON_SYNC_CONFIG_DATA)
                                         {
                                             // this user's attribute should be set only once and never change
                                             // afterwards. If it has changed, it may indicate a race condition
@@ -8947,10 +8947,10 @@ void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailh
     reqs.add(new CommandLogin(this, email, (byte*)&emailhash, sizeof(emailhash), sek));
 }
 
-void MegaClient::getuserdata()
+void MegaClient::getuserdata(std::function<void(string*, string*, string*, error)> completion)
 {
     cachedug = false;
-    reqs.add(new CommandGetUserData(this));
+    reqs.add(new CommandGetUserData(this, move(completion)));
 }
 
 void MegaClient::getmiscflags()
@@ -9874,9 +9874,17 @@ error MegaClient::removecontact(const char* email, visibility_t show)
  * @param ctag Tag to identify the request at intermediate layer
 
  */
-void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag, handle lastPublicHandle, int phtype, int64_t ts)
+void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag, handle lastPublicHandle, int phtype, int64_t ts,
+                       std::function<void(Error)> completion)
 {
     string data;
+
+    if (!completion)
+    {
+        completion = [this](Error e){
+            app->putua_result(e);
+        };
+    }
 
     if (!av)
     {
@@ -9896,20 +9904,20 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag, handle
     {
         LOG_err << "Own user not found when attempting to set user attributes";
         restag = tag;
-        app->putua_result(API_EACCESS);
+        completion(API_EACCESS);
         return;
     }
     int needversion = u->needversioning(at);
     if (needversion == -1)
     {
         restag = tag;
-        app->putua_result(API_EARGS);   // attribute not recognized
+        completion(API_EARGS);   // attribute not recognized
         return;
     }
 
     if (!needversion)
     {
-        reqs.add(new CommandPutUA(this, at, av, avl, tag, lastPublicHandle, phtype, ts));
+        reqs.add(new CommandPutUA(this, at, av, avl, tag, lastPublicHandle, phtype, ts, move(completion)));
     }
     else
     {
@@ -9917,10 +9925,10 @@ void MegaClient::putua(attr_t at, const byte* av, unsigned avl, int ctag, handle
         if (u->getattr(at) && !u->isattrvalid(at))
         {
             restag = tag;
-            app->putua_result(API_EEXPIRED);
+            completion(API_EEXPIRED);
             return;
         }
-        reqs.add(new CommandPutUAVer(this, at, av, avl, tag));
+        reqs.add(new CommandPutUAVer(this, at, av, avl, tag, move(completion)));
     }
 }
 
@@ -9990,7 +9998,7 @@ void MegaClient::getua(User* u, const attr_t at, int ctag)
         }
         else
         {
-            reqs.add(new CommandGetUA(this, u->uid.c_str(), at, NULL, tag));
+            reqs.add(new CommandGetUA(this, u->uid.c_str(), at, NULL, tag, nullptr, nullptr, nullptr));
         }
     }
 }
@@ -9999,7 +10007,7 @@ void MegaClient::getua(const char *email_handle, const attr_t at, const char *ph
 {
     if (email_handle && at != ATTR_UNKNOWN)
     {
-        reqs.add(new CommandGetUA(this, email_handle, at, ph,(ctag != -1) ? ctag : reqtag));
+        reqs.add(new CommandGetUA(this, email_handle, at, ph,(ctag != -1) ? ctag : reqtag, nullptr, nullptr, nullptr));
     }
 }
 
@@ -11831,7 +11839,11 @@ void MegaClient::fetchnodes(bool nocache)
 
         if (!loggedinfolderlink())
         {
-            getuserdata();
+            getuserdata([this, nocache](string*, string*, string*, error){
+                // FetchNodes procresult() needs some data from `ug` (or it may try to make new Sync User Attributes for example)
+                // So only submit the request after `ug` completes, otherwise everything is interleaved
+                reqs.add(new CommandFetchNodes(this, nocache));
+            });
 
             if (loggedin() == FULLACCOUNT)
             {
@@ -11841,8 +11853,10 @@ void MegaClient::fetchnodes(bool nocache)
 
             fetchtimezone();
         }
-
-        reqs.add(new CommandFetchNodes(this, nocache));
+        else
+        {
+            reqs.add(new CommandFetchNodes(this, nocache));
+        }
     }
 }
 
@@ -13067,7 +13081,95 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 #endif
 }
 
-void MegaClient::copySyncConfig(SyncConfig& config, SyncCompletionFunction completion)
+void MegaClient::ensureSyncUserAttributes(std::function<void(Error)> completion)
+{
+    // If the attributes are not available yet, we make or get them.
+	// Then the completion function is called.
+	
+    if (User* u = ownuser())
+    {
+        if (u->getattr(ATTR_JSON_SYNC_CONFIG_DATA))
+        {
+            // attributes already exist.
+            if (completion) completion(API_OK);
+            return;
+        }
+    }
+    else
+    {
+        // If there's no user object, there can't be user attributes
+        if (completion) completion(API_EEXIST);
+        return;
+    }
+
+    if (!mOnEnsureSyncUserAttributesComplete)
+    {
+        // We haven't sent the request yet - remember what to do when complete
+        mOnEnsureSyncUserAttributesComplete = completion;
+
+        TLVstore store;
+
+        // Authentication key.
+        store.set("ak", rng.genstring(SymmCipher::KEYLENGTH));
+
+        // Cipher key.
+        store.set("ck", rng.genstring(SymmCipher::KEYLENGTH));
+
+        // File name.
+        store.set("fn", rng.genstring(SymmCipher::KEYLENGTH));
+
+        // Generate encrypted payload.
+        unique_ptr<string> payload(
+            store.tlvRecordsToContainer(rng, &key));
+
+        // Persist the new attribute (with potential to be in a race with another client).
+        putua(ATTR_JSON_SYNC_CONFIG_DATA,
+            reinterpret_cast<const byte*>(payload->data()),
+            static_cast<unsigned>(payload->size()),
+            0, UNDEF, 0, 0,
+            [this](Error e){
+
+                if (e == API_EEXPIRED)
+                {
+                    // it may happen that more than one client attempts to create the UA in parallel
+                    // only the first one reaching the API will set the value, the other one should
+                    // fetch the value manually
+                    LOG_warn << "Failed to create JSON config data (already created). Fetching...";
+                    reqs.add(new CommandGetUA(this, uid.c_str(), ATTR_JSON_SYNC_CONFIG_DATA, nullptr, 0,
+                        [this](error e) {                 ensureSyncUserAttributesCompleted(e); },
+                        [this](byte*, unsigned, attr_t) { ensureSyncUserAttributesCompleted(API_OK); },
+                        [this](TLVstore*, attr_t) {       ensureSyncUserAttributesCompleted(API_OK); } ));
+                }
+                else
+                {
+                    LOG_info << "JSON config data created: " << error(e);
+
+                    ensureSyncUserAttributesCompleted(API_OK);
+                }
+            });
+     }
+     else
+     {
+        // We already sent the request but it hasn't completed yet
+        // Call all the completion functions when it does complete.
+        auto priorFunction = move(mOnEnsureSyncUserAttributesComplete);
+        mOnEnsureSyncUserAttributesComplete = [priorFunction, completion](Error e){
+            priorFunction(e);
+            completion(e);
+        };
+     }
+}
+
+void MegaClient::ensureSyncUserAttributesCompleted(Error e)
+{
+    if (mOnEnsureSyncUserAttributesComplete)
+    {
+        mOnEnsureSyncUserAttributesComplete(e);
+        mOnEnsureSyncUserAttributesComplete = nullptr;
+    }
+}
+
+void MegaClient::copySyncConfig(const SyncConfig& config, SyncCompletionFunction completion)
 {
     string deviceIdHash = getDeviceidHash();
     string extraData; // Empty extra data for the moment, in the future, any should come in config
@@ -13090,8 +13192,6 @@ void MegaClient::copySyncConfig(SyncConfig& config, SyncCompletionFunction compl
         }
         else
         {
-            config.setBackupId(backupId);
-
             UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
 
             completion(unifiedSync, unifiedSync->mConfig.getError(), e);
