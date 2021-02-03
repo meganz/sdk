@@ -8584,7 +8584,7 @@ void exec_syncremove(autocomplete::ACState& s)
     if (!found)
     {
         cerr << "No sync config exists with the tag "
-             << Base64Str<sizeof handle>(backupId)
+             << Base64Str<sizeof(handle)>(backupId)
              << endl;
         return;
     }
@@ -8632,7 +8632,7 @@ void exec_syncxable(autocomplete::ACState& s)
     if (!sync)
     {
         cerr << "No sync found with the id "
-             << Base64Str<sizeof handle>(backupId)
+             << Base64Str<sizeof(handle)>(backupId)
              << endl;
         return;
     }
