@@ -6134,7 +6134,7 @@ TEST_F(SdkTest, SyncRemoteNode)
 
         unique_ptr<char[]> pathFromNode{ megaApi[0]->getNodePath(remoteBaseNode.get()) };
         string actualPath{ pathFromNode.get() };
-        string pathFromSync{ sync->getMegaFolder() };
+        string pathFromSync{ sync->getLastKnownMegaFolder() };
         ASSERT_EQ(actualPath, pathFromSync) << "Wrong updated path";
 
         ASSERT_EQ(MegaSync::REMOTE_PATH_HAS_CHANGED, sync->getError()); //the error stays until re-enabled
@@ -6194,7 +6194,7 @@ TEST_F(SdkTest, SyncRemoteNode)
 
     // since the node was deleted, path is irrelevant
     //sync.reset(megaApi[0]->getSyncByBackupId(tagID));
-    //ASSERT_EQ(string(sync->getMegaFolder()), ("/" / basePath).u8string());
+    //ASSERT_EQ(string(sync->getLastKnownMegaFolder()), ("/" / basePath).u8string());
 
     // Remove a failing sync.
     LOG_verbose << "SyncRemoteNode :  Remove failed sync";
