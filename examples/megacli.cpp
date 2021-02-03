@@ -6659,7 +6659,7 @@ void DemoApp::request_error(error e)
     if ((e == API_ESID) || (e == API_ENOENT))   // Invalid session or Invalid folder handle
     {
         cout << "Invalid or expired session, logging out..." << endl;
-        client->locallogout(false, false);
+        client->locallogout(false, true);
         return;
     }
     else if (e == API_EBLOCKED)
@@ -7115,7 +7115,7 @@ void DemoApp::whyamiblocked_result(int code)
         if (code != 500 && code != 700)
         {
             cout << "Logging out..." << endl;
-            client->locallogout(true, false);
+            client->locallogout(true, true);
         }
     }
 }
