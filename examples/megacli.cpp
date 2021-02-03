@@ -24,8 +24,6 @@
 #include <fstream>
 #include <bitset>
 
-#include "megaapi.h"  // just for enum to string conversion
-
 #define USE_VARARGS
 #define PREFER_STDARG
 
@@ -8527,12 +8525,12 @@ void exec_synclist(autocomplete::ACState& s)
           else
           {
               // Display what status info we can.
-              auto msg = MegaSync::getMegaSyncErrorCode(config.getError());
+              auto msg = config.syncErrorToStr();
               cout << "  Enabled: "
                    << config.getEnabled()
                    << "\n"
                    << "  Last Error: "
-                   << (msg ? msg : std::to_string(config.getError()))
+                   << msg
                    << "\n";
           }
 

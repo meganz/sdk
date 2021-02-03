@@ -114,6 +114,9 @@ public:
     // check if we need to notify the App about error/enable flag changes
     bool errorOrEnabledChanged();
 
+    string syncErrorToStr();
+    static string syncErrorToStr(SyncError errorCode);
+
 
     // enabled/disabled by the user
     bool mEnabled = true;

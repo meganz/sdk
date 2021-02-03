@@ -5806,65 +5806,7 @@ const char* MegaSync::getMegaSyncErrorCode()
 
 const char* MegaSync::getMegaSyncErrorCode(int errorCode)
 {
-    switch(errorCode)
-    {
-    case MegaSync::Error::NO_SYNC_ERROR:
-        return "No error";
-    case MegaSync::Error::UNKNOWN_ERROR:
-        return "Unknown error";
-    case MegaSync::Error::UNSUPPORTED_FILE_SYSTEM:
-        return "File system not supported";
-    case MegaSync::Error::INVALID_REMOTE_TYPE:
-        return "Remote node is not valid";
-    case MegaSync::Error::INVALID_LOCAL_TYPE:
-        return "Local path is not valid";
-    case MegaSync::Error::INITIAL_SCAN_FAILED:
-        return "Initial scan failed";
-    case MegaSync::Error::LOCAL_PATH_TEMPORARY_UNAVAILABLE:
-        return "Local path temporarily unavailable";
-    case MegaSync::Error::LOCAL_PATH_UNAVAILABLE:
-        return "Local path not available";
-    case MegaSync::Error::REMOTE_NODE_NOT_FOUND:
-        return "Remote node not found";
-    case MegaSync::Error::STORAGE_OVERQUOTA:
-        return "Reached storage quota limit";
-    case MegaSync::Error::BUSINESS_EXPIRED:
-        return "Business account expired";
-    case MegaSync::Error::FOREIGN_TARGET_OVERSTORAGE:
-        return "Foreign target storage quota reached";
-    case MegaSync::Error::REMOTE_PATH_HAS_CHANGED:
-        return "Remote path has changed";
-    case MegaSync::Error::REMOTE_NODE_MOVED_TO_RUBBISH:
-        return "Remote node moved to Rubbish Bin";
-    case MegaSync::Error::SHARE_NON_FULL_ACCESS:
-        return "Share without full access";
-    case MegaSync::Error::LOCAL_FINGERPRINT_MISMATCH:
-        return "Local fingerprint mismatch";
-    case MegaSync::Error::PUT_NODES_ERROR:
-        return "Put nodes error";
-    case MegaSync::Error::ACTIVE_SYNC_BELOW_PATH:
-        return "Active sync below path";
-    case MegaSync::Error::ACTIVE_SYNC_ABOVE_PATH:
-        return "Active sync above path";
-    case MegaSync::Error::REMOTE_PATH_DELETED:
-        return "Remote node has been deleted";
-    case MegaSync::Error::REMOTE_NODE_INSIDE_RUBBISH:
-        return "Remote node is inside Rubbish Bin";
-    case MegaSync::Error::VBOXSHAREDFOLDER_UNSUPPORTED:
-        return "Unsupported VBoxSharedFolderFS filesystem";
-    case MegaSync::Error::LOCAL_PATH_SYNC_COLLISION:
-        return "Local path collides with an existing sync";
-    case MegaSync::Error::ACCOUNT_BLOCKED:
-        return "Your account is blocked";
-    case MegaSync::Error::UNKNOWN_TEMPORARY_ERROR:
-        return "Unknown temporary error";
-    case MegaSync::Error::LOGGED_OUT:
-        return "Session closed";
-    case MegaSync::Error::TOO_MANY_ACTION_PACKETS:
-        return "Too many changes in account, local state invalid";
-    default:
-        return "Undefined error";
-    }
+    return strdup(SyncConfig::syncErrorToStr(static_cast<SyncError>(errorCode)).c_str());
 }
 
 const char* MegaSync::getMegaSyncWarningCode()

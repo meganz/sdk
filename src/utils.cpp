@@ -2447,6 +2447,74 @@ bool SyncConfig::errorOrEnabledChanged()
     return changed;
 }
 
+std::string SyncConfig::syncErrorToStr()
+{
+    return syncErrorToStr(mError);
+}
+
+std::string SyncConfig::syncErrorToStr(SyncError errorCode)
+{
+    switch(errorCode)
+    {
+    case NO_SYNC_ERROR:
+        return "No error";
+    case UNKNOWN_ERROR:
+        return "Unknown error";
+    case UNSUPPORTED_FILE_SYSTEM:
+        return "File system not supported";
+    case INVALID_REMOTE_TYPE:
+        return "Remote node is not valid";
+    case INVALID_LOCAL_TYPE:
+        return "Local path is not valid";
+    case INITIAL_SCAN_FAILED:
+        return "Initial scan failed";
+    case LOCAL_PATH_TEMPORARY_UNAVAILABLE:
+        return "Local path temporarily unavailable";
+    case LOCAL_PATH_UNAVAILABLE:
+        return "Local path not available";
+    case REMOTE_NODE_NOT_FOUND:
+        return "Remote node not found";
+    case STORAGE_OVERQUOTA:
+        return "Reached storage quota limit";
+    case BUSINESS_EXPIRED:
+        return "Business account expired";
+    case FOREIGN_TARGET_OVERSTORAGE:
+        return "Foreign target storage quota reached";
+    case REMOTE_PATH_HAS_CHANGED:
+        return "Remote path has changed";
+    case REMOTE_NODE_MOVED_TO_RUBBISH:
+        return "Remote node moved to Rubbish Bin";
+    case SHARE_NON_FULL_ACCESS:
+        return "Share without full access";
+    case LOCAL_FINGERPRINT_MISMATCH:
+        return "Local fingerprint mismatch";
+    case PUT_NODES_ERROR:
+        return "Put nodes error";
+    case ACTIVE_SYNC_BELOW_PATH:
+        return "Active sync below path";
+    case ACTIVE_SYNC_ABOVE_PATH:
+        return "Active sync above path";
+    case REMOTE_PATH_DELETED:
+        return "Remote node has been deleted";
+    case REMOTE_NODE_INSIDE_RUBBISH:
+        return "Remote node is inside Rubbish Bin";
+    case VBOXSHAREDFOLDER_UNSUPPORTED:
+        return "Unsupported VBoxSharedFolderFS filesystem";
+    case LOCAL_PATH_SYNC_COLLISION:
+        return "Local path collides with an existing sync";
+    case ACCOUNT_BLOCKED:
+        return "Your account is blocked";
+    case UNKNOWN_TEMPORARY_ERROR:
+        return "Unknown temporary error";
+    case TOO_MANY_ACTION_PACKETS:
+        return "Too many changes in account, local state invalid";
+    case LOGGED_OUT:
+        return "Session closed";
+    default:
+        return "Undefined error";
+    }
+}
+
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv)
 {
