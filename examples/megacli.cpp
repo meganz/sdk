@@ -8393,8 +8393,6 @@ void exec_banner(autocomplete::ACState& s)
 
 void exec_syncadd(autocomplete::ACState& s)
 {
-    static int SYNC_TAG = 2027;
-
     if (client->loggedin() != FULLACCOUNT)
     {
         cerr << "You must be logged in to create a sync."
