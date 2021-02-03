@@ -5218,7 +5218,10 @@ public:
     virtual const char* getLocalFolder() const;
 
     /**
-     * @brief Get the name of the sync. If none give: it will be the localpath
+     * @brief Get the name of the sync
+     *
+     * When the app did not provide an specific name, it will return the leaf
+     * name of the local folder.
      *
      * The SDK retains the ownership of the returned value. It will be valid until
      * the MegaSync object is deleted.
@@ -5228,14 +5231,14 @@ public:
     virtual const char* getName() const;
 
     /**
-     * @brief Get the path of the remote folder that is being synced
+     * @brief Get the last known path of the remote folder that is being synced
      *
      * The SDK retains the ownership of the returned value. It will be valid until
      * the MegaSync object is deleted.
      *
-     * @return Local folder that is being synced
+     * @return The path of the Remote folder from when it was last being synced
      */
-    virtual const char* getMegaFolder() const;
+    virtual const char* getLastKnownMegaFolder() const;
 
     /**
      * @brief Gets an unique identifier of the local filesystem that is being synced
@@ -7569,10 +7572,11 @@ class MegaApi
             USER_ATTR_PUSH_SETTINGS = 25,        // private - char array
             // ATTR_UNSHAREABLE_KEY = 26         // it's internal for SDK, not exposed to apps
             USER_ATTR_ALIAS = 27,                // private - byte array
-            USER_ATTR_DEVICE_NAMES = 30,          // private - byte array
+            USER_ATTR_DEVICE_NAMES = 30,         // private - byte array
             USER_ATTR_MY_BACKUPS_FOLDER = 31,    // private - byte array
-            USER_ATTR_BACKUP_NAMES = 32,          // private - byte array
+            USER_ATTR_BACKUP_NAMES = 32,         // private - byte array
             USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
+            USER_ATTR_JSON_SYNC_CONFIG_DATA = 34 // private - byte array
         };
 
         enum {

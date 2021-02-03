@@ -1856,10 +1856,6 @@ bool CommandLogin::procresult(Result r)
                     client->sessionkey.assign((const char *)sek, sizeof(sek));
                 }
 
-#ifdef ENABLE_SYNC
-                client->syncs.resetSyncConfigDb();
-#endif
-
                 client->app->login_result(API_OK);
                 return true;
 
@@ -2794,6 +2790,12 @@ bool CommandPutUAVer::procresult(Result r)
         {
             User *u = client->ownuser();
             u->invalidateattr(at);
+
+            if (at == ATTR_JSON_SYNC_CONFIG_DATA)
+            {
+                LOG_warn << "Attr for sync-config data was created by other client. Fetching...";
+                client->reqs.add(new CommandGetUA(client, u->uid.c_str(), at, nullptr, 0));
+            }
         }
 
         client->app->putua_result(r.errorOrOK());
@@ -2870,6 +2872,10 @@ bool CommandPutUAVer::procresult(Result r)
                 LOG_info << "Unshareable key successfully created";
                 client->unshareablekey.swap(av);
             }
+            else if (at == ATTR_JSON_SYNC_CONFIG_DATA)
+            {
+                LOG_info << "JSON config data successfully created.";
+            }
 
             client->notifyuser(u);
             client->app->putua_result(API_OK);
@@ -2944,6 +2950,7 @@ bool CommandPutUA::procresult(Result r)
                 LOG_info << "File versioning is enabled";
             }
         }
+      
         client->app->putua_result(API_OK);
     }
 
@@ -3623,6 +3630,8 @@ bool CommandGetUserData::procresult(Result r)
     string versionBackupNames;
     string cookieSettings;
     string versionCookieSettings;
+    string jsonSyncConfigData;
+    string jsonSyncConfigDataVersion;
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -3753,6 +3762,10 @@ bool CommandGetUserData::procresult(Result r)
 
         case MAKENAMEID4('*', '!', 'b', 'n'):
             parseUserAttribute(backupNames, versionBackupNames);
+            break;
+
+        case MAKENAMEID6('*', '~', 'j', 's', 'c', 'd'):
+            parseUserAttribute(jsonSyncConfigData, jsonSyncConfigDataVersion);
             break;
 
         case 'b':   // business account's info
@@ -4153,6 +4166,42 @@ bool CommandGetUserData::procresult(Result r)
                 if (!cookieSettings.empty())
                 {
                     changes += u->updateattr(ATTR_COOKIE_SETTINGS, &cookieSettings, &versionCookieSettings);
+                }
+
+                if (!jsonSyncConfigData.empty())
+                {
+                    // Tell the rest of the SDK that the attribute's changed.
+                    changes += u->updateattr(ATTR_JSON_SYNC_CONFIG_DATA,
+                                             &jsonSyncConfigData,
+                                             &jsonSyncConfigDataVersion);
+                }
+                else
+                {
+                    // This attribute is set only once. If not received from API,
+                    // it should not exist locally either
+                    assert(u->getattr(ATTR_JSON_SYNC_CONFIG_DATA) == nullptr);
+
+                    TLVstore store;
+                    auto& rng = client->rng;
+
+                    // Authentication key.
+                    store.set("ak", rng.genstring(SymmCipher::KEYLENGTH));
+
+                    // Cipher key.
+                    store.set("ck", rng.genstring(SymmCipher::KEYLENGTH));
+
+                    // File name.
+                    store.set("fn", rng.genstring(SymmCipher::KEYLENGTH));
+
+                    // Generate encrypted payload.
+                    unique_ptr<string> payload(
+                      store.tlvRecordsToContainer(rng, &client->key));
+
+                    // Persist the new attribute.
+                    client->putua(ATTR_JSON_SYNC_CONFIG_DATA,
+                                  reinterpret_cast<const byte*>(payload->data()),
+                                  static_cast<unsigned>(payload->size()),
+                                  0);
                 }
 
                 if (changes > 0)
@@ -8230,15 +8279,20 @@ CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, const st
 
     cmd("sp");
 
+    string localFolderEncrypted(client->cypherTLVTextWithMasterKey("lf", localFolder));
+
     arg("t", type);
     arg("h", (byte*)&nodeHandle, MegaClient::NODEHANDLE);
-    arg("l", localFolder.c_str());
+    arg("l", localFolderEncrypted.c_str());
     arg("d", deviceId.c_str());
     arg("s", state);
     arg("ss", subState);
 
     if (!extraData.empty())
-        arg("e", extraData.c_str());
+    {
+        string edEncrypted(client->cypherTLVTextWithMasterKey("ed", extraData));
+        arg("e", edEncrypted.c_str());
+    }
 
     mBackupName = Base64::btoa(backupName);
     tag = client->reqtag;
@@ -8265,7 +8319,8 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupTy
 
     if (localFolder)
     {
-        arg("l", localFolder);
+        string localFolderEncrypted(client->cypherTLVTextWithMasterKey("lf", localFolder));
+        arg("l", localFolderEncrypted.c_str());
     }
 
     if (deviceId)
@@ -8285,7 +8340,8 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupTy
 
     if (extraData)
     {
-        arg("e", extraData);
+        string edEncrypted(client->cypherTLVTextWithMasterKey("ed", extraData));
+        arg("e", edEncrypted.c_str());
     }
 
     tag = client->reqtag;
@@ -8460,6 +8516,98 @@ bool CommandBackupRemove::procresult(Result r)
 
     return r.wasErrorOrOK();
 }
+
+CommandBackupSyncFetch::CommandBackupSyncFetch(std::function<void(Error, vector<Data>&)> f)
+    : completion(move(f))
+{
+    cmd("sf");
+}
+
+bool CommandBackupSyncFetch::procresult(Result r)
+{
+    vector<Data> data;
+    if (!r.hasJsonArray())
+    {
+        completion(r.errorOrOK(), data);
+    }
+    else
+    {
+        auto skipUnknownField = [&]() -> bool {
+            if (!client->json.storeobject())
+            {
+                completion(API_EINTERNAL, data);
+                return false;
+            }
+            return true;
+        };
+
+        auto cantLeaveObject = [&]() -> bool {
+            if (!client->json.leaveobject())
+            {
+                completion(API_EINTERNAL, data);
+                return true;
+            }
+            return false;
+        };
+
+        while (client->json.enterobject())
+        {
+            data.push_back(Data());
+            for (;;)
+            {
+                auto& d = data.back();
+                auto nid = client->json.getnameid();
+                if (nid == EOO) break;
+                switch (nid)
+                {
+                case MAKENAMEID2('i', 'd'):     d.backupId = client->json.gethandle(sizeof(handle)); break;
+                case MAKENAMEID1('t'):          d.backupType = static_cast<BackupType>(client->json.getint32()); break;
+                case MAKENAMEID1('h'):          d.rootNode = client->json.gethandle(MegaClient::NODEHANDLE); break;
+                case MAKENAMEID1('l'):          client->json.storeobject(&d.localFolder);
+                                                d.localFolder = client->decypherTLVTextWithMasterKey("lf", d.localFolder);
+                                                break;
+                case MAKENAMEID1('d'):          client->json.storeobject(&d.deviceId); break;
+                case MAKENAMEID1('s'):          d.syncState = client->json.getint32(); break;
+                case MAKENAMEID2('s', 's'):     d.syncSubstate = client->json.getint32(); break;
+                case MAKENAMEID1('e'):          client->json.storeobject(&d.extra);
+                                                d.extra = client->decypherTLVTextWithMasterKey("ed", d.extra);
+                                                break;
+                case MAKENAMEID2('h', 'b'):
+                {
+                    if (client->json.enterobject())
+                    {
+                        for (;;)
+                        {
+                            nid = client->json.getnameid();
+                            if (nid == EOO) break;
+                            switch (nid)
+                            {
+                            case MAKENAMEID2('t', 's'):     d.hbTimestamp = client->json.getint(); break;
+                            case MAKENAMEID1('s'):          d.hbStatus = client->json.getint32(); break;
+                            case MAKENAMEID1('p'):          d.hbProgress = client->json.getint32(); break;
+                            case MAKENAMEID2('q', 'u'):     d.uploads = client->json.getint32(); break;
+                            case MAKENAMEID2('q', 'd'):     d.downloads = client->json.getint32(); break;
+                            case MAKENAMEID3('l', 't', 's'):d.lastActivityTs = client->json.getint32(); break;
+                            case MAKENAMEID2('l', 'h'):     d.lastSyncedNodeHandle = client->json.gethandle(sizeof(handle)); break;
+                            default: if (!skipUnknownField()) return false;
+                            }
+                        }
+                        if (cantLeaveObject()) return false;
+                    }
+                }
+                break;
+
+                default: if (!skipUnknownField()) return false;
+                }
+            }
+            if (cantLeaveObject()) return false;
+        }
+
+        completion(API_OK, data);
+    }
+    return true;
+}
+
 
 CommandGetBanners::CommandGetBanners(MegaClient* client)
 {

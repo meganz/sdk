@@ -5759,7 +5759,7 @@ const char *MegaSync::getName() const
     return NULL;
 }
 
-const char *MegaSync::getMegaFolder() const
+const char *MegaSync::getLastKnownMegaFolder() const
 {
     return NULL;
 }

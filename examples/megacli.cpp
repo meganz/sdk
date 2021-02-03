@@ -123,35 +123,10 @@ int attempts = 0;
 
 #ifdef ENABLE_SYNC
 
-struct NewSyncConfig
-{
-    SyncConfig::Type type = SyncConfig::TYPE_TWOWAY;
-    bool syncDeletions = true;
-    bool forceOverwrite = false;
-
-    static NewSyncConfig from(const SyncConfig& config)
-    {
-        return NewSyncConfig{config.getType(), config.syncDeletions(), config.forceOverwrite()};
-    }
-
-    NewSyncConfig(SyncConfig::Type t = SyncConfig::TYPE_TWOWAY, bool s = true, bool f = false)
-        : type(t), syncDeletions(s), forceOverwrite(f)
-    {}
-};
 
 // converts the given sync configuration to a string
 static std::string syncConfigToString(const SyncConfig& config)
 {
-    auto getOptions = [](const SyncConfig& config)
-    {
-        std::string desc;
-        desc += ", syncDeletions ";
-        desc += config.syncDeletions() ? "ON" : "OFF";
-        desc += ", forceOverwrite ";
-        desc += config.forceOverwrite() ? "ON" : "OFF";
-        return desc;
-    };
-
     std::string description(Base64Str<MegaClient::BACKUPHANDLE>(config.getBackupId()));
     if (config.getType() == SyncConfig::TYPE_TWOWAY)
     {
@@ -160,12 +135,10 @@ static std::string syncConfigToString(const SyncConfig& config)
     else if (config.getType() == SyncConfig::TYPE_UP)
     {
         description.append(" UP");
-        description += getOptions(config);
     }
     else if (config.getType() == SyncConfig::TYPE_DOWN)
     {
         description.append(" DOWN");
-        description += getOptions(config);
     }
     return description;
 }
@@ -198,7 +171,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
     }
     else
     {
-        return std::make_pair(false, SyncConfig("", "", UNDEF, "", 0));
+        return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
     }
 
     bool syncDeletions = false;
@@ -216,7 +189,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig("", "", UNDEF, "", 0));
+            return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
         }
 
         if (overwrite == "on")
@@ -229,11 +202,11 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig("", "", UNDEF, "", 0));
+            return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
         }
     }
 
-    return std::make_pair(true, SyncConfig("", "", UNDEF, "", 0, {}, true, syncType, syncDeletions, forceOverwrite));
+    return std::make_pair(true, SyncConfig(LocalPath(), "", UNDEF, "", 0, {}, true, syncType));
 }
 
 // sync configuration used when creating a new sync
@@ -495,12 +468,12 @@ void DemoApp::sync_auto_resume_result(const UnifiedSync& s, bool attempted)
     handle backupId = s.mConfig.getBackupId();
     if (attempted)
     {
-        cout << "Sync - autoresumed " << toHandle(backupId) << " " << s.mConfig.getLocalPath()  << " enabled: "
+        cout << "Sync - autoresumed " << toHandle(backupId) << " " << s.mConfig.getLocalPath().toPath(*client->fsaccess)  << " enabled: "
              << s.mConfig.getEnabled()  << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
     }
     else
     {
-        cout << "Sync - autoloaded " << toHandle(backupId) << " " << s.mConfig.getLocalPath() << " enabled: "
+        cout << "Sync - autoloaded " << toHandle(backupId) << " " << s.mConfig.getLocalPath().toPath(*client->fsaccess) << " enabled: "
             << s.mConfig.getEnabled() << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
     }
 }
@@ -3018,6 +2991,51 @@ void exec_timelocal(autocomplete::ACState& s)
 
 }
 
+void exec_backupcentre(autocomplete::ACState& s)
+{
+    bool del = s.extractflag("-del");
+
+    if (s.words.size() == 1)
+    {
+        client->reqs.add(new CommandBackupSyncFetch([&](Error e, vector<CommandBackupSyncFetch::Data>& data){
+            if (e)
+            {
+                cout << "backupcentre failed: " << e << endl;
+            }
+            else
+            {
+                for (auto& d : data)
+                {
+                    cout << "Backup ID: " << toHandle(d.backupId) << endl;
+                    cout << "  backup type: " << backupTypeToStr(d.backupType) << endl;
+                    cout << "  root handle: " << toNodeHandle(d.rootNode) << endl;
+                    cout << "  local folder: " << d.localFolder << endl;
+                    cout << "  device id: " << d.deviceId << endl;
+                    cout << "  sync state: " << d.syncState << endl;
+                    cout << "  sync substate: " << d.syncSubstate << endl;
+                    cout << "  extra: " << d.extra << endl;
+                    cout << "  heartbeat timestamp: " << d.hbTimestamp << endl;
+                    cout << "  heartbeat status: " << d.hbStatus << endl;
+                    cout << "  heartbeat progress: " << d.hbProgress << endl;
+                    cout << "  heartbeat uploads: " << d.uploads << endl;
+                    cout << "  heartbeat downloads: " << d.downloads << endl;
+                    cout << "  last activity time: " << d.lastActivityTs << endl;
+                    cout << "  last node handle: " << toNodeHandle(d.lastSyncedNodeHandle) << endl << endl;
+                }
+
+                cout << "Backup Centre - Backups count: " << data.size() << endl;
+            }
+        }));
+    }
+    else if (s.words.size() == 2 && del)
+    {
+        handle backupId;
+        Base64::atob(s.words[1].s.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
+        client->reqs.add(new CommandBackupRemove(client, backupId));
+    }
+}
+
+
 MegaCLILogger gLogger;
 
 autocomplete::ACN autocompleteSyntax()
@@ -3075,6 +3093,7 @@ autocomplete::ACN autocompleteSyntax()
 #ifdef ENABLE_SYNC
     p->Add(exec_sync, sequence(text("sync"), opt(either(sequence(localFSPath(), remoteFSPath(client, &cwd, "dst")), param("cancelslot")))));
     p->Add(exec_syncconfig, sequence(text("syncconfig"), opt(sequence(param("type (TWOWAY/UP/DOWN)"), opt(sequence(param("syncDeletions (ON/OFF)"), param("forceOverwrite (ON/OFF)")))))));
+    p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(sequence(flag("-del"), param("backup_id")))));
 #endif
     p->Add(exec_export, sequence(text("export"), remoteFSPath(client, &cwd), opt(either(flag("-writable"), param("expiretime"), text("del")))));
     p->Add(exec_share, sequence(text("share"), opt(sequence(remoteFSPath(client, &cwd), opt(sequence(contactEmail(client), opt(either(text("r"), text("rw"), text("full"))), opt(param("origemail"))))))));
@@ -4463,8 +4482,7 @@ void exec_sync(autocomplete::ACState& s)
             {
                 cout << "Adding sync..." << endl;
 
-                SyncConfig syncConfig{s.words[1].s, s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.getType(),
-                            newSyncConfig.syncDeletions(), newSyncConfig.forceOverwrite()};
+                SyncConfig syncConfig(LocalPath::fromPath(s.words[1].s, *client->fsaccess), s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.getType());
 
                 client->addsync(syncConfig, DEBRISFOLDER, NULL, false, false,
                                 [](mega::UnifiedSync* us, const SyncError&, error e) {
@@ -4531,7 +4549,7 @@ void exec_sync(autocomplete::ACState& s)
             {
                 string remotepath, localpath;
                 nodepath(us.mConfig.getRemoteNode(), &remotepath);
-                localpath = us.mConfig.getLocalPath();
+                localpath = us.mConfig.getLocalPath().toPath(*client->fsaccess);
 
                 cout << syncConfigToString(us.mConfig) << ": " << localpath << " to " << remotepath << " - not running" << endl;
             }
@@ -4651,10 +4669,6 @@ void exec_login(autocomplete::ACState& s)
                 {
                     return client->login(Base64::atob(s.words[1].s));
                 }
-
-                cout << "Invalid argument. Please specify a valid e-mail address, "
-                    << "a folder link containing the folder key "
-                    << "or a valid session." << endl;
             }
         }
         else
@@ -8033,6 +8047,18 @@ void DemoApp::dismissbanner_result(error e)
     }
 }
 
+void DemoApp::backupremove_result(const Error &e, handle backupId)
+{
+    if (e != API_OK)
+    {
+        cout << "Removal of backup " << toHandle(backupId) << " failed: " << errorstring(e) <<endl;
+    }
+    else
+    {
+        cout << "Backup " << toHandle(backupId) << " removed successfully" << endl;
+    }
+}
+
 #ifndef NO_READLINE
 char* longestCommonPrefix(ac::CompletionState& acs)
 {
@@ -8244,6 +8270,8 @@ void megacli()
 #ifndef NO_READLINE
                 rl_callback_handler_remove();
 #endif /* ! NO_READLINE */
+                delete client;
+                client = nullptr;
                 return;
             }
 

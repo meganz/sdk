@@ -1069,8 +1069,7 @@ private:
 class MegaSyncPrivate : public MegaSync
 {
 public:
-    MegaSyncPrivate(const char *path, const char *name, handle nodehandle, SyncConfig::Type type);
-    MegaSyncPrivate(const SyncConfig& config, Sync*);
+    MegaSyncPrivate(const SyncConfig& config, Sync*, MegaClient* client);
     MegaSyncPrivate(MegaSyncPrivate *sync);
 
     virtual ~MegaSyncPrivate();
@@ -1083,9 +1082,8 @@ public:
     void setLocalFolder(const char*path);
     const char* getName() const override;
     void setName(const char*name);
-    const char* getMegaFolder() const override;
-    void setMegaFolder(const char *path);
-    void setMegaFolderYielding(char *path); //MEGAsync acquires the ownership of path
+    const char* getLastKnownMegaFolder() const override;
+    void setLastKnownMegaFolder(const char *path);
     long long getLocalFingerprint() const override;
     void setLocalFingerprint(long long fingerprint);
     MegaHandle getBackupId() const override;
@@ -1112,7 +1110,7 @@ protected:
     MegaHandle megaHandle;
     char *localFolder;
     char *mName;
-    char *megaFolder;
+    char *lastKnownMegaFolder;
     MegaRegExp *regExp;
     long long fingerprint;
 

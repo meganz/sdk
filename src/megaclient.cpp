@@ -2398,14 +2398,14 @@ void MegaClient::exec()
             if (sync->initializing && sync->state == SYNC_INITIALSCAN)
             {
                 const auto &syncConfig = sync->getConfig();
-                LocalPath localPath = LocalPath::fromPath(sync->getConfig().getLocalPath(), *fsaccess);
+                LocalPath localPath = sync->getConfig().getLocalPath();
                 auto fa = fsaccess->newfileaccess();
 
                 if (fa->fopen(localPath, true, false))
                 {
                     if (fa->type == FOLDERNODE)
                     {
-                        LOG_debug << "Initial delayed scan: " << syncConfig.getLocalPath();
+                        LOG_debug << "Initial delayed scan: " << syncConfig.getLocalPath().toPath(*fsaccess);
 
                         if (sync->scan(&localPath, fa.get()))
                         {
@@ -2948,6 +2948,9 @@ void MegaClient::exec()
                 }
             }
         }
+
+        // Flush changes made to internal configs.
+        syncs.syncConfigDBFlush();
 #endif
 
         notifypurge();
@@ -4257,9 +4260,10 @@ void MegaClient::removeCaches()
         }
     });
 
-    if (syncs.mSyncConfigDb && !mKeepSyncsAfterLogout)
+    // TODO: dgw: truncate?
+    if (!mKeepSyncsAfterLogout)
     {
-        syncs.mSyncConfigDb->clear();
+        syncs.truncate();
     }
 #endif
 
@@ -5932,14 +5936,23 @@ void MegaClient::sc_userattr()
                                         resetKeyring();
                                         break;
                                     }
-                                    case ATTR_AUTHRING:         // fall-through
-                                    case ATTR_AUTHCU255:        // fall-through
-                                    case ATTR_AUTHRSA:          // fall-through
-                                    case ATTR_MY_BACKUPS_FOLDER:    // fall-through
-                                    case ATTR_BACKUP_NAMES:     // fall-through
-                                    case ATTR_DEVICE_NAMES:     // fall-through
+                                    case ATTR_AUTHRING:              // fall-through
+                                    case ATTR_AUTHCU255:             // fall-through
+                                    case ATTR_AUTHRSA:               // fall-through
+                                    case ATTR_DEVICE_NAMES:          // fall-through
+                                    case ATTR_MY_BACKUPS_FOLDER:     // fall-through
+                                    case ATTR_BACKUP_NAMES:          // fall-through
+                                    case ATTR_JSON_SYNC_CONFIG_DATA: // fall-through
                                     {
                                         LOG_debug << User::attr2string(type) << " has changed externally. Fetching...";
+                                        if (ATTR_JSON_SYNC_CONFIG_DATA)
+                                        {
+                                            // this user's attribute should be set only once and never change
+                                            // afterwards. If it has changed, it may indicate a race condition
+                                            // setting the attribute from another client at the same time
+                                            LOG_warn << "Sync config data has changed, when it should not";
+                                            assert(false);
+                                        }
                                         if (User::isAuthring(type)) mAuthRings.erase(type);
                                         getua(u, type, 0);
                                         break;
@@ -7211,16 +7224,16 @@ void MegaClient::notifypurge(void)
 }
 
 // return node pointer derived from node handle
-Node* MegaClient::nodebyhandle(handle h)
+Node* MegaClient::nodebyhandle(handle h) const
 {
-    node_map::iterator it;
+    auto it = nodes.find(h);
 
-    if ((it = nodes.find(h)) != nodes.end())
+    if (it != nodes.end())
     {
         return it->second;
     }
 
-    return NULL;
+    return nullptr;
 }
 
 // server-client deletion
@@ -11798,6 +11811,7 @@ void MegaClient::fetchnodes(bool nocache)
         //TODO: remove android control after android gives green light to this.
         enabletransferresumption();
 #endif
+        syncs.resetSyncConfigDb();
         syncs.resumeResumableSyncsOnStartup();
 #endif
         app->fetchnodes_result(API_OK);
@@ -12554,6 +12568,7 @@ void MegaClient::purgenodesusersabortsc(bool keepOwnUser)
         delete hdrns.begin()->second;
     }
 
+    // sync configs don't need to be changed.  On session resume we'll resume the ones still enabled.
 #ifdef ENABLE_SYNC
     syncs.purgeRunningSyncs();
 #endif
@@ -12943,9 +12958,9 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
 #endif
 }
 
-error MegaClient::isLocalPathSyncable(string newPath, handle excludeBackupId, SyncError *syncError)
+error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBackupId, SyncError *syncError)
 {
-    if (!newPath.size())
+    if (newPath.empty())
     {
         if (syncError)
         {
@@ -12954,7 +12969,7 @@ error MegaClient::isLocalPathSyncable(string newPath, handle excludeBackupId, Sy
         return API_EARGS;
     }
 
-    LocalPath newLocallyEncodedPath = LocalPath::fromPath(newPath, *fsaccess);
+    LocalPath newLocallyEncodedPath = newPath;
     LocalPath newLocallyEncodedAbsolutePath;
     fsaccess->expanselocalpath(newLocallyEncodedPath, newLocallyEncodedAbsolutePath);
 
@@ -12963,7 +12978,7 @@ error MegaClient::isLocalPathSyncable(string newPath, handle excludeBackupId, Sy
 
         if (config.getBackupId() != excludeBackupId && excludeBackupId != UNDEF) // for the check inside addsync() when it's already present
         {
-            LocalPath otherLocallyEncodedPath = LocalPath::fromPath(config.getLocalPath(), *fsaccess);
+            LocalPath otherLocallyEncodedPath = config.getLocalPath();
             LocalPath otherLocallyEncodedAbsolutePath;
             fsaccess->expanselocalpath(otherLocallyEncodedPath, otherLocallyEncodedAbsolutePath);
 
@@ -13003,7 +13018,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     if (!remotenode)
     {
         LOG_warn << "Sync root does not exist in the cloud: "
-                 << syncConfig.getLocalPath()
+                 << syncConfig.getLocalPath().toPath(*fsaccess)
                  << ": "
                  << LOG_NODEHANDLE(syncConfig.getRemoteNode());
 
@@ -13018,8 +13033,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         return e;
     }
 
-    string localPath = syncConfig.getLocalPath();
-    rootpath = LocalPath::fromPath(localPath, *fsaccess);
+    rootpath = syncConfig.getLocalPath();
     rootpath.trimNonDriveTrailingSeparator();
 
     isnetwork = false;
@@ -13036,7 +13050,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     {
         if (openedLocalFolder->type == FOLDERNODE)
         {
-            LOG_debug << "Adding sync: " << syncConfig.getLocalPath() << " vs " << remotenode->displaypath();;
+            LOG_debug << "Adding sync: " << syncConfig.getLocalPath().toPath(*fsaccess) << " vs " << remotenode->displaypath();;
 
             // Note localpath is stored as utf8 in syncconfig as passed from the apps!
             // Note: we might want to have it expansed to store the full canonical path.
@@ -13077,15 +13091,14 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 #endif
 }
 
-void MegaClient::copySyncConfig(SyncConfig& config, std::function<void(mega::UnifiedSync *, const SyncError &, error)> completion)
+void MegaClient::copySyncConfig(SyncConfig& config, SyncCompletionFunction completion)
 {
-    string localFolderEncrypted(cypherTLVTextWithMasterKey("lf", config.getLocalPath()) );
     string deviceIdHash = getDeviceidHash();
     string extraData; // Empty extra data for the moment, in the future, any should come in config
 
     reqs.add( new CommandBackupPut(this, BackupInfoSync::getSyncType(config)
-                                   , config.getName().c_str(), config.getRemoteNode()
-                                   , localFolderEncrypted.c_str(), deviceIdHash.c_str()
+                                   , config.mName.c_str(), config.getRemoteNode()
+                                   , config.getLocalPath().toPath(*fsaccess), deviceIdHash.c_str()
                                    , BackupInfoSync::getSyncState(config, this)
                                    , config.getError()
                                    , extraData
@@ -13111,7 +13124,7 @@ void MegaClient::copySyncConfig(SyncConfig& config, std::function<void(mega::Uni
 }
 
 error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* localdebris, bool delayInitialScan, bool notifyApp,
-                          std::function<void(mega::UnifiedSync *, const SyncError &, error)> completion)
+                          SyncCompletionFunction completion)
 {
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
@@ -13125,13 +13138,12 @@ error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* loc
     }
     else // API_OK (success)
     {
-        string localFolderEncrypted(cypherTLVTextWithMasterKey("lf", config.getLocalPath()) );
         string deviceIdHash = getDeviceidHash();
         string extraData; // Empty extra data for the moment, in the future, any should come in SyncConfig
 
         reqs.add( new CommandBackupPut(this, BackupInfoSync::getSyncType(config)
-                                       , config.getName().c_str(), config.getRemoteNode()
-                                       , localFolderEncrypted.c_str(), deviceIdHash.c_str()
+                                       , config.mName.c_str(), config.getRemoteNode()
+                                       , config.getLocalPath().toPath(*fsaccess).c_str(), deviceIdHash.c_str()
                                        , BackupInfoSync::getSyncState(config, this)
                                        , config.getError()
                                        , extraData
@@ -14572,20 +14584,33 @@ void MegaClient::execmovetosyncdebris()
 
 #endif
 
-string MegaClient::cypherTLVTextWithMasterKey(const char *name, const string &text)
+string MegaClient::cypherTLVTextWithMasterKey(const char* name, const string& text)
 {
     TLVstore tlv;
     tlv.set(name, text);
-    std::unique_ptr<string> tlvStr{tlv.tlvRecordsToContainer(rng, &key)};
+    std::unique_ptr<string> tlvStr(tlv.tlvRecordsToContainer(rng, &key));
 
     return Base64::btoa(*tlvStr);
+}
+
+string MegaClient::decypherTLVTextWithMasterKey(const char* name, const string& encoded)
+{
+    string unencoded = Base64::atob(encoded);
+
+    unique_ptr<TLVstore> tlv(TLVstore::containerToTLVrecords(&unencoded, &key));
+    if (tlv && tlv->find(name)) {
+        // we have to check with "find" as get() will throw an exception (in contrast to the documented behaviour) if the key is not present
+        return tlv->get(name);
+    }
+
+    return "";
 }
 
 #ifdef ENABLE_SYNC
 
 void MegaClient::failSync(Sync* sync, SyncError syncerror)
 {
-    LOG_err << "Failing sync: " << sync->getConfig().getLocalPath() << " error = " << syncerror;
+    LOG_err << "Failing sync: " << sync->getConfig().getLocalPath().toPath(*fsaccess) << " error = " << syncerror;
 
     sync->changestate(SYNC_FAILED, syncerror, false, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
 
