@@ -6659,7 +6659,7 @@ void DemoApp::request_error(error e)
     if ((e == API_ESID) || (e == API_ENOENT))   // Invalid session or Invalid folder handle
     {
         cout << "Invalid or expired session, logging out..." << endl;
-        client->locallogout(false, true);
+        client->locallogout(true, true);
         return;
     }
     else if (e == API_EBLOCKED)
