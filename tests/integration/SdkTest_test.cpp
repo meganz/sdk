@@ -6134,7 +6134,7 @@ TEST_F(SdkTest, SyncRemoteNode)
 
         unique_ptr<char[]> pathFromNode{ megaApi[0]->getNodePath(remoteBaseNode.get()) };
         string actualPath{ pathFromNode.get() };
-        string pathFromSync{ sync->getMegaFolder() };
+        string pathFromSync(sync->getLastKnownMegaFolder());
         ASSERT_EQ(actualPath, pathFromSync) << "Wrong updated path";
 
         ASSERT_EQ(MegaSync::REMOTE_PATH_HAS_CHANGED, sync->getError()); //the error stays until re-enabled
