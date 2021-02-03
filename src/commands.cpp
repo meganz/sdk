@@ -4212,7 +4212,12 @@ bool CommandGetUserData::procresult(Result r)
                     // uncomment this once the production API is updated to deliver this attribute
                     //assert(u->getattr(ATTR_JSON_SYNC_CONFIG_DATA) == nullptr);
 
-                    client->ensureSyncUserAttributes(nullptr);
+                    client->ensureSyncUserAttributes([](Error e){
+                        if (e != API_OK)
+                        {
+                            LOG_err << "Couldn't create *~jscd user's attribute";
+                        }
+                    });
                 }
 
                 if (changes > 0)
