@@ -4245,7 +4245,6 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
     }
     else
     {
-        // TODO: actually delete file?
         syncs.removeSelectedSyncs([](SyncConfig&, Sync* s) { return s != nullptr; });
         syncs.truncate();
     }
@@ -13093,20 +13092,24 @@ void MegaClient::ensureSyncUserAttributes(std::function<void(Error)> completion)
 {
     // If the attributes are not available yet, we make or get them.
 	// Then the completion function is called.
-	
+
+    // we rely on storing this function to remember that we have an
+    // operation in progress, so we don't allow nullptr
+    assert(!!completion);
+
     if (User* u = ownuser())
     {
         if (u->getattr(ATTR_JSON_SYNC_CONFIG_DATA))
         {
             // attributes already exist.
-            if (completion) completion(API_OK);
+            completion(API_OK);
             return;
         }
     }
     else
     {
         // If there's no user object, there can't be user attributes
-        if (completion) completion(API_EEXIST);
+        completion(API_ENOENT);
         return;
     }
 

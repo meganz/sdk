@@ -4213,8 +4213,8 @@ bool CommandGetUserData::procresult(Result r)
                 {
                     // This attribute is set only once. If not received from API,
                     // it should not exist locally either
-                    
-                    // uncomment this once the production API is updated to deliver this attribute
+
+                    // TODO: uncomment this once the production API is updated to deliver this attribute
                     //assert(u->getattr(ATTR_JSON_SYNC_CONFIG_DATA) == nullptr);
 
                     client->ensureSyncUserAttributes([](Error e){

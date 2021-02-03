@@ -296,46 +296,6 @@ const char* errorstring(error e)
     }
 }
 
-#ifdef ENABLE_SYNC
-
-const char* syncstatename(const syncstate_t state)
-{
-    switch (state)
-    {
-    case SYNC_DISABLED:
-        return "DISABLED";
-    case SYNC_FAILED:
-        return "FAILED";
-    case SYNC_CANCELED:
-        return "CANCELED";
-    case SYNC_INITIALSCAN:
-        return "INITIALSCAN";
-    case SYNC_ACTIVE:
-        return "ACTIVE";
-    default:
-        return "UNKNOWN";
-    }
-}
-
-const char *synctypename(const SyncConfig::Type type)
-{
-    switch (type)
-    {
-    case SyncConfig::TYPE_BACKUP:
-        return "BACKUP";
-    case SyncConfig::TYPE_DOWN:
-        return "DOWN";
-    case SyncConfig::TYPE_UP:
-        return "UP";
-    case SyncConfig::TYPE_TWOWAY:
-        return "TWOWAY";
-    default:
-        return "UNKNOWN";
-    }
-}
-
-#endif // ENABLE_SYNC
-
 AppFile::AppFile()
 {
     static int nextseqno;
@@ -8495,33 +8455,6 @@ void exec_syncadd(autocomplete::ACState& s)
         return;
     }
 
-    // Does the node denote a directory?
-    if (targetNode->type != FOLDERNODE)
-    {
-        cerr << targetPath
-             << ": Is not a directory."
-             << endl;
-        return;
-    }
-
-    // Do we have full access to the target node?
-    if (!client->checkaccess(targetNode, FULL))
-    {
-        cerr << targetPath
-             << ": Insufficient privileges."
-             << endl;
-        return;
-    }
-
-    // Do we have full access to the target node?
-    if (!client->checkaccess(targetNode, FULL))
-    {
-        cerr << targetPath
-             << ": Insufficient privileges."
-             << endl;
-        return;
-    }
-
     // Create a suitable sync config.
     SyncConfig config(LocalPath::fromPath(sourcePath, *client->fsaccess),
                  sourcePath,
@@ -8532,7 +8465,7 @@ void exec_syncadd(autocomplete::ACState& s)
                  true,
                  SyncConfig::TYPE_TWOWAY);
 
-    // Try and add the new sync.
+    // Try and add the new sync.   All validation is performed in this function
     client->addsync(config,
                     DEBRISFOLDER,
                     nullptr,
@@ -8588,7 +8521,7 @@ void exec_synclist(autocomplete::ACState& s)
           {
               // Display status info.
               cout << "  State: "
-                   << syncstatename(sync->state)
+                   << SyncConfig::syncstatename(sync->state)
                    << "\n";
 
               // Display some usage stats.
@@ -8616,7 +8549,7 @@ void exec_synclist(autocomplete::ACState& s)
           cout << "  Type: "
                << (config.isExternal() ? "EX" : "IN")
                << "TERNAL "
-               << synctypename(config.getType())
+               << SyncConfig::synctypename(config.getType())
                << "\n"
                << endl;
       });

@@ -2516,6 +2516,43 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
 }
 
 
+const char* SyncConfig::syncstatename(const syncstate_t state)
+{
+    switch (state)
+    {
+    case SYNC_DISABLED:
+        return "DISABLED";
+    case SYNC_FAILED:
+        return "FAILED";
+    case SYNC_CANCELED:
+        return "CANCELED";
+    case SYNC_INITIALSCAN:
+        return "INITIALSCAN";
+    case SYNC_ACTIVE:
+        return "ACTIVE";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+const char* SyncConfig::synctypename(const SyncConfig::Type type)
+{
+    switch (type)
+    {
+    case SyncConfig::TYPE_BACKUP:
+        return "BACKUP";
+    case SyncConfig::TYPE_DOWN:
+        return "DOWN";
+    case SyncConfig::TYPE_UP:
+        return "UP";
+    case SyncConfig::TYPE_TWOWAY:
+        return "TWOWAY";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv)
 {
     FileInputStream isAccess(&ifAccess);

@@ -157,6 +157,10 @@ public:
     // This one is not serialized
     LocalPath mExternalDrivePath;
 
+    // enum to string conversion
+    static const char* syncstatename(const syncstate_t state);
+    static const char* synctypename(const Type type);
+
 private:
     // If mError or mEnabled have changed from these values, we need to notify the app.
     SyncError mKnownError = NO_SYNC_ERROR;
