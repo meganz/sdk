@@ -21662,6 +21662,12 @@ void MegaApiImpl::sendPendingRequests()
 
             client->ensureSyncUserAttributes([this, request, syncConfig](Error e){
 
+                if (e != API_OK)
+                {
+                    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+                    return;
+                }
+
                 client->copySyncConfig(syncConfig, [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
                 {
                     if (!e && !unifiedSync)
