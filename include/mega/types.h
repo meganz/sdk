@@ -334,17 +334,6 @@ typedef enum {
     SYNC_ACTIVE
 } syncstate_t;
 
-typedef enum
-{
-    // Sync is not operating in a backup capacity.
-    SYNC_BACKUP_NONE = 0,
-    // Sync is mirroring the local source.
-    SYNC_BACKUP_MIRROR = 1,
-    // Sync is monitoring (and propagating) local changes.
-    SYNC_BACKUP_MONITOR = 2
-}
-SyncBackupState;
-
 enum SyncError {
     NO_SYNC_ERROR = 0,
     UNKNOWN_ERROR = 1,
@@ -374,7 +363,6 @@ enum SyncError {
     TOO_MANY_ACTION_PACKETS = 25,           // Too many changes in account, local state discarded
     LOGGED_OUT = 26,                        // Logged out
     WHOLE_ACCOUNT_REFETCHED = 27,           // The whole account was reloaded, missed actionpacket changes could not have been applied
-    BACKUP_MODIFIED = 28                    // Backup has been externally modified.
 };
 
 enum SyncWarning {
