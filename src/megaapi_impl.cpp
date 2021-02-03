@@ -14509,8 +14509,9 @@ void MegaApiImpl::request_error(error e)
     }
 
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
+    bool keepSyncConfigsFile = true;
     request->setFlag(false);
-    request->setTransferTag(true); //keepSyncConfigsFile
+    request->setTransferTag(keepSyncConfigsFile);
     request->setParamType(e);
 
     if (e == API_ESSL && client->sslfakeissuer.size())
@@ -14520,7 +14521,7 @@ void MegaApiImpl::request_error(error e)
 
     if (e == API_ESID)
     {
-        client->locallogout(true, true);
+        client->locallogout(true, keepSyncConfigsFile);
     }
     requestQueue.push(request);
     waiter->notify();
@@ -15730,11 +15731,12 @@ void MegaApiImpl::whyamiblocked_result(int code)
                 && code != MegaApi::ACCOUNT_BLOCKED_VERIFICATION_SMS
                 && code != MegaApi::ACCOUNT_BLOCKED_VERIFICATION_EMAIL)
         {
-            client->locallogout(true, true);
+            bool keepSyncConfigsFile = true;
+            client->locallogout(true, keepSyncConfigsFile);
 
             MegaRequestPrivate *logoutRequest = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT);
             logoutRequest->setFlag(false);
-            logoutRequest->setTransferTag(true); //keepSyncConfigsFile
+            logoutRequest->setTransferTag(keepSyncConfigsFile);
             logoutRequest->setParamType(API_EBLOCKED);
             requestQueue.push(logoutRequest);
             waiter->notify();
