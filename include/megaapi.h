@@ -12123,6 +12123,8 @@ class MegaApi
          * @brief Logout of the MEGA account invalidating the session
          *
          * The associated request type with this request is MegaRequest::TYPE_LOGOUT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the keepSyncConfigsFile
          *
          * Under certain circumstances, this request might return the error code
          * MegaError::API_ESID. It should not be taken as an error, since the reason
@@ -12135,7 +12137,7 @@ class MegaApi
          *
          * @param keepSyncConfigsFile Allow sync configs to be recovered if the same user logs in again
          *        The file containing sync configs is encrypted so there's no privacy issue.
-         *        This is provided for backward compatibiltiy for MEGAsync.
+         *        This is provided for backward compatibility for MEGAsync.
          * @param listener MegaRequestListener to track this request
          */
         void logout(bool keepSyncConfigsFile, MegaRequestListener *listener = nullptr);

@@ -7240,7 +7240,6 @@ void MegaApiImpl::localLogout(MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGOUT, listener);
     request->setFlag(false);
-    request->setTransferTag(true);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -19939,15 +19938,14 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
-            bool keepSyncConfigsFile = request->getTransferTag();
-
             if(request->getFlag())
             {
+                bool keepSyncConfigsFile = request->getTransferTag();
                 client->logout(keepSyncConfigsFile);
             }
             else
             {
-                client->locallogout(false, keepSyncConfigsFile);
+                client->locallogout(false, true);
                 client->restag = nextTag;
                 logout_result(API_OK);
             }
