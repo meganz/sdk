@@ -6232,8 +6232,8 @@ TEST_F(SdkTest, SyncPersistence)
     auto trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
     ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for accout " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
-    sync = waitForSyncState(megaApi[0].get(), backupId, true, true, MegaSync::NO_SYNC_ERROR);
-    ASSERT_TRUE(sync && sync->isActive());
+    sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::LOGGED_OUT);
+    ASSERT_TRUE(sync && !sync->isActive());
     ASSERT_EQ(remoteFolder, string(sync->getLastKnownMegaFolder()));
 
     // Check if a logout without keepSyncsAfterLogout doesn't keep the sync configured.
