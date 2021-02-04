@@ -8952,6 +8952,15 @@ void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailh
     reqs.add(new CommandLogin(this, email, (byte*)&emailhash, sizeof(emailhash), sek));
 }
 
+void MegaClient::getuserdata(int tag, std::function<void(string*, string*, string*, error)> completion)
+{
+    const auto creqtag = reqtag;
+
+    reqtag = tag;
+    getuserdata(std::move(completion));
+    reqtag = creqtag;
+}
+
 void MegaClient::getuserdata(std::function<void(string*, string*, string*, error)> completion)
 {
     cachedug = false;
@@ -11844,10 +11853,16 @@ void MegaClient::fetchnodes(bool nocache)
 
         if (!loggedinfolderlink())
         {
-            getuserdata([this, nocache](string*, string*, string*, error){
+            // Copy the current tag so we can capture it in the lambda below.
+            const auto fetchtag = reqtag;
+
+            getuserdata(0, [this, fetchtag, nocache](string*, string*, string*, error){
                 // FetchNodes procresult() needs some data from `ug` (or it may try to make new Sync User Attributes for example)
                 // So only submit the request after `ug` completes, otherwise everything is interleaved
+                const auto creqtag = reqtag;
+                reqtag = fetchtag;
                 reqs.add(new CommandFetchNodes(this, nocache));
+                reqtag = creqtag;
             });
 
             if (loggedin() == FULLACCOUNT)
