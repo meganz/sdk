@@ -11864,7 +11864,7 @@ void MegaClient::fetchnodes(bool nocache)
         }
         else
         {
-            reqs.add(new CommandFetchNodes(this, nocache));
+            reqs.add(new CommandFetchNodes(this, reqtag, nocache));
         }
     }
 }

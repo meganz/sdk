@@ -418,7 +418,7 @@ class MEGA_API CommandFetchNodes : public Command
 public:
     bool procresult(Result) override;
 
-    CommandFetchNodes(MegaClient*, int tag, bool nocache = false);
+    CommandFetchNodes(MegaClient*, int tag, bool nocache);
 };
 
 // update own node keys
