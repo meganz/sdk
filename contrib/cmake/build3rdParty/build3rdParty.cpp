@@ -314,11 +314,21 @@ bool readCommandLine(int argc, char* argv[])
         {
             string platformTest = s.substr(s.find_last_of(' ') + 1);
             s.erase(s.find_first_of(' '));
-            if (platformTest.find("!" + platformToString(buildPlatform)) != string::npos)
+            if (!platformTest.empty() && platformTest[0] == '!')
             {
-                cout << "Skipping line <" << s << "> due to platform exclude expression for detected platform "
-                << platformToString(buildPlatform) << "\n";
-                continue;
+                if (platformTest.substr(1) == platformToString(buildPlatform))
+                {
+                    cout << "Skipping " << s << " because " << platformTest <<"\n";
+                    continue;
+                }
+            }
+            else
+            {
+                if (platformTest != platformToString(buildPlatform))
+                {
+                    cout << "Skipping " << s << " because " << platformTest << "\n";
+                    continue;
+                }
             }
         }
 
