@@ -244,7 +244,7 @@ public:
     //void login(unsigned int apiIndex, int timeout = maxTimeout);
     //void loginBySessionId(unsigned int apiIndex, const std::string& sessionId, int timeout = maxTimeout);
     void fetchnodes(unsigned int apiIndex, int timeout = maxTimeout);
-    void logout(unsigned int apiIndex, int timeout = maxTimeout);
+    void logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout);
     char* dumpSession();
     void locallogout(int timeout = maxTimeout);
     void resumeSession(const char *session, int timeout = maxTimeout);

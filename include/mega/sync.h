@@ -117,6 +117,9 @@ public:
     // check if we need to notify the App about error/enable flag changes
     bool errorOrEnabledChanged();
 
+    string syncErrorToStr();
+    static string syncErrorToStr(SyncError errorCode);
+
 
     // enabled/disabled by the user
     bool mEnabled = true;
@@ -156,6 +159,10 @@ public:
     // Path to the volume containing this backup (only for external backups).
     // This one is not serialized
     LocalPath mExternalDrivePath;
+
+    // enum to string conversion
+    static const char* syncstatename(const syncstate_t state);
+    static const char* synctypename(const Type type);
 
 private:
     // If mError or mEnabled have changed from these values, we need to notify the app.
