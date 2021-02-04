@@ -28,21 +28,21 @@ namespace fs = std::__fs::filesystem;
 #endif
 
 enum class Platform {
-    windows,
-    osx,
-    linux,
+    platform_windows,    // platform_ prefix to avoid #define subsitutions on linux
+    platform_osx,
+    platform_linux,
 };
 
 constexpr Platform buildPlatform =
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
-Platform::windows
+Platform::platform_windows
 #elif __APPLE__
 #include <TargetConditionals.h>
     #if TARGET_OS_MAC
-Platform::osx
+Platform::platform_osx
     #endif
 #elif __linux__
-Platform::linux
+Platform::platform_linux
 #endif
 ; // error here: platform not detected from supported list
 
@@ -200,11 +200,11 @@ catch (exception& e)
 string platformToString(Platform p)
 {
     switch (p) {
-        case Platform::windows:
+        case Platform::platform_windows:
         return "windows";
-        case Platform::osx:
+        case Platform::platform_osx:
         return "osx";
-        case Platform::linux:
+        case Platform::platform_linux:
         return "linux";
         default:
         throw std::logic_error("Unhandled platform enumerator");
