@@ -33,7 +33,7 @@ enum class Platform {
     linux,
 };
 
-constexpr Platform buildPlatform = 
+constexpr Platform buildPlatform =
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
 Platform::windows
 #elif __APPLE__
@@ -122,7 +122,7 @@ try
                     cout << "Copying port for " << portname << " from vcpkg commit " << portversion << endl;
                     fs::copy(cloneDir / "ports" / portname, vcpkgDir / "ports" / portname, fs::copy_options::recursive);
                     fs::current_path(vcpkgDir);
-                    
+
                     auto patch = patches.find(portname);
                     if (patch != patches.end()) {
                         cout << "Applying patch " << patch->second.u8string() << " for port " << portname << "\n";
@@ -157,7 +157,7 @@ try
                     return 1;
                 }
 
-                vcpkg_fixup_pkgconfig << 
+                vcpkg_fixup_pkgconfig <<
                 "function(vcpkg_fixup_pkgconfig)\n"
                 "endfunction()\n"
                 "set(PKGCONFIG \":\")\n"; // i.e., use no-op : operator
@@ -310,9 +310,9 @@ bool readCommandLine(int argc, char* argv[])
         if (s.empty()) continue;
 
         // check if port should be skipped for this platform
-        if (s.find("!" + platformToString(buildPlatform)) != string::npos) 
+        if (s.find("!" + platformToString(buildPlatform)) != string::npos)
         {
-            cout << "Skipping line <" << s << "> due to platform exclude expression for detected platform " 
+            cout << "Skipping line <" << s << "> due to platform exclude expression for detected platform "
             << platformToString(buildPlatform) << "\n";
             continue;
         }
@@ -345,8 +345,8 @@ bool readCommandLine(int argc, char* argv[])
         if (colonpos != string::npos)
         {
             fs::path patch = s.substr(colonpos + 1);
-            auto existingPatch = patches.find(patch);
-            if (existingPatch != patches.end() && existingPatch->second != patch) 
+            auto existingPatch = patches.find(patch.u8string());
+            if (existingPatch != patches.end() && existingPatch->second != patch)
             {
                 cout << "Conflicting patch files: " << patch << " and " << existingPatch->second << " for " << portname << "\n";
                 return 1;
