@@ -2875,11 +2875,17 @@ void MegaApi::changePassword(const char *oldPassword, const char *newPassword, M
 {
     pImpl->changePassword(oldPassword, newPassword, listener);
 }
-
+#ifdef ENABLE_SYNC
 void MegaApi::logout(bool keepSyncConfigsFile, MegaRequestListener *listener)
 {
     pImpl->logout(keepSyncConfigsFile, listener);
 }
+#else
+void MegaApi::logout(MegaRequestListener *listener)
+{
+    pImpl->logout(false, listener);
+}
+#endif
 
 void MegaApi::localLogout(MegaRequestListener *listener)
 {
