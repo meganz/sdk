@@ -20611,6 +20611,7 @@ void MegaApiImpl::sendPendingRequests()
                 auto nl = fn.getFavouriteNodes();
                 request->setMegaNodeList(nl);
             }
+            break;
         }
 
         case MegaRequest::TYPE_CANCEL_ATTR_FILE:
