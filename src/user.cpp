@@ -558,6 +558,10 @@ string User::attr2string(attr_t type)
             attrname = "^!csp";
             break;
 
+        case ATTR_JSON_SYNC_CONFIG_DATA:
+            attrname = "*~jscd";
+            break;
+
         case ATTR_UNKNOWN:  // empty string
             break;
     }
@@ -710,6 +714,10 @@ string User::attr2longname(attr_t type)
     case ATTR_COOKIE_SETTINGS:
         longname = "ATTR_COOKIE_SETTINGS";
         break;
+
+    case ATTR_JSON_SYNC_CONFIG_DATA:
+        longname = "JSON_SYNC_CONFIG_DATA";
+        break;
     }
 
     return longname;
@@ -854,6 +862,10 @@ attr_t User::string2attr(const char* name)
     {
         return ATTR_COOKIE_SETTINGS;
     }
+    else if (!strcmp(name, "*~jscd"))
+    {
+        return ATTR_JSON_SYNC_CONFIG_DATA;
+    }
     else
     {
         return ATTR_UNKNOWN;   // attribute not recognized
@@ -899,9 +911,11 @@ int User::needversioning(attr_t at)
         case ATTR_UNSHAREABLE_KEY:
         case ATTR_DEVICE_NAMES:
         case ATTR_BACKUP_NAMES:
+        case ATTR_JSON_SYNC_CONFIG_DATA:
             return 1;
 
         case ATTR_STORAGE_STATE: //putua is forbidden for this attribute
+            assert(false);
         default:
             return -1;
     }
@@ -925,6 +939,7 @@ char User::scope(attr_t at)
         case ATTR_DEVICE_NAMES:
         case ATTR_MY_BACKUPS_FOLDER:
         case ATTR_BACKUP_NAMES:
+        case ATTR_JSON_SYNC_CONFIG_DATA:
             return '*';
 
         case ATTR_AVATAR:
@@ -1366,6 +1381,10 @@ bool User::setChanged(attr_t at)
 
         case ATTR_COOKIE_SETTINGS:
             changed.cookieSettings = true;
+            break;
+
+        case ATTR_JSON_SYNC_CONFIG_DATA:
+            changed.jsonSyncConfigData = true;
             break;
 
         default:

@@ -402,10 +402,10 @@ struct MEGA_API LocalNode : public File
     // fsidnodes is a map from fsid to LocalNode, keeping track of all fs ids.
     void setfsid(handle newfsid, handlelocalnode_map& fsidnodes);
 
-    void setnameparent(LocalNode*, LocalPath* newlocalpath, std::unique_ptr<LocalPath>);
+    void setnameparent(LocalNode*, const LocalPath* newlocalpath, std::unique_ptr<LocalPath>);
 
     LocalNode();
-    void init(Sync*, nodetype_t, LocalNode*, LocalPath&, std::unique_ptr<LocalPath>);
+    void init(Sync*, nodetype_t, LocalNode*, const LocalPath&, std::unique_ptr<LocalPath>);
 
     bool serialize(string*) override;
     static LocalNode* unserialize( Sync* sync, const string* sData );

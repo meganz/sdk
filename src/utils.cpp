@@ -52,6 +52,29 @@ string toHandle(handle h)
     return string(base64Handle);
 }
 
+string backupTypeToStr(BackupType type)
+{
+    switch (type)
+    {
+    case BackupType::INVALID:
+            return "INVALID";
+    case BackupType::TWO_WAY:
+            return "TWO_WAY";
+    case BackupType::UP_SYNC:
+            return "UP_SYNC";
+    case BackupType::DOWN_SYNC:
+            return "DOWN_SYNC";
+    case BackupType::CAMERA_UPLOAD:
+            return "CAMERA_UPLOAD";
+    case BackupType::MEDIA_UPLOAD:
+            return "MEDIA_UPLOAD";
+    case BackupType::BACKUP_UPLOAD:
+            return "BACKUP_UPLOAD";
+    }
+
+    return "UNKNOWN";
+}
+
 void AddHiddenFileAttribute(mega::LocalPath& path)
 {
 #ifdef _WIN32
@@ -2289,16 +2312,14 @@ void CacheableStatus::setValue(const int64_t value)
     mValue = value;
 }
 
-SyncConfig::SyncConfig(std::string localPath,
+SyncConfig::SyncConfig(LocalPath localPath,
                        std::string name,
                        const handle remoteNode,
                        const std::string &remotePath,
                        const fsfp_t localFingerprint,
                        std::vector<std::string> regExps,
                        const bool enabled,
-                       const Type syncType,
-                       const bool syncDeletions,
-                       const bool forceOverwrite,
+                       const SyncConfig::Type syncType,
                        const SyncError error,
                        const SyncWarning warning,
                        mega::handle hearBeatID)
@@ -2306,16 +2327,36 @@ SyncConfig::SyncConfig(std::string localPath,
     , mLocalPath{std::move(localPath)}
     , mName{std::move(name)}
     , mRemoteNode{remoteNode}
-    , mRemotePath{remotePath}
+    , mOrigninalPathOfRemoteRootNode{remotePath}
     , mLocalFingerprint{localFingerprint}
     , mRegExps{std::move(regExps)}
     , mSyncType{syncType}
-    , mSyncDeletions{syncDeletions}
-    , mForceOverwrite{forceOverwrite}
     , mError{error}
     , mBackupId(hearBeatID)
+    , mExternalDrivePath()
     , mWarning{warning}
 {}
+
+bool SyncConfig::operator==(const SyncConfig& rhs) const
+{
+    return mEnabled == rhs.mEnabled
+           && mExternalDrivePath == rhs.mExternalDrivePath
+           && mLocalPath == rhs.mLocalPath
+           && mName == rhs.mName
+           && mRemoteNode == rhs.mRemoteNode
+           && mOrigninalPathOfRemoteRootNode == rhs.mOrigninalPathOfRemoteRootNode
+           && mLocalFingerprint == rhs.mLocalFingerprint
+           && mRegExps == rhs.mRegExps
+           && mSyncType == rhs.mSyncType
+           && mError == rhs.mError
+           && mBackupId == rhs.mBackupId
+           && mWarning == rhs.mWarning;
+}
+
+bool SyncConfig::operator!=(const SyncConfig& rhs) const
+{
+    return !(*this == rhs);
+}
 
 bool SyncConfig::getEnabled() const
 {
@@ -2327,19 +2368,9 @@ void SyncConfig::setEnabled(bool enabled)
     mEnabled = enabled;
 }
 
-bool SyncConfig::hasError() const
-{
-    return mError != NO_SYNC_ERROR;
-}
-
-const std::string& SyncConfig::getLocalPath() const
+const LocalPath& SyncConfig::getLocalPath() const
 {
     return mLocalPath;
-}
-
-const std::string& SyncConfig::getName() const
-{
-    return mName;
 }
 
 handle SyncConfig::getRemoteNode() const
@@ -2350,16 +2381,6 @@ handle SyncConfig::getRemoteNode() const
 void SyncConfig::setRemoteNode(const handle &remoteNode)
 {
     mRemoteNode = remoteNode;
-}
-
-const std::string& SyncConfig::getRemotePath() const
-{
-    return mRemotePath;
-}
-
-void SyncConfig::setRemotePath(const std::string &remotePath)
-{
-    mRemotePath = remotePath;
 }
 
 handle SyncConfig::getLocalFingerprint() const
@@ -2387,48 +2408,10 @@ SyncConfig::Type SyncConfig::getType() const
     return mSyncType;
 }
 
-bool SyncConfig::isUpSync() const
-{
-    return mSyncType & TYPE_UP;
-}
-
-bool SyncConfig::isDownSync() const
-{
-    return mSyncType & TYPE_DOWN;
-}
-
-bool SyncConfig::syncDeletions() const
-{
-    switch (mSyncType)
-    {
-        case TYPE_UP: return mSyncDeletions;
-        case TYPE_DOWN: return mSyncDeletions;
-        case TYPE_TWOWAY: return true;
-    }
-    assert(false);
-    return true;
-}
-
-bool SyncConfig::forceOverwrite() const
-{
-    switch (mSyncType)
-    {
-        case TYPE_UP: return mForceOverwrite;
-        case TYPE_DOWN: return mForceOverwrite;
-        case TYPE_TWOWAY: return false;
-    }
-    assert(false);
-    return false;
-}
 
 SyncError SyncConfig::getError() const
 {
     return mError;
-}
-
-SyncWarning SyncConfig::getWarning() const
-{
-    return mWarning;
 }
 
 void SyncConfig::setError(SyncError value)
@@ -2446,109 +2429,129 @@ void SyncConfig::setBackupId(const handle &backupId)
     mBackupId = backupId;
 }
 
-// This should be a const-method but can't be due to the broken Cacheable interface.
-// Do not mutate members in this function! Hence, we forward to a private const-method.
-bool SyncConfig::serialize(std::string* data)
+bool SyncConfig::isExternal() const
 {
-    return const_cast<const SyncConfig*>(this)->serialize(*data);
+    return !mExternalDrivePath.empty();
 }
 
-std::unique_ptr<SyncConfig> SyncConfig::unserialize(const std::string& data)
+bool SyncConfig::errorOrEnabledChanged()
 {
-    bool enabled;
-    std::string localPath;
-    std::string name;
-    handle remoteNode;
-    std::string remotePath;
-    fsfp_t fingerprint;
-    uint32_t regExpCount;
-    std::vector<std::string> regExps;
-    uint32_t syncType;
-    bool syncDeletions;
-    bool forceOverwrite;
-    uint32_t error = NO_SYNC_ERROR;
-    handle heartBeatID = UNDEF;
-    unsigned char expansionflags[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+    bool changed = mError != mKnownError ||
+                   mEnabled != mKnownEnabled;
 
-    CacheableReader reader{data};
-
-    if (!reader.unserializebool(enabled) ||
-        !reader.unserializestring(localPath) ||
-        !reader.unserializestring(name) ||
-        !reader.unserializehandle(remoteNode) ||
-        !reader.unserializestring(remotePath) ||
-        !reader.unserializefsfp(fingerprint) ||
-        !reader.unserializeu32(regExpCount))
+    if (changed)
     {
-        return nullptr;
+        mKnownError = mError;
+        mKnownEnabled = mEnabled;
     }
-
-    for (uint32_t i = 0; i < regExpCount; ++i)
-    {
-        std::string regExp;
-        if (!reader.unserializestring(regExp))
-        {
-            return {};
-        }
-        regExps.push_back(std::move(regExp));
-    }
-
-    if (!reader.unserializeu32(syncType) ||
-        !reader.unserializebool(syncDeletions) ||
-        !reader.unserializebool(forceOverwrite))
-    {
-        return nullptr;
-    }
-
-    // error was added without an expansion flag to indicate if it's present, so go by remaining space
-    if (reader.hasdataleft())
-    {
-        if (!reader.unserializeu32(error)) return nullptr;
-
-        // heartbeatID was added without an expansion flag to indicate if it's present, so go by remaining space
-        if (reader.hasdataleft())
-        {
-            if (!reader.unserializehandle(heartBeatID)) return nullptr;
-
-            // expansion flags were added at this point
-            if (reader.hasdataleft())
-            {
-                reader.unserializeexpansionflags(expansionflags, 0);
-            }
-        }
-    }
-
-    // when future fields are added, unserialize that field here.  Check the next expansion flag first, of course.
-
-    auto syncConfig = std::unique_ptr<SyncConfig>{new SyncConfig{std::move(localPath), std::move(name),
-                    remoteNode, std::move(remotePath), fingerprint, std::move(regExps), enabled,
-                    static_cast<Type>(syncType), syncDeletions,
-                    forceOverwrite, static_cast<SyncError>(error), NO_SYNC_WARNING, heartBeatID}};
-    return syncConfig;
+    return changed;
 }
 
-bool SyncConfig::serialize(std::string& data) const
+std::string SyncConfig::syncErrorToStr()
 {
-    CacheableWriter writer{data};
-    writer.serializebool(mEnabled);
-    writer.serializestring(mLocalPath);
-    writer.serializestring(mName);
-    writer.serializehandle(mRemoteNode);
-    writer.serializestring(mRemotePath);
-    writer.serializefsfp(mLocalFingerprint);
-    writer.serializeu32(static_cast<uint32_t>(mRegExps.size()));
-    for (const auto& regExp : mRegExps)
-    {
-        writer.serializestring(regExp);
-    }
-    writer.serializeu32(static_cast<uint32_t>(mSyncType));
-    writer.serializebool(mSyncDeletions);
-    writer.serializebool(mForceOverwrite);
-    writer.serializeu32(static_cast<uint32_t>(mError));
-    writer.serializehandle(mBackupId);
-    writer.serializeexpansionflags();
-    return true;
+    return syncErrorToStr(mError);
 }
+
+std::string SyncConfig::syncErrorToStr(SyncError errorCode)
+{
+    switch(errorCode)
+    {
+    case NO_SYNC_ERROR:
+        return "No error";
+    case UNKNOWN_ERROR:
+        return "Unknown error";
+    case UNSUPPORTED_FILE_SYSTEM:
+        return "File system not supported";
+    case INVALID_REMOTE_TYPE:
+        return "Remote node is not valid";
+    case INVALID_LOCAL_TYPE:
+        return "Local path is not valid";
+    case INITIAL_SCAN_FAILED:
+        return "Initial scan failed";
+    case LOCAL_PATH_TEMPORARY_UNAVAILABLE:
+        return "Local path temporarily unavailable";
+    case LOCAL_PATH_UNAVAILABLE:
+        return "Local path not available";
+    case REMOTE_NODE_NOT_FOUND:
+        return "Remote node not found";
+    case STORAGE_OVERQUOTA:
+        return "Reached storage quota limit";
+    case BUSINESS_EXPIRED:
+        return "Business account expired";
+    case FOREIGN_TARGET_OVERSTORAGE:
+        return "Foreign target storage quota reached";
+    case REMOTE_PATH_HAS_CHANGED:
+        return "Remote path has changed";
+    case REMOTE_NODE_MOVED_TO_RUBBISH:
+        return "Remote node moved to Rubbish Bin";
+    case SHARE_NON_FULL_ACCESS:
+        return "Share without full access";
+    case LOCAL_FINGERPRINT_MISMATCH:
+        return "Local fingerprint mismatch";
+    case PUT_NODES_ERROR:
+        return "Put nodes error";
+    case ACTIVE_SYNC_BELOW_PATH:
+        return "Active sync below path";
+    case ACTIVE_SYNC_ABOVE_PATH:
+        return "Active sync above path";
+    case REMOTE_PATH_DELETED:
+        return "Remote node has been deleted";
+    case REMOTE_NODE_INSIDE_RUBBISH:
+        return "Remote node is inside Rubbish Bin";
+    case VBOXSHAREDFOLDER_UNSUPPORTED:
+        return "Unsupported VBoxSharedFolderFS filesystem";
+    case LOCAL_PATH_SYNC_COLLISION:
+        return "Local path collides with an existing sync";
+    case ACCOUNT_BLOCKED:
+        return "Your account is blocked";
+    case UNKNOWN_TEMPORARY_ERROR:
+        return "Unknown temporary error";
+    case TOO_MANY_ACTION_PACKETS:
+        return "Too many changes in account, local state invalid";
+    case LOGGED_OUT:
+        return "Session closed";
+    default:
+        return "Undefined error";
+    }
+}
+
+
+const char* SyncConfig::syncstatename(const syncstate_t state)
+{
+    switch (state)
+    {
+    case SYNC_DISABLED:
+        return "DISABLED";
+    case SYNC_FAILED:
+        return "FAILED";
+    case SYNC_CANCELED:
+        return "CANCELED";
+    case SYNC_INITIALSCAN:
+        return "INITIALSCAN";
+    case SYNC_ACTIVE:
+        return "ACTIVE";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+const char* SyncConfig::synctypename(const SyncConfig::Type type)
+{
+    switch (type)
+    {
+    case SyncConfig::TYPE_BACKUP:
+        return "BACKUP";
+    case SyncConfig::TYPE_DOWN:
+        return "DOWN";
+    case SyncConfig::TYPE_UP:
+        return "UP";
+    case SyncConfig::TYPE_TWOWAY:
+        return "TWOWAY";
+    default:
+        return "UNKNOWN";
+    }
+}
+
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv)
 {

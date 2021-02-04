@@ -459,7 +459,7 @@ TEST(Filesystem, isContainingPathOf)
     size_t pos;
 
     // lhs does not contain rhs.
-    pos = -1;
+    pos = size_t(0)-1;
     lhs = LocalPath::fromPath("a" SEP "b", fsAccess);
     rhs = LocalPath::fromPath("a" SEP "c", fsAccess);
 
@@ -468,16 +468,16 @@ TEST(Filesystem, isContainingPathOf)
 
     // lhs does not contain rhs.
     // they do, however, share a common prefix.
-    pos = -1;
+    pos = size_t(0) -1;
     lhs = LocalPath::fromPath("a", fsAccess);
     rhs = LocalPath::fromPath("ab", fsAccess);
 
     EXPECT_FALSE(lhs.isContainingPathOf(rhs, &pos));
-    EXPECT_EQ(pos, -1);
+    EXPECT_EQ(pos, size_t(0) -1);
 
     // lhs contains rhs.
     // no trailing separator.
-    pos = -1;
+    pos = size_t(0) -1;
     lhs = LocalPath::fromPath("a", fsAccess);
     rhs = LocalPath::fromPath("a" SEP "b", fsAccess);
 
@@ -485,7 +485,7 @@ TEST(Filesystem, isContainingPathOf)
     EXPECT_EQ(pos, 2);
 
     // trailing separator.
-    pos = -1;
+    pos = size_t(0) -1;
     lhs = LocalPath::fromPath("a" SEP, fsAccess);
     rhs = LocalPath::fromPath("a" SEP "b", fsAccess);
 
@@ -493,7 +493,7 @@ TEST(Filesystem, isContainingPathOf)
     EXPECT_EQ(pos, 2);
 
     // lhs contains itself.
-    pos = -1;
+    pos = size_t(0) -1;
     lhs = LocalPath::fromPath("a" SEP "b", fsAccess);
 
     EXPECT_TRUE(lhs.isContainingPathOf(lhs, &pos));
@@ -501,7 +501,7 @@ TEST(Filesystem, isContainingPathOf)
 
 #ifdef _WIN32
     // case insensitive.
-    pos = -1;
+    pos = size_t(0) -1;
     lhs = LocalPath::fromPath("a" SEP "B", fsAccess);
     rhs = LocalPath::fromPath("A" SEP "b", fsAccess);
 
