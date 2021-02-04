@@ -360,7 +360,7 @@ bool readCommandLine(int argc, char* argv[])
         if (colonpos != string::npos)
         {
             fs::path patch = s.substr(colonpos + 1);
-            auto existingPatch = patches.find(patch.u8string());
+            auto existingPatch = patches.find(portname);
             if (existingPatch != patches.end() && existingPatch->second != patch)
             {
                 cout << "Conflicting patch files: " << patch << " and " << existingPatch->second << " for " << portname << "\n";
