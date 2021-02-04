@@ -3997,7 +3997,9 @@ struct TwoWaySyncSymmetryCase
         // for subsequent, duplicate in the cloud with this test's name.
 
         Node* testRoot = changeClient().client.nodebyhandle(changeClient().basefolderhandle);
+        ASSERT_NE(testRoot, nullptr);
         Node* n2 = changeClient().drillchildnodebyname(testRoot, state.remoteBaseFolder);
+        ASSERT_NE(n2, nullptr);
         if (state.first_test_name.empty())
         {
             state.first_test_name = name();
@@ -4028,6 +4030,7 @@ struct TwoWaySyncSymmetryCase
             ASSERT_TRUE(!ec);
 
             Node* n1 = changeClient().drillchildnodebyname(testRoot, state.remoteBaseFolder + "/" + state.first_test_name);
+            ASSERT_NE(n1, nullptr);
             changeClient().cloudCopyTreeAs(n1, n2, name(), cloudCopySetupPromise);
             ASSERT_TRUE(cloudCopySetupPromise->get_future().get());
             out() << "Copied cloud tree for " << name() << endl;
