@@ -23410,6 +23410,7 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
     {
         string attrstring;
         SymmCipher key;
+        assert(nc);
         NewNode* t = &nn[--nc];
 
         // copy node
