@@ -20605,11 +20605,20 @@ void MegaApiImpl::sendPendingRequests()
                 int count = request->getNumDetails();
                 MegaHandle folder = request->getNodeHandle();
                 auto node = getNodeByHandle(folder);
-                node = node != nullptr ? node : getRootNode();
                 MegaFavouriteProcessor fn(count);
-                processMegaTree(node, &fn);
-                auto nl = fn.getFavouriteNodes();
-                request->setMegaNodeList(nl);
+                if (!node)
+                {
+                    //TODO: If folder is null, then return favourite nodes found in the cloud
+
+                }
+                else
+                {
+                    MegaFavouriteProcessor fn(count);
+                    processMegaTree(node, &fn);
+                    auto nl = fn.getFavouriteNodes();
+                    request->setMegaNodeList(nl);
+                }
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
             break;
         }
