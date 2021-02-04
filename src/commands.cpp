@@ -3664,8 +3664,10 @@ bool CommandGetUserData::procresult(Result r)
     string versionBackupNames;
     string cookieSettings;
     string versionCookieSettings;
+#ifdef ENABLE_SYNC
     string jsonSyncConfigData;
     string jsonSyncConfigDataVersion;
+#endif
 
     bool uspw = false;
     vector<m_time_t> warningTs;
@@ -3798,9 +3800,11 @@ bool CommandGetUserData::procresult(Result r)
             parseUserAttribute(backupNames, versionBackupNames);
             break;
 
+#ifdef ENABLE_SYNC
         case MAKENAMEID6('*', '~', 'j', 's', 'c', 'd'):
             parseUserAttribute(jsonSyncConfigData, jsonSyncConfigDataVersion);
             break;
+#endif
 
         case 'b':   // business account's info
             assert(!b);
@@ -4202,6 +4206,7 @@ bool CommandGetUserData::procresult(Result r)
                     changes += u->updateattr(ATTR_COOKIE_SETTINGS, &cookieSettings, &versionCookieSettings);
                 }
 
+#ifdef ENABLE_SYNC
                 if (!jsonSyncConfigData.empty())
                 {
                     // Tell the rest of the SDK that the attribute's changed.
@@ -4224,6 +4229,7 @@ bool CommandGetUserData::procresult(Result r)
                         }
                     });
                 }
+#endif
 
                 if (changes > 0)
                 {
