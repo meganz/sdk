@@ -1421,18 +1421,20 @@ struct StandardClient : public MegaApp
             return false;
         }
 
-        SyncConfig config;
 
-        // Populate configuration.
+        auto config =
+          SyncConfig(LocalPath::fromPath(sourcePath, *client.fsaccess),
+                     sourcePath,
+                     targetNode->nodehandle,
+                     targetPath,
+                     0,
+                     string_vector(),
+                     true,
+                     SyncConfig::TYPE_BACKUP);
+
+        // Populate drive path.
         config.mExternalDrivePath =
           LocalPath::fromPath(drivePath, *client.fsaccess);
-        config.mLocalPath =
-          LocalPath::fromPath(sourcePath, *client.fsaccess);
-
-        config.mEnabled = true;
-        config.mRemoteNode = targetNode->nodehandle;
-        config.mOrigninalPathOfRemoteRootNode = targetPath;
-        config.mSyncType = SyncConfig::TYPE_BACKUP;
 
         // Try and add the backup.
         return client.syncs.backupAdd(config, completion) == API_OK;
