@@ -676,10 +676,7 @@ public:
     // fail all active syncs
     void failSyncs(SyncError syncError =  NO_SYNC_ERROR);
 
-
-
-
-#endif
+#endif  // ENABLE_SYNC
 
     /**
      * @brief creates a tlv with one record and returns it encrypted with master key
