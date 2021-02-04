@@ -12123,6 +12123,9 @@ class MegaApi
          * @brief Logout of the MEGA account invalidating the session
          *
          * The associated request type with this request is MegaRequest::TYPE_LOGOUT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getTransferTag - Returns the keepSyncConfigsFile
+         * - MegaRequest::getFlag - Returns true
          *
          * Under certain circumstances, this request might return the error code
          * MegaError::API_ESID. It should not be taken as an error, since the reason
@@ -12133,14 +12136,19 @@ class MegaApi
          * ToS infringment), the MegaRequest::getParamType indicates the error that
          * triggered the automatic logout (MegaError::API_EBLOCKED for the example).
          *
+         * @param keepSyncConfigsFile Allow sync configs to be recovered if the same user logs in again
+         *        The file containing sync configs is encrypted so there's no privacy issue.
+         *        This is provided for backward compatibility for MEGAsync.
          * @param listener MegaRequestListener to track this request
          */
-        void logout(MegaRequestListener *listener = NULL);
+        void logout(bool keepSyncConfigsFile, MegaRequestListener *listener);
 
         /**
          * @brief Logout of the MEGA account without invalidating the session
          *
          * The associated request type with this request is MegaRequest::TYPE_LOGOUT
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getFlag - Returns false
          *
          * @param listener MegaRequestListener to track this request
          */
@@ -13558,7 +13566,7 @@ class MegaApi
          * - MegaRequest::getFile - Returns the path of the local folder
          * - MegaRequest::getName - Returns the name of the sync
          * - MegaRequest::getLink - Returns the path of the remote folder
-         * - MegaRequest::getNumber - Returns the local filesystem fingreprint
+         * - MegaRequest::getNumber - Returns the local filesystem fingerprint
          * - MegaRequest::getNumDetails - Returns if sync is temporarily disabled
          * - MegaRequest::getFlag - if sync is enabled
 
@@ -13624,16 +13632,6 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
-
-        /**
-         * @brief Enable keeping sync configuration after logout
-         *
-         * By default, sync configurations are removed upon logout. Enabling this will
-         * keep configurations so that new sessions will restore syncs configured previously.
-         *
-         * @param enable True to keep sync configurations after logout.
-         */
-        void setKeepSyncsAfterLogout(bool enable);
 
 #ifdef USE_PCRE
         /**

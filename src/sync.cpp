@@ -2149,6 +2149,7 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
     User* self = mClient.ownuser();
     if (!self)
     {
+        LOG_warn << "syncConfigIOContext: own user not available";
         return nullptr;
     }
 
@@ -2157,6 +2158,7 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
     if (!payload)
     {
         // Attribute hasn't been created yet.
+        LOG_warn << "syncConfigIOContext: JSON config data is not available";
         return nullptr;
     }
 
@@ -2167,6 +2169,7 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
     if (!store)
     {
         // Attribute is malformed.
+        LOG_err << "syncConfigIOContext: JSON config data is malformed";
         return nullptr;
     }
 
@@ -2174,7 +2177,7 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
     constexpr size_t KEYLENGTH = SymmCipher::KEYLENGTH;
 
     // Verify payload contents.
-    auto authKey = store->get("ak"); 
+    auto authKey = store->get("ak");
     auto cipherKey = store->get("ck");
     auto name = store->get("fn");
 
@@ -2183,6 +2186,7 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
         || name.size() != KEYLENGTH)
     {
         // Payload is malformed.
+        LOG_err << "syncConfigIOContext: JSON config data is incomplete";
         return nullptr;
     }
 
@@ -2216,7 +2220,7 @@ error Syncs::truncate()
     }
 
     auto* ioContext = syncConfigIOContext();
-    
+
     if (!ioContext)
     {
         return API_EAGAIN;
@@ -3388,7 +3392,12 @@ bool JSONSyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) cons
             break;
 
         case TYPE_TARGET_HANDLE:
-            config.mRemoteNode = reader.gethandle(sizeof(handle));
+            config.mRemoteNode = reader.gethandle(MegaClient::NODEHANDLE);
+            if ((config.mRemoteNode & 0xFFFFFFFFFFFF) == (UNDEF & 0xFFFFFFFFFFFF))
+            {
+                // we can have a much nicer solution when NodeHandle is merged from the sync rework branch
+                config.mRemoteNode = UNDEF;
+            }
             break;
 
         case TYPE_TARGET_PATH:
@@ -3454,7 +3463,7 @@ void JSONSyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg_B64("n", config.mName);
     writer.arg_B64("tp", config.mOrigninalPathOfRemoteRootNode);
     writer.arg_fsfp("fp", config.mLocalFingerprint);
-    writer.arg("th", config.mRemoteNode, sizeof(handle));
+    writer.arg("th", config.mRemoteNode, MegaClient::NODEHANDLE);
     writer.arg("le", config.mError);
     writer.arg("lw", config.mWarning);
     writer.arg("st", config.mSyncType);

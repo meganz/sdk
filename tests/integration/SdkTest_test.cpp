@@ -789,10 +789,10 @@ void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
     ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Fetchnodes failed (error: " << mApi[apiIndex].lastError << ")";
 }
 
-void SdkTest::logout(unsigned int apiIndex, int timeout)
+void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGOUT] = false;
-    mApi[apiIndex].megaApi->logout(this);
+    mApi[apiIndex].megaApi->logout(keepSyncConfigs, this);
 
     EXPECT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGOUT], timeout) )
             << "Logout failed after " << timeout  << " seconds";
@@ -1023,7 +1023,7 @@ void SdkTest::releaseMegaApi(unsigned int apiIndex)
         if (mApi[apiIndex].megaApi->isLoggedIn())
         {
             if (!gResumeSessions)
-                ASSERT_NO_FATAL_FAILURE( logout(apiIndex) );
+                ASSERT_NO_FATAL_FAILURE( logout(apiIndex, false, maxTimeout) );
             else
                 ASSERT_NO_FATAL_FAILURE( locallogout(apiIndex) );
         }
@@ -1366,7 +1366,7 @@ TEST_F(SdkTest, SdkTestKillSession)
                         8 * 1000));
 
     // Log out the primary account.
-    logout(0);
+    logout(0, false, maxTimeout);
 }
 
 /**
@@ -4943,7 +4943,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
     ASSERT_TRUE(mApi[0].tzDetails && mApi[0].tzDetails->getNumTimeZones()) << "Invalid Time Zone details"; // some simple validation
 
     // getMiscFlags() -- not logged in
-    logout(0);
+    logout(0, false, maxTimeout);
     err = synchronousGetMiscFlags(0);
     ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
 
@@ -4961,7 +4961,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
     ASSERT_TRUE(err == MegaError::API_OK || err == MegaError::API_ENOENT) << "Clean rubbish bin failed (error: " << err << ")";
 
     // getMiscFlags() -- not logged in
-    logout(0);
+    logout(0, false, maxTimeout);
     err = synchronousGetMiscFlags(0);
     ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
 }
@@ -5400,7 +5400,7 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
 
     // logout while the upload (which consists of many transfers) is ongoing
     gSessionIDs[0].clear();
-    ASSERT_EQ(API_OK, doRequestLogout(0));
+    ASSERT_EQ(API_OK, doRequestLogout(0, false));
     int result = uploadListener->waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
 }
@@ -5440,7 +5440,7 @@ TEST_F(SdkTest, DISABLED_RecursiveDownloadWithLogout)
 
     // logout while the download (which consists of many transfers) is ongoing
 
-    ASSERT_EQ(API_OK, doRequestLogout(0));
+    ASSERT_EQ(API_OK, doRequestLogout(0, false));
 
     int result = downloadListener.waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
@@ -6134,7 +6134,7 @@ TEST_F(SdkTest, SyncRemoteNode)
 
         unique_ptr<char[]> pathFromNode{ megaApi[0]->getNodePath(remoteBaseNode.get()) };
         string actualPath{ pathFromNode.get() };
-        string pathFromSync{ sync->getLastKnownMegaFolder() };
+        string pathFromSync(sync->getLastKnownMegaFolder());
         ASSERT_EQ(actualPath, pathFromSync) << "Wrong updated path";
 
         ASSERT_EQ(MegaSync::REMOTE_PATH_HAS_CHANGED, sync->getError()); //the error stays until re-enabled
@@ -6259,19 +6259,17 @@ TEST_F(SdkTest, SyncPersistence)
     ASSERT_TRUE(sync && sync->isActive());
     ASSERT_EQ(remoteFolder, string(sync->getLastKnownMegaFolder()));
 
-    // Check if a logout with setKeepSyncsAfterLogout(true) keeps the sync configured.
-    megaApi[0]->setKeepSyncsAfterLogout(true);
-    ASSERT_NO_FATAL_FAILURE(logout(0));
+    // Check if a logout with keepSyncsAfterLogout keeps the sync configured.
+    ASSERT_NO_FATAL_FAILURE(logout(0, true, maxTimeout));
     auto trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
     ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for accout " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
-    sync = waitForSyncState(megaApi[0].get(), backupId, true, true, MegaSync::NO_SYNC_ERROR);
-    ASSERT_TRUE(sync && sync->isActive());
+    sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::LOGGED_OUT);
+    ASSERT_TRUE(sync && !sync->isActive());
     ASSERT_EQ(remoteFolder, string(sync->getLastKnownMegaFolder()));
 
-    // Check if a logout with setKeepSyncsAfterLogout(false) doesn't keep the sync configured.
-    megaApi[0]->setKeepSyncsAfterLogout(false);
-    ASSERT_NO_FATAL_FAILURE(logout(0));
+    // Check if a logout without keepSyncsAfterLogout doesn't keep the sync configured.
+    ASSERT_NO_FATAL_FAILURE(logout(0, false, maxTimeout));
     trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
     ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for accout " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));

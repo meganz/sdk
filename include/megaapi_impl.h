@@ -2327,7 +2327,7 @@ class MegaApiImpl : public MegaApp
         void respondContactRequest();
 
         void removeContact(MegaUser *user, MegaRequestListener* listener=NULL);
-        void logout(MegaRequestListener *listener = NULL);
+        void logout(bool keepSyncConfigsFile, MegaRequestListener *listener);
         void localLogout(MegaRequestListener *listener = NULL);
         void invalidateCache();
         int getPasswordStrength(const char *password);
@@ -2406,7 +2406,6 @@ class MegaApiImpl : public MegaApp
         void copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
                                           long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener = NULL);
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
-        void setKeepSyncsAfterLogout(bool enable);
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void removeSyncById(handle backupId, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
