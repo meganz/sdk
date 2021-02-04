@@ -2177,7 +2177,7 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
     constexpr size_t KEYLENGTH = SymmCipher::KEYLENGTH;
 
     // Verify payload contents.
-    auto authKey = store->get("ak"); 
+    auto authKey = store->get("ak");
     auto cipherKey = store->get("ck");
     auto name = store->get("fn");
 
@@ -2220,7 +2220,7 @@ error Syncs::truncate()
     }
 
     auto* ioContext = syncConfigIOContext();
-    
+
     if (!ioContext)
     {
         return API_EAGAIN;
@@ -3392,7 +3392,7 @@ bool JSONSyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) cons
             break;
 
         case TYPE_TARGET_HANDLE:
-            config.mRemoteNode = reader.gethandle(sizeof(handle));
+            config.mRemoteNode = reader.gethandle(MegaClient::NODEHANDLE);
             break;
 
         case TYPE_TARGET_PATH:
@@ -3458,7 +3458,7 @@ void JSONSyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg_B64("n", config.mName);
     writer.arg_B64("tp", config.mOrigninalPathOfRemoteRootNode);
     writer.arg_fsfp("fp", config.mLocalFingerprint);
-    writer.arg("th", config.mRemoteNode, sizeof(handle));
+    writer.arg("th", config.mRemoteNode, MegaClient::NODEHANDLE);
     writer.arg("le", config.mError);
     writer.arg("lw", config.mWarning);
     writer.arg("st", config.mSyncType);
