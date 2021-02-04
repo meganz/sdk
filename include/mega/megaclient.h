@@ -343,7 +343,6 @@ public:
 
     // get user data
     void getuserdata(int tag, std::function<void(string*, string*, string*, error)> = nullptr);
-    void getuserdata(std::function<void(string*, string*, string*, error)> = nullptr);
 
     // get miscelaneous flags
     void getmiscflags();

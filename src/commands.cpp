@@ -3596,12 +3596,12 @@ void CommandPubKeyRequest::invalidateUser()
     u = NULL;
 }
 
-CommandGetUserData::CommandGetUserData(MegaClient *client, std::function<void(string*, string*, string*, error)> completion)
+CommandGetUserData::CommandGetUserData(MegaClient *client, int tag, std::function<void(string*, string*, string*, error)> completion)
 {
     cmd("ug");
     arg("v", 1);
 
-    tag = client->reqtag;
+    this->tag = tag;
 
     mCompletion = completion ? move(completion) :
         [this](string* name, string* pubk, string* privk, error e) {
@@ -5468,7 +5468,7 @@ bool CommandSetKeyPair::procresult(Result r)
 }
 
 // fetch full node tree
-CommandFetchNodes::CommandFetchNodes(MegaClient* client, bool nocache)
+CommandFetchNodes::CommandFetchNodes(MegaClient* client, int tag, bool nocache)
 {
     cmd("f");
     arg("c", 1);
@@ -5482,7 +5482,7 @@ CommandFetchNodes::CommandFetchNodes(MegaClient* client, bool nocache)
     // The servers are more efficient with this command when it's the only one in the batch
     batchSeparately = true;
 
-    tag = client->reqtag;
+    this->tag = tag;
 }
 
 // purge and rebuild node/user tree
