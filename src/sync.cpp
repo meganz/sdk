@@ -3140,9 +3140,12 @@ error Syncs::removeSyncConfigByBackupId(handle backupId)
         }
     }
 
-    LOG_err << "Found no config for backupId: "
-            << toHandle(backupId)
-            << " upon sync removal.";
+    if (result == API_ENOENT)
+    {
+        LOG_err << "Found no config for backupId: "
+                << toHandle(backupId)
+                << " upon sync removal.";
+    }
 
     return result;
 }
