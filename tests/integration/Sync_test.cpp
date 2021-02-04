@@ -4850,7 +4850,8 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
 
                                 if (tests.empty() || tests.count(testcase.name()) > 0)
                                 {
-                                    cases.emplace(testcase.name(), move(testcase));
+                                    auto name = testcase.name();
+                                    cases.emplace(name, move(testcase));
                                 }
                             }
                         }
