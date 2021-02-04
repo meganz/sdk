@@ -129,13 +129,13 @@ public:
 class BackupInfo
 {
 public:
-    BackupInfo(BackupType type, string backupName, string localFolder, handle megaHandle, int state, int substate, string extra);
+    BackupInfo(BackupType type, string backupName, LocalPath localFolder, handle megaHandle, int state, int substate, string extra);
 
     BackupType type() const;
 
     string backupName() const;
 
-    string localFolder() const;
+    LocalPath localFolder() const;
 
     handle megaHandle() const;
 
@@ -148,7 +148,7 @@ public:
 protected:
     BackupType mType;
     string mBackupName;
-    string mLocalFolder;
+    LocalPath mLocalFolder;
     handle mMegaHandle;
     int mState;
     int mSubState;

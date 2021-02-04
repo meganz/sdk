@@ -109,6 +109,8 @@ public:
     void arg(const char*, handle, int);
     void arg(const char*, const byte*, int);
     void arg(const char*, m_off_t);
+    void arg_B64(const char*, const string&);
+    void arg_fsfp(const char*, fsfp_t);
     void addcomma();
     void appendraw(const char*);
     void appendraw(const char*, int);
@@ -122,6 +124,7 @@ public:
     void element(handle, int = sizeof(handle));
     void element(const byte*, int);
     void element(const char*);
+    void element_B64(const string&);
 
     void openobject();
     void closeobject();

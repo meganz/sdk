@@ -1069,8 +1069,7 @@ private:
 class MegaSyncPrivate : public MegaSync
 {
 public:
-    MegaSyncPrivate(const char *path, const char *name, handle nodehandle, SyncConfig::Type type);
-    MegaSyncPrivate(const SyncConfig& config, Sync*);
+    MegaSyncPrivate(const SyncConfig& config, Sync*, MegaClient* client);
     MegaSyncPrivate(MegaSyncPrivate *sync);
 
     virtual ~MegaSyncPrivate();
@@ -1083,9 +1082,8 @@ public:
     void setLocalFolder(const char*path);
     const char* getName() const override;
     void setName(const char*name);
-    const char* getMegaFolder() const override;
-    void setMegaFolder(const char *path);
-    void setMegaFolderYielding(char *path); //MEGAsync acquires the ownership of path
+    const char* getLastKnownMegaFolder() const override;
+    void setLastKnownMegaFolder(const char *path);
     long long getLocalFingerprint() const override;
     void setLocalFingerprint(long long fingerprint);
     MegaHandle getBackupId() const override;
@@ -1112,7 +1110,7 @@ protected:
     MegaHandle megaHandle;
     char *localFolder;
     char *mName;
-    char *megaFolder;
+    char *lastKnownMegaFolder;
     MegaRegExp *regExp;
     long long fingerprint;
 
@@ -1681,17 +1679,16 @@ protected:
 class MegaStringListPrivate : public MegaStringList
 {
 public:
-    MegaStringListPrivate();
-    MegaStringListPrivate(char **newlist, int size); // takes ownership
-    virtual ~MegaStringListPrivate();
-    MEGA_DISABLE_COPY_MOVE(MegaStringListPrivate)
+    MegaStringListPrivate() = default;
+    MegaStringListPrivate(string_vector&&); // takes ownership
+    virtual ~MegaStringListPrivate() = default;
     MegaStringList *copy() const override;
     const char* get(int i) const override;
     int size() const override;
     void add(const char* value) override;
     const string_vector& getVector();
 protected:
-    MegaStringListPrivate(const MegaStringListPrivate *stringList);
+    MegaStringListPrivate(const MegaStringListPrivate& stringList) = default;
     string_vector mList;
 };
 
@@ -2330,7 +2327,7 @@ class MegaApiImpl : public MegaApp
         void respondContactRequest();
 
         void removeContact(MegaUser *user, MegaRequestListener* listener=NULL);
-        void logout(MegaRequestListener *listener = NULL);
+        void logout(bool keepSyncConfigsFile, MegaRequestListener *listener);
         void localLogout(MegaRequestListener *listener = NULL);
         void invalidateCache();
         int getPasswordStrength(const char *password);
@@ -2409,7 +2406,6 @@ class MegaApiImpl : public MegaApp
         void copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
                                           long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener = NULL);
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
-        void setKeepSyncsAfterLogout(bool enable);
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void removeSyncById(handle backupId, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
