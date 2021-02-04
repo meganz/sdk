@@ -310,11 +310,16 @@ bool readCommandLine(int argc, char* argv[])
         if (s.empty()) continue;
 
         // check if port should be skipped for this platform
-        if (s.find("!" + platformToString(buildPlatform)) != string::npos)
+        if (s.find(" ") != string::npos)
         {
-            cout << "Skipping line <" << s << "> due to platform exclude expression for detected platform "
-            << platformToString(buildPlatform) << "\n";
-            continue;
+            string platformTest = s.substr(s.find_last_of(' ') + 1);
+            s.erase(s.find_first_of(' '));
+            if (platformTest.find("!" + platformToString(buildPlatform)) != string::npos)
+            {
+                cout << "Skipping line <" << s << "> due to platform exclude expression for detected platform "
+                << platformToString(buildPlatform) << "\n";
+                continue;
+            }
         }
 
         // if not, extract the exclude expressions so we don't have to worry about them
