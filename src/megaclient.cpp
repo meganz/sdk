@@ -1403,7 +1403,7 @@ void MegaClient::exec()
         if (cachedug && btugexpiration.armed())
         {
             LOG_debug << "Cached user data expired";
-            getuserdata();
+            getuserdata(reqtag);
             fetchtimezone();
         }
 
@@ -5261,7 +5261,7 @@ error MegaClient::smsverificationsend(const string& phoneNumber, bool reVerifyin
     reqs.add(new CommandSMSVerificationSend(this, phoneNumber, reVerifyingWhitelisted));
     if (reVerifyingWhitelisted)
     {
-        reqs.add(new CommandGetUserData(this, nullptr));
+        reqs.add(new CommandGetUserData(this, reqtag, nullptr));
     }
 
     return API_OK;
@@ -6964,7 +6964,7 @@ void MegaClient::sc_ub()
                 if (prevBizStatus == BIZ_STATUS_INACTIVE)
                 {
                     app->account_updated();
-                    getuserdata();  // update account flags
+                    getuserdata(reqtag);  // update account flags
                 }
 
                 return;
@@ -8969,10 +8969,11 @@ void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailh
     reqs.add(new CommandLogin(this, email, (byte*)&emailhash, sizeof(emailhash), sek));
 }
 
-void MegaClient::getuserdata(std::function<void(string*, string*, string*, error)> completion)
+void MegaClient::getuserdata(int tag, std::function<void(string*, string*, string*, error)> completion)
 {
     cachedug = false;
-    reqs.add(new CommandGetUserData(this, move(completion)));
+
+    reqs.add(new CommandGetUserData(this, tag, move(completion)));
 }
 
 void MegaClient::getmiscflags()
@@ -9014,7 +9015,7 @@ void MegaClient::login(string session)
         rng.genblock(sek, sizeof sek);
 
         reqs.add(new CommandLogin(this, NULL, NULL, 0, sek, sessionversion));
-        getuserdata();
+        getuserdata(reqtag);
         fetchtimezone();
     }
     else if (!session.empty() && session[0] == 2)
@@ -11884,10 +11885,13 @@ void MegaClient::fetchnodes(bool nocache)
 
         if (!loggedinfolderlink())
         {
-            getuserdata([this, nocache](string*, string*, string*, error){
+            // Copy the current tag so we can capture it in the lambda below.
+            const auto fetchtag = reqtag;
+
+            getuserdata(0, [this, fetchtag, nocache](string*, string*, string*, error){
                 // FetchNodes procresult() needs some data from `ug` (or it may try to make new Sync User Attributes for example)
                 // So only submit the request after `ug` completes, otherwise everything is interleaved
-                reqs.add(new CommandFetchNodes(this, nocache));
+                reqs.add(new CommandFetchNodes(this, fetchtag, nocache));
             });
 
             if (loggedin() == FULLACCOUNT)
@@ -11900,7 +11904,7 @@ void MegaClient::fetchnodes(bool nocache)
         }
         else
         {
-            reqs.add(new CommandFetchNodes(this, nocache));
+            reqs.add(new CommandFetchNodes(this, reqtag, nocache));
         }
     }
 }
