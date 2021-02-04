@@ -33078,21 +33078,21 @@ long long MegaSizeProcessor::getTotalBytes()
 MegaFavouriteProcessor::MegaFavouriteProcessor(int max):mMaxNodes(max)
 {
     std::unique_ptr<MegaNodeList> nl(MegaNodeList::createInstance());
-    favouriteNodeList = std::move(nl);
+    mFavouriteNodeList = std::move(nl);
 }
 
 MegaNodeList* MegaFavouriteProcessor::getFavouriteNodes()
 {
-    return favouriteNodeList.get();
+    return mFavouriteNodeList.get();
 }
 
 bool MegaFavouriteProcessor::processMegaNode(MegaNode* node)
 {
     if (node == nullptr) return false;
  
-    if (node->isFavourite() && (mMaxNodes == 0 || (favouriteNodeList.get() && favouriteNodeList->size() < mMaxNodes)))
+    if (node->isFavourite() && (mMaxNodes == 0 || (mFavouriteNodeList.get() && mFavouriteNodeList->size() < mMaxNodes)))
     {
-        favouriteNodeList.get()->addNode(node);
+        mFavouriteNodeList.get()->addNode(node);
     }
     return true;
 }
