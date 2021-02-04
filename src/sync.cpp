@@ -3393,6 +3393,11 @@ bool JSONSyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) cons
 
         case TYPE_TARGET_HANDLE:
             config.mRemoteNode = reader.gethandle(MegaClient::NODEHANDLE);
+            if ((config.mRemoteNode & 0xFFFFFFFFFFFF) == (UNDEF & 0xFFFFFFFFFFFF))
+            {
+                // we can have a much nicer solution when NodeHandle is merged from the sync rework branch
+                config.mRemoteNode = UNDEF;
+            }
             break;
 
         case TYPE_TARGET_PATH:
