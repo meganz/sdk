@@ -5114,9 +5114,15 @@ TEST_F(SdkTest, SdkFavouriteNodes)
 
     auto err = synchronousSetNodeFavourite(0, subFolderA.get(), true);
     err = synchronousSetNodeFavourite(0, n1.get(), true);
+    
     err = synchronousGetFavourites(0, subFolderA.get(), 0);
     ASSERT_EQ(MegaError::API_OK, err) << "synchronousGetFavourites (error: " << err << ")";
+    ASSERT_EQ(mMegaFavNodeList->size(), 2) << "synchronousGetFavourites failed...";
+    err = synchronousGetFavourites(0, nullptr, 1);
+    ASSERT_EQ(mMegaFavNodeList->size(), 1) << "synchronousGetFavourites failed...";
+    ASSERT_EQ(mMegaFavNodeList->get(0)->getName(), UPFILE) << "synchronousGetFavourites failed with node passed nullptr";
 }
+
 TEST_F(SdkTest, DISABLED_SdkDeviceNames)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
