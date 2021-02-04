@@ -648,7 +648,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_GET_ATTR_NODE:
         if (mApi[apiIndex].lastError == API_OK)
         {
-            mMegaFavNodeList = request->getMegaNodeList();
+            mMegaFavNodeList = request->getMegaNodeList()->copy();
         }
         break;
     }
@@ -5092,26 +5092,30 @@ TEST_F(SdkTest, SdkFavouriteNodes)
     getAccountsForTest(1);
     LOG_info << "___TEST SDKFavourites___";
 
-    // setbackup test
-    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
-    string localFolder = localtestroot.string();
-    std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
+    unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
 
-    // create remote a folder
-    ASSERT_NO_FATAL_FAILURE(createFolder(0, "SDKFavourites", rootnode.get()));
-    auto err = synchronousSetNodeFavourite(0, nullptr, true);
-    ASSERT_EQ(MegaError::API_OK, err) << "synchronousSetNodeFavourite (error: " << err << ")";
+    ASSERT_TRUE(rootnodeA);
 
-    err = synchronousGetFavourites(0, nullptr, 0);
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, "folder-A", rootnodeA.get()));
+    unique_ptr<MegaNode> folderA(megaApi[0]->getNodeByHandle(mApi[0].h));
+    ASSERT_TRUE(!!folderA);
+
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, "sub-folder-A", folderA.get()));
+    unique_ptr<MegaNode> subFolderA(megaApi[0]->getNodeByHandle(mApi[0].h));
+    ASSERT_TRUE(!!subFolderA);
+
+    string filename1 = UPFILE;
+    createFile(filename1, false);
+
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, filename1.data(), subFolderA.get())) << "Cannot upload a test file";
+    std::unique_ptr<MegaNode> n1(megaApi[0]->getNodeByHandle(mApi[0].h));
+    bool null_pointer = (n1.get() == nullptr);
+    ASSERT_FALSE(null_pointer) << "Cannot initialize test scenario (error: " << mApi[0].lastError << ")";
+
+    auto err = synchronousSetNodeFavourite(0, subFolderA.get(), true);
+    err = synchronousSetNodeFavourite(0, n1.get(), true);
+    err = synchronousGetFavourites(0, subFolderA.get(), 0);
     ASSERT_EQ(MegaError::API_OK, err) << "synchronousGetFavourites (error: " << err << ")";
-
-    //if (mMegaFavNodeList)
-    //{
-    //    for (int i = 0; i < mMegaFavNodeList->size(); ++i)
-    //    {
-    //        cout << mMegaFavNodeList->get(i)->getName() << endl;
-    //    }
-    //}
 }
 TEST_F(SdkTest, DISABLED_SdkDeviceNames)
 {
