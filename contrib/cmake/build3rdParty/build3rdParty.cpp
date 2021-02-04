@@ -27,22 +27,43 @@ namespace fs = std::experimental::filesystem;
 namespace fs = std::__fs::filesystem;
 #endif
 
+enum class Platform {
+    platform_windows,    // platform_ prefix to avoid #define subsitutions on linux
+    platform_osx,
+    platform_linux,
+};
+
+constexpr Platform buildPlatform =
+#if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__)
+Platform::platform_windows
+#elif __APPLE__
+#include <TargetConditionals.h>
+    #if TARGET_OS_MAC
+Platform::platform_osx
+    #endif
+#elif __linux__
+Platform::platform_linux
+#endif
+; // error here: platform not detected from supported list
 
 
 bool build = false;
 bool setup = false;
 bool removeUnusedPorts = false;
+bool noPkgConfig = false;
 fs::path portsFile;
 fs::path sdkRootPath;
+fs::path patchPath;
 string triplet;
 
 map<string, string> ports;
+map<string, fs::path> patches;
 
 fs::path initialDir = fs::current_path();
 fs::path vcpkgDir = fs::current_path() / "vcpkg";
 fs::path cloneDir = fs::current_path() / "vcpkg_clone";
 
-
+string platformToString(Platform p);
 bool readCommandLine(int argc, char* argv[]);
 void execute(string command);
 
@@ -101,6 +122,12 @@ try
                     cout << "Copying port for " << portname << " from vcpkg commit " << portversion << endl;
                     fs::copy(cloneDir / "ports" / portname, vcpkgDir / "ports" / portname, fs::copy_options::recursive);
                     fs::current_path(vcpkgDir);
+
+                    auto patch = patches.find(portname);
+                    if (patch != patches.end()) {
+                        cout << "Applying patch " << patch->second.u8string() << " for port " << portname << "\n";
+                        execute("git apply " + (patchPath / patch->second).u8string());
+                    }
                 }
                 else
                 {
@@ -118,6 +145,22 @@ try
                         fs::remove_all(dir->path());
                     }
                 }
+            }
+
+            if (noPkgConfig)
+            {
+                cout << "Performing no-op substitution of vcpkg_fixup_pkgconfig and PKGCONFIG to skip pkgconfig integration/checks\n";
+                ofstream vcpkg_fixup_pkgconfig(vcpkgDir / "scripts" / "cmake" / "vcpkg_fixup_pkgconfig.cmake", std::ios::trunc);
+                if (!vcpkg_fixup_pkgconfig)
+                {
+                    cout << "Could not open vcpkg script file to suppress pkgconfig\n";
+                    return 1;
+                }
+
+                vcpkg_fixup_pkgconfig <<
+                "function(vcpkg_fixup_pkgconfig)\n"
+                "endfunction()\n"
+                "set(PKGCONFIG \":\")\n"; // i.e., use no-op : operator
             }
 
         }
@@ -144,8 +187,6 @@ try
                 #endif
             }
         }
-
-
     }
 
     return 0;
@@ -156,6 +197,19 @@ catch (exception& e)
     return 1;
 }
 
+string platformToString(Platform p)
+{
+    switch (p) {
+        case Platform::platform_windows:
+        return "windows";
+        case Platform::platform_osx:
+        return "osx";
+        case Platform::platform_linux:
+        return "linux";
+        default:
+        throw std::logic_error("Unhandled platform enumerator");
+    }
+}
 
 void execute(string command)
 {
@@ -163,7 +217,7 @@ void execute(string command)
     int result = system(command.c_str());
     if (result != 0)
     {
-        cout << "Command failed with resuld code " << result << " ( command was " << command << ")" <<endl;
+        cout << "Command failed with result code " << result << " ( command was " << command << ")" <<endl;
         exit(1);
     }
 }
@@ -171,7 +225,7 @@ void execute(string command)
 
 bool showSyntax()
 {
-    cout << "build3rdParty --setup [--removeunusedports] --ports <ports override file> --triplet <triplet> --sdkroot <path>" << endl;
+    cout << "build3rdParty --setup [--removeunusedports] [--nopkgconfig] --ports <ports override file> --triplet <triplet> --sdkroot <path>" << endl;
     cout << "build3rdParty --build --ports <ports override file> --triplet <triplet>" << endl;
     return false;
 }
@@ -208,6 +262,10 @@ bool readCommandLine(int argc, char* argv[])
         {
             removeUnusedPorts = true;
         }
+        else if (std::string(*it) == "--nopkgconfig" && setup)
+        {
+            noPkgConfig = true;
+        }
         else if (std::string(*it) == "--build")
         {
             build = true;
@@ -234,6 +292,8 @@ bool readCommandLine(int argc, char* argv[])
         return showSyntax();
     }
 
+    patchPath = sdkRootPath / "contrib" / "cmake" / "vcpkg_patches";
+
     ifstream portsIn(portsFile.string().c_str());
     while (portsIn)
     {
@@ -249,6 +309,32 @@ bool readCommandLine(int argc, char* argv[])
         while (!s.empty() && (s.back() == ' ' || s.back() == '\t')) s.pop_back();
         if (s.empty()) continue;
 
+        // check if port should be skipped for this platform
+        if (s.find(" ") != string::npos)
+        {
+            string platformTest = s.substr(s.find_last_of(' ') + 1);
+            s.erase(s.find_first_of(' '));
+            if (!platformTest.empty() && platformTest[0] == '!')
+            {
+                if (platformTest.substr(1) == platformToString(buildPlatform))
+                {
+                    cout << "Skipping " << s << " because " << platformTest <<"\n";
+                    continue;
+                }
+            }
+            else
+            {
+                if (platformTest != platformToString(buildPlatform))
+                {
+                    cout << "Skipping " << s << " because " << platformTest << "\n";
+                    continue;
+                }
+            }
+        }
+
+        // if not, extract the exclude expressions so we don't have to worry about them
+        s = s.substr(0, s.find("!"));
+
         // extract port/version map
         auto slashpos = s.find("/");
         if (slashpos == string::npos)
@@ -257,7 +343,9 @@ bool readCommandLine(int argc, char* argv[])
             return 1;
         }
         string portname = s.substr(0, slashpos);
-        string portversion = s.substr(slashpos + 1);
+
+        auto colonpos = s.find(':');
+        string portversion = s.substr(slashpos + 1, colonpos - (slashpos + 1));
 
         auto existing = ports.find(portname);
         if (existing != ports.end() && existing->second != portversion)
@@ -267,6 +355,24 @@ bool readCommandLine(int argc, char* argv[])
         }
         ports[portname] = portversion;
 
+        if (build) continue;
+
+        if (colonpos != string::npos)
+        {
+            fs::path patch = s.substr(colonpos + 1);
+            auto existingPatch = patches.find(portname);
+            if (existingPatch != patches.end() && existingPatch->second != patch)
+            {
+                cout << "Conflicting patch files: " << patch << " and " << existingPatch->second << " for " << portname << "\n";
+                return 1;
+            }
+            if (!fs::exists(patchPath / patch))
+            {
+                cout << "Nonexistent patch " << patch << " for " << portname << ", patches must be in " << patchPath.u8string() << "\n";
+            }
+            cout << "Got patch " << patch << " for " << portname << "\n";
+            patches[portname] = patch;
+        }
     }
 
     return true;

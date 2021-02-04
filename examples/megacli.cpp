@@ -22,6 +22,7 @@
 #include "mega.h"
 #include "megacli.h"
 #include <fstream>
+#include <bitset>
 
 #define USE_VARARGS
 #define PREFER_STDARG
@@ -78,6 +79,9 @@ bool gVerboseMode = false;
 
 // new account signup e-mail address and name
 static string signupemail, signupname;
+
+// true by default, to register a new account v2 (false means account v1)
+bool signupV2 = true;
 
 // signup code being confirmed
 static string signupcode;
@@ -148,19 +152,19 @@ static std::string syncConfigToString(const SyncConfig& config)
         return desc;
     };
 
-    std::string description;
+    std::string description(Base64Str<MegaClient::BACKUPHANDLE>(config.getBackupId()));
     if (config.getType() == SyncConfig::TYPE_TWOWAY)
     {
-        description = "TWOWAY";
+        description.append(" TWOWAY");
     }
     else if (config.getType() == SyncConfig::TYPE_UP)
     {
-        description = "UP";
+        description.append(" UP");
         description += getOptions(config);
     }
     else if (config.getType() == SyncConfig::TYPE_DOWN)
     {
-        description = "DOWN";
+        description.append(" DOWN");
         description += getOptions(config);
     }
     return description;
@@ -170,7 +174,6 @@ static std::string syncConfigToString(const SyncConfig& config)
 // returns a pair where `first` is success and `second` is the sync config.
 static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string syncDel = {}, std::string overwrite = {})
 {
-    static int syncTag = 13217;
     auto toLower = [](std::string& s)
     {
         for (char& c : s) { c = static_cast<char>(tolower(c)); };
@@ -195,7 +198,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
     }
     else
     {
-        return std::make_pair(false, SyncConfig(syncTag++, "", "", UNDEF, "", 0));
+        return std::make_pair(false, SyncConfig("", "", UNDEF, "", 0));
     }
 
     bool syncDeletions = false;
@@ -213,7 +216,7 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig(syncTag++, "", "", UNDEF, "", 0));
+            return std::make_pair(false, SyncConfig("", "", UNDEF, "", 0));
         }
 
         if (overwrite == "on")
@@ -226,11 +229,11 @@ static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::
         }
         else
         {
-            return std::make_pair(false, SyncConfig(syncTag++, "", "", UNDEF, "", 0));
+            return std::make_pair(false, SyncConfig("", "", UNDEF, "", 0));
         }
     }
 
-    return std::make_pair(true, SyncConfig(syncTag++, "", "", UNDEF, "", 0, {}, true, syncType, syncDeletions, forceOverwrite));
+    return std::make_pair(true, SyncConfig("", "", UNDEF, "", 0, {}, true, syncType, syncDeletions, forceOverwrite));
 }
 
 // sync configuration used when creating a new sync
@@ -476,34 +479,35 @@ static void syncstat(Sync* sync)
          << " file(s) and " << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
 }
 
-void DemoApp::syncupdate_stateconfig(int tag)
+void DemoApp::syncupdate_stateconfig(handle backupId)
 {
-    cout << "Sync config updated: " << tag << endl;
+    cout << "Sync config updated: " << toHandle(backupId) << endl;
 }
 
 
-void DemoApp::syncupdate_active(int tag, bool active)
+void DemoApp::syncupdate_active(handle backupId, bool active)
 {
     cout << "Sync is now active: " << active << endl;
 }
 
 void DemoApp::sync_auto_resume_result(const UnifiedSync& s, bool attempted)
 {
+    handle backupId = s.mConfig.getBackupId();
     if (attempted)
     {
-        cout << "Sync - autoresumed " << s.mConfig.getTag() << " " << s.mConfig.getLocalPath()  << " enabled: "
+        cout << "Sync - autoresumed " << toHandle(backupId) << " " << s.mConfig.getLocalPath()  << " enabled: "
              << s.mConfig.getEnabled()  << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
     }
     else
     {
-        cout << "Sync - autoloaded " << s.mConfig.getTag() << " " << s.mConfig.getLocalPath() << " enabled: "
+        cout << "Sync - autoloaded " << toHandle(backupId) << " " << s.mConfig.getLocalPath() << " enabled: "
             << s.mConfig.getEnabled() << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
     }
 }
 
-void DemoApp::sync_removed(int tag)
+void DemoApp::sync_removed(handle backupId)
 {
-    cout << "Sync - removed: " << tag << endl;
+    cout << "Sync - removed: " << toHandle(backupId) << endl;
 
 }
 
@@ -1157,14 +1161,17 @@ void DemoApp::fetchnodes_result(const Error& e)
     else
     {
         // check if we fetched a folder link and the key is invalid
-        if (client->isValidFolderLink())
+        if (client->loggedinfolderlink())
         {
-            cout << "Folder link loaded correctly." << endl;
-        }
-        else
-        {
-            assert(client->nodebyhandle(client->rootnodes[0]));   // node is there, but cannot be decrypted
-            cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
+            if (client->isValidFolderLink())
+            {
+                cout << "Folder link loaded correctly." << endl;
+            }
+            else
+            {
+                assert(client->nodebyhandle(client->rootnodes[0]));   // node is there, but cannot be decrypted
+                cout << "File/folder retrieval succeed, but encryption key is wrong." << endl;
+            }
         }
 
         if (pdf_to_import)
@@ -1375,6 +1382,18 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
         {
             cout << "Credentials: " << AuthRing::fingerprint(string((const char*)data, l), true) << endl;
         }
+    }
+
+    if (type == ATTR_COOKIE_SETTINGS)
+    {
+        unsigned long cs = strtoul((const char*)data, nullptr, 10);
+        std::bitset<32> bs(cs);
+        cout << "Cookie settings = " << cs << " (" << bs << ')' << endl
+             << "\tessential: " << bs[0] << endl
+             << "\tpreferences: " << bs[1] << endl
+             << "\tperformance: " << bs[2] << endl
+             << "\tadvertising: " << bs[3] << endl
+             << "\tthird party: " << bs[4] << endl;
     }
 }
 
@@ -2017,12 +2036,12 @@ appfile_list appxferq[2];
 
 static const char* prompts[] =
 {
-    "MEGAcli> ", "Password:", "Old Password:", "New Password:", "Retype New Password:", "Master Key (base64):", "Type 2FA pin:", "Type pin to enable 2FA:"
+    "MEGAcli> ", "Password:", "Old Password:", "New Password:", "Retype New Password:", "Master Key (base64):", "Type 2FA pin:", "Type pin to enable 2FA:", "-Input m to get more, q to quit-"
 };
 
 enum prompttype
 {
-    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM, MASTERKEY, LOGINTFA, SETTFA
+    COMMAND, LOGINPASSWORD, OLDPASSWORD, NEWPASSWORD, PASSWORDCONFIRM, MASTERKEY, LOGINTFA, SETTFA, PAGER
 };
 
 static prompttype prompt = COMMAND;
@@ -2042,6 +2061,11 @@ static void setprompt(prompttype p)
     if (p == COMMAND)
     {
         console->setecho(true);
+    }
+    else if (p == PAGER)
+    {
+        cout << endl << prompts[p] << flush;
+        console->setecho(false); // doesn't seem to do anything
     }
     else
     {
@@ -2931,7 +2955,7 @@ void exec_timelocal(autocomplete::ACState& s)
     bool get = s.words[1].s == "get";
     auto localfilepath = LocalPath::fromPath(s.words[2].s, *client->fsaccess);
 
-    if (get && s.words.size() != 3 || !get && s.words.size() != 4)
+    if ((get && s.words.size() != 3) || (!get && s.words.size() != 4))
     {
         cout << "wrong number of arguments for : " << s.words[1].s << endl;
         return;
@@ -3007,7 +3031,7 @@ autocomplete::ACN autocompleteSyntax()
                                                       param("session"),
                                                       sequence(text("autoresume"), opt(param("id"))))));
     p->Add(exec_begin, sequence(text("begin"), opt(param("ephemeralhandle#ephemeralpw"))));
-    p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name")), param("confirmationlink"))));
+    p->Add(exec_signup, sequence(text("signup"), either(sequence(param("email"), param("name"), opt(flag("-v1"))), param("confirmationlink"))));
     p->Add(exec_cancelsignup, sequence(text("cancelsignup")));
     p->Add(exec_confirm, sequence(text("confirm")));
     p->Add(exec_session, sequence(text("session"), opt(sequence(text("autoresume"), opt(param("id"))))));
@@ -3034,6 +3058,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_get, sequence(text("get"), flag("-re"), param("regularexpression")));
     p->Add(exec_get, sequence(text("get"), exportedLink(true, false), opt(sequence(param("offset"), opt(param("length"))))));
     p->Add(exec_getq, sequence(text("getq"), repeat(either(flag("-active"), flag("-all"), flag("-count"))), opt(param("cancelslot"))));
+    p->Add(exec_more, sequence(text("more"), opt(remoteFSPath(client, &cwd))));
     p->Add(exec_pause, sequence(text("pause"), either(text("status"), sequence(opt(either(text("get"), text("put"))), opt(text("hard"))))));
     p->Add(exec_getfa, sequence(text("getfa"), wholenumber(1), opt(remoteFSPath(client, &cwd)), opt(text("cancel"))));
 #ifdef USE_MEDIAINFO
@@ -3387,7 +3412,14 @@ static void process_line(char* l)
 
             if (signupemail.size())
             {
-                client->sendsignuplink(signupemail.c_str(), signupname.c_str(), newpwkey);
+                if (signupV2)
+                {
+                    client->sendsignuplink2(signupemail.c_str(), newpassword.c_str(), signupname.c_str());
+                }
+                else
+                {
+                    client->sendsignuplink(signupemail.c_str(), signupname.c_str(), newpwkey);
+                }
             }
             else if (recoveryemail.size() && recoverycode.size())
             {
@@ -3423,6 +3455,7 @@ static void process_line(char* l)
 
         setprompt(COMMAND);
         signupemail.clear();
+        signupV2 = true;
         return;
 
     case MASTERKEY:
@@ -3445,6 +3478,17 @@ static void process_line(char* l)
         catch (std::exception& e)
         {
             cout << "Command failed: " << e.what() << endl;
+        }
+        return;
+    case PAGER:
+        if (strlen(l) && l[0] == 'q')
+        {
+            setprompt(COMMAND); // quit pager view if 'q' is sent, see README
+        }
+        else
+        {
+            autocomplete::ACState nullState; //not entirely sure about this
+            exec_more(nullState); //else, get one more page
         }
         return;
     }
@@ -3945,13 +3989,30 @@ void exec_get(autocomplete::ACState& s)
             if (s.words.size() > 2)
             {
                 // read file slice
+                m_off_t offset = atol(s.words[2].s.c_str());
+                m_off_t count = (s.words.size() > 3) ? atol(s.words[3].s.c_str()) : 0;
+
+                if (offset + count > n->size)
+                {
+                    if (offset < n->size)
+                    {
+                        count = n->size - offset;
+                        cout << "Count adjusted to " << count << " bytes (filesize is " << n->size << " bytes)" << endl;
+                    }
+                    else
+                    {
+                        cout << "Nothing to read: offset + length > filesize (" << offset << " + " << count << " > " << n->size << " bytes)" << endl;
+                        return;
+                    }
+                }
+
                 if (s.words.size() == 5)
                 {
                     pread_file = new ofstream(s.words[4].s.c_str(), std::ios_base::binary);
-                    pread_file_end = atol(s.words[2].s.c_str()) + atol(s.words[3].s.c_str());
+                    pread_file_end = offset + count;
                 }
 
-                client->pread(n, atol(s.words[2].s.c_str()), (s.words.size() > 3) ? atol(s.words[3].s.c_str()) : 0, NULL);
+                client->pread(n, offset, count, NULL);
             }
             else
             {
@@ -3997,6 +4058,31 @@ void exec_get(autocomplete::ACState& s)
         {
             cout << s.words[1].s << ": No such file or folder" << endl;
         }
+    }
+}
+
+/* more_node here is intentionally defined with filescope, it allows us to
+ * resume an interrupted pagination.
+ * Node contents are fetched one page at a time, defaulting to 1KB of data.
+ * Improvement: Get console layout and use width*height for precise pagination.
+ */
+static Node    *more_node = nullptr; // Remote node that we are paging through
+static m_off_t  more_offset = 0; // Current offset in the remote file
+static const m_off_t MORE_BYTES = 1024;
+
+void exec_more(autocomplete::ACState& s)
+{
+    if(s.words.size() > 1) // set up new node for pagination
+    {
+        more_offset = 0;
+        more_node = nodebypath(s.words[1].s.c_str());
+    }
+    if(more_node && (more_node->type == FILENODE))
+    {
+        m_off_t count = (more_offset + MORE_BYTES <= more_node->size)
+                ? MORE_BYTES : (more_node->size - more_offset);
+
+        client->pread(more_node, more_offset, count, NULL);
     }
 }
 
@@ -4375,17 +4461,26 @@ void exec_sync(autocomplete::ACState& s)
             }
             else
             {
-                static int syncTag = 2027;
-                SyncConfig syncConfig{syncTag++, s.words[1].s, s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.getType(),
+                cout << "Adding sync..." << endl;
+
+                SyncConfig syncConfig{s.words[1].s, s.words[1].s, n->nodehandle, s.words[2].s, 0, {}, true, newSyncConfig.getType(),
                             newSyncConfig.syncDeletions(), newSyncConfig.forceOverwrite()};
 
-                UnifiedSync* unifiedSync;
-                error e = client->addsync(syncConfig, DEBRISFOLDER, NULL, false, unifiedSync, true);
-
-                if (e)
-                {
-                    cout << "Sync could not be added: " << errorstring(e) << endl;
-                }
+                client->addsync(syncConfig, DEBRISFOLDER, NULL, false, false,
+                                [](mega::UnifiedSync* us, const SyncError&, error e) {
+                    if (us && us->mSync)
+                    {
+                        cout << "Sync added and running. backupId = " << toHandle(us->mConfig.getBackupId());
+                    }
+                    else if (us)
+                    {
+                        cout << "Sync config added but could not be started: " << errorstring(e) << endl;
+                    }
+                    else
+                    {
+                        cout << "Sync config could not be started: " << errorstring(e) << endl;
+                    }
+                });
             }
         }
         else
@@ -4395,15 +4490,16 @@ void exec_sync(autocomplete::ACState& s)
     }
     else if (s.words.size() == 2)
     {
-        int i = 0, cancel = atoi(s.words[1].s.c_str());
+        handle cancelBackupId;
+        Base64::atob(s.words[1].s.c_str(), (byte*)&cancelBackupId, MegaClient::BACKUPHANDLE);
 
-        client->syncs.removeSelectedSyncs([&](SyncConfig&, Sync* s) {
+        client->syncs.removeSelectedSyncs([&](SyncConfig& sc, Sync* s) {
 
-            if (i++ == cancel)
+            if (sc.getBackupId() == cancelBackupId)
             {
                 if (s && s->state > SYNC_CANCELED)
                 {
-                    cout << "Sync " << cancel << " deactivated and removed. tag: " << s->tag << endl;
+                    cout << "Sync " << cancelBackupId << " deactivated and removed." << endl;
                     return true;
                 }
             }
@@ -4412,8 +4508,6 @@ void exec_sync(autocomplete::ACState& s)
     }
     else if (s.words.size() == 1)
     {
-        int i = 0;
-
         client->syncs.forEachUnifiedSync([&](UnifiedSync& us){
 
             static const char* syncstatenames[] =
@@ -4427,7 +4521,7 @@ void exec_sync(autocomplete::ACState& s)
                     nodepath(sync->localroot->node->nodehandle, &remotepath);
                     localpath = sync->localroot->localname.toPath(*client->fsaccess);
 
-                    cout << i << " (" << syncConfigToString(sync->getConfig()) << "): " << localpath << " to " << remotepath << " - "
+                    cout << syncConfigToString(sync->getConfig()) << ": " << localpath << " to " << remotepath << " - "
                             << syncstatenames[sync->state + 3] << ", " << sync->localbytes
                             << " byte(s) in " << sync->localnodes[FILENODE] << " file(s) and "
                             << sync->localnodes[FOLDERNODE] << " folder(s)" << endl;
@@ -4439,9 +4533,8 @@ void exec_sync(autocomplete::ACState& s)
                 nodepath(us.mConfig.getRemoteNode(), &remotepath);
                 localpath = us.mConfig.getLocalPath();
 
-                cout << i << " (" << syncConfigToString(us.mConfig) << "): " << localpath << " to " << remotepath << " - not running" << endl;
+                cout << syncConfigToString(us.mConfig) << ": " << localpath << " to " << remotepath << " - not running" << endl;
             }
-            i++;
         });
     }
 }
@@ -5623,19 +5716,40 @@ void exec_signup(autocomplete::ACState& s)
         if ((tptr = strstr(ptr, "#confirm")))
         {
             ptr = tptr + 8;
+
+            std::string code = Base64::atob(std::string(ptr));
+            if (!code.empty())
+            {
+                if (code.find("ConfirmCodeV2") != string::npos)
+                {
+                    size_t posEmail = 13 + 15;
+                    size_t endEmail = code.find("\t", posEmail);
+                    if (endEmail != string::npos)
+                    {
+                        signupemail = code.substr(posEmail, endEmail - posEmail);
+                        signupname = code.substr(endEmail + 1, code.size() - endEmail - 9);
+
+                        if (client->loggedin() == FULLACCOUNT)
+                        {
+                            cout << "Already logged in." << endl;
+                        }
+                        else    // not-logged-in / ephemeral account / partially confirmed
+                        {
+                            client->confirmsignuplink2((const byte*)code.data(), unsigned(code.size()));
+                        }
+                    }
+                }
+                else
+                {
+                    // we first just query the supplied signup link,
+                    // then collect and verify the password,
+                    // then confirm the account
+                    client->querysignuplink((const byte*)code.data(), (unsigned)code.size());
+                }
+            }
         }
-
-        unsigned len = unsigned((s.words[1].s.size() - (ptr - s.words[1].s.c_str())) * 3 / 4 + 4);
-
-        byte* c = new byte[len];
-        len = Base64::atob(ptr, c, len);
-        // we first just query the supplied signup link,
-        // then collect and verify the password,
-        // then confirm the account
-        client->querysignuplink(c, len);
-        delete[] c;
     }
-    else if (s.words.size() == 3)
+    else if (s.words.size() == 3 || s.words.size() == 4)
     {
         switch (client->loggedin())
         {
@@ -5652,6 +5766,7 @@ void exec_signup(autocomplete::ACState& s)
             {
                 signupemail = s.words[1].s;
                 signupname = s.words[2].s;
+                signupV2 = !s.extractflag("-v1");
 
                 cout << endl;
                 setprompt(NEWPASSWORD);
@@ -6184,6 +6299,10 @@ void exec_confirm(autocomplete::ACState& s)
     {
         cout << "Please type " << signupemail << "'s password to confirm the signup." << endl;
         setprompt(LOGINPASSWORD);
+    }
+    else
+    {
+        cout << "Need to query link first. Type 'signup code'";
     }
 }
 
@@ -6852,6 +6971,18 @@ void DemoApp::confirmsignuplink_result(error e)
     }
 }
 
+void DemoApp::confirmsignuplink2_result(handle, const char *name, const char *email, error e)
+{
+    if (e)
+    {
+        cout << "Signuplink confirmation failed (" << errorstring(e) << ")" << endl;
+    }
+    else
+    {
+        cout << "Signup confirmed successfully" << endl;
+    }
+}
+
 // asymmetric keypair configuration result
 void DemoApp::setkeypair_result(error e)
 {
@@ -7041,6 +7172,7 @@ void DemoApp::cancelsignup_result(error)
     signupcode.clear();
     signupemail.clear();
     signupname.clear();
+    signupV2 = true;
 }
 
 void DemoApp::whyamiblocked_result(int code)
@@ -7428,7 +7560,26 @@ void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m
 
 bool DemoApp::pread_data(byte* data, m_off_t len, m_off_t pos, m_off_t, m_off_t, void* /*appdata*/)
 {
-    if (pread_file)
+    // Improvement: is there a way to have different pread_data receivers for
+    // different modes?
+    if(more_node)  // are we paginating through a node?
+    {
+        fwrite(data, 1, size_t(len), stdout);
+        if((pos + len) >= more_node->size) // is this the last chunk?
+        {
+            more_node = nullptr;
+            more_offset = 0;
+            cout << "-End of file-" << endl;
+            setprompt(COMMAND);
+        }
+        else
+        {
+            // there's more to get, so set PAGER prompt
+            setprompt(PAGER);
+            more_offset += len;
+        }
+    }
+    else if (pread_file)
     {
         pread_file->write((const char*)data, (size_t)len);
         cout << "Received " << len << " partial read byte(s) at position " << pos << endl;
@@ -8020,7 +8171,7 @@ void megacli()
 #if defined(WIN32) && defined(NO_READLINE)
             static_cast<WinConsole*>(console)->updateInputPrompt(!dynamicpromptstr.empty() ? dynamicpromptstr : prompts[COMMAND]);
 #else
-            rl_callback_handler_install(!dynamicpromptstr.empty() ? dynamicpromptstr.c_str() : prompts[COMMAND], store_line);
+            rl_callback_handler_install(!dynamicpromptstr.empty() ? dynamicpromptstr.c_str() : prompts[prompt], store_line);
 
             // display prompt
             if (saved_line)
@@ -8044,8 +8195,10 @@ void megacli()
 #if defined(WIN32) && defined(NO_READLINE)
                 line = static_cast<WinConsole*>(console)->checkForCompletedInputLine();
 #else
-                if (prompt == COMMAND)
+                if ((prompt == COMMAND) || (prompt == PAGER))
                 {
+                    // Note: this doesn't act like unbuffered input, still
+                    // requires Return line ending
                     rl_callback_read_char();
                 }
                 else

@@ -55,11 +55,11 @@ public:
     // Adds a new sync config or updates if exists already
     void insert(const SyncConfig& syncConfig);
 
-    // Removes a sync config with a given tag
-    bool removeByTag(const int tag);
+    // Removes a sync config with a given backupId
+    bool removeByBackupId(const handle backupId);
 
-    // Returns the sync config with a given tag
-    const SyncConfig* get(const int tag) const;
+    // Returns the sync config with a given backupId
+    const SyncConfig* get(const handle backupId) const;
 
     // Returns the first sync config found with a remote handle
     const SyncConfig* getByNodeHandle(handle nodeHandle) const;
@@ -72,7 +72,7 @@ public:
 
 private:
     std::unique_ptr<DbTable> mTable; // table for caching the sync configs
-    std::map<int, SyncConfig> mSyncConfigs; // map of tag to sync configs
+    std::map<handle, SyncConfig> mSyncConfigs; // map of backupId to sync configs
 };
 
 
@@ -99,12 +99,13 @@ struct UnifiedSync
     // Try to create and start the Sync
     error enableSync(bool resetFingerprint, bool notifyApp);
 
+    // Update remote location
+    bool updateSyncRemoteLocation(Node* n, bool forceCallback);
 private:
     friend class Sync;
     friend struct Syncs;
     error startSync(MegaClient* client, const char* debris, LocalPath* localdebris, Node* remotenode, bool inshare, bool isNetwork, bool delayInitialScan, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder);
     void changedConfigState(bool notifyApp);
-    bool updateSyncRemoteLocation(Node* n, bool forceCallback);
 };
 
 
@@ -190,9 +191,6 @@ public:
     // notification batch starts)
     int scanseqno = 0;
 
-    // notified nodes originating from this sync bear this tag
-    int tag = 0;
-
     // debris path component relative to the base path
     string debris;
     LocalPath localdebris;
@@ -230,7 +228,7 @@ public:
 
     // flag to optimize destruction by skipping calls to treestate()
     bool mDestructorRunning = false;
-    Sync(UnifiedSync&, const char*, LocalPath*, Node*, bool, int);
+    Sync(UnifiedSync&, const char*, LocalPath*, Node*, bool);
     ~Sync();
 
     static const int SCANNING_DELAY_DS;
@@ -256,7 +254,7 @@ struct Syncs
     bool hasRunningSyncs();
     unsigned numRunningSyncs();
     Sync* firstRunningSync();
-    Sync* runningSyncByTag(int tag) const;
+    Sync* runningSyncByBackupId(handle tag) const;
 
     void forEachUnifiedSync(std::function<void(UnifiedSync&)> f);
     void forEachRunningSync(std::function<void(Sync* s)>);
@@ -268,7 +266,7 @@ struct Syncs
     void stopCancelledFailedDisabled();
     void resumeResumableSyncsOnStartup();
     void enableResumeableSyncs();
-    error enableSyncByTag(int tag, bool resetFingerprint, UnifiedSync*&);
+    error enableSyncByBackupId(handle backupId, bool resetFingerprint, UnifiedSync*&);
 
     // disable all active syncs.  Cache is kept
     void disableSyncs(SyncError syncError, bool newEnabledFlag);

@@ -279,7 +279,7 @@ UserAlert::ContactChange::ContactChange(int c, handle uh, const string& email, m
 
 bool UserAlert::ContactChange::checkprovisional(handle ou, MegaClient* mc)
 {
-    return action == 1 || ou != mc->me;
+    return ou != mc->me;
 }
 
 void UserAlert::ContactChange::text(string& header, string& title, MegaClient* mc)
