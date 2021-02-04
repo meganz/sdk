@@ -13243,7 +13243,9 @@ void MegaClient::copySyncConfig(const SyncConfig& config, SyncCompletionFunction
         }
         else
         {
-            UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
+            auto configWithId = config;
+            configWithId.mBackupId = backupId;
+            UnifiedSync *unifiedSync = syncs.appendNewSync(configWithId, *this);
 
             completion(unifiedSync, unifiedSync->mConfig.getError(), e);
         }
