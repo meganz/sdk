@@ -4138,7 +4138,6 @@ struct TwoWaySyncSymmetryCase
         string drivePath  = localTestBasePath().u8string();
         string sourcePath = localSyncRootPath().u8string();
         string targetPath = remoteSyncRootPath();
-        handle backupId;
 
         drivePath.erase(0, basePath.size() + 1);
         sourcePath.erase(0, basePath.size() + 1);
