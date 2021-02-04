@@ -21814,7 +21814,7 @@ void MegaApiImpl::sendPendingRequests()
 
             break;
         }
-#endif
+#endif  // ENABLE_SYNC
         case MegaRequest::TYPE_REPORT_EVENT:
         {
             const char *details = request->getText();
