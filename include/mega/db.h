@@ -159,8 +159,8 @@ enum DbOpenFlag
 
 struct MEGA_API DbAccess
 {
-    static const int LEGACY_DB_VERSION = 11;
-    static const int DB_VERSION = LEGACY_DB_VERSION + 1;
+    static const int LEGACY_DB_VERSION;
+    static const int DB_VERSION;
 
     DbAccess();
 
