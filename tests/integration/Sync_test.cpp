@@ -4778,33 +4778,11 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     std::map<std::string, TwoWaySyncSymmetryCase> cases;
 
     static set<string> tests = {
-#if 0
-        "external_backup_delete_localChange_byOther_file",
-        "external_backup_delete_localChange_byOther_file_resumed",
-        "external_backup_delete_localChange_bySelf_file",
-        "external_backup_delete_remoteChange_byOther_file_resumed",
-        "external_backup_moveIn_localChange_byOther_file",
-        "external_backup_moveIn_localChange_byOther_file_resumed",
-        "external_backup_moveIn_localChange_bySelf_file",
-        "external_backup_moveIn_remoteChange_byOther_file_resumed",
-        "external_backup_moveOut_localChange_byOther_file",
-        "external_backup_moveOut_localChange_byOther_file_resumed",
-        "external_backup_moveOut_localChange_bySelf_file",
-        "external_backup_moveOut_remoteChange_byOther_file_resumed",
-        "external_backup_move_localChange_byOther_file",
-        "external_backup_move_localChange_byOther_file_resumed",
-        "external_backup_move_localChange_bySelf_file",
-        "external_backup_move_remoteChange_byOther_file_resumed",
-        "external_backup_rename_localChange_byOther_file",
-        "external_backup_rename_localChange_byOther_file_resumed",
-        "external_backup_rename_localChange_bySelf_file",
-        "external_backup_rename_remoteChange_byOther_file_resumed"
-#endif
     }; // tests
 
     for (int syncType = TwoWaySyncSymmetryCase::type_numTypes; syncType--; )
     {
-        if (syncType == TwoWaySyncSymmetryCase::type_backupSync) continue;
+        //if (syncType != TwoWaySyncSymmetryCase::type_backupSync) continue;
 
         for (int selfChange = 0; selfChange < 2; ++selfChange)
         {
@@ -4824,7 +4802,7 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
 
                         for (int isExternal = 0; isExternal < 2; ++isExternal)
                         {
-                            if (isExternal) continue;
+                            //if (!isExternal) continue;
 
                             if (isExternal && syncType != TwoWaySyncSymmetryCase::type_backupSync)
                             {
