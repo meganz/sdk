@@ -204,7 +204,7 @@ public:
     MegaHandle mBackupId = UNDEF;
     std::vector<std::pair<string, MegaHandle> > mBackupNameToBackupId;
     std::set<MegaHandle> mBackupIds;
-    MegaHandleList* mMegaFavNodeList = nullptr;
+    unique_ptr<MegaHandleList> mMegaFavNodeList;
 
 protected:
     void SetUp() override;

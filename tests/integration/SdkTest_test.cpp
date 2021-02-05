@@ -648,7 +648,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_GET_ATTR_NODE:
         if (mApi[apiIndex].lastError == API_OK)
         {
-            mMegaFavNodeList = request->getMegaHandleList()->copy();
+            mMegaFavNodeList.reset(request->getMegaHandleList()->copy());
         }
         break;
     }
