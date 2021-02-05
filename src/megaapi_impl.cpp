@@ -22025,7 +22025,7 @@ void MegaApiImpl::sendPendingRequests()
 
             if(!request->getFlag())
             {
-                client->getuserdata();
+                client->getuserdata(client->reqtag);
             }
             else
             {
@@ -22930,7 +22930,7 @@ void MegaApiImpl::sendPendingRequests()
             // the response to the code's verification, the following block can be deleted
             if (e == API_OK)
             {
-                client->reqs.add(new CommandGetUserData(client, nullptr));
+                client->reqs.add(new CommandGetUserData(client, client->reqtag, nullptr));
             }
             break;
         }
@@ -23475,6 +23475,7 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
     {
         string attrstring;
         SymmCipher key;
+        assert(nc > 0);
         NewNode* t = &nn[--nc];
 
         // copy node

@@ -418,7 +418,7 @@ class MEGA_API CommandFetchNodes : public Command
 public:
     bool procresult(Result) override;
 
-    CommandFetchNodes(MegaClient*, bool nocache = false);
+    CommandFetchNodes(MegaClient*, int tag, bool nocache);
 };
 
 // update own node keys
@@ -634,7 +634,7 @@ class MEGA_API CommandGetUserData : public Command
 public:
     bool procresult(Result) override;
 
-    CommandGetUserData(MegaClient*, std::function<void(string*, string*, string*, error)>);
+    CommandGetUserData(MegaClient*, int tag, std::function<void(string*, string*, string*, error)>);
 
 protected:
     void parseUserAttribute(std::string& value, std::string &version, bool asciiToBinary = true);

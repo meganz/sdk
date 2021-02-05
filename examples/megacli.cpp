@@ -2759,7 +2759,7 @@ void exec_getuserquota(autocomplete::ACState& s)
 
 void exec_getuserdata(autocomplete::ACState& s)
 {
-    client->getuserdata();
+    client->getuserdata(client->reqtag);
 }
 
 void exec_querytransferquota(autocomplete::ACState& ac)
