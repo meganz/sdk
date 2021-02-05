@@ -648,7 +648,7 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_GET_ATTR_NODE:
         if (mApi[apiIndex].lastError == API_OK)
         {
-            mMegaFavNodeList = request->getMegaNodeList()->copy();
+            mMegaFavNodeList.reset(request->getMegaHandleList()->copy());
         }
         break;
     }
@@ -5120,7 +5120,8 @@ TEST_F(SdkTest, SdkFavouriteNodes)
     ASSERT_EQ(mMegaFavNodeList->size(), 2) << "synchronousGetFavourites failed...";
     err = synchronousGetFavourites(0, nullptr, 1);
     ASSERT_EQ(mMegaFavNodeList->size(), 1) << "synchronousGetFavourites failed...";
-    ASSERT_EQ(mMegaFavNodeList->get(0)->getName(), UPFILE) << "synchronousGetFavourites failed with node passed nullptr";
+    unique_ptr<MegaNode> favNode(megaApi[0]->getNodeByHandle(mMegaFavNodeList->get(0)));
+    ASSERT_EQ(favNode->getName(), UPFILE) << "synchronousGetFavourites failed with node passed nullptr";
 }
 
 TEST_F(SdkTest, DISABLED_SdkDeviceNames)

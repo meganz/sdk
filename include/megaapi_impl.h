@@ -208,20 +208,6 @@ class MegaSizeProcessor : public MegaTreeProcessor
         long long getTotalBytes();
 };
 
-class MegaFavouriteProcessor : public MegaTreeProcessor
-{
-protected:
-    std::unique_ptr<MegaNodeList> mFavouriteNodeList;
-
-public:
-    MegaFavouriteProcessor(int max);
-    bool processMegaNode(MegaNode* node) override;
-    MegaNodeList* getFavouriteNodes();
-
-private:
-    int mMaxNodes = 0;
-};
-
 class MegaRecursiveOperation
 {
 public:
@@ -638,11 +624,12 @@ public:
     MegaHandleListPrivate();
     MegaHandleListPrivate(const MegaHandleListPrivate *hList);
     virtual ~MegaHandleListPrivate();
+    MegaHandleListPrivate(const vector<handle> &handles);
 
-    virtual MegaHandleList *copy() const;
-    virtual MegaHandle get(unsigned int i) const;
-    virtual unsigned int size() const;
-    virtual void addMegaHandle(MegaHandle megaHandle);
+    MegaHandleList *copy() const override;
+    MegaHandle get(unsigned int i) const override;
+    unsigned int size() const override;
+    void addMegaHandle(MegaHandle megaHandle) override;
 
 private:
     std::vector<MegaHandle> mList;
@@ -1240,7 +1227,7 @@ class MegaRequestPrivate : public MegaRequest
         AchievementsDetails *getAchievementsDetails() const;
         MegaTimeZoneDetails *getMegaTimeZoneDetails () const override;
         MegaStringList *getMegaStringList() const override;
-        MegaNodeList* getMegaNodeList() const override;
+        MegaHandleList* getMegaHandleList() const override;
 
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *getMegaTextChatPeerList() const override;
@@ -1261,7 +1248,7 @@ class MegaRequestPrivate : public MegaRequest
         MegaBackgroundMediaUpload *getMegaBackgroundMediaUploadPtr() const override;
         void setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUpload *);  // non-owned pointer
         void setMegaStringList(MegaStringList* stringList);
-        void setMegaNodeList(MegaNodeList* nodeList);
+        void setMegaHandleList(const vector<handle> &handles);
 
 #ifdef ENABLE_SYNC
         void setRegExp(MegaRegExp *regExp);
@@ -1321,7 +1308,7 @@ protected:
         MegaPushNotificationSettings *settings;
         MegaBackgroundMediaUpload* backgroundMediaUpload;  // non-owned pointer
         unique_ptr<MegaStringList> mStringList;
-        unique_ptr<MegaNodeList> mNodeList;
+        unique_ptr<MegaHandleList> mHandleList;
 
     private:
         unique_ptr<MegaBannerListPrivate> mBannerList;
@@ -2075,6 +2062,18 @@ class TreeProcFolderInfo : public TreeProc
         int numVersions;
         long long currentSize;
         long long versionsSize;
+};
+
+class FavouriteProcessor : public TreeProcessor
+{
+public:
+    FavouriteProcessor(int maxCount);
+    bool processNode(Node* node) override;
+    const vector<handle> &getHandles() const;
+
+private:
+    vector<handle> handles;
+    unsigned mMaxCount = 0;
 };
 
 //Thread safe request queue
