@@ -3428,9 +3428,9 @@ MegaStringList *MegaRequestPrivate::getMegaStringList() const
     return mStringList.get();
 }
 
-MegaNodeList* MegaRequestPrivate::getMegaNodeList() const
+MegaHandleList* MegaRequestPrivate::getMegaHandleList() const
 {
-    return mNodeList.get();
+    return mHandleList.get();
 }
 
 #ifdef ENABLE_CHAT
@@ -3556,14 +3556,9 @@ void MegaRequestPrivate::setMegaStringList(MegaStringList* stringList)
     }
 }
 
-void MegaRequestPrivate::setMegaNodeList(MegaNodeList* nodeList)
+void MegaRequestPrivate::setMegaHandleList(const vector<handle> &handles)
 {
-    mNodeList.reset();
-
-    if (nodeList)
-    {
-        mNodeList = unique_ptr<MegaNodeList>(nodeList->copy());
-    }
+    mHandleList.reset(new MegaHandleListPrivate(handles));
 }
 
 
@@ -4099,6 +4094,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_BACKUP_PUT_HEART_BEAT: return "BACKUP_PUT_HEART_BEAT";
         case TYPE_FETCH_GOOGLE_ADS: return "FETCH_GOOGLE_ADS";
         case TYPE_QUERY_GOOGLE_ADS: return "QUERY_GOOGLE_ADS";
+        case TYPE_GET_ATTR_NODE: return "GET_ATTR_NODE";
     }
     return "UNKNOWN";
 }
@@ -20603,13 +20599,29 @@ void MegaApiImpl::sendPendingRequests()
             if (type == MegaApi::NODE_ATTR_FAV)
             {
                 int count = request->getNumDetails();
-                MegaHandle folder = request->getNodeHandle();
-                auto node = getNodeByHandle(folder);
-                node = node == nullptr ? getRootNode() : node;
-                MegaFavouriteProcessor fn(count);
-                processMegaTree(node, &fn);
-                auto nl = fn.getFavouriteNodes();
-                request->setMegaNodeList(nl);
+                MegaHandle folderHandle = request->getNodeHandle();
+                Node *node = nullptr;
+                if (!ISUNDEF(folderHandle))
+                {
+                    node = client->nodebyhandle(folderHandle);
+                    if (!node)
+                    {
+                        e = API_ENOENT;
+                        break;
+                    }
+                    if (node->type != FOLDERNODE)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+                }
+                else
+                {
+                    node = client->nodebyhandle(client->rootnodes[0]);
+                }
+                FavouriteProcessor processor(count);
+                processTree(node, &processor);
+                request->setMegaHandleList(processor.getHandles());
                 
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
@@ -33077,29 +33089,6 @@ long long MegaSizeProcessor::getTotalBytes()
     return totalBytes;
 }
 
-MegaFavouriteProcessor::MegaFavouriteProcessor(int max):mMaxNodes(max)
-{
-    std::unique_ptr<MegaNodeList> nl(MegaNodeList::createInstance());
-    mFavouriteNodeList = std::move(nl);
-}
-
-MegaNodeList* MegaFavouriteProcessor::getFavouriteNodes()
-{
-    return mFavouriteNodeList.get();
-}
-
-bool MegaFavouriteProcessor::processMegaNode(MegaNode* node)
-{
-    if (node == nullptr) return false;
- 
-    if (node->isFavourite() && (mMaxNodes == 0 || (mFavouriteNodeList.get() && mFavouriteNodeList->size() < mMaxNodes)))
-    {
-        mFavouriteNodeList.get()->addNode(node);
-    }
-    return true;
-}
-
-
 MegaEventPrivate::MegaEventPrivate(int type)
 {
     this->type = type;
@@ -33199,6 +33188,11 @@ MegaHandleListPrivate::MegaHandleListPrivate()
 MegaHandleListPrivate::MegaHandleListPrivate(const MegaHandleListPrivate *hList)
 {
     mList = hList->mList;
+}
+
+MegaHandleListPrivate::MegaHandleListPrivate(const vector<handle> &handles)
+{
+    mList = handles;
 }
 
 MegaHandleListPrivate::~MegaHandleListPrivate()
@@ -34253,6 +34247,29 @@ void MegaCancelTokenPrivate::cancel(bool newValue)
 bool MegaCancelTokenPrivate::isCancelled() const
 {
     return cancelFlag;
+}
+
+FavouriteProcessor::FavouriteProcessor(int maxCount)
+    : mMaxCount(maxCount)
+{
+
+}
+
+bool FavouriteProcessor::processNode(Node *node)
+{
+    if (node == nullptr) return false;
+
+    auto it = node->attrs.map.find(AttrMap::string2nameid("fav"));
+    if (it != node->attrs.map.end() && (mMaxCount == 0 || handles.size() < mMaxCount))
+    {
+        handles.push_back(node->nodehandle);
+    }
+    return true;
+}
+
+const vector<handle>& FavouriteProcessor::getHandles() const
+{
+    return handles;
 }
 
 }

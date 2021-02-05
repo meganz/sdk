@@ -1068,7 +1068,7 @@ MegaStringList* MegaRequest::getMegaStringList() const
     return nullptr;
 }
 
-MegaNodeList* MegaRequest::getMegaNodeList() const
+MegaHandleList* MegaRequest::getMegaHandleList() const
 {
     return nullptr;
 }
