@@ -110,6 +110,7 @@ struct DemoApp : public MegaApp
     void querysignuplink_result(error) override;
     void querysignuplink_result(handle, const char*, const char*, const byte*, const byte*, const byte*, size_t) override;
     void confirmsignuplink_result(error) override;
+    void confirmsignuplink2_result(handle, const char*, const char*, error) override;
     void setkeypair_result(error) override;
 
     void getrecoverylink_result(error) override;
@@ -207,10 +208,10 @@ struct DemoApp : public MegaApp
     void transfer_complete(Transfer*) override;
 
 #ifdef ENABLE_SYNC
-    void syncupdate_stateconfig(int tag) override;
-    void syncupdate_active(int tag, bool active) override;
+    void syncupdate_stateconfig(handle backupId) override;
+    void syncupdate_active(handle backupId, bool active) override;
     void sync_auto_resume_result(const UnifiedSync&, bool attempted) override;
-    void sync_removed(int tag) override;
+    void sync_removed(handle backupId) override;
 
     void syncupdate_scanning(bool) override;
     void syncupdate_stalled(bool stalled);
@@ -260,6 +261,7 @@ struct DemoApp : public MegaApp
     void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;
 
     void dismissbanner_result(error) override;
+    void backupremove_result(const Error&, handle /*backup id*/) override;
 
     void reload(const char*) override;
     void clearing() override;
@@ -303,6 +305,7 @@ void exec_put(autocomplete::ACState& s);
 void exec_putq(autocomplete::ACState& s);
 void exec_get(autocomplete::ACState& s);
 void exec_getq(autocomplete::ACState& s);
+void exec_more(autocomplete::ACState& s);
 void exec_pause(autocomplete::ACState& s);
 void exec_getfa(autocomplete::ACState& s);
 void exec_mediainfo(autocomplete::ACState& s);
@@ -314,8 +317,6 @@ void exec_mv(autocomplete::ACState& s);
 void exec_cp(autocomplete::ACState& s);
 void exec_du(autocomplete::ACState& s);
 void exec_rescan(autocomplete::ACState& s);
-void exec_sync(autocomplete::ACState& s);
-void exec_syncconfig(autocomplete::ACState& s);
 void exec_syncpause(autocomplete::ACState& s);
 void exec_syncresume(autocomplete::ACState& s);
 void exec_export(autocomplete::ACState& s);
@@ -389,3 +390,17 @@ void exec_querytransferquota(autocomplete::ACState& s);
 void exec_metamac(autocomplete::ACState& s);
 void exec_resetverifiedphonenumber(autocomplete::ACState& s);
 void exec_banner(autocomplete::ACState& s);
+
+#ifdef ENABLE_SYNC
+
+void exec_syncadd(autocomplete::ACState& s);
+void exec_syncbackupadd(autocomplete::ACState& s);
+void exec_syncbackupremove(autocomplete::ACState& s);
+void exec_syncbackuprestore(autocomplete::ACState& s);
+void exec_syncconfig(autocomplete::ACState& s);
+void exec_synclist(autocomplete::ACState& s);
+void exec_syncremove(autocomplete::ACState& s);
+void exec_syncxable(autocomplete::ACState& s);
+
+#endif // ENABLE_SYNC
+

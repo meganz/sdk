@@ -255,6 +255,12 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         bool parent : 1;
         bool publiclink : 1;
         bool newnode : 1;
+
+#ifdef ENABLE_SYNC
+        // this field is only used internally in syncdown()
+        bool syncdown_node_matched_here : 1;
+#endif
+
     } changed;
 
     void setkey(const byte* = NULL);
@@ -608,11 +614,11 @@ public:
 
     void setSyncedNodeHandle(NodeHandle h);
 
-    void setnameparent(LocalNode*, LocalPath* newlocalpath, std::unique_ptr<LocalPath>, bool applyToCloud);
+    void setnameparent(LocalNode*, const LocalPath* newlocalpath, std::unique_ptr<LocalPath>, bool applyToCloud);
     void moveContentTo(LocalNode*, LocalPath&, bool setScanAgain);
 
     LocalNode();
-    void init(Sync*, nodetype_t, LocalNode*, LocalPath&, std::unique_ptr<LocalPath>);
+    void init(Sync*, nodetype_t, LocalNode*, const LocalPath&, std::unique_ptr<LocalPath>);
 
     // Reinitialize an UNKNOWN node.
     void init(const FSNode& fsNode);

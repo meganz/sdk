@@ -2875,11 +2875,17 @@ void MegaApi::changePassword(const char *oldPassword, const char *newPassword, M
 {
     pImpl->changePassword(oldPassword, newPassword, listener);
 }
-
+#ifdef ENABLE_SYNC
+void MegaApi::logout(bool keepSyncConfigsFile, MegaRequestListener *listener)
+{
+    pImpl->logout(keepSyncConfigsFile, listener);
+}
+#else
 void MegaApi::logout(MegaRequestListener *listener)
 {
-    pImpl->logout(listener);
+    pImpl->logout(false, listener);
 }
+#endif
 
 void MegaApi::localLogout(MegaRequestListener *listener)
 {
@@ -3332,11 +3338,6 @@ void MegaApi::copyCachedStatus(int storageStatus, int blockStatus, int businessS
     pImpl->copyCachedStatus(storageStatus, blockStatus, businessStatus, listener);
 }
 
-void MegaApi::setKeepSyncsAfterLogout(bool enable)
-{
-    pImpl->setKeepSyncsAfterLogout(enable);
-}
-
 #ifdef USE_PCRE
 void MegaApi::syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
 {
@@ -3351,12 +3352,12 @@ void MegaApi::removeSync(MegaNode *megaFolder, MegaRequestListener* listener)
 
 void MegaApi::removeSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->removeSync(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
+    pImpl->removeSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener);
 }
 
-void MegaApi::removeSync(int tag, MegaRequestListener *listener)
+void MegaApi::removeSync(MegaHandle backupId, MegaRequestListener *listener)
 {
-    pImpl->removeSync(tag, listener);
+    pImpl->removeSyncById(backupId, listener);
 }
 
 void MegaApi::disableSync(MegaNode *megaFolder, MegaRequestListener *listener)
@@ -3366,22 +3367,22 @@ void MegaApi::disableSync(MegaNode *megaFolder, MegaRequestListener *listener)
 
 void MegaApi::disableSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->disableSync(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
+    pImpl->disableSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener);
 }
 
 void MegaApi::enableSync(MegaSync *sync, MegaRequestListener *listener)
 {
-    pImpl->enableSync(sync ? sync->getTag() : INVALID_SYNC_TAG, listener);
+    pImpl->enableSyncById(sync ? sync->getBackupId() : INVALID_HANDLE, listener);
 }
 
-void MegaApi::enableSync(int tag, MegaRequestListener *listener)
+void MegaApi::enableSync(MegaHandle backupId, MegaRequestListener *listener)
 {
-    pImpl->enableSync(tag, listener);
+    pImpl->enableSyncById(backupId, listener);
 }
 
-void MegaApi::disableSync(int tag, MegaRequestListener *listener)
+void MegaApi::disableSync(MegaHandle backupId, MegaRequestListener *listener)
 {
-    pImpl->disableSync(tag, listener);
+    pImpl->disableSyncById(backupId, listener);
 }
 
 void MegaApi::removeSyncs(MegaRequestListener *listener)
@@ -3427,9 +3428,9 @@ bool MegaApi::conflictsDetected()
     return pImpl->conflictsDetected();
 }
 
-MegaSync *MegaApi::getSyncByTag(int tag)
+MegaSync *MegaApi::getSyncByBackupId(MegaHandle backupId)
 {
-    return pImpl->getSyncByTag(tag);
+    return pImpl->getSyncByBackupId(backupId);
 }
 
 MegaSync *MegaApi::getSyncByNode(MegaNode *node)
@@ -5443,6 +5444,21 @@ void MegaApi::queryGoogleAds(int adFlags, MegaHandle publicHandle, MegaRequestLi
     pImpl->queryGoogleAds(adFlags, publicHandle, listener);
 }
 
+void MegaApi::setCookieSettings(int settings, MegaRequestListener *listener)
+{
+    pImpl->setCookieSettings(settings, listener);
+}
+
+void MegaApi::getCookieSettings(MegaRequestListener *listener)
+{
+    pImpl->getCookieSettings(listener);
+}
+
+bool MegaApi::cookieBannerEnabled()
+{
+    return pImpl->cookieBannerEnabled();
+}
+
 MegaHashSignature::MegaHashSignature(const char *base64Key)
 {
     pImpl = new MegaHashSignatureImpl(base64Key);
@@ -5757,7 +5773,7 @@ const char *MegaSync::getName() const
     return NULL;
 }
 
-const char *MegaSync::getMegaFolder() const
+const char *MegaSync::getLastKnownMegaFolder() const
 {
     return NULL;
 }
@@ -5767,9 +5783,9 @@ long long MegaSync::getLocalFingerprint() const
     return 0;
 }
 
-int MegaSync::getTag() const
+MegaHandle MegaSync::getBackupId() const
 {
-    return 0;
+    return INVALID_HANDLE;
 }
 
 int MegaSync::getError() const
@@ -5809,65 +5825,7 @@ const char* MegaSync::getMegaSyncErrorCode()
 
 const char* MegaSync::getMegaSyncErrorCode(int errorCode)
 {
-    switch(errorCode)
-    {
-    case MegaSync::Error::NO_SYNC_ERROR:
-        return "No error";
-    case MegaSync::Error::UNKNOWN_ERROR:
-        return "Unknown error";
-    case MegaSync::Error::UNSUPPORTED_FILE_SYSTEM:
-        return "File system not supported";
-    case MegaSync::Error::INVALID_REMOTE_TYPE:
-        return "Remote node is not valid";
-    case MegaSync::Error::INVALID_LOCAL_TYPE:
-        return "Local path is not valid";
-    case MegaSync::Error::INITIAL_SCAN_FAILED:
-        return "Initial scan failed";
-    case MegaSync::Error::LOCAL_PATH_TEMPORARY_UNAVAILABLE:
-        return "Local path temporarily unavailable";
-    case MegaSync::Error::LOCAL_PATH_UNAVAILABLE:
-        return "Local path not available";
-    case MegaSync::Error::REMOTE_NODE_NOT_FOUND:
-        return "Remote node not found";
-    case MegaSync::Error::STORAGE_OVERQUOTA:
-        return "Reached storage quota limit";
-    case MegaSync::Error::BUSINESS_EXPIRED:
-        return "Business account expired";
-    case MegaSync::Error::FOREIGN_TARGET_OVERSTORAGE:
-        return "Foreign target storage quota reached";
-    case MegaSync::Error::REMOTE_PATH_HAS_CHANGED:
-        return "Remote path has changed";
-    case MegaSync::Error::REMOTE_NODE_MOVED_TO_RUBBISH:
-        return "Remote node moved to Rubbish Bin";
-    case MegaSync::Error::SHARE_NON_FULL_ACCESS:
-        return "Share without full access";
-    case MegaSync::Error::LOCAL_FINGERPRINT_MISMATCH:
-        return "Local fingerprint mismatch";
-    case MegaSync::Error::PUT_NODES_ERROR:
-        return "Put nodes error";
-    case MegaSync::Error::ACTIVE_SYNC_BELOW_PATH:
-        return "Active sync below path";
-    case MegaSync::Error::ACTIVE_SYNC_ABOVE_PATH:
-        return "Active sync above path";
-    case MegaSync::Error::REMOTE_PATH_DELETED:
-        return "Remote node has been deleted";
-    case MegaSync::Error::REMOTE_NODE_INSIDE_RUBBISH:
-        return "Remote node is inside Rubbish Bin";
-    case MegaSync::Error::VBOXSHAREDFOLDER_UNSUPPORTED:
-        return "Unsupported VBoxSharedFolderFS filesystem";
-    case MegaSync::Error::LOCAL_PATH_SYNC_COLLISION:
-        return "Local path collides with an existing sync";
-    case MegaSync::Error::ACCOUNT_BLOCKED:
-        return "Your account is blocked";
-    case MegaSync::Error::UNKNOWN_TEMPORARY_ERROR:
-        return "Unknown temporary error";
-    case MegaSync::Error::LOGGED_OUT:
-        return "Session closed";
-    case MegaSync::Error::TOO_MANY_ACTION_PACKETS:
-        return "Too many changes in account, local state invalid";
-    default:
-        return "Undefined error";
-    }
+    return strdup(SyncConfig::syncErrorToStr(static_cast<SyncError>(errorCode)).c_str());
 }
 
 const char* MegaSync::getMegaSyncWarningCode()

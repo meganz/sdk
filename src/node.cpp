@@ -231,7 +231,6 @@ bool Node::syncable(const LocalNode& parent) const
     return parent.parent || parent.sync->debris != it->second;
 }
 
-#endif /* ENABLE_SYNC */
 
 void Node::setkeyfromjson(const char* k)
 {
@@ -1142,7 +1141,7 @@ bool PublicLink::isExpired()
 // set, change or remove LocalNode's parent and name/localname/slocalname.
 // newlocalpath must be a full path and must not point to an empty string.
 // no shortname allowed as the last path component.
-void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std::unique_ptr<LocalPath> newshortname, bool applyToCloud)
+void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpath, std::unique_ptr<LocalPath> newshortname, bool applyToCloud)
 {
 
     assert(!applyToCloud);
@@ -1359,7 +1358,7 @@ LocalNode::LocalNode()
 {}
 
 // initialize fresh LocalNode object - must be called exactly once
-void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPath& cfullpath, std::unique_ptr<LocalPath> shortname)
+void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const LocalPath& cfullpath, std::unique_ptr<LocalPath> shortname)
 {
     sync = csync;
     parent = NULL;
@@ -1789,7 +1788,8 @@ LocalNode::~LocalNode()
         return;
     }
 
-    if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
+    if (!sync->mDestructorRunning && (
+        sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN))
     {
         sync->statecachedel(this);
     }

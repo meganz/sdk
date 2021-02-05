@@ -359,8 +359,10 @@ class MEGA_API CommandPutUAVer : public Command
     attr_t at;  // attribute type
     string av;  // attribute value
 
+    std::function<void(Error)> mCompletion;
 public:
-    CommandPutUAVer(MegaClient*, attr_t, const byte*, unsigned, int);
+    CommandPutUAVer(MegaClient*, attr_t, const byte*, unsigned, int,
+                    std::function<void(Error)> completion = nullptr);
 
     bool procresult(Result) override;
 };
@@ -371,8 +373,10 @@ class MEGA_API CommandPutUA : public Command
     attr_t at;  // attribute type
     string av;  // attribute value
 
+    std::function<void(Error)> mCompletion;
 public:
-    CommandPutUA(MegaClient*, attr_t at, const byte*, unsigned, int, handle = UNDEF, int = 0, int64_t = 0);
+    CommandPutUA(MegaClient*, attr_t at, const byte*, unsigned, int, handle = UNDEF, int = 0, int64_t = 0,
+                 std::function<void(Error)> completion = nullptr);
 
     bool procresult(Result) override;
 };
@@ -383,12 +387,27 @@ class MEGA_API CommandGetUA : public Command
     attr_t at;  // attribute type
     string ph;  // public handle for preview mode, in B64
 
+
+
+    std::function<void(byte*, unsigned, attr_t)> mCompletion;
+
     bool isFromChatPreview() { return !ph.empty(); }
 
 public:
-    CommandGetUA(MegaClient*, const char*, attr_t, const char *, int);
+
+    typedef std::function<void(error)> CompletionErr;
+    typedef std::function<void(byte*, unsigned, attr_t)> CompletionBytes;
+    typedef std::function<void(TLVstore*, attr_t)> CompletionTLV;
+
+    CommandGetUA(MegaClient*, const char*, attr_t, const char *, int,
+        CompletionErr completionErr, CompletionBytes completionBytes, CompletionTLV compltionTLV);
 
     bool procresult(Result) override;
+
+private:
+    CompletionErr mCompletionErr;
+    CompletionBytes mCompletionBytes;
+    CompletionTLV mCompletionTLV;
 };
 
 #ifdef DEBUG
@@ -425,7 +444,7 @@ class MEGA_API CommandFetchNodes : public Command
 public:
     bool procresult(Result) override;
 
-    CommandFetchNodes(MegaClient*, bool nocache = false);
+    CommandFetchNodes(MegaClient*, int tag, bool nocache);
 };
 
 // update own node keys
@@ -507,13 +526,15 @@ public:
 
 class MEGA_API CommandLogout : public Command
 {
+    bool mKeepSyncConfigsFile;
+
     bool incrementedCount = false;
     const char* getJSON(MegaClient* client) override;
 
 public:
     bool procresult(Result r) override;
 
-    CommandLogout(MegaClient*);
+    CommandLogout(MegaClient*, bool keepSyncConfigsFile);
 };
 
 class MEGA_API CommandPubKeyRequest : public Command
@@ -648,10 +669,11 @@ class MEGA_API CommandGetUserData : public Command
 public:
     bool procresult(Result) override;
 
-    CommandGetUserData(MegaClient*);
+    CommandGetUserData(MegaClient*, int tag, std::function<void(string*, string*, string*, error)>);
 
 protected:
     void parseUserAttribute(std::string& value, std::string &version, bool asciiToBinary = true);
+    std::function<void(string*, string*, string*, error)> mCompletion;
 };
 
 class MEGA_API CommandGetMiscFlags : public Command
@@ -1374,6 +1396,37 @@ public:
 
     CommandBackupPutHeartBeat(MegaClient* client, handle backupId, uint8_t status, int8_t progress, uint32_t uploads, uint32_t downloads, m_time_t ts, handle lastNode, std::function<void(Error)>);
 };
+
+class MEGA_API CommandBackupSyncFetch : public Command
+{
+public:
+    struct Data
+    {
+        handle backupId = UNDEF;
+        BackupType backupType = BackupType::INVALID;
+        handle rootNode = UNDEF;
+        string localFolder;
+        string deviceId;
+        int syncState = 0;
+        int syncSubstate = 0;
+        string extra;
+        uint64_t hbTimestamp = 0;
+        int hbStatus = 0;
+        int hbProgress = 0;
+        int uploads = 0;
+        int downloads = 0;
+        uint64_t lastActivityTs = 0;
+        handle lastSyncedNodeHandle = UNDEF;
+    };
+
+    bool procresult(Result) override;
+
+    CommandBackupSyncFetch(std::function<void(Error, vector<Data>&)>);
+
+private:
+    std::function<void(Error, vector<Data>&)> completion;
+};
+
 
 class MEGA_API CommandGetBanners : public Command
 {

@@ -87,11 +87,11 @@ std::unique_ptr<mega::UnifiedSync> makeSync(mega::MegaClient& client, const std:
 
     auto& n = makeNode(client, mega::FOLDERNODE, std::hash<std::string>{}(localname) >> 16);
     auto localdebrisLP = ::mega::LocalPath::fromPath(localdebris, fsaccess);
-    mega::SyncConfig config{127, localname, localname, n.nodehandle, std::string(), 0};
+    mega::SyncConfig config{::mega::LocalPath::fromPath(localname, *client.fsaccess), localname, n.nodehandle, std::string(), 0};
 
     auto us = new mega::UnifiedSync(client, config);
 
-    us->mSync.reset(new mega::Sync(*us, nullptr, &localdebrisLP, &n, false, 0));
+    us->mSync.reset(new mega::Sync(*us, nullptr, &localdebrisLP, &n, false));
     us->mSync->state = mega::SYNC_CANCELED;
 
     return std::unique_ptr<mega::UnifiedSync>(us);

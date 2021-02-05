@@ -18,6 +18,7 @@
  * You should have received a copy of the license along with this
  * program.
  */
+#include <cctype>
 
 #include "mega/json.h"
 #include "mega/base64.h"
@@ -419,6 +420,39 @@ const char* JSON::getvalue()
     return r;
 }
 
+fsfp_t JSON::getfp()
+{
+    return gethandle(sizeof(fsfp_t));
+}
+
+uint64_t JSON::getuint64()
+{
+    const char* ptr;
+
+    if (*pos == ':' || *pos == ',')
+    {
+        pos++;
+    }
+
+    ptr = pos;
+
+    if (*ptr == '"')
+    {
+        ptr++;
+    }
+
+    if (!std::isdigit(*ptr))
+    {
+        LOG_err << "Parse error (getuint64)";
+        return std::numeric_limits<uint64_t>::max();
+    }
+
+    uint64_t r = strtoull(ptr, nullptr, 0);
+    storeobject();
+
+    return r;
+}
+
 // try to to enter array
 bool JSON::enterarray()
 {
@@ -702,6 +736,16 @@ void JSONWriter::arg(const char* name, const byte* value, int len)
     delete[] buf;
 }
 
+void JSONWriter::arg_B64(const char* n, const string& data)
+{
+    arg(n, (const byte*)data.data(), int(data.size()));
+}
+
+void JSONWriter::arg_fsfp(const char* n, fsfp_t fp)
+{
+    arg(n, (const byte*)&fp, int(sizeof(fp)));
+}
+
 void JSONWriter::arg(const char* name, m_off_t n)
 {
     char buf[32];
@@ -813,6 +857,11 @@ void JSONWriter::element(const char* buf)
     mJson.append(elements() ? ",\"" : "\"");
     mJson.append(buf, strlen(buf));
     mJson.append("\"");
+}
+
+void JSONWriter::element_B64(const string& s)
+{
+    element((const byte*)s.data(), int(s.size()));
 }
 
 void JSONWriter::openobject()

@@ -32,6 +32,11 @@
 #define LOCAL_TEST_FOLDER (string(getenv("HOME"))+"/synctests_mega_auto")
 #endif
 
+
+#define SSTR( x ) static_cast< const std::ostringstream & >( \
+        (  std::ostringstream() << std::dec << x ) ).str()
+
+
 using namespace std;
 
 MegaFileSystemAccess fileSystemAccess;
@@ -784,10 +789,10 @@ void SdkTest::fetchnodes(unsigned int apiIndex, int timeout)
     ASSERT_EQ(MegaError::API_OK, mApi[apiIndex].lastError) << "Fetchnodes failed (error: " << mApi[apiIndex].lastError << ")";
 }
 
-void SdkTest::logout(unsigned int apiIndex, int timeout)
+void SdkTest::logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGOUT] = false;
-    mApi[apiIndex].megaApi->logout(this);
+    mApi[apiIndex].megaApi->logout(keepSyncConfigs, this);
 
     EXPECT_TRUE( waitForResponse(&mApi[apiIndex].requestFlags[MegaRequest::TYPE_LOGOUT], timeout) )
             << "Logout failed after " << timeout  << " seconds";
@@ -1026,7 +1031,7 @@ void SdkTest::releaseMegaApi(unsigned int apiIndex)
         if (mApi[apiIndex].megaApi->isLoggedIn())
         {
             if (!gResumeSessions)
-                ASSERT_NO_FATAL_FAILURE( logout(apiIndex) );
+                ASSERT_NO_FATAL_FAILURE( logout(apiIndex, false, maxTimeout) );
             else
                 ASSERT_NO_FATAL_FAILURE( locallogout(apiIndex) );
         }
@@ -1080,11 +1085,11 @@ void SdkTest::shareFolder(MegaNode *n, const char *email, int action, int timeou
     ASSERT_EQ(MegaError::API_OK, synchronousShare(apiIndex, n, email, action)) << "Folder sharing failed" << endl << "User: " << email << " Action: " << action;
 }
 
-void SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount)
+void SdkTest::createPublicLink(unsigned apiIndex, MegaNode *n, m_time_t expireDate, int timeout, bool isFreeAccount, bool writable)
 {
     mApi[apiIndex].requestFlags[MegaRequest::TYPE_EXPORT] = false;
 
-    auto err = synchronousExportNode(apiIndex, n, expireDate);
+    auto err = synchronousExportNode(apiIndex, n, expireDate, writable);
 
     if (!expireDate || !isFreeAccount)
     {
@@ -1329,7 +1334,7 @@ TEST_F(SdkTest, SdkTestKillSession)
                         8 * 1000));
 
     // Log out the primary account.
-    logout(0);
+    logout(0, false, maxTimeout);
 }
 
 /**
@@ -4129,25 +4134,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
         auto lastOnTranferFinishedCount = onTranferFinishedCount;
         while (t.elapsed() < 180 && onTranferFinishedCount < initialOnTranferFinishedCount + 2)
         {
-            if (onTransferUpdate_progress > lastprogress + onTransferUpdate_filesize/6)
-            {
-                megaApi[0].reset();
-                exitresumecount += 1;
-                WaitMillisec(100);
-
-                megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
-                mApi[0].megaApi = megaApi[0].get();
-                megaApi[0]->addListener(this);
-                megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 30); // should take 30 seconds, not counting exit/resume session
-
-                t.pause();
-                ASSERT_NO_FATAL_FAILURE(resumeSession(sessionId.c_str()));
-                ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
-                t.resume();
-
-                lastprogress = onTransferUpdate_progress;
-            }
-            else if (onTranferFinishedCount > lastOnTranferFinishedCount)
+            if (onTranferFinishedCount > lastOnTranferFinishedCount)
             {
                 t.reset();
                 lastOnTranferFinishedCount = onTranferFinishedCount;
@@ -4157,6 +4144,27 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                 lastprogress = 0;
                 mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
                 megaApi[0]->startDownload(nimported, filename.c_str());
+            }
+            else if (onTransferUpdate_progress > lastprogress + onTransferUpdate_filesize/10 )
+            {
+                if (exitresumecount < 3*(onTranferFinishedCount - initialOnTranferFinishedCount + 1))
+                {
+                    megaApi[0].reset();
+                    exitresumecount += 1;
+                    WaitMillisec(100);
+
+                    megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+                    mApi[0].megaApi = megaApi[0].get();
+                    megaApi[0]->addListener(this);
+                    megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 30); // should take 30 seconds, not counting exit/resume session
+
+                    t.pause();
+                    ASSERT_NO_FATAL_FAILURE(resumeSession(sessionId.c_str()));
+                    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+                    t.resume();
+
+                    lastprogress = onTransferUpdate_progress;
+                }
             }
             WaitMillisec(1);
         }
@@ -4828,6 +4836,7 @@ TEST_F(SdkTest, SdkBackupFolder)
         ASSERT_EQ(deviceName, attributeValue) << "Getting device name attr failed (wrong value)";
     }
 
+#ifdef ENABLE_SYNC
     // request to backup a folder
     string localFolderPath = string(LOCAL_TEST_FOLDER) + "\\LocalBackedUpFolder";
     makeNewTestRoot(localFolderPath.c_str());
@@ -4858,7 +4867,7 @@ TEST_F(SdkTest, SdkBackupFolder)
         if (megaSync->getType() == MegaSync::TYPE_BACKUP &&
             megaSync->getMegaHandle() == mApi[0].h &&
             !strcmp(megaSync->getName(), backupName) &&
-            !strcmp(megaSync->getMegaFolder(), actualRemotePath.get()))
+            !strcmp(megaSync->getLastKnownMegaFolder(), actualRemotePath.get()))
         {
             found = true;
             break;
@@ -4882,7 +4891,7 @@ TEST_F(SdkTest, SdkBackupFolder)
         if (megaSync->getType() == MegaSync::TYPE_BACKUP &&
             megaSync->getMegaHandle() == mApi[0].h &&
             !strcmp(megaSync->getName(), backupName) &&
-            !strcmp(megaSync->getMegaFolder(), actualRemotePath.get()))
+            !strcmp(megaSync->getLastKnownMegaFolder(), actualRemotePath.get()))
         {
             found = true;
             break;
@@ -4904,6 +4913,7 @@ TEST_F(SdkTest, SdkBackupFolder)
     const char* backupName2 = "RemoteBackupFolder2";
     err = synchronousBackupFolder(0, localFolderPath2.c_str(), backupName2);
     ASSERT_TRUE(err == MegaError::API_OK) << "Backup folder 2 failed (error: " << err << ")";
+#endif
 }
 
 TEST_F(SdkTest, SdkSimpleCommands)
@@ -4916,7 +4926,13 @@ TEST_F(SdkTest, SdkSimpleCommands)
     ASSERT_EQ(MegaError::API_OK, err) << "Fetch time zone failed (error: " << err << ")";
     ASSERT_TRUE(mApi[0].tzDetails && mApi[0].tzDetails->getNumTimeZones()) << "Invalid Time Zone details"; // some simple validation
 
+    // getMiscFlags() -- not logged in
+    logout(0, false, maxTimeout);
+    err = synchronousGetMiscFlags(0);
+    ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
+
     // getUserEmail() test
+    getAccountsForTest(1);
     std::unique_ptr<MegaUser> user(megaApi[0]->getMyUser());
     ASSERT_TRUE(!!user); // some simple validation
 
@@ -4929,7 +4945,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
     ASSERT_TRUE(err == MegaError::API_OK || err == MegaError::API_ENOENT) << "Clean rubbish bin failed (error: " << err << ")";
 
     // getMiscFlags() -- not logged in
-    logout(0);
+    logout(0, false, maxTimeout);
     err = synchronousGetMiscFlags(0);
     ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
 }
@@ -5331,7 +5347,7 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
 
     // logout while the upload (which consists of many transfers) is ongoing
     gSessionIDs[0].clear();
-    ASSERT_EQ(API_OK, doRequestLogout(0));
+    ASSERT_EQ(API_OK, doRequestLogout(0, false));
     int result = uploadListener->waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
 }
@@ -5371,7 +5387,7 @@ TEST_F(SdkTest, DISABLED_RecursiveDownloadWithLogout)
 
     // logout while the download (which consists of many transfers) is ongoing
 
-    ASSERT_EQ(API_OK, doRequestLogout(0));
+    ASSERT_EQ(API_OK, doRequestLogout(0, false));
 
     int result = downloadListener.waitForResult();
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
@@ -5433,12 +5449,12 @@ std::unique_ptr<::mega::MegaSync> waitForSyncState(::mega::MegaApi* megaApi, ::m
     return sync;
 }
 
-std::unique_ptr<::mega::MegaSync> waitForSyncState(::mega::MegaApi* megaApi, int tagID, bool enabled, bool active, MegaSync::Error err)
+std::unique_ptr<::mega::MegaSync> waitForSyncState(::mega::MegaApi* megaApi, handle backupID, bool enabled, bool active, MegaSync::Error err)
 {
     std::unique_ptr<MegaSync> sync;
-    WaitFor([&megaApi, tagID, &sync, enabled, active, err]() -> bool
+    WaitFor([&megaApi, backupID, &sync, enabled, active, err]() -> bool
     {
-        sync.reset(megaApi->getSyncByTag(tagID));
+        sync.reset(megaApi->getSyncByBackupId(backupID));
         return (sync && sync->isEnabled() == enabled && sync->isActive() == active && sync->getError() == err);
     }, 30*1000);
     return sync;
@@ -5526,8 +5542,8 @@ TEST_F(SdkTest, SyncBasicOperations)
 
     LOG_verbose << "SyncRemoveRemoteNode :  Disable a sync";
     // Sync 1
-    int syncTag = sync->getTag();
-    ASSERT_EQ(MegaError::API_OK, synchronousDisableSync(0, syncTag));
+    handle backupId = sync->getBackupId();
+    ASSERT_EQ(MegaError::API_OK, synchronousDisableSync(0, backupId));
     sync = waitForSyncState(megaApi[0].get(), remoteBaseNode1.get(), false, false, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && !sync->isEnabled());
     ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
@@ -5540,12 +5556,12 @@ TEST_F(SdkTest, SyncBasicOperations)
 
     LOG_verbose << "SyncRemoveRemoteNode :  Disable disabled syncs";
     ASSERT_EQ(MegaError::API_OK, synchronousDisableSync(0, sync.get())); // Currently disabled.
-    ASSERT_EQ(MegaError::API_OK, synchronousDisableSync(0, syncTag)); // Currently disabled.
+    ASSERT_EQ(MegaError::API_OK, synchronousDisableSync(0, backupId)); // Currently disabled.
     ASSERT_EQ(MegaError::API_OK, synchronousDisableSync(0, remoteBaseNode1.get())); // Currently disabled.
 
     LOG_verbose << "SyncRemoveRemoteNode :  Enable Syncs";
     // Sync 1
-    ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, syncTag));
+    ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, backupId));
     ASSERT_EQ(MegaSync::NO_SYNC_ERROR, mApi[0].lastSyncError);
     sync = waitForSyncState(megaApi[0].get(), remoteBaseNode1.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
@@ -5567,7 +5583,7 @@ TEST_F(SdkTest, SyncBasicOperations)
 
     LOG_verbose << "SyncRemoveRemoteNode :  Remove Syncs";
     // Sync 1
-    ASSERT_EQ(MegaError::API_OK, synchronousRemoveSync(0, syncTag)) << "API Error removing the sync";
+    ASSERT_EQ(MegaError::API_OK, synchronousRemoveSync(0, backupId)) << "API Error removing the sync";
     sync.reset(megaApi[0]->getSyncByNode(remoteBaseNode1.get()));
     ASSERT_EQ(nullptr, sync.get());
     // Sync 2
@@ -5579,7 +5595,7 @@ TEST_F(SdkTest, SyncBasicOperations)
         TestingWithLogErrorAllowanceGuard g;
 
         ASSERT_EQ(MegaError::API_ENOENT, synchronousRemoveSync(0, 9999999)); // Hope id doesn't exist
-        ASSERT_EQ(MegaError::API_ENOENT, synchronousRemoveSync(0, syncTag)); // currently removed.
+        ASSERT_EQ(MegaError::API_ENOENT, synchronousRemoveSync(0, backupId)); // currently removed.
         ASSERT_EQ(MegaError::API_EARGS, synchronousRemoveSync(0, sync.get())); // currently removed.
         // Wait for sync to be effectively removed.
         std::this_thread::sleep_for(std::chrono::seconds{5});
@@ -5590,10 +5606,150 @@ TEST_F(SdkTest, SyncBasicOperations)
 }
 
 
+
+struct SyncListener : MegaListener
+{
+    // make sure callbacks are consistent - added() first, nothing after deleted(), etc.
+
+    // map by tag for now, should be backupId when that is available
+
+    enum syncstate_t { nonexistent, added, enabled, disabled, deleted};
+
+    std::map<handle, syncstate_t> stateMap;
+
+    syncstate_t& state(MegaSync* sync)
+    {
+        if (stateMap.find(sync->getBackupId()) == stateMap.end())
+        {
+            stateMap[sync->getBackupId()] = nonexistent;
+        }
+        return stateMap[sync->getBackupId()];
+    }
+
+    std::vector<std::string> mErrors;
+
+    bool anyErrors = false;
+
+    bool hasAnyErrors()
+    {
+        for (auto &s: mErrors)
+        {
+            out() << logTime() << "SyncListener error: " << s << endl;
+        }
+        return anyErrors;
+    }
+
+    void check(bool b, std::string e = std::string())
+    {
+        if (!b)
+        {
+            anyErrors = true;
+            if (!e.empty())
+            {
+                mErrors.push_back(e);
+                out() << logTime() << "SyncListener added error: " << e << endl;
+            }
+        }
+    }
+
+    void clear()
+    {
+        // session was logged out (locally)
+        stateMap.clear();
+    }
+
+    void onSyncFileStateChanged(MegaApi* api, MegaSync* sync, std::string* localPath, int newState) override
+    {
+        // probably too frequent to output
+        //out() << logTime() << "onSyncFileStateChanged " << sync << newState << endl;
+    }
+
+    void onSyncEvent(MegaApi* api, MegaSync* sync, MegaSyncEvent* event) override
+    {
+        out() << logTime() << "onSyncEvent " << toHandle(sync->getBackupId()) << endl;
+    }
+
+    void onSyncAdded(MegaApi* api, MegaSync* sync, int additionState) override
+    {
+        out() << logTime() << "onSyncAdded " << toHandle(sync->getBackupId()) << endl;
+        check(sync->getBackupId() != UNDEF, "sync added with undef backup Id");
+
+        check(state(sync) == nonexistent);
+        state(sync) = added;
+    }
+
+    void onSyncDisabled(MegaApi* api, MegaSync* sync) override
+    {
+        out() << logTime() << "onSyncDisabled " << toHandle(sync->getBackupId()) << endl;
+        check(!sync->isEnabled(), "sync enabled at onSyncDisabled");
+        check(!sync->isActive(), "sync active at onSyncDisabled");
+        check(state(sync) == enabled || state(sync) == added);
+        state(sync) = disabled;
+    }
+
+    // "onSyncStarted" would be more accurate?
+    void onSyncEnabled(MegaApi* api, MegaSync* sync) override
+    {
+        out() << logTime() << "onSyncEnabled " << toHandle(sync->getBackupId()) << endl;
+        check(sync->isEnabled(), "sync disabled at onSyncEnabled");
+        check(sync->isActive(), "sync not active at onSyncEnabled");
+        check(state(sync) == disabled || state(sync) == added);
+        state(sync) = enabled;
+    }
+
+    void onSyncDeleted(MegaApi* api, MegaSync* sync) override
+    {
+        out() << logTime() << "onSyncDeleted " << toHandle(sync->getBackupId()) << endl;
+        check(state(sync) == disabled || state(sync) == added || state(sync) == enabled);
+        state(sync) = nonexistent;
+    }
+
+    void onSyncStateChanged(MegaApi* api, MegaSync* sync) override
+    {
+        out() << logTime() << "onSyncStateChanged " << toHandle(sync->getBackupId()) << endl;
+
+        check(sync->getBackupId() != UNDEF, "onSyncStateChanged with undef backup Id");
+
+        // MegaApi doco says: "Notice that adding a sync will not cause onSyncStateChanged to be called."
+        // And also: "for changes that imply other callbacks, expect that the SDK
+        // will call onSyncStateChanged first, so that you can update your model only using this one."
+        check(state(sync) != nonexistent);
+    }
+
+    void onGlobalSyncStateChanged(MegaApi* api) override
+    {
+        out() << logTime() << "onGlobalSyncStateChanged " << endl;
+    }
+};
+
+struct MegaListenerDeregisterer
+{
+    // register the listener on constructions
+    // deregister on destruction (ie, whenever we exit the function - we may exit early if a test fails
+
+    MegaApi* api = nullptr;
+    MegaListener* listener;
+
+
+    MegaListenerDeregisterer(MegaApi* a, SyncListener* l)
+        : api(a), listener(l)
+    {
+        api->addListener(listener);
+    }
+    ~MegaListenerDeregisterer()
+    {
+        api->removeListener(listener);
+    }
+};
+
+
 TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 {
     LOG_info << "___TEST SyncResumptionAfterFetchNodes___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    SyncListener syncListener0, syncListener1;
+    MegaListenerDeregisterer mld1(megaApi[0].get(), &syncListener0), mld2(megaApi[1].get(), &syncListener1);
 
     // This test has several issues:
     // 1. Remote nodes may not be committed to the sctable database in time for fetchnodes which
@@ -5649,14 +5805,14 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         return std::unique_ptr<MegaNode>{megaApi[0]->getNodeByPath(path.c_str())};
     };
 
-    auto syncFolder = [this, &megaNode](const fs::path& p) -> int
+    auto syncFolder = [this, &megaNode](const fs::path& p) -> handle
     {
         RequestTracker syncTracker(megaApi[0].get());
         auto node = megaNode(p.filename().u8string());
         megaApi[0]->syncFolder(p.u8string().c_str(), node.get(), &syncTracker);
         EXPECT_EQ(API_OK, syncTracker.waitForResult());
 
-        return syncTracker.request->getTransferTag();
+        return syncTracker.request->getParentHandle();
     };
 
     auto disableSync = [this, &megaNode](const fs::path& p)
@@ -5667,17 +5823,17 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
     };
 
-    auto disableSyncByTag = [this](int tag)
+    auto disableSyncByBackupId = [this](handle backupId)
     {
         RequestTracker syncTracker(megaApi[0].get());
-        megaApi[0]->disableSync(tag, &syncTracker);
+        megaApi[0]->disableSync(backupId, &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
     };
 
-    auto resumeSync = [this](int tag)
+    auto resumeSync = [this](handle backupId)
     {
         RequestTracker syncTracker(megaApi[0].get());
-        megaApi[0]->enableSync(tag, &syncTracker);
+        megaApi[0]->enableSync(backupId, &syncTracker);
         ASSERT_EQ(API_OK, syncTracker.waitForResult());
     };
 
@@ -5693,8 +5849,20 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     {
         auto node = megaNode(p.filename().u8string());
         //return std::unique_ptr<MegaSync>{megaApi[0]->getSyncByNode(node.get())} != nullptr; //disabled syncs are not OK but foundable
+
+        LOG_verbose << "checkSyncOK " << p.filename().u8string() << " node found: " << bool(node);
+
         std::unique_ptr<MegaSync> sync{megaApi[0]->getSyncByNode(node.get())};
+
+        LOG_verbose << "checkSyncOK " << p.filename().u8string() << " sync found: " << bool(sync);
+
         if (!sync) return false;
+
+        LOG_verbose << "checkSyncOK " << p.filename().u8string() << " sync is: " << sync->getLocalFolder();
+
+
+        LOG_verbose << "checkSyncOK " << p.filename().u8string() << " enabled: " << sync->isEnabled();
+
         return sync->isEnabled();
 
     };
@@ -5708,9 +5876,10 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     };
 
 
-    auto reloginViaSession = [this, &session]()
+    auto reloginViaSession = [this, &session, &syncListener0]()
     {
-        locallogout();
+        locallogout();  // only logs out 0
+        syncListener0.clear();
 
         //loginBySessionId(0, session);
         auto tracker = asyncRequestFastLogin(0, session.c_str());
@@ -5719,10 +5888,10 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     LOG_verbose << " SyncResumptionAfterFetchNodes : syncying folders";
 
-    int tag1 = syncFolder(sync1Path);  (void)tag1;
-    int tag2 = syncFolder(sync2Path);
-    int tag3 = syncFolder(sync3Path);  (void)tag3;
-    int tag4 = syncFolder(sync4Path);  (void)tag4;
+    handle backupId1 = syncFolder(sync1Path);  (void)backupId1;
+    handle backupId2 = syncFolder(sync2Path);
+    handle backupId3 = syncFolder(sync3Path);  (void)backupId3;
+    handle backupId4 = syncFolder(sync4Path);  (void)backupId4;
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_TRUE(checkSyncOK(sync2Path));
@@ -5732,7 +5901,7 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
     LOG_verbose << " SyncResumptionAfterFetchNodes : disabling sync by path";
     disableSync(sync2Path);
     LOG_verbose << " SyncResumptionAfterFetchNodes : disabling sync by tag";
-    disableSyncByTag(tag4);
+    disableSyncByBackupId(backupId4);
     LOG_verbose << " SyncResumptionAfterFetchNodes : removing sync";
     removeSync(sync3Path);
 
@@ -5762,8 +5931,8 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     // check if we can still resume manually
     LOG_verbose << " SyncResumptionAfterFetchNodes : resuming syncs";
-    resumeSync(tag2);
-    resumeSync(tag4);
+    resumeSync(backupId2);
+    resumeSync(backupId4);
 
     ASSERT_TRUE(checkSyncOK(sync1Path));
     ASSERT_TRUE(checkSyncOK(sync2Path));
@@ -5792,6 +5961,9 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     // wait for the sync removals to actually take place
     std::this_thread::sleep_for(std::chrono::seconds{5});
+
+    ASSERT_FALSE(syncListener0.hasAnyErrors());
+    ASSERT_FALSE(syncListener1.hasAnyErrors());
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
 }
@@ -5833,7 +6005,7 @@ TEST_F(SdkTest, SyncRemoteNode)
     ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, localPath.u8string().c_str(), remoteBaseNode.get())) << "API Error adding a new sync";
     std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
-    int tagID = sync->getTag();
+    handle backupId = sync->getBackupId();
 
     {
         TestingWithLogErrorAllowanceGuard g;
@@ -5842,20 +6014,20 @@ TEST_F(SdkTest, SyncRemoteNode)
         LOG_verbose << "SyncRemoteNode :  Rename remote node with sync active.";
         std::string basePathRenamed = "SyncRemoteNodeRenamed";
         ASSERT_TRUE(doRenameNode(0, remoteBaseNode.get(), basePathRenamed.c_str()));
-        sync = waitForSyncState(megaApi[0].get(), tagID, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
+        sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
         ASSERT_EQ(MegaSync::REMOTE_PATH_HAS_CHANGED, sync->getError());
 
         LOG_verbose << "SyncRemoteNode :  Restoring remote folder name.";
         ASSERT_TRUE(doRenameNode(0, remoteBaseNode.get(), basePath.u8string().c_str()));
         ASSERT_NE(remoteBaseNode.get(), nullptr);
-        sync = waitForSyncState(megaApi[0].get(), tagID, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
+        sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
         ASSERT_EQ(MegaSync::REMOTE_PATH_HAS_CHANGED, sync->getError());
     }
 
     LOG_verbose << "SyncRemoteNode :  Enabling sync again.";
-    ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, tagID)) << "API Error enabling the sync";
+    ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, backupId)) << "API Error enabling the sync";
     sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
     ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
@@ -5872,49 +6044,82 @@ TEST_F(SdkTest, SyncRemoteNode)
         TestingWithLogErrorAllowanceGuard g;
         LOG_verbose << "SyncRemoteNode :  Move remote node with sync active to the secondary folder.";
         ASSERT_TRUE(doMoveNode(0, remoteBaseNode.get(), remoteMoveNodeParent.get()));
-        sync = waitForSyncState(megaApi[0].get(), tagID, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
+        sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
         ASSERT_EQ(MegaSync::REMOTE_PATH_HAS_CHANGED, sync->getError());
 
         LOG_verbose << "SyncRemoteNode :  Moving back the remote node.";
         ASSERT_TRUE(doMoveNode(0, remoteBaseNode.get(), remoteRootNode.get()));
         ASSERT_NE(remoteBaseNode.get(), nullptr);
-        sync = waitForSyncState(megaApi[0].get(), tagID, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
+        sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
         ASSERT_EQ(MegaSync::REMOTE_PATH_HAS_CHANGED, sync->getError());
     }
 
 
     LOG_verbose << "SyncRemoteNode :  Enabling sync again.";
-    ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, tagID)) << "API Error enabling the sync";
+    ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, backupId)) << "API Error enabling the sync";
     sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
     ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
 
-// TODO: fixes needed - question posted in slack
-    //{
-    //    TestingWithLogErrorAllowanceGuard g;
-    //    // Remove remote folder --> Sync fail
-    //    LOG_verbose << "SyncRemoteNode :  Removing remote node with sync active.";
-    //    ASSERT_EQ(API_OK, doDeleteNode(0, remoteBaseNode.get()));
-    //    sync = waitForSyncState(megaApi[0].get(), tagID, MegaSync::SYNC_FAILED);
-    //    ASSERT_TRUE(sync && sync->getState() == MegaSync::SYNC_FAILED);
-    //    ASSERT_EQ(MegaSync::REMOTE_ROOT_NODE_DELETED, sync->getError());
 
-    //    LOG_verbose << "SyncRemoteNode :  Recreating remote folder.";
-    //    ASSERT_NO_FATAL_FAILURE(createFolder(0, basePath.u8string().c_str(), remoteRootNode.get())) << "Error creating remote basePath";
-    //    remoteBaseNode.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
-    //    ASSERT_NE(remoteBaseNode.get(), nullptr);
-    //    sync = waitForSyncState(megaApi[0].get(), tagID, MegaSync::SYNC_FAILED);
-    //    ASSERT_TRUE(sync && sync->getState() == MegaSync::SYNC_FAILED);
+    // Rename remote folder --> Sync fail
+    {
+        TestingWithLogErrorAllowanceGuard g;
+        LOG_verbose << "SyncRemoteNode :  Rename remote node.";
+        std::string renamedBasePath = basePath.u8string() + "Renamed";
+        ASSERT_NO_FATAL_FAILURE(renameNode(0, remoteBaseNode.get(), renamedBasePath));
+        sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
+        ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
+        ASSERT_EQ(MegaSync::REMOTE_PATH_HAS_CHANGED, sync->getError());
 
-    //    ASSERT_EQ(MegaSync::REMOTE_NODE_NOT_FOUND, sync->getError());  // not found is correct: a different node is at the same path
-    //}
+        LOG_verbose << "SyncRemoteNode :  Renaming back the remote node.";
+        ASSERT_NO_FATAL_FAILURE(renameNode(0, remoteBaseNode.get(), basePath.u8string()));
+        ASSERT_NE(remoteBaseNode.get(), nullptr);
+        sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
+        ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
 
-    //LOG_verbose << "SyncRemoteNode :  Enabling sync again.";
-    //ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, tagID)) << "API Error enabling the sync";
-    //sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), MegaSync::SYNC_ACTIVE);
-    //ASSERT_TRUE(sync && sync->getState() == MegaSync::SYNC_ACTIVE);
+        unique_ptr<char[]> pathFromNode{ megaApi[0]->getNodePath(remoteBaseNode.get()) };
+        string actualPath{ pathFromNode.get() };
+        string pathFromSync(sync->getLastKnownMegaFolder());
+        ASSERT_EQ(actualPath, pathFromSync) << "Wrong updated path";
+
+        ASSERT_EQ(MegaSync::REMOTE_PATH_HAS_CHANGED, sync->getError()); //the error stays until re-enabled
+    }
+
+    LOG_verbose << "SyncRemoteNode :  Enabling sync again.";
+    ASSERT_EQ(MegaError::API_OK, synchronousEnableSync(0, backupId)) << "API Error enabling the sync";
+    sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
+    ASSERT_TRUE(sync && sync->isActive());
+    ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
+
+
+    {
+        TestingWithLogErrorAllowanceGuard g;
+        // Remove remote folder --> Sync fail
+        LOG_verbose << "SyncRemoteNode :  Removing remote node with sync active.";
+        ASSERT_NO_FATAL_FAILURE(deleteNode(0, remoteBaseNode.get()));                                //  <--- remote node deleted!!
+        sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_DELETED);
+        ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
+        ASSERT_EQ(MegaSync::REMOTE_NODE_NOT_FOUND, sync->getError());
+
+        LOG_verbose << "SyncRemoteNode :  Recreating remote folder.";
+        ASSERT_NO_FATAL_FAILURE(createFolder(0, basePath.u8string().c_str(), remoteRootNode.get())) << "Error creating remote basePath";
+        remoteBaseNode.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
+        ASSERT_NE(remoteBaseNode.get(), nullptr);
+        sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_DELETED);
+        ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
+        ASSERT_EQ(MegaSync::REMOTE_NODE_NOT_FOUND, sync->getError());
+    }
+
+    {
+        TestingWithLogErrorAllowanceGuard g;
+        LOG_verbose << "SyncRemoteNode :  Enabling sync again.";
+        ASSERT_EQ(MegaError::API_ENOENT, synchronousEnableSync(0, backupId)) << "API Error enabling the sync";  //  <--- remote node has been deleted, we should not be able to resume!!
+    }
+    //sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
+    //ASSERT_TRUE(sync && sync->isActive());
     //ASSERT_EQ(MegaSync::NO_SYNC_ERROR, sync->getError());
 
     //{
@@ -5936,13 +6141,13 @@ TEST_F(SdkTest, SyncRemoteNode)
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
     // since the node was deleted, path is irrelevant
-    //sync.reset(megaApi[0]->getSyncByTag(tagID));
-    //ASSERT_EQ(string(sync->getMegaFolder()), ("/" / basePath).u8string());
+    //sync.reset(megaApi[0]->getSyncByBackupId(tagID));
+    //ASSERT_EQ(string(sync->getLastKnownMegaFolder()), ("/" / basePath).u8string());
 
     // Remove a failing sync.
     LOG_verbose << "SyncRemoteNode :  Remove failed sync";
     ASSERT_EQ(MegaError::API_OK, synchronousRemoveSync(0, sync.get())) << "API Error removing the sync";
-    sync.reset(megaApi[0]->getSyncByTag(tagID));
+    sync.reset(megaApi[0]->getSyncByBackupId(backupId));
     ASSERT_EQ(nullptr, sync.get());
 
     // Wait for sync to be effectively removed.
@@ -5989,8 +6194,8 @@ TEST_F(SdkTest, SyncPersistence)
     ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, localPath.u8string().c_str(), remoteBaseNode.get())) << "API Error adding a new sync";
     std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
-    int tagID = sync->getTag();
-    std::string remoteFolder(sync->getMegaFolder());
+    handle backupId = sync->getBackupId();
+    std::string remoteFolder(sync->getLastKnownMegaFolder());
 
     // Check if a locallogout keeps the sync configured.
     std::string session = dumpSession();
@@ -5998,27 +6203,25 @@ TEST_F(SdkTest, SyncPersistence)
     auto trackerFastLogin = asyncRequestFastLogin(0, session.c_str());
     ASSERT_EQ(API_OK, trackerFastLogin->waitForResult()) << " Failed to establish a login/session for accout " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
-    sync = waitForSyncState(megaApi[0].get(), tagID, true, true, MegaSync::NO_SYNC_ERROR);
+    sync = waitForSyncState(megaApi[0].get(), backupId, true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
-    ASSERT_EQ(remoteFolder, string(sync->getMegaFolder()));
+    ASSERT_EQ(remoteFolder, string(sync->getLastKnownMegaFolder()));
 
-    // Check if a logout with setKeepSyncsAfterLogout(true) keeps the sync configured.
-    megaApi[0]->setKeepSyncsAfterLogout(true);
-    ASSERT_NO_FATAL_FAILURE(logout(0));
+    // Check if a logout with keepSyncsAfterLogout keeps the sync configured.
+    ASSERT_NO_FATAL_FAILURE(logout(0, true, maxTimeout));
     auto trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
     ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for accout " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
-    sync = waitForSyncState(megaApi[0].get(), tagID, true, true, MegaSync::NO_SYNC_ERROR);
-    ASSERT_TRUE(sync && sync->isActive());
-    ASSERT_EQ(remoteFolder, string(sync->getMegaFolder()));
+    sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::LOGGED_OUT);
+    ASSERT_TRUE(sync && !sync->isActive());
+    ASSERT_EQ(remoteFolder, string(sync->getLastKnownMegaFolder()));
 
-    // Check if a logout with setKeepSyncsAfterLogout(false) doesn't keep the sync configured.
-    megaApi[0]->setKeepSyncsAfterLogout(false);
-    ASSERT_NO_FATAL_FAILURE(logout(0));
+    // Check if a logout without keepSyncsAfterLogout doesn't keep the sync configured.
+    ASSERT_NO_FATAL_FAILURE(logout(0, false, maxTimeout));
     trackerLogin = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
     ASSERT_EQ(API_OK, trackerLogin->waitForResult()) << " Failed to establish a login/session for accout " << 0;
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
-    sync.reset(megaApi[0]->getSyncByTag(tagID));
+    sync.reset(megaApi[0]->getSyncByBackupId(backupId));
     ASSERT_EQ(sync, nullptr);
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
@@ -6099,11 +6302,11 @@ TEST_F(SdkTest, SyncPaths)
         ASSERT_NO_FATAL_FAILURE(createFolder(0, "symlink_1A", remoteRootNode.get())) << "Error creating remote basePath";
         remoteNodeSym.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
         ASSERT_NE(remoteNodeSym.get(), nullptr);
-        ASSERT_EQ(MegaError::API_EFAILED, synchronousSyncFolder(0, (fs::current_path() / "symlink_1A").u8string().c_str(), remoteNodeSym.get())) << "API Error adding a new sync";
+        ASSERT_EQ(MegaError::API_EARGS, synchronousSyncFolder(0, (fs::current_path() / "symlink_1A").u8string().c_str(), remoteNodeSym.get())) << "API Error adding a new sync";
         ASSERT_EQ(MegaSync::LOCAL_PATH_SYNC_COLLISION, mApi[0].lastSyncError);
     }
     // Disable the first one, create again the one with the symlink, check that it is working and check if the first fails when enabled.
-    int tagID = sync->getTag();
+    auto tagID = sync->getBackupId();
     ASSERT_EQ(MegaError::API_OK, synchronousDisableSync(0, tagID)) << "API Error disabling sync";
     sync = waitForSyncState(megaApi[0].get(), tagID, false, false, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && !sync->isEnabled());
@@ -6127,7 +6330,7 @@ TEST_F(SdkTest, SyncPaths)
     {
         TestingWithLogErrorAllowanceGuard g;
 
-        ASSERT_EQ(MegaError::API_EFAILED, synchronousEnableSync(0, tagID)) << "API Error enabling a sync";
+        ASSERT_EQ(MegaError::API_EARGS, synchronousEnableSync(0, tagID)) << "API Error enabling a sync";
         ASSERT_EQ(MegaSync::LOCAL_PATH_SYNC_COLLISION, mApi[0].lastSyncError);
     }
 
@@ -6181,7 +6384,7 @@ TEST_F(SdkTest, SyncOQTransitions)
     ASSERT_EQ(MegaError::API_OK, synchronousSyncFolder(0, localPath.u8string().c_str(), remoteBaseNode.get())) << "API Error adding a new sync";
     std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[0].get(), remoteBaseNode.get(), true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
-    int tagID = sync->getTag();
+    handle backupId = sync->getBackupId();
 
     LOG_verbose << "SyncOQTransitions :  Filling up storage space";
     ASSERT_NO_FATAL_FAILURE(importPublicLink(0, "https://mega.nz/file/D4AGlbqY#Ak-OW4MP7lhnQxP9nzBU1bOP45xr_7sXnIz8YYqOBUg", remoteFillNode.get()));
@@ -6202,19 +6405,19 @@ TEST_F(SdkTest, SyncOQTransitions)
 
         LOG_verbose << "SyncOQTransitions :  Check that Sync is disabled due to OQ.";
         ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Needed to ensure we know we are in OQ
-        sync = waitForSyncState(megaApi[0].get(), tagID, false, false, MegaSync::STORAGE_OVERQUOTA);
+        sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::STORAGE_OVERQUOTA);
         ASSERT_TRUE(sync && sync->isEnabled() && !sync->isActive());   // for overquota, we don't disable (it will try to start again on app restart), but it's no longer active.
         ASSERT_EQ(MegaSync::STORAGE_OVERQUOTA, sync->getError());
 
         LOG_verbose << "SyncOQTransitions :  Check that Sync could not be enabled while disabled due to OQ.";
-        ASSERT_EQ(MegaError::API_EFAILED, synchronousEnableSync(0,tagID))  << "API Error enabling a sync";
+        ASSERT_EQ(MegaError::API_EFAILED, synchronousEnableSync(0, backupId))  << "API Error enabling a sync";
         ASSERT_EQ(MegaSync::STORAGE_OVERQUOTA, sync->getError());
     }
 
     LOG_verbose << "SyncOQTransitions :  Free up space and check that Sync is active again.";
     ASSERT_EQ(MegaError::API_OK, synchronousRemove(0, last1GBFileNode.get()));
     ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Needed to ensure we know we are not in OQ
-    sync = waitForSyncState(megaApi[0].get(), tagID, true, true, MegaSync::NO_SYNC_ERROR);
+    sync = waitForSyncState(megaApi[0].get(), backupId, true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
 
     LOG_verbose << "SyncOQTransitions :  Share big files folder with another account.";
@@ -6249,7 +6452,7 @@ TEST_F(SdkTest, SyncOQTransitions)
         ASSERT_NO_FATAL_FAILURE(resumeSession(session.c_str()));
         ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
         ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Needed to ensure we know we are in OQ
-        sync = waitForSyncState(megaApi[0].get(), tagID, false, false, MegaSync::STORAGE_OVERQUOTA);
+        sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::STORAGE_OVERQUOTA);
         ASSERT_TRUE(sync && sync->isEnabled());
         ASSERT_EQ(MegaSync::STORAGE_OVERQUOTA, sync->getError());
     }
@@ -6263,12 +6466,139 @@ TEST_F(SdkTest, SyncOQTransitions)
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.c_str()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
     ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Needed to ensure we know we are no longer in OQ
-    sync = waitForSyncState(megaApi[0].get(), tagID, true, true, MegaSync::NO_SYNC_ERROR);
+    sync = waitForSyncState(megaApi[0].get(), backupId, true, true, MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->isActive());
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), fillPath));
+}
 
+/**
+ * @brief TEST_F StressTestSDKInstancesOverWritableFolders
+ *
+ * Testing multiple SDK instances working in parallel
+ */
+TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFolders)
+{
+    // What we are going to test here:
+    // - Creating multiple writable folders
+    // - Login and fetch nodes in separated MegaApi instances
+    //   and hence in multiple SDK instances running in parallel.
+
+    LOG_info << "___TEST StressTestSDKInstancesOverWritableFolders___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::string baseFolder = "StressTestSDKInstancesOverWritableFoldersFolder";
+
+    int numFolders = 90;
+
+    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), baseFolder));
+
+    LOG_verbose << "StressTestSDKInstancesOverWritableFolders :  Creating remote folder";
+    std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
+    ASSERT_NE(remoteRootNode.get(), nullptr);
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, baseFolder.c_str(), remoteRootNode.get())) << "Error creating remote basePath";
+    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(mApi[0].h));
+    ASSERT_NE(remoteBaseNode.get(), nullptr);
+
+    // create subfolders ...
+    for (int index = 0 ; index < numFolders; index++ )
+    {
+        string subFolderPath = string("subfolder_").append(SSTR(index));
+        ASSERT_NO_FATAL_FAILURE(createFolder(0, subFolderPath.c_str(), remoteBaseNode.get())) << "Error creating remote subfolder";
+        std::unique_ptr<MegaNode> remoteSubFolderNode(megaApi[0]->getNodeByHandle(mApi[0].h));
+        ASSERT_NE(remoteSubFolderNode.get(), nullptr);
+
+        // ... with a file in it
+        string filename1 = UPFILE;
+        createFile(filename1, false);
+        ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, filename1.data(), remoteSubFolderNode.get())) << "Cannot upload a test file";
+    }
+
+    auto howMany = numFolders;
+
+    std::vector<std::unique_ptr<RequestTracker>> trackers;
+    trackers.resize(howMany);
+
+    std::vector<std::unique_ptr<MegaApi>> exportedFolderApis;
+    exportedFolderApis.resize(howMany);
+
+    std::vector<std::string> exportedLinks;
+    exportedLinks.resize(howMany);
+
+    std::vector<std::string> authKeys;
+    authKeys.resize(howMany);
+
+    // export subfolders
+    for (int index = 0 ; index < howMany; index++ )
+    {
+        string subFolderPath = string("subfolder_").append(SSTR(index));
+        std::unique_ptr<MegaNode> remoteSubFolderNode(megaApi[0]->getNodeByPath(subFolderPath.c_str(), remoteBaseNode.get()));
+        ASSERT_NE(remoteSubFolderNode.get(), nullptr);
+
+        // ___ get a link to the file node
+        ASSERT_NO_FATAL_FAILURE(createPublicLink(0, remoteSubFolderNode.get(), 0, 0, false/*mApi[0].accountDetails->getProLevel() == 0)*/, true/*writable*/));
+        // The created link is stored in this->link at onRequestFinish()
+        string nodelink = this->link;
+        LOG_verbose << "StressTestSDKInstancesOverWritableFolders : " << subFolderPath << " link = " << nodelink;
+
+        exportedLinks[index] = nodelink;
+
+        std::unique_ptr<MegaNode> nexported(megaApi[0]->getNodeByHandle(mApi[0].h));
+        ASSERT_NE(nexported.get(), nullptr);
+
+        if (nexported)
+        {
+            if (nexported->getWritableLinkAuthKey())
+            {
+                string authKey(nexported->getWritableLinkAuthKey());
+                ASSERT_FALSE(authKey.empty());
+                authKeys[index] = authKey;
+            }
+        }
+    }
+
+    // create apis to exported folders
+    for (int index = 0 ; index < howMany; index++ )
+    {
+        exportedFolderApis[index].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(index + 10 /*so as not to clash with megaApi[0]*/).c_str(),
+                                                    USER_AGENT.c_str(), int(0), unsigned(THREADS_PER_MEGACLIENT)));
+        // reduce log level to something beareable
+        exportedFolderApis[index]->setLogLevel(MegaApi::LOG_LEVEL_WARNING);
+    }
+
+    // login to exported folders
+    for (int index = 0 ; index < howMany; index++ )
+    {
+        string nodelink = exportedLinks[index];
+        string authKey = authKeys[index];
+
+        out() << logTime() << "login to exported folder " << index << endl;
+        trackers[index] = asyncRequestLoginToFolder(exportedFolderApis[index].get(), nodelink.c_str(), authKey.c_str());
+    }
+
+    // wait for login to complete:
+    for (int index = 0; index < howMany; ++index)
+    {
+        ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to fetchnodes for accout " << index;
+    }
+
+    // perform parallel fetchnodes for each
+    for (int index = 0; index < howMany; ++index)
+    {
+        out() << logTime() << "Fetching nodes for account " << index << endl;
+        trackers[index] = asyncRequestFetchnodes(exportedFolderApis[index].get());
+    }
+
+    // wait for fetchnodes to complete:
+    for (int index = 0; index < howMany; ++index)
+    {
+        ASSERT_EQ(API_OK, trackers[index]->waitForResult()) << " Failed to fetchnodes for accout " << index;
+    }
+
+    // In case the last test exited without cleaning up (eg, debugging etc)
+    out() << logTime() << "Cleaning up account 0" << endl;
+    Cleanup();
 }
 
 #endif

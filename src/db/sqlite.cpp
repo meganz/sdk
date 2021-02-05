@@ -165,6 +165,11 @@ bool SqliteDbAccess::probe(FileSystemAccess& fsAccess, const string& name) const
     return fileAccess->isfile(dbPath);
 }
 
+const LocalPath& SqliteDbAccess::rootPath() const
+{
+    return mRootPath;
+}
+
 SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* db, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted)
   : DbTable(rng, checkAlwaysTransacted)
   , db(db)
