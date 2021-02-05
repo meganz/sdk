@@ -1511,7 +1511,7 @@ bool MegaApiImpl::conflictsDetected(const char* *outParentName,
             *outParentPath = MegaApi::strdup(c.cloudPath.c_str());
             string_vector v;
             for (auto& n : c.clashingCloudNames) v.push_back(n);
-            *outNames = new MegaStringListPrivate(v);
+            *outNames = new MegaStringListPrivate(move(v));
             *outRemote = true;
         }
         if (!c.localPath.empty() && !c.clashingLocalNames.empty())
@@ -1520,7 +1520,7 @@ bool MegaApiImpl::conflictsDetected(const char* *outParentName,
             *outParentPath = MegaApi::strdup(c.localPath.toPath(*fsAccess).c_str());
             string_vector v;
             for (auto& n : c.clashingLocalNames) v.push_back(n.toPath(*fsAccess));
-            *outNames = new MegaStringListPrivate(v);
+            *outNames = new MegaStringListPrivate(move(v));
             *outRemote = false;
         }
     }
@@ -24384,7 +24384,7 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr, MegaCl
     else
     {
         //using leaf name of localpath as name:
-        setName(config.getLocalPath().leafName().toName(*client->fsaccess, syncPtr->mFilesystemType).c_str());
+        setName(config.getLocalPath().leafName().toName(*client->fsaccess).c_str());
     }
     this->lastKnownMegaFolder = NULL;
     this->fingerprint = 0;

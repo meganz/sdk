@@ -6069,13 +6069,13 @@ TEST_F(SdkTest, SyncRemoteNode)
         TestingWithLogErrorAllowanceGuard g;
         LOG_verbose << "SyncRemoteNode :  Rename remote node.";
         std::string renamedBasePath = basePath.u8string() + "Renamed";
-        ASSERT_NO_FATAL_FAILURE(renameNode(0, remoteBaseNode.get(), renamedBasePath));
+        ASSERT_TRUE(doRenameNode(0, remoteBaseNode.get(), renamedBasePath.c_str()));
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
         ASSERT_EQ(MegaSync::REMOTE_PATH_HAS_CHANGED, sync->getError());
 
         LOG_verbose << "SyncRemoteNode :  Renaming back the remote node.";
-        ASSERT_NO_FATAL_FAILURE(renameNode(0, remoteBaseNode.get(), basePath.u8string()));
+        ASSERT_TRUE(doRenameNode(0, remoteBaseNode.get(), basePath.u8string().c_str()));
         ASSERT_NE(remoteBaseNode.get(), nullptr);
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
@@ -6099,7 +6099,7 @@ TEST_F(SdkTest, SyncRemoteNode)
         TestingWithLogErrorAllowanceGuard g;
         // Remove remote folder --> Sync fail
         LOG_verbose << "SyncRemoteNode :  Removing remote node with sync active.";
-        ASSERT_NO_FATAL_FAILURE(deleteNode(0, remoteBaseNode.get()));                                //  <--- remote node deleted!!
+        ASSERT_TRUE(doDeleteNode(0, remoteBaseNode.get()));                                //  <--- remote node deleted!!
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_DELETED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
         ASSERT_EQ(MegaSync::REMOTE_NODE_NOT_FOUND, sync->getError());

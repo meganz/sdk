@@ -7428,7 +7428,7 @@ Node* MegaClient::nodebyhandle(handle h) const
     return nullptr;
 }
 
-Node* MegaClient::nodeByHandle(NodeHandle h)
+Node* MegaClient::nodeByHandle(NodeHandle h) const
 {
     if (h.isUndef()) return nullptr;
     return nodebyhandle(h.as8byte());
@@ -11975,7 +11975,7 @@ void MegaClient::fetchnodes(bool nocache)
     // only initial load from local cache
     if ((loggedin() == FULLACCOUNT || loggedIntoFolder() ) &&
             !nodes.size() && !ISUNDEF(cachedscsn) &&
-            sctable.get() && fetchsc(sctable) &&
+            sctable.get() && fetchsc(sctable.get()) &&
             statusTable.get() && fetchStatusTable(statusTable.get()))
     {
         WAIT_CLASS::bumpds();

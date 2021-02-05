@@ -195,16 +195,6 @@ string Node::name() const
     return "";
 }
 
-#ifdef ENABLE_SYNC
-
-//void Node::detach(const bool recreate)
-//{
-//    if (localnode)
-//    {
-//        localnode->detach(recreate);
-//    }
-//}
-
 bool Node::syncable(const LocalNode& parent) const
 {
     // Not syncable if we're deleted.

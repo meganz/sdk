@@ -384,7 +384,6 @@ TEST(Serialization, LocalNode_forFolder_withoutParent_withoutNode)
     ASSERT_EQ(45u, data.size());
 #endif
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
-    dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
     checkDeserializedLocalNode(*dl, l);
 }
 
@@ -407,7 +406,6 @@ TEST(Serialization, LocalNode_forFile_withoutNode)
     ASSERT_EQ(65u, data.size());
 #endif
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
-    dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -429,7 +427,6 @@ TEST(Serialization, LocalNode_forFile_withoutNode_withMaxMtime)
     ASSERT_EQ(69u, data.size());
 #endif
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
-    dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -446,7 +443,6 @@ TEST(Serialization, LocalNode_forFolder_withoutParent)
     ASSERT_EQ(45u, data.size());
 #endif
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
-    dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
     checkDeserializedLocalNode(*dl, l);
 }
 
@@ -468,7 +464,6 @@ TEST(Serialization, LocalNode_forFolder)
     ASSERT_EQ(44u, data.size());
 #endif
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
-    dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
     checkDeserializedLocalNode(*dl, *l);
 }
 

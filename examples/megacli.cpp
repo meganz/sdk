@@ -4481,71 +4481,126 @@ void exec_open(autocomplete::ACState& s)
 }
 #ifdef ENABLE_SYNC
 
+void exec_rescan(autocomplete::ACState& s)
+{
+    bool matched = false;
+    auto backupId = s.words[1].s;
+    client->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
+
+        if (toHandle(us.mConfig.getBackupId()) == backupId)
+        {
+            matched = true;
+
+            // Is the sync disabled?
+            if (!us.mSync)
+            {
+                cout << "Can't rescan sync " << backupId << " as it's not running." << endl;
+                return;
+            }
+
+            // TODO
+            cout << "Needs to be re-implemneted" << endl;
+
+            //// Ask the client to issue a complete rescan of the sync.
+            //if (client->rescan(us.mSync.get()) == API_OK)
+            //{
+            //    cout << "Sync " << backupId << " rescanning." << endl;
+            //}
+            //else
+            //{
+            //    cout << "Error rescanning sync " << backupId << endl;
+            //}
+        }
+    });
+
+    // Have we been passed a valid sync id?
+    if (!matched)
+    {
+        cout << "Invalid sync id: " << backupId << endl;
+        return;
+    }
+
+}
+
 
 void exec_syncpause(autocomplete::ACState& s)
 {
-    auto id = atoi(s.words[1].s.c_str());
 
-    // Valid id?
-    if (id < 0 || id >= client->syncs.size())
+    bool matched = false;
+    auto backupId = s.words[1].s;
+    client->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
+
+        if (toHandle(us.mConfig.getBackupId()) == backupId)
+        {
+            matched = true;
+            if (!us.mSync)
+            {
+                cout << "Sync is not running." << endl;
+            }
+            else if (error e = client->pauseSync(*us.mSync))
+            {
+                cout << "Error encountered while pausing sync "
+                     << backupId
+                     << ": "
+                     << errorstring(e)
+                     << endl;
+                return;
+            }
+            else
+            {
+                cout << "Sync " << backupId << " paused." << endl;
+            }
+        }
+    });
+
+    // Have we been passed a valid sync id?
+    if (!matched)
     {
-        cout << "Invalid sync id: " << id << endl;
+        cout << "Invalid sync id: " << backupId << endl;
         return;
     }
 
-    // Is the sync in a pausable state?
-    auto it = std::next(client->syncs.begin(), id);
-
-    if (!(*it)->active())
-    {
-        cout << "Sync " << id << " isn't in a pausable state." << endl;
-        return;
-    }
-
-    if (error e = client->pauseSync(*(*it)))
-    {
-        cout << "Error encountered while pausing sync "
-             << id
-             << ": "
-             << errorstring(e)
-             << endl;
-        return;
-    }
-
-    cout << "Sync " << id << " paused." << endl;
 }
 
 void exec_syncresume(autocomplete::ACState& s)
 {
-    auto id = atoi(s.words[1].s.c_str());
+    bool matched = false;
+    auto backupId = s.words[1].s;
+    client->syncs.forEachUnifiedSync([&](UnifiedSync& us) {
 
-    // Valid id?
-    if (id < 0 || id >= client->syncs.size())
+        if (toHandle(us.mConfig.getBackupId()) == backupId)
+        {
+            matched = true;
+
+            if (!us.mSync)
+            {
+                cout << "Sync is not running." << endl;
+            }
+            else if (!us.mSync->paused())
+            {
+                cout << "Sync " << backupId << " is not paused." << endl;
+            }
+            else if (error e = client->resumeSync(*us.mSync))
+            {
+                cout << "Error encountered while resuming sync "
+                        << backupId
+                        << ": "
+                        << errorstring(e)
+                        << endl;
+                return;
+            }
+
+            cout << "Sync " << backupId << " resumed." << endl;
+        }
+    });
+
+    // Have we been passed a valid sync id?
+    if (!matched)
     {
-        cout << "Invalid sync id: " << id << endl;
+        cout << "Invalid sync id: " << backupId << endl;
         return;
     }
 
-    // Is the sync in a resumable state?
-    auto it = std::next(client->syncs.begin(), id);
-
-    if (!(*it)->paused())
-    {
-        cout << "Sync " << id << " is not paused." << endl;
-        return;
-    }
-
-    if (error e = client->resumeSync(*(*it)))
-    {
-        cout << "Error encountered while resuming sync "
-             << id
-             << ": "
-             << errorstring(e)
-             << endl;
-        return;
-    }
-
-    cout << "Sync " << id << " resumed." << endl;
 }
 
 #endif
@@ -8104,7 +8159,7 @@ void megacli()
             // display put/get transfer speed in the prompt
             if (client->tslots.size() || responseprogress >= 0)
             {
-                unsigned xferrate[2] = { 0 };
+                m_off_t xferrate[2] = { 0 };
                 Waiter::bumpds();
 
                 for (transferslot_list::iterator it = client->tslots.begin(); it != client->tslots.end(); it++)
@@ -8126,7 +8181,7 @@ void megacli()
 
                     if (xferrate[GET])
                     {
-                        sprintf(dynamicprompt + 6, "In: %u KB/s", xferrate[GET]);
+                        sprintf(dynamicprompt + 6, "In: %lld KB/s", xferrate[GET]);
 
                         if (xferrate[PUT])
                         {
@@ -8136,7 +8191,7 @@ void megacli()
 
                     if (xferrate[PUT])
                     {
-                        sprintf(strchr(dynamicprompt, 0), "Out: %u KB/s", xferrate[PUT]);
+                        sprintf(strchr(dynamicprompt, 0), "Out: %lld KB/s", xferrate[PUT]);
                     }
 
                     if (responseprogress >= 0)
@@ -8155,7 +8210,7 @@ void megacli()
             }
 
 #if defined(WIN32) && defined(NO_READLINE)
-            static_cast<WinConsole*>(console)->updateInputPrompt(!dynamicpromptstr.empty() ? dynamicpromptstr : prompts[COMMAND]);
+            static_cast<WinConsole*>(console)->updateInputPrompt(*dynamicprompt ? dynamicprompt : prompts[COMMAND]);
 #else
             rl_callback_handler_install(!dynamicpromptstr.empty() ? dynamicpromptstr.c_str() : prompts[prompt], store_line);
 
@@ -8636,8 +8691,8 @@ void exec_synclist(autocomplete::ACState& s)
 
               // Display some usage stats.
               cout << "  Statistics: "
-                   << sync->localbytes
-                   << " byte(s) across "
+//                   << sync->localbytes
+//                   << " byte(s) across "
                    << sync->localnodes[FILENODE]
                    << " file(s) and "
                    << sync->localnodes[FOLDERNODE]

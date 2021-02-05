@@ -44,7 +44,6 @@ namespace mega {
 
 // Defined in sync.h.
 class ScanService;
-class SyncConfigBag;
 
 class MEGA_API FetchNodesStats
 {
@@ -527,9 +526,6 @@ public:
     // indicates whether all startup syncs have been fully scanned
     bool allSyncsIdle();
 
-    // A collection of sync configs backed by a database table
-    std::unique_ptr<SyncConfigBag> syncConfigs;
-
     // manage syncdown flags inside the syncs
     void setAllSyncsNeedFullSync();
 
@@ -680,26 +676,26 @@ private:
 
 public:
 
-    /**
-     * @brief
-     * Ask the client to rescan all syncs.
-     *
-     * @return
-     * API_OK if we could issue the scan.
-     */
-    error rescan();
+    ///**
+    // * @brief
+    // * Ask the client to rescan all syncs.
+    // *
+    // * @return
+    // * API_OK if we could issue the scan.
+    // */
+    //error rescan();
 
-    /**
-     * @brief
-     * Ask the client to rescan the specified sync.
-     *
-     * @param sync
-     * The sync that should be rescanned.
-     *
-     * @return
-     * API_OK if we could issue the scan.
-     */
-    error rescan(Sync* sync);
+    ///**
+    // * @brief
+    // * Ask the client to rescan the specified sync.
+    // *
+    // * @param sync
+    // * The sync that should be rescanned.
+    // *
+    // * @return
+    // * API_OK if we could issue the scan.
+    // */
+    //error rescan(Sync* sync);
 
 
     ////// sync config updating & persisting ////
