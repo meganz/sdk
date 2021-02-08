@@ -3424,6 +3424,11 @@ MegaStringList *MegaRequestPrivate::getMegaStringList() const
     return mStringList.get();
 }
 
+MegaHandleList* MegaRequestPrivate::getMegaHandleList() const
+{
+    return mHandleList.get();
+}
+
 #ifdef ENABLE_CHAT
 MegaTextChatPeerList *MegaRequestPrivate::getMegaTextChatPeerList() const
 {
@@ -3545,6 +3550,11 @@ void MegaRequestPrivate::setMegaStringList(MegaStringList* stringList)
     {
        mStringList = unique_ptr<MegaStringList>(stringList->copy());
     }
+}
+
+void MegaRequestPrivate::setMegaHandleList(const vector<handle> &handles)
+{
+    mHandleList.reset(new MegaHandleListPrivate(handles));
 }
 
 
@@ -4080,6 +4090,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_BACKUP_PUT_HEART_BEAT: return "BACKUP_PUT_HEART_BEAT";
         case TYPE_FETCH_GOOGLE_ADS: return "FETCH_GOOGLE_ADS";
         case TYPE_QUERY_GOOGLE_ADS: return "QUERY_GOOGLE_ADS";
+        case TYPE_GET_ATTR_NODE: return "GET_ATTR_NODE";
     }
     return "UNKNOWN";
 }
@@ -6923,6 +6934,24 @@ void MegaApiImpl::setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener
     request->setFlag(true);     // is official attribute or not
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::getFavourites(MegaNode* node, int count, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_ATTR_NODE, listener);
+    if (node)
+    {
+        request->setNodeHandle(node->getHandle());
+    }
+    else
+    {
+        request->setNodeHandle(UNDEF);
+    }
+
+    request->setParamType(MegaApi::NODE_ATTR_FAV);
+    request->setNumDetails(count);
+    requestQueue.push(request);
+    waiter->notify(); 
 }
 
 static void encodeCoordinates(double latitude, double longitude, int& lat, int& lon)
@@ -20538,6 +20567,43 @@ void MegaApiImpl::sendPendingRequests()
 
             break;
         }
+
+        case MegaRequest::TYPE_GET_ATTR_NODE:
+        {
+            int type = request->getParamType();
+
+            if (type == MegaApi::NODE_ATTR_FAV)
+            {
+                int count = request->getNumDetails();
+                MegaHandle folderHandle = request->getNodeHandle();
+                Node *node = nullptr;
+                if (!ISUNDEF(folderHandle))
+                {
+                    node = client->nodebyhandle(folderHandle);
+                    if (!node)
+                    {
+                        e = API_ENOENT;
+                        break;
+                    }
+                    if (node->type != FOLDERNODE)
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+                }
+                else
+                {
+                    node = client->nodebyhandle(client->rootnodes[0]);
+                }
+                FavouriteProcessor processor(count);
+                processTree(node, &processor);
+                request->setMegaHandleList(processor.getHandles());
+                
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
+            }
+            break;
+        }
+
         case MegaRequest::TYPE_CANCEL_ATTR_FILE:
         {
             int type = request->getParamType();
@@ -23410,7 +23476,7 @@ void TreeProcCopy::proc(MegaClient* client, Node* n)
     {
         string attrstring;
         SymmCipher key;
-        assert(nc);
+        assert(nc > 0);
         NewNode* t = &nn[--nc];
 
         // copy node
@@ -32963,7 +33029,6 @@ long long MegaSizeProcessor::getTotalBytes()
     return totalBytes;
 }
 
-
 MegaEventPrivate::MegaEventPrivate(int type)
 {
     this->type = type;
@@ -33063,6 +33128,11 @@ MegaHandleListPrivate::MegaHandleListPrivate()
 MegaHandleListPrivate::MegaHandleListPrivate(const MegaHandleListPrivate *hList)
 {
     mList = hList->mList;
+}
+
+MegaHandleListPrivate::MegaHandleListPrivate(const vector<handle> &handles)
+{
+    mList = handles;
 }
 
 MegaHandleListPrivate::~MegaHandleListPrivate()
@@ -34117,6 +34187,29 @@ void MegaCancelTokenPrivate::cancel(bool newValue)
 bool MegaCancelTokenPrivate::isCancelled() const
 {
     return cancelFlag;
+}
+
+FavouriteProcessor::FavouriteProcessor(int maxCount)
+    : mMaxCount(maxCount)
+{
+
+}
+
+bool FavouriteProcessor::processNode(Node *node)
+{
+    if (node == nullptr) return false;
+
+    auto it = node->attrs.map.find(AttrMap::string2nameid("fav"));
+    if (it != node->attrs.map.end() && (mMaxCount == 0 || handles.size() < mMaxCount))
+    {
+        handles.push_back(node->nodehandle);
+    }
+    return true;
+}
+
+const vector<handle>& FavouriteProcessor::getHandles() const
+{
+    return handles;
 }
 
 }

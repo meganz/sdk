@@ -644,6 +644,13 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_FETCH_GOOGLE_ADS:
         mApi[apiIndex].mStringMap.reset(mApi[apiIndex].lastError == API_OK ? request->getMegaStringMap()->copy() : nullptr);
             break;
+
+    case MegaRequest::TYPE_GET_ATTR_NODE:
+        if (mApi[apiIndex].lastError == API_OK)
+        {
+            mMegaFavNodeList.reset(request->getMegaHandleList()->copy());
+        }
+        break;
     }
 }
 
@@ -4154,25 +4161,7 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
         auto lastOnTranferFinishedCount = onTranferFinishedCount;
         while (t.elapsed() < 180 && onTranferFinishedCount < initialOnTranferFinishedCount + 2)
         {
-            if (onTransferUpdate_progress > lastprogress + onTransferUpdate_filesize/6)
-            {
-                megaApi[0].reset();
-                exitresumecount += 1;
-                WaitMillisec(100);
-
-                megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
-                mApi[0].megaApi = megaApi[0].get();
-                megaApi[0]->addListener(this);
-                megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 30); // should take 30 seconds, not counting exit/resume session
-
-                t.pause();
-                ASSERT_NO_FATAL_FAILURE(resumeSession(sessionId.c_str()));
-                ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
-                t.resume();
-
-                lastprogress = onTransferUpdate_progress;
-            }
-            else if (onTranferFinishedCount > lastOnTranferFinishedCount)
+            if (onTranferFinishedCount > lastOnTranferFinishedCount)
             {
                 t.reset();
                 lastOnTranferFinishedCount = onTranferFinishedCount;
@@ -4182,6 +4171,27 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
                 lastprogress = 0;
                 mApi[0].transferFlags[MegaTransfer::TYPE_DOWNLOAD] = false;
                 megaApi[0]->startDownload(nimported, filename.c_str());
+            }
+            else if (onTransferUpdate_progress > lastprogress + onTransferUpdate_filesize/10 )
+            {
+                if (exitresumecount < 3*(onTranferFinishedCount - initialOnTranferFinishedCount + 1))
+                {
+                    megaApi[0].reset();
+                    exitresumecount += 1;
+                    WaitMillisec(100);
+
+                    megaApi[0].reset(new MegaApi(APP_KEY.c_str(), megaApiCacheFolder(0).c_str(), USER_AGENT.c_str(), unsigned(THREADS_PER_MEGACLIENT)));
+                    mApi[0].megaApi = megaApi[0].get();
+                    megaApi[0]->addListener(this);
+                    megaApi[0]->setMaxDownloadSpeed(32 * 1024 * 1024 * 8 / 30); // should take 30 seconds, not counting exit/resume session
+
+                    t.pause();
+                    ASSERT_NO_FATAL_FAILURE(resumeSession(sessionId.c_str()));
+                    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+                    t.resume();
+
+                    lastprogress = onTransferUpdate_progress;
+                }
             }
             WaitMillisec(1);
         }
@@ -5080,6 +5090,43 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     ASSERT_NE(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
 
     gTestingInvalidArgs = false;
+}
+
+TEST_F(SdkTest, SdkFavouriteNodes)
+{
+    getAccountsForTest(1);
+    LOG_info << "___TEST SDKFavourites___";
+
+    unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
+
+    ASSERT_TRUE(rootnodeA);
+
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, "folder-A", rootnodeA.get()));
+    unique_ptr<MegaNode> folderA(megaApi[0]->getNodeByHandle(mApi[0].h));
+    ASSERT_TRUE(!!folderA);
+
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, "sub-folder-A", folderA.get()));
+    unique_ptr<MegaNode> subFolderA(megaApi[0]->getNodeByHandle(mApi[0].h));
+    ASSERT_TRUE(!!subFolderA);
+
+    string filename1 = UPFILE;
+    createFile(filename1, false);
+
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, filename1.data(), subFolderA.get())) << "Cannot upload a test file";
+    std::unique_ptr<MegaNode> n1(megaApi[0]->getNodeByHandle(mApi[0].h));
+    bool null_pointer = (n1.get() == nullptr);
+    ASSERT_FALSE(null_pointer) << "Cannot initialize test scenario (error: " << mApi[0].lastError << ")";
+
+    auto err = synchronousSetNodeFavourite(0, subFolderA.get(), true);
+    err = synchronousSetNodeFavourite(0, n1.get(), true);
+    
+    err = synchronousGetFavourites(0, subFolderA.get(), 0);
+    ASSERT_EQ(MegaError::API_OK, err) << "synchronousGetFavourites (error: " << err << ")";
+    ASSERT_EQ(mMegaFavNodeList->size(), 2) << "synchronousGetFavourites failed...";
+    err = synchronousGetFavourites(0, nullptr, 1);
+    ASSERT_EQ(mMegaFavNodeList->size(), 1) << "synchronousGetFavourites failed...";
+    unique_ptr<MegaNode> favNode(megaApi[0]->getNodeByHandle(mMegaFavNodeList->get(0)));
+    ASSERT_EQ(favNode->getName(), UPFILE) << "synchronousGetFavourites failed with node passed nullptr";
 }
 
 TEST_F(SdkTest, DISABLED_SdkDeviceNames)

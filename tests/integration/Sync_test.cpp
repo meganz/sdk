@@ -682,6 +682,7 @@ struct StandardClient : public MegaApp
     string client_dbaccess_path;
     std::unique_ptr<HttpIO> httpio;
     std::unique_ptr<FileSystemAccess> fsaccess;
+    std::recursive_mutex clientMutex;
     MegaClient client;
     std::atomic<bool> clientthreadexit{false};
     bool fatalerror = false;
@@ -701,8 +702,8 @@ struct StandardClient : public MegaApp
 
     struct ResultProc
     {
-        MegaClient& client;
-        ResultProc(MegaClient& c) : client(c) {}
+        StandardClient& client;
+        ResultProc(StandardClient& c) : client(c) {}
 
         struct id_callback
         {
@@ -717,22 +718,26 @@ struct StandardClient : public MegaApp
 
         void prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h = UNDEF)
         {
-            lock_guard<recursive_mutex> g(mtx);
-            auto& entry = m[rpe];
-            entry.emplace_back(move(f), tag, h);
+            {
+                lock_guard<recursive_mutex> g(mtx);
+                auto& entry = m[rpe];
+                entry.emplace_back(move(f), tag, h);
+            }
+
+            std::lock_guard<std::recursive_mutex> lg(client.clientMutex);
 
             assert(tag > 0);
-            int oldtag = client.reqtag;
-            client.reqtag = tag;
+            int oldtag = client.client.reqtag;
+            client.client.reqtag = tag;
             requestfunc();
-            client.reqtag = oldtag;
+            client.client.reqtag = oldtag;
 
-            client.waiter->notify();
+            client.client.waiter->notify();
         }
 
         void processresult(resultprocenum rpe, error e, handle h = UNDEF)
         {
-            int tag = client.restag;
+            int tag = client.client.restag;
             if (tag == 0 && rpe != CATCHUP)
             {
                 //out() << "received notification of SDK initiated operation " << rpe << " tag " << tag << endl; // too many of those to output
@@ -817,7 +822,7 @@ struct StandardClient : public MegaApp
                  THREADS_PER_MEGACLIENT)
         , clientname(name)
         , fsBasePath(basepath / fs::u8path(name))
-        , resultproc(client)
+        , resultproc(*this)
         , clientthread([this]() { threadloop(); })
     {
         client.clientname = clientname + " ";
@@ -903,7 +908,20 @@ struct StandardClient : public MegaApp
     {
         while (!clientthreadexit)
         {
-            int r = client.wait();
+            int r;
+
+            {
+                std::lock_guard<std::recursive_mutex> lg(clientMutex);
+                r = client.preparewait();
+            }
+
+            if (!r)
+            {
+                r |= client.dowait();
+            }
+
+            std::lock_guard<std::recursive_mutex> lg(clientMutex);
+            r |= client.checkevents();
 
             {
                 std::lock_guard<mutex> g(functionDoneMutex);
@@ -912,17 +930,17 @@ struct StandardClient : public MegaApp
                     nextfunctionMC();
                     nextfunctionMC = nullptr;
                     functionDone.notify_all();
-                    r = Waiter::NEEDEXEC;
+                    r |= Waiter::NEEDEXEC;
                 }
                 if (nextfunctionSC)
                 {
                     nextfunctionSC();
                     nextfunctionSC = nullptr;
                     functionDone.notify_all();
-                    r = Waiter::NEEDEXEC;
+                    r |= Waiter::NEEDEXEC;
                 }
             }
-            if (r & Waiter::NEEDEXEC)
+            if ((r & Waiter::NEEDEXEC))
             {
                 client.exec();
             }
