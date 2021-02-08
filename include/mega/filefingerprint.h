@@ -63,6 +63,11 @@ struct MEGA_API FileFingerprintCmp
     bool operator()(const FileFingerprint* a, const FileFingerprint* b) const;
 };
 
+struct MEGA_API FileFingerprintTransferCmp
+{
+    bool operator()(const pair<const FileFingerprint*, string>& left, const pair<const FileFingerprint*, string>& right) const;
+};
+
 bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs);
 
 // A light-weight fingerprint only based on size and mtime

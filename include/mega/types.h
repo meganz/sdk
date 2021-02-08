@@ -112,6 +112,7 @@ struct FileAttributeFetch;
 struct FileAttributeFetchChannel;
 struct FileFingerprint;
 struct FileFingerprintCmp;
+struct FileFingerprintTransferCmp;
 struct HttpReq;
 struct GenericHttpReq;
 struct HttpReqCommandPutFA;
@@ -400,7 +401,7 @@ typedef list<struct TransferSlot*> transferslot_list;
 typedef list<HttpReqCommandPutFA*> putfa_list;
 
 // map a FileFingerprint to the transfer for that FileFingerprint
-typedef map<FileFingerprint*, Transfer*, FileFingerprintCmp> transfer_map;
+typedef map<pair<const FileFingerprint*, string>, Transfer*, FileFingerprintTransferCmp> transfer_map;
 
 template <class T, class E>
 class deque_with_lazy_bulk_erase

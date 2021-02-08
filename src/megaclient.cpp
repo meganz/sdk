@@ -14796,7 +14796,11 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
         }
 
         Transfer* t = NULL;
-        transfer_map::iterator it = transfers[d].find(f);
+        // transfers that allow file duplicates can be searched for;
+        // while the ones that don't (and have a second key), will always be created anew
+        const string& secondKey = f->getSecondKeyForTransfer();
+        transfer_map::iterator it = secondKey.empty() ? transfers[d].find(make_pair(f, secondKey)) :
+                                                        transfers[d].end();
 
         if (it != transfers[d].end())
         {
@@ -14847,7 +14851,11 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
         }
         else
         {
-            it = cachedtransfers[d].find(f);
+            // transfers that allow file duplicates could have been cached;
+            // while the ones that don't (and have a second key), will always be created anew
+            it = secondKey.empty() ? cachedtransfers[d].find(make_pair(f, secondKey)) :
+                                     cachedtransfers[d].end();
+
             if (it != cachedtransfers[d].end())
             {
                 LOG_debug << "Resumable transfer detected";
@@ -14923,6 +14931,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             {
                 t = new Transfer(this, d);
                 *(FileFingerprint*)t = *(FileFingerprint*)f;
+                t->setSecondKey(secondKey); // whether empty or meaningful, save this only for new transfers
             }
 
             t->skipserialization = donotpersist;
@@ -14930,7 +14939,7 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             t->lastaccesstime = m_time();
             t->tag = reqtag;
             f->tag = reqtag;
-            t->transfers_it = transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t)).first;
+            t->transfers_it = transfers[d].insert(make_pair(make_pair(t, secondKey), t)).first;
 
             f->file_it = t->files.insert(t->files.end(), f);
             f->transfer = t;
@@ -14938,6 +14947,9 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             {
                 filecacheadd(f, committer);
             }
+
+            // LIMITATION: transfers that do not allow file duplicates cannot be cached, due to fingerprint clashes in cache
+            t->skipserialization |= !secondKey.empty();
 
             transferlist.addtransfer(t, committer, startfirst);
             app->transfer_added(t);

@@ -414,6 +414,17 @@ bool FileFingerprintCmp::operator()(const FileFingerprint* a, const FileFingerpr
     return memcmp(a->crc.data(), b->crc.data(), sizeof a->crc) < 0;
 }
 
+bool FileFingerprintTransferCmp::operator()(const pair<const FileFingerprint*, string>& left, const pair<const FileFingerprint*, string>& right) const
+{
+    if (left.second == right.second)
+    {
+        FileFingerprintCmp c;
+        return c(left.first, right.first);
+    }
+
+    return left.second < right.second;
+}
+
 bool LightFileFingerprint::genfingerprint(const m_off_t filesize, const m_time_t filemtime)
 {
     bool changed = false;

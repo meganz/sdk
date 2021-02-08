@@ -164,6 +164,12 @@ struct MEGA_API Transfer : public FileFingerprint
 
     // whether the Transfer needs to remove itself from the list it's in (for quick shutdown we can skip)
     bool mOptimizedDelete = false;
+
+    // transfers for files that cannot have duplicates must provide another key, beside filefingerprint, to make them unique
+    void setSecondKey(const string& secondKey) { mSecondKey = secondKey; } // use this, to easiliy find where it is modified
+    const string& getSecondKey() const { return mSecondKey; } // use this, to make it obvious where read-only acces was used
+private:
+    string mSecondKey;
 };
 
 

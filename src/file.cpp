@@ -273,6 +273,19 @@ File *File::unserialize(string *d)
     return file;
 }
 
+// forward declare utility function
+namespace action_bucket_compare
+{
+    bool considerHavingDuplicates(const string& fileName, m_off_t size);
+}
+
+string File::getSecondKeyForTransfer() const
+{
+    const std::string& nameWithNulls = localname.platformEncoded();
+    bool allowDuplicates = action_bucket_compare::considerHavingDuplicates(nameWithNulls, size);
+    return allowDuplicates ? string() : nameWithNulls;
+}
+
 void File::prepare()
 {
     transfer->localfilename = localname;

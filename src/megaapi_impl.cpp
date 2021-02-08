@@ -18666,7 +18666,8 @@ unsigned MegaApiImpl::sendPendingTransfers()
                         else
                         {
                             MegaTransferPrivate* prevTransfer = NULL;
-                            transfer_map::iterator it = client->transfers[PUT].find(f);
+                            const string& secondKey = f->getSecondKeyForTransfer();
+                            transfer_map::iterator it = client->transfers[PUT].find(make_pair(f, secondKey));
                             if (it != client->transfers[PUT].end())
                             {
                                 Transfer *t = it->second;

@@ -107,6 +107,9 @@ struct MEGA_API File: public FileFingerprint
 
     static File* unserialize(string*);
 
+    // return a meaningful unique key, used with transfers that must not allow file duplicates
+    string getSecondKeyForTransfer() const;
+
     // tag of the file
     int tag;
 };

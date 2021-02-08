@@ -360,7 +360,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_map* tra
 
     t->chunkmacs.calcprogress(t->size, t->pos, t->progresscompleted);
 
-    transfers[type].insert(pair<FileFingerprint*, Transfer*>(t, t));
+    transfers[type].insert(make_pair(make_pair(t, string()), t));
     return t;
 }
 
