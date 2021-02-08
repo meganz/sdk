@@ -15193,6 +15193,50 @@ namespace action_bucket_compare
     const static string webclient_mime_audio_extensions = ".3ga.aac.adp.aif.aifc.aiff.au.caf.dra.dts.dtshd.ecelp4800.ecelp7470.ecelp9600.eol.flac.iff.kar.lvp.m2a.m3a.m3u.m4a.mid.midi.mka.mp2.mp2a.mp3.mp4a.mpga.oga.ogg.opus.pya.ra.ram.rip.rmi.rmp.s3m.sil.snd.spx.uva.uvva.wav.wax.weba.wma.xm.";
     const static string webclient_mime_document_extensions = ".ans.ascii.doc.docx.dotx.json.log.ods.odt.pages.pdf.ppc.pps.ppt.pptx.rtf.stc.std.stw.sti.sxc.sxd.sxi.sxm.sxw.txt.wpd.wps.xls.xlsx.xlt.xltm.";
 
+    inline bool isVideoExt(const string& ext)
+    {
+        return !ext.empty() &&
+               webclient_mime_video_extensions.find(ext) != string::npos;
+    }
+
+    inline bool isAudioExt(const string& ext)
+    {
+        return !ext.empty() &&
+               webclient_mime_audio_extensions.find(ext) != string::npos;
+    }
+
+    inline bool isPhotoExt(const string& ext)
+    {
+        return !ext.empty() &&
+               webclient_is_image_def.find(ext) != string::npos ||
+               webclient_is_image_raw.find(ext) != string::npos ||
+               webclient_mime_photo_extensions.find(ext) != string::npos;
+    }
+
+    // file duplicates can be looked up when transferring, but only for certain files
+    bool considerHavingDuplicates(const string& fileName, m_off_t size)
+    {
+        // is size greater than or equal to 1MB
+        if (size < 1048576) // 1MB
+            return false;
+
+        // get extension
+        auto p = fileName.find_last_of('.');
+        if (p == string::npos)
+            return false;
+        string ext = fileName.substr(p + 1);
+
+        // remove any embeded '\0' characters (when received from LocalPath)
+        for (auto pos = ext.find('\0'); pos != string::npos; pos = ext.find('\0', pos))  ext.erase(pos, 1);
+
+        // is photo or video or audio
+        bool ret = isPhotoExt(ext) ||
+                   isVideoExt(ext) ||
+                   isAudioExt(ext);
+
+        return ret;
+    }
+
     bool nodeIsVideo(const Node *n, const string& ext, const MegaClient& mc)
     {
         if (n->hasfileattribute(fa_media) && n->nodekey().size() == FILENODEKEYLENGTH)
@@ -15218,12 +15262,12 @@ namespace action_bucket_compare
             }
 #endif
         }
-        return action_bucket_compare::webclient_mime_video_extensions.find(ext) != string::npos;
+        return isVideoExt(ext);
     }
 
     bool nodeIsAudio(const Node *n, const string& ext)
     {
-         return action_bucket_compare::webclient_mime_audio_extensions.find(ext) != string::npos;
+        return isAudioExt(ext);
     }
 
     bool nodeIsDocument(const Node *n, const string& ext)
