@@ -8613,7 +8613,7 @@ bool CommandBackupSyncFetch::procresult(Result r)
                             case MAKENAMEID2('q', 'u'):     d.uploads = client->json.getint32(); break;
                             case MAKENAMEID2('q', 'd'):     d.downloads = client->json.getint32(); break;
                             case MAKENAMEID3('l', 't', 's'):d.lastActivityTs = client->json.getint32(); break;
-                            case MAKENAMEID2('l', 'h'):     d.lastSyncedNodeHandle = client->json.gethandle(sizeof(handle)); break;
+                            case MAKENAMEID2('l', 'h'):     d.lastSyncedNodeHandle = client->json.gethandle(MegaClient::NODEHANDLE); break;
                             default: if (!skipUnknownField()) return false;
                             }
                         }
