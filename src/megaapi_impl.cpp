@@ -13949,7 +13949,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             SyncConfig syncConfig( localPath, backupName, backupHandle, remotePath.get(),
                                     0, regExpToVector(regExp), true, SyncConfig::TYPE_BACKUP );
 
-            client->addsync(syncConfig, DEBRISFOLDER, NULL, true, false,
+            client->addsync(syncConfig, false,
                                 [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
             {
                 request->setNumDetails(syncError);
@@ -21622,7 +21622,7 @@ void MegaApiImpl::sendPendingRequests()
                                   name, request->getNodeHandle(), remotePath.get(),
                                   0, regExpToVector(request->getRegExp())};
 
-            client->addsync(syncConfig, DEBRISFOLDER, NULL, true, false,
+            client->addsync(syncConfig, false,
                                 [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
             {
                 request->setNumDetails(syncError);

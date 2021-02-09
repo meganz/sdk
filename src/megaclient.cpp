@@ -13216,8 +13216,7 @@ void MegaClient::copySyncConfig(const SyncConfig& config, SyncCompletionFunction
     }));
 }
 
-error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* localdebris, bool delayInitialScan, bool notifyApp,
-                          SyncCompletionFunction completion)
+error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunction completion)
 {
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;

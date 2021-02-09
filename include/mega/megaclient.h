@@ -622,15 +622,11 @@ public:
      * @brief add sync. Will fill syncError/syncWarning in the SyncConfig in case there are any.
      * It will persist the sync configuration if its call to checkSyncConfig succeeds
      * @param syncConfig the Config to attempt to add
-     * @param debris Name of the debris folder on this platform (perhaps we could just use the macro)
-     * @param localdebris Alternate debris folder path - not used at all to my knowledge
-     * @param delayInitialScan delay the initial scan
-     * @param unifiedSync If the syncConfig is added, this parameter wll be filled in with a pointer to the created UnifiedSync.
      * @param notifyApp whether the syncupdate_stateconfig callback should be called at this stage or not
+     * @param completion Completion function
      * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
      */
-    error addsync(SyncConfig& syncConfig, const char* debris, LocalPath* localdebris, bool delayInitialScan, bool notifyApp,
-                  SyncCompletionFunction completion);
+    error addsync(SyncConfig& syncConfig, bool notifyApp, SyncCompletionFunction completion);
 
     void copySyncConfig(const SyncConfig& config, SyncCompletionFunction completion);
 
