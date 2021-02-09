@@ -2866,6 +2866,7 @@ TEST_F(JSONSyncConfigStoreTest, AddToUnknownDatabase)
     SyncConfig config;
 
     config.mExternalDrivePath = Utilities::randomPath();
+    config.mLocalPath = Utilities::randomPath(config.mExternalDrivePath);
 
     // Can't add a config to an unknown database.
     EXPECT_EQ(store.add(config), nullptr);
