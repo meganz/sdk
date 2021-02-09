@@ -6888,7 +6888,11 @@ void DemoApp::confirmsignuplink2_result(handle, const char *name, const char *em
     }
     else
     {
-        cout << "Signup confirmed successfully" << endl;
+        cout << "Signup confirmed successfully. Logging by first time..." << endl;
+        login.reset();
+        login.email = email;
+        login.password = newpassword;
+        client->prelogin(email);
     }
 }
 
