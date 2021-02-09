@@ -3806,7 +3806,7 @@ error JSONSyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
 
 error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
                                     string& data,
-                                    const unsigned int slot)
+                                    unsigned int slot)
 {
     // Generate path to the configuration file.
     LocalPath path = dbFilePath(dbPath, slot);
@@ -3857,7 +3857,7 @@ error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
 }
 
 error JSONSyncConfigIOContext::remove(const LocalPath& dbPath,
-                                      const unsigned int slot)
+                                      unsigned int slot)
 {
     LocalPath path = dbFilePath(dbPath, slot);
 
@@ -3912,7 +3912,7 @@ void JSONSyncConfigIOContext::serialize(const JSONSyncConfigMap& configs,
 
 error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
                                      const string& data,
-                                     const unsigned int slot)
+                                     unsigned int slot)
 {
     LocalPath path = dbPath;
 

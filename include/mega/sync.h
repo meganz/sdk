@@ -485,11 +485,11 @@ public:
     // Read data from the specified slot.
     virtual error read(const LocalPath& dbPath,
                        string& data,
-                       const unsigned int slot);
+                       unsigned int slot);
 
     // Remove an existing slot from disk.
     virtual error remove(const LocalPath& dbPath,
-                         const unsigned int slot);
+                         unsigned int slot);
 
     // Remove all existing slots from disk.
     virtual error remove(const LocalPath& dbPath);
@@ -501,7 +501,7 @@ public:
     // Write data to the specified slot.
     virtual error write(const LocalPath& dbPath,
                         const string& data,
-                        const unsigned int slot);
+                        unsigned int slot);
 
     // Prefix applied to configuration database names.
     static const string NAME_PREFIX;

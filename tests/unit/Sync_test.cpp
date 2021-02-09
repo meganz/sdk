@@ -1480,13 +1480,13 @@ public:
 
         MOCK_METHOD2(getSlotsInOrder, error(const LocalPath&, vector<unsigned int>&));
 
-        MOCK_METHOD3(read, error(const LocalPath&, string&, const unsigned int));
+        MOCK_METHOD3(read, error(const LocalPath&, string&, unsigned int));
 
-        MOCK_METHOD2(remove, error(const LocalPath&, const unsigned int));
+        MOCK_METHOD2(remove, error(const LocalPath&, unsigned int));
 
         MOCK_METHOD1(remove, error(const LocalPath&));
 
-        MOCK_METHOD3(write, error(const LocalPath&, const string&, const unsigned int));
+        MOCK_METHOD3(write, error(const LocalPath&, const string&, unsigned int));
 
     private:
         // Delegate to real behavior.
@@ -1498,13 +1498,13 @@ public:
 
         error readConcrete(const LocalPath& dbPath,
                            string& data,
-                           const unsigned int slot)
+                           unsigned int slot)
         {
             return JSONSyncConfigIOContext::read(dbPath, data, slot);
         }
 
         error removeSlotConcrete(const LocalPath& dbPath,
-                                 const unsigned int slot)
+                                 unsigned int slot)
         {
             return JSONSyncConfigIOContext::remove(dbPath, slot);
         }
@@ -1516,7 +1516,7 @@ public:
 
         error writeConcrete(const LocalPath& dbPath,
                             const string& data,
-                            const unsigned int slot)
+                            unsigned int slot)
         {
             return JSONSyncConfigIOContext::write(dbPath, data, slot);
         }
