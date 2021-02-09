@@ -2802,6 +2802,7 @@ void Syncs::resumeResumableSyncsOnStartup()
         return;
     }
 
+    assert(mSyncVec.empty());   // there should be no syncs yet
     for (auto& pair : syncConfigDB()->configs())
     {
         mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(mClient, pair.second)));

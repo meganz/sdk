@@ -21727,16 +21727,11 @@ void MegaApiImpl::sendPendingRequests()
                     return;
                 }
 
-                client->copySyncConfig(syncConfig, [this, request](UnifiedSync *unifiedSync, const SyncError &, error e)
+                client->copySyncConfig(syncConfig, [this, request](handle backupId, error e)
                 {
-                    if (!e && !unifiedSync)
+                    if (!e == API_OK)
                     {
-                        e = API_ENOENT;
-                    }
-
-                    if (unifiedSync)
-                    {
-                        request->setParentHandle(unifiedSync->mConfig.getBackupId());
+                        request->setParentHandle(backupId);
                     }
 
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));

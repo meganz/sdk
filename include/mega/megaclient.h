@@ -628,7 +628,7 @@ public:
      */
     error addsync(SyncConfig& syncConfig, bool notifyApp, SyncCompletionFunction completion);
 
-    void copySyncConfig(const SyncConfig& config, SyncCompletionFunction completion);
+    void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
 
     /**
      * @brief This method ensures that sync user attributes are available.
