@@ -468,7 +468,15 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             endif()
 
             IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
-                set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} -fopenmp -fgomp)
+                include(CheckCXXCompilerFlag)
+
+                check_cxx_compiler_flag(-fgomp HAS_FGOMP)
+                check_cxx_compiler_flag(-fopenmp HAS_FOPENMP)
+
+                set(Mega_PlatformSpecificLibs
+                      ${Mega_PlatformSpecificLibs}
+                      $<$<BOOL:${HAS_FGOMP}>:-fgomp>
+                      $<$<BOOL:${HAS_FOPENMP}>:-fopenmp>)
             ENDIF()
 
         ENDIF(USE_LIBRAW)
