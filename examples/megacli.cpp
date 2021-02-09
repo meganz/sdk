@@ -6117,8 +6117,7 @@ void exec_cancel(autocomplete::ACState& s)
             return;
         }
 
-        recoverycode.assign(link.substr(pos + strlen("#cancel")));
-        setprompt(LOGINPASSWORD);
+        client->confirmcancellink(link.substr(pos + strlen("#cancel")).c_str());
     }
 }
 
