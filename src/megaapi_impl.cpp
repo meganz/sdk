@@ -13520,13 +13520,6 @@ void MegaApiImpl::syncs_disabled(SyncError syncError)
     fireOnEvent(event);
 }
 
-void MegaApiImpl::syncs_about_to_be_resumed()
-{
-    mCachedMegaSyncPrivate.reset();
-    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_FIRST_SYNC_RESUMING);
-    fireOnEvent(event);
-}
-
 void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
 {
     if (waiting)

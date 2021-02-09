@@ -2804,8 +2804,6 @@ void Syncs::resumeResumableSyncsOnStartup()
 {
     if (mClient.loggedin() != FULLACCOUNT) return;
 
-    bool firstSyncResumed = false;
-
     if (syncConfigDBLoad() != API_OK)
     {
         return;
@@ -2834,12 +2832,6 @@ void Syncs::resumeResumableSyncsOnStartup()
 
             if (unifiedSync->mConfig.getEnabled())
             {
-                if (!firstSyncResumed)
-                {
-                    mClient.app->syncs_about_to_be_resumed();
-                    firstSyncResumed = true;
-                }
-
 #ifdef __APPLE__
                 unifiedSync->mConfig.setLocalFingerprint(0); //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
 #endif
