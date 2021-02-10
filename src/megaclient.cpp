@@ -13256,7 +13256,6 @@ error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* loc
                 // if we got this far, the syncConfig is kept (in db and in memory)
                 config.setBackupId(backupId);
 
-                //TODO: remove BackupMonitor::updateOrRegisterSync "Register" code path and backupId control
                 UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
 
                 e = unifiedSync->enableSync(false, notifyApp);
