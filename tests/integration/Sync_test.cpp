@@ -1196,10 +1196,7 @@ struct StandardClient : public MegaApp
     {
         resultproc.prepresult(CATCHUP, ++next_request_tag,
             [&](){
-                auto request_sent = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.client.catchup(); pb->set_value(true); });
-                if (!waitonresults(&request_sent)) {
-                    out() << "catchup not sent" << endl;
-                }
+                client.catchup();
             },
             [pb](error e) {
                 if (e)
