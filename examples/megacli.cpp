@@ -8466,11 +8466,7 @@ void exec_syncadd(autocomplete::ACState& s)
                  SyncConfig::TYPE_TWOWAY);
 
     // Try and add the new sync.   All validation is performed in this function
-    client->addsync(config,
-                    DEBRISFOLDER,
-                    nullptr,
-                    false,
-                    true,
+    client->addsync(config, true,
                     [&](mega::UnifiedSync *, const SyncError &, error e) {
         if (!e)
         {
