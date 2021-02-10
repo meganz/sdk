@@ -132,6 +132,7 @@ struct PendingContactRequest;
 class TransferList;
 struct Achievement;
 class SyncConfig;
+class SimpleLogger;
 
 namespace UserAlert
 {
@@ -262,6 +263,27 @@ typedef enum { NOTLOGGEDIN, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT } se
 // in a 64-bit int
 typedef uint64_t handle;
 
+class NodeHandle
+{
+    // Handles of nodes are only 6 bytes.
+    // This class helps avoid issues when we don't save/restore the top 2 bytes when using an 8 byte uint64 to represent it
+    uint64_t h = 0xFFFFFFFFFFFFFFFF;
+public:
+    bool isUndef() { return (h & 0xFFFFFFFFFFFF) == 0xFFFFFFFFFFFF; }
+    NodeHandle& set6byte(uint64_t n) { h = n; assert((n & 0xFFFF000000000000) == 0); return *this; }
+    bool eq(NodeHandle b) { return (h & 0xFFFFFFFFFFFF) == (b.h & 0xFFFFFFFFFFFF); }
+    bool eq(handle b) { return (h & 0xFFFFFFFFFFFF) == (b & 0xFFFFFFFFFFFF); }
+    bool ne(handle b) { return (h & 0xFFFFFFFFFFFF) != (b & 0xFFFFFFFFFFFF); }
+    bool operator<(const NodeHandle& rhs) const { return h < rhs.h; }
+    handle as8byte() { return isUndef() ? 0xFFFFFFFFFFFFFFFF : (h & 0xFFFFFFFFFFFF); }
+};
+
+inline bool operator==(NodeHandle a, NodeHandle b) { return a.eq(b); }
+inline bool operator==(NodeHandle a, handle b) { return a.eq(b); }
+inline bool operator!=(NodeHandle a, handle b) { return a.ne(b); }
+std::ostream& operator<<(std::ostream&, NodeHandle h);
+SimpleLogger& operator<<(SimpleLogger&, NodeHandle h);
+
 // (can use unordered_set if available)
 typedef set<handle> handle_set;
 
@@ -314,7 +336,7 @@ typedef enum { OPCA_ADD = 0, OPCA_DELETE, OPCA_REMIND} opcactions_t;
 typedef enum { IPCA_ACCEPT = 0, IPCA_DENY, IPCA_IGNORE} ipcactions_t;
 
 
-typedef vector<struct Node*> node_vector;
+typedef vector<Node*> node_vector;
 
 // contact visibility:
 // HIDDEN - not shown
@@ -785,6 +807,7 @@ namespace CodeCounter
 #ifdef MEGA_MEASURE_CODE
         ScopeStats& scope;
         high_resolution_clock::time_point blockStart;
+        bool done = false;
 
         ScopeTimer(ScopeStats& sm) : scope(sm), blockStart(high_resolution_clock::now())
         {
@@ -792,14 +815,18 @@ namespace CodeCounter
         }
         ~ScopeTimer()
         {
+            if (!done) complete();
+        }
+        void complete()
+        {
             ++scope.count;
             ++scope.finishes;
             scope.timeSpent += high_resolution_clock::now() - blockStart;
+            done = true;
         }
 #else
-        ScopeTimer(ScopeStats& sm)
-        {
-        }
+        ScopeTimer(ScopeStats& sm) {}
+        void complete() {}
 #endif
     };
 }

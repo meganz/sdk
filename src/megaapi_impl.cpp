@@ -4982,7 +4982,7 @@ MegaFile *MegaFile::unserialize(string *d)
 
 MegaFileGet::MegaFileGet(MegaClient *client, Node *n, const LocalPath& dstPath, FileSystemType fsType) : MegaFile()
 {
-    h = n->nodehandle;
+    h = n->nodeHandle();
     *(FileFingerprint*)this = *n;
 
     LocalPath lpName = LocalPath::fromName(n->displayname(), *client->fsaccess, fsType);
@@ -5014,7 +5014,7 @@ MegaFileGet::MegaFileGet(MegaClient *client, Node *n, const LocalPath& dstPath, 
 
 MegaFileGet::MegaFileGet(MegaClient *client, MegaNode *n, const LocalPath& dstPath) : MegaFile()
 {
-    h = n->getHandle();
+    h = NodeHandle().set6byte(n->getHandle());
 
     FileSystemType fsType = client->fsaccess->getlocalfstype(dstPath);
 
@@ -5162,7 +5162,7 @@ void MegaFileGet::terminated()
     delete this;
 }
 
-MegaFilePut::MegaFilePut(MegaClient *, LocalPath clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime, bool isSourceTemporary, Node *pvNode)
+MegaFilePut::MegaFilePut(MegaClient *, LocalPath clocalname, string *filename, NodeHandle ch, const char* ctargetuser, int64_t mtime, bool isSourceTemporary, Node *pvNode)
 
     : MegaFile()
 {
@@ -12238,7 +12238,7 @@ void MegaApiImpl::file_added(File *f)
 
         if (t->type == GET)
         {
-            transfer->setNodeHandle(f->h);
+            transfer->setNodeHandle(f->h.as8byte());
         }
         else
         {
@@ -12251,7 +12251,7 @@ void MegaApiImpl::file_added(File *f)
             else
 #endif
             {
-                transfer->setParentHandle(f->h);
+                transfer->setParentHandle(f->h.as8byte());
             }
         }
 
@@ -17087,7 +17087,7 @@ void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *trans
     else
     {
         transfer->setState(MegaTransfer::STATE_RETRYING);
-        transfer->setForeignOverquota(e == API_EOVERQUOTA && client->isForeignNode(transfer->getParentHandle()));
+        transfer->setForeignOverquota(e == API_EOVERQUOTA && client->isForeignNode(NodeHandle().set6byte(transfer->getParentHandle())));
         fireOnTransferTemporaryError(transfer, std::move(megaError));
     }
 
@@ -18645,7 +18645,9 @@ unsigned MegaApiImpl::sendPendingTransfers()
 
                     currentTransfer = transfer;
                     string wFileName = fileName;
-                    MegaFilePut *f = new MegaFilePut(client, std::move(wLocalPath), &wFileName, transfer->getParentHandle(), uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary, previousNode);
+                    MegaFilePut *f = new MegaFilePut(client, std::move(wLocalPath), &wFileName, 
+                            NodeHandle().set6byte(transfer->getParentHandle()), 
+                            uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary, previousNode);
                     *static_cast<FileFingerprint*>(f) = fp;  // deliberate slicing - startxfer would re-fingerprint if we don't supply this info
                     f->setTransfer(transfer);
                     bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer());
@@ -20191,7 +20193,7 @@ void MegaApiImpl::sendPendingRequests()
                     MegaNode* node = getNodeByHandle(nodeHandle);
 
                     // a valid folder cannot be outside current account or in Rubbish
-                    if (!client->isPrivateNode(nodeHandle) || isInRootnode(node, 2)
+                    if (!client->isPrivateNode(NodeHandle().set6byte(nodeHandle)) || isInRootnode(node, 2)
 #ifdef ENABLE_SYNC
                         // or in a synced folder
                         || isInsideSync(node)

@@ -5822,7 +5822,7 @@ const char* MegaSync::getMegaSyncErrorCode()
 
 const char* MegaSync::getMegaSyncErrorCode(int errorCode)
 {
-    return strdup(SyncConfig::syncErrorToStr(static_cast<SyncError>(errorCode)).c_str());
+    return MegaApi::strdup(SyncConfig::syncErrorToStr(static_cast<SyncError>(errorCode)).c_str());
 }
 
 const char* MegaSync::getMegaSyncWarningCode()

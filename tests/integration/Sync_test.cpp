@@ -1109,7 +1109,7 @@ struct StandardClient : public MegaApp
             File* f = new File();
             // full local path
             f->localname = LocalPath::fromPath(p.u8string(), *client.fsaccess);
-            f->h = target->nodehandle;
+            f->h = target->nodeHandle();
             f->name = p.filename().u8string();
             client.startxfer(PUT, f, committer);
         }
