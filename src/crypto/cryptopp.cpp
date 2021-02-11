@@ -259,6 +259,44 @@ bool SymmCipher::ccm_decrypt(const string *data, const byte *iv, unsigned ivlen,
     return true;
 }
 
+bool SymmCipher::gcm_encrypt_aad(const string *data, const byte *additionalData, unsigned additionalDatalen, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
+{
+    std::string err;
+    if (!data || !data->size())                 {err = "Invalid plain text";}
+    if (!additionalData || !additionalDatalen)  {err = "Invalid additional data";}
+    if (!iv || !ivlen)                          {err = "Invalid IV";}
+
+    if (!err.empty())
+    {
+        result->clear();
+        LOG_err << "Failed AES-GCM encryption with additional authenticated data: " <<  err;
+        return false;
+    }
+
+    try
+    {
+        // resynchronizes with the provided IV
+        aesgcm_e.Resynchronize(iv, static_cast<int>(ivlen));
+        StringSink *cipher_sink = new StringSink(*result);
+        AuthenticatedEncryptionFilter *ef = new AuthenticatedEncryptionFilter(aesgcm_e, cipher_sink, false, static_cast<int>(taglen));
+
+        // add additionalData to channel for additional authenticated data
+        ef->ChannelPut(AAD_CHANNEL, additionalData, additionalDatalen, true);
+        ef->ChannelMessageEnd(AAD_CHANNEL);
+
+        // add plain text to DEFAULT_CHANNEL in order to be encrypted
+        ef->ChannelPut(DEFAULT_CHANNEL, reinterpret_cast<const byte*>(data->data()), data->size(), true);
+        ef->ChannelMessageEnd(DEFAULT_CHANNEL);
+    }
+    catch (CryptoPP::Exception &e)
+    {
+        result->clear();
+        LOG_err << "Failed AES-GCM encryption with additional authenticated data: " << e.GetWhat();
+        return false;
+    }
+    return true;
+}
+
 void SymmCipher::gcm_encrypt(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
 {
     aesgcm_e.Resynchronize(iv, ivlen);
