@@ -13520,13 +13520,6 @@ void MegaApiImpl::syncs_disabled(SyncError syncError)
     fireOnEvent(event);
 }
 
-void MegaApiImpl::syncs_about_to_be_resumed()
-{
-    mCachedMegaSyncPrivate.reset();
-    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_FIRST_SYNC_RESUMING);
-    fireOnEvent(event);
-}
-
 void MegaApiImpl::syncupdate_local_lockretry(bool waiting)
 {
     if (waiting)
@@ -13956,7 +13949,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             SyncConfig syncConfig( localPath, backupName, backupHandle, remotePath.get(),
                                     0, regExpToVector(regExp), true, SyncConfig::TYPE_BACKUP );
 
-            client->addsync(syncConfig, DEBRISFOLDER, NULL, true, false,
+            client->addsync(syncConfig, false,
                                 [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
             {
                 request->setNumDetails(syncError);
@@ -21629,7 +21622,7 @@ void MegaApiImpl::sendPendingRequests()
                                   name, request->getNodeHandle(), remotePath.get(),
                                   0, regExpToVector(request->getRegExp())};
 
-            client->addsync(syncConfig, DEBRISFOLDER, NULL, true, false,
+            client->addsync(syncConfig, false,
                                 [this, request](UnifiedSync *unifiedSync, const SyncError &syncError, error e)
             {
                 request->setNumDetails(syncError);
@@ -21734,16 +21727,11 @@ void MegaApiImpl::sendPendingRequests()
                     return;
                 }
 
-                client->copySyncConfig(syncConfig, [this, request](UnifiedSync *unifiedSync, const SyncError &, error e)
+                client->copySyncConfig(syncConfig, [this, request](handle backupId, error e)
                 {
-                    if (!e && !unifiedSync)
+                    if (!e == API_OK)
                     {
-                        e = API_ENOENT;
-                    }
-
-                    if (unifiedSync)
-                    {
-                        request->setParentHandle(unifiedSync->mConfig.getBackupId());
+                        request->setParentHandle(backupId);
                     }
 
                     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));

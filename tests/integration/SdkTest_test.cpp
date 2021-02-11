@@ -4849,9 +4849,9 @@ TEST_F(SdkTest, SdkBackupFolder)
     }
     else
     {
-        auto now = m_time(nullptr);
+        struct tm tms;
         char timebuf[32];
-        strftime(timebuf, sizeof timebuf, "%c", localtime(&now));
+        strftime(timebuf, sizeof timebuf, "%c", m_localtime(m_time(), &tms));
 
         deviceName = string("Jenkins ") + timebuf;
         synchronousSetDeviceName(0, deviceName.c_str());

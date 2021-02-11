@@ -834,9 +834,15 @@ struct StandardClient : public MegaApp
     ~StandardClient()
     {
         // shut down any syncs on the same thread, or they stall the client destruction (CancelIo instead of CancelIoEx on the WinDirNotify)
-        thread_do<bool>([](MegaClient& mc, PromiseBoolSP) {
-            mc.logout(false);
-        });
+        auto result =
+          thread_do<bool>([](MegaClient& mc, PromiseBoolSP result)
+                          {
+                              mc.logout(false);
+                              result->set_value(true);
+                          });
+
+        // Make sure logout completes before we escape.
+        result.get();
 
         clientthreadexit = true;
         waiter.notify();
@@ -845,9 +851,15 @@ struct StandardClient : public MegaApp
 
     void localLogout()
     {
-        thread_do<bool>([](MegaClient& mc, PromiseBoolSP) {
-            mc.locallogout(false, true);
-        });
+        auto result =
+          thread_do<bool>([](MegaClient& mc, PromiseBoolSP result)
+                          {
+                              mc.locallogout(false, true);
+                              result->set_value(true);
+                          });
+
+        // Make sure logout completes before we escape.
+        result.get();
     }
 
     static mutex om;
@@ -1105,12 +1117,26 @@ struct StandardClient : public MegaApp
             [pb](error e) { pb->set_value(!e);  return true; });
     }
 
+    // Necessary to make sure we release the file once we're done with it.
+    struct FilePut : public File {
+        void completed(Transfer* t, LocalNode* n) override
+        {
+            File::completed(t, n);
+            delete this;
+        }
+
+        void terminated() override
+        {
+            delete this;
+        }
+    }; // FilePut
+
     void uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer)
     {
         if (fs::is_regular_file(p))
         {
             ++inprogress;
-            File* f = new File();
+            File* f = new FilePut();
             // full local path
             f->localname = LocalPath::fromPath(p.u8string(), *client.fsaccess);
             f->h = target->nodehandle;
@@ -1200,10 +1226,7 @@ struct StandardClient : public MegaApp
     {
         resultproc.prepresult(CATCHUP, ++next_request_tag,
             [&](){
-                auto request_sent = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.client.catchup(); pb->set_value(true); });
-                if (!waitonresults(&request_sent)) {
-                    out() << "catchup not sent" << endl;
-                }
+                client.catchup();
             },
             [pb](error e) {
                 if (e)
@@ -1501,7 +1524,7 @@ struct StandardClient : public MegaApp
                     syncConfig.mSyncType = SyncConfig::TYPE_BACKUP;
                 }
 				
-                error e = client.addsync(syncConfig, DEBRISFOLDER, NULL, false, true, addSyncCompletion);
+                error e = client.addsync(syncConfig, true, addSyncCompletion);
                 return !e;
             }
         }
@@ -2179,28 +2202,38 @@ void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1
     {
         bool any_add_del = false;
 
-        for (auto vn : v) if (vn)
+        for (auto vn : v)
         {
-            vn->thread_do<bool>(
-              [&](StandardClient& mc, PromiseBoolSP)
-              {
-                  mc.client.syncs.forEachRunningSync(
-                    [&](Sync* s)
+            if (vn)
+            {
+                auto result =
+                  vn->thread_do<bool>(
+                    [&](StandardClient& mc, PromiseBoolSP result)
                     {
-                        any_add_del |= !s->deleteq.empty();
-                        any_add_del |= !s->insertq.empty();
+                        bool busy = false;
+
+                        mc.client.syncs.forEachRunningSync(
+                          [&](Sync* s)
+                          {
+                              busy |= !s->deleteq.empty();
+                              busy |= !s->insertq.empty();
+                          });
+
+                        if (!(mc.client.todebris.empty()
+                            && mc.client.localsyncnotseen.empty()
+                            && mc.client.tounlink.empty()
+                            && mc.client.synccreate.empty()
+                            && mc.client.transferlist.transfers[GET].empty()
+                            && mc.client.transferlist.transfers[PUT].empty()))
+                        {
+                            busy = true;
+                        }
+
+                        result->set_value(busy);
                     });
 
-                  if (!(mc.client.todebris.empty()
-                        && mc.client.localsyncnotseen.empty()
-                        && mc.client.tounlink.empty()
-                        && mc.client.synccreate.empty()
-                        && mc.client.transferlist.transfers[GET].empty()
-                        && mc.client.transferlist.transfers[PUT].empty()))
-                  {
-                      any_add_del = true;
-                  }
-              });
+                any_add_del |= result.get();
+            }
         }
 
         bool allactive = true;

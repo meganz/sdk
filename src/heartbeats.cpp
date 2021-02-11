@@ -365,35 +365,24 @@ void BackupMonitor::updateBackupInfo(handle backupId, const BackupInfo &info)
 
 #ifdef ENABLE_SYNC
 
-void BackupMonitor::registerBackupInfo(const BackupInfo &info, UnifiedSync* syncPtr)
-{
-    string deviceIdHash = mClient->getDeviceidHash();
-
-    mClient->reqs.add(new CommandBackupPut(mClient, info.type(), info.backupName(), info.megaHandle(),
-                                           info.localFolder().toPath(*mClient->fsaccess).c_str(),
-                                           deviceIdHash.c_str(),
-                                           info.state(), info.subState(), info.extra().c_str(),
-                                           [this, syncPtr](Error e, handle h){ if (!e) digestPutResult(h, syncPtr); }));
-}
-
 void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
 {
-    BackupInfoSync currentInfo(us);
+    handle backupId = us.mConfig.getBackupId();
+    assert(!ISUNDEF(backupId)); // syncs are registered before adding them
 
-    if (!us.mBackupInfo && ISUNDEF(us.mConfig.getBackupId())) // not registered yet
+    BackupInfoSync currentInfo(us);
+    if (!us.mBackupInfo) // Init this field
     {
         us.mBackupInfo = ::mega::make_unique<BackupInfoSync>(us);
-        registerBackupInfo(currentInfo, &us);
     }
-    else if (!ISUNDEF(us.mConfig.getBackupId()) &&
-           (!us.mBackupInfo || !(currentInfo == *us.mBackupInfo)))
+    else if (currentInfo != *us.mBackupInfo)
     {
-        updateBackupInfo(us.mConfig.getBackupId(), currentInfo); //queue update comand
+        updateBackupInfo(us.mConfig.getBackupId(), currentInfo); //queue update command
         us.mBackupInfo = ::mega::make_unique<BackupInfoSync>(us);
     }
 }
 
-bool  BackupInfoSync::operator==(const BackupInfoSync& o) const
+bool BackupInfoSync::operator==(const BackupInfoSync& o) const
 {
     return  mType == o.mType &&
             mLocalFolder == o.mLocalFolder &&
@@ -401,6 +390,11 @@ bool  BackupInfoSync::operator==(const BackupInfoSync& o) const
             mState == o.mState &&
             mSubState == o.mSubState &&
             mExtra == o.mExtra;
+}
+
+bool BackupInfoSync::operator!=(const BackupInfoSync &o) const
+{
+    return !(*this == o);
 }
 
 void BackupMonitor::onSyncConfigChanged()
@@ -415,7 +409,7 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
     // send registration or update in case we missed it
     updateOrRegisterSync(us);
 
-    if (!us.mBackupInfo || ISUNDEF(us.mConfig.getBackupId()))
+    if (ISUNDEF(us.mConfig.getBackupId()))
     {
         LOG_warn << "Backup not registered yet. Skipping heartbeat...";
         return;

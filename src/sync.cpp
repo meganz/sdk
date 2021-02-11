@@ -512,9 +512,9 @@ SyncConfig::SyncConfig(LocalPath localPath,
     , mRegExps{std::move(regExps)}
     , mSyncType{syncType}
     , mError{error}
+    , mWarning{warning}
     , mBackupId(hearBeatID)
     , mExternalDrivePath()
-    , mWarning{warning}
 {}
 
 bool SyncConfig::operator==(const SyncConfig& rhs) const
@@ -2158,7 +2158,7 @@ error UnifiedSync::enableSync(bool resetFingerprint, bool notifyApp)
         return e;
     }
 
-    e = startSync(&mClient, DEBRISFOLDER, nullptr, remotenode, inshare, isnetwork, false, rootpath, openedLocalFolder);
+    e = startSync(&mClient, DEBRISFOLDER, nullptr, remotenode, inshare, isnetwork, rootpath, openedLocalFolder);
     mClient.syncactivity = true;
     changedConfigState(notifyApp);
 
@@ -2208,7 +2208,7 @@ bool UnifiedSync::updateSyncRemoteLocation(Node* n, bool forceCallback)
 
 
 error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* localdebris, Node* remotenode, bool inshare,
-                             bool isNetwork, bool delayInitialScan, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder)
+                             bool isNetwork, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder)
 {
     //check we are not in any blocking situation
     using CType = CacheableStatus::Type;
@@ -2271,31 +2271,24 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
         }
     }
 
-    if (delayInitialScan)
+    LOG_debug << "Initial scan sync: " << mConfig.getLocalPath().toPath(*client->fsaccess);
+
+    if (mSync->scan(&rootpath, openedLocalFolder.get()))
     {
+        client->syncsup = false;
+        mSync->initializing = false;
+        LOG_debug << "Initial scan finished. New / modified files: " << mSync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
+
+        // Sync constructor now receives the syncConfig as reference, to be able to write -at least- fingerprints for new syncs
         client->syncs.saveSyncConfig(mConfig);
     }
     else
     {
-        LOG_debug << "Initial scan sync: " << mConfig.getLocalPath().toPath(*client->fsaccess);
+        LOG_err << "Initial scan failed";
+        mSync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED, mConfig.getEnabled(), true);
 
-        if (mSync->scan(&rootpath, openedLocalFolder.get()))
-        {
-            client->syncsup = false;
-            mSync->initializing = false;
-            LOG_debug << "Initial scan finished. New / modified files: " << mSync->dirnotify->notifyq[DirNotify::DIREVENTS].size();
-
-            // Sync constructor now receives the syncConfig as reference, to be able to write -at least- fingerprints for new syncs
-            client->syncs.saveSyncConfig(mConfig);
-        }
-        else
-        {
-            LOG_err << "Initial scan failed";
-            mSync->changestate(SYNC_FAILED, INITIAL_SCAN_FAILED, mConfig.getEnabled(), true);
-
-            mSync.reset();
-            return API_EFAILED;
-        }
+        mSync.reset();
+        return API_EFAILED;
     }
     return API_OK;
 }
@@ -2320,7 +2313,6 @@ Syncs::Syncs(MegaClient& mc)
 {
     mHeartBeatMonitor.reset(new BackupMonitor(&mClient));
 }
-
 
 error Syncs::backupAdd(const SyncConfig& config,
                        SyncCompletionFunction completion,
@@ -2435,14 +2427,8 @@ error Syncs::backupAdd(const SyncConfig& config,
         syncConfig.mName = syncConfig.mLocalPath.toPath(fsAccess);
     }
 
-    return mClient.addsync(syncConfig,
-                           DEBRISFOLDER,
-                           nullptr,
-                           delayInitialScan,
-                           true,
-                           completion);
+    return mClient.addsync(syncConfig, true, completion);
 }
-
 
 error Syncs::backupRemove(const LocalPath& drivePath)
 {
@@ -3235,13 +3221,12 @@ void Syncs::resumeResumableSyncsOnStartup()
 {
     if (mClient.loggedin() != FULLACCOUNT) return;
 
-    bool firstSyncResumed = false;
-
     if (syncConfigDBLoad() != API_OK)
     {
         return;
     }
 
+    assert(mSyncVec.empty());   // there should be no syncs yet
     for (auto& pair : syncConfigDB()->configs())
     {
         mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(mClient, pair.second)));
@@ -3265,12 +3250,6 @@ void Syncs::resumeResumableSyncsOnStartup()
 
             if (unifiedSync->mConfig.getEnabled())
             {
-                if (!firstSyncResumed)
-                {
-                    mClient.app->syncs_about_to_be_resumed();
-                    firstSyncResumed = true;
-                }
-
 #ifdef __APPLE__
                 unifiedSync->mConfig.setLocalFingerprint(0); //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
 #endif

@@ -180,6 +180,7 @@ public:
     string getSyncExtraData(UnifiedSync&);
 
     bool operator==(const BackupInfoSync& o) const;
+    bool operator!=(const BackupInfoSync& o) const;
 
 private:
     static int calculatePauseActiveState(MegaClient *client);
@@ -206,7 +207,6 @@ private:
     void updateBackupInfo(handle backupId, const BackupInfo &info);
 
 #ifdef ENABLE_SYNC
-    void registerBackupInfo(const BackupInfo &info, UnifiedSync* syncPtr);
     void beatBackupInfo(UnifiedSync& us);
 #endif
 };
