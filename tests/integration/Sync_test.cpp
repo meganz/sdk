@@ -830,9 +830,15 @@ struct StandardClient : public MegaApp
     ~StandardClient()
     {
         // shut down any syncs on the same thread, or they stall the client destruction (CancelIo instead of CancelIoEx on the WinDirNotify)
-        thread_do<bool>([](MegaClient& mc, PromiseBoolSP) {
-            mc.logout(false);
-        });
+        auto result =
+          thread_do<bool>([](MegaClient& mc, PromiseBoolSP result)
+                          {
+                              mc.logout(false);
+                              result->set_value(true);
+                          });
+
+        // Make sure logout completes before we escape.
+        result.get();
 
         clientthreadexit = true;
         waiter.notify();
@@ -841,9 +847,15 @@ struct StandardClient : public MegaApp
 
     void localLogout()
     {
-        thread_do<bool>([](MegaClient& mc, PromiseBoolSP) {
-            mc.locallogout(false, true);
-        });
+        auto result =
+          thread_do<bool>([](MegaClient& mc, PromiseBoolSP result)
+                          {
+                              mc.locallogout(false, true);
+                              result->set_value(true);
+                          });
+
+        // Make sure logout completes before we escape.
+        result.get();
     }
 
     static mutex om;
@@ -2111,28 +2123,38 @@ void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1
     {
         bool any_add_del = false;
 
-        for (auto vn : v) if (vn)
+        for (auto vn : v)
         {
-            vn->thread_do<bool>(
-              [&](StandardClient& mc, PromiseBoolSP)
-              {
-                  mc.client.syncs.forEachRunningSync(
-                    [&](Sync* s)
+            if (vn)
+            {
+                auto result =
+                  vn->thread_do<bool>(
+                    [&](StandardClient& mc, PromiseBoolSP result)
                     {
-                        any_add_del |= !s->deleteq.empty();
-                        any_add_del |= !s->insertq.empty();
+                        bool busy = false;
+
+                        mc.client.syncs.forEachRunningSync(
+                          [&](Sync* s)
+                          {
+                              busy |= !s->deleteq.empty();
+                              busy |= !s->insertq.empty();
+                          });
+
+                        if (!(mc.client.todebris.empty()
+                            && mc.client.localsyncnotseen.empty()
+                            && mc.client.tounlink.empty()
+                            && mc.client.synccreate.empty()
+                            && mc.client.transferlist.transfers[GET].empty()
+                            && mc.client.transferlist.transfers[PUT].empty()))
+                        {
+                            busy = true;
+                        }
+
+                        result->set_value(busy);
                     });
 
-                  if (!(mc.client.todebris.empty()
-                        && mc.client.localsyncnotseen.empty()
-                        && mc.client.tounlink.empty()
-                        && mc.client.synccreate.empty()
-                        && mc.client.transferlist.transfers[GET].empty()
-                        && mc.client.transferlist.transfers[PUT].empty()))
-                  {
-                      any_add_del = true;
-                  }
-              });
+                any_add_del |= result.get();
+            }
         }
 
         bool allactive = true;
