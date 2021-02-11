@@ -6951,7 +6951,7 @@ void MegaApiImpl::getFavourites(MegaNode* node, int count, MegaRequestListener* 
     request->setParamType(MegaApi::NODE_ATTR_FAV);
     request->setNumDetails(count);
     requestQueue.push(request);
-    waiter->notify(); 
+    waiter->notify();
 }
 
 static void encodeCoordinates(double latitude, double longitude, int& lat, int& lon)
@@ -17087,6 +17087,7 @@ void MegaApiImpl::processTransferFailed(Transfer *tr, MegaTransferPrivate *trans
     else
     {
         transfer->setState(MegaTransfer::STATE_RETRYING);
+        LOG_verbose << "processTransferFailed checking handle " << transfer->getParentHandle();
         transfer->setForeignOverquota(e == API_EOVERQUOTA && client->isForeignNode(NodeHandle().set6byte(transfer->getParentHandle())));
         fireOnTransferTemporaryError(transfer, std::move(megaError));
     }
@@ -18645,8 +18646,8 @@ unsigned MegaApiImpl::sendPendingTransfers()
 
                     currentTransfer = transfer;
                     string wFileName = fileName;
-                    MegaFilePut *f = new MegaFilePut(client, std::move(wLocalPath), &wFileName, 
-                            NodeHandle().set6byte(transfer->getParentHandle()), 
+                    MegaFilePut *f = new MegaFilePut(client, std::move(wLocalPath), &wFileName,
+                            NodeHandle().set6byte(transfer->getParentHandle()),
                             uploadToInbox ? inboxTarget : "", mtime, isSourceTemporary, previousNode);
                     *static_cast<FileFingerprint*>(f) = fp;  // deliberate slicing - startxfer would re-fingerprint if we don't supply this info
                     f->setTransfer(transfer);
@@ -20600,7 +20601,7 @@ void MegaApiImpl::sendPendingRequests()
                 FavouriteProcessor processor(count);
                 processTree(node, &processor);
                 request->setMegaHandleList(processor.getHandles());
-                
+
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
             break;

@@ -270,7 +270,7 @@ class NodeHandle
     uint64_t h = 0xFFFFFFFFFFFFFFFF;
 public:
     bool isUndef() { return (h & 0xFFFFFFFFFFFF) == 0xFFFFFFFFFFFF; }
-    NodeHandle& set6byte(uint64_t n) { h = n; assert((n & 0xFFFF000000000000) == 0); return *this; }
+    NodeHandle& set6byte(uint64_t n) { h = n; assert((n & 0xFFFF000000000000) == 0 || n == 0xFFFFFFFFFFFFFFFF); return *this; }
     bool eq(NodeHandle b) { return (h & 0xFFFFFFFFFFFF) == (b.h & 0xFFFFFFFFFFFF); }
     bool eq(handle b) { return (h & 0xFFFFFFFFFFFF) == (b & 0xFFFFFFFFFFFF); }
     bool ne(handle b) { return (h & 0xFFFFFFFFFFFF) != (b & 0xFFFFFFFFFFFF); }
