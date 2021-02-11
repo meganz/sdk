@@ -11068,7 +11068,7 @@ class MegaApi
          * @param writable if the link should be writable.
          * @param listener MegaRequestListener to track this request
          */
-        void exportNode(MegaNode *node, bool writable, MegaRequestListener *listener);
+        void exportNode(MegaNode *node, bool writable, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Generate a public link of a file/folder in MEGA
@@ -11091,7 +11091,7 @@ class MegaApi
          * @param writable if the link should be writable.
          * @param listener MegaRequestListener to track this request
          */
-        void exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener);
+        void exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Stop sharing a file/folder
