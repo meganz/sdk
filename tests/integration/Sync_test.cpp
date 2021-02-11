@@ -1101,12 +1101,26 @@ struct StandardClient : public MegaApp
             [pb](error e) { pb->set_value(!e);  return true; });
     }
 
+    // Necessary to make sure we release the file once we're done with it.
+    struct FilePut : public File {
+        void completed(Transfer* t, LocalNode* n) override
+        {
+            File::completed(t, n);
+            delete this;
+        }
+
+        void terminated() override
+        {
+            delete this;
+        }
+    }; // FilePut
+
     void uploadFilesInTree_recurse(Node* target, const fs::path& p, std::atomic<int>& inprogress, DBTableTransactionCommitter& committer)
     {
         if (fs::is_regular_file(p))
         {
             ++inprogress;
-            File* f = new File();
+            File* f = new FilePut();
             // full local path
             f->localname = LocalPath::fromPath(p.u8string(), *client.fsaccess);
             f->h = target->nodehandle;
