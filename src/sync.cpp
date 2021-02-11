@@ -3255,7 +3255,7 @@ void Syncs::resumeResumableSyncsOnStartup()
 #endif
                 LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
 
-                if (!unifiedSync->enableSync(false, true))
+                if (!unifiedSync->enableSync(false, false))
                 {
                     // Only internal backups can be resumed.
                     if (unifiedSync->mSync->isBackup())
