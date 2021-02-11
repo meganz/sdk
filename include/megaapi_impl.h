@@ -624,11 +624,12 @@ public:
     MegaHandleListPrivate();
     MegaHandleListPrivate(const MegaHandleListPrivate *hList);
     virtual ~MegaHandleListPrivate();
+    MegaHandleListPrivate(const vector<handle> &handles);
 
-    virtual MegaHandleList *copy() const;
-    virtual MegaHandle get(unsigned int i) const;
-    virtual unsigned int size() const;
-    virtual void addMegaHandle(MegaHandle megaHandle);
+    MegaHandleList *copy() const override;
+    MegaHandle get(unsigned int i) const override;
+    unsigned int size() const override;
+    void addMegaHandle(MegaHandle megaHandle) override;
 
 private:
     std::vector<MegaHandle> mList;
@@ -1224,6 +1225,7 @@ class MegaRequestPrivate : public MegaRequest
         AchievementsDetails *getAchievementsDetails() const;
         MegaTimeZoneDetails *getMegaTimeZoneDetails () const override;
         MegaStringList *getMegaStringList() const override;
+        MegaHandleList* getMegaHandleList() const override;
 
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *getMegaTextChatPeerList() const override;
@@ -1244,6 +1246,7 @@ class MegaRequestPrivate : public MegaRequest
         MegaBackgroundMediaUpload *getMegaBackgroundMediaUploadPtr() const override;
         void setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUpload *);  // non-owned pointer
         void setMegaStringList(MegaStringList* stringList);
+        void setMegaHandleList(const vector<handle> &handles);
 
 #ifdef ENABLE_SYNC
         void setRegExp(MegaRegExp *regExp);
@@ -1303,6 +1306,7 @@ protected:
         MegaPushNotificationSettings *settings;
         MegaBackgroundMediaUpload* backgroundMediaUpload;  // non-owned pointer
         unique_ptr<MegaStringList> mStringList;
+        unique_ptr<MegaHandleList> mHandleList;
 
     private:
         unique_ptr<MegaBannerListPrivate> mBannerList;
@@ -2057,6 +2061,18 @@ class TreeProcFolderInfo : public TreeProc
         long long versionsSize;
 };
 
+class FavouriteProcessor : public TreeProcessor
+{
+public:
+    FavouriteProcessor(int maxCount);
+    bool processNode(Node* node) override;
+    const vector<handle> &getHandles() const;
+
+private:
+    vector<handle> handles;
+    unsigned mMaxCount = 0;
+};
+
 //Thread safe request queue
 class RequestQueue
 {
@@ -2300,6 +2316,7 @@ class MegaApiImpl : public MegaApp
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
         void setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener = NULL);
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
+        void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
         void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
@@ -3172,9 +3189,6 @@ protected:
 
         // this will call will fire EVENT_SYNCS_DISABLED
         virtual void syncs_disabled(SyncError syncError) override;
-
-        // this will call will fire EVENT_FIRST_SYNC_RESUMING before the first sync is resumed
-        virtual void syncs_about_to_be_resumed() override;
 
         // removes the sync from syncMap and fires onSyncDeleted callback
         void sync_removed(handle backupId) override;

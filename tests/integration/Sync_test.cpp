@@ -834,9 +834,15 @@ struct StandardClient : public MegaApp
     ~StandardClient()
     {
         // shut down any syncs on the same thread, or they stall the client destruction (CancelIo instead of CancelIoEx on the WinDirNotify)
-        thread_do<bool>([](MegaClient& mc, PromiseBoolSP) {
-            mc.logout(false);
-        });
+        auto result =
+          thread_do<bool>([](MegaClient& mc, PromiseBoolSP result)
+                          {
+                              mc.logout(false);
+                              result->set_value(true);
+                          });
+
+        // Make sure logout completes before we escape.
+        result.get();
 
         clientthreadexit = true;
         waiter.notify();
@@ -845,9 +851,15 @@ struct StandardClient : public MegaApp
 
     void localLogout()
     {
-        thread_do<bool>([](MegaClient& mc, PromiseBoolSP) {
-            mc.locallogout(false, true);
-        });
+        auto result =
+          thread_do<bool>([](MegaClient& mc, PromiseBoolSP result)
+                          {
+                              mc.locallogout(false, true);
+                              result->set_value(true);
+                          });
+
+        // Make sure logout completes before we escape.
+        result.get();
     }
 
     static mutex om;
@@ -923,6 +935,7 @@ struct StandardClient : public MegaApp
         while (!clientthreadexit)
         {
             int r;
+
             {
                 std::lock_guard<std::recursive_mutex> lg(clientMutex);
                 r = client.preparewait();
@@ -943,17 +956,17 @@ struct StandardClient : public MegaApp
                     nextfunctionMC();
                     nextfunctionMC = nullptr;
                     functionDone.notify_all();
-                    r = Waiter::NEEDEXEC;
+                    r |= Waiter::NEEDEXEC;
                 }
                 if (nextfunctionSC)
                 {
                     nextfunctionSC();
                     nextfunctionSC = nullptr;
                     functionDone.notify_all();
-                    r = Waiter::NEEDEXEC;
+                    r |= Waiter::NEEDEXEC;
                 }
             }
-            if (r & Waiter::NEEDEXEC)
+            if ((r & Waiter::NEEDEXEC))
             {
                 client.exec();
             }
@@ -1144,6 +1157,20 @@ struct StandardClient : public MegaApp
             [pb](error e) { pb->set_value(!e);  return true; });
     }
 
+    // Necessary to make sure we release the file once we're done with it.
+    struct FilePut : public File {
+        void completed(Transfer* t, LocalNode* n) override
+        {
+            File::completed(t, n);
+            delete this;
+        }
+
+        void terminated() override
+        {
+            delete this;
+        }
+    }; // FilePut
+
     bool uploadFolderTree(fs::path p, Node* n2)
     {
         auto result =
@@ -1157,7 +1184,7 @@ struct StandardClient : public MegaApp
 
     void uploadFile(const fs::path& path, const string& name, Node* parent, DBTableTransactionCommitter& committer)
     {
-        unique_ptr<File> file(new File());
+        unique_ptr<File> file(new FilePut());
 
         file->h = parent->nodeHandle();
         file->localname = LocalPath::fromPath(path.u8string(), *client.fsaccess);
@@ -1287,7 +1314,9 @@ struct StandardClient : public MegaApp
     void catchup(PromiseBoolSP pb)
     {
         resultproc.prepresult(CATCHUP, ++next_request_tag,
-            [&](){ client.catchup(); },
+            [&](){
+                client.catchup();
+            },
             [pb](error e) {
                 if (e)
                 {
@@ -1510,7 +1539,7 @@ struct StandardClient : public MegaApp
             {
                 cout << clientname << "Setting up sync from " << m->displaypath() << " to " << localpath << endl;
                 SyncConfig syncConfig{LocalPath::fromPath(localpath.u8string(), *client.fsaccess), localpath.u8string(), m->nodehandle, subfoldername, 0};
-                error e = client.addsync(syncConfig, DEBRISFOLDER, NULL, false, true, addSyncCompletion);
+                error e = client.addsync(syncConfig, true, addSyncCompletion);
                 return !e;
             }
         }

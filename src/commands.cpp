@@ -4275,9 +4275,7 @@ bool CommandGetUserData::procresult(Result r)
                 {
                     // This attribute is set only once. If not received from API,
                     // it should not exist locally either
-
-                    // TODO: uncomment this once the production API is updated to deliver this attribute
-                    //assert(u->getattr(ATTR_JSON_SYNC_CONFIG_DATA) == nullptr);
+                    assert(u->getattr(ATTR_JSON_SYNC_CONFIG_DATA) == nullptr);
 
                     client->ensureSyncUserAttributes([](Error e){
                         if (e != API_OK)
@@ -8712,7 +8710,7 @@ bool CommandBackupSyncFetch::procresult(Result r)
                             case MAKENAMEID2('q', 'u'):     d.uploads = client->json.getint32(); break;
                             case MAKENAMEID2('q', 'd'):     d.downloads = client->json.getint32(); break;
                             case MAKENAMEID3('l', 't', 's'):d.lastActivityTs = client->json.getint32(); break;
-                            case MAKENAMEID2('l', 'h'):     d.lastSyncedNodeHandle = client->json.gethandle(sizeof(handle)); break;
+                            case MAKENAMEID2('l', 'h'):     d.lastSyncedNodeHandle = client->json.gethandle(MegaClient::NODEHANDLE); break;
                             default: if (!skipUnknownField()) return false;
                             }
                         }

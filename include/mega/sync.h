@@ -186,7 +186,7 @@ struct UnifiedSync
 private:
     friend class Sync;
     friend struct Syncs;
-    error startSync(MegaClient* client, const char* debris, LocalPath* localdebris, Node* remotenode, bool inshare, bool isNetwork, bool delayInitialScan, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder);
+    error startSync(MegaClient* client, const char* debris, LocalPath* localdebris, Node* remotenode, bool inshare, bool isNetwork, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder);
     void changedConfigState(bool notifyApp);
 };
 

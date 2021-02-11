@@ -2012,7 +2012,7 @@ error UnifiedSync::enableSync(bool resetFingerprint, bool notifyApp)
         return e;
     }
 
-    e = startSync(&mClient, DEBRISFOLDER, nullptr, remotenode, inshare, isnetwork, false, rootpath, openedLocalFolder);
+    e = startSync(&mClient, DEBRISFOLDER, nullptr, remotenode, inshare, isnetwork, rootpath, openedLocalFolder);
     mClient.syncactivity = true;
     changedConfigState(notifyApp);
 
@@ -2065,7 +2065,7 @@ bool UnifiedSync::updateSyncRemoteLocation(Node* n, bool forceCallback)
 
 
 error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* localdebris, Node* remotenode, bool inshare,
-                             bool isNetwork, bool delayInitialScan, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder)
+                             bool isNetwork, LocalPath& rootpath, std::unique_ptr<FileAccess>& openedLocalFolder)
 {
     //check we are not in any blocking situation
     using CType = CacheableStatus::Type;
@@ -2666,13 +2666,12 @@ void Syncs::resumeResumableSyncsOnStartup()
 {
     if (mClient.loggedin() != FULLACCOUNT) return;
 
-    bool firstSyncResumed = false;
-
     if (syncConfigDBLoad() != API_OK)
     {
         return;
     }
 
+    assert(mSyncVec.empty());   // there should be no syncs yet
     for (auto& pair : syncConfigDB()->configs())
     {
         mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(mClient, pair.second)));
@@ -2696,12 +2695,6 @@ void Syncs::resumeResumableSyncsOnStartup()
 
             if (unifiedSync->mConfig.getEnabled())
             {
-                if (!firstSyncResumed)
-                {
-                    mClient.app->syncs_about_to_be_resumed();
-                    firstSyncResumed = true;
-                }
-
 #ifdef __APPLE__
                 unifiedSync->mConfig.setLocalFingerprint(0); //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
 #endif

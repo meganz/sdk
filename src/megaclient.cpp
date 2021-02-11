@@ -13390,7 +13390,7 @@ void MegaClient::ensureSyncUserAttributesCompleted(Error e)
     }
 }
 
-void MegaClient::copySyncConfig(const SyncConfig& config, SyncCompletionFunction completion)
+void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion)
 {
     string deviceIdHash = getDeviceidHash();
     string extraData; // Empty extra data for the moment, in the future, any should come in config
@@ -13401,29 +13401,26 @@ void MegaClient::copySyncConfig(const SyncConfig& config, SyncCompletionFunction
                                    , BackupInfoSync::getSyncState(config, this)
                                    , config.getError()
                                    , extraData
-                                   , [this, config, completion](Error e, handle backupId) mutable {
-        if (ISUNDEF(backupId) && !e)
+                                   , [this, config, completion](Error e, handle backupId) {
+        if (!e)
         {
-            e = API_EFAILED;
+            if (ISUNDEF(backupId))
+            {
+                e = API_EINTERNAL;
+            }
+            else
+            {
+                auto configWithId = config;
+                configWithId.mBackupId = backupId;
+                syncs.saveSyncConfig(configWithId);
+            }
         }
 
-        if (e)
-        {
-            completion(nullptr, config.getError(), e);
-        }
-        else
-        {
-            auto configWithId = config;
-            configWithId.mBackupId = backupId;
-            UnifiedSync *unifiedSync = syncs.appendNewSync(configWithId, *this);
-
-            completion(unifiedSync, unifiedSync->mConfig.getError(), e);
-        }
+        completion(backupId, e);
     }));
 }
 
-error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* localdebris, bool delayInitialScan, bool notifyApp,
-                          SyncCompletionFunction completion)
+error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunction completion)
 {
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
@@ -13462,7 +13459,6 @@ error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* loc
                 // if we got this far, the syncConfig is kept (in db and in memory)
                 config.setBackupId(backupId);
 
-                //TODO: remove BackupMonitor::updateOrRegisterSync "Register" code path and backupId control
                 UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
 
                 e = unifiedSync->enableSync(false, notifyApp);
