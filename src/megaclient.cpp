@@ -60,10 +60,10 @@ const int MegaClient::MAXQUEUEDFA = 30;
 // maximum number of concurrent putfa
 const int MegaClient::MAXPUTFA = 10;
 
+#ifdef ENABLE_SYNC
 // hearbeat frequency
 static constexpr int FREQUENCY_HEARTBEAT_DS = 300;
 
-#ifdef ENABLE_SYNC
 // //bin/SyncDebris/yyyy-mm-dd base folder name
 const char* const MegaClient::SYNCDEBRISFOLDERNAME = "SyncDebris";
 #endif
@@ -643,12 +643,6 @@ int MegaClient::nextreqtag()
     return ++reqtag;
 }
 
-int MegaClient::nextSyncTag(int increment)
-{
-    mSyncTag += increment;
-    return ++mSyncTag;
-}
-
 void MegaClient::getrecoverylink(const char *email, bool hasMasterkey)
 {
     reqs.add(new CommandGetRecoveryLink(this, email,
@@ -1138,6 +1132,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     , syncs(*this)
     , syncfslockretrybt(rng), syncdownbt(rng), syncnaglebt(rng), syncextrabt(rng), syncscanbt(rng)
 #endif
+    , mCachedStatus(this)
 {
     sctable = NULL;
     pendingsccommit = false;
@@ -1257,7 +1252,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
 
     nextuh = 0;
     reqtag = 0;
-    mSyncTag = 0;
 
     badhostcs = NULL;
 
@@ -1760,7 +1754,7 @@ void MegaClient::exec()
                             if (fetchingnodes && fnstats.timeToFirstByte == NEVER
                                     && pendingcs->bufpos > 10)
                             {
-								WAIT_CLASS::bumpds();
+                                WAIT_CLASS::bumpds();
                                 fnstats.timeToFirstByte = WAIT_CLASS::ds - fnstats.startTime;
                             }
 
@@ -1783,7 +1777,7 @@ void MegaClient::exec()
                             {
                                 if (fetchingnodes && fnstats.timeToFirstByte == NEVER)
                                 {
-									WAIT_CLASS::bumpds();
+                                    WAIT_CLASS::bumpds();
                                     fnstats.timeToFirstByte = WAIT_CLASS::ds - fnstats.startTime;
                                 }
 
@@ -4076,7 +4070,7 @@ void MegaClient::locallogout(bool removecaches)
         }
         else
         {
-        	syncs.removeSelectedSyncs([](SyncConfig&, Sync* s){ return s != nullptr; });
+            syncs.removeSelectedSyncs([](SyncConfig&, Sync* s){ return s != nullptr; });
         }
 #endif
         removeCaches();
@@ -4105,6 +4099,7 @@ void MegaClient::locallogout(bool removecaches)
     nsr_enabled = false;
     aplvp_enabled = false;
     mNewLinkFormat = false;
+    mCookieBannerEnabled = false;
     mSmsVerificationState = SMS_STATE_UNKNOWN;
     mSmsVerifiedPhone.clear();
     loggingout = 0;
@@ -4181,16 +4176,17 @@ void MegaClient::locallogout(bool removecaches)
     mBizStatusLoadedFromCache = false;
     mBizMasters.clear();
     mPublicLinks.clear();
+    mCachedStatus.clear();
     scpaused = false;
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
     {
         for (int i = 2; i--; )
         {
-    	    for (faf_map::iterator it = cit->second->fafs[i].begin(); it != cit->second->fafs[i].end(); it++)
-    	    {
+            for (faf_map::iterator it = cit->second->fafs[i].begin(); it != cit->second->fafs[i].end(); it++)
+            {
                 delete it->second;
-    	    }
+            }
         }
 
         delete cit->second;
@@ -4454,14 +4450,11 @@ bool MegaClient::procsc()
                             restag = fetchnodestag;
                             fetchnodestag = 0;
 
-                            using CType = CacheableStatus::Type;
-                            auto cachedBlockedState = mCachedStatus[CType::STATUS_BLOCKED];
-                            if (!mBlockedSet && cachedBlockedState && cachedBlockedState->value()) //block state not received in this execution, and cached says we were blocked last time
+                            if (!mBlockedSet && mCachedStatus.lookup(CacheableStatus::STATUS_BLOCKED, 0)) //block state not received in this execution, and cached says we were blocked last time
                             {
                                 LOG_debug << "cached blocked states reports blocked, and no block state has been received before, issuing whyamiblocked";
                                 whyamiblocked();// lets query again, to trigger transition and restoreSyncs
                             }
-
 
 #ifdef ENABLE_SYNC
 #ifndef __ANDROID__
@@ -5208,30 +5201,7 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         storagestatus_t previousStatus = ststatus;
         ststatus = status;
 
-        using CS = CacheableStatus;
-        using CType = CacheableStatus::Type;
-        auto statusInCache = mCachedStatus[CType::STATUS_STORAGE];
-        if (!statusInCache)
-        {
-            statusInCache = mCachedStatus[CType::STATUS_STORAGE] = std::make_shared<CS>(CType::STATUS_STORAGE, ststatus);
-        }
-        else
-        {
-            mCachedStatus[CacheableStatus::Type::STATUS_STORAGE]->setValue(ststatus);
-        }
-
-        //persist change:
-        if (statusTable)
-        {
-            DBTableTransactionCommitter committer(statusTable);
-            LOG_verbose << "Adding/updating status to database: "
-                        << statusInCache->type() << " = " << statusInCache->value();
-            if (!(statusTable->put(CACHEDSTATUS, statusInCache.get(), &key)))
-            {
-                LOG_err << "Failed to add/update status to db: "
-                            << statusInCache->type() << " = " << statusInCache->value();
-            }
-        }
+        mCachedStatus.addOrUpdate(CacheableStatus::STATUS_STORAGE, status);
 
         app->notify_storage(ststatus);
 
@@ -5386,26 +5356,73 @@ void MegaClient::sc_updatenode()
     }
 }
 
-void MegaClient::loadCacheableStatus(std::shared_ptr<CacheableStatus> status)
+void MegaClient::CacheableStatusMap::loadCachedStatus(int64_t type, int64_t value)
 {
-    mCachedStatus[status->type()] = status;
+    auto it = insert(pair<int64_t, CacheableStatus>(type, CacheableStatus(type, value)));
+    assert(it.second);
 
-    LOG_verbose << "Loaded status from cache: " << status->type() << " = " << status->value();
+    LOG_verbose << "Loaded status from cache: " << type << " = " << value;
 
-    switch(status->type())
+    switch(type)
     {
         case CacheableStatus::Type::STATUS_STORAGE:
         {
-            ststatus = static_cast<storagestatus_t>(status->value());
+            mClient->ststatus = static_cast<storagestatus_t>(value);
             break;
         }
         case CacheableStatus::Type::STATUS_BUSINESS:
         {
-            mBizStatus = static_cast<BizStatus>(status->value());
-            mBizStatusLoadedFromCache = true;
+            mClient->mBizStatus = static_cast<BizStatus>(value);
+            mClient->mBizStatusLoadedFromCache = true;
             break;
         }
+        default:
+            break;
     }
+}
+
+bool MegaClient::CacheableStatusMap::addOrUpdate(int64_t type, int64_t value)
+{
+    bool changed = false;
+
+    CacheableStatus status(type, value);
+    auto it_bool = emplace(type, status);
+    if (!it_bool.second)    // already exists
+    {
+        if (it_bool.first->second.value() != value)
+        {
+            it_bool.first->second.setValue(value); // don't replace it, or we lose the dbid
+            changed = true;
+        }
+    }
+    else // added
+    {
+        changed = true;
+    }
+
+    if (changed && mClient->statusTable)
+    {
+        DBTableTransactionCommitter committer(mClient->statusTable);
+        LOG_verbose << "Adding/updating status to database: " << type << " = " << value;
+        if (!mClient->statusTable->put(MegaClient::CACHEDSTATUS, &it_bool.first->second, &mClient->key))
+        {
+            LOG_err << "Failed to add/update status to db: " << type << " = " << value;
+        }
+    }
+
+    return changed;
+}
+
+int64_t MegaClient::CacheableStatusMap::lookup(int64_t type, int64_t defaultValue)
+{
+    auto it = find(type);
+    return it == end() ? defaultValue : it->second.value();
+}
+
+CacheableStatus *MegaClient::CacheableStatusMap::getPtr(int64_t type)
+{
+    auto it = find(type);
+    return it == end() ? nullptr : &it->second;
 }
 
 // read tree object (nodes and users)
@@ -6860,31 +6877,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
     if (newBizStatus != mBizStatus) //has changed
     {
         mBizStatus = newBizStatus;
-
-        using CS = CacheableStatus;
-        using CType = CacheableStatus::Type;
-        auto status = mCachedStatus[CType::STATUS_BUSINESS];
-        if (!status)
-        {
-            status = mCachedStatus[CType::STATUS_BUSINESS] = std::make_shared<CS>(CType::STATUS_BUSINESS, mBizStatus);
-        }
-        else
-        {
-            mCachedStatus[CacheableStatus::Type::STATUS_BUSINESS]->setValue(mBizStatus);
-        }
-
-        //persist change:
-        if (statusTable)
-        {
-            DBTableTransactionCommitter committer(statusTable);
-            LOG_verbose << "Adding/updating status to database: "
-                        << status->type() << " = " << status->value();
-            if (!(statusTable->put(CACHEDSTATUS, status.get(), &key)))
-            {
-                LOG_err << "Failed to add/update status to db: "
-                            << status->type() << " = " << status->value();
-            }
-        }
+        mCachedStatus.addOrUpdate(CacheableStatus::STATUS_BUSINESS, newBizStatus);
 
 #ifdef ENABLE_SYNC
         if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired
@@ -8524,6 +8517,9 @@ error MegaClient::readmiscflags(JSON *json)
         case MAKENAMEID4('n', 'l', 'f', 'e'):   // new link format enabled
             mNewLinkFormat = static_cast<bool>(json->getint());
             break;
+        case MAKENAMEID4('c', 's', 'p', 'e'):   // cookie banner enabled
+            mCookieBannerEnabled = bool(json->getint());
+            break;
         case EOO:
             return API_OK;
         default:
@@ -8990,8 +8986,6 @@ void MegaClient::login(string session)
 
     if (session.size() == sizeof key.key + SIDLEN)
     {
-        string t;
-
         key.setkey((const byte*)session.data());
         sid.assign((const char*)session.data() + sizeof key.key, SIDLEN);
 
@@ -11188,30 +11182,7 @@ void MegaClient::setBlocked(bool value)
     mBlocked = value;
     mBlockedSet = true;
 
-    using CS = CacheableStatus;
-    using CType = CacheableStatus::Type;
-    auto status = mCachedStatus[CType::STATUS_BLOCKED];
-    if (!status)
-    {
-        status = mCachedStatus[CType::STATUS_BLOCKED] = std::make_shared<CS>(CType::STATUS_BLOCKED, mBlocked);
-    }
-    else
-    {
-        mCachedStatus[CacheableStatus::Type::STATUS_BLOCKED]->setValue(mBlocked);
-    }
-
-    //persist change:
-    if (statusTable)
-    {
-        DBTableTransactionCommitter committer(statusTable);
-        LOG_verbose << "Adding/updating status to database: "
-                    << status->type() << " = " << status->value();
-        if (!(statusTable->put(CACHEDSTATUS, status.get(), &key)))
-        {
-            LOG_err << "Failed to add/update status to db: "
-                        << status->type() << " = " << status->value();
-        }
-    }
+    mCachedStatus.addOrUpdate(CacheableStatus::STATUS_BLOCKED, mBlocked);
 }
 
 void MegaClient::block(bool fromServerClientResponse)
@@ -11785,8 +11756,9 @@ void MegaClient::fetchnodes(bool nocache)
 
     // only initial load from local cache
     if ((loggedin() == FULLACCOUNT || loggedIntoFolder() ) &&
-        !nodes.size() && sctable && !ISUNDEF(cachedscsn) &&
-        fetchsc(sctable) && fetchStatusTable(statusTable.get()))
+            !nodes.size() && !ISUNDEF(cachedscsn) &&
+            sctable && fetchsc(sctable) &&
+            statusTable && fetchStatusTable(statusTable.get()))
     {
         WAIT_CLASS::bumpds();
         fnstats.mode = FetchNodesStats::MODE_DB;
@@ -12963,7 +12935,7 @@ error MegaClient::isnodesyncable(Node *remotenode, bool *isinshare, SyncError *s
 #endif
 }
 
-error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, SyncError *syncError)
+error MegaClient::isLocalPathSyncable(string newPath, handle excludeBackupId, SyncError *syncError)
 {
     if (!newPath.size())
     {
@@ -12981,7 +12953,7 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, SyncError 
     error e = API_OK;
     syncs.forEachSyncConfig([&](const SyncConfig& config){
 
-        if (config.getTag() != newSyncTag)
+        if (config.getBackupId() != excludeBackupId && excludeBackupId != UNDEF) // for the check inside addsync() when it's already present
         {
             LocalPath otherLocallyEncodedPath = LocalPath::fromPath(config.getLocalPath(), *fsaccess);
             LocalPath otherLocallyEncodedAbsolutePath;
@@ -12992,7 +12964,6 @@ error MegaClient::isLocalPathSyncable(string newPath, int newSyncTag, SyncError 
                       || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath)
                     ) )
             {
-
                 if (syncError)
                 {
                     *syncError = LOCAL_PATH_SYNC_COLLISION;
@@ -13064,7 +13035,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
             // so that the app does not need to carry that burden.
             // Although it might not be required given the following test does expands the configured
             // paths to use canonical paths when checking for path collisions:
-            error e = isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.getTag(), &syncConfig.mError);
+            error e = isLocalPathSyncable(syncConfig.getLocalPath(), syncConfig.getBackupId(), &syncConfig.mError);
             if (e)
             {
                 LOG_warn << "Local path not syncable: ";
@@ -13074,7 +13045,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
                     syncConfig.mError = LOCAL_PATH_UNAVAILABLE;
                 }
                 syncConfig.mEnabled = false;
-                return API_EFAILED;
+                return e;  // eg. API_EARGS
             }
         }
         else
@@ -13098,27 +13069,90 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
 #endif
 }
 
-
-error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* localdebris, bool delayInitialScan, UnifiedSync*& unifiedSync, bool notifyApp)
+void MegaClient::copySyncConfig(SyncConfig& config, std::function<void(mega::UnifiedSync *, const SyncError &, error)> completion)
 {
-    unifiedSync = nullptr;
+    string localFolderEncrypted(cypherTLVTextWithMasterKey("lf", config.getLocalPath()) );
+    string deviceIdHash = getDeviceidHash();
+    string extraData; // Empty extra data for the moment, in the future, any should come in config
+
+    reqs.add( new CommandBackupPut(this, BackupInfoSync::getSyncType(config)
+                                   , config.getName().c_str(), config.getRemoteNode()
+                                   , localFolderEncrypted.c_str(), deviceIdHash.c_str()
+                                   , BackupInfoSync::getSyncState(config, this)
+                                   , config.getError()
+                                   , extraData
+                                   , [this, config, completion](Error e, handle backupId) mutable {
+        if (ISUNDEF(backupId) && !e)
+        {
+            e = API_EFAILED;
+        }
+
+        if (e)
+        {
+            completion(nullptr, config.getError(), e);
+        }
+        else
+        {
+            config.setBackupId(backupId);
+
+            UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
+
+            completion(unifiedSync, unifiedSync->mConfig.getError(), e);
+        }
+    }));
+}
+
+error MegaClient::addsync(SyncConfig& config, const char* debris, LocalPath* localdebris, bool delayInitialScan, bool notifyApp,
+                          std::function<void(mega::UnifiedSync *, const SyncError &, error)> completion)
+{
     LocalPath rootpath;
     std::unique_ptr<FileAccess> openedLocalFolder;
     Node* remotenode;
     bool inshare, isnetwork;
     error e = checkSyncConfig(config, rootpath, openedLocalFolder, remotenode, inshare, isnetwork);
 
-    if (!e)
+    if (e)
     {
-        // if we got this far, the syncConfig is kept (in db and in memory)
-        unifiedSync = syncs.appendNewSync(config, *this);
+        completion(nullptr, config.getError(), e);
+    }
+    else // API_OK (success)
+    {
+        string localFolderEncrypted(cypherTLVTextWithMasterKey("lf", config.getLocalPath()) );
+        string deviceIdHash = getDeviceidHash();
+        string extraData; // Empty extra data for the moment, in the future, any should come in SyncConfig
 
-        if (config.mEnabled)
-        {
-            e = unifiedSync->enableSync(false, notifyApp);
-            syncactivity = true;
-        }
-        config = unifiedSync->mConfig;  // so the caller can easily check the config they passed in
+        reqs.add( new CommandBackupPut(this, BackupInfoSync::getSyncType(config)
+                                       , config.getName().c_str(), config.getRemoteNode()
+                                       , localFolderEncrypted.c_str(), deviceIdHash.c_str()
+                                       , BackupInfoSync::getSyncState(config, this)
+                                       , config.getError()
+                                       , extraData
+                                       , [this, config, completion, notifyApp](Error e, handle backupId) mutable {
+            if (ISUNDEF(backupId) && !e)
+            {
+                e = API_EFAILED;
+            }
+
+            if (e)
+            {
+                completion(nullptr, config.getError(), e);
+            }
+            else
+            {
+
+                // if we got this far, the syncConfig is kept (in db and in memory)
+                config.setBackupId(backupId);
+
+                //TODO: remove BackupMonitor::updateOrRegisterSync "Register" code path and backupId control
+                UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
+
+                e = unifiedSync->enableSync(false, notifyApp);
+
+                syncactivity = true;
+
+                completion(unifiedSync, unifiedSync->mConfig.getError(), e);
+            }
+        }));
     }
 
     return e;
@@ -14211,10 +14245,12 @@ void MegaClient::syncupdate()
                 // this assert fails for the case of two different files uploaded to the same path, and both putnodes occurring in the same exec()
                 assert(localNode->type == FOLDERNODE
                        || localNode->h == localNode->parent->node->nodehandle); // if it's a file, it should match
+
+                auto nextTag = nextreqtag();
                 reqs.add(new CommandPutNodes(this,
                                                 localNode->parent->node->nodehandle,
                                                 NULL, move(nn),
-                                                localNode->sync->tag,
+                                                nextTag, //assign a new unused reqtag
                                                 PUTNODES_SYNC));
 
                 syncactivity = true;
@@ -14271,7 +14307,7 @@ void MegaClient::movetosyncdebris(Node* dn, bool unlink)
     // detach node from LocalNode
     if (dn->localnode)
     {
-        dn->tag = dn->localnode->sync->tag;
+        dn->tag = nextreqtag(); //assign a new unused reqtag
         dn->localnode.reset();
     }
 
