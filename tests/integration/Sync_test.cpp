@@ -678,6 +678,7 @@ struct StandardClient : public MegaApp
     string client_dbaccess_path;
     std::unique_ptr<HttpIO> httpio;
     std::unique_ptr<FileSystemAccess> fsaccess;
+    std::recursive_mutex clientMutex;
     MegaClient client;
     std::atomic<bool> clientthreadexit{false};
     bool fatalerror = false;
@@ -697,8 +698,8 @@ struct StandardClient : public MegaApp
 
     struct ResultProc
     {
-        MegaClient& client;
-        ResultProc(MegaClient& c) : client(c) {}
+        StandardClient& client;
+        ResultProc(StandardClient& c) : client(c) {}
 
         struct id_callback
         {
@@ -713,22 +714,26 @@ struct StandardClient : public MegaApp
 
         void prepresult(resultprocenum rpe, int tag, std::function<void()>&& requestfunc, std::function<bool(error)>&& f, handle h = UNDEF)
         {
-            lock_guard<recursive_mutex> g(mtx);
-            auto& entry = m[rpe];
-            entry.emplace_back(move(f), tag, h);
+            {
+                lock_guard<recursive_mutex> g(mtx);
+                auto& entry = m[rpe];
+                entry.emplace_back(move(f), tag, h);
+            }
+
+            std::lock_guard<std::recursive_mutex> lg(client.clientMutex);
 
             assert(tag > 0);
-            int oldtag = client.reqtag;
-            client.reqtag = tag;
+            int oldtag = client.client.reqtag;
+            client.client.reqtag = tag;
             requestfunc();
-            client.reqtag = oldtag;
+            client.client.reqtag = oldtag;
 
-            client.waiter->notify();
+            client.client.waiter->notify();
         }
 
         void processresult(resultprocenum rpe, error e, handle h = UNDEF)
         {
-            int tag = client.restag;
+            int tag = client.client.restag;
             if (tag == 0 && rpe != CATCHUP)
             {
                 //out() << "received notification of SDK initiated operation " << rpe << " tag " << tag << endl; // too many of those to output
@@ -813,7 +818,7 @@ struct StandardClient : public MegaApp
                  THREADS_PER_MEGACLIENT)
         , clientname(name)
         , fsBasePath(basepath / fs::u8path(name))
-        , resultproc(client)
+        , resultproc(*this)
         , clientthread([this]() { threadloop(); })
     {
         client.clientname = clientname + " ";
@@ -826,7 +831,7 @@ struct StandardClient : public MegaApp
     {
         // shut down any syncs on the same thread, or they stall the client destruction (CancelIo instead of CancelIoEx on the WinDirNotify)
         thread_do<bool>([](MegaClient& mc, PromiseBoolSP) {
-            mc.logout();
+            mc.logout(false);
         });
 
         clientthreadexit = true;
@@ -837,7 +842,7 @@ struct StandardClient : public MegaApp
     void localLogout()
     {
         thread_do<bool>([](MegaClient& mc, PromiseBoolSP) {
-            mc.locallogout(false);
+            mc.locallogout(false, true);
         });
     }
 
@@ -899,7 +904,20 @@ struct StandardClient : public MegaApp
     {
         while (!clientthreadexit)
         {
-            int r = client.wait();
+            int r;
+
+            {
+                std::lock_guard<std::recursive_mutex> lg(clientMutex);
+                r = client.preparewait();
+            }
+
+            if (!r)
+            {
+                r |= client.dowait();
+            }
+
+            std::lock_guard<std::recursive_mutex> lg(clientMutex);
+            r |= client.checkevents();
 
             {
                 std::lock_guard<mutex> g(functionDoneMutex);
@@ -908,17 +926,17 @@ struct StandardClient : public MegaApp
                     nextfunctionMC();
                     nextfunctionMC = nullptr;
                     functionDone.notify_all();
-                    r = Waiter::NEEDEXEC;
+                    r |= Waiter::NEEDEXEC;
                 }
                 if (nextfunctionSC)
                 {
                     nextfunctionSC();
                     nextfunctionSC = nullptr;
                     functionDone.notify_all();
-                    r = Waiter::NEEDEXEC;
+                    r |= Waiter::NEEDEXEC;
                 }
             }
-            if (r & Waiter::NEEDEXEC)
+            if ((r & Waiter::NEEDEXEC))
             {
                 client.exec();
             }
@@ -1138,10 +1156,10 @@ struct StandardClient : public MegaApp
 
     std::function<void (StandardClient& mc, PromiseBoolSP pb)> onFetchNodes;
 
-    void fetchnodes(PromiseBoolSP pb)
+    void fetchnodes(bool noCache, PromiseBoolSP pb)
     {
         resultproc.prepresult(FETCHNODES, ++next_request_tag,
-            [&](){ client.fetchnodes(); },
+            [&](){ client.fetchnodes(noCache); },
             [this, pb](error e)
             {
                 if (e)
@@ -1330,7 +1348,7 @@ struct StandardClient : public MegaApp
             auto& config = sync->getConfig();
 
             info.h = config.getRemoteNode();
-            info.localpath = config.getLocalPath();
+            info.localpath = config.getLocalPath().toPath(*client.fsaccess);
 
             return true;
         }
@@ -1397,14 +1415,14 @@ struct StandardClient : public MegaApp
     }
 
     bool setupSync_inthread(const string& subfoldername, const fs::path& localpath,
-                            std::function<void(UnifiedSync*, const SyncError&, error)> addSyncCompletion)
+                            SyncCompletionFunction addSyncCompletion)
     {
         if (Node* n = client.nodebyhandle(basefolderhandle))
         {
             if (Node* m = drillchildnodebyname(n, subfoldername))
             {
-                SyncConfig syncConfig{localpath.u8string(), localpath.u8string(), m->nodehandle, subfoldername, 0};
-                error e = client.addsync(syncConfig, DEBRISFOLDER, NULL, false, true, addSyncCompletion);
+                SyncConfig syncConfig{LocalPath::fromPath(localpath.u8string(), *client.fsaccess), localpath.u8string(), m->nodehandle, subfoldername, 0};
+                error e = client.addsync(syncConfig, true, addSyncCompletion);
                 return !e;
             }
         }
@@ -1726,43 +1744,115 @@ struct StandardClient : public MegaApp
         CONFIRM_ALL = CONFIRM_LOCAL | CONFIRM_REMOTE,
     };
 
+    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, Node* rRoot)
+    {
+        auto result =
+          thread_do<bool>(
+            [=](StandardClient& client, PromiseBoolSP result)
+            {
+                result->set_value(client.confirmModel(id, mRoot, rRoot));
+            });
+
+        return result.get();
+    }
+
+    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, LocalNode* lRoot)
+    {
+        auto result =
+          thread_do<bool>(
+            [=](StandardClient& client, PromiseBoolSP result)
+            {
+                result->set_value(client.confirmModel(id, mRoot, lRoot));
+            });
+
+        return result.get();
+    }
+
+    bool confirmModel_mainthread(handle id, Model::ModelNode* mRoot, fs::path lRoot, const bool ignoreDebris = false)
+    {
+        auto result =
+          thread_do<bool>(
+            [=](StandardClient& client, PromiseBoolSP result)
+            {
+                result->set_value(client.confirmModel(id, mRoot, lRoot, ignoreDebris));
+            });
+
+        return result.get();
+    }
+
+    bool confirmModel(handle id, Model::ModelNode* mRoot, Node* rRoot)
+    {
+        string name = "Sync " + toHandle(id);
+        int descendents = 0;
+        bool reported = false;
+
+        if (!recursiveConfirm(mRoot, rRoot, descendents, name, 0, reported))
+        {
+            out() << clientname << " syncid " << toHandle(id) << " comparison against remote nodes failed" << endl;
+            return false;
+        }
+
+        return true;
+    }
+
+    bool confirmModel(handle id, Model::ModelNode* mRoot, LocalNode* lRoot)
+    {
+        string name = "Sync " + toHandle(id);
+        int descendents = 0;
+        bool reported = false;
+
+        if (!recursiveConfirm(mRoot, lRoot, descendents, name, 0, reported))
+        {
+            out() << clientname << " syncid " << toHandle(id) << " comparison against LocalNodes failed" << endl;
+            return false;
+        }
+
+        return true;
+    }
+
+    bool confirmModel(handle id, Model::ModelNode* mRoot, fs::path lRoot, const bool ignoreDebris = false)
+    {
+        string name = "Sync " + toHandle(id);
+        int descendents = 0;
+        bool reported = false;
+
+        if (!recursiveConfirm(mRoot, lRoot, descendents, name, 0, ignoreDebris, reported))
+        {
+            out() << clientname << " syncid " << toHandle(id) << " comparison against local filesystem failed" << endl;
+            return false;
+        }
+
+        return true;
+    }
+
     bool confirmModel(handle backupId, Model::ModelNode* mnode, const int confirm, const bool ignoreDebris)
     {
         SyncInfo si;
 
         if (!syncSet(backupId, si))
         {
-            out() << clientname << " backupId " << backupId << " not found " << endl;
+            out() << clientname << " backupId " << toHandle(backupId) << " not found " << endl;
             return false;
         }
 
         // compare model against nodes representing remote state
-        int descendants = 0;
-        bool firstreported = false;
-        if (confirm & CONFIRM_REMOTE && !recursiveConfirm(mnode, client.nodebyhandle(si.h), descendants, "Sync " + to_string(backupId), 0, firstreported))
+        if ((confirm & CONFIRM_REMOTE) && !confirmModel(backupId, mnode, client.nodebyhandle(si.h)))
         {
-            out() << clientname << " syncid " << backupId << " comparison against remote nodes failed" << endl;
             return false;
         }
 
         // compare model against LocalNodes
-        descendants = 0;
         if (Sync* sync = syncByBackupId(backupId))
         {
-            bool firstreported = false;
-            if (confirm & CONFIRM_LOCALNODE && !recursiveConfirm(mnode, sync->localroot.get(), descendants, "Sync " + to_string(backupId), 0, firstreported))
+            if ((confirm & CONFIRM_LOCALNODE) && !confirmModel(backupId, mnode, sync->localroot.get()))
             {
-                out() << clientname << " syncid " << backupId << " comparison against LocalNodes failed" << endl;
                 return false;
             }
         }
 
         // compare model against local filesystem
-        descendants = 0;
-        firstreported = false;
-        if (confirm & CONFIRM_LOCALFS && !recursiveConfirm(mnode, si.localpath, descendants, "Sync " + to_string(backupId), 0, ignoreDebris, firstreported))
+        if ((confirm & CONFIRM_LOCALFS) && !confirmModel(backupId, mnode, si.localpath, ignoreDebris))
         {
-            out() << clientname << " syncid " << backupId << " comparison against local filesystem failed" << endl;
             return false;
         }
 
@@ -1888,63 +1978,7 @@ struct StandardClient : public MegaApp
         pb->set_value(false);
     }
 
-
-
-    void waitonsyncs(chrono::seconds d = chrono::seconds(2))
-    {
-        auto start = chrono::steady_clock::now();
-        for (;;)
-        {
-            bool any_add_del = false;;
-            vector<int> syncstates;
-
-            thread_do<bool>([&syncstates, &any_add_del, this](StandardClient& mc, PromiseBoolSP)
-            {
-                mc.client.syncs.forEachRunningSync(
-                  [&](Sync* s)
-                  {
-                      syncstates.push_back(s->state);
-                      any_add_del |= !s->deleteq.empty();
-                      any_add_del |= !s->insertq.empty();
-                  });
-
-                if (!(client.todebris.empty() && client.tounlink.empty() && client.synccreate.empty()))
-                {
-                    any_add_del = true;
-                }
-                if (!client.transfers[GET].empty() || !client.transfers[PUT].empty())
-                {
-                    any_add_del = true;
-                }
-            });
-            bool allactive = true;
-            {
-                lock_guard<mutex> g(StandardClient::om);
-                //std::out() << "sync state: ";
-                //for (auto n : syncstates)
-                //{
-                //    out() << n;
-                //    if (n != SYNC_ACTIVE) allactive = false;
-                //}
-                //out() << endl;
-            }
-
-            if (any_add_del || debugging)
-            {
-                start = chrono::steady_clock::now();
-            }
-
-            if (allactive && ((chrono::steady_clock::now() - start) > d) && ((chrono::steady_clock::now() - lastcb) > d))
-            {
-               break;
-            }
-//out() << "waiting 500" << endl;
-            WaitMillisec(500);
-        }
-
-    }
-
-    bool login_reset(const string& user, const string& pw)
+    bool login_reset(const string& user, const string& pw, bool noCache = false)
     {
         future<bool> p1;
         p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.preloginFromEnv(user, pb); });
@@ -1959,7 +1993,7 @@ struct StandardClient : public MegaApp
             out() << "loginFromEnv failed" << endl;
             return false;
         }
-        p1 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(pb); });
+        p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(noCache, pb); });
         if (!waitonresults(&p1)) {
             out() << "fetchnodes failed" << endl;
             return false;
@@ -1977,9 +2011,9 @@ struct StandardClient : public MegaApp
         return true;
     }
 
-    bool login_reset_makeremotenodes(const string& user, const string& pw, const string& prefix, int depth, int fanout)
+    bool login_reset_makeremotenodes(const string& user, const string& pw, const string& prefix, int depth, int fanout, bool noCache = false)
     {
-        if (!login_reset(user, pw))
+        if (!login_reset(user, pw, noCache))
         {
             out() << "login_reset failed" << endl;
             return false;
@@ -1993,14 +2027,14 @@ struct StandardClient : public MegaApp
         return true;
     }
 
-    bool login_fetchnodes(const string& user, const string& pw, bool makeBaseFolder = false)
+    bool login_fetchnodes(const string& user, const string& pw, bool makeBaseFolder = false, bool noCache = false)
     {
         future<bool> p2;
         p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.preloginFromEnv(user, pb); });
         if (!waitonresults(&p2)) return false;
         p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromEnv(user, pw, pb); });
         if (!waitonresults(&p2)) return false;
-        p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(pb); });
+        p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(noCache, pb); });
         if (!waitonresults(&p2)) return false;
         p2 = thread_do<bool>([makeBaseFolder](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(makeBaseFolder, pb); });
         if (!waitonresults(&p2)) return false;
@@ -2012,7 +2046,7 @@ struct StandardClient : public MegaApp
         future<bool> p2;
         p2 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) { sc.loginFromSession(session, pb); });
         if (!waitonresults(&p2)) return false;
-        p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(pb); });
+        p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.fetchnodes(false, pb); });
         if (!waitonresults(&p2)) return false;
         p2 = thread_do<bool>([](StandardClient& sc, PromiseBoolSP pb) { sc.ensureTestBaseFolder(false, pb); });
         if (!waitonresults(&p2)) return false;
@@ -2065,26 +2099,29 @@ void waitonsyncs(chrono::seconds d = std::chrono::seconds(4), StandardClient* c1
     for (;;)
     {
         bool any_add_del = false;
-        //vector<int> syncstates;
 
         for (auto vn : v) if (vn)
         {
-            vn->thread_do<bool>([/*&syncstates,*/ &any_add_del](StandardClient& mc, PromiseBoolSP)
-            {
-                mc.client.syncs.forEachRunningSync(
-                  [&](Sync* s)
-                  {
-                      //syncstates.push_back(s->state);
-                      any_add_del |= !s->deleteq.empty();
-                      any_add_del |= !s->insertq.empty();
-                  });
+            vn->thread_do<bool>(
+              [&](StandardClient& mc, PromiseBoolSP)
+              {
+                  mc.client.syncs.forEachRunningSync(
+                    [&](Sync* s)
+                    {
+                        any_add_del |= !s->deleteq.empty();
+                        any_add_del |= !s->insertq.empty();
+                    });
 
-                if (!(mc.client.todebris.empty() && mc.client.tounlink.empty() && mc.client.synccreate.empty()
-                    && mc.client.transferlist.transfers[GET].empty() && mc.client.transferlist.transfers[PUT].empty()))
-                {
-                    any_add_del = true;
-                }
-            });
+                  if (!(mc.client.todebris.empty()
+                        && mc.client.localsyncnotseen.empty()
+                        && mc.client.tounlink.empty()
+                        && mc.client.synccreate.empty()
+                        && mc.client.transferlist.transfers[GET].empty()
+                        && mc.client.transferlist.transfers[PUT].empty()))
+                  {
+                      any_add_del = true;
+                  }
+              });
         }
 
         bool allactive = true;
@@ -2315,8 +2352,8 @@ public:
 
     void confirmModels()
     {
-        confirmModel(*client0, model0, 0);
-        confirmModel(*client1, model1, 1);
+        confirmModel(*client0, model0, backupId0);
+        confirmModel(*client1, model1, backupId1);
     }
 
     const fs::path localRoot0() const
@@ -4498,9 +4535,9 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     StandardClient clientA1Steady(localtestroot, "clientA1S");
     StandardClient clientA1Resume(localtestroot, "clientA1R");
     StandardClient clientA2(localtestroot, "clientA2");
-    ASSERT_TRUE(clientA1Steady.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "twoway", 0, 0));
-    ASSERT_TRUE(clientA1Resume.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD"));
+    ASSERT_TRUE(clientA1Steady.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "twoway", 0, 0, true));
+    ASSERT_TRUE(clientA1Resume.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", true));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", true));
     fs::create_directory(clientA1Steady.fsBasePath / fs::u8path("twoway"));
     fs::create_directory(clientA1Resume.fsBasePath / fs::u8path("twoway"));
     fs::create_directory(clientA2.fsBasePath / fs::u8path("twoway"));
@@ -4699,6 +4736,12 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
         }
     }
     out() << "Succeeded: " << succeeded << " Failed: " << failed << endl;
+
+    // Clear tree-state cache.
+    {
+        StandardClient cC(localtestroot, "cC");
+        ASSERT_TRUE(cC.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", true));
+    }
 }
 
 #endif

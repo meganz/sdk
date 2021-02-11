@@ -342,7 +342,7 @@ public:
     error validatepwd(const byte *);
 
     // get user data
-    void getuserdata();
+    void getuserdata(int tag, std::function<void(string*, string*, string*, error)> = nullptr);
 
     // get miscelaneous flags
     void getmiscflags();
@@ -512,8 +512,6 @@ public:
     // indicates whether all startup syncs have been fully scanned
     bool syncsup;
 
-    // keep sync configuration after logout
-    bool mKeepSyncsAfterLogout = false;
 #endif
     // backup names pending to be sent
     string_map mPendingBackupNames;
@@ -551,7 +549,8 @@ public:
     void checkfacompletion(handle, Transfer* = NULL);
 
     // attach/update/delete a user attribute
-    void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1, handle lastPublicHandle = UNDEF, int phtype = 0, int64_t ts = 0);
+    void putua(attr_t at, const byte* av = NULL, unsigned avl = 0, int ctag = -1, handle lastPublicHandle = UNDEF, int phtype = 0, int64_t ts = 0,
+        std::function<void(Error)> completion = nullptr);
 
     // attach/update multiple versioned user attributes at once
     void putua(userattr_map *attrs, int ctag = -1);
@@ -606,7 +605,7 @@ public:
      * @param syncError filled with SyncError with the sync error that makes the node unsyncable
      * @return API_OK if syncable. (regular) error otherwise
      */
-    error isLocalPathSyncable(std::string newPath, handle excludeBackupId = UNDEF, SyncError *syncError = nullptr);
+    error isLocalPathSyncable(const LocalPath& newPath, handle excludeBackupId = UNDEF, SyncError *syncError = nullptr);
 
     /**
      * @brief check config. Will fill syncError in the SyncConfig in case there is one.
@@ -623,18 +622,32 @@ public:
      * @brief add sync. Will fill syncError/syncWarning in the SyncConfig in case there are any.
      * It will persist the sync configuration if its call to checkSyncConfig succeeds
      * @param syncConfig the Config to attempt to add
-     * @param debris Name of the debris folder on this platform (perhaps we could just use the macro)
-     * @param localdebris Alternate debris folder path - not used at all to my knowledge
-     * @param delayInitialScan delay the initial scan
-     * @param unifiedSync If the syncConfig is added, this parameter wll be filled in with a pointer to the created UnifiedSync.
      * @param notifyApp whether the syncupdate_stateconfig callback should be called at this stage or not
+     * @param completion Completion function
      * @return API_OK if added to active syncs. (regular) error otherwise (with detail in syncConfig's SyncError field).
      */
-    error addsync(SyncConfig& syncConfig, const char* debris, LocalPath* localdebris, bool delayInitialScan, bool notifyApp,
-                  std::function<void(UnifiedSync *, const SyncError &, error)> completion);
+    error addsync(SyncConfig& syncConfig, bool notifyApp, SyncCompletionFunction completion);
 
-    void copySyncConfig(SyncConfig& config, std::function<void(mega::UnifiedSync *, const SyncError &, error)> completion);
+    void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
 
+    /**
+     * @brief This method ensures that sync user attributes are available.
+     *
+     * This method calls \c completion function when it finishes, with the
+     * corresponding error if was not possible to ensure the attrs are available.
+     *
+     * Note that it may also need to create certain attributes, like *~jscd, if they
+     * don't exist yet.
+     *
+     * @param completion Function that is called when completed
+     */
+    void ensureSyncUserAttributes(std::function<void(Error)> completion);
+
+private:
+    void ensureSyncUserAttributesCompleted(Error e);
+    std::function<void(Error)> mOnEnsureSyncUserAttributesComplete;
+
+public:
 
     ////// sync config updating & persisting ////
 
@@ -648,10 +661,7 @@ public:
     // fail all active syncs
     void failSyncs(SyncError syncError =  NO_SYNC_ERROR);
 
-
-
-
-#endif
+#endif  // ENABLE_SYNC
 
     /**
      * @brief creates a tlv with one record and returns it encrypted with master key
@@ -659,7 +669,8 @@ public:
      * @param text value of the record
      * @return encrypted base64 string with the tlv contents
      */
-    std::string cypherTLVTextWithMasterKey(const char *name, const std::string &text);
+    std::string cypherTLVTextWithMasterKey(const char* name, const std::string& text);
+    std::string decypherTLVTextWithMasterKey(const char* name, const std::string& text);
 
     // close all open HTTP connections
     void disconnect();
@@ -670,10 +681,10 @@ public:
     void abortlockrequest();
 
     // abort session and free all state information
-    void logout();
+    void logout(bool keepSyncConfigsFile);
 
     // free all state information
-    void locallogout(bool removecaches);
+    void locallogout(bool removecaches, bool keepSyncsConfigFile);
 
     // SDK version
     const char* version();
@@ -1085,7 +1096,7 @@ private:
     void init();
 
     // remove caches
-    void removeCaches();
+    void removeCaches(bool keepSyncsConfigFile);
 
     // add node to vector and return index
     unsigned addnode(node_vector*, Node*) const;
@@ -1374,7 +1385,7 @@ public:
     // remove node subtree
     void deltree(handle);
 
-    Node* nodebyhandle(handle);
+    Node* nodebyhandle(handle) const;
     Node* nodebyfingerprint(FileFingerprint*);
 #ifdef ENABLE_SYNC
     Node* nodebyfingerprint(LocalNode*);
@@ -1795,7 +1806,7 @@ public:
     int loggingout = 0;
 
     // the logout request succeeded, time to clean up localy once returned from CS response processing
-    bool loggedout = false;
+    std::function<void(MegaClient*)> mOnCSCompletion;
 
     // true if the account is a master business account, false if it's a sub-user account
     BizMode mBizMode;
@@ -1845,11 +1856,6 @@ public:
     std::string getDeviceid() const;
 
     std::string getDeviceidHash() const;
-
-#ifdef ENABLE_SYNC
-    bool getKeepSyncsAfterLogout() const;
-    void setKeepSyncsAfterLogout(bool keepSyncsAfterLogout);
-#endif
 
     MegaClient(MegaApp*, Waiter*, HttpIO*, FileSystemAccess*, DbAccess*, GfxProc*, const char*, const char*, unsigned workerThreadCount);
     ~MegaClient();

@@ -264,6 +264,7 @@ ENDIF(WIN32)
 
 include(CheckIncludeFile)
 include(CheckFunctionExists)
+
 check_include_file(inttypes.h HAVE_INTTYPES_H)
 check_include_file(dirent.h HAVE_DIRENT_H)
 check_include_file(uv.h HAVE_LIBUV)
@@ -366,8 +367,9 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportALibrary(webrtc "${WebRtcDir}/include" "${WebRtcDir}/lib/webrtc.lib" "${WebRtcDir}/lib/webrtc.lib")
             add_definitions( -DWEBRTC_WIN )
         ENDIF()
-
+    
         ImportStdVcpkgLibrary(gtest           gtestd gtest libgtestd libgtest)
+        ImportStdVcpkgLibrary(gmock           gmockd gmock libgmockd libgmock)
 
         IF(USE_MEDIAINFO)
             IF(CMAKE_HOST_APPLE)
@@ -447,7 +449,15 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             endif()
 
             IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
-                set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} -fopenmp -fgomp)
+                include(CheckCXXCompilerFlag)
+
+                check_cxx_compiler_flag(-fgomp HAS_FGOMP)
+                check_cxx_compiler_flag(-fopenmp HAS_FOPENMP)
+
+                set(Mega_PlatformSpecificLibs
+                      ${Mega_PlatformSpecificLibs}
+                      $<$<BOOL:${HAS_FGOMP}>:-fgomp>
+                      $<$<BOOL:${HAS_FOPENMP}>:-fopenmp>)
             ENDIF()
 
         ENDIF(USE_LIBRAW)
@@ -806,12 +816,12 @@ add_executable(tool_purge_account
 target_compile_definitions(test_unit PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_compile_definitions(test_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
 target_compile_definitions(tool_purge_account PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
-target_link_libraries(test_unit gtest Mega )
-target_link_libraries(test_integration gtest Mega )
+target_link_libraries(test_unit gmock gtest Mega )
+target_link_libraries(test_integration gmock gtest Mega )
 if(APPLE)
     target_link_libraries(test_integration "-framework Security" )
 endif()
-target_link_libraries(tool_purge_account gtest Mega )
+target_link_libraries(tool_purge_account gmock gtest Mega )
 
 if (USE_ASIO)
     if (USE_THIRDPARTY_FROM_VCPKG)
