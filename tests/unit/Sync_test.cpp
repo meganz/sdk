@@ -1482,9 +1482,9 @@ public:
     private:
         // Delegate to real behavior.
         error getSlotsInOrderConcrete(const LocalPath& dbPath,
-                                      vector<unsigned int>& slots)
+                                      vector<unsigned int>& slotsVec)
         {
-            return JSONSyncConfigIOContext::getSlotsInOrder(dbPath, slots);
+            return JSONSyncConfigIOContext::getSlotsInOrder(dbPath, slotsVec);
         }
 
         error readConcrete(const LocalPath& dbPath,
@@ -1574,16 +1574,16 @@ public:
 
 TEST_F(JSONSyncConfigIOContextTest, GetBadPath)
 {
-    vector<unsigned int> slots;
+    vector<unsigned int> slotsVec;
 
     // Generate a bogus path.
     const auto drivePath = Utilities::randomPath();
 
     // Try to read slots from an invalid path.
-    EXPECT_NE(ioContext().getSlotsInOrder(drivePath, slots), API_OK);
+    EXPECT_NE(ioContext().getSlotsInOrder(drivePath, slotsVec), API_OK);
 
     // Slots should be empty.
-    EXPECT_TRUE(slots.empty());
+    EXPECT_TRUE(slotsVec.empty());
 }
 
 TEST_F(JSONSyncConfigIOContextTest, GetNoSlots)
@@ -1621,13 +1621,13 @@ TEST_F(JSONSyncConfigIOContextTest, GetNoSlots)
         EXPECT_TRUE(Utilities::randomFile(configPath));
     }
 
-    vector<unsigned int> slots;
+    vector<unsigned int> slotsVec;
 
     // Try and get a list of slots.
-    EXPECT_EQ(ioContext().getSlotsInOrder(drive.path(), slots), API_OK);
+    EXPECT_EQ(ioContext().getSlotsInOrder(drive.path(), slotsVec), API_OK);
 
     // Slots should be empty.
-    EXPECT_TRUE(slots.empty());
+    EXPECT_TRUE(slotsVec.empty());
 }
 
 TEST_F(JSONSyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
@@ -1666,13 +1666,13 @@ TEST_F(JSONSyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
         }
     }
 
-    vector<unsigned int> slots;
+    vector<unsigned int> slotsVec;
 
     // Get the slots.
-    EXPECT_EQ(ioContext().getSlotsInOrder(drive.path(), slots), API_OK);
+    EXPECT_EQ(ioContext().getSlotsInOrder(drive.path(), slotsVec), API_OK);
 
     // Did we retrieve the correct number of slots?
-    ASSERT_EQ(slots.size(), NUM_SLOTS);
+    ASSERT_EQ(slotsVec.size(), NUM_SLOTS);
 
     // Are the slots ordered by descending modification time?
     {
@@ -1680,7 +1680,7 @@ TEST_F(JSONSyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
 
         iota(begin(expected), end(expected), 0);
 
-        EXPECT_TRUE(equal(begin(expected), end(expected), slots.rbegin()));
+        EXPECT_TRUE(equal(begin(expected), end(expected), slotsVec.rbegin()));
     }
 }
 
@@ -1720,13 +1720,13 @@ TEST_F(JSONSyncConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
         }
     }
 
-    vector<unsigned int> slots;
+    vector<unsigned int> slotsVec;
 
     // Get the slots.
-    EXPECT_EQ(ioContext().getSlotsInOrder(drive.path(), slots), API_OK);
+    EXPECT_EQ(ioContext().getSlotsInOrder(drive.path(), slotsVec), API_OK);
 
     // Did we retrieve the correct number of slots?
-    EXPECT_EQ(slots.size(), NUM_SLOTS);
+    EXPECT_EQ(slotsVec.size(), NUM_SLOTS);
 
     // Are the slots ordered by descending slot number when their
     // modification time is the same?
@@ -1735,7 +1735,7 @@ TEST_F(JSONSyncConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
 
         iota(begin(expected), end(expected), 0);
 
-        EXPECT_TRUE(equal(begin(expected), end(expected), slots.rbegin()));
+        EXPECT_TRUE(equal(begin(expected), end(expected), slotsVec.rbegin()));
     }
 }
 
@@ -1843,11 +1843,11 @@ TEST_F(JSONSyncConfigIOContextTest, RemoveSlots)
     EXPECT_EQ(ioContext().remove(drivePath), API_ENOENT);
 
     // Two slots to remove.
-    static const vector<unsigned int> slots = {0, 1};
+    static const vector<unsigned int> slotsVec = {0, 1};
 
     EXPECT_CALL(ioContext(),
                 getSlotsInOrder(Eq(drivePath), _))
-      .WillRepeatedly(DoAll(SetArgReferee<1>(slots),
+      .WillRepeatedly(DoAll(SetArgReferee<1>(slotsVec),
                             Return(API_OK)));
     
     // All slots should be removed successfully.
@@ -2136,13 +2136,13 @@ TEST_F(JSONSyncConfigDBTest, Read)
     EXPECT_FALSE(configDB.dirty());
 
     // Read the configuration back.
-    static const vector<unsigned int> slots = {0};
+    static const vector<unsigned int> slotsVec = {0};
 
     // Return a single slot for reading.
     Expectation get =
       EXPECT_CALL(ioContext(),
                   getSlotsInOrder(Eq(dbPath()), _))
-        .WillOnce(DoAll(SetArgReferee<1>(slots),
+        .WillOnce(DoAll(SetArgReferee<1>(slotsVec),
                         Return(API_OK)));
 
     // Read should return the captured JSON.
@@ -2170,7 +2170,7 @@ TEST_F(JSONSyncConfigDBTest, Read)
 
 TEST_F(JSONSyncConfigDBTest, ReadBadDecrypt)
 {
-    static const vector<unsigned int> slots = {1};
+    static const vector<unsigned int> slotsVec = {1};
 
     JSONSyncConfigDB configDB(dbPath(), drivePath());
 
@@ -2178,12 +2178,12 @@ TEST_F(JSONSyncConfigDBTest, ReadBadDecrypt)
     Expectation get =
       EXPECT_CALL(ioContext(),
                   getSlotsInOrder(Eq(dbPath()), _))
-        .WillOnce(DoAll(SetArgReferee<1>(slots),
+        .WillOnce(DoAll(SetArgReferee<1>(slotsVec),
                         Return(API_OK)));
 
     // Force the slot read to fail.
     EXPECT_CALL(ioContext(),
-                read(Eq(dbPath()), _, Eq(slots.front())))
+                read(Eq(dbPath()), _, Eq(slotsVec.front())))
       .After(get)
       .WillOnce(Return(API_EREAD));
 
@@ -2208,12 +2208,12 @@ TEST_F(JSONSyncConfigDBTest, ReadEmptyClearsDatabase)
     EXPECT_FALSE(configDB.dirty());
 
     // Return a single slot for reading.
-    static const vector<unsigned int> slots = {0};
+    static const vector<unsigned int> slotsVec = {0};
 
     Expectation get =
       EXPECT_CALL(ioContext(),
                   getSlotsInOrder(Eq(dbPath()), _))
-        .WillOnce(DoAll(SetArgReferee<1>(slots),
+        .WillOnce(DoAll(SetArgReferee<1>(slotsVec),
                         Return(API_OK)));
 
     // Read yields an empty database.
@@ -2286,12 +2286,12 @@ TEST_F(JSONSyncConfigDBTest, ReadUpdatesDatabase)
     EXPECT_FALSE(configDB.dirty());
 
     // Return a single slot for reading.
-    static const vector<unsigned int> slots = {0};
+    static const vector<unsigned int> slotsVec = {0};
 
     Expectation get =
       EXPECT_CALL(ioContext(),
                   getSlotsInOrder(Eq(dbPath()), _))
-        .WillOnce(DoAll(SetArgReferee<1>(slots),
+        .WillOnce(DoAll(SetArgReferee<1>(slotsVec),
                         Return(API_OK)));
 
     // Read should return the captured JSON.
@@ -2323,7 +2323,7 @@ TEST_F(JSONSyncConfigDBTest, ReadUpdatesDatabase)
 TEST_F(JSONSyncConfigDBTest, ReadTriesAllAvailableSlots)
 {
     // Slots available for reading.
-    static const vector<unsigned int> slots = {1, 2, 3};
+    static const vector<unsigned int> slotsVec = {1, 2, 3};
 
     JSONSyncConfigDB configDB(dbPath(), drivePath());
 
@@ -2331,7 +2331,7 @@ TEST_F(JSONSyncConfigDBTest, ReadTriesAllAvailableSlots)
     Expectation get =
       EXPECT_CALL(ioContext(),
                   getSlotsInOrder(Eq(dbPath()), _))
-      .WillOnce(DoAll(SetArgReferee<1>(slots),
+      .WillOnce(DoAll(SetArgReferee<1>(slotsVec),
                       Return(API_OK)));
 
     // Attempts to read slots 1 and 2 should fail.

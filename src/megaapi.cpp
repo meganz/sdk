@@ -1068,6 +1068,11 @@ MegaStringList* MegaRequest::getMegaStringList() const
     return nullptr;
 }
 
+MegaHandleList* MegaRequest::getMegaHandleList() const
+{
+    return nullptr;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -2567,6 +2572,11 @@ void MegaApi::resetNodeLabel(MegaNode *node, MegaRequestListener *listener)
 void MegaApi::setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener)
 {
     pImpl->setNodeFavourite(node, fav, listener);
+}
+
+void MegaApi::getFavourites(MegaNode* node, int count, MegaRequestListener* listener)
+{
+    pImpl->getFavourites(node, count, listener);
 }
 
 void MegaApi::setNodeCoordinates(MegaNode *node, double latitude, double longitude, MegaRequestListener *listener)

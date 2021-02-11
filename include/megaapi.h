@@ -3024,7 +3024,7 @@ class MegaRequest
             TYPE_SEND_DEV_COMMAND,
             TYPE_GET_BANNERS, TYPE_DISMISS_BANNER,
             TYPE_BACKUP_PUT, TYPE_BACKUP_REMOVE, TYPE_BACKUP_PUT_HEART_BEAT,
-            TYPE_FETCH_GOOGLE_ADS, TYPE_QUERY_GOOGLE_ADS,
+            TYPE_FETCH_GOOGLE_ADS, TYPE_QUERY_GOOGLE_ADS, TYPE_GET_ATTR_NODE,
             TYPE_START_CHAT_CALL, TYPE_JOIN_CHAT_CALL,
             TOTAL_OF_REQUEST_TYPES
         };
@@ -3776,6 +3776,19 @@ class MegaRequest
          * @return String list
          */
         virtual MegaStringList* getMegaStringList() const;
+
+        /**
+         * @brief Returns the MegaHandle list
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * This value is valid for these requests:
+         * - MegaApi::getFavourites - A list of MegaHandle objects
+         *
+         * @return MegaHandle list
+         */
+        virtual MegaHandleList* getMegaHandleList() const;
 };
 
 /**
@@ -3802,7 +3815,7 @@ public:
         EVENT_KEY_MODIFIED              = 10,
         EVENT_MISC_FLAGS_READY          = 11,
 #ifdef ENABLE_SYNC
-        EVENT_FIRST_SYNC_RESUMING       = 12, // when a first sync is about to be resumed
+        EVENT_FIRST_SYNC_RESUMING       = 12, // (deprecated) when a first sync is about to be resumed
         EVENT_SYNCS_DISABLED            = 13, // after restoring syncs
         EVENT_SYNCS_RESTORED            = 14, // after restoring syncs
 #endif
@@ -10962,6 +10975,25 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Get a list of favourite nodes.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_NODE
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getNodeHandle - Returns the handle of the node provided
+         * - MegaRequest::getParamType - Returns MegaApi::NODE_ATTR_FAV
+         * - MegaRequest::getNumDetails - Returns the count requested
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaHandleList - List of handles of favourite nodes
+         *
+         * @param node Node and its children that will be searched for favourites. Search all nodes if null
+         * @param count if count is zero return all favourite nodes, otherwise return only 'count' favourite nodes
+         * @param listener MegaRequestListener to track this request
+         */
+        void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Set the GPS coordinates of image files as a node attribute.

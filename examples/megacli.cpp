@@ -6117,8 +6117,7 @@ void exec_cancel(autocomplete::ACState& s)
             return;
         }
 
-        recoverycode.assign(link.substr(pos + strlen("#cancel")));
-        setprompt(LOGINPASSWORD);
+        client->confirmcancellink(link.substr(pos + strlen("#cancel")).c_str());
     }
 }
 
@@ -6888,7 +6887,11 @@ void DemoApp::confirmsignuplink2_result(handle, const char *name, const char *em
     }
     else
     {
-        cout << "Signup confirmed successfully" << endl;
+        cout << "Signup confirmed successfully. Logging by first time..." << endl;
+        login.reset();
+        login.email = email;
+        login.password = newpassword;
+        client->prelogin(email);
     }
 }
 
@@ -8466,11 +8469,7 @@ void exec_syncadd(autocomplete::ACState& s)
                  SyncConfig::TYPE_TWOWAY);
 
     // Try and add the new sync.   All validation is performed in this function
-    client->addsync(config,
-                    DEBRISFOLDER,
-                    nullptr,
-                    false,
-                    true,
+    client->addsync(config, true,
                     [&](mega::UnifiedSync *, const SyncError &, error e) {
         if (!e)
         {

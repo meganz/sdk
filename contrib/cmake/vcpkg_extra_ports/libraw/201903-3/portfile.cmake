@@ -22,10 +22,19 @@ vcpkg_from_github(
 file(COPY ${LIBRAW_CMAKE_SOURCE_PATH}/CMakeLists.txt DESTINATION ${SOURCE_PATH})
 file(COPY ${LIBRAW_CMAKE_SOURCE_PATH}/cmake DESTINATION ${SOURCE_PATH})
 
+# MEGA options for osx
+set(MEGA_OPTIONS)
+if(VCPKG_CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    list(APPEND MEGA_OPTIONS
+        -DENABLE_LCMS=OFF
+        -DENABLE_OPENMP=OFF)
+endif()
+
 vcpkg_configure_cmake(
     SOURCE_PATH ${SOURCE_PATH}
     PREFER_NINJA
     OPTIONS
+        ${MEGA_OPTIONS}
         -DINSTALL_CMAKE_MODULE_PATH=${CURRENT_PACKAGES_DIR}/share/libraw
         -DCMAKE_DEBUG_POSTFIX=d
 )

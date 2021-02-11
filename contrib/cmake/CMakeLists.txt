@@ -24,6 +24,8 @@ project(MegaSDK)
 #indicate which dependent libraries to use in the build
 set (USE_CRYPTOPP 1 CACHE STRING "")
 
+set (Mega3rdPartyDir "" CACHE FILEPATH "Prefix path for where third party dependencies are located")
+
 if (CMAKE_HOST_APPLE)
     set (USE_OPENSSL 0 CACHE STRING "")
 else()
@@ -56,11 +58,9 @@ endif()
 set (HAVE_LIBUV ${USE_LIBUV})
 set (HAVE_LIBRAW ${USE_LIBRAW})
 
-if (WIN32)
-    set (USE_THIRDPARTY_FROM_VCPKG 1 CACHE STRING "")
-else()
-    set (USE_THIRDPARTY_FROM_VCPKG 0 CACHE STRING "")
-endif()
+option(USE_THIRDPARTY_FROM_VCPKG 
+"Whether to look for third party dependencies in a vcpkg install. If yes, Mega3rdPartyDir must be a path to a directory containing the vcpkg directory"
+${WIN32})
 
 message(STATUS " Using 3rd party from vcpkg = ${USE_THIRDPARTY_FROM_VCPKG}")
 
@@ -177,10 +177,6 @@ endif(USE_QT)
 #  - vcpkg built dependencies (there are some scripts in this folder to build those)
 #  - libraries from the system, installed via eg. apt-get on linux
 
-if (APPLE AND NOT NO_READLINE)
-    include_directories( BEFORE SYSTEM "${Mega3rdPartyDir}/vcpkg/readline-8.0" )
-endif()
-
 if (USE_THIRDPARTY_FROM_VCPKG) #vcpkg or system
 
     #determine VCPKG triplet
@@ -201,7 +197,7 @@ if (USE_THIRDPARTY_FROM_VCPKG) #vcpkg or system
 
     ELSE(WIN32)
          IF(CMAKE_HOST_APPLE)
-            set(VCPKG_TRIPLET "x64-osx" CACHE STRING "")
+            set(VCPKG_TRIPLET "x64-osx-mega" CACHE STRING "")
         ELSE(CMAKE_HOST_APPLE)
             set(VCPKG_TRIPLET "x64-linux" CACHE STRING "")
         endif(CMAKE_HOST_APPLE)
@@ -264,7 +260,6 @@ ENDIF(WIN32)
 
 include(CheckIncludeFile)
 include(CheckFunctionExists)
-
 check_include_file(inttypes.h HAVE_INTTYPES_H)
 check_include_file(dirent.h HAVE_DIRENT_H)
 check_include_file(uv.h HAVE_LIBUV)
@@ -302,20 +297,40 @@ function(ImportALibrary libName includeDir) #receives also libfileDebug & libfil
 endfunction(ImportALibrary)
 
 function(ImportStdVcpkgLibrary libName winDbg win linDbg lin)
-    if (WIN32 OR EXISTS ${vcpkg_dir}/lib/${lin}.a OR EXISTS ${vcpkg_dir}/debug/lib/${linDbg}.a)
-        add_library(${libName} STATIC IMPORTED)
-        message("adding library: " ${vcpkg_dir}/lib/${lin}.a)
-        # function that imports vcpkg libraries (receiving different names for win/linux)
-        set_property(TARGET ${libName} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${vcpkg_dir}/include)
+    if(WIN32)
+        set(_target_lib "${vcpkg_dir}/lib/${win}.lib")
+        set(_target_lib_dbg "${vcpkg_dir}/debug/lib/${winDbg}.lib")
+    else()
+        set(_target_lib "${vcpkg_dir}/lib/${lin}.a")
+        set(_target_lib_dbg "${vcpkg_dir}/debug/lib/${linDbg}.a")
+    endif()
+
+    if (NOT (EXISTS ${_target_lib} AND EXISTS ${_target_lib_dbg}))
         if (WIN32)
-            set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION  ${vcpkg_dir}/lib/${win}.lib)
-            set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION_DEBUG ${vcpkg_dir}/debug/lib/${winDbg}.lib)
+            message(FATAL_ERROR "Could not find libraries for ${winDbg} ${win}")
         else()
-                set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION  ${vcpkg_dir}/lib/${lin}.a)
-                set_property(TARGET ${libName} APPEND PROPERTY IMPORTED_LOCATION_DEBUG ${vcpkg_dir}/debug/lib/${linDbg}.a)
+            set(_target_lib_shared "${vcpkg_dir}/lib/${lin}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+            set(_target_lib_shared_dbg "${vcpkg_dir}/debug/lib/${linDbg}${CMAKE_SHARED_LIBRARY_SUFFIX}")
+            if(NOT (EXISTS ${_target_lib_shared} AND EXISTS ${_target_lib_shared_dbg}))
+                message(FATAL_ERROR "Could not find libraries for ${lin} ${linDbg}
+                checked ${_target_lib} ${_target_lib_dbg}
+                ${_target_lib_shared} ${_target_lib_shared_dbg}
+                ")
+            else()
+                set(_target_lib ${_target_lib_shared})
+                set(_target_lib_dbg ${_target_lib_shared_dbg})
+            endif()
         endif()
     endif()
 
+    add_library(${libName} UNKNOWN IMPORTED)
+
+    set_target_properties(${libName}
+        PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES ${vcpkg_dir}/include
+            IMPORTED_LOCATION ${_target_lib}
+            IMPORTED_LOCATION_DEBUG ${_target_lib_dbg}
+    )
 endfunction(ImportStdVcpkgLibrary)
 
 function(ImportHeaderLibrary libName includeDir)
@@ -323,9 +338,14 @@ function(ImportHeaderLibrary libName includeDir)
     set_property(TARGET ${libName} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${includeDir})
 endfunction(ImportHeaderLibrary)
 
-if (APPLE AND NOT NO_READLINE)
-    ImportALibrary(macgnureadline  "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/libreadline.a" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/libreadline.a")
-    ImportALibrary(macgnuhistory   "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/libhistory.a" "${Mega3rdPartyDir}/vcpkg/readline-8.0/readline/libhistory.a" )
+if(NOT NO_READLINE)
+    if (APPLE)
+        ImportStdVcpkgLibrary(readline _ _ libreadline libreadline)
+        ImportStdVcpkgLibrary(history _ _ libhistory libhistory)
+        set(readline_LIBRARIES readline history)
+    else()
+        set(readline_LIBRARIES readline)
+    endif()
 endif()
 
 if (USE_THIRDPARTY_FROM_VCPKG)
@@ -467,21 +487,22 @@ if (USE_THIRDPARTY_FROM_VCPKG)
 
             ImportStdVcpkgLibrary(freetype     freetyped freetype libfreetyped libfreetype)
             ImportStdVcpkgLibrary(icu          icuucd icuuc libicuuc libicuuc)
+            ImportStdVcpkgLibrary(icudt        icudtd icudt libicudt libicudt)
             ImportStdVcpkgLibrary(lcms         lcmsd lcms liblcmsd liblcms)
             ImportStdVcpkgLibrary(turbojpeg    jpegd jpeg libjpeg libjpeg)
             ImportStdVcpkgLibrary(openjpeg     openjp2 openjp2 libopenjp2 libopenjp2)
 
-            IF (CMAKE_HOST_APPLE)
-                ImportStdVcpkgLibrary(bzip2       bz2 bz2 libbz2d libbz2)
+            IF (CMAKE_HOST_APPLE OR CMAKE_HOST_WIN32)
+                ImportStdVcpkgLibrary(bzip2       bz2d bz2 libbz2d libbz2)
                 set (pdfium_deps bzip2)
             ELSEIF (CMAKE_HOST_UNIX)
                 set(ENV{PKG_CONFIG_PATH} "${vcpkg_dir}/lib/pkgconfig")
                 include(FindPkgConfig)
                 pkg_check_modules(FTYPECONF freetype2)
                 set(freetype_deps ${FTYPECONF_STATIC_LIBRARIES})
-            ENDIF(CMAKE_HOST_APPLE)
+            ENDIF()
 
-            set(pdfium_deps  ${pdfium_deps} freetype ${freetype_deps} icu lcms turbojpeg openjpeg)
+            set(pdfium_deps  ${pdfium_deps} freetype ${freetype_deps} icu icudt lcms turbojpeg openjpeg)
         ENDIF(USE_PDFIUM)
 
 endif(USE_THIRDPARTY_FROM_VCPKG)
@@ -691,6 +712,10 @@ add_library(Mega STATIC
 target_include_directories(Mega PRIVATE ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
 target_include_directories(Mega PUBLIC ${MegaDir}/include ${Mega_PlatformSpecificIncludes})
 
+if (WIN32)
+    set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} $<${HAVE_FFMPEG}:Mfplat.lib> $<${HAVE_FFMPEG}:Strmiids.lib> $<${HAVE_FFMPEG}:Mfuuid.lib>)
+endif()
+
 if (CMAKE_HOST_APPLE)
     set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} $<${HAVE_FFMPEG}:-liconv>)
 endif()
@@ -835,9 +860,14 @@ endif()
 
 if (HAVE_ASIO)
     add_executable(tool_tcprelay "${MegaDir}/tests/tool/tcprelay/main.cpp" "${MegaDir}/tests/tool/tcprelay/tcprelay.cpp")
+    set_property(
+        TARGET tool_tcprelay
+        PROPERTY EXCLUDE_FROM_ALL 1
+    )
     target_include_directories(tool_tcprelay PUBLIC "${vcpkg_dir}/installed/include")
     target_compile_definitions(tool_tcprelay PUBLIC -DASIO_STANDALONE)
     target_link_libraries(tool_tcprelay Mega)
+    target_compile_features(tool_tcprelay PUBLIC cxx_std_14)
 
     if (WIN32)
         target_compile_definitions(tool_tcprelay PUBLIC -D_WIN32_WINNT=0x601)
@@ -845,7 +875,7 @@ if (HAVE_ASIO)
     endif()
 
     if (NOT NO_READLINE)
-        target_link_libraries(tool_tcprelay readline)
+        target_link_libraries(tool_tcprelay ${readline_LIBRARIES})
     endif()
 endif()
 
@@ -857,11 +887,7 @@ configure_file("${MegaDir}/logo.png" logo.png COPYONLY)
 add_executable(megacli ${MegaDir}/examples/megacli.cpp)
 target_link_libraries(megacli Mega )
 if (NOT NO_READLINE)
-    if (APPLE)
-        target_link_libraries(megacli macgnureadline macgnuhistory)
-    else()
-        target_link_libraries(megacli readline)
-    endif()
+    target_link_libraries(megacli ${readline_LIBRARIES})
 endif (NOT NO_READLINE)
 
 add_executable(megasimplesync ${MegaDir}/examples/megasimplesync.cpp)

@@ -644,6 +644,13 @@ void SdkTest::onRequestFinish(MegaApi *api, MegaRequest *request, MegaError *e)
     case MegaRequest::TYPE_FETCH_GOOGLE_ADS:
         mApi[apiIndex].mStringMap.reset(mApi[apiIndex].lastError == API_OK ? request->getMegaStringMap()->copy() : nullptr);
             break;
+
+    case MegaRequest::TYPE_GET_ATTR_NODE:
+        if (mApi[apiIndex].lastError == API_OK)
+        {
+            mMegaFavNodeList.reset(request->getMegaHandleList()->copy());
+        }
+        break;
     }
 }
 
@@ -4842,9 +4849,9 @@ TEST_F(SdkTest, SdkBackupFolder)
     }
     else
     {
-        auto now = m_time(nullptr);
+        struct tm tms;
         char timebuf[32];
-        strftime(timebuf, sizeof timebuf, "%c", localtime(&now));
+        strftime(timebuf, sizeof timebuf, "%c", m_localtime(m_time(), &tms));
 
         deviceName = string("Jenkins ") + timebuf;
         synchronousSetDeviceName(0, deviceName.c_str());
@@ -5083,6 +5090,43 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     ASSERT_NE(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
 
     gTestingInvalidArgs = false;
+}
+
+TEST_F(SdkTest, SdkFavouriteNodes)
+{
+    getAccountsForTest(1);
+    LOG_info << "___TEST SDKFavourites___";
+
+    unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
+
+    ASSERT_TRUE(rootnodeA);
+
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, "folder-A", rootnodeA.get()));
+    unique_ptr<MegaNode> folderA(megaApi[0]->getNodeByHandle(mApi[0].h));
+    ASSERT_TRUE(!!folderA);
+
+    ASSERT_NO_FATAL_FAILURE(createFolder(0, "sub-folder-A", folderA.get()));
+    unique_ptr<MegaNode> subFolderA(megaApi[0]->getNodeByHandle(mApi[0].h));
+    ASSERT_TRUE(!!subFolderA);
+
+    string filename1 = UPFILE;
+    createFile(filename1, false);
+
+    ASSERT_EQ(MegaError::API_OK, synchronousStartUpload(0, filename1.data(), subFolderA.get())) << "Cannot upload a test file";
+    std::unique_ptr<MegaNode> n1(megaApi[0]->getNodeByHandle(mApi[0].h));
+    bool null_pointer = (n1.get() == nullptr);
+    ASSERT_FALSE(null_pointer) << "Cannot initialize test scenario (error: " << mApi[0].lastError << ")";
+
+    auto err = synchronousSetNodeFavourite(0, subFolderA.get(), true);
+    err = synchronousSetNodeFavourite(0, n1.get(), true);
+    
+    err = synchronousGetFavourites(0, subFolderA.get(), 0);
+    ASSERT_EQ(MegaError::API_OK, err) << "synchronousGetFavourites (error: " << err << ")";
+    ASSERT_EQ(mMegaFavNodeList->size(), 2) << "synchronousGetFavourites failed...";
+    err = synchronousGetFavourites(0, nullptr, 1);
+    ASSERT_EQ(mMegaFavNodeList->size(), 1) << "synchronousGetFavourites failed...";
+    unique_ptr<MegaNode> favNode(megaApi[0]->getNodeByHandle(mMegaFavNodeList->get(0)));
+    ASSERT_EQ(favNode->getName(), UPFILE) << "synchronousGetFavourites failed with node passed nullptr";
 }
 
 TEST_F(SdkTest, DISABLED_SdkDeviceNames)
