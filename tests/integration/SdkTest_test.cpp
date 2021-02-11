@@ -5099,7 +5099,7 @@ TEST_F(SdkTest, SdkFavouriteNodes)
 
     auto err = synchronousSetNodeFavourite(0, subFolderA.get(), true);
     err = synchronousSetNodeFavourite(0, n1.get(), true);
-    
+
     err = synchronousGetFavourites(0, subFolderA.get(), 0);
     ASSERT_EQ(MegaError::API_OK, err) << "synchronousGetFavourites (error: " << err << ")";
     ASSERT_EQ(mMegaFavNodeList->size(), 2u) << "synchronousGetFavourites failed...";
@@ -6092,13 +6092,13 @@ TEST_F(SdkTest, SyncRemoteNode)
         // Rename remote folder --> Sync fail
         LOG_verbose << "SyncRemoteNode :  Rename remote node with sync active.";
         std::string basePathRenamed = "SyncRemoteNodeRenamed";
-        ASSERT_TRUE(doRenameNode(0, remoteBaseNode.get(), basePathRenamed.c_str()));
+        ASSERT_EQ(API_OK, doRenameNode(0, remoteBaseNode.get(), basePathRenamed.c_str()));
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
         ASSERT_EQ(MegaSync::REMOTE_PATH_HAS_CHANGED, sync->getError());
 
         LOG_verbose << "SyncRemoteNode :  Restoring remote folder name.";
-        ASSERT_TRUE(doRenameNode(0, remoteBaseNode.get(), basePath.u8string().c_str()));
+        ASSERT_EQ(API_OK, doRenameNode(0, remoteBaseNode.get(), basePath.u8string().c_str()));
         ASSERT_NE(remoteBaseNode.get(), nullptr);
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
@@ -6122,13 +6122,13 @@ TEST_F(SdkTest, SyncRemoteNode)
     {
         TestingWithLogErrorAllowanceGuard g;
         LOG_verbose << "SyncRemoteNode :  Move remote node with sync active to the secondary folder.";
-        ASSERT_TRUE(doMoveNode(0, remoteBaseNode.get(), remoteMoveNodeParent.get()));
+        ASSERT_EQ(API_OK, doMoveNode(0, remoteBaseNode.get(), remoteMoveNodeParent.get()));
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
         ASSERT_EQ(MegaSync::REMOTE_PATH_HAS_CHANGED, sync->getError());
 
         LOG_verbose << "SyncRemoteNode :  Moving back the remote node.";
-        ASSERT_TRUE(doMoveNode(0, remoteBaseNode.get(), remoteRootNode.get()));
+        ASSERT_EQ(API_OK, doMoveNode(0, remoteBaseNode.get(), remoteRootNode.get()));
         ASSERT_NE(remoteBaseNode.get(), nullptr);
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
@@ -6148,13 +6148,13 @@ TEST_F(SdkTest, SyncRemoteNode)
         TestingWithLogErrorAllowanceGuard g;
         LOG_verbose << "SyncRemoteNode :  Rename remote node.";
         std::string renamedBasePath = basePath.u8string() + "Renamed";
-        ASSERT_TRUE(doRenameNode(0, remoteBaseNode.get(), renamedBasePath.c_str()));
+        ASSERT_EQ(API_OK, doRenameNode(0, remoteBaseNode.get(), renamedBasePath.c_str()));
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
         ASSERT_EQ(MegaSync::REMOTE_PATH_HAS_CHANGED, sync->getError());
 
         LOG_verbose << "SyncRemoteNode :  Renaming back the remote node.";
-        ASSERT_TRUE(doRenameNode(0, remoteBaseNode.get(), basePath.u8string().c_str()));
+        ASSERT_EQ(API_OK, doRenameNode(0, remoteBaseNode.get(), basePath.u8string().c_str()));
         ASSERT_NE(remoteBaseNode.get(), nullptr);
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
@@ -6178,7 +6178,7 @@ TEST_F(SdkTest, SyncRemoteNode)
         TestingWithLogErrorAllowanceGuard g;
         // Remove remote folder --> Sync fail
         LOG_verbose << "SyncRemoteNode :  Removing remote node with sync active.";
-        ASSERT_TRUE(doDeleteNode(0, remoteBaseNode.get()));                                //  <--- remote node deleted!!
+        ASSERT_EQ(API_OK, doDeleteNode(0, remoteBaseNode.get()));                                //  <--- remote node deleted!!
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_DELETED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
         ASSERT_EQ(MegaSync::REMOTE_NODE_NOT_FOUND, sync->getError());
