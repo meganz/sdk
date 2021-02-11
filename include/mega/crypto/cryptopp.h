@@ -291,22 +291,19 @@ public:
     bool gcm_decrypt(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
-     * @brief Authenticated symmetric decryption using AES in GCM mode.
+     * @brief Authenticated symmetric decryption using AES in GCM mode with additional authenticated data.
      *
-     * The size of the IV limits the maximum length of data. A length of 12 bytes
-     * allows for up to 16.7 MB data size. Smaller IVs lead to larger maximum data
-     * sizes.
+     * The size of the IV limits the maximum length of data. Smaller IVs lead to larger maximum data sizes.
      *
      * @param data Data to be decrypted.
+     * @param additionalData Additional data for extra authentication
+     * @param additionalDatalen Length of additional data
      * @param iv Initialisation vector or nonce.
      * @param ivlen Length of IV. Allowed sizes are 7, 8, 9, 10, 11, 12, and 13 bytes.
-     * @param taglen Length of expected authentication tag. Allowed sizes are 8 and 16 bytes.
+     * @param taglen Length of expected authentication tag. Allowed sizes are 4, 8 and 16 bytes.
      * @param result Decrypted data, not including the authentication tag.
-     *
-     * @note compared with previous version, this method provides taglen as fourth parameter in
-     * AuthenticatedDecryptionFilter ctor as expected (instead as third one).
      */
-    bool gcm_decrypt_v2(const std::string *data, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
+    bool gcm_decrypt_aad(const std::string *data, const byte *additionalData, unsigned additionalDatalen, const byte *iv, unsigned ivlen, unsigned taglen, std::string *result);
 
     /**
      * @brief Serialize key for compatibility with the webclient

@@ -317,19 +317,38 @@ bool SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen,
     return true;
 }
 
-bool SymmCipher::gcm_decrypt_v2(const string *data, const byte *iv, unsigned ivlen, unsigned taglen, string *result)
+bool SymmCipher::gcm_decrypt_aad(const std::string *data, const byte *additionalData, unsigned int additionalDatalen, const byte *iv, unsigned int ivlen, unsigned int taglen, std::string *result)
 {
-    aesgcm_d.Resynchronize(iv, ivlen);
-    try {
-        StringSource(*data, true, new AuthenticatedDecryptionFilter(aesgcm_d,
-                                                       new StringSink(*result),
-                                                       AuthenticatedDecryptionFilter::DEFAULT_FLAGS,
-                                                       static_cast<int>(taglen)));
-
-    } catch (HashVerificationFilter::HashVerificationFailed e)
+    std::string err;
+    if (!data || !data->size())                 {err = "Invalid plain text";}
+    if (!additionalData || !additionalDatalen)  {err = "Invalid additional data";}
+    if (!iv || !ivlen)                          {err = "Invalid IV";}
+    if (!err.empty())
     {
         result->clear();
-        LOG_err << "Failed AES-GCM decryption (v2): " << e.GetWhat();
+        LOG_err << "Failed AES-GCM decryption with additional authenticated data: " <<  err;
+        return false;
+    }
+
+    try
+    {
+        // resynchronizes with the provided IV
+        aesgcm_e.Resynchronize(iv, static_cast<int>(ivlen));
+        StringSink *cipher_sink = new StringSink(*result);
+        AuthenticatedDecryptionFilter *df = new AuthenticatedDecryptionFilter(aesgcm_d, cipher_sink, AuthenticatedDecryptionFilter::MAC_AT_END, static_cast<int>(taglen));
+
+        // add additionalData to channel for additional authenticated data
+        df->ChannelPut(AAD_CHANNEL, additionalData, additionalDatalen, true);
+        df->ChannelMessageEnd(AAD_CHANNEL);
+
+        // add encrypted text to DEFAULT_CHANNEL in order to be decrypted
+        df->ChannelPut(DEFAULT_CHANNEL, reinterpret_cast<const byte*>(data->data()), data->size(), true);
+        df->ChannelMessageEnd(DEFAULT_CHANNEL);
+    }
+    catch (CryptoPP::Exception &e)
+    {
+        result->clear();
+        LOG_err << "Failed AES-GCM decryption with additional authenticated data: " << e.GetWhat();
         return false;
     }
     return true;
