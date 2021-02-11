@@ -159,8 +159,8 @@ enum DbOpenFlag
 
 struct MEGA_API DbAccess
 {
-    static const int LEGACY_DB_VERSION = 11;
-    static const int DB_VERSION = LEGACY_DB_VERSION + 1;
+    static const int LEGACY_DB_VERSION;
+    static const int DB_VERSION;
 
     DbAccess();
 
@@ -169,6 +169,8 @@ struct MEGA_API DbAccess
     virtual DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) = 0;
 
     virtual bool probe(FileSystemAccess& fsAccess, const string& name) const = 0;
+
+    virtual const LocalPath& rootPath() const = 0;
 
     int currentDbVersion;
 };

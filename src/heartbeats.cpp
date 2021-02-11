@@ -165,7 +165,7 @@ void HeartBeatSyncInfo::updateStatus(UnifiedSync& us)
 
 ////////////// BackupInfo ////////////////
 
-BackupInfo::BackupInfo(BackupType type, string backupName, string localFolder, handle megaHandle, int state, int substate, std::string extra)
+BackupInfo::BackupInfo(BackupType type, string backupName, LocalPath localFolder, handle megaHandle, int state, int substate, std::string extra)
     : mType(type)
     , mBackupName(backupName)
     , mLocalFolder(localFolder)
@@ -187,7 +187,7 @@ string BackupInfo::backupName() const
     return mBackupName;
 }
 
-string BackupInfo::localFolder() const
+LocalPath BackupInfo::localFolder() const
 {
     return mLocalFolder;
 }
@@ -215,7 +215,7 @@ string BackupInfo::extra() const
 #ifdef ENABLE_SYNC
 BackupInfoSync::BackupInfoSync(UnifiedSync& us)
     : BackupInfo(getSyncType(us.mConfig),
-                     us.mConfig.getName(),
+                     us.mConfig.mName,
                      us.mConfig.getLocalPath(),
                      us.mConfig.getRemoteNode(),
                      getSyncState(us),
@@ -250,13 +250,18 @@ int BackupInfoSync::getSyncState(UnifiedSync& us)
     SyncError error = us.mConfig.getError();
     syncstate_t state = us.mSync ? us.mSync->state : SYNC_FAILED;
 
+    return getSyncState(error, state, &us.mClient);
+}
+
+int BackupInfoSync::getSyncState(SyncError error, syncstate_t state, MegaClient *client)
+{
     if (state == SYNC_DISABLED && error != NO_SYNC_ERROR)
     {
         return State::TEMPORARY_DISABLED;
     }
     else if (state != SYNC_FAILED && state != SYNC_CANCELED && state != SYNC_DISABLED)
     {
-        return calculatePauseActiveState(&us.mClient);
+        return calculatePauseActiveState(client);
     }
     else if (!(state != SYNC_CANCELED && (state != SYNC_DISABLED || error != NO_SYNC_ERROR)))
     {
@@ -268,15 +273,42 @@ int BackupInfoSync::getSyncState(UnifiedSync& us)
     }
 }
 
+int BackupInfoSync::getSyncState(const SyncConfig& config, MegaClient *client)
+{
+    auto error = config.getError();
+    if (!error)
+    {
+        if (config.getEnabled())
+        {
+            return calculatePauseActiveState(client);
+        }
+        else
+        {
+            return State::DISABLED;
+        }
+    }
+    else //error
+    {
+        if (config.getEnabled())
+        {
+            return State::TEMPORARY_DISABLED;
+        }
+        else
+        {
+            return State::DISABLED;
+        }
+    }
+}
+
 BackupType BackupInfoSync::getSyncType(const SyncConfig& config)
 {
     switch (config.getType())
     {
-    case SyncConfig::Type::TYPE_UP:
+    case SyncConfig::TYPE_UP:
             return BackupType::UP_SYNC;
-    case SyncConfig::Type::TYPE_DOWN:
+    case SyncConfig::TYPE_DOWN:
             return BackupType::DOWN_SYNC;
-    case SyncConfig::Type::TYPE_TWOWAY:
+    case SyncConfig::TYPE_TWOWAY:
             return BackupType::TWO_WAY;
     case SyncConfig::TYPE_BACKUP:
             return BackupType::BACKUP_UPLOAD;
@@ -317,14 +349,13 @@ void BackupMonitor::digestPutResult(handle backupId, UnifiedSync* syncPtr)
 
 void BackupMonitor::updateBackupInfo(handle backupId, const BackupInfo &info)
 {
-    string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", info.localFolder()) );
     string deviceIdHash = mClient->getDeviceidHash();
 
     mClient->reqs.add(new CommandBackupPut(mClient,
                                            backupId,
                                            info.type(),
                                            info.megaHandle(),
-                                           localFolderEncrypted.c_str(),
+                                           info.localFolder().toPath(*mClient->fsaccess).c_str(),
                                            deviceIdHash.c_str(),
                                            info.state(),
                                            info.subState(),
@@ -334,37 +365,24 @@ void BackupMonitor::updateBackupInfo(handle backupId, const BackupInfo &info)
 
 #ifdef ENABLE_SYNC
 
-void BackupMonitor::registerBackupInfo(const BackupInfo &info, UnifiedSync* syncPtr)
-{
-    string localFolderEncrypted(mClient->cypherTLVTextWithMasterKey("lf", info.localFolder()) );
-    string deviceIdHash = mClient->getDeviceidHash();
-
-    mClient->reqs.add(new CommandBackupPut(mClient, info.type(), info.backupName(), info.megaHandle(),
-                                           localFolderEncrypted.c_str(),
-                                           deviceIdHash.c_str(),
-                                           info.state(), info.subState(), info.extra().c_str(),
-                                           [this, syncPtr](Error e, handle h){ if (!e) digestPutResult(h, syncPtr); }));
-}
-
-
 void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
 {
-    BackupInfoSync currentInfo(us);
+    handle backupId = us.mConfig.getBackupId();
+    assert(!ISUNDEF(backupId)); // syncs are registered before adding them
 
-    if (!us.mBackupInfo && ISUNDEF(us.mConfig.getBackupId())) // not registered yet
+    BackupInfoSync currentInfo(us);
+    if (!us.mBackupInfo) // Init this field
     {
         us.mBackupInfo = ::mega::make_unique<BackupInfoSync>(us);
-        registerBackupInfo(currentInfo, &us);
     }
-    else if (!ISUNDEF(us.mConfig.getBackupId()) &&
-           (!us.mBackupInfo || !(currentInfo == *us.mBackupInfo)))
+    else if (currentInfo != *us.mBackupInfo)
     {
-        updateBackupInfo(us.mConfig.getBackupId(), currentInfo); //queue update comand
+        updateBackupInfo(us.mConfig.getBackupId(), currentInfo); //queue update command
         us.mBackupInfo = ::mega::make_unique<BackupInfoSync>(us);
     }
 }
 
-bool  BackupInfoSync::operator==(const BackupInfoSync& o) const
+bool BackupInfoSync::operator==(const BackupInfoSync& o) const
 {
     return  mType == o.mType &&
             mLocalFolder == o.mLocalFolder &&
@@ -372,6 +390,11 @@ bool  BackupInfoSync::operator==(const BackupInfoSync& o) const
             mState == o.mState &&
             mSubState == o.mSubState &&
             mExtra == o.mExtra;
+}
+
+bool BackupInfoSync::operator!=(const BackupInfoSync &o) const
+{
+    return !(*this == o);
 }
 
 void BackupMonitor::onSyncConfigChanged()
@@ -386,7 +409,7 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
     // send registration or update in case we missed it
     updateOrRegisterSync(us);
 
-    if (!us.mBackupInfo || ISUNDEF(us.mConfig.getBackupId()))
+    if (ISUNDEF(us.mConfig.getBackupId()))
     {
         LOG_warn << "Backup not registered yet. Skipping heartbeat...";
         return;

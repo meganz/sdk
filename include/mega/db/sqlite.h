@@ -26,19 +26,6 @@
 #include <sqlite3.h>
 
 namespace mega {
-class MEGA_API SqliteDbAccess : public DbAccess
-{
-    LocalPath mRootPath;
-
-public:
-    explicit SqliteDbAccess(const LocalPath& rootPath);
-
-    ~SqliteDbAccess();
-
-    DbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags) override;
-
-    bool probe(FileSystemAccess& fsAccess, const string& name) const override;
-};
 
 class MEGA_API SqliteDbTable : public DbTable
 {
@@ -63,7 +50,30 @@ public:
     ~SqliteDbTable();
 
     bool inTransaction() const override;
+
+    LocalPath dbFile() const;
 };
+
+class MEGA_API SqliteDbAccess : public DbAccess
+{
+    LocalPath mRootPath;
+
+public:
+    explicit SqliteDbAccess(const LocalPath& rootPath);
+
+    ~SqliteDbAccess();
+
+    LocalPath databasePath(const FileSystemAccess& fsAccess,
+                           const string& name,
+                           const int version) const;
+
+    SqliteDbTable* open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags = 0x0) override;
+
+    bool probe(FileSystemAccess& fsAccess, const string& name) const override;
+
+    const LocalPath& rootPath() const override;
+};
+
 } // namespace
 
 #endif

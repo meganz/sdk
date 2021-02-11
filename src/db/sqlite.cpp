@@ -24,28 +24,6 @@
 #ifdef USE_SQLITE
 namespace mega {
 
-static LocalPath databasePath(const FileSystemAccess& fsAccess,
-                              const LocalPath& rootPath,
-                              const string& name,
-                              const int version)
-{
-    ostringstream osstream;
-
-    osstream << "megaclient_statecache"
-             << version
-             << "_"
-             << name
-             << ".db";
-
-    LocalPath path = rootPath;
-
-    path.appendWithSeparator(
-      LocalPath::fromPath(osstream.str(), fsAccess),
-      false);
-
-    return path;
-}
-
 SqliteDbAccess::SqliteDbAccess(const LocalPath& rootPath)
   : mRootPath(rootPath)
 {
@@ -55,12 +33,34 @@ SqliteDbAccess::~SqliteDbAccess()
 {
 }
 
-DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags)
+LocalPath SqliteDbAccess::databasePath(const FileSystemAccess& fsAccess,
+                                       const string& name,
+                                       const int version) const
 {
-    auto dbPath = databasePath(fsAccess, mRootPath, name, DB_VERSION);
+    ostringstream osstream;
+
+    osstream << "megaclient_statecache"
+             << version
+             << "_"
+             << name
+             << ".db";
+
+    LocalPath path = mRootPath;
+
+    path.appendWithSeparator(
+      LocalPath::fromPath(osstream.str(), fsAccess),
+      false);
+
+    return path;
+}
+
+SqliteDbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, const string& name, const int flags)
+{
+    auto dbPath = databasePath(fsAccess, name, DB_VERSION);
+    auto upgraded = true;
 
     {
-        auto legacyPath = databasePath(fsAccess, mRootPath, name, LEGACY_DB_VERSION);
+        auto legacyPath = databasePath(fsAccess, name, LEGACY_DB_VERSION);
         auto fileAccess = fsAccess.newfileaccess();
 
         if (fileAccess->fopen(legacyPath))
@@ -71,6 +71,7 @@ DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, const str
             {
                 LOG_debug << "Using a legacy database.";
                 dbPath = std::move(legacyPath);
+                upgraded = false;
             }
             else if ((flags & DB_OPEN_FLAG_RECYCLE))
             {
@@ -84,7 +85,7 @@ DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, const str
 
                     fsAccess.renamelocal(from, to);
 
-                    suffix = LocalPath::fromPath("-shm", fsAccess);
+                    suffix = LocalPath::fromPath("-wal", fsAccess);
                     from = legacyPath + suffix;
                     to = dbPath + suffix;
 
@@ -104,6 +105,12 @@ DbTable* SqliteDbAccess::open(PrnGen &rng, FileSystemAccess& fsAccess, const str
                 fsAccess.unlinklocal(legacyPath);
             }
         }
+    }
+
+    if (upgraded)
+    {
+        LOG_debug << "Using an upgraded DB: " << dbPath.toPath(fsAccess);
+        currentDbVersion = DB_VERSION;
     }
 
     const string dbPathStr = dbPath.toPath(fsAccess);
@@ -153,16 +160,21 @@ bool SqliteDbAccess::probe(FileSystemAccess& fsAccess, const string& name) const
 {
     auto fileAccess = fsAccess.newfileaccess();
 
-    LocalPath dbPath = databasePath(fsAccess, mRootPath, name, DB_VERSION);
+    LocalPath dbPath = databasePath(fsAccess, name, DB_VERSION);
 
     if (fileAccess->isfile(dbPath))
     {
         return true;
     }
 
-    dbPath = databasePath(fsAccess, mRootPath, name, LEGACY_DB_VERSION);
+    dbPath = databasePath(fsAccess, name, LEGACY_DB_VERSION);
 
     return fileAccess->isfile(dbPath);
+}
+
+const LocalPath& SqliteDbAccess::rootPath() const
+{
+    return mRootPath;
 }
 
 SqliteDbTable::SqliteDbTable(PrnGen &rng, sqlite3* db, FileSystemAccess &fsAccess, const string &path, const bool checkAlwaysTransacted)
@@ -197,6 +209,11 @@ SqliteDbTable::~SqliteDbTable()
 bool SqliteDbTable::inTransaction() const
 {
     return sqlite3_get_autocommit(db) == 0;
+}
+
+LocalPath SqliteDbTable::dbFile() const
+{
+    return LocalPath::fromPath(dbfile, *fsaccess);
 }
 
 // set cursor to first record

@@ -205,6 +205,12 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
         bool parent : 1;
         bool publiclink : 1;
         bool newnode : 1;
+
+#ifdef ENABLE_SYNC
+        // this field is only used internally in syncdown()
+        bool syncdown_node_matched_here : 1;
+#endif
+
     } changed;
 
     void setkey(const byte* = NULL);
@@ -263,6 +269,10 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
 
     Node(MegaClient*, vector<Node*>*, handle, handle, nodetype_t, m_off_t, handle, const char*, m_time_t);
     ~Node();
+
+#ifdef ENABLE_SYNC
+    void detach(const bool recreate = false);
+#endif // ENABLE_SYNC
 
 private:
     // full folder/file key, symmetrically or asymmetrically encrypted
@@ -392,15 +402,17 @@ struct MEGA_API LocalNode : public File
     // fsidnodes is a map from fsid to LocalNode, keeping track of all fs ids.
     void setfsid(handle newfsid, handlelocalnode_map& fsidnodes);
 
-    void setnameparent(LocalNode*, LocalPath* newlocalpath, std::unique_ptr<LocalPath>);
+    void setnameparent(LocalNode*, const LocalPath* newlocalpath, std::unique_ptr<LocalPath>);
 
     LocalNode();
-    void init(Sync*, nodetype_t, LocalNode*, LocalPath&, std::unique_ptr<LocalPath>);
+    void init(Sync*, nodetype_t, LocalNode*, const LocalPath&, std::unique_ptr<LocalPath>);
 
     bool serialize(string*) override;
     static LocalNode* unserialize( Sync* sync, const string* sData );
 
     ~LocalNode();
+
+    void detach(const bool recreate = false);
 };
 
 template <> inline NewNode*& crossref_other_ptr_ref<LocalNode, NewNode>(LocalNode* p) { return p->newnode.ptr; }

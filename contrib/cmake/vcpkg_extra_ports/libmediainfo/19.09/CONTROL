@@ -1,3 +1,4 @@
 Source: libmediainfo
 Version: 19.09
+Build-Depends: libzen
 Description: Determines the properties of media files

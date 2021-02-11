@@ -291,8 +291,8 @@ struct MEGA_API MegaApp
     virtual void transfer_complete(Transfer*) { }
 
     // sync status updates and events
-    virtual void syncupdate_stateconfig(int tag) { }
-    virtual void syncupdate_active(int tag, bool active) { }
+    virtual void syncupdate_stateconfig(handle) { }
+    virtual void syncupdate_active(handle, bool) { }
     virtual void syncupdate_scanning(bool) { }
     virtual void syncupdate_local_folder_addition(Sync*, LocalNode*, const char*) { }
     virtual void syncupdate_local_folder_deletion(Sync*, LocalNode*) { }
@@ -332,14 +332,11 @@ struct MEGA_API MegaApp
     // after all syncs have been disabled
     virtual void syncs_disabled(SyncError) { }
 
-    // before attempting a sync resume
-    virtual void syncs_about_to_be_resumed() { }
-
     // after an attempt to auto-resume a cache sync
     virtual void sync_auto_resume_result(const UnifiedSync& s, bool attempted) { }
 
     // after a sync has been removed
-    virtual void sync_removed(int tag) { }
+    virtual void sync_removed(handle backupId) { }
 
     // suggest reload due to possible race condition with other clients
     virtual void reload(const char*) { }
