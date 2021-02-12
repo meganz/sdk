@@ -1396,6 +1396,7 @@ public:
     // remove node subtree
     void deltree(handle);
 
+    Node* nodeByHandle(NodeHandle) const;
     Node* nodebyhandle(handle) const;
     Node* nodebyfingerprint(FileFingerprint*);
 #ifdef ENABLE_SYNC
@@ -1747,10 +1748,10 @@ public:
     Node *getrootnode(Node*);
 
     //returns true if the node referenced by the handle belongs to the logged-in account
-    bool isPrivateNode(handle h);
+    bool isPrivateNode(NodeHandle h);
 
     //returns true if the node referenced by the handle belongs to other account than the logged-in account
-    bool isForeignNode(handle h);
+    bool isForeignNode(NodeHandle h);
 
     // process node subtree
     void proctree(Node*, TreeProc*, bool skipinshares = false, bool skipversions = false);
