@@ -614,7 +614,7 @@ public:
 private:
     // Reads this database from the specified slot on disk.
     error read(JSONSyncConfigIOContext& ioContext,
-               const unsigned int slot);
+               unsigned int slot);
 
     // Remove config by backup tag.
     error removeByBackupId(handle backupId, bool flush);
@@ -659,7 +659,7 @@ public:
     bool deserialize(const LocalPath& dbPath,
                      JSONSyncConfigMap& configs,
                      JSON& reader,
-                     const unsigned int slot) const;
+                     unsigned int slot) const;
 
     // Deserialize configs from JSON.
     bool deserialize(JSONSyncConfigMap& configs,
@@ -672,11 +672,11 @@ public:
     // Read data from the specified slot.
     virtual error read(const LocalPath& dbPath,
                        string& data,
-                       const unsigned int slot);
+                       unsigned int slot);
 
     // Remove an existing slot from disk.
     virtual error remove(const LocalPath& dbPath,
-                         const unsigned int slot);
+                         unsigned int slot);
 
     // Remove all existing slots from disk.
     virtual error remove(const LocalPath& dbPath);
@@ -688,7 +688,7 @@ public:
     // Write data to the specified slot.
     virtual error write(const LocalPath& dbPath,
                         const string& data,
-                        const unsigned int slot);
+                        unsigned int slot);
 
     // Prefix applied to configuration database names.
     static const string NAME_PREFIX;
@@ -696,7 +696,7 @@ public:
 private:
     // Generate complete database path.
     LocalPath dbFilePath(const LocalPath& dbPath,
-                         const unsigned int slot) const;
+                         unsigned int slot) const;
 
     // Decrypt data.
     bool decrypt(const string& in, string& out);

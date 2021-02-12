@@ -554,9 +554,9 @@ bool MegaClient::isPrivateNode(NodeHandle h)
     return (rootnode == rootnodes[0] || rootnode == rootnodes[1] || rootnode == rootnodes[2]);
 }
 
-bool MegaClient::isForeignNode(handle h)
+bool MegaClient::isForeignNode(NodeHandle h)
 {
-    Node *node = nodebyhandle(h);
+    Node *node = nodeByHandle(h);
     if (!node)
     {
         return false;
@@ -3697,7 +3697,7 @@ void MegaClient::dispatchTransfers()
 
                 if (openfinished && openok)
                 {
-                    handle h = UNDEF;
+                    NodeHandle h;
                     bool hprivate = true;
                     const char *privauth = NULL;
                     const char *pubauth = NULL;
@@ -3797,7 +3797,7 @@ void MegaClient::dispatchTransfers()
                     {
                         reqs.add((ts->pendingcmd = (nexttransfer->type == PUT)
                             ? (Command*)new CommandPutFile(this, ts, putmbpscap)
-                            : (Command*)new CommandGetFile(this, ts, NULL, h, hprivate, privauth, pubauth, chatauth)));
+                            : (Command*)new CommandGetFile(this, ts, NULL, h.as8byte(), hprivate, privauth, pubauth, chatauth)));
                     }
 
                     LOG_debug << "Activating transfer";
@@ -11625,6 +11625,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     LOG_info << "Loading session from local cache";
 
+    mCachedStatus.clear();
     sctable->rewind();
 
     bool hasNext = sctable->next(&id, &data, &key);

@@ -1294,7 +1294,7 @@ TEST_F(SdkTest, SdkTestKillSession)
     auto passwords = makeScopedValue(envVarPass, string_vector(2, "MEGA_PWD"));
 
     // Get two sessions for the same account.
-    getAccountsForTest(2);
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
     // Make sure the sessions aren't reused.
     gSessionIDs[0] = "invalid";
@@ -3136,7 +3136,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
         }
     }
 
-    ::mega::handle megaCurDir = UNDEF;
+    ::mega::NodeHandle megaCurDir;
 
     MegaApiImpl* impl = *((MegaApiImpl**)(((char*)megaApi[0].get()) + sizeof(*megaApi[0].get())) - 1); //megaApi[0]->pImpl;
     MegaClient* client = impl->getMegaClient();
@@ -3427,7 +3427,7 @@ TEST_F(SdkTest, SdkTestConsoleAutocomplete)
     ASSERT_NO_FATAL_FAILURE(createFolder(0, "test_autocomplete_megafs", rootnode));
     MegaNode *n0 = megaApi[0]->getNodeByHandle(mApi[0].h);
 
-    megaCurDir = mApi[0].h;
+    megaCurDir = NodeHandle().set6byte(mApi[0].h);
 
     ASSERT_NO_FATAL_FAILURE(createFolder(0, "dir1", n0));
     MegaNode *n1 = megaApi[0]->getNodeByHandle(mApi[0].h);
@@ -4793,7 +4793,7 @@ TEST_F(SdkTest, SdkMediaUploadRequestURL)
 
 TEST_F(SdkTest, SdkBackupFolder)
 {
-    getAccountsForTest(1);
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST BackupFolder___";
 
     // Attempt to get My Backups folder;
@@ -4939,7 +4939,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
     ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
 
     // getUserEmail() test
-    getAccountsForTest(1);
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     std::unique_ptr<MegaUser> user(megaApi[0]->getMyUser());
     ASSERT_TRUE(!!user); // some simple validation
 
@@ -5073,7 +5073,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
 
 TEST_F(SdkTest, SdkFavouriteNodes)
 {
-    getAccountsForTest(1);
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST SDKFavourites___";
 
     unique_ptr<MegaNode> rootnodeA(megaApi[0]->getRootNode());
@@ -5213,6 +5213,192 @@ TEST_F(SdkTest, SdkGetRegisteredContacts)
     ASSERT_EQ(js2, std::get<2>(table[1])); // ud
 }
 
+TEST_F(SdkTest, DISABLED_invalidFileNames)
+{
+    LOG_info << "___TEST invalidFileNames___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    FSACCESS_CLASS fsa;
+    auto aux = LocalPath::fromPath(fs::current_path().u8string(), fsa);
+
+#if defined (__linux__) || defined (__ANDROID__)
+    if (fileSystemAccess.getlocalfstype(aux) == FS_EXT)
+    {
+        // Escape set of characters and check if it's the expected one
+        const char *name = megaApi[0]->escapeFsIncompatible("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", fs::current_path().c_str());
+        ASSERT_TRUE (!strcmp(name, "!\"#$%&'()*+,-.%2f:;<=>?@[\\]^_`{|}~"));
+        delete [] name;
+
+        // Unescape set of characters and check if it's the expected one
+        name = megaApi[0]->unescapeFsIncompatible("%21%22%23%24%25%26%27%28%29%2a%2b%2c%2d"
+                                                            "%2e%2f%30%31%32%33%34%35%36%37"
+                                                            "%38%39%3a%3b%3c%3d%3e%3f%40%5b"
+                                                            "%5c%5d%5e%5f%60%7b%7c%7d%7e",
+                                                            fs::current_path().c_str());
+
+        ASSERT_TRUE(!strcmp(name, "%21%22%23%24%25%26%27%28%29%2a%2b%2c%2d%2e"
+                                  "/%30%31%32%33%34%35%36%37%38%39%3a%3b%3c%3d%3e"
+                                  "%3f%40%5b%5c%5d%5e%5f%60%7b%7c%7d%7e"));
+        delete [] name;
+    }
+#elif defined  (__APPLE__) || defined (USE_IOS)
+    if (fileSystemAccess.getlocalfstype(aux) == FS_APFS
+            || fileSystemAccess.getlocalfstype(aux) == FS_HFS)
+    {
+        // Escape set of characters and check if it's the expected one
+        const char *name = megaApi[0]->escapeFsIncompatible("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", fs::current_path().c_str());
+        ASSERT_TRUE (!strcmp(name, "!\"#$%&'()*+,-./%3a;<=>?@[\\]^_`{|}~"));
+        delete [] name;
+
+        // Unescape set of characters and check if it's the expected one
+        name = megaApi[0]->unescapeFsIncompatible("%21%22%23%24%25%26%27%28%29%2a%2b%2c%2d"
+                                                            "%2e%2f%30%31%32%33%34%35%36%37"
+                                                            "%38%39%3a%3b%3c%3d%3e%3f%40%5b"
+                                                            "%5c%5d%5e%5f%60%7b%7c%7d%7e",
+                                                            fs::current_path().c_str());
+
+        ASSERT_TRUE(!strcmp(name, "%21%22%23%24%25%26%27%28%29%2a%2b%2c%2d%2e"
+                                  "%2f%30%31%32%33%34%35%36%37%38%39:%3b%3c%3d%3e"
+                                  "%3f%40%5b%5c%5d%5e%5f%60%7b%7c%7d%7e"));
+        delete [] name;
+    }
+#elif defined(_WIN32) || defined(_WIN64) || defined(WINDOWS_PHONE)
+    if (fileSystemAccess.getlocalfstype(aux) == FS_NTFS)
+    {
+        // Escape set of characters and check if it's the expected one
+        const char *name = megaApi[0]->escapeFsIncompatible("!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~", fs::current_path().u8string().c_str());
+        ASSERT_TRUE (!strcmp(name, "!%22#$%&'()%2a+,-.%2f%3a;%3c=%3e%3f@[%5c]^_`{%7c}~"));
+        delete [] name;
+
+        // Unescape set of characters and check if it's the expected one
+        name = megaApi[0]->unescapeFsIncompatible("%21%22%23%24%25%26%27%28%29%2a%2b%2c%2d"
+                                                            "%2e%2f%30%31%32%33%34%35%36%37"
+                                                            "%38%39%3a%3b%3c%3d%3e%3f%40%5b"
+                                                            "%5c%5d%5e%5f%60%7b%7c%7d%7e",
+                                                            fs::current_path().u8string().c_str());
+
+        ASSERT_TRUE(!strcmp(name, "%21\"%23%24%25%26%27%28%29*%2b%2c%2d"
+                                  "%2e/%30%31%32%33%34%35%36%37"
+                                  "%38%39:%3b<%3d>?%40%5b"
+                                  "\\%5d%5e%5f%60%7b|%7d%7e"));
+
+        delete [] name;
+    }
+#endif
+
+    // Maps filename unescaped (original) to filename escaped (expected result): f%2ff => f/f
+    std::unique_ptr<MegaStringMap> fileNamesStringMap = std::unique_ptr<MegaStringMap>{MegaStringMap::createInstance()};
+    fs::path uploadPath = fs::current_path() / "upload_invalid_filenames";
+    if (fs::exists(uploadPath))
+    {
+        fs::remove_all(uploadPath);
+    }
+    fs::create_directories(uploadPath);
+
+    for (int i = 0x01; i <= 0xA0; i++)
+    {
+        // skip [0-9] [A-Z] [a-z]
+        if ((i >= 0x30 && i <= 0x39)
+                || (i >= 0x41 && i <= 0x5A)
+                || (i >= 0x61 && i <= 0x7A))
+        {
+            continue;
+        }
+
+        // Create file with unescaped character ex: f%5cf
+        char unescapedName[6];
+        sprintf(unescapedName, "f%%%02xf", i);
+        if (createLocalFile(uploadPath, unescapedName))
+        {
+            const char *unescapedFileName = megaApi[0]->unescapeFsIncompatible(unescapedName, uploadPath.u8string().c_str());
+            fileNamesStringMap->set(unescapedName, unescapedFileName);
+            delete [] unescapedFileName;
+        }
+
+        // Create another file with the original character if supported f\f
+        if ((i >= 0x01 && i <= 0x20)
+                || (i >= 0x7F && i <= 0xA0))
+        {
+            // Skip control characters
+            continue;
+        }
+
+        char escapedName[4];
+        sprintf(escapedName, "f%cf", i);
+        const char *escapedFileName = megaApi[0]->escapeFsIncompatible(escapedName, uploadPath.u8string().c_str());
+        if (escapedFileName && !strcmp(escapedName, escapedFileName))
+        {
+            // Only create those files with supported characters, those ones that need unescaping
+            // has been created above
+            if (createLocalFile(uploadPath, escapedName))
+            {
+                const char * unescapedFileName = megaApi[0]->unescapeFsIncompatible(escapedName, uploadPath.u8string().c_str());
+                fileNamesStringMap->set(escapedName, unescapedFileName);
+                delete [] unescapedFileName;
+            }
+        }
+        delete [] escapedFileName;
+    }
+
+    TransferTracker uploadListener(megaApi[0].get());
+    megaApi[0]->startUpload(uploadPath.u8string().c_str(), std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(), &uploadListener);
+    ASSERT_EQ(API_OK, uploadListener.waitForResult());
+
+    ::mega::unique_ptr <MegaNode> n(megaApi[0]->getNodeByPath("/upload_invalid_filenames"));
+    ASSERT_TRUE(n.get());
+    ::mega::unique_ptr <MegaNode> authNode(megaApi[0]->authorizeNode(n.get()));
+    ASSERT_TRUE(authNode.get());
+    MegaNodeList *children(authNode->getChildren());
+    ASSERT_TRUE(children && children->size());
+
+    for (int i = 0; i < children->size(); i++)
+    {
+        MegaNode *child = children->get(i);
+        const char *uploadedName = child->getName();
+        const char *uploadedNameEscaped = megaApi[0]->escapeFsIncompatible(child->getName(), uploadPath.u8string().c_str());
+        const char *expectedName = fileNamesStringMap->get(uploadedNameEscaped);
+        delete [] uploadedNameEscaped;
+
+        // Conditions to check if uploaded fileName is correct:
+        // 1) Escaped uploaded filename must be found in fileNamesStringMap (original filename found)
+        // 2) Uploaded filename must be equal than the expected value (original filename unescaped)
+        ASSERT_TRUE (uploadedName && expectedName && !strcmp(uploadedName, expectedName));
+    }
+
+    // Download files
+    fs::path downloadPath = fs::current_path() / "download_invalid_filenames";
+    if (fs::exists(downloadPath))
+    {
+        fs::remove_all(downloadPath);
+    }
+    fs::create_directories(downloadPath);
+    TransferTracker downloadListener(megaApi[0].get());
+    megaApi[0]->startDownload(authNode.get(), downloadPath.u8string().c_str(), &downloadListener);
+    ASSERT_EQ(API_OK, downloadListener.waitForResult());
+
+    for (fs::directory_iterator itpath (downloadPath); itpath != fs::directory_iterator(); ++itpath)
+    {
+        std::string downloadedName = itpath->path().filename().u8string();
+        if (!downloadedName.compare(".") || !downloadedName.compare(".."))
+        {
+            continue;
+        }
+
+        // Conditions to check if downloaded fileName is correct:
+        // download filename must be found in fileNamesStringMap (original filename found)
+        ASSERT_TRUE(fileNamesStringMap->get(downloadedName.c_str()));
+    }
+
+#ifdef WIN32
+    // double check a few well known paths
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromPath("c:", fsa)), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromPath("c:\\", fsa)), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromPath("C:\\", fsa)), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromPath("C:\\Program Files", fsa)), FS_NTFS);
+    ASSERT_EQ(fileSystemAccess.getlocalfstype(LocalPath::fromPath("c:\\Program Files\\Windows NT", fsa)), FS_NTFS);
+#endif
+
+}
 TEST_F(SdkTest, EscapesReservedCharacters)
 {
     // Set up necessary accounts.
@@ -6057,13 +6243,13 @@ TEST_F(SdkTest, SyncRemoteNode)
         // Rename remote folder --> Sync fail
         LOG_verbose << "SyncRemoteNode :  Rename remote node with sync active.";
         std::string basePathRenamed = "SyncRemoteNodeRenamed";
-        ASSERT_TRUE(doRenameNode(0, remoteBaseNode.get(), basePathRenamed.c_str()));
+        ASSERT_EQ(API_OK, doRenameNode(0, remoteBaseNode.get(), basePathRenamed.c_str()));
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
         ASSERT_EQ(MegaSync::REMOTE_PATH_HAS_CHANGED, sync->getError());
 
         LOG_verbose << "SyncRemoteNode :  Restoring remote folder name.";
-        ASSERT_TRUE(doRenameNode(0, remoteBaseNode.get(), basePath.u8string().c_str()));
+        ASSERT_EQ(API_OK, doRenameNode(0, remoteBaseNode.get(), basePath.u8string().c_str()));
         ASSERT_NE(remoteBaseNode.get(), nullptr);
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
@@ -6087,13 +6273,13 @@ TEST_F(SdkTest, SyncRemoteNode)
     {
         TestingWithLogErrorAllowanceGuard g;
         LOG_verbose << "SyncRemoteNode :  Move remote node with sync active to the secondary folder.";
-        ASSERT_TRUE(doMoveNode(0, remoteBaseNode.get(), remoteMoveNodeParent.get()));
+        ASSERT_EQ(API_OK, doMoveNode(0, remoteBaseNode.get(), remoteMoveNodeParent.get()));
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
         ASSERT_EQ(MegaSync::REMOTE_PATH_HAS_CHANGED, sync->getError());
 
         LOG_verbose << "SyncRemoteNode :  Moving back the remote node.";
-        ASSERT_TRUE(doMoveNode(0, remoteBaseNode.get(), remoteRootNode.get()));
+        ASSERT_EQ(API_OK, doMoveNode(0, remoteBaseNode.get(), remoteRootNode.get()));
         ASSERT_NE(remoteBaseNode.get(), nullptr);
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
@@ -6113,13 +6299,13 @@ TEST_F(SdkTest, SyncRemoteNode)
         TestingWithLogErrorAllowanceGuard g;
         LOG_verbose << "SyncRemoteNode :  Rename remote node.";
         std::string renamedBasePath = basePath.u8string() + "Renamed";
-        ASSERT_TRUE(doRenameNode(0, remoteBaseNode.get(), renamedBasePath.c_str()));
+        ASSERT_EQ(API_OK, doRenameNode(0, remoteBaseNode.get(), renamedBasePath.c_str()));
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
         ASSERT_EQ(MegaSync::REMOTE_PATH_HAS_CHANGED, sync->getError());
 
         LOG_verbose << "SyncRemoteNode :  Renaming back the remote node.";
-        ASSERT_TRUE(doRenameNode(0, remoteBaseNode.get(), basePath.u8string().c_str()));
+        ASSERT_EQ(API_OK, doRenameNode(0, remoteBaseNode.get(), basePath.u8string().c_str()));
         ASSERT_NE(remoteBaseNode.get(), nullptr);
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_HAS_CHANGED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
@@ -6143,7 +6329,7 @@ TEST_F(SdkTest, SyncRemoteNode)
         TestingWithLogErrorAllowanceGuard g;
         // Remove remote folder --> Sync fail
         LOG_verbose << "SyncRemoteNode :  Removing remote node with sync active.";
-        ASSERT_TRUE(doDeleteNode(0, remoteBaseNode.get()));                                //  <--- remote node deleted!!
+        ASSERT_EQ(API_OK, doDeleteNode(0, remoteBaseNode.get()));                                //  <--- remote node deleted!!
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_DELETED);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
         ASSERT_EQ(MegaSync::REMOTE_NODE_NOT_FOUND, sync->getError());
