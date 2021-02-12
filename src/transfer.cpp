@@ -460,7 +460,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
         // Remove files with foreign targets, if transfer failed with a (foreign) storage overquota
         if (e == API_EOVERQUOTA
                 && !timeleft
-                && client->isForeignNode((*it)->h.as8byte()))
+                && client->isForeignNode((*it)->h))
         {
             File *f = (*it++);
 

@@ -3773,7 +3773,7 @@ void MegaClient::dispatchTransfers()
                         {
                             if (!(*it)->hprivate || (*it)->hforeign || nodeByHandle((*it)->h))
                             {
-                                h = (*it)->h.as8byte();
+                                h = (*it)->h;
                                 hprivate = (*it)->hprivate;
                                 privauth = (*it)->privauth.size() ? (*it)->privauth.c_str() : NULL;
                                 pubauth = (*it)->pubauth.size() ? (*it)->pubauth.c_str() : NULL;

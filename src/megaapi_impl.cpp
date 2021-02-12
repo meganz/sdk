@@ -5227,7 +5227,7 @@ MegaFilePut::MegaFilePut(MegaClient *, LocalPath clocalname, string *filename, N
     localname = std::move(clocalname);
 
     // target parent node
-    h.set6byte(ch);
+    h = ch;
 
     // target user
     targetuser = ctargetuser;

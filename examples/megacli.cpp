@@ -649,7 +649,7 @@ AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_
     }
     else
     {
-        h.set6byte(ch);
+        h = ch;
         memcpy(filekey, cfilekey, sizeof filekey);
         hprivate = false;
 
@@ -678,7 +678,7 @@ AppFilePut::AppFilePut(const LocalPath& clocalname, NodeHandle ch, const char* c
     localname = clocalname;
 
     // target parent node
-    h.set6byte(ch);
+    h = ch;
 
     // target user
     targetuser = ctargetuser;
@@ -2132,7 +2132,7 @@ void xferq(direction_t d, int cancel, bool showActive, bool showAll, bool showCo
                     else
                     {
                         string path;
-                        nodepath(f->h.as8byte(), &path);
+                        nodepath(f->h, &path);
                         cout << path;
                     }
                 }
