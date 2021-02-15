@@ -3634,6 +3634,30 @@ bool JSONSyncConfigIOContext::deserialize(const LocalPath& dbPath,
     return false;
 }
 
+bool JSONSyncConfigIOContext::deserialize(const LocalPath& dbPath,
+                                          SyncConfigVector& configs,
+                                          JSON& reader,
+                                          unsigned int slot) const
+{
+    auto path = dbFilePath(dbPath, slot).toPath(mFsAccess);
+
+    LOG_debug << "Attempting to deserialize config DB: "
+              << path;
+
+    if (deserialize(configs, reader))
+    {
+        LOG_debug << "Successfully deserialized config DB: "
+                  << path;
+
+        return true;
+    }
+
+    LOG_debug << "Unable to deserialize config DB: "
+              << path;
+
+    return false;
+}
+
 bool JSONSyncConfigIOContext::deserialize(JSONSyncConfigMap& configs,
                                           JSON& reader) const
 {
@@ -3696,6 +3720,64 @@ bool JSONSyncConfigIOContext::deserialize(JSONSyncConfigMap& configs,
     }
 }
 
+bool JSONSyncConfigIOContext::deserialize(SyncConfigVector& configs,
+                                          JSON& reader) const
+{
+    const auto TYPE_SYNCS = MAKENAMEID2('s', 'y');
+
+    if (!reader.enterobject())
+    {
+        return false;
+    }
+
+    for ( ; ; )
+    {
+        switch (reader.getnameid())
+        {
+        case EOO:
+            return reader.leaveobject();
+
+        case TYPE_SYNCS:
+        {
+            if (!reader.enterarray())
+            {
+                return false;
+            }
+
+            while (reader.enterobject())
+            {
+                SyncConfig config;
+
+                if (deserialize(config, reader))
+                {
+                    configs.emplace_back(std::move(config));
+                }
+                else
+                {
+                    LOG_err << "Failed to deserialize a sync config";
+                    assert(false);
+                }
+
+                reader.leaveobject();
+            }
+
+            if (!reader.leavearray())
+            {
+                return false;
+            }
+
+            break;
+        }
+
+        default:
+            if (!reader.storeobject())
+            {
+                return false;
+            }
+            break;
+        }
+    }
+}
 FileSystemAccess& JSONSyncConfigIOContext::fsAccess() const
 {
     return mFsAccess;
@@ -3883,6 +3965,21 @@ void JSONSyncConfigIOContext::serialize(const JSONSyncConfigMap& configs,
     for (const auto& it : configs)
     {
         serialize(it.second, writer);
+    }
+
+    writer.endarray();
+    writer.endobject();
+}
+
+void JSONSyncConfigIOContext::serialize(const vector<const SyncConfig*> &configs,
+                                        JSONWriter& writer) const
+{
+    writer.beginobject();
+    writer.beginarray("sy");
+
+    for (const auto& config : configs)
+    {
+        serialize(*config, writer);
     }
 
     writer.endarray();
@@ -4601,6 +4698,505 @@ error JSONSyncConfigStore::flush(JSONSyncConfigDB& db)
     mDirtyDB.erase(i);
 
     return result;
+}
+
+#ifdef _WIN32
+#define PATHSTRING(s) L ## s
+#else // _WIN32
+#define PATHSTRING(s) s
+#endif // ! _WIN32
+
+const LocalPath SyncConfigStore::BACKUP_CONFIG_DIR =
+    LocalPath::fromPlatformEncoded(PATHSTRING(".megabackup"));
+
+#undef PATHSTRING
+
+const unsigned int SyncConfigStore::NUM_SLOTS = 2;
+
+SyncConfigStore::SyncConfigStore(const LocalPath& dbPath, JSONSyncConfigIOContext &ioContext)
+  : mConfigs()
+  , mDBPath(dbPath)
+  , mDirtyDrives()
+  , mKnownDrives()
+  , mIOContext(ioContext)
+{
+}
+
+SyncConfigStore::~SyncConfigStore()
+{
+    close();
+}
+
+const SyncConfig* SyncConfigStore::add(const SyncConfig& config)
+{
+    if (mKnownDrives.count(config.mExternalDrivePath) == 0)
+    {
+        return nullptr;
+    }
+
+    auto i = mConfigs.begin();
+    auto j = mConfigs.end();
+
+    for ( ; i != j; ++i)
+    {
+        if (i->mBackupId == config.mBackupId)
+        {
+            break;
+        }
+    }
+
+    if (i == j)
+    {
+        i = mConfigs.emplace(i, config);
+    }
+    else
+    {
+        *i = config;
+    }
+
+    mDirtyDrives.emplace(config.mExternalDrivePath);
+
+    return &*i;
+}
+
+error SyncConfigStore::close(const LocalPath& drivePath)
+{
+    if (mKnownDrives.count(drivePath) > 0)
+    {
+        return close(drivePath, NoValidateTag());
+    }
+
+    return API_ENOENT;
+}
+
+error SyncConfigStore::close()
+{
+    auto i = mKnownDrives.begin();
+    auto j = mKnownDrives.end();
+    auto result = API_OK;
+
+    for ( ; i != j; )
+    {
+        if (close(i++->first, NoValidateTag()) != API_OK)
+        {
+            result = API_EWRITE;
+        }
+    }
+
+    return result;
+}
+
+SyncConfigVector SyncConfigStore::configs(const LocalPath& drivePath) const
+{
+    SyncConfigVector result;
+
+    for (const auto& config : mConfigs)
+    {
+        if (equal(config.mExternalDrivePath, drivePath))
+        {
+            result.emplace_back(config);
+        }
+    }
+
+    return result;
+}
+
+SyncConfigVector SyncConfigStore::configs() const
+{
+    return mConfigs;
+}
+
+error SyncConfigStore::create(const LocalPath& drivePath, SyncConfigVector& configs)
+{
+    configs.clear();
+
+    if (mKnownDrives.count(drivePath) > 0)
+    {
+        return API_EEXIST;
+    }
+
+    DriveInfo driveInfo;
+
+    driveInfo.dbPath = dbPath(drivePath);
+    driveInfo.drivePath = drivePath;
+    driveInfo.slot = 0;
+
+    auto result = read(driveInfo, configs);
+
+    if (result == API_EREAD)
+    {
+        return result;
+    }
+
+    mKnownDrives.emplace(drivePath, driveInfo);
+
+    return API_OK;
+}
+
+bool SyncConfigStore::dirty() const
+{
+    return !mDirtyDrives.empty();
+}
+
+error SyncConfigStore::flush(const LocalPath& drivePath)
+{
+    if (mKnownDrives.count(drivePath) > 0)
+    {
+        return flush(drivePath, NoValidateTag());
+    }
+
+    return API_ENOENT;
+}
+
+error SyncConfigStore::flush(vector<LocalPath>& drivePaths)
+{
+    auto i = mDirtyDrives.begin();
+    auto j = mDirtyDrives.end();
+    auto result = API_OK;
+
+    for ( ; i != j; )
+    {
+        auto drivePath = *i++;
+
+        if (flush(drivePath, NoValidateTag()) != API_OK)
+        {
+            drivePaths.emplace_back(std::move(drivePath));
+            result = API_EWRITE;
+        }
+    }
+
+    return result;
+}
+
+error SyncConfigStore::SyncConfigStore::flush()
+{
+    auto i = mDirtyDrives.begin();
+    auto j = mDirtyDrives.end();
+    auto result = API_OK;
+
+    for ( ; i != j; )
+    {
+        if (flush(*i++, NoValidateTag()) != API_OK)
+        {
+            result = API_EWRITE;
+        }
+    }
+
+    return result;
+}
+
+const SyncConfig* SyncConfigStore::getByBackupID(handle backupID) const
+{
+    if (backupID == UNDEF)
+    {
+        return nullptr;
+    }
+
+    for (const auto& config : mConfigs)
+    {
+        if (config.mBackupId == backupID)
+        {
+            return &config;
+        }
+    }
+
+    return nullptr;
+}
+
+const SyncConfig* SyncConfigStore::getByRootHandle(handle rootHandle) const
+{
+    if (rootHandle == UNDEF)
+    {
+        return nullptr;
+    }
+
+    for (const auto& config : mConfigs)
+    {
+        if (rootHandle == config.mRemoteNode)
+        {
+            return &config;
+        }
+    }
+
+    return nullptr;
+}
+
+error SyncConfigStore::open(const LocalPath& drivePath, SyncConfigVector& configs)
+{
+    configs.clear();
+
+    if (mKnownDrives.count(drivePath) > 0)
+    {
+        return API_EEXIST;
+    }
+
+    DriveInfo driveInfo;
+
+    driveInfo.dbPath = dbPath(drivePath);
+    driveInfo.drivePath = drivePath;
+    driveInfo.slot = 0;
+
+    auto result = read(driveInfo, configs);
+
+    if (result != API_OK)
+    {
+        return result;
+    }
+
+    mKnownDrives.emplace(drivePath, driveInfo);
+
+    return API_OK;
+}
+
+bool SyncConfigStore::opened(const LocalPath& drivePath) const
+{
+    return mKnownDrives.count(drivePath) > 0;
+}
+
+error SyncConfigStore::removeByBackupID(handle backupID)
+{
+    if (backupID == UNDEF)
+    {
+        return API_ENOENT;
+    }
+
+    auto i = mConfigs.begin();
+    auto j = mConfigs.end();
+
+    for ( ; i != j; ++i)
+    {
+        if (i->mBackupId == backupID)
+        {
+            mDirtyDrives.emplace(i->mExternalDrivePath);
+            mConfigs.erase(i);
+
+            return API_OK;
+        }
+    }
+
+    return API_ENOENT;
+}
+
+error SyncConfigStore::removeByRootHandle(handle rootHandle)
+{
+    if (rootHandle == UNDEF)
+    {
+        return API_ENOENT;
+    }
+
+    auto i = mConfigs.begin();
+    auto j = mConfigs.end();
+
+    for ( ; i != j; ++i)
+    {
+        if (rootHandle == i->mRemoteNode)
+        {
+            mDirtyDrives.emplace(i->mExternalDrivePath);
+            mConfigs.erase(i);
+
+            return API_OK;
+        }
+    }
+
+    return API_ENOENT;
+}
+
+error SyncConfigStore::truncate(const LocalPath& drivePath)
+{
+    auto i = mKnownDrives.find(drivePath);
+
+    if (i == mKnownDrives.end())
+    {
+        return API_ENOENT;
+    }
+
+    mDirtyDrives.erase(drivePath);
+
+    auto j = mConfigs.begin();
+    auto k = mConfigs.end();
+
+    for ( ; j != k; )
+    {
+        if (equal(j->mExternalDrivePath, drivePath))
+        {
+            j = mConfigs.erase(j);
+            k = mConfigs.end();
+            continue;
+        }
+
+        ++j;
+    }
+
+    return mIOContext.remove(i->second.dbPath);
+}
+
+error SyncConfigStore::truncate()
+{
+    auto result = API_OK;
+
+    mConfigs.clear();
+    mDirtyDrives.clear();
+
+    for (const auto& i : mKnownDrives)
+    {
+        if (mIOContext.remove(i.second.dbPath) != API_OK)
+        {
+            result = API_EWRITE;
+        }
+    }
+
+    return result;
+}
+
+error SyncConfigStore::close(const LocalPath& drivePath, NoValidateTag)
+{
+    auto i = mConfigs.begin();
+    auto j = mConfigs.end();
+    auto result = flush(drivePath, NoValidateTag());
+
+    for ( ; i != j; )
+    {
+        if (equal(i->mExternalDrivePath, drivePath))
+        {
+            i = mConfigs.erase(i);
+            j = mConfigs.end();
+            continue;
+        }
+
+        ++i;
+    }
+
+    mKnownDrives.erase(drivePath);
+
+    return result;
+}
+
+bool SyncConfigStore::equal(const LocalPath& lhs, const LocalPath& rhs) const
+{
+    return platformCompareUtf(lhs, false, rhs, false) == 0;
+}
+
+LocalPath SyncConfigStore::dbPath(const LocalPath& drivePath) const
+{
+    if (drivePath.empty())
+    {
+        return mDBPath;
+    }
+
+    LocalPath dbPath = drivePath;
+
+    dbPath.appendWithSeparator(BACKUP_CONFIG_DIR, false);
+
+    return dbPath;
+}
+
+error SyncConfigStore::flush(const LocalPath& drivePath, NoValidateTag)
+{
+    auto i = mDirtyDrives.find(drivePath);
+    auto result = API_OK;
+
+    if (i != mDirtyDrives.end())
+    {
+        result = write(mKnownDrives[drivePath]);
+        mDirtyDrives.erase(i);
+    }
+
+    return result;
+}
+
+error SyncConfigStore::read(DriveInfo& driveInfo, SyncConfigVector& configs, unsigned int slot)
+{
+    const auto& dbPath = driveInfo.dbPath;
+    string data;
+
+    if (mIOContext.read(dbPath, data, slot) != API_OK)
+    {
+        return API_EREAD;
+    }
+
+    JSON reader(data);
+
+    if (!mIOContext.deserialize(dbPath, configs, reader, slot))
+    {
+        return API_EREAD;
+    }
+
+    const auto& drivePath = driveInfo.drivePath;
+    auto& fsAccess = mIOContext.fsAccess();
+
+    for (auto& config : configs)
+    {
+        config.mExternalDrivePath = drivePath;
+
+        auto sourcePath = config.mLocalPath.toPath(fsAccess);
+
+        if (!drivePath.empty())
+        {
+            config.mLocalPath.prependWithSeparator(drivePath);
+        }
+
+        if (sourcePath == config.mName)
+        {
+            config.mName = config.mLocalPath.toPath(fsAccess);
+        }
+
+        mConfigs.emplace_back(config);
+    }
+
+    return API_OK;
+}
+
+error SyncConfigStore::read(DriveInfo& driveInfo, SyncConfigVector& configs)
+{
+    vector<unsigned int> confSlots;
+
+    if (mIOContext.getSlotsInOrder(driveInfo.dbPath, confSlots) != API_OK)
+    {
+        return API_ENOENT;
+    }
+
+    for (const auto& slot : confSlots)
+    {
+        if (read(driveInfo, configs, slot) == API_OK)
+        {
+            driveInfo.slot = (slot + 1) % NUM_SLOTS;
+
+            return API_OK;
+        }
+    }
+
+    return API_EREAD;
+}
+
+error SyncConfigStore::write(DriveInfo& driveInfo)
+{
+    const auto& drivePath = driveInfo.drivePath;
+    vector<const SyncConfig*> configs;
+
+    for (const auto& config : mConfigs)
+    {
+        if (equal(config.mExternalDrivePath, drivePath))
+        {
+            configs.emplace_back(&config);
+        }
+    }
+
+    const auto& dbPath = driveInfo.dbPath;
+    unsigned int &slot = driveInfo.slot;
+    JSONWriter writer;
+
+    mIOContext.serialize(configs, writer);
+
+    if (mIOContext.write(dbPath, writer.getstring(), slot) != API_OK)
+    {
+        return API_EWRITE;
+    }
+
+    slot = (slot + 1) % NUM_SLOTS;
+
+    mIOContext.remove(dbPath, slot);
+
+    return API_OK;
 }
 
 } // namespace

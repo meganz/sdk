@@ -4349,6 +4349,835 @@ TEST_F(JSONSyncConfigStoreTest, UpdateRemoveTargetHandle)
     EXPECT_EQ(store.getByRootHandle(UNDEF), nullptr);
 }
 
+class SyncConfigStoreTest
+  : public JSONSyncConfigTest
+{
+public:
+    SyncConfigStoreTest()
+      : JSONSyncConfigTest()
+    {
+    }
+}; // SyncConfigStoreTest
+
+TEST_F(SyncConfigStoreTest, Add)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    SyncConfigStore store(db, ioContext());
+    SyncConfigVector configs;
+
+    EXPECT_EQ(store.create(drive, configs), API_OK);
+    EXPECT_TRUE(configs.empty());
+    EXPECT_TRUE(store.opened(drive));
+
+    SyncConfig config;
+
+    config.mBackupId = 1;
+    config.mExternalDrivePath = drive;
+    config.mLocalPath = Utilities::randomPath(drive);
+    config.mRemoteNode = 2;
+
+    const auto* c = store.add(config);
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, config);
+
+    EXPECT_EQ(store.getByBackupID(1), c);
+    EXPECT_EQ(store.getByRootHandle(2), c);
+}
+
+TEST_F(SyncConfigStoreTest, AddUnknownDrive)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+
+    SyncConfigStore store(db, ioContext());
+
+    SyncConfig config;
+
+    config.mBackupId = 1;
+    config.mLocalPath = Utilities::randomPath(db);
+    config.mRemoteNode = 2;
+
+    EXPECT_EQ(store.add(config), nullptr);
+    EXPECT_EQ(store.getByBackupID(1), nullptr);
+    EXPECT_EQ(store.getByRootHandle(2), nullptr);
+}
+
+TEST_F(SyncConfigStoreTest, AddUpdate)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    SyncConfigStore store(db, ioContext());
+    SyncConfigVector configs;
+
+    EXPECT_EQ(store.create(drive, configs), API_OK);
+    EXPECT_TRUE(configs.empty());
+    EXPECT_TRUE(store.opened(drive));
+
+    SyncConfig config;
+
+    config.mBackupId = 1;
+    config.mExternalDrivePath = drive;
+    config.mLocalPath = Utilities::randomPath(drive);
+    config.mRemoteNode = 2;
+
+    const auto* c = store.add(config);
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, config);
+    EXPECT_EQ(store.getByBackupID(1), c);
+    EXPECT_EQ(store.getByRootHandle(2), c);
+
+    EXPECT_TRUE(store.dirty());
+
+    config.mRemoteNode = 3;
+
+    EXPECT_EQ(store.add(config), c);
+    EXPECT_EQ(*c, config);
+    EXPECT_EQ(store.getByBackupID(1), c);
+    EXPECT_EQ(store.getByRootHandle(3), c);
+}
+
+TEST_F(SyncConfigStoreTest, Close)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+    SyncConfigStore store(db, ioContext());
+
+    SyncConfigVector configs;
+
+    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
+    EXPECT_TRUE(configs.empty());
+    EXPECT_TRUE(store.opened(LocalPath()));
+
+    EXPECT_EQ(store.close(LocalPath()), API_OK);
+    EXPECT_FALSE(store.opened(LocalPath()));
+}
+
+TEST_F(SyncConfigStoreTest, CloseCantFlushDirtyDrive)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+    SyncConfigStore store(db, ioContext());
+
+    SyncConfigVector configs;
+
+    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
+    EXPECT_TRUE(store.opened(LocalPath()));
+
+    SyncConfig config;
+
+    config.mBackupId = 1;
+    config.mLocalPath = Utilities::randomPath();
+    config.mRemoteNode = 2;
+
+    const auto* c = store.add(config);
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, config);
+
+    EXPECT_TRUE(store.dirty());
+
+    EXPECT_CALL(ioContext(),
+                write(Eq(db.path()), _, _))
+      .WillOnce(Return(API_EWRITE));
+
+    EXPECT_EQ(store.close(LocalPath()), API_EWRITE);
+    EXPECT_FALSE(store.dirty());
+    EXPECT_FALSE(store.opened(LocalPath()));
+}
+
+TEST_F(SyncConfigStoreTest, CloseDirtyDrive)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+    SyncConfigStore store(db, ioContext());
+
+    SyncConfigVector configs;
+
+    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
+    EXPECT_TRUE(configs.empty());
+    EXPECT_TRUE(store.opened(LocalPath()));
+
+    SyncConfig config;
+
+    config.mBackupId = 1;
+    config.mLocalPath = Utilities::randomPath(db);
+    config.mRemoteNode = 2;
+
+    const auto* c = store.add(config);
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, config);
+    EXPECT_EQ(store.getByBackupID(1), c);
+    EXPECT_EQ(store.getByRootHandle(2), c);
+
+    EXPECT_TRUE(store.dirty());
+
+    EXPECT_CALL(ioContext(),
+                write(Eq(db.path()), _, 0));
+
+    EXPECT_EQ(store.close(LocalPath()), API_OK);
+    EXPECT_EQ(store.getByBackupID(1), nullptr);
+    EXPECT_EQ(store.getByRootHandle(2), nullptr);
+    EXPECT_FALSE(store.dirty());
+    EXPECT_FALSE(store.opened(LocalPath()));
+}
+
+TEST_F(SyncConfigStoreTest, CloseUnknownDrive)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+    SyncConfigStore store(db, ioContext());
+
+    EXPECT_EQ(store.close(LocalPath()), API_ENOENT);
+    EXPECT_EQ(store.close(Utilities::randomPath()), API_ENOENT);
+}
+
+TEST_F(SyncConfigStoreTest, Configs)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    SyncConfigStore store(db, ioContext());
+
+    SyncConfigVector configs;
+    SyncConfig configA;
+    SyncConfig configB;
+
+    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
+    EXPECT_TRUE(configs.empty());
+    EXPECT_TRUE(store.opened(LocalPath()));
+
+    EXPECT_EQ(store.create(drive, configs), API_OK);
+    EXPECT_TRUE(configs.empty());
+    EXPECT_TRUE(store.opened(drive));
+
+    configA.mBackupId = 1;
+    configA.mLocalPath = Utilities::randomPath();
+    configA.mRemoteNode = 2;
+
+    const auto* cA = store.add(configA);
+    ASSERT_NE(cA, nullptr);
+    EXPECT_EQ(*cA, configA);
+
+    configB.mBackupId = 2;
+    configB.mExternalDrivePath = drive;
+    configB.mLocalPath = Utilities::randomPath(drive);
+    configB.mRemoteNode = 2;
+
+    const auto* cB = store.add(configB);
+    ASSERT_NE(cB, nullptr);
+    EXPECT_EQ(*cB, configB);
+
+    configs = store.configs(LocalPath());
+    ASSERT_FALSE(configs.empty());
+    EXPECT_EQ(configs.front(), configA);
+
+    configs = store.configs(drive);
+    ASSERT_FALSE(configs.empty());
+    EXPECT_EQ(configs.front(), configB);
+}
+
+TEST_F(SyncConfigStoreTest, ConfigsUnknownDrive)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    SyncConfigStore store(db, ioContext());
+
+    SyncConfigVector configs;
+    SyncConfig config;
+
+    EXPECT_EQ(store.create(drive, configs), API_OK);
+    EXPECT_TRUE(configs.empty());
+    EXPECT_TRUE(store.opened(drive));
+
+    config.mBackupId = 1;
+    config.mLocalPath = Utilities::randomPath(drive);
+    config.mExternalDrivePath = drive;
+    config.mRemoteNode = 2;
+
+    const auto* c = store.add(config);
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, config);
+
+    configs = store.configs(drive);
+    ASSERT_FALSE(configs.empty());
+    EXPECT_EQ(configs.front(), config);
+
+    EXPECT_TRUE(store.configs(LocalPath()).empty());
+}
+
+TEST_F(SyncConfigStoreTest, Create)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    SyncConfigStore store(db, ioContext());
+    SyncConfigVector configs;
+
+    // Create an internal sync config database.
+    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
+    EXPECT_TRUE(configs.empty());
+    EXPECT_TRUE(store.opened(LocalPath()));
+
+    // Create an external sync config database.
+    EXPECT_EQ(store.create(drive, configs), API_OK);
+    EXPECT_TRUE(configs.empty());
+    EXPECT_TRUE(store.opened(drive));
+}
+
+TEST_F(SyncConfigStoreTest, CreateAlreadyOpen)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+
+    SyncConfigStore store(db, ioContext());
+
+    SyncConfigVector configs;
+
+    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
+    EXPECT_TRUE(store.opened(LocalPath()));
+
+    EXPECT_EQ(store.create(LocalPath(), configs), API_EEXIST);
+}
+
+TEST_F(SyncConfigStoreTest, CreateCantReadExisting)
+{
+    static const vector<unsigned> slots = {1};
+
+    Directory db(fsAccess(), Utilities::randomPath());
+    SyncConfigStore store(db, ioContext());
+
+    Expectation get =
+      EXPECT_CALL(ioContext(),
+                  getSlotsInOrder(Eq(db.path()), _))
+        .WillOnce(DoAll(SetArgReferee<1>(slots),
+                        Return(API_OK)));
+
+    Expectation read =
+      EXPECT_CALL(ioContext(),
+                  read(Eq(db.path()), _, Eq(1)))
+        .After(get)
+        .WillOnce(Return(API_EREAD));
+
+    SyncConfigVector configs;
+
+    EXPECT_EQ(store.create(LocalPath(), configs), API_EREAD);
+    EXPECT_FALSE(store.opened(LocalPath()));
+}
+
+TEST_F(SyncConfigStoreTest, CreateExisting)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    SyncConfigVector written;
+
+    // Create
+    {
+        SyncConfigStore store(db, ioContext());
+
+        EXPECT_EQ(store.create(drive, written), API_OK);
+        EXPECT_TRUE(store.opened(drive));
+        EXPECT_TRUE(written.empty());
+
+        SyncConfig config;
+
+        config.mBackupId = 1;
+        config.mExternalDrivePath = drive;
+        config.mLocalPath = Utilities::randomPath(drive);
+        config.mName = config.mLocalPath.toPath(fsAccess());
+        config.mRemoteNode = 2;
+
+        EXPECT_NE(store.add(config), nullptr);
+        EXPECT_TRUE(store.dirty());
+
+        written.emplace_back(config);
+
+        config.mBackupId = 2;
+        config.mExternalDrivePath = drive;
+        config.mLocalPath = Utilities::randomPath(drive);
+        config.mName = "Sync";
+        config.mRemoteNode = 3;
+
+        EXPECT_NE(store.add(config), nullptr);
+        EXPECT_TRUE(store.dirty());
+
+        written.emplace_back(config);
+
+        EXPECT_EQ(store.flush(), API_OK);
+        EXPECT_FALSE(store.dirty());
+    }
+
+    // Read
+    SyncConfigStore store(db, ioContext());
+    SyncConfigVector read;
+
+    EXPECT_EQ(store.create(drive, read), API_OK);
+    EXPECT_EQ(store.configs(drive), written);
+    EXPECT_FALSE(store.dirty());
+    EXPECT_TRUE(store.opened(drive));
+    EXPECT_EQ(read, written);
+}
+
+TEST_F(SyncConfigStoreTest, Destruct)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+
+    EXPECT_CALL(ioContext(),
+                write(Eq(db.path()), _, Eq(0)))
+      .Times(1);
+
+    {
+        SyncConfigStore store(db, ioContext());
+
+        SyncConfigVector configs;
+
+        EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
+        EXPECT_TRUE(store.opened(LocalPath()));
+
+        SyncConfig config;
+
+        config.mBackupId = 1;
+        config.mLocalPath = Utilities::randomPath();
+        config.mName = config.mLocalPath.toPath(fsAccess());
+        config.mRemoteNode = 2;
+
+        const auto* c = store.add(config);
+        ASSERT_NE(c, nullptr);
+        EXPECT_EQ(*c, config);
+
+        EXPECT_EQ(store.getByBackupID(1), c);
+        EXPECT_EQ(store.getByRootHandle(2), c);
+
+        EXPECT_TRUE(store.dirty());
+    }
+}
+
+TEST_F(SyncConfigStoreTest, Dirty)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+
+    SyncConfigStore store(db, ioContext());
+
+    SyncConfigVector configs;
+    SyncConfig config;
+
+    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
+    EXPECT_TRUE(store.opened(LocalPath()));
+
+    config.mBackupId = 1;
+    config.mLocalPath = Utilities::randomPath();
+    config.mRemoteNode = 2;
+
+    EXPECT_FALSE(store.dirty());
+
+    const auto* c = store.add(config);
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, config);
+    EXPECT_TRUE(store.dirty());
+
+    EXPECT_EQ(store.flush(), API_OK);
+    EXPECT_FALSE(store.dirty());
+
+    config.mRemoteNode = 3;
+
+    EXPECT_EQ(store.add(config), c);
+    EXPECT_EQ(*c, config);
+    EXPECT_TRUE(store.dirty());
+
+    EXPECT_EQ(store.flush(), API_OK);
+    EXPECT_FALSE(store.dirty());
+
+    EXPECT_EQ(store.removeByBackupID(1), API_OK);
+    EXPECT_TRUE(store.dirty());
+}
+
+TEST_F(SyncConfigStoreTest, FlushCleanDrive)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+    SyncConfigStore store(db, ioContext());
+
+    SyncConfigVector configs;
+
+    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
+    EXPECT_TRUE(store.opened(LocalPath()));
+    EXPECT_FALSE(store.dirty());
+
+    EXPECT_CALL(ioContext(),
+                write(Eq(db.path()), _, _))
+      .Times(0);
+
+    EXPECT_EQ(store.flush(LocalPath()), API_OK);
+    EXPECT_EQ(store.flush(), API_OK);
+}
+
+TEST_F(SyncConfigStoreTest, FlushFail)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+    SyncConfigStore store(db, ioContext());
+
+    SyncConfigVector configs;
+
+    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
+    EXPECT_TRUE(store.opened(LocalPath()));
+    EXPECT_FALSE(store.dirty());
+
+    SyncConfig config;
+
+    config.mBackupId = 1;
+    config.mLocalPath = Utilities::randomPath();
+    config.mRemoteNode = 2;
+
+    const auto* c = store.add(config);
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, config);
+
+    EXPECT_TRUE(store.dirty());
+
+    EXPECT_CALL(ioContext(),
+                write(Eq(db.path()), _, _))
+      .WillRepeatedly(Return(API_EWRITE));
+
+    EXPECT_EQ(store.flush(LocalPath()), API_EWRITE);
+    EXPECT_FALSE(store.dirty());
+
+    config.mRemoteNode = 3;
+
+    EXPECT_EQ(store.add(config), c);
+    EXPECT_EQ(*c, config);
+    EXPECT_TRUE(store.dirty());
+
+    EXPECT_EQ(store.flush(), API_EWRITE);
+    EXPECT_FALSE(store.dirty());
+
+    config.mRemoteNode = 4;
+
+    EXPECT_EQ(store.add(config), c);
+    EXPECT_EQ(*c, config);
+    EXPECT_TRUE(store.dirty());
+
+    vector<LocalPath> drives;
+
+    EXPECT_EQ(store.flush(drives), API_EWRITE);
+    ASSERT_EQ(drives.size(), 1);
+    EXPECT_EQ(drives.back(), LocalPath());
+    EXPECT_FALSE(store.dirty());
+}
+
+TEST_F(SyncConfigStoreTest, FlushUnknownDrive)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+    SyncConfigStore store(db, ioContext());
+
+    EXPECT_FALSE(store.dirty());
+    EXPECT_EQ(store.flush(LocalPath()), API_ENOENT);
+}
+
+TEST_F(SyncConfigStoreTest, Get)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+    SyncConfigStore store(db, ioContext());
+
+    SyncConfigVector configs;
+
+    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
+    EXPECT_TRUE(store.opened(LocalPath()));
+
+    SyncConfig configA;
+    SyncConfig configB;
+
+    configA.mBackupId = 1;
+    configA.mLocalPath = Utilities::randomPath();
+    configA.mRemoteNode = 2;
+
+    configB.mBackupId = 2;
+    configB.mLocalPath = Utilities::randomPath();
+    configB.mRemoteNode = 3;
+
+    const auto* cA = store.add(configA);
+    ASSERT_NE(cA, nullptr);
+    EXPECT_EQ(*cA, configA);
+
+    const auto* cB = store.add(configB);
+    ASSERT_NE(cB, nullptr);
+    EXPECT_EQ(*cB, configB);
+
+    cA = store.getByBackupID(1);
+    ASSERT_NE(cA, nullptr);
+    EXPECT_EQ(*cA, configA);
+
+    cB = store.getByBackupID(2);
+    ASSERT_NE(cB, nullptr);
+    EXPECT_EQ(*cB, configB);
+
+    EXPECT_EQ(store.getByBackupID(3), nullptr);
+    EXPECT_EQ(store.getByBackupID(UNDEF), nullptr);
+
+    cA = store.getByRootHandle(2);
+    ASSERT_NE(cA, nullptr);
+    EXPECT_EQ(*cA, configA);
+
+    cB = store.getByRootHandle(3);
+    ASSERT_NE(cB, nullptr);
+    EXPECT_EQ(*cB, configB);
+
+    EXPECT_EQ(store.getByRootHandle(4), nullptr);
+    EXPECT_EQ(store.getByRootHandle(UNDEF), nullptr);
+}
+
+TEST_F(SyncConfigStoreTest, OpenAlreadyOpen)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+
+    SyncConfigStore store(db, ioContext());
+
+    SyncConfigVector configs;
+
+    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
+    EXPECT_TRUE(store.opened(LocalPath()));
+
+    EXPECT_EQ(store.open(LocalPath(), configs), API_EEXIST);
+    EXPECT_TRUE(store.opened(LocalPath()));
+}
+
+TEST_F(SyncConfigStoreTest, OpenExisting)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+    SyncConfigVector written;
+
+    // Create
+    {
+        SyncConfigStore store(db, ioContext());
+
+        EXPECT_EQ(store.create(LocalPath(), written), API_OK);
+        EXPECT_TRUE(store.opened(LocalPath()));
+
+        SyncConfig config;
+
+        config.mBackupId = 1;
+        config.mLocalPath = Utilities::randomPath();
+        config.mName = config.mLocalPath.toPath(fsAccess());
+        config.mRemoteNode = 2;
+
+        EXPECT_NE(store.add(config), nullptr);
+        written.emplace_back(config);
+
+        config.mBackupId = 2;
+        config.mLocalPath = Utilities::randomPath();
+        config.mName = "Sync";
+        config.mRemoteNode = 3;
+
+        EXPECT_NE(store.add(config), nullptr);
+        written.emplace_back(config);
+
+        EXPECT_EQ(store.flush(), API_OK);
+    }
+
+    SyncConfigStore store(db, ioContext());
+    SyncConfigVector read;
+
+    EXPECT_EQ(store.open(LocalPath(), read), API_OK);
+    EXPECT_EQ(store.configs(LocalPath()), written);
+    EXPECT_FALSE(store.dirty());
+    EXPECT_TRUE(store.opened(LocalPath()));
+    EXPECT_EQ(read, written);
+}
+
+TEST_F(SyncConfigStoreTest, OpenFail)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+
+    SyncConfigStore store(db, ioContext());
+
+    SyncConfigVector configs;
+
+    EXPECT_EQ(store.open(LocalPath(), configs), API_ENOENT);
+    EXPECT_FALSE(store.opened(LocalPath()));
+
+    static const vector<unsigned int> slots = {1};
+
+    Expectation get =
+      EXPECT_CALL(ioContext(),
+                  getSlotsInOrder(Eq(db.path()), _))
+        .WillOnce(DoAll(SetArgReferee<1>(slots),
+                        Return(API_OK)));
+
+    Expectation read =
+      EXPECT_CALL(ioContext(),
+                  read(Eq(db.path()), _, Eq(1)))
+        .After(get)
+        .WillOnce(Return(API_EREAD));
+
+    EXPECT_EQ(store.open(LocalPath(), configs), API_EREAD);
+    EXPECT_FALSE(store.opened(LocalPath()));
+}
+
+TEST_F(SyncConfigStoreTest, Remove)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    SyncConfigStore store(db, ioContext());
+
+    SyncConfigVector configs;
+
+    EXPECT_EQ(store.create(drive, configs), API_OK);
+    EXPECT_TRUE(store.opened(drive));
+
+    SyncConfig configA;
+    SyncConfig configB;
+
+    configA.mBackupId = 1;
+    configA.mExternalDrivePath = drive;
+    configA.mLocalPath = Utilities::randomPath(drive);
+    configA.mRemoteNode = 2;
+
+    configB.mBackupId = 2;
+    configB.mExternalDrivePath = drive;
+    configB.mLocalPath = Utilities::randomPath(drive);
+    configB.mRemoteNode = 3;
+
+    const auto* cA = store.add(configA);
+    ASSERT_NE(cA, nullptr);
+    EXPECT_EQ(*cA, configA);
+
+    const auto* cB = store.add(configB);
+    ASSERT_NE(cB, nullptr);
+    EXPECT_EQ(*cB, configB);
+
+    EXPECT_TRUE(store.dirty());
+    EXPECT_EQ(store.flush(), API_OK);
+    EXPECT_FALSE(store.dirty());
+
+    EXPECT_EQ(store.removeByBackupID(1), API_OK);
+    EXPECT_EQ(store.getByBackupID(1), nullptr);
+    EXPECT_EQ(store.getByRootHandle(2), nullptr);
+
+    EXPECT_TRUE(store.dirty());
+    EXPECT_EQ(store.flush(), API_OK);
+    EXPECT_FALSE(store.dirty());
+
+    EXPECT_EQ(store.removeByRootHandle(3), API_OK);
+    EXPECT_EQ(store.getByBackupID(2), nullptr);
+    EXPECT_EQ(store.getByRootHandle(3), nullptr);
+
+    EXPECT_TRUE(store.dirty());
+    EXPECT_EQ(store.flush(), API_OK);
+    EXPECT_FALSE(store.dirty());
+
+    EXPECT_EQ(store.removeByBackupID(1), API_ENOENT);
+    EXPECT_EQ(store.removeByBackupID(UNDEF), API_ENOENT);
+    EXPECT_EQ(store.removeByRootHandle(3), API_ENOENT);
+    EXPECT_EQ(store.removeByRootHandle(UNDEF), API_ENOENT);
+    EXPECT_FALSE(store.dirty());
+}
+
+TEST_F(SyncConfigStoreTest, Truncate)
+{
+    const auto& BACKUP_CONFIG_DIR =
+      SyncConfigStore::BACKUP_CONFIG_DIR;
+
+    Directory db(fsAccess(), Utilities::randomPath());
+    Directory drive(fsAccess(), Utilities::randomPath());
+
+    SyncConfigStore store(db, ioContext());
+
+    SyncConfigVector configs;
+    SyncConfig config;
+
+    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
+    EXPECT_TRUE(store.opened(LocalPath()));
+    EXPECT_TRUE(configs.empty());
+
+    config.mBackupId = 1;
+    config.mLocalPath = Utilities::randomPath();
+    config.mRemoteNode = 2;
+
+    const auto* c = store.add(config);
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, config);
+
+    EXPECT_NE(store.getByBackupID(1), nullptr);
+    EXPECT_NE(store.getByRootHandle(2), nullptr);
+
+    configs = store.configs(LocalPath());
+    ASSERT_FALSE(configs.empty());
+    EXPECT_EQ(configs.back(), config);
+
+    EXPECT_EQ(store.create(drive, configs), API_OK);
+    EXPECT_TRUE(store.opened(drive));
+    EXPECT_TRUE(configs.empty());
+
+    config.mBackupId = 2;
+    config.mExternalDrivePath = drive;
+    config.mLocalPath = Utilities::randomPath(drive);
+    config.mRemoteNode = 3;
+
+    c = store.add(config);
+    ASSERT_NE(c, nullptr);
+    EXPECT_EQ(*c, config);
+
+    EXPECT_NE(store.getByBackupID(2), nullptr);
+    EXPECT_NE(store.getByRootHandle(3), nullptr);
+
+    configs = store.configs(drive);
+    ASSERT_FALSE(configs.empty());
+    EXPECT_EQ(configs.back(), config);
+
+    LocalPath driveDBPath = drive;
+    driveDBPath.appendWithSeparator(BACKUP_CONFIG_DIR, false);
+
+    Expectation remove0 =
+      EXPECT_CALL(ioContext(),
+                  remove(Eq(driveDBPath)))
+        .WillOnce(Return(API_OK));
+
+    EXPECT_EQ(store.truncate(drive), API_OK);
+    EXPECT_TRUE(store.configs(drive).empty());
+    EXPECT_TRUE(store.opened(drive));
+    EXPECT_NE(store.getByBackupID(1), nullptr);
+    EXPECT_NE(store.getByRootHandle(2), nullptr);
+    EXPECT_EQ(store.getByBackupID(2), nullptr);
+    EXPECT_EQ(store.getByRootHandle(3), nullptr);
+
+    Expectation remove1 =
+      EXPECT_CALL(ioContext(),
+                  remove(Eq(db.path())))
+        .After(remove0)
+        .WillOnce(Return(API_OK));
+
+    EXPECT_EQ(store.truncate(LocalPath()), API_OK);
+    EXPECT_TRUE(store.configs(LocalPath()).empty());
+    EXPECT_TRUE(store.opened(LocalPath()));
+    EXPECT_EQ(store.getByBackupID(1), nullptr);
+    EXPECT_EQ(store.getByRootHandle(2), nullptr);
+
+    EXPECT_FALSE(store.dirty());
+}
+
+TEST_F(SyncConfigStoreTest, TruncateFail)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+
+    SyncConfigStore store(db, ioContext());
+
+    SyncConfigVector configs;
+
+    EXPECT_EQ(store.create(LocalPath(), configs), API_OK);
+    EXPECT_TRUE(store.opened(LocalPath()));
+
+    EXPECT_CALL(ioContext(),
+                remove(Eq(db.path())))
+      .WillRepeatedly(Return(API_EWRITE));
+
+    EXPECT_EQ(store.truncate(LocalPath()), API_EWRITE);
+    EXPECT_EQ(store.truncate(), API_EWRITE);
+}
+
+TEST_F(SyncConfigStoreTest, TruncateUnknownDrive)
+{
+    Directory db(fsAccess(), Utilities::randomPath());
+    SyncConfigStore store(db, ioContext());
+
+    EXPECT_EQ(store.truncate(LocalPath()), API_ENOENT);
+}
+
 } // JSONSyncConfigTests
 
 #endif
