@@ -118,6 +118,9 @@ void DbTable::checkCommitter(DBTableTransactionCommitter*)
     assert(mTransactionCommitter);
 }
 
+const int DbAccess::LEGACY_DB_VERSION = 11;
+const int DbAccess::DB_VERSION = DbAccess::LEGACY_DB_VERSION + 1;
+
 DbAccess::DbAccess()
 {
     currentDbVersion = LEGACY_DB_VERSION;

@@ -155,7 +155,7 @@ Node::~Node()
             parent->children.erase(child_it);
         }
 
-        Node* fa = firstancestor();
+        const Node* fa = firstancestor();
         handle ancestor = fa->nodehandle;
         if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
         {
@@ -1025,7 +1025,7 @@ bool Node::setparent(Node* p)
     NodeCounter nc;
     bool gotnc = false;
 
-    Node *originalancestor = firstancestor();
+    const Node *originalancestor = firstancestor();
     handle oah = originalancestor->nodehandle;
     if (oah == client->rootnodes[0] || oah == client->rootnodes[1] || oah == client->rootnodes[2] || originalancestor->inshare)
     {
@@ -1052,7 +1052,7 @@ bool Node::setparent(Node* p)
         child_it = parent->children.insert(parent->children.end(), this);
     }
 
-    Node* newancestor = firstancestor();
+    const Node* newancestor = firstancestor();
     handle nah = newancestor->nodehandle;
     if (nah == client->rootnodes[0] || nah == client->rootnodes[1] || nah == client->rootnodes[2] || newancestor->inshare)
     {
@@ -1095,9 +1095,9 @@ bool Node::setparent(Node* p)
     return true;
 }
 
-Node* Node::firstancestor()
+const Node* Node::firstancestor() const
 {
-    Node* n = this;
+    const Node* n = this;
     while (n->parent != NULL)
     {
         n = n->parent;
@@ -1179,7 +1179,7 @@ bool PublicLink::isExpired()
 // set, change or remove LocalNode's parent and name/localname/slocalname.
 // newlocalpath must be a full path and must not point to an empty string.
 // no shortname allowed as the last path component.
-void LocalNode::setnameparent(LocalNode* newparent, LocalPath* newlocalpath, std::unique_ptr<LocalPath> newshortname)
+void LocalNode::setnameparent(LocalNode* newparent, const LocalPath* newlocalpath, std::unique_ptr<LocalPath> newshortname)
 {
     if (!sync)
     {
@@ -1355,7 +1355,7 @@ LocalNode::LocalNode()
 {}
 
 // initialize fresh LocalNode object - must be called exactly once
-void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, LocalPath& cfullpath, std::unique_ptr<LocalPath> shortname)
+void LocalNode::init(Sync* csync, nodetype_t ctype, LocalNode* cparent, const LocalPath& cfullpath, std::unique_ptr<LocalPath> shortname)
 {
     sync = csync;
     parent = NULL;
@@ -1554,7 +1554,8 @@ LocalNode::~LocalNode()
         return;
     }
 
-    if (sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN)
+    if (!sync->mDestructorRunning && (
+        sync->state == SYNC_ACTIVE || sync->state == SYNC_INITIALSCAN))
     {
         sync->statecachedel(this);
 
@@ -1614,21 +1615,15 @@ LocalNode::~LocalNode()
         delete it++->second;
     }
 
-    if (node)
+    if (node && !sync->mDestructorRunning)
     {
         // move associated node to SyncDebris unless the sync is currently
         // shutting down
-        if (sync->state < SYNC_INITIALSCAN)
-        {
-            node.reset();
-        }
-        else
+        if (sync->state >= SYNC_INITIALSCAN)
         {
             sync->client->movetosyncdebris(node, sync->inshare);
         }
     }
-
-    slocalname.reset();
 }
 
 void LocalNode::detach(const bool recreate)
@@ -1718,13 +1713,13 @@ void LocalNode::completed(Transfer* t, LocalNode*)
     // exist or is newer
     if (!parent || !parent->node || (node && mtime < node->mtime))
     {
-        h = t->client->rootnodes[RUBBISHNODE - ROOTNODE];
+        h = NodeHandle().set6byte(t->client->rootnodes[RUBBISHNODE - ROOTNODE]);
     }
     else
     {
         // otherwise, overwrite node if it already exists and complete in its
         // place
-        h = parent->node->nodehandle;
+        h = parent->node->nodeHandle();
     }
 
     File::completed(t, this);

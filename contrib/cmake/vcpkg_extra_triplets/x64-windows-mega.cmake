@@ -1,5 +1,5 @@
-if(EXISTS "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Professional")
-    set(VCPKG_VISUAL_STUDIO_PATH "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Professional")
+if(EXISTS "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Professional")
+    set(VCPKG_VISUAL_STUDIO_PATH "C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\Professional")
 elseif(EXISTS "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community")
     message(AUTHOR_WARNING "Microsoft Visual Studio 2017 Community will be used. Professional would be more appropriate.")
     set(VCPKG_VISUAL_STUDIO_PATH "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community")
@@ -7,17 +7,17 @@ else()
     message(FATAL_ERROR "Microsoft Visual Studio 2017 could not be found")
 endif()
 
-set(VCPKG_PLATFORM_TOOLSET v141)
+set(VCPKG_PLATFORM_TOOLSET v142)
 
 set(VCPKG_TARGET_ARCHITECTURE x64)
 
 # use dynamic C and CPP libraries (needed if we use any DLLs, eg Qt)
 set(VCPKG_CRT_LINKAGE dynamic)
 
-if(PORT MATCHES "ffmpeg" OR 
-   PORT MATCHES "openssl" OR 
-   PORT MATCHES "curl" OR 
-   PORT MATCHES "sdl1" OR 
+if(PORT MATCHES "ffmpeg" OR
+   PORT MATCHES "openssl" OR
+   PORT MATCHES "curl" OR
+   PORT MATCHES "sdl1" OR
    PORT MATCHES "c-ares")
     # build this library as DLL (usually because it is LGPL licensed)
     set(VCPKG_LIBRARY_LINKAGE dynamic)

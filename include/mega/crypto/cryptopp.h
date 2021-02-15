@@ -64,6 +64,15 @@ public:
      * @return The random number generated.
      */
     uint32_t genuint32(uint64_t max);
+
+    /**
+     * @brief
+     * Generates a string of len random bytes.
+     *
+     * @return
+     * A string of len random bytes.
+     */
+    std::string genstring(const size_t len);
 };
 
 // symmetric cryptography: AES-128

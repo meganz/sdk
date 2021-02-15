@@ -44,6 +44,18 @@ uint32_t PrnGen::genuint32(uint64_t max)
     return (uint32_t)(((uint64_t)t) / ((((uint64_t)(~(uint32_t)0)) + 1) / max));
 }
 
+std::string PrnGen::genstring(const size_t len)
+{
+    std::string result(len, '\0');
+
+    // Necessary as data() returns const until C++17.
+    void *buffer = const_cast<char*>(result.data());
+
+    genblock(reinterpret_cast<byte*>(buffer), len);
+
+    return result;
+}
+
 SymmCipher::SymmCipher(const byte* key)
 {
     setkey(key);
