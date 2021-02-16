@@ -23146,7 +23146,7 @@ void MegaApiImpl::sendPendingRequests()
         }
 
 #ifdef ENABLE_SYNC
-        client->syncs.syncConfigDBFlush();
+        client->syncs.syncConfigStoreFlush();
 #endif
     }
 }

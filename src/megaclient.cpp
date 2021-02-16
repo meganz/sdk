@@ -2947,7 +2947,7 @@ void MegaClient::exec()
         syncs.backupConfigStoreFlush();
 
         // Flush changes made to internal configs.
-        syncs.syncConfigDBFlush();
+        syncs.syncConfigStoreFlush();
 #endif
 
         notifypurge();
@@ -11850,7 +11850,7 @@ void MegaClient::fetchnodes(bool nocache)
         //TODO: remove android control after android gives green light to this.
         enabletransferresumption();
 #endif
-        syncs.resetSyncConfigDb();
+        syncs.resetSyncConfigStore();
         syncs.resumeResumableSyncsOnStartup();
 #endif
         app->fetchnodes_result(API_OK);

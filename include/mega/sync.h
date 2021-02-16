@@ -670,6 +670,9 @@ public:
     // Create a new (or open an existing) database.
     error create(const LocalPath& drivePath, SyncConfigVector& configs);
 
+    // Where we store databases for internal syncs.
+    const LocalPath& dbPath() const;
+
     // Whether any databases need flushing.
     bool dirty() const;
 
@@ -807,7 +810,7 @@ struct Syncs
     // Called via MegaApi::removeSync - cache files are deleted
     void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
 
-    void resetSyncConfigDb();
+    void resetSyncConfigStore();
     void clear();
 
     // Clears (and flushes) internal config database.
@@ -917,16 +920,16 @@ struct Syncs
     error backupConfigStoreFlush();
 
     // Returns a reference to this user's internal configuration database.
-    JSONSyncConfigDB* syncConfigDB();
+    SyncConfigStore* syncConfigStore();
 
     // Whether the internal database has changes that need to be written to disk.
-    bool syncConfigDBDirty();
+    bool syncConfigStoreDirty();
 
     // Attempts to flush the internal configuration database to disk.
-    error syncConfigDBFlush();
+    error syncConfigStoreFlush();
 
     // Load internal sync configs from disk.
-    error syncConfigDBLoad();
+    error syncConfigStoreLoad(SyncConfigVector& configs);
 
 private:
     // Returns a reference to this user's sync config IO context.
@@ -935,8 +938,8 @@ private:
     // Manages this user's external backup configuration databases.
     unique_ptr<JSONSyncConfigStore> mBackupConfigStore;
 
-    // This user's internal sync configuration datbase.
-    unique_ptr<JSONSyncConfigDB> mSyncConfigDB;
+    // This user's internal sync configuration store.
+    unique_ptr<SyncConfigStore> mSyncConfigStore;
 
     // Responsible for securely writing config databases to disk.
     unique_ptr<JSONSyncConfigIOContext> mSyncConfigIOContext;

@@ -2669,13 +2669,13 @@ error Syncs::backupConfigStoreFlush()
     return API_EWRITE;
 }
 
-JSONSyncConfigDB* Syncs::syncConfigDB()
+SyncConfigStore* Syncs::syncConfigStore()
 {
     // Have we already created the database?
-    if (mSyncConfigDB)
+    if (mSyncConfigStore)
     {
         // Yep, return a reference to the caller.
-        return mSyncConfigDB.get();
+        return mSyncConfigStore.get();
     }
 
     // Is the client using a database?
@@ -2696,31 +2696,27 @@ JSONSyncConfigDB* Syncs::syncConfigDB()
     auto dbPath = mClient.dbaccess->rootPath();
 
     // Create the database.
-    mSyncConfigDB.reset(new JSONSyncConfigDB(dbPath));
+    mSyncConfigStore.reset(
+      new SyncConfigStore(dbPath, *mSyncConfigIOContext));
 
-    return mSyncConfigDB.get();
+    return mSyncConfigStore.get();
 }
 
-bool Syncs::syncConfigDBDirty()
+bool Syncs::syncConfigStoreDirty()
 {
-    return mSyncConfigDB && mSyncConfigDB->dirty();
+    return mSyncConfigStore && mSyncConfigStore->dirty();
 }
 
-error Syncs::syncConfigDBFlush()
+error Syncs::syncConfigStoreFlush()
 {
-    if (!syncConfigDBDirty())
+    if (!syncConfigStoreDirty())
     {
         return API_OK;
     }
 
     LOG_debug << "Attempting to flush internal config database.";
 
-    auto result = API_EAGAIN;
-
-    if (auto* ioContext = syncConfigIOContext())
-    {
-        result = mSyncConfigDB->write(*ioContext);
-    }
+    auto result = mSyncConfigStore->flush();
 
     if (result != API_OK)
     {
@@ -2735,26 +2731,22 @@ error Syncs::syncConfigDBFlush()
     return result;
 }
 
-error Syncs::syncConfigDBLoad()
+error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
 {
     LOG_debug << "Attempting to load internal sync configs from disk.";
 
     auto result = API_EAGAIN;
 
     // Can we get our hands on the internal sync config database?
-    if (auto* db = syncConfigDB())
+    if (auto* store = syncConfigStore())
     {
-        // Make sure we have a suitable IO context.
-        if (auto* ioContext = syncConfigIOContext())
-        {
-            // Try and read the database from disk.
-            result = db->read(*ioContext);
-        }
+        // Try and read the internal database from disk.
+        result = store->create(LocalPath(), configs);
 
-        if (result == API_OK || result == API_ENOENT)
+        if (result == API_OK)
         {
             LOG_debug << "Loaded "
-                      << db->configs().size()
+                      << configs.size()
                       << " internal sync config(s) from disk.";
 
             return API_OK;
@@ -2835,10 +2827,10 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
 
 void Syncs::clear()
 {
-    syncConfigDBFlush();
+    syncConfigStoreFlush();
 
     mBackupConfigStore.reset();
-    mSyncConfigDB.reset();
+    mSyncConfigStore.reset();
     mSyncConfigIOContext.reset();
     mSyncVec.clear();
     isEmpty = true;
@@ -2846,35 +2838,28 @@ void Syncs::clear()
 
 error Syncs::truncate()
 {
-    if (!mSyncConfigDB)
+    if (!mSyncConfigStore)
     {
         return API_OK;
     }
 
-    auto* ioContext = syncConfigIOContext();
-
-    if (!ioContext)
-    {
-        return API_EAGAIN;
-    }
-
-    auto result = mSyncConfigDB->truncate(*ioContext);
+    auto result = mSyncConfigStore->truncate(LocalPath());
 
     if (result != API_OK)
     {
         auto& fsAccess = *mClient.fsaccess;
 
         LOG_warn << "Unable to truncate config DB: "
-                 << mSyncConfigDB->dbPath().toPath(fsAccess);
+                 << mSyncConfigStore->dbPath().toPath(fsAccess);
     }
 
     return result;
 }
 
-void Syncs::resetSyncConfigDb()
+void Syncs::resetSyncConfigStore()
 {
-    mSyncConfigDB.reset();
-    static_cast<void>(syncConfigDB());
+    mSyncConfigStore.reset();
+    static_cast<void>(syncConfigStore());
 }
 
 auto Syncs::appendNewSync(const SyncConfig& c, MegaClient& mc) -> UnifiedSync*
@@ -3113,9 +3098,9 @@ error Syncs::removeSyncConfigByBackupId(handle backupId)
 {
     error result = API_OK;
 
-    if (auto* db = syncConfigDB())
+    if (auto* store = syncConfigStore())
     {
-        result = db->removeByBackupId(backupId);
+        result = store->removeByBackupID(backupId);
     }
 
     if (result == API_ENOENT)
@@ -3157,9 +3142,9 @@ error Syncs::saveSyncConfig(const SyncConfig& config)
 {
     if (!config.isExternal())
     {
-        if (auto* db = syncConfigDB())
+        if (auto* store = syncConfigStore())
         {
-            return db->add(config), API_OK;
+            return store->add(config), API_OK;
         }
 
         return API_ENOENT;
@@ -3221,15 +3206,19 @@ void Syncs::resumeResumableSyncsOnStartup()
 {
     if (mClient.loggedin() != FULLACCOUNT) return;
 
-    if (syncConfigDBLoad() != API_OK)
+    SyncConfigVector configs;
+
+    if (syncConfigStoreLoad(configs) != API_OK)
     {
         return;
     }
 
-    assert(mSyncVec.empty());   // there should be no syncs yet
-    for (auto& pair : syncConfigDB()->configs())
+    // There should be no syncs yet.
+    assert(mSyncVec.empty());
+
+    for (auto& config : configs)
     {
-        mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(mClient, pair.second)));
+        mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(mClient, config)));
         isEmpty = false;
     }
 
@@ -4831,6 +4820,11 @@ error SyncConfigStore::create(const LocalPath& drivePath, SyncConfigVector& conf
     mKnownDrives.emplace(drivePath, driveInfo);
 
     return API_OK;
+}
+
+const LocalPath& SyncConfigStore::dbPath() const
+{
+    return mDBPath;
 }
 
 bool SyncConfigStore::dirty() const
