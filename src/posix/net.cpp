@@ -2864,6 +2864,14 @@ bool CurlDNSEntry::isIPv6Expired()
 
 void CurlHttpIO::initialize_android()
 {
+    bool initialized = ares_library_android_initialized() == ARES_SUCCESS;
+    if (initialized)
+    {
+            LOG_warn << "initialize_android: already initialized";
+            firebase::crashlytics::Log("initialize_android: already initialized");
+            return;
+    }
+
     if (!MEGAjvm)
     {
         LOG_err << "No JVM found";
@@ -2999,7 +3007,7 @@ void CurlHttpIO::initialize_android()
 
         // ares_library_init_jvm(MEGAjvm); --> already done at JNI_OnLoad()
         ares_library_init_android(connectivityManager);
-        bool initialized = ares_library_android_initialized() == ARES_SUCCESS;
+        initialized = ares_library_android_initialized() == ARES_SUCCESS;
         assert(initialized);
         if (!initialized)
         {
