@@ -292,7 +292,7 @@ CurlHttpIO::CurlHttpIO()
         ares_library_init(ARES_LIB_INIT_ALL);
 
 #if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
-        initialize_android()
+        initialize_android();
 #endif
     };
 
@@ -2919,7 +2919,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get getInitialApplication()";
-            firebase::crashlytics::Log("Failed to get getInitialApplication()")
+            firebase::crashlytics::Log("Failed to get getInitialApplication()");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2932,7 +2932,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get context";
-            firebase::crashlytics::Log("Failed to get context")
+            firebase::crashlytics::Log("Failed to get context");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2945,7 +2945,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get android/content/Context";
-            firebase::crashlytics::Log("Failed to get android/content/Context")
+            firebase::crashlytics::Log("Failed to get android/content/Context");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2958,7 +2958,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get getSystemService()";
-            firebase::crashlytics::Log("Failed to get getSystemService()")
+            firebase::crashlytics::Log("Failed to get getSystemService()");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2971,7 +2971,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get CONNECTIVITY_SERVICE";
-            firebase::crashlytics::Log("Failed to get CONNECTIVITY_SERVICE")
+            firebase::crashlytics::Log("Failed to get CONNECTIVITY_SERVICE");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2984,7 +2984,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get CONNECTIVITY_SERVICE value";
-            firebase::crashlytics::Log("Failed to get CONNECTIVITY_SERVICE value")
+            firebase::crashlytics::Log("Failed to get CONNECTIVITY_SERVICE value");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -2997,7 +2997,7 @@ void CurlHttpIO::initialize_android()
         {
             env->ExceptionClear();
             LOG_err << "Failed to get connectivityManager";
-            firebase::crashlytics::Log("Failed to get connectivityManager")
+            firebase::crashlytics::Log("Failed to get connectivityManager");
             if (detach)
             {
                 MEGAjvm->DetachCurrentThread();
@@ -3011,7 +3011,7 @@ void CurlHttpIO::initialize_android()
         assert(initialized);
         if (!initialized)
         {
-            firebase::crashlytics::Log("Failed to initialize c-ares for Android")
+            firebase::crashlytics::Log("Failed to initialize c-ares for Android");
         }
 
         if (detach)
