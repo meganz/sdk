@@ -277,16 +277,15 @@ bool SymmCipher::gcm_encrypt_aad(const string *data, const byte *additionalData,
     {
         // resynchronizes with the provided IV
         aesgcm_e.Resynchronize(iv, static_cast<int>(ivlen));
-        StringSink *cipher_sink = new StringSink(*result);
-        AuthenticatedEncryptionFilter *ef = new AuthenticatedEncryptionFilter(aesgcm_e, cipher_sink, false, static_cast<int>(taglen));
+        AuthenticatedEncryptionFilter ef (aesgcm_e, new StringSink(*result), false, static_cast<int>(taglen));
 
         // add additionalData to channel for additional authenticated data
-        ef->ChannelPut(AAD_CHANNEL, additionalData, additionalDatalen, true);
-        ef->ChannelMessageEnd(AAD_CHANNEL);
+        ef.ChannelPut(AAD_CHANNEL, additionalData, additionalDatalen, true);
+        ef.ChannelMessageEnd(AAD_CHANNEL);
 
         // add plain text to DEFAULT_CHANNEL in order to be encrypted
-        ef->ChannelPut(DEFAULT_CHANNEL, reinterpret_cast<const byte*>(data->data()), data->size(), true);
-        ef->ChannelMessageEnd(DEFAULT_CHANNEL);
+        ef.ChannelPut(DEFAULT_CHANNEL, reinterpret_cast<const byte*>(data->data()), data->size(), true);
+        ef.ChannelMessageEnd(DEFAULT_CHANNEL);
     }
     catch (CryptoPP::Exception &e)
     {
