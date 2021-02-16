@@ -556,10 +556,10 @@ typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
 @property (readonly, nonatomic) MEGABannerList *bannerList;
 
 /**
- * @brief List of MegaHandle objects
+ * @brief Array of MEGAHandle (NSNumber)
  *
  */
-@property (readonly, nonatomic) MEGAHandleList *megaHandleList;
+@property (readonly, nonatomic) NSArray<NSNumber *> *megaHandleArray;
 
 /**
  * @brief Creates a copy of this MEGARequest object

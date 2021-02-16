@@ -253,9 +253,13 @@ using namespace mega;
     return [[MEGABannerList alloc] initWithMegaBannerList:bannerList cMemoryOwn:YES];
 }
 
-- (MEGAHandleList *)megaHandleList {
-    MegaHandleList *list = self.megaRequest->getMegaHandleList()->copy();
-    return [MEGAHandleList.alloc initWithMegaHandleList:list cMemoryOwn:YES];
+- (NSArray<NSNumber *> *)megaHandleArray {
+    MEGAHandleList *handleList = [MEGAHandleList.alloc initWithMegaHandleList:self.megaRequest->getMegaHandleList()->copy() cMemoryOwn:YES];
+    NSMutableArray<NSNumber *> *handleArray = [NSMutableArray.alloc initWithCapacity:handleList.size];
+    for (int i = 0; i < handleList.size; i++) {
+        [handleArray addObject:[NSNumber numberWithUnsignedLongLong:[handleList megaHandleAtIndex:i]]];
+    }
+    return handleArray.copy;
 }
 
 @end

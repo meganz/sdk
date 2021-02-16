@@ -1057,12 +1057,12 @@ using namespace mega;
     self.megaApi->setNodeFavourite(node.getCPtr, favourite);
 }
 
-- (void)favouritesForParent:(nullable MEGANode *)node count:(nullable NSNumber *)count delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->getFavourites(node ? node.getCPtr : NULL, count ? count.intValue : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+- (void)favouritesForParent:(nullable MEGANode *)node count:(NSInteger)count delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getFavourites(node.getCPtr, (int)count, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
-- (void)favouritesForParent:(nullable MEGANode *)node count:(nullable NSNumber *)count {
-    self.megaApi->getFavourites(node ? node.getCPtr : NULL, count ? count.intValue : NULL);
+- (void)favouritesForParent:(nullable MEGANode *)node count:(NSInteger)count {
+    self.megaApi->getFavourites(node.getCPtr, (int)count);
 }
 
 - (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {

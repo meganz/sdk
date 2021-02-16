@@ -3407,11 +3407,11 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest megaHandleList] - List of handles of favourite nodes
  *
- * @param node Node and its children that will be searched for favourites. Search all nodes if null
+ * @param node Node and its children that will be searched for favourites. Search all nodes if nil
  * @param count if count is zero return all favourite nodes, otherwise return only 'count' favourite nodes
- * @param listener MegaRequestListener to track this request
+ * @param delegate MEGARequestListener to track this request
  */
-- (void)favouritesForParent:(nullable MEGANode *)node count:(nullable NSNumber *)count delegate:(id<MEGARequestDelegate>)delegate;
+- (void)favouritesForParent:(nullable MEGANode *)node count:(NSInteger)count delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get a list of favourite nodes.
@@ -3426,10 +3426,10 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * is MEGAErrorTypeApiOk:
  * - [MEGARequest megaHandleList] - List of handles of favourite nodes
  *
- * @param node Node and its children that will be searched for favourites. Search all nodes if null
+ * @param node Node and its children that will be searched for favourites. Search all nodes if nil
  * @param count if count is zero return all favourite nodes, otherwise return only 'count' favourite nodes
  */
-- (void)favouritesForParent:(nullable MEGANode *)node count:(nullable NSNumber *)count;
+- (void)favouritesForParent:(nullable MEGANode *)node count:(NSInteger)count;
 
 
 /**
