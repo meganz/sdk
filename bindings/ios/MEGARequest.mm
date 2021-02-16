@@ -29,6 +29,7 @@
 #import "MEGAPushNotificationSettings+init.h"
 #import "MEGABannerList.h"
 #import "MEGABannerList+init.h"
+#import "MEGAHandleList+init.h"
 
 using namespace mega;
 
@@ -250,6 +251,11 @@ using namespace mega;
 - (MEGABannerList *)bannerList {
     MegaBannerList *bannerList = self.megaRequest->getMegaBannerList() -> copy();
     return [[MEGABannerList alloc] initWithMegaBannerList:bannerList cMemoryOwn:YES];
+}
+
+- (MEGAHandleList *)megaHandleList {
+    MegaHandleList *list = self.megaRequest->getMegaHandleList()->copy();
+    return [MEGAHandleList.alloc initWithMegaHandleList:list cMemoryOwn:YES];
 }
 
 @end

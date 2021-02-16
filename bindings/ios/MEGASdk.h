@@ -3393,6 +3393,45 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  */
 - (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite;
 
+
+/**
+ * @brief Get a list of favourite nodes.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node provided
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeFav
+ * - [MEGARequest numDetails] - Returns the count requested
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaHandleList] - List of handles of favourite nodes
+ *
+ * @param node Node and its children that will be searched for favourites. Search all nodes if null
+ * @param count if count is zero return all favourite nodes, otherwise return only 'count' favourite nodes
+ * @param listener MegaRequestListener to track this request
+ */
+- (void)favouritesForParent:(nullable MEGANode *)node count:(nullable NSNumber *)count delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get a list of favourite nodes.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node provided
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeFav
+ * - [MEGARequest numDetails] - Returns the count requested
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaHandleList] - List of handles of favourite nodes
+ *
+ * @param node Node and its children that will be searched for favourites. Search all nodes if null
+ * @param count if count is zero return all favourite nodes, otherwise return only 'count' favourite nodes
+ */
+- (void)favouritesForParent:(nullable MEGANode *)node count:(nullable NSNumber *)count;
+
+
 /**
  * @brief Set the GPS coordinates of image files as a node attribute.
  *
