@@ -2997,7 +2997,7 @@ void CurlHttpIO::initialize_android()
             return;
         }
 
-        ares_library_init_jvm(MEGAjvm);
+        // ares_library_init_jvm(MEGAjvm); --> already done at JNI_OnLoad()
         ares_library_init_android(connectivityManager);
         bool initialized = ares_library_android_initialized() == ARES_SUCCESS;
         assert(initialized);
