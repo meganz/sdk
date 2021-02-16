@@ -292,8 +292,8 @@ CurlHttpIO::CurlHttpIO()
         ares_library_init(ARES_LIB_INIT_ALL);
     }
 
-#if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
     initialize_android();
+#if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
 #endif
 
     curlMutex.unlock();
@@ -2858,7 +2858,7 @@ bool CurlDNSEntry::isIPv6Expired()
     return (DNS_CACHE_EXPIRES && (Waiter::ds - ipv6timestamp) >= DNS_CACHE_TIMEOUT_DS);
 }
 
-#if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
+#if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
 void CurlHttpIO::initialize_android()
 {
     if (!MEGAjvm)
