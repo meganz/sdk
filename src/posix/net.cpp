@@ -290,11 +290,11 @@ CurlHttpIO::CurlHttpIO()
     {
         curl_global_init(CURL_GLOBAL_DEFAULT);
         ares_library_init(ARES_LIB_INIT_ALL);
-    }
 
-    initialize_android();
 #if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
+        initialize_android()
 #endif
+    };
 
     curlMutex.unlock();
 
