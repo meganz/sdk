@@ -363,96 +363,7 @@ private:
 };
 
 
-// For convenience.
-using JSONSyncConfigMap = map<handle, SyncConfig>;
-
 class JSONSyncConfigIOContext;
-
-class MEGA_API JSONSyncConfigDB
-{
-public:
-    JSONSyncConfigDB(const LocalPath& dbPath,
-                     const LocalPath& drivePath);
-
-    explicit
-    JSONSyncConfigDB(const LocalPath& dbPath);
-
-    ~JSONSyncConfigDB();
-
-    MEGA_DISABLE_COPY(JSONSyncConfigDB);
-
-    MEGA_DEFAULT_MOVE(JSONSyncConfigDB);
-
-    // Adds a new (or updates an existing) config.
-    const SyncConfig* add(const SyncConfig& config,
-                          const bool flush = true);
-
-    // Remove all configs.
-    void clear(const bool flush = true);
-
-    // Get current configs.
-    const JSONSyncConfigMap& configs() const;
-
-    // Path to the directory containing this database.
-    const LocalPath& dbPath() const;
-
-    // Whether this database needs to be written to disk.
-    bool dirty() const;
-
-    // Path to the drive containing this database.
-    const LocalPath& drivePath() const;
-
-    // Get config by backup tag.
-    const SyncConfig* getByBackupId(handle backupId) const;
-
-    // Get config by backup target handle.
-    const SyncConfig* getByRootHandle(handle targetHandle) const;
-
-    // Read this database from disk.
-    error read(JSONSyncConfigIOContext& ioContext);
-
-    // Remove config by backup tag.
-    error removeByBackupId(handle backupId);
-
-    // Remove config by backup target handle.
-    error removeByRootHandle(handle targetHandle);
-
-    // Clears database and removes slots from disk.
-    error truncate(JSONSyncConfigIOContext& ioContext);
-
-    // Write this database to disk.
-    error write(JSONSyncConfigIOContext& ioContext);
-
-private:
-    // Reads this database from the specified slot on disk.
-    error read(JSONSyncConfigIOContext& ioContext,
-               unsigned int slot);
-
-    // Remove config by backup tag.
-    error removeByBackupId(handle backupId, bool flush);
-
-    // How many times we should be able to write the database before
-    // overwriting earlier versions.
-    static const unsigned int NUM_SLOTS;
-
-    // Path to the directory containing this database.
-    LocalPath mDBPath;
-
-    // Path to the drive containing this database.
-    LocalPath mDrivePath;
-
-    // Maps backup tag to config.
-    JSONSyncConfigMap mBackupIdToConfig;
-
-    // Tracks which 'slot' we're writing to.
-    unsigned int mSlot;
-
-    // Whether this database needs to be written to disk.
-    bool mDirty;
-}; // JSONSyncConfigDB
-
-// Convenience.
-using JSONSyncConfigDBPtr = unique_ptr<JSONSyncConfigDB>;
 
 class MEGA_API JSONSyncConfigIOContext
 {
@@ -469,17 +380,9 @@ public:
 
     // Deserialize configs from JSON (with logging.)
     bool deserialize(const LocalPath& dbPath,
-                     JSONSyncConfigMap& configs,
-                     JSON& reader,
-                     unsigned int slot) const;
-
-    bool deserialize(const LocalPath& dbPath,
                      SyncConfigVector& configs,
                      JSON& reader,
                      unsigned int slot) const;
-
-    bool deserialize(JSONSyncConfigMap& configs,
-                     JSON& reader) const;
 
     bool deserialize(SyncConfigVector& configs,
                      JSON& reader) const;
@@ -504,9 +407,6 @@ public:
     virtual error remove(const LocalPath& dbPath);
 
     // Serialize configs to JSON.
-    void serialize(const JSONSyncConfigMap& configs,
-                   JSONWriter& writer) const;
-
     void serialize(const vector<const SyncConfig*>& configs,
                    JSONWriter& writer) const;
 
@@ -550,98 +450,6 @@ private:
     // Hash used to authenticate configuration databases.
     HMACSHA256 mSigner;
 }; // JSONSyncConfigIOContext
-
-class MEGA_API JSONSyncConfigStore
-{
-public:
-    explicit
-    JSONSyncConfigStore(JSONSyncConfigIOContext& ioContext);
-
-    virtual ~JSONSyncConfigStore();
-
-    MEGA_DISABLE_COPY_MOVE(JSONSyncConfigStore);
-
-    // Add a new (or update an existing) config.
-    const SyncConfig* add(SyncConfig config);
-
-    // Close a database.
-    error close(const LocalPath& drivePath);
-
-    // Close all databases.
-    error close();
-
-    // Get configs from a database.
-    const JSONSyncConfigMap* configs(const LocalPath& drivePath) const;
-
-    // Get all configs.
-    JSONSyncConfigMap configs() const;
-
-    // Create a new (or open an existing) database.
-    const JSONSyncConfigMap* create(const LocalPath& drivePath);
-
-    // Whether any databases need flushing.
-    bool dirty() const;
-    
-    // Flush a database to disk.
-    error flush(const LocalPath& drivePath);
-
-    // Flush all databases to disk.
-    error flush(vector<LocalPath>& drivePaths);
-    error flush();
-
-    // Get config by backup tag.
-    const SyncConfig* getByBackupId(handle backupId) const;
-
-    // Get config by backup target handle.
-    const SyncConfig* getByRootHandle(const handle targetHandle) const;
-
-    // Open (and add) an existing database.
-    const JSONSyncConfigMap* open(const LocalPath& drivePath);
-
-    // Check whether a database is open.
-    bool opened(const LocalPath& drivePath) const;
-
-    // Remove config by backup tag.
-    error removeByBackupId(handle backupId);
-
-    // Remove config by backup target handle.
-    error removeByRootHandle(handle targetHandle);
-	
-    // Name of the backup configuration directory.
-    static const LocalPath BACKUP_CONFIG_DIR;
-
-private:
-    // How we compare drive paths.
-    struct DrivePathComparator
-    {
-        bool operator()(const LocalPath& lhs, const LocalPath& rhs) const
-        {
-            return platformCompareUtf(lhs, false, rhs, false) < 0;
-        }
-    }; // DrivePathComparator
-
-    // Convenience.
-    using DrivePathToDBMap =
-      std::map<LocalPath, JSONSyncConfigDBPtr, DrivePathComparator>;
-
-    // Close a database.
-    error close(JSONSyncConfigDB& db);
-
-    // Flush a database to disk.
-    error flush(JSONSyncConfigDB& db);
-
-    // Tracks which databases need to be written.
-    set<JSONSyncConfigDB*> mDirtyDB;
-
-    // Maps drive path to database.
-    DrivePathToDBMap mDriveToDB;
-
-    // IO context used to read and write from disk.
-    JSONSyncConfigIOContext& mIOContext;
-
-    // Maps backup tag to database.
-    map<handle, JSONSyncConfigDB*> mBackupIdToDB;
-}; // JSONSyncConfigStore
 
 class SyncConfigStore {
 public:
