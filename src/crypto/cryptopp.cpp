@@ -317,11 +317,15 @@ bool SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen,
     return true;
 }
 
-bool SymmCipher::gcm_decrypt_aad(const std::string *data, const byte *additionalData, unsigned int additionalDatalen, const byte *iv, unsigned int ivlen, unsigned int taglen, std::string *result)
+bool SymmCipher::gcm_decrypt_aad(const byte *data, unsigned datalen,
+                     const byte *additionalData, unsigned additionalDatalen,
+                     const byte *tag, unsigned taglen,
+                     const byte *iv, unsigned ivlen, std::string *result)
 {
     std::string err;
-    if (!data || !data->size())                 {err = "Invalid plain text";}
+    if (!data || !datalen)                      {err = "Invalid data";}
     if (!additionalData || !additionalDatalen)  {err = "Invalid additional data";}
+    if (!tag || !taglen)                        {err = "Invalid tag";}
     if (!iv || !ivlen)                          {err = "Invalid IV";}
     if (!err.empty())
     {
@@ -332,18 +336,40 @@ bool SymmCipher::gcm_decrypt_aad(const std::string *data, const byte *additional
 
     try
     {
-        // resynchronizes with the provided IV
-        aesgcm_e.Resynchronize(iv, static_cast<int>(ivlen));
-        StringSink *cipher_sink = new StringSink(*result);
-        AuthenticatedDecryptionFilter *df = new AuthenticatedDecryptionFilter(aesgcm_d, cipher_sink, AuthenticatedDecryptionFilter::MAC_AT_END, static_cast<int>(taglen));
+        // resynchronizes with provided IV
+        aesgcm_d.Resynchronize(iv, static_cast<int>(ivlen));
+        unsigned int flags = AuthenticatedDecryptionFilter::MAC_AT_BEGIN | AuthenticatedDecryptionFilter::THROW_EXCEPTION;
+        AuthenticatedDecryptionFilter df(aesgcm_d, nullptr, flags, static_cast<int>(taglen));
 
-        // add additionalData to channel for additional authenticated data
-        df->ChannelPut(AAD_CHANNEL, additionalData, additionalDatalen, true);
-        df->ChannelMessageEnd(AAD_CHANNEL);
+        // add tag (GCM authentication tag) to DEFAULT_CHANNEL to check message hash or MAC
+        df.ChannelPut(DEFAULT_CHANNEL, tag, taglen);
 
-        // add encrypted text to DEFAULT_CHANNEL in order to be decrypted
-        df->ChannelPut(DEFAULT_CHANNEL, reinterpret_cast<const byte*>(data->data()), data->size(), true);
-        df->ChannelMessageEnd(DEFAULT_CHANNEL);
+        // add additionalData to AAD_CHANNEL for additional authenticated data
+        df.ChannelPut(AAD_CHANNEL, additionalData, additionalDatalen);
+
+        // add encrypted data to DEFAULT_CHANNEL in order to be decrypted
+        df.ChannelPut(DEFAULT_CHANNEL, data, datalen);
+        df.ChannelMessageEnd(AAD_CHANNEL);
+        df.ChannelMessageEnd(DEFAULT_CHANNEL);
+
+        // check data's integrity
+        assert(df.GetLastResult());
+        if (!df.GetLastResult())
+        {
+            result->clear();
+            LOG_err << "Failed AES-GCM decryption with additional authenticated data: integrity check failure";
+            return false;
+        }
+
+        // retrieve decrypted data from channel
+        df.SetRetrievalChannel(DEFAULT_CHANNEL);
+        unsigned long maxRetrievable = df.MaxRetrievable();
+        std::string retrieved;
+        if (maxRetrievable > 0)
+        {
+            result->resize(maxRetrievable);
+            df.Get((byte*)result->data(), maxRetrievable);
+        }
     }
     catch (CryptoPP::Exception &e)
     {
