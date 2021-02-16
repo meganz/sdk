@@ -877,7 +877,7 @@ struct Syncs
      * API_OK
      * The database was removed from memory.
      */
-    error backupRemove(const LocalPath& drivePath);
+    error backupRemove(LocalPath drivePath);
 
     /**
      * @brief
@@ -893,7 +893,7 @@ struct Syncs
      * The result of restoring the external backups.
      */
     error backupRestore(const LocalPath& drivePath,
-                        const JSONSyncConfigMap& configs);
+                        const SyncConfigVector& configs);
 
     /**
      * @brief
@@ -908,16 +908,7 @@ struct Syncs
      * @return
      * The result of restoring the external backups.
      */
-    error backupRestore(const LocalPath& drivePath);
-
-    // Returns a reference to this user's backup configuration store.
-    JSONSyncConfigStore* backupConfigStore();
-
-    // Whether the store has any changes that need to be written to disk.
-    bool backupConfigStoreDirty();
-
-    // Attempts to flush database changes to disk.
-    error backupConfigStoreFlush();
+    error backupRestore(LocalPath drivePath);
 
     // Returns a reference to this user's internal configuration database.
     SyncConfigStore* syncConfigStore();
@@ -934,9 +925,6 @@ struct Syncs
 private:
     // Returns a reference to this user's sync config IO context.
     JSONSyncConfigIOContext* syncConfigIOContext();
-
-    // Manages this user's external backup configuration databases.
-    unique_ptr<JSONSyncConfigStore> mBackupConfigStore;
 
     // This user's internal sync configuration store.
     unique_ptr<SyncConfigStore> mSyncConfigStore;

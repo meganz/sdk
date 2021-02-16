@@ -2334,10 +2334,10 @@ error Syncs::backupAdd(const SyncConfig& config,
     }
 
     // For convenience.
-    auto& drivePath = config.mExternalDrivePath;
     auto& fsAccess = *mClient.fsaccess;
     auto& name = config.mName;
     auto& sourcePath = config.mLocalPath;
+    auto drivePath = NormalizeAbsolute(config.mExternalDrivePath);
 
     // Is the source actually contained on the drive?
     if (!drivePath.isContainingPathOf(sourcePath))
@@ -2351,7 +2351,7 @@ error Syncs::backupAdd(const SyncConfig& config,
     }
 
     // Could we get our hands on the config store?
-    auto* store = backupConfigStore();
+    auto* store = syncConfigStore();
 
     if (!store)
     {
@@ -2371,14 +2371,16 @@ error Syncs::backupAdd(const SyncConfig& config,
     }
 
     // Try and create (open) the database.
-    if (auto* configs = store->create(drivePath))
+    SyncConfigVector configs;
+
+    if (store->create(drivePath, configs) == API_OK)
     {
         // We've opened an existing database.
         LOG_verbose << "Existing config database found on "
                     << drivePath.toPath(fsAccess);
 
         // Try and restore any backups in this database.
-        backupRestore(drivePath, *configs);
+        backupRestore(drivePath, configs);
     }
     else if (!store->opened(drivePath))
     {
@@ -2417,8 +2419,7 @@ error Syncs::backupAdd(const SyncConfig& config,
 
     SyncConfig syncConfig(config);
 
-    syncConfig.mExternalDrivePath =
-      NormalizeAbsolute(syncConfig.mExternalDrivePath);
+    syncConfig.mExternalDrivePath = std::move(drivePath);
     syncConfig.mLocalPath =
       NormalizeAbsolute(syncConfig.mLocalPath);
 
@@ -2430,7 +2431,7 @@ error Syncs::backupAdd(const SyncConfig& config,
     return mClient.addsync(syncConfig, true, completion);
 }
 
-error Syncs::backupRemove(const LocalPath& drivePath)
+error Syncs::backupRemove(LocalPath drivePath)
 {
     // Is the path valid?
     if (drivePath.empty())
@@ -2438,7 +2439,7 @@ error Syncs::backupRemove(const LocalPath& drivePath)
         return API_EARGS;
     }
 
-    auto* store = backupConfigStore();
+    auto* store = syncConfigStore();
 
     // Does the store exist?
     if (!store)
@@ -2447,13 +2448,22 @@ error Syncs::backupRemove(const LocalPath& drivePath)
         return API_EINTERNAL;
     }
 
-    // Get the configs contained on this drive.
-    const auto* configs = store->configs(drivePath);
+    // Ensure the drive path is in normalized form.
+    drivePath = NormalizeAbsolute(drivePath);
 
-    // Was there any backup database for this drive?
-    if (!configs)
+    // Was there a database open for this drive?
+    if (!store->opened(drivePath))
     {
+        // Nope.
         return API_ENOENT;
+    }
+
+    // Determine which syncs are present on this drive.
+    set<handle> backupIDs;
+
+    for (const auto& config : store->configs(drivePath))
+    {
+        backupIDs.emplace(config.mBackupId);
     }
 
     // Are any of these configs used by an active sync?
@@ -2461,7 +2471,7 @@ error Syncs::backupRemove(const LocalPath& drivePath)
     {
         const auto* sync = it->mSync.get();
 
-        if (sync && configs->count(it->mConfig.mBackupId))
+        if (sync && backupIDs.count(it->mConfig.mBackupId))
         {
             // Database is still in use.
             return API_EFAILED;
@@ -2474,7 +2484,7 @@ error Syncs::backupRemove(const LocalPath& drivePath)
         const auto backupId = (*it)->mConfig.mBackupId;
 
         // Is this a config we're interested in?
-        if (configs->count(backupId))
+        if (backupIDs.count(backupId))
         {
             // Let the app know we're removing the config.
             mClient.app->sync_removed(backupId);
@@ -2495,7 +2505,7 @@ error Syncs::backupRemove(const LocalPath& drivePath)
 
 
 error Syncs::backupRestore(const LocalPath& drivePath,
-                           const JSONSyncConfigMap& configs)
+                           const SyncConfigVector& configs)
 {
     // Convenience.
     auto& fsAccess = *mClient.fsaccess;
@@ -2506,23 +2516,23 @@ error Syncs::backupRestore(const LocalPath& drivePath,
     size_t numRestored = 0;
 
     // Create a unified sync for each backup config.
-    for (auto& it : configs)
+    for (const auto& config : configs)
     {
         // Make sure there aren't any syncs with this tag.
-        if (syncConfigByBackupId(it.second.mBackupId))
+        if (syncConfigByBackupId(config.mBackupId))
         {
             LOG_verbose << "Skipping restore of backup "
-                        << it.second.mLocalPath.toPath(fsAccess)
+                        << config.mLocalPath.toPath(fsAccess)
                         << " on "
                         << drivePath.toPath(fsAccess)
                         << " as a sync already exists with the backup id "
-                        << toHandle(it.second.mBackupId);
+                        << toHandle(config.mBackupId);
 
             continue;
         }
 
         // Create the unified sync.
-        mSyncVec.emplace_back(new UnifiedSync(mClient, it.second));
+        mSyncVec.emplace_back(new UnifiedSync(mClient, config));
 
         // Track how many configs we've restored.
         ++numRestored;
@@ -2539,7 +2549,7 @@ error Syncs::backupRestore(const LocalPath& drivePath,
     return API_OK;
 }
 
-error Syncs::backupRestore(const LocalPath& drivePath)
+error Syncs::backupRestore(LocalPath drivePath)
 {
     // Is the drive path valid?
     if (drivePath.empty())
@@ -2551,7 +2561,7 @@ error Syncs::backupRestore(const LocalPath& drivePath)
     auto& fsAccess = *mClient.fsaccess;
 
     // Can we get our hands on the config store?
-    auto* store = backupConfigStore();
+    auto* store = syncConfigStore();
 
     if (!store)
     {
@@ -2562,6 +2572,9 @@ error Syncs::backupRestore(const LocalPath& drivePath)
         // Nope and we can't do anything without it.
         return API_EINTERNAL;
     }
+
+    // Ensure the drive path is in normalized form.
+    drivePath = NormalizeAbsolute(drivePath);
 
     // Has this drive already been opened?
     if (store->opened(drivePath))
@@ -2575,10 +2588,12 @@ error Syncs::backupRestore(const LocalPath& drivePath)
     }
 
     // Try and open the database on the drive.
-    if (auto* configs = store->open(drivePath))
+    SyncConfigVector configs;
+
+    if (store->open(drivePath, configs) == API_OK)
     {
         // Try and restore the backups in the database.
-        return backupRestore(drivePath, *configs);
+        return backupRestore(drivePath, configs);
     }
 
     // Couldn't open the database.
@@ -2587,86 +2602,6 @@ error Syncs::backupRestore(const LocalPath& drivePath)
                 << " as we couldn't open its config database.";
 
     return API_EREAD;
-}
-
-JSONSyncConfigStore* Syncs::backupConfigStore()
-{
-    // Has a store already been created?
-    if (mBackupConfigStore)
-    {
-        // Yep, return a reference to it.
-        return mBackupConfigStore.get();
-    }
-
-    // Can we get our hands on an IO context?
-    if (auto* ioContext = syncConfigIOContext())
-    {
-        // Create the store.
-        mBackupConfigStore.reset(new JSONSyncConfigStore(*ioContext));
-    }
-
-    return mBackupConfigStore.get();
-}
-
-bool Syncs::backupConfigStoreDirty()
-{
-    return mBackupConfigStore && mBackupConfigStore->dirty();
-}
-
-error Syncs::backupConfigStoreFlush()
-{
-    // No need to flush if the store's not dirty.
-    if (!backupConfigStoreDirty())
-    {
-        return API_OK;
-    }
-
-    // Convenience.
-    auto& fsAccess = *mClient.fsaccess;
-
-    // Try and flush the store.
-    vector<LocalPath> drivePaths;
-
-    LOG_verbose << "Attempting to flush config store.";
-
-    if (mBackupConfigStore->flush(drivePaths) == API_OK)
-    {
-        // Changes have been flushed.
-        LOG_verbose << "Config store flushed to disk.";
-        return API_OK;
-    }
-
-    LOG_verbose << "Couldn't flush config store.";
-
-    // Shut down the backups on the affected drives.
-    for (const auto& drivePath : drivePaths)
-    {
-        LOG_verbose << "Failing syncs contained on "
-                    << drivePath.toPath(fsAccess);
-
-        const auto* configs = mBackupConfigStore->configs(drivePath);
-        size_t numFailed = 0;
-
-        for (auto& it : *configs)
-        {
-            auto* sync = runningSyncByBackupId(it.first);
-
-            if (sync && sync->state != SYNC_FAILED)
-            {
-                mClient.failSync(sync, UNKNOWN_ERROR);
-                ++numFailed;
-            }
-        }
-
-        LOG_verbose << "Failed "
-                    << numFailed
-                    << " backup(s) out of "
-                    << configs->size()
-                    << " on "
-                    << drivePath.toPath(fsAccess);
-    }
-
-    return API_EWRITE;
 }
 
 SyncConfigStore* Syncs::syncConfigStore()
@@ -2709,26 +2644,58 @@ bool Syncs::syncConfigStoreDirty()
 
 error Syncs::syncConfigStoreFlush()
 {
+    // No need to flush if the store's not dirty.
     if (!syncConfigStoreDirty())
     {
         return API_OK;
     }
 
-    LOG_debug << "Attempting to flush internal config database.";
+    // Convenience.
+    auto& fsAccess = *mClient.fsaccess;
 
-    auto result = mSyncConfigStore->flush();
+    // Try and flush the store.
+    vector<LocalPath> drivePaths;
 
-    if (result != API_OK)
+    LOG_verbose << "Attempting to flush config store.";
+
+    if (mSyncConfigStore->flush(drivePaths) == API_OK)
     {
-        LOG_err << "Couldn't flush internal config database to disk: "
-                << result;
-    }
-    else
-    {
-        LOG_debug << "Internal config database flushed to disk.";
+        // Changes have been flushed.
+        LOG_verbose << "Config store flushed to disk.";
+        return API_OK;
     }
 
-    return result;
+    LOG_verbose << "Couldn't flush config store.";
+
+    // Shut down the backups on the affected drives.
+    for (const auto& drivePath : drivePaths)
+    {
+        LOG_verbose << "Failing syncs contained on "
+                    << drivePath.toPath(fsAccess);
+
+        const auto configs = mSyncConfigStore->configs(drivePath);
+        size_t numFailed = 0;
+
+        for (auto& config : configs)
+        {
+            auto* sync = runningSyncByBackupId(config.mBackupId);
+
+            if (sync && sync->state != SYNC_FAILED)
+            {
+                mClient.failSync(sync, UNKNOWN_ERROR);
+                ++numFailed;
+            }
+        }
+
+        LOG_verbose << "Failed "
+                    << numFailed
+                    << " syncs(s) out of "
+                    << configs.size()
+                    << " on "
+                    << drivePath.toPath(fsAccess);
+    }
+
+    return API_EWRITE;
 }
 
 error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
@@ -2829,7 +2796,6 @@ void Syncs::clear()
 {
     syncConfigStoreFlush();
 
-    mBackupConfigStore.reset();
     mSyncConfigStore.reset();
     mSyncConfigIOContext.reset();
     mSyncVec.clear();
@@ -3096,19 +3062,11 @@ void Syncs::removeSyncByIndex(size_t index)
 
 error Syncs::removeSyncConfigByBackupId(handle backupId)
 {
-    error result = API_OK;
+    error result = API_ENOENT;
 
     if (auto* store = syncConfigStore())
     {
         result = store->removeByBackupID(backupId);
-    }
-
-    if (result == API_ENOENT)
-    {
-        if (auto* store = backupConfigStore())
-        {
-            result = store->removeByBackupId(backupId);
-        }
     }
 
     if (result == API_ENOENT)
@@ -3140,22 +3098,9 @@ error Syncs::enableSyncByBackupId(handle backupId, bool resetFingerprint, Unifie
 
 error Syncs::saveSyncConfig(const SyncConfig& config)
 {
-    if (!config.isExternal())
+    if (auto* store = syncConfigStore())
     {
-        if (auto* store = syncConfigStore())
-        {
-            return store->add(config), API_OK;
-        }
-
-        return API_ENOENT;
-    }
-
-    if (auto* store = backupConfigStore())
-    {
-        if (store->add(config))
-        {
-            return API_OK;
-        }
+        return store->add(config), API_OK;
     }
 
     return API_ENOENT;

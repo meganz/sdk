@@ -2943,9 +2943,6 @@ void MegaClient::exec()
             }
         }
 
-        // Flush changes made to external backup configs.
-        syncs.backupConfigStoreFlush();
-
         // Flush changes made to internal configs.
         syncs.syncConfigStoreFlush();
 #endif
