@@ -2809,6 +2809,14 @@ error Syncs::truncate()
         return API_OK;
     }
 
+    // Remove internal syncs.
+    removeSelectedSyncs(
+        [](SyncConfig& config, Sync*)
+        {
+            return !config.isExternal();
+        });
+
+    // Truncate internal database.
     auto result = mSyncConfigStore->truncate(LocalPath());
 
     if (result != API_OK)
