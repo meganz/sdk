@@ -14451,7 +14451,7 @@ class MegaApi
          * - MegaApi::ORDER_FAV_DESC = 20
          * Sort nodes with favourite attr last
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -14537,7 +14537,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15386,7 +15386,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15469,7 +15469,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15550,7 +15550,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15636,7 +15636,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15718,7 +15718,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15800,7 +15800,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15882,7 +15882,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
