@@ -690,6 +690,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Too many changes in account, local state invalid";
     case LOGGED_OUT:
         return "Session closed";
+    case BACKUP_MODIFIED:
+        return "Backup externally modified";
     default:
         return "Undefined error";
     }
