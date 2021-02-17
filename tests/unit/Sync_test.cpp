@@ -1306,7 +1306,7 @@ private:
 #endif
 
 
-namespace JSONSyncConfigTests
+namespace SyncConfigTests
 {
 
 using namespace mega;
@@ -1442,12 +1442,12 @@ private:
 FSACCESS_CLASS Utilities::mFSAccess;
 PrnGen Utilities::mRNG;
 
-class JSONSyncConfigTest
+class SyncConfigTest
   : public Test
 {
 public:
     class IOContext
-      : public JSONSyncConfigIOContext
+      : public SyncConfigIOContext
     {
     public:
         IOContext(FileSystemAccess& fsAccess,
@@ -1455,7 +1455,7 @@ public:
                   const string& cipherKey,
                   const string& name,
                   PrnGen& rng)
-          : JSONSyncConfigIOContext(fsAccess,
+          : SyncConfigIOContext(fsAccess,
                                     authKey,
                                     cipherKey,
                                     name,
@@ -1493,36 +1493,36 @@ public:
         error getSlotsInOrderConcrete(const LocalPath& dbPath,
                                       vector<unsigned int>& slotsVec)
         {
-            return JSONSyncConfigIOContext::getSlotsInOrder(dbPath, slotsVec);
+            return SyncConfigIOContext::getSlotsInOrder(dbPath, slotsVec);
         }
 
         error readConcrete(const LocalPath& dbPath,
                            string& data,
                            unsigned int slot)
         {
-            return JSONSyncConfigIOContext::read(dbPath, data, slot);
+            return SyncConfigIOContext::read(dbPath, data, slot);
         }
 
         error removeSlotConcrete(const LocalPath& dbPath,
                                  unsigned int slot)
         {
-            return JSONSyncConfigIOContext::remove(dbPath, slot);
+            return SyncConfigIOContext::remove(dbPath, slot);
         }
 
         error removeAllSlotsConcrete(const LocalPath& dbPath)
         {
-            return JSONSyncConfigIOContext::remove(dbPath);
+            return SyncConfigIOContext::remove(dbPath);
         }
 
         error writeConcrete(const LocalPath& dbPath,
                             const string& data,
                             unsigned int slot)
         {
-            return JSONSyncConfigIOContext::write(dbPath, data, slot);
+            return SyncConfigIOContext::write(dbPath, data, slot);
         }
     }; // IOContext
 
-    JSONSyncConfigTest()
+    SyncConfigTest()
       : Test()
       , mFSAccess()
       , mRNG()
@@ -1559,14 +1559,14 @@ protected:
     const string mConfigCipherKey;
     const string mConfigName;
     FakeNiceMock<IOContext> mIOContext;
-}; // JSONSyncConfigTest
+}; // SyncConfigTest
 
-class JSONSyncConfigIOContextTest
-  : public JSONSyncConfigTest
+class SyncConfigIOContextTest
+  : public SyncConfigTest
 {
 public:
-    JSONSyncConfigIOContextTest()
-      : JSONSyncConfigTest()
+    SyncConfigIOContextTest()
+      : SyncConfigTest()
     {
     }
 
@@ -1577,11 +1577,11 @@ public:
 
     const string& configPrefix() const
     {
-        return JSONSyncConfigIOContext::NAME_PREFIX;
+        return SyncConfigIOContext::NAME_PREFIX;
     }
-}; // JSONSyncConfigIOContextTest
+}; // SyncConfigIOContextTest
 
-TEST_F(JSONSyncConfigIOContextTest, GetBadPath)
+TEST_F(SyncConfigIOContextTest, GetBadPath)
 {
     vector<unsigned int> slotsVec;
 
@@ -1595,7 +1595,7 @@ TEST_F(JSONSyncConfigIOContextTest, GetBadPath)
     EXPECT_TRUE(slotsVec.empty());
 }
 
-TEST_F(JSONSyncConfigIOContextTest, GetNoSlots)
+TEST_F(SyncConfigIOContextTest, GetNoSlots)
 {
     // Make sure the drive path exists.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -1639,7 +1639,7 @@ TEST_F(JSONSyncConfigIOContextTest, GetNoSlots)
     EXPECT_TRUE(slotsVec.empty());
 }
 
-TEST_F(JSONSyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
+TEST_F(SyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
 {
     const size_t NUM_SLOTS = 3;
 
@@ -1693,7 +1693,7 @@ TEST_F(JSONSyncConfigIOContextTest, GetSlotsOrderedByModificationTime)
     }
 }
 
-TEST_F(JSONSyncConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
+TEST_F(SyncConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
 {
     const size_t NUM_SLOTS = 3;
 
@@ -1748,7 +1748,7 @@ TEST_F(JSONSyncConfigIOContextTest, GetSlotsOrderedBySlotSuffix)
     }
 }
 
-TEST_F(JSONSyncConfigIOContextTest, Read)
+TEST_F(SyncConfigIOContextTest, Read)
 {
     // Make sure the drive path exists.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -1777,7 +1777,7 @@ TEST_F(JSONSyncConfigIOContextTest, Read)
     }
 }
 
-TEST_F(JSONSyncConfigIOContextTest, ReadBadData)
+TEST_F(SyncConfigIOContextTest, ReadBadData)
 {
     string data;
 
@@ -1803,7 +1803,7 @@ TEST_F(JSONSyncConfigIOContextTest, ReadBadData)
     EXPECT_TRUE(data.empty());
 }
 
-TEST_F(JSONSyncConfigIOContextTest, ReadBadPath)
+TEST_F(SyncConfigIOContextTest, ReadBadPath)
 {
     const LocalPath drivePath = Utilities::randomPath();
     string data;
@@ -1813,7 +1813,7 @@ TEST_F(JSONSyncConfigIOContextTest, ReadBadPath)
     EXPECT_TRUE(data.empty());
 }
 
-TEST_F(JSONSyncConfigIOContextTest, RemoveSlot)
+TEST_F(SyncConfigIOContextTest, RemoveSlot)
 {
     // Make sure drive path exists.
     Directory drive(fsAccess(), Utilities::randomPath());
@@ -1840,7 +1840,7 @@ TEST_F(JSONSyncConfigIOContextTest, RemoveSlot)
     EXPECT_EQ(ioContext().remove(drive.path(), 0), API_EWRITE);
 }
 
-TEST_F(JSONSyncConfigIOContextTest, RemoveSlots)
+TEST_F(SyncConfigIOContextTest, RemoveSlots)
 {
     const auto drivePath = Utilities::randomPath();
 
@@ -1874,7 +1874,7 @@ TEST_F(JSONSyncConfigIOContextTest, RemoveSlots)
     EXPECT_EQ(ioContext().remove(drivePath), API_EWRITE);
 }
 
-TEST_F(JSONSyncConfigIOContextTest, Serialize)
+TEST_F(SyncConfigIOContextTest, Serialize)
 {
     SyncConfigVector read;
     SyncConfigVector written;
@@ -1935,7 +1935,7 @@ TEST_F(JSONSyncConfigIOContextTest, Serialize)
     EXPECT_EQ(read, written);
 }
 
-TEST_F(JSONSyncConfigIOContextTest, SerializeEmpty)
+TEST_F(SyncConfigIOContextTest, SerializeEmpty)
 {
     JSONWriter writer;
 
@@ -1959,7 +1959,7 @@ TEST_F(JSONSyncConfigIOContextTest, SerializeEmpty)
     }
 }
 
-TEST_F(JSONSyncConfigIOContextTest, WriteBadPath)
+TEST_F(SyncConfigIOContextTest, WriteBadPath)
 {
     const LocalPath drivePath = Utilities::randomPath();
     const string data = Utilities::randomBytes(64);
@@ -1972,11 +1972,11 @@ TEST_F(JSONSyncConfigIOContextTest, WriteBadPath)
 }
 
 class SyncConfigStoreTest
-  : public JSONSyncConfigTest
+  : public SyncConfigTest
 {
 public:
     SyncConfigStoreTest()
-      : JSONSyncConfigTest()
+      : SyncConfigTest()
     {
     }
 }; // SyncConfigStoreTest
@@ -2800,7 +2800,7 @@ TEST_F(SyncConfigStoreTest, TruncateUnknownDrive)
     EXPECT_EQ(store.truncate(LocalPath()), API_ENOENT);
 }
 
-} // JSONSyncConfigTests
+} // SyncConfigTests
 
 #endif
 

@@ -2726,7 +2726,7 @@ error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
     return result;
 }
 
-JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
+SyncConfigIOContext* Syncs::syncConfigIOContext()
 {
     // Has a suitable IO context already been created?
     if (mSyncConfigIOContext)
@@ -2782,7 +2782,7 @@ JSONSyncConfigIOContext* Syncs::syncConfigIOContext()
 
     // Create the IO context.
     mSyncConfigIOContext.reset(
-      new JSONSyncConfigIOContext(*mClient.fsaccess,
+      new SyncConfigIOContext(*mClient.fsaccess,
                                   std::move(authKey),
                                   std::move(cipherKey),
                                   Base64::btoa(name),
@@ -3211,13 +3211,13 @@ void Syncs::resumeResumableSyncsOnStartup()
     }
 }
 
-const string JSONSyncConfigIOContext::NAME_PREFIX = "megaclient_syncconfig_";
+const string SyncConfigIOContext::NAME_PREFIX = "megaclient_syncconfig_";
 
-JSONSyncConfigIOContext::JSONSyncConfigIOContext(FileSystemAccess& fsAccess,
-                                                 const string& authKey,
-                                                 const string& cipherKey,
-                                                 const string& name,
-                                                 PrnGen& rng)
+SyncConfigIOContext::SyncConfigIOContext(FileSystemAccess& fsAccess,
+                                         const string& authKey,
+                                         const string& cipherKey,
+                                         const string& name,
+                                         PrnGen& rng)
   : mCipher()
   , mFsAccess(fsAccess)
   , mName(LocalPath::fromPath(NAME_PREFIX + name, mFsAccess))
@@ -3239,14 +3239,14 @@ JSONSyncConfigIOContext::JSONSyncConfigIOContext(FileSystemAccess& fsAccess,
     mCipher.setkey(reinterpret_cast<const byte*>(cipherKey.data()));
 }
 
-JSONSyncConfigIOContext::~JSONSyncConfigIOContext()
+SyncConfigIOContext::~SyncConfigIOContext()
 {
 }
 
-bool JSONSyncConfigIOContext::deserialize(const LocalPath& dbPath,
-                                          SyncConfigVector& configs,
-                                          JSON& reader,
-                                          unsigned int slot) const
+bool SyncConfigIOContext::deserialize(const LocalPath& dbPath,
+                                      SyncConfigVector& configs,
+                                      JSON& reader,
+                                      unsigned int slot) const
 {
     auto path = dbFilePath(dbPath, slot).toPath(mFsAccess);
 
@@ -3267,8 +3267,8 @@ bool JSONSyncConfigIOContext::deserialize(const LocalPath& dbPath,
     return false;
 }
 
-bool JSONSyncConfigIOContext::deserialize(SyncConfigVector& configs,
-                                          JSON& reader) const
+bool SyncConfigIOContext::deserialize(SyncConfigVector& configs,
+                                      JSON& reader) const
 {
     const auto TYPE_SYNCS = MAKENAMEID2('s', 'y');
 
@@ -3325,13 +3325,13 @@ bool JSONSyncConfigIOContext::deserialize(SyncConfigVector& configs,
         }
     }
 }
-FileSystemAccess& JSONSyncConfigIOContext::fsAccess() const
+FileSystemAccess& SyncConfigIOContext::fsAccess() const
 {
     return mFsAccess;
 }
 
-error JSONSyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
-                                               vector<unsigned int>& confSlots)
+error SyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
+                                           vector<unsigned int>& confSlots)
 {
     using std::isdigit;
     using std::sort;
@@ -3412,9 +3412,9 @@ error JSONSyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
     return API_OK;
 }
 
-error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
-                                    string& data,
-                                    unsigned int slot)
+error SyncConfigIOContext::read(const LocalPath& dbPath,
+                                string& data,
+                                unsigned int slot)
 {
     // Generate path to the configuration file.
     LocalPath path = dbFilePath(dbPath, slot);
@@ -3464,8 +3464,8 @@ error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
     return API_OK;
 }
 
-error JSONSyncConfigIOContext::remove(const LocalPath& dbPath,
-                                      unsigned int slot)
+error SyncConfigIOContext::remove(const LocalPath& dbPath,
+                                  unsigned int slot)
 {
     LocalPath path = dbFilePath(dbPath, slot);
 
@@ -3480,7 +3480,7 @@ error JSONSyncConfigIOContext::remove(const LocalPath& dbPath,
     return API_OK;
 }
 
-error JSONSyncConfigIOContext::remove(const LocalPath& dbPath)
+error SyncConfigIOContext::remove(const LocalPath& dbPath)
 {
     vector<unsigned int> confSlots;
 
@@ -3503,8 +3503,8 @@ error JSONSyncConfigIOContext::remove(const LocalPath& dbPath)
     return result ? API_OK : API_EWRITE;
 }
 
-void JSONSyncConfigIOContext::serialize(const vector<const SyncConfig*> &configs,
-                                        JSONWriter& writer) const
+void SyncConfigIOContext::serialize(const vector<const SyncConfig*> &configs,
+                                    JSONWriter& writer) const
 {
     writer.beginobject();
     writer.beginarray("sy");
@@ -3518,9 +3518,9 @@ void JSONSyncConfigIOContext::serialize(const vector<const SyncConfig*> &configs
     writer.endobject();
 }
 
-error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
-                                     const string& data,
-                                     unsigned int slot)
+error SyncConfigIOContext::write(const LocalPath& dbPath,
+                                 const string& data,
+                                 unsigned int slot)
 {
     LocalPath path = dbPath;
 
@@ -3587,8 +3587,8 @@ error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
     return API_OK;
 }
 
-LocalPath JSONSyncConfigIOContext::dbFilePath(const LocalPath& dbPath,
-                                              unsigned int slot) const
+LocalPath SyncConfigIOContext::dbFilePath(const LocalPath& dbPath,
+                                          unsigned int slot) const
 {
     using std::to_string;
 
@@ -3600,7 +3600,7 @@ LocalPath JSONSyncConfigIOContext::dbFilePath(const LocalPath& dbPath,
     return path;
 }
 
-bool JSONSyncConfigIOContext::decrypt(const string& in, string& out)
+bool SyncConfigIOContext::decrypt(const string& in, string& out)
 {
     // Handy constants.
     const size_t IV_LENGTH       = SymmCipher::KEYLENGTH;
@@ -3637,7 +3637,7 @@ bool JSONSyncConfigIOContext::decrypt(const string& in, string& out)
                                             &out);
 }
 
-bool JSONSyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) const
+bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) const
 {
     const auto TYPE_BACKUP_ID       = MAKENAMEID2('i', 'd');
     const auto TYPE_ENABLED         = MAKENAMEID2('e', 'n');
@@ -3737,7 +3737,7 @@ bool JSONSyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) cons
     }
 }
 
-string JSONSyncConfigIOContext::encrypt(const string& data)
+string SyncConfigIOContext::encrypt(const string& data)
 {
     byte iv[SymmCipher::KEYLENGTH];
 
@@ -3765,8 +3765,8 @@ string JSONSyncConfigIOContext::encrypt(const string& data)
     return d;
 }
 
-void JSONSyncConfigIOContext::serialize(const SyncConfig& config,
-                                        JSONWriter& writer) const
+void SyncConfigIOContext::serialize(const SyncConfig& config,
+                                    JSONWriter& writer) const
 {
     auto drivePath =
       config.mExternalDrivePath.toPath(mFsAccess);
@@ -3818,7 +3818,7 @@ const LocalPath SyncConfigStore::BACKUP_CONFIG_DIR =
 
 const unsigned int SyncConfigStore::NUM_SLOTS = 2;
 
-SyncConfigStore::SyncConfigStore(const LocalPath& dbPath, JSONSyncConfigIOContext &ioContext)
+SyncConfigStore::SyncConfigStore(const LocalPath& dbPath, SyncConfigIOContext &ioContext)
   : mConfigs()
   , mDBPath(dbPath)
   , mDirtyDrives()

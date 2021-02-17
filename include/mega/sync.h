@@ -1,5 +1,4 @@
-/**
- * @file mega/sync.h
+/** * @file mega/sync.h
  * @brief Class for synchronizing local and remote trees
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
@@ -363,20 +362,20 @@ private:
 };
 
 
-class JSONSyncConfigIOContext;
+class SyncConfigIOContext;
 
-class MEGA_API JSONSyncConfigIOContext
+class MEGA_API SyncConfigIOContext
 {
 public:
-    JSONSyncConfigIOContext(FileSystemAccess& fsAccess,
+    SyncConfigIOContext(FileSystemAccess& fsAccess,
                             const string& authKey,
                             const string& cipherKey,
                             const string& name,
                             PrnGen& rng);
 
-    virtual ~JSONSyncConfigIOContext();
+    virtual ~SyncConfigIOContext();
 
-    MEGA_DISABLE_COPY_MOVE(JSONSyncConfigIOContext);
+    MEGA_DISABLE_COPY_MOVE(SyncConfigIOContext);
 
     // Deserialize configs from JSON (with logging.)
     bool deserialize(const LocalPath& dbPath,
@@ -449,12 +448,12 @@ private:
 
     // Hash used to authenticate configuration databases.
     HMACSHA256 mSigner;
-}; // JSONSyncConfigIOContext
+}; // SyncConfigIOContext
 
 class SyncConfigStore {
 public:
     explicit
-    SyncConfigStore(const LocalPath& dbPath, JSONSyncConfigIOContext& ioContext);
+    SyncConfigStore(const LocalPath& dbPath, SyncConfigIOContext& ioContext);
 
     ~SyncConfigStore();
 
@@ -584,7 +583,7 @@ private:
     DriveInfoMap mKnownDrives;
 
     // IO context used to read and write from disk.
-    JSONSyncConfigIOContext &mIOContext;
+    SyncConfigIOContext &mIOContext;
 }; // SyncConfigStore
 
 struct Syncs
@@ -732,13 +731,13 @@ struct Syncs
 
 private:
     // Returns a reference to this user's sync config IO context.
-    JSONSyncConfigIOContext* syncConfigIOContext();
+    SyncConfigIOContext* syncConfigIOContext();
 
     // This user's internal sync configuration store.
     unique_ptr<SyncConfigStore> mSyncConfigStore;
 
     // Responsible for securely writing config databases to disk.
-    unique_ptr<JSONSyncConfigIOContext> mSyncConfigIOContext;
+    unique_ptr<SyncConfigIOContext> mSyncConfigIOContext;
 
     vector<unique_ptr<UnifiedSync>> mSyncVec;
 
