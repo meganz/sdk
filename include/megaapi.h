@@ -15349,8 +15349,8 @@ class MegaApi
          *
          * @param node The parent node of the tree to explore
          * @param searchString Search string. The search is case-insensitive
-         * @param recursive True if you want to seach recursively in the node tree.
-         * False if you want to seach in the children of the node only
+         * @param recursive True if you want to search recursively in the node tree.
+         * False if you want to search in the children of the node only
          * @param order Order for the returned list
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
@@ -15432,8 +15432,8 @@ class MegaApi
          * @param node The parent node of the tree to explore
          * @param searchString Search string. The search is case-insensitive
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
-         * @param recursive True if you want to seach recursively in the node tree.
-         * False if you want to seach in the children of the node only
+         * @param recursive True if you want to search recursively in the node tree.
+         * False if you want to search in the children of the node only
          * @param order Order for the returned list
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
@@ -15946,8 +15946,8 @@ class MegaApi
          * @param node The parent node of the tree to explore
          * @param searchString Search string. The search is case-insensitive
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
-         * @param recursive True if you want to seach recursively in the node tree.
-         * False if you want to seach in the children of the node only
+         * @param recursive True if you want to search recursively in the node tree.
+         * False if you want to search in the children of the node only
          * @param order Order for the returned list
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
