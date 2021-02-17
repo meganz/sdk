@@ -309,6 +309,9 @@ protected:
 
     struct Tree
     {
+        // represents the node name in case of folder type
+        string folderName;
+
         // represents the node  of the current tree
         unique_ptr<MegaNode> megaNode;
 
@@ -2603,6 +2606,7 @@ class MegaApiImpl : public MegaApp
         MegaChildrenLists* getFileFolderChildren(MegaNode *parent, int order=1);
         bool hasChildren(MegaNode *parent);
         MegaNode *getChildNode(MegaNode *parent, const char* name);
+        MegaNode* getChildNodeTypeByName(MegaNode *parent, const char *name, int type = TYPE_UNKNOWN);
         MegaNode *getParentNode(MegaNode *node);
         char *getNodePath(MegaNode *node);
         char *getNodePathByNodeHandle(MegaHandle handle);

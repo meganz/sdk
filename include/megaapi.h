@@ -14597,6 +14597,22 @@ class MegaApi
         MegaNode *getChildNode(MegaNode *parent, const char* name);
 
         /**
+         * @brief Get the child node with the same name and type as provided
+         *
+         * Allowed types for type parameter: MegaNode::TYPE_FILE, MegaNode::TYPE_FOLDER
+         *
+         * If the node doesn't exist, this function returns nullptr
+         *
+         * You take the ownership of the returned value
+         *
+         * @param parent Parent node
+         * @param name Name of the node
+         * @param type Type of the node.
+         * @return The MegaNode that has the selected parent and name
+         */
+        MegaNode* getChildNodeTypeByName(MegaNode *parent, const char *name, int type);
+
+        /**
          * @brief Get the parent node of a MegaNode
          *
          * If the node doesn't exist in the account or

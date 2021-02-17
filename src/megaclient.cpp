@@ -1057,6 +1057,28 @@ vector<Node*> MegaClient::childnodesbyname(Node* p, const char* name, bool skipf
     return found;
 }
 
+Node* MegaClient::childNodeTypeByName(Node *p, const char *name, nodetype_t type)
+{
+    if (!name || !p || (p->type != FILENODE && p->type != FOLDERNODE))
+    {
+        return nullptr;
+    }
+
+    Node *found = nullptr;
+    string nname = name;
+    fsaccess->normalize(&nname);
+    for (node_list::iterator it = p->children.begin(); it != p->children.end(); it++)
+    {
+        // if name and node type matches
+        if (((*it)->type == type) && !strcmp(nname.c_str(), (*it)->displayname()))
+        {
+            found = *it;
+            break;
+        }
+    }
+    return found;
+}
+
 void MegaClient::init()
 {
     warned = false;

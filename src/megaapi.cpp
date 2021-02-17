@@ -4184,6 +4184,11 @@ MegaNode *MegaApi::getChildNode(MegaNode *parent, const char* name)
     return pImpl->getChildNode(parent, name);
 }
 
+MegaNode* MegaApi::getChildNodeTypeByName(MegaNode *parent, const char *name, int type)
+{
+    return pImpl->getChildNodeTypeByName(parent, name, type);
+}
+
 MegaNode* MegaApi::getParentNode(MegaNode* n)
 {
     return pImpl->getParentNode(n);

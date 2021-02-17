@@ -1601,6 +1601,7 @@ public:
     Node* childnodebyattribute(Node*, nameid, const char*);
     void honorPreviousVersionAttrs(Node *previousNode, AttrMap &attrs);
     vector<Node*> childnodesbyname(Node*, const char*, bool = false);
+    Node* childNodeTypeByName(Node *p, const char *name, nodetype_t type);
 
     // purge account state and abort server-client connection
     void purgenodesusersabortsc(bool keepOwnUser);

@@ -18148,6 +18148,27 @@ MegaNode *MegaApiImpl::getChildNode(MegaNode *parent, const char* name)
     return node;
 }
 
+MegaNode* MegaApiImpl::getChildNodeTypeByName(MegaNode *parent, const char *name, int type)
+{
+    if (!name || !parent || (type != MegaNode::TYPE_FILE && type != MegaNode::TYPE_FOLDER))
+    {
+        return nullptr;
+    }
+
+    sdkMutex.lock();
+    Node *parentNode = client->nodebyhandle(parent->getHandle());
+    if (!parentNode || parentNode->type == FILENODE)
+    {
+        sdkMutex.unlock();
+        return nullptr;
+    }
+
+
+    MegaNode *node = MegaNodePrivate::fromNode(client->childNodeTypeByName(parentNode, name, static_cast<nodetype_t>(type)));
+    sdkMutex.unlock();
+    return node;
+}
+
 Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint)
 {
     FileFingerprint *fp = MegaApiImpl::getFileFingerprintInternal(fingerprint);
