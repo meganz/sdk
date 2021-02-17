@@ -133,6 +133,9 @@ struct Proxy;
 struct PendingContactRequest;
 class TransferList;
 struct Achievement;
+class SyncConfig;
+class SimpleLogger;
+
 namespace UserAlert
 {
     struct Base;
@@ -262,6 +265,27 @@ typedef enum { NOTLOGGEDIN, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT } se
 // in a 64-bit int
 typedef uint64_t handle;
 
+class NodeHandle
+{
+    // Handles of nodes are only 6 bytes.
+    // This class helps avoid issues when we don't save/restore the top 2 bytes when using an 8 byte uint64 to represent it
+    uint64_t h = 0xFFFFFFFFFFFFFFFF;
+public:
+    bool isUndef() { return (h & 0xFFFFFFFFFFFF) == 0xFFFFFFFFFFFF; }
+    NodeHandle& set6byte(uint64_t n) { h = n; assert((n & 0xFFFF000000000000) == 0 || n == 0xFFFFFFFFFFFFFFFF); return *this; }
+    bool eq(NodeHandle b) { return (h & 0xFFFFFFFFFFFF) == (b.h & 0xFFFFFFFFFFFF); }
+    bool eq(handle b) { return (h & 0xFFFFFFFFFFFF) == (b & 0xFFFFFFFFFFFF); }
+    bool ne(handle b) { return (h & 0xFFFFFFFFFFFF) != (b & 0xFFFFFFFFFFFF); }
+    bool operator<(const NodeHandle& rhs) const { return h < rhs.h; }
+    handle as8byte() { return isUndef() ? 0xFFFFFFFFFFFFFFFF : (h & 0xFFFFFFFFFFFF); }
+};
+
+inline bool operator==(NodeHandle a, NodeHandle b) { return a.eq(b); }
+inline bool operator==(NodeHandle a, handle b) { return a.eq(b); }
+inline bool operator!=(NodeHandle a, handle b) { return a.ne(b); }
+std::ostream& operator<<(std::ostream&, NodeHandle h);
+SimpleLogger& operator<<(SimpleLogger&, NodeHandle h);
+
 // (can use unordered_set if available)
 typedef set<handle> handle_set;
 
@@ -319,7 +343,7 @@ typedef enum { OPCA_ADD = 0, OPCA_DELETE, OPCA_REMIND} opcactions_t;
 typedef enum { IPCA_ACCEPT = 0, IPCA_DENY, IPCA_IGNORE} ipcactions_t;
 
 
-typedef vector<struct Node*> node_vector;
+typedef vector<Node*> node_vector;
 
 // contact visibility:
 // HIDDEN - not shown
@@ -580,6 +604,7 @@ typedef enum {
     ATTR_MY_BACKUPS_FOLDER = 31,            // private - byte array - non-versioned
     ATTR_BACKUP_NAMES = 32,                 // private - byte array - versioned
     ATTR_COOKIE_SETTINGS = 33,              // private - byte array - non-versioned
+    ATTR_JSON_SYNC_CONFIG_DATA = 34         // private - byte array - non-versioned
 
 } attr_t;
 typedef map<attr_t, string> userattr_map;
@@ -789,6 +814,7 @@ namespace CodeCounter
 #ifdef MEGA_MEASURE_CODE
         ScopeStats& scope;
         high_resolution_clock::time_point blockStart;
+        bool done = false;
 
         ScopeTimer(ScopeStats& sm) : scope(sm), blockStart(high_resolution_clock::now())
         {
@@ -796,14 +822,18 @@ namespace CodeCounter
         }
         ~ScopeTimer()
         {
+            if (!done) complete();
+        }
+        void complete()
+        {
             ++scope.count;
             ++scope.finishes;
             scope.timeSpent += high_resolution_clock::now() - blockStart;
+            done = true;
         }
 #else
-        ScopeTimer(ScopeStats& sm)
-        {
-        }
+        ScopeTimer(ScopeStats& sm) {}
+        void complete() {}
 #endif
     };
 }
@@ -819,6 +849,7 @@ public:
         STATUS_STORAGE = 1,
         STATUS_BUSINESS = 2,
         STATUS_BLOCKED = 3,
+        STATUS_PRO_LEVEL = 4,
     };
 
     CacheableStatus(int64_t type, int64_t value);
@@ -827,7 +858,8 @@ public:
     bool serialize(string* data) override;
 
     // deserializes the string to a SyncConfig object. Returns null in case of failure
-    static std::shared_ptr<CacheableStatus> unserialize(MegaClient *client, const std::string& data);
+    // returns a pointer to the unserialized value, owned by MegaClient passed as parameter
+    static CacheableStatus* unserialize(MegaClient *client, const std::string& data);
     int64_t type() const;
     int64_t value() const;
 
@@ -843,155 +875,18 @@ private:
 
 };
 
-typedef enum {INVALID = -1, TWO_WAY = 0, UP_SYNC = 1, DOWN_SYNC = 2, CAMERA_UPLOAD = 3, MEDIA_UPLOAD = 4, BACKUP_UPLOAD } BackupType;
-
-// Holds the config of a sync. Can be extended with future config options
-class Sync;
-class SyncConfig : public Cacheable
+typedef enum
 {
-public:
+    INVALID = -1,
+    TWO_WAY = 0,
+    UP_SYNC = 1,
+    DOWN_SYNC = 2,
+    CAMERA_UPLOAD = 3,
+    MEDIA_UPLOAD = 4,
+    BACKUP_UPLOAD = 5
+}
+BackupType;
 
-    enum Type
-    {
-        TYPE_UP = 0x01, // sync up from local to remote
-        TYPE_DOWN = 0x02, // sync down from remote to local
-        TYPE_TWOWAY = TYPE_UP | TYPE_DOWN, // Two-way sync
-        TYPE_BACKUP, // special sync up from local to remote, automatically disabled when remote changed
-    };
-
-    SyncConfig(std::string localPath,
-               std::string syncName,
-               const handle remoteNode,
-               const std::string &remotePath,
-               const fsfp_t localFingerprint,
-               std::vector<std::string> regExps = {},
-               const bool enabled = true,
-               const Type syncType = TYPE_TWOWAY,
-               const bool syncDeletions = false,
-               const bool forceOverwrite = false,
-               const SyncError error = NO_SYNC_ERROR,
-               const SyncWarning warning = NO_SYNC_WARNING,
-               handle hearBeatID = UNDEF
-            );
-
-    // whether this sync has errors (was inactive)
-    bool hasError() const;
-
-    // returns the local path of the sync
-    const std::string& getLocalPath() const;
-
-    // returns the name of the sync
-    const std::string& getName() const;
-
-    // returns the remote path of the sync
-    handle getRemoteNode() const;
-
-    void setRemoteNode(const handle &remoteNode);
-
-    // returns the last valid remote path of the sync
-    const std::string& getRemotePath() const;
-
-    // returns the local fingerprint
-    fsfp_t getLocalFingerprint() const;
-
-    // sets the local fingerprint
-    void setLocalFingerprint(fsfp_t fingerprint);
-
-    // returns the regular expressions
-    const std::vector<std::string>& getRegExps() const;
-    void setRegExps(std::vector<std::string>&&);
-
-    // returns the type of the sync
-    Type getType() const;
-
-    // whether this is an up-sync from local to remote
-    bool isUpSync() const;
-
-    // whether this is a down-sync from remote to local
-    bool isDownSync() const;
-
-    // whether deletions are synced
-    bool syncDeletions() const;
-
-    // whether changes are overwritten irregardless of file properties
-    bool forceOverwrite() const;
-
-    // serializes the object to a string
-    bool serialize(string* data) override;
-
-    // deserializes the string to a SyncConfig object. Returns null in case of failure
-    static std::unique_ptr<SyncConfig> unserialize(const std::string& data);
-
-    void setRemotePath(const std::string &remotePath);
-
-    // get error code (errors can be temporary/fatal/mere warnings)
-    SyncError getError() const;
-    SyncWarning getWarning() const;
-
-    // sets the error
-    void setError(SyncError value);
-
-    // enabled by the user
-    bool getEnabled() const;
-
-    // sets if enabled by the user
-    void setEnabled(bool enabled);
-
-    handle getBackupId() const;
-    void setBackupId(const handle &backupId);
-
-private:
-
-    // enabled/disabled by the user
-    bool mEnabled = true;
-
-    // the local path of the sync
-    std::string mLocalPath;
-
-    // name of the sync (if localpath is not adecuate)
-    std::string mName;
-
-    // the remote handle of the sync
-    handle mRemoteNode;
-
-    // the last valid remote path of the sync
-    std::string mRemotePath;
-
-    // the local fingerprint
-    fsfp_t mLocalFingerprint;
-
-    // list of regular expressions
-    std::vector<std::string> mRegExps; //TODO: rename this to wildcardExclusions?: they are not regexps AFAIK
-
-    // type of the sync, defaults to bidirectional
-    Type mSyncType;
-
-    // whether deletions are synced (only relevant for one-way-sync)
-    bool mSyncDeletions;
-
-    // whether changes are overwritten irregardless of file properties (only relevant for one-way-sync)
-    bool mForceOverwrite;
-
-    // failure cause (disable/failure cause).
-    SyncError mError;
-
-    // Unique identifier. any other field can change (even remote handle),
-    // and we want to keep disabled configurations saved: e.g: remote handle changed
-    // id for heartbeating
-    handle mBackupId;
-
-    // need this to ensure serialization doesn't mutate state (Cacheable::serialize is non-const)
-    bool serialize(std::string& data) const;
-
-    // Warning if creation was successful but the user should know something
-    SyncWarning mWarning;
-    friend struct UnifiedSync;
-    friend class MegaClient; // until functions are moved to Sync.cpp
-
-    // notified/saved state
-    SyncError mKnownError = NO_SYNC_ERROR;
-    bool mKnownEnabled = false;
-};
 
 // cross reference pointers.  For the case where two classes have pointers to each other, and they should
 // either always be NULL or if one refers to the other, the other refers to the one.

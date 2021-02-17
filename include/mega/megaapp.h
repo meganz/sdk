@@ -332,9 +332,6 @@ struct MEGA_API MegaApp
     // after all syncs have been disabled
     virtual void syncs_disabled(SyncError) { }
 
-    // before attempting a sync resume
-    virtual void syncs_about_to_be_resumed() { }
-
     // after an attempt to auto-resume a cache sync
     virtual void sync_auto_resume_result(const UnifiedSync& s, bool attempted) { }
 

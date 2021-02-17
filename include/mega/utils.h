@@ -57,9 +57,11 @@ namespace mega {
 #define MAKENAMEID8(a, b, c, d, e, f, g, h) (nameid)((((uint64_t)a) << 56) + (((uint64_t)b) << 48) + (((uint64_t)c) << 40) + (((uint64_t)d) << 32) + ((e) << 24) + ((f) << 16) + ((g) << 8) + (h))
 
 std::string toNodeHandle(handle nodeHandle);
+std::string toNodeHandle(NodeHandle nodeHandle);
 std::string toHandle(handle h);
 #define LOG_NODEHANDLE(x) toNodeHandle(x)
 #define LOG_HANDLE(x) toHandle(x)
+std::string backupTypeToStr(BackupType type);
 
 struct MEGA_API ChunkedHash
 {
@@ -292,8 +294,12 @@ private:
 
     /**
      * @brief get Get the value for a given key
+     *
+     * In case the type is not found, it will throw. A previous call to TLVStore::find()
+     * might be necessary in order to check the existence of the type in advance.
+     *
      * @param type Type of the value (without scope nor non-historic modifiers).
-     * @return String containing the array with the value, or NULL if error.
+     * @return String containing the array with the value.
      */
     std::string get(string type) const;
 
