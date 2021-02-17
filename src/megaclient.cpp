@@ -12976,8 +12976,8 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
 
     error e = API_OK;
     syncs.forEachSyncConfig([&](const SyncConfig& config){
-
-        if (config.getBackupId() != excludeBackupId && excludeBackupId != UNDEF) // for the check inside addsync() when it's already present
+        // For the check inside addsync(...) when the config's already present.
+        if (excludeBackupId == UNDEF || config.getBackupId() != excludeBackupId)
         {
             LocalPath otherLocallyEncodedPath = config.getLocalPath();
             LocalPath otherLocallyEncodedAbsolutePath;
