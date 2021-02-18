@@ -9126,7 +9126,7 @@ public class MegaApiJava {
      * @return List of nodes that contain the desired string in their name
      */
     public ArrayList<MegaNode> searchOnInShares(String searchString, MegaCancelToken cancelToken, int order) {
-        return nodeListToArray(megaApi.search(searchString, cancelToken, order));
+        return nodeListToArray(megaApi.searchOnInShares(searchString, cancelToken, order));
     }
 
     /**
@@ -9210,7 +9210,7 @@ public class MegaApiJava {
      * @return List of nodes that contain the desired string in their name
      */
     public ArrayList<MegaNode> searchOnOutShares(String searchString, MegaCancelToken cancelToken, int order) {
-        return nodeListToArray(megaApi.search(searchString, cancelToken, order));
+        return nodeListToArray(megaApi.searchOnOutShares(searchString, cancelToken, order));
     }
 
     /**
@@ -9294,7 +9294,7 @@ public class MegaApiJava {
      * @return List of nodes that contain the desired string in their name
      */
     public ArrayList<MegaNode> searchOnPublicLinks(String searchString, MegaCancelToken cancelToken, int order) {
-        return nodeListToArray(megaApi.search(searchString, cancelToken, order));
+        return nodeListToArray(megaApi.searchOnPublicLinks(searchString, cancelToken, order));
     }
 
     /**
