@@ -8495,6 +8495,12 @@ void exec_synclist(autocomplete::ACState& s)
         return;
     }
 
+    if (client->syncs.numSyncs() == 0)
+    {
+        cout << "No syncs configured yet" << endl;
+        return;
+     }
+
     client->syncs.forEachUnifiedSync(
       [](UnifiedSync& us)
       {
