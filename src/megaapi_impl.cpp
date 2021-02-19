@@ -11774,15 +11774,17 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         if (target == MegaApi::SEARCH_TARGET_OUTSHARE)
         {
             // Search on outshares
-            std::set<MegaHandle>outsharesHandles;
+            std::set<MegaHandle> outsharesHandles;
             unique_ptr<MegaShareList>shares (getOutShares(MegaApi::ORDER_NONE));
             for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
             {
-                if (outsharesHandles.find(shares->get(i)->getNodeHandle()) != outsharesHandles.end())
+                handle h = shares->get(i)->getNodeHandle();
+                if (outsharesHandles.find(h) != outsharesHandles.end())
                 {
+                    // shares list includes an item per outshare AND per sharee/user
                     continue;   // avoid duplicates
                 }
-                outsharesHandles.insert(shares->get(i)->getNodeHandle());
+                outsharesHandles.insert(h);
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
 
                 SearchTreeProcessor searchProcessor(client, searchString, type);
