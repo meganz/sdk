@@ -12983,17 +12983,15 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
 
     error e = API_OK;
     syncs.forEachSyncConfig([&](const SyncConfig& config){
-
-        if (config.getBackupId() != excludeBackupId && excludeBackupId != UNDEF) // for the check inside addsync() when it's already present
+        // (when adding a new config, excludeBackupId=UNDEF, so it doesn't match any existing config)
+        if (config.getBackupId() != excludeBackupId)
         {
             LocalPath otherLocallyEncodedPath = config.getLocalPath();
             LocalPath otherLocallyEncodedAbsolutePath;
             fsaccess->expanselocalpath(otherLocallyEncodedPath, otherLocallyEncodedAbsolutePath);
 
-            if (config.getEnabled() && !config.getError() &&
-                    ( newLocallyEncodedAbsolutePath.isContainingPathOf(otherLocallyEncodedAbsolutePath)
-                      || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath)
-                    ) )
+            if (newLocallyEncodedAbsolutePath.isContainingPathOf(otherLocallyEncodedAbsolutePath)
+                    || otherLocallyEncodedAbsolutePath.isContainingPathOf(newLocallyEncodedAbsolutePath))
             {
                 if (syncError)
                 {
