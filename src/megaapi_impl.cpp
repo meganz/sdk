@@ -3393,6 +3393,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->settings = request->getMegaPushNotificationSettings() ? request->settings->copy() : NULL;
     this->backgroundMediaUpload = NULL;
     this->mBannerList.reset(request->mBannerList ? request->mBannerList->copy() : nullptr);
+    this->mHandleList.reset(request->mHandleList ? request->mHandleList->copy() : nullptr);
 }
 
 AccountDetails *MegaRequestPrivate::getAccountDetails() const
@@ -8394,10 +8395,6 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
        std::string auxName = fileName
                ? fileName
                : transfer->getFileName();
-
-       std::string path = localPath
-               ? localPath
-               : "";
 
        client->fsaccess->unescapefsincompatible(&auxName, fsType);
        transfer->setFileName(auxName.c_str());

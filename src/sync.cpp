@@ -2949,6 +2949,11 @@ unsigned Syncs::numRunningSyncs()
     return n;
 }
 
+unsigned Syncs::numSyncs()
+{
+    return mSyncVec.size();
+}
+
 Sync* Syncs::firstRunningSync()
 {
     for (auto& s : mSyncVec)

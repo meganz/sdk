@@ -592,6 +592,7 @@ struct Syncs
 
     bool hasRunningSyncs();
     unsigned numRunningSyncs();
+    unsigned numSyncs();    // includes non-running syncs, but configured
     Sync* firstRunningSync();
     Sync* runningSyncByBackupId(handle backupId) const;
     SyncConfig* syncConfigByBackupId(handle backupId) const;
