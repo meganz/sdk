@@ -3151,14 +3151,11 @@ SyncConfigStore::~SyncConfigStore()
 
 void SyncConfigStore::markDriveDirty(const LocalPath& drivePath)
 {
-    auto i = mKnownDrives.find(drivePath);
-    if (i != mKnownDrives.end())
-    {
-        i->second.dirty = true;
-    }
+    // Drive should be known.
+    assert(mKnownDrives.count(drivePath));
+
+    mKnownDrives[drivePath].dirty = true;
 }
-
-
 
 bool SyncConfigStore::equal(const LocalPath& lhs, const LocalPath& rhs) const
 {
@@ -3192,11 +3189,6 @@ bool SyncConfigStore::driveKnown(const LocalPath& drivePath) const
 {
     return mKnownDrives.count(drivePath) > 0;
 }
-
-
-
-
-
 
 error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& configs)
 {
@@ -3238,16 +3230,14 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
         assert(equal(config.mExternalDrivePath, drivePath));
     }
 
-    if (mKnownDrives.find(drivePath) == mKnownDrives.end())
-    {
-        mKnownDrives[drivePath].dbPath = dbPath(drivePath);
-        mKnownDrives[drivePath].drivePath = drivePath;
-    }
+    // Drive should already be known.
+    assert(mKnownDrives.count(drivePath));
+
     auto& drive = mKnownDrives[drivePath];
 
     if (configs.empty())
     {
-        error e = mIOContext.remove(drivePath);
+        error e = mIOContext.remove(drive.dbPath);
         if (!e)
         {
             drive.dirty = false;
@@ -3255,7 +3245,7 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
         else
         {
             LOG_warn << "Unable to remove sync configs at: "
-                << drivePath.toPath() << " error " << e;
+                     << drivePath.toPath() << " error " << e;
         }
         return e;
     }
@@ -3271,7 +3261,7 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
         if (e)
         {
             LOG_warn << "Unable to write sync configs at: "
-                << drivePath.toPath() << " error " << e;
+                     << drivePath.toPath() << " error " << e;
 
             return API_EWRITE;
         }
