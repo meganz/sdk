@@ -7056,7 +7056,7 @@ void MegaClient::notifypurge(void)
                 }
                 else if (removed)
                 {
-                    failSync(activeSync.get(), REMOTE_PATH_DELETED);
+                    failSync(activeSync.get(), REMOTE_NODE_NOT_FOUND);
                 }
                 else if (pathChanged)
                 {
