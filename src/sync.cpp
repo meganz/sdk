@@ -2372,27 +2372,27 @@ error Syncs::backupAdd(const SyncConfig& config,
         return API_EINTERNAL;
     }
 
-    if (store->driveKnown(drivePath))
-    {
-        // Try and restore any backups on this drive
-        backupRestore(drivePath);
-    }
-
+    // Do we already know about this drive?
     if (!store->driveKnown(drivePath))
     {
-        // Couldn't create (or open) the database.
-        LOG_verbose << "Unable to add backup "
-                    << sourcePath.toPath(fsAccess)
-                    << " on "
-                    << drivePath.toPath(fsAccess)
-                    << " as we could not open it's config database.";
+        auto result = backupRestore(drivePath);
 
-        if (completion)
+        if (result != API_OK && result != API_ENOENT)
         {
-            completion(nullptr, NO_SYNC_ERROR, API_EFAILED);
-        }
+            // Couldn't create (or open) the database.
+            LOG_verbose << "Unable to add backup "
+                        << sourcePath.toPath(fsAccess)
+                        << " on "
+                        << drivePath.toPath(fsAccess)
+                        << " as we could not open it's config database.";
 
-        return API_EFAILED;
+            if (completion)
+            {
+                completion(nullptr, NO_SYNC_ERROR, API_EFAILED);
+            }
+
+            return API_EFAILED;
+        }
     }
 
     // Make sure this backup's tag is unique.
@@ -2561,10 +2561,12 @@ error Syncs::backupRestore(LocalPath drivePath)
         return API_EEXIST;
     }
 
-    // Try and open the database on the drive.
     SyncConfigVector configs;
 
-    if (store->read(drivePath, configs) == API_OK)
+    // Try and open the database on the drive.
+    auto result = store->read(drivePath, configs);
+
+    if (result == API_OK)
     {
         // Try and restore the backups in the database.
         return backupRestore(drivePath, configs);
@@ -2575,7 +2577,7 @@ error Syncs::backupRestore(LocalPath drivePath)
                 << drivePath.toPath(fsAccess)
                 << " as we couldn't open its config database.";
 
-    return API_EREAD;
+    return result;
 }
 
 SyncConfigStore* Syncs::syncConfigStore()
