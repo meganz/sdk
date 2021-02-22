@@ -142,38 +142,6 @@ std::string syncConfigToString(const SyncConfig& config)
     return description;
 }
 
-// creates a NewSyncConfig object from config options as strings.
-// returns a pair where `first` is success and `second` is the sync config.
-static std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type)
-{
-    auto toLower = [](std::string& s)
-    {
-        for (char& c : s) { c = static_cast<char>(tolower(c)); };
-    };
-
-    toLower(type);
-
-    SyncConfig::Type syncType;
-    if (type == "up")
-    {
-        syncType = SyncConfig::TYPE_UP;
-    }
-    else if (type == "down")
-    {
-        syncType = SyncConfig::TYPE_DOWN;
-    }
-    else if (type == "twoway")
-    {
-        syncType = SyncConfig::TYPE_TWOWAY;
-    }
-    else
-    {
-        return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
-    }
-
-    return std::make_pair(true, SyncConfig(LocalPath(), "", UNDEF, "", 0, {}, true, syncType));
-}
-
 #endif
 
 static const char* getAccessLevelStr(int access)
@@ -3055,7 +3023,7 @@ autocomplete::ACN autocompleteSyntax()
 
 #ifdef ENABLE_SYNC
     p->Add(exec_backupcentre, sequence(text("backupcentre"), opt(sequence(flag("-del"), param("backup_id")))));
-	
+
     p->Add(exec_syncadd,
            sequence(text("sync"),
                     text("add"),
@@ -8697,14 +8665,6 @@ void exec_syncremove(autocomplete::ACState& s)
     // sync remove id
     handle backupId = 0;
     Base64::atob(s.words[2].s.c_str(), (byte*) &backupId, sizeof(handle));
-
-    // Make sure the sync isn't active.
-    if (client->syncs.runningSyncByBackupId(backupId))
-    {
-        cerr << "Cannot remove config as sync is active."
-             << endl;
-        return;
-    }
 
     // Try and remove the config.
     bool found = false;

@@ -361,8 +361,77 @@ private:
     SyncBackupState mBackupState;
 };
 
-
 class SyncConfigIOContext;
+
+class SyncConfigStore {
+public:
+    SyncConfigStore(const LocalPath& dbPath, SyncConfigIOContext& ioContext);
+    ~SyncConfigStore();
+
+    // Remember whether we need to update the file containing configs on this drive.
+    void markDriveDirty(const LocalPath& drivePath);
+
+    // Whether any config data has changed and needs to be written to disk
+    bool dirty() const;
+
+    // Reads a database from disk.
+    error read(const LocalPath& drivePath, SyncConfigVector& configs);
+
+    // Write the configs with this drivepath to disk.
+    error write(const LocalPath& drivePath, const SyncConfigVector& configs);
+
+    // Check whether we read configs from a particular drive
+    bool driveKnown(const LocalPath& drivePath) const;
+
+    // update configs on disk for any drive marked as dirty
+    void writeDirtyDrives(const SyncConfigVector& configs);
+
+private:
+    // Metadata regarding a given drive.
+    struct DriveInfo
+    {
+        // Directory on the drive containing the database.
+        LocalPath dbPath;
+
+        // Path to the drive itself.
+        LocalPath drivePath;
+
+        // Tracks which 'slot' we're writing to.
+        unsigned int slot = 0;
+
+        bool dirty = false;
+    }; // DriveInfo
+
+    // How we compare drive paths.
+    struct DrivePathComparator
+    {
+        bool operator()(const LocalPath& lhs, const LocalPath& rhs) const
+        {
+            return platformCompareUtf(lhs, false, rhs, false) < 0;
+        }
+    }; // DrivePathComparator
+
+    using DriveInfoMap = map<LocalPath, DriveInfo, DrivePathComparator>;
+
+    // Checks whether two paths are equal.
+    bool equal(const LocalPath& lhs, const LocalPath& rhs) const;
+
+    // Computes a suitable DB path for a given drive.
+    LocalPath dbPath(const LocalPath& drivePath) const;
+
+    // Reads a database from the specified slot on disk.
+    error read(DriveInfo& driveInfo, SyncConfigVector& configs, unsigned int slot);
+
+    // Where we store databases for internal syncs.
+    const LocalPath mInternalSyncStorePath;
+
+    // What drives are known to the store.
+    DriveInfoMap mKnownDrives;
+
+    // IO context used to read and write from disk.
+    SyncConfigIOContext& mIOContext;
+}; // SyncConfigStore
+
 
 class MEGA_API SyncConfigIOContext
 {
@@ -406,7 +475,7 @@ public:
     virtual error remove(const LocalPath& dbPath);
 
     // Serialize configs to JSON.
-    void serialize(const vector<const SyncConfig*>& configs,
+    void serialize(const vector<SyncConfig>& configs,
                    JSONWriter& writer) const;
 
     // Write data to the specified slot.
@@ -450,142 +519,6 @@ private:
     HMACSHA256 mSigner;
 }; // SyncConfigIOContext
 
-class SyncConfigStore {
-public:
-    explicit
-    SyncConfigStore(const LocalPath& dbPath, SyncConfigIOContext& ioContext);
-
-    ~SyncConfigStore();
-
-    MEGA_DISABLE_COPY_MOVE(SyncConfigStore);
-
-    // Add a new (or update an existing) config.
-    const SyncConfig* add(const SyncConfig& config);
-
-    // Close a database.
-    error close(const LocalPath& drivePath);
-
-    // Close all databases.
-    error close();
-
-    // Get configs from a database.
-    SyncConfigVector configs(const LocalPath& drivePath) const;
-
-    // Get all configs.
-    SyncConfigVector configs() const;
-
-    // Create a new (or open an existing) database.
-    error create(const LocalPath& drivePath, SyncConfigVector& configs);
-
-    // Where we store databases for internal syncs.
-    const LocalPath& dbPath() const;
-
-    // Whether any databases need flushing.
-    bool dirty() const;
-
-    // Flush a database to disk.
-    error flush(const LocalPath& drivePath);
-
-    // Flush all databases to disk.
-    error flush(vector<LocalPath>& drivePaths);
-    error flush();
-
-    // Get config by backup ID.
-    const SyncConfig* getByBackupID(handle backupID) const;
-
-    // Get config by root handle.
-    const SyncConfig* getByRootHandle(handle rootHandle) const;
-
-    // Open (and add) an existing database.
-    error open(const LocalPath& drivePath, SyncConfigVector& configs);
-
-    // Check whether a database is open.
-    bool opened(const LocalPath& drivePath) const;
-
-    // Remove config by backup ID.
-    error removeByBackupID(handle backupID);
-
-    // Remove config by root handle.
-    error removeByRootHandle(handle rootHandle);
-
-    // Truncate a database.
-    error truncate(const LocalPath& drivePath);
-
-    // Truncate all databases.
-    error truncate();
-
-    static const LocalPath BACKUP_CONFIG_DIR;
-
-private:
-    // Metadata regarding a given drive.
-    struct DriveInfo
-    {
-        // Directory on the drive containing the database.
-        LocalPath dbPath;
-
-        // Path to the drive itself.
-        LocalPath drivePath;
-
-        // Tracks which 'slot' we're writing to.
-        unsigned int slot;
-    }; // DriveInfo
-
-    // How we compare drive paths.
-    struct DrivePathComparator
-    {
-        bool operator()(const LocalPath& lhs, const LocalPath& rhs) const
-        {
-            return platformCompareUtf(lhs, false, rhs, false) < 0;
-        }
-    }; // DrivePathComparator
-
-    // Tag used for static dispatch.
-    struct NoValidateTag { };
-
-    using DriveInfoMap = map<LocalPath, DriveInfo, DrivePathComparator>;
-    using DrivePathSet = set<LocalPath, DrivePathComparator>;
-
-    // Closes a database without validating the drive.
-    error close(const LocalPath& drivePath, NoValidateTag);
-
-    // Checks whether two paths are equal.
-    bool equal(const LocalPath& lhs, const LocalPath& rhs) const;
-
-    // Computes a suitable DB path for a given drive.
-    LocalPath dbPath(const LocalPath& drivePath) const;
-
-    // Flushes a database without validating the drive.
-    error flush(const LocalPath& drivePath, NoValidateTag);
-
-    // Reads a database from the specified slot on disk.
-    error read(DriveInfo& driveInfo, SyncConfigVector& configs, unsigned int slot);
-
-    // Reads a database from disk.
-    error read(DriveInfo& driveInfo, SyncConfigVector& configs);
-
-    // Writes a database to disk.
-    error write(DriveInfo& driveInfo);
-
-    // How many times we should write to a database before overwriting
-    // earlier versions.
-    static const unsigned int NUM_SLOTS;
-
-    // Configs from all open databases.
-    SyncConfigVector mConfigs;
-
-    // Where we store databases for internal syncs.
-    const LocalPath mDBPath;
-
-    // Which drives need to be written to disk.
-    DrivePathSet mDirtyDrives;
-
-    // What drives are known to the store.
-    DriveInfoMap mKnownDrives;
-
-    // IO context used to read and write from disk.
-    SyncConfigIOContext &mIOContext;
-}; // SyncConfigStore
-
 struct Syncs
 {
     UnifiedSync* appendNewSync(const SyncConfig&, MegaClient& mc);
@@ -621,11 +554,14 @@ struct Syncs
     void resetSyncConfigStore();
     void clear();
 
-    // Clears (and flushes) internal config database.
+    // Deletes the file that internal sync configs are stored in
     error truncate();
 
+    SyncConfigVector configsForDrive(const LocalPath& drive);
+    SyncConfigVector allConfigs();
+
     // updates in state & error
-    error saveSyncConfig(const SyncConfig& config);
+    void saveSyncConfig(const SyncConfig& config);
 
     Syncs(MegaClient& mc);
 
@@ -674,7 +610,7 @@ struct Syncs
      *
      * API_EINTERNAL
      * Encountered an internal error.
-     * 
+     *
      * API_ENOENT
      * No such database exists in memory.
      *
@@ -725,7 +661,7 @@ struct Syncs
     bool syncConfigStoreDirty();
 
     // Attempts to flush the internal configuration database to disk.
-    error syncConfigStoreFlush();
+    void syncConfigStoreFlush();
 
     // Load internal sync configs from disk.
     error syncConfigStoreLoad(SyncConfigVector& configs);
@@ -744,9 +680,6 @@ private:
 
     // remove the Sync and its config.  The sync's Localnode cache is removed
     void removeSyncByIndex(size_t index);
-
-    // Removes a sync config.
-    error removeSyncConfigByBackupId(handle bid);
 
     MegaClient& mClient;
 };
