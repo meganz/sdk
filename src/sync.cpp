@@ -3203,22 +3203,29 @@ error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& config
     driveInfo.drivePath = drivePath;
 
     vector<unsigned int> confSlots;
-    if (mIOContext.getSlotsInOrder(driveInfo.dbPath, confSlots) != API_OK)
-    {
-        return API_ENOENT;
-    }
 
-    for (const auto& slot : confSlots)
+    auto result = mIOContext.getSlotsInOrder(driveInfo.dbPath, confSlots);
+
+    if (result == API_OK)
     {
-        if (read(driveInfo, configs, slot) == API_OK)
+        for (const auto& slot : confSlots)
         {
-            driveInfo.slot = (slot + 1) % NUM_CONFIG_SLOTS;
-            mKnownDrives[drivePath] = driveInfo;
-            return API_OK;
+            result = read(driveInfo, configs, slot);
+
+            if (result == API)
+            {
+                driveInfo.slot = (slot + 1) % NUM_CONFIG_SLOTS;
+                break;
+            }
         }
     }
 
-    return API_EREAD;
+    if (result != API_EREAD)
+    {
+        mKnownDrives[drivePath] = driveInfo;
+    }
+
+    return result;
 }
 
 
