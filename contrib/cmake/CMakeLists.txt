@@ -547,10 +547,23 @@ ELSE(WIN32)
     endif()
 
     SET(Mega_PlatformSpecificFiles $<$<NOT:${GLOB_H_FOUND}>:${MegaDir}/src/mega_glob.c> ${MegaDir}/src/posix/console.cpp ${MegaDir}/src/posix/consolewaiter.cpp ${MegaDir}/src/posix/fs.cpp ${MegaDir}/src/posix/net.cpp ${MegaDir}/src/posix/waiter.cpp ${MegaDir}/src/thread/posixthread.cpp $<${USE_CPPTHREAD}:${MegaDir}/src/thread/cppthread.cpp> )
+
     IF(APPLE)
-        SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/src/osx/osxutils.mm )
+        SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/src/osx/osxutils.mm)
     ENDIF()
+
     IF(USE_DRIVE_NOTIFICATIONS)
+        IF(APPLE)
+            SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} 
+                ${MegaDir}/include/mega/osx/drivenotifyosx.h
+                ${MegaDir}/src/osx/drivenotifyosx.cpp
+            )
+            SET(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs}
+                "-framework DiskArbitration"
+                "-framework CoreFoundation"
+            )
+        ENDIF()
+
         IF(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
             SET(Mega_PlatformSpecificFiles ${Mega_PlatformSpecificFiles} ${MegaDir}/include/mega/posix/drivenotifyposix.h ${MegaDir}/src/posix/drivenotifyposix.cpp)
         ENDIF()

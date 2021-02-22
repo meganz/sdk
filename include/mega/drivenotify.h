@@ -91,6 +91,11 @@ private:
 namespace mega {
     using DriveInfoCollector = DriveNotifyWin;
 }
+#elif __APPLE__
+#include "mega/osx/drivenotifyosx.h"
+namespace mega {
+    using DriveInfoCollector = DriveNotifyOsx;
+}
 #else
 #include "mega/posix/drivenotifyposix.h"
 namespace mega {
