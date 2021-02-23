@@ -2591,6 +2591,11 @@ unsigned Syncs::numRunningSyncs()
     return n;
 }
 
+unsigned Syncs::numSyncs()
+{
+    return mSyncVec.size();
+}
+
 Sync* Syncs::firstRunningSync()
 {
     for (auto& s : mSyncVec)
@@ -3060,7 +3065,7 @@ error JSONSyncConfigDB::write(JSONSyncConfigIOContext& ioContext)
 }
 
 error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext,
-                             const unsigned int slot)
+                             unsigned int slot)
 {
     // Try and read the database from the specified slot.
     string data;
@@ -3164,7 +3169,7 @@ JSONSyncConfigIOContext::~JSONSyncConfigIOContext()
 bool JSONSyncConfigIOContext::deserialize(const LocalPath& dbPath,
                                           JSONSyncConfigMap& configs,
                                           JSON& reader,
-                                          const unsigned int slot) const
+                                          unsigned int slot) const
 {
     auto path = dbFilePath(dbPath, slot).toPath(mFsAccess);
 
@@ -3331,7 +3336,7 @@ error JSONSyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
 
 error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
                                     string& data,
-                                    const unsigned int slot)
+                                    unsigned int slot)
 {
     // Generate path to the configuration file.
     LocalPath path = dbFilePath(dbPath, slot);
@@ -3382,7 +3387,7 @@ error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
 }
 
 error JSONSyncConfigIOContext::remove(const LocalPath& dbPath,
-                                      const unsigned int slot)
+                                      unsigned int slot)
 {
     LocalPath path = dbFilePath(dbPath, slot);
 
@@ -3437,7 +3442,7 @@ void JSONSyncConfigIOContext::serialize(const JSONSyncConfigMap& configs,
 
 error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
                                      const string& data,
-                                     const unsigned int slot)
+                                     unsigned int slot)
 {
     LocalPath path = dbPath;
 
@@ -3505,7 +3510,7 @@ error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
 }
 
 LocalPath JSONSyncConfigIOContext::dbFilePath(const LocalPath& dbPath,
-                                              const unsigned int slot) const
+                                              unsigned int slot) const
 {
     using std::to_string;
 
