@@ -1088,9 +1088,9 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
     }
 }
 
-// walk path and return corresponding LocalNode and its parent
-// path must be relative to l or start with the root prefix if l == NULL
-// path must be a full sync path, i.e. start with localroot->localname
+// walk localpath and return corresponding LocalNode and its parent
+// localpath must be relative to l or start with the root prefix if l == NULL
+// localpath must be a full sync path, i.e. start with localroot->localname
 // NULL: no match, optionally returns residual path
 LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, LocalNode** parent, LocalPath* outpath)
 {
@@ -1802,7 +1802,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             // fopen() signals that the failure is potentially transient - do
             // nothing and request a recheck
             LOG_warn << "File blocked. Adding notification to the retry queue: " << path;
-            dirnotify->notify(DirNotify::RETRY, ll, LocalPath(*localpathNew));
+            dirnotify->notify(DirNotify::RETRY, ll, LocalPath(*input_localpath));
             client->syncfslockretry = true;
             client->syncfslockretrybt.backoff(SCANNING_DELAY_DS);
             client->blockedfile = *localpathNew;
