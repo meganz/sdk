@@ -1801,11 +1801,10 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             // fopen() signals that the failure is potentially transient - do
             // nothing and request a recheck
             LOG_warn << "File blocked. Adding notification to the retry queue: " << path;
-            LocalPath *path = l ? localpathNew : input_localpath;
-            dirnotify->notify(DirNotify::RETRY, ll, LocalPath(*path));
+            dirnotify->notify(DirNotify::RETRY, ll, LocalPath(*input_localpath));
             client->syncfslockretry = true;
             client->syncfslockretrybt.backoff(SCANNING_DELAY_DS);
-            client->blockedfile = *path;
+            client->blockedfile = *localpathNew;
         }
         else if (l)
         {
