@@ -2876,12 +2876,14 @@ void MegaClient::exec()
                     LOG_verbose << "Running syncdown";
                     bool success = true;
                     syncs.forEachRunningSync([&](Sync* sync) {
-
                         // make sure that the remote synced folder still exists
                         if (!sync->localroot->node)
                         {
-                            LOG_err << "The remote root node doesn't exist";
-                            sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true);
+                            if (sync->state != SYNC_FAILED)
+                            {
+                                LOG_err << "The remote root node doesn't exist";
+                                sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true);
+                            }
                         }
                         else
                         {
@@ -7054,7 +7056,7 @@ void MegaClient::notifypurge(void)
                 }
                 else if (removed)
                 {
-                    failSync(activeSync.get(), REMOTE_PATH_DELETED);
+                    failSync(activeSync.get(), REMOTE_NODE_NOT_FOUND);
                 }
                 else if (pathChanged)
                 {
