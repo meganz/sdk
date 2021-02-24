@@ -20,7 +20,7 @@
  */
 
 #pragma once
-#if 1//def USE_DRIVE_NOTIFICATIONS
+#ifdef USE_DRIVE_NOTIFICATIONS
 
 // Include "mega/drivenotify.h" where needed.
 // This header cannot be used by itself.

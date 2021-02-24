@@ -19,7 +19,7 @@
  * program.
  */
 
-#if 1//def USE_DRIVE_NOTIFICATIONS
+#ifdef USE_DRIVE_NOTIFICATIONS
 
 #include "mega/drivenotify.h"
 
