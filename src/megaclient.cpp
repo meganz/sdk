@@ -2876,12 +2876,14 @@ void MegaClient::exec()
                     LOG_verbose << "Running syncdown";
                     bool success = true;
                     syncs.forEachRunningSync([&](Sync* sync) {
-
                         // make sure that the remote synced folder still exists
                         if (!sync->localroot->node)
                         {
-                            LOG_err << "The remote root node doesn't exist";
-                            sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true);
+                            if (sync->state != SYNC_FAILED)
+                            {
+                                LOG_err << "The remote root node doesn't exist";
+                                sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true);
+                            }
                         }
                         else
                         {
@@ -4164,6 +4166,8 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mPublicLinks.clear();
     mCachedStatus.clear();
     scpaused = false;
+    mSendingBackupName = false;
+    mPendingBackupNames.clear();
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
     {
@@ -7062,7 +7066,7 @@ void MegaClient::notifypurge(void)
                 }
                 else if (removed)
                 {
-                    failSync(activeSync.get(), REMOTE_PATH_DELETED);
+                    failSync(activeSync.get(), REMOTE_NODE_NOT_FOUND);
                 }
                 else if (pathChanged)
                 {
@@ -12991,8 +12995,8 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
 
     error e = API_OK;
     syncs.forEachSyncConfig([&](const SyncConfig& config){
-
-        if (config.getBackupId() != excludeBackupId && excludeBackupId != UNDEF) // for the check inside addsync() when it's already present
+        // (when adding a new config, excludeBackupId=UNDEF, so it doesn't match any existing config)
+        if (config.getBackupId() != excludeBackupId)
         {
             LocalPath otherLocallyEncodedPath = config.getLocalPath();
             LocalPath otherLocallyEncodedAbsolutePath;

@@ -3393,6 +3393,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->settings = request->getMegaPushNotificationSettings() ? request->settings->copy() : NULL;
     this->backgroundMediaUpload = NULL;
     this->mBannerList.reset(request->mBannerList ? request->mBannerList->copy() : nullptr);
+    this->mHandleList.reset(request->mHandleList ? request->mHandleList->copy() : nullptr);
 }
 
 AccountDetails *MegaRequestPrivate::getAccountDetails() const
@@ -8395,10 +8396,6 @@ void MegaApiImpl::startUpload(bool startFirst, const char *localPath, MegaNode *
                ? fileName
                : transfer->getFileName();
 
-       std::string path = localPath
-               ? localPath
-               : "";
-
        client->fsaccess->unescapefsincompatible(&auxName, fsType);
        transfer->setFileName(auxName.c_str());
     }
@@ -11777,9 +11774,17 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         if (target == MegaApi::SEARCH_TARGET_OUTSHARE)
         {
             // Search on outshares
+            std::set<MegaHandle> outsharesHandles;
             unique_ptr<MegaShareList>shares (getOutShares(MegaApi::ORDER_NONE));
             for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
             {
+                handle h = shares->get(i)->getNodeHandle();
+                if (outsharesHandles.find(h) != outsharesHandles.end())
+                {
+                    // shares list includes an item per outshare AND per sharee/user
+                    continue;   // avoid duplicates
+                }
+                outsharesHandles.insert(h);
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
 
                 SearchTreeProcessor searchProcessor(client, searchString, type);

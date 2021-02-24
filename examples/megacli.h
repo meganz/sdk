@@ -411,4 +411,3 @@ void exec_syncremove(autocomplete::ACState& s);
 void exec_syncxable(autocomplete::ACState& s);
 
 #endif // ENABLE_SYNC
-

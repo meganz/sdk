@@ -3200,6 +3200,11 @@ void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const 
     pImpl->startUpload(false, localPath, parent, nullptr, -1, 0, false, appData, isSourceTemporary, true, FS_UNKNOWN, listener);
 }
 
+void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener)
+{
+    pImpl->startUpload(false, localPath, parent, fileName, -1, 0, false, appData, isSourceTemporary, true, FS_UNKNOWN, listener);
+}
+
 void MegaApi::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
 {
     pImpl->startDownload(node, localFolder, listener);
