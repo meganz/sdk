@@ -64,6 +64,7 @@ using namespace mega;
 @property (nonatomic, assign) std::set<DelegateMEGALoggerListener *>activeLoggerListeners;
 
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener;
+- (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener queueType:(ListenerQueueType)queueType;
 - (MegaTransferListener *)createDelegateMEGATransferListener:(id<MEGATransferDelegate>)delegate singleListener:(BOOL)singleListener;
 - (MegaGlobalListener *)createDelegateMEGAGlobalListener:(id<MEGAGlobalDelegate>)delegate;
 - (MegaListener *)createDelegateMEGAListener:(id<MEGADelegate>)delegate;
@@ -599,7 +600,7 @@ using namespace mega;
 }
 
 - (void)localLogoutWithDelegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->localLogout([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->localLogout([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
 }
 
 - (void)localLogout {
@@ -1056,6 +1057,14 @@ using namespace mega;
     self.megaApi->setNodeFavourite(node.getCPtr, favourite);
 }
 
+- (void)favouritesForParent:(nullable MEGANode *)node count:(NSInteger)count delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getFavourites(node.getCPtr, (int)count, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)favouritesForParent:(nullable MEGANode *)node count:(NSInteger)count {
+    self.megaApi->getFavourites(node.getCPtr, (int)count);
+}
+
 - (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setNodeCoordinates(node ? [node getCPtr] : NULL, (latitude ? latitude.doubleValue : MegaNode::INVALID_COORDINATE), (longitude ? longitude.doubleValue : MegaNode::INVALID_COORDINATE), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
@@ -1443,7 +1452,7 @@ using namespace mega;
 }
 
 - (void)setCameraUploadsFolderWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->setCameraUploadsFolder(handle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->setCameraUploadsFolder(handle, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
 }
 
 - (void)setCameraUploadsFolderWithHandle:(uint64_t)handle {
@@ -1451,7 +1460,7 @@ using namespace mega;
 }
 
 - (void)getCameraUploadsFolderWithDelegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->getCameraUploadsFolder([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->getCameraUploadsFolder([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
 }
 
 - (void)getCameraUploadsFolder {
@@ -1803,12 +1812,12 @@ using namespace mega;
 }
 
 - (void)requestBackgroundUploadURLWithFileSize:(int64_t)filesize mediaUpload:(MEGABackgroundMediaUpload *)mediaUpload delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->backgroundMediaUploadRequestUploadURL(filesize, mediaUpload.getCPtr, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->backgroundMediaUploadRequestUploadURL(filesize, mediaUpload.getCPtr, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
 }
 
 - (void)completeBackgroundMediaUpload:(MEGABackgroundMediaUpload *)mediaUpload fileName:(NSString *)fileName parentNode:(MEGANode *)parentNode fingerprint:(NSString *)fingerprint originalFingerprint:(NSString *)originalFingerprint binaryUploadToken:(NSData *)token delegate:(id<MEGARequestDelegate>)delegate {
     const char *base64Token = MegaApi::binaryToBase64((const char *)token.bytes, token.length);
-    self.megaApi->backgroundMediaUploadComplete(mediaUpload.getCPtr, fileName.UTF8String, parentNode.getCPtr, fingerprint.UTF8String, originalFingerprint.UTF8String, base64Token, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->backgroundMediaUploadComplete(mediaUpload.getCPtr, fileName.UTF8String, parentNode.getCPtr, fingerprint.UTF8String, originalFingerprint.UTF8String, base64Token, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
 }
 
 - (BOOL)ensureMediaInfo {
@@ -2556,19 +2565,19 @@ using namespace mega;
 #pragma mark - Backup Heartbeat
 
 - (void)registerBackup:(BackUpType)type targetNode:(MEGANode *)node folderPath:(NSString *)path name:(NSString *)name state:(BackUpState)state delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->setBackup((int)type, node.handle, path.UTF8String, name.UTF8String, (int)state, 0, NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->setBackup((int)type, node.handle, path.UTF8String, name.UTF8String, (int)state, 0, NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
 }
 
 - (void)updateBackup:(MEGAHandle)backupId backupType:(BackUpType)type targetNode:(MEGANode *)node folderPath:(NSString *)path state:(BackUpState)state delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->updateBackup(backupId, (int)type, node.handle, path.UTF8String, (int)state, 0, NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->updateBackup(backupId, (int)type, node.handle, path.UTF8String, (int)state, 0, NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
 }
 
 - (void)unregisterBackup:(MEGAHandle)backupId delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->removeBackup(backupId, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->removeBackup(backupId, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
 }
 
 - (void)sendBackupHeartbeat:(MEGAHandle)backupId status:(BackupHeartbeatStatus)status progress:(NSInteger)progress pendingUploadCount:(NSUInteger)pendingUploadCount lastActionDate:(NSDate *)lastActionDate lastBackupNode:(MEGANode *)lastBackupNode delegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->sendBackupHeartbeat(backupId, (int)status, (int)progress, (int)pendingUploadCount, 0, (long long)[lastActionDate timeIntervalSince1970], lastBackupNode.handle, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->sendBackupHeartbeat(backupId, (int)status, (int)progress, (int)pendingUploadCount, 0, (long long)[lastActionDate timeIntervalSince1970], lastBackupNode.handle, [self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
 }
 
 #pragma mark - Debug
@@ -2604,9 +2613,13 @@ using namespace mega;
 #pragma mark - Private methods
 
 - (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener {
+    return [self createDelegateMEGARequestListener:delegate singleListener:singleListener queueType:ListenerQueueTypeMain];
+}
+
+- (MegaRequestListener *)createDelegateMEGARequestListener:(id<MEGARequestDelegate>)delegate singleListener:(BOOL)singleListener queueType:(ListenerQueueType)queueType {
     if (delegate == nil) return nil;
     
-    DelegateMEGARequestListener *delegateListener = new DelegateMEGARequestListener(self, delegate, singleListener);
+    DelegateMEGARequestListener *delegateListener = new DelegateMEGARequestListener(self, delegate, singleListener, queueType);
     pthread_mutex_lock(&listenerMutex);
     _activeRequestListeners.insert(delegateListener);
     pthread_mutex_unlock(&listenerMutex);
