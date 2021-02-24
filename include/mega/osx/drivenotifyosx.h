@@ -65,7 +65,7 @@ template<class T>
 class UniqueCFRef {
 private:
     // CoreFoundation types such as dict, array, etc are passed around as CFDictionaryRef, CFArrayRef.
-    // These Ref types are type aliases to implementation-defined "unutterable" types.
+    // These Ref types are type aliases to a pointer to implementation-defined "unutterable" types.
     // Thus we use the type alias below since unique_ptr<T> holds a pointer to T, but we cannot name T.
     using Ptr = std::unique_ptr<typename std::remove_pointer<T>::type, detail::CoreFoundationDeleter>;
 public:
@@ -87,9 +87,11 @@ private:
 class DriveNotifyOsx;
 
 // Encapsulate filtering and callbacks for different media types.
-// Depending on the disk type being notified, the logic for getting names, paths, etc
-// may vary considerably. This class must implement a subset of Disk Arbitration callbacks
-// which will be registered to a session. 
+// For the purpose of DriveNotify we are mainly concerned with the presence of Volume Path, and 
+// within Disk Arbitration Framework (DAF), media types vary based on when in their lifetime the path
+// (and other info) are or are not available.
+// Specializations of this class may implement specific logic for Disk Arbitration callbacks,
+// which will be registered to a session.
 class MediaTypeCallbacks {
 public:
     static UniqueCFRef<CFDictionaryRef> description(DADiskRef disk)
@@ -109,22 +111,26 @@ public:
             CFDictionaryGetValue(diskDescription, kDADiskDescriptionVolumeUUIDKey));
     }
 
+    // MediaTypeCallbacks lifetime is bound to a parent object to which it registers constructed DriveInfo
     MediaTypeCallbacks(DriveNotifyOsx& parent)
         : mParent(&parent)
     {}
 
-    // Register the disk appeared and disappeared callbacks, and additional implementation-specific ones
+    // Register the disk appeared and disappeared callbacks.
     // Note: merely registers callbacks; does not start running them.
     void registerCallbacks(DASessionRef session);
 
-    // Unregister the callbacks registered by registerCallbacks.
+    // Unregister all possible callbacks.
     void unregisterCallbacks(DASessionRef session);
 
-    // The matching dictionary used to filter disk types in callbacks
+    // The matching dictionary used to filter disk types in callbacks.
+    // If this dictionary is used to register a callback then the callback only fires for disks that match
+    // the dictionary's criteria.
+    // All properties in the dictionary are checked with a logical-AND.
     virtual CFDictionaryRef matchingDict() const noexcept = 0;
 
-    // Additional filtering step which takes place in callbacks after
-    // filtering by matchingDict
+    // Additional filtering step which takes place in callbacks after filtering by matchingDict.
+    // Allows for finer-grained filtering based on traits not expressible through dictionary filtering.
     bool shouldNotify(DADiskRef disk) const noexcept
     {
         return shouldNotify(UniqueCFRef<CFDictionaryRef>(DADiskCopyDescription(disk)));
@@ -133,11 +139,21 @@ public:
     virtual bool shouldNotify(CFDictionaryRef diskDescription) const noexcept = 0;
 
 protected:
+    // Add a drive to the parent DriveNotifyOsx object.
     void addDrive(CFURLRef path, bool connected);
 
+    // Callback for when a disk appears to DAF.
+    // Disk appearance means when a DAF session becomes aware of a disk. This includes disks that were
+    // connected before the DAF session began.
     static void onDiskAppeared(DADiskRef disk, void* context);
+
+    // Callback for when a disk disappears to DAF.
+    // This callback fires for disks that are ejected or also yanked without proper ejection/unmounting.
     static void onDiskDisappeared(DADiskRef disk, void* context);
 
+    // Callback for when a disk's description changes, adding or removing keys from the description dict.
+    // In practice we are only interested in the appearance or disappearance of Volume Path, but greater
+    // filtering is possible with changedKeys.
     static void onDiskDescriptionChanged(DADiskRef disk, CFArrayRef changedKeys, void* context)
     {
         auto& self = castSelf(context);
@@ -146,7 +162,8 @@ protected:
         self.onDiskDescriptionChangedImpl(disk, changedKeys, context);
     }
 
-    // Approval callbacks in Disk Arbitration framework allow for operations to be disapproved which is out of scope
+    // Callback for approval to unmount a disk.
+    // Note: Approval callbacks in Disk Arbitration framework allow for operations to be disapproved which is out of scope
     // for our application so this returns null unconditionally and the impl method is void
     static DADissenterRef onUnmountApproval(DADiskRef disk, void* context);
 
@@ -165,6 +182,7 @@ private:
     // Perform additional processing on a disappearing disk, if applicable
     virtual void processDisappeared(CFDictionaryRef diskDescription) {}
 
+    // The implementation of an onDiskDescriptionChanged callback.
     virtual void onDiskDescriptionChangedImpl(DADiskRef disk, CFArrayRef changedKeys, void* context)
     {       
     }
@@ -175,7 +193,13 @@ private:
 // Callbacks for physical media such as USB Drives
 // Unlike network drives, there are various points in the lifetime of a DADiskRef object where its path
 // is null. The callbacks below handle various cases related to ejection or physical removal of disks,
-// and disks whose mounting occurs before or after program start
+// and disks whose mounting occurs before or after program start.
+// Disk appearance:
+//  - if the disk was already plugged in before session start, onDiskAppeared is called with a volume path present
+//  - else, we have to wait for the path to appear in onDiskDescriptionChanged with a volume path
+// Disk disappearance:
+//  - if the disk is yanked without ejecting, it appears in onDiskDisappeared with a volume path present
+//  - else, we get the volume path in onUnmountApproval and mark it as removed there. 
 class PhysicalMediaCallbacks : public MediaTypeCallbacks {
 public:
     PhysicalMediaCallbacks(DriveNotifyOsx& parent);
@@ -187,9 +211,12 @@ public:
     bool shouldNotify(CFDictionaryRef diskDescription) const noexcept override;
 
 private:
+    // Register unmount approval and description changed callbacks. 
     void registerAdditionalCallbacks(DASessionRef session) override;
 
     // If a disk appears with no path, store it for later notification in the pending collection
+    // Physical media plugged in after the start of a DAF session shows to onDiskAppeared with no
+    // volume path, so we store it for later registration.
     void noPathAppeared(CFDictionaryRef diskDescription) override;
 
     // If a disk disappears, remove it from the pending collection
@@ -213,7 +240,8 @@ private:
 
 // Callbacks for Network Attached Storage
 // Unlike PhysicalMedia, for NetworkDrive storage the Volume Path is always known at time of onDiskAppeared
-// This implementation does not override any of the stub methods related to onDiskDescriptionChanged
+// and onDiskDisappeared. Thus we do not override any of the specific helper methods or other callbacks, and
+// no additional callbacks are registered.
 class NetworkDriveCallbacks : public MediaTypeCallbacks {
 public:
     NetworkDriveCallbacks(DriveNotifyOsx& parent);
@@ -236,6 +264,7 @@ public:
     ~DriveNotifyOsx() override { stop(); }
 
 protected:
+    // Provide access to add(DriveInfo&&) method
     friend MediaTypeCallbacks;
 
     bool startNotifier() override;
@@ -254,6 +283,6 @@ private:
     NetworkDriveCallbacks mNetworkCbs;
 };
 
-}
+} // namespace mega
 
 #endif // USE_DRIVE_NOTIFICATIONS

@@ -27,12 +27,17 @@
 
 namespace mega {
 
+// CFArrayRef objects need to be constructed from const C-style array.
+// We watch for changes in the Volume Path Key.
 static const CFStringRef watchArray[1] = {kDADiskDescriptionVolumePathKey};
 
 // Convenience function since CoreFoundation/DiskArbitration traffic liberally in void* pointers
 template<class T>
 void* asVoidPtr(T* t) noexcept { return reinterpret_cast<void*>(t); }
 
+// Copied from Disk Arbitration Framework documentation. In the `else` below they write:
+// "// something is *really* wrong"
+// so we throw an exception.
 static std::string toString(CFURLRef fspath)
 {
     char buf[MAXPATHLEN];
@@ -134,7 +139,10 @@ PhysicalMediaCallbacks::PhysicalMediaCallbacks(DriveNotifyOsx& parent)
             &kCFTypeDictionaryValueCallBacks);
 
 
+        // Do not match Whole Media, else we get multiple notifications for the same drive
         CFDictionaryAddValue(matchingDict, kDADiskDescriptionMediaWholeKey, kCFBooleanFalse);
+
+        // Match removable/ejectable media
         CFDictionaryAddValue(matchingDict, kDADiskDescriptionMediaRemovableKey, kCFBooleanTrue);
         CFDictionaryAddValue(matchingDict, kDADiskDescriptionMediaEjectableKey, kCFBooleanTrue);
 
@@ -196,7 +204,6 @@ void PhysicalMediaCallbacks::onDiskDescriptionChangedImpl(DADiskRef disk, CFArra
     if (!uuid) return;
 
     auto findItr = mDisksPendingPath.find(CFUUIDGetUUIDBytes(uuid));
-
     if (findItr == mDisksPendingPath.end()) return;
 
     addDrive(path, true);
