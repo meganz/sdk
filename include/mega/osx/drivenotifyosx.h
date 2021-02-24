@@ -107,6 +107,18 @@ public:
         return UniqueCFRef<CFDictionaryRef>(DADiskCopyDescription(disk));
     }
 
+    static CFURLRef volumePath(CFDictionaryRef diskDescription)
+    {
+        return reinterpret_cast<CFURLRef>(
+            CFDictionaryGetValue(diskDescription, kDADiskDescriptionVolumePathKey));
+    }
+
+    static CFUUIDRef volumeUUID(CFDictionaryRef diskDescription)
+    {
+        return reinterpret_cast<CFUUIDRef>(
+            CFDictionaryGetValue(diskDescription, kDADiskDescriptionVolumeUUIDKey));
+    }
+
     MediaTypeCallbacks(DriveNotifyOsx& parent)
         : mParent(&parent)
     {}

@@ -94,8 +94,7 @@ void MediaTypeCallbacks::onDiskAppeared(DADiskRef disk, void* context)
 
     if (!self.shouldNotify(diskDescription)) return;
 
-    auto path = reinterpret_cast<CFURLRef>(
-        CFDictionaryGetValue(diskDescription, kDADiskDescriptionVolumePathKey));
+    CFURLRef path = volumePath(diskDescription);
 
     if (path)
         self.addDrive(path, true);
@@ -111,12 +110,11 @@ void MediaTypeCallbacks::onDiskDisappeared(DADiskRef disk, void* context)
 
     if (!self.shouldNotify(diskDescription)) return;
 
-    auto path = reinterpret_cast<CFURLRef>(
-        CFDictionaryGetValue(diskDescription, kDADiskDescriptionVolumePathKey));
+    CFURLRef path = volumePath(diskDescription);
 
     if (path) self.addDrive(path, false);
 
-    self.processDisappeared(diskDescription);    
+    self.processDisappeared(diskDescription);
 }
 
 DADissenterRef MediaTypeCallbacks::onUnmountApproval(DADiskRef disk, void* context)
@@ -175,32 +173,26 @@ void PhysicalMediaCallbacks::registerAdditionalCallbacks(DASessionRef session)
 
 void PhysicalMediaCallbacks::noPathAppeared(CFDictionaryRef diskDescription)
 {
-     auto uuid = reinterpret_cast<CFUUIDRef>(
-        CFDictionaryGetValue(diskDescription, kDADiskDescriptionVolumeUUIDKey));
-
-    if (uuid) mDisksPendingPath.insert(CFUUIDGetUUIDBytes(uuid));   
+    CFUUIDRef uuid = volumeUUID(diskDescription);
+    if (uuid) mDisksPendingPath.insert(CFUUIDGetUUIDBytes(uuid));
 }
 
 void PhysicalMediaCallbacks::processDisappeared(CFDictionaryRef diskDescription)
 {
-    auto uuid = reinterpret_cast<CFUUIDRef>(CFDictionaryGetValue(diskDescription, kDADiskDescriptionVolumeUUIDKey));
-
-    if (uuid) mDisksPendingPath.erase(CFUUIDGetUUIDBytes(uuid));    
+    CFUUIDRef uuid = volumeUUID(diskDescription);
+    if (uuid) mDisksPendingPath.erase(CFUUIDGetUUIDBytes(uuid));
 }
 
-// The actual onDiskDescriptionChanged callback allows for significantly greater generality than our use, which is 
+// The actual onDiskDescriptionChanged callback allows for significantly greater generality than our use, which is
 // basically just to try again performing the onDiskAppeared logic with slight modification
 void PhysicalMediaCallbacks::onDiskDescriptionChangedImpl(DADiskRef disk, CFArrayRef matchingKeys, void* context)
 {
     auto diskDescription = UniqueCFRef<CFDictionaryRef>(MediaTypeCallbacks::description(disk));
 
-    auto path = reinterpret_cast<CFURLRef>(
-        CFDictionaryGetValue(diskDescription, kDADiskDescriptionVolumePathKey));
-
+    CFURLRef path = volumePath(diskDescription);
     if (!path) return;
 
-    auto uuid = reinterpret_cast<CFUUIDRef>(CFDictionaryGetValue(diskDescription, kDADiskDescriptionVolumeUUIDKey));
-
+    CFUUIDRef uuid = volumeUUID(diskDescription);
     if (!uuid) return;
 
     auto findItr = mDisksPendingPath.find(CFUUIDGetUUIDBytes(uuid));
@@ -213,7 +205,7 @@ void PhysicalMediaCallbacks::onDiskDescriptionChangedImpl(DADiskRef disk, CFArra
 }
 
 NetworkDriveCallbacks::NetworkDriveCallbacks(DriveNotifyOsx& parent)
-    : MediaTypeCallbacks(parent), 
+    : MediaTypeCallbacks(parent),
     mMatchingDict([]{
         // Constructing with immediately invoked lambda expression to allow storage of immutable ref
         CFMutableDictionaryRef matchingDict = CFDictionaryCreateMutable(
@@ -280,39 +272,6 @@ void DriveNotifyOsx::doInThread()
 
     CFRunLoopStop(currentThread);
 }
-
-/*
-void DriveNotifyOsx::onDiskAppeared(DADiskRef disk, void* context)
-{
-    if (shouldIgnore(disk)) return;
-
-    auto& self = *reinterpret_cast<DriveNotifyOsx*>(context);
-
-    auto description = UniqueCFRef<CFDictionaryRef>(DADiskCopyDescription(disk));
-
-    auto path = reinterpret_cast<CFURLRef>(
-        CFDictionaryGetValue(description, kDADiskDescriptionVolumePathKey));
-
-    if (!path) {
-        auto uuid = reinterpret_cast<CFUUIDRef>(CFDictionaryGetValue(description, kDADiskDescriptionVolumeUUIDKey));
-        if (uuid) self.mDisksPendingPath.insert(CFUUIDGetUUIDBytes(uuid));
-
-        return;
-    }
-}
-
-void DriveNotifyOsx::onDiskDisappeared(DADiskRef disk, void* context)
-{
-    if (shouldIgnore(disk)) return;
-
-    auto& self = *reinterpret_cast<DriveNotifyOsx*>(context);
-
-    auto description = UniqueCFRef<CFDictionaryRef>(DADiskCopyDescription(disk));
-
-    auto uuid = reinterpret_cast<CFUUIDRef>(CFDictionaryGetValue(description, kDADiskDescriptionVolumeUUIDKey));
-    if (uuid) self.mDisksPendingPath.erase(CFUUIDGetUUIDBytes(uuid));
-}
-*/
 
 } // namespace mega
 
