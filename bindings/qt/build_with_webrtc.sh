@@ -44,7 +44,7 @@ if [ "$1" == "clean" ]; then
 fi
 
 pushd "${WEBRTC_SRC}" > /dev/null
-if [ "9c99b7964fabb16a022293ffbd2804f9b46551f6" != "`git rev-parse HEAD`" ]; then
+if [ "41bfcf4a63611409220fcd458a03deaa2cd23619" != "`git rev-parse HEAD`" ]; then
   echo ""
   echo "* WARNING!!"
   echo "* You are not using our recommended commit of WebRTC: 41bfcf4a63611409220fcd458a03deaa2cd23619 (branch-heads/4405)"
