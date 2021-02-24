@@ -19,13 +19,29 @@
  * program.
  */
 
-#ifdef USE_DRIVE_NOTIFICATIONS
+#if 1//def USE_DRIVE_NOTIFICATIONS
 
 #include "mega/drivenotify.h"
+
+#include <sys/param.h>
 
 namespace mega {
 
 static const CFStringRef watchArray[1] = {kDADiskDescriptionVolumePathKey};
+
+// Convenience function since CoreFoundation/DiskArbitration traffic liberally in void* pointers
+template<class T>
+void* asVoidPtr(T* t) noexcept { return reinterpret_cast<void*>(t); }
+
+static std::string toString(CFURLRef fspath)
+{
+    char buf[MAXPATHLEN];
+    if (CFURLGetFileSystemRepresentation(fspath, false, reinterpret_cast<UInt8*>(buf), sizeof(buf))) {
+        return buf;
+    }
+
+    throw std::runtime_error("Unable to resolve path from filesystem URL");
+}
 
 
 // See note here regarding callback registration/unregistration:
@@ -41,31 +57,77 @@ void MediaTypeCallbacks::registerCallbacks(DASessionRef session)
         session,
         matchingDict(),
         &MediaTypeCallbacks::onDiskAppeared,
-        voidSelf());
+        asVoidPtr(this));
 
     DARegisterDiskDisappearedCallback(
         session,
         matchingDict(),
         &MediaTypeCallbacks::onDiskDisappeared,
-        voidSelf());
+        asVoidPtr(this));
 
-    DARegisterDiskDescriptionChangedCallback(
-        session,
-        matchingDict(),
-        keysToMonitor(),
-        &MediaTypeCallbacks::onDiskDescriptionChanged,
-        voidSelf());
+    registerAdditionalCallbacks(session);
 }
 
 void MediaTypeCallbacks::unregisterCallbacks(DASessionRef session)
 {
-    DAUnregisterCallback(session, &MediaTypeCallbacks::onDiskAppeared, voidSelf());
-    DAUnregisterCallback(session, &MediaTypeCallbacks::onDiskDisappeared, voidSelf());
-    DAUnregisterCallback(session, &MediaTypeCallbacks::onDiskDescriptionChanged, voidSelf());
+    DAUnregisterCallback(session, asVoidPtr(&MediaTypeCallbacks::onDiskAppeared), asVoidPtr(this));
+    DAUnregisterCallback(session, asVoidPtr(&MediaTypeCallbacks::onDiskDisappeared), asVoidPtr(this));
+
+    DAUnregisterCallback(session, asVoidPtr(&MediaTypeCallbacks::onDiskDescriptionChanged), asVoidPtr(this));
+
+    DAUnregisterApprovalCallback(session, asVoidPtr(&MediaTypeCallbacks::onUnmountApproval), asVoidPtr(this));
 }
 
-PhysicalMediaCallbacks::PhysicalMediaCallbacks()
-    : mMatchingDict([]{
+void MediaTypeCallbacks::addDrive(CFURLRef path, bool connected)
+{
+    DriveInfo di;
+    di.mountPoint = toString(path);
+    di.connected = connected;
+    mParent->add(std::move(di));
+}
+
+void MediaTypeCallbacks::onDiskAppeared(DADiskRef disk, void* context)
+{
+    MediaTypeCallbacks& self = castSelf(context);
+
+    UniqueCFRef<CFDictionaryRef> diskDescription = description(disk);
+
+    if (!self.shouldNotify(diskDescription)) return;
+
+    auto path = reinterpret_cast<CFURLRef>(
+        CFDictionaryGetValue(diskDescription, kDADiskDescriptionVolumePathKey));
+
+    if (path)
+        self.addDrive(path, true);
+    else
+        self.noPathAppeared(diskDescription);
+}
+
+void MediaTypeCallbacks::onDiskDisappeared(DADiskRef disk, void* context)
+{
+    MediaTypeCallbacks& self = castSelf(context);
+
+    UniqueCFRef<CFDictionaryRef> diskDescription = description(disk);
+
+    if (!self.shouldNotify(diskDescription)) return;
+
+    auto path = reinterpret_cast<CFURLRef>(
+        CFDictionaryGetValue(diskDescription, kDADiskDescriptionVolumePathKey));
+
+    if (path) self.addDrive(path, false);
+
+    self.processDisappeared(diskDescription);    
+}
+
+DADissenterRef MediaTypeCallbacks::onUnmountApproval(DADiskRef disk, void* context)
+{
+    MediaTypeCallbacks::onDiskDisappeared(disk, context);
+    return nullptr;
+}
+
+PhysicalMediaCallbacks::PhysicalMediaCallbacks(DriveNotifyOsx& parent)
+    : MediaTypeCallbacks(parent),
+     mMatchingDict([]{
         // Constructing with immediately invoked lambda expression to allow storage of immutable ref
         CFMutableDictionaryRef matchingDict = CFDictionaryCreateMutable(
             kCFAllocatorDefault,
@@ -95,13 +157,64 @@ bool PhysicalMediaCallbacks::shouldNotify(CFDictionaryRef diskDescription) const
     return CFStringCompare(deviceProtocol, CFSTR(kIOPropertyPhysicalInterconnectTypeVirtual), 0) != kCFCompareEqualTo;
 }
 
-void PhysicalMediaCallbacks::onDiskAppeared(DADiskRef disk, void* context)
+void PhysicalMediaCallbacks::registerAdditionalCallbacks(DASessionRef session)
 {
+    DARegisterDiskDescriptionChangedCallback(
+        session,
+        matchingDict(),
+        mKeysToMonitor,
+        &MediaTypeCallbacks::onDiskDescriptionChanged,
+        asVoidPtr(this));
 
+    DARegisterDiskUnmountApprovalCallback(
+        session,
+        matchingDict(),
+        &MediaTypeCallbacks::onUnmountApproval,
+        asVoidPtr(this));
 }
 
-NetworkDriveCallbacks::NetworkDriveCallbacks()
-    : mMatchingDict([]{
+void PhysicalMediaCallbacks::noPathAppeared(CFDictionaryRef diskDescription)
+{
+     auto uuid = reinterpret_cast<CFUUIDRef>(
+        CFDictionaryGetValue(diskDescription, kDADiskDescriptionVolumeUUIDKey));
+
+    if (uuid) mDisksPendingPath.insert(CFUUIDGetUUIDBytes(uuid));   
+}
+
+void PhysicalMediaCallbacks::processDisappeared(CFDictionaryRef diskDescription)
+{
+    auto uuid = reinterpret_cast<CFUUIDRef>(CFDictionaryGetValue(diskDescription, kDADiskDescriptionVolumeUUIDKey));
+
+    if (uuid) mDisksPendingPath.erase(CFUUIDGetUUIDBytes(uuid));    
+}
+
+// The actual onDiskDescriptionChanged callback allows for significantly greater generality than our use, which is 
+// basically just to try again performing the onDiskAppeared logic with slight modification
+void PhysicalMediaCallbacks::onDiskDescriptionChangedImpl(DADiskRef disk, CFArrayRef matchingKeys, void* context)
+{
+    auto diskDescription = UniqueCFRef<CFDictionaryRef>(MediaTypeCallbacks::description(disk));
+
+    auto path = reinterpret_cast<CFURLRef>(
+        CFDictionaryGetValue(diskDescription, kDADiskDescriptionVolumePathKey));
+
+    if (!path) return;
+
+    auto uuid = reinterpret_cast<CFUUIDRef>(CFDictionaryGetValue(diskDescription, kDADiskDescriptionVolumeUUIDKey));
+
+    if (!uuid) return;
+
+    auto findItr = mDisksPendingPath.find(CFUUIDGetUUIDBytes(uuid));
+
+    if (findItr == mDisksPendingPath.end()) return;
+
+    addDrive(path, true);
+
+    mDisksPendingPath.erase(findItr);
+}
+
+NetworkDriveCallbacks::NetworkDriveCallbacks(DriveNotifyOsx& parent)
+    : MediaTypeCallbacks(parent), 
+    mMatchingDict([]{
         // Constructing with immediately invoked lambda expression to allow storage of immutable ref
         CFMutableDictionaryRef matchingDict = CFDictionaryCreateMutable(
             kCFAllocatorDefault,
@@ -123,6 +236,12 @@ bool NetworkDriveCallbacks::shouldNotify(CFDictionaryRef diskDescription) const 
     return CFStringCompare(volumeKind, CFSTR("autofs"), 0) != kCFCompareEqualTo;
 }
 
+DriveNotifyOsx::DriveNotifyOsx()
+    : mSession(DASessionCreate(kCFAllocatorDefault)),
+    mPhysicalCbs(*this),
+    mNetworkCbs(*this)
+{}
+
 bool DriveNotifyOsx::startNotifier()
 {
     if (mEventSinkThread.joinable() || mStop.load()) return false;
@@ -142,13 +261,13 @@ void DriveNotifyOsx::stopNotifier()
     mStop.store(true);
     mEventSinkThread.join();
 
-    mPhysicalCbs.unregisterCallbacks(session);
-    mNetworkCbs.unregisterCallbacks(session);
+    mPhysicalCbs.unregisterCallbacks(mSession);
+    mNetworkCbs.unregisterCallbacks(mSession);
 
     mStop.store(false);
 }
 
-bool DriveNotifyOsx::doInThread()
+void DriveNotifyOsx::doInThread()
 {
     CFRunLoopRef currentThread = CFRunLoopGetCurrent();
 
@@ -162,6 +281,7 @@ bool DriveNotifyOsx::doInThread()
     CFRunLoopStop(currentThread);
 }
 
+/*
 void DriveNotifyOsx::onDiskAppeared(DADiskRef disk, void* context)
 {
     if (shouldIgnore(disk)) return;
@@ -192,6 +312,7 @@ void DriveNotifyOsx::onDiskDisappeared(DADiskRef disk, void* context)
     auto uuid = reinterpret_cast<CFUUIDRef>(CFDictionaryGetValue(description, kDADiskDescriptionVolumeUUIDKey));
     if (uuid) self.mDisksPendingPath.erase(CFUUIDGetUUIDBytes(uuid));
 }
+*/
 
 } // namespace mega
 
