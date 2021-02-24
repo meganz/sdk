@@ -48,20 +48,6 @@ struct CoreFoundationDeleter {
     }
 };
 
-// Incomplete class for partial template specialization deduction
-// Complex CoreFoundation types such as dictionary or array are passed around as, e.g.,
-// CFArrayRef or CFDictionaryRef,
-// which are typedefs pointers to implementation-defined types not meant to be named or instantiated
-// by users. Since unique_ptr<T> holds a T*, but we can't name T, the classes below serve
-// as type deduction helpers. 
-template<class T>
-struct UniqueCFRefImpl;
-
-template<class T>
-struct UniqueCFRefImpl<T*> {
-    using type = std::unique_ptr<T, CoreFoundationDeleter>;
-};
-
 // Key comparison operator< for set<CFUUIDBytes>. 
 struct UUIDLess {
     bool operator()(const CFUUIDBytes& u1, const CFUUIDBytes& u2) const noexcept
@@ -77,7 +63,11 @@ struct UUIDLess {
 // https://developer.apple.com/library/archive/documentation/CoreFoundation/Conceptual/CFMemoryMgmt/Concepts/Ownership.html#//apple_ref/doc/uid/20001148-103029
 template<class T>
 class UniqueCFRef {
-using Ptr = typename detail::UniqueCFRefImpl<T>::type;
+private:
+    // CoreFoundation types such as dict, array, etc are passed around as CFDictionaryRef, CFArrayRef.
+    // These Ref types are type aliases to implementation-defined "unutterable" types.
+    // Thus we use the type alias below since unique_ptr<T> holds a pointer to T, but we cannot name T.
+    using Ptr = std::unique_ptr<typename std::remove_pointer<T>::type, detail::CoreFoundationDeleter>;
 public:
     using pointer = typename Ptr::pointer;
 
