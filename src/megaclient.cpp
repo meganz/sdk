@@ -4043,6 +4043,12 @@ void MegaClient::logout(bool keepSyncConfigsFile)
         return;
     }
 
+    // if logging out and syncs won't be kept...
+    if (!keepSyncConfigsFile)
+    {
+        syncs.removeSelectedSyncs([](SyncConfig&, Sync*) { return true; });
+    }
+
     loggingout++;
     reqs.add(new CommandLogout(this, keepSyncConfigsFile));
 }
