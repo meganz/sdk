@@ -177,7 +177,7 @@ private:
     virtual void registerAdditionalCallbacks(DASessionRef session) {}
 
     // Handle the appearance of a disk with no Volume Path key, if applicable
-    virtual void noPathAppeared(CFDictionaryRef diskDescription) {}
+    virtual void handleNoPathAppeared(CFDictionaryRef diskDescription) {}
 
     // Perform additional processing on a disappearing disk, if applicable
     virtual void processDisappeared(CFDictionaryRef diskDescription) {}
@@ -217,7 +217,7 @@ private:
     // If a disk appears with no path, store it for later notification in the pending collection
     // Physical media plugged in after the start of a DAF session shows to onDiskAppeared with no
     // volume path, so we store it for later registration.
-    void noPathAppeared(CFDictionaryRef diskDescription) override;
+    void handleNoPathAppeared(CFDictionaryRef diskDescription) override;
 
     // If a disk disappears, remove it from the pending collection
     void processDisappeared(CFDictionaryRef diskDescription) override;

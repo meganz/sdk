@@ -104,7 +104,7 @@ void MediaTypeCallbacks::onDiskAppeared(DADiskRef disk, void* context)
     if (path)
         self.addDrive(path, true);
     else
-        self.noPathAppeared(diskDescription);
+        self.handleNoPathAppeared(diskDescription);
 }
 
 void MediaTypeCallbacks::onDiskDisappeared(DADiskRef disk, void* context)
@@ -179,7 +179,7 @@ void PhysicalMediaCallbacks::registerAdditionalCallbacks(DASessionRef session)
         asVoidPtr(this));
 }
 
-void PhysicalMediaCallbacks::noPathAppeared(CFDictionaryRef diskDescription)
+void PhysicalMediaCallbacks::handleNoPathAppeared(CFDictionaryRef diskDescription)
 {
     CFUUIDRef uuid = volumeUUID(diskDescription);
     if (uuid) mDisksPendingPath.insert(CFUUIDGetUUIDBytes(uuid));
