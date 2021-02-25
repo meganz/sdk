@@ -488,7 +488,9 @@ void CurlHttpIO::filterDNSservers()
 
 void CurlHttpIO::addaresevents(Waiter *waiter)
 {
+#ifdef MEGA_MEASURE_CODE
     CodeCounter::ScopeTimer ccst(countAddAresEventsCode);
+#endif
 
     SockInfoMap prevAressockets;   // if there are SockInfo records that were in use, and won't be anymore, they will be deleted with this
     prevAressockets.swap(aressockets);
@@ -564,7 +566,9 @@ void CurlHttpIO::addaresevents(Waiter *waiter)
 
 void CurlHttpIO::addcurlevents(Waiter *waiter, direction_t d)
 {
+#ifdef MEGA_MEASURE_CODE
     CodeCounter::ScopeTimer ccst(countAddCurlEventsCode);
+#endif
 
 #if defined(_WIN32)
     bool anyWriters = false;
@@ -641,7 +645,9 @@ void CurlHttpIO::closecurlevents(direction_t d)
 
 void CurlHttpIO::processaresevents()
 {
+#ifdef MEGA_MEASURE_CODE
     CodeCounter::ScopeTimer ccst(countProcessAresEventsCode);
+#endif
 
 #ifndef _WIN32
     auto *rfds = &((PosixWaiter *)waiter)->rfds;
@@ -681,7 +687,9 @@ void CurlHttpIO::processaresevents()
 
 void CurlHttpIO::processcurlevents(direction_t d)
 {
+#ifdef MEGA_MEASURE_CODE
     CodeCounter::ScopeTimer ccst(countProcessCurlEventsCode);
+#endif
 
 #ifndef _WIN32
     auto *rfds = &((PosixWaiter *)waiter)->rfds;
@@ -910,7 +918,9 @@ m_off_t CurlHttpIO::getmaxuploadspeed()
 // wake up from cURL I/O
 void CurlHttpIO::addevents(Waiter* w, int)
 {
+#ifdef MEGA_MEASURE_CODE
     CodeCounter::ScopeTimer ccst(countCurlHttpIOAddevents);
+#endif
 
     waiter = (WAIT_CLASS*)w;
     long curltimeoutms = -1;

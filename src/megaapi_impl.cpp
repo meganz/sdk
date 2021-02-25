@@ -18152,7 +18152,8 @@ MegaNode* MegaApiImpl::getChildNodeTypeByName(MegaNode *parent, const char *name
         return nullptr;
     }
 
-    SdkMutexGuard guard(sdkMutex);    Node *parentNode = client->nodebyhandle(parent->getHandle());
+    SdkMutexGuard guard(sdkMutex);
+    Node *parentNode = client->nodebyhandle(parent->getHandle());
     if (!parentNode || parentNode->type == FILENODE)
     {
         return nullptr;
@@ -25767,7 +25768,7 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
            break;
         }
 
-        if (!t->megaNode && tree.megaNode) // check if our last call creaated it (or it always existed)
+        if (!t->megaNode && tree.megaNode) // check if our last call created it (or it always existed)
         {
             t->megaNode.reset(megaApi->getChildNodeTypeByName(tree.megaNode.get(), t->folderName.c_str(), MegaNode::TYPE_FOLDER));
         }
