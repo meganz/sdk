@@ -41,7 +41,8 @@ void* asVoidPtr(T* t) noexcept { return reinterpret_cast<void*>(t); }
 static std::string toString(CFURLRef fspath)
 {
     char buf[MAXPATHLEN];
-    if (CFURLGetFileSystemRepresentation(fspath, false, reinterpret_cast<UInt8*>(buf), sizeof(buf))) {
+    if (CFURLGetFileSystemRepresentation(fspath, false, reinterpret_cast<UInt8*>(buf), sizeof(buf))) 
+    {
         return buf;
     }
 
@@ -101,10 +102,14 @@ void MediaTypeCallbacks::onDiskAppeared(DADiskRef disk, void* context)
 
     CFURLRef path = volumePath(diskDescription);
 
-    if (path)
+    if (path) 
+    {
         self.addDrive(path, true);
+    }
     else
+    {
         self.handleNoPathAppeared(diskDescription);
+    }
 }
 
 void MediaTypeCallbacks::onDiskDisappeared(DADiskRef disk, void* context)
