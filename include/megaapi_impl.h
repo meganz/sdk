@@ -291,12 +291,6 @@ protected:
     // if set, symlinks will be followed
     bool mFollowsymlinks;
 
-    // maps tempHandle to definitive handle
-    map<handle, handle> mNewNodesResult;
-
-    // maps parent handle to vector of LocalPath of it's children
-    map<handle, vector<LocalPath>> mFolderToPendingFiles;
-
     // Random number generator and cipher to avoid using client's which would cause threading corruption
     PrnGen rng;
     SymmCipher tmpnodecipher;
@@ -312,13 +306,14 @@ protected:
         // represents the node name in case of folder type
         string folderName;
 
-        // represents the node  of the current tree
+        // Only figure out the fs type per folder (and on the worker thread), as it is expensive
+		FileSystemType fsType;
+
+        // If there is already a cloud node with this name for this parent, this is set
+        // It also becomes set after we have created a cloud node for this folder
         unique_ptr<MegaNode> megaNode;
 
-        // temporal handle assigned to new folder that will be created
-        handle tmpCreateFolderHandle = UNDEF;
-
-        // if we need to create a folder, this is present
+        // Otherwise this is the record we will send to create this folder
         NewNode newnode;
 
         // files to upload to this folder

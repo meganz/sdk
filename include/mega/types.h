@@ -768,18 +768,22 @@ namespace CodeCounter
         uint64_t starts = 0;
         uint64_t finishes = 0;
         high_resolution_clock::duration timeSpent{};
+        high_resolution_clock::duration longest{};
         std::string name;
         ScopeStats(std::string s) : name(std::move(s)) {}
 
         inline string report(bool reset = false)
         {
-            string s = " " + name + ": " + std::to_string(count) + " " + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(timeSpent).count());
+            string s = " " + name + ": " + std::to_string(count) + " " +
+                    std::to_string(duration_cast<milliseconds>(timeSpent).count()) + " " +
+                    std::to_string(duration_cast<milliseconds>(longest).count());
             if (reset)
             {
                 count = 0;
                 starts -= finishes;
                 finishes = 0;
                 timeSpent = high_resolution_clock::duration{};
+                longest = high_resolution_clock::duration{};
             }
             return s;
         }
@@ -814,6 +818,7 @@ namespace CodeCounter
 #ifdef MEGA_MEASURE_CODE
         ScopeStats& scope;
         high_resolution_clock::time_point blockStart;
+        high_resolution_clock::duration diff{};
         bool done = false;
 
         ScopeTimer(ScopeStats& sm) : scope(sm), blockStart(high_resolution_clock::now())
@@ -822,14 +827,20 @@ namespace CodeCounter
         }
         ~ScopeTimer()
         {
-            if (!done) complete();
+            complete();
         }
         void complete()
         {
-            ++scope.count;
-            ++scope.finishes;
-            scope.timeSpent += high_resolution_clock::now() - blockStart;
-            done = true;
+            // can be called early in which case the destructor's call is ignored
+            if (!done)
+            {
+                ++scope.count;
+                ++scope.finishes;
+                diff = high_resolution_clock::now() - blockStart;
+                scope.timeSpent += diff;
+                if (diff > scope.longest) scope.longest = diff;
+                done = true;
+            }
         }
 #else
         ScopeTimer(ScopeStats& sm) {}

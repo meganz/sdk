@@ -220,11 +220,14 @@ public:
 private:
     static int instanceCount;
 
+#ifdef MEGA_MEASURE_CODE
+    friend class MegaClient;
     CodeCounter::ScopeStats countCurlHttpIOAddevents = { "curl-httpio-addevents" };
     CodeCounter::ScopeStats countAddAresEventsCode = { "ares-add-events" };
     CodeCounter::ScopeStats countAddCurlEventsCode = { "curl-add-events" };
     CodeCounter::ScopeStats countProcessAresEventsCode = { "ares-process-events" };
     CodeCounter::ScopeStats countProcessCurlEventsCode = { "curl-process-events" };
+#endif
 };
 
 struct MEGA_API CurlHttpContext

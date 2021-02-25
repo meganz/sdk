@@ -18135,17 +18135,14 @@ MegaNode *MegaApiImpl::getChildNode(MegaNode *parent, const char* name)
         return NULL;
     }
 
-    sdkMutex.lock();
+    SdkMutexGuard guard(sdkMutex);
     Node *parentNode = client->nodebyhandle(parent->getHandle());
     if (!parentNode || parentNode->type == FILENODE)
     {
-        sdkMutex.unlock();
         return NULL;
     }
 
-    MegaNode *node = MegaNodePrivate::fromNode(client->childnodebyname(parentNode, name));
-    sdkMutex.unlock();
-    return node;
+    return MegaNodePrivate::fromNode(client->childnodebyname(parentNode, name));
 }
 
 MegaNode* MegaApiImpl::getChildNodeTypeByName(MegaNode *parent, const char *name, int type)
@@ -18155,18 +18152,13 @@ MegaNode* MegaApiImpl::getChildNodeTypeByName(MegaNode *parent, const char *name
         return nullptr;
     }
 
-    sdkMutex.lock();
-    Node *parentNode = client->nodebyhandle(parent->getHandle());
+    SdkMutexGuard guard(sdkMutex);    Node *parentNode = client->nodebyhandle(parent->getHandle());
     if (!parentNode || parentNode->type == FILENODE)
     {
-        sdkMutex.unlock();
         return nullptr;
     }
 
-
-    MegaNode *node = MegaNodePrivate::fromNode(client->childNodeTypeByName(parentNode, name, static_cast<nodetype_t>(type)));
-    sdkMutex.unlock();
-    return node;
+    return MegaNodePrivate::fromNode(client->childNodeTypeByName(parentNode, name, static_cast<nodetype_t>(type)));
 }
 
 Node *MegaApiImpl::getNodeByFingerprintInternal(const char *fingerprint)
@@ -18600,6 +18592,8 @@ void MegaApiImpl::executeOnThread(shared_ptr<ExecuteOnce> f)
 
 unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue)
 {
+    CodeCounter::ScopeTimer ccst(client->performanceStats.megaapiSendPendingTransfers);
+
     auto t0 = std::chrono::steady_clock::now();
     unsigned count = 0;
 
@@ -22203,7 +22197,6 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_SEND_DEV_COMMAND:
         {
-            const char *email = request->getEmail();
             const char *command = request->getName();
             if (!command)
             {
@@ -22211,10 +22204,11 @@ void MegaApiImpl::sendPendingRequests()
                 break;
             }
 
+#ifdef DEBUG
+            const char* email = request->getEmail();
             long long q = request->getTotalBytes();
             int bs = request->getAccess();
             int us = request->getNumDetails();
-#ifdef DEBUG
 
             bool isOdqSubcmd = !strcmp(command, "aodq");
             bool isTqSubcmd = !strcmp(command, "tq");
@@ -25444,8 +25438,11 @@ void MegaFolderUploadController::start(MegaNode*)
     newTreeNode->megaNode.reset(megaApi->getChildNode(mUploadTree.megaNode.get(), leaf.c_str()));
     if (!newTreeNode->megaNode)
     {
+        newTreeNode->folderName = leaf;
+        newTreeNode->fsType = fsaccess->getlocalfstype(path);
+
         MegaClient::putnodes_prepareOneFolder(&newTreeNode->newnode, leaf, rng, tmpnodecipher);
-        newTreeNode->newnode.nodehandle = newTreeNode->tmpCreateFolderHandle = nextUploadId();
+        newTreeNode->newnode.nodehandle = nextUploadId();
         newTreeNode->newnode.parenthandle = UNDEF;
     }
 
@@ -25727,23 +25724,17 @@ bool MegaFolderUploadController::scanFolder(Tree& tree, LocalPath& localPath)
         else if (dirEntryType == FOLDERNODE)
         {
             // generate new subtree
-            string folderName = localname.toName(*fsaccess, fsType);
             unique_ptr<Tree> newTreeNode(new Tree);
-            newTreeNode->megaNode.reset(megaApi->getChildNode(tree.megaNode.get(), folderName.c_str()));
+            newTreeNode->folderName = localname.toName(*fsaccess, fsType);
+            newTreeNode->fsType = fsaccess->getlocalfstype(localPath);
 
-            // if folder exists, call scanFolderNode with folder handle as target handle for the new subtree
-            bool existsRemotely = newTreeNode->megaNode && newTreeNode->megaNode->getType() == dirEntryType;
-            if (!existsRemotely)
-            {
-                // generate fresh random key and node attributes
-                MegaClient::putnodes_prepareOneFolder(&newTreeNode->newnode, folderName, rng, tmpnodecipher);
+            // generate fresh random key and node attributes
+            MegaClient::putnodes_prepareOneFolder(&newTreeNode->newnode, newTreeNode->folderName, rng, tmpnodecipher);
 
-                // set nodeHandle
-                newTreeNode->newnode.nodehandle = newTreeNode->tmpCreateFolderHandle = nextUploadId();
+            // set nodeHandle
+            newTreeNode->newnode.nodehandle = nextUploadId();
+            newTreeNode->newnode.parenthandle = tree.newnode.nodehandle;
 
-                // set parent handle for newnodes batch (if it's parent exists remotely, set to UNDEF, otherwise use it's temporal nodeHandle)
-                newTreeNode->newnode.parenthandle = tree.megaNode ? UNDEF : tree.tmpCreateFolderHandle;
-            }
             if (!scanFolder(*newTreeNode, localPath))
             {
                 recursive--;
@@ -25776,23 +25767,19 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
            break;
         }
 
-        if (!t->megaNode) // if meganode didn't exist yet, search it by temporal nodeHandle in mNewNodesResult
+        if (!t->megaNode && tree.megaNode) // check if our last call creaated it (or it always existed)
         {
-            auto it = mNewNodesResult.find(t->tmpCreateFolderHandle);
-            if (it != mNewNodesResult.end())
-            {
-                // we have found node by temp nodeHandle
-                t->megaNode.reset(megaApi->getNodeByHandle(it->second));
-            }
+            t->megaNode.reset(megaApi->getChildNodeTypeByName(tree.megaNode.get(), t->folderName.c_str(), MegaNode::TYPE_FOLDER));
         }
 
-        // if node doesn't exists yet and we haven't exceeded the limit per batch
+        // if node doesn't exist yet and we haven't exceeded the limit per batch
         if (!t->megaNode && newnodes.size() < MAXNODESUPLOAD)
         {
             if (isBatchRootLevel)
             {
-                /* the parent of the root newNode (for current batch) must already exists in remote,
+                /* the parent of the root newNode (for current batch) must already exist in remote,
                  * so parent handle for root newNode must be UNDEF */
+                assert(tree.megaNode);
                 t->newnode.parenthandle = UNDEF;
             }
             newnodes.push_back(std::move(t->newnode));
@@ -25831,12 +25818,6 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
                 }
                 else
                 {
-                    for (auto& n : nn)
-                    {
-                        // map temp node handle to definitive one
-                        mNewNodesResult[n.nodehandle] = n.mAddedHandle;
-                    }
-
                     // start the next batch, if there are any left
                     vector<NewNode> newnodes;
                     if (!createNextFolderBatch(mUploadTree, newnodes, true))
@@ -25873,10 +25854,9 @@ void MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
 
     for (const auto& localpath : tree.files)
     {
-        FileSystemType fsType = fsaccess->getlocalfstype(localpath);
         MegaTransferPrivate *transfer = megaApi->createUploadTransfer(false, localpath.toPath(*fsaccess).c_str(),
                                                                       tree.megaNode.get(), nullptr, (const char*)NULL,
-                                                                      -1, tag, false, NULL, false, false, fsType, this);
+                                                                      -1, tag, false, NULL, false, false, tree.fsType, this);
         transferQueue.push(transfer);
         pendingTransfers++;
     }

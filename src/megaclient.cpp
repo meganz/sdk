@@ -1059,7 +1059,7 @@ vector<Node*> MegaClient::childnodesbyname(Node* p, const char* name, bool skipf
 
 Node* MegaClient::childNodeTypeByName(Node *p, const char *name, nodetype_t type)
 {
-    if (!name || !p || (p->type != FILENODE && p->type != FOLDERNODE))
+    if (!name || !p || p->type == FILENODE)   // parent't can't be a file (or we're looking at versions), but could be FOLDERNODE, ROOTNODE, etc
     {
         return nullptr;
     }
@@ -1783,6 +1783,8 @@ void MegaClient::exec()
                         {
                             if (*pendingcs->in.c_str() == '[')
                             {
+                                CodeCounter::ScopeTimer ccst(performanceStats.csSuccessProcessingTime);
+
                                 if (fetchingnodes && fnstats.timeToFirstByte == NEVER)
                                 {
                                     WAIT_CLASS::bumpds();
@@ -3042,14 +3044,16 @@ void MegaClient::exec()
     }
 
 #ifdef MEGA_MEASURE_CODE
+    ccst.complete();
     performanceStats.transfersActiveTime.start(!tslots.empty() && !performanceStats.transfersActiveTime.inprogress());
     performanceStats.transfersActiveTime.stop(tslots.empty() && performanceStats.transfersActiveTime.inprogress());
 
     static auto lasttime = Waiter::ds;
-    if (Waiter::ds > lasttime + 1200)
+    if (Waiter::ds > lasttime + 30)
     {
         lasttime = Waiter::ds;
-        LOG_info << performanceStats.report(false, httpio, waiter, reqs);
+        static bool reset = false; // so we can set in debugger if needed
+        LOG_info << performanceStats.report(reset, httpio, waiter, reqs);
     }
 #endif
 }
@@ -15781,6 +15785,7 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
         << doWait.report(reset) << "\n"
         << checkEvents.report(reset) << "\n"
         << execFunction.report(reset) << "\n"
+        << megaapiSendPendingTransfers.report(reset) << "\n"
         << transferslotDoio.report(reset) << "\n"
         << execdirectreads.report(reset) << "\n"
         << transferComplete.report(reset) << "\n"
@@ -15788,6 +15793,7 @@ std::string MegaClient::PerformanceStats::report(bool reset, HttpIO* httpio, Wai
         << applyKeys.report(reset) << "\n"
         << scProcessingTime.report(reset) << "\n"
         << csResponseProcessingTime.report(reset) << "\n"
+        << csSuccessProcessingTime.report(reset) << "\n"
         << " cs Request waiting time: " << csRequestWaitTime.report(reset) << "\n"
         << " cs requests sent/received: " << reqs.csRequestsSent << "/" << reqs.csRequestsCompleted << " batches: " << reqs.csBatchesSent << "/" << reqs.csBatchesReceived << "\n"
         << " transfers active time: " << transfersActiveTime.report(reset) << "\n"
