@@ -1319,7 +1319,7 @@ struct StandardClient : public MegaApp
         out() << "looking up id " << backupId << '\n';
 
         client.syncs.forEachUnifiedSync([](UnifiedSync& us){
-            out() << " ids are: " << us.mConfig.mBackupId << '\n';
+            out() << " ids are: " << us.mConfig.mBackupId << " with local path '" << us.mConfig.getLocalPath().toPath(*us.mClient.fsaccess) << "'\n";
         });
 
 
