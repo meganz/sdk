@@ -5273,6 +5273,11 @@ void MegaApi::joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestList
     pImpl->joinChatCall(chatid, callid, listener);
 }
 
+void MegaApi::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, MegaRequestListener *listener)
+{
+    pImpl->endChatCall(chatid, callid, reason, listener);
+}
+
 #endif
 
 bool MegaApi::isSharesNotifiable()
