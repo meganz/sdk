@@ -1314,9 +1314,16 @@ struct StandardClient : public MegaApp
         return false;
     }
 
-    SyncInfo syncSet(handle backupId) const
+    SyncInfo syncSet(handle backupId) 
     {
         SyncInfo result;
+
+        out() << "looking up id " << backupId << '\n';
+
+        client.syncs.forEachUnifiedSync([](UnifiedSync& us){
+            out() << " ids are: " << us.mConfig.mBackupId << '\n';
+        });
+
 
         assert(syncSet(backupId, result));
 
@@ -2504,9 +2511,10 @@ GTEST_TEST(Sync, BasicSync_DelLocalFolder)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), backupId1));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 
-    out() << "checking paths" << '\n';
-    LOG_debug << "checking paths";
-    for(auto& p: fs::recursive_directory_iterator(clientA1.syncSet(backupId1).localpath))
+    auto checkpath = clientA1.syncSet(backupId1).localpath.u8string();
+    out() << "checking paths " << checkpath << '\n';
+    LOG_debug << "checking paths" << checkpath;
+    for(auto& p: fs::recursive_directory_iterator(TestFS::GetTestFolder()))
     {
         out() << "checking path is present: " << p.path().u8string() << '\n';
         LOG_debug << "checking path is present: " << p.path().u8string();
