@@ -313,8 +313,6 @@ const int FOLDERNODEKEYLENGTH = 16;
 // Max nodes per putnodes command
 const unsigned MAXNODESUPLOAD = 1000;
 
-typedef list<class Sync*> sync_list;
-
 // persistent resource cache storage
 class Cacheable
 {

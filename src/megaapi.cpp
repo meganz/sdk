@@ -1205,11 +1205,6 @@ bool MegaTransfer::isSyncTransfer() const
 	return false;
 }
 
-bool MegaTransfer::isRecursiveOperation() const
-{
-    return false;
-}
-
 bool MegaTransfer::isStreamingTransfer() const
 {
 	return false;
@@ -4184,9 +4179,9 @@ MegaNode *MegaApi::getChildNode(MegaNode *parent, const char* name)
     return pImpl->getChildNode(parent, name);
 }
 
-MegaNode* MegaApi::getChildNodeTypeByName(MegaNode *parent, const char *name, int type)
+MegaNode* MegaApi::getChildNodeOfType(MegaNode *parent, const char *name, int type)
 {
-    return pImpl->getChildNodeTypeByName(parent, name, type);
+    return pImpl->getChildNodeOfType(parent, name, type);
 }
 
 MegaNode* MegaApi::getParentNode(MegaNode* n)

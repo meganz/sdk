@@ -440,7 +440,7 @@ const char *FileSystemAccess::getPathSeparator()
 #endif
 }
 
-void FileSystemAccess::normalize(string* filename)
+void FileSystemAccess::normalize(string* filename) // static
 {
     if (!filename) return;
 

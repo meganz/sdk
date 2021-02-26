@@ -40,7 +40,6 @@
 #include <cctype>
 #include <locale>
 #include <thread>
-#include <future>
 
 #ifndef _WIN32
 #ifndef _LARGEFILE64_SOURCE
@@ -2460,11 +2459,6 @@ MegaNode *MegaTransferPrivate::getPublicMegaNode() const
 bool MegaTransferPrivate::isSyncTransfer() const
 {
     return syncTransfer;
-}
-
-bool MegaTransferPrivate::isRecursiveOperation() const
-{
-    return recursiveOperation.operator bool();
 }
 
 bool MegaTransferPrivate::isStreamingTransfer() const
@@ -6495,12 +6489,6 @@ void MegaApiImpl::loop()
     sdkMutex.unlock();
 }
 
-void MegaApiImpl::createRemoteFolder(handle h, vector<NewNode>&& newnodes, const char *cauth, std::function<void(const Error&, targettype_t , vector<NewNode>&)> f)
-{
-    SdkMutexGuard g(sdkMutex);
-    client->putnodes(h, move(newnodes), cauth, move(f));
-}
-
 void MegaApiImpl::createFolder(const char *name, MegaNode *parent, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_CREATE_FOLDER, listener);
@@ -8489,9 +8477,6 @@ void MegaApiImpl::startDownload(bool startFirst, MegaNode *node, const char* loc
     waiter->notify();
 }
 
-void MegaApiImpl::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
-{ startDownload(false, node, localFolder, 0, NULL, listener); }
-
 MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNode *node, const char* localPath, int folderTransferTag, const char *appData, MegaTransferListener *listener)
 {
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
@@ -8536,6 +8521,9 @@ MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst, MegaNo
 
     return transfer;
 }
+
+void MegaApiImpl::startDownload(MegaNode *node, const char* localFolder, MegaTransferListener *listener)
+{ startDownload(false, node, localFolder, 0, NULL, listener); }
 
 void MegaApiImpl::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
 {
@@ -16655,7 +16643,7 @@ void MegaApiImpl::fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr
     }
 
     MegaTransferListener* listener = transfer->getListener();
-    if (listener /*&& !transfer->isRecursiveOperation()*/)
+    if (listener)
     {
         listener->onTransferFinish(api, transfer, e.get());
     }
@@ -18145,7 +18133,7 @@ MegaNode *MegaApiImpl::getChildNode(MegaNode *parent, const char* name)
     return MegaNodePrivate::fromNode(client->childnodebyname(parentNode, name));
 }
 
-MegaNode* MegaApiImpl::getChildNodeTypeByName(MegaNode *parent, const char *name, int type)
+MegaNode* MegaApiImpl::getChildNodeOfType(MegaNode *parent, const char *name, int type)
 {
     if (!name || !parent || (type != MegaNode::TYPE_FILE && type != MegaNode::TYPE_FOLDER))
     {
@@ -25442,7 +25430,7 @@ void MegaFolderUploadController::start(MegaNode*)
         newTreeNode->folderName = leaf;
         newTreeNode->fsType = fsaccess->getlocalfstype(path);
 
-        MegaClient::putnodes_prepareOneFolder(&newTreeNode->newnode, leaf, rng, tmpnodecipher);
+        MegaClient::putnodes_prepareOneFolder(&newTreeNode->newnode, leaf, megaapiThreadClient()->rng, megaapiThreadClient()->tmpnodecipher);
         newTreeNode->newnode.nodehandle = nextUploadId();
         newTreeNode->newnode.parenthandle = UNDEF;
     }
@@ -25770,7 +25758,7 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
 
         if (!t->megaNode && tree.megaNode) // check if our last call created it (or it always existed)
         {
-            t->megaNode.reset(megaApi->getChildNodeTypeByName(tree.megaNode.get(), t->folderName.c_str(), MegaNode::TYPE_FOLDER));
+            t->megaNode.reset(megaApi->getChildNodeOfType(tree.megaNode.get(), t->folderName.c_str(), MegaNode::TYPE_FOLDER));
         }
 
         // if node doesn't exist yet and we haven't exceeded the limit per batch
@@ -25804,7 +25792,7 @@ bool MegaFolderUploadController::createNextFolderBatch(Tree& tree, vector<NewNod
         // anymore when the request completes
         weak_ptr<MegaFolderUploadController> weak_this = shared_from_this();
 
-        megaApi->createRemoteFolder(tree.megaNode->getHandle(), std::move(newnodes), nullptr,
+        megaapiThreadClient()->putnodes(tree.megaNode->getHandle(), std::move(newnodes), nullptr,
             [this, weak_this](const Error& e, targettype_t t, vector<NewNode>& nn)
             {
                 // double check our object still exists on request completion

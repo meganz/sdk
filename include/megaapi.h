@@ -4164,13 +4164,6 @@ class MegaTransfer
         virtual bool isSyncTransfer() const;
 
         /**
-         * @brief Returns true if this transfer corresponds to a folder upload/download
-         *
-         * @return true if this transfer corresponds to a folder upload/download, otherwise false
-         */
-        virtual bool isRecursiveOperation() const;
-
-        /**
          * @brief Returns true if this transfer belongs to the backups engine
          *
          * This data is important to know if the transfer will resume when enableTransferResumption is called.
@@ -14584,9 +14577,11 @@ class MegaApi
         bool hasChildren(MegaNode *parent);
 
         /**
-         * @brief Get the child node with the provided name
+         * @brief Get the first child node with the provided name
          *
          * If the node doesn't exist, this function returns NULL
+         * It's possible to have multiple nodes with the same name.
+         * This function will return one of them.
          *
          * You take the ownership of the returned value
          *
@@ -14597,11 +14592,13 @@ class MegaApi
         MegaNode *getChildNode(MegaNode *parent, const char* name);
 
         /**
-         * @brief Get the child node with the same name and type as provided
+         * @brief Get the first child node with the name and type provided
          *
          * Allowed types for type parameter: MegaNode::TYPE_FILE, MegaNode::TYPE_FOLDER
          *
          * If the node doesn't exist, this function returns nullptr
+         * It's possible to have multiple nodes with the same name.
+         * This function will return one of them.
          *
          * You take the ownership of the returned value
          *
@@ -14610,7 +14607,7 @@ class MegaApi
          * @param type Type of the node.
          * @return The MegaNode that has the selected parent and name
          */
-        MegaNode* getChildNodeTypeByName(MegaNode *parent, const char *name, int type);
+        MegaNode* getChildNodeOfType(MegaNode *parent, const char *name, int type);
 
         /**
          * @brief Get the parent node of a MegaNode

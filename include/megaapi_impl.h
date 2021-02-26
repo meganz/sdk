@@ -326,11 +326,17 @@ protected:
 
     /* Scan entire tree recursively, and retrieve folder structure and files to be uploaded.
      * A putnodes command can only add subtrees under same target, so in case we need to add
-     * subtrees under different targets, this method will generate a subtree for each one
+     * subtrees under different targets, this method will generate a subtree for each one.
+     * This happens on the worker thread.
      */
     bool scanFolder(Tree& tree, LocalPath& localPath);
+
+    // Gathers up enough (but not too many) newnode records that are all descendants of a single folder
+    // and can be created in a single operation.
+    // Called from the main thread just before we send the next set of folder creation commands.  
     bool createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, bool isBatchRootLevel);
-    /* iterate through all pending files of each uploaded folder, and start all upload transfers */
+    
+    // Iterate through all pending files of each uploaded folder, and start all upload transfers
     void genUploadTransfersForFiles(Tree& tree, TransferQueue& transferQueue);
 };
 
@@ -842,7 +848,6 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         virtual MegaNode *getPublicNode() const;
         MegaNode *getPublicMegaNode() const override;
         bool isSyncTransfer() const override;
-        bool isRecursiveOperation() const override;
         bool isStreamingTransfer() const override;
         bool isFinished() const override;
         virtual bool isSourceFileTemporary() const;
@@ -2368,7 +2373,6 @@ class MegaApiImpl : public MegaApp
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         bool createLocalFolder(const char *path);
-        void createRemoteFolder(handle h, vector<NewNode>&& newnodes, const char *cauth, std::function<void(const Error&, targettype_t , vector<NewNode>&)> f);
         static Error createLocalFolder_unlocked(LocalPath & localPath, FileSystemAccess& fsaccess);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
         void moveNode(MegaNode* node, MegaNode* newParent, const char *newName, MegaRequestListener *listener = NULL);
@@ -2601,7 +2605,7 @@ class MegaApiImpl : public MegaApp
         MegaChildrenLists* getFileFolderChildren(MegaNode *parent, int order=1);
         bool hasChildren(MegaNode *parent);
         MegaNode *getChildNode(MegaNode *parent, const char* name);
-        MegaNode* getChildNodeTypeByName(MegaNode *parent, const char *name, int type = TYPE_UNKNOWN);
+        MegaNode* getChildNodeOfType(MegaNode *parent, const char *name, int type = TYPE_UNKNOWN);
         MegaNode *getParentNode(MegaNode *node);
         char *getNodePath(MegaNode *node);
         char *getNodePathByNodeHandle(MegaHandle handle);
