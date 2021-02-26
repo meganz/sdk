@@ -1301,12 +1301,10 @@ struct StandardClient : public MegaApp
 
     bool syncSet(handle backupId, SyncInfo& info) const
     {
-        if (auto* sync = client.syncs.runningSyncByBackupId(backupId))
+        if (auto* config = client.syncs.syncConfigByBackupId(backupId))
         {
-            auto& config = sync->getConfig();
-
-            info.h = config.getRemoteNode();
-            info.localpath = config.getLocalPath().toPath(*client.fsaccess);
+            info.h = config->getRemoteNode();
+            info.localpath = config->getLocalPath().toPath(*client.fsaccess);
 
             return true;
         }
@@ -1314,7 +1312,7 @@ struct StandardClient : public MegaApp
         return false;
     }
 
-    SyncInfo syncSet(handle backupId) 
+    SyncInfo syncSet(handle backupId)
     {
         SyncInfo result;
 
