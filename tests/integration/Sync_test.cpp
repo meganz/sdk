@@ -1322,8 +1322,8 @@ struct StandardClient : public MegaApp
             out() << " ids are: " << us.mConfig.mBackupId << " with local path '" << us.mConfig.getLocalPath().toPath(*us.mClient.fsaccess) << "'\n";
         });
 
-
-        assert(syncSet(backupId, result));
+        bool found = syncSet(backupId, result);
+        assert(found);
 
         return result;
     }
