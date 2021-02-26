@@ -26,13 +26,6 @@
 #include "megaapi_impl.h"
 #include <algorithm>
 
-#ifdef WIN32
-#define LOCAL_TEST_FOLDER "c:\\tmp\\synctests"
-#else
-#define LOCAL_TEST_FOLDER (string(getenv("HOME"))+"/synctests_mega_auto")
-#endif
-
-
 #define SSTR( x ) static_cast< const std::ostringstream & >( \
         (  std::ostringstream() << std::dec << x ) ).str()
 
@@ -111,32 +104,6 @@ bool fileexists(const std::string& fn)
     struct stat   buffer;
     return (stat(fn.c_str(), &buffer) == 0);
 #endif
-}
-
-void moveToTrash(const fs::path& p)
-{
-    fs::path trashpath(TestFS::GetTrashFolder());
-    fs::create_directory(trashpath);
-    fs::path newpath = trashpath / p.filename();
-    for (int i = 2; fs::exists(newpath); ++i)
-    {
-        newpath = trashpath / fs::u8path(p.filename().stem().u8string() + "_" + to_string(i) + p.extension().u8string());
-    }
-    fs::rename(p, newpath);
-}
-
-fs::path makeNewTestRoot(fs::path p)
-{
-    if (fs::exists(p))
-    {
-        moveToTrash(p);
-    }
-#ifndef NDEBUG
-    bool b =
-#endif
-        fs::create_directories(p);
-    assert(b);
-    return p;
 }
 
 void copyFile(std::string& from, std::string& to)
@@ -4844,8 +4811,7 @@ TEST_F(SdkTest, SdkBackupFolder)
 
 #ifdef ENABLE_SYNC
     // request to backup a folder
-    fs::path localFolderPath = fs::path(LOCAL_TEST_FOLDER) / "LocalBackedUpFolder";
-    makeNewTestRoot(localFolderPath.u8string().c_str());
+    fs::path localFolderPath = makeNewTestRoot() / "LocalBackedUpFolder";
     mApi[0].h = 0;
     const char* backupName = "RemoteBackupFolder";
     int err = synchronousBackupFolder(0, localFolderPath.u8string().c_str(), backupName);
@@ -4914,8 +4880,7 @@ TEST_F(SdkTest, SdkBackupFolder)
 
     // Request to backup another folder
     // this time, the remote folder structure is already there
-    fs::path localFolderPath2 = fs::path(LOCAL_TEST_FOLDER) / "LocalBackedUpFolder2";
-    makeNewTestRoot(localFolderPath2.u8string().c_str());
+    fs::path localFolderPath2 = makeNewTestRoot() / "LocalBackedUpFolder2";
     const char* backupName2 = "RemoteBackupFolder2";
     err = synchronousBackupFolder(0, localFolderPath2.u8string().c_str(), backupName2);
     ASSERT_TRUE(err == MegaError::API_OK) << "Backup folder 2 failed (error: " << err << ")";
@@ -4963,7 +4928,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     mBackupNameToBackupId.clear();
 
     // setbackup test
-    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    fs::path localtestroot = makeNewTestRoot();
     string localFolder = localtestroot.string();
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
     int backupType = BackupType::CAMERA_UPLOAD;
