@@ -4043,13 +4043,14 @@ void MegaClient::logout(bool keepSyncConfigsFile)
         return;
     }
 
+    loggingout++;
+
     // if logging out and syncs won't be kept...
     if (!keepSyncConfigsFile)
     {
-        syncs.removeSelectedSyncs([](SyncConfig&, Sync*) { return true; });
+        syncs.purgeSyncs();    // unregister from API and clean up backup-names
     }
 
-    loggingout++;
     reqs.add(new CommandLogout(this, keepSyncConfigsFile));
 }
 
@@ -4255,7 +4256,7 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
     }
     else
     {
-        syncs.removeSelectedSyncs([](SyncConfig&, Sync* s) { return s != nullptr; });
+        syncs.purgeSyncs();
         syncs.truncate();
     }
 #endif

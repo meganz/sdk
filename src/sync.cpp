@@ -2688,6 +2688,41 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
     }
 }
 
+void Syncs::purgeSyncs()
+{
+    if (mSyncVec.empty())
+    {
+        return;
+    }
+
+    // accumulate all changes for *!bn to update it in one shoot
+    set<string> backupIds;
+    for (auto &it : mSyncVec)
+    {
+        backupIds.insert(string(Base64Str<MegaClient::BACKUPHANDLE>(it->mConfig.getBackupId())));
+    }
+    attr_t attrType = ATTR_BACKUP_NAMES;
+    User *ownUser = mClient.finduser(mClient.me);
+    const std::string *oldValue = ownUser->getattr(attrType);
+    if (oldValue && ownUser->isattrvalid(attrType))
+    {
+        std::unique_ptr<TLVstore> tlv(TLVstore::containerToTLVrecords(oldValue, &mClient.key));
+        for (auto &backupId : backupIds) tlv->reset(backupId);
+
+        // serialize and encrypt the TLV container
+        std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(mClient.rng, &mClient.key));
+        mClient.putua(attrType, (byte *)container->data(), unsigned(container->size()));
+    }
+    else
+    {
+        assert(false);
+        LOG_err << "Backup names not available upon purge syncs";
+    }
+
+    // finally, remove all syncs as usual, unregistering (removeSyncByIndex())
+    removeSelectedSyncs([](SyncConfig&, Sync*) { return true; });
+}
+
 void Syncs::removeSyncByIndex(size_t index)
 {
     if (index < mSyncVec.size())
