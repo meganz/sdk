@@ -4045,11 +4045,13 @@ void MegaClient::logout(bool keepSyncConfigsFile)
 
     loggingout++;
 
+#ifdef ENABLE_SYNC
     // if logging out and syncs won't be kept...
     if (!keepSyncConfigsFile)
     {
         syncs.purgeSyncs();    // unregister from API and clean up backup-names
     }
+#endif
 
     reqs.add(new CommandLogout(this, keepSyncConfigsFile));
 }
