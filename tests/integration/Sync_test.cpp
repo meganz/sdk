@@ -2504,12 +2504,21 @@ GTEST_TEST(Sync, BasicSync_DelLocalFolder)
     ASSERT_TRUE(clientA1.confirmModel_mainthread(model.findnode("f"), backupId1));
     ASSERT_TRUE(clientA2.confirmModel_mainthread(model.findnode("f"), backupId2));
 
+    out() << "checking paths" << '\n';
+    LOG_debug << "checking paths";
+    for(auto& p: fs::recursive_directory_iterator(clientA1.syncSet(backupId1).localpath))
+    {
+        out() << "checking path is present: " << p.path().u8string() << '\n';
+        LOG_debug << "checking path is present: " << p.path().u8string();
+    }
     // delete something in the local filesystem and see if we catch up in A1 and A2 (deleter and observer syncs)
     error_code e;
-    ASSERT_TRUE(fs::remove_all(clientA1.syncSet(backupId1).localpath / "f_2" / "f_2_1", e) != static_cast<std::uintmax_t>(-1)) << e;
+    auto nRemoved = fs::remove_all(clientA1.syncSet(backupId1).localpath / "f_2" / "f_2_1", e);
+    ASSERT_TRUE(!e) << "remove failed " << (clientA1.syncSet(backupId1).localpath / "f_2" / "f_2_1").u8string() << " error " << e;
+    ASSERT_GT(nRemoved, 0) << e;
 
     // let them catch up
-    waitonsyncs(std::chrono::seconds(60), &clientA1, &clientA2);
+    waitonsyncs(std::chrono::seconds(20), &clientA1, &clientA2);
 
     // check everything matches (model has expected state of remote and local)
     ASSERT_TRUE(model.movetosynctrash("f/f_2/f_2_1", "f"));

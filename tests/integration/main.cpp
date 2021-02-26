@@ -195,7 +195,7 @@ fs::path TestFS::GetTestFolder()
 #endif
     
     fs::path testpath = GetTestBaseFolder() / ("pid_" + std::to_string(pid));
-    out() << "Local Test folder: " << testpath;
+    out() << "Local Test folder: " << testpath << endl;
     return testpath;
 }
 
