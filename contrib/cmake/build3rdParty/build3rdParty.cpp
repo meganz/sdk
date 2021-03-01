@@ -126,7 +126,7 @@ try
                     auto patch = patches.find(portname);
                     if (patch != patches.end()) {
                         cout << "Applying patch " << patch->second.u8string() << " for port " << portname << "\n";
-                        execute("git apply --verbose --directory=ports/" + portname + " " + (patchPath / patch->second).u8string());
+                        execute("git apply --verbose --directory=ports/" + portname + " " + patch->second.u8string());
                     }
                     fs::current_path(vcpkgDir);
                 }
