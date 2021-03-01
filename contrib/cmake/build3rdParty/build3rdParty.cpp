@@ -110,7 +110,7 @@ try
                 const string& portname = portPair.first;
                 const string& portversion = portPair.second;
 
-                if (fs::is_directory(fs::path("ports") / portname))
+                if (fs::is_directory(vcpkgDir / "ports" / portname))
                 {
                     cout << "Removing " << (vcpkgDir / "ports" / portname).u8string() << endl;
                     fs::remove_all(vcpkgDir / "ports" / portname);
@@ -121,13 +121,14 @@ try
                     execute("git checkout --quiet " + portversion);
                     cout << "Copying port for " << portname << " from vcpkg commit " << portversion << endl;
                     fs::copy(cloneDir / "ports" / portname, vcpkgDir / "ports" / portname, fs::copy_options::recursive);
-                    fs::current_path(vcpkgDir);
+                    fs::current_path(vcpkgDir / "ports" / portname);
 
                     auto patch = patches.find(portname);
                     if (patch != patches.end()) {
                         cout << "Applying patch " << patch->second.u8string() << " for port " << portname << "\n";
-                        execute("git apply " + (patchPath / patch->second).u8string());
+                        execute("git apply --verbose --directory=ports/" + portname + " " + (patchPath / patch->second).u8string());
                     }
+                    fs::current_path(vcpkgDir);
                 }
                 else
                 {
@@ -217,7 +218,7 @@ void execute(string command)
     int result = system(command.c_str());
     if (result != 0)
     {
-        cout << "Command failed with result code " << result << " ( command was " << command << ")" <<endl;
+        cout << "Command failed with result code " << result << ". Command was: " << command <<endl;
         exit(1);
     }
 }
@@ -371,7 +372,7 @@ bool readCommandLine(int argc, char* argv[])
                 cout << "Nonexistent patch " << patch << " for " << portname << ", patches must be in " << patchPath.u8string() << "\n";
             }
             cout << "Got patch " << patch << " for " << portname << "\n";
-            patches[portname] = patch;
+            patches[portname] = patchPath / patch;
         }
     }
 
