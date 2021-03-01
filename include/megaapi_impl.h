@@ -2755,6 +2755,7 @@ class MegaApiImpl : public MegaApp
         bool isChatNotifiable(MegaHandle chatid);
         void startChatCall(MegaHandle chatid, MegaRequestListener* listener = nullptr);
         void joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequestListener* listener = nullptr);
+        void endChatCall(MegaHandle chatid, MegaHandle callid, int reason = 0, MegaRequestListener *listener = nullptr);
 #endif
 
         void setMyChatFilesFolder(MegaHandle nodehandle, MegaRequestListener *listener = NULL);

@@ -8926,7 +8926,7 @@ CommandMeetingStart::CommandMeetingStart(MegaClient *client, handle chatid, Comm
     : mCompletion(completion)
 {
     cmd("mcms");
-    arg("chatId", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("cid", (byte*)&chatid, MegaClient::CHATHANDLE);
     arg("force", 1);
     tag = client->reqtag;
 }
@@ -8968,8 +8968,31 @@ CommandMeetingJoin::CommandMeetingJoin(MegaClient *client, handle chatid, handle
     : mCompletion(completion)
 {
     cmd("mcmj");
-    arg("chatId", (byte*)&chatid, MegaClient::CHATHANDLE);
-    arg("callId", (byte*)&callid, MegaClient::CHATHANDLE);
+    arg("cid", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("mid", (byte*)&callid, MegaClient::CHATHANDLE);
+
+    tag = client->reqtag;
+}
+
+bool CommandMeetingEnd::procresult(Command::Result r)
+{
+    if (r.wasErrorOrOK())
+    {
+        mCompletion(r.errorOrOK());
+        return true;
+    }
+
+    mCompletion(API_EINTERNAL);
+    return false;
+}
+
+CommandMeetingEnd::CommandMeetingEnd(MegaClient *client, handle chatid, handle callid, int reason, CommandMeetingEndCompletion completion)
+    : mCompletion(completion)
+{
+    cmd("mcme");
+    arg("cid", (byte*)&chatid, MegaClient::CHATHANDLE);
+    arg("mid", (byte*)&callid, MegaClient::CHATHANDLE);
+    arg("r", reason);
 
     tag = client->reqtag;
 }

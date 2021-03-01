@@ -4093,6 +4093,7 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_ATTR_NODE: return "GET_ATTR_NODE";
         case TYPE_START_CHAT_CALL: return "START_CHAT_CALL";
         case TYPE_JOIN_CHAT_CALL: return "JOIN_CHAT_CALL";
+        case TYPE_END_CHAT_CALL: return "END_CHAT_CALL";
     }
     return "UNKNOWN";
 }
@@ -10452,6 +10453,16 @@ void MegaApiImpl::joinChatCall(MegaHandle chatid, MegaHandle callid, MegaRequest
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_JOIN_CHAT_CALL, listener);
     request->setNodeHandle(chatid);
     request->setParentHandle(callid);
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::endChatCall(MegaHandle chatid, MegaHandle callid, int reason, MegaRequestListener *listener)
+{
+    MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_END_CHAT_CALL, listener);
+    request->setNodeHandle(chatid);
+    request->setParentHandle(callid);
+    request->setAccess(reason);
     requestQueue.push(request);
     waiter->notify();
 }
@@ -23190,6 +23201,21 @@ void MegaApiImpl::sendPendingRequests()
                     request->setText(sfuUrl.c_str());
                 }
 
+                fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
+            }));
+            break;
+        }
+        case MegaRequest::TYPE_END_CHAT_CALL:
+        {
+            if (request->getNodeHandle() == INVALID_HANDLE || request->getParentHandle() == INVALID_HANDLE)
+            {
+                // todo check request->getAccess()
+                e = API_EARGS;
+                break;
+            }
+
+            client->reqs.add(new CommandMeetingEnd(client, request->getNodeHandle(), request->getParentHandle(), request->getAccess(), [request, this](Error e)
+            {
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
             }));
             break;
