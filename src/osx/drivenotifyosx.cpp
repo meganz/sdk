@@ -31,10 +31,6 @@ namespace mega {
 // We watch for changes in the Volume Path Key.
 static const CFStringRef watchArray[1] = {kDADiskDescriptionVolumePathKey};
 
-// Convenience function since CoreFoundation/DiskArbitration traffic liberally in void* pointers
-template<class T>
-void* asVoidPtr(T* t) noexcept { return reinterpret_cast<void*>(t); }
-
 // Copied from Disk Arbitration Framework documentation. In the `else` below they write:
 // "// something is *really* wrong"
 // so we throw an exception.
@@ -63,25 +59,25 @@ void MediaTypeCallbacks::registerCallbacks(DASessionRef session)
         session,
         matchingDict(),
         &MediaTypeCallbacks::onDiskAppeared,
-        asVoidPtr(this));
+        this);
 
     DARegisterDiskDisappearedCallback(
         session,
         matchingDict(),
         &MediaTypeCallbacks::onDiskDisappeared,
-        asVoidPtr(this));
+        this);
 
     registerAdditionalCallbacks(session);
 }
 
 void MediaTypeCallbacks::unregisterCallbacks(DASessionRef session)
 {
-    DAUnregisterCallback(session, asVoidPtr(&MediaTypeCallbacks::onDiskAppeared), asVoidPtr(this));
-    DAUnregisterCallback(session, asVoidPtr(&MediaTypeCallbacks::onDiskDisappeared), asVoidPtr(this));
+    DAUnregisterCallback(session, reinterpret_cast<void*>(&MediaTypeCallbacks::onDiskAppeared), this);
+    DAUnregisterCallback(session, reinterpret_cast<void*>(&MediaTypeCallbacks::onDiskDisappeared), this);
 
-    DAUnregisterCallback(session, asVoidPtr(&MediaTypeCallbacks::onDiskDescriptionChanged), asVoidPtr(this));
+    DAUnregisterCallback(session, reinterpret_cast<void*>(&MediaTypeCallbacks::onDiskDescriptionChanged), this);
 
-    DAUnregisterApprovalCallback(session, asVoidPtr(&MediaTypeCallbacks::onUnmountApproval), asVoidPtr(this));
+    DAUnregisterApprovalCallback(session, reinterpret_cast<void*>(&MediaTypeCallbacks::onUnmountApproval), this);
 }
 
 void MediaTypeCallbacks::addDrive(CFURLRef path, bool connected)
@@ -175,13 +171,13 @@ void PhysicalMediaCallbacks::registerAdditionalCallbacks(DASessionRef session)
         matchingDict(),
         mKeysToMonitor,
         &MediaTypeCallbacks::onDiskDescriptionChanged,
-        asVoidPtr(this));
+        this);
 
     DARegisterDiskUnmountApprovalCallback(
         session,
         matchingDict(),
         &MediaTypeCallbacks::onUnmountApproval,
-        asVoidPtr(this));
+        this);
 }
 
 void PhysicalMediaCallbacks::handleNoPathAppeared(CFDictionaryRef diskDescription)
