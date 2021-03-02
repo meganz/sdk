@@ -4890,8 +4890,6 @@ TEST_F(SdkTest, SdkBackupFolder)
     err = synchronousBackupFolder(0, localFolderPath2.u8string().c_str(), backupName2);
     ASSERT_TRUE(err == MegaError::API_OK) << "Backup folder 2 failed (error: " << err << ")";
 
-    moveToTrash(localBasePath);
-
 #endif
 }
 
