@@ -453,7 +453,8 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         ENDIF(USE_LIBUV)
 
         IF(USE_PCRE)
-            ImportStdVcpkgLibrary(pcre     pcre pcre libpcre libpcre)
+            ImportStdVcpkgLibrary(pcre     pcred pcre libpcred libpcre)
+            ImportStdVcpkgLibrary(pcrecpp  pcrecppd pcrecpp libpcrecppd libpcrecpp)
         ENDIF(USE_PCRE)
 
         IF(USE_LIBRAW)
@@ -735,7 +736,7 @@ target_link_libraries(Mega PUBLIC
                         $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:crypto>
                         $<${USE_SQLITE}:sqlite3>
                         $<${USE_LIBUV}:uv>
-                        $<${USE_PCRE}:pcre>
+                        $<${USE_PCRE}:pcre pcrecpp>
                         $<${USE_LIBRAW}:raw> $<${USE_LIBRAW}:${raw_deps}>
                         $<${USE_FREEIMAGE}:freeimage> $<${USE_FREEIMAGE}:${freeimage_deps}>
                         $<${USE_PDFIUM}:pdfium> $<${USE_PDFIUM}:${pdfium_deps}>
