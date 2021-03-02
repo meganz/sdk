@@ -113,7 +113,7 @@ public:
 
     // MediaTypeCallbacks lifetime is bound to a parent object to which it registers constructed DriveInfo
     MediaTypeCallbacks(DriveNotifyOsx& parent)
-        : mParent(&parent)
+        : mParent(parent)
     {}
 
     // Register the disk appeared and disappeared callbacks.
@@ -187,7 +187,7 @@ private:
     {       
     }
 
-    DriveNotifyOsx* mParent;
+    DriveNotifyOsx& mParent;
 };
 
 // Callbacks for physical media such as USB Drives

@@ -85,7 +85,7 @@ void MediaTypeCallbacks::addDrive(CFURLRef path, bool connected)
     DriveInfo di;
     di.mountPoint = toString(path);
     di.connected = connected;
-    mParent->add(std::move(di));
+    mParent.add(std::move(di));
 }
 
 void MediaTypeCallbacks::onDiskAppeared(DADiskRef disk, void* context)
