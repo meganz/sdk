@@ -1486,7 +1486,7 @@ public:
     // Meaningful only to backup syncs.
     //
     // Set when a backup is mirroring and syncdown(...) returned after
-    // having mades changes to bring the cloud in line with local disk.
+    // having made changes to bring the cloud in line with local disk.
     //
     // That is, the backup remains in the mirror state.
     //
