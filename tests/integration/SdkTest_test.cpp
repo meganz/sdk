@@ -4810,8 +4810,12 @@ TEST_F(SdkTest, SdkBackupFolder)
     }
 
 #ifdef ENABLE_SYNC
+    // Create a test root directory
+    fs::path localBasePath = makeNewTestRoot();
+
     // request to backup a folder
-    fs::path localFolderPath = makeNewTestRoot() / "LocalBackedUpFolder";
+    fs::path localFolderPath = localBasePath / "LocalBackedUpFolder";
+    fs::create_directories(localFolderPath);
     mApi[0].h = 0;
     const char* backupName = "RemoteBackupFolder";
     int err = synchronousBackupFolder(0, localFolderPath.u8string().c_str(), backupName);
@@ -4880,10 +4884,14 @@ TEST_F(SdkTest, SdkBackupFolder)
 
     // Request to backup another folder
     // this time, the remote folder structure is already there
-    fs::path localFolderPath2 = makeNewTestRoot() / "LocalBackedUpFolder2";
+    fs::path localFolderPath2 = localBasePath / "LocalBackedUpFolder2";
+    fs::create_directories(localFolderPath2);
     const char* backupName2 = "RemoteBackupFolder2";
     err = synchronousBackupFolder(0, localFolderPath2.u8string().c_str(), backupName2);
     ASSERT_TRUE(err == MegaError::API_OK) << "Backup folder 2 failed (error: " << err << ")";
+
+    moveToTrash(localBasePath);
+
 #endif
 }
 
