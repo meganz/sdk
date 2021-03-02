@@ -2651,7 +2651,7 @@ error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
         // Try and read the internal database from disk.
         result = store->read(LocalPath(), configs);
 
-        if (result == API_OK)
+        if (result == API_ENOENT || result == API_OK)
         {
             LOG_debug << "Loaded "
                       << configs.size()
