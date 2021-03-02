@@ -548,6 +548,9 @@ struct Syncs
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered
     void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
 
+    // removes all configured backups from cache, API (BackupCenter) and user's attribute (*!bn = backup-names)
+    void purgeSyncs();
+
     void resetSyncConfigDb();
     void clear();
 
