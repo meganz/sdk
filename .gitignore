@@ -103,3 +103,4 @@ megaclient_statecache*
 
 /third_party/Makefile
 /third_party/3rdparty
+/third_party/crashlytics*h
