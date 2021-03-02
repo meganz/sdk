@@ -609,6 +609,11 @@ void SyncConfig::setBackupId(const handle &backupId)
     mBackupId = backupId;
 }
 
+bool SyncConfig::isBackup() const
+{
+    return mSyncType == TYPE_BACKUP;
+}
+
 bool SyncConfig::isExternal() const
 {
     return !mExternalDrivePath.empty();
@@ -895,7 +900,7 @@ bool Sync::backupModified()
 
 bool Sync::isBackup() const
 {
-    return mBackupState != SYNC_BACKUP_NONE;
+    return getConfig().isBackup();
 }
 
 bool Sync::isBackupMirroring() const
@@ -1015,6 +1020,11 @@ bool Sync::readstatecache()
 }
 
 SyncConfig& Sync::getConfig()
+{
+    return mUnifiedSync.mConfig;
+}
+
+const SyncConfig& Sync::getConfig() const
 {
     return mUnifiedSync.mConfig;
 }

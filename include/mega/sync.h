@@ -214,6 +214,7 @@ public:
 
     // returns the sync config
     SyncConfig& getConfig();
+    const SyncConfig& getConfig() const;
 
     MegaClient* client = nullptr;
 
