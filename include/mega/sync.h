@@ -550,14 +550,14 @@ struct Syncs
     // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted
     void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag);
 
-    // Called via MegaApi::removeSync - cache files are deleted
+    // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered
     void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
+
+    // removes all configured backups from cache, API (BackupCenter) and user's attribute (*!bn = backup-names)
+    void purgeSyncs();
 
     void resetSyncConfigStore();
     void clear();
-
-    // Deletes the file that internal sync configs are stored in
-    error truncate();
 
     SyncConfigVector configsForDrive(const LocalPath& drive);
     SyncConfigVector allConfigs();
@@ -680,7 +680,7 @@ private:
 
     vector<unique_ptr<UnifiedSync>> mSyncVec;
 
-    // remove the Sync and its config.  The sync's Localnode cache is removed
+    // remove the Sync and its config (also unregister in API). The sync's Localnode cache is removed
     void removeSyncByIndex(size_t index);
 
     MegaClient& mClient;

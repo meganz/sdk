@@ -1057,6 +1057,14 @@ using namespace mega;
     self.megaApi->setNodeFavourite(node.getCPtr, favourite);
 }
 
+- (void)favouritesForParent:(nullable MEGANode *)node count:(NSInteger)count delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getFavourites(node.getCPtr, (int)count, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)favouritesForParent:(nullable MEGANode *)node count:(NSInteger)count {
+    self.megaApi->getFavourites(node.getCPtr, (int)count);
+}
+
 - (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setNodeCoordinates(node ? [node getCPtr] : NULL, (latitude ? latitude.doubleValue : MegaNode::INVALID_COORDINATE), (longitude ? longitude.doubleValue : MegaNode::INVALID_COORDINATE), [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }

@@ -8681,7 +8681,7 @@ void exec_syncremove(autocomplete::ACState& s)
 
     if (!found)
     {
-        cerr << "No sync config exists with the tag "
+        cerr << "No sync config exists with the backupId "
              << Base64Str<sizeof(handle)>(backupId)
              << endl;
         return;

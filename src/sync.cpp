@@ -680,6 +680,7 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
     case ACTIVE_SYNC_ABOVE_PATH:
         return "Active sync above path";
     case REMOTE_PATH_DELETED:
+        assert(false);  // obsolete, should not happen
         return "Remote node has been deleted";
     case REMOTE_NODE_INSIDE_RUBBISH:
         return "Remote node is inside Rubbish Bin";
@@ -1144,9 +1145,9 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
     }
 }
 
-// walk path and return corresponding LocalNode and its parent
-// path must be relative to l or start with the root prefix if l == NULL
-// path must be a full sync path, i.e. start with localroot->localname
+// walk localpath and return corresponding LocalNode and its parent
+// localpath must be relative to l or start with the root prefix if l == NULL
+// localpath must be a full sync path, i.e. start with localroot->localname
 // NULL: no match, optionally returns residual path
 LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, LocalNode** parent, LocalPath* outpath)
 {
@@ -1858,7 +1859,7 @@ LocalNode* Sync::checkpath(LocalNode* l, LocalPath* input_localpath, string* con
             // fopen() signals that the failure is potentially transient - do
             // nothing and request a recheck
             LOG_warn << "File blocked. Adding notification to the retry queue: " << path;
-            dirnotify->notify(DirNotify::RETRY, ll, LocalPath(*localpathNew));
+            dirnotify->notify(DirNotify::RETRY, ll, LocalPath(*input_localpath));
             client->syncfslockretry = true;
             client->syncfslockretrybt.backoff(SCANNING_DELAY_DS);
             client->blockedfile = *localpathNew;
@@ -2742,24 +2743,6 @@ void Syncs::clear()
     isEmpty = true;
 }
 
-error Syncs::truncate()
-{
-    if (!mSyncConfigStore)
-    {
-        return API_OK;
-    }
-
-    // Remove internal syncs.
-    removeSelectedSyncs(
-        [](SyncConfig& config, Sync*)
-        {
-            return !config.isExternal();
-        });
-
-    // Truncate internal database.
-    return mSyncConfigStore->write(LocalPath(), SyncConfigVector());
-}
-
 void Syncs::resetSyncConfigStore()
 {
     mSyncConfigStore.reset();
@@ -2974,6 +2957,49 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
     }
 }
 
+void Syncs::purgeSyncs()
+{
+    if (mSyncVec.empty())
+    {
+        return;
+    }
+
+    // accumulate all changes for *!bn to update it in one shoot
+    set<string> backupIds;
+    for (auto &it : mSyncVec)
+    {
+        backupIds.insert(string(Base64Str<MegaClient::BACKUPHANDLE>(it->mConfig.getBackupId())));
+    }
+    attr_t attrType = ATTR_BACKUP_NAMES;
+    User *ownUser = mClient.finduser(mClient.me);
+    const std::string *oldValue = ownUser->getattr(attrType);
+    if (oldValue && ownUser->isattrvalid(attrType))
+    {
+        std::unique_ptr<TLVstore> tlv(TLVstore::containerToTLVrecords(oldValue, &mClient.key));
+        for (auto &backupId : backupIds) tlv->reset(backupId);
+
+        // serialize and encrypt the TLV container
+        std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(mClient.rng, &mClient.key));
+        mClient.putua(attrType, (byte *)container->data(), unsigned(container->size()));
+    }
+    else
+    {
+        assert(false);
+        LOG_err << "Backup names not available upon purge syncs";
+    }
+
+    // finally, remove all syncs as usual, unregistering (removeSyncByIndex())
+    removeSelectedSyncs(
+      [](SyncConfig& config, Sync*)
+      {
+          return !config.isExternal();
+      });
+
+    assert(mSyncConfigStore);
+
+    mSyncConfigStore->write(LocalPath(), SyncConfigVector());
+}
+
 void Syncs::removeSyncByIndex(size_t index)
 {
     if (index < mSyncVec.size())
@@ -2996,6 +3022,9 @@ void Syncs::removeSyncByIndex(size_t index)
         // call back before actual removal (intermediate layer may need to make a temp copy to call client app)
         auto backupId = mSyncVec[index]->mConfig.getBackupId();
         mClient.app->sync_removed(backupId);
+
+        // unregister this sync/backup from API (backup center)
+        mClient.reqs.add(new CommandBackupRemove(&mClient, backupId));
 
         mClient.syncactivity = true;
         mSyncVec.erase(mSyncVec.begin() + index);
