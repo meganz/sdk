@@ -31,21 +31,6 @@ namespace mega {
 // We watch for changes in the Volume Path Key.
 static const CFStringRef watchArray[1] = {kDADiskDescriptionVolumePathKey};
 
-// Copied from Disk Arbitration Framework documentation. In the `else` below they write:
-// "// something is *really* wrong"
-// so we throw an exception.
-static std::string toString(CFURLRef fspath)
-{
-    char buf[MAXPATHLEN];
-    if (CFURLGetFileSystemRepresentation(fspath, false, reinterpret_cast<UInt8*>(buf), sizeof(buf))) 
-    {
-        return buf;
-    }
-
-    throw std::runtime_error("Unable to resolve path from filesystem URL");
-}
-
-
 // See note here regarding callback registration/unregistration:
 // https://developer.apple.com/library/archive/documentation/DriversKernelHardware/Conceptual/DiskArbitrationProgGuide/ArbitrationBasics/ArbitrationBasics.html#//apple_ref/doc/uid/TP40009310-CH2-SW9
 // MediaTypeCallbacks is an abstract base class which uses the Non-Virtual Interface Pattern
@@ -82,10 +67,14 @@ void MediaTypeCallbacks::unregisterCallbacks(DASessionRef session)
 
 void MediaTypeCallbacks::addDrive(CFURLRef path, bool connected)
 {
-    DriveInfo di;
-    di.mountPoint = toString(path);
-    di.connected = connected;
-    mParent.add(std::move(di));
+    char buf[MAXPATHLEN];
+    if (CFURLGetFileSystemRepresentation(path, false, reinterpret_cast<UInt8*>(buf), sizeof(buf))) 
+    {
+        DriveInfo di;
+        di.mountPoint = buf;
+        di.connected = connected;
+        mParent.add(std::move(di));
+    }
 }
 
 void MediaTypeCallbacks::onDiskAppeared(DADiskRef disk, void* context)
