@@ -1073,7 +1073,7 @@ void MegaClient::init()
     syncdebrisadding = false;
     syncdebrisminute = 0;
     syncscanfailed = false;
-    syncmonitorretry = false;
+    mSyncMonitorRetry = false;
     syncfslockretry = false;
     syncfsopsfailed = false;
     syncdownretry = false;
@@ -1131,7 +1131,7 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     , mAsyncQueue(*w, workerThreadCount)
 #ifdef ENABLE_SYNC
     , syncs(*this)
-    , syncfslockretrybt(rng), syncdownbt(rng), syncnaglebt(rng), syncextrabt(rng), syncscanbt(rng), syncmonitorbt(rng)
+    , syncfslockretrybt(rng), syncdownbt(rng), syncnaglebt(rng), syncextrabt(rng), syncscanbt(rng), mSyncMonitorTimer(rng)
 #endif
     , mCachedStatus(this)
 {
@@ -2452,9 +2452,9 @@ void MegaClient::exec()
         }
 
         // sync timer: try to transition into mirroring mode.
-        if (syncmonitorretry && syncmonitorbt.armed())
+        if (mSyncMonitorRetry && mSyncMonitorTimer.armed())
         {
-            syncmonitorretry = false;
+            mSyncMonitorRetry = false;
             syncdownrequired = true;
         }
 
@@ -3183,9 +3183,9 @@ int MegaClient::preparewait()
         }
 
         // sync monitor timer.
-        if (syncmonitorretry)
+        if (mSyncMonitorRetry)
         {
-            syncmonitorbt.update(&nds);
+            mSyncMonitorTimer.update(&nds);
         }
 
         // retrying of transient failed read ops
@@ -13410,8 +13410,8 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
         l->sync->backupMonitor();
 
         // Cancel any active monitor timer.
-        syncmonitorbt.reset();
-        syncmonitorretry = false;
+        mSyncMonitorTimer.reset();
+        mSyncMonitorRetry = false;
 
         return true;
     }
@@ -13419,8 +13419,8 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath)
     // Otherwise, mirror is not yet stable.
     //
     // Set a timer to force another syncdown in the future.
-    syncmonitorbt.backoff(MONITOR_DELAY_SEC * 10);
-    syncmonitorretry = true;
+    mSyncMonitorTimer.backoff(MONITOR_DELAY_SEC * 10);
+    mSyncMonitorRetry = true;
 
     return true;
 }
