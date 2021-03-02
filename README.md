@@ -45,7 +45,7 @@ Some dependencies are different for each platform because the SDK uses generic i
 - Filesystem access (Posix or Win32)
 - Graphics management (FreeImage, QT or iOS frameworks)
 - Threads/mutexes (Win32, pthread, QT threads, or C++11)
-- Drive Notificatios (udev for Posix, WMI/WBEM for Win32)
+- Drive Notifications (udev for Posix, WMI/WBEM for Win32, or Apple frameworks)
 
 ### Building with vcpkg and cmake 
 
