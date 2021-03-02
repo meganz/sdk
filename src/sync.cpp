@@ -2481,13 +2481,18 @@ error Syncs::backupRemove(LocalPath drivePath)
     // Ensure the drive path is in normalized form.
     drivePath = NormalizeAbsolute(drivePath);
 
-    removeSelectedSyncs([drivePath](SyncConfig& config, Sync*){
-        return config.mExternalDrivePath == drivePath;
-    });
+    removeSelectedSyncs(
+      [&](SyncConfig& config, Sync*)
+      {
+          return config.mExternalDrivePath == drivePath;
+      });
 
-    return store->write(drivePath, configsForDrive(drivePath));
+    auto result = store->write(drivePath, configsForDrive(drivePath));
+
+    store->removeDrive(drivePath);
+
+    return result;
 }
-
 
 error Syncs::backupRestore(const LocalPath& drivePath,
                            const SyncConfigVector& configs)
@@ -2988,16 +2993,20 @@ void Syncs::purgeSyncs()
         LOG_err << "Backup names not available upon purge syncs";
     }
 
-    // finally, remove all syncs as usual, unregistering (removeSyncByIndex())
-    removeSelectedSyncs(
-      [](SyncConfig& config, Sync*)
-      {
-          return !config.isExternal();
-      });
+    // Remove all syncs.
+    removeSelectedSyncs([](SyncConfig&, Sync*) { return true; });
 
     assert(mSyncConfigStore);
 
+    // Truncate internal sync config database.
     mSyncConfigStore->write(LocalPath(), SyncConfigVector());
+
+    // Remove all drives.
+    for (auto& drive : mSyncConfigStore->knownDrives())
+    {
+        // This does not flush.
+        mSyncConfigStore->removeDrive(drive);
+    }
 }
 
 void Syncs::removeSyncByIndex(size_t index)
@@ -3227,6 +3236,23 @@ LocalPath SyncConfigStore::dbPath(const LocalPath& drivePath) const
 bool SyncConfigStore::driveKnown(const LocalPath& drivePath) const
 {
     return mKnownDrives.count(drivePath) > 0;
+}
+
+vector<LocalPath> SyncConfigStore::knownDrives() const
+{
+    vector<LocalPath> result;
+
+    for (auto& i : mKnownDrives)
+    {
+        result.emplace_back(i.first);
+    }
+
+    return result;
+}
+
+bool SyncConfigStore::removeDrive(const LocalPath& drivePath)
+{
+    return mKnownDrives.erase(drivePath) > 0;
 }
 
 error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& configs)

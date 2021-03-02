@@ -385,6 +385,12 @@ public:
     // Check whether we read configs from a particular drive
     bool driveKnown(const LocalPath& drivePath) const;
 
+    // What drives do we know about?
+    vector<LocalPath> knownDrives() const;
+
+    // Remove a known drive.
+    bool removeDrive(const LocalPath& drivePath);
+
     // update configs on disk for any drive marked as dirty
     void writeDirtyDrives(const SyncConfigVector& configs);
 
