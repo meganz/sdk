@@ -40,14 +40,6 @@ namespace mega {
 
 namespace detail {
 
-// Custom deleter for use with unique_ptr specialization below
-struct CoreFoundationDeleter {
-    void operator()(CFTypeRef cf)
-    {
-        CFRelease(cf);
-    }
-};
-
 // Key comparison operator< for set<CFUUIDBytes>. 
 struct UUIDLess {
     bool operator()(const CFUUIDBytes& u1, const CFUUIDBytes& u2) const noexcept
@@ -67,13 +59,13 @@ private:
     // CoreFoundation types such as dict, array, etc are passed around as CFDictionaryRef, CFArrayRef.
     // These Ref types are type aliases to a pointer to implementation-defined "unutterable" types.
     // Thus we use the type alias below since unique_ptr<T> holds a pointer to T, but we cannot name T.
-    using Ptr = std::unique_ptr<typename std::remove_pointer<T>::type, detail::CoreFoundationDeleter>;
+    using Ptr = std::unique_ptr<typename std::remove_pointer<T>::type, decltype(&CFRelease)>;
 public:
     using pointer = typename Ptr::pointer;
 
     // Construction from return value of CoreFoundation "create" function
     UniqueCFRef(pointer p) noexcept
-        : mPtr(p, {})
+        : mPtr(p, &CFRelease)
     {}
 
     // Implicit conversion to underlying reference type for easy interaction with CF interfaces
