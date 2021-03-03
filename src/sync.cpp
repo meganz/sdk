@@ -2495,51 +2495,6 @@ error Syncs::backupRemove(LocalPath drivePath)
     return result;
 }
 
-error Syncs::backupRestore(const LocalPath& drivePath,
-                           const SyncConfigVector& configs)
-{
-    // Convenience.
-    auto& fsAccess = *mClient.fsaccess;
-
-    LOG_verbose << "Attempting to restore backup syncs from "
-                << drivePath.toPath(fsAccess);
-
-    size_t numRestored = 0;
-
-    // Create a unified sync for each backup config.
-    for (const auto& config : configs)
-    {
-        // Make sure there aren't any syncs with this backup id.
-        if (syncConfigByBackupId(config.mBackupId))
-        {
-            LOG_verbose << "Skipping restore of backup "
-                        << config.mLocalPath.toPath(fsAccess)
-                        << " on "
-                        << drivePath.toPath(fsAccess)
-                        << " as a sync already exists with the backup id "
-                        << toHandle(config.mBackupId);
-
-            continue;
-        }
-
-        // Create the unified sync.
-        mSyncVec.emplace_back(new UnifiedSync(mClient, config));
-
-        // Track how many configs we've restored.
-        ++numRestored;
-    }
-
-    // Log how many backups we could restore.
-    LOG_verbose << "Restored "
-                << numRestored
-                << " out of "
-                << configs.size()
-                << " backup(s) from "
-                << drivePath.toPath(fsAccess);
-
-    return API_OK;
-}
-
 error Syncs::backupRestore(LocalPath drivePath)
 {
     // Is the drive path valid?
@@ -2583,10 +2538,46 @@ error Syncs::backupRestore(LocalPath drivePath)
     // Try and open the database on the drive.
     auto result = store->read(drivePath, configs);
 
+    // Try and restore the backups in the database.
     if (result == API_OK)
     {
-        // Try and restore the backups in the database.
-        return backupRestore(drivePath, configs);
+        LOG_verbose << "Attempting to restore backup syncs from "
+                    << drivePath.toPath(fsAccess);
+
+        size_t numRestored = 0;
+
+        // Create a unified sync for each backup config.
+        for (const auto& config : configs)
+        {
+            // Make sure there aren't any syncs with this backup id.
+            if (syncConfigByBackupId(config.mBackupId))
+            {
+                LOG_verbose << "Skipping restore of backup "
+                            << config.mLocalPath.toPath(fsAccess)
+                            << " on "
+                            << drivePath.toPath(fsAccess)
+                            << " as a sync already exists with the backup id "
+                            << toHandle(config.mBackupId);
+
+                continue;
+            }
+
+            // Create the unified sync.
+            mSyncVec.emplace_back(new UnifiedSync(mClient, config));
+
+            // Track how many configs we've restored.
+            ++numRestored;
+        }
+
+        // Log how many backups we could restore.
+        LOG_verbose << "Restored "
+                    << numRestored
+                    << " out of "
+                    << configs.size()
+                    << " backup(s) from "
+                    << drivePath.toPath(fsAccess);
+
+        return API_OK;
     }
 
     // Couldn't open the database.

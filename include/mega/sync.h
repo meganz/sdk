@@ -656,22 +656,6 @@ struct Syncs
     error syncConfigStoreLoad(SyncConfigVector& configs);
 
 private:    
-    /**
-     * @brief
-     * Restores backups loaded from an external drive.
-     *
-     * @param drivePath
-     * The drive to restore external backups from.
-     *
-     * @param configs
-     * A map describing the backups to restore.
-     *
-     * @return
-     * The result of restoring the external backups.
-     */
-    error backupRestore(const LocalPath& drivePath,
-                        const SyncConfigVector& configs);
-
     // Returns a reference to this user's sync config IO context.
     SyncConfigIOContext* syncConfigIOContext();
 
