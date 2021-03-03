@@ -3272,7 +3272,7 @@ error SyncConfigStore::read(const LocalPath& drivePath, SyncConfigVector& config
         {
             result = read(driveInfo, configs, slot);
 
-            if (result == API)
+            if (result == API_OK)
             {
                 driveInfo.slot = (slot + 1) % NUM_CONFIG_SLOTS;
                 break;
