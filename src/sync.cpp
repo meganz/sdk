@@ -3968,10 +3968,7 @@ string SyncConfigIOContext::encrypt(const string& data)
 void SyncConfigIOContext::serialize(const SyncConfig& config,
                                     JSONWriter& writer) const
 {
-    auto drivePath =
-      config.mExternalDrivePath.toPath(mFsAccess);
-    auto sourcePath =
-      config.mLocalPath.toPath(mFsAccess);
+    auto sourcePath = config.mLocalPath.toPath(mFsAccess);
     auto* name = &config.mName;
 
     // Compute effective name.
@@ -3981,7 +3978,11 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     }
 
     // Strip drive path from source.
-    sourcePath.erase(0, drivePath.size());
+    if (config.isExternal())
+    {
+        auto drivePath = config.mExternalDrivePath.toPath(mFsAccess);
+        sourcePath.erase(0, drivePath.size());
+    }
 
     writer.beginobject();
     writer.arg("id", config.getBackupId(), sizeof(handle));
