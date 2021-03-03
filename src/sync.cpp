@@ -2329,8 +2329,7 @@ Syncs::Syncs(MegaClient& mc)
 }
 
 error Syncs::backupAdd(const SyncConfig& config,
-                       SyncCompletionFunction completion,
-                       const bool delayInitialScan)
+                       SyncCompletionFunction completion)
 {
     // Is the config valid?
     if (config.mExternalDrivePath.empty()

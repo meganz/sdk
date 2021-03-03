@@ -592,8 +592,7 @@ struct Syncs
      * The result of adding the sync.
      */
     error backupAdd(const SyncConfig& config,
-                    SyncCompletionFunction completion,
-                    const bool delayInitialScan = false);
+                    SyncCompletionFunction completion);
 
     /**
      * @brief
