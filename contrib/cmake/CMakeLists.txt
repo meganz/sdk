@@ -21,33 +21,30 @@ endif()
 
 project(MegaSDK)
 
-#indicate which dependent libraries to use in the build
-set (USE_CRYPTOPP 1 CACHE STRING "")
-
 set (Mega3rdPartyDir "" CACHE FILEPATH "Prefix path for where third party dependencies are located")
 
 if (CMAKE_HOST_APPLE)
     set (USE_OPENSSL 0 CACHE STRING "")
 else()
-    set (USE_OPENSSL 1 CACHE STRING "")
+    set (USE_OPENSSL 1 CACHE STRING "Usually Needed")
 ENDIF()
 
-set (USE_ASIO 1 CACHE STRING "")
-set (USE_CURL 1 CACHE STRING "")
-set (USE_SQLITE 1 CACHE STRING "")
-set (USE_MEDIAINFO 1 CACHE STRING "")
-set (USE_FREEIMAGE 1 CACHE STRING "")
-set (ENABLE_SYNC 1 CACHE STRING "")
-set (ENABLE_CHAT 0 CACHE STRING "")
-set (ENABLE_LOG_PERFORMANCE 0 CACHE STRING "")
-set (USE_ROTATIVEPERFORMANCELOGGER 0 CACHE STRING "")
-set (HAVE_FFMPEG 1 CACHE STRING "")
-set (USE_WEBRTC 0 CACHE STRING "")
-set (USE_LIBUV 0 CACHE STRING "")
-set (USE_QT 0 CACHE STRING "")
-set (USE_PDFIUM 1 CACHE STRING "")
-set (USE_LIBRAW 0 CACHE STRING "")
-set (USE_PCRE 1 CACHE STRING "")
+set (USE_ASIO 1 CACHE STRING "Only needed For tcprelay test tool")
+set (USE_CURL 1 CACHE STRING "Always needed (turning it off would mean using WinHTTP instead but that has not been maintained for a while)")
+set (USE_SQLITE 1 CACHE STRING "Needed unless intending a cache-less app")
+set (USE_MEDIAINFO 1 CACHE STRING "Used to determine media properties and set those as node attributes")
+set (USE_FREEIMAGE 1 CACHE STRING "Used to create previews/thumbnails for photos/pictures")
+set (ENABLE_SYNC 1 CACHE STRING "Turns on sync functionality")
+set (ENABLE_CHAT 0 CACHE STRING "Turns on chat management functionality")
+set (ENABLE_LOG_PERFORMANCE 0 CACHE STRING "Faster log message generation")
+set (USE_ROTATIVEPERFORMANCELOGGER 0 CACHE STRING "Internal logger, not just callbacks")
+set (HAVE_FFMPEG 1 CACHE STRING "Used to create previews/thumbnails for video files")
+set (USE_WEBRTC 0 CACHE STRING "Declare that your app will link wtih WebRTC")
+set (USE_LIBUV 0 CACHE STRING "Includes the library and turns on internal web and ftp server functionality")
+set (USE_QT 0 CACHE STRING "Declare that your app will link wtih Qt")
+set (USE_PDFIUM 0 CACHE STRING "Used to create previews/thumbnails for PDF files")
+set (USE_LIBRAW 0 CACHE STRING "Just includes the library (used by MEGAsync)")
+set (USE_PCRE 1 CACHE STRING "Provides pattern matching functionality for sync rules or flie listings")
 
 if (USE_QT)
     set( USE_CPPTHREAD 0)
@@ -55,7 +52,11 @@ else()
     set( USE_CPPTHREAD 1)
 endif()
 
+# Sodium is no longer optional. Setting the variable here to saisfy existing preprocessor checks and #cmakedefine
 set (USE_SODIUM 1)
+
+# Cryptop never was optional
+set (USE_CRYPTOPP 1)
 
 set (HAVE_LIBUV ${USE_LIBUV})
 set (HAVE_LIBRAW ${USE_LIBRAW})
