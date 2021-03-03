@@ -3332,9 +3332,11 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
             return API_EWRITE;
         }
 
+        // start using a different slot (a different file)
         drive.slot = (drive.slot + 1) % NUM_CONFIG_SLOTS;
         drive.dirty = false;
 
+        // remove the existing slot (if any), since it is obsolete now
         mIOContext.remove(drive.dbPath, drive.slot);
 
         return API_OK;
@@ -3701,7 +3703,7 @@ error SyncConfigIOContext::remove(const LocalPath& dbPath)
     return result ? API_OK : API_EWRITE;
 }
 
-void SyncConfigIOContext::serialize(const vector<SyncConfig>& configs,
+void SyncConfigIOContext::serialize(const SyncConfigVector& configs,
                                     JSONWriter& writer) const
 {
     writer.beginobject();

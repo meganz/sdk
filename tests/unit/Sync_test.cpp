@@ -1934,7 +1934,7 @@ TEST_F(SyncConfigIOContextTest, SerializeEmpty)
 
     // Serialize an empty database.
     {
-        static const vector<SyncConfig> empty;
+        static const SyncConfigVector empty;
 
         // Does serializing an empty database yield an empty array?
         ioContext().serialize(empty, writer);

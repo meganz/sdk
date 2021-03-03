@@ -483,7 +483,7 @@ public:
     virtual error remove(const LocalPath& dbPath);
 
     // Serialize configs to JSON.
-    void serialize(const vector<SyncConfig>& configs,
+    void serialize(const SyncConfigVector &configs,
                    JSONWriter& writer) const;
 
     // Write data to the specified slot.
