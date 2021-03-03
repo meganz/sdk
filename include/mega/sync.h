@@ -633,29 +633,10 @@ struct Syncs
 
     /**
      * @brief
-     * Restores backups loaded from an external drive.
-     *
-     * @param configs
-     * A map describing the backups to restore.
-     *
-     * @param delayInitialScan
-     * Whether we should delay the inital scan.
-     *
-     * @return
-     * The result of restoring the external backups.
-     */
-    error backupRestore(const LocalPath& drivePath,
-                        const SyncConfigVector& configs);
-
-    /**
-     * @brief
      * Restores backups from an external drive.
      *
      * @param drivePath
      * The drive to restore external backups from.
-     *
-     * @param delayInitialScan
-     * Whether we should delay the inital scan.
      *
      * @return
      * The result of restoring the external backups.
@@ -674,7 +655,23 @@ struct Syncs
     // Load internal sync configs from disk.
     error syncConfigStoreLoad(SyncConfigVector& configs);
 
-private:
+private:    
+    /**
+     * @brief
+     * Restores backups loaded from an external drive.
+     *
+     * @param drivePath
+     * The drive to restore external backups from.
+     *
+     * @param configs
+     * A map describing the backups to restore.
+     *
+     * @return
+     * The result of restoring the external backups.
+     */
+    error backupRestore(const LocalPath& drivePath,
+                        const SyncConfigVector& configs);
+
     // Returns a reference to this user's sync config IO context.
     SyncConfigIOContext* syncConfigIOContext();
 

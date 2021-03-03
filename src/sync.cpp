@@ -767,7 +767,7 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
 
     mLocalPath = mUnifiedSync.mConfig.getLocalPath();
 
-    mBackupState = mUnifiedSync.mConfig.getType() == SyncConfig::TYPE_BACKUP
+    mBackupState = mUnifiedSync.mConfig.isBackup()
                    ? SYNC_BACKUP_MIRROR
                    : SYNC_BACKUP_NONE;
 
@@ -838,6 +838,7 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
     }
 #endif
 
+    // load LocalNodes from cache (only for internal syncs)
     if (client->dbaccess && !us.mConfig.isExternal())
     {
         // open state cache table
@@ -2508,7 +2509,7 @@ error Syncs::backupRestore(const LocalPath& drivePath,
     // Create a unified sync for each backup config.
     for (const auto& config : configs)
     {
-        // Make sure there aren't any syncs with this tag.
+        // Make sure there aren't any syncs with this backup id.
         if (syncConfigByBackupId(config.mBackupId))
         {
             LOG_verbose << "Skipping restore of backup "
