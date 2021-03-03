@@ -2357,7 +2357,7 @@ error Syncs::backupAdd(const SyncConfig& config,
     {
         if (completion)
         {
-            completion(nullptr, NO_SYNC_ERROR, API_EARGS);
+            completion(nullptr, NO_SYNC_ERROR, API_ENOENT);
         }
 
         return API_EARGS;
