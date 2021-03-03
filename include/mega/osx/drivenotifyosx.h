@@ -113,7 +113,8 @@ public:
     // Allows for finer-grained filtering based on traits not expressible through dictionary filtering.
     bool shouldNotify(DADiskRef disk) const noexcept
     {
-        return shouldNotify(UniqueCFRef<CFDictionaryRef>(DADiskCopyDescription(disk)));
+        auto description = UniqueCFRef<CFDictionaryRef>(DADiskCopyDescription(disk));
+        return shouldNotify(description);
     }
 
     virtual bool shouldNotify(CFDictionaryRef diskDescription) const noexcept = 0;
