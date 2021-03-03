@@ -142,7 +142,10 @@ PhysicalMediaCallbacks::PhysicalMediaCallbacks(DriveNotifyOsx& parent)
         kCFAllocatorDefault,
         reinterpret_cast<const void**>(&watchArray),
         1,
-        &kCFTypeArrayCallBacks))
+        &kCFTypeArrayCallBacks)),
+    mDisksPendingPath([](const CFUUIDBytes& u1, const CFUUIDBytes& u2) noexcept {
+        return std::memcmp(&u1, &u2, sizeof(CFUUIDBytes)) < 0;
+    })
 {}
 
 bool PhysicalMediaCallbacks::shouldNotify(CFDictionaryRef diskDescription) const noexcept

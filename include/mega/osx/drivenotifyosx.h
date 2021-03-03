@@ -38,20 +38,8 @@
 
 namespace mega {
 
-namespace detail {
-
-// Key comparison operator< for set<CFUUIDBytes>. 
-struct UUIDLess {
-    bool operator()(const CFUUIDBytes& u1, const CFUUIDBytes& u2) const noexcept
-    {
-        return std::memcmp(&u1, &u2, sizeof(CFUUIDBytes)) < 0;
-    }
-};
-
-} // namespace detail
-
 // Automatic memory management class template for "Create Rule" references to CoreFoundation types
-// See 
+// See
 // https://developer.apple.com/library/archive/documentation/CoreFoundation/Conceptual/CFMemoryMgmt/Concepts/Ownership.html#//apple_ref/doc/uid/20001148-103029
 template<class T>
 class UniqueCFRef {
@@ -79,7 +67,7 @@ private:
 class DriveNotifyOsx;
 
 // Encapsulate filtering and callbacks for different media types.
-// For the purpose of DriveNotify we are mainly concerned with the presence of Volume Path, and 
+// For the purpose of DriveNotify we are mainly concerned with the presence of Volume Path, and
 // within Disk Arbitration Framework (DAF), media types vary based on when in their lifetime the path
 // (and other info) are or are not available.
 // Specializations of this class may implement specific logic for Disk Arbitration callbacks,
@@ -176,7 +164,7 @@ private:
 
     // The implementation of an onDiskDescriptionChanged callback.
     virtual void onDiskDescriptionChangedImpl(DADiskRef disk, CFArrayRef changedKeys, void* context)
-    {       
+    {
     }
 
     DriveNotifyOsx& mParent;
@@ -191,7 +179,7 @@ private:
 //  - else, we have to wait for the path to appear in onDiskDescriptionChanged with a volume path
 // Disk disappearance:
 //  - if the disk is yanked without ejecting, it appears in onDiskDisappeared with a volume path present
-//  - else, we get the volume path in onUnmountApproval and mark it as removed there. 
+//  - else, we get the volume path in onUnmountApproval and mark it as removed there.
 class PhysicalMediaCallbacks : public MediaTypeCallbacks {
 public:
     PhysicalMediaCallbacks(DriveNotifyOsx& parent);
@@ -203,7 +191,7 @@ public:
     bool shouldNotify(CFDictionaryRef diskDescription) const noexcept override;
 
 private:
-    // Register unmount approval and description changed callbacks. 
+    // Register unmount approval and description changed callbacks.
     void registerAdditionalCallbacks(DASessionRef session) override;
 
     // If a disk appears with no path, store it for later notification in the pending collection
@@ -227,7 +215,7 @@ private:
     // announced until their description is changed in onDiskDescriptionChanged
     // to have a volume path, at which point they are removed from this set.
     // Disks which disappear are also removed.
-    std::set<CFUUIDBytes, detail::UUIDLess> mDisksPendingPath;
+    std::set<CFUUIDBytes, bool(*)(const CFUUIDBytes&, const CFUUIDBytes&)> mDisksPendingPath;
 };
 
 // Callbacks for Network Attached Storage
