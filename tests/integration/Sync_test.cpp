@@ -1458,11 +1458,15 @@ struct StandardClient : public MegaApp
         {
             if (Node* m = drillchildnodebyname(n, subfoldername))
             {
-                SyncConfig syncConfig{LocalPath::fromPath(localpath.u8string(), *client.fsaccess), localpath.u8string(), m->nodehandle, subfoldername, 0};
-                if (isBackup)
-                {
-                    syncConfig.mSyncType = SyncConfig::TYPE_BACKUP;
-                }
+                auto syncConfig = 
+                    SyncConfig(LocalPath::fromPath(localpath.u8string(), *client.fsaccess),
+                               localpath.u8string(),
+                               m->nodehandle,
+                               subfoldername,
+                               0,
+                               string_vector(),
+                               true,
+                               isBackup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
 				
                 error e = client.addsync(syncConfig, true, addSyncCompletion);
                 return !e;

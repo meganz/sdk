@@ -120,6 +120,8 @@ public:
     string syncErrorToStr();
     static string syncErrorToStr(SyncError errorCode);
 
+    void setBackupState(SyncBackupState state);
+    SyncBackupState getBackupState() const;
 
     // enabled/disabled by the user
     bool mEnabled = true;
@@ -159,6 +161,9 @@ public:
     // Path to the volume containing this backup (only for external backups).
     // This one is not serialized
     LocalPath mExternalDrivePath;
+
+    // Whether this backup is monitoring or mirroring.
+    SyncBackupState mBackupState;
 
     // enum to string conversion
     static const char* syncstatename(const syncstate_t state);

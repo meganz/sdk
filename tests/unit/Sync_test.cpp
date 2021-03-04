@@ -1894,6 +1894,7 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         config.mRemoteNode = UNDEF;
         config.mWarning = NO_SYNC_WARNING;
         config.mSyncType = SyncConfig::TYPE_TWOWAY;
+        config.mBackupState = SYNC_BACKUP_NONE;
 
         written.emplace_back(config);
 
@@ -1908,6 +1909,7 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         config.mRemoteNode = 3;
         config.mWarning = LOCAL_IS_FAT;
         config.mSyncType = SyncConfig::TYPE_BACKUP;
+        config.mBackupId = SYNC_BACKUP_MIRROR;
 
         written.emplace_back(config);
     }

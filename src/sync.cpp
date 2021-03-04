@@ -515,6 +515,7 @@ SyncConfig::SyncConfig(LocalPath localPath,
     , mWarning{warning}
     , mBackupId(hearBeatID)
     , mExternalDrivePath()
+    , mBackupState(SYNC_BACKUP_NONE)
 {}
 
 bool SyncConfig::operator==(const SyncConfig& rhs) const
@@ -530,7 +531,8 @@ bool SyncConfig::operator==(const SyncConfig& rhs) const
            && mSyncType == rhs.mSyncType
            && mError == rhs.mError
            && mBackupId == rhs.mBackupId
-           && mWarning == rhs.mWarning;
+           && mWarning == rhs.mWarning
+           && mBackupState == rhs.mBackupState;
 }
 
 bool SyncConfig::operator!=(const SyncConfig& rhs) const
@@ -703,6 +705,18 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
     }
 }
 
+void SyncConfig::setBackupState(SyncBackupState state)
+{
+    assert(isBackup());
+
+    mBackupState = state;
+}
+
+SyncBackupState SyncConfig::getBackupState() const
+{
+    return mBackupState;
+}
+
 const char* SyncConfig::syncstatename(const syncstate_t state)
 {
     switch (state)
@@ -767,9 +781,10 @@ Sync::Sync(UnifiedSync& us, const char* cdebris,
 
     mLocalPath = mUnifiedSync.mConfig.getLocalPath();
 
-    mBackupState = mUnifiedSync.mConfig.isBackup()
-                   ? SYNC_BACKUP_MIRROR
-                   : SYNC_BACKUP_NONE;
+    if (mUnifiedSync.mConfig.isBackup())
+    {
+        mUnifiedSync.mConfig.setBackupState(SYNC_BACKUP_MIRROR);
+    }
 
     if (cdebris)
     {
@@ -907,19 +922,25 @@ bool Sync::isBackup() const
 
 bool Sync::isBackupMirroring() const
 {
-    return mBackupState == SYNC_BACKUP_MIRROR;
+    return getConfig().getBackupState() == SYNC_BACKUP_MIRROR;
 }
 
 bool Sync::isBackupMonitoring() const
 {
-    return mBackupState == SYNC_BACKUP_MONITOR;
+    return getConfig().getBackupState() == SYNC_BACKUP_MONITOR;
 }
 
 void Sync::backupMonitor()
 {
-    assert(mBackupState == SYNC_BACKUP_MIRROR);
+    auto& config = getConfig();
 
-    mBackupState = SYNC_BACKUP_MONITOR;
+    assert(config.getBackupState() == SYNC_BACKUP_MIRROR);
+
+    config.setBackupState(SYNC_BACKUP_MONITOR);
+
+    assert(client);
+
+    client->syncs.saveSyncConfig(config);
 }
 
 void Sync::addstatecachechildren(uint32_t parent_dbid, idlocalnode_map* tmap, LocalPath& localpath, LocalNode *p, int maxdepth)
@@ -3830,6 +3851,7 @@ bool SyncConfigIOContext::decrypt(const string& in, string& out)
 bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) const
 {
     const auto TYPE_BACKUP_ID       = MAKENAMEID2('i', 'd');
+    const auto TYPE_BACKUP_STATE    = MAKENAMEID2('b', 's');
     const auto TYPE_ENABLED         = MAKENAMEID2('e', 'n');
     const auto TYPE_FINGERPRINT     = MAKENAMEID2('f', 'p');
     const auto TYPE_LAST_ERROR      = MAKENAMEID2('l', 'e');
@@ -3890,6 +3912,11 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader) const
 
         case TYPE_BACKUP_ID:
             config.mBackupId = reader.gethandle(sizeof(handle));
+            break;
+
+        case TYPE_BACKUP_STATE:
+            config.mBackupState =
+              static_cast<SyncBackupState>(reader.getint32());
             break;
 
         case TYPE_TARGET_HANDLE:
@@ -3985,6 +4012,7 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg("lw", config.mWarning);
     writer.arg("st", config.mSyncType);
     writer.arg("en", config.mEnabled);
+    writer.arg("bs", config.mBackupState);
 
     writer.beginarray("er");
     for (auto& s : config.mRegExps)
