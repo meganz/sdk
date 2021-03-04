@@ -2607,9 +2607,9 @@ error Syncs::backupRestore(LocalPath drivePath)
     }
 
     // Couldn't open the database.
-    LOG_err << "Failed to restore "
-            << drivePath.toPath(fsAccess)
-            << " as we couldn't open its config database.";
+    LOG_verbose << "Failed to restore "
+                << drivePath.toPath(fsAccess)
+                << " as we couldn't open its config database.";
 
     return result;
 }
