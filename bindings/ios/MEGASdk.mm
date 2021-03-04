@@ -1599,6 +1599,10 @@ using namespace mega;
     return [warningDateList copy];
 }
 
+- (BOOL)setRLimitFileCount:(NSInteger)fileCount {
+    return self.megaApi->platformSetRLimitNumFile((int)fileCount);
+}
+
 #pragma mark - Transfer
 
 - (MEGATransfer *)transferByTag:(NSInteger)transferTag {
