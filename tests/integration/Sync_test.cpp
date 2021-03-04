@@ -1418,7 +1418,7 @@ struct StandardClient : public MegaApp
           LocalPath::fromPath(drivePath, *client.fsaccess);
 
         // Try and add the backup.
-        return client.syncs.backupAdd(config, completion) == API_OK;
+        return client.addsync(config, true, completion) == API_OK;
     }
 
     handle backupAdd_mainthread(const string& drivePath,

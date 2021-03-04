@@ -397,6 +397,7 @@ enum SyncError {
     LOGGED_OUT = 26,                        // Logged out
     WHOLE_ACCOUNT_REFETCHED = 27,           // The whole account was reloaded, missed actionpacket changes could not have been applied
     BACKUP_MODIFIED = 28,                   // Backup has been externally modified.
+    BACKUP_SOURCE_NOT_BELOW_DRIVE = 29,     // Backup source path not below drive path.
 };
 
 enum SyncWarning {

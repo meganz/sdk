@@ -8492,28 +8492,6 @@ void exec_syncbackupadd(autocomplete::ACState& s)
         return;
     }
 
-    // Are we creating an internal or external backup?
-    if (!drivePath.empty())
-    {
-        // External
-        auto config =
-          SyncConfig(sourcePath,
-                     sourcePath.toPath(fsAccess),
-                     targetNode->nodehandle,
-                     targetPath,
-                     0,
-                     string_vector(),
-                     true,
-                     SyncConfig::TYPE_BACKUP);
-
-        config.mExternalDrivePath = drivePath;
-
-        // All validation is performed in this function.
-        client->syncs.backupAdd(config, sync_completion);
-        return;
-    }
-
-    // Internal
     auto config =
       SyncConfig(sourcePath,
                  sourcePath.toPath(fsAccess),
@@ -8523,6 +8501,8 @@ void exec_syncbackupadd(autocomplete::ACState& s)
                  string_vector(),
                  true,
                  SyncConfig::TYPE_BACKUP);
+
+    config.mExternalDrivePath = std::move(drivePath);
 
     // All validation is performed in this function.
     client->addsync(config, false, sync_completion);

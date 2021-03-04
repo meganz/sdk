@@ -700,6 +700,8 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
         return "Session closed";
     case BACKUP_MODIFIED:
         return "Backup externally modified";
+    case BACKUP_SOURCE_NOT_BELOW_DRIVE:
+        return "Backup source path not below drive path.";
     default:
         return "Undefined error";
     }
@@ -2352,116 +2354,6 @@ Syncs::Syncs(MegaClient& mc)
   : mClient(mc)
 {
     mHeartBeatMonitor.reset(new BackupMonitor(&mClient));
-}
-
-error Syncs::backupAdd(const SyncConfig& config,
-                       SyncCompletionFunction completion)
-{
-    // Is the config valid?
-    if (config.mExternalDrivePath.empty()
-        || config.mLocalPath.empty()
-        || config.mOrigninalPathOfRemoteRootNode.empty()
-        || config.mRemoteNode == UNDEF
-        || config.mSyncType != SyncConfig::TYPE_BACKUP)
-    {
-        if (completion)
-        {
-            completion(nullptr, NO_SYNC_ERROR, API_EARGS);
-        }
-
-        return API_EARGS;
-    }
-
-    // For convenience.
-    auto& fsAccess = *mClient.fsaccess;
-    auto& name = config.mName;
-    auto& sourcePath = config.mLocalPath;
-    auto drivePath = NormalizeAbsolute(config.mExternalDrivePath);
-
-    // Is the source actually contained on the drive?
-    if (!drivePath.isContainingPathOf(sourcePath))
-    {
-        if (completion)
-        {
-            completion(nullptr, NO_SYNC_ERROR, API_ENOENT);
-        }
-
-        return API_EARGS;
-    }
-
-    // Could we get our hands on the config store?
-    auto* store = syncConfigStore();
-
-    if (!store)
-    {
-        LOG_verbose << "Unable to add backup "
-                    << sourcePath.toPath(fsAccess)
-                    << " on "
-                    << drivePath.toPath(fsAccess)
-                    << " as there is no config store.";
-
-        if (completion)
-        {
-            completion(nullptr, NO_SYNC_ERROR, API_EINTERNAL);
-        }
-
-        // Nope and we can't do anything without it.
-        return API_EINTERNAL;
-    }
-
-    // Do we already know about this drive?
-    if (!store->driveKnown(drivePath))
-    {
-        auto result = backupRestore(drivePath);
-
-        if (result != API_OK && result != API_ENOENT)
-        {
-            // Couldn't create (or open) the database.
-            LOG_verbose << "Unable to add backup "
-                        << sourcePath.toPath(fsAccess)
-                        << " on "
-                        << drivePath.toPath(fsAccess)
-                        << " as we could not open it's config database.";
-
-            if (completion)
-            {
-                completion(nullptr, NO_SYNC_ERROR, API_EFAILED);
-            }
-
-            return API_EFAILED;
-        }
-    }
-
-    // Make sure this backup's tag is unique.
-    if (syncConfigByBackupId(config.mBackupId))
-    {
-        LOG_verbose << "Unable to add backup "
-                    << sourcePath.toPath(fsAccess)
-                    << " on "
-                    << drivePath.toPath(fsAccess)
-                    << " as a sync already exists with the backup ID "
-                    << toHandle(config.mBackupId);
-
-        if (completion)
-        {
-            completion(nullptr, NO_SYNC_ERROR, API_EEXIST);
-        }
-
-        return API_EEXIST;
-    }
-
-    SyncConfig syncConfig(config);
-
-    syncConfig.mExternalDrivePath = std::move(drivePath);
-    syncConfig.mLocalPath =
-      NormalizeAbsolute(syncConfig.mLocalPath);
-
-    if (sourcePath.toPath(fsAccess) == name)
-    {
-        syncConfig.mName = syncConfig.mLocalPath.toPath(fsAccess);
-    }
-
-    return mClient.addsync(syncConfig, true, completion);
 }
 
 SyncConfigVector Syncs::configsForDrive(const LocalPath& drive)

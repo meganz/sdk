@@ -13090,6 +13090,24 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
         return e;
     }
 
+    if (syncConfig.isExternal())
+    {
+        // Currently only possible for backup syncs.
+        assert(syncConfig.isBackup());
+
+        const auto& drivePath = syncConfig.mExternalDrivePath;
+        const auto& sourcePath = syncConfig.mLocalPath;
+
+        // Source must be on the drive.
+        if (!drivePath.isContainingPathOf(sourcePath))
+        {
+            syncConfig.mEnabled = false;
+            syncConfig.mError = BACKUP_SOURCE_NOT_BELOW_DRIVE;
+
+            return API_ENOENT;
+        }
+    }
+
     rootpath = syncConfig.getLocalPath();
     rootpath.trimNonDriveTrailingSeparator();
 
@@ -13281,44 +13299,101 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
     if (e)
     {
         completion(nullptr, config.getError(), e);
+        return e;
     }
-    else // API_OK (success)
+
+    // Are we adding an external backup?
+    if (config.isExternal())
     {
-        string deviceIdHash = getDeviceidHash();
-        string extraData; // Empty extra data for the moment, in the future, any should come in SyncConfig
+        auto* store = syncs.syncConfigStore();
 
-        reqs.add( new CommandBackupPut(this, BackupInfoSync::getSyncType(config)
-                                       , config.mName.c_str(), config.getRemoteNode()
-                                       , config.getLocalPath().toPath(*fsaccess).c_str(), deviceIdHash.c_str()
-                                       , BackupInfoSync::getSyncState(config, this)
-                                       , config.getError()
-                                       , extraData
-                                       , [this, config, completion, notifyApp](Error e, handle backupId) mutable {
-            if (ISUNDEF(backupId) && !e)
+        // Can we get our hands on the config store?
+        if (!store)
+        {
+            LOG_err << "Unable to add backup "
+                    << config.mLocalPath.toPath(*fsaccess)
+                    << " on "
+                    << config.mExternalDrivePath.toPath(*fsaccess)
+                    << " as there is no config store.";
+
+            assert(completion);
+            completion(nullptr, NO_SYNC_ERROR, API_EINTERNAL);
+
+            return API_EINTERNAL;
+        }
+
+        auto drivePath = NormalizeAbsolute(config.mExternalDrivePath);
+
+        // Do we already know about this drive?
+        if (!store->driveKnown(drivePath))
+        {
+            // Restore the drive's backups, if any.
+            auto result = syncs.backupRestore(drivePath);
+
+            if (result != API_OK && result != API_ENOENT)
             {
-                e = API_EFAILED;
+                // Couldn't read an existing database.
+                LOG_err << "Unable to add backup "
+                        << config.mLocalPath.toPath(*fsaccess)
+                        << " on "
+                        << config.mExternalDrivePath.toPath(*fsaccess)
+                        << " as we could not read its config database.";
+
+                assert(completion);
+                completion(nullptr, NO_SYNC_ERROR, API_EFAILED);
+
+                return API_EFAILED;
             }
+        }
 
-            if (e)
-            {
-                completion(nullptr, config.getError(), e);
-            }
-            else
-            {
+        auto& name = config.mName;
+        auto sourcePath = NormalizeAbsolute(config.mLocalPath);
 
-                // if we got this far, the syncConfig is kept (in db and in memory)
-                config.setBackupId(backupId);
+        // Make sure source and name are consistent.
+        if (config.mLocalPath.toPath(*fsaccess) == name)
+        {
+            name = sourcePath.toPath(*fsaccess);
+        }
 
-                UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
-
-                e = unifiedSync->enableSync(false, notifyApp);
-
-                syncactivity = true;
-
-                completion(unifiedSync, unifiedSync->mConfig.getError(), e);
-            }
-        }));
+        config.mExternalDrivePath = std::move(drivePath);
+        config.mLocalPath = std::move(sourcePath);
     }
+
+    // Add the sync.
+    string deviceIdHash = getDeviceidHash();
+    string extraData; // Empty extra data for the moment, in the future, any should come in SyncConfig
+
+    reqs.add( new CommandBackupPut(this, BackupInfoSync::getSyncType(config)
+                                   , config.mName.c_str(), config.getRemoteNode()
+                                   , config.getLocalPath().toPath(*fsaccess).c_str(), deviceIdHash.c_str()
+                                   , BackupInfoSync::getSyncState(config, this)
+                                   , config.getError()
+                                   , extraData
+                                   , [this, config, completion, notifyApp](Error e, handle backupId) mutable {
+        if (ISUNDEF(backupId) && !e)
+        {
+            e = API_EFAILED;
+        }
+
+        if (e)
+        {
+            completion(nullptr, config.getError(), e);
+        }
+        else
+        {
+
+            // if we got this far, the syncConfig is kept (in db and in memory)
+            config.setBackupId(backupId);
+
+            UnifiedSync *unifiedSync = syncs.appendNewSync(config, *this);
+
+            e = unifiedSync->enableSync(false, notifyApp);
+
+            syncactivity = true;
+
+            completion(unifiedSync, unifiedSync->mConfig.getError(), e);
+        }
+    }));
 
     return e;
 }

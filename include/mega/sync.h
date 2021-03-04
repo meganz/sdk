@@ -585,22 +585,6 @@ struct Syncs
 
     /**
      * @brief
-     * Add an external backup sync.
-     *
-     * @param config
-     * Config describing the sync to be added.
-     *
-     * @param delayInitialScan
-     * Whether we should delay the inital scan.
-     *
-     * @return
-     * The result of adding the sync.
-     */
-    error backupAdd(const SyncConfig& config,
-                    SyncCompletionFunction completion);
-
-    /**
-     * @brief
      * Removes a previously opened backup database from memory.
      *
      * Note that this function will:
