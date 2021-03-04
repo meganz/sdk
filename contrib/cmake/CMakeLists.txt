@@ -21,33 +21,30 @@ endif()
 
 project(MegaSDK)
 
-#indicate which dependent libraries to use in the build
-set (USE_CRYPTOPP 1 CACHE STRING "")
-
 set (Mega3rdPartyDir "" CACHE FILEPATH "Prefix path for where third party dependencies are located")
 
 if (CMAKE_HOST_APPLE)
     set (USE_OPENSSL 0 CACHE STRING "")
 else()
-    set (USE_OPENSSL 1 CACHE STRING "")
+    set (USE_OPENSSL 1 CACHE STRING "Usually Needed")
 ENDIF()
 
-set (USE_ASIO 1 CACHE STRING "")
-set (USE_CURL 1 CACHE STRING "")
-set (USE_SQLITE 1 CACHE STRING "")
-set (USE_MEDIAINFO 1 CACHE STRING "")
-set (USE_FREEIMAGE 1 CACHE STRING "")
-set (USE_SODIUM 1 CACHE STRING "")
-set (ENABLE_SYNC 1 CACHE STRING "")
-set (ENABLE_CHAT 0 CACHE STRING "")
-set (ENABLE_LOG_PERFORMANCE 0 CACHE STRING "")
-set (USE_ROTATIVEPERFORMANCELOGGER 0 CACHE STRING "")
-set (HAVE_FFMPEG 1 CACHE STRING "")
-set (USE_WEBRTC 0 CACHE STRING "")
-set (USE_LIBUV 0 CACHE STRING "")
-set (USE_QT 0 CACHE STRING "")
-set (USE_PDFIUM 0 CACHE STRING "")
-set (USE_LIBRAW 0 CACHE STRING "")
+set (USE_ASIO 1 CACHE STRING "Only needed For tcprelay test tool")
+set (USE_CURL 1 CACHE STRING "Always needed (turning it off would mean using WinHTTP instead but that has not been maintained for a while)")
+set (USE_SQLITE 1 CACHE STRING "Needed unless intending a cache-less app")
+set (USE_MEDIAINFO 1 CACHE STRING "Used to determine media properties and set those as node attributes")
+set (USE_FREEIMAGE 1 CACHE STRING "Used to create previews/thumbnails for photos/pictures")
+set (ENABLE_SYNC 1 CACHE STRING "Turns on sync functionality")
+set (ENABLE_CHAT 0 CACHE STRING "Turns on chat management functionality")
+set (ENABLE_LOG_PERFORMANCE 0 CACHE STRING "Faster log message generation")
+set (USE_ROTATIVEPERFORMANCELOGGER 0 CACHE STRING "Internal logger, not just callbacks")
+set (HAVE_FFMPEG 1 CACHE STRING "Used to create previews/thumbnails for video files")
+set (USE_WEBRTC 0 CACHE STRING "Declare that your app will link wtih WebRTC")
+set (USE_LIBUV 0 CACHE STRING "Includes the library and turns on internal web and ftp server functionality")
+set (USE_QT 0 CACHE STRING "Declare that your app will link wtih Qt")
+set (USE_PDFIUM 0 CACHE STRING "Used to create previews/thumbnails for PDF files")
+set (USE_LIBRAW 0 CACHE STRING "Just includes the library (used by MEGAsync)")
+set (USE_PCRE 1 CACHE STRING "Provides pattern matching functionality for sync rules or flie listings")
 
 if (USE_QT)
     set( USE_CPPTHREAD 0)
@@ -55,10 +52,16 @@ else()
     set( USE_CPPTHREAD 1)
 endif()
 
+# Sodium is no longer optional. Setting the variable here to saisfy existing preprocessor checks and #cmakedefine
+set (USE_SODIUM 1)
+
+# Cryptop never was optional
+set (USE_CRYPTOPP 1)
+
 set (HAVE_LIBUV ${USE_LIBUV})
 set (HAVE_LIBRAW ${USE_LIBRAW})
 
-option(USE_THIRDPARTY_FROM_VCPKG 
+option(USE_THIRDPARTY_FROM_VCPKG
 "Whether to look for third party dependencies in a vcpkg install. If yes, Mega3rdPartyDir must be a path to a directory containing the vcpkg directory"
 ${WIN32})
 
@@ -83,10 +86,6 @@ if (USE_WEBRTC)
 endif()
 
 set (MEGA_LINK_DYNAMIC_CRT 1 CACHE STRING "")
-
-if (ENABLE_CHAT AND NOT USE_SODIUM)
-    message(FATAL_ERROR "ENABLE_CHAT (${ENABLE_CHAT}) requires USE_SODIUM (${USE_SODIUM})")
-endif()
 
 if (WIN32)
     message(STATUS "CMAKE_GENERATOR is ${CMAKE_GENERATOR}")
@@ -353,9 +352,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(cryptopp        cryptopp-static cryptopp-static libcryptopp libcryptopp)
         ENDIF(USE_CRYPTOPP)
 
-        IF(USE_SODIUM)
-            ImportStdVcpkgLibrary(sodium          libsodium libsodium libsodium libsodium)
-        ENDIF(USE_SODIUM)
+        ImportStdVcpkgLibrary(sodium          libsodium libsodium libsodium libsodium)
 
         ImportStdVcpkgLibrary(z               zlibd zlib libz libz)
 
@@ -387,7 +384,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportALibrary(webrtc "${WebRtcDir}/include" "${WebRtcDir}/lib/webrtc.lib" "${WebRtcDir}/lib/webrtc.lib")
             add_definitions( -DWEBRTC_WIN )
         ENDIF()
-    
+
         ImportStdVcpkgLibrary(gtest           gtestd gtest libgtestd libgtest)
         ImportStdVcpkgLibrary(gmock           gmockd gmock libgmockd libgmock)
 
@@ -455,6 +452,11 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         IF(USE_LIBUV)
             ImportStdVcpkgLibrary(uv       libuv libuv liblibuv liblibuv)
         ENDIF(USE_LIBUV)
+
+        IF(USE_PCRE)
+            ImportStdVcpkgLibrary(pcre     pcred pcre libpcred libpcre)
+            ImportStdVcpkgLibrary(pcrecpp  pcrecppd pcrecpp libpcrecppd libpcrecpp)
+        ENDIF(USE_PCRE)
 
         IF(USE_LIBRAW)
             ImportStdVcpkgLibrary(raw                  rawd raw librawd libraw)
@@ -726,7 +728,7 @@ endforeach(PKG)
 
 target_link_libraries(Mega PUBLIC
                         $<${USE_CRYPTOPP}:cryptopp>
-                        $<${USE_SODIUM}:sodium>
+                        sodium
                         $<${USE_WEBRTC}:webrtc>
                         $<${USE_MEDIAINFO}:mediainfo> $<${USE_MEDIAINFO}:zen>
                         $<${USE_CURL}:curl>
@@ -735,6 +737,7 @@ target_link_libraries(Mega PUBLIC
                         $<$<AND:${USE_OPENSSL},$<NOT:${USE_WEBRTC}>>:crypto>
                         $<${USE_SQLITE}:sqlite3>
                         $<${USE_LIBUV}:uv>
+                        $<${USE_PCRE}:pcre pcrecpp>
                         $<${USE_LIBRAW}:raw> $<${USE_LIBRAW}:${raw_deps}>
                         $<${USE_FREEIMAGE}:freeimage> $<${USE_FREEIMAGE}:${freeimage_deps}>
                         $<${USE_PDFIUM}:pdfium> $<${USE_PDFIUM}:${pdfium_deps}>
@@ -748,7 +751,7 @@ target_compile_definitions(Mega PUBLIC
                 $<${USE_CRYPTOPP}:USE_CRYPTOPP>
                 $<${USE_OPENSSL}:USE_OPENSSL>
                 $<${USE_CURL}:USE_CURL>
-                $<${USE_SODIUM}:USE_SODIUM>
+                USE_SODIUM
                 $<${ENABLE_SYNC}:ENABLE_SYNC>
                 $<${ENABLE_CHAT}:ENABLE_CHAT>
                 $<${ENABLE_LOG_PERFORMANCE}:ENABLE_LOG_PERFORMANCE>
@@ -760,6 +763,7 @@ target_compile_definitions(Mega PUBLIC
                 $<${HAVE_LIBUV}:HAVE_LIBUV>
                 $<${USE_CPPTHREAD}:USE_CPPTHREAD>
                 $<${USE_QT}:USE_QT>
+                $<${USE_PCRE}:USE_PCRE>
                 $<${USE_PDFIUM}:HAVE_PDFIUM>)
 
 if (WIN32)

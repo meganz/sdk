@@ -1,11 +1,12 @@
-diff --git a/ports/freeimage/portfile.cmake b/ports/freeimage/portfile.cmake
-index ce1b86821..e2e27e977 100644
---- a/ports/freeimage/portfile.cmake
-+++ b/ports/freeimage/portfile.cmake
-@@ -48,4 +48,22 @@ vcpkg_fixup_cmake_targets()
+diff --git a/portfile.cmake b/portfile.cmake
+index ce1b868..e113a0a 100644
+--- a/portfile.cmake
++++ b/portfile.cmake
+@@ -47,5 +47,23 @@ vcpkg_install_cmake()
+ vcpkg_fixup_cmake_targets()
  
  vcpkg_copy_pdbs()
- 
++ 
 +file(READ "${CURRENT_PACKAGES_DIR}/include/FreeImage.h" _header_data)
 +string(REPLACE
 +    "typedef int32_t BOOL;"
@@ -23,5 +24,5 @@ index ce1b86821..e2e27e977 100644
 +)
 +
 +file(WRITE "${CURRENT_PACKAGES_DIR}/include/FreeImage.h" "${_header_data}")
-+
+ 
  file(INSTALL ${SOURCE_PATH}/license-fi.txt DESTINATION ${CURRENT_PACKAGES_DIR}/share/${PORT} RENAME copyright)
