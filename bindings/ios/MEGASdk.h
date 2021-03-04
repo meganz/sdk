@@ -5776,6 +5776,22 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
 */
 -(NSArray<NSDate *> *)overquotaWarningDateList;
 
+/**
+ * @brief Call the low level function setrlimit() for NOFILE, needed for some platforms.
+ *
+ * Particularly on phones, the system default limit for the number of open files (and sockets)
+ * is quite low.   When the SDK can be working on many files and many sockets at once,
+ * we need a higher limit.   Those limits need to take into account the needs of the whole
+ * app and not just the SDK, of course.   This function is provided in order that the app
+ * can make that call and set appropriate limits.
+ *
+ * @param fileCount The new limit of file and socket handles for the whole app.
+ *
+ * @return YES when there were no errors setting the new limit (even when clipped to the maximum
+ * allowed value). It returns NO when setting a new limit failed.
+ */
+- (BOOL)setRLimitFileCount:(NSInteger)fileCount;
+
 #pragma mark - Transfers
 
 /**
