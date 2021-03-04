@@ -2275,8 +2275,7 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
 
     if (mConfig.mError)
     {
-        // save configuration but avoid creating active sync, and set as disabled.
-        mConfig.setEnabled(false);
+        // save configuration but avoid creating active sync, and set as temporarily disabled.
         mClient.syncs.saveSyncConfig(mConfig);
         return API_EFAILED;
     }
