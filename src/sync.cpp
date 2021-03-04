@@ -1141,8 +1141,13 @@ void Sync::cachenodes()
 
 void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEnableFlag, bool notifyApp)
 {
-    getConfig().setError(newSyncError);
-    getConfig().setEnabled(newEnableFlag);
+    auto& config = getConfig();
+
+    // See explanation in disableSelectedSyncs(...).
+    newEnableFlag &= !(config.isBackup() && newstate < SYNC_INITIALSCAN);
+
+    config.setError(newSyncError);
+    config.setEnabled(newEnableFlag);
 
     if (newstate != state)
     {
@@ -1156,7 +1161,7 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
             bool nowActive = newstate == SYNC_ACTIVE;
             if (wasActive != nowActive)
             {
-                mUnifiedSync.mClient.app->syncupdate_active(getConfig().getBackupId(), nowActive);
+                mUnifiedSync.mClient.app->syncupdate_active(config.getBackupId(), nowActive);
             }
         }
     }
@@ -2270,7 +2275,8 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
 
     if (mConfig.mError)
     {
-        // save configuration but avoid creating active sync, and set as temporary disabled:
+        // save configuration but avoid creating active sync, and set as disabled.
+        mConfig.setEnabled(false);
         mClient.syncs.saveSyncConfig(mConfig);
         return API_EFAILED;
     }
@@ -2948,31 +2954,31 @@ void Syncs::disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selecto
     {
         if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
         {
-            // Backups should not be automatically resumed unless we can be sure
-            // that mirror phase completed, and no cloud changes occurred since.
-            //
-            // If the backup was mirroring, the mirror may be incomplete. In that
-            // case, the cloud may still contain files/folders that should not be
-            // in the backup, and so we would need to restore in mirror phase, but
-            // we must have the user's permission and instruction to do that.
-            //
-            // If the backup was monitoring when it was disabled, it's possible that
-            // the cloud has changed in the meantime. If it was resumed, there may
-            // be cloud changes that cause it to immediately fail.  Again we should
-            // have the user's instruction to start again with mirroring phase.
-            //
-            // For initial implementation we are keeping things simple and reliable,
-            // the user must resume the sync manually, and confirm that starting
-            // with mirroring phase is appropriate.
-            auto enabled = newEnabledFlag & !mSyncVec[i]->mConfig.isBackup();
-
             if (auto sync = mSyncVec[i]->mSync.get())
             {
-                sync->changestate(SYNC_DISABLED, syncError, enabled, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
+                sync->changestate(SYNC_DISABLED, syncError, newEnabledFlag, true); //This will cause the later deletion of Sync (not MegaSyncPrivate) object
                 mClient.syncactivity = true;
             }
             else
             {
+                // Backups should not be automatically resumed unless we can be sure
+                // that mirror phase completed, and no cloud changes occurred since.
+                //
+                // If the backup was mirroring, the mirror may be incomplete. In that
+                // case, the cloud may still contain files/folders that should not be
+                // in the backup, and so we would need to restore in mirror phase, but
+                // we must have the user's permission and instruction to do that.
+                //
+                // If the backup was monitoring when it was disabled, it's possible that
+                // the cloud has changed in the meantime. If it was resumed, there may
+                // be cloud changes that cause it to immediately fail.  Again we should
+                // have the user's instruction to start again with mirroring phase.
+                //
+                // For initial implementation we are keeping things simple and reliable,
+                // the user must resume the sync manually, and confirm that starting
+                // with mirroring phase is appropriate.
+                auto enabled = newEnabledFlag & !mSyncVec[i]->mConfig.isBackup();
+
                 mSyncVec[i]->mConfig.setError(syncError);
                 mSyncVec[i]->mConfig.setEnabled(enabled);
                 mSyncVec[i]->changedConfigState(true);
@@ -3106,21 +3112,13 @@ void Syncs::enableResumeableSyncs()
     {
         if (!unifiedSync->mSync)
         {
-            // Backup syncs should never be resumed after a temporary error.
-            // See Syncs::disableSelectedSyncs(...) for an explanation.
-            if (unifiedSync->mConfig.isBackup())
-            {
-                if (unifiedSync->mConfig.getEnabled())
-                {
-                    unifiedSync->mConfig.setEnabled(false);
-                    saveSyncConfig(unifiedSync->mConfig);
-                }
-            }
-
             if (unifiedSync->mConfig.getEnabled())
             {
                 SyncError syncError = unifiedSync->mConfig.getError();
                 LOG_debug << "Restoring sync: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " old error = " << syncError;
+
+                // We should never try to resume a backup sync.
+                assert(!unifiedSync->mConfig.isBackup());
 
                 anySyncRestored |= unifiedSync->enableSync(false, true) == API_OK;
             }
