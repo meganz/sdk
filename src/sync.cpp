@@ -2428,9 +2428,9 @@ error Syncs::backupRestore(LocalPath drivePath)
 
     if (!store)
     {
-        LOG_verbose << "Couldn't restore "
-                    << drivePath.toPath(fsAccess)
-                    << " as there is no config store.";
+        LOG_err << "Couldn't restore "
+                << drivePath.toPath(fsAccess)
+                << " as there is no config store.";
 
         // Nope and we can't do anything without it.
         return API_EINTERNAL;
@@ -2442,9 +2442,9 @@ error Syncs::backupRestore(LocalPath drivePath)
     // Has this drive already been opened?
     if (store->driveKnown(drivePath))
     {
-        LOG_verbose << "Skipped restore of "
-                    << drivePath.toPath(fsAccess)
-                    << " as it has already been opened.";
+        LOG_debug << "Skipped restore of "
+                  << drivePath.toPath(fsAccess)
+                  << " as it has already been opened.";
 
         // Then we don't have to do anything.
         return API_EEXIST;
@@ -2458,8 +2458,8 @@ error Syncs::backupRestore(LocalPath drivePath)
     // Try and restore the backups in the database.
     if (result == API_OK)
     {
-        LOG_verbose << "Attempting to restore backup syncs from "
-                    << drivePath.toPath(fsAccess);
+        LOG_debug << "Attempting to restore backup syncs from "
+                  << drivePath.toPath(fsAccess);
 
         size_t numRestored = 0;
 
@@ -2469,12 +2469,12 @@ error Syncs::backupRestore(LocalPath drivePath)
             // Make sure there aren't any syncs with this backup id.
             if (syncConfigByBackupId(config.mBackupId))
             {
-                LOG_verbose << "Skipping restore of backup "
-                            << config.mLocalPath.toPath(fsAccess)
-                            << " on "
-                            << drivePath.toPath(fsAccess)
-                            << " as a sync already exists with the backup id "
-                            << toHandle(config.mBackupId);
+                LOG_err << "Skipping restore of backup "
+                        << config.mLocalPath.toPath(fsAccess)
+                        << " on "
+                        << drivePath.toPath(fsAccess)
+                        << " as a sync already exists with the backup id "
+                        << toHandle(config.mBackupId);
 
                 continue;
             }
@@ -2487,20 +2487,20 @@ error Syncs::backupRestore(LocalPath drivePath)
         }
 
         // Log how many backups we could restore.
-        LOG_verbose << "Restored "
-                    << numRestored
-                    << " out of "
-                    << configs.size()
-                    << " backup(s) from "
-                    << drivePath.toPath(fsAccess);
+        LOG_debug << "Restored "
+                  << numRestored
+                  << " out of "
+                  << configs.size()
+                  << " backup(s) from "
+                  << drivePath.toPath(fsAccess);
 
         return API_OK;
     }
 
     // Couldn't open the database.
-    LOG_verbose << "Failed to restore "
-                << drivePath.toPath(fsAccess)
-                << " as we couldn't open its config database.";
+    LOG_debug << "Failed to restore "
+              << drivePath.toPath(fsAccess)
+              << " as we couldn't open its config database.";
 
     return result;
 }
@@ -2548,7 +2548,7 @@ void Syncs::syncConfigStoreFlush()
     // No need to flush if the store's not dirty.
     if (syncConfigStoreDirty())
     {
-        LOG_verbose << "Flushing config store changes.";
+        LOG_debug << "Flushing config store changes.";
         mSyncConfigStore->writeDirtyDrives(allConfigs());
     }
 }
@@ -3551,8 +3551,8 @@ error SyncConfigIOContext::read(const LocalPath& dbPath,
     if (!fileAccess->fopen(path, true, false))
     {
         // Couldn't open the file for reading.
-        LOG_debug << "Unable to open config DB for reading: "
-                  << path.toPath(mFsAccess);
+        LOG_err << "Unable to open config DB for reading: "
+                << path.toPath(mFsAccess);
 
         return API_EREAD;
     }
@@ -3563,8 +3563,8 @@ error SyncConfigIOContext::read(const LocalPath& dbPath,
     if (!fileAccess->fread(&d, static_cast<unsigned>(fileAccess->size), 0, 0x0))
     {
         // Couldn't read the file.
-        LOG_debug << "Unable to read config DB: "
-                  << path.toPath(mFsAccess);
+        LOG_err << "Unable to read config DB: "
+                << path.toPath(mFsAccess);
 
         return API_EREAD;
     }
@@ -3573,8 +3573,8 @@ error SyncConfigIOContext::read(const LocalPath& dbPath,
     if (!decrypt(d, data))
     {
         // Couldn't decrypt the data.
-        LOG_debug << "Unable to decrypt config DB: "
-                  << path.toPath(mFsAccess);
+        LOG_err << "Unable to decrypt config DB: "
+                << path.toPath(mFsAccess);
 
         return API_EREAD;
     }
@@ -3655,8 +3655,8 @@ error SyncConfigIOContext::write(const LocalPath& dbPath,
     // Try and create the backup configuration directory.
     if (!(mFsAccess.mkdirlocal(path) || mFsAccess.target_exists))
     {
-        LOG_debug << "Unable to create config DB directory: "
-                  << dbPath.toPath(mFsAccess);
+        LOG_err << "Unable to create config DB directory: "
+                << dbPath.toPath(mFsAccess);
 
         // Couldn't create the directory and it doesn't exist.
         return API_EWRITE;
@@ -3671,8 +3671,8 @@ error SyncConfigIOContext::write(const LocalPath& dbPath,
     if (!fileAccess->fopen(path, false, true))
     {
         // Couldn't open the file for writing.
-        LOG_debug << "Unable to open config DB for writing: "
-                  << path.toPath(mFsAccess);
+        LOG_err << "Unable to open config DB for writing: "
+                << path.toPath(mFsAccess);
 
         return API_EWRITE;
     }
@@ -3681,8 +3681,8 @@ error SyncConfigIOContext::write(const LocalPath& dbPath,
     if (!fileAccess->ftruncate())
     {
         // Couldn't truncate the file.
-        LOG_debug << "Unable to truncate config DB: "
-                  << path.toPath(mFsAccess);
+        LOG_err << "Unable to truncate config DB: "
+                << path.toPath(mFsAccess);
 
         return API_EWRITE;
     }
@@ -3696,8 +3696,8 @@ error SyncConfigIOContext::write(const LocalPath& dbPath,
     if (!fileAccess->fwrite(bytes, static_cast<unsigned>(d.size()), 0x0))
     {
         // Couldn't write out the data.
-        LOG_debug << "Unable to write config DB: "
-                  << path.toPath(mFsAccess);
+        LOG_err << "Unable to write config DB: "
+                << path.toPath(mFsAccess);
 
         return API_EWRITE;
     }
