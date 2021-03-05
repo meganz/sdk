@@ -5432,7 +5432,7 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
 }
 
-TEST_F(SdkTest, DISABLED_RecursiveDownloadWithLogout)
+TEST_F(SdkTest, RecursiveDownloadWithLogout)
 {
     LOG_info << "___TEST RecursiveDownloadWithLogout";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
