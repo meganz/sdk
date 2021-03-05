@@ -8745,11 +8745,6 @@ void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaHand
     waiter->notify();
 }
 
-void MegaApiImpl::syncFolder(const char *localFolder, const char *name, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener)
-{
-    syncFolder(localFolder, name, megaFolder ? megaFolder->getHandle() : INVALID_HANDLE, SyncConfig::TYPE_TWOWAY, regExp, listener);
-}
-
 void MegaApiImpl::copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
                                       long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener)
 {
