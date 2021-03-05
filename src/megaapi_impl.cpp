@@ -6952,7 +6952,7 @@ void MegaApiImpl::getFavourites(MegaNode* node, int count, MegaRequestListener* 
     request->setParamType(MegaApi::NODE_ATTR_FAV);
     request->setNumDetails(count);
     requestQueue.push(request);
-    waiter->notify(); 
+    waiter->notify();
 }
 
 static void encodeCoordinates(double latitude, double longitude, int& lat, int& lon)
@@ -7688,7 +7688,19 @@ void MegaApiImpl::abortPendingActions(error preverror)
         // clear existing transfers
         while (!transferMap.empty())
         {
-            auto transfer = transferMap.begin()->second;
+            MegaTransferPrivate* transfer = nullptr;
+
+            for (auto& t : transferMap)
+            {
+                // skip the folder upload/download records- their last sub-transfer will remove them too
+                if (!t.second->isRecursive())
+                {
+                    transfer = t.second;
+					break;
+                }
+            }
+            if (!transfer) break;
+
             transfer->setState(MegaTransfer::STATE_FAILED);
 
             transfer->setDoNotStopSubTransfers(true); //so as not to remove subtransfer from cache
@@ -20592,7 +20604,7 @@ void MegaApiImpl::sendPendingRequests()
                 FavouriteProcessor processor(count);
                 processTree(node, &processor);
                 request->setMegaHandleList(processor.getHandles());
-                
+
                 fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             }
             break;
