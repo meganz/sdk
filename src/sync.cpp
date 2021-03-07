@@ -3286,7 +3286,6 @@ error SyncConfigStore::read(DriveInfo& driveInfo, SyncConfigVector& configs,
     }
 
     const auto& drivePath = driveInfo.drivePath;
-    auto& fsAccess = mIOContext.fsAccess();
 
     for (auto& config : configs)
     {
