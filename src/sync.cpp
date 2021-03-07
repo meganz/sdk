@@ -3292,16 +3292,9 @@ error SyncConfigStore::read(DriveInfo& driveInfo, SyncConfigVector& configs,
     {
         config.mExternalDrivePath = drivePath;
 
-        auto sourcePath = config.mLocalPath.toPath(fsAccess);
-
         if (!drivePath.empty())
         {
             config.mLocalPath.prependWithSeparator(drivePath);
-        }
-
-        if (sourcePath == config.mName)
-        {
-            config.mName = config.mLocalPath.toPath(fsAccess);
         }
     }
 
@@ -3898,13 +3891,6 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
                                     JSONWriter& writer) const
 {
     auto sourcePath = config.mLocalPath.toPath(mFsAccess);
-    auto* name = &config.mName;
-
-    // Compute effective name.
-    if (*name == sourcePath)
-    {
-        name = &sourcePath;
-    }
 
     // Strip drive path from source.
     if (config.isExternal())
@@ -3916,7 +3902,7 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.beginobject();
     writer.arg("id", config.getBackupId(), sizeof(handle));
     writer.arg_B64("sp", sourcePath);
-    writer.arg_B64("n", *name);
+    writer.arg_B64("n", config.mName);
     writer.arg_B64("tp", config.mOrigninalPathOfRemoteRootNode);
     writer.arg_fsfp("fp", config.mLocalFingerprint);
     writer.arg("th", config.mRemoteNode, MegaClient::NODEHANDLE);

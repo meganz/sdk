@@ -13305,15 +13305,17 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
     // Are we adding an external backup?
     if (config.isExternal())
     {
+        auto drivePath = NormalizeAbsolute(config.mExternalDrivePath);
+        auto sourcePath = NormalizeAbsolute(config.mLocalPath);
         auto* store = syncs.syncConfigStore();
 
         // Can we get our hands on the config store?
         if (!store)
         {
             LOG_err << "Unable to add backup "
-                    << config.mLocalPath.toPath(*fsaccess)
+                    << sourcePath.toPath(*fsaccess)
                     << " on "
-                    << config.mExternalDrivePath.toPath(*fsaccess)
+                    << drivePath.toPath(*fsaccess)
                     << " as there is no config store.";
 
             assert(completion);
@@ -13321,8 +13323,6 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
 
             return API_EINTERNAL;
         }
-
-        auto drivePath = NormalizeAbsolute(config.mExternalDrivePath);
 
         // Do we already know about this drive?
         if (!store->driveKnown(drivePath))
@@ -13334,9 +13334,9 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
             {
                 // Couldn't read an existing database.
                 LOG_err << "Unable to add backup "
-                        << config.mLocalPath.toPath(*fsaccess)
+                        << sourcePath.toPath(*fsaccess)
                         << " on "
-                        << config.mExternalDrivePath.toPath(*fsaccess)
+                        << drivePath.toPath(*fsaccess)
                         << " as we could not read its config database.";
 
                 assert(completion);
@@ -13344,15 +13344,6 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
 
                 return API_EFAILED;
             }
-        }
-
-        auto& name = config.mName;
-        auto sourcePath = NormalizeAbsolute(config.mLocalPath);
-
-        // Make sure source and name are consistent.
-        if (config.mLocalPath.toPath(*fsaccess) == name)
-        {
-            name = sourcePath.toPath(*fsaccess);
         }
 
         config.mExternalDrivePath = std::move(drivePath);
