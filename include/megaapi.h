@@ -86,11 +86,11 @@ class MegaApi;
 class MegaSemaphore;
 
 #if defined(SWIG)
-    #define MEGA_DEPRECATGED
+    #define MEGA_DEPRECATED
 #elif defined(WIN32)
-    #define MEGA_DEPRECATGED [[deprecated]]
+    #define MEGA_DEPRECATED [[deprecated]]
 #else
-    #define MEGA_DEPRECATGED
+    #define MEGA_DEPRECATED
 #endif
 
 /**
@@ -13519,25 +13519,25 @@ class MegaApi
         /**
         * @deprecated This version of the function is deprecated.  Please use the non-deprecated one below.
          */
-        MEGA_DEPRECATGED
+        MEGA_DEPRECATED
         void syncFolder(const char* localFolder, const char* name, MegaNode* megaFolder, MegaRequestListener* listener = NULL);
 
         /**
         * @deprecated This version of the function is deprecated.  Please use the non-deprecated one below.
          */
-        MEGA_DEPRECATGED
+        MEGA_DEPRECATED
         void syncFolder(const char* localFolder, MegaNode* megaFolder, MegaRequestListener* listener = NULL);
 
         /**
         * @deprecated This version of the function is deprecated.  Please use the non-deprecated one below.
          */
-        MEGA_DEPRECATGED
+        MEGA_DEPRECATED
         void syncFolder(const char* localFolder, MegaHandle megaHandle, MegaRequestListener* listener = NULL);
 
         /**
         * @deprecated This version of the function is deprecated.  Please use the non-deprecated one below.
          */
-        MEGA_DEPRECATGED
+        MEGA_DEPRECATED
         void syncFolder(const char* localFolder, const char* name, MegaHandle megaHandle, MegaRequestListener* listener = NULL);
 
 
@@ -13729,7 +13729,7 @@ class MegaApi
         /**
         * @deprecated This version of the function is deprecated.  Please use the non-deprecated one above.
          */
-        MEGA_DEPRECATGED
+        MEGA_DEPRECATED
         void syncFolder(const char *localFolder, MegaNode *megaFolder, MegaRegExp *regExp, MegaRequestListener *listener = NULL);
 
 #endif
