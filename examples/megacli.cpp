@@ -8492,9 +8492,12 @@ void exec_syncbackupadd(autocomplete::ACState& s)
         return;
     }
 
+    // Necessary so that we can reliably extract the leaf name.
+    sourcePath = NormalizeAbsolute(sourcePath);
+
     auto config =
       SyncConfig(sourcePath,
-                 sourcePath.toPath(fsAccess),
+                 sourcePath.leafName().toPath(fsAccess),
                  targetNode->nodehandle,
                  targetPath,
                  0,
