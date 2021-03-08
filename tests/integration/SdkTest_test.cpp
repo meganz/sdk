@@ -5119,7 +5119,7 @@ TEST_F(SdkTest, SdkFavouriteNodes)
 
     auto err = synchronousSetNodeFavourite(0, subFolderA.get(), true);
     err = synchronousSetNodeFavourite(0, n1.get(), true);
-    
+
     err = synchronousGetFavourites(0, subFolderA.get(), 0);
     ASSERT_EQ(MegaError::API_OK, err) << "synchronousGetFavourites (error: " << err << ")";
     ASSERT_EQ(mMegaFavNodeList->size(), 2) << "synchronousGetFavourites failed...";
@@ -5452,7 +5452,7 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
 }
 
-TEST_F(SdkTest, DISABLED_RecursiveDownloadWithLogout)
+TEST_F(SdkTest, RecursiveDownloadWithLogout)
 {
     LOG_info << "___TEST RecursiveDownloadWithLogout";
     getAccountsForTest(2);
