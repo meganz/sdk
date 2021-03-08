@@ -3027,29 +3027,19 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_syncadd,
            sequence(text("sync"),
                     text("add"),
+                    opt(flag("-backup")),
+                    opt(sequence(flag("-external"), param("drivePath"))),
                     localFSFolder("source"),
                     remoteFSFolder(client, &cwd, "target")));
 
-    p->Add(exec_syncbackupadd,
+    p->Add(exec_syncclosedrive,
            sequence(text("sync"),
-                    text("backup"),
-                    text("add"),
-                    either(sequence(localFSFolder("drive"),
-                                    localFSFolder("source"),
-                                    remoteFSFolder(client, &cwd, "target")),
-                           sequence(localFSFolder("source"),
-                                    remoteFSFolder(client, &cwd, "target")))));
-
-    p->Add(exec_syncbackupremove,
-           sequence(text("sync"),
-                    text("backup"),
-                    text("remove"),
+                    text("closedrive"),
                     localFSFolder("drive")));
 
-    p->Add(exec_syncbackuprestore,
+    p->Add(exec_syncopendrive,
            sequence(text("sync"),
-                    text("backup"),
-                    text("restore"),
+                    text("opendrive"),
                     localFSFolder("drive")));
 
     p->Add(exec_synclist,
@@ -8420,66 +8410,14 @@ void exec_syncadd(autocomplete::ACState& s)
         return;
     }
 
+    string drive;
+    bool backup = s.extractflag("-backup");
+    bool external = s.extractflagparam("-external", drive);
+
     // sync add source target
-    string sourcePath = s.words[2].s;
+    LocalPath drivePath = LocalPath::fromPath(drive, *client->fsaccess);
+    LocalPath sourcePath = LocalPath::fromPath(s.words[2].s, *client->fsaccess);
     string targetPath = s.words[3].s;
-
-    // Does the target node exist?
-    auto* targetNode = nodebypath(targetPath.c_str());
-
-    if (!targetNode)
-    {
-        cerr << targetPath
-             << ": Not found."
-             << endl;
-        return;
-    }
-
-    // Create a suitable sync config.
-    auto config =
-      SyncConfig(LocalPath::fromPath(sourcePath, *client->fsaccess),
-                 sourcePath,
-                 targetNode->nodehandle,
-                 targetPath,
-                 0,
-                 string_vector(),
-                 true,
-                 SyncConfig::TYPE_TWOWAY);
-
-    // Try and add the new sync.
-	// All validation is performed in this function.
-    client->addsync(config, false, sync_completion);
-}
-
-void exec_syncbackupadd(autocomplete::ACState& s)
-{
-    if (client->loggedin() != FULLACCOUNT)
-    {
-        cerr << "You must be logged in to create a backup sync."
-             << endl;
-        return;
-    }
-
-    // Convenience.
-    auto& fsAccess = *client->fsaccess;
-
-    LocalPath drivePath;
-    LocalPath sourcePath;
-    string targetPath;
-
-    if (s.words.size() == 6)
-    {
-        // sync backup add drive source target
-        drivePath  = LocalPath::fromPath(s.words[3].s, fsAccess);
-        sourcePath = LocalPath::fromPath(s.words[4].s, fsAccess);
-        targetPath = s.words[5].s;
-    }
-    else
-    {
-        // sync backup add source target
-        sourcePath = LocalPath::fromPath(s.words[3].s, fsAccess);
-        targetPath = s.words[4].s;
-    }
 
     // Does the target node exist?
     auto* targetNode = nodebypath(targetPath.c_str());
@@ -8495,23 +8433,33 @@ void exec_syncbackupadd(autocomplete::ACState& s)
     // Necessary so that we can reliably extract the leaf name.
     sourcePath = NormalizeAbsolute(sourcePath);
 
+    // Create a suitable sync config.
     auto config =
       SyncConfig(sourcePath,
-                 sourcePath.leafName().toPath(fsAccess),
+                 sourcePath.leafName().toPath(*client->fsaccess),
                  targetNode->nodehandle,
                  targetPath,
                  0,
                  string_vector(),
                  true,
-                 SyncConfig::TYPE_BACKUP);
+                 backup ? SyncConfig::TYPE_BACKUP : SyncConfig::TYPE_TWOWAY);
 
-    config.mExternalDrivePath = std::move(drivePath);
+    if (external)
+    {
+        if (!backup)
+        {
+            cerr << "Sorry, eternal syncs must be backups for now" << endl;
+        }
 
-    // All validation is performed in this function.
+        config.mExternalDrivePath = std::move(drivePath);
+    }
+
+    // Try and add the new sync.
+	// All validation is performed in this function.
     client->addsync(config, false, sync_completion);
 }
 
-void exec_syncbackupremove(autocomplete::ACState& s)
+void exec_syncclosedrive(autocomplete::ACState& s)
 {
     // Are we logged in?
     if (client->loggedin() != FULLACCOUNT)
@@ -8523,9 +8471,9 @@ void exec_syncbackupremove(autocomplete::ACState& s)
 
     // sync backup remove drive
     const auto drivePath =
-      LocalPath::fromPath(s.words[3].s, *client->fsaccess);
+      LocalPath::fromPath(s.words[2].s, *client->fsaccess);
 
-    const auto result = client->syncs.backupRemove(drivePath);
+    const auto result = client->syncs.backupCloseDrive(drivePath);
 
     if (result)
     {
@@ -8535,7 +8483,7 @@ void exec_syncbackupremove(autocomplete::ACState& s)
     }
 }
 
-void exec_syncbackuprestore(autocomplete::ACState& s)
+void exec_syncopendrive(autocomplete::ACState& s)
 {
     if (client->loggedin() != FULLACCOUNT)
     {
@@ -8546,15 +8494,15 @@ void exec_syncbackuprestore(autocomplete::ACState& s)
 
     // sync backup restore drive
     const auto drivePath =
-      LocalPath::fromPath(s.words[3].s, *client->fsaccess);
+      LocalPath::fromPath(s.words[2].s, *client->fsaccess);
 
-    auto result = client->syncs.backupRestore(drivePath);
+    auto result = client->syncs.backupOpenDrive(drivePath);
 
     if (result)
     {
-        cerr << "Unable to restore backups from "
-             << s.words[3].s
-             << ": "
+        cerr << "Unable to restore backups from '"
+             << s.words[2].s
+             << "': "
              << errorstring(result)
              << endl;
     }

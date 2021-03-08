@@ -13093,7 +13093,10 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
     if (syncConfig.isExternal())
     {
         // Currently only possible for backup syncs.
-        assert(syncConfig.isBackup());
+        if (!syncConfig.isBackup())
+        {
+            return API_EARGS;
+        }
 
         const auto& drivePath = syncConfig.mExternalDrivePath;
         const auto& sourcePath = syncConfig.mLocalPath;
@@ -13104,7 +13107,7 @@ error MegaClient::checkSyncConfig(SyncConfig& syncConfig, LocalPath& rootpath, s
             syncConfig.mEnabled = false;
             syncConfig.mError = BACKUP_SOURCE_NOT_BELOW_DRIVE;
 
-            return API_ENOENT;
+            return API_EARGS;
         }
     }
 
@@ -13328,7 +13331,7 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
         if (!store->driveKnown(drivePath))
         {
             // Restore the drive's backups, if any.
-            auto result = syncs.backupRestore(drivePath);
+            auto result = syncs.backupOpenDrive(drivePath);
 
             if (result != API_OK && result != API_ENOENT)
             {
@@ -13876,7 +13879,7 @@ bool MegaClient::syncdown(LocalNode* l, LocalPath& localpath, SyncdownContext& c
                 {
                     // Mirror hasn't stabilized.
                     cxt.mActionsPerformed = true;
-                    
+
                     // Remove the remote.
                     movetosyncdebris(rit->second, l->sync->inshare);
                 }

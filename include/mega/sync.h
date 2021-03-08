@@ -564,6 +564,9 @@ struct Syncs
     // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered
     void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
 
+    // removes the sync from RAM; the config will be flushed to disk
+    void unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
+
     // removes all configured backups from cache, API (BackupCenter) and user's attribute (*!bn = backup-names)
     void purgeSyncs();
 
@@ -585,7 +588,7 @@ struct Syncs
 
     /**
      * @brief
-     * Removes a previously opened backup database from memory.
+     * Removes previously opened backup databases from that drive from memory.
      *
      * Note that this function will:
      * - Flush any pending database changes.
@@ -617,7 +620,7 @@ struct Syncs
      * API_OK
      * The database was removed from memory.
      */
-    error backupRemove(LocalPath drivePath);
+    error backupCloseDrive(LocalPath drivePath);
 
     /**
      * @brief
@@ -629,7 +632,7 @@ struct Syncs
      * @return
      * The result of restoring the external backups.
      */
-    error backupRestore(LocalPath drivePath);
+    error backupOpenDrive(LocalPath drivePath);
 
     // Returns a reference to this user's internal configuration database.
     SyncConfigStore* syncConfigStore();
@@ -643,7 +646,7 @@ struct Syncs
     // Load internal sync configs from disk.
     error syncConfigStoreLoad(SyncConfigVector& configs);
 
-private:    
+private:
     // Returns a reference to this user's sync config IO context.
     SyncConfigIOContext* syncConfigIOContext();
 
@@ -657,6 +660,9 @@ private:
 
     // remove the Sync and its config (also unregister in API). The sync's Localnode cache is removed
     void removeSyncByIndex(size_t index);
+
+    // unload the Sync (remove from RAM and data structures), its config will be flushed to disk
+    void unloadSyncByIndex(size_t index);
 
     MegaClient& mClient;
 };

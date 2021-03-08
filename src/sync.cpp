@@ -2379,7 +2379,7 @@ SyncConfigVector Syncs::allConfigs()
     return v;
 }
 
-error Syncs::backupRemove(LocalPath drivePath)
+error Syncs::backupCloseDrive(LocalPath drivePath)
 {
     // Is the path valid?
     if (drivePath.empty())
@@ -2399,20 +2399,19 @@ error Syncs::backupRemove(LocalPath drivePath)
     // Ensure the drive path is in normalized form.
     drivePath = NormalizeAbsolute(drivePath);
 
-    removeSelectedSyncs(
+    auto result = store->write(drivePath, configsForDrive(drivePath));
+    store->removeDrive(drivePath);
+
+    unloadSelectedSyncs(
       [&](SyncConfig& config, Sync*)
       {
           return config.mExternalDrivePath == drivePath;
       });
 
-    auto result = store->write(drivePath, configsForDrive(drivePath));
-
-    store->removeDrive(drivePath);
-
     return result;
 }
 
-error Syncs::backupRestore(LocalPath drivePath)
+error Syncs::backupOpenDrive(LocalPath drivePath)
 {
     // Is the drive path valid?
     if (drivePath.empty())
@@ -2889,6 +2888,17 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
     }
 }
 
+void Syncs::unloadSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector)
+{
+    for (auto i = mSyncVec.size(); i--; )
+    {
+        if (selector(mSyncVec[i]->mConfig, mSyncVec[i]->mSync.get()))
+        {
+            unloadSyncByIndex(i);
+        }
+    }
+}
+
 void Syncs::purgeSyncs()
 {
     if (mSyncVec.empty())
@@ -2965,6 +2975,36 @@ void Syncs::removeSyncByIndex(size_t index)
         mClient.syncactivity = true;
         mSyncVec.erase(mSyncVec.begin() + index);
 
+        isEmpty = mSyncVec.empty();
+    }
+}
+
+void Syncs::unloadSyncByIndex(size_t index)
+{
+    if (index < mSyncVec.size())
+    {
+        if (auto& syncPtr = mSyncVec[index]->mSync)
+        {
+            // if it was running, the app gets a callback saying it's no longer active
+            // SYNC_CANCELED is a special value that means we are shutting it down without changing config
+            syncPtr->changestate(SYNC_CANCELED, UNKNOWN_ERROR, false, false);
+
+            if (syncPtr->statecachetable)
+            {
+                // sync LocalNode database (if any) will be closed
+                // deletion of the sync object won't affect the database
+                delete syncPtr->statecachetable;
+                syncPtr->statecachetable = NULL;
+            }
+            syncPtr.reset(); // deletes sync
+        }
+
+        // the sync config is not affected by this operation; it should already be up to date on disk (or be pending)
+        // we don't call sync_removed back since the sync is not deleted
+        // we don't unregister from the backup/sync heartbeats as the sync can be resumed later
+
+        mClient.syncactivity = true;
+        mSyncVec.erase(mSyncVec.begin() + index);
         isEmpty = mSyncVec.empty();
     }
 }
@@ -3267,7 +3307,7 @@ error SyncConfigStore::write(const LocalPath& drivePath, const SyncConfigVector&
 }
 
 
-error SyncConfigStore::read(DriveInfo& driveInfo, SyncConfigVector& configs, 
+error SyncConfigStore::read(DriveInfo& driveInfo, SyncConfigVector& configs,
                              unsigned int slot)
 {
     const auto& dbPath = driveInfo.dbPath;
