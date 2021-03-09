@@ -540,9 +540,9 @@ Node *MegaClient::getrootnode(Node *node)
     return n;
 }
 
-bool MegaClient::isPrivateNode(handle h)
+bool MegaClient::isPrivateNode(NodeHandle h)
 {
-    Node *node = nodebyhandle(h);
+    Node *node = nodeByHandle(h);
     if (!node)
     {
         return false;
@@ -552,9 +552,9 @@ bool MegaClient::isPrivateNode(handle h)
     return (rootnode == rootnodes[0] || rootnode == rootnodes[1] || rootnode == rootnodes[2]);
 }
 
-bool MegaClient::isForeignNode(handle h)
+bool MegaClient::isForeignNode(NodeHandle h)
 {
-    Node *node = nodebyhandle(h);
+    Node *node = nodeByHandle(h);
     if (!node)
     {
         return false;
@@ -2876,12 +2876,14 @@ void MegaClient::exec()
                     LOG_verbose << "Running syncdown";
                     bool success = true;
                     syncs.forEachRunningSync([&](Sync* sync) {
-
                         // make sure that the remote synced folder still exists
                         if (!sync->localroot->node)
                         {
-                            LOG_err << "The remote root node doesn't exist";
-                            sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true);
+                            if (sync->state != SYNC_FAILED)
+                            {
+                                LOG_err << "The remote root node doesn't exist";
+                                sync->changestate(SYNC_FAILED, REMOTE_NODE_NOT_FOUND, false, true);
+                            }
                         }
                         else
                         {
@@ -3577,7 +3579,7 @@ void MegaClient::dispatchTransfers()
                         if ((*it)->hprivate && !(*it)->hforeign)
                         {
                             // Make sure we have the size field
-                            Node* n = nodebyhandle((*it)->h);
+                            Node* n = nodeByHandle((*it)->h);
                             if (!n)
                             {
                                 missingPrivateNode = true;
@@ -3698,7 +3700,7 @@ void MegaClient::dispatchTransfers()
 
                 if (openfinished && openok)
                 {
-                    handle h = UNDEF;
+                    NodeHandle h;
                     bool hprivate = true;
                     const char *privauth = NULL;
                     const char *pubauth = NULL;
@@ -3772,7 +3774,7 @@ void MegaClient::dispatchTransfers()
                         for (file_list::iterator it = nexttransfer->files.begin();
                             it != nexttransfer->files.end(); it++)
                         {
-                            if (!(*it)->hprivate || (*it)->hforeign || nodebyhandle((*it)->h))
+                            if (!(*it)->hprivate || (*it)->hforeign || nodeByHandle((*it)->h))
                             {
                                 h = (*it)->h;
                                 hprivate = (*it)->hprivate;
@@ -3798,7 +3800,7 @@ void MegaClient::dispatchTransfers()
                     {
                         reqs.add((ts->pendingcmd = (nexttransfer->type == PUT)
                             ? (Command*)new CommandPutFile(this, ts, putmbpscap)
-                            : (Command*)new CommandGetFile(this, ts, NULL, h, hprivate, privauth, pubauth, chatauth)));
+                            : (Command*)new CommandGetFile(this, ts, NULL, h.as8byte(), hprivate, privauth, pubauth, chatauth)));
                     }
 
                     LOG_debug << "Activating transfer";
@@ -4042,6 +4044,15 @@ void MegaClient::logout(bool keepSyncConfigsFile)
     }
 
     loggingout++;
+
+#ifdef ENABLE_SYNC
+    // if logging out and syncs won't be kept...
+    if (!keepSyncConfigsFile)
+    {
+        syncs.purgeSyncs();    // unregister from API and clean up backup-names
+    }
+#endif
+
     reqs.add(new CommandLogout(this, keepSyncConfigsFile));
 }
 
@@ -4156,6 +4167,8 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mPublicLinks.clear();
     mCachedStatus.clear();
     scpaused = false;
+    mSendingBackupName = false;
+    mPendingBackupNames.clear();
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
     {
@@ -4245,7 +4258,7 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
     }
     else
     {
-        syncs.removeSelectedSyncs([](SyncConfig&, Sync* s) { return s != nullptr; });
+        syncs.purgeSyncs();
         syncs.truncate();
     }
 #endif
@@ -7054,7 +7067,7 @@ void MegaClient::notifypurge(void)
                 }
                 else if (removed)
                 {
-                    failSync(activeSync.get(), REMOTE_PATH_DELETED);
+                    failSync(activeSync.get(), REMOTE_NODE_NOT_FOUND);
                 }
                 else if (pathChanged)
                 {
@@ -7217,6 +7230,12 @@ Node* MegaClient::nodebyhandle(handle h) const
     }
 
     return nullptr;
+}
+
+Node* MegaClient::nodeByHandle(NodeHandle h) const
+{
+    if (h.isUndef()) return nullptr;
+    return nodebyhandle(h.as8byte());
 }
 
 // server-client deletion
@@ -11418,6 +11437,7 @@ bool MegaClient::fetchsc(DbTable* sctable)
 
     LOG_info << "Loading session from local cache";
 
+    mCachedStatus.clear();
     sctable->rewind();
 
     bool hasNext = sctable->next(&id, &data, &key);
@@ -12976,8 +12996,8 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
 
     error e = API_OK;
     syncs.forEachSyncConfig([&](const SyncConfig& config){
-
-        if (config.getBackupId() != excludeBackupId && excludeBackupId != UNDEF) // for the check inside addsync() when it's already present
+        // (when adding a new config, excludeBackupId=UNDEF, so it doesn't match any existing config)
+        if (config.getBackupId() != excludeBackupId)
         {
             LocalPath otherLocallyEncodedPath = config.getLocalPath();
             LocalPath otherLocallyEncodedAbsolutePath;
@@ -14259,7 +14279,7 @@ void MegaClient::syncupdate()
             {
                 if (l->parent->node)
                 {
-                    l->h = l->parent->node->nodehandle;
+                    l->h = l->parent->node->nodeHandle();
                 }
 
                 l->previousNode = l->node;
@@ -14956,8 +14976,8 @@ bool MegaClient::startxfer(direction_t d, File* f, DBTableTransactionCommitter& 
             }
         }
 
-        assert( (ISUNDEF(f->h) && f->targetuser.size() && (f->targetuser.size() == 11 || f->targetuser.find("@")!=string::npos) ) // <- uploading to inbox
-                || (!ISUNDEF(f->h) && (nodebyhandle(f->h) || d == GET) )); // target handle for the upload should be known at this time (except for inbox uploads)
+        assert( (f->h.isUndef() && f->targetuser.size() && (f->targetuser.size() == 11 || f->targetuser.find("@")!=string::npos) ) // <- uploading to inbox
+                || (!f->h.isUndef() && (nodeByHandle(f->h) || d == GET) )); // target handle for the upload should be known at this time (except for inbox uploads)
     }
 
     return true;

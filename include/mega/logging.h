@@ -106,6 +106,10 @@
 
 #include "mega/utils.h"
 
+#if ((defined(ANDROID) || defined(__ANDROID__)) && defined(ENABLE_CRASHLYTICS))
+#include "../../third_party/crashlytics.h"
+#endif
+
 namespace mega {
 
 // available log levels
@@ -611,5 +615,15 @@ template<std::size_t N> inline const char* log_file_leafname(const char(&fullpat
 
 #define LOG_fatal \
     ::mega::SimpleLogger(::mega::logFatal, ::mega::log_file_leafname(__FILE__), __LINE__)
+
+#if (defined(ANDROID) || defined(__ANDROID__))
+inline void crashlytics_log(const char* msg)
+{
+#ifdef ENABLE_CRASHLYTICS
+    firebase::crashlytics::Log(msg);
+#endif
+}
+#endif
+
 
 } // namespace

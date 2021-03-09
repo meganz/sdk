@@ -155,7 +155,7 @@ Node::~Node()
             parent->children.erase(child_it);
         }
 
-        Node* fa = firstancestor();
+        const Node* fa = firstancestor();
         handle ancestor = fa->nodehandle;
         if (ancestor == client->rootnodes[0] || ancestor == client->rootnodes[1] || ancestor == client->rootnodes[2] || fa->inshare)
         {
@@ -1025,7 +1025,7 @@ bool Node::setparent(Node* p)
     NodeCounter nc;
     bool gotnc = false;
 
-    Node *originalancestor = firstancestor();
+    const Node *originalancestor = firstancestor();
     handle oah = originalancestor->nodehandle;
     if (oah == client->rootnodes[0] || oah == client->rootnodes[1] || oah == client->rootnodes[2] || originalancestor->inshare)
     {
@@ -1052,7 +1052,7 @@ bool Node::setparent(Node* p)
         child_it = parent->children.insert(parent->children.end(), this);
     }
 
-    Node* newancestor = firstancestor();
+    const Node* newancestor = firstancestor();
     handle nah = newancestor->nodehandle;
     if (nah == client->rootnodes[0] || nah == client->rootnodes[1] || nah == client->rootnodes[2] || newancestor->inshare)
     {
@@ -1095,9 +1095,9 @@ bool Node::setparent(Node* p)
     return true;
 }
 
-Node* Node::firstancestor()
+const Node* Node::firstancestor() const
 {
-    Node* n = this;
+    const Node* n = this;
     while (n->parent != NULL)
     {
         n = n->parent;
@@ -1713,13 +1713,13 @@ void LocalNode::completed(Transfer* t, LocalNode*)
     // exist or is newer
     if (!parent || !parent->node || (node && mtime < node->mtime))
     {
-        h = t->client->rootnodes[RUBBISHNODE - ROOTNODE];
+        h = NodeHandle().set6byte(t->client->rootnodes[RUBBISHNODE - ROOTNODE]);
     }
     else
     {
         // otherwise, overwrite node if it already exists and complete in its
         // place
-        h = parent->node->nodehandle;
+        h = parent->node->nodeHandle();
     }
 
     File::completed(t, this);
