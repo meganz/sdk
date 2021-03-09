@@ -8397,6 +8397,8 @@ CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, const st
 {
     assert(type != BackupType::INVALID);
 
+    mStringIsNotSeqtag = true;
+
     cmd("sp");
 
     string localFolderEncrypted(client->cypherTLVTextWithMasterKey("lf", localFolder));

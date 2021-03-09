@@ -3824,7 +3824,7 @@ GTEST_TEST(Sync, PutnodesForMultipleFolders)
 
 GTEST_TEST(SdkCore, ExerciseCommands)
 {
-    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    fs::path localtestroot = makeNewTestRoot();
     StandardClient standardclient(localtestroot, "ExerciseCommands");
     ASSERT_TRUE(standardclient.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", true));
 
@@ -4089,7 +4089,7 @@ GTEST_TEST(Sync, BasicSync_CreateAndReplaceLinkUponSyncDown)
 
 TEST(Sync, DetectsAndReportsNameClashes)
 {
-    const auto TESTFOLDER = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    const auto TESTFOLDER = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
 
     StandardClient client(TESTFOLDER, "c");
@@ -4202,7 +4202,7 @@ TEST(Sync, DetectsAndReportsNameClashes)
 
 TEST(Sync, DoesntDownloadFilesWithClashingNames)
 {
-    const auto TESTFOLDER = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    const auto TESTFOLDER = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
 
     // Populate cloud.
@@ -4301,7 +4301,7 @@ TEST(Sync, DoesntDownloadFilesWithClashingNames)
 
 TEST(Sync, DoesntUploadFilesWithClashingNames)
 {
-    const auto TESTFOLDER = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    const auto TESTFOLDER = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
 
     // Download client.
@@ -4373,7 +4373,7 @@ TEST(Sync, DoesntUploadFilesWithClashingNames)
 
 TEST(Sync, DISABLED_RemotesWithControlCharactersSynchronizeCorrectly)
 {
-    const auto TESTROOT = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
 
     // Populate cloud.
@@ -4480,7 +4480,7 @@ TEST(Sync, DISABLED_RemotesWithControlCharactersSynchronizeCorrectly)
 
 TEST(Sync, RemotesWithEscapesSynchronizeCorrectly)
 {
-    const auto TESTROOT = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    const auto TESTROOT = makeNewTestRoot();
     const auto TIMEOUT = chrono::seconds(4);
 
     // Populate cloud.

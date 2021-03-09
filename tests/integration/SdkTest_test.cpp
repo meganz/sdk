@@ -256,7 +256,7 @@ void SdkTest::TearDown()
 
     for (size_t i = 0; i < megaApi.size(); ++i)
     {
-        if (gResumeSessions && megaApi[i] && gSessionIDs[i].empty())
+        if (gResumeSessions && megaApi[i] && (gSessionIDs[i].empty() || gSessionIDs[i] == "invalid"))
         {
             if (auto p = unique_ptr<char[]>(megaApi[i]->dumpSession()))
             {
@@ -6679,7 +6679,7 @@ TEST_F(SdkTest, SyncOQTransitions)
  *
  * Testing multiple SDK instances working in parallel
  */
-TEST_F(SdkTest, DISABLED_StressTestSDKInstancesOverWritableFoldersOverWritableFolders)
+TEST_F(SdkTest, StressTestSDKInstancesOverWritableFoldersOverWritableFolders)
 {
     // What we are going to test here:
     // - Creating multiple writable folders
