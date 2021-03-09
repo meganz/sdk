@@ -454,8 +454,8 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         ENDIF(USE_LIBUV)
 
         IF(USE_PCRE)
-            ImportStdVcpkgLibrary(pcre     pcred pcre libpcred libpcre)
-            ImportStdVcpkgLibrary(pcrecpp  pcrecppd pcrecpp libpcrecppd libpcrecpp)
+            ImportStdVcpkgLibrary(pcre     pcred pcre libpcre libpcre)
+            ImportStdVcpkgLibrary(pcrecpp  pcrecppd pcrecpp libpcrecpp libpcrecpp)
         ENDIF(USE_PCRE)
 
         IF(USE_LIBRAW)
