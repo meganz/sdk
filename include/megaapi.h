@@ -5156,7 +5156,7 @@ public:
         BUSINESS_EXPIRED = 10, //Business account expired
         FOREIGN_TARGET_OVERSTORAGE = 11, //Sync transfer fails (upload into an inshare whose account is overquota)
         REMOTE_PATH_HAS_CHANGED = 12, // Remote path has changed (currently unused: not an error)
-        REMOTE_PATH_DELETED = 13, //Remote path has been deleted
+        //REMOTE_PATH_DELETED = 13, // (obsolete -> unified with REMOTE_NODE_NOT_FOUND) Remote path has been deleted
         SHARE_NON_FULL_ACCESS = 14, //Existing inbound share sync or part thereof lost full access
         LOCAL_FINGERPRINT_MISMATCH = 15, //Filesystem fingerprint does not match the one stored for the synchronization
         PUT_NODES_ERROR = 16, // Error processing put nodes result
@@ -5285,7 +5285,6 @@ public:
      *  - BUSINESS_EXPIRED = 10: Business account expired
      *  - FOREIGN_TARGET_OVERSTORAGE = 11: Sync transfer fails (upload into an inshare whose account is overquota)
      *  - REMOTE_PATH_HAS_CHANGED = 12: Remote path changed
-     *  - REMOTE_PATH_DELETED = 13: Remote path has been deleted
      *  - SHARE_NON_FULL_ACCESS = 14: Existing inbound share sync or part thereof lost full access
      *  - LOCAL_FINGERPRINT_MISMATCH = 15: Filesystem fingerprint does not match the one stored for the synchronization
      *  - PUT_NODES_ERROR = 16:  Error processing put nodes result
@@ -12567,6 +12566,35 @@ class MegaApi
         void startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, MegaTransferListener *listener = nullptr);
 
         /**
+         * @brief Upload a file or a folder
+         *
+         * This method should be used ONLY to share by chat a local file. In case the file
+         * is already uploaded, but the corresponding node is missing the thumbnail and/or preview,
+         * this method will force a new upload from the scratch (ensuring the file attributes are set),
+         * instead of doing a remote copy.
+         *
+         * If the status of the business account is expired, onTransferFinish will be called with the error
+         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+         * "Your business account is overdue, please contact your administrator."
+         *
+         * @param localPath Local path of the file or folder
+         * @param parent Parent node for the file or folder in the MEGA account
+         * @param appData Custom app data to save in the MegaTransfer object
+         * The data in this parameter can be accessed using MegaTransfer::getAppData in callbacks
+         * related to the transfer. If a transfer is started with exactly the same data
+         * (local path and target parent) as another one in the transfer queue, the new transfer
+         * fails with the error API_EEXISTS and the appData of the new transfer is appended to
+         * the appData of the old transfer, using a '!' separator if the old transfer had already
+         * appData.
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
+         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
+         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+         * @param fileName Custom file name for the file or folder in MEGA
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener = nullptr);
+
+        /**
          * @brief Download a file or a folder from MEGA
          *
          *If the status of the business account is expired, onTransferFinish will be called with the error
@@ -14484,7 +14512,7 @@ class MegaApi
          * - MegaApi::ORDER_FAV_DESC = 20
          * Sort nodes with favourite attr last
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -14570,7 +14598,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15382,8 +15410,8 @@ class MegaApi
          *
          * @param node The parent node of the tree to explore
          * @param searchString Search string. The search is case-insensitive
-         * @param recursive True if you want to seach recursively in the node tree.
-         * False if you want to seach in the children of the node only
+         * @param recursive True if you want to search recursively in the node tree.
+         * False if you want to search in the children of the node only
          * @param order Order for the returned list
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
@@ -15419,7 +15447,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15465,8 +15493,8 @@ class MegaApi
          * @param node The parent node of the tree to explore
          * @param searchString Search string. The search is case-insensitive
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
-         * @param recursive True if you want to seach recursively in the node tree.
-         * False if you want to seach in the children of the node only
+         * @param recursive True if you want to search recursively in the node tree.
+         * False if you want to search in the children of the node only
          * @param order Order for the returned list
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0
@@ -15502,7 +15530,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15583,7 +15611,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15669,7 +15697,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15751,7 +15779,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15833,7 +15861,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15915,7 +15943,7 @@ class MegaApi
          * - MegaApi::ORDER_ALPHABETICAL_DESC = 10
          * Same behavior than MegaApi::ORDER_DEFAULT_DESC
          *
-         * @deprecated MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
+         * Deprecated: MegaApi::ORDER_ALPHABETICAL_ASC and MegaApi::ORDER_ALPHABETICAL_DESC
          * are equivalent to MegaApi::ORDER_DEFAULT_ASC and MegaApi::ORDER_DEFAULT_DESC.
          * They will be eventually removed.
          *
@@ -15979,8 +16007,8 @@ class MegaApi
          * @param node The parent node of the tree to explore
          * @param searchString Search string. The search is case-insensitive
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
-         * @param recursive True if you want to seach recursively in the node tree.
-         * False if you want to seach in the children of the node only
+         * @param recursive True if you want to search recursively in the node tree.
+         * False if you want to search in the children of the node only
          * @param order Order for the returned list
          * Valid values for this parameter are:
          * - MegaApi::ORDER_NONE = 0

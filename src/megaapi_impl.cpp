@@ -3449,6 +3449,7 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->settings = request->getMegaPushNotificationSettings() ? request->settings->copy() : NULL;
     this->backgroundMediaUpload = NULL;
     this->mBannerList.reset(request->mBannerList ? request->mBannerList->copy() : nullptr);
+    this->mHandleList.reset(request->mHandleList ? request->mHandleList->copy() : nullptr);
 }
 
 AccountDetails *MegaRequestPrivate::getAccountDetails() const
@@ -7744,7 +7745,19 @@ void MegaApiImpl::abortPendingActions(error preverror)
         // clear existing transfers
         while (!transferMap.empty())
         {
-            auto transfer = transferMap.begin()->second;
+            MegaTransferPrivate* transfer = nullptr;
+
+            for (auto& t : transferMap)
+            {
+                // skip the folder upload/download records- their last sub-transfer will remove them too
+                if (!t.second->isRecursive())
+                {
+                    transfer = t.second;
+					break;
+                }
+            }
+            if (!transfer) break;
+
             transfer->setState(MegaTransfer::STATE_FAILED);
 
             transfer->setDoNotStopSubTransfers(true); //so as not to remove subtransfer from cache
@@ -11819,9 +11832,17 @@ MegaNodeList* MegaApiImpl::search(MegaNode *n, const char* searchString, MegaCan
         if (target == MegaApi::SEARCH_TARGET_OUTSHARE)
         {
             // Search on outshares
+            std::set<MegaHandle> outsharesHandles;
             unique_ptr<MegaShareList>shares (getOutShares(MegaApi::ORDER_NONE));
             for (int i = 0; i < shares->size() && !(cancelToken && cancelToken->isCancelled()); i++)
             {
+                handle h = shares->get(i)->getNodeHandle();
+                if (outsharesHandles.find(h) != outsharesHandles.end())
+                {
+                    // shares list includes an item per outshare AND per sharee/user
+                    continue;   // avoid duplicates
+                }
+                outsharesHandles.insert(h);
                 node = client->nodebyhandle(shares->get(i)->getNodeHandle());
 
                 SearchTreeProcessor searchProcessor(client, searchString, type);
@@ -21791,9 +21812,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_REMOVE_SYNCS:
         {
-            client->syncs.removeSelectedSyncs([&](SyncConfig& c, Sync* sync) {
-                    return true;
-                });
+            client->syncs.removeSelectedSyncs([&](SyncConfig&, Sync*) { return true; } );
             fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(API_OK));
             break;
         }

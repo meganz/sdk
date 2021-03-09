@@ -4056,6 +4056,16 @@ void MegaClient::logout(bool keepSyncConfigsFile)
         return;
     }
 
+    loggingout++;
+
+#ifdef ENABLE_SYNC
+    // if logging out and syncs won't be kept...
+    if (!keepSyncConfigsFile)
+    {
+        syncs.purgeSyncs();    // unregister from API and clean up backup-names
+    }
+#endif
+
     reqs.add(new CommandLogout(this, keepSyncConfigsFile));
 }
 
@@ -4169,6 +4179,8 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mPublicLinks.clear();
     mCachedStatus.clear();
     scpaused = false;
+    mSendingBackupName = false;
+    mPendingBackupNames.clear();
 
     for (fafc_map::iterator cit = fafcs.begin(); cit != fafcs.end(); cit++)
     {
@@ -4257,7 +4269,7 @@ void MegaClient::removeCaches(bool keepSyncsConfigFile)
     }
     else
     {
-        syncs.removeSelectedSyncs([](SyncConfig&, Sync* s) { return s != nullptr; });
+        syncs.purgeSyncs();
         syncs.truncate();
     }
 #endif
@@ -7263,7 +7275,7 @@ void MegaClient::notifypurge(void)
                 }
                 else if (removed)
                 {
-                    failSync(activeSync.get(), REMOTE_PATH_DELETED);
+                    failSync(activeSync.get(), REMOTE_NODE_NOT_FOUND);
                 }
                 else if (pathChanged)
                 {
@@ -13183,8 +13195,8 @@ error MegaClient::isLocalPathSyncable(const LocalPath& newPath, handle excludeBa
 
     error e = API_OK;
     syncs.forEachSyncConfig([&](const SyncConfig& config){
-
-        if (config.getBackupId() != excludeBackupId && excludeBackupId != UNDEF) // for the check inside addsync() when it's already present
+        // (when adding a new config, excludeBackupId=UNDEF, so it doesn't match any existing config)
+        if (config.getBackupId() != excludeBackupId)
         {
             LocalPath otherLocallyEncodedPath = config.getLocalPath();
             LocalPath otherLocallyEncodedAbsolutePath;

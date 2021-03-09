@@ -8660,6 +8660,12 @@ void exec_synclist(autocomplete::ACState& s)
         return;
     }
 
+    if (client->syncs.numSyncs() == 0)
+    {
+        cout << "No syncs configured yet" << endl;
+        return;
+     }
+
     client->syncs.forEachUnifiedSync(
       [](UnifiedSync& us)
       {
@@ -8733,14 +8739,6 @@ void exec_syncremove(autocomplete::ACState& s)
     handle backupId = 0;
     Base64::atob(s.words[2].s.c_str(), (byte*) &backupId, sizeof(handle));
 
-    // Make sure the sync isn't active.
-    if (client->syncs.runningSyncByBackupId(backupId))
-    {
-        cerr << "Cannot remove config as sync is active."
-             << endl;
-        return;
-    }
-
     // Try and remove the config.
     bool found = false;
 
@@ -8756,7 +8754,7 @@ void exec_syncremove(autocomplete::ACState& s)
 
     if (!found)
     {
-        cerr << "No sync config exists with the tag "
+        cerr << "No sync config exists with the backupId "
              << Base64Str<sizeof(handle)>(backupId)
              << endl;
         return;

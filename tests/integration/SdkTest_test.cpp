@@ -26,13 +26,6 @@
 #include "megaapi_impl.h"
 #include <algorithm>
 
-#ifdef WIN32
-#define LOCAL_TEST_FOLDER "c:\\tmp\\synctests"
-#else
-#define LOCAL_TEST_FOLDER (string(getenv("HOME"))+"/synctests_mega_auto")
-#endif
-
-
 #define SSTR( x ) static_cast< const std::ostringstream & >( \
         (  std::ostringstream() << std::dec << x ) ).str()
 
@@ -111,32 +104,6 @@ bool fileexists(const std::string& fn)
     struct stat   buffer;
     return (stat(fn.c_str(), &buffer) == 0);
 #endif
-}
-
-void moveToTrash(const fs::path& p)
-{
-    fs::path trashpath(TestFS::GetTrashFolder());
-    fs::create_directory(trashpath);
-    fs::path newpath = trashpath / p.filename();
-    for (int i = 2; fs::exists(newpath); ++i)
-    {
-        newpath = trashpath / fs::u8path(p.filename().stem().u8string() + "_" + to_string(i) + p.extension().u8string());
-    }
-    fs::rename(p, newpath);
-}
-
-fs::path makeNewTestRoot(fs::path p)
-{
-    if (fs::exists(p))
-    {
-        moveToTrash(p);
-    }
-#ifndef NDEBUG
-    bool b =
-#endif
-        fs::create_directories(p);
-    assert(b);
-    return p;
 }
 
 void copyFile(std::string& from, std::string& to)
@@ -4844,12 +4811,15 @@ TEST_F(SdkTest, SdkBackupFolder)
     }
 
 #ifdef ENABLE_SYNC
+    // Create a test root directory
+    fs::path localBasePath = makeNewTestRoot();
+
     // request to backup a folder
-    string localFolderPath = string(LOCAL_TEST_FOLDER) + "\\LocalBackedUpFolder";
-    makeNewTestRoot(localFolderPath.c_str());
+    fs::path localFolderPath = localBasePath / "LocalBackedUpFolder";
+    fs::create_directories(localFolderPath);
     mApi[0].h = 0;
     const char* backupName = "RemoteBackupFolder";
-    int err = synchronousBackupFolder(0, localFolderPath.c_str(), backupName);
+    int err = synchronousBackupFolder(0, localFolderPath.u8string().c_str(), backupName);
     ASSERT_TRUE(err == MegaError::API_OK) << "Backup folder failed (error: " << err << ")";
 
     // verify node attribute
@@ -4915,11 +4885,12 @@ TEST_F(SdkTest, SdkBackupFolder)
 
     // Request to backup another folder
     // this time, the remote folder structure is already there
-    string localFolderPath2 = string(LOCAL_TEST_FOLDER) + "\\LocalBackedUpFolder2";
-    makeNewTestRoot(localFolderPath2.c_str());
+    fs::path localFolderPath2 = localBasePath / "LocalBackedUpFolder2";
+    fs::create_directories(localFolderPath2);
     const char* backupName2 = "RemoteBackupFolder2";
-    err = synchronousBackupFolder(0, localFolderPath2.c_str(), backupName2);
+    err = synchronousBackupFolder(0, localFolderPath2.u8string().c_str(), backupName2);
     ASSERT_TRUE(err == MegaError::API_OK) << "Backup folder 2 failed (error: " << err << ")";
+
 #endif
 }
 
@@ -4965,7 +4936,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
     mBackupNameToBackupId.clear();
 
     // setbackup test
-    fs::path localtestroot = makeNewTestRoot(LOCAL_TEST_FOLDER);
+    fs::path localtestroot = makeNewTestRoot();
     string localFolder = localtestroot.string();
     std::unique_ptr<MegaNode> rootnode{ megaApi[0]->getRootNode() };
     int backupType = BackupType::CAMERA_UPLOAD;
@@ -5582,7 +5553,7 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
     ASSERT_TRUE(result == API_EACCESS || result == API_EINCOMPLETE);
 }
 
-TEST_F(SdkTest, DISABLED_RecursiveDownloadWithLogout)
+TEST_F(SdkTest, RecursiveDownloadWithLogout)
 {
     LOG_info << "___TEST RecursiveDownloadWithLogout";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
@@ -6330,7 +6301,7 @@ TEST_F(SdkTest, SyncRemoteNode)
         // Remove remote folder --> Sync fail
         LOG_verbose << "SyncRemoteNode :  Removing remote node with sync active.";
         ASSERT_EQ(API_OK, doDeleteNode(0, remoteBaseNode.get()));                                //  <--- remote node deleted!!
-        sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_DELETED);
+        sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_NODE_NOT_FOUND);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
         ASSERT_EQ(MegaSync::REMOTE_NODE_NOT_FOUND, sync->getError());
 
@@ -6338,7 +6309,7 @@ TEST_F(SdkTest, SyncRemoteNode)
         ASSERT_NO_FATAL_FAILURE(createFolder(0, basePath.u8string().c_str(), remoteRootNode.get())) << "Error creating remote basePath";
         remoteBaseNode.reset(megaApi[0]->getNodeByHandle(mApi[0].h));
         ASSERT_NE(remoteBaseNode.get(), nullptr);
-        sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_PATH_DELETED);
+        sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::REMOTE_NODE_NOT_FOUND);
         ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
         ASSERT_EQ(MegaSync::REMOTE_NODE_NOT_FOUND, sync->getError());
     }

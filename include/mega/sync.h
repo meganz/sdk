@@ -751,6 +751,7 @@ struct Syncs
 
     bool hasRunningSyncs();
     unsigned numRunningSyncs();
+    unsigned numSyncs();    // includes non-running syncs, but configured
     Sync* firstRunningSync();
     Sync* runningSyncByBackupId(handle backupId) const;
     SyncConfig* syncConfigByBackupId(handle backupId) const;
@@ -773,8 +774,11 @@ struct Syncs
     // Called via MegaApi::disableSync - cache files are retained, as is the config, but the Sync is deleted
     void disableSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector, SyncError syncError, bool newEnabledFlag);
 
-    // Called via MegaApi::removeSync - cache files are deleted
+    // Called via MegaApi::removeSync - cache files are deleted and syncs unregistered
     void removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector);
+
+    // removes all configured backups from cache, API (BackupCenter) and user's attribute (*!bn = backup-names)
+    void purgeSyncs();
 
     void resetSyncConfigDb();
     void clear();
@@ -816,7 +820,7 @@ private:
 
     vector<unique_ptr<UnifiedSync>> mSyncVec;
 
-    // remove the Sync and its config.  The sync's Localnode cache is removed
+    // remove the Sync and its config (also unregister in API). The sync's Localnode cache is removed
     void removeSyncByIndex(size_t index);
 
     // Removes a sync config.

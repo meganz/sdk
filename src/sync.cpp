@@ -587,6 +587,7 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
     case ACTIVE_SYNC_ABOVE_PATH:
         return "Active sync above path";
     case REMOTE_PATH_DELETED:
+        assert(false);  // obsolete, should not happen
         return "Remote node has been deleted";
     case REMOTE_NODE_INSIDE_RUBBISH:
         return "Remote node is inside Rubbish Bin";
@@ -1049,9 +1050,9 @@ void Sync::changestate(syncstate_t newstate, SyncError newSyncError, bool newEna
     }
 }
 
-// walk path and return corresponding LocalNode and its parent
-// path must be relative to l or start with the root prefix if l == NULL
-// path must be a full sync path, i.e. start with localroot->localname
+// walk localpath and return corresponding LocalNode and its parent
+// localpath must be relative to l or start with the root prefix if l == NULL
+// localpath must be a full sync path, i.e. start with localroot->localname
 // NULL: no match, optionally returns residual path
 LocalNode* Sync::localnodebypath(LocalNode* l, const LocalPath& localpath, LocalNode** parent, LocalPath* outpath)
 {
@@ -2459,6 +2460,11 @@ unsigned Syncs::numRunningSyncs()
     return n;
 }
 
+unsigned Syncs::numSyncs()
+{
+    return mSyncVec.size();
+}
+
 Sync* Syncs::firstRunningSync()
 {
     for (auto& s : mSyncVec)
@@ -2551,6 +2557,41 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
     }
 }
 
+void Syncs::purgeSyncs()
+{
+    if (mSyncVec.empty())
+    {
+        return;
+    }
+
+    // accumulate all changes for *!bn to update it in one shoot
+    set<string> backupIds;
+    for (auto &it : mSyncVec)
+    {
+        backupIds.insert(string(Base64Str<MegaClient::BACKUPHANDLE>(it->mConfig.getBackupId())));
+    }
+    attr_t attrType = ATTR_BACKUP_NAMES;
+    User *ownUser = mClient.finduser(mClient.me);
+    const std::string *oldValue = ownUser->getattr(attrType);
+    if (oldValue && ownUser->isattrvalid(attrType))
+    {
+        std::unique_ptr<TLVstore> tlv(TLVstore::containerToTLVrecords(oldValue, &mClient.key));
+        for (auto &backupId : backupIds) tlv->reset(backupId);
+
+        // serialize and encrypt the TLV container
+        std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(mClient.rng, &mClient.key));
+        mClient.putua(attrType, (byte *)container->data(), unsigned(container->size()));
+    }
+    else
+    {
+        assert(false);
+        LOG_err << "Backup names not available upon purge syncs";
+    }
+
+    // finally, remove all syncs as usual, unregistering (removeSyncByIndex())
+    removeSelectedSyncs([](SyncConfig&, Sync*) { return true; });
+}
+
 void Syncs::removeSyncByIndex(size_t index)
 {
     if (index < mSyncVec.size())
@@ -2571,6 +2612,9 @@ void Syncs::removeSyncByIndex(size_t index)
         // call back before actual removal (intermediate layer may need to make a temp copy to call client app)
         auto backupId = mSyncVec[index]->mConfig.getBackupId();
         mClient.app->sync_removed(backupId);
+
+        // unregister this sync/backup from API (backup center)
+        mClient.reqs.add(new CommandBackupRemove(&mClient, backupId));
 
         removeSyncConfigByBackupId(backupId);
         mClient.syncactivity = true;

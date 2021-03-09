@@ -3393,6 +3393,45 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  */
 - (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite;
 
+
+/**
+ * @brief Get a list of favourite nodes.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node provided
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeFav
+ * - [MEGARequest numDetails] - Returns the count requested
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaHandleList] - List of handles of favourite nodes
+ *
+ * @param node Node and its children that will be searched for favourites. Search all nodes if nil
+ * @param count if count is zero return all favourite nodes, otherwise return only 'count' favourite nodes
+ * @param delegate MEGARequestListener to track this request
+ */
+- (void)favouritesForParent:(nullable MEGANode *)node count:(NSInteger)count delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Get a list of favourite nodes.
+ *
+ * The associated request type with this request is MEGARequestTypeGetAttrNode
+ * Valid data in the MEGARequest object received on callbacks:
+ * - [MEGARequest nodeHandle] - Returns the handle of the node provided
+ * - [MEGARequest paramType] - Returns MEGANodeAttributeFav
+ * - [MEGARequest numDetails] - Returns the count requested
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaHandleList] - List of handles of favourite nodes
+ *
+ * @param node Node and its children that will be searched for favourites. Search all nodes if nil
+ * @param count if count is zero return all favourite nodes, otherwise return only 'count' favourite nodes
+ */
+- (void)favouritesForParent:(nullable MEGANode *)node count:(NSInteger)count;
+
+
 /**
  * @brief Set the GPS coordinates of image files as a node attribute.
  *
@@ -5736,6 +5775,22 @@ typedef NS_ENUM(NSUInteger, BackupHeartbeatStatus) {
  * @return An array of `NSDate` with the timestamp corresponding to each warning
 */
 -(NSArray<NSDate *> *)overquotaWarningDateList;
+
+/**
+ * @brief Call the low level function setrlimit() for NOFILE, needed for some platforms.
+ *
+ * Particularly on phones, the system default limit for the number of open files (and sockets)
+ * is quite low.   When the SDK can be working on many files and many sockets at once,
+ * we need a higher limit.   Those limits need to take into account the needs of the whole
+ * app and not just the SDK, of course.   This function is provided in order that the app
+ * can make that call and set appropriate limits.
+ *
+ * @param fileCount The new limit of file and socket handles for the whole app.
+ *
+ * @return YES when there were no errors setting the new limit (even when clipped to the maximum
+ * allowed value). It returns NO when setting a new limit failed.
+ */
+- (BOOL)setRLimitFileCount:(NSInteger)fileCount;
 
 #pragma mark - Transfers
 

@@ -776,6 +776,8 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         void setDoNotStopSubTransfers(bool doNotStopSubTransfers);
         bool getDoNotStopSubTransfers() const;
 
+        bool isRecursive() const { return recursiveOperation.get() != nullptr; }
+
 protected:
         int type;
         int tag;

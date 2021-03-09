@@ -134,7 +134,7 @@ protected:
 #endif
 #endif
 
-#if defined(__ANDROID__) && ARES_VERSION >= 0x010F00
+#if (defined(ANDROID) || defined(__ANDROID__)) && ARES_VERSION >= 0x010F00
     static void initialize_android();
 #endif
 

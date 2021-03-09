@@ -8593,8 +8593,11 @@ bool CommandBackupRemove::procresult(Result r)
 
 
     // Upon removal of backup successfully --> remove the backup name silently for the user's attribute
-    if (r.succeeded())
+    if (r.succeeded() && !client->loggingout)
     {
+        // when logging out, 'sr' command is sent together with logout, so there's no chance to
+        // update the user's attribute for backup-names (they are removed thanks to purgeSyncs())
+
         std::string key {Base64Str<MegaClient::BACKUPHANDLE>(mBackupId)};
         attr_t attrType = ATTR_BACKUP_NAMES;
 
