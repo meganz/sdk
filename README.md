@@ -40,7 +40,7 @@ There are two methods - the one we are using now for most platforms is with vcpk
 
 ### Platform Dependencies
 
-Some dependencies are different for each platform because the SDK uses generic interfaces to get some features and they have different implentations.
+Some dependencies are different for each platform because the SDK uses generic interfaces to get some features and they have different implementations.
 - Network (cURL with OpenSSL/c-ares or WinHTTP)
 - Filesystem access (Posix or Win32)
 - Graphics management (FreeImage, QT or iOS frameworks)

@@ -45,6 +45,9 @@ struct MEGA_API NodeCore
     // node's own handle
     handle nodehandle = UNDEF;
 
+    // inline convenience function to get a typed version that ensures we use the 6 bytes of a node handle, and not 8
+    NodeHandle nodeHandle() const { return NodeHandle().set6byte(nodehandle); }
+
     // parent node handle (in a Node context, temporary placeholder until parent is set)
     handle parenthandle = UNDEF;
 
@@ -133,7 +136,7 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     bool setparent(Node*);
 
     // follow the parent links all the way to the top
-    Node* firstancestor();
+    const Node* firstancestor() const;
 
     // copy JSON-delimited string
     static void copystring(string*, const char*);
@@ -402,10 +405,10 @@ struct MEGA_API LocalNode : public File
     // fsidnodes is a map from fsid to LocalNode, keeping track of all fs ids.
     void setfsid(handle newfsid, handlelocalnode_map& fsidnodes);
 
-    void setnameparent(LocalNode*, LocalPath* newlocalpath, std::unique_ptr<LocalPath>);
+    void setnameparent(LocalNode*, const LocalPath* newlocalpath, std::unique_ptr<LocalPath>);
 
     LocalNode();
-    void init(Sync*, nodetype_t, LocalNode*, LocalPath&, std::unique_ptr<LocalPath>);
+    void init(Sync*, nodetype_t, LocalNode*, const LocalPath&, std::unique_ptr<LocalPath>);
 
     bool serialize(string*) override;
     static LocalNode* unserialize( Sync* sync, const string* sData );

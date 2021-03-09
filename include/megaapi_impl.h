@@ -624,11 +624,12 @@ public:
     MegaHandleListPrivate();
     MegaHandleListPrivate(const MegaHandleListPrivate *hList);
     virtual ~MegaHandleListPrivate();
+    MegaHandleListPrivate(const vector<handle> &handles);
 
-    virtual MegaHandleList *copy() const;
-    virtual MegaHandle get(unsigned int i) const;
-    virtual unsigned int size() const;
-    virtual void addMegaHandle(MegaHandle megaHandle);
+    MegaHandleList *copy() const override;
+    MegaHandle get(unsigned int i) const override;
+    unsigned int size() const override;
+    void addMegaHandle(MegaHandle megaHandle) override;
 
 private:
     std::vector<MegaHandle> mList;
@@ -1069,8 +1070,7 @@ private:
 class MegaSyncPrivate : public MegaSync
 {
 public:
-    MegaSyncPrivate(const char *path, const char *name, handle nodehandle, SyncConfig::Type type);
-    MegaSyncPrivate(const SyncConfig& config, Sync*);
+    MegaSyncPrivate(const SyncConfig& config, Sync*, MegaClient* client);
     MegaSyncPrivate(MegaSyncPrivate *sync);
 
     virtual ~MegaSyncPrivate();
@@ -1083,9 +1083,8 @@ public:
     void setLocalFolder(const char*path);
     const char* getName() const override;
     void setName(const char*name);
-    const char* getMegaFolder() const override;
-    void setMegaFolder(const char *path);
-    void setMegaFolderYielding(char *path); //MEGAsync acquires the ownership of path
+    const char* getLastKnownMegaFolder() const override;
+    void setLastKnownMegaFolder(const char *path);
     long long getLocalFingerprint() const override;
     void setLocalFingerprint(long long fingerprint);
     MegaHandle getBackupId() const override;
@@ -1112,7 +1111,7 @@ protected:
     MegaHandle megaHandle;
     char *localFolder;
     char *mName;
-    char *megaFolder;
+    char *lastKnownMegaFolder;
     MegaRegExp *regExp;
     long long fingerprint;
 
@@ -1226,6 +1225,7 @@ class MegaRequestPrivate : public MegaRequest
         AchievementsDetails *getAchievementsDetails() const;
         MegaTimeZoneDetails *getMegaTimeZoneDetails () const override;
         MegaStringList *getMegaStringList() const override;
+        MegaHandleList* getMegaHandleList() const override;
 
 #ifdef ENABLE_CHAT
         MegaTextChatPeerList *getMegaTextChatPeerList() const override;
@@ -1246,6 +1246,7 @@ class MegaRequestPrivate : public MegaRequest
         MegaBackgroundMediaUpload *getMegaBackgroundMediaUploadPtr() const override;
         void setMegaBackgroundMediaUploadPtr(MegaBackgroundMediaUpload *);  // non-owned pointer
         void setMegaStringList(MegaStringList* stringList);
+        void setMegaHandleList(const vector<handle> &handles);
 
 #ifdef ENABLE_SYNC
         void setRegExp(MegaRegExp *regExp);
@@ -1305,6 +1306,7 @@ protected:
         MegaPushNotificationSettings *settings;
         MegaBackgroundMediaUpload* backgroundMediaUpload;  // non-owned pointer
         unique_ptr<MegaStringList> mStringList;
+        unique_ptr<MegaHandleList> mHandleList;
 
     private:
         unique_ptr<MegaBannerListPrivate> mBannerList;
@@ -1967,7 +1969,7 @@ struct MegaFilePut : public MegaFile
 {
     void completed(Transfer* t, LocalNode*) override;
     void terminated() override;
-    MegaFilePut(MegaClient *client, LocalPath clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false, Node *pvNode = nullptr);
+    MegaFilePut(MegaClient *client, LocalPath clocalname, string *filename, NodeHandle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false, Node *pvNode = nullptr);
     ~MegaFilePut() {}
 
     bool serialize(string*) override;
@@ -2057,6 +2059,18 @@ class TreeProcFolderInfo : public TreeProc
         int numVersions;
         long long currentSize;
         long long versionsSize;
+};
+
+class FavouriteProcessor : public TreeProcessor
+{
+public:
+    FavouriteProcessor(int maxCount);
+    bool processNode(Node* node) override;
+    const vector<handle> &getHandles() const;
+
+private:
+    vector<handle> handles;
+    unsigned mMaxCount = 0;
 };
 
 //Thread safe request queue
@@ -2302,6 +2316,7 @@ class MegaApiImpl : public MegaApp
         void setNodeDuration(MegaNode *node, int secs, MegaRequestListener *listener = NULL);
         void setNodeLabel(MegaNode *node, int label, MegaRequestListener *listener = NULL);
         void setNodeFavourite(MegaNode *node, bool fav, MegaRequestListener *listener = NULL);
+        void getFavourites(MegaNode* node, int count, MegaRequestListener* listener = nullptr);
         void setNodeCoordinates(MegaNode *node, bool unshareable, double latitude, double longitude, MegaRequestListener *listener = NULL);
         void exportNode(MegaNode *node, int64_t expireTime, bool writable, MegaRequestListener *listener = NULL);
         void disableExport(MegaNode *node, MegaRequestListener *listener = NULL);
@@ -2329,7 +2344,7 @@ class MegaApiImpl : public MegaApp
         void respondContactRequest();
 
         void removeContact(MegaUser *user, MegaRequestListener* listener=NULL);
-        void logout(MegaRequestListener *listener = NULL);
+        void logout(bool keepSyncConfigsFile, MegaRequestListener *listener);
         void localLogout(MegaRequestListener *listener = NULL);
         void invalidateCache();
         int getPasswordStrength(const char *password);
@@ -2408,7 +2423,6 @@ class MegaApiImpl : public MegaApp
         void copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
                                           long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener = NULL);
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
-        void setKeepSyncsAfterLogout(bool enable);
         void removeSync(handle nodehandle, MegaRequestListener *listener=NULL);
         void removeSyncById(handle backupId, MegaRequestListener *listener=NULL);
         void disableSync(handle nodehandle, MegaRequestListener *listener=NULL);
@@ -3177,9 +3191,6 @@ protected:
 
         // this will call will fire EVENT_SYNCS_DISABLED
         virtual void syncs_disabled(SyncError syncError) override;
-
-        // this will call will fire EVENT_FIRST_SYNC_RESUMING before the first sync is resumed
-        virtual void syncs_about_to_be_resumed() override;
 
         // removes the sync from syncMap and fires onSyncDeleted callback
         void sync_removed(handle backupId) override;
