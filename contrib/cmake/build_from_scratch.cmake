@@ -57,7 +57,7 @@ endfunction()
 
 execute_checked_command(
     COMMAND ${_cmake}
-        -S ${_script_cwd}/build3rdparty
+        -S ${_script_cwd}/build3rdParty
         -B ${_3rdparty_sdk_dir}
         -DCMAKE_BUILD_TYPE=Release
 )
