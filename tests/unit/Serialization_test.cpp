@@ -493,7 +493,7 @@ TEST(Serialization, LocalNode_forFolder_32bit)
     const std::string data(reinterpret_cast<const char*>(rawData.data()), rawData.size());
 
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
-    dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
+    //dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -520,7 +520,7 @@ TEST(Serialization, LocalNode_forFolder_oldLocalNodeWithoutSyncable)
     const std::string data(reinterpret_cast<const char*>(rawData.data()), rawData.size());
 
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
-    dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
+    //dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -543,7 +543,7 @@ TEST(Serialization, LocalNode_forFile)
     ASSERT_TRUE(l->serialize(&data));
     ASSERT_EQ(61u, data.size());
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
-    dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
+    //dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -573,7 +573,7 @@ TEST(Serialization, LocalNode_forFiles_oldLocalNodeWithoutSyncable)
     const std::string data(rawData.data(), rawData.size());
 
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
-    dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
+    //dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
     checkDeserializedLocalNode(*dl, *l);
 }
 
@@ -604,7 +604,7 @@ TEST(Serialization, LocalNode_forFile_32bit)
     const std::string data(rawData.data(), rawData.size());
 
     std::unique_ptr<mega::LocalNode> dl{mega::LocalNode::unserialize(sync.get(), &data)};
-    dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
+    //dl->node.store_unchecked(nullptr); // deserialize breaks the crossref_ptr rules
     checkDeserializedLocalNode(*dl, *l);
 }
 #endif
