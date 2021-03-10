@@ -4117,9 +4117,17 @@ bool Sync::resolve_userIntervention(syncRow& row, syncRow& parentRow, LocalPath&
 bool Sync::resolve_pickWinner(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
 {
     ProgressingMonitor monitor(client);
-    LOG_debug << client->clientname << "write me" << logTriplet(row, fullPath);
-    assert(false);
-    return false;
+
+    const FileFingerprint& cloud = *row.cloudNode;
+    const FileFingerprint& fs = row.fsNode->fingerprint;
+
+    auto fromFS = fs.mtime > cloud.mtime
+                  || (fs.mtime == cloud.mtime
+                      && (fs.size > cloud.size
+                          || (fs.size == cloud.size && fs.crc > cloud.crc)));
+
+    return fromFS ? resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false)
+                  : resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
 }
 
 bool Sync::resolve_cloudNodeGone(syncRow& row, syncRow& parentRow, LocalPath& fullPath)
