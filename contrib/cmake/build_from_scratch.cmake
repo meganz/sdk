@@ -28,9 +28,6 @@ endif()
 set(_triplet ${CMAKE_ARGV3})
 set(_sdk_dir "${_script_cwd}/../..")
 
-# Allows use of the VCPKG_XXXX variables defined in the triplet file
-include("${_script_cwd}/vcpkg_extra_triplets/${_triplet}.cmake")
-
 message(STATUS "Building for triplet ${_triplet} with SDK dir ${_sdk_dir}")
 
 set (_3rdparty_sdk_dir "${_sdk_dir}/../3rdparty_sdk")
@@ -72,8 +69,10 @@ execute_checked_command(
 
 if(WIN32)
     set(_3rdparty_tool_exe "${_3rdparty_sdk_dir}/Release/build3rdParty.exe")
+    set(_3rdparty_vcpkg_dir "${_3rdparty_sdk_dir}/Release/vcpkg/")
 else()
     set(_3rdparty_tool_exe "${_3rdparty_sdk_dir}/build3rdParty")
+    set(_3rdparty_vcpkg_dir "${_3rdparty_sdk_dir}/vcpkg/")
 endif()
 
 set(_3rdparty_tool_common_args
@@ -97,6 +96,26 @@ execute_checked_command(
         ${_3rdparty_tool_common_args}
     WORKING_DIRECTORY ${_3rdparty_sdk_dir}
 )
+
+# Allows use of the VCPKG_XXXX variables defined in the triplet file
+# We search our own custom triplet folder, and then the standard ones searched by vcpkg
+foreach(_triplet_dir
+    "${_script_cwd}/vcpkg_extra_triplets/"
+    "${_3rdparty_vcpkg_dir}/triplets/"
+    "${_3rdparty_vcpkg_dir}/triplets/community"
+)
+    set(_triplet_file "${_triplet_dir}/${_triplet}.cmake")
+    if(EXISTS ${_triplet_file})
+        message(STATUS "Using triplet ${_triplet} at ${_triplet_file}")
+        include(${_triplet_file})
+        set(_triplet_file_found 1)
+        break()
+    endif()
+endforeach()
+
+if(NOT _triplet_file_found)
+    message(FATAL_ERROR "Could not find triplet ${_triplet} in Mega vcpkg_extra_triplets nor in vcpkg triplet folders")
+endif()
 
 # Now set up to build this repo
 # Logic between Windows and other platforms diverges slightly here:
@@ -160,7 +179,7 @@ else()
         )
 
         execute_checked_command(
-            COMMAND ${_cmake} 
+            COMMAND ${_cmake}
                 --build ${_build_dir}
                 --parallel 4
         )
