@@ -14544,9 +14544,17 @@ void MegaApiImpl::timer_result(error e)
 // this can occur e.g. with syntactically malformed requests (due to a bug) or due to an invalid application key
 void MegaApiImpl::request_error(error e)
 {
+    // todo: shouldn't this sort of logic be part of SDK Core, rather than intermediate layer, if it is even needed?
+
     if (e == API_EBLOCKED && client->sid.size())
     {
         whyAmIBlocked(true);
+        return;
+    }
+
+    if (e == API_ESID && client->loggingout)
+    {
+        // no need to panic; we caused this ourselves deliberately
         return;
     }
 

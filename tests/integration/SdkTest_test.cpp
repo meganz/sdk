@@ -4906,6 +4906,7 @@ TEST_F(SdkTest, SdkSimpleCommands)
 
     // getMiscFlags() -- not logged in
     logout(0, false, maxTimeout);
+    gSessionIDs[0] = "invalid";
     err = synchronousGetMiscFlags(0);
     ASSERT_EQ(MegaError::API_OK, err) << "Get misc flags failed (error: " << err << ")";
 
@@ -5525,7 +5526,7 @@ TEST_F(SdkTest, UnescapesReservedCharactersOnUpload)
 TEST_F(SdkTest, RecursiveUploadWithLogout)
 {
     LOG_info << "___TEST RecursiveUploadWithLogout___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // this one used to cause a double-delete
 

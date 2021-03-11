@@ -1137,7 +1137,7 @@ struct StandardClient : public MegaApp
                                   DBTableTransactionCommitter committer(client.tctable);
                                   uploadFile(path, name, parent, committer);
                               },
-                              [&](error e)
+                              [pb](error e)
                               {
                                   pb->set_value(!e);
                                   return !e;
@@ -3553,7 +3553,7 @@ GTEST_TEST(Sync, BasicSync_ResumeSyncFromSessionAfterClashingLocalAddRemoteDelet
     ASSERT_TRUE(pclientA1->confirmModel_mainthread(modelLocal1.findnode("f"), backupId1, false, StandardClient::CONFIRM_LOCAL));
     ASSERT_TRUE(pclientA1->confirmModel_mainthread(modelRemote1.findnode("f"), backupId1, false, StandardClient::CONFIRM_REMOTE));
     //ASSERT_TRUE(modelRemote1.removesynctrash("f", "f_1/f_1_2/newlocal"));
-    ASSERT_TRUE(clientA2.confirmModel_mainthread(modelRemote1.findnode("f"), 2));
+    ASSERT_TRUE(clientA2.confirmModel_mainthread(modelRemote1.findnode("f"), backupId2));
 }
 
 
@@ -4296,7 +4296,7 @@ TEST(Sync, DoesntDownloadFilesWithClashingNames)
     model.findnode("x")->addkid(model.makeModelSubfile("f"));
 
     // Local FS, Local Tree and Remote Tree should now be consistent.
-    ASSERT_TRUE(cd.confirmModel_mainthread(model.findnode("x"), 0));
+    ASSERT_TRUE(cd.confirmModel_mainthread(model.findnode("x"), backupId1));
 }
 
 TEST(Sync, DoesntUploadFilesWithClashingNames)
@@ -4368,7 +4368,7 @@ TEST(Sync, DoesntUploadFilesWithClashingNames)
     model.findnode("root")->addkid(model.makeModelSubfolder("d0"));
     model.findnode("root")->addkid(model.makeModelSubfile("f0", "f%30"));
 
-    ASSERT_TRUE(cd.confirmModel_mainthread(model.findnode("root"), backupId2));
+    ASSERT_TRUE(cu.confirmModel_mainthread(model.findnode("root"), backupId2));
 }
 
 TEST(Sync, DISABLED_RemotesWithControlCharactersSynchronizeCorrectly)
@@ -4545,7 +4545,7 @@ TEST(Sync, RemotesWithEscapesSynchronizeCorrectly)
     ASSERT_TRUE(cd.confirmModel_mainthread(model.findnode("x"), backupId1));
 
     // Locally remove an escaped node.
-    const auto syncRoot = cd.syncSet(0).localpath;
+    const auto syncRoot = cd.syncSet(backupId1).localpath;
 
     fs::remove_all(syncRoot / "d%2530");
     ASSERT_TRUE(!!model.removenode("x/d%30"));
@@ -4604,7 +4604,7 @@ TEST(Sync, RemotesWithEscapesSynchronizeCorrectly)
 
     // Wait for sync and confirm model.
     waitonsyncs(TIMEOUT, &cd);
-    ASSERT_TRUE(cd.confirmModel_mainthread(model.findnode("x"), 0));
+    ASSERT_TRUE(cd.confirmModel_mainthread(model.findnode("x"), backupId1));
 }
 
 struct TwoWaySyncSymmetryCase

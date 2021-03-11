@@ -2160,7 +2160,7 @@ void MegaClient::exec()
         }
 
         // handle API server-client requests
-        if (!jsonsc.pos && !pendingscUserAlerts && pendingsc && !loggingout)
+        if (!jsonsc.pos && !pendingscUserAlerts && pendingsc /*&& !loggingout*/)
         {
             switch (static_cast<reqstatus_t>(pendingsc->status))
             {
