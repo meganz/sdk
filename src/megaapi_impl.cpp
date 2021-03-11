@@ -7688,7 +7688,19 @@ void MegaApiImpl::abortPendingActions(error preverror)
         // clear existing transfers
         while (!transferMap.empty())
         {
-            auto transfer = transferMap.begin()->second;
+            MegaTransferPrivate* transfer = nullptr;
+
+            for (auto& t : transferMap)
+            {
+                // skip the folder upload/download records- their last sub-transfer will remove them too
+                if (!t.second->isRecursive())
+                {
+                    transfer = t.second;
+					break;
+                }
+            }
+            if (!transfer) break;
+
             transfer->setState(MegaTransfer::STATE_FAILED);
 
             transfer->setDoNotStopSubTransfers(true); //so as not to remove subtransfer from cache
