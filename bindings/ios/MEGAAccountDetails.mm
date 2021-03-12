@@ -139,19 +139,19 @@ using namespace mega;
             break;
             
         case MEGAAccountTypeProI:
-            result = @"PRO I";
+            result = @"Pro I";
             break;
             
         case MEGAAccountTypeProII:
-            result = @"PRO II";
+            result = @"Pro II";
             break;
             
         case MEGAAccountTypeProIII:
-            result = @"PRO III";
+            result = @"Pro III";
             break;
             
         case MEGAAccountTypeLite:
-            result = @"LITE";
+            result = @"Pro Lite";
             break;
             
         case MEGAAccountTypeBusiness:

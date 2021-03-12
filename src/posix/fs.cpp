@@ -59,6 +59,10 @@ extern JavaVM *MEGAjvm;
 #define HFS_SUPER_MAGIC 0x4244
 #endif /* ! HFS_SUPER_MAGIC */
 
+#ifndef HFSPLUS_SUPER_MAGIC
+#define HFSPLUS_SUPER_MAGIC 0x482B
+#endif /* ! HFSPLUS_SUPER_MAGIC */
+
 #ifndef NTFS_SB_MAGIC
 #define NTFS_SB_MAGIC 0x5346544E
 #endif /* ! NTFS_SB_MAGIC */
@@ -94,7 +98,7 @@ const string adjustBasePath(const LocalPath& name)
     // return a temporary variable that the caller can optionally use c_str on (in that expression)
     if (PosixFileSystemAccess::appbasepath)
     {
-        if (!name.beginsWithSeparator('/'))
+        if (!name.beginsWithSeparator())
         {
             string absolutename = PosixFileSystemAccess::appbasepath;
             absolutename.append(name.localpath);
@@ -114,6 +118,48 @@ const string& adjustBasePath(const LocalPath& name)
 }
 
 #endif /* ! USE_IOS */
+
+LocalPath NormalizeAbsolute(const LocalPath& path)
+{
+    LocalPath result = path;
+
+    // Convenience.
+    string& raw = result.localpath;
+
+    // Append the root separator if path is empty.
+    if (raw.empty())
+    {
+        raw.push_back('/');
+    }
+
+    // Remove trailing separator if we're not the root.
+    if (raw.size() > 1 && raw.back() == '/')
+    {
+        raw.pop_back();
+    }
+
+    return result;
+}
+
+int platformCompareUtf(const string& p1, bool unescape1, const string& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, false);
+}
+
+int platformCompareUtf(const string& p1, bool unescape1, const LocalPath& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, false);
+}
+
+int platformCompareUtf(const LocalPath& p1, bool unescape1, const string& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, false);
+}
+
+int platformCompareUtf(const LocalPath& p1, bool unescape1, const LocalPath& p2, bool unescape2)
+{
+    return compareUtf(p1, unescape1, p2, unescape2, false);
+}
 
 #ifdef HAVE_AIO_RT
 PosixAsyncIOContext::PosixAsyncIOContext() : AsyncIOContext()
@@ -438,6 +484,21 @@ bool PosixFileAccess::fwrite(const byte* data, unsigned len, m_off_t pos)
 #endif
 }
 
+bool PosixFileAccess::ftruncate()
+{
+    retry = false;
+
+    // Truncate the file.
+    if (::ftruncate(fd, 0x0) == 0)
+    {
+        // Set the file pointer back to the start.
+        return lseek(fd, 0x0, SEEK_SET) == 0x0;
+    }
+
+    // Couldn't truncate the file.
+    return false;
+}
+
 int PosixFileAccess::stealFileDescriptor()
 {
     int toret = fd;
@@ -627,8 +688,6 @@ PosixFileSystemAccess::PosixFileSystemAccess(int fseventsfd)
     defaultfilepermissions = 0600;
     defaultfolderpermissions = 0700;
 
-    localseparator = '/';
-
 #ifdef USE_IOS
     if (!appbasepath)
     {
@@ -731,6 +790,27 @@ PosixFileSystemAccess::~PosixFileSystemAccess()
     }
 }
 
+bool PosixFileSystemAccess::cwd(LocalPath& path) const
+{
+    string& buf = path.localpath;
+
+    buf.resize(128);
+
+    while (!getcwd(&buf[0], buf.size()))
+    {
+        if (errno != ERANGE)
+        {
+            return false;
+        }
+
+        buf.resize(buf.size() << 1);
+    }
+
+    buf.resize(strlen(buf.c_str()));
+
+    return true;
+}
+
 // wake up from filesystem updates
 void PosixFileSystemAccess::addevents(Waiter* w, int /*flags*/)
 {
@@ -738,8 +818,8 @@ void PosixFileSystemAccess::addevents(Waiter* w, int /*flags*/)
     {
         PosixWaiter* pw = (PosixWaiter*)w;
 
-        FD_SET(notifyfd, &pw->rfds);
-        FD_SET(notifyfd, &pw->ignorefds);
+        MEGA_FD_SET(notifyfd, &pw->rfds);
+        MEGA_FD_SET(notifyfd, &pw->ignorefds);
 
         pw->bumpmaxfd(notifyfd);
     }
@@ -758,7 +838,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     PosixWaiter* pw = (PosixWaiter*)w;
     string *ignore;
 
-    if (FD_ISSET(notifyfd, &pw->rfds))
+    if (MEGA_FD_ISSET(notifyfd, &pw->rfds))
     {
         char buf[sizeof(struct inotify_event) + NAME_MAX + 1];
         int p, l;
@@ -796,7 +876,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                 if (lastname.size() < ignore->size()
                                  || memcmp(lastname.c_str(), ignore->data(), ignore->size())
                                  || (lastname.size() > ignore->size()
-                                  && lastname[ignore->size()] != localseparator))
+                                  && lastname[ignore->size()] != LocalPath::localPathSeparator))
                                 {
                                     // previous IN_MOVED_FROM is not followed by the
                                     // corresponding IN_MOVED_TO, so was actually a deletion
@@ -827,7 +907,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                                 if (insize < ignore->size()
                                  || memcmp(in->name, ignore->data(), ignore->size())
                                  || (insize > ignore->size()
-                                  && in->name[ignore->size()] != localseparator))
+                                  && in->name[ignore->size()] != LocalPath::localPathSeparator))
                                 {
                                     LOG_debug << "Filesystem notification. Root: " << it->second->name << "   Path: " << in->name;
                                     it->second->sync->dirnotify->notify(DirNotify::DIREVENTS,
@@ -851,7 +931,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
             if (lastname.size() < ignore->size()
              || memcmp(lastname.c_str(), ignore->data(), ignore->size())
              || (lastname.size() > ignore->size()
-              && lastname[ignore->size()] != localseparator))
+              && lastname[ignore->size()] != LocalPath::localPathSeparator))
             {
                 LOG_debug << "Filesystem notification. Root: " << lastlocalnode->name << "   Path: " << lastname;
                 lastlocalnode->sync->dirnotify->notify(DirNotify::DIREVENTS,
@@ -910,8 +990,7 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
     char* paths[2];
     char* path;
     Sync* pathsync[2];
-    sync_list::iterator it;
-    fd_set rfds;
+    mega_fd_set_t rfds;
     timeval tv = { 0, 0 };
     struct stat statbuf;
     static char rsrc[] = "/..namedfork/rsrc";
@@ -919,8 +998,8 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
 
     for (;;)
     {
-        FD_ZERO(&rfds);
-        FD_SET(notifyfd, &rfds);
+        MEGA_FD_ZERO(&rfds);
+        MEGA_FD_SET(notifyfd, &rfds);
 
         // ensure nonblocking behaviour
         if (select(notifyfd + 1, &rfds, NULL, NULL, &tv) <= 0) break;
@@ -971,37 +1050,44 @@ int PosixFileSystemAccess::checkevents(Waiter* w)
                 path = paths[i];
                 size_t psize = strlen(path);
 
-                for (it = client->syncs.begin(); it != client->syncs.end(); it++)
-                {
-                    std::string* ignore = &(*it)->dirnotify->ignore.localpath;
-                    std::string* localname = &(*it)->localroot->localname.localpath;
+                bool foundOne = false;
+                client->syncs.forEachRunningSync([&](Sync* sync) {
 
-                    size_t rsize = (*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.size() : localname->size();
-                    size_t isize = ignore->size();
+                    if (!foundOne)
+                    {
+                        std::string* ignore = &(sync)->dirnotify->ignore.localpath;
+                        std::string* localname = &(sync)->localroot->localname.localpath;
 
-                    if (psize >= rsize
-                      && !memcmp((*it)->mFsEventsPath.size() ? (*it)->mFsEventsPath.c_str() : localname->c_str(), path, rsize)    // prefix match
-                      && (!path[rsize] || path[rsize] == '/')               // at end: end of path or path separator
-                      && (psize <= (rsize + isize)                          // not ignored
-                          || (path[rsize + isize + 1] && path[rsize + isize + 1] != '/')
-                          || memcmp(path + rsize + 1, ignore->c_str(), isize))
-                      && (psize < rsrcsize                                  // it isn't a resource fork
-                          || memcmp(path + psize - rsrcsize, rsrc, rsrcsize)))
-                        {
-                            if (!lstat(path, &statbuf) && S_ISLNK(statbuf.st_mode))
+                        size_t rsize = sync->mFsEventsPath.size() ? sync->mFsEventsPath.size() : localname->size();
+                        size_t isize = ignore->size();
+
+                        if (psize >= rsize
+                          && !memcmp(sync->mFsEventsPath.size() ? sync->mFsEventsPath.c_str() : localname->c_str(), path, rsize)    // prefix match
+                          && (!path[rsize] || path[rsize] == '/')               // at end: end of path or path separator
+                          && (psize <= (rsize + isize)                          // not ignored
+                              || (path[rsize + isize + 1] && path[rsize + isize + 1] != '/')
+                              || memcmp(path + rsize + 1, ignore->c_str(), isize))
+                          && (psize < rsrcsize                                  // it isn't a resource fork
+                              || memcmp(path + psize - rsrcsize, rsrc, rsrcsize)))
                             {
-                                LOG_debug << "Link skipped:  " << path;
-                                paths[i] = NULL;
-                                break;
+                                if (!lstat(path, &statbuf) && S_ISLNK(statbuf.st_mode))
+                                {
+                                    LOG_debug << "Link skipped:  " << path;
+                                    paths[i] = NULL;
+                                    foundOne = true;
+                                }
+
+                                if (!foundOne)
+                                {
+                                    paths[i] += rsize + 1;
+                                    pathsync[i] = sync;
+                                    foundOne = true;
+                                }
                             }
+                    }
+                });
 
-                            paths[i] += rsize + 1;
-                            pathsync[i] = *it;
-                            break;
-                        }
-                }
-
-                if (it == client->syncs.end())
+                if (!foundOne)
                 {
                     paths[i] = NULL;
                 }
@@ -1217,7 +1303,7 @@ void PosixFileSystemAccess::emptydirlocal(LocalPath& name, dev_t basedev)
                 {
                     ScopedLengthRestore restore(name);
 
-                    name.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true, pfsa.localseparator);
+                    name.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true);
 
 #ifdef USE_IOS
                     const string nameStr = adjustBasePath(name);
@@ -1823,6 +1909,14 @@ DirNotify* PosixFileSystemAccess::newdirnotify(LocalPath& localpath, LocalPath& 
     return dirnotify;
 }
 
+bool PosixFileSystemAccess::issyncsupported(const LocalPath& localpathArg, bool& isnetwork, SyncError& syncError, SyncWarning& syncWarning)
+{
+    isnetwork = false;
+    syncError = NO_SYNC_ERROR;
+    syncWarning = NO_SYNC_WARNING;
+    return true;
+}
+
 bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType& type) const
 {
 #if defined(__linux__) || defined(__ANDROID__)
@@ -1839,6 +1933,7 @@ bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType
             type = FS_FAT32;
             break;
         case HFS_SUPER_MAGIC:
+        case HFSPLUS_SUPER_MAGIC:
             type = FS_HFS;
             break;
         case NTFS_SB_MAGIC:
@@ -1884,14 +1979,17 @@ bool PosixFileSystemAccess::getlocalfstype(const LocalPath& path, FileSystemType
 
         if (it != filesystemTypes.end())
         {
-            return type = it->second, true;
+            type = it->second;
+            return true;
         }
 
-        return type = FS_UNKNOWN, true;
+        type = FS_UNKNOWN;
+        return true;
     }
 #endif /* __APPLE__ || USE_IOS */
 
-    return type = FS_UNKNOWN, false;
+    type = FS_UNKNOWN;
+    return false;
 }
 
 bool PosixDirAccess::dopen(LocalPath* path, FileAccess* f, bool doglob)
@@ -1962,7 +2060,7 @@ bool PosixDirAccess::dnext(LocalPath& path, LocalPath& name, bool followsymlinks
 
         if (*d->d_name != '.' || (d->d_name[1] && (d->d_name[1] != '.' || d->d_name[2])))
         {
-            path.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true, pfsa.localseparator);
+            path.appendWithSeparator(LocalPath::fromPlatformEncoded(d->d_name), true);
 
 #ifdef USE_IOS
             const string pathStr = adjustBasePath(path);

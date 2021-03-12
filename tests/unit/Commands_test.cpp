@@ -279,8 +279,11 @@ public:
     bool chdirlocal(LocalPath&) const override { return false; }
     bool getextension(const LocalPath&, string&) const override { return false; }
     bool expanselocalpath(LocalPath& , LocalPath& ) override { return false; }
+    bool cwd(LocalPath&) const { return false; }
 
     void addevents(Waiter*, int) override {}
+
+    virtual bool issyncsupported(const LocalPath&, bool& b, SyncError& se, SyncWarning& sw) { b = false; se = NO_SYNC_ERROR; sw = NO_SYNC_WARNING; return true;}
 };
 
 class HttpIOMockup : public ::mega::HttpIO
@@ -321,7 +324,7 @@ TEST(Commands, CommandCommandFetchGoogleAds)
     ClientMockup client(megaApp, httpIO, fileSystem);
     client.json.pos = R"({"id": "wphl","iu": "/22060108601/wph/wph_l"},{"id":"wphr","iu": "/22060108601/wph/wph_r"},{"id":"wpht","iu": "/22060108601/wph/wph_t"})";
     std::vector<std::string> v;
-    handle h;
+    handle h = UNDEF;
     int adFlags = 512;
 
     ::mega::CommandFetchGoogleAds command(&client, adFlags, v, h, [](::mega::Error e, ::mega::string_map value)
@@ -349,7 +352,7 @@ TEST(Commands, CommandQueryGoogleAds)
     MegaAppMockup megaApp;
     ClientMockup client(megaApp, httpIO, fileSystem);
     client.json.pos = R"(1)";
-    handle h;
+    handle h = UNDEF;
     int adFlags = 512;
 
     ::mega::CommandQueryGoogleAds command(&client, adFlags, h, [](::mega::Error e, int value)

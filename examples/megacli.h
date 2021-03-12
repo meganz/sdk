@@ -58,7 +58,7 @@ struct AppFileGet : public AppFile
     void completed(Transfer*, LocalNode*) override;
     void terminated() override;
 
-    AppFileGet(Node*, handle = UNDEF, byte* = NULL, m_off_t = -1, m_time_t = 0, string* = NULL, string* = NULL, const string& targetfolder = "");
+    AppFileGet(Node*, NodeHandle = NodeHandle(), byte* = NULL, m_off_t = -1, m_time_t = 0, string* = NULL, string* = NULL, const string& targetfolder = "");
     ~AppFileGet();
 };
 
@@ -71,7 +71,7 @@ struct AppFilePut : public AppFile
 
     void displayname(string*);
 
-    AppFilePut(const LocalPath&, handle, const char*);
+    AppFilePut(const LocalPath&, NodeHandle, const char*);
     ~AppFilePut();
 };
 
@@ -110,6 +110,7 @@ struct DemoApp : public MegaApp
     void querysignuplink_result(error) override;
     void querysignuplink_result(handle, const char*, const char*, const byte*, const byte*, const byte*, size_t) override;
     void confirmsignuplink_result(error) override;
+    void confirmsignuplink2_result(handle, const char*, const char*, error) override;
     void setkeypair_result(error) override;
 
     void getrecoverylink_result(error) override;
@@ -162,8 +163,8 @@ struct DemoApp : public MegaApp
 
     void putnodes_result(const Error&, targettype_t, vector<NewNode>&, bool targetOverride) override;
 
-    void share_result(error) override;
-    void share_result(int, error) override;
+    void share_result(error, bool writable) override;
+    void share_result(int, error, bool writable) override;
 
     void setpcr_result(handle, error, opcactions_t) override;
     void updatepcr_result(error, ipcactions_t) override;
@@ -213,9 +214,10 @@ struct DemoApp : public MegaApp
     void transfer_complete(Transfer*) override;
 
 #ifdef ENABLE_SYNC
-    void syncupdate_state(int tag, syncstate_t, SyncError, bool fireDisableEvent = true) override;
-    void sync_auto_resume_result(const SyncConfig &config, const syncstate_t &state, const SyncError &error) override;
-    void sync_removed(int tag) override;
+    void syncupdate_stateconfig(handle backupId) override;
+    void syncupdate_active(handle backupId, bool active) override;
+    void sync_auto_resume_result(const UnifiedSync&, bool attempted) override;
+    void sync_removed(handle backupId) override;
 
     void syncupdate_scanning(bool) override;
     void syncupdate_local_folder_addition(Sync*, LocalNode*, const char*) override;
@@ -264,6 +266,7 @@ struct DemoApp : public MegaApp
     void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;
 
     void dismissbanner_result(error) override;
+    void backupremove_result(const Error&, handle /*backup id*/) override;
 
     void reload(const char*) override;
     void clearing() override;
@@ -307,6 +310,7 @@ void exec_put(autocomplete::ACState& s);
 void exec_putq(autocomplete::ACState& s);
 void exec_get(autocomplete::ACState& s);
 void exec_getq(autocomplete::ACState& s);
+void exec_more(autocomplete::ACState& s);
 void exec_pause(autocomplete::ACState& s);
 void exec_getfa(autocomplete::ACState& s);
 void exec_mediainfo(autocomplete::ACState& s);
@@ -317,8 +321,6 @@ void exec_rm(autocomplete::ACState& s);
 void exec_mv(autocomplete::ACState& s);
 void exec_cp(autocomplete::ACState& s);
 void exec_du(autocomplete::ACState& s);
-void exec_sync(autocomplete::ACState& s);
-void exec_syncconfig(autocomplete::ACState& s);
 void exec_export(autocomplete::ACState& s);
 void exec_share(autocomplete::ACState& s);
 void exec_invite(autocomplete::ACState& s);
@@ -390,3 +392,17 @@ void exec_querytransferquota(autocomplete::ACState& s);
 void exec_metamac(autocomplete::ACState& s);
 void exec_resetverifiedphonenumber(autocomplete::ACState& s);
 void exec_banner(autocomplete::ACState& s);
+
+#ifdef ENABLE_SYNC
+
+void exec_syncadd(autocomplete::ACState& s);
+void exec_syncbackupadd(autocomplete::ACState& s);
+void exec_syncbackupremove(autocomplete::ACState& s);
+void exec_syncbackuprestore(autocomplete::ACState& s);
+void exec_syncconfig(autocomplete::ACState& s);
+void exec_synclist(autocomplete::ACState& s);
+void exec_syncremove(autocomplete::ACState& s);
+void exec_syncxable(autocomplete::ACState& s);
+
+#endif // ENABLE_SYNC
+

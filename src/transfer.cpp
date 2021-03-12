@@ -453,7 +453,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 #ifdef ENABLE_SYNC
             if (f->syncxfer)
             {
-                client->disableSyncContainingNode(f->h, FOREIGN_TARGET_OVERSTORAGE);
+                client->disableSyncContainingNode(f->h.as8byte(), FOREIGN_TARGET_OVERSTORAGE, true);  // still try to resume at startup
             }
 #endif
             removeTransferFile(API_EOVERQUOTA, f, &committer);
@@ -535,7 +535,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 
             if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
             {
-                client->disableSyncs(BUSINESS_EXPIRED);
+                client->syncs.disableSyncs(BUSINESS_EXPIRED, true); // still try to resume on start
                 alreadyDisabled = true;
             }
 #endif
@@ -642,7 +642,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 syncxfer = true;
             }
 
-            if (!fixedfingerprint && (n = client->nodebyhandle((*it)->h))
+            if (!fixedfingerprint && (n = client->nodeByHandle((*it)->h))
                  && !(*(FileFingerprint*)this == *(FileFingerprint*)n))
             {
                 LOG_debug << "Wrong fingerprint already fixed";
@@ -712,7 +712,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 set<handle> nodes;
                 for (file_list::iterator it = files.begin(); it != files.end(); it++)
                 {
-                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h))
+                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodeByHandle((*it)->h))
                             && nodes.find(n->nodehandle) == nodes.end())
                     {
                         nodes.insert(n->nodehandle);
@@ -757,12 +757,11 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
         #ifdef ENABLE_SYNC
                         if((*it)->syncxfer)
                         {
-                            sync_list::iterator it2;
-                            for (it2 = client->syncs.begin(); it2 != client->syncs.end(); it2++)
-                            {
-                                Sync *sync = (*it2);
+                            bool foundOne = false;
+                            client->syncs.forEachRunningSync([&](Sync* sync){
+
                                 LocalNode *localNode = sync->localnodebypath(NULL, localname);
-                                if (localNode)
+                                if (localNode && !foundOne)
                                 {
                                     LOG_debug << "Overwriting a local synced file. Moving the previous one to debris";
 
@@ -772,18 +771,18 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                                         transient_error = client->fsaccess->transient_error;
                                     }
 
-                                    break;
+                                    foundOne = true;
                                 }
-                            }
+                            });
 
-                            if(it2 == client->syncs.end())
+                            if (!foundOne)
                             {
                                 LOG_err << "LocalNode for destination file not found";
 
-                                if(client->syncs.size())
+                                if(client->syncs.hasRunningSyncs())
                                 {
                                     // try to move to debris in the first sync
-                                    if(!client->syncs.front()->movetolocaldebris(localname))
+                                    if(!client->syncs.firstRunningSync()->movetolocaldebris(localname))
                                     {
                                         transient_error = client->fsaccess->transient_error;
                                     }
@@ -865,7 +864,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 if (success)
                 {
                     // set missing node attributes
-                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
+                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodeByHandle((*it)->h)))
                     {
                         if (!client->gfxdisabled && client->gfx && client->gfx->isgfx(localname) &&
                             keys.find(n->nodekey()) == keys.end() &&    // this file hasn't been processed yet
@@ -985,7 +984,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
             if (ll)
             {
                 LOG_debug << "Verifying sync upload";
-                synclocalpath = ll->getLocalPath(true);
+                synclocalpath = ll->getLocalPath();
                 localpath = &synclocalpath;
             }
             else
