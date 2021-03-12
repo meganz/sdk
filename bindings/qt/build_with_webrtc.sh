@@ -61,10 +61,13 @@ if [ "41bfcf4a63611409220fcd458a03deaa2cd23619" != "`git rev-parse HEAD`" ]; the
 else
   var=$(grep 'Patch applied MEGA' video/buffered_frame_decryptor.cc | wc -l)
   if [ "$var" -lt  1 ] ; then
-    git apply ${CURRENTPATH}/../../../patches/webRtcPatch.patch
-    echo "Patch Applied"
+    rm -rf ${CURRENTPATH}/lib/libssl.a
+    rm -rf ${CURRENTPATH}/lib/libcrypto.a
+    rm -rf ${CURRENTPATH}/lib/libwebrtc.a
     rm -rf "${CURRENTPATH}/webrtc"
     rm -rf "${WEBRTC_SRC}/out/Release-${ARCH}"
+    git apply ${CURRENTPATH}/../../../patches/webRtcPatch.patch
+    echo "Patch Applied"
  else
   echo "Patch already APPLIED"
  fi
