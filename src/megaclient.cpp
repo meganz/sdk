@@ -8007,8 +8007,10 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 {
                     if (p)
                     {
-                        n->setparent(p);
-                        n->changed.parent = true;
+                        if (n->setparent(p))
+                        {
+                            n->changed.parent = true;
+                        }
                     }
                     else
                     {
