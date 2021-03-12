@@ -1777,6 +1777,7 @@ struct StandardClient : public MegaApp
 
         if (ignoreDebris)
         {
+            ms.erase(DEBRISFOLDER);
             ps.erase(DEBRISFOLDER);
         }
 
