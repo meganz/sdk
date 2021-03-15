@@ -2,7 +2,7 @@
 # direct core dependencies of the SDK
 c-ares/c303dd024e2dc03a0665ddffbb12a1077933e649
 cryptopp/c303dd024e2dc03a0665ddffbb12a1077933e649
-curl/c303dd024e2dc03a0665ddffbb12a1077933e649
+curl/c303dd024e2dc03a0665ddffbb12a1077933e649:curl-empty-bindir.patch
 libsodium/c303dd024e2dc03a0665ddffbb12a1077933e649
 openssl/c303dd024e2dc03a0665ddffbb12a1077933e649
 openssl-unix/c303dd024e2dc03a0665ddffbb12a1077933e649
@@ -23,7 +23,7 @@ ffmpeg/c303dd024e2dc03a0665ddffbb12a1077933e649
 libraw/c303dd024e2dc03a0665ddffbb12a1077933e649
 jasper/c303dd024e2dc03a0665ddffbb12a1077933e649
 opengl/c303dd024e2dc03a0665ddffbb12a1077933e649
-freeglut/c303dd024e2dc03a0665ddffbb12a1077933e649
+#freeglut/c303dd024e2dc03a0665ddffbb12a1077933e649
 
 # pdfium libraries, specific version for build stability  (preview/thumbnail generation for pdfs)
 # (see 3rdParty_deps.txt on instructions on how to get source)
