@@ -24435,7 +24435,7 @@ void MegaPricingPrivate::addProduct(unsigned int type, handle product, int proLe
 }
 
 #ifdef ENABLE_SYNC
-MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr, MegaClient* client)
+MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr /* can be null */, MegaClient* client /* never null */)
     : mType(static_cast<SyncType>(config.getType()))
     , mActive(syncPtr && syncPtr->state >= 0)
     , mEnabled(config.getEnabled())
@@ -24450,8 +24450,11 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr, MegaCl
     }
     else
     {
+        FileSystemType fsType = syncPtr ? syncPtr->mFilesystemType :
+                                client->fsaccess->getlocalfstype(config.getLocalPath());
+
         //using leaf name of localpath as name:
-        setName(config.getLocalPath().leafName().toName(*client->fsaccess, syncPtr->mFilesystemType).c_str());
+        setName(config.getLocalPath().leafName().toName(*client->fsaccess, fsType).c_str());
     }
     this->lastKnownMegaFolder = NULL;
     this->fingerprint = 0;

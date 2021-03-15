@@ -1,4 +1,4 @@
-# This file enables building with cmake 
+# This file enables building with cmake
 #
 # use cases
 #  - generate a visual studio solution and projects, eg: cmake . -G "Visual Studio 15 2017"
@@ -497,19 +497,20 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(lcms         lcmsd lcms liblcmsd liblcms)
             ImportStdVcpkgLibrary(turbojpeg    jpegd jpeg libjpeg libjpeg)
             ImportStdVcpkgLibrary(openjpeg     openjp2 openjp2 libopenjp2 libopenjp2)
+
+            # pdfium will use bzip2 and libpng if present
+            ImportStdVcpkgLibrary(bzip2        bz2d bz2 libbz2d libbz2)
             ImportStdVcpkgLibrary(libpng       libpng16d libpng16 libpng16d libpng16)
 
-            IF (CMAKE_HOST_APPLE OR CMAKE_HOST_WIN32)
-                ImportStdVcpkgLibrary(bzip2       bz2d bz2 libbz2d libbz2)
-                set (pdfium_deps bzip2)
-            ELSEIF (CMAKE_HOST_UNIX)
+            # pkgconfig might not be needed anymore? - suppressed by our build3rdparty project
+            IF (CMAKE_HOST_UNIX)
                 set(ENV{PKG_CONFIG_PATH} "${vcpkg_dir}/lib/pkgconfig")
                 include(FindPkgConfig)
                 pkg_check_modules(FTYPECONF freetype2)
                 set(freetype_deps ${FTYPECONF_STATIC_LIBRARIES})
             ENDIF()
 
-            set(pdfium_deps  ${pdfium_deps} freetype ${freetype_deps} icu icudt lcms turbojpeg openjpeg libpng)
+            set(pdfium_deps  ${pdfium_deps} freetype ${freetype_deps} icu icudt lcms turbojpeg openjpeg bzip2 libpng)
         ENDIF(USE_PDFIUM)
 
 endif(USE_THIRDPARTY_FROM_VCPKG)
