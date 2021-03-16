@@ -68,6 +68,8 @@ else
     rm -rf "${WEBRTC_SRC}/out/Release-${ARCH}"
     git apply ${CURRENTPATH}/../../../patches/webRtcPatch.patch
     echo "Patch Applied"
+ else
+  echo "Patch already APPLIED"
  fi
 fi
 popd > /dev/null

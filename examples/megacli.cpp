@@ -628,12 +628,12 @@ bool DemoApp::sync_syncable(Sync *, const char *name, LocalPath&)
 }
 #endif
 
-AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
+AppFileGet::AppFileGet(Node* n, NodeHandle ch, byte* cfilekey, m_off_t csize, m_time_t cmtime, string* cfilename,
                        string* cfingerprint, const string& targetfolder)
 {
     if (n)
     {
-        h = n->nodehandle;
+        h = n->nodeHandle();
         hprivate = true;
 
         *(FileFingerprint*) this = *n;
@@ -664,7 +664,7 @@ AppFileGet::AppFileGet(Node* n, handle ch, byte* cfilekey, m_off_t csize, m_time
     }
 }
 
-AppFilePut::AppFilePut(const LocalPath& clocalname, handle ch, const char* ctargetuser)
+AppFilePut::AppFilePut(const LocalPath& clocalname, NodeHandle ch, const char* ctargetuser)
 {
     // full local path
     localname = clocalname;
@@ -1482,7 +1482,7 @@ static char* line;
 static AccountDetails account;
 
 // Current remote directory.
-static handle cwd = UNDEF;
+static NodeHandle cwd;
 
 // Where we were on the local filesystem when megacli started.
 static LocalPath startDir;
@@ -1745,7 +1745,7 @@ static Node* nodebypath(const char* ptr, string* user = NULL, string* namepart =
         }
         else
         {
-            n = client->nodebyhandle(cwd);
+            n = client->nodeByHandle(cwd);
         }
     }
 
@@ -1995,9 +1995,9 @@ static void local_dumptree(const fs::path& de, int recurse, int depth = 0)
 }
 #endif
 
-static void nodepath(handle h, string* path)
+static void nodepath(NodeHandle h, string* path)
 {
-    Node* n = client->nodebyhandle(h);
+    Node* n = client->nodeByHandle(h);
     *path = n ? n->displaypath() : "";
 }
 
@@ -2452,7 +2452,7 @@ void exec_find(autocomplete::ACState& s)
 {
     if (s.words[1].s == "raided")
     {
-        if (Node* n = client->nodebyhandle(cwd))
+        if (Node* n = client->nodeByHandle(cwd))
         {
             auto q = std::make_shared<FileFindCommand::Stack>();
             getDepthFirstFileHandles(n, *q);
@@ -2513,7 +2513,7 @@ bool recurse_findemptysubfoldertrees(Node* n, bool moveToTrash)
 void exec_findemptysubfoldertrees(autocomplete::ACState& s)
 {
     bool moveToTrash = s.extractflag("-movetotrash");
-    if (Node* n = client->nodebyhandle(cwd))
+    if (Node* n = client->nodeByHandle(cwd))
     {
         if (recurse_findemptysubfoldertrees(n, moveToTrash))
         {
@@ -2607,7 +2607,7 @@ Node* nodeFromRemotePath(const string& s)
     Node* n;
     if (s.empty())
     {
-        n = client->nodebyhandle(cwd);
+        n = client->nodeByHandle(cwd);
     }
     else
     {
@@ -2989,7 +2989,7 @@ void exec_timelocal(autocomplete::ACState& s)
 
 void exec_backupcentre(autocomplete::ACState& s)
 {
-    bool del = s.extractflag("-del");
+    bool delFlag = s.extractflag("-del");
 
     if (s.words.size() == 1)
     {
@@ -3023,7 +3023,7 @@ void exec_backupcentre(autocomplete::ACState& s)
             }
         }));
     }
-    else if (s.words.size() == 2 && del)
+    else if (s.words.size() == 2 && delFlag)
     {
         handle backupId;
         Base64::atob(s.words[1].s.c_str(), (byte*)&backupId, MegaClient::BACKUPHANDLE);
@@ -3237,7 +3237,7 @@ bool recursiveget(fs::path&& localpath, Node* n, bool folders, unsigned& queued)
     {
         if (!folders)
         {
-            auto f = new AppFileGet(n, UNDEF, NULL, -1, 0, NULL, NULL, localpath.u8string());
+            auto f = new AppFileGet(n, NodeHandle(), NULL, -1, 0, NULL, NULL, localpath.u8string());
             f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
             DBTableTransactionCommitter committer(client->tctable);
             client->startxfer(GET, f, committer);
@@ -3551,7 +3551,7 @@ void exec_ls(autocomplete::ACState& s)
     }
     else
     {
-        n = client->nodebyhandle(cwd);
+        n = client->nodeByHandle(cwd);
     }
 
     if (n)
@@ -3572,7 +3572,7 @@ void exec_cd(autocomplete::ACState& s)
             }
             else
             {
-                cwd = n->nodehandle;
+                cwd = n->nodeHandle();
             }
         }
         else
@@ -3582,7 +3582,7 @@ void exec_cd(autocomplete::ACState& s)
     }
     else
     {
-        cwd = client->rootnodes[0];
+        cwd = NodeHandle().set6byte(client->rootnodes[0]);
     }
 }
 
@@ -3941,7 +3941,7 @@ void exec_du(autocomplete::ACState& s)
     }
     else
     {
-        n = client->nodebyhandle(cwd);
+        n = client->nodeByHandle(cwd);
     }
 
     if (n)
@@ -4157,7 +4157,7 @@ void uploadLocalPath(nodetype_t type, std::string name, LocalPath& localname, No
             }
             fa.reset();
 
-            AppFile* f = new AppFilePut(localname, parent ? parent->nodehandle : UNDEF, targetuser.c_str());
+            AppFile* f = new AppFilePut(localname, parent ? parent->nodeHandle() : NodeHandle(), targetuser.c_str());
             *static_cast<FileFingerprint*>(f) = fp;
             f->appxfer_it = appxferq[PUT].insert(appxferq[PUT].end(), f);
             client->startxfer(PUT, f, committer);
@@ -4239,7 +4239,7 @@ void uploadLocalFolderContent(LocalPath& localname, Node* cloudFolder)
 
 void exec_put(autocomplete::ACState& s)
 {
-    handle target = cwd;
+    NodeHandle target = cwd;
     string targetuser;
     string newname;
     int total = 0;
@@ -4251,12 +4251,12 @@ void exec_put(autocomplete::ACState& s)
     {
         if ((n = nodebypath(s.words[2].s.c_str(), &targetuser, &newname)))
         {
-            target = n->nodehandle;
+            target = n->nodeHandle();
         }
     }
     else    // target is current path
     {
-        n = client->nodebyhandle(target);
+        n = client->nodeByHandle(target);
     }
 
     if (client->loggedin() == NOTLOGGEDIN && !targetuser.size() && !client->loggedIntoWritableFolder())
@@ -4778,7 +4778,7 @@ void exec_mkdir(autocomplete::ACState& s)
         Node* n;
         if (exactLeafName)
         {
-            n = client->nodebyhandle(cwd);
+            n = client->nodeByHandle(cwd);
             newname = s.words[1].s;
         }
         else
@@ -4830,7 +4830,7 @@ void exec_getfa(autocomplete::ACState& s)
 
     if (s.words.size() < 3)
     {
-        n = client->nodebyhandle(cwd);
+        n = client->nodeByHandle(cwd);
     }
     else if (!(n = nodebypath(s.words[2].s.c_str())))
     {
@@ -5877,7 +5877,7 @@ void exec_reload(autocomplete::ACState& s)
         nocache = true;
     }
 
-    cwd = UNDEF;
+    cwd = NodeHandle();
     client->cachedscsn = UNDEF;
     client->fetchnodes(nocache);
 }
@@ -5888,7 +5888,7 @@ void exec_logout(autocomplete::ACState& s)
 
     bool keepSyncConfigs = s.extractflag("-keepsyncconfigs");
 
-    cwd = UNDEF;
+    cwd = NodeHandle();
     client->logout(keepSyncConfigs);
 
     if (clientFolder)
@@ -6330,7 +6330,7 @@ void exec_version(autocomplete::ACState& s)
     cout << "* MediaInfo" << endl;
 #endif
 
-    cwd = UNDEF;
+    cwd = NodeHandle();
 }
 
 void exec_showpcr(autocomplete::ACState& s)
@@ -6584,7 +6584,7 @@ void exec_locallogout(autocomplete::ACState& s)
 {
     cout << "Logging off locally..." << endl;
 
-    cwd = UNDEF;
+    cwd = NodeHandle();
     client->locallogout(false, true);
 }
 
@@ -7174,7 +7174,7 @@ void DemoApp::exportnode_result(handle h, handle ph)
     if ((n = client->nodebyhandle(h)))
     {
         string path;
-        nodepath(h, &path);
+        nodepath(NodeHandle().set6byte(h), &path);
         cout << "Exported " << path << ": ";
 
         if (n->type != FILENODE && !n->sharekey)
@@ -7283,7 +7283,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
         }
         else
         {
-            n = client->nodebyhandle(cwd);
+            n = client->nodeByHandle(cwd);
         }
 
         if (!n)
@@ -7464,7 +7464,7 @@ void DemoApp::checkfile_result(handle h, error e, byte* filekey, m_off_t size, m
         cout << "Initiating download..." << endl;
 
         DBTableTransactionCommitter committer(client->tctable);
-        AppFileGet* f = new AppFileGet(NULL, h, filekey, size, tm, filename, fingerprint);
+        AppFileGet* f = new AppFileGet(NULL, NodeHandle().set6byte(h), filekey, size, tm, filename, fingerprint);
         f->appxfer_it = appxferq[GET].insert(appxferq[GET].end(), f);
         client->startxfer(GET, f, committer);
     }
@@ -7574,9 +7574,9 @@ void DemoApp::nodes_updated(Node** n, int count)
     nodestats(c[1], "added or updated");
     nodestats(c[0], "removed");
 
-    if (ISUNDEF(cwd))
+    if (cwd.isUndef())
     {
-        cwd = client->rootnodes[0];
+        cwd = NodeHandle().set6byte(client->rootnodes[0]);
     }
 }
 
@@ -8495,6 +8495,12 @@ void exec_synclist(autocomplete::ACState& s)
         return;
     }
 
+    if (client->syncs.numSyncs() == 0)
+    {
+        cout << "No syncs configured yet" << endl;
+        return;
+     }
+
     client->syncs.forEachUnifiedSync(
       [](UnifiedSync& us)
       {
@@ -8568,14 +8574,6 @@ void exec_syncremove(autocomplete::ACState& s)
     handle backupId = 0;
     Base64::atob(s.words[2].s.c_str(), (byte*) &backupId, sizeof(handle));
 
-    // Make sure the sync isn't active.
-    if (client->syncs.runningSyncByBackupId(backupId))
-    {
-        cerr << "Cannot remove config as sync is active."
-             << endl;
-        return;
-    }
-
     // Try and remove the config.
     bool found = false;
 
@@ -8591,7 +8589,7 @@ void exec_syncremove(autocomplete::ACState& s)
 
     if (!found)
     {
-        cerr << "No sync config exists with the tag "
+        cerr << "No sync config exists with the backupId "
              << Base64Str<sizeof(handle)>(backupId)
              << endl;
         return;
