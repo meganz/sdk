@@ -1062,6 +1062,9 @@ private:
     // fetch statusTable from local cache
     bool fetchStatusTable(DbTable*);
 
+    // open/create status database table
+    void openStatusTable();
+
     // remove old (2 days or more) transfers from cache, if they were not resumed
     void purgeOrphanTransfers(bool remove = false);
 
@@ -1215,8 +1218,8 @@ public:
     // open/create state cache database table
     void opensctable();
 
-    // open/create status database table
-    void openStatusTable();
+    // reset status database table. if loadFromCache is true, it will load status from the table.
+    void resetStatusTable(bool loadFromCache = false);
 
     // initialize/update state cache referenced sctable
     void initsc();

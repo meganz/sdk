@@ -19888,12 +19888,6 @@ void MegaApiImpl::sendPendingRequests()
                     client->cachedscsn = UNDEF;
                 }
 
-                if (client->statusTable)
-                {
-                    client->statusTable->remove();
-                    client->statusTable.reset();
-                }
-
                 nocache = false;
             }
 

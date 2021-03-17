@@ -5395,6 +5395,8 @@ bool MegaClient::CacheableStatusMap::addOrUpdate(int64_t type, int64_t value)
         changed = true;
     }
 
+    assert(mClient->statusTable && "Updating status without status table");
+
     if (changed && mClient->statusTable)
     {
         DBTableTransactionCommitter committer(mClient->statusTable);
@@ -8866,6 +8868,19 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool 
     return API_EARGS;
 }
 
+void MegaClient::resetStatusTable(bool loadFromCache)
+{
+    if (statusTable)
+    {
+        statusTable.reset();
+    }
+    openStatusTable();
+    if (loadFromCache && statusTable)
+    {
+        fetchStatusTable(statusTable.get());
+    }
+}
+
 void MegaClient::checkForResumeableSCDatabase()
 {
     // see if we can resume from an already cached set of nodes for this folder
@@ -8902,6 +8917,8 @@ error MegaClient::folderaccess(const char *folderlink, const char * authKey)
         mFolderLink.mPublicHandle = h;
         // mFolderLink.mAccountAuth remain unchanged, since it can be reused for multiple links
         key.setkey(folderkey);
+
+        resetStatusTable();
     }
 
     return e;
@@ -9048,6 +9065,7 @@ void MegaClient::login(string session)
             checkForResumeableSCDatabase();
 
             restag = reqtag;
+            resetStatusTable(true);
             app->login_result(API_OK);
         }
     }
@@ -9262,6 +9280,10 @@ void MegaClient::openStatusTable()
         {
             dbname.resize(NODEHANDLE * 4 / 3 + 3);
             dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle, NODEHANDLE, (char*)dbname.c_str()));
+        }
+        else
+        {
+            assert(false && "attempted to open status table without sid nor folderlink");
         }
 
         if (dbname.size())
@@ -11773,13 +11795,10 @@ void MegaClient::fetchnodes(bool nocache)
         sctable->truncate();
     }
 
-    openStatusTable();
-
     // only initial load from local cache
     if ((loggedin() == FULLACCOUNT || loggedIntoFolder() ) &&
             !nodes.size() && !ISUNDEF(cachedscsn) &&
-            sctable && fetchsc(sctable) &&
-            statusTable && fetchStatusTable(statusTable.get()))
+            sctable && fetchsc(sctable))
     {
         WAIT_CLASS::bumpds();
         fnstats.mode = FetchNodesStats::MODE_DB;
