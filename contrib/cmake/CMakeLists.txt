@@ -145,14 +145,17 @@ ENDIF(WIN32)
 if (USE_QT)
 
     #For convenience, added some default qt paths if none is specified by CMAKE_PREFIX_PATH
-    if (CMAKE_HOST_WIN32 AND (NOT DEFINED CMAKE_PREFIX_PATH) )
-        if (build_64_bit)
-            set (QT_BASE_PATH "C:/Qt/Qt5.6.3_64/5.6.3/msvc2015" CACHE STRING "Specify your QT install folder if it is nonstandard")
-            set(CMAKE_PREFIX_PATH "${QT_BASE_PATH};${CMAKE_PREFIX_PATH}")
-        else()
-            set (QT_BASE_PATH "C:/Qt/Qt5.6.3/5.6.3/msvc2015" CACHE STRING "Specify your QT install folder if it is nonstandard")
-            set(CMAKE_PREFIX_PATH "${QT_BASE_PATH};${CMAKE_PREFIX_PATH}")
+    if (NOT DEFINED CMAKE_PREFIX_PATH AND NOT DEFINED QT_DIR)
+        if (CMAKE_HOST_WIN32 )
+            if (build_64_bit)
+                set (QT_DIR "C:/Qt/5.12.10/msvc2017_64" CACHE STRING "Specify your QT install folder if it is nonstandard")
+            else()
+                set (QT_DIR "C:/Qt/5.12.10/msvc2017" CACHE STRING "Specify your QT install folder if it is nonstandard")
+            ENDIF()
+        ELSE()
+            set (QT_DIR "/Users/Shared/Qt/5.12.10/clang_64" CACHE STRING "Specify your QT install folder if it is nonstandard")
         ENDIF()
+        set(CMAKE_PREFIX_PATH "${QT_DIR}/lib/cmake/Qt5;${CMAKE_PREFIX_PATH}")
     ENDIF()
 
     message(STATUS "CMAKE_PREFIX_PATH (should contain the QT install path): ${CMAKE_PREFIX_PATH}")
@@ -417,18 +420,18 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             IF(USE_LIBRAW)
                 SET(raw_deps libjasper libturbojpeg liblcms)
 
-				IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
-					include(CheckCXXCompilerFlag)
+                IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
+                    include(CheckCXXCompilerFlag)
 
-					check_cxx_compiler_flag(-fgomp HAS_FGOMP)
-					check_cxx_compiler_flag(-fopenmp HAS_FOPENMP)
+                    check_cxx_compiler_flag(-fgomp HAS_FGOMP)
+                    check_cxx_compiler_flag(-fopenmp HAS_FOPENMP)
 
-					set(Mega_PlatformSpecificLibs
-						  ${Mega_PlatformSpecificLibs}
-						  $<$<BOOL:${HAS_FGOMP}>:-fgomp>
-						  $<$<BOOL:${HAS_FOPENMP}>:-fopenmp>)
-				ENDIF()
-			ENDIF(USE_LIBRAW)
+                    set(Mega_PlatformSpecificLibs
+                        ${Mega_PlatformSpecificLibs}
+                        $<$<BOOL:${HAS_FGOMP}>:-fgomp>
+                        $<$<BOOL:${HAS_FOPENMP}>:-fopenmp>)
+                ENDIF()
+            ENDIF(USE_LIBRAW)
 
         ENDIF()
 
@@ -492,7 +495,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(pdfium       pdfium pdfium libpdfium libpdfium)
 
             #liblcms and libturbojpeg already added above.  also libopenjpeg
-			ImportStdVcpkgLibrary(freetype     freetyped freetype libfreetyped libfreetype)
+            ImportStdVcpkgLibrary(freetype     freetyped freetype libfreetyped libfreetype)
             ImportStdVcpkgLibrary(icu          icuucd icuuc libicuuc libicuuc)
             ImportStdVcpkgLibrary(icudt        icudtd icudt libicudata libicudata)
             
