@@ -23,11 +23,11 @@ project(MegaSDK)
 
 set (Mega3rdPartyDir "" CACHE FILEPATH "Prefix path for where third party dependencies are located")
 
-if (CMAKE_HOST_APPLE)
+if(CMAKE_HOST_APPLE)
     set (USE_OPENSSL 0 CACHE STRING "")
 else()
     set (USE_OPENSSL 1 CACHE STRING "Usually Needed")
-ENDIF()
+endif()
 
 set (USE_ASIO 1 CACHE STRING "Only needed For tcprelay test tool")
 set (USE_CURL 1 CACHE STRING "Always needed (turning it off would mean using WinHTTP instead but that has not been maintained for a while)")
@@ -231,21 +231,21 @@ if (WIN32)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /Zc:__cplusplus /std:c++17")
     add_definitions( -DNOMINMAX )
 
-	#Link against the static C/C++ libraries on windows. Though, if linking with prebuilt QT we need dynamic CRT
-	foreach(flag_var
-			CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
-			CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
-			CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
-		if (MEGA_LINK_DYNAMIC_CRT)
-			if(${flag_var} MATCHES "/MT")
-				string(REGEX REPLACE "/MT" "/MD" ${flag_var} "${${flag_var}}")
-			endif()
-		else ()
-			if(${flag_var} MATCHES "/MD")
-				string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
-			endif()
-		endif ()
-	endforeach(flag_var)
+    #Link against the static C/C++ libraries on windows. Though, if linking with prebuilt QT we need dynamic CRT
+    foreach(flag_var
+            CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
+            CMAKE_C_FLAGS CMAKE_C_FLAGS_DEBUG CMAKE_C_FLAGS_RELEASE
+            CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+        if (MEGA_LINK_DYNAMIC_CRT)
+            if(${flag_var} MATCHES "/MT")
+                string(REGEX REPLACE "/MT" "/MD" ${flag_var} "${${flag_var}}")
+            endif()
+        else ()
+            if(${flag_var} MATCHES "/MD")
+                string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
+            endif()
+        endif ()
+    endforeach(flag_var)
 
     set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
     set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
@@ -397,12 +397,39 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         ENDIF(USE_MEDIAINFO)
 
         IF(USE_FREEIMAGE OR USE_PDFIUM)
-            ImportStdVcpkgLibrary(libpng      libpng16d        libpng16       libpng16d           libpng16           )
+            # both these libaries have these common dependencies
+            ImportStdVcpkgLibrary(libpng      libpng16d        libpng16       libpng16d           libpng16)
+            ImportStdVcpkgLibrary(libopenjpeg openjp2          openjp2        libopenjp2          libopenjp2         )
         endif()
 
-        IF(USE_FREEIMAGE OR USE_LIBRAW)
-            ImportStdVcpkgLibrary(libraw         rawd             raw            librawd             libraw             )
-            ImportStdVcpkgLibrary(libjasper      jasperd          jasper         libjasperd          libjasper          )
+        IF(USE_LIBRAW OR USE_FREEIMAGE OR USE_PDFIUM)
+            ImportStdVcpkgLibrary(liblcms        lcmsd            lcms           liblcmsd            liblcms)
+            ImportStdVcpkgLibrary(libturbojpeg   turbojpegd       turbojpeg      libturbojpeg        libturbojpeg       )
+        ENDIF()
+
+        IF(USE_LIBRAW OR USE_FREEIMAGE)
+            # we might need libraw directly (eg MEGAsync) but also freeimage needs it
+            ImportStdVcpkgLibrary(libraw         rawd             raw            librawd             libraw)
+
+            # libraw needs jasper and lcms and libjpeg-turbo (all also part of freeimage)
+            ImportStdVcpkgLibrary(libjasper      jasperd          jasper         libjasperd          libjasper)
+
+            IF(USE_LIBRAW)
+                SET(raw_deps libjasper libturbojpeg liblcms)
+
+				IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
+					include(CheckCXXCompilerFlag)
+
+					check_cxx_compiler_flag(-fgomp HAS_FGOMP)
+					check_cxx_compiler_flag(-fopenmp HAS_FOPENMP)
+
+					set(Mega_PlatformSpecificLibs
+						  ${Mega_PlatformSpecificLibs}
+						  $<$<BOOL:${HAS_FGOMP}>:-fgomp>
+						  $<$<BOOL:${HAS_FOPENMP}>:-fopenmp>)
+				ENDIF()
+			ENDIF(USE_LIBRAW)
+
         ENDIF()
 
         IF(USE_FREEIMAGE)
@@ -414,13 +441,10 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(freeimage_IlmThread   IlmThread-2_5_d  IlmThread-2_5  libIlmThread-2_5_d  libIlmThread-2_5   )
             ImportStdVcpkgLibrary(freeimage_Imath       IMath-2_5_d      IMath-2_5      libImath-2_5_d      libImath-2_5       )
             ImportStdVcpkgLibrary(freeimage_jpeg        jpegd            jpeg           libjpeg             libjpeg            )
-            ImportStdVcpkgLibrary(freeimage_turbojpeg   turbojpegd       turbojpeg      libturbojpeg        libturbojpeg       )
             ImportStdVcpkgLibrary(freeimage_jpegxr      jpegxrd          jpegxr         libjpegxrd          libjpegxr          )
             ImportStdVcpkgLibrary(freeimage_jxrglue     jxrglued         jxrglue        libjxrglued         libjxrglue         )
-            ImportStdVcpkgLibrary(freeimage_openjp2     openjp2          openjp2        libopenjp2          libopenjp2         )
             ImportStdVcpkgLibrary(freeimage_half        half-2_5_d       half-2_5       libHalf-2_5_d       libHalf-2_5        )
             ImportStdVcpkgLibrary(freeimage_lzma        lzmad            lzma           liblzmad            liblzma            )
-            ImportStdVcpkgLibrary(freeimage_lcms2       lcmsd            lcms           liblcmsd            liblcms            )
             ImportStdVcpkgLibrary(freeimage_tiff        tiffd            tiff           libtiffd            libtiff            )
             ImportStdVcpkgLibrary(freeimage_tiffxx      tiffxxd          tiffxx         libtiffxxd          libtiffxx          )
             ImportStdVcpkgLibrary(freeimage_webp        webpd            webp           libwebpd            libwebp            )
@@ -429,11 +453,11 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(freeimage_webpmux     libwebpmuxd      libwebpmux     libwebpmuxd         libwebpmux         )
 
             set (freeimage_deps freeimage_Iex  freeimage_IlmImf freeimage_IlmImfUtil
-                freeimage_IlmThread freeimage_jpeg freeimage_openjp2
-                freeimage_half libpng freeimage_lcms2 libraw freeimage_tiff
+                freeimage_IlmThread libturbojpeg libopenjpeg
+                freeimage_half libpng liblcms libraw freeimage_tiff
                 freeimage_tiffxx freeimage_webp freeimage_webpdecoder freeimage_webpdemux freeimage_webpmux
                 freeimage_jpeg freeimage_Imath freeimage_lzma
-                libjasper freeimage_turbojpeg freeimage_jxrglue freeimage_jpegxr)  # order matters
+                libjasper libturbojpeg freeimage_jxrglue freeimage_jpegxr)  # order matters
 
             IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
                 set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} -fopenmp )
@@ -464,41 +488,13 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(pcrecpp  pcrecppd pcrecpp libpcrecpp libpcrecpp)
         ENDIF(USE_PCRE)
 
-        IF(USE_LIBRAW)
-#            ImportStdVcpkgLibrary(raw                  rawd raw librawd libraw)
-            ImportStdVcpkgLibrary(raw_lcms           lcmsd lcms liblcmsd liblcms)
-
-            IF(NOT CMAKE_HOST_APPLE)
-            ImportStdVcpkgLibrary(raw_jasper           jasperd jasper libjasperd libjasper)
-            ImportStdVcpkgLibrary(raw_libjpeg_turbo    turbojpegd turbojpeg libturbojpeg libturbojpeg)
-            SET(raw_deps raw_jasper raw_libjpeg_turbo raw_lcms)
-            else()
-                SET(raw_deps libjasper raw_lcms)
-            endif()
-
-            IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
-                include(CheckCXXCompilerFlag)
-
-                check_cxx_compiler_flag(-fgomp HAS_FGOMP)
-                check_cxx_compiler_flag(-fopenmp HAS_FOPENMP)
-
-                set(Mega_PlatformSpecificLibs
-                      ${Mega_PlatformSpecificLibs}
-                      $<$<BOOL:${HAS_FGOMP}>:-fgomp>
-                      $<$<BOOL:${HAS_FOPENMP}>:-fopenmp>)
-            ENDIF()
-
-        ENDIF(USE_LIBRAW)
-
         IF(USE_PDFIUM)
             ImportStdVcpkgLibrary(pdfium       pdfium pdfium libpdfium libpdfium)
 
-            ImportStdVcpkgLibrary(freetype     freetyped freetype libfreetyped libfreetype)
+            #liblcms and libturbojpeg already added above.  also libopenjpeg
+			ImportStdVcpkgLibrary(freetype     freetyped freetype libfreetyped libfreetype)
             ImportStdVcpkgLibrary(icu          icuucd icuuc libicuuc libicuuc)
             ImportStdVcpkgLibrary(icudt        icudtd icudt libicudata libicudata)
-            ImportStdVcpkgLibrary(lcms         lcmsd lcms liblcmsd liblcms)
-            ImportStdVcpkgLibrary(turbojpeg    jpegd jpeg libjpeg libjpeg)
-            ImportStdVcpkgLibrary(openjpeg     openjp2 openjp2 libopenjp2 libopenjp2)
             
             # pdfium will use bzip2 if present
             ImportStdVcpkgLibrary(bzip2       bz2d bz2 libbz2d libbz2)
@@ -511,7 +507,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                 set(freetype_deps ${FTYPECONF_STATIC_LIBRARIES})
             ENDIF()
 
-            set(pdfium_deps  ${pdfium_deps} freetype ${freetype_deps} icu icudt lcms turbojpeg openjpeg bzip2 libpng)
+            set(pdfium_deps  ${pdfium_deps} freetype ${freetype_deps} icu icudt liblcms libturbojpeg libopenjpeg bzip2 libpng)
         ENDIF(USE_PDFIUM)
 
 endif(USE_THIRDPARTY_FROM_VCPKG)
