@@ -396,6 +396,15 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(mediainfo  mediainfod mediainfo libmediainfo${DEBUG_SUFIX} libmediainfo)
         ENDIF(USE_MEDIAINFO)
 
+        IF(USE_FREEIMAGE OR USE_PDFIUM)
+            ImportStdVcpkgLibrary(libpng      libpng16d        libpng16       libpng16d           libpng16           )
+        endif()
+
+        IF(USE_FREEIMAGE OR USE_LIBRAW)
+            ImportStdVcpkgLibrary(libraw         rawd             raw            librawd             libraw             )
+            ImportStdVcpkgLibrary(libjasper      jasperd          jasper         libjasperd          libjasper          )
+        ENDIF()
+
         IF(USE_FREEIMAGE)
             ImportStdVcpkgLibrary(freeimage             FreeImaged       FreeImage      libFreeImaged       libFreeImage       )
             ImportStdVcpkgLibrary(freeimage_Iex         Iex-2_5_d        Iex-2_5        libIex-2_5_d        libIex-2_5         )
@@ -410,11 +419,8 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(freeimage_jxrglue     jxrglued         jxrglue        libjxrglued         libjxrglue         )
             ImportStdVcpkgLibrary(freeimage_openjp2     openjp2          openjp2        libopenjp2          libopenjp2         )
             ImportStdVcpkgLibrary(freeimage_half        half-2_5_d       half-2_5       libHalf-2_5_d       libHalf-2_5        )
-            ImportStdVcpkgLibrary(freeimage_jasper      jasperd          jasper         libjasperd          libjasper          )
-            ImportStdVcpkgLibrary(freeimage_libpng      libpng16d        libpng16       libpng16d           libpng16           )
             ImportStdVcpkgLibrary(freeimage_lzma        lzmad            lzma           liblzmad            liblzma            )
             ImportStdVcpkgLibrary(freeimage_lcms2       lcmsd            lcms           liblcmsd            liblcms            )
-            ImportStdVcpkgLibrary(freeimage_raw         rawd             raw            librawd             libraw             )
             ImportStdVcpkgLibrary(freeimage_tiff        tiffd            tiff           libtiffd            libtiff            )
             ImportStdVcpkgLibrary(freeimage_tiffxx      tiffxxd          tiffxx         libtiffxxd          libtiffxx          )
             ImportStdVcpkgLibrary(freeimage_webp        webpd            webp           libwebpd            libwebp            )
@@ -424,10 +430,10 @@ if (USE_THIRDPARTY_FROM_VCPKG)
 
             set (freeimage_deps freeimage_Iex  freeimage_IlmImf freeimage_IlmImfUtil
                 freeimage_IlmThread freeimage_jpeg freeimage_openjp2
-                freeimage_half freeimage_libpng freeimage_lcms2 freeimage_raw freeimage_tiff
+                freeimage_half libpng freeimage_lcms2 libraw freeimage_tiff
                 freeimage_tiffxx freeimage_webp freeimage_webpdecoder freeimage_webpdemux freeimage_webpmux
                 freeimage_jpeg freeimage_Imath freeimage_lzma
-                freeimage_jasper freeimage_turbojpeg freeimage_jxrglue freeimage_jpegxr)  # order matters
+                libjasper freeimage_turbojpeg freeimage_jxrglue freeimage_jpegxr)  # order matters
 
             IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
                 set(Mega_PlatformSpecificLibs ${Mega_PlatformSpecificLibs} -fopenmp )
@@ -459,7 +465,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
         ENDIF(USE_PCRE)
 
         IF(USE_LIBRAW)
-            ImportStdVcpkgLibrary(raw                  rawd raw librawd libraw)
+#            ImportStdVcpkgLibrary(raw                  rawd raw librawd libraw)
             ImportStdVcpkgLibrary(raw_lcms           lcmsd lcms liblcmsd liblcms)
 
             IF(NOT CMAKE_HOST_APPLE)
@@ -467,7 +473,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(raw_libjpeg_turbo    turbojpegd turbojpeg libturbojpeg libturbojpeg)
             SET(raw_deps raw_jasper raw_libjpeg_turbo raw_lcms)
             else()
-                SET(raw_deps  raw_lcms)
+                SET(raw_deps libjasper raw_lcms)
             endif()
 
             IF(NOT CMAKE_HOST_APPLE AND NOT CMAKE_HOST_WIN32)
@@ -489,7 +495,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
 
             ImportStdVcpkgLibrary(freetype     freetyped freetype libfreetyped libfreetype)
             ImportStdVcpkgLibrary(icu          icuucd icuuc libicuuc libicuuc)
-            ImportStdVcpkgLibrary(icudt        icudtd icudt libicudt libicudt)
+            ImportStdVcpkgLibrary(icudt        icudtd icudt libicudata libicudata)
             ImportStdVcpkgLibrary(lcms         lcmsd lcms liblcmsd liblcms)
             ImportStdVcpkgLibrary(turbojpeg    jpegd jpeg libjpeg libjpeg)
             ImportStdVcpkgLibrary(openjpeg     openjp2 openjp2 libopenjp2 libopenjp2)
@@ -505,7 +511,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
                 set(freetype_deps ${FTYPECONF_STATIC_LIBRARIES})
             ENDIF()
 
-            set(pdfium_deps  ${pdfium_deps} freetype ${freetype_deps} icu icudt lcms turbojpeg openjpeg bzip2 freeimage_libpng)
+            set(pdfium_deps  ${pdfium_deps} freetype ${freetype_deps} icu icudt lcms turbojpeg openjpeg bzip2 libpng)
         ENDIF(USE_PDFIUM)
 
 endif(USE_THIRDPARTY_FROM_VCPKG)
@@ -739,7 +745,7 @@ target_link_libraries(Mega PUBLIC
                         $<${USE_SQLITE}:sqlite3>
                         $<${USE_LIBUV}:uv>
                         $<${USE_PCRE}:pcre pcrecpp>
-                        $<${USE_LIBRAW}:raw> $<${USE_LIBRAW}:${raw_deps}>
+                        $<${USE_LIBRAW}:libraw> $<${USE_LIBRAW}:${raw_deps}>
                         $<${USE_FREEIMAGE}:freeimage> $<${USE_FREEIMAGE}:${freeimage_deps}>
                         $<${USE_PDFIUM}:pdfium> $<${USE_PDFIUM}:${pdfium_deps}>
                         $<${HAVE_FFMPEG}:avfilter> $<${HAVE_FFMPEG}:avdevice> $<${HAVE_FFMPEG}:avformat> $<${HAVE_FFMPEG}:avcodec> $<${HAVE_FFMPEG}:avutil> $<${HAVE_FFMPEG}:swscale>  $<${HAVE_FFMPEG}:swresample>
