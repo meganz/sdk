@@ -19,6 +19,8 @@ pushd src
 
 git checkout $COMMIT
 
+git apply ../../../../../patches/webRtcPatch.patch
+
 mkdir lib
 pushd lib
 
