@@ -43,6 +43,8 @@ if [ "$1" == "clean" ]; then
     exit 0
 fi
 
+mkdir -p ${CURRENTPATH}
+
 pushd "${WEBRTC_SRC}" > /dev/null
 if [ "41bfcf4a63611409220fcd458a03deaa2cd23619" != "`git rev-parse HEAD`" ]; then
   echo ""
@@ -73,8 +75,6 @@ else
  fi
 fi
 popd > /dev/null
-
-mkdir -p ${CURRENTPATH}
 
 if [ ! -d "${CURRENTPATH}/webrtc" ] ; then
 
