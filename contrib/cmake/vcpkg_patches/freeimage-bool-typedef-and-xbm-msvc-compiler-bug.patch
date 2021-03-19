@@ -9,7 +9,7 @@ index 0000000..981aeda
 +--- a/Source/FreeImage/PluginXBM.cpp
 ++++ b/Source/FreeImage/PluginXBM.cpp
 +@@ -72,7 +72,11 @@ Get a char from the stream
-+ static int
++ static int 
 + readChar(FreeImageIO *io, fi_handle handle) {
 + 	BYTE c;
 +-	io->read_proc(&c, 1, 1, handle);
