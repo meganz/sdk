@@ -1816,9 +1816,6 @@ public:
 
     // -1: expired, 0: inactive (no business subscription), 1: active, 2: grace-period
     BizStatus mBizStatus;
-    // indicates that the last update to mBizStatus comes from cache.
-    // Used to notify the apps in the very first non-cache update. For backwards compatibility.
-    bool mBizStatusLoadedFromCache = false;
 
     // list of handles of the Master business account/s
     std::set<handle> mBizMasters;

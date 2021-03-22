@@ -1193,7 +1193,6 @@ MegaClient::MegaClient(MegaApp* a, Waiter* w, HttpIO* h, FileSystemAccess* f, Db
     mBizExpirationTs = 0;
     mBizMode = BIZ_MODE_UNKNOWN;
     mBizStatus = BIZ_STATUS_UNKNOWN;
-    mBizStatusLoadedFromCache = false;
 
     overquotauntil = 0;
     ststatus = STORAGE_UNKNOWN;
@@ -4159,7 +4158,6 @@ void MegaClient::locallogout(bool removecaches, bool keepSyncsConfigFile)
     mBizExpirationTs = 0;
     mBizMode = BIZ_MODE_UNKNOWN;
     mBizStatus = BIZ_STATUS_UNKNOWN;
-    mBizStatusLoadedFromCache = false;
     mBizMasters.clear();
     mPublicLinks.clear();
     mCachedStatus.clear();
@@ -5368,7 +5366,6 @@ void MegaClient::CacheableStatusMap::loadCachedStatus(int64_t type, int64_t valu
         case CacheableStatus::Type::STATUS_BUSINESS:
         {
             mClient->mBizStatus = static_cast<BizStatus>(value);
-            mClient->mBizStatusLoadedFromCache = true;
             break;
         }
         default:
@@ -6897,11 +6894,10 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
 #endif
     }
 
-    if (mBizStatusLoadedFromCache || prevBizStatus != mBizStatus) //has changed, or first set
+    if (prevBizStatus != BIZ_STATUS_UNKNOWN && prevBizStatus != mBizStatus) //has changed
     {
         app->notify_business_status(mBizStatus);
     }
-    mBizStatusLoadedFromCache = false;
 }
 
 void MegaClient::sc_ub()
@@ -9025,7 +9021,6 @@ void MegaClient::login(string session)
         rng.genblock(sek, sizeof sek);
 
         reqs.add(new CommandLogin(this, NULL, NULL, 0, sek, sessionversion));
-        getuserdata(reqtag);
         fetchtimezone();
     }
     else if (!session.empty() && session[0] == 2)
@@ -11800,6 +11795,15 @@ void MegaClient::fetchnodes(bool nocache)
             !nodes.size() && !ISUNDEF(cachedscsn) &&
             sctable && fetchsc(sctable))
     {
+        getuserdata(0, [this](string*, string*, string*, error e)
+        { // upon ug completion
+        if (e != API_OK)
+        {
+            LOG_err << "Session load failed: unable not get user data";
+            app->fetchnodes_result(API_EINTERNAL);
+            return; //from completion function
+        }
+
         WAIT_CLASS::bumpds();
         fnstats.mode = FetchNodesStats::MODE_DB;
         fnstats.cache = FetchNodesStats::API_NO_CACHE;
@@ -11841,6 +11845,7 @@ void MegaClient::fetchnodes(bool nocache)
 
         WAIT_CLASS::bumpds();
         fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
+        });
     }
     else if (!fetchingnodes)
     {
@@ -11877,10 +11882,19 @@ void MegaClient::fetchnodes(bool nocache)
             // Copy the current tag so we can capture it in the lambda below.
             const auto fetchtag = reqtag;
 
-            getuserdata(0, [this, fetchtag, nocache](string*, string*, string*, error){
-                // FetchNodes procresult() needs some data from `ug` (or it may try to make new Sync User Attributes for example)
-                // So only submit the request after `ug` completes, otherwise everything is interleaved
-                reqs.add(new CommandFetchNodes(this, fetchtag, nocache));
+            getuserdata(0, [this, fetchtag, nocache](string*, string*, string*, error e){
+
+                if (e == API_OK)
+                {
+                    // FetchNodes procresult() needs some data from `ug` (or it may try to make new Sync User Attributes for example)
+                    // So only submit the request after `ug` completes, otherwise everything is interleaved
+                    reqs.add(new CommandFetchNodes(this, fetchtag, nocache));
+                }
+                else
+                {
+                    LOG_err << "Pre-failing fetching nodes: unable not get user data";
+                    app->fetchnodes_result(API_EINTERNAL);
+                }
             });
 
             if (loggedin() == FULLACCOUNT)

@@ -9498,10 +9498,6 @@ class MegaApi
         /**
          * @brief Check if the account is a business account.
          *
-         * @note This function must be called only if we have received the callback
-         * MegaGlobalListener::onEvent and the callback MegaListener::onEvent
-         * with the event type MegaEvent::EVENT_BUSINESS_STATUS
-         *
          * @return returns true if it's a business account, otherwise false
          */
         bool isBusinessAccount();
@@ -9516,10 +9512,6 @@ class MegaApi
          *  - MegaApi::changeEmail
          *  - MegaApi::remove
          *  - MegaApi::removeVersion
-         *
-         * @note This function must be called only if we have received the callback
-         * MegaGlobalListener::onEvent and the callback MegaListener::onEvent
-         * with the event type MegaEvent::EVENT_BUSINESS_STATUS
          *
          * @return returns true if it's a master account, false if it's a sub-user account
          */
@@ -9537,20 +9529,12 @@ class MegaApi
          *  - MegaApi::share
          *  - MegaApi::cleanRubbishBin
          *
-         * @note This function must be called only if we have received the callback
-         * MegaGlobalListener::onEvent and the callback MegaListener::onEvent
-         * with the event type MegaEvent::EVENT_BUSINESS_STATUS
-         *
          * @return returns true if the account is active, otherwise false
          */
         bool isBusinessAccountActive();
 
         /**
          * @brief Get the status of a business account.
-         *
-         * @note This function must be called only if we have received the callback
-         * MegaGlobalListener::onEvent and the callback MegaListener::onEvent
-         * with the event type MegaEvent::EVENT_BUSINESS_STATUS
          *
          * @return Returns the business account status, possible values:
          *      MegaApi::BUSINESS_STATUS_EXPIRED = -1
