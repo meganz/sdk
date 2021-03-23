@@ -45,6 +45,7 @@ fi
 
 mkdir -p ${CURRENTPATH}
 
+echo "* Setting up WebRTC"
 pushd "${WEBRTC_SRC}" > /dev/null
 if [ "41bfcf4a63611409220fcd458a03deaa2cd23619" != "`git rev-parse HEAD`" ]; then
   echo ""
