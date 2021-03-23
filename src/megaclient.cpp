@@ -8864,13 +8864,13 @@ error MegaClient::parsepubliclink(const char* link, handle& ph, byte* key, bool 
     return API_EARGS;
 }
 
-void MegaClient::resetStatusTable(bool loadFromCache)
+void MegaClient::openStatusTable(bool loadFromCache)
 {
     if (statusTable)
     {
         statusTable.reset();
     }
-    openStatusTable();
+    doOpenStatusTable();
     if (loadFromCache && statusTable)
     {
         fetchStatusTable(statusTable.get());
@@ -8914,7 +8914,7 @@ error MegaClient::folderaccess(const char *folderlink, const char * authKey)
         // mFolderLink.mAccountAuth remain unchanged, since it can be reused for multiple links
         key.setkey(folderkey);
 
-        resetStatusTable();
+        openStatusTable();
     }
 
     return e;
@@ -9060,7 +9060,7 @@ void MegaClient::login(string session)
             checkForResumeableSCDatabase();
 
             restag = reqtag;
-            resetStatusTable(true);
+            openStatusTable(true);
             app->login_result(API_OK);
         }
     }
@@ -9260,7 +9260,7 @@ void MegaClient::opensctable()
     }
 }
 
-void MegaClient::openStatusTable()
+void MegaClient::doOpenStatusTable()
 {
     if (dbaccess && !statusTable)
     {

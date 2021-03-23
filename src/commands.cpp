@@ -1862,7 +1862,7 @@ bool CommandLogin::procresult(Result r)
                     client->sessionkey.assign((const char *)sek, sizeof(sek));
                 }
 
-                client->resetStatusTable(true);
+                client->openStatusTable(true);
                 client->app->login_result(API_OK);
                 return true;
 
@@ -5208,7 +5208,7 @@ bool CommandResumeEphemeralSession::procresult(Result r)
                 client->me = uh;
                 client->uid = Base64Str<MegaClient::USERHANDLE>(client->me);
 
-                client->resetStatusTable();
+                client->openStatusTable(true);
                 client->app->ephemeral_result(uh, pw);
                 return true;
 
