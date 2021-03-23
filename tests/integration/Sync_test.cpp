@@ -4495,8 +4495,8 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     StandardClient clientA1Resume(localtestroot, "clientA1R");
     StandardClient clientA2(localtestroot, "clientA2");
     ASSERT_TRUE(clientA1Steady.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "twoway", 0, 0, true));
-    ASSERT_TRUE(clientA1Resume.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", true));
-    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", true));
+    ASSERT_TRUE(clientA1Resume.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", false, true));
+    ASSERT_TRUE(clientA2.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", false, true));
     fs::create_directory(clientA1Steady.fsBasePath / fs::u8path("twoway"));
     fs::create_directory(clientA1Resume.fsBasePath / fs::u8path("twoway"));
     fs::create_directory(clientA2.fsBasePath / fs::u8path("twoway"));
@@ -4699,7 +4699,7 @@ TEST(Sync, TwoWay_Highlevel_Symmetries)
     // Clear tree-state cache.
     {
         StandardClient cC(localtestroot, "cC");
-        ASSERT_TRUE(cC.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", true));
+        ASSERT_TRUE(cC.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", false, true));
     }
 }
 
