@@ -1220,7 +1220,7 @@ public:
 
     // opens (or creates if non existing) a status database table.
     //   if loadFromCache is true, it will load status from the table.
-    void openStatusTable(bool loadFromCache = false);
+    void openStatusTable(bool loadFromCache);
 
     // initialize/update state cache referenced sctable
     void initsc();
