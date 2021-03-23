@@ -7869,20 +7869,6 @@ void MegaApiImpl::moveTransferBefore(int transferTag, int prevTransferTag, MegaR
     waiter->notify();
 }
 
-void MegaApiImpl::enableTransferResumption(const char *loggedOutId)
-{
-    sdkMutex.lock();
-    client->enabletransferresumption(loggedOutId);
-    sdkMutex.unlock();
-}
-
-void MegaApiImpl::disableTransferResumption(const char *loggedOutId)
-{
-    sdkMutex.lock();
-    client->disabletransferresumption(loggedOutId);
-    sdkMutex.unlock();
-}
-
 bool MegaApiImpl::areTransfersPaused(int direction)
 {
     if(direction != MegaTransfer::TYPE_DOWNLOAD && direction != MegaTransfer::TYPE_UPLOAD)
