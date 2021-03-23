@@ -4042,11 +4042,13 @@ void MegaClient::logout(bool keepSyncConfigsFile)
         return;
     }
 
+#ifdef ENABLE_SYNC
     // if logging out and syncs won't be kept...
     if (!keepSyncConfigsFile)
     {
         syncs.removeSelectedSyncs([](SyncConfig&, Sync*) { return true; });
     }
+#endif
 
     loggingout++;
     reqs.add(new CommandLogout(this, keepSyncConfigsFile));
