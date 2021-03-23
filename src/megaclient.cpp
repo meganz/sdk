@@ -4456,14 +4456,10 @@ bool MegaClient::procsc()
                                 whyamiblocked();// lets query again, to trigger transition and restoreSyncs
                             }
 
-#ifdef ENABLE_SYNC
-#ifndef __ANDROID__
-                            //TODO: remove android control after android gives green light to this.
                             enabletransferresumption();
-#endif
+#ifdef ENABLE_SYNC
                             syncs.resumeResumableSyncsOnStartup();
 #endif
-
                             app->fetchnodes_result(API_OK);
                             app->notify_dbcommit();
 
@@ -11820,11 +11816,9 @@ void MegaClient::fetchnodes(bool nocache)
             }
         }
 
-#ifdef ENABLE_SYNC
-#ifndef __ANDROID__
-        //TODO: remove android control after android gives green light to this.
         enabletransferresumption();
-#endif
+
+#ifdef ENABLE_SYNC
         syncs.resetSyncConfigDb();
         syncs.resumeResumableSyncsOnStartup();
 #endif
