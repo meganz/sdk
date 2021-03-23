@@ -2828,6 +2828,8 @@ void Syncs::resumeResumableSyncsOnStartup()
                 }
             }
 
+            bool hadAnError = unifiedSync->mConfig.getError() != NO_SYNC_ERROR;
+
             if (unifiedSync->mConfig.getEnabled())
             {
 #ifdef __APPLE__
@@ -2838,12 +2840,12 @@ void Syncs::resumeResumableSyncsOnStartup()
                 unifiedSync->enableSync(false, false);
                 LOG_debug << "Sync autoresumed: " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
 
-                mClient.app->sync_auto_resume_result(*unifiedSync, true);
+                mClient.app->sync_auto_resume_result(*unifiedSync, true, hadAnError);
             }
             else
             {
                 LOG_debug << "Sync loaded (but not resumed): " << toHandle(unifiedSync->mConfig.getBackupId()) << " " << unifiedSync->mConfig.getLocalPath().toPath(*mClient.fsaccess) << " fsfp= " << unifiedSync->mConfig.getLocalFingerprint() << " error = " << unifiedSync->mConfig.getError();
-                mClient.app->sync_auto_resume_result(*unifiedSync, false);
+                mClient.app->sync_auto_resume_result(*unifiedSync, false, hadAnError);
             }
         }
     }

@@ -13492,7 +13492,7 @@ void MegaApiImpl::sync_removed(handle backupId)
     }
 }
 
-void MegaApiImpl::sync_auto_resume_result(const UnifiedSync& us, bool attempted)
+void MegaApiImpl::sync_auto_resume_result(const UnifiedSync& us, bool attempted, bool hadAnError)
 {
     mCachedMegaSyncPrivate.reset();
 
@@ -13500,7 +13500,7 @@ void MegaApiImpl::sync_auto_resume_result(const UnifiedSync& us, bool attempted)
 
     if (attempted)
     {
-        fireOnSyncAdded(megaSync, !us.mSync ? MegaSync::FROM_CACHE_FAILED_TO_RESUME : MegaSync::FROM_CACHE_REENABLED);
+        fireOnSyncAdded(megaSync, !us.mSync ? MegaSync::FROM_CACHE_FAILED_TO_RESUME : ( hadAnError ? MegaSync::FROM_CACHE_REENABLED : MegaSync::FROM_CACHE) );
     }
     else //resumed as was
     {
