@@ -2182,19 +2182,22 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
     if (overStorage)
     {
         mConfig.mError = STORAGE_OVERQUOTA;
+        mConfig.mEnabled = false;
     }
     else if (businessExpired)
     {
         mConfig.mError = BUSINESS_EXPIRED;
+        mConfig.mEnabled = false;
     }
     else if (blocked)
     {
         mConfig.mError = ACCOUNT_BLOCKED;
+        mConfig.mEnabled = false;
     }
 
     if (mConfig.mError)
     {
-        // save configuration but avoid creating active sync, and set as temporary disabled:
+        // save configuration but avoid creating active sync:
         mClient.syncs.saveSyncConfig(mConfig);
         return API_EFAILED;
     }
