@@ -170,8 +170,6 @@ private:
 
     mega::MegaClient *mClient = nullptr;
 
-    void updateBackupInfo(const CommandBackupPut::BackupInfo &info);
-
 #ifdef ENABLE_SYNC
     void beatBackupInfo(UnifiedSync& us);
 #endif
