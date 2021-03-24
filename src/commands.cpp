@@ -8242,7 +8242,7 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, const BackupInfo& fields,
 {
     cmd("sp");
 
-    if (fields.backupId != BackupType::INVALID)
+    if (!ISUNDEF(fields.backupId))
     {
         arg("id", (byte*)&fields.backupId, MegaClient::BACKUPHANDLE);
     }
@@ -8252,7 +8252,7 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, const BackupInfo& fields,
         arg("t", fields.type);
     }
 
-    if (fields.nodeHandle != UNDEF)
+    if (!ISUNDEF(fields.nodeHandle))
     {
         arg("h", (byte*)&fields.nodeHandle, MegaClient::NODEHANDLE);
     }
