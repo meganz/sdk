@@ -2593,7 +2593,7 @@ unsigned Syncs::numRunningSyncs()
 
 unsigned Syncs::numSyncs()
 {
-    return mSyncVec.size();
+    return unsigned(mSyncVec.size());
 }
 
 Sync* Syncs::firstRunningSync()
