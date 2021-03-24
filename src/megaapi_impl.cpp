@@ -24716,10 +24716,8 @@ bool MegaRegExpPrivate::match(const char *itemToMatch)
 
         return false;
     }
-#endif
-
-#ifndef WIN32
-    return 0; // warning C4702: unreachable code
+#else
+    return false;
 #endif
 }
 
