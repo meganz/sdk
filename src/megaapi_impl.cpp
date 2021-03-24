@@ -13498,14 +13498,34 @@ void MegaApiImpl::sync_auto_resume_result(const UnifiedSync& us, bool attempted,
 
     auto megaSync = cachedMegaSyncPrivateByBackupId(us.mConfig.getBackupId());
 
-    if (attempted)
+    int additionState = MegaSync::FROM_CACHE;
+    if (attempted) // tried to auto-resume
     {
-        fireOnSyncAdded(megaSync, !us.mSync ? MegaSync::FROM_CACHE_FAILED_TO_RESUME : ( hadAnError ? MegaSync::FROM_CACHE_REENABLED : MegaSync::FROM_CACHE) );
+        if (us.mSync) // succeeded
+        {
+            if (hadAnError) // succeed to resume, despite it failed due to a temporary error in the past
+            {
+                additionState = MegaSync::FROM_CACHE_REENABLED;
+            }
+            else // regular resumption succeded
+            {
+                additionState = MegaSync::FROM_CACHE;
+            }
+        }
+        else // could not resume
+        {
+           if (hadAnError) // had a temporary error in the past: attempted to be reenabled but failed
+           {
+               additionState = MegaSync::REENABLED_FAILED;
+           }
+           else // regular resumption failed
+           {
+               additionState = MegaSync::FROM_CACHE_FAILED_TO_RESUME;
+           }
+        }
     }
-    else //resumed as was
-    {
-        fireOnSyncAdded(megaSync, MegaSync::FROM_CACHE);
-    }
+
+    fireOnSyncAdded(megaSync, additionState);
 }
 
 void MegaApiImpl::syncupdate_remote_root_changed(const SyncConfig &config)

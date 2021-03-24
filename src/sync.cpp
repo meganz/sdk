@@ -2832,6 +2832,14 @@ void Syncs::resumeResumableSyncsOnStartup()
 
             if (unifiedSync->mConfig.getEnabled())
             {
+                // Right now, syncs are disabled upon all errors but, after sync-rework, syncs
+                // could be kept as enabled but failed due to a temporary/recoverable error and
+                // the SDK may auto-resume them if the error condition vanishes
+                // (ie. an expired business account automatically disable syncs, but once
+                // the user has paid, we may auto-resume).
+                // TODO: remove assertion if it no longer applies:
+                assert(!hadAnError);
+
 #ifdef __APPLE__
                 unifiedSync->mConfig.setLocalFingerprint(0); //for certain MacOS, fsfp seems to vary when restarting. we set it to 0, so that it gets recalculated
 #endif
