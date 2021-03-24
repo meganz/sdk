@@ -23309,7 +23309,7 @@ void MegaApiImpl::removeBackup(MegaHandle backupId, MegaRequestListener *listene
     waiter->notify();
 }
 
-void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, MegaRequestListener* listener)
+void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder,  const char* backupName, int state, int subState, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_BACKUP_PUT, listener);
     request->setParentHandle(backupId);
@@ -23327,6 +23327,11 @@ void MegaApiImpl::updateBackup(MegaHandle backupId, int backupType, MegaHandle t
     if (localFolder)
     {
         request->setFile(localFolder);
+    }
+
+    if (backupName)
+    {
+        request->setName(backupName);
     }
 
     if (state >= 0)

@@ -5410,9 +5410,9 @@ void MegaApi::setBackup(int backupType, MegaHandle targetNode, const char* local
     pImpl->setBackup(backupType, targetNode, localFolder, backupName, state, subState, listener);
 }
 
-void MegaApi::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, MegaRequestListener* listener)
+void MegaApi::updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder,  const char* backupName, int state, int subState, MegaRequestListener* listener)
 {
-    pImpl->updateBackup(backupId, backupType, targetNode, localFolder, state, subState, listener);
+    pImpl->updateBackup(backupId, backupType, targetNode, localFolder, backupName, state, subState, listener);
 }
 
 void MegaApi::removeBackup(MegaHandle backupId, MegaRequestListener *listener)
