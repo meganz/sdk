@@ -20175,8 +20175,7 @@ void MegaApiImpl::sendPendingRequests()
                 User *ownUser = client->finduser(client->me);
                 if (type == ATTR_ALIAS
                         || type == ATTR_CAMERA_UPLOADS_FOLDER
-                        || type == ATTR_DEVICE_NAMES
-                        || type == ATTR_BACKUP_NAMES)
+                        || type == ATTR_DEVICE_NAMES)
                 {
                     if (!ownUser->isattrvalid(type)) // not fetched yet or outdated
                     {

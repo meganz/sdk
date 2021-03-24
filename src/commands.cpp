@@ -8359,27 +8359,6 @@ CommandBackupRemove::CommandBackupRemove(MegaClient *client, handle backupId)
 bool CommandBackupRemove::procresult(Result r)
 {
     client->app->backupremove_result(r.errorOrOK(), mBackupId);
-
-
-    // Upon removal of backup successfully --> remove the backup name silently for the user's attribute
-    if (r.succeeded() && !client->loggingout)
-    {
-        // when logging out, 'sr' command is sent together with logout, so there's no chance to
-        // update the user's attribute for backup-names (they are removed thanks to purgeSyncs())
-
-        std::string key {Base64Str<MegaClient::BACKUPHANDLE>(mBackupId)};
-        attr_t attrType = ATTR_BACKUP_NAMES;
-
-        User *ownUser = client->finduser(client->me);
-        const std::string *oldValue = ownUser->getattr(attrType);
-
-        if (oldValue && !ownUser->isattrvalid(attrType)) // not fetched yet or outdated
-        {
-            LOG_warn << "Cannot immediately remove backup name for backup id: " << key << ". Fetching...";
-            client->getua(ownUser, attrType, 0);
-        }
-    }
-
     return r.wasErrorOrOK();
 }
 
