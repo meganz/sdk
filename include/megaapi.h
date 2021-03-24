@@ -1272,7 +1272,7 @@ class MegaUser
             CHANGE_TYPE_ALIAS                       = 0x1000000,
             CHANGE_TYPE_UNSHAREABLE_KEY             = 0x2000000,
             CHANGE_TYPE_DEVICE_NAMES                = 0x4000000,
-            //CHANGE_TYPE_BACKUP_NAMES                = 0x8000000,
+            //CHANGE_TYPE_BACKUP_NAMES                = 0x8000000,  // this bit can be used for another type of change. Please, recycle :)
             CHANGE_TYPE_COOKIE_SETTINGS             = 0x10000000,
         };
 
@@ -7584,7 +7584,7 @@ class MegaApi
             USER_ATTR_ALIAS = 27,                // private - byte array
             USER_ATTR_DEVICE_NAMES = 30,         // private - byte array
             USER_ATTR_MY_BACKUPS_FOLDER = 31,    // private - byte array
-            // USER_ATTR_BACKUP_NAMES = 32,         // private - byte array
+            // USER_ATTR_BACKUP_NAMES = 32,         // (deprecated) private - byte array
             USER_ATTR_COOKIE_SETTINGS = 33,      // private - byte array
             USER_ATTR_JSON_SYNC_CONFIG_DATA = 34 // private - byte array
         };
@@ -18380,10 +18380,6 @@ class MegaApi
          *  BACKUP_TYPE_CAMERA_UPLOADS = 3,
          *  BACKUP_TYPE_MEDIA_UPLOADS = 4,   // Android has a secondary CU
          *
-         * Note that the backup name is not registered in the API as part of the data of this
-         * backup. It will be stored in a user's attribute after this request finished. For
-         * more information, see \c MegaApi::setBackupName and MegaApi::getBackupName.
-         *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParentHandle - Returns the backupId
@@ -18422,8 +18418,6 @@ class MegaApi
          *    - deviceId: nullptr
          *    - state: -1
          *    - subState: -1
-         *
-         * If you want to update the backup name, use \c MegaApi::setBackupName.
          *
          * The associated request type with this request is MegaRequest::TYPE_BACKUP_PUT
          * Valid data in the MegaRequest object received on callbacks:
