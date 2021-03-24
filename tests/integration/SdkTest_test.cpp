@@ -4995,7 +4995,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     ASSERT_EQ(backupNameToBackupId.size(), numBackups) << "setBackup didn't register all the backups";
 
     // update backup
-    err = synchronousUpdateBackup(0, mBackupId, MegaApi::BACKUP_TYPE_INVALID, UNDEF, nullptr, -1, -1);
+    err = synchronousUpdateBackup(0, mBackupId, MegaApi::BACKUP_TYPE_INVALID, UNDEF, nullptr, nullptr, -1, -1);
     ASSERT_EQ(MegaError::API_OK, err) << "updateBackup failed (error: " << err << ")";
 
     // now remove all backups, only wait for completion of the third one
@@ -5034,7 +5034,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     // update a removed backup: should throw an error
     err = synchronousRemoveBackup(0, mBackupId, nullptr);
     ASSERT_EQ(MegaError::API_OK, err) << "removeBackup failed (error: " << err << ")";
-    err = synchronousUpdateBackup(0, mBackupId, BackupType::INVALID, UNDEF, nullptr, -1, -1);
+    err = synchronousUpdateBackup(0, mBackupId, BackupType::INVALID, UNDEF, nullptr, nullptr, -1, -1);
     ASSERT_NE(MegaError::API_OK, err) << "updateBackup failed (error: " << err << ")";
 
     // create a backup with a big status: should report an error

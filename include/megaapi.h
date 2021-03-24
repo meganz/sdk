@@ -18369,6 +18369,7 @@ class MegaApi
          *    Invalid values:
          *    - type: BACKUP_TYPE_INVALID
          *    - nodeHandle: UNDEF
+         *    - backupName: nullptr
          *    - localFolder: nullptr
          *    - deviceId: nullptr
          *    - state: -1
@@ -18379,6 +18380,7 @@ class MegaApi
          * - MegaRequest::getParentHandle - Returns the backupId
          * - MegaRequest::getTotalBytes - Returns the backup type
          * - MegaRequest::getNodeHandle - Returns the target node of the backup
+         * - MegaRequest::getName - Returns the backup name of the remote location
          * - MegaRequest::getFile - Returns the path of the local folder
          * - MegaRequest::getAccess - Returns the backup state
          * - MegaRequest::getNumDetails - Returns the backup substate
@@ -18388,11 +18390,12 @@ class MegaApi
          * @param backupType back up type requested for the service
          * @param targetNode MEGA folder to hold the backups
          * @param localFolder Local path of the folder
+         * @param backupName Name of the backup
          * @param state backup state
          * @param subState backup subState
          * @param listener MegaRequestListener to track this request
         */
-        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder, int state, int subState, MegaRequestListener* listener = nullptr);
+        void updateBackup(MegaHandle backupId, int backupType, MegaHandle targetNode, const char* localFolder,  const char* backupName, int state, int subState, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Unregister a backup already registered for the Backup Centre
