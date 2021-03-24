@@ -1339,9 +1339,6 @@ public:
     };
 
     CommandBackupPut(MegaClient* client, const BackupInfo&, std::function<void(Error, handle /*backup id*/)> completion);
-
-private:
-    bool mUpdate = false;
 };
 
 class MEGA_API CommandBackupRemove : public Command
