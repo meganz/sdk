@@ -292,15 +292,6 @@ void BackupMonitor::digestPutResult(handle backupId, UnifiedSync* syncPtr)
 #endif
 }
 
-void BackupMonitor::updateBackupInfo(const CommandBackupPut::BackupInfo &info)
-{
-    string deviceIdHash = mClient->getDeviceidHash();
-
-    mClient->reqs.add(new CommandBackupPut(mClient,
-                                           info,
-                                           nullptr));
-}
-
 #ifdef ENABLE_SYNC
 
 void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
@@ -312,7 +303,7 @@ void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
     if (us.mBackupInfo && *currentInfo != *us.mBackupInfo)
     {
         currentInfo->backupId = us.mConfig.getBackupId();
-        updateBackupInfo(*currentInfo); //queue update command
+        mClient->reqs.add(new CommandBackupPut(mClient, *currentInfo, nullptr));
     }
     us.mBackupInfo = move(currentInfo);
 }
