@@ -8305,14 +8305,8 @@ bool CommandBackupPut::procresult(Result r)
 
     if (mCompletion) mCompletion(e, backupId);
 
-    if (mUpdate)
-    {
-        client->app->backupupdate_result(e, backupId);
-    }
-    else
-    {
-        client->app->backupput_result(e, backupId);
-    }
+    client->app->backupput_result(e, backupId);
+
     return r.wasStrictlyError() || r.hasJsonItem();
 }
 
