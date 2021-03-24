@@ -1327,7 +1327,7 @@ public:
         // if left as UNDEF, you are registering a new Sync/Backup
         handle backupId = UNDEF;
 
-        // if regisering a new Sync/Backup, these must be set
+        // if registering a new Sync/Backup, these must be set
         // otherwise, leave as is to not send an update for that field.
         BackupType type = BackupType::INVALID;
         string backupName = "";
