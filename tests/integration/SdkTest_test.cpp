@@ -4975,22 +4975,24 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     {
         megaApi[0]->setBackup(backupType, targetNodes[i], localFolder.c_str(), backupNames[i].c_str(), state, subState,
             new OneShotListener([&](MegaError& e, MegaRequest& r) {
-                if (e.getErrorCode() == MegaError::API_OK) backupNameToBackupId.emplace_back(r.getName(), r.getParentHandle());
+                if (e.getErrorCode() == MegaError::API_OK)
+                {
+                    backupNameToBackupId.emplace_back(r.getName(), r.getParentHandle());
+                }
             }));
     }
 
-    mApi[0].userUpdated = false;
     auto err = synchronousSetBackup(0,
         [&](MegaError& e, MegaRequest& r) {
-            if (e.getErrorCode() == MegaError::API_OK) backupNameToBackupId.emplace_back(r.getName(), r.getParentHandle());
+            if (e.getErrorCode() == MegaError::API_OK)
+            {
+                backupNameToBackupId.emplace_back(r.getName(), r.getParentHandle());
+            }
         },
         backupType, targetNodes[lastIndex], localFolder.c_str(), backupNames[lastIndex].c_str(), state, subState);
 
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
     ASSERT_EQ(backupNameToBackupId.size(), numBackups) << "setBackup didn't register all the backups";
-
-    // wait for notification of user's attribute updated from last setBackup
-    ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
 
     // update backup
     err = synchronousUpdateBackup(0, mBackupId, MegaApi::BACKUP_TYPE_INVALID, UNDEF, nullptr, -1, -1);
@@ -5002,10 +5004,7 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     {
         megaApi[0]->removeBackup(backupNameToBackupId[i].second);
     }
-    mApi[0].userUpdated = false;
     synchronousRemoveBackup(0, backupNameToBackupId[lastIndex].second);
-    // wait for notification of the attr being updated, which occurs after removeBackup() finishes
-    ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
 
     // add a backup again
     err = synchronousSetBackup(0,
@@ -5033,10 +5032,8 @@ TEST_F(SdkTest, SdkHeartbeatCommands)
     ASSERT_EQ(MegaError::API_OK, err) << "setBackup failed (error: " << err << ")";
 
     // update a removed backup: should throw an error
-    mApi[0].userUpdated = false;
     err = synchronousRemoveBackup(0, mBackupId, nullptr);
     ASSERT_EQ(MegaError::API_OK, err) << "removeBackup failed (error: " << err << ")";
-    ASSERT_TRUE(waitForResponse(&mApi[0].userUpdated));
     err = synchronousUpdateBackup(0, mBackupId, BackupType::INVALID, UNDEF, nullptr, -1, -1);
     ASSERT_NE(MegaError::API_OK, err) << "updateBackup failed (error: " << err << ")";
 

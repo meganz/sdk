@@ -2691,6 +2691,12 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
     }
 }
 
+void Syncs::purgeSyncs()
+{
+    // finally, remove all syncs as usual, unregistering (removeSyncByIndex())
+    removeSelectedSyncs([](SyncConfig&, Sync*) { return true; });
+}
+
 void Syncs::removeSyncByIndex(size_t index)
 {
     if (index < mSyncVec.size())
