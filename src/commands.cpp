@@ -2851,29 +2851,6 @@ bool CommandPutUAVer::procresult(Result r)
                     LOG_err << "Failed to decrypt " << User::attr2string(at) << " after putua";
                 }
             }
-            else if (at == ATTR_BACKUP_NAMES && client->mSendingBackupName)
-            {
-                if (client->mPendingBackupNames.empty())
-                {
-                    client->mSendingBackupName = false;
-                }
-                else    // more names arrived during `upv`
-                {
-                    const std::unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&av, &client->key));
-                    if (User::mergeUserAttribute(at, client->mPendingBackupNames, *tlvRecords.get()))
-                    {
-                        // serialize and encrypt the TLV container
-                        std::unique_ptr<std::string> container(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
-                        client->putua(at, (byte *)container->data(), unsigned(container->size()));
-                    }
-                    else
-                    {
-                        LOG_warn << "No changes to merge into existing backup names after `upv`";
-                        client->mSendingBackupName = false;
-                    }
-                    client->mPendingBackupNames.clear();
-                }
-            }
             else if (at == ATTR_UNSHAREABLE_KEY)
             {
                 LOG_info << "Unshareable key successfully created";
@@ -3178,22 +3155,6 @@ bool CommandGetUA::procresult(Result r)
                                     client->mFetchingAuthrings = false;
                                     client->fetchContactsKeys();
                                 }
-                            }
-                            else if (at == ATTR_BACKUP_NAMES && client->mSendingBackupName)
-                            {
-                                // there are pending updates to send, delayed because the attr was not up to date
-                                if (User::mergeUserAttribute(at, client->mPendingBackupNames, *tlvRecords.get()))
-                                {
-                                    // serialize and encrypt the TLV container
-                                    std::unique_ptr<std::string> container(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
-                                    client->putua(at, (byte *)container->data(), unsigned(container->size()));
-                                }
-                                else
-                                {
-                                    LOG_warn << "No changes to merge into existing backup names after `uga`";
-                                    client->mSendingBackupName = false;
-                                }
-                                client->mPendingBackupNames.clear();
                             }
                             break;
                         }
@@ -3661,7 +3622,6 @@ bool CommandGetUserData::procresult(Result r)
     string versionDeviceNames;
     string myBackupsFolder;
     string versionMyBackupsFolder;
-    string backupNames;
     string versionBackupNames;
     string cookieSettings;
     string versionCookieSettings;
@@ -3795,10 +3755,6 @@ bool CommandGetUserData::procresult(Result r)
 
         case MAKENAMEID5('*', '!', 'b', 'a', 'k'):
             parseUserAttribute(myBackupsFolder, versionMyBackupsFolder);
-            break;
-
-        case MAKENAMEID4('*', '!', 'b', 'n'):
-            parseUserAttribute(backupNames, versionBackupNames);
             break;
 
 #ifdef ENABLE_SYNC
@@ -4184,21 +4140,6 @@ bool CommandGetUserData::procresult(Result r)
                     else
                     {
                         LOG_err << "Cannot extract TLV records for ATTR_DEVICE_NAMES";
-                    }
-                }
-
-                if (backupNames.size())
-                {
-                    unique_ptr<TLVstore> tlvRecords(TLVstore::containerToTLVrecords(&backupNames, &client->key));
-                    if (tlvRecords)
-                    {
-                        // store the value for private user attributes (decrypted version of serialized TLV)
-                        unique_ptr<string> tlvString(tlvRecords->tlvRecordsToContainer(client->rng, &client->key));
-                        changes += u->updateattr(ATTR_BACKUP_NAMES, tlvString.get(), &versionBackupNames);
-                    }
-                    else
-                    {
-                        LOG_err << "Cannot extract TLV records for ATTR_BACKUP_NAMES";
                     }
                 }
 
@@ -8297,81 +8238,54 @@ bool CommandFolderLinkInfo::procresult(Result r)
     }
 }
 
-// to register a new backup
-CommandBackupPut::CommandBackupPut(MegaClient *client, BackupType type, const std::string& backupName, handle nodeHandle, const string& localFolder, const std::string &deviceId, int state, int subState, const string& extraData, std::function<void(Error, handle /*backup id*/)> completion)
-    : mCompletion(completion)
-{
-    assert(type != BackupType::INVALID);
-
-    cmd("sp");
-
-    string localFolderEncrypted(client->cypherTLVTextWithMasterKey("lf", localFolder));
-
-    arg("t", type);
-    arg("h", (byte*)&nodeHandle, MegaClient::NODEHANDLE);
-    arg("l", localFolderEncrypted.c_str());
-    arg("d", deviceId.c_str());
-    arg("s", state);
-    arg("ss", subState);
-
-    if (!extraData.empty())
-    {
-        string edEncrypted(client->cypherTLVTextWithMasterKey("ed", extraData));
-        arg("e", edEncrypted.c_str());
-    }
-
-    mBackupName = Base64::btoa(backupName);
-    tag = client->reqtag;
-    mUpdate = false;
-}
-
-// to update an already registered backup
-CommandBackupPut::CommandBackupPut(MegaClient* client, handle backupId, BackupType type, handle nodeHandle, const char* localFolder, const char *deviceId, int state, int subState, const char* extraData, std::function<void(Error, handle /*backup id*/)> completion)
+CommandBackupPut::CommandBackupPut(MegaClient* client, const BackupInfo& fields, std::function<void(Error, handle /*backup id*/)> completion)
     : mCompletion(completion)
 {
     cmd("sp");
 
-    arg("id", (byte*)&backupId, MegaClient::BACKUPHANDLE);
-
-    if (type != BackupType::INVALID)
+    if (fields.backupId != BackupType::INVALID)
     {
-        arg("t", type);
+        arg("id", (byte*)&fields.backupId, MegaClient::BACKUPHANDLE);
     }
 
-    if (nodeHandle != UNDEF)
+    if (fields.type != BackupType::INVALID)
     {
-        arg("h", (byte*)&nodeHandle, MegaClient::NODEHANDLE);
+        arg("t", fields.type);
     }
 
-    if (localFolder)
+    if (fields.nodeHandle != UNDEF)
     {
-        string localFolderEncrypted(client->cypherTLVTextWithMasterKey("lf", localFolder));
+        arg("h", (byte*)&fields.nodeHandle, MegaClient::NODEHANDLE);
+    }
+
+    if (!fields.localFolder.empty())
+    {
+        string localFolderEncrypted(client->cypherTLVTextWithMasterKey("lf", fields.localFolder.toPath(*client->fsaccess)));
         arg("l", localFolderEncrypted.c_str());
     }
 
-    if (deviceId)
+    if (!fields.deviceId.empty())
     {
-        arg("d", deviceId);
+        arg("d", fields.deviceId.c_str());
     }
 
-    if (state >= 0)
+    if (fields.state >= 0)
     {
-        arg("s", state);
+        arg("s", fields.state);
     }
 
-    if (subState >= 0)
+    if (fields.subState >= 0)
     {
-        arg("ss", subState);
+        arg("ss", fields.subState);
     }
 
-    if (extraData)
+    if (!fields.backupName.empty())
     {
-        string edEncrypted(client->cypherTLVTextWithMasterKey("ed", extraData));
+        string edEncrypted(client->cypherTLVTextWithMasterKey("bn", fields.backupName));
         arg("e", edEncrypted.c_str());
     }
 
     tag = client->reqtag;
-    mUpdate = true;
 }
 
 bool CommandBackupPut::procresult(Result r)
@@ -8388,54 +8302,6 @@ bool CommandBackupPut::procresult(Result r)
     else
     {
         e = r.errorOrOK();
-    }
-
-    // Upon new backup successfully registered --> set the backup name silently
-    if (!mUpdate && !ISUNDEF(backupId))
-    {
-        assert(r.succeeded());
-
-        std::string key {Base64Str<MegaClient::BACKUPHANDLE>(backupId)};
-        attr_t attrType = ATTR_BACKUP_NAMES;
-
-        User *ownUser = client->finduser(client->me);
-        const std::string *oldValue = ownUser->getattr(attrType);
-
-        if (oldValue && !ownUser->isattrvalid(attrType)) // not fetched yet or outdated
-        {
-            LOG_warn << "Cannot immediately set backup name for backup id: " << backupId << ". Fetching...";
-            client->getua(ownUser, attrType, 0);
-            client->mSendingBackupName = true;
-        }
-
-        if (client->mSendingBackupName)
-        {
-            // accumulate this update for the future, in order to avoid race conditions
-            // they will be sent upon `upv` completion for the update in progress
-            client->mPendingBackupNames[key] = mBackupName;
-        }
-        else
-        {
-            // send backup name for this backup directly
-            std::unique_ptr<TLVstore> tlv { !oldValue
-                        ? new TLVstore()
-                        : TLVstore::containerToTLVrecords(oldValue, &client->key) };
-
-            client->mPendingBackupNames[key] = mBackupName;
-            if (User::mergeUserAttribute(attrType, client->mPendingBackupNames, *tlv.get()))
-            {
-                // serialize and encrypt the TLV container
-                std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
-                client->putua(attrType, (byte *)container->data(), unsigned(container->size()));
-
-                client->mSendingBackupName = true;
-            }
-            else
-            {
-                LOG_warn << "No changes to merge into existing backup names with the new one for backup id: " << backupId;
-            }
-            client->mPendingBackupNames.clear();
-        }
     }
 
     if (mCompletion) mCompletion(e, backupId);
@@ -8509,34 +8375,6 @@ bool CommandBackupRemove::procresult(Result r)
         {
             LOG_warn << "Cannot immediately remove backup name for backup id: " << key << ". Fetching...";
             client->getua(ownUser, attrType, 0);
-            client->mSendingBackupName = true;
-        }
-
-        if (client->mSendingBackupName)
-        {
-            // accumulate this update for the future, in order to avoid race conditions
-            // they will be sent upon `upv` completion for the update in progress
-            client->mPendingBackupNames[key] = Base64::btoa("");
-        }
-        else if (oldValue)  // in the event of non-existing attribute, nothing to update
-        {
-            // send backup name for this backup directly
-            std::unique_ptr<TLVstore> tlv { TLVstore::containerToTLVrecords(oldValue, &client->key) };
-
-            client->mPendingBackupNames[key] = Base64::btoa("");
-            if (User::mergeUserAttribute(attrType, client->mPendingBackupNames, *tlv.get()))
-            {
-                // serialize and encrypt the TLV container
-                std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(client->rng, &client->key));
-                client->putua(attrType, (byte *)container->data(), unsigned(container->size()));
-
-                client->mSendingBackupName = true;
-            }
-            else
-            {
-                LOG_warn << "No changes to merge into existing backup names after removal of backup id: " << key;
-            }
-            client->mPendingBackupNames.clear();
         }
     }
 

@@ -163,65 +163,18 @@ void HeartBeatSyncInfo::updateStatus(UnifiedSync& us)
 
 #endif
 
-////////////// BackupInfo ////////////////
-
-BackupInfo::BackupInfo(BackupType type, string backupName, LocalPath localFolder, handle megaHandle, int state, int substate, std::string extra)
-    : mType(type)
-    , mBackupName(backupName)
-    , mLocalFolder(localFolder)
-    , mMegaHandle(megaHandle)
-    , mState(state)
-    , mSubState(substate)
-    , mExtra(extra)
-{
-
-}
-
-BackupType BackupInfo::type() const
-{
-    return mType;
-}
-
-string BackupInfo::backupName() const
-{
-    return mBackupName;
-}
-
-LocalPath BackupInfo::localFolder() const
-{
-    return mLocalFolder;
-}
-
-handle BackupInfo::megaHandle() const
-{
-    return mMegaHandle;
-}
-
-int BackupInfo::state() const
-{
-    return mState;
-}
-
-int BackupInfo::subState() const
-{
-    return mSubState;
-}
-
-string BackupInfo::extra() const
-{
-    return mExtra;
-}
 
 #ifdef ENABLE_SYNC
-BackupInfoSync::BackupInfoSync(UnifiedSync& us)
-    : BackupInfo(getSyncType(us.mConfig),
-                     us.mConfig.mName,
-                     us.mConfig.getLocalPath(),
-                     us.mConfig.getRemoteNode(),
-                     getSyncState(us),
-                     getSyncSubstatus(us),
-                     getSyncExtraData(us))
+BackupInfoSync::BackupInfoSync(const SyncConfig& config, const string& device, int calculatedState)
 {
+    backupId = config.mBackupId;
+    type = getSyncType(config);
+    backupName = config.mName,
+    nodeHandle = config.getRemoteNode();
+    localFolder = config.getLocalPath();
+    state = calculatedState;
+    subState = config.getError();
+    deviceId = device;
 }
 
 int BackupInfoSync::calculatePauseActiveState(MegaClient *client)
@@ -317,15 +270,7 @@ BackupType BackupInfoSync::getSyncType(const SyncConfig& config)
     }
 }
 
-int BackupInfoSync::getSyncSubstatus(UnifiedSync& us)
-{
-    return us.mConfig.getError();
-}
 
-string BackupInfoSync::getSyncExtraData(UnifiedSync&)
-{
-    return string();
-}
 #endif
 
 ////////////// MegaBackupMonitor ////////////////
@@ -347,19 +292,12 @@ void BackupMonitor::digestPutResult(handle backupId, UnifiedSync* syncPtr)
 #endif
 }
 
-void BackupMonitor::updateBackupInfo(handle backupId, const BackupInfo &info)
+void BackupMonitor::updateBackupInfo(const CommandBackupPut::BackupInfo &info)
 {
     string deviceIdHash = mClient->getDeviceidHash();
 
     mClient->reqs.add(new CommandBackupPut(mClient,
-                                           backupId,
-                                           info.type(),
-                                           info.megaHandle(),
-                                           info.localFolder().toPath(*mClient->fsaccess).c_str(),
-                                           deviceIdHash.c_str(),
-                                           info.state(),
-                                           info.subState(),
-                                           info.extra().c_str(),
+                                           info,
                                            nullptr));
 }
 
@@ -370,26 +308,23 @@ void BackupMonitor::updateOrRegisterSync(UnifiedSync& us)
     handle backupId = us.mConfig.getBackupId();
     assert(!ISUNDEF(backupId)); // syncs are registered before adding them
 
-    BackupInfoSync currentInfo(us);
-    if (!us.mBackupInfo) // Init this field
+    auto currentInfo = ::mega::make_unique<BackupInfoSync>(us.mConfig, mClient->getDeviceidHash(), BackupInfoSync::getSyncState(us)); 
+    if (us.mBackupInfo && *currentInfo != *us.mBackupInfo)
     {
-        us.mBackupInfo = ::mega::make_unique<BackupInfoSync>(us);
+        currentInfo->backupId = us.mConfig.getBackupId();
+        updateBackupInfo(*currentInfo); //queue update command
     }
-    else if (currentInfo != *us.mBackupInfo)
-    {
-        updateBackupInfo(us.mConfig.getBackupId(), currentInfo); //queue update command
-        us.mBackupInfo = ::mega::make_unique<BackupInfoSync>(us);
-    }
+    us.mBackupInfo = move(currentInfo);
 }
 
 bool BackupInfoSync::operator==(const BackupInfoSync& o) const
 {
-    return  mType == o.mType &&
-            mLocalFolder == o.mLocalFolder &&
-            mMegaHandle == o.mMegaHandle &&
-            mState == o.mState &&
-            mSubState == o.mSubState &&
-            mExtra == o.mExtra;
+    return  type == o.type &&
+            localFolder == o.localFolder &&
+            nodeHandle == o.nodeHandle &&
+            state == o.state &&
+            subState == o.subState &&
+            backupName == o.backupName;
 }
 
 bool BackupInfoSync::operator!=(const BackupInfoSync &o) const

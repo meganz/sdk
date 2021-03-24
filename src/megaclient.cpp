@@ -13229,15 +13229,10 @@ void MegaClient::ensureSyncUserAttributesCompleted(Error e)
 void MegaClient::copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion)
 {
     string deviceIdHash = getDeviceidHash();
-    string extraData; // Empty extra data for the moment, in the future, any should come in config
+    BackupInfoSync info(config, deviceIdHash, BackupInfoSync::getSyncState(config, this));
 
-    reqs.add( new CommandBackupPut(this, BackupInfoSync::getSyncType(config)
-                                   , config.mName.c_str(), config.getRemoteNode()
-                                   , config.getLocalPath().toPath(*fsaccess), deviceIdHash.c_str()
-                                   , BackupInfoSync::getSyncState(config, this)
-                                   , config.getError()
-                                   , extraData
-                                   , [this, config, completion](Error e, handle backupId) {
+    reqs.add( new CommandBackupPut(this, info,
+                                  [this, config, completion](Error e, handle backupId) {
         if (!e)
         {
             if (ISUNDEF(backupId))
@@ -13271,15 +13266,10 @@ error MegaClient::addsync(SyncConfig& config, bool notifyApp, SyncCompletionFunc
     else // API_OK (success)
     {
         string deviceIdHash = getDeviceidHash();
-        string extraData; // Empty extra data for the moment, in the future, any should come in SyncConfig
+        BackupInfoSync info(config, deviceIdHash, BackupInfoSync::getSyncState(config, this));
 
-        reqs.add( new CommandBackupPut(this, BackupInfoSync::getSyncType(config)
-                                       , config.mName.c_str(), config.getRemoteNode()
-                                       , config.getLocalPath().toPath(*fsaccess).c_str(), deviceIdHash.c_str()
-                                       , BackupInfoSync::getSyncState(config, this)
-                                       , config.getError()
-                                       , extraData
-                                       , [this, config, completion, notifyApp](Error e, handle backupId) mutable {
+        reqs.add( new CommandBackupPut(this, info,
+                                      [this, config, completion, notifyApp](Error e, handle backupId) mutable {
             if (ISUNDEF(backupId) && !e)
             {
                 e = API_EFAILED;
