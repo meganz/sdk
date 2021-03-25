@@ -11789,7 +11789,10 @@ void MegaClient::fetchnodes(bool nocache)
             !nodes.size() && !ISUNDEF(cachedscsn) &&
             sctable && fetchsc(sctable))
     {
-        getuserdata(0, [this](string*, string*, string*, error e) {
+        // Copy the current tag (the one from fetch nodes) so we can capture it in the lambda below.
+        // ensuring no new request happens in between
+        auto fetchnodesTag = reqtag;
+        getuserdata(0, [this, fetchnodesTag](string*, string*, string*, error e) {
 
             // upon ug completion
             if (e != API_OK)
@@ -11806,7 +11809,7 @@ void MegaClient::fetchnodes(bool nocache)
             fnstats.timeToCached = Waiter::ds - fnstats.startTime;
             fnstats.timeToResult = fnstats.timeToCached;
 
-            restag = reqtag;
+            restag = fetchnodesTag;
             statecurrent = false;
 
             assert(sctable->inTransaction());
