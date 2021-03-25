@@ -262,6 +262,27 @@ typedef enum { NOTLOGGEDIN, EPHEMERALACCOUNT, CONFIRMEDACCOUNT, FULLACCOUNT } se
 // in a 64-bit int
 typedef uint64_t handle;
 
+class NodeHandle
+{
+    // Handles of nodes are only 6 bytes.
+    // This class helps avoid issues when we don't save/restore the top 2 bytes when using an 8 byte uint64 to represent it
+    uint64_t h = 0xFFFFFFFFFFFFFFFF;
+public:
+    bool isUndef() const { return (h & 0xFFFFFFFFFFFF) == 0xFFFFFFFFFFFF; }
+    NodeHandle& set6byte(uint64_t n) { h = n; assert((n & 0xFFFF000000000000) == 0 || n == 0xFFFFFFFFFFFFFFFF); return *this; }
+    bool eq(NodeHandle b) const { return (h & 0xFFFFFFFFFFFF) == (b.h & 0xFFFFFFFFFFFF); }
+    bool eq(handle b) const { return (h & 0xFFFFFFFFFFFF) == (b & 0xFFFFFFFFFFFF); }
+    bool ne(handle b) const { return (h & 0xFFFFFFFFFFFF) != (b & 0xFFFFFFFFFFFF); }
+    bool operator<(const NodeHandle& rhs) const { return h < rhs.h; }
+    handle as8byte() const { return isUndef() ? 0xFFFFFFFFFFFFFFFF : (h & 0xFFFFFFFFFFFF); }
+};
+
+inline bool operator==(NodeHandle a, NodeHandle b) { return a.eq(b); }
+inline bool operator==(NodeHandle a, handle b) { return a.eq(b); }
+inline bool operator!=(NodeHandle a, handle b) { return a.ne(b); }
+std::ostream& operator<<(std::ostream&, NodeHandle h);
+SimpleLogger& operator<<(SimpleLogger&, NodeHandle h);
+
 // (can use unordered_set if available)
 typedef set<handle> handle_set;
 

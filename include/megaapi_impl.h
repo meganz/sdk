@@ -3222,7 +3222,6 @@ protected:
 #endif
 
         void backupput_result(const Error&, handle backupId) override;
-        void backupupdate_result(const Error&, handle) override;
         void backupremove_result(const Error&, handle) override;
 
 protected:
