@@ -11218,7 +11218,6 @@ public class MegaApiJava {
      * - MegaRequest::getName - Returns the backup name of the remote location
      * - MegaRequest::getAccess - Returns the backup state
      * - MegaRequest::getFile - Returns the path of the local folder
-     * - MegaRequest::getText - Returns the extraData associated with the request
      * - MegaRequest::getTotalBytes - Returns the backup type
      * - MegaRequest::getNumDetails - Returns the backup substate
      * - MegaRequest::getFlag - Returns true
@@ -11230,13 +11229,12 @@ public class MegaApiJava {
      * @param backupName Name of the backup
      * @param state state
      * @param subState subState
-     * @param extraData A binary array converted into B64 (optional)
      * @param listener MegaRequestListener to track this request
      */
     public void setBackup(int backupType, long targetNode, String localFolder, String backupName,
-        int state, int subState, String extraData, MegaRequestListenerInterface listener) {
+        int state, int subState, MegaRequestListenerInterface listener) {
         megaApi.setBackup(backupType, targetNode, localFolder, backupName, state, subState,
-            extraData, createDelegateRequestListener(listener));
+            createDelegateRequestListener(listener));
     }
 
     /**
@@ -11267,7 +11265,6 @@ public class MegaApiJava {
      * - MegaRequest::getFile - Returns the path of the local folder
      * - MegaRequest::getAccess - Returns the backup state
      * - MegaRequest::getNumDetails - Returns the backup substate
-     * - MegaRequest::getText - Returns the extraData associated with the request
      * - MegaRequest::getListener - Returns the MegaRequestListener to track this request
      *
      * @param backupId backup id identifying the backup to be updated
@@ -11276,14 +11273,13 @@ public class MegaApiJava {
      * @param localFolder Local path of the folder
      * @param state backup state
      * @param subState backup subState
-     * @param extraData A binary array converted into B64 (optional)
      * @param listener MegaRequestListener to track this request
      */
     public void updateBackup(long backupId, int backupType, long targetNode, String localFolder,
-        int state, int subState, String extraData,
+        String backupName, int state, int subState,
         MegaRequestListenerInterface listener) {
-        megaApi.updateBackup(backupId, backupType, targetNode, localFolder, state,
-            subState, extraData, createDelegateRequestListener(listener));
+        megaApi.updateBackup(backupId, backupType, targetNode, localFolder, backupName, state,
+            subState, createDelegateRequestListener(listener));
     }
 
     /**
