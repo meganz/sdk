@@ -63,6 +63,7 @@ public:
 
     void arg(const char*, const char*, int = 1);
     void arg(const char*, const byte*, int);
+    void arg(const char*, NodeHandle);
     void arg(const char*, m_off_t);
     void addcomma();
     void appendraw(const char*);
@@ -1331,7 +1332,7 @@ public:
         // otherwise, leave as is to not send an update for that field.
         BackupType type = BackupType::INVALID;
         string backupName = "";
-        handle nodeHandle = UNDEF;
+        NodeHandle nodeHandle; // undef by default
         LocalPath localFolder; // empty
         string deviceId = "";
         int state = -1;

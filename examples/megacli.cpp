@@ -170,7 +170,7 @@ std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string 
     }
     else
     {
-        return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
+        return std::make_pair(false, SyncConfig(LocalPath(), "", NodeHandle(), "", 0));
     }
 
     bool syncDeletions = false;
@@ -188,7 +188,7 @@ std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string 
         }
         else
         {
-            return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
+            return std::make_pair(false, SyncConfig(LocalPath(), "", NodeHandle(), "", 0));
         }
 
         if (overwrite == "on")
@@ -201,11 +201,11 @@ std::pair<bool, SyncConfig> syncConfigFromStrings(std::string type, std::string 
         }
         else
         {
-            return std::make_pair(false, SyncConfig(LocalPath(), "", UNDEF, "", 0));
+            return std::make_pair(false, SyncConfig(LocalPath(), "", NodeHandle(), "", 0));
         }
     }
 
-    return std::make_pair(true, SyncConfig(LocalPath(), "", UNDEF, "", 0, {}, true, syncType));
+    return std::make_pair(true, SyncConfig(LocalPath(), "", NodeHandle(), "", 0, {}, true, syncType));
 }
 
 #endif
@@ -8459,7 +8459,7 @@ void exec_syncadd(autocomplete::ACState& s)
     // Create a suitable sync config.
     SyncConfig config(LocalPath::fromPath(sourcePath, *client->fsaccess),
                  sourcePath,
-                 targetNode->nodehandle,
+                 NodeHandle().set6byte(targetNode->nodehandle),
                  targetPath,
                  0,
                  string_vector(),

@@ -8252,9 +8252,9 @@ CommandBackupPut::CommandBackupPut(MegaClient* client, const BackupInfo& fields,
         arg("t", fields.type);
     }
 
-    if (!ISUNDEF(fields.nodeHandle))
+    if (!fields.nodeHandle.isUndef())
     {
-        arg("h", (byte*)&fields.nodeHandle, MegaClient::NODEHANDLE);
+        arg("h", fields.nodeHandle);
     }
 
     if (!fields.localFolder.empty())

@@ -13559,17 +13559,6 @@ void MegaApiImpl::backupput_result(const Error& e, handle backupId)
     fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::backupupdate_result(const Error& e, handle backupId)
-{
-    if (requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if (!request || (request->getType() != MegaRequest::TYPE_BACKUP_PUT)) return;
-
-
-    assert(e != API_OK || backupId == request->getParentHandle());
-    fireOnRequestFinish(request, make_unique<MegaErrorPrivate>(e));
-}
-
 void MegaApiImpl::backupremove_result(const Error& e, handle backupId)
 {
     if (requestMap.find(client->restag) == requestMap.end()) return;
@@ -13959,7 +13948,7 @@ void MegaApiImpl::putnodes_result(const Error& inputErr, targettype_t t, vector<
             const char* backupName = request->getName();
             auto localPath = LocalPath::fromPath(request->getFile(), *client->fsaccess);
             auto regExp = request->getRegExp(); // not currently in use, but ready for addition
-            SyncConfig syncConfig( localPath, backupName, backupHandle, remotePath.get(),
+            SyncConfig syncConfig( localPath, backupName, NodeHandle().set6byte(backupHandle), remotePath.get(),
                                     0, regExpToVector(regExp), true, SyncConfig::TYPE_BACKUP );
 
             client->addsync(syncConfig, false,
@@ -21632,7 +21621,7 @@ void MegaApiImpl::sendPendingRequests()
 
 
             SyncConfig syncConfig{LocalPath::fromPath(localPath, *client->fsaccess),
-                                  name, request->getNodeHandle(), remotePath.get(),
+                                  name, NodeHandle().set6byte(request->getNodeHandle()), remotePath.get(),
                                   0, regExpToVector(request->getRegExp())};
 
             client->addsync(syncConfig, false,
@@ -21723,7 +21712,7 @@ void MegaApiImpl::sendPendingRequests()
                 enabled = true; //we consider enabled when it is temporary disabled
             }
             SyncConfig syncConfig(LocalPath::fromPath(localPath, *client->fsaccess),
-                                  name, request->getNodeHandle(), remotePath ? remotePath : "",
+                                  name, NodeHandle().set6byte(request->getNodeHandle()), remotePath ? remotePath : "",
                                   static_cast<fsfp_t>(request->getNumber()),
                                   regExpToVector(request->getRegExp()), enabled);
 
@@ -23024,7 +23013,7 @@ void MegaApiImpl::sendPendingRequests()
         }
         case MegaRequest::TYPE_BACKUP_PUT:
         {
-            handle remoteNode = request->getNodeHandle();
+            NodeHandle remoteNode = NodeHandle().set6byte(request->getNodeHandle());
             const char* backupName = request->getName();
             const char* localFolder = request->getFile();
             int backupType = static_cast<int>(request->getTotalBytes());
@@ -23048,7 +23037,7 @@ void MegaApiImpl::sendPendingRequests()
                      && backupType != MegaApi::BACKUP_TYPE_MEDIA_UPLOADS)
                         || !localFolder
                         || !backupName
-                        || ISUNDEF(remoteNode)
+                        || remoteNode.isUndef()
                         || !ISUNDEF(backupId))  // new backups don't have a backup id yet
                 {
                     e = API_EARGS;
@@ -24406,7 +24395,7 @@ MegaSyncPrivate::MegaSyncPrivate(const SyncConfig& config, Sync* syncPtr /* can 
     , mActive(syncPtr && syncPtr->state >= 0)
     , mEnabled(config.getEnabled())
 {
-    this->megaHandle = config.getRemoteNode();
+    this->megaHandle = config.getRemoteNode().as8byte();
     this->localFolder = NULL;
     setLocalFolder(config.getLocalPath().toPath(*client->fsaccess).c_str());
     this->mName= NULL;
