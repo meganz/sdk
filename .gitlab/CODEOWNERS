@@ -1,0 +1,5 @@
+# rules for apps teams to approve MRs relative to bindings
+
+/bindings/ios @mobile/iOS
+/bindings/java @mobile/Android
+/bindings/qt @desktop
