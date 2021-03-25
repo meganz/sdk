@@ -1971,7 +1971,7 @@ struct MegaFilePut : public MegaFile
 {
     void completed(Transfer* t, LocalNode*) override;
     void terminated() override;
-    MegaFilePut(MegaClient *client, LocalPath clocalname, string *filename, handle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false, Node *pvNode = nullptr);
+    MegaFilePut(MegaClient *client, LocalPath clocalname, string *filename, NodeHandle ch, const char* ctargetuser, int64_t mtime = -1, bool isSourceTemporary = false, Node *pvNode = nullptr);
     ~MegaFilePut() {}
 
     bool serialize(string*) override;

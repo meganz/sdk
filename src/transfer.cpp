@@ -453,7 +453,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 #ifdef ENABLE_SYNC
             if (f->syncxfer)
             {
-                client->disableSyncContainingNode(f->h, FOREIGN_TARGET_OVERSTORAGE, true);  // still try to resume at startup
+                client->disableSyncContainingNode(f->h.as8byte(), FOREIGN_TARGET_OVERSTORAGE, true);  // still try to resume at startup
             }
 #endif
             removeTransferFile(API_EOVERQUOTA, f, &committer);
@@ -535,7 +535,7 @@ void Transfer::failed(const Error& e, DBTableTransactionCommitter& committer, ds
 
             if (e == API_EBUSINESSPASTDUE && !alreadyDisabled)
             {
-                client->syncs.disableSyncs(BUSINESS_EXPIRED, true); // still try to resume on start
+                client->syncs.disableSyncs(BUSINESS_EXPIRED, false);
                 alreadyDisabled = true;
             }
 #endif
@@ -642,7 +642,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 syncxfer = true;
             }
 
-            if (!fixedfingerprint && (n = client->nodebyhandle((*it)->h))
+            if (!fixedfingerprint && (n = client->nodeByHandle((*it)->h))
                  && !(*(FileFingerprint*)this == *(FileFingerprint*)n))
             {
                 LOG_debug << "Wrong fingerprint already fixed";
@@ -712,7 +712,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 set<handle> nodes;
                 for (file_list::iterator it = files.begin(); it != files.end(); it++)
                 {
-                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h))
+                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodeByHandle((*it)->h))
                             && nodes.find(n->nodehandle) == nodes.end())
                     {
                         nodes.insert(n->nodehandle);
@@ -864,7 +864,7 @@ void Transfer::complete(DBTableTransactionCommitter& committer)
                 if (success)
                 {
                     // set missing node attributes
-                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodebyhandle((*it)->h)))
+                    if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodeByHandle((*it)->h)))
                     {
                         if (!client->gfxdisabled && client->gfx && client->gfx->isgfx(localname) &&
                             keys.find(n->nodekey()) == keys.end() &&    // this file hasn't been processed yet

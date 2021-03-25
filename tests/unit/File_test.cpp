@@ -66,7 +66,7 @@ TEST(File, serialize_unserialize)
     mega::File file;
     file.name = "foo";
     file.localname = ::mega::LocalPath::fromPath(file.name, fsaccess);
-    file.h = 42;
+    file.h.set6byte(42);
     file.hprivate = true;
     file.hforeign = true;
     file.syncxfer = true;
@@ -96,7 +96,7 @@ TEST(File, unserialize_32bit)
     mega::File file;
     file.name = "foo";
     file.localname = ::mega::LocalPath::fromPath(file.name, fsaccess);
-    file.h = 42;
+    file.h.set6byte(42);
     file.hprivate = true;
     file.hforeign = true;
     file.syncxfer = true;

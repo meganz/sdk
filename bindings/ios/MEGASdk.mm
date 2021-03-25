@@ -600,7 +600,7 @@ using namespace mega;
 }
 
 - (void)localLogoutWithDelegate:(id<MEGARequestDelegate>)delegate {
-    self.megaApi->localLogout([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    self.megaApi->localLogout([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
 }
 
 - (void)localLogout {
@@ -1055,6 +1055,14 @@ using namespace mega;
 
 - (void)setNodeFavourite:(MEGANode *)node favourite:(BOOL)favourite {
     self.megaApi->setNodeFavourite(node.getCPtr, favourite);
+}
+
+- (void)favouritesForParent:(nullable MEGANode *)node count:(NSInteger)count delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->getFavourites(node.getCPtr, (int)count, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)favouritesForParent:(nullable MEGANode *)node count:(NSInteger)count {
+    self.megaApi->getFavourites(node.getCPtr, (int)count);
 }
 
 - (void)setNodeCoordinates:(MEGANode *)node latitude:(NSNumber *)latitude longitude:(NSNumber *)longitude delegate:(id<MEGARequestDelegate>)delegate {
@@ -1589,6 +1597,10 @@ using namespace mega;
         [warningDateList addObject:warningDate];
     }
     return [warningDateList copy];
+}
+
+- (BOOL)setRLimitFileCount:(NSInteger)fileCount {
+    return self.megaApi->platformSetRLimitNumFile((int)fileCount);
 }
 
 #pragma mark - Transfer

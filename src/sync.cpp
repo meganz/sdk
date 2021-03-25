@@ -2182,19 +2182,22 @@ error UnifiedSync::startSync(MegaClient* client, const char* debris, LocalPath* 
     if (overStorage)
     {
         mConfig.mError = STORAGE_OVERQUOTA;
+        mConfig.mEnabled = false;
     }
     else if (businessExpired)
     {
         mConfig.mError = BUSINESS_EXPIRED;
+        mConfig.mEnabled = false;
     }
     else if (blocked)
     {
         mConfig.mError = ACCOUNT_BLOCKED;
+        mConfig.mEnabled = false;
     }
 
     if (mConfig.mError)
     {
-        // save configuration but avoid creating active sync, and set as temporary disabled:
+        // save configuration but avoid creating active sync:
         mClient.syncs.saveSyncConfig(mConfig);
         return API_EFAILED;
     }
@@ -2591,6 +2594,11 @@ unsigned Syncs::numRunningSyncs()
     return n;
 }
 
+unsigned Syncs::numSyncs()
+{
+    return mSyncVec.size();
+}
+
 Sync* Syncs::firstRunningSync()
 {
     for (auto& s : mSyncVec)
@@ -2681,6 +2689,41 @@ void Syncs::removeSelectedSyncs(std::function<bool(SyncConfig&, Sync*)> selector
             removeSyncByIndex(i);
         }
     }
+}
+
+void Syncs::purgeSyncs()
+{
+    if (mSyncVec.empty())
+    {
+        return;
+    }
+
+    // accumulate all changes for *!bn to update it in one shoot
+    set<string> backupIds;
+    for (auto &it : mSyncVec)
+    {
+        backupIds.insert(string(Base64Str<MegaClient::BACKUPHANDLE>(it->mConfig.getBackupId())));
+    }
+    attr_t attrType = ATTR_BACKUP_NAMES;
+    User *ownUser = mClient.finduser(mClient.me);
+    const std::string *oldValue = ownUser->getattr(attrType);
+    if (oldValue && ownUser->isattrvalid(attrType))
+    {
+        std::unique_ptr<TLVstore> tlv(TLVstore::containerToTLVrecords(oldValue, &mClient.key));
+        for (auto &backupId : backupIds) tlv->reset(backupId);
+
+        // serialize and encrypt the TLV container
+        std::unique_ptr<std::string> container(tlv->tlvRecordsToContainer(mClient.rng, &mClient.key));
+        mClient.putua(attrType, (byte *)container->data(), unsigned(container->size()));
+    }
+    else
+    {
+        assert(false);
+        LOG_err << "Backup names not available upon purge syncs";
+    }
+
+    // finally, remove all syncs as usual, unregistering (removeSyncByIndex())
+    removeSelectedSyncs([](SyncConfig&, Sync*) { return true; });
 }
 
 void Syncs::removeSyncByIndex(size_t index)
@@ -3063,7 +3106,7 @@ error JSONSyncConfigDB::write(JSONSyncConfigIOContext& ioContext)
 }
 
 error JSONSyncConfigDB::read(JSONSyncConfigIOContext& ioContext,
-                             const unsigned int slot)
+                             unsigned int slot)
 {
     // Try and read the database from the specified slot.
     string data;
@@ -3167,7 +3210,7 @@ JSONSyncConfigIOContext::~JSONSyncConfigIOContext()
 bool JSONSyncConfigIOContext::deserialize(const LocalPath& dbPath,
                                           JSONSyncConfigMap& configs,
                                           JSON& reader,
-                                          const unsigned int slot) const
+                                          unsigned int slot) const
 {
     auto path = dbFilePath(dbPath, slot).toPath(mFsAccess);
 
@@ -3334,7 +3377,7 @@ error JSONSyncConfigIOContext::getSlotsInOrder(const LocalPath& dbPath,
 
 error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
                                     string& data,
-                                    const unsigned int slot)
+                                    unsigned int slot)
 {
     // Generate path to the configuration file.
     LocalPath path = dbFilePath(dbPath, slot);
@@ -3385,7 +3428,7 @@ error JSONSyncConfigIOContext::read(const LocalPath& dbPath,
 }
 
 error JSONSyncConfigIOContext::remove(const LocalPath& dbPath,
-                                      const unsigned int slot)
+                                      unsigned int slot)
 {
     LocalPath path = dbFilePath(dbPath, slot);
 
@@ -3440,7 +3483,7 @@ void JSONSyncConfigIOContext::serialize(const JSONSyncConfigMap& configs,
 
 error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
                                      const string& data,
-                                     const unsigned int slot)
+                                     unsigned int slot)
 {
     LocalPath path = dbPath;
 
@@ -3508,7 +3551,7 @@ error JSONSyncConfigIOContext::write(const LocalPath& dbPath,
 }
 
 LocalPath JSONSyncConfigIOContext::dbFilePath(const LocalPath& dbPath,
-                                              const unsigned int slot) const
+                                              unsigned int slot) const
 {
     using std::to_string;
 
