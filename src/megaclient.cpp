@@ -11794,6 +11794,8 @@ void MegaClient::fetchnodes(bool nocache)
         auto fetchnodesTag = reqtag;
         getuserdata(0, [this, fetchnodesTag](string*, string*, string*, error e) {
 
+            restag = fetchnodesTag;
+
             // upon ug completion
             if (e != API_OK)
             {
@@ -11809,7 +11811,6 @@ void MegaClient::fetchnodes(bool nocache)
             fnstats.timeToCached = Waiter::ds - fnstats.startTime;
             fnstats.timeToResult = fnstats.timeToCached;
 
-            restag = fetchnodesTag;
             statecurrent = false;
 
             assert(sctable->inTransaction());
@@ -11885,6 +11886,7 @@ void MegaClient::fetchnodes(bool nocache)
                 if (e != API_OK)
                 {
                     LOG_err << "Pre-failing fetching nodes: unable not get user data";
+                    restag = fetchtag;
                     app->fetchnodes_result(API_EINTERNAL);
                     return;
                 }
