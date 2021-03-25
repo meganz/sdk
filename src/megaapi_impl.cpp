@@ -21728,8 +21728,8 @@ void MegaApiImpl::sendPendingRequests()
                 {
                     syncError = UNKNOWN_TEMPORARY_ERROR;
                 }
-                enabled = true; //we consider enabled when it is temporary disabled
             }
+
             SyncConfig syncConfig(LocalPath::fromPath(localPath, *client->fsaccess),
                                   name, request->getNodeHandle(), remotePath ? remotePath : "",
                                   static_cast<fsfp_t>(request->getNumber()),
