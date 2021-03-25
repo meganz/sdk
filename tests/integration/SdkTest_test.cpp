@@ -6505,7 +6505,7 @@ TEST_F(SdkTest, SyncOQTransitions)
         LOG_verbose << "SyncOQTransitions :  Check that Sync is disabled due to OQ.";
         ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Needed to ensure we know we are in OQ
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::STORAGE_OVERQUOTA);
-        ASSERT_TRUE(sync && sync->isEnabled() && !sync->isActive());   // for overquota, we don't disable (it will try to start again on app restart), but it's no longer active.
+        ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
         ASSERT_EQ(MegaSync::STORAGE_OVERQUOTA, sync->getError());
 
         LOG_verbose << "SyncOQTransitions :  Check that Sync could not be enabled while disabled due to OQ.";
@@ -6513,11 +6513,11 @@ TEST_F(SdkTest, SyncOQTransitions)
         ASSERT_EQ(MegaSync::STORAGE_OVERQUOTA, sync->getError());
     }
 
-    LOG_verbose << "SyncOQTransitions :  Free up space and check that Sync is active again.";
+    LOG_verbose << "SyncOQTransitions :  Free up space and check that Sync is not active again.";
     ASSERT_EQ(MegaError::API_OK, synchronousRemove(0, last1GBFileNode.get()));
     ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Needed to ensure we know we are not in OQ
-    sync = waitForSyncState(megaApi[0].get(), backupId, true, true, MegaSync::NO_SYNC_ERROR);
-    ASSERT_TRUE(sync && sync->isActive());
+    sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::NO_SYNC_ERROR);
+    ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
 
     LOG_verbose << "SyncOQTransitions :  Share big files folder with another account.";
 
@@ -6552,7 +6552,7 @@ TEST_F(SdkTest, SyncOQTransitions)
         ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
         ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Needed to ensure we know we are in OQ
         sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::STORAGE_OVERQUOTA);
-        ASSERT_TRUE(sync && sync->isEnabled());
+        ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
         ASSERT_EQ(MegaSync::STORAGE_OVERQUOTA, sync->getError());
     }
 
@@ -6565,8 +6565,8 @@ TEST_F(SdkTest, SyncOQTransitions)
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.c_str()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
     ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false)); // Needed to ensure we know we are no longer in OQ
-    sync = waitForSyncState(megaApi[0].get(), backupId, true, true, MegaSync::NO_SYNC_ERROR);
-    ASSERT_TRUE(sync && sync->isActive());
+    sync = waitForSyncState(megaApi[0].get(), backupId, false, false, MegaSync::STORAGE_OVERQUOTA);
+    ASSERT_TRUE(sync && !sync->isEnabled() && !sync->isActive());
 
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), basePath));
     ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), fillPath));
