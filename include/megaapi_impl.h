@@ -2261,6 +2261,7 @@ class MegaApiImpl : public MegaApp
 #endif
 
         bool platformSetRLimitNumFile(int newNumFileLimit) const;
+        int platformGetRLimitNumFile() const;
 
         void createFolder(const char* name, MegaNode *parent, MegaRequestListener *listener = NULL);
         bool createLocalFolder(const char *path);

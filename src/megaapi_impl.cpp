@@ -7765,6 +7765,24 @@ bool MegaApiImpl::platformSetRLimitNumFile(int newNumFileLimit) const
 #endif
 }
 
+int MegaApiImpl::platformGetRLimitNumFile() const
+{
+#ifndef WIN32
+    struct rlimit rl{0,0};
+    if (0 < getrlimit(RLIMIT_NOFILE, &rl))
+    {
+        auto e = errno;
+        LOG_err << "Error calling getrlimit: " << e;
+        return -1;
+    }
+
+    return int(rl.rlim_cur);
+#else
+    LOG_err << "Code for calling getrlimit is not available yet (or not relevant) on this platform";
+    return -1;
+#endif
+}
+
 void MegaApiImpl::inviteContact(const char *email, const char *message, int action, MegaHandle contactLink, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_INVITE_CONTACT, listener);
