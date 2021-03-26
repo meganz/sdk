@@ -8303,6 +8303,8 @@ bool CommandBackupPut::procresult(Result r)
         e = r.errorOrOK();
     }
 
+    assert(e != API_EARGS);  // if this happens, the API rejected the request because it wants more fields supplied
+
     if (mCompletion) mCompletion(e, backupId);
 
     client->app->backupput_result(e, backupId);
