@@ -1,4 +1,9 @@
-# rules for apps teams to approve MRs relative to bindings
+#all sdk_devs can approve MRs that change anything in the repo...
+
+* @SDK/sdk_devs
+
+
+# ... except MRs relative to bindings, which needs approval by the corresponding App's team
 
 /bindings/ios/ @mobile/iOS
 /bindings/java/ @mobile/Android
