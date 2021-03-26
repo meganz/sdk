@@ -15,6 +15,7 @@ bool gRunningInCI = false;
 bool gResumeSessions = false;
 bool gTestingInvalidArgs = false;
 bool gOutputToCout = false;
+int gFseventsFd = -1;
 std::string USER_AGENT = "Integration Tests with GoogleTest framework";
 
 std::ofstream gUnopenedOfstream;
@@ -148,6 +149,11 @@ int main (int argc, char *argv[])
         else if (std::string(*it) == "--RESUMESESSIONS")
         {
             gResumeSessions = true;
+            argc -= 1;
+        }
+        else if (std::string(*it).substr(0, 13) == "--FSEVENTSFD:")
+        {
+            gFseventsFd = std::stoi(std::string(*it).substr(13));
             argc -= 1;
         }
         else
