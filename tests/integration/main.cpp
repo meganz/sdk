@@ -136,7 +136,7 @@ int main (int argc, char *argv[])
             USER_AGENT = std::string(*it).substr(12);
             argc -= 1;
         }
-        else if (std::string(*it).substr(0, 12) == "--COUT")
+        else if (std::string(*it) == "--COUT")
         {
             gOutputToCout = true;
             argc -= 1;
