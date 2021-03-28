@@ -911,6 +911,12 @@ class MegaNode
          */
         virtual bool hasPreview();
 
+    
+    
+    virtual char* getBase64ThumbnailAttributeHandle();
+    virtual char* getBase64PreviewAttributeHandle();
+
+    
         /**
          * @brief Returns true if this is a public node
          *
@@ -8487,7 +8493,8 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void fastLogin(const char* session, MegaRequestListener *listener = NULL);
-
+        void fastLoginOffline(const char *session, MegaRequestListener *listener = NULL);
+    
         /**
          * @brief Close a MEGA session
          *
@@ -8731,6 +8738,7 @@ class MegaApi
          * @return Current session key
          */
         char *dumpSession();
+        char *dumpSession(bool forOffline);
 
         /**
          * @brief Returns the current sequence number
@@ -10712,7 +10720,8 @@ class MegaApi
          * @param fileattribute The result handle from a previous call to MegaApi::putThumbnail
          * @param listener MegaRequestListener to track this request
          */
-        void setThumbnailByHandle(MegaNode* node, MegaHandle fileattribute, MegaRequestListener *listener = NULL);
+    void setThumbnailByHandle(MegaNode* node, MegaHandle fileattribute, MegaRequestListener *listener = NULL);
+    void setThumbnailByHandle(MegaNode* node, MegaNode* fileattributeNode, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Set the preview of a MegaNode
@@ -10764,7 +10773,8 @@ class MegaApi
          * @param fileattribute The result handle from a previous call to MegaApi::putPreview
          * @param listener MegaRequestListener to track this request
          */
-        void setPreviewByHandle(MegaNode* node, MegaHandle fileattribute, MegaRequestListener *listener = NULL);
+    void setPreviewByHandle(MegaNode* node, MegaHandle fileattribute, MegaRequestListener *listener = NULL);
+    void setPreviewByHandle(MegaNode* node, MegaNode* fileattributeNode, MegaRequestListener *listener = NULL);
 
         /**
          * @brief Set/Remove the avatar of the MEGA account

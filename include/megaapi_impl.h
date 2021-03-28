@@ -38,12 +38,12 @@
 #include <pcre.h>
 #endif
 
-#ifdef HAVE_LIBUV
-#include "uv.h"
-#include "mega/mega_http_parser.h"
-#include "mega/mega_evt_tls.h"
-
-#endif
+//#ifdef HAVE_LIBUV
+//#include "uv.h"
+//#include "mega/mega_http_parser.h"
+//#include "mega/mega_evt_tls.h"
+//#endif
+#undef HAVE_LIBUV
 
 #ifndef _WIN32
 #include <curl/curl.h>
@@ -464,6 +464,9 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         int getChanges() override;
         bool hasThumbnail() override;
         bool hasPreview() override;
+    char* getBase64ThumbnailAttributeHandle() override;
+    char* getBase64PreviewAttributeHandle() override;
+
         bool isPublic() override;
         bool isExported() override;
         bool isExpired() override;
@@ -2193,12 +2196,14 @@ class MegaApiImpl : public MegaApp
         //API requests
         void login(const char* email, const char* password, MegaRequestListener *listener = NULL);
         char *dumpSession();
+        char *dumpSession(bool forOfflineResume);
         char *getSequenceNumber();
         char *getAccountAuth();
         void setAccountAuth(const char* auth);
 
         void fastLogin(const char* email, const char *stringHash, const char *base64pwkey, MegaRequestListener *listener = NULL);
         void fastLogin(const char* session, MegaRequestListener *listener = NULL);
+        void fastLogin(const char *session, bool offline, MegaRequestListener *listener);
         void killSession(MegaHandle sessionHandle, MegaRequestListener *listener = NULL);
         void getUserData(MegaRequestListener *listener = NULL);
         void getUserData(MegaUser *user, MegaRequestListener *listener = NULL);
@@ -2285,12 +2290,15 @@ class MegaApiImpl : public MegaApp
 		void cancelGetThumbnail(MegaNode* node, MegaRequestListener *listener = NULL);
         void setThumbnail(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void putThumbnail(MegaBackgroundMediaUpload* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
-        void setThumbnailByHandle(MegaNode* node, MegaHandle attributehandle, MegaRequestListener *listener = NULL);
+    void setThumbnailByHandle(MegaNode* node, MegaHandle attributehandle, MegaRequestListener *listener = NULL);
+    void setThumbnailByHandle(MegaNode* node, MegaNode* attributehandleNode, MegaRequestListener *listener = NULL);
         void getPreview(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
 		void cancelGetPreview(MegaNode* node, MegaRequestListener *listener = NULL);
         void setPreview(MegaNode* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void putPreview(MegaBackgroundMediaUpload* node, const char *srcFilePath, MegaRequestListener *listener = NULL);
         void setPreviewByHandle(MegaNode* node, MegaHandle attributehandle, MegaRequestListener *listener = NULL);
+    void setPreviewByHandle(MegaNode* node, MegaNode* attributehandleNode, MegaRequestListener *listener = NULL);
+
         void getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener = NULL);
         void setAvatar(const char *dstFilePath, MegaRequestListener *listener = NULL);
         void getUserAvatar(const char *email_or_handle, const char *dstFilePath, MegaRequestListener *listener = NULL);

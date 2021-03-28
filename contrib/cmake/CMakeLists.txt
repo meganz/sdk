@@ -1,3 +1,10 @@
+# commands for building for iOS:
+# mkdir build-cmake-iosArm64
+# cd build-cmake-iosArm64
+# /Applications/CMake.app/Contents/bin/cmake -GXcode -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES="arm64" -DCMAKE_Swift_COMPILER_TARGET=arm64-apple-ios7.0.0 -DCMAKE_OSX_SYSROOT=iphoneos -DVCPKG_TRIPLET=arm64-ios-mega -DMega3rdPartyDir=/Users/matt/repos/3rdParty_inplace -DUSE_THIRDPARTY_FROM_VCPKG=ON ..
+# /Applications/CMake.app/Contents/bin/cmake --build . --config Release
+
+
 # This file enables building with cmake
 #
 # use cases
@@ -117,7 +124,7 @@ endif()
 if(APPLE)
     set(CMAKE_CXX_STANDARD 11)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk" )
+#    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk" )
 endif()
 
 if ("${MEGA_PROJECT_NAME}" STREQUAL "")
@@ -338,15 +345,15 @@ function(ImportHeaderLibrary libName includeDir)
     set_property(TARGET ${libName} PROPERTY INTERFACE_INCLUDE_DIRECTORIES ${includeDir})
 endfunction(ImportHeaderLibrary)
 
-if(NOT NO_READLINE)
-    if (APPLE)
-        ImportStdVcpkgLibrary(readline _ _ libreadline libreadline)
-        ImportStdVcpkgLibrary(history _ _ libhistory libhistory)
-        set(readline_LIBRARIES readline history)
-    else()
-        set(readline_LIBRARIES readline)
-    endif()
-endif()
+#if(NOT NO_READLINE)
+#    if (APPLE AND NOT IOS)
+#        ImportStdVcpkgLibrary(readline _ _ libreadline libreadline)
+#        ImportStdVcpkgLibrary(history _ _ libhistory libhistory)
+#        set(readline_LIBRARIES readline history)
+#    else()
+#        set(readline_LIBRARIES readline)
+#    endif()
+#endif()
 
 if (USE_THIRDPARTY_FROM_VCPKG)
         IF(USE_CRYPTOPP)
@@ -419,7 +426,7 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             ImportStdVcpkgLibrary(freeimage_lcms2       lcmsd            lcms           liblcmsd            liblcms            )
             ImportStdVcpkgLibrary(freeimage_raw         rawd             raw            librawd             libraw             )
             ImportStdVcpkgLibrary(freeimage_tiff        tiffd            tiff           libtiffd            libtiff            )
-            ImportStdVcpkgLibrary(freeimage_tiffxx      tiffxxd          tiffxx         libtiffxxd          libtiffxx          )
+#            ImportStdVcpkgLibrary(freeimage_tiffxx      tiffxxd          tiffxx         libtiffxxd          libtiffxx          )
             ImportStdVcpkgLibrary(freeimage_webp        webpd            webp           libwebpd            libwebp            )
             ImportStdVcpkgLibrary(freeimage_webpdecoder webpdecoderd     webpdecoder    libwebpdecoderd     libwebpdecoder     )
             ImportStdVcpkgLibrary(freeimage_webpdemux   webpdemuxd       webpdemux      libwebpdemuxd       libwebpdemux       )
@@ -428,7 +435,8 @@ if (USE_THIRDPARTY_FROM_VCPKG)
             set (freeimage_deps freeimage_Iex  freeimage_IlmImf freeimage_IlmImfUtil
                 freeimage_IlmThread freeimage_jpeg freeimage_openjp2
                 freeimage_half freeimage_libpng freeimage_lcms2 freeimage_raw freeimage_tiff
-                freeimage_tiffxx freeimage_webp freeimage_webpdecoder freeimage_webpdemux freeimage_webpmux
+#                freeimage_tiffxx 
+freeimage_webp freeimage_webpdecoder freeimage_webpdemux freeimage_webpmux
                 freeimage_jpeg freeimage_Imath freeimage_lzma
                 freeimage_jasper freeimage_turbojpeg freeimage_jxrglue freeimage_jpegxr)  # order matters
 
@@ -796,107 +804,107 @@ endif ( CMAKE_COMPILER_IS_GNUCXX )
 endif (ENABLE_CODECOVERAGE )
 
 #test apps
-add_executable(test_unit
-    ${MegaDir}/tests/unit/AttrMap_test.cpp
-    ${MegaDir}/tests/unit/ChunkMacMap_test.cpp
-    ${MegaDir}/tests/unit/Commands_test.cpp
-    ${MegaDir}/tests/unit/constants.h
-    ${MegaDir}/tests/unit/Crypto_test.cpp
-    ${MegaDir}/tests/unit/DefaultedDbTable.h
-    ${MegaDir}/tests/unit/DefaultedDirAccess.h
-    ${MegaDir}/tests/unit/DefaultedFileAccess.h
-    ${MegaDir}/tests/unit/DefaultedFileSystemAccess.h
-    ${MegaDir}/tests/unit/FileFingerprint_test.cpp
-    ${MegaDir}/tests/unit/File_test.cpp
-    ${MegaDir}/tests/unit/FsNode.cpp
-    ${MegaDir}/tests/unit/FsNode.h
-    ${MegaDir}/tests/unit/Logging_test.cpp
-    ${MegaDir}/tests/unit/main.cpp
-    ${MegaDir}/tests/unit/MediaProperties_test.cpp
-    ${MegaDir}/tests/unit/MegaApi_test.cpp
-    ${MegaDir}/tests/unit/NotImplemented.h
-    ${MegaDir}/tests/unit/PayCrypter_test.cpp
-    ${MegaDir}/tests/unit/PendingContactRequest_test.cpp
-    ${MegaDir}/tests/unit/Serialization_test.cpp
-    ${MegaDir}/tests/unit/Share_test.cpp
-    ${MegaDir}/tests/unit/Sync_test.cpp
-    ${MegaDir}/tests/unit/TextChat_test.cpp
-    ${MegaDir}/tests/unit/Transfer_test.cpp
-    ${MegaDir}/tests/unit/User_test.cpp
-    ${MegaDir}/tests/unit/utils.cpp
-    ${MegaDir}/tests/unit/utils.h
-    ${MegaDir}/tests/unit/utils_test.cpp
-)
+#add_executable(test_unit
+#    ${MegaDir}/tests/unit/AttrMap_test.cpp
+#    ${MegaDir}/tests/unit/ChunkMacMap_test.cpp
+#    ${MegaDir}/tests/unit/Commands_test.cpp
+#    ${MegaDir}/tests/unit/constants.h
+#    ${MegaDir}/tests/unit/Crypto_test.cpp
+#    ${MegaDir}/tests/unit/DefaultedDbTable.h
+#    ${MegaDir}/tests/unit/DefaultedDirAccess.h
+#    ${MegaDir}/tests/unit/DefaultedFileAccess.h
+#    ${MegaDir}/tests/unit/DefaultedFileSystemAccess.h
+#    ${MegaDir}/tests/unit/FileFingerprint_test.cpp
+#    ${MegaDir}/tests/unit/File_test.cpp
+#    ${MegaDir}/tests/unit/FsNode.cpp
+#    ${MegaDir}/tests/unit/FsNode.h
+#    ${MegaDir}/tests/unit/Logging_test.cpp
+#    ${MegaDir}/tests/unit/main.cpp
+#    ${MegaDir}/tests/unit/MediaProperties_test.cpp
+#    ${MegaDir}/tests/unit/MegaApi_test.cpp
+#    ${MegaDir}/tests/unit/NotImplemented.h
+#    ${MegaDir}/tests/unit/PayCrypter_test.cpp
+#    ${MegaDir}/tests/unit/PendingContactRequest_test.cpp
+#    ${MegaDir}/tests/unit/Serialization_test.cpp
+#    ${MegaDir}/tests/unit/Share_test.cpp
+#    ${MegaDir}/tests/unit/Sync_test.cpp
+#    ${MegaDir}/tests/unit/TextChat_test.cpp
+#    ${MegaDir}/tests/unit/Transfer_test.cpp
+#    ${MegaDir}/tests/unit/User_test.cpp
+#    ${MegaDir}/tests/unit/utils.cpp
+#    ${MegaDir}/tests/unit/utils.h
+#    ${MegaDir}/tests/unit/utils_test.cpp
+#)
+#
+#add_executable(test_integration
+#    ${MegaDir}/tests/integration/main.cpp
+#    ${MegaDir}/tests/integration/SdkTest_test.cpp
+#    ${MegaDir}/tests/integration/Sync_test.cpp
+#)
+#
+#add_executable(tool_purge_account
+#    ${MegaDir}/tests/tool/purge_account.cpp
+#)
 
-add_executable(test_integration
-    ${MegaDir}/tests/integration/main.cpp
-    ${MegaDir}/tests/integration/SdkTest_test.cpp
-    ${MegaDir}/tests/integration/Sync_test.cpp
-)
+#target_compile_definitions(test_unit PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
+#target_compile_definitions(test_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
+#target_compile_definitions(tool_purge_account PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
+#target_link_libraries(test_unit gmock gtest Mega )
+#target_link_libraries(test_integration gmock gtest Mega )
+#if(APPLE)
+#    target_link_libraries(test_integration "-framework Security" )
+#endif()
+#target_link_libraries(tool_purge_account gmock gtest Mega )
 
-add_executable(tool_purge_account
-    ${MegaDir}/tests/tool/purge_account.cpp
-)
-
-target_compile_definitions(test_unit PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
-target_compile_definitions(test_integration PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
-target_compile_definitions(tool_purge_account PRIVATE _SILENCE_TR1_NAMESPACE_DEPRECATION_WARNING)
-target_link_libraries(test_unit gmock gtest Mega )
-target_link_libraries(test_integration gmock gtest Mega )
-if(APPLE)
-    target_link_libraries(test_integration "-framework Security" )
-endif()
-target_link_libraries(tool_purge_account gmock gtest Mega )
-
-if (USE_ASIO)
-    if (USE_THIRDPARTY_FROM_VCPKG)
-        if (EXISTS "${vcpkg_dir}/include/asio.hpp")
-            set(HAVE_ASIO 1 CACHE STRING "" FORCE)
-        else()
-            set(HAVE_ASIO 0 CACHE STRING "" FORCE)
-        endif()
-    endif()
-endif()
-
-if (HAVE_ASIO)
-    add_executable(tool_tcprelay "${MegaDir}/tests/tool/tcprelay/main.cpp" "${MegaDir}/tests/tool/tcprelay/tcprelay.cpp")
-    set_property(
-        TARGET tool_tcprelay
-        PROPERTY EXCLUDE_FROM_ALL 1
-    )
-    target_include_directories(tool_tcprelay PUBLIC "${vcpkg_dir}/installed/include")
-    target_compile_definitions(tool_tcprelay PUBLIC -DASIO_STANDALONE)
-    target_link_libraries(tool_tcprelay Mega)
-    target_compile_features(tool_tcprelay PUBLIC cxx_std_14)
-
-    if (WIN32)
-        target_compile_definitions(tool_tcprelay PUBLIC -D_WIN32_WINNT=0x601)
-        target_link_libraries(tool_tcprelay Ws2_32.lib)
-    endif()
-
-    if (NOT NO_READLINE)
-        target_link_libraries(tool_tcprelay ${readline_LIBRARIES})
-    endif()
-endif()
+#if (USE_ASIO)
+#    if (USE_THIRDPARTY_FROM_VCPKG)
+#        if (EXISTS "${vcpkg_dir}/include/asio.hpp")
+#            set(HAVE_ASIO 1 CACHE STRING "" FORCE)
+#        else()
+#            set(HAVE_ASIO 0 CACHE STRING "" FORCE)
+#        endif()
+#    endif()
+#endif()
+#
+#if (HAVE_ASIO)
+#    add_executable(tool_tcprelay "${MegaDir}/tests/tool/tcprelay/main.cpp" "${MegaDir}/tests/tool/tcprelay/tcprelay.cpp")
+#    set_property(
+#        TARGET tool_tcprelay
+#        PROPERTY EXCLUDE_FROM_ALL 1
+#    )
+#    target_include_directories(tool_tcprelay PUBLIC "${vcpkg_dir}/installed/include")
+#    target_compile_definitions(tool_tcprelay PUBLIC -DASIO_STANDALONE)
+#    target_link_libraries(tool_tcprelay Mega)
+#    target_compile_features(tool_tcprelay PUBLIC cxx_std_14)
+#
+#    if (WIN32)
+#        target_compile_definitions(tool_tcprelay PUBLIC -D_WIN32_WINNT=0x601)
+#        target_link_libraries(tool_tcprelay Ws2_32.lib)
+#    endif()
+#
+#    if (NOT NO_READLINE)
+#        target_link_libraries(tool_tcprelay ${readline_LIBRARIES})
+#    endif()
+#endif()
 
 #test apps need this file or tests fail
 configure_file("${MegaDir}/logo.png" logo.png COPYONLY)
 
 # actual apps
 
-add_executable(megacli ${MegaDir}/examples/megacli.cpp)
-target_link_libraries(megacli Mega )
-if (NOT NO_READLINE)
-    target_link_libraries(megacli ${readline_LIBRARIES})
-endif (NOT NO_READLINE)
+#add_executable(megacli ${MegaDir}/examples/megacli.cpp)
+#target_link_libraries(megacli Mega )
+#if (NOT NO_READLINE)
+#    target_link_libraries(megacli ${readline_LIBRARIES})
+#endif (NOT NO_READLINE)
 
-add_executable(megasimplesync ${MegaDir}/examples/megasimplesync.cpp)
-target_link_libraries(megasimplesync Mega )
+#add_executable(megasimplesync ${MegaDir}/examples/megasimplesync.cpp)
+#target_link_libraries(megasimplesync Mega )
 
-if(WIN32)
-add_executable(testmega "${MegaDir}/examples/win32/testmega/main.cpp")
-target_link_libraries(testmega Mega )
-endif(WIN32)
+#if(WIN32)
+#add_executable(testmega "${MegaDir}/examples/win32/testmega/main.cpp")
+#target_link_libraries(testmega Mega )
+#endif(WIN32)
 
 #enable_testing()
 #add_test(NAME SdkTestStreaming COMMAND test_sdk "--gtest_filter=\"*Streaming*\"")

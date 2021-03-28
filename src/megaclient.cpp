@@ -1059,6 +1059,7 @@ vector<Node*> MegaClient::childnodesbyname(Node* p, const char* name, bool skipf
 
 void MegaClient::init()
 {
+    offlineMode = false;
     warned = false;
     csretrying = false;
     chunkfailed = false;
@@ -1335,6 +1336,18 @@ void MegaClient::exec()
     CodeCounter::ScopeTimer ccst(performanceStats.execFunction);
 
     WAIT_CLASS::bumpds();
+    
+    if (offlineMode)
+    {
+        while (reqs.cmdspending())
+        {
+            string dummyStr;
+            bool dummyBool, db2;
+            reqs.serverrequest(&dummyStr, dummyBool, db2);
+            reqs.servererror(std::to_string(API_EARGS), this);
+        }
+        return;
+    }
 
     if (overquotauntil && overquotauntil < Waiter::ds)
     {
@@ -5031,11 +5044,10 @@ void MegaClient::finalizesc(bool complete)
     }
 }
 
-// queue node file attribute for retrieval or cancel retrieval
-error MegaClient::getfa(handle h, string *fileattrstring, const string &nodekey, fatype t, int cancel)
+
+error MegaClient::getfaHandle(handle& fah, int& c, string *fileattrstring, fatype t)
 {
     // locate this file attribute type in the nodes's attribute string
-    handle fah;
     int p, pp;
 
     // find position of file attribute or 0 if not present
@@ -5060,8 +5072,20 @@ error MegaClient::getfa(handle h, string *fileattrstring, const string &nodekey,
     {
         return API_ENOENT;
     }
+    
+    c = atoi(fileattrstring->c_str() + pp);
+    return API_OK;
+}
 
-    int c = atoi(fileattrstring->c_str() + pp);
+// queue node file attribute for retrieval or cancel retrieval
+error MegaClient::getfa(handle h, string *fileattrstring, const string &nodekey, fatype t, int cancel)
+{
+    handle fah;
+    int c;
+    if (error e = getfaHandle(fah, c, fileattrstring, t))
+    {
+        return e;
+    }
 
     if (cancel)
     {
@@ -8976,7 +9000,7 @@ void MegaClient::getpubkey(const char *user)
 }
 
 // resume session - load state from local cache, if available
-void MegaClient::login(string session)
+void MegaClient::login(string session, const std::array<byte, SymmCipher::KEYLENGTH>* saved_sek, handle* saved_me)
 {
     int sessionversion = 0;
     if (session.size() == sizeof key.key + SIDLEN + 1)
@@ -9000,12 +9024,29 @@ void MegaClient::login(string session)
 
         checkForResumeableSCDatabase();
 
-        byte sek[SymmCipher::KEYLENGTH];
-        rng.genblock(sek, sizeof sek);
+        if (!saved_sek)
+        {
+            byte sek[SymmCipher::KEYLENGTH];
+            rng.genblock(sek, sizeof sek);
 
-        reqs.add(new CommandLogin(this, NULL, NULL, 0, sek, sessionversion));
-        getuserdata(reqtag);
-        fetchtimezone();
+            reqs.add(new CommandLogin(this, NULL, NULL, 0, sek, sessionversion));
+            getuserdata(reqtag);
+            fetchtimezone();
+        }
+        else
+        {
+            // resume session offline
+            me = *saved_me;
+            std::array<byte, SymmCipher::KEYLENGTH> k;
+            memcpy(k.data(), session.data(), sizeof(k));
+            key.setkey(&(*saved_sek)[0]);
+            key.ecb_decrypt(k.data());
+            key.setkey(&k[0]);
+            sessionkey.assign(session.data(), SymmCipher::KEYLENGTH);
+            offlineMode = true;
+            restag = reqtag;
+            app->login_result(API_OK);
+        }
     }
     else if (!session.empty() && session[0] == 2)
     {
@@ -11773,10 +11814,11 @@ void MegaClient::fetchnodes(bool nocache)
     openStatusTable();
 
     // only initial load from local cache
-    if ((loggedin() == FULLACCOUNT || loggedIntoFolder() ) &&
-            !nodes.size() && !ISUNDEF(cachedscsn) &&
-            sctable && fetchsc(sctable) &&
-            statusTable && fetchStatusTable(statusTable.get()))
+    if ((offlineMode || (
+            (loggedin() == FULLACCOUNT || loggedIntoFolder() ) &&
+            !nodes.size() && !ISUNDEF(cachedscsn))) &&
+        sctable && fetchsc(sctable) &&
+        statusTable && fetchStatusTable(statusTable.get()))
     {
         WAIT_CLASS::bumpds();
         fnstats.mode = FetchNodesStats::MODE_DB;
@@ -11819,6 +11861,11 @@ void MegaClient::fetchnodes(bool nocache)
 
         WAIT_CLASS::bumpds();
         fnstats.timeToSyncsResumed = Waiter::ds - fnstats.startTime;
+    }
+    else if (offlineMode)
+    {
+        restag = reqtag;
+        app->fetchnodes_result(API_EREAD);
     }
     else if (!fetchingnodes)
     {

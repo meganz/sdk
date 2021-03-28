@@ -543,6 +543,17 @@ using namespace mega;
     return ret;
 }
 
+- (NSString *)dumpSession:(BOOL)offline {
+    const char *val = self.megaApi->dumpSession(offline);
+
+    if (!val) return nil;
+    
+    NSString *ret = [[NSString alloc] initWithUTF8String:val];
+    
+    delete [] val;
+    return ret;
+}
+
 - (NSString *)sequenceNumber {
     const char *val = self.megaApi->getSequenceNumber();
     if (!val) return nil;
@@ -567,6 +578,14 @@ using namespace mega;
 
 - (void)fastLoginWithSession:(NSString *)session delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->fastLogin((session != nil) ? [session UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)fastLoginWithSessionOffline:(NSString *)session delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->fastLoginOffline((session != nil) ? [session UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)loginToFolderLinkAuthed:(NSString *)folderLink folderAuth:(NSString *)folderAuth delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->loginToFolder((folderLink != nil) ? [folderLink UTF8String] : NULL, (folderAuth != nil) ? [folderAuth UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)loginToFolderLink:(NSString *)folderLink delegate:(id<MEGARequestDelegate>)delegate {
@@ -1073,6 +1092,12 @@ using namespace mega;
     self.megaApi->exportNode((node != nil) ? [node getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
+- (void)exportNodeWritable:(MEGANode *)node writable:(BOOL)writable delegate:(id<MEGARequestDelegate>)delegate {
+    MegaNode* n = (node != nil) ? [node getCPtr] : NULL;
+    bool w = writable;
+    self.megaApi->exportNode(n, w, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
 - (void)exportNode:(MEGANode *)node {
     self.megaApi->exportNode((node != nil) ? [node getCPtr] : NULL);
 }
@@ -1137,6 +1162,14 @@ using namespace mega;
 
 - (void)setPreviewNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setPreview((node != nil) ? [node getCPtr] : NULL, (sourceFilePath != nil) ? [sourceFilePath UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setPreviewByHandle:(MEGANode *)node sourceNode:(MEGANode *)sourceNode delegate:(id<MEGARequestDelegate>)delegate  {
+    self.megaApi->setPreviewByHandle((node != nil) ? [node getCPtr] : NULL, (sourceNode != nil) ? [sourceNode getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setThumbnailByHandle:(MEGANode *)node sourceNode:(MEGANode *)sourceNode delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setThumbnailByHandle((node != nil) ? [node getCPtr] : NULL, (sourceNode != nil) ? [sourceNode getCPtr] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)setPreviewNode:(MEGANode *)node sourceFilePath:(NSString *)sourceFilePath {
@@ -1237,6 +1270,10 @@ using namespace mega;
 
 - (void)setUserAttributeType:(MEGAUserAttribute)type value:(NSString *)value delegate:(id<MEGARequestDelegate>)delegate {
     self.megaApi->setUserAttribute((int)type, (value != nil) ? [value UTF8String] : NULL, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+}
+
+- (void)setCustomNodeAttribute:(MEGANode *)node name:(NSString *)attrName value:(NSString *)attrValue delegate:(id<MEGARequestDelegate>)delegate {
+    self.megaApi->setCustomNodeAttribute([node getCPtr], [attrName UTF8String], [attrValue UTF8String], [self createDelegateMEGARequestListener:delegate singleListener:YES]);
 }
 
 - (void)getUserAliasWithHandle:(uint64_t)handle delegate:(id<MEGARequestDelegate>)delegate {
@@ -2335,7 +2372,7 @@ using namespace mega;
     return self.megaApi->createAvatar([imagePath UTF8String], [destinationPath UTF8String]);
 }
 
-#ifdef HAVE_LIBUV
+#if 0 //def HAVE_LIBUV
 
 #pragma mark - HTTP Proxy Server
 

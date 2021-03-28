@@ -284,6 +284,8 @@ public:
     textchat_map chats;
 #endif
 
+    bool offlineMode = false;
+
     // process API requests and HTTP I/O
     void exec();
 
@@ -336,7 +338,7 @@ public:
     void fastlogin(const char*, const byte*, uint64_t);
 
     // session login: binary session, bytecount
-    void login(string session);
+    void login(string session, const std::array<byte, SymmCipher::KEYLENGTH>* saved_sek = nullptr, handle* saved_me = nullptr);
 
     // check password
     error validatepwd(const byte *);
@@ -544,6 +546,7 @@ public:
 
     // queue file attribute retrieval
     error getfa(handle h, string *fileattrstring, const string &nodekey, fatype, int = 0);
+    static error getfaHandle(handle& fah, int& c, string *fileattrstring, fatype);
 
     // notify delayed upload completion subsystem about new file attribute
     void checkfacompletion(handle, Transfer* = NULL);

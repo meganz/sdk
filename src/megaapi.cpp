@@ -562,6 +562,17 @@ bool MegaNode::hasPreview()
     return false;
 }
 
+char* MegaNode::getBase64ThumbnailAttributeHandle()
+{
+    return NULL;
+}
+
+char* MegaNode::getBase64PreviewAttributeHandle()
+{
+    return NULL;
+}
+
+
 bool MegaNode::isPublic()
 {
     return false;
@@ -2109,6 +2120,11 @@ void MegaApi::fastLogin(const char *session, MegaRequestListener *listener)
     pImpl->fastLogin(session, listener);
 }
 
+void MegaApi::fastLoginOffline(const char *session, MegaRequestListener *listener)
+{
+    pImpl->fastLogin(session, true, listener);
+}
+
 void MegaApi::killSession(MegaHandle sessionHandle, MegaRequestListener *listener)
 {
     pImpl->killSession(sessionHandle, listener);
@@ -2167,6 +2183,11 @@ void MegaApi::login(const char *login, const char *password, MegaRequestListener
 char *MegaApi::dumpSession()
 {
     return pImpl->dumpSession();
+}
+
+char *MegaApi::dumpSession(bool forOffline)
+{
+    return pImpl->dumpSession(forOffline);
 }
 
 char *MegaApi::getSequenceNumber()
@@ -2428,6 +2449,10 @@ void MegaApi::setThumbnailByHandle(MegaNode* node, MegaHandle fileattribute, Meg
 {
     pImpl->setThumbnailByHandle(node, fileattribute, listener);
 }
+void MegaApi::setThumbnailByHandle(MegaNode* node, MegaNode* fileattributeNode, MegaRequestListener *listener)
+{
+    pImpl->setThumbnailByHandle(node, fileattributeNode, listener);
+}
 
 void MegaApi::getPreview(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener)
 {
@@ -2452,6 +2477,10 @@ void MegaApi::putPreview(MegaBackgroundMediaUpload* bu, const char *srcFilePath,
 void MegaApi::setPreviewByHandle(MegaNode* node, MegaHandle fileattribute, MegaRequestListener *listener)
 {
     pImpl->setPreviewByHandle(node, fileattribute, listener);
+}
+void MegaApi::setPreviewByHandle(MegaNode* node, MegaNode* fileattributeNode, MegaRequestListener *listener)
+{
+    pImpl->setPreviewByHandle(node, fileattributeNode, listener);
 }
 
 void MegaApi::getUserAvatar(MegaUser* user, const char *dstFilePath, MegaRequestListener *listener)

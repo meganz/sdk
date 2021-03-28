@@ -414,6 +414,11 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
  */
 - (BOOL)hasPreview;
 
+
+@property (readonly, nonatomic) NSString *thumbnailAttributeHandle;
+@property (readonly, nonatomic) NSString *previewAttributeHandle;
+
+
 /**
  * @brief Returns YES if this is a public node
  *
@@ -486,5 +491,11 @@ typedef NS_ENUM(NSUInteger, MEGANodeChangeType) {
 - (BOOL)isTakenDown;
 
 + (NSString *)stringForNodeLabel:(MEGANodeLabel)nodeLabel;
+
+@property (readonly, nonatomic) NSString *customTitle;
+@property (readonly, nonatomic) NSString *customArtist;
+@property (readonly, nonatomic) NSString *customBPM;
+@property (readonly, nonatomic) NSString *customNotes;
+
 
 @end
