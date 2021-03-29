@@ -2611,7 +2611,8 @@ int CurlHttpIO::socket_callback(CURL *, curl_socket_t s, int what, void *userp, 
         }
         else
         {
-            LOG_debug << "Setting curl socket " << s << " to " << what;
+            // Networking seems to be fine after performance improvments, no need for this logging anymore - but keep it in comments for a while to inform people debugging older logs
+            //LOG_debug << "Setting curl socket " << s << " to " << what;
         }
 
         auto& info = it->second;
@@ -2676,7 +2677,7 @@ int CurlHttpIO::upload_socket_callback(CURL *e, curl_socket_t s, int what, void 
 int CurlHttpIO::timer_callback(CURLM *, long timeout_ms, void *userp, direction_t d)
 {
     CurlHttpIO *httpio = (CurlHttpIO *)userp;
-    auto oldValue = httpio->curltimeoutreset[d];
+    //auto oldValue = httpio->curltimeoutreset[d];
     if (timeout_ms < 0)
     {
         httpio->curltimeoutreset[d] = -1;
@@ -2692,10 +2693,11 @@ int CurlHttpIO::timer_callback(CURLM *, long timeout_ms, void *userp, direction_
         httpio->curltimeoutreset[d] = Waiter::ds + timeoutds;
     }
 
-    if (oldValue != httpio->curltimeoutreset[d])
-    {
-        LOG_debug << "Set cURL timeout[" << d << "] to " << httpio->curltimeoutreset[d] << " from " << timeout_ms << "(ms) at ds: " << Waiter::ds;
-    }
+    // Networking seems to be fine after performance improvments, no need for this logging anymore - but keep it in comments for a while to inform people debugging older logs
+    //if (oldValue != httpio->curltimeoutreset[d])
+    //{
+    //    LOG_debug << "Set cURL timeout[" << d << "] to " << httpio->curltimeoutreset[d] << " from " << timeout_ms << "(ms) at ds: " << Waiter::ds;
+    //}
     return 0;
 }
 
