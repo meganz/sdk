@@ -1357,25 +1357,10 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
 {
     CurlHttpIO* httpio = httpctx->httpio;
     HttpReq* req = httpctx->req;
-    int len = httpctx->len;
+    auto len = httpctx->len;
     const char* data = httpctx->data;
 
-    if (SimpleLogger::logCurrentLevel >= logDebug)
-    {
-        string safeurl = req->posturl;
-        size_t sid = safeurl.find("sid=");
-        if (sid != string::npos)
-        {
-            sid += 4;
-            size_t end = safeurl.find("&", sid);
-            if (end == string::npos)
-            {
-                end = safeurl.size();
-            }
-            memset((char *)safeurl.data() + sid, 'X', end - sid);
-        }
-        LOG_debug << httpctx->req->logname << "POST target URL: " << safeurl;
-    }
+    LOG_debug << httpctx->req->logname << "POST target URL: " << getSafeUrl(req->posturl);
 
     if (req->binary)
     {

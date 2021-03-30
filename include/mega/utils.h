@@ -846,6 +846,9 @@ inline int hexval(const int c)
 
 bool islchex(const int c);
 
+// gets a safe url by replacing private parts to be used in logs
+std::string getSafeUrl(const std::string &posturl);
+
 } // namespace
 
 #endif
