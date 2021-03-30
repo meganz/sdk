@@ -4369,7 +4369,7 @@ TEST(Sync, DoesntUploadFilesWithClashingNames)
     model.findnode("root")->addkid(model.makeModelSubfolder("d0"));
     model.findnode("root")->addkid(model.makeModelSubfile("f0", "f%30"));
 
-    ASSERT_TRUE(cu.confirmModel_mainthread(model.findnode("root"), backupId2));
+    ASSERT_TRUE(cu.confirmModel_mainthread(model.findnode("root"), backupId2, true));
 }
 
 TEST(Sync, DISABLED_RemotesWithControlCharactersSynchronizeCorrectly)

@@ -1409,7 +1409,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         httpctx->posturl.replace(httpctx->posturl.find(httpctx->hostname), httpctx->hostname.size(), httpctx->hostip);
         httpctx->headers = curl_slist_append(httpctx->headers, httpctx->hostheader.c_str());
     }
-    
+
 #ifndef TARGET_OS_IPHONE
     else
     {
@@ -1605,7 +1605,7 @@ void CurlHttpIO::request_proxy_ip()
     httpctx->httpio = this;
     httpctx->hostname = proxyhost;
     httpctx->ares_pending = 1;
-    
+
 
 #if TARGET_OS_IPHONE
     send_request(httpctx);
@@ -2192,7 +2192,7 @@ bool CurlHttpIO::multidoio(CURLM *curlmhandle)
 
                     if (req->binary)
                     {
-                        LOG_debug << "[received " << (req->buf ? req->bufpos : (int)req->in.size()) << " bytes of raw data]";
+                        LOG_debug << req->logname << "[received " << (req->buf ? req->bufpos : (int)req->in.size()) << " bytes of raw data]";
                     }
                     else
                     {
@@ -2638,7 +2638,7 @@ int CurlHttpIO::sockopt_callback(void *clientp, curl_socket_t, curlsocktype)
     {
         httpio->dnscache[httpctx->hostname].mNeedsResolvingAgain = false;
         httpctx->ares_pending = 1;
-        
+
 
 #if TARGET_OS_IPHONE
         send_request(httpctx);
