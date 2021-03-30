@@ -5279,7 +5279,7 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         app->notify_storage(ststatus);
         if (status == STORAGE_RED || status == STORAGE_PAYWALL) //transitioning to OQ
         {
-            syncs.disableSyncs(STORAGE_OVERQUOTA, true);
+            syncs.disableSyncs(STORAGE_OVERQUOTA, false);
         }
 #endif
 
@@ -5294,9 +5294,6 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         case STORAGE_PAYWALL:
         case STORAGE_RED:
             // Transition from OQ.
-#ifdef ENABLE_SYNC
-            syncs.enableResumeableSyncs();
-#endif // ENABLE_SYNC
             abortbackoff(true);
         default:
             break;
@@ -7099,11 +7096,7 @@ void MegaClient::setBusinessStatus(BizStatus newBizStatus)
 #ifdef ENABLE_SYNC
         if (mBizStatus == BIZ_STATUS_EXPIRED) //transitioning to expired
         {
-            syncs.disableSyncs(BUSINESS_EXPIRED, true);  // do try to resume again on start
-        }
-        if (prevBizStatus == BIZ_STATUS_EXPIRED) //taransitioning to not expired
-        {
-            syncs.enableResumeableSyncs(); //BUSINESS_EXPIRED
+            syncs.disableSyncs(BUSINESS_EXPIRED, false);
         }
 #endif
     }
@@ -8205,8 +8198,10 @@ int MegaClient::readnodes(JSON* j, int notify, putsource_t source, vector<NewNod
                 {
                     if (p)
                     {
-                        n->setparent(p);
-                        n->changed.parent = true;
+                        if (n->setparent(p))
+                        {
+                            n->changed.parent = true;
+                        }
                     }
                     else
                     {
@@ -11428,9 +11423,6 @@ void MegaClient::unblock()
 {
     LOG_verbose << "Unblocking MegaClient";
     setBlocked(false);
-#ifdef ENABLE_SYNC
-    syncs.enableResumeableSyncs();
-#endif
 }
 
 error MegaClient::changepw(const char* password, const char *pin)

@@ -126,7 +126,7 @@ int PosixWaiter::wait()
     }
 
 #ifdef USE_POLL
-    dstime us = 1000000 / 10 * maxds;
+    dstime ms = 1000 / 10 * maxds;
 
     auto total = rfds.size() +  wfds.size() +  efds.size();
     struct pollfd fds[total];
@@ -153,7 +153,7 @@ int PosixWaiter::wait()
         polli++;
     }
 
-    numfd = poll(fds, total,  us);
+    numfd = poll(fds, total,  ms);
 #else
     numfd = select(maxfd + 1, &rfds, &wfds, &efds, maxds + 1 ? &tv : NULL);
 #endif

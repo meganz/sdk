@@ -135,7 +135,7 @@ bool Command::checkError(Error& errorDetails, JSON& json)
 #ifdef ENABLE_SYNC
     if (errorDetected && errorDetails == API_EBUSINESSPASTDUE)
     {
-        client->syncs.disableSyncs(BUSINESS_EXPIRED, true);  // keep enabled for auto-resume
+        client->syncs.disableSyncs(BUSINESS_EXPIRED, false);
     }
 #endif
     return errorDetected;

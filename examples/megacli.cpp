@@ -455,18 +455,20 @@ void DemoApp::syncupdate_active(handle backupId, bool active)
     cout << "Sync is now active: " << active << endl;
 }
 
-void DemoApp::sync_auto_resume_result(const UnifiedSync& s, bool attempted)
+void DemoApp::sync_auto_resume_result(const UnifiedSync& s, bool attempted, bool hadAnError)
 {
     handle backupId = s.mConfig.getBackupId();
     if (attempted)
     {
         cout << "Sync - autoresumed " << toHandle(backupId) << " " << s.mConfig.getLocalPath().toPath(*client->fsaccess)  << " enabled: "
-             << s.mConfig.getEnabled()  << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
+             << s.mConfig.getEnabled()  << " syncError: " << s.mConfig.getError()
+             << " hadAnErrorBefore: " << hadAnError << " Running: " << !!s.mSync << endl;
     }
     else
     {
         cout << "Sync - autoloaded " << toHandle(backupId) << " " << s.mConfig.getLocalPath().toPath(*client->fsaccess) << " enabled: "
-            << s.mConfig.getEnabled() << " syncError: " << s.mConfig.getError() << " Running: " << !!s.mSync << endl;
+            << s.mConfig.getEnabled() << " syncError: " << s.mConfig.getError()
+            << " hadAnErrorBefore: " << hadAnError << " Running: " << !!s.mSync << endl;
     }
 }
 
